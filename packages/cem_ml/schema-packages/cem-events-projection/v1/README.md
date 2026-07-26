@@ -140,54 +140,74 @@ then renders the `<pre>` spans through headless Chromium into
 Source snapshots are used only where the current CLI cannot yet render
 the package formatter/colorizer path for that content identity.
 
-### basic-events
+<details>
+<summary>basic-events</summary>
 
-- Source: [`examples/basic-events.cem-bin`](examples/basic-events.cem-bin)
+- Source: [`examples/basic-events.cem-bin`](./examples/basic-events.cem-bin)
 - Content type: `application/vnd.cem.events+cem-bin`
 - Schema: `https://cem.dev/ns/projection/events/1`
 - Expected result: `pass`
 - Preview renderer: `source snapshot HTML + html2svg`
 - Preview HTML: `dist/cem_ml/schema-packages/cem-events-projection/v1/examples/basic-events.cem-bin.html`
+
+</details>
+
 ![Preview of CEM Events Projection Schema Package basic-events example](examples/previews/basic-events.cem-bin.svg)
 
-### basic-events-json
+<details>
+<summary>basic-events-json</summary>
 
-- Source: [`examples/basic-events.events.json`](examples/basic-events.events.json)
+- Source: [`examples/basic-events.events.json`](./examples/basic-events.events.json)
 - Content type: `application/vnd.cem.events+json`
 - Schema: `https://cem.dev/ns/projection/events/1`
 - Expected result: `pass`
 - Preview renderer: `source snapshot HTML + html2svg`
 - Preview HTML: `dist/cem_ml/schema-packages/cem-events-projection/v1/examples/basic-events.events.json.html`
+
+</details>
+
 ![Preview of CEM Events Projection Schema Package basic-events-json example](examples/previews/basic-events.events.json.svg)
 
-### nested-events-json
+<details>
+<summary>nested-events-json</summary>
 
-- Source: [`examples/nested-events.events.json`](examples/nested-events.events.json)
+- Source: [`examples/nested-events.events.json`](./examples/nested-events.events.json)
 - Content type: `application/vnd.cem.events+json`
 - Schema: `https://cem.dev/ns/projection/events/1`
 - Expected result: `pass`
 - Preview renderer: `source snapshot HTML + html2svg`
 - Preview HTML: `dist/cem_ml/schema-packages/cem-events-projection/v1/examples/nested-events.events.json.html`
+
+</details>
+
 ![Preview of CEM Events Projection Schema Package nested-events-json example](examples/previews/nested-events.events.json.svg)
 
-### invalid-kind-json
+<details>
+<summary>invalid-kind-json</summary>
 
-- Source: [`examples/invalid-kind.events.json`](examples/invalid-kind.events.json)
+- Source: [`examples/invalid-kind.events.json`](./examples/invalid-kind.events.json)
 - Content type: `application/vnd.cem.events+json`
 - Schema: `https://cem.dev/ns/projection/events/1`
 - Expected result: `fail`
 - Expected diagnostics: `cem.projection.events.json_shape`
 - Preview renderer: `source snapshot HTML + html2svg`
 - Preview HTML: `dist/cem_ml/schema-packages/cem-events-projection/v1/examples/invalid-kind.events.json.html`
+
+</details>
+
 ![Preview of CEM Events Projection Schema Package invalid-kind-json example](examples/previews/invalid-kind.events.json.svg)
 
-### invalid-binary
+<details>
+<summary>invalid-binary</summary>
 
-- Source: [`examples/invalid-binary.cem-bin`](examples/invalid-binary.cem-bin)
+- Source: [`examples/invalid-binary.cem-bin`](./examples/invalid-binary.cem-bin)
 - Content type: `application/vnd.cem.events+cem-bin`
 - Schema: `https://cem.dev/ns/projection/events/1`
 - Expected result: `fail`
 - Expected diagnostics: `cem.projection.events.binary_magic`
 - Preview renderer: `source snapshot HTML + html2svg`
 - Preview HTML: `dist/cem_ml/schema-packages/cem-events-projection/v1/examples/invalid-binary.cem-bin.html`
+
+</details>
+
 ![Preview of CEM Events Projection Schema Package invalid-binary example](examples/previews/invalid-binary.cem-bin.svg)

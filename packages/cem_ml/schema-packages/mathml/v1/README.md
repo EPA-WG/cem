@@ -43,9 +43,10 @@ then renders the `<pre>` spans through headless Chromium into
 Source snapshots are used only where the current CLI cannot yet render
 the package formatter/colorizer path for that content identity.
 
-### basic-presentation
+<details>
+<summary>basic-presentation</summary>
 
-- Source: [`examples/basic-presentation.mml`](examples/basic-presentation.mml)
+- Source: [`examples/basic-presentation.mml`](./examples/basic-presentation.mml)
 - Content type: `application/mathml+xml`
 - Schema: `https://cem.dev/ns/data/mathml/1`
 - Expected result: `pass`
@@ -60,11 +61,14 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
   terminal --output-color-type ansi-256
 ```
 
+</details>
+
 ![Preview of MathML schema package v1 basic-presentation example](examples/previews/basic-presentation.mml.svg)
 
-### content-expression
+<details>
+<summary>content-expression</summary>
 
-- Source: [`examples/content-expression.mathml`](examples/content-expression.mathml)
+- Source: [`examples/content-expression.mathml`](./examples/content-expression.mathml)
 - Content type: `application/mathml-content+xml`
 - Schema: `https://cem.dev/ns/data/mathml/1`
 - Expected result: `pass`
@@ -79,11 +83,14 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
   terminal --output-color-type ansi-256
 ```
 
+</details>
+
 ![Preview of MathML schema package v1 content-expression example](examples/previews/content-expression.mathml.svg)
 
-### semantics-external-annotation
+<details>
+<summary>semantics-external-annotation</summary>
 
-- Source: [`examples/semantics-external-annotation.mml`](examples/semantics-external-annotation.mml)
+- Source: [`examples/semantics-external-annotation.mml`](./examples/semantics-external-annotation.mml)
 - Content type: `application/mathml+xml`
 - Schema: `https://cem.dev/ns/data/mathml/1`
 - Expected result: `pass`
@@ -99,11 +106,14 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
   terminal --output-color-type ansi-256
 ```
 
+</details>
+
 ![Preview of MathML schema package v1 semantics-external-annotation example](examples/previews/semantics-external-annotation.mml.svg)
 
-### invalid-missing-namespace
+<details>
+<summary>invalid-missing-namespace</summary>
 
-- Source: [`examples/invalid-missing-namespace.mml`](examples/invalid-missing-namespace.mml)
+- Source: [`examples/invalid-missing-namespace.mml`](./examples/invalid-missing-namespace.mml)
 - Content type: `application/mathml+xml`
 - Schema: `https://cem.dev/ns/data/mathml/1`
 - Expected result: `fail`
@@ -119,11 +129,14 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
   terminal --output-color-type ansi-256
 ```
 
+</details>
+
 ![Preview of MathML schema package v1 invalid-missing-namespace example](examples/previews/invalid-missing-namespace.mml.svg)
 
-### invalid-root-not-math
+<details>
+<summary>invalid-root-not-math</summary>
 
-- Source: [`examples/invalid-root-not-math.mml`](examples/invalid-root-not-math.mml)
+- Source: [`examples/invalid-root-not-math.mml`](./examples/invalid-root-not-math.mml)
 - Content type: `application/mathml+xml`
 - Schema: `https://cem.dev/ns/data/mathml/1`
 - Expected result: `fail`
@@ -139,11 +152,14 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
   terminal --output-color-type ansi-256
 ```
 
+</details>
+
 ![Preview of MathML schema package v1 invalid-root-not-math example](examples/previews/invalid-root-not-math.mml.svg)
 
-### invalid-content-profile-presentation-only
+<details>
+<summary>invalid-content-profile-presentation-only</summary>
 
-- Source: [`examples/invalid-content-profile-presentation-only.mml`](examples/invalid-content-profile-presentation-only.mml)
+- Source: [`examples/invalid-content-profile-presentation-only.mml`](./examples/invalid-content-profile-presentation-only.mml)
 - Content type: `application/mathml-content+xml`
 - Schema: `https://cem.dev/ns/data/mathml/1`
 - Expected result: `fail`
@@ -159,11 +175,14 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
   terminal --output-color-type ansi-256
 ```
 
+</details>
+
 ![Preview of MathML schema package v1 invalid-content-profile-presentation-only example](examples/previews/invalid-content-profile-presentation-only.mml.svg)
 
-### invalid-not-well-formed
+<details>
+<summary>invalid-not-well-formed</summary>
 
-- Source: [`examples/invalid-not-well-formed.mml`](examples/invalid-not-well-formed.mml)
+- Source: [`examples/invalid-not-well-formed.mml`](./examples/invalid-not-well-formed.mml)
 - Content type: `application/mathml+xml`
 - Schema: `https://cem.dev/ns/data/mathml/1`
 - Expected result: `fail`
@@ -178,5 +197,7 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
   https://cem.dev/ns/data/mathml/1 --cemt-formatter-profile tabular --cemt-color-profile \
   terminal --output-color-type ansi-256
 ```
+
+</details>
 
 ![Preview of MathML schema package v1 invalid-not-well-formed example](examples/previews/invalid-not-well-formed.mml.svg)

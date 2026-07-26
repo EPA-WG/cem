@@ -36,9 +36,10 @@ then renders the `<pre>` spans through headless Chromium into
 Source snapshots are used only where the current CLI cannot yet render
 the package formatter/colorizer path for that content identity.
 
-### basic-schema-xml
+<details>
+<summary>basic-schema-xml</summary>
 
-- Source: [`examples/basic-schema.rng`](examples/basic-schema.rng)
+- Source: [`examples/basic-schema.rng`](./examples/basic-schema.rng)
 - Content type: `application/relax-ng+xml`
 - Schema: `https://cem.dev/ns/data/relax-ng/1`
 - Expected result: `pass`
@@ -53,11 +54,14 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
   --cemt-color-profile terminal --output-color-type ansi-256
 ```
 
+</details>
+
 ![Preview of RELAX NG Schema Package basic-schema-xml example](examples/previews/basic-schema.rng.svg)
 
-### datatype-schema
+<details>
+<summary>datatype-schema</summary>
 
-- Source: [`examples/datatype-schema.rng`](examples/datatype-schema.rng)
+- Source: [`examples/datatype-schema.rng`](./examples/datatype-schema.rng)
 - Content type: `application/relax-ng+xml`
 - Schema: `https://cem.dev/ns/data/relax-ng/1`
 - Expected result: `pass`
@@ -72,21 +76,28 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
   --cemt-color-profile terminal --output-color-type ansi-256
 ```
 
+</details>
+
 ![Preview of RELAX NG Schema Package datatype-schema example](examples/previews/datatype-schema.rng.svg)
 
-### basic-schema-compact
+<details>
+<summary>basic-schema-compact</summary>
 
-- Source: [`examples/basic-schema.rnc`](examples/basic-schema.rnc)
+- Source: [`examples/basic-schema.rnc`](./examples/basic-schema.rnc)
 - Content type: `application/relax-ng-compact-syntax`
 - Schema: `https://cem.dev/ns/data/relax-ng/1`
 - Expected result: `pass`
 - Preview renderer: `source snapshot HTML + html2svg`
 - Preview HTML: `dist/cem_ml/schema-packages/relax-ng/v1/examples/basic-schema.rnc.html`
+
+</details>
+
 ![Preview of RELAX NG Schema Package basic-schema-compact example](examples/previews/basic-schema.rnc.svg)
 
-### invalid-missing-start
+<details>
+<summary>invalid-missing-start</summary>
 
-- Source: [`examples/invalid-missing-start.rng`](examples/invalid-missing-start.rng)
+- Source: [`examples/invalid-missing-start.rng`](./examples/invalid-missing-start.rng)
 - Content type: `application/relax-ng+xml`
 - Schema: `https://cem.dev/ns/data/relax-ng/1`
 - Expected result: `fail`
@@ -102,11 +113,14 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
   --cemt-color-profile terminal --output-color-type ansi-256
 ```
 
+</details>
+
 ![Preview of RELAX NG Schema Package invalid-missing-start example](examples/previews/invalid-missing-start.rng.svg)
 
-### invalid-unknown-element
+<details>
+<summary>invalid-unknown-element</summary>
 
-- Source: [`examples/invalid-unknown-element.rng`](examples/invalid-unknown-element.rng)
+- Source: [`examples/invalid-unknown-element.rng`](./examples/invalid-unknown-element.rng)
 - Content type: `application/relax-ng+xml`
 - Schema: `https://cem.dev/ns/data/relax-ng/1`
 - Expected result: `fail`
@@ -122,15 +136,21 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
   --cemt-color-profile terminal --output-color-type ansi-256
 ```
 
+</details>
+
 ![Preview of RELAX NG Schema Package invalid-unknown-element example](examples/previews/invalid-unknown-element.rng.svg)
 
-### invalid-unclosed-compact
+<details>
+<summary>invalid-unclosed-compact</summary>
 
-- Source: [`examples/invalid-unclosed-compact.rnc`](examples/invalid-unclosed-compact.rnc)
+- Source: [`examples/invalid-unclosed-compact.rnc`](./examples/invalid-unclosed-compact.rnc)
 - Content type: `application/relax-ng-compact-syntax`
 - Schema: `https://cem.dev/ns/data/relax-ng/1`
 - Expected result: `fail`
 - Expected diagnostics: `cem.relax_ng.compact_parse_error`
 - Preview renderer: `source snapshot HTML + html2svg`
 - Preview HTML: `dist/cem_ml/schema-packages/relax-ng/v1/examples/invalid-unclosed-compact.rnc.html`
+
+</details>
+
 ![Preview of RELAX NG Schema Package invalid-unclosed-compact example](examples/previews/invalid-unclosed-compact.rnc.svg)

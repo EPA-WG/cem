@@ -282,9 +282,10 @@ then renders the `<pre>` spans through headless Chromium into
 Source snapshots are used only where the current CLI cannot yet render
 the package formatter/colorizer path for that content identity.
 
-### basic
+<details>
+<summary>basic</summary>
 
-- Source: [`examples/basic.cem`](examples/basic.cem)
+- Source: [`examples/basic.cem`](./examples/basic.cem)
 - Content type: `application/cem`
 - Schema: `https://cem.dev/ns/cem-ml/1`
 - Expected result: `pass`
@@ -299,11 +300,14 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
   ansi-256
 ```
 
+</details>
+
 ![Preview of CEM-ML Generic Schema Package basic example](examples/previews/basic.cem.svg)
 
-### nested-handoff
+<details>
+<summary>nested-handoff</summary>
 
-- Source: [`examples/nested-handoff.cem`](examples/nested-handoff.cem)
+- Source: [`examples/nested-handoff.cem`](./examples/nested-handoff.cem)
 - Content type: `application/cem`
 - Schema: `https://cem.dev/ns/cem-ml/1`
 - Expected result: `pass`
@@ -318,11 +322,14 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
   ansi-256
 ```
 
+</details>
+
 ![Preview of CEM-ML Generic Schema Package nested-handoff example](examples/previews/nested-handoff.cem.svg)
 
-### embedded-handoffs
+<details>
+<summary>embedded-handoffs</summary>
 
-- Source: [`examples/embedded-handoffs.cem`](examples/embedded-handoffs.cem)
+- Source: [`examples/embedded-handoffs.cem`](./examples/embedded-handoffs.cem)
 - Content type: `application/cem`
 - Schema: `https://cem.dev/ns/cem-ml/1`
 - Expected result: `pass`
@@ -338,11 +345,14 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
   ansi-256
 ```
 
+</details>
+
 ![Preview of CEM-ML Generic Schema Package embedded-handoffs example](examples/previews/embedded-handoffs.cem.svg)
 
-### formatter-coloring-pipeline-package-artifacts
+<details>
+<summary>formatter-coloring-pipeline-package-artifacts</summary>
 
-- Source: [`examples/formatter-coloring-pipeline.package-artifacts.fixture.cem`](examples/formatter-coloring-pipeline.package-artifacts.fixture.cem)
+- Source: [`examples/formatter-coloring-pipeline.package-artifacts.fixture.cem`](./examples/formatter-coloring-pipeline.package-artifacts.fixture.cem)
 - Content type: `application/cem`
 - Schema: `https://cem.dev/ns/cem-ml/1`
 - Expected result: `fail`
@@ -358,11 +368,14 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
   ansi-256
 ```
 
+</details>
+
 ![Preview of CEM-ML Generic Schema Package formatter-coloring-pipeline-package-artifacts example](examples/previews/formatter-coloring-pipeline.package-artifacts.fixture.cem.svg)
 
-### invalid-unclosed-scope
+<details>
+<summary>invalid-unclosed-scope</summary>
 
-- Source: [`examples/invalid-unclosed-scope.cem`](examples/invalid-unclosed-scope.cem)
+- Source: [`examples/invalid-unclosed-scope.cem`](./examples/invalid-unclosed-scope.cem)
 - Content type: `application/cem`
 - Schema: `https://cem.dev/ns/cem-ml/1`
 - Expected result: `fail`
@@ -378,11 +391,14 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
   ansi-256
 ```
 
+</details>
+
 ![Preview of CEM-ML Generic Schema Package invalid-unclosed-scope example](examples/previews/invalid-unclosed-scope.cem.svg)
 
-### invalid-unsupported-handoffs
+<details>
+<summary>invalid-unsupported-handoffs</summary>
 
-- Source: [`examples/invalid-unsupported-handoffs.cem`](examples/invalid-unsupported-handoffs.cem)
+- Source: [`examples/invalid-unsupported-handoffs.cem`](./examples/invalid-unsupported-handoffs.cem)
 - Content type: `application/cem`
 - Schema: `https://cem.dev/ns/cem-ml/1`
 - Expected result: `fail`
@@ -397,5 +413,7 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
   --cemt-formatter-profile tabular --cemt-color-profile terminal --output-color-type \
   ansi-256
 ```
+
+</details>
 
 ![Preview of CEM-ML Generic Schema Package invalid-unsupported-handoffs example](examples/previews/invalid-unsupported-handoffs.cem.svg)

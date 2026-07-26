@@ -222,9 +222,10 @@ then renders the `<pre>` spans through headless Chromium into
 Source snapshots are used only where the current CLI cannot yet render
 the package formatter/colorizer path for that content identity.
 
-### basic-template
+<details>
+<summary>basic-template</summary>
 
-- Source: [`examples/basic-template.cem`](examples/basic-template.cem)
+- Source: [`examples/basic-template.cem`](./examples/basic-template.cem)
 - Content type: `application/vnd.cem.template+cem`
 - Schema: `https://cem.dev/ns/template/cem-native/1`
 - Expected result: `pass`
@@ -239,11 +240,14 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
   ansi-256
 ```
 
+</details>
+
 ![Preview of CEM-Native Template Schema Package basic-template example](examples/previews/basic-template.cem.svg)
 
-### module-template
+<details>
+<summary>module-template</summary>
 
-- Source: [`examples/module-template.cem`](examples/module-template.cem)
+- Source: [`examples/module-template.cem`](./examples/module-template.cem)
 - Content type: `application/vnd.cem.template+cem`
 - Schema: `https://cem.dev/ns/template/cem-native/1`
 - Expected result: `pass`
@@ -258,11 +262,14 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
   ansi-256
 ```
 
+</details>
+
 ![Preview of CEM-Native Template Schema Package module-template example](examples/previews/module-template.cem.svg)
 
-### invalid-missing-required-attribute
+<details>
+<summary>invalid-missing-required-attribute</summary>
 
-- Source: [`examples/invalid-missing-required-attribute.cem`](examples/invalid-missing-required-attribute.cem)
+- Source: [`examples/invalid-missing-required-attribute.cem`](./examples/invalid-missing-required-attribute.cem)
 - Content type: `application/vnd.cem.template+cem`
 - Schema: `https://cem.dev/ns/template/cem-native/1`
 - Expected result: `fail`
@@ -278,11 +285,14 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
   ansi-256
 ```
 
+</details>
+
 ![Preview of CEM-Native Template Schema Package invalid-missing-required-attribute example](examples/previews/invalid-missing-required-attribute.cem.svg)
 
-### invalid-duplicate-import-alias
+<details>
+<summary>invalid-duplicate-import-alias</summary>
 
-- Source: [`examples/invalid-duplicate-import-alias.cem`](examples/invalid-duplicate-import-alias.cem)
+- Source: [`examples/invalid-duplicate-import-alias.cem`](./examples/invalid-duplicate-import-alias.cem)
 - Content type: `application/vnd.cem.template+cem`
 - Schema: `https://cem.dev/ns/template/cem-native/1`
 - Expected result: `fail`
@@ -298,11 +308,14 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
   ansi-256
 ```
 
+</details>
+
 ![Preview of CEM-Native Template Schema Package invalid-duplicate-import-alias example](examples/previews/invalid-duplicate-import-alias.cem.svg)
 
-### invalid-duplicate-template-entrypoint
+<details>
+<summary>invalid-duplicate-template-entrypoint</summary>
 
-- Source: [`examples/invalid-duplicate-template-entrypoint.cem`](examples/invalid-duplicate-template-entrypoint.cem)
+- Source: [`examples/invalid-duplicate-template-entrypoint.cem`](./examples/invalid-duplicate-template-entrypoint.cem)
 - Content type: `application/vnd.cem.template+cem`
 - Schema: `https://cem.dev/ns/template/cem-native/1`
 - Expected result: `fail`
@@ -318,11 +331,14 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
   ansi-256
 ```
 
+</details>
+
 ![Preview of CEM-Native Template Schema Package invalid-duplicate-template-entrypoint example](examples/previews/invalid-duplicate-template-entrypoint.cem.svg)
 
-### invalid-duplicate-param
+<details>
+<summary>invalid-duplicate-param</summary>
 
-- Source: [`examples/invalid-duplicate-param.cem`](examples/invalid-duplicate-param.cem)
+- Source: [`examples/invalid-duplicate-param.cem`](./examples/invalid-duplicate-param.cem)
 - Content type: `application/vnd.cem.template+cem`
 - Schema: `https://cem.dev/ns/template/cem-native/1`
 - Expected result: `fail`
@@ -338,11 +354,14 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
   ansi-256
 ```
 
+</details>
+
 ![Preview of CEM-Native Template Schema Package invalid-duplicate-param example](examples/previews/invalid-duplicate-param.cem.svg)
 
-### invalid-duplicate-let
+<details>
+<summary>invalid-duplicate-let</summary>
 
-- Source: [`examples/invalid-duplicate-let.cem`](examples/invalid-duplicate-let.cem)
+- Source: [`examples/invalid-duplicate-let.cem`](./examples/invalid-duplicate-let.cem)
 - Content type: `application/vnd.cem.template+cem`
 - Schema: `https://cem.dev/ns/template/cem-native/1`
 - Expected result: `fail`
@@ -358,11 +377,14 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
   ansi-256
 ```
 
+</details>
+
 ![Preview of CEM-Native Template Schema Package invalid-duplicate-let example](examples/previews/invalid-duplicate-let.cem.svg)
 
-### invalid-unknown-call
+<details>
+<summary>invalid-unknown-call</summary>
 
-- Source: [`examples/invalid-unknown-call.cem`](examples/invalid-unknown-call.cem)
+- Source: [`examples/invalid-unknown-call.cem`](./examples/invalid-unknown-call.cem)
 - Content type: `application/vnd.cem.template+cem`
 - Schema: `https://cem.dev/ns/template/cem-native/1`
 - Expected result: `fail`
@@ -378,11 +400,14 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
   ansi-256
 ```
 
+</details>
+
 ![Preview of CEM-Native Template Schema Package invalid-unknown-call example](examples/previews/invalid-unknown-call.cem.svg)
 
-### invalid-default-expr-reserved
+<details>
+<summary>invalid-default-expr-reserved</summary>
 
-- Source: [`examples/invalid-default-expr-reserved.cem`](examples/invalid-default-expr-reserved.cem)
+- Source: [`examples/invalid-default-expr-reserved.cem`](./examples/invalid-default-expr-reserved.cem)
 - Content type: `application/vnd.cem.template+cem`
 - Schema: `https://cem.dev/ns/template/cem-native/1`
 - Expected result: `fail`
@@ -398,11 +423,14 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
   ansi-256
 ```
 
+</details>
+
 ![Preview of CEM-Native Template Schema Package invalid-default-expr-reserved example](examples/previews/invalid-default-expr-reserved.cem.svg)
 
-### invalid-expression-parse
+<details>
+<summary>invalid-expression-parse</summary>
 
-- Source: [`examples/invalid-expression-parse.cem`](examples/invalid-expression-parse.cem)
+- Source: [`examples/invalid-expression-parse.cem`](./examples/invalid-expression-parse.cem)
 - Content type: `application/vnd.cem.template+cem`
 - Schema: `https://cem.dev/ns/template/cem-native/1`
 - Expected result: `fail`
@@ -418,11 +446,14 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
   ansi-256
 ```
 
+</details>
+
 ![Preview of CEM-Native Template Schema Package invalid-expression-parse example](examples/previews/invalid-expression-parse.cem.svg)
 
-### invalid-expression-type-error
+<details>
+<summary>invalid-expression-type-error</summary>
 
-- Source: [`examples/invalid-expression-type-error.cem`](examples/invalid-expression-type-error.cem)
+- Source: [`examples/invalid-expression-type-error.cem`](./examples/invalid-expression-type-error.cem)
 - Content type: `application/vnd.cem.template+cem`
 - Schema: `https://cem.dev/ns/template/cem-native/1`
 - Expected result: `fail`
@@ -438,11 +469,14 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
   ansi-256
 ```
 
+</details>
+
 ![Preview of CEM-Native Template Schema Package invalid-expression-type-error example](examples/previews/invalid-expression-type-error.cem.svg)
 
-### invalid-expression-data-binding
+<details>
+<summary>invalid-expression-data-binding</summary>
 
-- Source: [`examples/invalid-expression-data-binding.cem`](examples/invalid-expression-data-binding.cem)
+- Source: [`examples/invalid-expression-data-binding.cem`](./examples/invalid-expression-data-binding.cem)
 - Content type: `application/vnd.cem.template+cem`
 - Schema: `https://cem.dev/ns/template/cem-native/1`
 - Expected result: `fail`
@@ -457,5 +491,7 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
   --cemt-formatter-profile tabular --cemt-color-profile terminal --output-color-type \
   ansi-256
 ```
+
+</details>
 
 ![Preview of CEM-Native Template Schema Package invalid-expression-data-binding example](examples/previews/invalid-expression-data-binding.cem.svg)

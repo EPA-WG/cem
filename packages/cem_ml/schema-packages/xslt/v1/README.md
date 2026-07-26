@@ -47,9 +47,10 @@ then renders the `<pre>` spans through headless Chromium into
 Source snapshots are used only where the current CLI cannot yet render
 the package formatter/colorizer path for that content identity.
 
-### basic-stylesheet
+<details>
+<summary>basic-stylesheet</summary>
 
-- Source: [`examples/basic-stylesheet.xsl`](examples/basic-stylesheet.xsl)
+- Source: [`examples/basic-stylesheet.xsl`](./examples/basic-stylesheet.xsl)
 - Content type: `application/xslt+xml`
 - Schema: `https://cem.dev/ns/transform/xslt/1`
 - Expected result: `pass`
@@ -64,11 +65,14 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
   --cemt-color-profile terminal --output-color-type ansi-256
 ```
 
+</details>
+
 ![Preview of XSLT schema package v1 basic-stylesheet example](examples/previews/basic-stylesheet.xsl.svg)
 
-### named-template
+<details>
+<summary>named-template</summary>
 
-- Source: [`examples/named-template.xslt`](examples/named-template.xslt)
+- Source: [`examples/named-template.xslt`](./examples/named-template.xslt)
 - Content type: `text/xsl`
 - Schema: `https://cem.dev/ns/transform/xslt/1`
 - Expected result: `pass`
@@ -83,31 +87,42 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
   --cemt-color-profile terminal --output-color-type ansi-256
 ```
 
+</details>
+
 ![Preview of XSLT schema package v1 named-template example](examples/previews/named-template.xslt.svg)
 
-### legacy-custom-element-stylesheet
+<details>
+<summary>legacy-custom-element-stylesheet</summary>
 
-- Source: [`examples/legacy-custom-element-stylesheet.xsl`](examples/legacy-custom-element-stylesheet.xsl)
+- Source: [`examples/legacy-custom-element-stylesheet.xsl`](./examples/legacy-custom-element-stylesheet.xsl)
 - Content type: `custom-element-xslt`
 - Schema: `https://cem.dev/ns/transform/xslt/1`
 - Expected result: `pass`
 - Preview renderer: `source snapshot HTML + html2svg`
 - Preview HTML: `dist/cem_ml/schema-packages/xslt/v1/examples/legacy-custom-element-stylesheet.xsl.html`
+
+</details>
+
 ![Preview of XSLT schema package v1 legacy-custom-element-stylesheet example](examples/previews/legacy-custom-element-stylesheet.xsl.svg)
 
-### legacy-custom-element-fragment
+<details>
+<summary>legacy-custom-element-fragment</summary>
 
-- Source: [`examples/legacy-custom-element-fragment.html`](examples/legacy-custom-element-fragment.html)
+- Source: [`examples/legacy-custom-element-fragment.html`](./examples/legacy-custom-element-fragment.html)
 - Content type: `custom-element-xslt`
 - Schema: `https://cem.dev/ns/transform/xslt/1`
 - Expected result: `pass`
 - Preview renderer: `source snapshot HTML + html2svg`
 - Preview HTML: `dist/cem_ml/schema-packages/xslt/v1/examples/legacy-custom-element-fragment.html.html`
+
+</details>
+
 ![Preview of XSLT schema package v1 legacy-custom-element-fragment example](examples/previews/legacy-custom-element-fragment.html.svg)
 
-### unsupported-extension-warning
+<details>
+<summary>unsupported-extension-warning</summary>
 
-- Source: [`examples/unsupported-extension-warning.xsl`](examples/unsupported-extension-warning.xsl)
+- Source: [`examples/unsupported-extension-warning.xsl`](./examples/unsupported-extension-warning.xsl)
 - Content type: `application/xslt+xml`
 - Schema: `https://cem.dev/ns/transform/xslt/1`
 - Expected result: `pass`
@@ -123,11 +138,14 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
   --cemt-color-profile terminal --output-color-type ansi-256
 ```
 
+</details>
+
 ![Preview of XSLT schema package v1 unsupported-extension-warning example](examples/previews/unsupported-extension-warning.xsl.svg)
 
-### invalid-missing-namespace
+<details>
+<summary>invalid-missing-namespace</summary>
 
-- Source: [`examples/invalid-missing-namespace.xsl`](examples/invalid-missing-namespace.xsl)
+- Source: [`examples/invalid-missing-namespace.xsl`](./examples/invalid-missing-namespace.xsl)
 - Content type: `application/xslt+xml`
 - Schema: `https://cem.dev/ns/transform/xslt/1`
 - Expected result: `fail`
@@ -143,11 +161,14 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
   --cemt-color-profile terminal --output-color-type ansi-256
 ```
 
+</details>
+
 ![Preview of XSLT schema package v1 invalid-missing-namespace example](examples/previews/invalid-missing-namespace.xsl.svg)
 
-### invalid-missing-version
+<details>
+<summary>invalid-missing-version</summary>
 
-- Source: [`examples/invalid-missing-version.xsl`](examples/invalid-missing-version.xsl)
+- Source: [`examples/invalid-missing-version.xsl`](./examples/invalid-missing-version.xsl)
 - Content type: `application/xslt+xml`
 - Schema: `https://cem.dev/ns/transform/xslt/1`
 - Expected result: `fail`
@@ -163,11 +184,14 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
   --cemt-color-profile terminal --output-color-type ansi-256
 ```
 
+</details>
+
 ![Preview of XSLT schema package v1 invalid-missing-version example](examples/previews/invalid-missing-version.xsl.svg)
 
-### invalid-external-include
+<details>
+<summary>invalid-external-include</summary>
 
-- Source: [`examples/invalid-external-include.xsl`](examples/invalid-external-include.xsl)
+- Source: [`examples/invalid-external-include.xsl`](./examples/invalid-external-include.xsl)
 - Content type: `application/xslt+xml`
 - Schema: `https://cem.dev/ns/transform/xslt/1`
 - Expected result: `fail`
@@ -183,11 +207,14 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
   --cemt-color-profile terminal --output-color-type ansi-256
 ```
 
+</details>
+
 ![Preview of XSLT schema package v1 invalid-external-include example](examples/previews/invalid-external-include.xsl.svg)
 
-### invalid-missing-entrypoint
+<details>
+<summary>invalid-missing-entrypoint</summary>
 
-- Source: [`examples/invalid-missing-entrypoint.xsl`](examples/invalid-missing-entrypoint.xsl)
+- Source: [`examples/invalid-missing-entrypoint.xsl`](./examples/invalid-missing-entrypoint.xsl)
 - Content type: `application/xslt+xml`
 - Schema: `https://cem.dev/ns/transform/xslt/1`
 - Expected result: `fail`
@@ -203,11 +230,14 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
   --cemt-color-profile terminal --output-color-type ansi-256
 ```
 
+</details>
+
 ![Preview of XSLT schema package v1 invalid-missing-entrypoint example](examples/previews/invalid-missing-entrypoint.xsl.svg)
 
-### invalid-not-well-formed
+<details>
+<summary>invalid-not-well-formed</summary>
 
-- Source: [`examples/invalid-not-well-formed.xsl`](examples/invalid-not-well-formed.xsl)
+- Source: [`examples/invalid-not-well-formed.xsl`](./examples/invalid-not-well-formed.xsl)
 - Content type: `application/xslt+xml`
 - Schema: `https://cem.dev/ns/transform/xslt/1`
 - Expected result: `fail`
@@ -222,5 +252,7 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
   https://cem.dev/ns/transform/xslt/1 --cemt-formatter-profile tabular \
   --cemt-color-profile terminal --output-color-type ansi-256
 ```
+
+</details>
 
 ![Preview of XSLT schema package v1 invalid-not-well-formed example](examples/previews/invalid-not-well-formed.xsl.svg)

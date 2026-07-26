@@ -47,9 +47,10 @@ then renders the `<pre>` spans through headless Chromium into
 Source snapshots are used only where the current CLI cannot yet render
 the package formatter/colorizer path for that content identity.
 
-### basic-document
+<details>
+<summary>basic-document</summary>
 
-- Source: [`examples/basic-document.xhtml`](examples/basic-document.xhtml)
+- Source: [`examples/basic-document.xhtml`](./examples/basic-document.xhtml)
 - Content type: `application/xhtml+xml`
 - Schema: `https://cem.dev/ns/data/xhtml/1`
 - Expected result: `pass`
@@ -64,11 +65,14 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
   terminal --output-color-type ansi-256
 ```
 
+</details>
+
 ![Preview of XHTML Resource Schema Package basic-document example](examples/previews/basic-document.xhtml.svg)
 
-### form-page
+<details>
+<summary>form-page</summary>
 
-- Source: [`examples/form-page.xhtml`](examples/form-page.xhtml)
+- Source: [`examples/form-page.xhtml`](./examples/form-page.xhtml)
 - Content type: `application/xhtml+xml`
 - Schema: `https://cem.dev/ns/data/xhtml/1`
 - Expected result: `pass`
@@ -83,11 +87,14 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
   terminal --output-color-type ansi-256
 ```
 
+</details>
+
 ![Preview of XHTML Resource Schema Package form-page example](examples/previews/form-page.xhtml.svg)
 
-### invalid-missing-namespace
+<details>
+<summary>invalid-missing-namespace</summary>
 
-- Source: [`examples/invalid-missing-namespace.xhtml`](examples/invalid-missing-namespace.xhtml)
+- Source: [`examples/invalid-missing-namespace.xhtml`](./examples/invalid-missing-namespace.xhtml)
 - Content type: `application/xhtml+xml`
 - Schema: `https://cem.dev/ns/data/xhtml/1`
 - Expected result: `fail`
@@ -103,11 +110,14 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
   terminal --output-color-type ansi-256
 ```
 
+</details>
+
 ![Preview of XHTML Resource Schema Package invalid-missing-namespace example](examples/previews/invalid-missing-namespace.xhtml.svg)
 
-### invalid-body-before-head
+<details>
+<summary>invalid-body-before-head</summary>
 
-- Source: [`examples/invalid-body-before-head.xhtml`](examples/invalid-body-before-head.xhtml)
+- Source: [`examples/invalid-body-before-head.xhtml`](./examples/invalid-body-before-head.xhtml)
 - Content type: `application/xhtml+xml`
 - Schema: `https://cem.dev/ns/data/xhtml/1`
 - Expected result: `fail`
@@ -123,11 +133,14 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
   terminal --output-color-type ansi-256
 ```
 
+</details>
+
 ![Preview of XHTML Resource Schema Package invalid-body-before-head example](examples/previews/invalid-body-before-head.xhtml.svg)
 
-### invalid-not-well-formed
+<details>
+<summary>invalid-not-well-formed</summary>
 
-- Source: [`examples/invalid-not-well-formed.xhtml`](examples/invalid-not-well-formed.xhtml)
+- Source: [`examples/invalid-not-well-formed.xhtml`](./examples/invalid-not-well-formed.xhtml)
 - Content type: `application/xhtml+xml`
 - Schema: `https://cem.dev/ns/data/xhtml/1`
 - Expected result: `fail`
@@ -142,5 +155,7 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
   https://cem.dev/ns/data/xhtml/1 --cemt-formatter-profile tabular --cemt-color-profile \
   terminal --output-color-type ansi-256
 ```
+
+</details>
 
 ![Preview of XHTML Resource Schema Package invalid-not-well-formed example](examples/previews/invalid-not-well-formed.xhtml.svg)

@@ -446,9 +446,10 @@ then renders the `<pre>` spans through headless Chromium into
 Source snapshots are used only where the current CLI cannot yet render
 the package formatter/colorizer path for that content identity.
 
-### basic-table
+<details>
+<summary>basic-table</summary>
 
-- Source: [`examples/basic-table.csv`](examples/basic-table.csv)
+- Source: [`examples/basic-table.csv`](./examples/basic-table.csv)
 - Content type: `text/csv`
 - Schema: `https://cem.dev/ns/data/csv/1`
 - Expected result: `pass`
@@ -463,11 +464,14 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
   csv.maxFieldWidth=24 --cemt-formatter-option csv.stringTrim=middle
 ```
 
+</details>
+
 ![Preview of CSV Resource Schema Package basic-table example](examples/previews/basic-table.csv.svg)
 
-### quoted-fields
+<details>
+<summary>quoted-fields</summary>
 
-- Source: [`examples/quoted-fields.csv`](examples/quoted-fields.csv)
+- Source: [`examples/quoted-fields.csv`](./examples/quoted-fields.csv)
 - Content type: `text/csv`
 - Schema: `https://cem.dev/ns/data/csv/1`
 - Expected result: `pass`
@@ -482,11 +486,14 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
   csv.maxFieldWidth=24 --cemt-formatter-option csv.stringTrim=middle
 ```
 
+</details>
+
 ![Preview of CSV Resource Schema Package quoted-fields example](examples/previews/quoted-fields.csv.svg)
 
-### header-absent
+<details>
+<summary>header-absent</summary>
 
-- Source: [`examples/header-absent.csv`](examples/header-absent.csv)
+- Source: [`examples/header-absent.csv`](./examples/header-absent.csv)
 - Content type: `text/csv; header=absent`
 - Schema: `https://cem.dev/ns/data/csv/1`
 - Expected result: `pass`
@@ -501,11 +508,14 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
   csv.maxFieldWidth=24 --cemt-formatter-option csv.stringTrim=middle
 ```
 
+</details>
+
 ![Preview of CSV Resource Schema Package header-absent example](examples/previews/header-absent.csv.svg)
 
-### line-ending-lf
+<details>
+<summary>line-ending-lf</summary>
 
-- Source: [`examples/line-ending-lf.csv`](examples/line-ending-lf.csv)
+- Source: [`examples/line-ending-lf.csv`](./examples/line-ending-lf.csv)
 - Content type: `text/csv`
 - Schema: `https://cem.dev/ns/data/csv/1`
 - Expected result: `pass`
@@ -520,11 +530,14 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
   csv.maxFieldWidth=24 --cemt-formatter-option csv.stringTrim=middle
 ```
 
+</details>
+
 ![Preview of CSV Resource Schema Package line-ending-lf example](examples/previews/line-ending-lf.csv.svg)
 
-### line-ending-crlf
+<details>
+<summary>line-ending-crlf</summary>
 
-- Source: [`examples/line-ending-crlf.csv`](examples/line-ending-crlf.csv)
+- Source: [`examples/line-ending-crlf.csv`](./examples/line-ending-crlf.csv)
 - Content type: `text/csv`
 - Schema: `https://cem.dev/ns/data/csv/1`
 - Expected result: `pass`
@@ -539,11 +552,14 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
   csv.maxFieldWidth=24 --cemt-formatter-option csv.stringTrim=middle
 ```
 
+</details>
+
 ![Preview of CSV Resource Schema Package line-ending-crlf example](examples/previews/line-ending-crlf.csv.svg)
 
-### utf8-bom
+<details>
+<summary>utf8-bom</summary>
 
-- Source: [`examples/utf8-bom.csv`](examples/utf8-bom.csv)
+- Source: [`examples/utf8-bom.csv`](./examples/utf8-bom.csv)
 - Content type: `text/csv; charset=utf-8`
 - Schema: `https://cem.dev/ns/data/csv/1`
 - Expected result: `pass`
@@ -558,11 +574,14 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
   csv.maxFieldWidth=24 --cemt-formatter-option csv.stringTrim=middle
 ```
 
+</details>
+
 ![Preview of CSV Resource Schema Package utf8-bom example](examples/previews/utf8-bom.csv.svg)
 
-### spaced-fields
+<details>
+<summary>spaced-fields</summary>
 
-- Source: [`examples/spaced-fields.csv`](examples/spaced-fields.csv)
+- Source: [`examples/spaced-fields.csv`](./examples/spaced-fields.csv)
 - Content type: `text/csv`
 - Schema: `https://cem.dev/ns/data/csv/1`
 - Expected result: `pass`
@@ -577,11 +596,14 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
   csv.maxFieldWidth=24 --cemt-formatter-option csv.stringTrim=middle
 ```
 
+</details>
+
 ![Preview of CSV Resource Schema Package spaced-fields example](examples/previews/spaced-fields.csv.svg)
 
-### tabs-and-empty-fields
+<details>
+<summary>tabs-and-empty-fields</summary>
 
-- Source: [`examples/tabs-and-empty-fields.csv`](examples/tabs-and-empty-fields.csv)
+- Source: [`examples/tabs-and-empty-fields.csv`](./examples/tabs-and-empty-fields.csv)
 - Content type: `text/csv`
 - Schema: `https://cem.dev/ns/data/csv/1`
 - Expected result: `pass`
@@ -596,11 +618,14 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
   csv.maxFieldWidth=24 --cemt-formatter-option csv.stringTrim=middle
 ```
 
+</details>
+
 ![Preview of CSV Resource Schema Package tabs-and-empty-fields example](examples/previews/tabs-and-empty-fields.csv.svg)
 
-### formula-looking-values
+<details>
+<summary>formula-looking-values</summary>
 
-- Source: [`examples/formula-looking-values.csv`](examples/formula-looking-values.csv)
+- Source: [`examples/formula-looking-values.csv`](./examples/formula-looking-values.csv)
 - Content type: `text/csv`
 - Schema: `https://cem.dev/ns/data/csv/1`
 - Expected result: `pass`
@@ -615,11 +640,14 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
   csv.maxFieldWidth=24 --cemt-formatter-option csv.stringTrim=middle
 ```
 
+</details>
+
 ![Preview of CSV Resource Schema Package formula-looking-values example](examples/previews/formula-looking-values.csv.svg)
 
-### wide-unicode
+<details>
+<summary>wide-unicode</summary>
 
-- Source: [`examples/wide-unicode.csv`](examples/wide-unicode.csv)
+- Source: [`examples/wide-unicode.csv`](./examples/wide-unicode.csv)
 - Content type: `text/csv; charset=utf-8`
 - Schema: `https://cem.dev/ns/data/csv/1`
 - Expected result: `pass`
@@ -634,11 +662,14 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
   csv.maxFieldWidth=24 --cemt-formatter-option csv.stringTrim=middle
 ```
 
+</details>
+
 ![Preview of CSV Resource Schema Package wide-unicode example](examples/previews/wide-unicode.csv.svg)
 
-### invalid-unclosed-quote
+<details>
+<summary>invalid-unclosed-quote</summary>
 
-- Source: [`examples/invalid-unclosed-quote.csv`](examples/invalid-unclosed-quote.csv)
+- Source: [`examples/invalid-unclosed-quote.csv`](./examples/invalid-unclosed-quote.csv)
 - Content type: `text/csv`
 - Schema: `https://cem.dev/ns/data/csv/1`
 - Expected result: `fail`
@@ -654,11 +685,14 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
   csv.maxFieldWidth=24 --cemt-formatter-option csv.stringTrim=middle
 ```
 
+</details>
+
 ![Preview of CSV Resource Schema Package invalid-unclosed-quote example](examples/previews/invalid-unclosed-quote.csv.svg)
 
-### invalid-quote-escape
+<details>
+<summary>invalid-quote-escape</summary>
 
-- Source: [`examples/invalid-quote-escape.csv`](examples/invalid-quote-escape.csv)
+- Source: [`examples/invalid-quote-escape.csv`](./examples/invalid-quote-escape.csv)
 - Content type: `text/csv`
 - Schema: `https://cem.dev/ns/data/csv/1`
 - Expected result: `fail`
@@ -674,11 +708,14 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
   csv.maxFieldWidth=24 --cemt-formatter-option csv.stringTrim=middle
 ```
 
+</details>
+
 ![Preview of CSV Resource Schema Package invalid-quote-escape example](examples/previews/invalid-quote-escape.csv.svg)
 
-### ragged-row
+<details>
+<summary>ragged-row</summary>
 
-- Source: [`examples/ragged-row.csv`](examples/ragged-row.csv)
+- Source: [`examples/ragged-row.csv`](./examples/ragged-row.csv)
 - Content type: `text/csv`
 - Schema: `https://cem.dev/ns/data/csv/1`
 - Expected result: `pass`
@@ -694,11 +731,14 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
   csv.maxFieldWidth=24 --cemt-formatter-option csv.stringTrim=middle
 ```
 
+</details>
+
 ![Preview of CSV Resource Schema Package ragged-row example](examples/previews/ragged-row.csv.svg)
 
-### unsupported-charset
+<details>
+<summary>unsupported-charset</summary>
 
-- Source: [`examples/unsupported-charset.csv`](examples/unsupported-charset.csv)
+- Source: [`examples/unsupported-charset.csv`](./examples/unsupported-charset.csv)
 - Content type: `text/csv; charset=iso-8859-1`
 - Schema: `https://cem.dev/ns/data/csv/1`
 - Expected result: `fail`
@@ -714,11 +754,14 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
   csv.maxFieldWidth=24 --cemt-formatter-option csv.stringTrim=middle
 ```
 
+</details>
+
 ![Preview of CSV Resource Schema Package unsupported-charset example](examples/previews/unsupported-charset.csv.svg)
 
-### us-ascii-non-ascii-byte
+<details>
+<summary>us-ascii-non-ascii-byte</summary>
 
-- Source: [`examples/us-ascii-non-ascii-byte.csv`](examples/us-ascii-non-ascii-byte.csv)
+- Source: [`examples/us-ascii-non-ascii-byte.csv`](./examples/us-ascii-non-ascii-byte.csv)
 - Content type: `text/csv; charset=us-ascii`
 - Schema: `https://cem.dev/ns/data/csv/1`
 - Expected result: `fail`
@@ -734,11 +777,14 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
   csv.maxFieldWidth=24 --cemt-formatter-option csv.stringTrim=middle
 ```
 
+</details>
+
 ![Preview of CSV Resource Schema Package us-ascii-non-ascii-byte example](examples/previews/us-ascii-non-ascii-byte.csv.svg)
 
-### invalid-header-parameter
+<details>
+<summary>invalid-header-parameter</summary>
 
-- Source: [`examples/invalid-header-parameter.csv`](examples/invalid-header-parameter.csv)
+- Source: [`examples/invalid-header-parameter.csv`](./examples/invalid-header-parameter.csv)
 - Content type: `text/csv; header=maybe`
 - Schema: `https://cem.dev/ns/data/csv/1`
 - Expected result: `pass`
@@ -753,5 +799,7 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
   --cemt-formatter-profile tabular --cemt-color-profile html --cemt-formatter-option \
   csv.maxFieldWidth=24 --cemt-formatter-option csv.stringTrim=middle
 ```
+
+</details>
 
 ![Preview of CSV Resource Schema Package invalid-header-parameter example](examples/previews/invalid-header-parameter.csv.svg)

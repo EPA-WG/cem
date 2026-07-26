@@ -181,54 +181,74 @@ then renders the `<pre>` spans through headless Chromium into
 Source snapshots are used only where the current CLI cannot yet render
 the package formatter/colorizer path for that content identity.
 
-### basic-dom
+<details>
+<summary>basic-dom</summary>
 
-- Source: [`examples/basic-dom.cem-bin`](examples/basic-dom.cem-bin)
+- Source: [`examples/basic-dom.cem-bin`](./examples/basic-dom.cem-bin)
 - Content type: `application/vnd.cem.dom+cem-bin`
 - Schema: `https://cem.dev/ns/projection/dom/1`
 - Expected result: `pass`
 - Preview renderer: `source snapshot HTML + html2svg`
 - Preview HTML: `dist/cem_ml/schema-packages/cem-dom-projection/v1/examples/basic-dom.cem-bin.html`
+
+</details>
+
 ![Preview of CEM DOM Projection Schema Package basic-dom example](examples/previews/basic-dom.cem-bin.svg)
 
-### basic-dom-json
+<details>
+<summary>basic-dom-json</summary>
 
-- Source: [`examples/basic-dom.dom.json`](examples/basic-dom.dom.json)
+- Source: [`examples/basic-dom.dom.json`](./examples/basic-dom.dom.json)
 - Content type: `application/vnd.cem.dom+json`
 - Schema: `https://cem.dev/ns/projection/dom/1`
 - Expected result: `pass`
 - Preview renderer: `source snapshot HTML + html2svg`
 - Preview HTML: `dist/cem_ml/schema-packages/cem-dom-projection/v1/examples/basic-dom.dom.json.html`
+
+</details>
+
 ![Preview of CEM DOM Projection Schema Package basic-dom-json example](examples/previews/basic-dom.dom.json.svg)
 
-### nested-dom-json
+<details>
+<summary>nested-dom-json</summary>
 
-- Source: [`examples/nested-dom.dom.json`](examples/nested-dom.dom.json)
+- Source: [`examples/nested-dom.dom.json`](./examples/nested-dom.dom.json)
 - Content type: `application/vnd.cem.dom+json`
 - Schema: `https://cem.dev/ns/projection/dom/1`
 - Expected result: `pass`
 - Preview renderer: `source snapshot HTML + html2svg`
 - Preview HTML: `dist/cem_ml/schema-packages/cem-dom-projection/v1/examples/nested-dom.dom.json.html`
+
+</details>
+
 ![Preview of CEM DOM Projection Schema Package nested-dom-json example](examples/previews/nested-dom.dom.json.svg)
 
-### invalid-kind-json
+<details>
+<summary>invalid-kind-json</summary>
 
-- Source: [`examples/invalid-kind.dom.json`](examples/invalid-kind.dom.json)
+- Source: [`examples/invalid-kind.dom.json`](./examples/invalid-kind.dom.json)
 - Content type: `application/vnd.cem.dom+json`
 - Schema: `https://cem.dev/ns/projection/dom/1`
 - Expected result: `fail`
 - Expected diagnostics: `cem.projection.dom.json_shape`
 - Preview renderer: `source snapshot HTML + html2svg`
 - Preview HTML: `dist/cem_ml/schema-packages/cem-dom-projection/v1/examples/invalid-kind.dom.json.html`
+
+</details>
+
 ![Preview of CEM DOM Projection Schema Package invalid-kind-json example](examples/previews/invalid-kind.dom.json.svg)
 
-### invalid-binary
+<details>
+<summary>invalid-binary</summary>
 
-- Source: [`examples/invalid-binary.cem-bin`](examples/invalid-binary.cem-bin)
+- Source: [`examples/invalid-binary.cem-bin`](./examples/invalid-binary.cem-bin)
 - Content type: `application/vnd.cem.dom+cem-bin`
 - Schema: `https://cem.dev/ns/projection/dom/1`
 - Expected result: `fail`
 - Expected diagnostics: `cem.projection.dom.binary_magic`
 - Preview renderer: `source snapshot HTML + html2svg`
 - Preview HTML: `dist/cem_ml/schema-packages/cem-dom-projection/v1/examples/invalid-binary.cem-bin.html`
+
+</details>
+
 ![Preview of CEM DOM Projection Schema Package invalid-binary example](examples/previews/invalid-binary.cem-bin.svg)

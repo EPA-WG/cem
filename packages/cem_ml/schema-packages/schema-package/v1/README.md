@@ -160,9 +160,10 @@ then renders the `<pre>` spans through headless Chromium into
 Source snapshots are used only where the current CLI cannot yet render
 the package formatter/colorizer path for that content identity.
 
-### basic-package
+<details>
+<summary>basic-package</summary>
 
-- Source: [`examples/basic-package.cem`](examples/basic-package.cem)
+- Source: [`examples/basic-package.cem`](./examples/basic-package.cem)
 - Content type: `application/vnd.cem.schema-package+cem`
 - Schema: `https://cem.dev/ns/schema-package/1`
 - Expected result: `pass`
@@ -177,11 +178,14 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
   ansi-256
 ```
 
+</details>
+
 ![Preview of CEM Schema Package Metadata Package basic-package example](examples/previews/basic-package.cem.svg)
 
-### converter-package
+<details>
+<summary>converter-package</summary>
 
-- Source: [`examples/converter-package.cem`](examples/converter-package.cem)
+- Source: [`examples/converter-package.cem`](./examples/converter-package.cem)
 - Content type: `application/vnd.cem.schema-package+cem`
 - Schema: `https://cem.dev/ns/schema-package/1`
 - Expected result: `pass`
@@ -196,11 +200,14 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
   ansi-256
 ```
 
+</details>
+
 ![Preview of CEM Schema Package Metadata Package converter-package example](examples/previews/converter-package.cem.svg)
 
-### invalid-unclosed-package
+<details>
+<summary>invalid-unclosed-package</summary>
 
-- Source: [`examples/invalid-unclosed-package.cem`](examples/invalid-unclosed-package.cem)
+- Source: [`examples/invalid-unclosed-package.cem`](./examples/invalid-unclosed-package.cem)
 - Content type: `application/vnd.cem.schema-package+cem`
 - Schema: `https://cem.dev/ns/schema-package/1`
 - Expected result: `fail`
@@ -216,11 +223,14 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
   ansi-256
 ```
 
+</details>
+
 ![Preview of CEM Schema Package Metadata Package invalid-unclosed-package example](examples/previews/invalid-unclosed-package.cem.svg)
 
-### invalid-missing-required-attribute
+<details>
+<summary>invalid-missing-required-attribute</summary>
 
-- Source: [`examples/invalid-missing-required-attribute.cem`](examples/invalid-missing-required-attribute.cem)
+- Source: [`examples/invalid-missing-required-attribute.cem`](./examples/invalid-missing-required-attribute.cem)
 - Content type: `application/vnd.cem.schema-package+cem`
 - Schema: `https://cem.dev/ns/schema-package/1`
 - Expected result: `fail`
@@ -236,11 +246,14 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
   ansi-256
 ```
 
+</details>
+
 ![Preview of CEM Schema Package Metadata Package invalid-missing-required-attribute example](examples/previews/invalid-missing-required-attribute.cem.svg)
 
-### invalid-primary-content-type
+<details>
+<summary>invalid-primary-content-type</summary>
 
-- Source: [`examples/invalid-primary-content-type.cem`](examples/invalid-primary-content-type.cem)
+- Source: [`examples/invalid-primary-content-type.cem`](./examples/invalid-primary-content-type.cem)
 - Content type: `application/vnd.cem.schema-package+cem`
 - Schema: `https://cem.dev/ns/schema-package/1`
 - Expected result: `fail`
@@ -256,11 +269,14 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
   ansi-256
 ```
 
+</details>
+
 ![Preview of CEM Schema Package Metadata Package invalid-primary-content-type example](examples/previews/invalid-primary-content-type.cem.svg)
 
-### invalid-primary-content-type-missing
+<details>
+<summary>invalid-primary-content-type-missing</summary>
 
-- Source: [`examples/invalid-primary-content-type-missing.cem`](examples/invalid-primary-content-type-missing.cem)
+- Source: [`examples/invalid-primary-content-type-missing.cem`](./examples/invalid-primary-content-type-missing.cem)
 - Content type: `application/vnd.cem.schema-package+cem`
 - Schema: `https://cem.dev/ns/schema-package/1`
 - Expected result: `fail`
@@ -276,11 +292,14 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
   ansi-256
 ```
 
+</details>
+
 ![Preview of CEM Schema Package Metadata Package invalid-primary-content-type-missing example](examples/previews/invalid-primary-content-type-missing.cem.svg)
 
-### invalid-converter-contract
+<details>
+<summary>invalid-converter-contract</summary>
 
-- Source: [`examples/invalid-converter-contract.cem`](examples/invalid-converter-contract.cem)
+- Source: [`examples/invalid-converter-contract.cem`](./examples/invalid-converter-contract.cem)
 - Content type: `application/vnd.cem.schema-package+cem`
 - Schema: `https://cem.dev/ns/schema-package/1`
 - Expected result: `fail`
@@ -296,11 +315,14 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
   ansi-256
 ```
 
+</details>
+
 ![Preview of CEM Schema Package Metadata Package invalid-converter-contract example](examples/previews/invalid-converter-contract.cem.svg)
 
-### invalid-converter-runtime-constraints
+<details>
+<summary>invalid-converter-runtime-constraints</summary>
 
-- Source: [`examples/invalid-converter-runtime-constraints.cem`](examples/invalid-converter-runtime-constraints.cem)
+- Source: [`examples/invalid-converter-runtime-constraints.cem`](./examples/invalid-converter-runtime-constraints.cem)
 - Content type: `application/vnd.cem.schema-package+cem`
 - Schema: `https://cem.dev/ns/schema-package/1`
 - Expected result: `fail`
@@ -316,11 +338,14 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
   ansi-256
 ```
 
+</details>
+
 ![Preview of CEM Schema Package Metadata Package invalid-converter-runtime-constraints example](examples/previews/invalid-converter-runtime-constraints.cem.svg)
 
-### invalid-converter-template-contract
+<details>
+<summary>invalid-converter-template-contract</summary>
 
-- Source: [`examples/invalid-converter-template-contract.cem`](examples/invalid-converter-template-contract.cem)
+- Source: [`examples/invalid-converter-template-contract.cem`](./examples/invalid-converter-template-contract.cem)
 - Content type: `application/vnd.cem.schema-package+cem`
 - Schema: `https://cem.dev/ns/schema-package/1`
 - Expected result: `fail`
@@ -336,11 +361,14 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
   ansi-256
 ```
 
+</details>
+
 ![Preview of CEM Schema Package Metadata Package invalid-converter-template-contract example](examples/previews/invalid-converter-template-contract.cem.svg)
 
-### invalid-converter-template-unreadable
+<details>
+<summary>invalid-converter-template-unreadable</summary>
 
-- Source: [`examples/invalid-converter-template-unreadable.cem`](examples/invalid-converter-template-unreadable.cem)
+- Source: [`examples/invalid-converter-template-unreadable.cem`](./examples/invalid-converter-template-unreadable.cem)
 - Content type: `application/vnd.cem.schema-package+cem`
 - Schema: `https://cem.dev/ns/schema-package/1`
 - Expected result: `fail`
@@ -356,11 +384,14 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
   ansi-256
 ```
 
+</details>
+
 ![Preview of CEM Schema Package Metadata Package invalid-converter-template-unreadable example](examples/previews/invalid-converter-template-unreadable.cem.svg)
 
-### invalid-artifact-contract
+<details>
+<summary>invalid-artifact-contract</summary>
 
-- Source: [`examples/invalid-artifact-contract.cem`](examples/invalid-artifact-contract.cem)
+- Source: [`examples/invalid-artifact-contract.cem`](./examples/invalid-artifact-contract.cem)
 - Content type: `application/vnd.cem.schema-package+cem`
 - Schema: `https://cem.dev/ns/schema-package/1`
 - Expected result: `fail`
@@ -376,11 +407,14 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
   ansi-256
 ```
 
+</details>
+
 ![Preview of CEM Schema Package Metadata Package invalid-artifact-contract example](examples/previews/invalid-artifact-contract.cem.svg)
 
-### invalid-artifact-layout
+<details>
+<summary>invalid-artifact-layout</summary>
 
-- Source: [`examples/invalid-artifact-layout.cem`](examples/invalid-artifact-layout.cem)
+- Source: [`examples/invalid-artifact-layout.cem`](./examples/invalid-artifact-layout.cem)
 - Content type: `application/vnd.cem.schema-package+cem`
 - Schema: `https://cem.dev/ns/schema-package/1`
 - Expected result: `fail`
@@ -396,11 +430,14 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
   ansi-256
 ```
 
+</details>
+
 ![Preview of CEM Schema Package Metadata Package invalid-artifact-layout example](examples/previews/invalid-artifact-layout.cem.svg)
 
-### invalid-artifact-source-unreadable
+<details>
+<summary>invalid-artifact-source-unreadable</summary>
 
-- Source: [`examples/invalid-artifact-source-unreadable.cem`](examples/invalid-artifact-source-unreadable.cem)
+- Source: [`examples/invalid-artifact-source-unreadable.cem`](./examples/invalid-artifact-source-unreadable.cem)
 - Content type: `application/vnd.cem.schema-package+cem`
 - Schema: `https://cem.dev/ns/schema-package/1`
 - Expected result: `fail`
@@ -416,11 +453,14 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
   ansi-256
 ```
 
+</details>
+
 ![Preview of CEM Schema Package Metadata Package invalid-artifact-source-unreadable example](examples/previews/invalid-artifact-source-unreadable.cem.svg)
 
-### invalid-artifact-source-parse
+<details>
+<summary>invalid-artifact-source-parse</summary>
 
-- Source: [`examples/invalid-artifact-source-parse.cem`](examples/invalid-artifact-source-parse.cem)
+- Source: [`examples/invalid-artifact-source-parse.cem`](./examples/invalid-artifact-source-parse.cem)
 - Content type: `application/vnd.cem.schema-package+cem`
 - Schema: `https://cem.dev/ns/schema-package/1`
 - Expected result: `fail`
@@ -436,11 +476,14 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
   ansi-256
 ```
 
+</details>
+
 ![Preview of CEM Schema Package Metadata Package invalid-artifact-source-parse example](examples/previews/invalid-artifact-source-parse.cem.svg)
 
-### invalid-artifact-function-missing
+<details>
+<summary>invalid-artifact-function-missing</summary>
 
-- Source: [`examples/invalid-artifact-function-missing.cem`](examples/invalid-artifact-function-missing.cem)
+- Source: [`examples/invalid-artifact-function-missing.cem`](./examples/invalid-artifact-function-missing.cem)
 - Content type: `application/vnd.cem.schema-package+cem`
 - Schema: `https://cem.dev/ns/schema-package/1`
 - Expected result: `fail`
@@ -456,11 +499,14 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
   ansi-256
 ```
 
+</details>
+
 ![Preview of CEM Schema Package Metadata Package invalid-artifact-function-missing example](examples/previews/invalid-artifact-function-missing.cem.svg)
 
-### invalid-schema-metadata
+<details>
+<summary>invalid-schema-metadata</summary>
 
-- Source: [`examples/invalid-schema-metadata.cem`](examples/invalid-schema-metadata.cem)
+- Source: [`examples/invalid-schema-metadata.cem`](./examples/invalid-schema-metadata.cem)
 - Content type: `application/vnd.cem.schema-package+cem`
 - Schema: `https://cem.dev/ns/schema-package/1`
 - Expected result: `fail`
@@ -476,11 +522,14 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
   ansi-256
 ```
 
+</details>
+
 ![Preview of CEM Schema Package Metadata Package invalid-schema-metadata example](examples/previews/invalid-schema-metadata.cem.svg)
 
-### invalid-schema-source-unreadable
+<details>
+<summary>invalid-schema-source-unreadable</summary>
 
-- Source: [`examples/invalid-schema-source-unreadable.cem`](examples/invalid-schema-source-unreadable.cem)
+- Source: [`examples/invalid-schema-source-unreadable.cem`](./examples/invalid-schema-source-unreadable.cem)
 - Content type: `application/vnd.cem.schema-package+cem`
 - Schema: `https://cem.dev/ns/schema-package/1`
 - Expected result: `fail`
@@ -496,11 +545,14 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
   ansi-256
 ```
 
+</details>
+
 ![Preview of CEM Schema Package Metadata Package invalid-schema-source-unreadable example](examples/previews/invalid-schema-source-unreadable.cem.svg)
 
-### invalid-schema-source-invalid
+<details>
+<summary>invalid-schema-source-invalid</summary>
 
-- Source: [`examples/invalid-schema-source-invalid.cem`](examples/invalid-schema-source-invalid.cem)
+- Source: [`examples/invalid-schema-source-invalid.cem`](./examples/invalid-schema-source-invalid.cem)
 - Content type: `application/vnd.cem.schema-package+cem`
 - Schema: `https://cem.dev/ns/schema-package/1`
 - Expected result: `fail`
@@ -516,11 +568,14 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
   ansi-256
 ```
 
+</details>
+
 ![Preview of CEM Schema Package Metadata Package invalid-schema-source-invalid example](examples/previews/invalid-schema-source-invalid.cem.svg)
 
-### invalid-example-contract
+<details>
+<summary>invalid-example-contract</summary>
 
-- Source: [`examples/invalid-example-contract.cem`](examples/invalid-example-contract.cem)
+- Source: [`examples/invalid-example-contract.cem`](./examples/invalid-example-contract.cem)
 - Content type: `application/vnd.cem.schema-package+cem`
 - Schema: `https://cem.dev/ns/schema-package/1`
 - Expected result: `fail`
@@ -536,11 +591,14 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
   ansi-256
 ```
 
+</details>
+
 ![Preview of CEM Schema Package Metadata Package invalid-example-contract example](examples/previews/invalid-example-contract.cem.svg)
 
-### invalid-example-source-contract
+<details>
+<summary>invalid-example-source-contract</summary>
 
-- Source: [`examples/invalid-example-source-contract.cem`](examples/invalid-example-source-contract.cem)
+- Source: [`examples/invalid-example-source-contract.cem`](./examples/invalid-example-source-contract.cem)
 - Content type: `application/vnd.cem.schema-package+cem`
 - Schema: `https://cem.dev/ns/schema-package/1`
 - Expected result: `fail`
@@ -555,5 +613,7 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
   --cemt-formatter-profile tabular --cemt-color-profile terminal --output-color-type \
   ansi-256
 ```
+
+</details>
 
 ![Preview of CEM Schema Package Metadata Package invalid-example-source-contract example](examples/previews/invalid-example-source-contract.cem.svg)

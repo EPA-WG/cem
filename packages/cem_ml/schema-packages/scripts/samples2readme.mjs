@@ -449,8 +449,8 @@ function generatedExamplesSection(manifest, packageLabel) {
         const plan = previewPlanForExample(example, manifest);
         const preview = `examples/previews/${previewFileBase(example)}.svg`;
         const htmlPreview = `dist/cem_ml/schema-packages/${manifest.packageId}/v1/examples/${previewFileBase(example)}.html`;
-        lines.push(`### ${example.id}`, '');
-        lines.push(`- Source: [\`${example.path}\`](${example.path})`);
+        lines.push('<details>', `<summary>${escapeHtml(example.id)}</summary>`, '');
+        lines.push(`- Source: [\`${example.path}\`](${relativeMarkdownLink(example.path)})`);
         lines.push(`- Content type: \`${example.contentType}\``);
         lines.push(`- Schema: \`${example.schema}\``);
         lines.push(`- Expected result: \`${example.expectedResult}\``);
@@ -466,8 +466,9 @@ function generatedExamplesSection(manifest, packageLabel) {
         if (plan.args) {
             lines.push('', '```bash');
             lines.push(...shellCommandLines(['dist/target/cem_ml_cli/debug/cem-ml', ...plan.args]));
-            lines.push('```', '');
+            lines.push('```');
         }
+        lines.push('', '</details>', '');
         lines.push(`![Preview of ${packageLabel} ${example.id} example](${preview})`, '');
     }
     return `${lines.join('\n').trimEnd()}\n`;
@@ -501,6 +502,21 @@ function shellArg(value) {
         return value;
     }
     return `'${value.replaceAll("'", "'\\''")}'`;
+}
+
+function relativeMarkdownLink(value) {
+    if (value.startsWith('./') || value.startsWith('../')) {
+        return value;
+    }
+    return `./${value}`;
+}
+
+function escapeHtml(value) {
+    return value
+        .replaceAll('&', '&amp;')
+        .replaceAll('<', '&lt;')
+        .replaceAll('>', '&gt;')
+        .replaceAll('"', '&quot;');
 }
 
 function replaceExamplesSection(readme, replacement) {

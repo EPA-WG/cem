@@ -55,9 +55,10 @@ then renders the `<pre>` spans through headless Chromium into
 Source snapshots are used only where the current CLI cannot yet render
 the package formatter/colorizer path for that content identity.
 
-### basic-document
+<details>
+<summary>basic-document</summary>
 
-- Source: [`examples/basic-document.yaml`](examples/basic-document.yaml)
+- Source: [`examples/basic-document.yaml`](./examples/basic-document.yaml)
 - Content type: `application/yaml`
 - Schema: `https://cem.dev/ns/data/yaml/1`
 - Expected result: `pass`
@@ -72,11 +73,14 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
   ansi-256
 ```
 
+</details>
+
 ![Preview of YAML Resource Schema Package basic-document example](examples/previews/basic-document.yaml.svg)
 
-### nested-stream
+<details>
+<summary>nested-stream</summary>
 
-- Source: [`examples/nested-stream.yml`](examples/nested-stream.yml)
+- Source: [`examples/nested-stream.yml`](./examples/nested-stream.yml)
 - Content type: `text/yaml`
 - Schema: `https://cem.dev/ns/data/yaml/1`
 - Expected result: `pass`
@@ -91,11 +95,14 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
   ansi-256
 ```
 
+</details>
+
 ![Preview of YAML Resource Schema Package nested-stream example](examples/previews/nested-stream.yml.svg)
 
-### invalid-parse
+<details>
+<summary>invalid-parse</summary>
 
-- Source: [`examples/invalid-parse.yaml`](examples/invalid-parse.yaml)
+- Source: [`examples/invalid-parse.yaml`](./examples/invalid-parse.yaml)
 - Content type: `application/yaml`
 - Schema: `https://cem.dev/ns/data/yaml/1`
 - Expected result: `fail`
@@ -111,11 +118,14 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
   ansi-256
 ```
 
+</details>
+
 ![Preview of YAML Resource Schema Package invalid-parse example](examples/previews/invalid-parse.yaml.svg)
 
-### invalid-unsafe-tag
+<details>
+<summary>invalid-unsafe-tag</summary>
 
-- Source: [`examples/invalid-unsafe-tag.yaml`](examples/invalid-unsafe-tag.yaml)
+- Source: [`examples/invalid-unsafe-tag.yaml`](./examples/invalid-unsafe-tag.yaml)
 - Content type: `application/x-yaml`
 - Schema: `https://cem.dev/ns/data/yaml/1`
 - Expected result: `fail`
@@ -130,5 +140,7 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
   --cemt-formatter-profile tabular --cemt-color-profile terminal --output-color-type \
   ansi-256
 ```
+
+</details>
 
 ![Preview of YAML Resource Schema Package invalid-unsafe-tag example](examples/previews/invalid-unsafe-tag.yaml.svg)

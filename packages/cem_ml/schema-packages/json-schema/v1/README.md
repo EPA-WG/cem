@@ -54,44 +54,60 @@ then renders the `<pre>` spans through headless Chromium into
 Source snapshots are used only where the current CLI cannot yet render
 the package formatter/colorizer path for that content identity.
 
-### basic-schema
+<details>
+<summary>basic-schema</summary>
 
-- Source: [`examples/basic-schema.schema.json`](examples/basic-schema.schema.json)
+- Source: [`examples/basic-schema.schema.json`](./examples/basic-schema.schema.json)
 - Content type: `application/schema+json`
 - Schema: `https://cem.dev/ns/data/json-schema/1`
 - Expected result: `pass`
 - Preview renderer: `source snapshot HTML + html2svg`
 - Preview HTML: `dist/cem_ml/schema-packages/json-schema/v1/examples/basic-schema.schema.json.html`
+
+</details>
+
 ![Preview of JSON Schema Resource Schema Package basic-schema example](examples/previews/basic-schema.schema.json.svg)
 
-### catalog-schema
+<details>
+<summary>catalog-schema</summary>
 
-- Source: [`examples/catalog-schema.schema.json`](examples/catalog-schema.schema.json)
+- Source: [`examples/catalog-schema.schema.json`](./examples/catalog-schema.schema.json)
 - Content type: `application/schema+json`
 - Schema: `https://cem.dev/ns/data/json-schema/1`
 - Expected result: `pass`
 - Preview renderer: `source snapshot HTML + html2svg`
 - Preview HTML: `dist/cem_ml/schema-packages/json-schema/v1/examples/catalog-schema.schema.json.html`
+
+</details>
+
 ![Preview of JSON Schema Resource Schema Package catalog-schema example](examples/previews/catalog-schema.schema.json.svg)
 
-### invalid-unsupported-dialect
+<details>
+<summary>invalid-unsupported-dialect</summary>
 
-- Source: [`examples/invalid-unsupported-dialect.schema.json`](examples/invalid-unsupported-dialect.schema.json)
+- Source: [`examples/invalid-unsupported-dialect.schema.json`](./examples/invalid-unsupported-dialect.schema.json)
 - Content type: `application/schema+json`
 - Schema: `https://cem.dev/ns/data/json-schema/1`
 - Expected result: `fail`
 - Expected diagnostics: `cem.json_schema.unsupported_dialect`
 - Preview renderer: `source snapshot HTML + html2svg`
 - Preview HTML: `dist/cem_ml/schema-packages/json-schema/v1/examples/invalid-unsupported-dialect.schema.json.html`
+
+</details>
+
 ![Preview of JSON Schema Resource Schema Package invalid-unsupported-dialect example](examples/previews/invalid-unsupported-dialect.schema.json.svg)
 
-### invalid-parse
+<details>
+<summary>invalid-parse</summary>
 
-- Source: [`examples/invalid-parse.schema.json`](examples/invalid-parse.schema.json)
+- Source: [`examples/invalid-parse.schema.json`](./examples/invalid-parse.schema.json)
 - Content type: `application/schema+json`
 - Schema: `https://cem.dev/ns/data/json-schema/1`
 - Expected result: `fail`
 - Expected diagnostics: `cem.json_schema.parse_error`
 - Preview renderer: `source snapshot HTML + html2svg`
 - Preview HTML: `dist/cem_ml/schema-packages/json-schema/v1/examples/invalid-parse.schema.json.html`
+
+</details>
+
 ![Preview of JSON Schema Resource Schema Package invalid-parse example](examples/previews/invalid-parse.schema.json.svg)

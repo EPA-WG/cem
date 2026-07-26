@@ -55,9 +55,10 @@ then renders the `<pre>` spans through headless Chromium into
 Source snapshots are used only where the current CLI cannot yet render
 the package formatter/colorizer path for that content identity.
 
-### basic-document
+<details>
+<summary>basic-document</summary>
 
-- Source: [`examples/basic-document.xml`](examples/basic-document.xml)
+- Source: [`examples/basic-document.xml`](./examples/basic-document.xml)
 - Content type: `application/xml`
 - Schema: `https://cem.dev/ns/data/xml/1`
 - Expected result: `pass`
@@ -72,11 +73,14 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
   terminal --output-color-type ansi-256
 ```
 
+</details>
+
 ![Preview of XML Resource Schema Package basic-document example](examples/previews/basic-document.xml.svg)
 
-### namespaced-document
+<details>
+<summary>namespaced-document</summary>
 
-- Source: [`examples/namespaced-document.xml`](examples/namespaced-document.xml)
+- Source: [`examples/namespaced-document.xml`](./examples/namespaced-document.xml)
 - Content type: `text/xml; charset=utf-8`
 - Schema: `https://cem.dev/ns/data/xml/1`
 - Expected result: `pass`
@@ -91,11 +95,14 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
   terminal --output-color-type ansi-256
 ```
 
+</details>
+
 ![Preview of XML Resource Schema Package namespaced-document example](examples/previews/namespaced-document.xml.svg)
 
-### invalid-mismatched-tag
+<details>
+<summary>invalid-mismatched-tag</summary>
 
-- Source: [`examples/invalid-mismatched-tag.xml`](examples/invalid-mismatched-tag.xml)
+- Source: [`examples/invalid-mismatched-tag.xml`](./examples/invalid-mismatched-tag.xml)
 - Content type: `application/xml`
 - Schema: `https://cem.dev/ns/data/xml/1`
 - Expected result: `fail`
@@ -111,11 +118,14 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
   terminal --output-color-type ansi-256
 ```
 
+</details>
+
 ![Preview of XML Resource Schema Package invalid-mismatched-tag example](examples/previews/invalid-mismatched-tag.xml.svg)
 
-### invalid-unbound-prefix
+<details>
+<summary>invalid-unbound-prefix</summary>
 
-- Source: [`examples/invalid-unbound-prefix.xml`](examples/invalid-unbound-prefix.xml)
+- Source: [`examples/invalid-unbound-prefix.xml`](./examples/invalid-unbound-prefix.xml)
 - Content type: `application/xml`
 - Schema: `https://cem.dev/ns/data/xml/1`
 - Expected result: `fail`
@@ -131,11 +141,14 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
   terminal --output-color-type ansi-256
 ```
 
+</details>
+
 ![Preview of XML Resource Schema Package invalid-unbound-prefix example](examples/previews/invalid-unbound-prefix.xml.svg)
 
-### invalid-doctype
+<details>
+<summary>invalid-doctype</summary>
 
-- Source: [`examples/invalid-doctype.xml`](examples/invalid-doctype.xml)
+- Source: [`examples/invalid-doctype.xml`](./examples/invalid-doctype.xml)
 - Content type: `application/xml`
 - Schema: `https://cem.dev/ns/data/xml/1`
 - Expected result: `fail`
@@ -150,5 +163,7 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
   https://cem.dev/ns/data/xml/1 --cemt-formatter-profile tabular --cemt-color-profile \
   terminal --output-color-type ansi-256
 ```
+
+</details>
 
 ![Preview of XML Resource Schema Package invalid-doctype example](examples/previews/invalid-doctype.xml.svg)

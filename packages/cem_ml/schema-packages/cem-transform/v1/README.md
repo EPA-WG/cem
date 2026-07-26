@@ -263,9 +263,10 @@ then renders the `<pre>` spans through headless Chromium into
 Source snapshots are used only where the current CLI cannot yet render
 the package formatter/colorizer path for that content identity.
 
-### basic-transform
+<details>
+<summary>basic-transform</summary>
 
-- Source: [`examples/basic-transform.cemt`](examples/basic-transform.cemt)
+- Source: [`examples/basic-transform.cemt`](./examples/basic-transform.cemt)
 - Content type: `application/vnd.cem.transform+cem`
 - Schema: `https://cem.dev/ns/transform/cem/1`
 - Expected result: `pass`
@@ -280,11 +281,14 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
   ansi-256
 ```
 
+</details>
+
 ![Preview of CEM Transform Template Schema Package basic-transform example](examples/previews/basic-transform.cemt.svg)
 
-### module-transform
+<details>
+<summary>module-transform</summary>
 
-- Source: [`examples/module-transform.cemt`](examples/module-transform.cemt)
+- Source: [`examples/module-transform.cemt`](./examples/module-transform.cemt)
 - Content type: `application/vnd.cem.transform+cem`
 - Schema: `https://cem.dev/ns/transform/cem/1`
 - Expected result: `pass`
@@ -299,11 +303,14 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
   ansi-256
 ```
 
+</details>
+
 ![Preview of CEM Transform Template Schema Package module-transform example](examples/previews/module-transform.cemt.svg)
 
-### function-declarations
+<details>
+<summary>function-declarations</summary>
 
-- Source: [`examples/function-declarations.cemt`](examples/function-declarations.cemt)
+- Source: [`examples/function-declarations.cemt`](./examples/function-declarations.cemt)
 - Content type: `application/vnd.cem.transform+cem`
 - Schema: `https://cem.dev/ns/transform/cem/1`
 - Expected result: `pass`
@@ -318,11 +325,14 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
   ansi-256
 ```
 
+</details>
+
 ![Preview of CEM Transform Template Schema Package function-declarations example](examples/previews/function-declarations.cemt.svg)
 
-### formatter-coloring-pipeline
+<details>
+<summary>formatter-coloring-pipeline</summary>
 
-- Source: [`examples/formatter-coloring-pipeline.cemt`](examples/formatter-coloring-pipeline.cemt)
+- Source: [`examples/formatter-coloring-pipeline.cemt`](./examples/formatter-coloring-pipeline.cemt)
 - Content type: `application/vnd.cem.transform+cem`
 - Schema: `https://cem.dev/ns/transform/cem/1`
 - Expected result: `pass`
@@ -337,11 +347,14 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
   ansi-256
 ```
 
+</details>
+
 ![Preview of CEM Transform Template Schema Package formatter-coloring-pipeline example](examples/previews/formatter-coloring-pipeline.cemt.svg)
 
-### formatter-coloring-pipeline-fixture
+<details>
+<summary>formatter-coloring-pipeline-fixture</summary>
 
-- Source: [`examples/formatter-coloring-pipeline.fixture.cem`](examples/formatter-coloring-pipeline.fixture.cem)
+- Source: [`examples/formatter-coloring-pipeline.fixture.cem`](./examples/formatter-coloring-pipeline.fixture.cem)
 - Content type: `application/cem`
 - Schema: `https://cem.dev/ns/cem-ml/1`
 - Expected result: `fail`
@@ -357,11 +370,14 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
   ansi-256
 ```
 
+</details>
+
 ![Preview of CEM Transform Template Schema Package formatter-coloring-pipeline-fixture example](examples/previews/formatter-coloring-pipeline.fixture.cem.svg)
 
-### invalid-missing-required-attribute
+<details>
+<summary>invalid-missing-required-attribute</summary>
 
-- Source: [`examples/invalid-missing-required-attribute.cemt`](examples/invalid-missing-required-attribute.cemt)
+- Source: [`examples/invalid-missing-required-attribute.cemt`](./examples/invalid-missing-required-attribute.cemt)
 - Content type: `application/vnd.cem.transform+cem`
 - Schema: `https://cem.dev/ns/transform/cem/1`
 - Expected result: `fail`
@@ -377,11 +393,14 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
   ansi-256
 ```
 
+</details>
+
 ![Preview of CEM Transform Template Schema Package invalid-missing-required-attribute example](examples/previews/invalid-missing-required-attribute.cemt.svg)
 
-### invalid-function-missing-category
+<details>
+<summary>invalid-function-missing-category</summary>
 
-- Source: [`examples/invalid-function-missing-category.cemt`](examples/invalid-function-missing-category.cemt)
+- Source: [`examples/invalid-function-missing-category.cemt`](./examples/invalid-function-missing-category.cemt)
 - Content type: `application/vnd.cem.transform+cem`
 - Schema: `https://cem.dev/ns/transform/cem/1`
 - Expected result: `fail`
@@ -397,11 +416,14 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
   ansi-256
 ```
 
+</details>
+
 ![Preview of CEM Transform Template Schema Package invalid-function-missing-category example](examples/previews/invalid-function-missing-category.cemt.svg)
 
-### invalid-function-missing-contract-metadata
+<details>
+<summary>invalid-function-missing-contract-metadata</summary>
 
-- Source: [`examples/invalid-function-missing-contract-metadata.cemt`](examples/invalid-function-missing-contract-metadata.cemt)
+- Source: [`examples/invalid-function-missing-contract-metadata.cemt`](./examples/invalid-function-missing-contract-metadata.cemt)
 - Content type: `application/vnd.cem.transform+cem`
 - Schema: `https://cem.dev/ns/transform/cem/1`
 - Expected result: `fail`
@@ -416,5 +438,7 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
   --cemt-formatter-profile tabular --cemt-color-profile terminal --output-color-type \
   ansi-256
 ```
+
+</details>
 
 ![Preview of CEM Transform Template Schema Package invalid-function-missing-contract-metadata example](examples/previews/invalid-function-missing-contract-metadata.cemt.svg)

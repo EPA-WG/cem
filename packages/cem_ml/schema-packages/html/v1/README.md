@@ -53,9 +53,10 @@ then renders the `<pre>` spans through headless Chromium into
 Source snapshots are used only where the current CLI cannot yet render
 the package formatter/colorizer path for that content identity.
 
-### basic-document
+<details>
+<summary>basic-document</summary>
 
-- Source: [`examples/basic-document.html`](examples/basic-document.html)
+- Source: [`examples/basic-document.html`](./examples/basic-document.html)
 - Content type: `text/html`
 - Schema: `https://cem.dev/ns/data/html/1`
 - Expected result: `pass`
@@ -70,11 +71,14 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
   terminal --output-color-type ansi-256
 ```
 
+</details>
+
 ![Preview of HTML schema package v1 basic-document example](examples/previews/basic-document.html.svg)
 
-### fragment
+<details>
+<summary>fragment</summary>
 
-- Source: [`examples/fragment.html`](examples/fragment.html)
+- Source: [`examples/fragment.html`](./examples/fragment.html)
 - Content type: `text/html`
 - Schema: `https://cem.dev/ns/data/html/1`
 - Expected result: `pass`
@@ -89,11 +93,14 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
   terminal --output-color-type ansi-256
 ```
 
+</details>
+
 ![Preview of HTML schema package v1 fragment example](examples/previews/fragment.html.svg)
 
-### svg-mathml-islands
+<details>
+<summary>svg-mathml-islands</summary>
 
-- Source: [`examples/svg-mathml-islands.html`](examples/svg-mathml-islands.html)
+- Source: [`examples/svg-mathml-islands.html`](./examples/svg-mathml-islands.html)
 - Content type: `text/html`
 - Schema: `https://cem.dev/ns/data/html/1`
 - Expected result: `pass`
@@ -108,11 +115,14 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
   terminal --output-color-type ansi-256
 ```
 
+</details>
+
 ![Preview of HTML schema package v1 svg-mathml-islands example](examples/previews/svg-mathml-islands.html.svg)
 
-### invalid-script
+<details>
+<summary>invalid-script</summary>
 
-- Source: [`examples/invalid-script.html`](examples/invalid-script.html)
+- Source: [`examples/invalid-script.html`](./examples/invalid-script.html)
 - Content type: `text/html`
 - Schema: `https://cem.dev/ns/data/html/1`
 - Expected result: `fail`
@@ -128,11 +138,14 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
   terminal --output-color-type ansi-256
 ```
 
+</details>
+
 ![Preview of HTML schema package v1 invalid-script example](examples/previews/invalid-script.html.svg)
 
-### invalid-external-resource
+<details>
+<summary>invalid-external-resource</summary>
 
-- Source: [`examples/invalid-external-resource.html`](examples/invalid-external-resource.html)
+- Source: [`examples/invalid-external-resource.html`](./examples/invalid-external-resource.html)
 - Content type: `text/html`
 - Schema: `https://cem.dev/ns/data/html/1`
 - Expected result: `fail`
@@ -148,11 +161,14 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
   terminal --output-color-type ansi-256
 ```
 
+</details>
+
 ![Preview of HTML schema package v1 invalid-external-resource example](examples/previews/invalid-external-resource.html.svg)
 
-### invalid-custom-element
+<details>
+<summary>invalid-custom-element</summary>
 
-- Source: [`examples/invalid-custom-element.html`](examples/invalid-custom-element.html)
+- Source: [`examples/invalid-custom-element.html`](./examples/invalid-custom-element.html)
 - Content type: `text/html`
 - Schema: `https://cem.dev/ns/data/html/1`
 - Expected result: `fail`
@@ -168,11 +184,14 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
   terminal --output-color-type ansi-256
 ```
 
+</details>
+
 ![Preview of HTML schema package v1 invalid-custom-element example](examples/previews/invalid-custom-element.html.svg)
 
-### encoding-conflict
+<details>
+<summary>encoding-conflict</summary>
 
-- Source: [`examples/encoding-conflict.html`](examples/encoding-conflict.html)
+- Source: [`examples/encoding-conflict.html`](./examples/encoding-conflict.html)
 - Content type: `text/html; charset=windows-1252`
 - Schema: `https://cem.dev/ns/data/html/1`
 - Expected result: `pass`
@@ -187,5 +206,7 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
   https://cem.dev/ns/data/html/1 --cemt-formatter-profile tabular --cemt-color-profile \
   terminal --output-color-type ansi-256
 ```
+
+</details>
 
 ![Preview of HTML schema package v1 encoding-conflict example](examples/previews/encoding-conflict.html.svg)

@@ -431,9 +431,10 @@ then renders the `<pre>` spans through headless Chromium into
 Source snapshots are used only where the current CLI cannot yet render
 the package formatter/colorizer path for that content identity.
 
-### basic-schema
+<details>
+<summary>basic-schema</summary>
 
-- Source: [`examples/basic-schema.cem`](examples/basic-schema.cem)
+- Source: [`examples/basic-schema.cem`](./examples/basic-schema.cem)
 - Content type: `application/vnd.cem.schema+cem`
 - Schema: `https://cem.dev/ns/schema/1`
 - Expected result: `pass`
@@ -448,11 +449,14 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
   ansi-256
 ```
 
+</details>
+
 ![Preview of CEM Schema Definition Language Package basic-schema example](examples/previews/basic-schema.cem.svg)
 
-### typed-resource-schema
+<details>
+<summary>typed-resource-schema</summary>
 
-- Source: [`examples/typed-resource-schema.cem`](examples/typed-resource-schema.cem)
+- Source: [`examples/typed-resource-schema.cem`](./examples/typed-resource-schema.cem)
 - Content type: `application/vnd.cem.schema+cem`
 - Schema: `https://cem.dev/ns/schema/1`
 - Expected result: `pass`
@@ -467,11 +471,14 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
   ansi-256
 ```
 
+</details>
+
 ![Preview of CEM Schema Definition Language Package typed-resource-schema example](examples/previews/typed-resource-schema.cem.svg)
 
-### custom-behavior-schema
+<details>
+<summary>custom-behavior-schema</summary>
 
-- Source: [`examples/custom-behavior-schema.cem`](examples/custom-behavior-schema.cem)
+- Source: [`examples/custom-behavior-schema.cem`](./examples/custom-behavior-schema.cem)
 - Content type: `application/vnd.cem.schema+cem`
 - Schema: `https://cem.dev/ns/schema/1`
 - Expected result: `pass`
@@ -486,11 +493,14 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
   ansi-256
 ```
 
+</details>
+
 ![Preview of CEM Schema Definition Language Package custom-behavior-schema example](examples/previews/custom-behavior-schema.cem.svg)
 
-### custom-behavior-schema-strict
+<details>
+<summary>custom-behavior-schema-strict</summary>
 
-- Source: [`examples/custom-behavior-schema-strict.cem`](examples/custom-behavior-schema-strict.cem)
+- Source: [`examples/custom-behavior-schema-strict.cem`](./examples/custom-behavior-schema-strict.cem)
 - Content type: `application/vnd.cem.schema+cem`
 - Schema: `https://cem.dev/ns/schema/1`
 - Expected result: `pass`
@@ -505,11 +515,14 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
   ansi-256
 ```
 
+</details>
+
 ![Preview of CEM Schema Definition Language Package custom-behavior-schema-strict example](examples/previews/custom-behavior-schema-strict.cem.svg)
 
-### invalid-missing-required-attribute
+<details>
+<summary>invalid-missing-required-attribute</summary>
 
-- Source: [`examples/invalid-missing-required-attribute.cem`](examples/invalid-missing-required-attribute.cem)
+- Source: [`examples/invalid-missing-required-attribute.cem`](./examples/invalid-missing-required-attribute.cem)
 - Content type: `application/vnd.cem.schema+cem`
 - Schema: `https://cem.dev/ns/schema/1`
 - Expected result: `fail`
@@ -525,11 +538,14 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
   ansi-256
 ```
 
+</details>
+
 ![Preview of CEM Schema Definition Language Package invalid-missing-required-attribute example](examples/previews/invalid-missing-required-attribute.cem.svg)
 
-### invalid-diagnostic-behavior
+<details>
+<summary>invalid-diagnostic-behavior</summary>
 
-- Source: [`examples/invalid-diagnostic-behavior.cem`](examples/invalid-diagnostic-behavior.cem)
+- Source: [`examples/invalid-diagnostic-behavior.cem`](./examples/invalid-diagnostic-behavior.cem)
 - Content type: `application/vnd.cem.schema+cem`
 - Schema: `https://cem.dev/ns/schema/1`
 - Expected result: `fail`
@@ -545,11 +561,14 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
   ansi-256
 ```
 
+</details>
+
 ![Preview of CEM Schema Definition Language Package invalid-diagnostic-behavior example](examples/previews/invalid-diagnostic-behavior.cem.svg)
 
-### invalid-custom-behavior-unresolved-function
+<details>
+<summary>invalid-custom-behavior-unresolved-function</summary>
 
-- Source: [`examples/invalid-custom-behavior-unresolved-function.cem`](examples/invalid-custom-behavior-unresolved-function.cem)
+- Source: [`examples/invalid-custom-behavior-unresolved-function.cem`](./examples/invalid-custom-behavior-unresolved-function.cem)
 - Content type: `application/vnd.cem.schema+cem`
 - Schema: `https://cem.dev/ns/schema/1`
 - Expected result: `fail`
@@ -565,11 +584,14 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
   ansi-256
 ```
 
+</details>
+
 ![Preview of CEM Schema Definition Language Package invalid-custom-behavior-unresolved-function example](examples/previews/invalid-custom-behavior-unresolved-function.cem.svg)
 
-### invalid-custom-behavior-select-query
+<details>
+<summary>invalid-custom-behavior-select-query</summary>
 
-- Source: [`examples/invalid-custom-behavior-select-query.cem`](examples/invalid-custom-behavior-select-query.cem)
+- Source: [`examples/invalid-custom-behavior-select-query.cem`](./examples/invalid-custom-behavior-select-query.cem)
 - Content type: `application/vnd.cem.schema+cem`
 - Schema: `https://cem.dev/ns/schema/1`
 - Expected result: `fail`
@@ -585,11 +607,14 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
   ansi-256
 ```
 
+</details>
+
 ![Preview of CEM Schema Definition Language Package invalid-custom-behavior-select-query example](examples/previews/invalid-custom-behavior-select-query.cem.svg)
 
-### invalid-custom-behavior-match-query
+<details>
+<summary>invalid-custom-behavior-match-query</summary>
 
-- Source: [`examples/invalid-custom-behavior-match-query.cem`](examples/invalid-custom-behavior-match-query.cem)
+- Source: [`examples/invalid-custom-behavior-match-query.cem`](./examples/invalid-custom-behavior-match-query.cem)
 - Content type: `application/vnd.cem.schema+cem`
 - Schema: `https://cem.dev/ns/schema/1`
 - Expected result: `fail`
@@ -605,11 +630,14 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
   ansi-256
 ```
 
+</details>
+
 ![Preview of CEM Schema Definition Language Package invalid-custom-behavior-match-query example](examples/previews/invalid-custom-behavior-match-query.cem.svg)
 
-### invalid-custom-behavior-argument-type
+<details>
+<summary>invalid-custom-behavior-argument-type</summary>
 
-- Source: [`examples/invalid-custom-behavior-argument-type.cem`](examples/invalid-custom-behavior-argument-type.cem)
+- Source: [`examples/invalid-custom-behavior-argument-type.cem`](./examples/invalid-custom-behavior-argument-type.cem)
 - Content type: `application/vnd.cem.schema+cem`
 - Schema: `https://cem.dev/ns/schema/1`
 - Expected result: `fail`
@@ -625,11 +653,14 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
   ansi-256
 ```
 
+</details>
+
 ![Preview of CEM Schema Definition Language Package invalid-custom-behavior-argument-type example](examples/previews/invalid-custom-behavior-argument-type.cem.svg)
 
-### invalid-custom-behavior-signature
+<details>
+<summary>invalid-custom-behavior-signature</summary>
 
-- Source: [`examples/invalid-custom-behavior-signature.cem`](examples/invalid-custom-behavior-signature.cem)
+- Source: [`examples/invalid-custom-behavior-signature.cem`](./examples/invalid-custom-behavior-signature.cem)
 - Content type: `application/vnd.cem.schema+cem`
 - Schema: `https://cem.dev/ns/schema/1`
 - Expected result: `fail`
@@ -645,11 +676,14 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
   ansi-256
 ```
 
+</details>
+
 ![Preview of CEM Schema Definition Language Package invalid-custom-behavior-signature example](examples/previews/invalid-custom-behavior-signature.cem.svg)
 
-### invalid-custom-behavior-unsafe-call
+<details>
+<summary>invalid-custom-behavior-unsafe-call</summary>
 
-- Source: [`examples/invalid-custom-behavior-unsafe-call.cem`](examples/invalid-custom-behavior-unsafe-call.cem)
+- Source: [`examples/invalid-custom-behavior-unsafe-call.cem`](./examples/invalid-custom-behavior-unsafe-call.cem)
 - Content type: `application/vnd.cem.schema+cem`
 - Schema: `https://cem.dev/ns/schema/1`
 - Expected result: `fail`
@@ -665,11 +699,14 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
   ansi-256
 ```
 
+</details>
+
 ![Preview of CEM Schema Definition Language Package invalid-custom-behavior-unsafe-call example](examples/previews/invalid-custom-behavior-unsafe-call.cem.svg)
 
-### invalid-custom-behavior-contracts
+<details>
+<summary>invalid-custom-behavior-contracts</summary>
 
-- Source: [`examples/invalid-custom-behavior-contracts.cem`](examples/invalid-custom-behavior-contracts.cem)
+- Source: [`examples/invalid-custom-behavior-contracts.cem`](./examples/invalid-custom-behavior-contracts.cem)
 - Content type: `application/vnd.cem.schema+cem`
 - Schema: `https://cem.dev/ns/schema/1`
 - Expected result: `fail`
@@ -685,11 +722,14 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
   ansi-256
 ```
 
+</details>
+
 ![Preview of CEM Schema Definition Language Package invalid-custom-behavior-contracts example](examples/previews/invalid-custom-behavior-contracts.cem.svg)
 
-### invalid-datatype-param-length
+<details>
+<summary>invalid-datatype-param-length</summary>
 
-- Source: [`examples/invalid-datatype-param-length.cem`](examples/invalid-datatype-param-length.cem)
+- Source: [`examples/invalid-datatype-param-length.cem`](./examples/invalid-datatype-param-length.cem)
 - Content type: `application/vnd.cem.schema+cem`
 - Schema: `https://cem.dev/ns/schema/1`
 - Expected result: `fail`
@@ -705,11 +745,14 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
   ansi-256
 ```
 
+</details>
+
 ![Preview of CEM Schema Definition Language Package invalid-datatype-param-length example](examples/previews/invalid-datatype-param-length.cem.svg)
 
-### invalid-datatype-param-bound
+<details>
+<summary>invalid-datatype-param-bound</summary>
 
-- Source: [`examples/invalid-datatype-param-bound.cem`](examples/invalid-datatype-param-bound.cem)
+- Source: [`examples/invalid-datatype-param-bound.cem`](./examples/invalid-datatype-param-bound.cem)
 - Content type: `application/vnd.cem.schema+cem`
 - Schema: `https://cem.dev/ns/schema/1`
 - Expected result: `fail`
@@ -725,11 +768,14 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
   ansi-256
 ```
 
+</details>
+
 ![Preview of CEM Schema Definition Language Package invalid-datatype-param-bound example](examples/previews/invalid-datatype-param-bound.cem.svg)
 
-### invalid-datatype-param-pattern
+<details>
+<summary>invalid-datatype-param-pattern</summary>
 
-- Source: [`examples/invalid-datatype-param-pattern.cem`](examples/invalid-datatype-param-pattern.cem)
+- Source: [`examples/invalid-datatype-param-pattern.cem`](./examples/invalid-datatype-param-pattern.cem)
 - Content type: `application/vnd.cem.schema+cem`
 - Schema: `https://cem.dev/ns/schema/1`
 - Expected result: `fail`
@@ -745,11 +791,14 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
   ansi-256
 ```
 
+</details>
+
 ![Preview of CEM Schema Definition Language Package invalid-datatype-param-pattern example](examples/previews/invalid-datatype-param-pattern.cem.svg)
 
-### invalid-datatype-param-digits
+<details>
+<summary>invalid-datatype-param-digits</summary>
 
-- Source: [`examples/invalid-datatype-param-digits.cem`](examples/invalid-datatype-param-digits.cem)
+- Source: [`examples/invalid-datatype-param-digits.cem`](./examples/invalid-datatype-param-digits.cem)
 - Content type: `application/vnd.cem.schema+cem`
 - Schema: `https://cem.dev/ns/schema/1`
 - Expected result: `fail`
@@ -765,11 +814,14 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
   ansi-256
 ```
 
+</details>
+
 ![Preview of CEM Schema Definition Language Package invalid-datatype-param-digits example](examples/previews/invalid-datatype-param-digits.cem.svg)
 
-### invalid-datatype-param-uri-media
+<details>
+<summary>invalid-datatype-param-uri-media</summary>
 
-- Source: [`examples/invalid-datatype-param-uri-media.cem`](examples/invalid-datatype-param-uri-media.cem)
+- Source: [`examples/invalid-datatype-param-uri-media.cem`](./examples/invalid-datatype-param-uri-media.cem)
 - Content type: `application/vnd.cem.schema+cem`
 - Schema: `https://cem.dev/ns/schema/1`
 - Expected result: `fail`
@@ -785,11 +837,14 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
   ansi-256
 ```
 
+</details>
+
 ![Preview of CEM Schema Definition Language Package invalid-datatype-param-uri-media example](examples/previews/invalid-datatype-param-uri-media.cem.svg)
 
-### invalid-field-contract-presence
+<details>
+<summary>invalid-field-contract-presence</summary>
 
-- Source: [`examples/invalid-field-contract-presence.cem`](examples/invalid-field-contract-presence.cem)
+- Source: [`examples/invalid-field-contract-presence.cem`](./examples/invalid-field-contract-presence.cem)
 - Content type: `application/vnd.cem.schema+cem`
 - Schema: `https://cem.dev/ns/schema/1`
 - Expected result: `fail`
@@ -805,11 +860,14 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
   ansi-256
 ```
 
+</details>
+
 ![Preview of CEM Schema Definition Language Package invalid-field-contract-presence example](examples/previews/invalid-field-contract-presence.cem.svg)
 
-### invalid-field-contract-condition
+<details>
+<summary>invalid-field-contract-condition</summary>
 
-- Source: [`examples/invalid-field-contract-condition.cem`](examples/invalid-field-contract-condition.cem)
+- Source: [`examples/invalid-field-contract-condition.cem`](./examples/invalid-field-contract-condition.cem)
 - Content type: `application/vnd.cem.schema+cem`
 - Schema: `https://cem.dev/ns/schema/1`
 - Expected result: `fail`
@@ -825,11 +883,14 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
   ansi-256
 ```
 
+</details>
+
 ![Preview of CEM Schema Definition Language Package invalid-field-contract-condition example](examples/previews/invalid-field-contract-condition.cem.svg)
 
-### invalid-field-contract-child-sequence
+<details>
+<summary>invalid-field-contract-child-sequence</summary>
 
-- Source: [`examples/invalid-field-contract-child-sequence.cem`](examples/invalid-field-contract-child-sequence.cem)
+- Source: [`examples/invalid-field-contract-child-sequence.cem`](./examples/invalid-field-contract-child-sequence.cem)
 - Content type: `application/vnd.cem.schema+cem`
 - Schema: `https://cem.dev/ns/schema/1`
 - Expected result: `fail`
@@ -845,11 +906,14 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
   ansi-256
 ```
 
+</details>
+
 ![Preview of CEM Schema Definition Language Package invalid-field-contract-child-sequence example](examples/previews/invalid-field-contract-child-sequence.cem.svg)
 
-### invalid-attribute-default
+<details>
+<summary>invalid-attribute-default</summary>
 
-- Source: [`examples/invalid-attribute-default.cem`](examples/invalid-attribute-default.cem)
+- Source: [`examples/invalid-attribute-default.cem`](./examples/invalid-attribute-default.cem)
 - Content type: `application/vnd.cem.schema+cem`
 - Schema: `https://cem.dev/ns/schema/1`
 - Expected result: `fail`
@@ -865,11 +929,14 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
   ansi-256
 ```
 
+</details>
+
 ![Preview of CEM Schema Definition Language Package invalid-attribute-default example](examples/previews/invalid-attribute-default.cem.svg)
 
-### invalid-unclosed-schema
+<details>
+<summary>invalid-unclosed-schema</summary>
 
-- Source: [`examples/invalid-unclosed-schema.cem`](examples/invalid-unclosed-schema.cem)
+- Source: [`examples/invalid-unclosed-schema.cem`](./examples/invalid-unclosed-schema.cem)
 - Content type: `application/vnd.cem.schema+cem`
 - Schema: `https://cem.dev/ns/schema/1`
 - Expected result: `fail`
@@ -884,5 +951,7 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
   --cemt-formatter-profile tabular --cemt-color-profile terminal --output-color-type \
   ansi-256
 ```
+
+</details>
 
 ![Preview of CEM Schema Definition Language Package invalid-unclosed-schema example](examples/previews/invalid-unclosed-schema.cem.svg)

@@ -295,6 +295,7 @@ export async function renderPreviewDocumentToSvg(browser, _preview, svgPath, htm
             if (document.fonts) {
                 await document.fonts.ready;
             }
+            splitMultilineSpans(pre);
             await new Promise((resolve) => requestAnimationFrame(resolve));
 
             const preRect = pre.getBoundingClientRect();
@@ -332,6 +333,28 @@ export async function renderPreviewDocumentToSvg(browser, _preview, svgPath, htm
             }
 
             return new XMLSerializer().serializeToString(svg);
+
+            function splitMultilineSpans(root) {
+                for (const span of [...root.querySelectorAll('span')]) {
+                    if (!span.textContent.includes('\n')) {
+                        continue;
+                    }
+                    const parent = span.parentNode;
+                    const parts = span.textContent.replace(/\r\n?/g, '\n').split('\n');
+                    for (const [index, part] of parts.entries()) {
+                        if (index > 0) {
+                            parent.insertBefore(document.createTextNode('\n'), span);
+                        }
+                        if (part.length === 0) {
+                            continue;
+                        }
+                        const clone = span.cloneNode(false);
+                        clone.textContent = part;
+                        parent.insertBefore(clone, span);
+                    }
+                    span.remove();
+                }
+            }
         }, { svgNs: SVG_NS, xmlNs: XML_NS });
         writeFileSync(svgPath, `${svg}\n`, 'utf8');
     } finally {

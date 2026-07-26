@@ -45,9 +45,10 @@ then renders the `<pre>` spans through headless Chromium into
 Source snapshots are used only where the current CLI cannot yet render
 the package formatter/colorizer path for that content identity.
 
-### basic-object
+<details>
+<summary>basic-object</summary>
 
-- Source: [`examples/basic-object.json`](examples/basic-object.json)
+- Source: [`examples/basic-object.json`](./examples/basic-object.json)
 - Content type: `application/json`
 - Schema: `https://cem.dev/ns/data/json/1`
 - Expected result: `pass`
@@ -62,11 +63,14 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
   ansi-256
 ```
 
+</details>
+
 ![Preview of JSON Resource Schema Package basic-object example](examples/previews/basic-object.json.svg)
 
-### nested-data
+<details>
+<summary>nested-data</summary>
 
-- Source: [`examples/nested-data.json`](examples/nested-data.json)
+- Source: [`examples/nested-data.json`](./examples/nested-data.json)
 - Content type: `application/json`
 - Schema: `https://cem.dev/ns/data/json/1`
 - Expected result: `pass`
@@ -81,11 +85,14 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
   ansi-256
 ```
 
+</details>
+
 ![Preview of JSON Resource Schema Package nested-data example](examples/previews/nested-data.json.svg)
 
-### invalid-trailing-comma
+<details>
+<summary>invalid-trailing-comma</summary>
 
-- Source: [`examples/invalid-trailing-comma.json`](examples/invalid-trailing-comma.json)
+- Source: [`examples/invalid-trailing-comma.json`](./examples/invalid-trailing-comma.json)
 - Content type: `application/json`
 - Schema: `https://cem.dev/ns/data/json/1`
 - Expected result: `fail`
@@ -100,5 +107,7 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
   --cemt-formatter-profile tabular --cemt-color-profile terminal --output-color-type \
   ansi-256
 ```
+
+</details>
 
 ![Preview of JSON Resource Schema Package invalid-trailing-comma example](examples/previews/invalid-trailing-comma.json.svg)

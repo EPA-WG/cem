@@ -139,54 +139,74 @@ then renders the `<pre>` spans through headless Chromium into
 Source snapshots are used only where the current CLI cannot yet render
 the package formatter/colorizer path for that content identity.
 
-### basic-ast
+<details>
+<summary>basic-ast</summary>
 
-- Source: [`examples/basic-ast.cem-bin`](examples/basic-ast.cem-bin)
+- Source: [`examples/basic-ast.cem-bin`](./examples/basic-ast.cem-bin)
 - Content type: `application/vnd.cem.ast+cem-bin`
 - Schema: `https://cem.dev/ns/projection/ast/1`
 - Expected result: `pass`
 - Preview renderer: `source snapshot HTML + html2svg`
 - Preview HTML: `dist/cem_ml/schema-packages/cem-ast-projection/v1/examples/basic-ast.cem-bin.html`
+
+</details>
+
 ![Preview of CEM AST Projection Schema Package basic-ast example](examples/previews/basic-ast.cem-bin.svg)
 
-### basic-ast-json
+<details>
+<summary>basic-ast-json</summary>
 
-- Source: [`examples/basic-ast.ast.json`](examples/basic-ast.ast.json)
+- Source: [`examples/basic-ast.ast.json`](./examples/basic-ast.ast.json)
 - Content type: `application/vnd.cem.ast+json`
 - Schema: `https://cem.dev/ns/projection/ast/1`
 - Expected result: `pass`
 - Preview renderer: `source snapshot HTML + html2svg`
 - Preview HTML: `dist/cem_ml/schema-packages/cem-ast-projection/v1/examples/basic-ast.ast.json.html`
+
+</details>
+
 ![Preview of CEM AST Projection Schema Package basic-ast-json example](examples/previews/basic-ast.ast.json.svg)
 
-### nested-ast-json
+<details>
+<summary>nested-ast-json</summary>
 
-- Source: [`examples/nested-ast.ast.json`](examples/nested-ast.ast.json)
+- Source: [`examples/nested-ast.ast.json`](./examples/nested-ast.ast.json)
 - Content type: `application/vnd.cem.ast+json`
 - Schema: `https://cem.dev/ns/projection/ast/1`
 - Expected result: `pass`
 - Preview renderer: `source snapshot HTML + html2svg`
 - Preview HTML: `dist/cem_ml/schema-packages/cem-ast-projection/v1/examples/nested-ast.ast.json.html`
+
+</details>
+
 ![Preview of CEM AST Projection Schema Package nested-ast-json example](examples/previews/nested-ast.ast.json.svg)
 
-### invalid-kind-json
+<details>
+<summary>invalid-kind-json</summary>
 
-- Source: [`examples/invalid-kind.ast.json`](examples/invalid-kind.ast.json)
+- Source: [`examples/invalid-kind.ast.json`](./examples/invalid-kind.ast.json)
 - Content type: `application/vnd.cem.ast+json`
 - Schema: `https://cem.dev/ns/projection/ast/1`
 - Expected result: `fail`
 - Expected diagnostics: `cem.projection.ast.json_shape`
 - Preview renderer: `source snapshot HTML + html2svg`
 - Preview HTML: `dist/cem_ml/schema-packages/cem-ast-projection/v1/examples/invalid-kind.ast.json.html`
+
+</details>
+
 ![Preview of CEM AST Projection Schema Package invalid-kind-json example](examples/previews/invalid-kind.ast.json.svg)
 
-### invalid-binary
+<details>
+<summary>invalid-binary</summary>
 
-- Source: [`examples/invalid-binary.cem-bin`](examples/invalid-binary.cem-bin)
+- Source: [`examples/invalid-binary.cem-bin`](./examples/invalid-binary.cem-bin)
 - Content type: `application/vnd.cem.ast+cem-bin`
 - Schema: `https://cem.dev/ns/projection/ast/1`
 - Expected result: `fail`
 - Expected diagnostics: `cem.projection.ast.binary_magic`
 - Preview renderer: `source snapshot HTML + html2svg`
 - Preview HTML: `dist/cem_ml/schema-packages/cem-ast-projection/v1/examples/invalid-binary.cem-bin.html`
+
+</details>
+
 ![Preview of CEM AST Projection Schema Package invalid-binary example](examples/previews/invalid-binary.cem-bin.svg)

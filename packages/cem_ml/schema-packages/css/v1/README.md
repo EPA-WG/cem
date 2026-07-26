@@ -46,87 +46,119 @@ then renders the `<pre>` spans through headless Chromium into
 Source snapshots are used only where the current CLI cannot yet render
 the package formatter/colorizer path for that content identity.
 
-### basic-stylesheet
+<details>
+<summary>basic-stylesheet</summary>
 
-- Source: [`examples/basic-stylesheet.css`](examples/basic-stylesheet.css)
+- Source: [`examples/basic-stylesheet.css`](./examples/basic-stylesheet.css)
 - Content type: `text/css`
 - Schema: `https://cem.dev/ns/data/css/1`
 - Expected result: `pass`
 - Preview renderer: `source snapshot HTML + html2svg`
 - Preview HTML: `dist/cem_ml/schema-packages/css/v1/examples/basic-stylesheet.css.html`
+
+</details>
+
 ![Preview of CSS schema package v1 basic-stylesheet example](examples/previews/basic-stylesheet.css.svg)
 
-### scoped-component
+<details>
+<summary>scoped-component</summary>
 
-- Source: [`examples/scoped-component.css`](examples/scoped-component.css)
+- Source: [`examples/scoped-component.css`](./examples/scoped-component.css)
 - Content type: `text/css`
 - Schema: `https://cem.dev/ns/data/css/1`
 - Expected result: `pass`
 - Preview renderer: `source snapshot HTML + html2svg`
 - Preview HTML: `dist/cem_ml/schema-packages/css/v1/examples/scoped-component.css.html`
+
+</details>
+
 ![Preview of CSS schema package v1 scoped-component example](examples/previews/scoped-component.css.svg)
 
-### style-attribute
+<details>
+<summary>style-attribute</summary>
 
-- Source: [`examples/style-attribute.css`](examples/style-attribute.css)
+- Source: [`examples/style-attribute.css`](./examples/style-attribute.css)
 - Content type: `text/css`
 - Schema: `https://cem.dev/ns/data/css/1`
 - Expected result: `pass`
 - Preview renderer: `source snapshot HTML + html2svg`
 - Preview HTML: `dist/cem_ml/schema-packages/css/v1/examples/style-attribute.css.html`
+
+</details>
+
 ![Preview of CSS schema package v1 style-attribute example](examples/previews/style-attribute.css.svg)
 
-### invalid-import
+<details>
+<summary>invalid-import</summary>
 
-- Source: [`examples/invalid-import.css`](examples/invalid-import.css)
+- Source: [`examples/invalid-import.css`](./examples/invalid-import.css)
 - Content type: `text/css`
 - Schema: `https://cem.dev/ns/data/css/1`
 - Expected result: `fail`
 - Expected diagnostics: `cem.css.import_rejected`
 - Preview renderer: `source snapshot HTML + html2svg`
 - Preview HTML: `dist/cem_ml/schema-packages/css/v1/examples/invalid-import.css.html`
+
+</details>
+
 ![Preview of CSS schema package v1 invalid-import example](examples/previews/invalid-import.css.svg)
 
-### invalid-url
+<details>
+<summary>invalid-url</summary>
 
-- Source: [`examples/invalid-url.css`](examples/invalid-url.css)
+- Source: [`examples/invalid-url.css`](./examples/invalid-url.css)
 - Content type: `text/css`
 - Schema: `https://cem.dev/ns/data/css/1`
 - Expected result: `fail`
 - Expected diagnostics: `cem.css.url_rejected`
 - Preview renderer: `source snapshot HTML + html2svg`
 - Preview HTML: `dist/cem_ml/schema-packages/css/v1/examples/invalid-url.css.html`
+
+</details>
+
 ![Preview of CSS schema package v1 invalid-url example](examples/previews/invalid-url.css.svg)
 
-### invalid-token
+<details>
+<summary>invalid-token</summary>
 
-- Source: [`examples/invalid-token.css`](examples/invalid-token.css)
+- Source: [`examples/invalid-token.css`](./examples/invalid-token.css)
 - Content type: `text/css`
 - Schema: `https://cem.dev/ns/data/css/1`
 - Expected result: `fail`
 - Expected diagnostics: `cem.css.invalid_token`
 - Preview renderer: `source snapshot HTML + html2svg`
 - Preview HTML: `dist/cem_ml/schema-packages/css/v1/examples/invalid-token.css.html`
+
+</details>
+
 ![Preview of CSS schema package v1 invalid-token example](examples/previews/invalid-token.css.svg)
 
-### invalid-declaration
+<details>
+<summary>invalid-declaration</summary>
 
-- Source: [`examples/invalid-declaration.css`](examples/invalid-declaration.css)
+- Source: [`examples/invalid-declaration.css`](./examples/invalid-declaration.css)
 - Content type: `text/css`
 - Schema: `https://cem.dev/ns/data/css/1`
 - Expected result: `pass`
 - Expected diagnostics: `cem.css.invalid_declaration`
 - Preview renderer: `source snapshot HTML + html2svg`
 - Preview HTML: `dist/cem_ml/schema-packages/css/v1/examples/invalid-declaration.css.html`
+
+</details>
+
 ![Preview of CSS schema package v1 invalid-declaration example](examples/previews/invalid-declaration.css.svg)
 
-### encoding-conflict
+<details>
+<summary>encoding-conflict</summary>
 
-- Source: [`examples/encoding-conflict.css`](examples/encoding-conflict.css)
+- Source: [`examples/encoding-conflict.css`](./examples/encoding-conflict.css)
 - Content type: `text/css; charset=iso-8859-1`
 - Schema: `https://cem.dev/ns/data/css/1`
 - Expected result: `pass`
 - Expected diagnostics: `cem.css.encoding_conflict`
 - Preview renderer: `source snapshot HTML + html2svg`
 - Preview HTML: `dist/cem_ml/schema-packages/css/v1/examples/encoding-conflict.css.html`
+
+</details>
+
 ![Preview of CSS schema package v1 encoding-conflict example](examples/previews/encoding-conflict.css.svg)

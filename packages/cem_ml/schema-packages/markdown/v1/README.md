@@ -51,44 +51,60 @@ then renders the `<pre>` spans through headless Chromium into
 Source snapshots are used only where the current CLI cannot yet render
 the package formatter/colorizer path for that content identity.
 
-### basic-document
+<details>
+<summary>basic-document</summary>
 
-- Source: [`examples/basic-document.md`](examples/basic-document.md)
+- Source: [`examples/basic-document.md`](./examples/basic-document.md)
 - Content type: `text/markdown; charset=utf-8; variant=CommonMark`
 - Schema: `https://cem.dev/ns/data/markdown/1`
 - Expected result: `pass`
 - Preview renderer: `source snapshot HTML + html2svg`
 - Preview HTML: `dist/cem_ml/schema-packages/markdown/v1/examples/basic-document.md.html`
+
+</details>
+
 ![Preview of Markdown Resource Schema Package basic-document example](examples/previews/basic-document.md.svg)
 
-### gfm-worklog
+<details>
+<summary>gfm-worklog</summary>
 
-- Source: [`examples/gfm-worklog.md`](examples/gfm-worklog.md)
+- Source: [`examples/gfm-worklog.md`](./examples/gfm-worklog.md)
 - Content type: `text/markdown; charset=utf-8; variant=GFM`
 - Schema: `https://cem.dev/ns/data/markdown/1`
 - Expected result: `pass`
 - Preview renderer: `source snapshot HTML + html2svg`
 - Preview HTML: `dist/cem_ml/schema-packages/markdown/v1/examples/gfm-worklog.md.html`
+
+</details>
+
 ![Preview of Markdown Resource Schema Package gfm-worklog example](examples/previews/gfm-worklog.md.svg)
 
-### invalid-embedded-html
+<details>
+<summary>invalid-embedded-html</summary>
 
-- Source: [`examples/invalid-embedded-html.md`](examples/invalid-embedded-html.md)
+- Source: [`examples/invalid-embedded-html.md`](./examples/invalid-embedded-html.md)
 - Content type: `text/markdown; charset=utf-8; variant=CommonMark`
 - Schema: `https://cem.dev/ns/data/markdown/1`
 - Expected result: `fail`
 - Expected diagnostics: `cem.markdown.embedded_html_rejected`
 - Preview renderer: `source snapshot HTML + html2svg`
 - Preview HTML: `dist/cem_ml/schema-packages/markdown/v1/examples/invalid-embedded-html.md.html`
+
+</details>
+
 ![Preview of Markdown Resource Schema Package invalid-embedded-html example](examples/previews/invalid-embedded-html.md.svg)
 
-### unknown-variant
+<details>
+<summary>unknown-variant</summary>
 
-- Source: [`examples/unknown-variant.md`](examples/unknown-variant.md)
+- Source: [`examples/unknown-variant.md`](./examples/unknown-variant.md)
 - Content type: `text/markdown; charset=utf-8; variant=CustomWiki`
 - Schema: `https://cem.dev/ns/data/markdown/1`
 - Expected result: `pass`
 - Expected diagnostics: `cem.markdown.unknown_variant`
 - Preview renderer: `source snapshot HTML + html2svg`
 - Preview HTML: `dist/cem_ml/schema-packages/markdown/v1/examples/unknown-variant.md.html`
+
+</details>
+
 ![Preview of Markdown Resource Schema Package unknown-variant example](examples/previews/unknown-variant.md.svg)

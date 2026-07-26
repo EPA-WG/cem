@@ -65,9 +65,10 @@ then renders the `<pre>` spans through headless Chromium into
 Source snapshots are used only where the current CLI cannot yet render
 the package formatter/colorizer path for that content identity.
 
-### basic-icon
+<details>
+<summary>basic-icon</summary>
 
-- Source: [`examples/basic-icon.svg`](examples/basic-icon.svg)
+- Source: [`examples/basic-icon.svg`](./examples/basic-icon.svg)
 - Content type: `image/svg+xml`
 - Schema: `https://cem.dev/ns/data/svg/1`
 - Expected result: `pass`
@@ -82,11 +83,14 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
   terminal --output-color-type ansi-256
 ```
 
+</details>
+
 ![Preview of SVG Resource Schema Package basic-icon example](examples/previews/basic-icon.svg.svg)
 
-### bar-chart
+<details>
+<summary>bar-chart</summary>
 
-- Source: [`examples/bar-chart.svg`](examples/bar-chart.svg)
+- Source: [`examples/bar-chart.svg`](./examples/bar-chart.svg)
 - Content type: `image/svg+xml`
 - Schema: `https://cem.dev/ns/data/svg/1`
 - Expected result: `pass`
@@ -101,11 +105,14 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
   terminal --output-color-type ansi-256
 ```
 
+</details>
+
 ![Preview of SVG Resource Schema Package bar-chart example](examples/previews/bar-chart.svg.svg)
 
-### unnamed-icon
+<details>
+<summary>unnamed-icon</summary>
 
-- Source: [`examples/unnamed-icon.svg`](examples/unnamed-icon.svg)
+- Source: [`examples/unnamed-icon.svg`](./examples/unnamed-icon.svg)
 - Content type: `image/svg+xml`
 - Schema: `https://cem.dev/ns/data/svg/1`
 - Expected result: `pass`
@@ -121,11 +128,14 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
   terminal --output-color-type ansi-256
 ```
 
+</details>
+
 ![Preview of SVG Resource Schema Package unnamed-icon example](examples/previews/unnamed-icon.svg.svg)
 
-### invalid-missing-namespace
+<details>
+<summary>invalid-missing-namespace</summary>
 
-- Source: [`examples/invalid-missing-namespace.svg`](examples/invalid-missing-namespace.svg)
+- Source: [`examples/invalid-missing-namespace.svg`](./examples/invalid-missing-namespace.svg)
 - Content type: `image/svg+xml`
 - Schema: `https://cem.dev/ns/data/svg/1`
 - Expected result: `fail`
@@ -141,11 +151,14 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
   terminal --output-color-type ansi-256
 ```
 
+</details>
+
 ![Preview of SVG Resource Schema Package invalid-missing-namespace example](examples/previews/invalid-missing-namespace.svg.svg)
 
-### invalid-script
+<details>
+<summary>invalid-script</summary>
 
-- Source: [`examples/invalid-script.svg`](examples/invalid-script.svg)
+- Source: [`examples/invalid-script.svg`](./examples/invalid-script.svg)
 - Content type: `image/svg+xml`
 - Schema: `https://cem.dev/ns/data/svg/1`
 - Expected result: `fail`
@@ -161,11 +174,14 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
   terminal --output-color-type ansi-256
 ```
 
+</details>
+
 ![Preview of SVG Resource Schema Package invalid-script example](examples/previews/invalid-script.svg.svg)
 
-### invalid-external-image
+<details>
+<summary>invalid-external-image</summary>
 
-- Source: [`examples/invalid-external-image.svg`](examples/invalid-external-image.svg)
+- Source: [`examples/invalid-external-image.svg`](./examples/invalid-external-image.svg)
 - Content type: `image/svg+xml`
 - Schema: `https://cem.dev/ns/data/svg/1`
 - Expected result: `fail`
@@ -180,5 +196,7 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
   https://cem.dev/ns/data/svg/1 --cemt-formatter-profile tabular --cemt-color-profile \
   terminal --output-color-type ansi-256
 ```
+
+</details>
 
 ![Preview of SVG Resource Schema Package invalid-external-image example](examples/previews/invalid-external-image.svg.svg)
