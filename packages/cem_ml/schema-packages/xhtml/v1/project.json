@@ -4,6 +4,29 @@
     "projectType": "library",
     "sourceRoot": "packages/cem_ml/schema-packages/xhtml/v1",
     "targets": {
+        "build": {
+            "cache": true,
+            "executor": "nx:noop",
+            "dependsOn": [
+                "samples2readme"
+            ],
+            "inputs": [
+                "{projectRoot}/package.cem",
+                "{projectRoot}/examples/**/*",
+                "!{projectRoot}/examples/previews/**/*",
+                "{workspaceRoot}/packages/cem_ml/schema-packages/scripts/**/*.mjs",
+                "{workspaceRoot}/Cargo.toml",
+                "{workspaceRoot}/Cargo.lock",
+                "{workspaceRoot}/packages/cem_ml/src/**/*.rs",
+                "{workspaceRoot}/packages/cem_ml/Cargo.toml",
+                "{workspaceRoot}/packages/cem_ml_cli/src/**/*.rs",
+                "{workspaceRoot}/packages/cem_ml_cli/Cargo.toml"
+            ],
+            "outputs": [
+                "{workspaceRoot}/dist/cem_ml/schema-packages/xhtml/v1/examples/*.html",
+                "{projectRoot}/examples/previews/*.svg"
+            ]
+        },
         "samples2readme": {
             "cache": true,
             "executor": "nx:run-commands",
@@ -37,8 +60,8 @@
             ],
             "outputs": [
                 "{projectRoot}/README.md",
-                "{projectRoot}/examples/previews",
-                "{workspaceRoot}/dist/cem_ml/schema-packages/xhtml/v1/examples"
+                "{workspaceRoot}/dist/cem_ml/schema-packages/xhtml/v1/examples/*.html",
+                "{projectRoot}/examples/previews/*.svg"
             ]
         },
         "verify": {

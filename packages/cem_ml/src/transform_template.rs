@@ -9906,6 +9906,25 @@ struct TransformTemplateRenderedTextLine {
     content_end: usize,
 }
 
+#[derive(Debug, Clone)]
+struct TransformTemplateRenderedTextCloseScopeLine {
+    leading_whitespace: String,
+    close_token: String,
+}
+
+#[derive(Debug, Clone)]
+struct TransformTemplateRenderedTextTrailingCloseScope {
+    close_start: usize,
+    close_end: usize,
+    close_scope: TransformTemplateRenderedTextCloseScopeLine,
+}
+
+#[derive(Debug, Clone, Copy)]
+enum TransformTemplateRenderedTextLinePart {
+    Escape { start: usize, end: usize },
+    Visible { ch: char, start: usize, end: usize },
+}
+
 fn transform_template_shift_byte_offset(value: u64, delta: i128) -> u64 {
     if delta < 0 {
         value.saturating_sub((-delta) as u64)
@@ -9943,7 +9962,6 @@ fn transform_template_merge_tabular_cem_closing_scopes(
 ) {
     if syntax != TransformTemplateCemTreeWriterSyntax::Cem
         || !transform_template_cem_tree_writer_uses_tabular_profile(value, writer_boundary_context)
-        || rendered.terminal_color_profile.is_some()
         || rendered.markdown_color_profile.is_some()
     {
         return;
@@ -9965,29 +9983,23 @@ fn transform_template_merge_tabular_cem_closing_scopes(
     while index + 1 < lines.len() {
         let line = lines[index];
         let line_text = &rendered.text[line.start..line.content_end];
-        let mut last_close_line = index;
-        while last_close_line + 1 < lines.len()
-            && transform_template_rendered_text_line_is_close_scope(
-                &rendered.text
-                    [lines[last_close_line + 1].start..lines[last_close_line + 1].content_end],
-            )
-        {
-            last_close_line += 1;
-        }
-        let following_close_count = last_close_line.saturating_sub(index);
-        if following_close_count == 0 {
-            index += 1;
-            continue;
-        }
-
-        if transform_template_rendered_text_line_is_close_scope(line_text) {
-            if following_close_count > 0 {
-                let merged = transform_template_rendered_text_merged_close_scopes(
-                    &rendered.text
-                        [lines[last_close_line].start..lines[last_close_line].content_end],
-                    following_close_count + 1,
-                    &indent,
-                );
+        if let Some(close_scope) = transform_template_rendered_text_close_scope_line(line_text) {
+            let mut close_scopes = vec![close_scope];
+            let mut last_close_line = index;
+            while last_close_line + 1 < lines.len() {
+                let next_line = lines[last_close_line + 1];
+                let next_line_text = &rendered.text[next_line.start..next_line.content_end];
+                let Some(next_close_scope) =
+                    transform_template_rendered_text_close_scope_line(next_line_text)
+                else {
+                    break;
+                };
+                close_scopes.push(next_close_scope);
+                last_close_line += 1;
+            }
+            if close_scopes.len() > 1 {
+                let merged =
+                    transform_template_rendered_text_merged_close_scopes(&close_scopes, &indent);
                 edits.push(TransformTemplateRenderedTextEdit {
                     start: line.start,
                     end: lines[last_close_line].content_end,
@@ -9996,17 +10008,31 @@ fn transform_template_merge_tabular_cem_closing_scopes(
                 index = last_close_line + 1;
                 continue;
             }
-        } else if let Some(close_start) =
-            transform_template_rendered_text_trailing_close_scope_start(line_text)
+        } else if let Some(trailing_close_scope) =
+            transform_template_rendered_text_trailing_close_scope(line_text)
         {
-            let merged = transform_template_rendered_text_merged_close_scopes(
-                &rendered.text[lines[last_close_line].start..lines[last_close_line].content_end],
-                following_close_count + 1,
-                &indent,
-            );
+            let mut close_scopes = vec![trailing_close_scope.close_scope.clone()];
+            let mut last_close_line = index;
+            while last_close_line + 1 < lines.len() {
+                let next_line = lines[last_close_line + 1];
+                let next_line_text = &rendered.text[next_line.start..next_line.content_end];
+                let Some(next_close_scope) =
+                    transform_template_rendered_text_close_scope_line(next_line_text)
+                else {
+                    break;
+                };
+                close_scopes.push(next_close_scope);
+                last_close_line += 1;
+            }
+            if close_scopes.len() <= 1 {
+                index += 1;
+                continue;
+            }
+            let merged =
+                transform_template_rendered_text_merged_close_scopes(&close_scopes, &indent);
             edits.push(TransformTemplateRenderedTextEdit {
-                start: line.start + close_start,
-                end: line.start + close_start + 1,
+                start: line.start + trailing_close_scope.close_start,
+                end: line.start + trailing_close_scope.close_end,
                 replacement: String::new(),
             });
             edits.push(TransformTemplateRenderedTextEdit {
@@ -10059,41 +10085,207 @@ fn transform_template_rendered_text_lines(
     lines
 }
 
-fn transform_template_rendered_text_line_is_close_scope(line: &str) -> bool {
-    line.trim() == "}"
-}
-
-fn transform_template_rendered_text_trailing_close_scope_start(line: &str) -> Option<usize> {
-    let trimmed_end = line.trim_end();
-    if trimmed_end.trim() == "}" || !trimmed_end.ends_with("```}") {
-        return None;
-    }
-    Some(trimmed_end.len().saturating_sub(1))
-}
-
 fn transform_template_rendered_text_merged_close_scopes(
-    outer_close_line: &str,
-    close_count: usize,
+    close_scopes: &[TransformTemplateRenderedTextCloseScopeLine],
     indent: &str,
 ) -> String {
-    let base_indent = transform_template_rendered_text_leading_whitespace(outer_close_line);
+    let Some(outer_close_scope) = close_scopes.last() else {
+        return String::new();
+    };
     let separator = transform_template_rendered_text_close_scope_separator(indent);
-    let mut merged = base_indent.to_owned();
-    for index in 0..close_count {
+    let mut merged = outer_close_scope.leading_whitespace.clone();
+    for (index, close_scope) in close_scopes.iter().enumerate() {
         if index > 0 {
             merged.push_str(&separator);
         }
-        merged.push('}');
+        merged.push_str(&close_scope.close_token);
     }
     merged
 }
 
-fn transform_template_rendered_text_leading_whitespace(line: &str) -> &str {
-    let end = line
-        .char_indices()
-        .find_map(|(index, ch)| (!ch.is_whitespace()).then_some(index))
-        .unwrap_or(line.len());
-    &line[..end]
+fn transform_template_rendered_text_close_scope_line(
+    line: &str,
+) -> Option<TransformTemplateRenderedTextCloseScopeLine> {
+    let parts = transform_template_rendered_text_line_parts(line);
+    let visible_parts = parts
+        .iter()
+        .enumerate()
+        .filter_map(|(index, part)| match part {
+            TransformTemplateRenderedTextLinePart::Visible { ch, .. } => Some((index, *ch)),
+            TransformTemplateRenderedTextLinePart::Escape { .. } => None,
+        })
+        .collect::<Vec<_>>();
+    let (first_non_whitespace_index, first_non_whitespace) =
+        visible_parts.iter().find(|(_, ch)| !ch.is_whitespace())?;
+    let (last_non_whitespace_index, last_non_whitespace) = visible_parts
+        .iter()
+        .rev()
+        .find(|(_, ch)| !ch.is_whitespace())?;
+    if first_non_whitespace_index != last_non_whitespace_index
+        || *first_non_whitespace != '}'
+        || *last_non_whitespace != '}'
+    {
+        return None;
+    }
+
+    let mut leading_whitespace = String::new();
+    for part in &parts[..*first_non_whitespace_index] {
+        if let TransformTemplateRenderedTextLinePart::Visible { ch, .. } = part {
+            leading_whitespace.push(*ch);
+        }
+    }
+    let close_token =
+        transform_template_rendered_text_close_token(line, &parts, *first_non_whitespace_index);
+    Some(TransformTemplateRenderedTextCloseScopeLine {
+        leading_whitespace,
+        close_token,
+    })
+}
+
+fn transform_template_rendered_text_trailing_close_scope(
+    line: &str,
+) -> Option<TransformTemplateRenderedTextTrailingCloseScope> {
+    let parts = transform_template_rendered_text_line_parts(line);
+    let visible_parts = parts
+        .iter()
+        .enumerate()
+        .filter_map(|(index, part)| match part {
+            TransformTemplateRenderedTextLinePart::Visible { ch, .. } => Some((index, *ch)),
+            TransformTemplateRenderedTextLinePart::Escape { .. } => None,
+        })
+        .collect::<Vec<_>>();
+    let visible_text = visible_parts.iter().map(|(_, ch)| *ch).collect::<String>();
+    let trimmed_end = visible_text.trim_end();
+    if trimmed_end.trim() == "}" || !trimmed_end.ends_with("```}") {
+        return None;
+    }
+    let (close_part_index, close_char) = visible_parts
+        .iter()
+        .rev()
+        .find(|(_, ch)| !ch.is_whitespace())?;
+    if *close_char != '}' {
+        return None;
+    }
+    let TransformTemplateRenderedTextLinePart::Visible {
+        start: close_start,
+        end: close_end,
+        ..
+    } = parts[*close_part_index]
+    else {
+        return None;
+    };
+    let close_scope = TransformTemplateRenderedTextCloseScopeLine {
+        leading_whitespace: String::new(),
+        close_token: transform_template_rendered_text_close_token(line, &parts, *close_part_index),
+    };
+    Some(TransformTemplateRenderedTextTrailingCloseScope {
+        close_start,
+        close_end,
+        close_scope,
+    })
+}
+
+fn transform_template_rendered_text_close_token(
+    line: &str,
+    parts: &[TransformTemplateRenderedTextLinePart],
+    close_part_index: usize,
+) -> String {
+    let TransformTemplateRenderedTextLinePart::Visible {
+        start: mut token_start,
+        end: mut token_end,
+        ..
+    } = parts[close_part_index]
+    else {
+        return String::new();
+    };
+    let mut index = close_part_index;
+    while index > 0 {
+        let TransformTemplateRenderedTextLinePart::Escape { start, .. } = parts[index - 1] else {
+            break;
+        };
+        token_start = start;
+        index -= 1;
+    }
+    index = close_part_index + 1;
+    while index < parts.len() {
+        let TransformTemplateRenderedTextLinePart::Escape { end, .. } = parts[index] else {
+            break;
+        };
+        token_end = end;
+        index += 1;
+    }
+    line[token_start..token_end].to_owned()
+}
+
+#[cfg(test)]
+fn transform_template_rendered_text_without_terminal_escapes(text: &str) -> String {
+    let mut result = String::new();
+    for part in transform_template_rendered_text_line_parts(text) {
+        if let TransformTemplateRenderedTextLinePart::Visible { ch, .. } = part {
+            result.push(ch);
+        }
+    }
+    result
+}
+
+fn transform_template_rendered_text_line_parts(
+    text: &str,
+) -> Vec<TransformTemplateRenderedTextLinePart> {
+    let mut parts = Vec::new();
+    let mut index = 0usize;
+    while index < text.len() {
+        if text.as_bytes()[index] == 0x1b {
+            if let Some(end) = transform_template_terminal_escape_sequence_end(text, index) {
+                parts.push(TransformTemplateRenderedTextLinePart::Escape { start: index, end });
+                index = end;
+                continue;
+            }
+        }
+        let Some(ch) = text[index..].chars().next() else {
+            break;
+        };
+        let end = index + ch.len_utf8();
+        parts.push(TransformTemplateRenderedTextLinePart::Visible {
+            ch,
+            start: index,
+            end,
+        });
+        index = end;
+    }
+    parts
+}
+
+fn transform_template_terminal_escape_sequence_end(text: &str, start: usize) -> Option<usize> {
+    let bytes = text.as_bytes();
+    if bytes.get(start).copied()? != 0x1b {
+        return None;
+    }
+    match bytes.get(start + 1).copied()? {
+        b'[' => {
+            let mut index = start + 2;
+            while index < bytes.len() {
+                if (0x40..=0x7e).contains(&bytes[index]) {
+                    return Some(index + 1);
+                }
+                index += 1;
+            }
+            None
+        }
+        b']' => {
+            let mut index = start + 2;
+            while index < bytes.len() {
+                match bytes[index] {
+                    0x07 => return Some(index + 1),
+                    0x1b if bytes.get(index + 1).copied() == Some(b'\\') => {
+                        return Some(index + 2);
+                    }
+                    _ => index += 1,
+                }
+            }
+            None
+        }
+        _ => Some((start + 2).min(bytes.len())),
+    }
 }
 
 fn transform_template_rendered_text_close_scope_separator(indent: &str) -> String {
@@ -29998,6 +30190,97 @@ mod tests {
             .output_spans
             .iter()
             .all(|span| span.output_range.end() <= rendered.text.len() as u64));
+    }
+
+    #[test]
+    fn tabular_writer_merges_adjacent_terminal_colored_closing_scopes() {
+        let implementations =
+            TransformTemplateEncodeImplementationRegistry::with_builtin_encoders();
+        let subject = json!({
+            "kind": "element",
+            "name": "module",
+            "children": [{
+                "kind": "element",
+                "name": "section",
+                "children": [{
+                    "kind": "element",
+                    "name": "p",
+                    "children": [{"kind": "text", "value": "Ready"}]
+                }]
+            }]
+        });
+        let options = TransformTemplateEncodeOptions {
+            formatter: Some("cem.format-tree".to_owned()),
+            formatter_profile: Some("tabular".to_owned()),
+            indent: Some("    ".to_owned()),
+            ..TransformTemplateEncodeOptions::default()
+        };
+        let format_binding = TransformTemplateEncodeBinding {
+            function: cem_tree_format_function_descriptor(),
+            subject_type: "cem-ast-node".to_owned(),
+            identity: TransformTemplateEncodedArtifactIdentity::from_options(
+                TransformTemplateOutputProducedKind::CemTree,
+                TransformTemplateEncodingTarget::new(
+                    CEM_ML_CONTENT_TYPE,
+                    CEM_ML_SCHEMA_URI,
+                    "cem-tree",
+                ),
+                &options,
+            ),
+            options,
+        };
+        let formatted = implementations
+            .encode(&format_binding, &subject)
+            .expect("CEM tree formatter runs");
+
+        let mut registry = TransformTemplateOutputFunctionRegistry::new();
+        registry.register(cem_tree_color_function_descriptor_with_profile("terminal"));
+        let color_request = TransformTemplateEncodeBindingRequest::new(
+            formatted.clone(),
+            TransformTemplateEncodingTarget::new(
+                CEM_ML_CONTENT_TYPE,
+                CEM_ML_SCHEMA_URI,
+                "cem-tree",
+            ),
+        )
+        .with_subject_type("cem-tree")
+        .with_options(TransformTemplateEncodeOptions {
+            colorizer: Some("cem.color-tree".to_owned()),
+            color_profile: Some("terminal".to_owned()),
+            ..TransformTemplateEncodeOptions::default()
+        });
+        let color_binding = registry
+            .resolve_color_binding(&color_request, &BTreeSet::new())
+            .expect("terminal CEM tree colorizer resolves")
+            .into_encode_binding();
+        let colored = implementations
+            .encode(&color_binding, &formatted)
+            .expect("CEM tree colorizer runs");
+        let mut context = TransformTemplateEncodedArtifactInsertionContext::new(
+            CEM_ML_CONTENT_TYPE,
+            CEM_ML_SCHEMA_URI,
+        )
+        .with_category("cem-tree")
+        .with_produces(TransformTemplateOutputProducedKind::Text);
+        context.output_color_type = Some("ansi-256".to_owned());
+
+        let rendered = transform_template_cem_tree_value_to_rendered_text(&colored, &context)
+            .expect("terminal-colored tabular CEM tree renders");
+        let visible = transform_template_rendered_text_without_terminal_escapes(&rendered.text);
+
+        assert!(
+            visible.contains("\n}   }"),
+            "expected adjacent closing scopes to merge, got:\n{visible}"
+        );
+        assert!(
+            !visible.contains("\n    }\n}"),
+            "expected adjacent closing scopes not to split, got:\n{visible}"
+        );
+        assert!(
+            rendered.text.contains("\u{1b}[38;5;81m}\u{1b}[0m"),
+            "expected merged closing scopes to preserve terminal color, got:\n{}",
+            rendered.text
+        );
     }
 
     #[test]
