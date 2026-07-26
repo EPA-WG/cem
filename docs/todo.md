@@ -468,9 +468,9 @@ Remaining dependency-ordered package checklist:
         so YAML validation no longer falls through to CEM parsing.
   - [x] Remove JSON subject/token declarations from YAML formatter/colorizer
         CEMT boundaries in favor of typed YAML document/CEM tree boundaries.
-  - [x] Keep YAML target/export selection explicitly unsupported until a
-        first-class YAML output layer exists.
-  - [ ] Add first-class YAML export support with a YAML layer format and route
+  - [x] Add YAML target/export selection only with the first-class YAML output
+        layer.
+  - [x] Add first-class YAML export support with a YAML layer format and route
         same-schema YAML conversion through the YAML formatter/colorizer/writer
         pipeline instead of a generic JSON-value bridge.
   - [ ] Expand YAML formatter/colorizer bodies for compact, pretty, tabular,
@@ -523,9 +523,11 @@ Remaining dependency-ordered package checklist:
 
 ### Next Work Item
 
-Implement first-class `yaml/v1` export support with a YAML layer format, then
-route same-schema YAML conversion through the YAML formatter/colorizer/writer
-pipeline instead of a generic JSON-value bridge.
+Expand `yaml/v1` formatter/colorizer bodies for compact, pretty, tabular,
+terminal, HTML, and Markdown profile semantics with drift tests. The current
+first-class YAML output layer preserves typed AST/source-map ownership, but its
+formatter/colorizer stage executions still use Rust fallback bodies until the
+package CEMT functions own those profile semantics.
 
 ## Current Verification Commands
 

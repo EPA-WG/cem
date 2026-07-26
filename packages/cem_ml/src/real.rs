@@ -13,7 +13,8 @@ use crate::conversion::{
     execute_conversion_output_pipeline,
     execute_conversion_output_pipeline_from_formatted_cem_tree_with_environment,
     execute_conversion_output_pipeline_with_environment,
-    execute_csv_document_output_pipeline_with_environment, ConversionExecution,
+    execute_csv_document_output_pipeline_with_environment,
+    execute_yaml_document_output_pipeline_with_environment, ConversionExecution,
     ConversionOutputPipeline, ConversionOutputPipelineEnvironment,
     ConversionPackageArtifactDescriptor, ConversionPackageArtifactRead,
     ConversionRustFallbackDescriptor, GenericDataTextConversionOutcome, GenericDataTextDocument,
@@ -51,6 +52,7 @@ use crate::schema::registry::{
     CEM_SCHEMA_CONTENT_TYPE, CEM_SCHEMA_PACKAGE_CONTENT_TYPE, CEM_SCHEMA_PACKAGE_URI,
     CSS_CONTENT_TYPE, CSS_SCHEMA_URI, CSV_CONTENT_TYPE, CSV_SCHEMA_URI, HTML_CONTENT_TYPE,
     HTML_SCHEMA_URI, XHTML_CONTENT_TYPE, XHTML_SCHEMA_URI, XML_CONTENT_TYPE, XML_SCHEMA_URI,
+    YAML_CONTENT_TYPE, YAML_SCHEMA_URI,
 };
 use crate::schema::vocab::CompiledSchema;
 use crate::source::line_index::LineIndex;
@@ -86,6 +88,7 @@ use crate::transform_template::{
     TRANSFORM_TEMPLATE_PARAM_TYPE_CODE, TRANSFORM_TEMPLATE_PARAM_UNKNOWN_CODE,
 };
 use crate::validation::csv::CsvDocumentAst;
+use crate::validation::yaml::YamlDocumentAst;
 use crate::validation::{
     rules::validate_cem_native_template_source_semantics, RuleContext, RuleRegistry,
     RuleResourceRead, RuleResourceReader,
@@ -4929,6 +4932,200 @@ fn convert_metadata_for_csv_lifecycle_output(
     }
 }
 
+fn yaml_direct_output_primary_identity(
+    target: &FormatIdentity,
+    target_scope: &ScopeConfig,
+) -> (String, String, String) {
+    if yaml_direct_output_is_html(target_scope) {
+        return (
+            HTML_CONTENT_TYPE.to_owned(),
+            HTML_SCHEMA_URI.to_owned(),
+            "yaml-html/1".to_owned(),
+        );
+    }
+    (
+        target
+            .content_type
+            .clone()
+            .unwrap_or_else(|| YAML_CONTENT_TYPE.to_owned()),
+        target
+            .schema
+            .clone()
+            .unwrap_or_else(|| YAML_SCHEMA_URI.to_owned()),
+        "yaml/1".to_owned(),
+    )
+}
+
+fn convert_loaded_yaml_ast_output(
+    context: &EngineContext,
+    request: &ConvertRequest,
+    document: YamlDocumentAst,
+    diagnostics: &mut Vec<Diagnostic>,
+) -> (Value, Option<PrimaryBytes>, ConvertExecutionMetadata) {
+    let metadata = convert_metadata_for_yaml_lifecycle_output(&request.target_scope);
+    let environment = ConversionOutputPipelineEnvironment {
+        schema_registry: &context.schema_registry,
+        conversion_registry: &context.converter_registry,
+        package_artifact_reader: None,
+        artifact_cache: None,
+    };
+    let execution = execute_yaml_document_output_pipeline_with_environment(
+        &environment,
+        document,
+        &request.target_scope,
+        Some(&request.input.uri),
+    );
+    diagnostics.extend(execution.diagnostics.clone());
+    if diagnostics
+        .iter()
+        .any(|diagnostic| diagnostic.severity.is_hard_violation())
+    {
+        return (Value::Null, None, metadata);
+    }
+
+    let content = execution
+        .output
+        .as_ref()
+        .and_then(Value::as_str)
+        .unwrap_or_default()
+        .to_owned();
+    let target = request
+        .target
+        .clone()
+        .or_else(|| request.target_scope.format_identity_option())
+        .unwrap_or_else(|| FormatIdentity {
+            content_type: Some(YAML_CONTENT_TYPE.to_owned()),
+            schema: Some(YAML_SCHEMA_URI.to_owned()),
+            ..FormatIdentity::default()
+        });
+    let (content_type, schema, format_version) =
+        yaml_direct_output_primary_identity(&target, &request.target_scope);
+    let bytes = content.into_bytes();
+    let primary_bytes = PrimaryBytes {
+        content_type,
+        schema: Some(schema.clone()),
+        format_version,
+        hash_scheme: "cem-text/1+blake3".to_owned(),
+        hash: text_content_hash(&bytes),
+        bytes,
+    };
+    let hash = primary_bytes.hash.clone();
+    (
+        json!({
+            "kind": "document",
+            "contentType": primary_bytes.content_type,
+            "schema": schema,
+            "hash": hash,
+        }),
+        Some(primary_bytes),
+        metadata,
+    )
+}
+
+fn yaml_direct_output_is_html(target_scope: &ScopeConfig) -> bool {
+    yaml_direct_output_html_color_selection(target_scope)
+        .as_ref()
+        .is_some_and(yaml_direct_output_color_selection_requests_color)
+        || target_scope
+            .cemt_color_profile
+            .as_deref()
+            .map(str::trim)
+            .is_some_and(|profile| profile == "html")
+}
+
+fn yaml_direct_output_html_color_selection(
+    target_scope: &ScopeConfig,
+) -> Option<TransformTemplateOutputColorSelection> {
+    let output_color_type = target_scope
+        .output_color_type
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())?;
+    let selection = parse_transform_template_output_color_type(output_color_type).ok()?;
+    (selection.target.category == "html-color").then_some(selection)
+}
+
+fn yaml_direct_output_color_selection_requests_color(
+    selection: &TransformTemplateOutputColorSelection,
+) -> bool {
+    selection.output_color_type != "none"
+}
+
+fn convert_metadata_for_yaml_lifecycle_output(
+    target_scope: &ScopeConfig,
+) -> ConvertExecutionMetadata {
+    let formatter_profile = target_scope
+        .cemt_formatter_profile
+        .clone()
+        .unwrap_or_else(|| "compact".to_owned());
+    let html_output = yaml_direct_output_is_html(target_scope);
+    let color_profile = html_output.then(|| "html".to_owned());
+    let writer_profile = yaml_direct_output_html_color_selection(target_scope)
+        .filter(yaml_direct_output_color_selection_requests_color)
+        .map(|selection| selection.output_color_type)
+        .or_else(|| color_profile.clone());
+    let (writer_content_type, writer_schema, writer_category) = if html_output {
+        (HTML_CONTENT_TYPE, HTML_SCHEMA_URI, "html-document")
+    } else {
+        (YAML_CONTENT_TYPE, YAML_SCHEMA_URI, "yaml-document")
+    };
+    ConvertExecutionMetadata {
+        converter_id: Some("yaml-lifecycle-output".to_owned()),
+        implementation: Some("lifecycle-yaml-output-pipeline".to_owned()),
+        rust_fallback: None,
+        output_pipeline: Some(ConvertOutputPipelineMetadata {
+            stages: vec![
+                ConvertOutputPipelineStageMetadata {
+                    stage: "formatter".to_owned(),
+                    function: Some(
+                        target_scope
+                            .cemt_formatter
+                            .clone()
+                            .unwrap_or_else(|| "yaml.format-document".to_owned()),
+                    ),
+                    profile: Some(formatter_profile),
+                    content_type: Some(YAML_CONTENT_TYPE.to_owned()),
+                    schema: Some(YAML_SCHEMA_URI.to_owned()),
+                    category: Some("yaml-document".to_owned()),
+                    produces: Some(
+                        TransformTemplateOutputProducedKind::CemTree
+                            .as_str()
+                            .to_owned(),
+                    ),
+                },
+                ConvertOutputPipelineStageMetadata {
+                    stage: "colorizer".to_owned(),
+                    function: color_profile
+                        .as_ref()
+                        .map(|_| "yaml.color-document".to_owned()),
+                    profile: color_profile,
+                    content_type: Some(YAML_CONTENT_TYPE.to_owned()),
+                    schema: Some(YAML_SCHEMA_URI.to_owned()),
+                    category: Some("yaml-document".to_owned()),
+                    produces: Some(
+                        TransformTemplateOutputProducedKind::CemTree
+                            .as_str()
+                            .to_owned(),
+                    ),
+                },
+                ConvertOutputPipelineStageMetadata {
+                    stage: "writer".to_owned(),
+                    function: None,
+                    profile: writer_profile,
+                    content_type: Some(writer_content_type.to_owned()),
+                    schema: Some(writer_schema.to_owned()),
+                    category: Some(writer_category.to_owned()),
+                    produces: Some(
+                        TransformTemplateOutputProducedKind::Text
+                            .as_str()
+                            .to_owned(),
+                    ),
+                },
+            ],
+        }),
+    }
+}
+
 fn append_convert_time_budget_diagnostics(
     diagnostics: &mut Vec<Diagnostic>,
     request: &ConvertRequest,
@@ -6000,47 +6197,103 @@ impl CemMlEngine for RealCemMlEngine {
             });
             diagnostics.append(&mut export.diagnostics);
             let to_format = export.to_format;
-            if let Some(LoadedInputAstStream::CsvDocument(table_value)) = loaded.ast_stream.take() {
-                if to_format == LayerFormat::Csv {
-                    if diagnostics
-                        .iter()
-                        .any(|diagnostic| diagnostic.severity.is_hard_violation())
-                    {
+            if let Some(ast_stream) = loaded.ast_stream.take() {
+                match ast_stream {
+                    LoadedInputAstStream::CsvDocument(table_value) => {
+                        if to_format == LayerFormat::Csv {
+                            if diagnostics
+                                .iter()
+                                .any(|diagnostic| diagnostic.severity.is_hard_violation())
+                            {
+                                primary = Some(Value::Null);
+                                conversion = Some(convert_metadata_for_csv_lifecycle_output(
+                                    &request.target_scope,
+                                ));
+                                return;
+                            }
+
+                            let (csv_primary, csv_primary_bytes, csv_conversion) =
+                                convert_loaded_csv_ast_output(
+                                    &context,
+                                    &request,
+                                    table_value,
+                                    &mut diagnostics,
+                                );
+                            primary = Some(csv_primary);
+                            primary_bytes = csv_primary_bytes;
+                            conversion = Some(csv_conversion);
+                            return;
+                        }
+
+                        diagnostics.push(Diagnostic {
+                            uri: Some(request.input.uri.clone()),
+                            code: "cem.lifecycle.internal_ast_target_unsupported".to_owned(),
+                            severity: Severity::Fatal,
+                            message: format!(
+                                "CSV lifecycle input cannot be exported through `{to_format:?}` without a registered CSV AST export adapter"
+                            ),
+                            details: Some(json!({
+                                "lifecycle": {
+                                    "adapterId": loaded.adapter_id,
+                                    "operation": "export",
+                                    "internalContentType": CSV_CONTENT_TYPE,
+                                    "internalSchema": CSV_SCHEMA_URI,
+                                    "targetFormat": format!("{to_format:?}"),
+                                }
+                            })),
+                            ..Diagnostic::default()
+                        });
                         primary = Some(Value::Null);
-                        conversion = Some(convert_metadata_for_csv_lifecycle_output(
-                            &request.target_scope,
-                        ));
                         return;
                     }
+                    LoadedInputAstStream::YamlDocument(document_value) => {
+                        if to_format == LayerFormat::Yaml {
+                            if diagnostics
+                                .iter()
+                                .any(|diagnostic| diagnostic.severity.is_hard_violation())
+                            {
+                                primary = Some(Value::Null);
+                                conversion = Some(convert_metadata_for_yaml_lifecycle_output(
+                                    &request.target_scope,
+                                ));
+                                return;
+                            }
 
-                    let (csv_primary, csv_primary_bytes, csv_conversion) =
-                        convert_loaded_csv_ast_output(&context, &request, table_value, &mut diagnostics);
-                    primary = Some(csv_primary);
-                    primary_bytes = csv_primary_bytes;
-                    conversion = Some(csv_conversion);
-                    return;
-                }
-
-                diagnostics.push(Diagnostic {
-                    uri: Some(request.input.uri.clone()),
-                    code: "cem.lifecycle.internal_ast_target_unsupported".to_owned(),
-                    severity: Severity::Fatal,
-                    message: format!(
-                        "CSV lifecycle input cannot be exported through `{to_format:?}` without a registered CSV AST export adapter"
-                    ),
-                    details: Some(json!({
-                        "lifecycle": {
-                            "adapterId": loaded.adapter_id,
-                            "operation": "export",
-                            "internalContentType": CSV_CONTENT_TYPE,
-                            "internalSchema": CSV_SCHEMA_URI,
-                            "targetFormat": format!("{to_format:?}"),
+                            let (yaml_primary, yaml_primary_bytes, yaml_conversion) =
+                                convert_loaded_yaml_ast_output(
+                                    &context,
+                                    &request,
+                                    document_value,
+                                    &mut diagnostics,
+                                );
+                            primary = Some(yaml_primary);
+                            primary_bytes = yaml_primary_bytes;
+                            conversion = Some(yaml_conversion);
+                            return;
                         }
-                    })),
-                    ..Diagnostic::default()
-                });
-                primary = Some(Value::Null);
-                return;
+
+                        diagnostics.push(Diagnostic {
+                            uri: Some(request.input.uri.clone()),
+                            code: "cem.lifecycle.internal_ast_target_unsupported".to_owned(),
+                            severity: Severity::Fatal,
+                            message: format!(
+                                "YAML lifecycle input cannot be exported through `{to_format:?}` without a registered YAML AST export adapter"
+                            ),
+                            details: Some(json!({
+                                "lifecycle": {
+                                    "adapterId": loaded.adapter_id,
+                                    "operation": "export",
+                                    "internalContentType": YAML_CONTENT_TYPE,
+                                    "internalSchema": YAML_SCHEMA_URI,
+                                    "targetFormat": format!("{to_format:?}"),
+                                }
+                            })),
+                            ..Diagnostic::default()
+                        });
+                        primary = Some(Value::Null);
+                        return;
+                    }
+                }
             }
 
             let export_conversion =
@@ -6323,6 +6576,21 @@ impl CemMlEngine for RealCemMlEngine {
                         details: Some(json!({
                             "targetContentType": CSV_CONTENT_TYPE,
                             "targetSchema": CSV_SCHEMA_URI,
+                        })),
+                        ..Diagnostic::default()
+                    });
+                    Value::Null
+                }
+                LayerFormat::Yaml => {
+                    diagnostics.push(Diagnostic {
+                        uri: Some(request.input.uri.clone()),
+                        code: "cem.lifecycle.yaml_source_required".to_owned(),
+                        severity: Severity::Fatal,
+                        message: "YAML export requires a YAML lifecycle input AST stream or a registered converter"
+                            .to_owned(),
+                        details: Some(json!({
+                            "targetContentType": YAML_CONTENT_TYPE,
+                            "targetSchema": YAML_SCHEMA_URI,
                         })),
                         ..Diagnostic::default()
                     });
@@ -11342,6 +11610,62 @@ mod tests {
             "CSV validation should be completed by the lifecycle AST stream, not CEM parsing: {:?}",
             resp.report.diagnostics
         );
+    }
+
+    #[test]
+    fn convert_yaml_same_schema_uses_lifecycle_output_pipeline() {
+        let mut source = input(b"name: Ada\nactive: true\n", "document.yaml");
+        source.identity = Some(FormatIdentity {
+            content_type: Some(YAML_CONTENT_TYPE.to_owned()),
+            schema: Some(YAML_SCHEMA_URI.to_owned()),
+            ..FormatIdentity::default()
+        });
+        let target = FormatIdentity {
+            content_type: Some(YAML_CONTENT_TYPE.to_owned()),
+            schema: Some(YAML_SCHEMA_URI.to_owned()),
+            ..FormatIdentity::default()
+        };
+        let req = ConvertRequest {
+            input: source,
+            to_format: LayerFormat::DomJson,
+            preserve_source_offsets: false,
+            context: ctx(),
+            target: Some(target),
+            target_scope: ScopeConfig {
+                cemt_formatter_profile: Some("tabular".to_owned()),
+                ..ScopeConfig::default()
+            },
+            scheduler_scope_id: 0,
+        };
+
+        let resp = RealCemMlEngine::new().convert(req).unwrap();
+
+        assert!(
+            resp.diagnostics.is_empty(),
+            "YAML same-schema conversion should stay on the lifecycle AST path: {:?}",
+            resp.diagnostics
+        );
+        assert_eq!(
+            resp.conversion
+                .as_ref()
+                .and_then(|conversion| conversion.converter_id.as_deref()),
+            Some("yaml-lifecycle-output")
+        );
+        assert_eq!(
+            resp.conversion
+                .as_ref()
+                .and_then(|conversion| conversion.implementation.as_deref()),
+            Some("lifecycle-yaml-output-pipeline")
+        );
+        let primary_bytes = resp.primary_bytes.as_ref().expect("YAML primary bytes");
+        assert_eq!(primary_bytes.content_type, YAML_CONTENT_TYPE);
+        assert_eq!(primary_bytes.schema.as_deref(), Some(YAML_SCHEMA_URI));
+        assert_eq!(
+            std::str::from_utf8(&primary_bytes.bytes).unwrap(),
+            "name: Ada\nactive: true\n"
+        );
+        assert_eq!(resp.primary["kind"], "document");
+        assert_eq!(resp.primary["contentType"], YAML_CONTENT_TYPE);
     }
 
     #[test]

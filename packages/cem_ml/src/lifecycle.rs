@@ -641,6 +641,14 @@ impl LifecycleAdapter for YamlAdapter {
             adapter_id: Some(self.id()),
         }
     }
+
+    fn matches_target(&self, identity: &FormatIdentity) -> bool {
+        matches_yaml_identity(identity)
+    }
+
+    fn target_format(&self) -> Option<LayerFormat> {
+        Some(LayerFormat::Yaml)
+    }
 }
 
 fn matches_yaml_identity(identity: &FormatIdentity) -> bool {
@@ -1128,7 +1136,7 @@ mod tests {
     }
 
     #[test]
-    fn builtins_do_not_claim_yaml_target_without_export_layer() {
+    fn builtins_select_yaml_target_export_layer() {
         let target = FormatIdentity {
             content_type: Some(YAML_CONTENT_TYPE.to_owned()),
             schema: Some(YAML_SCHEMA_URI.to_owned()),
@@ -1137,12 +1145,9 @@ mod tests {
         let selected = LifecycleRegistry::with_builtin_adapters()
             .select_export(Some(&target), LayerFormat::Cem);
 
-        assert_eq!(selected.to_format, LayerFormat::Cem);
-        assert_eq!(selected.adapter_id, None);
-        assert!(selected
-            .diagnostics
-            .iter()
-            .any(|diagnostic| diagnostic.code == TARGET_ADAPTER_UNSUPPORTED_CODE));
+        assert_eq!(selected.to_format, LayerFormat::Yaml);
+        assert_eq!(selected.adapter_id, Some("yaml"));
+        assert!(selected.diagnostics.is_empty());
     }
 
     #[test]

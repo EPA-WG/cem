@@ -27,7 +27,7 @@ use crate::schema::registry::{
     HTML_CONTENT_TYPE, HTML_SCHEMA_URI, JSON_CONTENT_TYPE, JSON_VALUE_SCHEMA_URI, XML_CONTENT_TYPE,
     XML_SCHEMA_URI, YAML_CONTENT_TYPE, YAML_SCHEMA_URI,
 };
-use crate::source::{BytesSource, SourceId};
+use crate::source::{ByteRange, BytesSource, SourceId};
 use crate::source_map::SourceMapStack;
 use crate::tokenizer::cem::CemTokenizer;
 use crate::tokenizer::html::HtmlTokenizer;
@@ -62,6 +62,7 @@ use crate::transform_template::{
     DEFAULT_FORMATTER_TAB_SIZE,
 };
 use crate::validation::csv::CsvDocumentAst;
+use crate::validation::yaml::YamlDocumentAst;
 use serde_json::Value;
 use std::cell::RefCell;
 use std::collections::{BTreeMap, BTreeSet};
@@ -601,6 +602,12 @@ pub fn convert_generic_data_text(
     uri: Option<&str>,
     bytes: &[u8],
 ) -> GenericDataTextConversionOutcome {
+    let source_is_yaml = format_identity_matches_schema(schema_registry, source, YAML_SCHEMA_URI);
+    let target_is_yaml = format_identity_matches_schema(schema_registry, target, YAML_SCHEMA_URI);
+    if source_is_yaml && target_is_yaml {
+        return GenericDataTextConversionOutcome::Unsupported;
+    }
+
     if !generic_data_text_source_is_supported(schema_registry, source)
         || !generic_data_text_target_is_supported(schema_registry, target)
     {
@@ -2759,6 +2766,24 @@ const CSV_COLOR_CEMT_STAGE_SPEC: CemTreeCemtOutputStageSpec = CemTreeCemtOutputS
     role: "colorizer",
 };
 
+const YAML_FORMAT_CEMT_STAGE_SPEC: CemTreeCemtOutputStageSpec = CemTreeCemtOutputStageSpec {
+    adapter_id: "yaml-format-cemt",
+    artifact_kind: CEM_TREE_FORMATTER_ARTIFACT_KIND,
+    declaration_element: "{format-function",
+    function_kind: TransformTemplateOutputFunctionKind::Format,
+    function_name: "yaml.format-document",
+    role: "formatter",
+};
+
+const YAML_COLOR_CEMT_STAGE_SPEC: CemTreeCemtOutputStageSpec = CemTreeCemtOutputStageSpec {
+    adapter_id: "yaml-color-cemt",
+    artifact_kind: CEM_TREE_COLORIZER_ARTIFACT_KIND,
+    declaration_element: "{color-function",
+    function_kind: TransformTemplateOutputFunctionKind::Color,
+    function_name: "yaml.color-document",
+    role: "colorizer",
+};
+
 #[cfg(test)]
 fn cem_tree_format_cemt_stage(
     target: &TransformTemplateEncodingTarget,
@@ -4566,6 +4591,1115 @@ fn csv_output_pipeline_failed_with_timings(
         diagnostics: vec![conversion_output_pipeline_diagnostic(
             "csv-direct-output",
             Some("csv"),
+            diagnostic_uri,
+            message,
+        )],
+        format_elapsed_ns,
+        color_elapsed_ns,
+        writer_elapsed_ns,
+        ..ConversionOutputPipelineExecution::default()
+    }
+}
+
+pub trait YamlDocumentOutputSubject {
+    fn source_line_ending(&self) -> Option<&str>;
+    fn into_cemt_subject(self) -> Value;
+}
+
+impl YamlDocumentOutputSubject for YamlDocumentAst {
+    fn source_line_ending(&self) -> Option<&str> {
+        self.line_ending.as_deref()
+    }
+
+    fn into_cemt_subject(self) -> Value {
+        self.to_cemt_subject()
+    }
+}
+
+#[cfg(test)]
+impl YamlDocumentOutputSubject for Value {
+    fn source_line_ending(&self) -> Option<&str> {
+        self.get("lineEnding").and_then(Value::as_str)
+    }
+
+    fn into_cemt_subject(self) -> Value {
+        self
+    }
+}
+
+pub fn execute_yaml_document_output_pipeline_with_environment(
+    _environment: &ConversionOutputPipelineEnvironment<'_>,
+    document: impl YamlDocumentOutputSubject,
+    target_scope: &ScopeConfig,
+    diagnostic_uri: Option<&str>,
+) -> ConversionOutputPipelineExecution {
+    let formatter_name = match yaml_formatter_name_for_scope(target_scope) {
+        Ok(name) => name,
+        Err(message) => return yaml_output_pipeline_failed(diagnostic_uri, message),
+    };
+    let formatter_profile = match yaml_formatter_profile_for_scope(target_scope) {
+        Ok(profile) => profile,
+        Err(message) => return yaml_output_pipeline_failed(diagnostic_uri, message),
+    };
+    let presentation_options = match YamlFormatterPresentationOptions::from_options(
+        &target_scope.cemt_formatter_options,
+    ) {
+        Ok(options) => options,
+        Err(message) => return yaml_output_pipeline_failed(diagnostic_uri, message),
+    };
+    let html_color_profile = match yaml_html_color_profile_for_scope(target_scope) {
+        Ok(profile) => profile,
+        Err(message) => return yaml_output_pipeline_failed(diagnostic_uri, message),
+    };
+    let line_ending =
+        yaml_formatter_line_ending(document.source_line_ending(), &presentation_options);
+    let document_subject = document.into_cemt_subject();
+    let target =
+        TransformTemplateEncodingTarget::new(YAML_CONTENT_TYPE, YAML_SCHEMA_URI, "yaml-document");
+    let format_options = TransformTemplateEncodeOptions {
+        formatter: Some(formatter_name.clone()),
+        formatter_profile: Some(formatter_profile.clone()),
+        formatter_options: target_scope.cemt_formatter_options.clone(),
+        line_ending: line_ending.clone(),
+        mode: TransformTemplateEncodedArtifactMode::Document,
+        canonical: formatter_profile == "compact",
+        source_map_policy: TransformTemplateSourceMapPolicy::Generated,
+        ..TransformTemplateEncodeOptions::default()
+    };
+    let format_started = Instant::now();
+    let formatted_value = yaml_format_document_cem_tree(
+        &document_subject,
+        &formatter_name,
+        &formatter_profile,
+        line_ending.as_deref().unwrap_or("lf"),
+    );
+    let format_elapsed_ns = Some(format_started.elapsed().as_nanos());
+    let formatted_artifact = TransformTemplateEncodedArtifact {
+        identity: TransformTemplateEncodedArtifactIdentity::from_options(
+            TransformTemplateOutputProducedKind::CemTree,
+            target.clone(),
+            &format_options,
+        ),
+        value: formatted_value,
+        source_map: None,
+        output_spans: Vec::new(),
+        encoded: true,
+    };
+    let mut formatted_context =
+        TransformTemplateEncodedArtifactInsertionContext::from_encoding_target(
+            &target,
+            Some(TransformTemplateOutputProducedKind::CemTree),
+        );
+    formatted_context.formatter_profile = Some(formatter_profile.clone());
+    formatted_context.mode = Some(TransformTemplateEncodedArtifactMode::Document);
+    formatted_context.canonical = Some(formatter_profile == "compact");
+    formatted_context.source_map_policy = Some(TransformTemplateSourceMapPolicy::Generated);
+    if let Err(error) = formatted_artifact.validate_insertion(&formatted_context) {
+        return yaml_output_pipeline_failed_with_timings(
+            diagnostic_uri,
+            error.diagnostic(diagnostic_uri).message,
+            format_elapsed_ns,
+            None,
+            None,
+        );
+    }
+
+    let mut color_elapsed_ns = None;
+    let (writer_artifact, color_execution, colored_cem_tree) =
+        if let Some(color_profile) = html_color_profile {
+            let colorizer_name = target_scope
+                .cemt_colorizer
+                .clone()
+                .unwrap_or_else(|| YAML_COLOR_CEMT_STAGE_SPEC.function_name.to_owned());
+            let color_options = TransformTemplateEncodeOptions {
+                formatter_options: target_scope.cemt_formatter_options.clone(),
+                formatter_profile: Some(formatter_profile.clone()),
+                colorizer: Some(colorizer_name.clone()),
+                color_profile: Some(color_profile.clone()),
+                line_ending: line_ending.clone(),
+                mode: TransformTemplateEncodedArtifactMode::Document,
+                canonical: false,
+                source_map_policy: TransformTemplateSourceMapPolicy::Generated,
+                ..TransformTemplateEncodeOptions::default()
+            };
+            let color_started = Instant::now();
+            let colored_value = yaml_color_document_cem_tree(
+                formatted_artifact.value.clone(),
+                &colorizer_name,
+                &color_profile,
+            );
+            color_elapsed_ns = Some(color_started.elapsed().as_nanos());
+            let colored_artifact = TransformTemplateEncodedArtifact {
+                identity: TransformTemplateEncodedArtifactIdentity::from_options(
+                    TransformTemplateOutputProducedKind::CemTree,
+                    target.clone(),
+                    &color_options,
+                ),
+                value: colored_value,
+                source_map: formatted_artifact.source_map.clone(),
+                output_spans: formatted_artifact.output_spans.clone(),
+                encoded: true,
+            };
+            let mut colored_context =
+                TransformTemplateEncodedArtifactInsertionContext::from_encoding_target(
+                    &target,
+                    Some(TransformTemplateOutputProducedKind::CemTree),
+                );
+            colored_context.formatter_profile = Some(formatter_profile.clone());
+            colored_context.color_profile = Some(color_profile);
+            colored_context.mode = Some(TransformTemplateEncodedArtifactMode::Document);
+            colored_context.source_map_policy = Some(TransformTemplateSourceMapPolicy::Generated);
+            if let Err(error) = colored_artifact.validate_insertion(&colored_context) {
+                return yaml_output_pipeline_failed_with_timings(
+                    diagnostic_uri,
+                    error.diagnostic(diagnostic_uri).message,
+                    format_elapsed_ns,
+                    color_elapsed_ns,
+                    None,
+                );
+            }
+            (
+                colored_artifact.clone(),
+                Some(ConversionOutputPipelineStageExecution::CemtFallback {
+                    function_name: colorizer_name,
+                }),
+                Some(colored_artifact),
+            )
+        } else {
+            (formatted_artifact.clone(), None, None)
+        };
+
+    let output_color_selection = yaml_html_output_color_selection(target_scope)
+        .ok()
+        .flatten();
+    let wrap_html_output = output_color_selection.is_some()
+        || writer_artifact.identity.color_profile.as_deref() == Some("html");
+    let mut writer_context = TransformTemplateEncodedArtifactInsertionContext::from_encoding_target(
+        &target,
+        Some(TransformTemplateOutputProducedKind::Text),
+    );
+    writer_context.formatter_profile = Some(formatter_profile.clone());
+    writer_context.color_profile = writer_artifact.identity.color_profile.clone();
+    writer_context.output_color_type = output_color_selection
+        .as_ref()
+        .map(|selection| selection.output_color_type.clone());
+    writer_context.mode = Some(TransformTemplateEncodedArtifactMode::Document);
+    writer_context.source_map_policy = Some(TransformTemplateSourceMapPolicy::Generated);
+    let evaluated = TransformTemplateEvaluatedEncodeExpression {
+        expression: TransformTemplateEncodeExpression {
+            owner: Some("yaml-direct-output".to_owned()),
+            expression: "yaml-direct-output writer".to_owned(),
+            subject: "yaml-document".to_owned(),
+            subject_type: Some("cem-tree".to_owned()),
+            target,
+            options: TransformTemplateEncodeOptions::default(),
+        },
+        subject: writer_artifact.value.clone(),
+        binding: TransformTemplateEncodeBinding {
+            function: yaml_output_function_descriptor(
+                if color_execution.is_some() {
+                    YAML_COLOR_CEMT_STAGE_SPEC.function_name
+                } else {
+                    YAML_FORMAT_CEMT_STAGE_SPEC.function_name
+                },
+                "yaml-document",
+                if color_execution.is_some() {
+                    "cem-tree"
+                } else {
+                    "yaml-document"
+                },
+                if color_execution.is_some() {
+                    TransformTemplateOutputFunctionKind::Color
+                } else {
+                    TransformTemplateOutputFunctionKind::Format
+                },
+                TransformTemplateOutputProducedKind::CemTree,
+                writer_artifact
+                    .identity
+                    .color_profile
+                    .clone()
+                    .or_else(|| Some(formatter_profile.clone())),
+            ),
+            subject_type: "cem-tree".to_owned(),
+            identity: writer_artifact.identity.clone(),
+            options: TransformTemplateEncodeOptions::default(),
+        },
+        artifact: writer_artifact,
+    };
+    let writer_started = Instant::now();
+    let mut composition = compose_transform_template_encoded_text_artifacts(
+        &[evaluated],
+        &writer_context,
+        diagnostic_uri,
+    );
+    let writer_elapsed_ns = Some(writer_started.elapsed().as_nanos());
+    if !composition.diagnostics.is_empty() {
+        return ConversionOutputPipelineExecution {
+            output: None,
+            diagnostics: std::mem::take(&mut composition.diagnostics),
+            format_execution: Some(ConversionOutputPipelineStageExecution::CemtFallback {
+                function_name: formatter_name,
+            }),
+            color_execution,
+            format_elapsed_ns,
+            color_elapsed_ns,
+            writer_elapsed_ns,
+            formatted_cem_tree: Some(formatted_artifact),
+            colored_cem_tree,
+            ..ConversionOutputPipelineExecution::default()
+        };
+    }
+    match composition.artifact {
+        Some(mut artifact) => {
+            if wrap_html_output {
+                yaml_wrap_html_preview_artifact(&mut artifact, presentation_options.tab_size);
+            }
+            ConversionOutputPipelineExecution {
+                output: Some(artifact.value),
+                source_map: artifact.source_map,
+                output_spans: artifact.output_spans,
+                format_execution: Some(ConversionOutputPipelineStageExecution::CemtFallback {
+                    function_name: formatter_name,
+                }),
+                color_execution,
+                format_elapsed_ns,
+                color_elapsed_ns,
+                writer_elapsed_ns,
+                formatted_cem_tree: Some(formatted_artifact),
+                colored_cem_tree,
+                diagnostics: Vec::new(),
+            }
+        }
+        None => ConversionOutputPipelineExecution {
+            output: None,
+            format_execution: Some(ConversionOutputPipelineStageExecution::CemtFallback {
+                function_name: formatter_name,
+            }),
+            color_execution,
+            format_elapsed_ns,
+            color_elapsed_ns,
+            writer_elapsed_ns,
+            formatted_cem_tree: Some(formatted_artifact),
+            colored_cem_tree,
+            ..ConversionOutputPipelineExecution::default()
+        },
+    }
+}
+
+fn yaml_formatter_name_for_scope(target_scope: &ScopeConfig) -> Result<String, String> {
+    let name = target_scope
+        .cemt_formatter
+        .as_deref()
+        .map(str::trim)
+        .filter(|name| !name.is_empty())
+        .unwrap_or(YAML_FORMAT_CEMT_STAGE_SPEC.function_name);
+    if name != YAML_FORMAT_CEMT_STAGE_SPEC.function_name {
+        return Err(format!(
+            "unsupported YAML formatter `{name}`; first-class YAML output currently supports `{}`",
+            YAML_FORMAT_CEMT_STAGE_SPEC.function_name
+        ));
+    }
+    Ok(name.to_owned())
+}
+
+fn yaml_formatter_profile_for_scope(target_scope: &ScopeConfig) -> Result<String, String> {
+    let profile = target_scope
+        .cemt_formatter_profile
+        .as_deref()
+        .map(str::trim)
+        .filter(|profile| !profile.is_empty())
+        .unwrap_or("compact");
+    if !matches!(profile, "compact" | "pretty" | "tabular") {
+        return Err(format!(
+            "unsupported YAML formatter profile `{profile}`; supported profiles are compact, pretty, and tabular"
+        ));
+    }
+    Ok(profile.to_owned())
+}
+
+fn yaml_html_color_profile_for_scope(target_scope: &ScopeConfig) -> Result<Option<String>, String> {
+    let output_selection = yaml_html_output_color_selection(target_scope)?;
+    let explicit = target_scope
+        .cemt_color_profile
+        .as_deref()
+        .map(str::trim)
+        .filter(|profile| !profile.is_empty());
+    if let Some(name) = target_scope
+        .cemt_colorizer
+        .as_deref()
+        .map(str::trim)
+        .filter(|name| !name.is_empty())
+    {
+        if name != YAML_COLOR_CEMT_STAGE_SPEC.function_name {
+            return Err(format!(
+                "unsupported YAML colorizer `{name}`; first-class YAML output currently supports `{}`",
+                YAML_COLOR_CEMT_STAGE_SPEC.function_name
+            ));
+        }
+    }
+    match explicit {
+        Some("html") => Ok(Some("html".to_owned())),
+        Some("terminal" | "none") | None => {
+            if output_selection.is_some() {
+                Ok(Some("html".to_owned()))
+            } else {
+                Ok(None)
+            }
+        }
+        Some(profile) => Err(format!(
+            "unsupported YAML color profile `{profile}`; HTML color output is implemented first, terminal console color is applied by the CLI writer, and Markdown color remains tracked separately"
+        )),
+    }
+}
+
+fn yaml_html_output_color_selection(
+    target_scope: &ScopeConfig,
+) -> Result<Option<TransformTemplateOutputColorSelection>, String> {
+    let Some(output_color_type) = target_scope
+        .output_color_type
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+    else {
+        return Ok(None);
+    };
+    let selection =
+        parse_transform_template_output_color_type(output_color_type).map_err(|message| {
+            format!("invalid YAML output color type `{output_color_type}`: {message}")
+        })?;
+    if selection.target.category == "html-color" && selection.output_color_type != "none" {
+        return Ok(Some(selection));
+    }
+    Ok(None)
+}
+
+const YAML_HTML_PREVIEW_SUFFIX: &str = "</pre>";
+
+fn yaml_html_preview_prefix(tab_size: usize) -> String {
+    format!(
+        r#"<pre class="cem-output cem-output-yaml" style="white-space: pre; tab-size: {tab_size}">"#
+    )
+}
+
+fn yaml_wrap_html_preview_artifact(
+    artifact: &mut TransformTemplateEncodedArtifact,
+    tab_size: usize,
+) {
+    let Some(text) = artifact.value.as_str() else {
+        return;
+    };
+    let prefix = yaml_html_preview_prefix(tab_size);
+    let prefix_len = prefix.len() as u64;
+    for span in &mut artifact.output_spans {
+        span.output_range.start = span.output_range.start.saturating_add(prefix_len);
+    }
+    artifact.value = Value::String(format!("{prefix}{text}{YAML_HTML_PREVIEW_SUFFIX}"));
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct YamlFormatterPresentationOptions {
+    line_ending: Option<FormatterLineEndingMode>,
+    tab_size: usize,
+}
+
+impl YamlFormatterPresentationOptions {
+    fn from_options(options: &BTreeMap<String, String>) -> Result<Self, String> {
+        let mut parsed = Self {
+            line_ending: None,
+            tab_size: DEFAULT_FORMATTER_TAB_SIZE as usize,
+        };
+        for (key, value) in options {
+            match key.as_str() {
+                "lineEnding" => {
+                    parsed.line_ending = Some(match value.as_str() {
+                        "lf" => FormatterLineEndingMode::Lf,
+                        "crlf" => FormatterLineEndingMode::Crlf,
+                        "preserve" => FormatterLineEndingMode::Preserve,
+                        _ => {
+                            return Err(format!(
+                                "Formatter option `{key}` must be `lf`, `crlf`, or `preserve`"
+                            ))
+                        }
+                    });
+                }
+                "tabSize" => {
+                    let size = value.parse::<usize>().map_err(|_| {
+                        format!("Formatter option `{key}` must be a positive integer")
+                    })?;
+                    if size == 0 {
+                        return Err(format!(
+                            "Formatter option `{key}` must be greater than zero"
+                        ));
+                    }
+                    parsed.tab_size = size;
+                }
+                _ if key.starts_with("yaml.") => {
+                    return Err(format!("unsupported YAML formatter option `{key}`"));
+                }
+                _ => {}
+            }
+        }
+        Ok(parsed)
+    }
+}
+
+fn yaml_formatter_line_ending(
+    source_line_ending: Option<&str>,
+    options: &YamlFormatterPresentationOptions,
+) -> Option<String> {
+    match options.line_ending {
+        Some(FormatterLineEndingMode::Lf) => Some("lf".to_owned()),
+        Some(FormatterLineEndingMode::Crlf) => Some("crlf".to_owned()),
+        Some(FormatterLineEndingMode::Preserve) => {
+            let source_line_ending = source_line_ending.unwrap_or("lf");
+            Some(
+                match source_line_ending {
+                    "crlf" => "crlf",
+                    _ => "lf",
+                }
+                .to_owned(),
+            )
+        }
+        None => None,
+    }
+}
+
+fn yaml_format_document_cem_tree(
+    document: &Value,
+    formatter_name: &str,
+    formatter_profile: &str,
+    line_ending: &str,
+) -> Value {
+    let line_ending_text = match line_ending {
+        "crlf" => "\r\n",
+        _ => "\n",
+    };
+    let mut nodes = Vec::new();
+    let documents = document
+        .get("documents")
+        .and_then(Value::as_array)
+        .cloned()
+        .unwrap_or_default();
+
+    if documents.is_empty() {
+        yaml_push_token(&mut nodes, "yaml.scalar", "null", "syntax.keyword", None);
+        yaml_push_token(
+            &mut nodes,
+            "yaml.line-ending",
+            line_ending_text,
+            "syntax.punctuation",
+            None,
+        );
+    } else {
+        for (index, stream_document) in documents.iter().enumerate() {
+            if documents.len() > 1 {
+                yaml_push_token(
+                    &mut nodes,
+                    "yaml.document-start",
+                    "---",
+                    "syntax.punctuation",
+                    stream_document.get("sourceMap"),
+                );
+                yaml_push_token(
+                    &mut nodes,
+                    "yaml.line-ending",
+                    line_ending_text,
+                    "syntax.punctuation",
+                    None,
+                );
+            } else if index > 0 {
+                yaml_push_token(
+                    &mut nodes,
+                    "yaml.line-ending",
+                    line_ending_text,
+                    "syntax.punctuation",
+                    None,
+                );
+            }
+            match stream_document.get("root").filter(|root| !root.is_null()) {
+                Some(root) => yaml_format_node_block(root, 0, &mut nodes, line_ending_text),
+                None => {
+                    yaml_push_token(&mut nodes, "yaml.scalar", "null", "syntax.keyword", None);
+                    yaml_push_token(
+                        &mut nodes,
+                        "yaml.line-ending",
+                        line_ending_text,
+                        "syntax.punctuation",
+                        None,
+                    );
+                }
+            }
+        }
+    }
+
+    serde_json::json!({
+        "kind": "cem-tree",
+        "contentType": YAML_CONTENT_TYPE,
+        "schema": YAML_SCHEMA_URI,
+        "category": "yaml-document",
+        "formatterProfile": formatter_profile,
+        "formatNodes": [
+            {
+                "kind": "format-marker",
+                "name": formatter_name,
+                "formatterRole": "formatter.boundary",
+                "formatterProfile": formatter_profile
+            },
+            {
+                "kind": "format-decision",
+                "name": "yaml.layout",
+                "formatterRole": "formatter.layout",
+                "formatterProfile": formatter_profile,
+                "value": {
+                    "layout": "block-document",
+                    "lineEnding": line_ending
+                }
+            }
+        ],
+        "nodes": nodes
+    })
+}
+
+fn yaml_color_document_cem_tree(
+    mut formatted: Value,
+    colorizer_name: &str,
+    color_profile: &str,
+) -> Value {
+    if let Some(object) = formatted.as_object_mut() {
+        object.insert("colored".to_owned(), Value::Bool(true));
+        object.insert(
+            "colorProfile".to_owned(),
+            Value::String(color_profile.to_owned()),
+        );
+        object.insert("colorOutput".to_owned(), Value::String("html".to_owned()));
+        object.insert(
+            "colorNodes".to_owned(),
+            Value::Array(vec![
+                serde_json::json!({
+                    "kind": "color-marker",
+                    "name": colorizer_name,
+                    "colorizerRole": "colorizer.boundary",
+                    "colorRole": "syntax.token",
+                    "colorProfile": color_profile,
+                    "colorOutput": "html"
+                }),
+                serde_json::json!({
+                    "kind": "color-decision",
+                    "name": "yaml.role-classes",
+                    "colorizerRole": "colorizer.role",
+                    "colorProfile": color_profile,
+                    "colorOutput": "html"
+                }),
+            ]),
+        );
+    }
+    formatted
+}
+
+fn yaml_format_node_block(node: &Value, indent: usize, nodes: &mut Vec<Value>, line_ending: &str) {
+    match yaml_node_kind(node) {
+        "mapping" => yaml_format_mapping_block(node, indent, nodes, line_ending),
+        "sequence" => yaml_format_sequence_block(node, indent, nodes, line_ending),
+        "scalar" | "alias" => {
+            yaml_push_indent(nodes, indent);
+            yaml_format_node_inline(node, nodes, "syntax.string");
+            yaml_push_token(
+                nodes,
+                "yaml.line-ending",
+                line_ending,
+                "syntax.punctuation",
+                None,
+            );
+        }
+        _ => {
+            yaml_push_indent(nodes, indent);
+            yaml_push_token(
+                nodes,
+                "yaml.scalar",
+                "null",
+                "syntax.keyword",
+                node.get("sourceMap"),
+            );
+            yaml_push_token(
+                nodes,
+                "yaml.line-ending",
+                line_ending,
+                "syntax.punctuation",
+                None,
+            );
+        }
+    }
+}
+
+fn yaml_format_mapping_block(
+    node: &Value,
+    indent: usize,
+    nodes: &mut Vec<Value>,
+    line_ending: &str,
+) {
+    let pairs = node
+        .get("mapping")
+        .and_then(Value::as_array)
+        .cloned()
+        .unwrap_or_default();
+    if pairs.is_empty() {
+        yaml_push_indent(nodes, indent);
+        yaml_format_empty_collection_inline(node, nodes);
+        yaml_push_token(
+            nodes,
+            "yaml.line-ending",
+            line_ending,
+            "syntax.punctuation",
+            None,
+        );
+        return;
+    }
+
+    for pair in pairs {
+        let key = pair.get("key").unwrap_or(&Value::Null);
+        let value = pair.get("value").unwrap_or(&Value::Null);
+        if yaml_node_can_format_inline(key) {
+            yaml_push_indent(nodes, indent);
+            yaml_format_node_inline(key, nodes, "syntax.name");
+            yaml_push_token(
+                nodes,
+                "yaml.mapping-separator",
+                ":",
+                "syntax.punctuation",
+                None,
+            );
+            if yaml_node_can_format_inline(value) {
+                yaml_push_token(nodes, "yaml.space", " ", "syntax.raw", None);
+                yaml_format_node_inline(value, nodes, "syntax.string");
+                yaml_push_token(
+                    nodes,
+                    "yaml.line-ending",
+                    line_ending,
+                    "syntax.punctuation",
+                    None,
+                );
+            } else {
+                yaml_push_token(
+                    nodes,
+                    "yaml.line-ending",
+                    line_ending,
+                    "syntax.punctuation",
+                    None,
+                );
+                yaml_format_node_block(value, indent + 2, nodes, line_ending);
+            }
+        } else {
+            yaml_push_indent(nodes, indent);
+            yaml_push_token(nodes, "yaml.complex-key", "?", "syntax.punctuation", None);
+            yaml_push_token(
+                nodes,
+                "yaml.line-ending",
+                line_ending,
+                "syntax.punctuation",
+                None,
+            );
+            yaml_format_node_block(key, indent + 2, nodes, line_ending);
+            yaml_push_indent(nodes, indent);
+            yaml_push_token(
+                nodes,
+                "yaml.mapping-separator",
+                ":",
+                "syntax.punctuation",
+                None,
+            );
+            if yaml_node_can_format_inline(value) {
+                yaml_push_token(nodes, "yaml.space", " ", "syntax.raw", None);
+                yaml_format_node_inline(value, nodes, "syntax.string");
+                yaml_push_token(
+                    nodes,
+                    "yaml.line-ending",
+                    line_ending,
+                    "syntax.punctuation",
+                    None,
+                );
+            } else {
+                yaml_push_token(
+                    nodes,
+                    "yaml.line-ending",
+                    line_ending,
+                    "syntax.punctuation",
+                    None,
+                );
+                yaml_format_node_block(value, indent + 2, nodes, line_ending);
+            }
+        }
+    }
+}
+
+fn yaml_format_sequence_block(
+    node: &Value,
+    indent: usize,
+    nodes: &mut Vec<Value>,
+    line_ending: &str,
+) {
+    let items = node
+        .get("sequence")
+        .and_then(Value::as_array)
+        .cloned()
+        .unwrap_or_default();
+    if items.is_empty() {
+        yaml_push_indent(nodes, indent);
+        yaml_format_empty_collection_inline(node, nodes);
+        yaml_push_token(
+            nodes,
+            "yaml.line-ending",
+            line_ending,
+            "syntax.punctuation",
+            None,
+        );
+        return;
+    }
+
+    for item in items {
+        yaml_push_indent(nodes, indent);
+        yaml_push_token(
+            nodes,
+            "yaml.sequence-marker",
+            "-",
+            "syntax.punctuation",
+            None,
+        );
+        if yaml_node_can_format_inline(&item) {
+            yaml_push_token(nodes, "yaml.space", " ", "syntax.raw", None);
+            yaml_format_node_inline(&item, nodes, "syntax.string");
+            yaml_push_token(
+                nodes,
+                "yaml.line-ending",
+                line_ending,
+                "syntax.punctuation",
+                None,
+            );
+        } else {
+            yaml_push_token(
+                nodes,
+                "yaml.line-ending",
+                line_ending,
+                "syntax.punctuation",
+                None,
+            );
+            yaml_format_node_block(&item, indent + 2, nodes, line_ending);
+        }
+    }
+}
+
+fn yaml_format_node_inline(node: &Value, nodes: &mut Vec<Value>, scalar_role: &str) {
+    yaml_format_node_prefix(node, nodes);
+    match yaml_node_kind(node) {
+        "alias" => {
+            let alias = node
+                .get("alias")
+                .and_then(Value::as_str)
+                .filter(|value| !value.is_empty())
+                .unwrap_or("");
+            yaml_push_token(
+                nodes,
+                "yaml.alias",
+                format!("*{alias}"),
+                "syntax.attribute",
+                node.get("sourceMap"),
+            );
+        }
+        "scalar" => {
+            let value = node.get("value").and_then(Value::as_str).unwrap_or("");
+            let implicit_kind = node
+                .get("implicitKind")
+                .and_then(Value::as_str)
+                .unwrap_or("string");
+            let style = node.get("style").and_then(Value::as_str).unwrap_or("plain");
+            let rendered = yaml_scalar_text(value, implicit_kind, style);
+            yaml_push_token(
+                nodes,
+                "yaml.scalar",
+                rendered,
+                yaml_scalar_color_role(implicit_kind, scalar_role),
+                node.get("sourceMap"),
+            );
+        }
+        "mapping" | "sequence" => yaml_format_empty_collection_inline(node, nodes),
+        _ => yaml_push_token(
+            nodes,
+            "yaml.scalar",
+            "null",
+            "syntax.keyword",
+            node.get("sourceMap"),
+        ),
+    }
+}
+
+fn yaml_format_node_prefix(node: &Value, nodes: &mut Vec<Value>) {
+    if let Some(tag) = node
+        .get("tag")
+        .and_then(Value::as_str)
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+    {
+        yaml_push_token(
+            nodes,
+            "yaml.tag",
+            tag,
+            "syntax.keyword",
+            node.get("sourceMap"),
+        );
+        yaml_push_token(nodes, "yaml.space", " ", "syntax.raw", None);
+    }
+    if let Some(anchor) = node
+        .get("anchor")
+        .and_then(Value::as_str)
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+    {
+        yaml_push_token(
+            nodes,
+            "yaml.anchor",
+            format!("&{anchor}"),
+            "syntax.attribute",
+            node.get("sourceMap"),
+        );
+        yaml_push_token(nodes, "yaml.space", " ", "syntax.raw", None);
+    }
+}
+
+fn yaml_format_empty_collection_inline(node: &Value, nodes: &mut Vec<Value>) {
+    match yaml_node_kind(node) {
+        "sequence" => {
+            yaml_format_node_prefix(node, nodes);
+            yaml_push_token(
+                nodes,
+                "yaml.sequence-empty",
+                "[]",
+                "syntax.punctuation",
+                node.get("sourceMap"),
+            );
+        }
+        _ => {
+            yaml_format_node_prefix(node, nodes);
+            yaml_push_token(
+                nodes,
+                "yaml.mapping-empty",
+                "{}",
+                "syntax.punctuation",
+                node.get("sourceMap"),
+            );
+        }
+    }
+}
+
+fn yaml_node_kind(node: &Value) -> &str {
+    node.get("kind")
+        .and_then(Value::as_str)
+        .map(str::trim)
+        .unwrap_or("")
+}
+
+fn yaml_node_can_format_inline(node: &Value) -> bool {
+    match yaml_node_kind(node) {
+        "scalar" | "alias" => true,
+        "mapping" => node
+            .get("mapping")
+            .and_then(Value::as_array)
+            .is_none_or(Vec::is_empty),
+        "sequence" => node
+            .get("sequence")
+            .and_then(Value::as_array)
+            .is_none_or(Vec::is_empty),
+        _ => true,
+    }
+}
+
+fn yaml_scalar_color_role(implicit_kind: &str, fallback: &str) -> &'static str {
+    if fallback == "syntax.name" {
+        return "syntax.name";
+    }
+    match implicit_kind {
+        "integer" | "float" => "syntax.number",
+        "boolean" | "null" => "syntax.keyword",
+        "string" | "timestamp" | "binary" => "syntax.string",
+        _ => "syntax.string",
+    }
+}
+
+fn yaml_scalar_text(value: &str, implicit_kind: &str, style: &str) -> String {
+    if style == "plain" && implicit_kind != "string" && yaml_plain_scalar_safe(value) {
+        return if value.is_empty() {
+            "null".to_owned()
+        } else {
+            value.to_owned()
+        };
+    }
+    if style == "plain"
+        && implicit_kind == "string"
+        && yaml_plain_scalar_safe(value)
+        && yaml_plain_string_keeps_string_kind(value)
+    {
+        return value.to_owned();
+    }
+    yaml_double_quoted_scalar(value)
+}
+
+fn yaml_plain_string_keeps_string_kind(value: &str) -> bool {
+    let normalized = value.trim();
+    !(normalized.is_empty()
+        || matches!(
+            normalized,
+            "~" | "null" | "Null" | "NULL" | "true" | "True" | "TRUE" | "false" | "False" | "FALSE"
+        )
+        || normalized.parse::<i64>().is_ok()
+        || normalized.parse::<f64>().is_ok())
+}
+
+fn yaml_plain_scalar_safe(value: &str) -> bool {
+    if value.is_empty() || value.trim() != value || value.contains('\n') || value.contains('\r') {
+        return false;
+    }
+    let mut chars = value.chars();
+    let Some(first) = chars.next() else {
+        return false;
+    };
+    if matches!(
+        first,
+        '-' | '?'
+            | ':'
+            | ','
+            | '['
+            | ']'
+            | '{'
+            | '}'
+            | '#'
+            | '&'
+            | '*'
+            | '!'
+            | '|'
+            | '>'
+            | '\''
+            | '"'
+            | '%'
+            | '@'
+            | '`'
+    ) {
+        return false;
+    }
+    !value
+        .chars()
+        .any(|ch| matches!(ch, ':' | '#' | '[' | ']' | '{' | '}' | ',' | '\t'))
+}
+
+fn yaml_double_quoted_scalar(value: &str) -> String {
+    let mut out = String::with_capacity(value.len() + 2);
+    out.push('"');
+    for ch in value.chars() {
+        match ch {
+            '\\' => out.push_str("\\\\"),
+            '"' => out.push_str("\\\""),
+            '\n' => out.push_str("\\n"),
+            '\r' => out.push_str("\\r"),
+            '\t' => out.push_str("\\t"),
+            _ => out.push(ch),
+        }
+    }
+    out.push('"');
+    out
+}
+
+fn yaml_push_indent(nodes: &mut Vec<Value>, indent: usize) {
+    if indent > 0 {
+        yaml_push_token(nodes, "yaml.indent", " ".repeat(indent), "syntax.raw", None);
+    }
+}
+
+fn yaml_push_token(
+    nodes: &mut Vec<Value>,
+    kind: &str,
+    text: impl Into<String>,
+    color_role: &str,
+    source_map: Option<&Value>,
+) {
+    let text = text.into();
+    if text.is_empty() {
+        return;
+    }
+    let mut object = serde_json::Map::new();
+    object.insert("kind".to_owned(), Value::String(kind.to_owned()));
+    object.insert("writerKind".to_owned(), Value::String("token".to_owned()));
+    object.insert("text".to_owned(), Value::String(text.clone()));
+    object.insert("role".to_owned(), Value::String(color_role.to_owned()));
+    object.insert(
+        "style".to_owned(),
+        serde_json::json!({ "colorRole": color_role }),
+    );
+    if let Some(output_span) = yaml_output_span_for_source_map(&text, source_map) {
+        object.insert("outputSpan".to_owned(), output_span);
+    }
+    nodes.push(Value::Object(object));
+}
+
+fn yaml_output_span_for_source_map(text: &str, source_map: Option<&Value>) -> Option<Value> {
+    let source_map = source_map?;
+    let origin = serde_json::from_value::<SourceMapStack>(source_map.clone()).ok()?;
+    serde_json::to_value(OutputSpan {
+        output_range: ByteRange::new(0, u32::try_from(text.len()).unwrap_or(u32::MAX)),
+        origin,
+    })
+    .ok()
+}
+
+fn yaml_output_function_descriptor(
+    name: &str,
+    category: &str,
+    subject: &str,
+    kind: TransformTemplateOutputFunctionKind,
+    produces: TransformTemplateOutputProducedKind,
+    profile: Option<String>,
+) -> TransformTemplateOutputFunctionDescriptor {
+    TransformTemplateOutputFunctionDescriptor {
+        kind,
+        owner: Some("yaml".to_owned()),
+        name: name.to_owned(),
+        category: category.to_owned(),
+        subject: subject.to_owned(),
+        produces,
+        content_type: YAML_CONTENT_TYPE.to_owned(),
+        schema: YAML_SCHEMA_URI.to_owned(),
+        canonical: false,
+        streamable: true,
+        visibility: TransformTemplateModuleVisibility::Public,
+        implementation: TransformTemplateOutputFunctionImplementation::Cemt,
+        profile,
+        extends: None,
+        capability: None,
+        deterministic: true,
+        trusted: false,
+        lossy: false,
+        fallback: None,
+        params: Vec::new(),
+        body_declared: false,
+        body_expression: None,
+    }
+}
+
+fn yaml_output_pipeline_failed(
+    diagnostic_uri: Option<&str>,
+    message: String,
+) -> ConversionOutputPipelineExecution {
+    yaml_output_pipeline_failed_with_timings(diagnostic_uri, message, None, None, None)
+}
+
+fn yaml_output_pipeline_failed_with_timings(
+    diagnostic_uri: Option<&str>,
+    message: String,
+    format_elapsed_ns: Option<u128>,
+    color_elapsed_ns: Option<u128>,
+    writer_elapsed_ns: Option<u128>,
+) -> ConversionOutputPipelineExecution {
+    ConversionOutputPipelineExecution {
+        output: None,
+        diagnostics: vec![conversion_output_pipeline_diagnostic(
+            "yaml-direct-output",
+            Some("yaml"),
             diagnostic_uri,
             message,
         )],
@@ -14155,6 +15289,203 @@ mod tests {
 
     fn csv_test_source_map(start: u64, len: u32) -> Value {
         csv_test_output_span(start, len)["origin"].clone()
+    }
+
+    fn yaml_test_output_span(start: u64, len: u32) -> Value {
+        serde_json::json!({
+            "outputRange": {
+                "start": start,
+                "len": len
+            },
+            "origin": {
+                "frames": [{
+                    "source_id": 1,
+                    "span": {
+                        "kind": "Single",
+                        "ranges": {
+                            "start": start,
+                            "len": len
+                        }
+                    },
+                    "transform": {
+                        "kind": "ContentTypeTransform",
+                        "content_type": YAML_CONTENT_TYPE
+                    }
+                }]
+            }
+        })
+    }
+
+    fn yaml_test_source_map(start: u64, len: u32) -> Value {
+        yaml_test_output_span(start, len)["origin"].clone()
+    }
+
+    #[test]
+    fn builtin_yaml_lifecycle_output_pipeline_formats_typed_ast_without_json_bridge() {
+        let schema_registry = SchemaRegistry::with_builtin_schemas();
+        let conversion_registry = ConversionRegistry::with_builtin_converters();
+        let environment = ConversionOutputPipelineEnvironment {
+            schema_registry: &schema_registry,
+            conversion_registry: &conversion_registry,
+            package_artifact_reader: None,
+            artifact_cache: None,
+        };
+        let document = serde_json::json!({
+            "kind": "yaml-stream",
+            "lineEnding": "lf",
+            "documents": [{
+                "index": 0,
+                "root": {
+                    "kind": "mapping",
+                    "mapping": [
+                        {
+                            "index": 0,
+                            "key": {
+                                "kind": "scalar",
+                                "value": "name",
+                                "style": "plain",
+                                "implicitKind": "string",
+                                "sourceMap": yaml_test_source_map(0, 4)
+                            },
+                            "value": {
+                                "kind": "scalar",
+                                "value": "Ada",
+                                "style": "plain",
+                                "implicitKind": "string",
+                                "sourceMap": yaml_test_source_map(6, 3)
+                            }
+                        },
+                        {
+                            "index": 1,
+                            "key": {
+                                "kind": "scalar",
+                                "value": "active",
+                                "style": "plain",
+                                "implicitKind": "string",
+                                "sourceMap": yaml_test_source_map(10, 6)
+                            },
+                            "value": {
+                                "kind": "scalar",
+                                "value": "true",
+                                "style": "plain",
+                                "implicitKind": "boolean",
+                                "sourceMap": yaml_test_source_map(18, 4)
+                            }
+                        }
+                    ]
+                }
+            }]
+        });
+        let target_scope = ScopeConfig {
+            cemt_formatter_profile: Some("tabular".to_owned()),
+            ..ScopeConfig::default()
+        };
+
+        let execution = execute_yaml_document_output_pipeline_with_environment(
+            &environment,
+            document,
+            &target_scope,
+            Some("builtin:yaml-output"),
+        );
+
+        assert!(
+            execution.diagnostics.is_empty(),
+            "{:?}",
+            execution.diagnostics
+        );
+        assert_eq!(
+            execution.output.as_ref().and_then(Value::as_str),
+            Some("name: Ada\nactive: true\n")
+        );
+        assert_eq!(
+            execution.format_execution,
+            Some(ConversionOutputPipelineStageExecution::CemtFallback {
+                function_name: "yaml.format-document".to_owned()
+            })
+        );
+        assert_eq!(execution.color_execution, None);
+        let formatted = execution
+            .formatted_cem_tree
+            .as_ref()
+            .expect("formatted YAML CEM tree");
+        assert_eq!(formatted.value["kind"], "cem-tree");
+        assert_eq!(formatted.value["contentType"], YAML_CONTENT_TYPE);
+        assert_eq!(formatted.value["category"], "yaml-document");
+        assert_eq!(formatted.value["formatterProfile"], "tabular");
+        assert_eq!(execution.output_spans.len(), 4);
+        let first_span = &execution.output_spans[0];
+        assert_eq!(first_span.output_range.start, 0);
+        assert_eq!(first_span.output_range.len, 4);
+        let crate::source_map::FrameSpan::Single(first_origin) = first_span.origin.frames[0].span
+        else {
+            panic!("YAML output span should retain a single origin range");
+        };
+        assert_eq!(first_origin.start, 0);
+        assert_eq!(first_origin.len, 4);
+    }
+
+    #[test]
+    fn builtin_yaml_lifecycle_output_pipeline_wraps_html_color_pre() {
+        let schema_registry = SchemaRegistry::with_builtin_schemas();
+        let conversion_registry = ConversionRegistry::with_builtin_converters();
+        let environment = ConversionOutputPipelineEnvironment {
+            schema_registry: &schema_registry,
+            conversion_registry: &conversion_registry,
+            package_artifact_reader: None,
+            artifact_cache: None,
+        };
+        let document = serde_json::json!({
+            "kind": "yaml-stream",
+            "documents": [{
+                "index": 0,
+                "root": {
+                    "kind": "mapping",
+                    "mapping": [{
+                        "index": 0,
+                        "key": {
+                            "kind": "scalar",
+                            "value": "name",
+                            "style": "plain",
+                            "implicitKind": "string"
+                        },
+                        "value": {
+                            "kind": "scalar",
+                            "value": "Ada",
+                            "style": "plain",
+                            "implicitKind": "string"
+                        }
+                    }]
+                }
+            }]
+        });
+        let target_scope = ScopeConfig {
+            cemt_color_profile: Some("html".to_owned()),
+            cemt_formatter_options: BTreeMap::from([("tabSize".to_owned(), "6".to_owned())]),
+            ..ScopeConfig::default()
+        };
+
+        let execution = execute_yaml_document_output_pipeline_with_environment(
+            &environment,
+            document,
+            &target_scope,
+            Some("builtin:yaml-html-output"),
+        );
+
+        assert!(
+            execution.diagnostics.is_empty(),
+            "{:?}",
+            execution.diagnostics
+        );
+        let output = execution.output.as_ref().and_then(Value::as_str).unwrap();
+        assert!(output.starts_with(&yaml_html_preview_prefix(6)), "{output}");
+        assert!(output.contains(r#"data-role="syntax.name""#), "{output}");
+        assert_eq!(html_text_content(output), "name: Ada\n");
+        assert_eq!(
+            execution.color_execution,
+            Some(ConversionOutputPipelineStageExecution::CemtFallback {
+                function_name: "yaml.color-document".to_owned()
+            })
+        );
     }
 
     fn execute_builtin_csv_colorizer_profile(

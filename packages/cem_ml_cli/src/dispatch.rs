@@ -887,6 +887,7 @@ fn to_engine_layer_format(f: cli::LayerFormat) -> eng::LayerFormat {
         cli::LayerFormat::Html => eng::LayerFormat::Html,
         cli::LayerFormat::Xml => eng::LayerFormat::Xml,
         cli::LayerFormat::Csv => eng::LayerFormat::Csv,
+        cli::LayerFormat::Yaml => eng::LayerFormat::Yaml,
         cli::LayerFormat::DomJson => eng::LayerFormat::DomJson,
         cli::LayerFormat::Ast => eng::LayerFormat::Ast,
         cli::LayerFormat::Events => eng::LayerFormat::Events,
@@ -902,6 +903,7 @@ fn layer_format_alias_id(f: cli::LayerFormat) -> &'static str {
         cli::LayerFormat::Html => "html",
         cli::LayerFormat::Xml => "xml",
         cli::LayerFormat::Csv => "csv",
+        cli::LayerFormat::Yaml => "yaml",
         cli::LayerFormat::DomJson => "dom-json",
         cli::LayerFormat::Ast => "ast",
         cli::LayerFormat::Events => "events",
@@ -16837,6 +16839,64 @@ retries: 3
         let v: serde_json::Value = serde_json::from_str(&written).unwrap();
         assert_eq!(v["enabled"], true);
         assert_eq!(v["retries"], 3);
+    }
+
+    #[test]
+    fn convert_yaml_same_schema_uses_lifecycle_output_pipeline() {
+        let p = write_fixture(
+            "convert-yaml-same-schema.yaml",
+            r#"name: Ada
+active: true
+"#,
+        );
+        let out_path = std::env::temp_dir().join("cem-ml-cli-tests/convert-yaml-same-schema.html");
+        let _ = std::fs::remove_file(&out_path);
+        let input_spec = format!(
+            "uri={},contentType=application/yaml,schema={}",
+            p.display(),
+            cem_ml::schema::registry::YAML_SCHEMA_URI
+        );
+
+        let (outcome, stdout, stderr) = run(
+            &RealCemMlEngine::new(),
+            &[
+                "convert",
+                "--input-spec",
+                &input_spec,
+                "--to-content-type",
+                "application/yaml",
+                "--to-schema",
+                cem_ml::schema::registry::YAML_SCHEMA_URI,
+                "--cemt-formatter-profile",
+                "tabular",
+                "--cemt-color-profile",
+                "html",
+                "--out",
+                out_path.to_str().unwrap(),
+            ],
+        );
+
+        assert_eq!(outcome.exit_code, EXIT_OK, "{stderr}");
+        assert!(stdout.trim().is_empty(), "{stdout}");
+        assert!(stderr.trim().is_empty(), "{stderr}");
+        let written = std::fs::read_to_string(&out_path).unwrap();
+        assert!(
+            !stderr.contains("cem.lifecycle.adapter_unsupported"),
+            "{stderr}"
+        );
+        assert!(
+            written.starts_with(
+                r#"<pre class="cem-output cem-output-yaml" style="white-space: pre; tab-size: 8">"#
+            ),
+            "{written}"
+        );
+        assert!(written.ends_with("</pre>"), "{written}");
+        assert!(written.contains(r#"data-role="syntax.name""#), "{written}");
+        assert!(
+            written.contains(r#"data-role="syntax.string""#),
+            "{written}"
+        );
+        assert_eq!(html_text_content(&written), "name: Ada\nactive: true\n");
     }
 
     #[test]
