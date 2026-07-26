@@ -7,8 +7,39 @@ history.
 
 ## Immediate Goal
 
-Current active slice: schema package folder alignment, continuing with
-`json/v1` after closing the CSV package alignment slice.
+Current active slice: CSV source import into the lifecycle-owned internal AST
+stream.
+
+### Immediate: CSV Source Import To Internal AST Stream
+
+- [x] Route `text/csv` and `https://cem.dev/ns/data/csv/1` inputs through a
+      lifecycle adapter that emits a CEM-owned CSV document AST stream with
+      source maps, and consume that stream from CSV convert/preview output
+      instead of reparsing CSV through a direct convert bypass.
+
+### Secondary: Generic Source Import Deviation Fixes
+
+- [ ] Add a JSON lifecycle input adapter that lowers `application/json`,
+      `text/json`, and `https://cem.dev/ns/data/json/1` sources into the
+      CEM-owned internal DOM/AST stream with source-map stacks instead of
+      producing `cem.lifecycle.adapter_unsupported` or falling back to CEM
+      syntax parsing.
+- [ ] Move generic JSON/YAML data conversion off `serde_json::Value` or
+      command-local document shortcuts and onto the generic source import
+      DOM/AST boundary, or prove that the fast path emits identical DOM/AST,
+      diagnostics, source-map, and artifact metadata.
+- [x] Move CSV direct conversion and preview generation behind the same source
+      import DOM/AST boundary, preserving row and field source ranges, parser
+      facts, formatter/colorizer inputs, and writer source maps without a
+      convert-only bypass.
+- [ ] Move CLI-owned source validation collectors for JSON, YAML, CSV,
+      Markdown, CSS, HTML, XML, SVG, MathML, Relax NG, XSLT, CEM-QL, and
+      native-template behind engine lifecycle adapters, or prove each collector
+      consumes the same imported DOM/AST and source-map model as
+      `RealCemMlEngine`.
+- [ ] Add regression coverage that every schema-package preview and validation
+      path either uses the generic source import boundary or has an explicit
+      tracked waiver with equivalent source-map and artifact metadata.
 
 ### Immediate: README Sample Preview Generation
 

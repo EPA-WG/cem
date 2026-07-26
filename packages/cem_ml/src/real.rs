@@ -27,7 +27,7 @@ use crate::events::cem::CemEventNormalizer;
 use crate::interpreter::light_dom::LightDomInterpreter;
 use crate::interpreter::xml::XmlInterpreter;
 use crate::interpreter::OutputSpan;
-use crate::lifecycle::{ExportSelection, LifecycleRegistry, LoadedInput};
+use crate::lifecycle::{ExportSelection, LifecycleRegistry, LoadedInput, LoadedInputAstStream};
 use crate::parser::builder::CemAstBuilder;
 use crate::parser::document::CemDocument;
 use crate::parser::format;
@@ -4714,150 +4714,6 @@ fn maybe_convert_generic_data_text(
     }
 }
 
-fn maybe_convert_csv_text(
-    request: &ConvertRequest,
-    started_at: Instant,
-) -> Option<ConvertResponse> {
-    let source = request
-        .input
-        .identity
-        .clone()
-        .unwrap_or_else(|| request.input.root_scope.format_identity());
-    let target = request
-        .target
-        .clone()
-        .or_else(|| request.target_scope.format_identity_option())?;
-    if !format_identity_matches_csv(&request.context, &source)
-        || !format_identity_matches_csv(&request.context, &target)
-    {
-        return None;
-    }
-
-    let mut diagnostics = Vec::new();
-    diagnostics.extend(root_scope_metadata_diagnostics(
-        &request.input.uri,
-        &request.input.root_scope,
-        "input",
-    ));
-    diagnostics.extend(root_scope_metadata_diagnostics(
-        &request.input.uri,
-        &request.target_scope,
-        "output",
-    ));
-
-    let content_type = source
-        .content_type
-        .as_deref()
-        .or(request.input.root_scope.default_content_type.as_deref())
-        .unwrap_or(CSV_CONTENT_TYPE);
-    let (table_value, mut csv_diagnostics) =
-        crate::validation::csv::csv_table_value_from_source_bytes(
-            crate::validation::csv::CsvSourceValidationRequest {
-                bytes: &request.input.bytes,
-                source_uri: &request.input.uri,
-                content_type: Some(content_type),
-            },
-        );
-    diagnostics.append(&mut csv_diagnostics);
-    if diagnostics
-        .iter()
-        .any(|diagnostic| diagnostic.severity.is_hard_violation())
-    {
-        append_convert_time_budget_diagnostics(&mut diagnostics, request, started_at);
-        return Some(ConvertResponse {
-            primary: Value::Null,
-            primary_bytes: None,
-            conversion: Some(convert_metadata_for_csv_direct_output(
-                &request.target_scope,
-            )),
-            diagnostics,
-            scheduler_trace: crate::report::SchedulerTraceReport::default(),
-        });
-    }
-
-    let table_value = table_value?;
-    let environment = ConversionOutputPipelineEnvironment {
-        schema_registry: &request.context.schema_registry,
-        conversion_registry: &request.context.converter_registry,
-        package_artifact_reader: None,
-        artifact_cache: None,
-    };
-    let execution = execute_csv_document_output_pipeline_with_environment(
-        &environment,
-        table_value,
-        &request.target_scope,
-        Some(&request.input.uri),
-    );
-    diagnostics.extend(execution.diagnostics.clone());
-    append_convert_time_budget_diagnostics(&mut diagnostics, request, started_at);
-    if diagnostics
-        .iter()
-        .any(|diagnostic| diagnostic.severity.is_hard_violation())
-    {
-        return Some(ConvertResponse {
-            primary: Value::Null,
-            primary_bytes: None,
-            conversion: Some(convert_metadata_for_csv_direct_output(
-                &request.target_scope,
-            )),
-            diagnostics,
-            scheduler_trace: crate::report::SchedulerTraceReport::default(),
-        });
-    }
-
-    let content = execution
-        .output
-        .as_ref()
-        .and_then(Value::as_str)
-        .unwrap_or_default()
-        .to_owned();
-    let (content_type, schema, format_version) =
-        csv_direct_output_primary_identity(&target, &request.target_scope);
-    let bytes = content.into_bytes();
-    let primary_bytes = PrimaryBytes {
-        content_type,
-        schema: Some(schema.clone()),
-        format_version,
-        hash_scheme: "cem-text/1+blake3".to_owned(),
-        hash: text_content_hash(&bytes),
-        bytes,
-    };
-    let hash = primary_bytes.hash.clone();
-    Some(ConvertResponse {
-        primary: json!({
-            "kind": "document",
-            "contentType": primary_bytes.content_type,
-            "schema": schema,
-            "hash": hash,
-        }),
-        primary_bytes: Some(primary_bytes),
-        conversion: Some(convert_metadata_for_csv_direct_output(
-            &request.target_scope,
-        )),
-        diagnostics,
-        scheduler_trace: crate::report::SchedulerTraceReport::default(),
-    })
-}
-
-fn format_identity_matches_csv(context: &EngineContext, identity: &FormatIdentity) -> bool {
-    let explicit_schema_matches = identity
-        .schema
-        .as_deref()
-        .map(str::trim)
-        .is_some_and(|schema| schema == CSV_SCHEMA_URI);
-    if let Some(content_type) = identity.content_type.as_deref() {
-        let essence = content_type_essence(content_type);
-        if essence == CSV_CONTENT_TYPE {
-            return identity.schema.is_none() || explicit_schema_matches;
-        }
-        if let Ok(descriptor) = context.schema_registry.resolve_content_type(content_type) {
-            return descriptor.schema_uri == CSV_SCHEMA_URI
-                && (identity.schema.is_none() || explicit_schema_matches);
-        }
-    }
-    explicit_schema_matches
-}
-
 fn csv_direct_output_primary_identity(
     target: &FormatIdentity,
     target_scope: &ScopeConfig,
@@ -4882,6 +4738,72 @@ fn csv_direct_output_primary_identity(
             .clone()
             .unwrap_or_else(|| CSV_SCHEMA_URI.to_owned()),
         "csv/1".to_owned(),
+    )
+}
+
+fn convert_loaded_csv_ast_output(
+    context: &EngineContext,
+    request: &ConvertRequest,
+    table_value: Value,
+    diagnostics: &mut Vec<Diagnostic>,
+) -> (Value, Option<PrimaryBytes>, ConvertExecutionMetadata) {
+    let metadata = convert_metadata_for_csv_lifecycle_output(&request.target_scope);
+    let environment = ConversionOutputPipelineEnvironment {
+        schema_registry: &context.schema_registry,
+        conversion_registry: &context.converter_registry,
+        package_artifact_reader: None,
+        artifact_cache: None,
+    };
+    let execution = execute_csv_document_output_pipeline_with_environment(
+        &environment,
+        table_value,
+        &request.target_scope,
+        Some(&request.input.uri),
+    );
+    diagnostics.extend(execution.diagnostics.clone());
+    if diagnostics
+        .iter()
+        .any(|diagnostic| diagnostic.severity.is_hard_violation())
+    {
+        return (Value::Null, None, metadata);
+    }
+
+    let content = execution
+        .output
+        .as_ref()
+        .and_then(Value::as_str)
+        .unwrap_or_default()
+        .to_owned();
+    let target = request
+        .target
+        .clone()
+        .or_else(|| request.target_scope.format_identity_option())
+        .unwrap_or_else(|| FormatIdentity {
+            content_type: Some(CSV_CONTENT_TYPE.to_owned()),
+            schema: Some(CSV_SCHEMA_URI.to_owned()),
+            ..FormatIdentity::default()
+        });
+    let (content_type, schema, format_version) =
+        csv_direct_output_primary_identity(&target, &request.target_scope);
+    let bytes = content.into_bytes();
+    let primary_bytes = PrimaryBytes {
+        content_type,
+        schema: Some(schema.clone()),
+        format_version,
+        hash_scheme: "cem-text/1+blake3".to_owned(),
+        hash: text_content_hash(&bytes),
+        bytes,
+    };
+    let hash = primary_bytes.hash.clone();
+    (
+        json!({
+            "kind": "document",
+            "contentType": primary_bytes.content_type,
+            "schema": schema,
+            "hash": hash,
+        }),
+        Some(primary_bytes),
+        metadata,
     )
 }
 
@@ -4946,7 +4868,9 @@ fn csv_direct_output_writer_stage_identity(
     }
 }
 
-fn convert_metadata_for_csv_direct_output(target_scope: &ScopeConfig) -> ConvertExecutionMetadata {
+fn convert_metadata_for_csv_lifecycle_output(
+    target_scope: &ScopeConfig,
+) -> ConvertExecutionMetadata {
     let formatter_profile = target_scope
         .cemt_formatter_profile
         .clone()
@@ -4958,8 +4882,8 @@ fn convert_metadata_for_csv_direct_output(target_scope: &ScopeConfig) -> Convert
     let (writer_content_type, writer_schema, writer_category) =
         csv_direct_output_writer_stage_identity(target_scope);
     ConvertExecutionMetadata {
-        converter_id: Some("csv-direct-output".to_owned()),
-        implementation: Some("direct-cemt-output-pipeline".to_owned()),
+        converter_id: Some("csv-lifecycle-output".to_owned()),
+        implementation: Some("lifecycle-cemt-output-pipeline".to_owned()),
         rust_fallback: None,
         output_pipeline: Some(ConvertOutputPipelineMetadata {
             stages: vec![
@@ -6017,14 +5941,6 @@ impl CemMlEngine for RealCemMlEngine {
             }
             return Ok(response);
         }
-        if let Some(mut response) = maybe_convert_csv_text(&request, started_at) {
-            if !package_diagnostics.is_empty() {
-                let mut diagnostics = package_diagnostics;
-                diagnostics.append(&mut response.diagnostics);
-                response.diagnostics = diagnostics;
-            }
-            return Ok(response);
-        }
         let trace = crate::scheduler::SchedulerTrace::new();
         let (policy, mut diagnostics) = scheduler_policy_for_convert(&request);
         diagnostics.append(&mut package_diagnostics);
@@ -6083,6 +5999,49 @@ impl CemMlEngine for RealCemMlEngine {
             });
             diagnostics.append(&mut export.diagnostics);
             let to_format = export.to_format;
+            if let Some(LoadedInputAstStream::CsvDocument(table_value)) = loaded.ast_stream.take() {
+                if to_format == LayerFormat::Csv {
+                    if diagnostics
+                        .iter()
+                        .any(|diagnostic| diagnostic.severity.is_hard_violation())
+                    {
+                        primary = Some(Value::Null);
+                        conversion = Some(convert_metadata_for_csv_lifecycle_output(
+                            &request.target_scope,
+                        ));
+                        return;
+                    }
+
+                    let (csv_primary, csv_primary_bytes, csv_conversion) =
+                        convert_loaded_csv_ast_output(&context, &request, table_value, &mut diagnostics);
+                    primary = Some(csv_primary);
+                    primary_bytes = csv_primary_bytes;
+                    conversion = Some(csv_conversion);
+                    return;
+                }
+
+                diagnostics.push(Diagnostic {
+                    uri: Some(request.input.uri.clone()),
+                    code: "cem.lifecycle.internal_ast_target_unsupported".to_owned(),
+                    severity: Severity::Fatal,
+                    message: format!(
+                        "CSV lifecycle input cannot be exported through `{to_format:?}` without a registered CSV AST export adapter"
+                    ),
+                    details: Some(json!({
+                        "lifecycle": {
+                            "adapterId": loaded.adapter_id,
+                            "operation": "export",
+                            "internalContentType": CSV_CONTENT_TYPE,
+                            "internalSchema": CSV_SCHEMA_URI,
+                            "targetFormat": format!("{to_format:?}"),
+                        }
+                    })),
+                    ..Diagnostic::default()
+                });
+                primary = Some(Value::Null);
+                return;
+            }
+
             let export_conversion =
                 resolve_export_conversion_execution(&context, to_format, request.target.as_ref());
 
@@ -6342,6 +6301,21 @@ impl CemMlEngine for RealCemMlEngine {
                         })
                     }
                 },
+                LayerFormat::Csv => {
+                    diagnostics.push(Diagnostic {
+                        uri: Some(request.input.uri.clone()),
+                        code: "cem.lifecycle.csv_source_required".to_owned(),
+                        severity: Severity::Fatal,
+                        message: "CSV export requires a CSV lifecycle input AST stream or a registered converter"
+                            .to_owned(),
+                        details: Some(json!({
+                            "targetContentType": CSV_CONTENT_TYPE,
+                            "targetSchema": CSV_SCHEMA_URI,
+                        })),
+                        ..Diagnostic::default()
+                    });
+                    Value::Null
+                }
                 LayerFormat::DomJson => projection::dom_json(&run.document),
                 LayerFormat::Ast => projection::ast_json(&run.document),
                 LayerFormat::Events => projection::events_json_as(&loaded.bytes, from_format),

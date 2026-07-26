@@ -33,6 +33,53 @@ format. Hosts SHOULD avoid JSON serialization when they can consume the CEM bina
 query API directly. JSON projections are debug/interchange views, not the primary
 resource lifecycle transport.
 
+## Primary Principle: Generic Source Import
+
+Every supported input content type MUST enter the CEM engine through the same generic
+source import model:
+
+```text
+source bytes + source identity + content identity
+  -> decoded source stream with byte ranges
+  -> registered parser/adapter events
+  -> CEM-owned internal DOM/AST stream
+  -> schema validation, formatting, colorizing, transform, projection, and export
+```
+
+The internal DOM/AST stream is the stable engine spine. It is not a browser DOM,
+`serde_json::Value`, raw text, host object graph, response object, or command-local
+projection. Format-specific parsers and adapters MAY use native parser structures
+internally, but those structures MUST be lowered to CEM-owned DOM/AST events before
+engine behavior observes the content.
+
+The generic import contract applies to CEM-ML, HTML, XML, SVG, MathML, CSS, JSON,
+YAML, CSV, CEM-QL, native-template, XSLT compatibility sources, projection artifacts,
+and future registered content types. A type-specific converter may provide a fast path
+only when it produces the same observable DOM/AST, diagnostics, source-map, and
+artifact metadata as the generic import path.
+
+For every accepted source:
+
+- the source identity MUST include the requested URI, resolved URI when different,
+  content type, schema or namespace identity, and active resolver/policy stamp when
+  available;
+- decoded bytes MUST preserve absolute byte offsets into the original source, including
+  BOM handling and line-ending normalization decisions;
+- each emitted element, attribute, scalar value, token, parser fact, and diagnostic MUST
+  carry a source-map stack or an explicit reduced-fidelity source-map contract;
+- generated nodes from compatibility lowering or parser recovery MUST carry a generated
+  source-map frame that points back to the originating source range and adapter id;
+- parser facts and source-map spans MUST be available to schema-owned validators,
+  formatters, colorizers, transforms, projections, reports, and CLI previews through the
+  same DOM/AST boundary;
+- unsupported or ambiguous input identity MUST fail closed or emit deterministic
+  lifecycle diagnostics before the source is parsed as a different syntax.
+
+Direct command-specific parsing, validation, conversion, or preview rendering that
+bypasses this import model is a deviation, not an alternate architecture. Such
+deviations MUST be tracked as remediation work and removed or narrowed until the
+observable behavior matches the generic source import contract.
+
 ## Resource State
 
 Every external resource state exposed to templates MUST carry:

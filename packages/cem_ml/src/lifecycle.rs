@@ -14,14 +14,16 @@ use crate::schema::registry::{
     CEM_EVENTS_PROJECTION_SCHEMA_URI, CEM_ML_CONTENT_TYPE, CEM_ML_SCHEMA_URI,
     CEM_NATIVE_TEMPLATE_CONTENT_TYPE, CEM_NATIVE_TEMPLATE_SCHEMA_URI, CEM_SCHEMA_CONTENT_TYPE,
     CEM_SCHEMA_PACKAGE_CONTENT_TYPE, CEM_SCHEMA_PACKAGE_URI, CEM_SCHEMA_URI,
-    CEM_TRANSFORM_CONTENT_TYPE, CEM_TRANSFORM_SCHEMA_URI, HTML_CONTENT_TYPE, HTML_NAMESPACE_URI,
-    HTML_SCHEMA_URI, MATHML_CONTENT_TYPE, MATHML_NAMESPACE_URI, MATHML_SCHEMA_URI,
-    SVG_CONTENT_TYPE, SVG_NAMESPACE_URI, SVG_SCHEMA_URI, XHTML_CONTENT_TYPE, XHTML_SCHEMA_URI,
-    XML_CONTENT_TYPE, XML_SCHEMA_URI, XSLT_NAMESPACE_URI, XSLT_SCHEMA_URI,
+    CEM_TRANSFORM_CONTENT_TYPE, CEM_TRANSFORM_SCHEMA_URI, CSV_CONTENT_TYPE, CSV_SCHEMA_URI,
+    HTML_CONTENT_TYPE, HTML_NAMESPACE_URI, HTML_SCHEMA_URI, MATHML_CONTENT_TYPE,
+    MATHML_NAMESPACE_URI, MATHML_SCHEMA_URI, SVG_CONTENT_TYPE, SVG_NAMESPACE_URI, SVG_SCHEMA_URI,
+    XHTML_CONTENT_TYPE, XHTML_SCHEMA_URI, XML_CONTENT_TYPE, XML_SCHEMA_URI, XSLT_NAMESPACE_URI,
+    XSLT_SCHEMA_URI,
 };
 use crate::transform_config::TRANSFORM_CONFIG_SCHEMA_URI;
+use crate::validation::csv::{csv_table_value_from_source_bytes, CsvSourceValidationRequest};
 use crate::validation::xslt::{validate_xslt_source_bytes, XsltSourceValidationRequest};
-use serde_json::json;
+use serde_json::{json, Value};
 
 pub const ADAPTER_AMBIGUOUS_CODE: &str = "cem.lifecycle.adapter_ambiguous";
 pub const ADAPTER_UNSUPPORTED_CODE: &str = "cem.lifecycle.adapter_unsupported";
@@ -59,8 +61,14 @@ const CEM_ML_SCHEMA_IDENTITIES: &[&str] = &[
 pub struct LoadedInput {
     pub bytes: Vec<u8>,
     pub from_format: InputFormat,
+    pub ast_stream: Option<LoadedInputAstStream>,
     pub diagnostics: Vec<Diagnostic>,
     pub adapter_id: Option<&'static str>,
+}
+
+#[derive(Debug, Clone)]
+pub enum LoadedInputAstStream {
+    CsvDocument(Value),
 }
 
 #[derive(Debug, Clone)]
@@ -97,6 +105,7 @@ impl LifecycleRegistry {
         registry.register(CemMlAdapter);
         registry.register(HtmlAdapter);
         registry.register(XmlAdapter);
+        registry.register(CsvAdapter);
         registry.register(CustomElementXsltCompatAdapter);
         registry.register(DomBinaryProjectionAdapter);
         registry.register(AstBinaryProjectionAdapter);
@@ -252,6 +261,7 @@ fn passthrough_load(
     LoadedInput {
         bytes: input.bytes.clone(),
         from_format,
+        ast_stream: None,
         diagnostics: Vec::new(),
         adapter_id,
     }
@@ -540,6 +550,95 @@ impl LifecycleAdapter for XmlAdapter {
     }
 }
 
+struct CsvAdapter;
+
+impl LifecycleAdapter for CsvAdapter {
+    fn id(&self) -> &'static str {
+        "csv"
+    }
+
+    fn matches_input(&self, identity: &FormatIdentity) -> bool {
+        matches_csv_identity(identity)
+    }
+
+    fn load(&self, input: &EngineInput, identity: &FormatIdentity) -> LoadedInput {
+        let content_type = identity
+            .content_type
+            .as_deref()
+            .or(input.root_scope.default_content_type.as_deref())
+            .unwrap_or(CSV_CONTENT_TYPE);
+        let (table_value, diagnostics) =
+            csv_table_value_from_source_bytes(CsvSourceValidationRequest {
+                bytes: &input.bytes,
+                source_uri: &input.uri,
+                content_type: Some(content_type),
+            });
+        LoadedInput {
+            bytes: input.bytes.clone(),
+            from_format: input.from_format.unwrap_or(InputFormat::Cem),
+            ast_stream: table_value.map(LoadedInputAstStream::CsvDocument),
+            diagnostics: csv_lifecycle_adapter_diagnostics(self.id(), diagnostics),
+            adapter_id: Some(self.id()),
+        }
+    }
+
+    fn matches_target(&self, identity: &FormatIdentity) -> bool {
+        matches_csv_identity(identity)
+    }
+
+    fn target_format(&self) -> Option<LayerFormat> {
+        Some(LayerFormat::Csv)
+    }
+}
+
+fn matches_csv_identity(identity: &FormatIdentity) -> bool {
+    let explicit_schema_matches = identity
+        .schema
+        .as_deref()
+        .map(str::trim)
+        .is_some_and(|schema| schema == CSV_SCHEMA_URI);
+    if let Some(content_type) = identity.content_type.as_deref() {
+        return content_type_essence(content_type) == CSV_CONTENT_TYPE
+            && (identity.schema.is_none() || explicit_schema_matches);
+    }
+    explicit_schema_matches
+}
+
+fn csv_lifecycle_adapter_diagnostics(
+    adapter_id: &'static str,
+    diagnostics: Vec<Diagnostic>,
+) -> Vec<Diagnostic> {
+    diagnostics
+        .into_iter()
+        .map(|mut diagnostic| {
+            let lifecycle_details = json!({
+                "adapterId": adapter_id,
+                "operation": "load",
+                "profile": "csv-source-import",
+                "sourceMapContract": "source-ranges",
+                "internalContentType": CSV_CONTENT_TYPE,
+                "internalSchema": CSV_SCHEMA_URI,
+            });
+            diagnostic.details = match diagnostic.details.take() {
+                Some(mut details) if details.is_object() => {
+                    if let Some(object) = details.as_object_mut() {
+                        object.insert("lifecycle".to_owned(), lifecycle_details);
+                    }
+                    Some(details)
+                }
+                Some(details) => Some(json!({
+                    "lifecycle": lifecycle_details,
+                    "upstream": details,
+                })),
+                None => Some(json!({
+                    "lifecycle": lifecycle_details,
+                })),
+            };
+            diagnostic
+        })
+        .collect()
+}
+
 struct CustomElementXsltCompatAdapter;
 
 impl LifecycleAdapter for CustomElementXsltCompatAdapter {
@@ -582,6 +681,7 @@ impl LifecycleAdapter for CustomElementXsltCompatAdapter {
         LoadedInput {
             bytes: converted.source.into_bytes(),
             from_format: InputFormat::Cem,
+            ast_stream: None,
             diagnostics,
             adapter_id: Some(self.id()),
         }
@@ -882,6 +982,25 @@ mod tests {
         assert_eq!(loaded.from_format, InputFormat::Xml);
         assert_eq!(loaded.adapter_id, Some("xml"));
         assert!(loaded.diagnostics.is_empty());
+    }
+
+    #[test]
+    fn builtins_load_csv_content_type_as_internal_ast_stream() {
+        let loaded = LifecycleRegistry::with_builtin_adapters()
+            .load(&input(b"id,name\n1,Ada\n"), &context(CSV_CONTENT_TYPE));
+        assert_eq!(loaded.adapter_id, Some("csv"));
+        assert!(loaded.diagnostics.is_empty());
+        let LoadedInputAstStream::CsvDocument(table) = loaded
+            .ast_stream
+            .expect("CSV adapter emits internal AST stream");
+        assert_eq!(table["kind"], "csv-table");
+        assert_eq!(table["source"]["contentType"], CSV_CONTENT_TYPE);
+        assert_eq!(table["rows"][0]["fields"][0]["value"], "id");
+        assert_eq!(
+            table["rows"][0]["fields"][0]["sourceMap"]["frames"][0]["span"]["ranges"]["start"],
+            0
+        );
+        assert_eq!(table["rows"][1]["fields"][1]["value"], "Ada");
     }
 
     #[test]
@@ -1401,6 +1520,20 @@ mod tests {
             .select_export(Some(&target), LayerFormat::DomJson);
         assert_eq!(selected.to_format, LayerFormat::Html);
         assert_eq!(selected.adapter_id, Some("html"));
+        assert!(selected.diagnostics.is_empty());
+    }
+
+    #[test]
+    fn csv_target_content_type_selects_csv_export() {
+        let target = FormatIdentity {
+            content_type: Some("text/csv; charset=utf-8".to_owned()),
+            schema: Some(CSV_SCHEMA_URI.to_owned()),
+            ..FormatIdentity::default()
+        };
+        let selected = LifecycleRegistry::with_builtin_adapters()
+            .select_export(Some(&target), LayerFormat::DomJson);
+        assert_eq!(selected.to_format, LayerFormat::Csv);
+        assert_eq!(selected.adapter_id, Some("csv"));
         assert!(selected.diagnostics.is_empty());
     }
 
