@@ -75,15 +75,28 @@
         {handoff @attribute="type" @target="content-scope"}
     }
 
+    {constraints |
+        {constraint @kind="ast-unbalanced-close" @target="document" @diagnostic="cem.ast.unbalanced_close" @behavior="cem-ml-ast-report-fact" @fact-kind="ast-unbalanced-close" @policy="close-scope events must match an open element frame"}
+        {constraint @kind="ast-unclosed-scope" @target="document" @diagnostic="cem.ast.unclosed_scope" @behavior="cem-ml-ast-report-fact" @fact-kind="ast-unclosed-scope" @policy="open element frames must close before end of input"}
+        {constraint @kind="ast-unresolved-reference" @target="attribute" @diagnostic="cem.ast.unresolved_reference" @behavior="cem-ml-ast-report-fact" @fact-kind="ast-unresolved-reference" @policy="AST reference slots remain neutral facts until schema policy decides their diagnostic disposition"}
+        {constraint @kind="doc-version-missing" @target="document" @diagnostic="cem.doc.version_missing" @behavior="cem-ml-doc-report-fact" @fact-kind="doc-version-missing" @policy="persisted top-level CEM-ML documents must begin with an @doc directive"}
+        {constraint @kind="doc-semver-invalid" @target="directive" @diagnostic="cem.doc.semver_invalid" @behavior="cem-ml-doc-report-fact" @fact-kind="doc-semver-invalid" @policy="@doc directive values must be a format id followed by a valid SemVer constraint"}
+        {constraint @kind="doc-format-unknown" @target="directive" @diagnostic="cem.doc.format_unknown" @behavior="cem-ml-doc-report-fact" @fact-kind="doc-format-unknown" @policy="@doc format identity must be cem-ml for this schema package"}
+        {constraint @kind="doc-version-unsupported" @target="directive" @diagnostic="cem.doc.version_unsupported" @behavior="cem-ml-doc-report-fact" @fact-kind="doc-version-unsupported" @policy="@doc version constraints must resolve against the embedded CEM-ML document profile"}
+        {constraint @kind="doc-prerelease-unmatched" @target="directive" @diagnostic="cem.doc.prerelease_unmatched" @behavior="cem-ml-doc-report-fact" @fact-kind="doc-prerelease-unmatched" @policy="@doc prerelease constraints require an exact embedded prerelease match"}
+        {constraint @kind="doc-version-resolved" @target="directive" @diagnostic="cem.doc.version_resolved" @behavior="cem-ml-doc-report-fact" @fact-kind="doc-version-resolved" @policy="successful @doc resolution records the canonical document format identity"}
+    }
+
     {diagnostics |
         {diagnostic @code="cem.doc.version_missing" @severity="error"}
         {diagnostic @code="cem.doc.semver_invalid" @severity="error"}
         {diagnostic @code="cem.doc.format_unknown" @severity="error"}
         {diagnostic @code="cem.doc.version_unsupported" @severity="error"}
         {diagnostic @code="cem.doc.prerelease_unmatched" @severity="error"}
+        {diagnostic @code="cem.doc.version_resolved" @severity="info"}
         {diagnostic @code="cem.ast.unbalanced_close" @severity="error"}
         {diagnostic @code="cem.ast.unclosed_scope" @severity="error"}
-        {diagnostic @code="cem.ast.unresolved_reference" @severity="error"}
+        {diagnostic @code="cem.ast.unresolved_reference" @severity="warning"}
         {diagnostic @code="cem.syntax.unclosed_scope" @severity="error"}
         {diagnostic @code="cem.syntax.invalid_name" @severity="error"}
         {diagnostic @code="cem.namespace.unbound_prefix" @severity="error"}

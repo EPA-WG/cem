@@ -19,6 +19,28 @@ stream.
 
 ### Secondary: Generic Source Import Deviation Fixes
 
+- [x] Move CEM-ML AST builder diagnostics behind schema-owned parse-fact
+      bindings for `cem.ast.unbalanced_close`, `cem.ast.unclosed_scope`, and
+      `cem.ast.unresolved_reference`, with Rust extracting neutral facts and
+      `schema/cem-ml-generic.cem` owning `@fact-kind`, diagnostic code,
+      severity, behavior, and policy.
+- [x] Move CEM-ML document directive diagnostics behind schema-owned parse-fact
+      bindings for `cem.doc.version_missing`, `cem.doc.semver_invalid`,
+      `cem.doc.format_unknown`, `cem.doc.version_unsupported`,
+      `cem.doc.prerelease_unmatched`, and `cem.doc.version_resolved`.
+- [ ] Move CEM-ML tokenizer/syntax and namespace diagnostics behind
+      schema-owned fact bindings, including invalid names, unbound prefixes,
+      and tokenizer/syntax scope facts.
+- [ ] Move remaining CEM-ML schema-machine and handoff diagnostics behind the
+      same neutral fact boundary, including unbalanced/unclosed schema scopes,
+      unsupported/deferred handoffs, and XSLT dispatch/version diagnostics.
+- [ ] Move remaining CEM-ML formatter writer-adjacent primitives for
+      block-child whitespace and content-boundary construction into CEMT
+      helpers, or declare the host-primitive contract explicitly as the
+      tracked runtime boundary.
+- [ ] Add executable CEM-ML package review coverage that fails when the README
+      “tracked but not complete” items are not represented as open todo
+      checkitems or package-local waiver metadata.
 - [ ] Add a JSON lifecycle input adapter that lowers `application/json`,
       `text/json`, and `https://cem.dev/ns/data/json/1` sources into the
       CEM-owned internal DOM/AST stream with source-map stacks instead of

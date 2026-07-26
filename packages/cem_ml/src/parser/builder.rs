@@ -13,8 +13,35 @@ use crate::events::{EventNormalizer, NormalizedEvent, ScalarValue, TriviaKind};
 use crate::parser::document::CemDocument;
 use crate::parser::format;
 use crate::parser::{AstNodeId, CemAstNode, ExpandedName, NameSlot};
+use crate::schema::document_model::compile_schema_document_model;
+use crate::schema::registry::CEM_ML_SCHEMA_URI;
 use crate::source::ByteRange;
 use crate::source_map::{FrameSpan, SourceMapFrame, SourceMapStack, TransformKind};
+use serde_json::json;
+use std::collections::BTreeMap;
+use std::sync::OnceLock;
+
+const CEM_ML_PACKAGE_ID: &str = "cem-ml";
+const CEM_ML_AST_REPORT_BEHAVIOR: &str = "cem-ml-ast-report-fact";
+const CEM_ML_DOC_REPORT_BEHAVIOR: &str = "cem-ml-doc-report-fact";
+#[cfg(test)]
+const AST_UNBALANCED_CLOSE_CONTRACT: &str = "ast-unbalanced-close";
+#[cfg(test)]
+const AST_UNCLOSED_SCOPE_CONTRACT: &str = "ast-unclosed-scope";
+#[cfg(test)]
+const AST_UNRESOLVED_REFERENCE_CONTRACT: &str = "ast-unresolved-reference";
+#[cfg(test)]
+const DOC_VERSION_MISSING_CONTRACT: &str = "doc-version-missing";
+#[cfg(test)]
+const DOC_SEMVER_INVALID_CONTRACT: &str = "doc-semver-invalid";
+#[cfg(test)]
+const DOC_FORMAT_UNKNOWN_CONTRACT: &str = "doc-format-unknown";
+#[cfg(test)]
+const DOC_VERSION_UNSUPPORTED_CONTRACT: &str = "doc-version-unsupported";
+#[cfg(test)]
+const DOC_PRERELEASE_UNMATCHED_CONTRACT: &str = "doc-prerelease-unmatched";
+#[cfg(test)]
+const DOC_VERSION_RESOLVED_CONTRACT: &str = "doc-version-resolved";
 
 /// One parent slot on the build stack.
 #[derive(Debug)]
@@ -45,6 +72,7 @@ pub struct CemAstBuilder<E: EventNormalizer> {
     /// is emitted. Toggle with `top_level(true)` at the call site that
     /// knows it owns a persisted document.
     is_top_level: bool,
+    cem_ml_parser_diagnostics: Option<CemMlParserDiagnosticCatalog>,
 }
 
 #[derive(Debug)]
@@ -69,6 +97,7 @@ impl<E: EventNormalizer> CemAstBuilder<E> {
             stack: vec![Frame::Document],
             pending_attr: None,
             is_top_level: false,
+            cem_ml_parser_diagnostics: None,
         }
     }
 
@@ -79,6 +108,15 @@ impl<E: EventNormalizer> CemAstBuilder<E> {
     /// default (`false`) so they inherit the parent's identity.
     pub fn top_level(mut self, yes: bool) -> Self {
         self.is_top_level = yes;
+        self
+    }
+
+    #[cfg(test)]
+    fn with_cem_ml_parser_diagnostic_catalog(
+        mut self,
+        catalog: CemMlParserDiagnosticCatalog,
+    ) -> Self {
+        self.cem_ml_parser_diagnostics = Some(catalog);
         self
     }
 
@@ -97,7 +135,11 @@ impl<E: EventNormalizer> CemAstBuilder<E> {
                 byte_range,
                 source_map,
             } => self.on_open(name.lexical_name, byte_range, source_map),
-            NormalizedEvent::CloseScope { .. } => self.on_close(),
+            NormalizedEvent::CloseScope {
+                byte_range,
+                source_map,
+                ..
+            } => self.on_close(byte_range, source_map),
             NormalizedEvent::Name { name, byte_range } => {
                 // Flush a pending attribute that never received a value
                 // (boolean attribute).
@@ -202,7 +244,7 @@ impl<E: EventNormalizer> CemAstBuilder<E> {
         self.stack.push(Frame::Element { id: node_id, name });
     }
 
-    fn on_close(&mut self) {
+    fn on_close(&mut self, byte_range: ByteRange, source_map: SourceMapStack) {
         // Flush any dangling attribute before closing.
         if let Some(pending) = self.pending_attr.take() {
             let range = pending.name_range;
@@ -210,18 +252,12 @@ impl<E: EventNormalizer> CemAstBuilder<E> {
         }
         // Pop the topmost element frame.
         if self.stack.len() <= 1 {
-            self.doc.diagnostics.push(Diagnostic {
-                uri: None,
-                line: None,
-                column: None,
-                byte_offset: None,
-                code: "cem.ast.unbalanced_close".to_owned(),
-                severity: Severity::Error,
-                message: "close-scope event with no matching open element".to_owned(),
-                node: None,
-                details: None,
-                source_map: None,
-            });
+            self.push_parser_fact_diagnostic(
+                CemMlParserFactKind::AstUnbalancedClose,
+                Some(byte_range.start),
+                "close-scope event with no matching open element".to_owned(),
+                Some(source_map),
+            );
             return;
         }
         self.stack.pop();
@@ -441,44 +477,32 @@ impl<E: EventNormalizer> CemAstBuilder<E> {
         // by the schema machine; AST records this as a diagnostic too so a
         // caller using only the AST builder still sees the failure.
         if self.stack.len() > 1 {
-            self.doc.diagnostics.push(Diagnostic {
-                uri: None,
-                line: None,
-                column: None,
-                byte_offset: None,
-                code: "cem.ast.unclosed_scope".to_owned(),
-                severity: Severity::Error,
-                message: format!(
+            self.push_parser_fact_diagnostic(
+                CemMlParserFactKind::AstUnclosedScope,
+                None,
+                format!(
                     "{} scope(s) still open at end of input",
                     self.stack.len() - 1
                 ),
-                node: None,
-                details: None,
-                source_map: None,
-            });
+                None,
+            );
         }
         // Emit a Warning for each unresolved name slot, per AC reference
         // slots semantics.
         let unresolved = std::mem::take(&mut self.doc.unresolved_slots);
         for slot in &unresolved {
-            self.doc.diagnostics.push(Diagnostic {
-                uri: None,
-                line: None,
-                column: None,
-                byte_offset: slot.source.frames.last().and_then(|f| match &f.span {
+            self.push_parser_fact_diagnostic(
+                CemMlParserFactKind::AstUnresolvedReference,
+                slot.source.frames.last().and_then(|f| match &f.span {
                     FrameSpan::Single(r) => Some(r.start),
                     FrameSpan::Multi(rs) => rs.first().map(|r| r.start),
                 }),
-                code: "cem.ast.unresolved_reference".to_owned(),
-                severity: Severity::Warning,
-                message: format!(
+                format!(
                     "reference `{}` did not match any element id",
                     slot.target_name
                 ),
-                node: None,
-                details: None,
-                source_map: None,
-            });
+                Some(slot.source.clone()),
+            );
         }
         self.doc.unresolved_slots = unresolved;
         // AC-F-8: a persisted top-level document MUST begin with
@@ -516,20 +540,13 @@ impl<E: EventNormalizer> CemAstBuilder<E> {
         }
 
         let Some(directive_id) = directive_id else {
-            self.doc.diagnostics.push(Diagnostic {
-                uri: None,
-                line: None,
-                column: None,
-                byte_offset: Some(0),
-                code: format::VERSION_MISSING_CODE.to_owned(),
-                severity: Severity::Error,
-                message:
-                    "persisted top-level CEM-ML document must begin with `@doc cem-ml <version>`"
-                        .to_owned(),
-                node: None,
-                details: None,
-                source_map: None,
-            });
+            self.push_parser_fact_diagnostic(
+                CemMlParserFactKind::DocVersionMissing,
+                Some(0),
+                "persisted top-level CEM-ML document must begin with `@doc cem-ml <version>`"
+                    .to_owned(),
+                None,
+            );
             return;
         };
 
@@ -545,32 +562,20 @@ impl<E: EventNormalizer> CemAstBuilder<E> {
                     identity.format_id, identity.content_type, identity.format_version
                 );
                 self.doc.format_identity = Some(identity);
-                self.doc.diagnostics.push(Diagnostic {
-                    uri: None,
-                    line: None,
-                    column: None,
+                self.push_parser_fact_diagnostic(
+                    CemMlParserFactKind::DocVersionResolved,
                     byte_offset,
-                    code: format::VERSION_RESOLVED_CODE.to_owned(),
-                    severity: Severity::Info,
                     message,
-                    node: None,
-                    details: None,
-                    source_map: Some(source_map),
-                });
+                    Some(source_map),
+                );
             }
             Err(err) => {
-                self.doc.diagnostics.push(Diagnostic {
-                    uri: None,
-                    line: None,
-                    column: None,
+                self.push_parser_fact_diagnostic(
+                    CemMlParserFactKind::from_doc_directive_error(&err),
                     byte_offset,
-                    code: err.code().to_owned(),
-                    severity: Severity::Error,
-                    message: err.message(),
-                    node: None,
-                    details: None,
-                    source_map: Some(source_map),
-                });
+                    err.message(),
+                    Some(source_map),
+                );
             }
         }
     }
@@ -596,6 +601,171 @@ impl<E: EventNormalizer> CemAstBuilder<E> {
         }
         (text, source_map)
     }
+
+    fn push_parser_fact_diagnostic(
+        &mut self,
+        kind: CemMlParserFactKind,
+        byte_offset: Option<u64>,
+        message: String,
+        source_map: Option<SourceMapStack>,
+    ) {
+        let binding = if let Some(catalog) = self.cem_ml_parser_diagnostics.as_ref() {
+            catalog.binding_for_fact(kind).cloned()
+        } else {
+            builtin_cem_ml_parser_diagnostic_catalog()
+                .binding_for_fact(kind)
+                .cloned()
+        };
+        let Some(binding) = binding else {
+            return;
+        };
+        self.doc.diagnostics.push(cem_ml_parser_fact_diagnostic(
+            kind,
+            &binding,
+            byte_offset,
+            message,
+            source_map,
+        ));
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum CemMlParserFactKind {
+    AstUnbalancedClose,
+    AstUnclosedScope,
+    AstUnresolvedReference,
+    DocVersionMissing,
+    DocSemverInvalid,
+    DocFormatUnknown,
+    DocVersionUnsupported,
+    DocPrereleaseUnmatched,
+    DocVersionResolved,
+}
+
+impl CemMlParserFactKind {
+    fn as_str(self) -> &'static str {
+        match self {
+            Self::AstUnbalancedClose => "ast-unbalanced-close",
+            Self::AstUnclosedScope => "ast-unclosed-scope",
+            Self::AstUnresolvedReference => "ast-unresolved-reference",
+            Self::DocVersionMissing => "doc-version-missing",
+            Self::DocSemverInvalid => "doc-semver-invalid",
+            Self::DocFormatUnknown => "doc-format-unknown",
+            Self::DocVersionUnsupported => "doc-version-unsupported",
+            Self::DocPrereleaseUnmatched => "doc-prerelease-unmatched",
+            Self::DocVersionResolved => "doc-version-resolved",
+        }
+    }
+
+    fn from_doc_directive_error(error: &format::DocDirectiveError) -> Self {
+        match error {
+            format::DocDirectiveError::SemverInvalid { .. } => Self::DocSemverInvalid,
+            format::DocDirectiveError::FormatUnknown { .. } => Self::DocFormatUnknown,
+            format::DocDirectiveError::VersionUnsupported { .. } => Self::DocVersionUnsupported,
+            format::DocDirectiveError::PrereleaseUnmatched { .. } => Self::DocPrereleaseUnmatched,
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct CemMlParserDiagnosticCatalog {
+    fact_bindings: BTreeMap<String, CemMlParserDiagnosticBinding>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct CemMlParserDiagnosticBinding {
+    fact_kind: String,
+    contract: String,
+    behavior: Option<String>,
+    diagnostic_code: String,
+    severity: Severity,
+    policy: Option<String>,
+}
+
+impl CemMlParserDiagnosticCatalog {
+    fn from_builtin() -> Self {
+        let source =
+            crate::schema::package_sources::builtin_schema_package_source(CEM_ML_PACKAGE_ID)
+                .expect("built-in CEM-ML schema package source must be registered");
+        Self::from_schema_source(source.schema_source)
+    }
+
+    fn from_schema_source(schema_source: &str) -> Self {
+        let model = compile_schema_document_model(CEM_ML_SCHEMA_URI, schema_source);
+        let fact_bindings = model
+            .constraints
+            .values()
+            .filter_map(|constraint| {
+                let behavior = constraint.behavior.as_deref()?.trim();
+                if !matches!(
+                    behavior,
+                    CEM_ML_AST_REPORT_BEHAVIOR | CEM_ML_DOC_REPORT_BEHAVIOR
+                ) {
+                    return None;
+                }
+                let fact_kind = constraint.fact_kind.as_deref()?.trim();
+                if fact_kind.is_empty() {
+                    return None;
+                }
+                let diagnostic_code = constraint.diagnostic.as_deref()?.trim();
+                if diagnostic_code.is_empty() {
+                    return None;
+                }
+                let diagnostic = model.diagnostics.get(diagnostic_code)?;
+                Some((
+                    fact_kind.to_owned(),
+                    CemMlParserDiagnosticBinding {
+                        fact_kind: fact_kind.to_owned(),
+                        contract: constraint.kind.clone(),
+                        behavior: constraint.behavior.clone(),
+                        diagnostic_code: diagnostic.code.clone(),
+                        severity: diagnostic.severity,
+                        policy: constraint.policy.clone(),
+                    },
+                ))
+            })
+            .collect();
+
+        Self { fact_bindings }
+    }
+
+    fn binding_for_fact(&self, kind: CemMlParserFactKind) -> Option<&CemMlParserDiagnosticBinding> {
+        self.fact_bindings.get(kind.as_str())
+    }
+}
+
+fn builtin_cem_ml_parser_diagnostic_catalog() -> &'static CemMlParserDiagnosticCatalog {
+    static CATALOG: OnceLock<CemMlParserDiagnosticCatalog> = OnceLock::new();
+    CATALOG.get_or_init(CemMlParserDiagnosticCatalog::from_builtin)
+}
+
+fn cem_ml_parser_fact_diagnostic(
+    kind: CemMlParserFactKind,
+    binding: &CemMlParserDiagnosticBinding,
+    byte_offset: Option<u64>,
+    message: String,
+    source_map: Option<SourceMapStack>,
+) -> Diagnostic {
+    Diagnostic {
+        uri: None,
+        line: None,
+        column: None,
+        byte_offset,
+        code: binding.diagnostic_code.clone(),
+        severity: binding.severity,
+        message,
+        node: None,
+        details: Some(json!({
+            "contract": binding.contract,
+            "behavior": binding.behavior,
+            "factKind": kind.as_str(),
+            "policy": binding.policy,
+            "sourceRange": {
+                "byteOffset": byte_offset,
+            },
+        })),
+        source_map,
+    }
 }
 
 #[cfg(test)]
@@ -611,6 +781,35 @@ mod tests {
         let tok = CemTokenizer::from_source(src);
         let normalizer = CemEventNormalizer::new(tok);
         CemAstBuilder::new(normalizer).build()
+    }
+
+    fn parse_top_level(input: &str) -> CemDocument {
+        let src = BytesSource::new(SourceId(1), input.as_bytes().to_vec());
+        let tok = CemTokenizer::from_source(src);
+        let normalizer = CemEventNormalizer::new(tok);
+        CemAstBuilder::new(normalizer).top_level(true).build()
+    }
+
+    fn parse_with_catalog(input: &str, catalog: CemMlParserDiagnosticCatalog) -> CemDocument {
+        let src = BytesSource::new(SourceId(1), input.as_bytes().to_vec());
+        let tok = CemTokenizer::from_source(src);
+        let normalizer = CemEventNormalizer::new(tok);
+        CemAstBuilder::new(normalizer)
+            .with_cem_ml_parser_diagnostic_catalog(catalog)
+            .build()
+    }
+
+    fn parse_top_level_with_catalog(
+        input: &str,
+        catalog: CemMlParserDiagnosticCatalog,
+    ) -> CemDocument {
+        let src = BytesSource::new(SourceId(1), input.as_bytes().to_vec());
+        let tok = CemTokenizer::from_source(src);
+        let normalizer = CemEventNormalizer::new(tok);
+        CemAstBuilder::new(normalizer)
+            .top_level(true)
+            .with_cem_ml_parser_diagnostic_catalog(catalog)
+            .build()
     }
 
     #[test]
@@ -741,10 +940,246 @@ mod tests {
     #[test]
     fn unresolved_reference_emits_warning() {
         let doc = parse(r#"{label @for=missing | Missing}"#);
-        assert!(doc
+        let diagnostic = doc
             .diagnostics
             .iter()
-            .any(|d| d.code == "cem.ast.unresolved_reference"));
+            .find(|d| d.code == "cem.ast.unresolved_reference")
+            .expect("schema-owned unresolved reference diagnostic");
+        assert_eq!(diagnostic.severity, Severity::Warning);
+        assert_eq!(
+            diagnostic.details.as_ref().unwrap()["factKind"],
+            "ast-unresolved-reference"
+        );
+    }
+
+    #[test]
+    fn cem_ml_ast_fact_diagnostic_bindings_are_schema_declared_by_fact_kind() {
+        let catalog = CemMlParserDiagnosticCatalog::from_builtin();
+        let cases = [
+            (
+                CemMlParserFactKind::AstUnbalancedClose,
+                AST_UNBALANCED_CLOSE_CONTRACT,
+                "cem.ast.unbalanced_close",
+                Severity::Error,
+            ),
+            (
+                CemMlParserFactKind::AstUnclosedScope,
+                AST_UNCLOSED_SCOPE_CONTRACT,
+                "cem.ast.unclosed_scope",
+                Severity::Error,
+            ),
+            (
+                CemMlParserFactKind::AstUnresolvedReference,
+                AST_UNRESOLVED_REFERENCE_CONTRACT,
+                "cem.ast.unresolved_reference",
+                Severity::Warning,
+            ),
+        ];
+
+        for (fact_kind, contract, diagnostic_code, severity) in cases {
+            let binding = catalog
+                .binding_for_fact(fact_kind)
+                .unwrap_or_else(|| panic!("schema binding for {}", fact_kind.as_str()));
+            assert_eq!(binding.fact_kind, fact_kind.as_str());
+            assert_eq!(binding.contract, contract);
+            assert_eq!(
+                binding.behavior.as_deref(),
+                Some(CEM_ML_AST_REPORT_BEHAVIOR)
+            );
+            assert_eq!(binding.diagnostic_code, diagnostic_code);
+            assert_eq!(binding.severity, severity);
+        }
+    }
+
+    #[test]
+    fn cem_ml_ast_diagnostic_code_and_severity_are_schema_owned() {
+        let source = crate::schema::package_sources::builtin_schema_package_source(CEM_ML_PACKAGE_ID)
+            .expect("CEM-ML package source")
+            .schema_source
+            .replace(
+                r#"{constraint @kind="ast-unresolved-reference" @target="attribute" @diagnostic="cem.ast.unresolved_reference" @behavior="cem-ml-ast-report-fact" @fact-kind="ast-unresolved-reference" @policy="AST reference slots remain neutral facts until schema policy decides their diagnostic disposition"}"#,
+                r#"{constraint @kind="ast-unresolved-reference" @target="attribute" @diagnostic="example.ast.reference" @behavior="cem-ml-ast-report-fact" @fact-kind="ast-unresolved-reference" @policy="AST reference slots remain neutral facts until schema policy decides their diagnostic disposition"}"#,
+            )
+            .replace(
+                r#"{diagnostic @code="cem.ast.unresolved_reference" @severity="warning"}"#,
+                r#"{diagnostic @code="example.ast.reference" @severity="error"}"#,
+            );
+        let catalog = CemMlParserDiagnosticCatalog::from_schema_source(&source);
+        let doc = parse_with_catalog(r#"{label @for=missing | Missing}"#, catalog);
+        let diagnostic = doc
+            .diagnostics
+            .iter()
+            .find(|diagnostic| diagnostic.code == "example.ast.reference")
+            .expect("mutated schema-owned AST diagnostic");
+
+        assert_eq!(diagnostic.severity, Severity::Error);
+        assert_eq!(
+            diagnostic.details.as_ref().unwrap()["contract"],
+            AST_UNRESOLVED_REFERENCE_CONTRACT
+        );
+        assert_eq!(
+            diagnostic.details.as_ref().unwrap()["factKind"],
+            "ast-unresolved-reference"
+        );
+    }
+
+    #[test]
+    fn cem_ml_ast_unbound_fact_stays_neutral() {
+        let source =
+            crate::schema::package_sources::builtin_schema_package_source(CEM_ML_PACKAGE_ID)
+                .expect("CEM-ML package source")
+                .schema_source
+                .replace(
+                    r#"@fact-kind="ast-unresolved-reference""#,
+                    r#"@fact-kind="schema-ignored-ast-reference""#,
+                );
+        let catalog = CemMlParserDiagnosticCatalog::from_schema_source(&source);
+        assert!(catalog
+            .binding_for_fact(CemMlParserFactKind::AstUnresolvedReference)
+            .is_none());
+
+        let doc = parse_with_catalog(r#"{label @for=missing | Missing}"#, catalog);
+        assert!(
+            doc.diagnostics
+                .iter()
+                .all(|diagnostic| diagnostic.code != "cem.ast.unresolved_reference"),
+            "unbound AST facts stay neutral instead of falling back to Rust-owned diagnostics: {:?}",
+            doc.diagnostics
+        );
+    }
+
+    #[test]
+    fn cem_ml_doc_fact_diagnostic_bindings_are_schema_declared_by_fact_kind() {
+        let catalog = CemMlParserDiagnosticCatalog::from_builtin();
+        let cases = [
+            (
+                CemMlParserFactKind::DocVersionMissing,
+                DOC_VERSION_MISSING_CONTRACT,
+                format::VERSION_MISSING_CODE,
+                Severity::Error,
+            ),
+            (
+                CemMlParserFactKind::DocSemverInvalid,
+                DOC_SEMVER_INVALID_CONTRACT,
+                "cem.doc.semver_invalid",
+                Severity::Error,
+            ),
+            (
+                CemMlParserFactKind::DocFormatUnknown,
+                DOC_FORMAT_UNKNOWN_CONTRACT,
+                "cem.doc.format_unknown",
+                Severity::Error,
+            ),
+            (
+                CemMlParserFactKind::DocVersionUnsupported,
+                DOC_VERSION_UNSUPPORTED_CONTRACT,
+                "cem.doc.version_unsupported",
+                Severity::Error,
+            ),
+            (
+                CemMlParserFactKind::DocPrereleaseUnmatched,
+                DOC_PRERELEASE_UNMATCHED_CONTRACT,
+                "cem.doc.prerelease_unmatched",
+                Severity::Error,
+            ),
+            (
+                CemMlParserFactKind::DocVersionResolved,
+                DOC_VERSION_RESOLVED_CONTRACT,
+                format::VERSION_RESOLVED_CODE,
+                Severity::Info,
+            ),
+        ];
+
+        for (fact_kind, contract, diagnostic_code, severity) in cases {
+            let binding = catalog
+                .binding_for_fact(fact_kind)
+                .unwrap_or_else(|| panic!("schema binding for {}", fact_kind.as_str()));
+            assert_eq!(binding.fact_kind, fact_kind.as_str());
+            assert_eq!(binding.contract, contract);
+            assert_eq!(
+                binding.behavior.as_deref(),
+                Some(CEM_ML_DOC_REPORT_BEHAVIOR)
+            );
+            assert_eq!(binding.diagnostic_code, diagnostic_code);
+            assert_eq!(binding.severity, severity);
+        }
+    }
+
+    #[test]
+    fn top_level_doc_resolution_emits_schema_owned_fact_details() {
+        let doc = parse_top_level("@doc cem-ml 1\n{p | ok}");
+        let diagnostic = doc
+            .diagnostics
+            .iter()
+            .find(|diagnostic| diagnostic.code == format::VERSION_RESOLVED_CODE)
+            .expect("schema-owned @doc success diagnostic");
+
+        assert_eq!(diagnostic.severity, Severity::Info);
+        assert_eq!(
+            diagnostic.details.as_ref().unwrap()["contract"],
+            DOC_VERSION_RESOLVED_CONTRACT
+        );
+        assert_eq!(
+            diagnostic.details.as_ref().unwrap()["factKind"],
+            "doc-version-resolved"
+        );
+    }
+
+    #[test]
+    fn cem_ml_doc_diagnostic_code_and_severity_are_schema_owned() {
+        let source = crate::schema::package_sources::builtin_schema_package_source(CEM_ML_PACKAGE_ID)
+            .expect("CEM-ML package source")
+            .schema_source
+            .replace(
+                r#"{constraint @kind="doc-version-unsupported" @target="directive" @diagnostic="cem.doc.version_unsupported" @behavior="cem-ml-doc-report-fact" @fact-kind="doc-version-unsupported" @policy="@doc version constraints must resolve against the embedded CEM-ML document profile"}"#,
+                r#"{constraint @kind="doc-version-unsupported" @target="directive" @diagnostic="example.doc.version" @behavior="cem-ml-doc-report-fact" @fact-kind="doc-version-unsupported" @policy="@doc version constraints must resolve against the embedded CEM-ML document profile"}"#,
+            )
+            .replace(
+                r#"{diagnostic @code="cem.doc.version_unsupported" @severity="error"}"#,
+                r#"{diagnostic @code="example.doc.version" @severity="warning"}"#,
+            );
+        let catalog = CemMlParserDiagnosticCatalog::from_schema_source(&source);
+        let doc = parse_top_level_with_catalog("@doc cem-ml 2\n{p | no}", catalog);
+        let diagnostic = doc
+            .diagnostics
+            .iter()
+            .find(|diagnostic| diagnostic.code == "example.doc.version")
+            .expect("mutated schema-owned @doc diagnostic");
+
+        assert_eq!(diagnostic.severity, Severity::Warning);
+        assert_eq!(
+            diagnostic.details.as_ref().unwrap()["contract"],
+            DOC_VERSION_UNSUPPORTED_CONTRACT
+        );
+        assert_eq!(
+            diagnostic.details.as_ref().unwrap()["factKind"],
+            "doc-version-unsupported"
+        );
+    }
+
+    #[test]
+    fn cem_ml_doc_unbound_fact_stays_neutral() {
+        let source =
+            crate::schema::package_sources::builtin_schema_package_source(CEM_ML_PACKAGE_ID)
+                .expect("CEM-ML package source")
+                .schema_source
+                .replace(
+                    r#"@fact-kind="doc-version-unsupported""#,
+                    r#"@fact-kind="schema-ignored-doc-version""#,
+                );
+        let catalog = CemMlParserDiagnosticCatalog::from_schema_source(&source);
+        assert!(catalog
+            .binding_for_fact(CemMlParserFactKind::DocVersionUnsupported)
+            .is_none());
+
+        let doc = parse_top_level_with_catalog("@doc cem-ml 2\n{p | no}", catalog);
+        assert!(
+            doc.diagnostics
+                .iter()
+                .all(|diagnostic| diagnostic.code != "cem.doc.version_unsupported"),
+            "unbound @doc facts stay neutral instead of falling back to Rust-owned diagnostics: {:?}",
+            doc.diagnostics
+        );
     }
 
     #[test]
