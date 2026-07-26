@@ -372,90 +372,444 @@ The CEM-QL package is not complete until these gates pass:
 - `yarn nx run cem_ml_schema_package_cem_ql_v1:verify` fails on README/SVG
   drift, formatter/colorizer drift, and schema example drift.
 
-## Validation Examples
+## Examples
 
-The schema-owned examples live in [`examples/`](examples/) and are used by the
-CLI validation integration tests and the package-local `verify` target.
+This section is generated from `package.cem` `{example}` metadata by the
+`samples2readme` Nx target. Each SVG previews the example content, not
+the validation report. The target writes a preformatted HTML preview to
+`dist/cem_ml/schema-packages/<package>/v1/examples/<example-file>.html`,
+then renders the `<pre>` spans through headless Chromium into
+`examples/previews/<example-file>.svg`.
+Source snapshots are used only where the current CLI cannot yet render
+the package formatter/colorizer path for that content identity.
 
-<!--
-AI maintenance: when changing any command example below, its referenced CEM-QL
-fixture, formatter/colorizer assets, CLI report shape, HTML wrapper, role-color
-mapping, or CEM-QL presentation output, refresh the matching SVG previews with
-`node packages/cem_ml/schema-packages/cem-ql/v1/scripts/verify-previews.mjs --update`
-and commit the preview changes in the same change. If the visible output is
-unchanged, state that explicitly in the change notes.
--->
+### basic-query
 
-| Example                                                                 | Purpose                                                                                           | Expected result                       |
-| ----------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------- | ------------------------------------- |
-| [`basic-query.cemql`](examples/basic-query.cemql)                       | Minimal query module with a module URI, immutable binding declaration, and expression.            | Pass                                  |
-| [`basic-expression.cem-ql`](examples/basic-expression.cem-ql)           | Standalone expression transform source that reads the primary data resource through `input`.      | Pass                                  |
-| [`invalid-expression-parse.cem-ql`](examples/invalid-expression-parse.cem-ql) | Standalone expression parse/source-range diagnostic fixture.                                      | Fail: `cem.ql.parse_error`           |
-| [`invalid-expression-type-error.cem-ql`](examples/invalid-expression-type-error.cem-ql) | Standalone expression static type diagnostic fixture.                                             | Fail: `cem.ql.type_error`            |
-| [`invalid-expression-data-binding.cem-ql`](examples/invalid-expression-data-binding.cem-ql) | Standalone expression missing data binding diagnostic fixture.                                    | Fail: `cem.ql.data_binding_missing`  |
-| [`module-query.cemql`](examples/module-query.cemql)                     | Query module with import, immutable binding declaration, function declaration, and conditional expression. | Pass                                  |
-| [`operators-and-control.cemql`](examples/operators-and-control.cemql)   | Arithmetic, comparisons, boolean short-circuit operators, type tests/casts, set operators, block `let`, and `if`/`else`. | Pass                                  |
-| [`collections-and-pipelines.cemql`](examples/collections-and-pipelines.cemql) | Record streams, dot pipelines, current-item projection, `for` mapping, and `any`/`all` helpers. | Pass                                  |
-| [`stdlib-data-helpers.cemql`](examples/stdlib-data-helpers.cemql)       | Sequence helpers, string helpers, number helpers, date/time helpers, and report helper calls.     | Pass                                  |
-| [`host-resource-helpers.cemql`](examples/host-resource-helpers.cemql)   | State helpers, template helpers, CEM-ML helpers, content-type constants, `read(...)`, and JSON-array resource boundary shape. | Pass                                  |
-| [`compiled-artifact-identity.cemql`](examples/compiled-artifact-identity.cemql) | Package-owned source used to generate and validate compiled artifact cache identity stamps.        | Pass                                  |
-| [`invalid-parse.cemql`](examples/invalid-parse.cemql)                   | Incomplete expression rejected by the CEM-QL parser.                                              | Fail with `cem.ql.parse_error`        |
-| [`invalid-missing-module.cemql`](examples/invalid-missing-module.cemql) | Query source missing the required module URI declaration.                                         | Fail with `cem.ql.module_uri_missing` |
-| [`invalid-old-syntax.cemql`](examples/invalid-old-syntax.cemql)         | XPath boolean spelling rejected with a Rust-first replacement diagnostic.                         | Fail with `cem.ql.use_rust_boolean_ops` |
-| [`invalid-unresolved-import.cemql`](examples/invalid-unresolved-import.cemql) | Unregistered `urn:cem:` module import rejected by import resolution policy.                       | Fail with `cem.ql.import_unresolved` |
-| [`invalid-type-error.cemql`](examples/invalid-type-error.cemql)         | Integer binding used as an `if` condition rejected by strict static type checking.                | Fail with `cem.ql.type_error`       |
-
-The current parser has record literals and stream sequence literals; it does
-not define a separate `[...]` array literal. Arrays enter CEM-QL through host
-and resource boundaries such as JSON `read(...)` or WASM bindings, and are
-therefore represented in the host/resource helper example rather than as a
-new surface syntax.
-
-Validate an example explicitly against this schema from a built CLI binary:
+- Source: [`examples/basic-query.cemql`](examples/basic-query.cemql)
+- Content type: `application/vnd.cem.query+cem-ql`
+- Schema: `https://cem.dev/ns/query/cem-ql/1`
+- Expected result: `pass`
+- Preview renderer: `CLI convert, tabular formatter, preview HTML + html2svg`
+- Preview HTML: `dist/cem_ml/schema-packages/cem-ql/v1/examples/basic-query.cemql.html`
 
 ```bash
-dist/target/cem_ml_cli/debug/cem-ml validate \
-  --format json \
-  --content-type application/vnd.cem.query+cem-ql \
-  --schema https://cem.dev/ns/query/cem-ql/1 \
-  packages/cem_ml/schema-packages/cem-ql/v1/examples/basic-query.cemql
+dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
+  uri=packages/cem_ml/schema-packages/cem-ql/v1/examples/basic-query.cemql,contentType=application/vnd.cem.query+cem-ql,schema=https://cem.dev/ns/query/cem-ql/1 \
+  --to-content-type application/vnd.cem.query+cem-ql --to-schema \
+  https://cem.dev/ns/query/cem-ql/1 --cemt-formatter-profile tabular \
+  --cemt-color-profile terminal --output-color-type ansi-256
 ```
 
-![Preview of the CEM-QL validation JSON report](examples/previews/basic-query-validate.svg)
+![Preview of CEM-QL Query Resource Schema Package basic-query example](examples/previews/basic-query.cemql.svg)
 
-Convert the same example with the package-owned tabular formatter and terminal
-colorizer:
+### basic-expression
+
+- Source: [`examples/basic-expression.cem-ql`](examples/basic-expression.cem-ql)
+- Content type: `application/vnd.cem.query-expression+cem-ql`
+- Schema: `https://cem.dev/ns/query/cem-ql/1#expression`
+- Expected result: `pass`
+- Preview renderer: `source snapshot HTML + html2svg`
+- Preview HTML: `dist/cem_ml/schema-packages/cem-ql/v1/examples/basic-expression.cem-ql.html`
+![Preview of CEM-QL Query Resource Schema Package basic-expression example](examples/previews/basic-expression.cem-ql.svg)
+
+### invalid-expression-parse
+
+- Source: [`examples/invalid-expression-parse.cem-ql`](examples/invalid-expression-parse.cem-ql)
+- Content type: `application/vnd.cem.query-expression+cem-ql`
+- Schema: `https://cem.dev/ns/query/cem-ql/1#expression`
+- Expected result: `fail`
+- Expected diagnostics: `cem.ql.parse_error`
+- Preview renderer: `source snapshot HTML + html2svg`
+- Preview HTML: `dist/cem_ml/schema-packages/cem-ql/v1/examples/invalid-expression-parse.cem-ql.html`
+![Preview of CEM-QL Query Resource Schema Package invalid-expression-parse example](examples/previews/invalid-expression-parse.cem-ql.svg)
+
+### invalid-expression-type-error
+
+- Source: [`examples/invalid-expression-type-error.cem-ql`](examples/invalid-expression-type-error.cem-ql)
+- Content type: `application/vnd.cem.query-expression+cem-ql`
+- Schema: `https://cem.dev/ns/query/cem-ql/1#expression`
+- Expected result: `fail`
+- Expected diagnostics: `cem.ql.type_error`
+- Preview renderer: `source snapshot HTML + html2svg`
+- Preview HTML: `dist/cem_ml/schema-packages/cem-ql/v1/examples/invalid-expression-type-error.cem-ql.html`
+![Preview of CEM-QL Query Resource Schema Package invalid-expression-type-error example](examples/previews/invalid-expression-type-error.cem-ql.svg)
+
+### invalid-expression-data-binding
+
+- Source: [`examples/invalid-expression-data-binding.cem-ql`](examples/invalid-expression-data-binding.cem-ql)
+- Content type: `application/vnd.cem.query-expression+cem-ql`
+- Schema: `https://cem.dev/ns/query/cem-ql/1#expression`
+- Expected result: `fail`
+- Expected diagnostics: `cem.ql.data_binding_missing`
+- Preview renderer: `source snapshot HTML + html2svg`
+- Preview HTML: `dist/cem_ml/schema-packages/cem-ql/v1/examples/invalid-expression-data-binding.cem-ql.html`
+![Preview of CEM-QL Query Resource Schema Package invalid-expression-data-binding example](examples/previews/invalid-expression-data-binding.cem-ql.svg)
+
+### module-query
+
+- Source: [`examples/module-query.cemql`](examples/module-query.cemql)
+- Content type: `application/vnd.cem.query+cem-ql`
+- Schema: `https://cem.dev/ns/query/cem-ql/1`
+- Expected result: `pass`
+- Preview renderer: `CLI convert, tabular formatter, preview HTML + html2svg`
+- Preview HTML: `dist/cem_ml/schema-packages/cem-ql/v1/examples/module-query.cemql.html`
 
 ```bash
-dist/target/cem_ml_cli/debug/cem-ml convert \
-  packages/cem_ml/schema-packages/cem-ql/v1/examples/basic-query.cemql \
-  --content-type application/vnd.cem.query+cem-ql \
-  --schema https://cem.dev/ns/query/cem-ql/1 \
-  --to-content-type application/vnd.cem.query+cem-ql \
-  --to-schema https://cem.dev/ns/query/cem-ql/1 \
-  --cemt-formatter cem-ql.format-tree \
-  --cemt-formatter-profile tabular \
-  --cemt-colorizer cem-ql.color-tree \
-  --cemt-color-profile terminal \
-  --output-color-type ansi-256
+dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
+  uri=packages/cem_ml/schema-packages/cem-ql/v1/examples/module-query.cemql,contentType=application/vnd.cem.query+cem-ql,schema=https://cem.dev/ns/query/cem-ql/1 \
+  --to-content-type application/vnd.cem.query+cem-ql --to-schema \
+  https://cem.dev/ns/query/cem-ql/1 --cemt-formatter-profile tabular \
+  --cemt-color-profile terminal --output-color-type ansi-256
 ```
 
-![Preview of the CEM-QL tabular formatter with terminal colors](examples/previews/basic-query-tabular-terminal.svg)
+![Preview of CEM-QL Query Resource Schema Package module-query example](examples/previews/module-query.cemql.svg)
 
-Convert the same formatted/colorized tree to HTML:
+### operators-and-control
+
+- Source: [`examples/operators-and-control.cemql`](examples/operators-and-control.cemql)
+- Content type: `application/vnd.cem.query+cem-ql`
+- Schema: `https://cem.dev/ns/query/cem-ql/1`
+- Expected result: `pass`
+- Preview renderer: `CLI convert, tabular formatter, preview HTML + html2svg`
+- Preview HTML: `dist/cem_ml/schema-packages/cem-ql/v1/examples/operators-and-control.cemql.html`
 
 ```bash
-dist/target/cem_ml_cli/debug/cem-ml convert \
-  packages/cem_ml/schema-packages/cem-ql/v1/examples/basic-query.cemql \
-  --content-type application/vnd.cem.query+cem-ql \
-  --schema https://cem.dev/ns/query/cem-ql/1 \
-  --to-content-type text/html \
-  --to-schema https://cem.dev/ns/data/html/1 \
-  --cemt-formatter cem-ql.format-tree \
-  --cemt-formatter-profile tabular \
-  --cemt-colorizer cem-ql.color-tree \
-  --cemt-color-profile html \
-  --output-color-type html-css-vars
+dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
+  uri=packages/cem_ml/schema-packages/cem-ql/v1/examples/operators-and-control.cemql,contentType=application/vnd.cem.query+cem-ql,schema=https://cem.dev/ns/query/cem-ql/1 \
+  --to-content-type application/vnd.cem.query+cem-ql --to-schema \
+  https://cem.dev/ns/query/cem-ql/1 --cemt-formatter-profile tabular \
+  --cemt-color-profile terminal --output-color-type ansi-256
 ```
 
-![Preview of the CEM-QL tabular formatter with HTML colors](examples/previews/basic-query-tabular-html.svg)
+![Preview of CEM-QL Query Resource Schema Package operators-and-control example](examples/previews/operators-and-control.cemql.svg)
+
+### collections-and-pipelines
+
+- Source: [`examples/collections-and-pipelines.cemql`](examples/collections-and-pipelines.cemql)
+- Content type: `application/vnd.cem.query+cem-ql`
+- Schema: `https://cem.dev/ns/query/cem-ql/1`
+- Expected result: `pass`
+- Preview renderer: `CLI convert, tabular formatter, preview HTML + html2svg`
+- Preview HTML: `dist/cem_ml/schema-packages/cem-ql/v1/examples/collections-and-pipelines.cemql.html`
+
+```bash
+dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
+  uri=packages/cem_ml/schema-packages/cem-ql/v1/examples/collections-and-pipelines.cemql,contentType=application/vnd.cem.query+cem-ql,schema=https://cem.dev/ns/query/cem-ql/1 \
+  --to-content-type application/vnd.cem.query+cem-ql --to-schema \
+  https://cem.dev/ns/query/cem-ql/1 --cemt-formatter-profile tabular \
+  --cemt-color-profile terminal --output-color-type ansi-256
+```
+
+![Preview of CEM-QL Query Resource Schema Package collections-and-pipelines example](examples/previews/collections-and-pipelines.cemql.svg)
+
+### stdlib-data-helpers
+
+- Source: [`examples/stdlib-data-helpers.cemql`](examples/stdlib-data-helpers.cemql)
+- Content type: `application/vnd.cem.query+cem-ql`
+- Schema: `https://cem.dev/ns/query/cem-ql/1`
+- Expected result: `pass`
+- Preview renderer: `CLI convert, tabular formatter, preview HTML + html2svg`
+- Preview HTML: `dist/cem_ml/schema-packages/cem-ql/v1/examples/stdlib-data-helpers.cemql.html`
+
+```bash
+dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
+  uri=packages/cem_ml/schema-packages/cem-ql/v1/examples/stdlib-data-helpers.cemql,contentType=application/vnd.cem.query+cem-ql,schema=https://cem.dev/ns/query/cem-ql/1 \
+  --to-content-type application/vnd.cem.query+cem-ql --to-schema \
+  https://cem.dev/ns/query/cem-ql/1 --cemt-formatter-profile tabular \
+  --cemt-color-profile terminal --output-color-type ansi-256
+```
+
+![Preview of CEM-QL Query Resource Schema Package stdlib-data-helpers example](examples/previews/stdlib-data-helpers.cemql.svg)
+
+### host-resource-helpers
+
+- Source: [`examples/host-resource-helpers.cemql`](examples/host-resource-helpers.cemql)
+- Content type: `application/vnd.cem.query+cem-ql`
+- Schema: `https://cem.dev/ns/query/cem-ql/1`
+- Expected result: `pass`
+- Preview renderer: `CLI convert, tabular formatter, preview HTML + html2svg`
+- Preview HTML: `dist/cem_ml/schema-packages/cem-ql/v1/examples/host-resource-helpers.cemql.html`
+
+```bash
+dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
+  uri=packages/cem_ml/schema-packages/cem-ql/v1/examples/host-resource-helpers.cemql,contentType=application/vnd.cem.query+cem-ql,schema=https://cem.dev/ns/query/cem-ql/1 \
+  --to-content-type application/vnd.cem.query+cem-ql --to-schema \
+  https://cem.dev/ns/query/cem-ql/1 --cemt-formatter-profile tabular \
+  --cemt-color-profile terminal --output-color-type ansi-256
+```
+
+![Preview of CEM-QL Query Resource Schema Package host-resource-helpers example](examples/previews/host-resource-helpers.cemql.svg)
+
+### alias-content-type
+
+- Source: [`examples/alias-content-type.cemql`](examples/alias-content-type.cemql)
+- Content type: `text/cem-ql`
+- Schema: `https://cem.dev/ns/query/cem-ql/1`
+- Expected result: `pass`
+- Preview renderer: `CLI convert, tabular formatter, preview HTML + html2svg`
+- Preview HTML: `dist/cem_ml/schema-packages/cem-ql/v1/examples/alias-content-type.cemql.html`
+
+```bash
+dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
+  uri=packages/cem_ml/schema-packages/cem-ql/v1/examples/alias-content-type.cemql,contentType=text/cem-ql,schema=https://cem.dev/ns/query/cem-ql/1 \
+  --to-content-type application/vnd.cem.query+cem-ql --to-schema \
+  https://cem.dev/ns/query/cem-ql/1 --cemt-formatter-profile tabular \
+  --cemt-color-profile terminal --output-color-type ansi-256
+```
+
+![Preview of CEM-QL Query Resource Schema Package alias-content-type example](examples/previews/alias-content-type.cemql.svg)
+
+### line-ending-lf
+
+- Source: [`examples/line-ending-lf.cemql`](examples/line-ending-lf.cemql)
+- Content type: `application/vnd.cem.query+cem-ql`
+- Schema: `https://cem.dev/ns/query/cem-ql/1`
+- Expected result: `pass`
+- Preview renderer: `CLI convert, tabular formatter, preview HTML + html2svg`
+- Preview HTML: `dist/cem_ml/schema-packages/cem-ql/v1/examples/line-ending-lf.cemql.html`
+
+```bash
+dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
+  uri=packages/cem_ml/schema-packages/cem-ql/v1/examples/line-ending-lf.cemql,contentType=application/vnd.cem.query+cem-ql,schema=https://cem.dev/ns/query/cem-ql/1 \
+  --to-content-type application/vnd.cem.query+cem-ql --to-schema \
+  https://cem.dev/ns/query/cem-ql/1 --cemt-formatter-profile tabular \
+  --cemt-color-profile terminal --output-color-type ansi-256
+```
+
+![Preview of CEM-QL Query Resource Schema Package line-ending-lf example](examples/previews/line-ending-lf.cemql.svg)
+
+### line-ending-crlf
+
+- Source: [`examples/line-ending-crlf.cemql`](examples/line-ending-crlf.cemql)
+- Content type: `application/vnd.cem.query+cem-ql`
+- Schema: `https://cem.dev/ns/query/cem-ql/1`
+- Expected result: `pass`
+- Preview renderer: `CLI convert, tabular formatter, preview HTML + html2svg`
+- Preview HTML: `dist/cem_ml/schema-packages/cem-ql/v1/examples/line-ending-crlf.cemql.html`
+
+```bash
+dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
+  uri=packages/cem_ml/schema-packages/cem-ql/v1/examples/line-ending-crlf.cemql,contentType=application/vnd.cem.query+cem-ql,schema=https://cem.dev/ns/query/cem-ql/1 \
+  --to-content-type application/vnd.cem.query+cem-ql --to-schema \
+  https://cem.dev/ns/query/cem-ql/1 --cemt-formatter-profile tabular \
+  --cemt-color-profile terminal --output-color-type ansi-256
+```
+
+![Preview of CEM-QL Query Resource Schema Package line-ending-crlf example](examples/previews/line-ending-crlf.cemql.svg)
+
+### comments-and-whitespace
+
+- Source: [`examples/comments-and-whitespace.cemql`](examples/comments-and-whitespace.cemql)
+- Content type: `application/vnd.cem.query+cem-ql`
+- Schema: `https://cem.dev/ns/query/cem-ql/1`
+- Expected result: `pass`
+- Preview renderer: `CLI convert, tabular formatter, preview HTML + html2svg`
+- Preview HTML: `dist/cem_ml/schema-packages/cem-ql/v1/examples/comments-and-whitespace.cemql.html`
+
+```bash
+dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
+  uri=packages/cem_ml/schema-packages/cem-ql/v1/examples/comments-and-whitespace.cemql,contentType=application/vnd.cem.query+cem-ql,schema=https://cem.dev/ns/query/cem-ql/1 \
+  --to-content-type application/vnd.cem.query+cem-ql --to-schema \
+  https://cem.dev/ns/query/cem-ql/1 --cemt-formatter-profile tabular \
+  --cemt-color-profile terminal --output-color-type ansi-256
+```
+
+![Preview of CEM-QL Query Resource Schema Package comments-and-whitespace example](examples/previews/comments-and-whitespace.cemql.svg)
+
+### source-token-ranges
+
+- Source: [`examples/source-token-ranges.cemql`](examples/source-token-ranges.cemql)
+- Content type: `application/vnd.cem.query+cem-ql`
+- Schema: `https://cem.dev/ns/query/cem-ql/1`
+- Expected result: `pass`
+- Preview renderer: `CLI convert, tabular formatter, preview HTML + html2svg`
+- Preview HTML: `dist/cem_ml/schema-packages/cem-ql/v1/examples/source-token-ranges.cemql.html`
+
+```bash
+dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
+  uri=packages/cem_ml/schema-packages/cem-ql/v1/examples/source-token-ranges.cemql,contentType=application/vnd.cem.query+cem-ql,schema=https://cem.dev/ns/query/cem-ql/1 \
+  --to-content-type application/vnd.cem.query+cem-ql --to-schema \
+  https://cem.dev/ns/query/cem-ql/1 --cemt-formatter-profile tabular \
+  --cemt-color-profile terminal --output-color-type ansi-256
+```
+
+![Preview of CEM-QL Query Resource Schema Package source-token-ranges example](examples/previews/source-token-ranges.cemql.svg)
+
+### compiled-artifact-identity
+
+- Source: [`examples/compiled-artifact-identity.cemql`](examples/compiled-artifact-identity.cemql)
+- Content type: `application/vnd.cem.query+cem-ql`
+- Schema: `https://cem.dev/ns/query/cem-ql/1`
+- Expected result: `pass`
+- Preview renderer: `CLI convert, tabular formatter, preview HTML + html2svg`
+- Preview HTML: `dist/cem_ml/schema-packages/cem-ql/v1/examples/compiled-artifact-identity.cemql.html`
+
+```bash
+dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
+  uri=packages/cem_ml/schema-packages/cem-ql/v1/examples/compiled-artifact-identity.cemql,contentType=application/vnd.cem.query+cem-ql,schema=https://cem.dev/ns/query/cem-ql/1 \
+  --to-content-type application/vnd.cem.query+cem-ql --to-schema \
+  https://cem.dev/ns/query/cem-ql/1 --cemt-formatter-profile tabular \
+  --cemt-color-profile terminal --output-color-type ansi-256
+```
+
+![Preview of CEM-QL Query Resource Schema Package compiled-artifact-identity example](examples/previews/compiled-artifact-identity.cemql.svg)
+
+### invalid-parse
+
+- Source: [`examples/invalid-parse.cemql`](examples/invalid-parse.cemql)
+- Content type: `application/vnd.cem.query+cem-ql`
+- Schema: `https://cem.dev/ns/query/cem-ql/1`
+- Expected result: `fail`
+- Expected diagnostics: `cem.ql.parse_error`
+- Preview renderer: `CLI convert, tabular formatter, preview HTML + html2svg`
+- Preview HTML: `dist/cem_ml/schema-packages/cem-ql/v1/examples/invalid-parse.cemql.html`
+
+```bash
+dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
+  uri=packages/cem_ml/schema-packages/cem-ql/v1/examples/invalid-parse.cemql,contentType=application/vnd.cem.query+cem-ql,schema=https://cem.dev/ns/query/cem-ql/1 \
+  --to-content-type application/vnd.cem.query+cem-ql --to-schema \
+  https://cem.dev/ns/query/cem-ql/1 --cemt-formatter-profile tabular \
+  --cemt-color-profile terminal --output-color-type ansi-256
+```
+
+![Preview of CEM-QL Query Resource Schema Package invalid-parse example](examples/previews/invalid-parse.cemql.svg)
+
+### invalid-missing-module
+
+- Source: [`examples/invalid-missing-module.cemql`](examples/invalid-missing-module.cemql)
+- Content type: `application/vnd.cem.query+cem-ql`
+- Schema: `https://cem.dev/ns/query/cem-ql/1`
+- Expected result: `fail`
+- Expected diagnostics: `cem.ql.module_uri_missing`
+- Preview renderer: `CLI convert, tabular formatter, preview HTML + html2svg`
+- Preview HTML: `dist/cem_ml/schema-packages/cem-ql/v1/examples/invalid-missing-module.cemql.html`
+
+```bash
+dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
+  uri=packages/cem_ml/schema-packages/cem-ql/v1/examples/invalid-missing-module.cemql,contentType=application/vnd.cem.query+cem-ql,schema=https://cem.dev/ns/query/cem-ql/1 \
+  --to-content-type application/vnd.cem.query+cem-ql --to-schema \
+  https://cem.dev/ns/query/cem-ql/1 --cemt-formatter-profile tabular \
+  --cemt-color-profile terminal --output-color-type ansi-256
+```
+
+![Preview of CEM-QL Query Resource Schema Package invalid-missing-module example](examples/previews/invalid-missing-module.cemql.svg)
+
+### invalid-old-syntax
+
+- Source: [`examples/invalid-old-syntax.cemql`](examples/invalid-old-syntax.cemql)
+- Content type: `application/vnd.cem.query+cem-ql`
+- Schema: `https://cem.dev/ns/query/cem-ql/1`
+- Expected result: `fail`
+- Expected diagnostics: `cem.ql.use_rust_boolean_ops`
+- Preview renderer: `CLI convert, tabular formatter, preview HTML + html2svg`
+- Preview HTML: `dist/cem_ml/schema-packages/cem-ql/v1/examples/invalid-old-syntax.cemql.html`
+
+```bash
+dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
+  uri=packages/cem_ml/schema-packages/cem-ql/v1/examples/invalid-old-syntax.cemql,contentType=application/vnd.cem.query+cem-ql,schema=https://cem.dev/ns/query/cem-ql/1 \
+  --to-content-type application/vnd.cem.query+cem-ql --to-schema \
+  https://cem.dev/ns/query/cem-ql/1 --cemt-formatter-profile tabular \
+  --cemt-color-profile terminal --output-color-type ansi-256
+```
+
+![Preview of CEM-QL Query Resource Schema Package invalid-old-syntax example](examples/previews/invalid-old-syntax.cemql.svg)
+
+### invalid-utf8
+
+- Source: [`examples/invalid-utf8.cemql`](examples/invalid-utf8.cemql)
+- Content type: `application/vnd.cem.query+cem-ql`
+- Schema: `https://cem.dev/ns/query/cem-ql/1`
+- Expected result: `fail`
+- Expected diagnostics: `cem.ql.invalid_utf8`
+- Preview renderer: `CLI convert, tabular formatter, preview HTML + html2svg`
+- Preview HTML: `dist/cem_ml/schema-packages/cem-ql/v1/examples/invalid-utf8.cemql.html`
+
+```bash
+dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
+  uri=packages/cem_ml/schema-packages/cem-ql/v1/examples/invalid-utf8.cemql,contentType=application/vnd.cem.query+cem-ql,schema=https://cem.dev/ns/query/cem-ql/1 \
+  --to-content-type application/vnd.cem.query+cem-ql --to-schema \
+  https://cem.dev/ns/query/cem-ql/1 --cemt-formatter-profile tabular \
+  --cemt-color-profile terminal --output-color-type ansi-256
+```
+
+![Preview of CEM-QL Query Resource Schema Package invalid-utf8 example](examples/previews/invalid-utf8.cemql.svg)
+
+### invalid-duplicate-import-alias
+
+- Source: [`examples/invalid-duplicate-import-alias.cemql`](examples/invalid-duplicate-import-alias.cemql)
+- Content type: `application/vnd.cem.query+cem-ql`
+- Schema: `https://cem.dev/ns/query/cem-ql/1`
+- Expected result: `fail`
+- Expected diagnostics: `cem.ql.import_alias_duplicate`
+- Preview renderer: `CLI convert, tabular formatter, preview HTML + html2svg`
+- Preview HTML: `dist/cem_ml/schema-packages/cem-ql/v1/examples/invalid-duplicate-import-alias.cemql.html`
+
+```bash
+dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
+  uri=packages/cem_ml/schema-packages/cem-ql/v1/examples/invalid-duplicate-import-alias.cemql,contentType=application/vnd.cem.query+cem-ql,schema=https://cem.dev/ns/query/cem-ql/1 \
+  --to-content-type application/vnd.cem.query+cem-ql --to-schema \
+  https://cem.dev/ns/query/cem-ql/1 --cemt-formatter-profile tabular \
+  --cemt-color-profile terminal --output-color-type ansi-256
+```
+
+![Preview of CEM-QL Query Resource Schema Package invalid-duplicate-import-alias example](examples/previews/invalid-duplicate-import-alias.cemql.svg)
+
+### invalid-unresolved-import
+
+- Source: [`examples/invalid-unresolved-import.cemql`](examples/invalid-unresolved-import.cemql)
+- Content type: `application/vnd.cem.query+cem-ql`
+- Schema: `https://cem.dev/ns/query/cem-ql/1`
+- Expected result: `fail`
+- Expected diagnostics: `cem.ql.import_unresolved`
+- Preview renderer: `CLI convert, tabular formatter, preview HTML + html2svg`
+- Preview HTML: `dist/cem_ml/schema-packages/cem-ql/v1/examples/invalid-unresolved-import.cemql.html`
+
+```bash
+dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
+  uri=packages/cem_ml/schema-packages/cem-ql/v1/examples/invalid-unresolved-import.cemql,contentType=application/vnd.cem.query+cem-ql,schema=https://cem.dev/ns/query/cem-ql/1 \
+  --to-content-type application/vnd.cem.query+cem-ql --to-schema \
+  https://cem.dev/ns/query/cem-ql/1 --cemt-formatter-profile tabular \
+  --cemt-color-profile terminal --output-color-type ansi-256
+```
+
+![Preview of CEM-QL Query Resource Schema Package invalid-unresolved-import example](examples/previews/invalid-unresolved-import.cemql.svg)
+
+### invalid-type-error
+
+- Source: [`examples/invalid-type-error.cemql`](examples/invalid-type-error.cemql)
+- Content type: `application/vnd.cem.query+cem-ql`
+- Schema: `https://cem.dev/ns/query/cem-ql/1`
+- Expected result: `fail`
+- Expected diagnostics: `cem.ql.type_error`
+- Preview renderer: `CLI convert, tabular formatter, preview HTML + html2svg`
+- Preview HTML: `dist/cem_ml/schema-packages/cem-ql/v1/examples/invalid-type-error.cemql.html`
+
+```bash
+dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
+  uri=packages/cem_ml/schema-packages/cem-ql/v1/examples/invalid-type-error.cemql,contentType=application/vnd.cem.query+cem-ql,schema=https://cem.dev/ns/query/cem-ql/1 \
+  --to-content-type application/vnd.cem.query+cem-ql --to-schema \
+  https://cem.dev/ns/query/cem-ql/1 --cemt-formatter-profile tabular \
+  --cemt-color-profile terminal --output-color-type ansi-256
+```
+
+![Preview of CEM-QL Query Resource Schema Package invalid-type-error example](examples/previews/invalid-type-error.cemql.svg)
+
+### invalid-duplicate-declaration
+
+- Source: [`examples/invalid-duplicate-declaration.cemql`](examples/invalid-duplicate-declaration.cemql)
+- Content type: `application/vnd.cem.query+cem-ql`
+- Schema: `https://cem.dev/ns/query/cem-ql/1`
+- Expected result: `fail`
+- Expected diagnostics: `cem.ql.declaration_duplicate`
+- Preview renderer: `CLI convert, tabular formatter, preview HTML + html2svg`
+- Preview HTML: `dist/cem_ml/schema-packages/cem-ql/v1/examples/invalid-duplicate-declaration.cemql.html`
+
+```bash
+dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
+  uri=packages/cem_ml/schema-packages/cem-ql/v1/examples/invalid-duplicate-declaration.cemql,contentType=application/vnd.cem.query+cem-ql,schema=https://cem.dev/ns/query/cem-ql/1 \
+  --to-content-type application/vnd.cem.query+cem-ql --to-schema \
+  https://cem.dev/ns/query/cem-ql/1 --cemt-formatter-profile tabular \
+  --cemt-color-profile terminal --output-color-type ansi-256
+```
+
+![Preview of CEM-QL Query Resource Schema Package invalid-duplicate-declaration example](examples/previews/invalid-duplicate-declaration.cemql.svg)

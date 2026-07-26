@@ -34,36 +34,71 @@ The schema describes JSON values as a lossless resource model:
 - strings, numbers, booleans, and null preserve their JSON value kind;
 - parsers should retain lexical/source-map information when available.
 
-## Validation Examples
+## Examples
 
-The schema-owned examples live in [`examples/`](examples/) and are used by the
-CLI validation integration tests.
+This section is generated from `package.cem` `{example}` metadata by the
+`samples2readme` Nx target. Each SVG previews the example content, not
+the validation report. The target writes a preformatted HTML preview to
+`dist/cem_ml/schema-packages/<package>/v1/examples/<example-file>.html`,
+then renders the `<pre>` spans through headless Chromium into
+`examples/previews/<example-file>.svg`.
+Source snapshots are used only where the current CLI cannot yet render
+the package formatter/colorizer path for that content identity.
 
-| Example                                                               | Purpose                                                   | Expected result                  |
-| --------------------------------------------------------------------- | --------------------------------------------------------- | -------------------------------- |
-| [`basic-object.json`](examples/basic-object.json)                     | Minimal object with string, boolean, and number values.   | Pass                             |
-| [`nested-data.json`](examples/nested-data.json)                       | Nested object/array document with scalar values and null. | Pass                             |
-| [`invalid-trailing-comma.json`](examples/invalid-trailing-comma.json) | Object with a trailing comma rejected by the JSON parser. | Fail with `cem.json.parse_error` |
+### basic-object
 
-Validate an example explicitly against this schema:
-
-```bash
-cargo run -p cem-ml-cli -- validate \
-  --content-type application/json \
-  --schema https://cem.dev/ns/data/json/1 \
-  packages/cem_ml/schema-packages/json/v1/examples/basic-object.json
-```
-
-Convert the checked-in nested JSON sample to YAML with ANSI color on stdout
-from a built CLI binary. The color profile decorates terminal presentation only;
-the target content remains `application/yaml`.
+- Source: [`examples/basic-object.json`](examples/basic-object.json)
+- Content type: `application/json`
+- Schema: `https://cem.dev/ns/data/json/1`
+- Expected result: `pass`
+- Preview renderer: `CLI convert, tabular formatter, preview HTML + html2svg`
+- Preview HTML: `dist/cem_ml/schema-packages/json/v1/examples/basic-object.json.html`
 
 ```bash
-dist/target/debug/cem-ml convert \
-  packages/cem_ml/schema-packages/json/v1/examples/nested-data.json \
-  --content-type application/json \
-  --schema https://cem.dev/ns/data/json/1 \
-  --to-content-type application/yaml \
-  --to-schema https://cem.dev/ns/data/yaml/1 \
-  --output-color-type ansi-256
+dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
+  uri=packages/cem_ml/schema-packages/json/v1/examples/basic-object.json,contentType=application/json,schema=https://cem.dev/ns/data/json/1 \
+  --to-content-type application/json --to-schema https://cem.dev/ns/data/json/1 \
+  --cemt-formatter-profile tabular --cemt-color-profile terminal --output-color-type \
+  ansi-256
 ```
+
+![Preview of JSON Resource Schema Package basic-object example](examples/previews/basic-object.json.svg)
+
+### nested-data
+
+- Source: [`examples/nested-data.json`](examples/nested-data.json)
+- Content type: `application/json`
+- Schema: `https://cem.dev/ns/data/json/1`
+- Expected result: `pass`
+- Preview renderer: `CLI convert, tabular formatter, preview HTML + html2svg`
+- Preview HTML: `dist/cem_ml/schema-packages/json/v1/examples/nested-data.json.html`
+
+```bash
+dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
+  uri=packages/cem_ml/schema-packages/json/v1/examples/nested-data.json,contentType=application/json,schema=https://cem.dev/ns/data/json/1 \
+  --to-content-type application/json --to-schema https://cem.dev/ns/data/json/1 \
+  --cemt-formatter-profile tabular --cemt-color-profile terminal --output-color-type \
+  ansi-256
+```
+
+![Preview of JSON Resource Schema Package nested-data example](examples/previews/nested-data.json.svg)
+
+### invalid-trailing-comma
+
+- Source: [`examples/invalid-trailing-comma.json`](examples/invalid-trailing-comma.json)
+- Content type: `application/json`
+- Schema: `https://cem.dev/ns/data/json/1`
+- Expected result: `fail`
+- Expected diagnostics: `cem.json.parse_error`
+- Preview renderer: `CLI convert, tabular formatter, preview HTML + html2svg`
+- Preview HTML: `dist/cem_ml/schema-packages/json/v1/examples/invalid-trailing-comma.json.html`
+
+```bash
+dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
+  uri=packages/cem_ml/schema-packages/json/v1/examples/invalid-trailing-comma.json,contentType=application/json,schema=https://cem.dev/ns/data/json/1 \
+  --to-content-type application/json --to-schema https://cem.dev/ns/data/json/1 \
+  --cemt-formatter-profile tabular --cemt-color-profile terminal --output-color-type \
+  ansi-256
+```
+
+![Preview of JSON Resource Schema Package invalid-trailing-comma example](examples/previews/invalid-trailing-comma.json.svg)

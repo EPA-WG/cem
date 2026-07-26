@@ -177,8 +177,9 @@ visible presentation output changes, update the SVG previews in
 `examples/previews/` in the same change by running
 `node packages/cem_ml/schema-packages/cem-native-template/v1/scripts/verify-previews.mjs --update`.
 
-The package `verify` target regenerates previews into `dist/previews/` and
-fails on drift.
+The package `verify` target writes generated preview HTML/SVG artifacts into
+`dist/cem_ml/schema-packages/cem-native-template/v1/examples/` and fails on
+drift.
 
 ## Verification
 
@@ -210,57 +211,251 @@ Tracked but not complete:
 - HTML and Markdown preview drift checks once their template presentation
   profiles become stable enough for README demos.
 
-## Validation Examples
+## Examples
 
-The schema-owned examples live in [`examples/`](examples/) and are used by the
-CLI validation integration tests.
+This section is generated from `package.cem` `{example}` metadata by the
+`samples2readme` Nx target. Each SVG previews the example content, not
+the validation report. The target writes a preformatted HTML preview to
+`dist/cem_ml/schema-packages/<package>/v1/examples/<example-file>.html`,
+then renders the `<pre>` spans through headless Chromium into
+`examples/previews/<example-file>.svg`.
+Source snapshots are used only where the current CLI cannot yet render
+the package formatter/colorizer path for that content identity.
 
-| Example | Purpose | Expected result |
-| --- | --- | --- |
-| [`basic-template.cem`](examples/basic-template.cem) | Minimal module with one template and body. | Pass |
-| [`module-template.cem`](examples/module-template.cem) | Module with import metadata, params, nested template output, and a template call with `with:*` data propagation. | Pass |
-| [`invalid-missing-required-attribute.cem`](examples/invalid-missing-required-attribute.cem) | Template declaration missing its required `name` attribute. | Fail with `cem.schema_model.missing_required_attribute` |
-| [`invalid-duplicate-import-alias.cem`](examples/invalid-duplicate-import-alias.cem) | Duplicate `{import @as=...}` alias in one module. | Fail with `cem.template.import_alias_duplicate` |
-| [`invalid-duplicate-template-entrypoint.cem`](examples/invalid-duplicate-template-entrypoint.cem) | Duplicate `{template @name=...}` entrypoint in one module. | Fail with `cem.template.entrypoint_duplicate` |
-| [`invalid-duplicate-param.cem`](examples/invalid-duplicate-param.cem) | Duplicate `{param @name=...}` in one template scope. | Fail with `cem.template.param_duplicate` |
-| [`invalid-duplicate-let.cem`](examples/invalid-duplicate-let.cem) | Duplicate `{let @name=...}` in one body scope. | Fail with `cem.template.let_duplicate` |
-| [`invalid-unknown-call.cem`](examples/invalid-unknown-call.cem) | Same-module `{call @template=...}` whose target is not declared. | Fail with `cem.template.call_unknown` |
-| [`invalid-default-expr-reserved.cem`](examples/invalid-default-expr-reserved.cem) | Reserved param `default-expr` syntax. | Fail with `cem.template.param_default_expr_reserved` |
-| [`invalid-expression-parse.cem`](examples/invalid-expression-parse.cem) | Invalid Rust-first CEM-QL expression syntax in a template `@test` slot. | Fail with `cem.ql.use_rust_boolean_ops` |
-| [`invalid-expression-type-error.cem`](examples/invalid-expression-type-error.cem) | Non-boolean expression in a template `@test` slot. | Fail with `cem.ql.type_error` |
-| [`invalid-expression-data-binding.cem`](examples/invalid-expression-data-binding.cem) | Unavailable prefixed binding in a template `@with:*` slot. | Fail with `cem.ql.data_binding_missing` |
+### basic-template
 
-Delegated expression examples are validated by the CLI/package verification
-gate, where the CEM-native template package and the shared CEM-QL expression
-compiler are both available. Core CEM-ML package-manifest validation remains
-limited to CEM syntax, schema-model checks, and template-owned `cem.template.*`
-semantics to avoid a dependency cycle from `cem-ml` back into `cem-ql`.
-
-Validate an example explicitly against this schema:
+- Source: [`examples/basic-template.cem`](examples/basic-template.cem)
+- Content type: `application/vnd.cem.template+cem`
+- Schema: `https://cem.dev/ns/template/cem-native/1`
+- Expected result: `pass`
+- Preview renderer: `CLI convert, tabular formatter, preview HTML + html2svg`
+- Preview HTML: `dist/cem_ml/schema-packages/cem-native-template/v1/examples/basic-template.cem.html`
 
 ```bash
-cargo run -p cem-ml-cli -- validate \
-  --format json \
-  --content-type application/vnd.cem.template+cem \
-  --schema https://cem.dev/ns/template/cem-native/1 \
-  packages/cem_ml/schema-packages/cem-native-template/v1/examples/basic-template.cem
+dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
+  uri=packages/cem_ml/schema-packages/cem-native-template/v1/examples/basic-template.cem,contentType=application/vnd.cem.template+cem,schema=https://cem.dev/ns/template/cem-native/1 \
+  --to-content-type application/cem --to-schema https://cem.dev/ns/cem-ml/1 \
+  --cemt-formatter-profile tabular --cemt-color-profile terminal --output-color-type \
+  ansi-256
 ```
 
-![Preview of the CEM-native template validation JSON report](examples/previews/basic-template-validate.svg)
+![Preview of CEM-Native Template Schema Package basic-template example](examples/previews/basic-template.cem.svg)
 
-Format and color the same example through the package formatter/colorizer
-pipeline:
+### module-template
+
+- Source: [`examples/module-template.cem`](examples/module-template.cem)
+- Content type: `application/vnd.cem.template+cem`
+- Schema: `https://cem.dev/ns/template/cem-native/1`
+- Expected result: `pass`
+- Preview renderer: `CLI convert, tabular formatter, preview HTML + html2svg`
+- Preview HTML: `dist/cem_ml/schema-packages/cem-native-template/v1/examples/module-template.cem.html`
 
 ```bash
-cargo run -p cem-ml-cli -- convert \
-  packages/cem_ml/schema-packages/cem-native-template/v1/examples/basic-template.cem \
-  --content-type application/vnd.cem.template+cem \
-  --schema https://cem.dev/ns/template/cem-native/1 \
-  --to-content-type application/vnd.cem.template+cem \
-  --to-schema https://cem.dev/ns/template/cem-native/1 \
-  --cemt-formatter-profile pretty \
-  --cemt-color-profile terminal \
-  --output-color-type ansi-256
+dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
+  uri=packages/cem_ml/schema-packages/cem-native-template/v1/examples/module-template.cem,contentType=application/vnd.cem.template+cem,schema=https://cem.dev/ns/template/cem-native/1 \
+  --to-content-type application/cem --to-schema https://cem.dev/ns/cem-ml/1 \
+  --cemt-formatter-profile tabular --cemt-color-profile terminal --output-color-type \
+  ansi-256
 ```
 
-![Preview of the colored pretty CEM-native template output](examples/previews/basic-template-pretty-terminal.svg)
+![Preview of CEM-Native Template Schema Package module-template example](examples/previews/module-template.cem.svg)
+
+### invalid-missing-required-attribute
+
+- Source: [`examples/invalid-missing-required-attribute.cem`](examples/invalid-missing-required-attribute.cem)
+- Content type: `application/vnd.cem.template+cem`
+- Schema: `https://cem.dev/ns/template/cem-native/1`
+- Expected result: `fail`
+- Expected diagnostics: `cem.schema_model.missing_required_attribute`
+- Preview renderer: `CLI convert, tabular formatter, preview HTML + html2svg`
+- Preview HTML: `dist/cem_ml/schema-packages/cem-native-template/v1/examples/invalid-missing-required-attribute.cem.html`
+
+```bash
+dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
+  uri=packages/cem_ml/schema-packages/cem-native-template/v1/examples/invalid-missing-required-attribute.cem,contentType=application/vnd.cem.template+cem,schema=https://cem.dev/ns/template/cem-native/1 \
+  --to-content-type application/cem --to-schema https://cem.dev/ns/cem-ml/1 \
+  --cemt-formatter-profile tabular --cemt-color-profile terminal --output-color-type \
+  ansi-256
+```
+
+![Preview of CEM-Native Template Schema Package invalid-missing-required-attribute example](examples/previews/invalid-missing-required-attribute.cem.svg)
+
+### invalid-duplicate-import-alias
+
+- Source: [`examples/invalid-duplicate-import-alias.cem`](examples/invalid-duplicate-import-alias.cem)
+- Content type: `application/vnd.cem.template+cem`
+- Schema: `https://cem.dev/ns/template/cem-native/1`
+- Expected result: `fail`
+- Expected diagnostics: `cem.template.import_alias_duplicate`
+- Preview renderer: `CLI convert, tabular formatter, preview HTML + html2svg`
+- Preview HTML: `dist/cem_ml/schema-packages/cem-native-template/v1/examples/invalid-duplicate-import-alias.cem.html`
+
+```bash
+dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
+  uri=packages/cem_ml/schema-packages/cem-native-template/v1/examples/invalid-duplicate-import-alias.cem,contentType=application/vnd.cem.template+cem,schema=https://cem.dev/ns/template/cem-native/1 \
+  --to-content-type application/cem --to-schema https://cem.dev/ns/cem-ml/1 \
+  --cemt-formatter-profile tabular --cemt-color-profile terminal --output-color-type \
+  ansi-256
+```
+
+![Preview of CEM-Native Template Schema Package invalid-duplicate-import-alias example](examples/previews/invalid-duplicate-import-alias.cem.svg)
+
+### invalid-duplicate-template-entrypoint
+
+- Source: [`examples/invalid-duplicate-template-entrypoint.cem`](examples/invalid-duplicate-template-entrypoint.cem)
+- Content type: `application/vnd.cem.template+cem`
+- Schema: `https://cem.dev/ns/template/cem-native/1`
+- Expected result: `fail`
+- Expected diagnostics: `cem.template.entrypoint_duplicate`
+- Preview renderer: `CLI convert, tabular formatter, preview HTML + html2svg`
+- Preview HTML: `dist/cem_ml/schema-packages/cem-native-template/v1/examples/invalid-duplicate-template-entrypoint.cem.html`
+
+```bash
+dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
+  uri=packages/cem_ml/schema-packages/cem-native-template/v1/examples/invalid-duplicate-template-entrypoint.cem,contentType=application/vnd.cem.template+cem,schema=https://cem.dev/ns/template/cem-native/1 \
+  --to-content-type application/cem --to-schema https://cem.dev/ns/cem-ml/1 \
+  --cemt-formatter-profile tabular --cemt-color-profile terminal --output-color-type \
+  ansi-256
+```
+
+![Preview of CEM-Native Template Schema Package invalid-duplicate-template-entrypoint example](examples/previews/invalid-duplicate-template-entrypoint.cem.svg)
+
+### invalid-duplicate-param
+
+- Source: [`examples/invalid-duplicate-param.cem`](examples/invalid-duplicate-param.cem)
+- Content type: `application/vnd.cem.template+cem`
+- Schema: `https://cem.dev/ns/template/cem-native/1`
+- Expected result: `fail`
+- Expected diagnostics: `cem.template.param_duplicate`
+- Preview renderer: `CLI convert, tabular formatter, preview HTML + html2svg`
+- Preview HTML: `dist/cem_ml/schema-packages/cem-native-template/v1/examples/invalid-duplicate-param.cem.html`
+
+```bash
+dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
+  uri=packages/cem_ml/schema-packages/cem-native-template/v1/examples/invalid-duplicate-param.cem,contentType=application/vnd.cem.template+cem,schema=https://cem.dev/ns/template/cem-native/1 \
+  --to-content-type application/cem --to-schema https://cem.dev/ns/cem-ml/1 \
+  --cemt-formatter-profile tabular --cemt-color-profile terminal --output-color-type \
+  ansi-256
+```
+
+![Preview of CEM-Native Template Schema Package invalid-duplicate-param example](examples/previews/invalid-duplicate-param.cem.svg)
+
+### invalid-duplicate-let
+
+- Source: [`examples/invalid-duplicate-let.cem`](examples/invalid-duplicate-let.cem)
+- Content type: `application/vnd.cem.template+cem`
+- Schema: `https://cem.dev/ns/template/cem-native/1`
+- Expected result: `fail`
+- Expected diagnostics: `cem.template.let_duplicate`
+- Preview renderer: `CLI convert, tabular formatter, preview HTML + html2svg`
+- Preview HTML: `dist/cem_ml/schema-packages/cem-native-template/v1/examples/invalid-duplicate-let.cem.html`
+
+```bash
+dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
+  uri=packages/cem_ml/schema-packages/cem-native-template/v1/examples/invalid-duplicate-let.cem,contentType=application/vnd.cem.template+cem,schema=https://cem.dev/ns/template/cem-native/1 \
+  --to-content-type application/cem --to-schema https://cem.dev/ns/cem-ml/1 \
+  --cemt-formatter-profile tabular --cemt-color-profile terminal --output-color-type \
+  ansi-256
+```
+
+![Preview of CEM-Native Template Schema Package invalid-duplicate-let example](examples/previews/invalid-duplicate-let.cem.svg)
+
+### invalid-unknown-call
+
+- Source: [`examples/invalid-unknown-call.cem`](examples/invalid-unknown-call.cem)
+- Content type: `application/vnd.cem.template+cem`
+- Schema: `https://cem.dev/ns/template/cem-native/1`
+- Expected result: `fail`
+- Expected diagnostics: `cem.template.call_unknown`
+- Preview renderer: `CLI convert, tabular formatter, preview HTML + html2svg`
+- Preview HTML: `dist/cem_ml/schema-packages/cem-native-template/v1/examples/invalid-unknown-call.cem.html`
+
+```bash
+dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
+  uri=packages/cem_ml/schema-packages/cem-native-template/v1/examples/invalid-unknown-call.cem,contentType=application/vnd.cem.template+cem,schema=https://cem.dev/ns/template/cem-native/1 \
+  --to-content-type application/cem --to-schema https://cem.dev/ns/cem-ml/1 \
+  --cemt-formatter-profile tabular --cemt-color-profile terminal --output-color-type \
+  ansi-256
+```
+
+![Preview of CEM-Native Template Schema Package invalid-unknown-call example](examples/previews/invalid-unknown-call.cem.svg)
+
+### invalid-default-expr-reserved
+
+- Source: [`examples/invalid-default-expr-reserved.cem`](examples/invalid-default-expr-reserved.cem)
+- Content type: `application/vnd.cem.template+cem`
+- Schema: `https://cem.dev/ns/template/cem-native/1`
+- Expected result: `fail`
+- Expected diagnostics: `cem.template.param_default_expr_reserved`
+- Preview renderer: `CLI convert, tabular formatter, preview HTML + html2svg`
+- Preview HTML: `dist/cem_ml/schema-packages/cem-native-template/v1/examples/invalid-default-expr-reserved.cem.html`
+
+```bash
+dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
+  uri=packages/cem_ml/schema-packages/cem-native-template/v1/examples/invalid-default-expr-reserved.cem,contentType=application/vnd.cem.template+cem,schema=https://cem.dev/ns/template/cem-native/1 \
+  --to-content-type application/cem --to-schema https://cem.dev/ns/cem-ml/1 \
+  --cemt-formatter-profile tabular --cemt-color-profile terminal --output-color-type \
+  ansi-256
+```
+
+![Preview of CEM-Native Template Schema Package invalid-default-expr-reserved example](examples/previews/invalid-default-expr-reserved.cem.svg)
+
+### invalid-expression-parse
+
+- Source: [`examples/invalid-expression-parse.cem`](examples/invalid-expression-parse.cem)
+- Content type: `application/vnd.cem.template+cem`
+- Schema: `https://cem.dev/ns/template/cem-native/1`
+- Expected result: `fail`
+- Expected diagnostics: `cem.ql.use_rust_boolean_ops`
+- Preview renderer: `CLI convert, tabular formatter, preview HTML + html2svg`
+- Preview HTML: `dist/cem_ml/schema-packages/cem-native-template/v1/examples/invalid-expression-parse.cem.html`
+
+```bash
+dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
+  uri=packages/cem_ml/schema-packages/cem-native-template/v1/examples/invalid-expression-parse.cem,contentType=application/vnd.cem.template+cem,schema=https://cem.dev/ns/template/cem-native/1 \
+  --to-content-type application/cem --to-schema https://cem.dev/ns/cem-ml/1 \
+  --cemt-formatter-profile tabular --cemt-color-profile terminal --output-color-type \
+  ansi-256
+```
+
+![Preview of CEM-Native Template Schema Package invalid-expression-parse example](examples/previews/invalid-expression-parse.cem.svg)
+
+### invalid-expression-type-error
+
+- Source: [`examples/invalid-expression-type-error.cem`](examples/invalid-expression-type-error.cem)
+- Content type: `application/vnd.cem.template+cem`
+- Schema: `https://cem.dev/ns/template/cem-native/1`
+- Expected result: `fail`
+- Expected diagnostics: `cem.ql.type_error`
+- Preview renderer: `CLI convert, tabular formatter, preview HTML + html2svg`
+- Preview HTML: `dist/cem_ml/schema-packages/cem-native-template/v1/examples/invalid-expression-type-error.cem.html`
+
+```bash
+dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
+  uri=packages/cem_ml/schema-packages/cem-native-template/v1/examples/invalid-expression-type-error.cem,contentType=application/vnd.cem.template+cem,schema=https://cem.dev/ns/template/cem-native/1 \
+  --to-content-type application/cem --to-schema https://cem.dev/ns/cem-ml/1 \
+  --cemt-formatter-profile tabular --cemt-color-profile terminal --output-color-type \
+  ansi-256
+```
+
+![Preview of CEM-Native Template Schema Package invalid-expression-type-error example](examples/previews/invalid-expression-type-error.cem.svg)
+
+### invalid-expression-data-binding
+
+- Source: [`examples/invalid-expression-data-binding.cem`](examples/invalid-expression-data-binding.cem)
+- Content type: `application/vnd.cem.template+cem`
+- Schema: `https://cem.dev/ns/template/cem-native/1`
+- Expected result: `fail`
+- Expected diagnostics: `cem.ql.data_binding_missing`
+- Preview renderer: `CLI convert, tabular formatter, preview HTML + html2svg`
+- Preview HTML: `dist/cem_ml/schema-packages/cem-native-template/v1/examples/invalid-expression-data-binding.cem.html`
+
+```bash
+dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
+  uri=packages/cem_ml/schema-packages/cem-native-template/v1/examples/invalid-expression-data-binding.cem,contentType=application/vnd.cem.template+cem,schema=https://cem.dev/ns/template/cem-native/1 \
+  --to-content-type application/cem --to-schema https://cem.dev/ns/cem-ml/1 \
+  --cemt-formatter-profile tabular --cemt-color-profile terminal --output-color-type \
+  ansi-256
+```
+
+![Preview of CEM-Native Template Schema Package invalid-expression-data-binding example](examples/previews/invalid-expression-data-binding.cem.svg)

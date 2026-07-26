@@ -25,37 +25,112 @@ The schema describes RELAX NG resources as validation schema inputs:
 - include and external reference declarations remain explicit, but are rejected
   unless an explicit resolver policy enables them.
 
-## Validation Examples
+## Examples
 
-Validate RELAX NG XML syntax through the CLI with the schema URI and content
-type:
+This section is generated from `package.cem` `{example}` metadata by the
+`samples2readme` Nx target. Each SVG previews the example content, not
+the validation report. The target writes a preformatted HTML preview to
+`dist/cem_ml/schema-packages/<package>/v1/examples/<example-file>.html`,
+then renders the `<pre>` spans through headless Chromium into
+`examples/previews/<example-file>.svg`.
+Source snapshots are used only where the current CLI cannot yet render
+the package formatter/colorizer path for that content identity.
+
+### basic-schema-xml
+
+- Source: [`examples/basic-schema.rng`](examples/basic-schema.rng)
+- Content type: `application/relax-ng+xml`
+- Schema: `https://cem.dev/ns/data/relax-ng/1`
+- Expected result: `pass`
+- Preview renderer: `CLI convert, tabular formatter, preview HTML + html2svg`
+- Preview HTML: `dist/cem_ml/schema-packages/relax-ng/v1/examples/basic-schema.rng.html`
 
 ```bash
-cem-ml validate --format json \
-  --content-type application/relax-ng+xml \
-  --schema https://cem.dev/ns/data/relax-ng/1 \
-  packages/cem_ml/schema-packages/relax-ng/v1/examples/basic-schema.rng
+dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
+  uri=packages/cem_ml/schema-packages/relax-ng/v1/examples/basic-schema.rng,contentType=application/relax-ng+xml,schema=https://cem.dev/ns/data/relax-ng/1 \
+  --from-format xml --to-content-type application/relax-ng+xml --to-schema \
+  https://cem.dev/ns/data/relax-ng/1 --cemt-formatter-profile tabular \
+  --cemt-color-profile terminal --output-color-type ansi-256
 ```
 
-Validate RELAX NG compact syntax similarly:
+![Preview of RELAX NG Schema Package basic-schema-xml example](examples/previews/basic-schema.rng.svg)
+
+### datatype-schema
+
+- Source: [`examples/datatype-schema.rng`](examples/datatype-schema.rng)
+- Content type: `application/relax-ng+xml`
+- Schema: `https://cem.dev/ns/data/relax-ng/1`
+- Expected result: `pass`
+- Preview renderer: `CLI convert, tabular formatter, preview HTML + html2svg`
+- Preview HTML: `dist/cem_ml/schema-packages/relax-ng/v1/examples/datatype-schema.rng.html`
 
 ```bash
-cem-ml validate --format json \
-  --content-type application/relax-ng-compact-syntax \
-  --schema https://cem.dev/ns/data/relax-ng/1 \
-  packages/cem_ml/schema-packages/relax-ng/v1/examples/basic-schema.rnc
+dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
+  uri=packages/cem_ml/schema-packages/relax-ng/v1/examples/datatype-schema.rng,contentType=application/relax-ng+xml,schema=https://cem.dev/ns/data/relax-ng/1 \
+  --from-format xml --to-content-type application/relax-ng+xml --to-schema \
+  https://cem.dev/ns/data/relax-ng/1 --cemt-formatter-profile tabular \
+  --cemt-color-profile terminal --output-color-type ansi-256
 ```
 
-Checked examples:
+![Preview of RELAX NG Schema Package datatype-schema example](examples/previews/datatype-schema.rng.svg)
 
-- [basic-schema.rng](examples/basic-schema.rng): a minimal XML syntax grammar.
-- [datatype-schema.rng](examples/datatype-schema.rng): XML syntax with an XML
-  Schema datatype.
-- [basic-schema.rnc](examples/basic-schema.rnc): compact syntax for the same
-  simple document shape.
-- [invalid-missing-start.rng](examples/invalid-missing-start.rng): reports
-  `cem.relax_ng.missing_start`.
-- [invalid-unknown-element.rng](examples/invalid-unknown-element.rng): reports
-  `cem.relax_ng.unknown_element`.
-- [invalid-unclosed-compact.rnc](examples/invalid-unclosed-compact.rnc):
-  reports `cem.relax_ng.compact_parse_error`.
+### basic-schema-compact
+
+- Source: [`examples/basic-schema.rnc`](examples/basic-schema.rnc)
+- Content type: `application/relax-ng-compact-syntax`
+- Schema: `https://cem.dev/ns/data/relax-ng/1`
+- Expected result: `pass`
+- Preview renderer: `source snapshot HTML + html2svg`
+- Preview HTML: `dist/cem_ml/schema-packages/relax-ng/v1/examples/basic-schema.rnc.html`
+![Preview of RELAX NG Schema Package basic-schema-compact example](examples/previews/basic-schema.rnc.svg)
+
+### invalid-missing-start
+
+- Source: [`examples/invalid-missing-start.rng`](examples/invalid-missing-start.rng)
+- Content type: `application/relax-ng+xml`
+- Schema: `https://cem.dev/ns/data/relax-ng/1`
+- Expected result: `fail`
+- Expected diagnostics: `cem.relax_ng.missing_start`
+- Preview renderer: `CLI convert, tabular formatter, preview HTML + html2svg`
+- Preview HTML: `dist/cem_ml/schema-packages/relax-ng/v1/examples/invalid-missing-start.rng.html`
+
+```bash
+dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
+  uri=packages/cem_ml/schema-packages/relax-ng/v1/examples/invalid-missing-start.rng,contentType=application/relax-ng+xml,schema=https://cem.dev/ns/data/relax-ng/1 \
+  --from-format xml --to-content-type application/relax-ng+xml --to-schema \
+  https://cem.dev/ns/data/relax-ng/1 --cemt-formatter-profile tabular \
+  --cemt-color-profile terminal --output-color-type ansi-256
+```
+
+![Preview of RELAX NG Schema Package invalid-missing-start example](examples/previews/invalid-missing-start.rng.svg)
+
+### invalid-unknown-element
+
+- Source: [`examples/invalid-unknown-element.rng`](examples/invalid-unknown-element.rng)
+- Content type: `application/relax-ng+xml`
+- Schema: `https://cem.dev/ns/data/relax-ng/1`
+- Expected result: `fail`
+- Expected diagnostics: `cem.relax_ng.unknown_element`
+- Preview renderer: `CLI convert, tabular formatter, preview HTML + html2svg`
+- Preview HTML: `dist/cem_ml/schema-packages/relax-ng/v1/examples/invalid-unknown-element.rng.html`
+
+```bash
+dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
+  uri=packages/cem_ml/schema-packages/relax-ng/v1/examples/invalid-unknown-element.rng,contentType=application/relax-ng+xml,schema=https://cem.dev/ns/data/relax-ng/1 \
+  --from-format xml --to-content-type application/relax-ng+xml --to-schema \
+  https://cem.dev/ns/data/relax-ng/1 --cemt-formatter-profile tabular \
+  --cemt-color-profile terminal --output-color-type ansi-256
+```
+
+![Preview of RELAX NG Schema Package invalid-unknown-element example](examples/previews/invalid-unknown-element.rng.svg)
+
+### invalid-unclosed-compact
+
+- Source: [`examples/invalid-unclosed-compact.rnc`](examples/invalid-unclosed-compact.rnc)
+- Content type: `application/relax-ng-compact-syntax`
+- Schema: `https://cem.dev/ns/data/relax-ng/1`
+- Expected result: `fail`
+- Expected diagnostics: `cem.relax_ng.compact_parse_error`
+- Preview renderer: `source snapshot HTML + html2svg`
+- Preview HTML: `dist/cem_ml/schema-packages/relax-ng/v1/examples/invalid-unclosed-compact.rnc.html`
+![Preview of RELAX NG Schema Package invalid-unclosed-compact example](examples/previews/invalid-unclosed-compact.rnc.svg)

@@ -43,23 +43,55 @@ Schema reference traversal remains loader-owned. `$ref` and `$dynamicRef`
 resolution must account for `$id`, anchors, dynamic anchors, dialect, and
 dynamic scope instead of reducing those edges to generic URL joining.
 
-## Validation Examples
+## Examples
 
-The schema-owned examples live in [`examples/`](examples/) and are used by the
-CLI validation integration tests.
+This section is generated from `package.cem` `{example}` metadata by the
+`samples2readme` Nx target. Each SVG previews the example content, not
+the validation report. The target writes a preformatted HTML preview to
+`dist/cem_ml/schema-packages/<package>/v1/examples/<example-file>.html`,
+then renders the `<pre>` spans through headless Chromium into
+`examples/previews/<example-file>.svg`.
+Source snapshots are used only where the current CLI cannot yet render
+the package formatter/colorizer path for that content identity.
 
-| Example                                                                                       | Purpose                                                                    | Expected result                                 |
-| --------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------- | ----------------------------------------------- |
-| [`basic-schema.schema.json`](examples/basic-schema.schema.json)                               | Minimal Draft 2020-12 object schema with required properties.              | Pass                                            |
-| [`catalog-schema.schema.json`](examples/catalog-schema.schema.json)                           | Draft 2020-12 schema with `$defs`, arrays, string constraints, and `$ref`. | Pass                                            |
-| [`invalid-unsupported-dialect.schema.json`](examples/invalid-unsupported-dialect.schema.json) | Schema declaring an unsupported pre-2020-12 dialect.                       | Fail with `cem.json_schema.unsupported_dialect` |
-| [`invalid-parse.schema.json`](examples/invalid-parse.schema.json)                             | JSON syntax error in a schema resource.                                    | Fail with `cem.json_schema.parse_error`         |
+### basic-schema
 
-Validate an example explicitly against this schema:
+- Source: [`examples/basic-schema.schema.json`](examples/basic-schema.schema.json)
+- Content type: `application/schema+json`
+- Schema: `https://cem.dev/ns/data/json-schema/1`
+- Expected result: `pass`
+- Preview renderer: `source snapshot HTML + html2svg`
+- Preview HTML: `dist/cem_ml/schema-packages/json-schema/v1/examples/basic-schema.schema.json.html`
+![Preview of JSON Schema Resource Schema Package basic-schema example](examples/previews/basic-schema.schema.json.svg)
 
-```bash
-cargo run -p cem-ml-cli -- validate \
-  --content-type application/schema+json \
-  --schema https://cem.dev/ns/data/json-schema/1 \
-  packages/cem_ml/schema-packages/json-schema/v1/examples/basic-schema.schema.json
-```
+### catalog-schema
+
+- Source: [`examples/catalog-schema.schema.json`](examples/catalog-schema.schema.json)
+- Content type: `application/schema+json`
+- Schema: `https://cem.dev/ns/data/json-schema/1`
+- Expected result: `pass`
+- Preview renderer: `source snapshot HTML + html2svg`
+- Preview HTML: `dist/cem_ml/schema-packages/json-schema/v1/examples/catalog-schema.schema.json.html`
+![Preview of JSON Schema Resource Schema Package catalog-schema example](examples/previews/catalog-schema.schema.json.svg)
+
+### invalid-unsupported-dialect
+
+- Source: [`examples/invalid-unsupported-dialect.schema.json`](examples/invalid-unsupported-dialect.schema.json)
+- Content type: `application/schema+json`
+- Schema: `https://cem.dev/ns/data/json-schema/1`
+- Expected result: `fail`
+- Expected diagnostics: `cem.json_schema.unsupported_dialect`
+- Preview renderer: `source snapshot HTML + html2svg`
+- Preview HTML: `dist/cem_ml/schema-packages/json-schema/v1/examples/invalid-unsupported-dialect.schema.json.html`
+![Preview of JSON Schema Resource Schema Package invalid-unsupported-dialect example](examples/previews/invalid-unsupported-dialect.schema.json.svg)
+
+### invalid-parse
+
+- Source: [`examples/invalid-parse.schema.json`](examples/invalid-parse.schema.json)
+- Content type: `application/schema+json`
+- Schema: `https://cem.dev/ns/data/json-schema/1`
+- Expected result: `fail`
+- Expected diagnostics: `cem.json_schema.parse_error`
+- Preview renderer: `source snapshot HTML + html2svg`
+- Preview HTML: `dist/cem_ml/schema-packages/json-schema/v1/examples/invalid-parse.schema.json.html`
+![Preview of JSON Schema Resource Schema Package invalid-parse example](examples/previews/invalid-parse.schema.json.svg)

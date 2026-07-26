@@ -218,8 +218,8 @@ visible presentation output changes, update the SVG previews in
 `examples/previews/` in the same change by running
 `node packages/cem_ml/schema-packages/cem-transform/v1/scripts/verify-previews.mjs --update`.
 
-The package `verify` target regenerates previews into `dist/previews/` and
-fails on drift.
+The package `verify` target writes generated preview HTML/SVG artifacts into
+`dist/cem_ml/schema-packages/cem-transform/v1/examples/` and fails on drift.
 
 ## Verification
 
@@ -252,47 +252,169 @@ Tracked but not complete:
 - HTML and Markdown preview drift checks once their transform presentation
   profiles become stable enough for README demos.
 
-## Validation Examples
+## Examples
 
-The schema-owned examples live in [`examples/`](examples/) and are used by the
-CLI validation integration tests.
+This section is generated from `package.cem` `{example}` metadata by the
+`samples2readme` Nx target. Each SVG previews the example content, not
+the validation report. The target writes a preformatted HTML preview to
+`dist/cem_ml/schema-packages/<package>/v1/examples/<example-file>.html`,
+then renders the `<pre>` spans through headless Chromium into
+`examples/previews/<example-file>.svg`.
+Source snapshots are used only where the current CLI cannot yet render
+the package formatter/colorizer path for that content identity.
 
-| Example                                                                                                       | Purpose                                                                                                                      | Expected result                                         |
-| ------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------- |
-| [`basic-transform.cemt`](examples/basic-transform.cemt)                                                       | Minimal CEMT module with one template body.                                                                                  | Pass                                                    |
-| [`module-transform.cemt`](examples/module-transform.cemt)                                                     | Converter template module with import metadata, params, nested output, and `with:*` data propagation.                        | Pass                                                    |
-| [`function-declarations.cemt`](examples/function-declarations.cemt)                                           | Internal helper, encoding, formatting, color, and custom function declarations for CEMT output production.                   | Pass                                                    |
-| [`formatter-coloring-pipeline.cemt`](examples/formatter-coloring-pipeline.cemt)                               | Executable CEM tree formatter and colorizer bodies that materialize formatted and colored CEM trees before the writer phase. | Pass                                                    |
-| [`formatter-coloring-pipeline.fixture.cem`](examples/formatter-coloring-pipeline.fixture.cem)                 | CEM-native stage fixture paired with the formatter/coloring CEMT example for Storybook and fixture tests.                    | Fail with `cem.schema.unresolved_namespace` under direct CEM-ML schema validation |
-| [`invalid-missing-required-attribute.cemt`](examples/invalid-missing-required-attribute.cemt)                 | Template declaration missing the inherited required `name` attribute.                                                        | Fail with `cem.schema_model.missing_required_attribute` |
-| [`invalid-function-missing-category.cemt`](examples/invalid-function-missing-category.cemt)                   | Encoding function declaration missing required output category metadata.                                                     | Fail with `cem.schema_model.missing_required_attribute` |
-| [`invalid-function-missing-contract-metadata.cemt`](examples/invalid-function-missing-contract-metadata.cemt) | Encoding function declaration missing required canonical and streamable contract metadata.                                   | Fail with `cem.schema_model.missing_required_attribute` |
+### basic-transform
 
-Validate an example explicitly against this schema:
-
-```bash
-cargo run -p cem-ml-cli -- validate \
-  --format json \
-  --content-type application/vnd.cem.transform+cem \
-  --schema https://cem.dev/ns/transform/cem/1 \
-  packages/cem_ml/schema-packages/cem-transform/v1/examples/basic-transform.cemt
-```
-
-![Preview of the CEM transform validation JSON report](examples/previews/basic-transform-validate.svg)
-
-Format and color the same example through the package formatter/colorizer
-pipeline:
+- Source: [`examples/basic-transform.cemt`](examples/basic-transform.cemt)
+- Content type: `application/vnd.cem.transform+cem`
+- Schema: `https://cem.dev/ns/transform/cem/1`
+- Expected result: `pass`
+- Preview renderer: `CLI convert, tabular formatter, preview HTML + html2svg`
+- Preview HTML: `dist/cem_ml/schema-packages/cem-transform/v1/examples/basic-transform.cemt.html`
 
 ```bash
-cargo run -p cem-ml-cli -- convert \
-  packages/cem_ml/schema-packages/cem-transform/v1/examples/basic-transform.cemt \
-  --content-type application/vnd.cem.transform+cem \
-  --schema https://cem.dev/ns/transform/cem/1 \
-  --to-content-type application/vnd.cem.transform+cem \
-  --to-schema https://cem.dev/ns/transform/cem/1 \
-  --cemt-formatter-profile pretty \
-  --cemt-color-profile terminal \
-  --output-color-type ansi-256
+dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
+  uri=packages/cem_ml/schema-packages/cem-transform/v1/examples/basic-transform.cemt,contentType=application/vnd.cem.transform+cem,schema=https://cem.dev/ns/transform/cem/1 \
+  --to-content-type application/cem --to-schema https://cem.dev/ns/cem-ml/1 \
+  --cemt-formatter-profile tabular --cemt-color-profile terminal --output-color-type \
+  ansi-256
 ```
 
-![Preview of the colored pretty CEM transform output](examples/previews/basic-transform-pretty-terminal.svg)
+![Preview of CEM Transform Template Schema Package basic-transform example](examples/previews/basic-transform.cemt.svg)
+
+### module-transform
+
+- Source: [`examples/module-transform.cemt`](examples/module-transform.cemt)
+- Content type: `application/vnd.cem.transform+cem`
+- Schema: `https://cem.dev/ns/transform/cem/1`
+- Expected result: `pass`
+- Preview renderer: `CLI convert, tabular formatter, preview HTML + html2svg`
+- Preview HTML: `dist/cem_ml/schema-packages/cem-transform/v1/examples/module-transform.cemt.html`
+
+```bash
+dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
+  uri=packages/cem_ml/schema-packages/cem-transform/v1/examples/module-transform.cemt,contentType=application/vnd.cem.transform+cem,schema=https://cem.dev/ns/transform/cem/1 \
+  --to-content-type application/cem --to-schema https://cem.dev/ns/cem-ml/1 \
+  --cemt-formatter-profile tabular --cemt-color-profile terminal --output-color-type \
+  ansi-256
+```
+
+![Preview of CEM Transform Template Schema Package module-transform example](examples/previews/module-transform.cemt.svg)
+
+### function-declarations
+
+- Source: [`examples/function-declarations.cemt`](examples/function-declarations.cemt)
+- Content type: `application/vnd.cem.transform+cem`
+- Schema: `https://cem.dev/ns/transform/cem/1`
+- Expected result: `pass`
+- Preview renderer: `CLI convert, tabular formatter, preview HTML + html2svg`
+- Preview HTML: `dist/cem_ml/schema-packages/cem-transform/v1/examples/function-declarations.cemt.html`
+
+```bash
+dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
+  uri=packages/cem_ml/schema-packages/cem-transform/v1/examples/function-declarations.cemt,contentType=application/vnd.cem.transform+cem,schema=https://cem.dev/ns/transform/cem/1 \
+  --to-content-type application/cem --to-schema https://cem.dev/ns/cem-ml/1 \
+  --cemt-formatter-profile tabular --cemt-color-profile terminal --output-color-type \
+  ansi-256
+```
+
+![Preview of CEM Transform Template Schema Package function-declarations example](examples/previews/function-declarations.cemt.svg)
+
+### formatter-coloring-pipeline
+
+- Source: [`examples/formatter-coloring-pipeline.cemt`](examples/formatter-coloring-pipeline.cemt)
+- Content type: `application/vnd.cem.transform+cem`
+- Schema: `https://cem.dev/ns/transform/cem/1`
+- Expected result: `pass`
+- Preview renderer: `CLI convert, tabular formatter, preview HTML + html2svg`
+- Preview HTML: `dist/cem_ml/schema-packages/cem-transform/v1/examples/formatter-coloring-pipeline.cemt.html`
+
+```bash
+dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
+  uri=packages/cem_ml/schema-packages/cem-transform/v1/examples/formatter-coloring-pipeline.cemt,contentType=application/vnd.cem.transform+cem,schema=https://cem.dev/ns/transform/cem/1 \
+  --to-content-type application/cem --to-schema https://cem.dev/ns/cem-ml/1 \
+  --cemt-formatter-profile tabular --cemt-color-profile terminal --output-color-type \
+  ansi-256
+```
+
+![Preview of CEM Transform Template Schema Package formatter-coloring-pipeline example](examples/previews/formatter-coloring-pipeline.cemt.svg)
+
+### formatter-coloring-pipeline-fixture
+
+- Source: [`examples/formatter-coloring-pipeline.fixture.cem`](examples/formatter-coloring-pipeline.fixture.cem)
+- Content type: `application/cem`
+- Schema: `https://cem.dev/ns/cem-ml/1`
+- Expected result: `fail`
+- Expected diagnostics: `cem.schema.unresolved_namespace`
+- Preview renderer: `CLI convert, tabular formatter, preview HTML + html2svg`
+- Preview HTML: `dist/cem_ml/schema-packages/cem-transform/v1/examples/formatter-coloring-pipeline.fixture.cem.html`
+
+```bash
+dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
+  uri=packages/cem_ml/schema-packages/cem-transform/v1/examples/formatter-coloring-pipeline.fixture.cem,contentType=application/cem,schema=https://cem.dev/ns/cem-ml/1 \
+  --to-content-type application/cem --to-schema https://cem.dev/ns/cem-ml/1 \
+  --cemt-formatter-profile tabular --cemt-color-profile terminal --output-color-type \
+  ansi-256
+```
+
+![Preview of CEM Transform Template Schema Package formatter-coloring-pipeline-fixture example](examples/previews/formatter-coloring-pipeline.fixture.cem.svg)
+
+### invalid-missing-required-attribute
+
+- Source: [`examples/invalid-missing-required-attribute.cemt`](examples/invalid-missing-required-attribute.cemt)
+- Content type: `application/vnd.cem.transform+cem`
+- Schema: `https://cem.dev/ns/transform/cem/1`
+- Expected result: `fail`
+- Expected diagnostics: `cem.schema_model.missing_required_attribute`
+- Preview renderer: `CLI convert, tabular formatter, preview HTML + html2svg`
+- Preview HTML: `dist/cem_ml/schema-packages/cem-transform/v1/examples/invalid-missing-required-attribute.cemt.html`
+
+```bash
+dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
+  uri=packages/cem_ml/schema-packages/cem-transform/v1/examples/invalid-missing-required-attribute.cemt,contentType=application/vnd.cem.transform+cem,schema=https://cem.dev/ns/transform/cem/1 \
+  --to-content-type application/cem --to-schema https://cem.dev/ns/cem-ml/1 \
+  --cemt-formatter-profile tabular --cemt-color-profile terminal --output-color-type \
+  ansi-256
+```
+
+![Preview of CEM Transform Template Schema Package invalid-missing-required-attribute example](examples/previews/invalid-missing-required-attribute.cemt.svg)
+
+### invalid-function-missing-category
+
+- Source: [`examples/invalid-function-missing-category.cemt`](examples/invalid-function-missing-category.cemt)
+- Content type: `application/vnd.cem.transform+cem`
+- Schema: `https://cem.dev/ns/transform/cem/1`
+- Expected result: `fail`
+- Expected diagnostics: `cem.schema_model.missing_required_attribute`
+- Preview renderer: `CLI convert, tabular formatter, preview HTML + html2svg`
+- Preview HTML: `dist/cem_ml/schema-packages/cem-transform/v1/examples/invalid-function-missing-category.cemt.html`
+
+```bash
+dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
+  uri=packages/cem_ml/schema-packages/cem-transform/v1/examples/invalid-function-missing-category.cemt,contentType=application/vnd.cem.transform+cem,schema=https://cem.dev/ns/transform/cem/1 \
+  --to-content-type application/cem --to-schema https://cem.dev/ns/cem-ml/1 \
+  --cemt-formatter-profile tabular --cemt-color-profile terminal --output-color-type \
+  ansi-256
+```
+
+![Preview of CEM Transform Template Schema Package invalid-function-missing-category example](examples/previews/invalid-function-missing-category.cemt.svg)
+
+### invalid-function-missing-contract-metadata
+
+- Source: [`examples/invalid-function-missing-contract-metadata.cemt`](examples/invalid-function-missing-contract-metadata.cemt)
+- Content type: `application/vnd.cem.transform+cem`
+- Schema: `https://cem.dev/ns/transform/cem/1`
+- Expected result: `fail`
+- Expected diagnostics: `cem.schema_model.missing_required_attribute`
+- Preview renderer: `CLI convert, tabular formatter, preview HTML + html2svg`
+- Preview HTML: `dist/cem_ml/schema-packages/cem-transform/v1/examples/invalid-function-missing-contract-metadata.cemt.html`
+
+```bash
+dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
+  uri=packages/cem_ml/schema-packages/cem-transform/v1/examples/invalid-function-missing-contract-metadata.cemt,contentType=application/vnd.cem.transform+cem,schema=https://cem.dev/ns/transform/cem/1 \
+  --to-content-type application/cem --to-schema https://cem.dev/ns/cem-ml/1 \
+  --cemt-formatter-profile tabular --cemt-color-profile terminal --output-color-type \
+  ansi-256
+```
+
+![Preview of CEM Transform Template Schema Package invalid-function-missing-contract-metadata example](examples/previews/invalid-function-missing-contract-metadata.cemt.svg)

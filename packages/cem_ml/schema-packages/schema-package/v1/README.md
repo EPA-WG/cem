@@ -149,41 +149,411 @@ metadata validation. Until schema-package-specific formatter and colorizer
 assets are authored, schema-package examples rely on the generic CEM-ML output
 path rather than a schema-package-specific output pipeline.
 
-## Validation Examples
+## Examples
 
-The schema-owned examples live in [`examples/`](examples/) and are used by the
-CLI validation integration tests. Representative failing examples assert stable
-structured diagnostic details, including `behavior`, `checkKind`, `contract`,
-severity, and source range data for the engine behavior contract they exercise.
+This section is generated from `package.cem` `{example}` metadata by the
+`samples2readme` Nx target. Each SVG previews the example content, not
+the validation report. The target writes a preformatted HTML preview to
+`dist/cem_ml/schema-packages/<package>/v1/examples/<example-file>.html`,
+then renders the `<pre>` spans through headless Chromium into
+`examples/previews/<example-file>.svg`.
+Source snapshots are used only where the current CLI cannot yet render
+the package formatter/colorizer path for that content identity.
 
-| Example                                                                                           | Purpose                                                                                                                                                         | Expected result                                                                                                                                       |
-| ------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
-| [`basic-package.cem`](examples/basic-package.cem)                                                 | Minimal `package.cem` manifest with schema, content type, and namespace registration.                                                                           | Pass                                                                                                                                                  |
-| [`converter-package.cem`](examples/converter-package.cem)                                         | Package manifest with aliases and a CEMT converter declaration.                                                                                                 | Pass                                                                                                                                                  |
-| [`invalid-unclosed-package.cem`](examples/invalid-unclosed-package.cem)                           | Missing closing package scope syntax diagnostic.                                                                                                                | Fail with `cem.ast.unclosed_scope`                                                                                                                    |
-| [`invalid-missing-required-attribute.cem`](examples/invalid-missing-required-attribute.cem)       | Manifest schema entry missing its required `source` attribute and package root missing its required content-type child.                                         | Fail with `cem.schema_model.missing_required_attribute`, `cem.schema_package.package_check`                                                           |
-| [`invalid-primary-content-type.cem`](examples/invalid-primary-content-type.cem)                   | Manifest declares more than one primary content type; the package-level diagnostic is produced by a schema-declared CEM-ML behavior function.                   | Fail with `cem.schema_package.content_type_conflict`                                                                                                  |
-| [`invalid-primary-content-type-missing.cem`](examples/invalid-primary-content-type-missing.cem)   | Manifest declares content types but no primary content type; the same schema-declared CEM-ML behavior function enforces exact-one primary cardinality.          | Fail with `cem.schema_package.content_type_conflict`                                                                                                  |
-| [`invalid-converter-contract.cem`](examples/invalid-converter-contract.cem)                       | Converter declaration with missing CEMT template identity, missing target endpoint, invalid cost, and incompatible endpoint schema/content type.                | Fail with `cem.schema_package.converter_check`                                                                                                        |
-| [`invalid-converter-runtime-constraints.cem`](examples/invalid-converter-runtime-constraints.cem) | Converter declarations with unknown implementation, invalid planner metadata, missing native fallback reason, invalid output metadata, and missing Rust symbol. | Fail with `cem.schema_package.converter_check`                                                                                                        |
-| [`invalid-converter-template-unreadable.cem`](examples/invalid-converter-template-unreadable.cem) | CEMT converter declares formatter/coloring output profiles, but its template path does not resolve to a readable source.                                        | Fail with `cem.schema_package.converter_check`                                                                                                        |
-| [`invalid-converter-template-contract.cem`](examples/invalid-converter-template-contract.cem)     | CEMT converter declares formatter/coloring output profiles, but its template cannot compile as a formatted CEM-tree producer before writer output.              | Fail with `cem.schema_package.converter_check`                                                                                                        |
-| [`invalid-artifact-contract.cem`](examples/invalid-artifact-contract.cem)                         | Formatter artifact metadata disagrees with the referenced CEMT function declaration.                                                                            | Fail with `cem.schema_package.artifact_check`                                                                                                         |
-| [`invalid-artifact-layout.cem`](examples/invalid-artifact-layout.cem)                             | Formatter and colorizer artifacts point outside their schema-package stage directories.                                                                         | Fail with `cem.schema_package.artifact_check`                                                                                                         |
-| [`invalid-artifact-source-unreadable.cem`](examples/invalid-artifact-source-unreadable.cem)       | Formatter artifact references a missing CEMT source file.                                                                                                       | Fail with `cem.schema_package.artifact_check`                                                                                                         |
-| [`invalid-artifact-source-parse.cem`](examples/invalid-artifact-source-parse.cem)                 | Formatter artifact references a CEMT source file that cannot be parsed.                                                                                         | Fail with `cem.schema_package.artifact_check`                                                                                                         |
-| [`invalid-artifact-function-missing.cem`](examples/invalid-artifact-function-missing.cem)         | Formatter artifact references a CEMT source file that does not declare the requested output function.                                                           | Fail with `cem.schema_package.artifact_check`                                                                                                         |
-| [`invalid-schema-metadata.cem`](examples/invalid-schema-metadata.cem)                             | Manifest schema metadata disagrees with the referenced schema source.                                                                                           | Fail with `cem.schema_package.schema_uri_mismatch`, `cem.schema_package.schema_content_type_mismatch`, `cem.schema_package.schema_namespace_mismatch` |
-| [`invalid-schema-source-unreadable.cem`](examples/invalid-schema-source-unreadable.cem)           | Manifest schema source points at an unreadable source file.                                                                                                     | Fail with `cem.schema_package.schema_source_unreadable`                                                                                               |
-| [`invalid-schema-source-invalid.cem`](examples/invalid-schema-source-invalid.cem)                 | Manifest schema source points at a readable but invalid schema source.                                                                                          | Fail with `cem.schema_package.schema_source_invalid`                                                                                                  |
-| [`invalid-example-contract.cem`](examples/invalid-example-contract.cem)                           | Example metadata has an invalid expected result, incompatible schema/content type, and a failing example without expected diagnostics.                          | Fail with `cem.schema_package.example_check`                                                                                                          |
-| [`invalid-example-source-contract.cem`](examples/invalid-example-source-contract.cem)             | Example declarations cover unreadable source files, source validation result mismatches, and expected diagnostic mismatches.                                    | Fail with `cem.schema_package.example_check`                                                                                                          |
+### basic-package
 
-Validate an example explicitly against this schema:
+- Source: [`examples/basic-package.cem`](examples/basic-package.cem)
+- Content type: `application/vnd.cem.schema-package+cem`
+- Schema: `https://cem.dev/ns/schema-package/1`
+- Expected result: `pass`
+- Preview renderer: `CLI convert, tabular formatter, preview HTML + html2svg`
+- Preview HTML: `dist/cem_ml/schema-packages/schema-package/v1/examples/basic-package.cem.html`
 
 ```bash
-cargo run -p cem-ml-cli -- validate \
-  --content-type application/vnd.cem.schema-package+cem \
-  --schema https://cem.dev/ns/schema-package/1 \
-  packages/cem_ml/schema-packages/schema-package/v1/examples/basic-package.cem
+dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
+  uri=packages/cem_ml/schema-packages/schema-package/v1/examples/basic-package.cem,contentType=application/vnd.cem.schema-package+cem,schema=https://cem.dev/ns/schema-package/1 \
+  --to-content-type application/cem --to-schema https://cem.dev/ns/cem-ml/1 \
+  --cemt-formatter-profile tabular --cemt-color-profile terminal --output-color-type \
+  ansi-256
 ```
+
+![Preview of CEM Schema Package Metadata Package basic-package example](examples/previews/basic-package.cem.svg)
+
+### converter-package
+
+- Source: [`examples/converter-package.cem`](examples/converter-package.cem)
+- Content type: `application/vnd.cem.schema-package+cem`
+- Schema: `https://cem.dev/ns/schema-package/1`
+- Expected result: `pass`
+- Preview renderer: `CLI convert, tabular formatter, preview HTML + html2svg`
+- Preview HTML: `dist/cem_ml/schema-packages/schema-package/v1/examples/converter-package.cem.html`
+
+```bash
+dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
+  uri=packages/cem_ml/schema-packages/schema-package/v1/examples/converter-package.cem,contentType=application/vnd.cem.schema-package+cem,schema=https://cem.dev/ns/schema-package/1 \
+  --to-content-type application/cem --to-schema https://cem.dev/ns/cem-ml/1 \
+  --cemt-formatter-profile tabular --cemt-color-profile terminal --output-color-type \
+  ansi-256
+```
+
+![Preview of CEM Schema Package Metadata Package converter-package example](examples/previews/converter-package.cem.svg)
+
+### invalid-unclosed-package
+
+- Source: [`examples/invalid-unclosed-package.cem`](examples/invalid-unclosed-package.cem)
+- Content type: `application/vnd.cem.schema-package+cem`
+- Schema: `https://cem.dev/ns/schema-package/1`
+- Expected result: `fail`
+- Expected diagnostics: `cem.ast.unclosed_scope`
+- Preview renderer: `CLI convert, tabular formatter, preview HTML + html2svg`
+- Preview HTML: `dist/cem_ml/schema-packages/schema-package/v1/examples/invalid-unclosed-package.cem.html`
+
+```bash
+dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
+  uri=packages/cem_ml/schema-packages/schema-package/v1/examples/invalid-unclosed-package.cem,contentType=application/vnd.cem.schema-package+cem,schema=https://cem.dev/ns/schema-package/1 \
+  --to-content-type application/cem --to-schema https://cem.dev/ns/cem-ml/1 \
+  --cemt-formatter-profile tabular --cemt-color-profile terminal --output-color-type \
+  ansi-256
+```
+
+![Preview of CEM Schema Package Metadata Package invalid-unclosed-package example](examples/previews/invalid-unclosed-package.cem.svg)
+
+### invalid-missing-required-attribute
+
+- Source: [`examples/invalid-missing-required-attribute.cem`](examples/invalid-missing-required-attribute.cem)
+- Content type: `application/vnd.cem.schema-package+cem`
+- Schema: `https://cem.dev/ns/schema-package/1`
+- Expected result: `fail`
+- Expected diagnostics: `cem.schema_model.missing_required_attribute`, `cem.schema_package.package_check`
+- Preview renderer: `CLI convert, tabular formatter, preview HTML + html2svg`
+- Preview HTML: `dist/cem_ml/schema-packages/schema-package/v1/examples/invalid-missing-required-attribute.cem.html`
+
+```bash
+dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
+  uri=packages/cem_ml/schema-packages/schema-package/v1/examples/invalid-missing-required-attribute.cem,contentType=application/vnd.cem.schema-package+cem,schema=https://cem.dev/ns/schema-package/1 \
+  --to-content-type application/cem --to-schema https://cem.dev/ns/cem-ml/1 \
+  --cemt-formatter-profile tabular --cemt-color-profile terminal --output-color-type \
+  ansi-256
+```
+
+![Preview of CEM Schema Package Metadata Package invalid-missing-required-attribute example](examples/previews/invalid-missing-required-attribute.cem.svg)
+
+### invalid-primary-content-type
+
+- Source: [`examples/invalid-primary-content-type.cem`](examples/invalid-primary-content-type.cem)
+- Content type: `application/vnd.cem.schema-package+cem`
+- Schema: `https://cem.dev/ns/schema-package/1`
+- Expected result: `fail`
+- Expected diagnostics: `cem.schema_package.content_type_conflict`
+- Preview renderer: `CLI convert, tabular formatter, preview HTML + html2svg`
+- Preview HTML: `dist/cem_ml/schema-packages/schema-package/v1/examples/invalid-primary-content-type.cem.html`
+
+```bash
+dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
+  uri=packages/cem_ml/schema-packages/schema-package/v1/examples/invalid-primary-content-type.cem,contentType=application/vnd.cem.schema-package+cem,schema=https://cem.dev/ns/schema-package/1 \
+  --to-content-type application/cem --to-schema https://cem.dev/ns/cem-ml/1 \
+  --cemt-formatter-profile tabular --cemt-color-profile terminal --output-color-type \
+  ansi-256
+```
+
+![Preview of CEM Schema Package Metadata Package invalid-primary-content-type example](examples/previews/invalid-primary-content-type.cem.svg)
+
+### invalid-primary-content-type-missing
+
+- Source: [`examples/invalid-primary-content-type-missing.cem`](examples/invalid-primary-content-type-missing.cem)
+- Content type: `application/vnd.cem.schema-package+cem`
+- Schema: `https://cem.dev/ns/schema-package/1`
+- Expected result: `fail`
+- Expected diagnostics: `cem.schema_package.content_type_conflict`
+- Preview renderer: `CLI convert, tabular formatter, preview HTML + html2svg`
+- Preview HTML: `dist/cem_ml/schema-packages/schema-package/v1/examples/invalid-primary-content-type-missing.cem.html`
+
+```bash
+dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
+  uri=packages/cem_ml/schema-packages/schema-package/v1/examples/invalid-primary-content-type-missing.cem,contentType=application/vnd.cem.schema-package+cem,schema=https://cem.dev/ns/schema-package/1 \
+  --to-content-type application/cem --to-schema https://cem.dev/ns/cem-ml/1 \
+  --cemt-formatter-profile tabular --cemt-color-profile terminal --output-color-type \
+  ansi-256
+```
+
+![Preview of CEM Schema Package Metadata Package invalid-primary-content-type-missing example](examples/previews/invalid-primary-content-type-missing.cem.svg)
+
+### invalid-converter-contract
+
+- Source: [`examples/invalid-converter-contract.cem`](examples/invalid-converter-contract.cem)
+- Content type: `application/vnd.cem.schema-package+cem`
+- Schema: `https://cem.dev/ns/schema-package/1`
+- Expected result: `fail`
+- Expected diagnostics: `cem.schema_package.converter_check`
+- Preview renderer: `CLI convert, tabular formatter, preview HTML + html2svg`
+- Preview HTML: `dist/cem_ml/schema-packages/schema-package/v1/examples/invalid-converter-contract.cem.html`
+
+```bash
+dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
+  uri=packages/cem_ml/schema-packages/schema-package/v1/examples/invalid-converter-contract.cem,contentType=application/vnd.cem.schema-package+cem,schema=https://cem.dev/ns/schema-package/1 \
+  --to-content-type application/cem --to-schema https://cem.dev/ns/cem-ml/1 \
+  --cemt-formatter-profile tabular --cemt-color-profile terminal --output-color-type \
+  ansi-256
+```
+
+![Preview of CEM Schema Package Metadata Package invalid-converter-contract example](examples/previews/invalid-converter-contract.cem.svg)
+
+### invalid-converter-runtime-constraints
+
+- Source: [`examples/invalid-converter-runtime-constraints.cem`](examples/invalid-converter-runtime-constraints.cem)
+- Content type: `application/vnd.cem.schema-package+cem`
+- Schema: `https://cem.dev/ns/schema-package/1`
+- Expected result: `fail`
+- Expected diagnostics: `cem.schema_package.converter_check`
+- Preview renderer: `CLI convert, tabular formatter, preview HTML + html2svg`
+- Preview HTML: `dist/cem_ml/schema-packages/schema-package/v1/examples/invalid-converter-runtime-constraints.cem.html`
+
+```bash
+dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
+  uri=packages/cem_ml/schema-packages/schema-package/v1/examples/invalid-converter-runtime-constraints.cem,contentType=application/vnd.cem.schema-package+cem,schema=https://cem.dev/ns/schema-package/1 \
+  --to-content-type application/cem --to-schema https://cem.dev/ns/cem-ml/1 \
+  --cemt-formatter-profile tabular --cemt-color-profile terminal --output-color-type \
+  ansi-256
+```
+
+![Preview of CEM Schema Package Metadata Package invalid-converter-runtime-constraints example](examples/previews/invalid-converter-runtime-constraints.cem.svg)
+
+### invalid-converter-template-contract
+
+- Source: [`examples/invalid-converter-template-contract.cem`](examples/invalid-converter-template-contract.cem)
+- Content type: `application/vnd.cem.schema-package+cem`
+- Schema: `https://cem.dev/ns/schema-package/1`
+- Expected result: `fail`
+- Expected diagnostics: `cem.schema_package.converter_check`
+- Preview renderer: `CLI convert, tabular formatter, preview HTML + html2svg`
+- Preview HTML: `dist/cem_ml/schema-packages/schema-package/v1/examples/invalid-converter-template-contract.cem.html`
+
+```bash
+dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
+  uri=packages/cem_ml/schema-packages/schema-package/v1/examples/invalid-converter-template-contract.cem,contentType=application/vnd.cem.schema-package+cem,schema=https://cem.dev/ns/schema-package/1 \
+  --to-content-type application/cem --to-schema https://cem.dev/ns/cem-ml/1 \
+  --cemt-formatter-profile tabular --cemt-color-profile terminal --output-color-type \
+  ansi-256
+```
+
+![Preview of CEM Schema Package Metadata Package invalid-converter-template-contract example](examples/previews/invalid-converter-template-contract.cem.svg)
+
+### invalid-converter-template-unreadable
+
+- Source: [`examples/invalid-converter-template-unreadable.cem`](examples/invalid-converter-template-unreadable.cem)
+- Content type: `application/vnd.cem.schema-package+cem`
+- Schema: `https://cem.dev/ns/schema-package/1`
+- Expected result: `fail`
+- Expected diagnostics: `cem.schema_package.converter_check`
+- Preview renderer: `CLI convert, tabular formatter, preview HTML + html2svg`
+- Preview HTML: `dist/cem_ml/schema-packages/schema-package/v1/examples/invalid-converter-template-unreadable.cem.html`
+
+```bash
+dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
+  uri=packages/cem_ml/schema-packages/schema-package/v1/examples/invalid-converter-template-unreadable.cem,contentType=application/vnd.cem.schema-package+cem,schema=https://cem.dev/ns/schema-package/1 \
+  --to-content-type application/cem --to-schema https://cem.dev/ns/cem-ml/1 \
+  --cemt-formatter-profile tabular --cemt-color-profile terminal --output-color-type \
+  ansi-256
+```
+
+![Preview of CEM Schema Package Metadata Package invalid-converter-template-unreadable example](examples/previews/invalid-converter-template-unreadable.cem.svg)
+
+### invalid-artifact-contract
+
+- Source: [`examples/invalid-artifact-contract.cem`](examples/invalid-artifact-contract.cem)
+- Content type: `application/vnd.cem.schema-package+cem`
+- Schema: `https://cem.dev/ns/schema-package/1`
+- Expected result: `fail`
+- Expected diagnostics: `cem.schema_package.artifact_check`
+- Preview renderer: `CLI convert, tabular formatter, preview HTML + html2svg`
+- Preview HTML: `dist/cem_ml/schema-packages/schema-package/v1/examples/invalid-artifact-contract.cem.html`
+
+```bash
+dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
+  uri=packages/cem_ml/schema-packages/schema-package/v1/examples/invalid-artifact-contract.cem,contentType=application/vnd.cem.schema-package+cem,schema=https://cem.dev/ns/schema-package/1 \
+  --to-content-type application/cem --to-schema https://cem.dev/ns/cem-ml/1 \
+  --cemt-formatter-profile tabular --cemt-color-profile terminal --output-color-type \
+  ansi-256
+```
+
+![Preview of CEM Schema Package Metadata Package invalid-artifact-contract example](examples/previews/invalid-artifact-contract.cem.svg)
+
+### invalid-artifact-layout
+
+- Source: [`examples/invalid-artifact-layout.cem`](examples/invalid-artifact-layout.cem)
+- Content type: `application/vnd.cem.schema-package+cem`
+- Schema: `https://cem.dev/ns/schema-package/1`
+- Expected result: `fail`
+- Expected diagnostics: `cem.schema_package.artifact_check`
+- Preview renderer: `CLI convert, tabular formatter, preview HTML + html2svg`
+- Preview HTML: `dist/cem_ml/schema-packages/schema-package/v1/examples/invalid-artifact-layout.cem.html`
+
+```bash
+dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
+  uri=packages/cem_ml/schema-packages/schema-package/v1/examples/invalid-artifact-layout.cem,contentType=application/vnd.cem.schema-package+cem,schema=https://cem.dev/ns/schema-package/1 \
+  --to-content-type application/cem --to-schema https://cem.dev/ns/cem-ml/1 \
+  --cemt-formatter-profile tabular --cemt-color-profile terminal --output-color-type \
+  ansi-256
+```
+
+![Preview of CEM Schema Package Metadata Package invalid-artifact-layout example](examples/previews/invalid-artifact-layout.cem.svg)
+
+### invalid-artifact-source-unreadable
+
+- Source: [`examples/invalid-artifact-source-unreadable.cem`](examples/invalid-artifact-source-unreadable.cem)
+- Content type: `application/vnd.cem.schema-package+cem`
+- Schema: `https://cem.dev/ns/schema-package/1`
+- Expected result: `fail`
+- Expected diagnostics: `cem.schema_package.artifact_check`
+- Preview renderer: `CLI convert, tabular formatter, preview HTML + html2svg`
+- Preview HTML: `dist/cem_ml/schema-packages/schema-package/v1/examples/invalid-artifact-source-unreadable.cem.html`
+
+```bash
+dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
+  uri=packages/cem_ml/schema-packages/schema-package/v1/examples/invalid-artifact-source-unreadable.cem,contentType=application/vnd.cem.schema-package+cem,schema=https://cem.dev/ns/schema-package/1 \
+  --to-content-type application/cem --to-schema https://cem.dev/ns/cem-ml/1 \
+  --cemt-formatter-profile tabular --cemt-color-profile terminal --output-color-type \
+  ansi-256
+```
+
+![Preview of CEM Schema Package Metadata Package invalid-artifact-source-unreadable example](examples/previews/invalid-artifact-source-unreadable.cem.svg)
+
+### invalid-artifact-source-parse
+
+- Source: [`examples/invalid-artifact-source-parse.cem`](examples/invalid-artifact-source-parse.cem)
+- Content type: `application/vnd.cem.schema-package+cem`
+- Schema: `https://cem.dev/ns/schema-package/1`
+- Expected result: `fail`
+- Expected diagnostics: `cem.schema_package.artifact_check`
+- Preview renderer: `CLI convert, tabular formatter, preview HTML + html2svg`
+- Preview HTML: `dist/cem_ml/schema-packages/schema-package/v1/examples/invalid-artifact-source-parse.cem.html`
+
+```bash
+dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
+  uri=packages/cem_ml/schema-packages/schema-package/v1/examples/invalid-artifact-source-parse.cem,contentType=application/vnd.cem.schema-package+cem,schema=https://cem.dev/ns/schema-package/1 \
+  --to-content-type application/cem --to-schema https://cem.dev/ns/cem-ml/1 \
+  --cemt-formatter-profile tabular --cemt-color-profile terminal --output-color-type \
+  ansi-256
+```
+
+![Preview of CEM Schema Package Metadata Package invalid-artifact-source-parse example](examples/previews/invalid-artifact-source-parse.cem.svg)
+
+### invalid-artifact-function-missing
+
+- Source: [`examples/invalid-artifact-function-missing.cem`](examples/invalid-artifact-function-missing.cem)
+- Content type: `application/vnd.cem.schema-package+cem`
+- Schema: `https://cem.dev/ns/schema-package/1`
+- Expected result: `fail`
+- Expected diagnostics: `cem.schema_package.artifact_check`
+- Preview renderer: `CLI convert, tabular formatter, preview HTML + html2svg`
+- Preview HTML: `dist/cem_ml/schema-packages/schema-package/v1/examples/invalid-artifact-function-missing.cem.html`
+
+```bash
+dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
+  uri=packages/cem_ml/schema-packages/schema-package/v1/examples/invalid-artifact-function-missing.cem,contentType=application/vnd.cem.schema-package+cem,schema=https://cem.dev/ns/schema-package/1 \
+  --to-content-type application/cem --to-schema https://cem.dev/ns/cem-ml/1 \
+  --cemt-formatter-profile tabular --cemt-color-profile terminal --output-color-type \
+  ansi-256
+```
+
+![Preview of CEM Schema Package Metadata Package invalid-artifact-function-missing example](examples/previews/invalid-artifact-function-missing.cem.svg)
+
+### invalid-schema-metadata
+
+- Source: [`examples/invalid-schema-metadata.cem`](examples/invalid-schema-metadata.cem)
+- Content type: `application/vnd.cem.schema-package+cem`
+- Schema: `https://cem.dev/ns/schema-package/1`
+- Expected result: `fail`
+- Expected diagnostics: `cem.schema_package.schema_uri_mismatch`, `cem.schema_package.schema_content_type_mismatch`, `cem.schema_package.schema_namespace_mismatch`
+- Preview renderer: `CLI convert, tabular formatter, preview HTML + html2svg`
+- Preview HTML: `dist/cem_ml/schema-packages/schema-package/v1/examples/invalid-schema-metadata.cem.html`
+
+```bash
+dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
+  uri=packages/cem_ml/schema-packages/schema-package/v1/examples/invalid-schema-metadata.cem,contentType=application/vnd.cem.schema-package+cem,schema=https://cem.dev/ns/schema-package/1 \
+  --to-content-type application/cem --to-schema https://cem.dev/ns/cem-ml/1 \
+  --cemt-formatter-profile tabular --cemt-color-profile terminal --output-color-type \
+  ansi-256
+```
+
+![Preview of CEM Schema Package Metadata Package invalid-schema-metadata example](examples/previews/invalid-schema-metadata.cem.svg)
+
+### invalid-schema-source-unreadable
+
+- Source: [`examples/invalid-schema-source-unreadable.cem`](examples/invalid-schema-source-unreadable.cem)
+- Content type: `application/vnd.cem.schema-package+cem`
+- Schema: `https://cem.dev/ns/schema-package/1`
+- Expected result: `fail`
+- Expected diagnostics: `cem.schema_package.schema_source_unreadable`
+- Preview renderer: `CLI convert, tabular formatter, preview HTML + html2svg`
+- Preview HTML: `dist/cem_ml/schema-packages/schema-package/v1/examples/invalid-schema-source-unreadable.cem.html`
+
+```bash
+dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
+  uri=packages/cem_ml/schema-packages/schema-package/v1/examples/invalid-schema-source-unreadable.cem,contentType=application/vnd.cem.schema-package+cem,schema=https://cem.dev/ns/schema-package/1 \
+  --to-content-type application/cem --to-schema https://cem.dev/ns/cem-ml/1 \
+  --cemt-formatter-profile tabular --cemt-color-profile terminal --output-color-type \
+  ansi-256
+```
+
+![Preview of CEM Schema Package Metadata Package invalid-schema-source-unreadable example](examples/previews/invalid-schema-source-unreadable.cem.svg)
+
+### invalid-schema-source-invalid
+
+- Source: [`examples/invalid-schema-source-invalid.cem`](examples/invalid-schema-source-invalid.cem)
+- Content type: `application/vnd.cem.schema-package+cem`
+- Schema: `https://cem.dev/ns/schema-package/1`
+- Expected result: `fail`
+- Expected diagnostics: `cem.schema_package.schema_source_invalid`
+- Preview renderer: `CLI convert, tabular formatter, preview HTML + html2svg`
+- Preview HTML: `dist/cem_ml/schema-packages/schema-package/v1/examples/invalid-schema-source-invalid.cem.html`
+
+```bash
+dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
+  uri=packages/cem_ml/schema-packages/schema-package/v1/examples/invalid-schema-source-invalid.cem,contentType=application/vnd.cem.schema-package+cem,schema=https://cem.dev/ns/schema-package/1 \
+  --to-content-type application/cem --to-schema https://cem.dev/ns/cem-ml/1 \
+  --cemt-formatter-profile tabular --cemt-color-profile terminal --output-color-type \
+  ansi-256
+```
+
+![Preview of CEM Schema Package Metadata Package invalid-schema-source-invalid example](examples/previews/invalid-schema-source-invalid.cem.svg)
+
+### invalid-example-contract
+
+- Source: [`examples/invalid-example-contract.cem`](examples/invalid-example-contract.cem)
+- Content type: `application/vnd.cem.schema-package+cem`
+- Schema: `https://cem.dev/ns/schema-package/1`
+- Expected result: `fail`
+- Expected diagnostics: `cem.schema_package.example_check`
+- Preview renderer: `CLI convert, tabular formatter, preview HTML + html2svg`
+- Preview HTML: `dist/cem_ml/schema-packages/schema-package/v1/examples/invalid-example-contract.cem.html`
+
+```bash
+dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
+  uri=packages/cem_ml/schema-packages/schema-package/v1/examples/invalid-example-contract.cem,contentType=application/vnd.cem.schema-package+cem,schema=https://cem.dev/ns/schema-package/1 \
+  --to-content-type application/cem --to-schema https://cem.dev/ns/cem-ml/1 \
+  --cemt-formatter-profile tabular --cemt-color-profile terminal --output-color-type \
+  ansi-256
+```
+
+![Preview of CEM Schema Package Metadata Package invalid-example-contract example](examples/previews/invalid-example-contract.cem.svg)
+
+### invalid-example-source-contract
+
+- Source: [`examples/invalid-example-source-contract.cem`](examples/invalid-example-source-contract.cem)
+- Content type: `application/vnd.cem.schema-package+cem`
+- Schema: `https://cem.dev/ns/schema-package/1`
+- Expected result: `fail`
+- Expected diagnostics: `cem.schema_package.example_check`
+- Preview renderer: `CLI convert, tabular formatter, preview HTML + html2svg`
+- Preview HTML: `dist/cem_ml/schema-packages/schema-package/v1/examples/invalid-example-source-contract.cem.html`
+
+```bash
+dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
+  uri=packages/cem_ml/schema-packages/schema-package/v1/examples/invalid-example-source-contract.cem,contentType=application/vnd.cem.schema-package+cem,schema=https://cem.dev/ns/schema-package/1 \
+  --to-content-type application/cem --to-schema https://cem.dev/ns/cem-ml/1 \
+  --cemt-formatter-profile tabular --cemt-color-profile terminal --output-color-type \
+  ansi-256
+```
+
+![Preview of CEM Schema Package Metadata Package invalid-example-source-contract example](examples/previews/invalid-example-source-contract.cem.svg)

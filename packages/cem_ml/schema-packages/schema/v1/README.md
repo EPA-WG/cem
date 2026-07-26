@@ -420,42 +420,469 @@ currently declared attribute datatype-parameter vocabulary is covered by
 types, value vocabularies, and datatype parameters; applying omitted defaults
 to candidate input remains a runtime contract step.
 
-## Validation Examples
+## Examples
 
-The schema-owned examples live in [`examples/`](examples/) and are used by the
-CLI validation integration tests.
+This section is generated from `package.cem` `{example}` metadata by the
+`samples2readme` Nx target. Each SVG previews the example content, not
+the validation report. The target writes a preformatted HTML preview to
+`dist/cem_ml/schema-packages/<package>/v1/examples/<example-file>.html`,
+then renders the `<pre>` spans through headless Chromium into
+`examples/previews/<example-file>.svg`.
+Source snapshots are used only where the current CLI cannot yet render
+the package formatter/colorizer path for that content identity.
 
-| Example                                                                                                       | Purpose                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  | Expected result                                                        |
-| ------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------- |
-| [`basic-schema.cem`](examples/basic-schema.cem)                                                               | Minimal schema definition with content type, element, and attribute declarations.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        | Pass                                                                   |
-| [`typed-resource-schema.cem`](examples/typed-resource-schema.cem)                                             | Resource schema with imports, conditional `schema:required-fields`, child-gated required/forbidden `schema:field-dependency`, nested exact-one `schema:choice-case`, child-set, selected/ranged/selected-distinct, child presence/absence-gated, ordered/forbidden-ordered, boundary/forbidden-boundary, and exact/required/forbidden/prefix/suffix/forbidden-prefix/forbidden-suffix sequence `schema:child-occurrence`, attribute default metadata, `schema:value-vocabulary`, `schema:scalar-type` number/qualified-name/semver/URI/media-type/path syntax, and `schema:datatype-param` integer-bound/number-bound/digit-count/string length/prefix/suffix/forbidden-prefix/forbidden-suffix/include/exclude/list item-count/pattern/path prefix/forbidden-prefix/directory-name/forbidden-directory-name/extension/forbidden-extension/basename/forbidden-basename/URI scheme/forbidden-scheme/host/forbidden-host/port/forbidden-port/authority/path-prefix/forbidden-path-prefix/path-extension/forbidden-path-extension/path-basename/forbidden-path-basename/query/forbidden-query/query-parameter-name/value/forbidden-parameter/required-parameter/fragment/forbidden-fragment/media-type essence/forbidden-essence/type/subtype/structured-suffix/parameter-name/value/forbidden-parameter/required-parameter attribute diagnostics, and open-content policy. | Pass                                                                   |
-| [`custom-behavior-schema.cem`](examples/custom-behavior-schema.cem)                                           | Custom schema that defines a diagnostic algorithm with CEM-QL candidate matching and a CEM-ML behavior function.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         | Pass                                                                   |
-| [`custom-behavior-schema-strict.cem`](examples/custom-behavior-schema-strict.cem)                             | Variant custom schema that changes the match condition and function-produced result declaratively.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       | Pass                                                                   |
-| [`invalid-unclosed-schema.cem`](examples/invalid-unclosed-schema.cem)                                         | Missing closing schema scope syntax diagnostic.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          | Fail with `cem.ast.unclosed_scope`                                     |
-| [`invalid-missing-required-attribute.cem`](examples/invalid-missing-required-attribute.cem)                   | Schema declaration missing its required `namespace` attribute.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           | Fail with `cem.schema_model.missing_required_attribute`                |
-| [`invalid-diagnostic-behavior.cem`](examples/invalid-diagnostic-behavior.cem)                                 | Diagnostic references a behavior absent from the imported engine catalog.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                | Fail with `cem.schema_definition.unknown_diagnostic_behavior`          |
-| [`invalid-custom-behavior-unresolved-function.cem`](examples/invalid-custom-behavior-unresolved-function.cem) | Custom behavior references a function that the schema does not declare.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  | Fail with `cem.schema_definition.unresolved_behavior_function`         |
-| [`invalid-custom-behavior-select-query.cem`](examples/invalid-custom-behavior-select-query.cem)               | Custom behavior declares an invalid CEM-QL candidate selection expression.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               | Fail with `cem.schema_behavior.query_invalid`                          |
-| [`invalid-custom-behavior-match-query.cem`](examples/invalid-custom-behavior-match-query.cem)                 | Custom behavior declares an invalid CEM-QL failure match expression.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     | Fail with `cem.schema_behavior.query_invalid`                          |
-| [`invalid-custom-behavior-argument-type.cem`](examples/invalid-custom-behavior-argument-type.cem)             | Custom behavior diagnostic argument does not match the declared parameter type.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          | Fail with `cem.schema_definition.invalid_diagnostic_behavior_contract` |
-| [`invalid-custom-behavior-signature.cem`](examples/invalid-custom-behavior-signature.cem)                     | Custom behavior function requires a parameter with no input, argument, or default binding.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               | Fail with `cem.schema_definition.invalid_diagnostic_behavior_contract` |
-| [`invalid-custom-behavior-unsafe-call.cem`](examples/invalid-custom-behavior-unsafe-call.cem)                 | Custom behavior body attempts a CEMT-style self-call instead of pure declarative result construction.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    | Fail with `cem.schema_behavior.function_failed`                        |
-| [`invalid-custom-behavior-contracts.cem`](examples/invalid-custom-behavior-contracts.cem)                     | Custom behaviors declare unsupported implementations, placements, missing function/result pieces, and incompatible result contracts.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     | Fail with `cem.schema_definition.invalid_diagnostic_behavior_contract` |
-| [`invalid-datatype-param-length.cem`](examples/invalid-datatype-param-length.cem)                             | String length/prefix/suffix/forbidden-prefix/forbidden-suffix/include/exclude and list item-count datatype parameter declarations use invalid negative bounds, incompatible primitive types, or inconsistent min/max/exact count envelopes.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              | Fail with `cem.schema_definition.invalid_datatype_param`               |
-| [`invalid-datatype-param-bound.cem`](examples/invalid-datatype-param-bound.cem)                               | Numeric bound datatype parameter declarations use incompatible bound values, incompatible primitive types, or inconsistent min/max envelopes.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            | Fail with `cem.schema_definition.invalid_datatype_param`               |
-| [`invalid-datatype-param-pattern.cem`](examples/invalid-datatype-param-pattern.cem)                           | String datatype parameter declaration uses an invalid regular expression.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                | Fail with `cem.schema_definition.invalid_datatype_param`               |
-| [`invalid-datatype-param-digits.cem`](examples/invalid-datatype-param-digits.cem)                             | Numeric digit-count datatype parameter declarations use invalid limits or incompatible primitive types.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  | Fail with `cem.schema_definition.invalid_datatype_param`               |
-| [`invalid-datatype-param-uri-media.cem`](examples/invalid-datatype-param-uri-media.cem)                       | Path prefix/forbidden-prefix/extension/forbidden-extension/basename/forbidden-basename, URI scheme/forbidden-scheme/host/forbidden-host/port/forbidden-port/authority/path-prefix/forbidden-path-prefix/path-extension/forbidden-path-extension/path-basename/forbidden-path-basename/query/forbidden-query/query-parameter-name/value/forbidden-parameter/required-parameter/fragment/forbidden-fragment, and media-type essence/forbidden-essence/type/subtype/structured-suffix/parameter-name/value/forbidden-parameter/required-parameter datatype parameter declarations use invalid tokens, incompatible primitive types, or inconsistent required/forbidden parameter declarations.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              | Fail with `cem.schema_definition.invalid_datatype_param`               |
-| [`invalid-field-contract-presence.cem`](examples/invalid-field-contract-presence.cem)                         | Field contracts declare impossible required/forbidden attribute or child combinations, required children outside their accepted-child allow-list, or required-one choices with no non-forbidden accepted alternative.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    | Fail with `cem.schema_definition.invalid_field_contract`               |
-| [`invalid-field-contract-condition.cem`](examples/invalid-field-contract-condition.cem)                       | Field contracts declare unsatisfiable conditional selectors, including `when-values` without `when-attribute`, overlapping all-present/all-absent gates, or any-present/any-absent gates whose candidate set is forced the opposite way.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 | Fail with `cem.schema_definition.invalid_field_contract`               |
-| [`invalid-field-contract-child-sequence.cem`](examples/invalid-field-contract-child-sequence.cem)             | Child boundary and child-sequence field contracts declare impossible required/forbidden combinations or an exact sequence that conflicts with declared boundary, prefix, suffix, required-sequence, or forbidden-sequence constraints.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   | Fail with `cem.schema_definition.invalid_field_contract`               |
-| [`invalid-attribute-default.cem`](examples/invalid-attribute-default.cem)                                     | Attribute defaults violate declared scalar type, value vocabulary, and datatype parameter constraints.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   | Fail with `cem.schema_definition.invalid_default_value`                |
+### basic-schema
 
-Validate an example explicitly against this schema:
+- Source: [`examples/basic-schema.cem`](examples/basic-schema.cem)
+- Content type: `application/vnd.cem.schema+cem`
+- Schema: `https://cem.dev/ns/schema/1`
+- Expected result: `pass`
+- Preview renderer: `CLI convert, tabular formatter, preview HTML + html2svg`
+- Preview HTML: `dist/cem_ml/schema-packages/schema/v1/examples/basic-schema.cem.html`
 
 ```bash
-cargo run -p cem-ml-cli -- validate \
-  --content-type application/vnd.cem.schema+cem \
-  --schema https://cem.dev/ns/schema/1 \
-  packages/cem_ml/schema-packages/schema/v1/examples/basic-schema.cem
+dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
+  uri=packages/cem_ml/schema-packages/schema/v1/examples/basic-schema.cem,contentType=application/vnd.cem.schema+cem,schema=https://cem.dev/ns/schema/1 \
+  --to-content-type application/cem --to-schema https://cem.dev/ns/cem-ml/1 \
+  --cemt-formatter-profile tabular --cemt-color-profile terminal --output-color-type \
+  ansi-256
 ```
+
+![Preview of CEM Schema Definition Language Package basic-schema example](examples/previews/basic-schema.cem.svg)
+
+### typed-resource-schema
+
+- Source: [`examples/typed-resource-schema.cem`](examples/typed-resource-schema.cem)
+- Content type: `application/vnd.cem.schema+cem`
+- Schema: `https://cem.dev/ns/schema/1`
+- Expected result: `pass`
+- Preview renderer: `CLI convert, tabular formatter, preview HTML + html2svg`
+- Preview HTML: `dist/cem_ml/schema-packages/schema/v1/examples/typed-resource-schema.cem.html`
+
+```bash
+dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
+  uri=packages/cem_ml/schema-packages/schema/v1/examples/typed-resource-schema.cem,contentType=application/vnd.cem.schema+cem,schema=https://cem.dev/ns/schema/1 \
+  --to-content-type application/cem --to-schema https://cem.dev/ns/cem-ml/1 \
+  --cemt-formatter-profile tabular --cemt-color-profile terminal --output-color-type \
+  ansi-256
+```
+
+![Preview of CEM Schema Definition Language Package typed-resource-schema example](examples/previews/typed-resource-schema.cem.svg)
+
+### custom-behavior-schema
+
+- Source: [`examples/custom-behavior-schema.cem`](examples/custom-behavior-schema.cem)
+- Content type: `application/vnd.cem.schema+cem`
+- Schema: `https://cem.dev/ns/schema/1`
+- Expected result: `pass`
+- Preview renderer: `CLI convert, tabular formatter, preview HTML + html2svg`
+- Preview HTML: `dist/cem_ml/schema-packages/schema/v1/examples/custom-behavior-schema.cem.html`
+
+```bash
+dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
+  uri=packages/cem_ml/schema-packages/schema/v1/examples/custom-behavior-schema.cem,contentType=application/vnd.cem.schema+cem,schema=https://cem.dev/ns/schema/1 \
+  --to-content-type application/cem --to-schema https://cem.dev/ns/cem-ml/1 \
+  --cemt-formatter-profile tabular --cemt-color-profile terminal --output-color-type \
+  ansi-256
+```
+
+![Preview of CEM Schema Definition Language Package custom-behavior-schema example](examples/previews/custom-behavior-schema.cem.svg)
+
+### custom-behavior-schema-strict
+
+- Source: [`examples/custom-behavior-schema-strict.cem`](examples/custom-behavior-schema-strict.cem)
+- Content type: `application/vnd.cem.schema+cem`
+- Schema: `https://cem.dev/ns/schema/1`
+- Expected result: `pass`
+- Preview renderer: `CLI convert, tabular formatter, preview HTML + html2svg`
+- Preview HTML: `dist/cem_ml/schema-packages/schema/v1/examples/custom-behavior-schema-strict.cem.html`
+
+```bash
+dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
+  uri=packages/cem_ml/schema-packages/schema/v1/examples/custom-behavior-schema-strict.cem,contentType=application/vnd.cem.schema+cem,schema=https://cem.dev/ns/schema/1 \
+  --to-content-type application/cem --to-schema https://cem.dev/ns/cem-ml/1 \
+  --cemt-formatter-profile tabular --cemt-color-profile terminal --output-color-type \
+  ansi-256
+```
+
+![Preview of CEM Schema Definition Language Package custom-behavior-schema-strict example](examples/previews/custom-behavior-schema-strict.cem.svg)
+
+### invalid-missing-required-attribute
+
+- Source: [`examples/invalid-missing-required-attribute.cem`](examples/invalid-missing-required-attribute.cem)
+- Content type: `application/vnd.cem.schema+cem`
+- Schema: `https://cem.dev/ns/schema/1`
+- Expected result: `fail`
+- Expected diagnostics: `cem.schema_model.missing_required_attribute`
+- Preview renderer: `CLI convert, tabular formatter, preview HTML + html2svg`
+- Preview HTML: `dist/cem_ml/schema-packages/schema/v1/examples/invalid-missing-required-attribute.cem.html`
+
+```bash
+dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
+  uri=packages/cem_ml/schema-packages/schema/v1/examples/invalid-missing-required-attribute.cem,contentType=application/vnd.cem.schema+cem,schema=https://cem.dev/ns/schema/1 \
+  --to-content-type application/cem --to-schema https://cem.dev/ns/cem-ml/1 \
+  --cemt-formatter-profile tabular --cemt-color-profile terminal --output-color-type \
+  ansi-256
+```
+
+![Preview of CEM Schema Definition Language Package invalid-missing-required-attribute example](examples/previews/invalid-missing-required-attribute.cem.svg)
+
+### invalid-diagnostic-behavior
+
+- Source: [`examples/invalid-diagnostic-behavior.cem`](examples/invalid-diagnostic-behavior.cem)
+- Content type: `application/vnd.cem.schema+cem`
+- Schema: `https://cem.dev/ns/schema/1`
+- Expected result: `fail`
+- Expected diagnostics: `cem.schema_definition.unknown_diagnostic_behavior`
+- Preview renderer: `CLI convert, tabular formatter, preview HTML + html2svg`
+- Preview HTML: `dist/cem_ml/schema-packages/schema/v1/examples/invalid-diagnostic-behavior.cem.html`
+
+```bash
+dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
+  uri=packages/cem_ml/schema-packages/schema/v1/examples/invalid-diagnostic-behavior.cem,contentType=application/vnd.cem.schema+cem,schema=https://cem.dev/ns/schema/1 \
+  --to-content-type application/cem --to-schema https://cem.dev/ns/cem-ml/1 \
+  --cemt-formatter-profile tabular --cemt-color-profile terminal --output-color-type \
+  ansi-256
+```
+
+![Preview of CEM Schema Definition Language Package invalid-diagnostic-behavior example](examples/previews/invalid-diagnostic-behavior.cem.svg)
+
+### invalid-custom-behavior-unresolved-function
+
+- Source: [`examples/invalid-custom-behavior-unresolved-function.cem`](examples/invalid-custom-behavior-unresolved-function.cem)
+- Content type: `application/vnd.cem.schema+cem`
+- Schema: `https://cem.dev/ns/schema/1`
+- Expected result: `fail`
+- Expected diagnostics: `cem.schema_definition.unresolved_behavior_function`
+- Preview renderer: `CLI convert, tabular formatter, preview HTML + html2svg`
+- Preview HTML: `dist/cem_ml/schema-packages/schema/v1/examples/invalid-custom-behavior-unresolved-function.cem.html`
+
+```bash
+dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
+  uri=packages/cem_ml/schema-packages/schema/v1/examples/invalid-custom-behavior-unresolved-function.cem,contentType=application/vnd.cem.schema+cem,schema=https://cem.dev/ns/schema/1 \
+  --to-content-type application/cem --to-schema https://cem.dev/ns/cem-ml/1 \
+  --cemt-formatter-profile tabular --cemt-color-profile terminal --output-color-type \
+  ansi-256
+```
+
+![Preview of CEM Schema Definition Language Package invalid-custom-behavior-unresolved-function example](examples/previews/invalid-custom-behavior-unresolved-function.cem.svg)
+
+### invalid-custom-behavior-select-query
+
+- Source: [`examples/invalid-custom-behavior-select-query.cem`](examples/invalid-custom-behavior-select-query.cem)
+- Content type: `application/vnd.cem.schema+cem`
+- Schema: `https://cem.dev/ns/schema/1`
+- Expected result: `fail`
+- Expected diagnostics: `cem.schema_behavior.query_invalid`
+- Preview renderer: `CLI convert, tabular formatter, preview HTML + html2svg`
+- Preview HTML: `dist/cem_ml/schema-packages/schema/v1/examples/invalid-custom-behavior-select-query.cem.html`
+
+```bash
+dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
+  uri=packages/cem_ml/schema-packages/schema/v1/examples/invalid-custom-behavior-select-query.cem,contentType=application/vnd.cem.schema+cem,schema=https://cem.dev/ns/schema/1 \
+  --to-content-type application/cem --to-schema https://cem.dev/ns/cem-ml/1 \
+  --cemt-formatter-profile tabular --cemt-color-profile terminal --output-color-type \
+  ansi-256
+```
+
+![Preview of CEM Schema Definition Language Package invalid-custom-behavior-select-query example](examples/previews/invalid-custom-behavior-select-query.cem.svg)
+
+### invalid-custom-behavior-match-query
+
+- Source: [`examples/invalid-custom-behavior-match-query.cem`](examples/invalid-custom-behavior-match-query.cem)
+- Content type: `application/vnd.cem.schema+cem`
+- Schema: `https://cem.dev/ns/schema/1`
+- Expected result: `fail`
+- Expected diagnostics: `cem.schema_behavior.query_invalid`
+- Preview renderer: `CLI convert, tabular formatter, preview HTML + html2svg`
+- Preview HTML: `dist/cem_ml/schema-packages/schema/v1/examples/invalid-custom-behavior-match-query.cem.html`
+
+```bash
+dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
+  uri=packages/cem_ml/schema-packages/schema/v1/examples/invalid-custom-behavior-match-query.cem,contentType=application/vnd.cem.schema+cem,schema=https://cem.dev/ns/schema/1 \
+  --to-content-type application/cem --to-schema https://cem.dev/ns/cem-ml/1 \
+  --cemt-formatter-profile tabular --cemt-color-profile terminal --output-color-type \
+  ansi-256
+```
+
+![Preview of CEM Schema Definition Language Package invalid-custom-behavior-match-query example](examples/previews/invalid-custom-behavior-match-query.cem.svg)
+
+### invalid-custom-behavior-argument-type
+
+- Source: [`examples/invalid-custom-behavior-argument-type.cem`](examples/invalid-custom-behavior-argument-type.cem)
+- Content type: `application/vnd.cem.schema+cem`
+- Schema: `https://cem.dev/ns/schema/1`
+- Expected result: `fail`
+- Expected diagnostics: `cem.schema_definition.invalid_diagnostic_behavior_contract`
+- Preview renderer: `CLI convert, tabular formatter, preview HTML + html2svg`
+- Preview HTML: `dist/cem_ml/schema-packages/schema/v1/examples/invalid-custom-behavior-argument-type.cem.html`
+
+```bash
+dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
+  uri=packages/cem_ml/schema-packages/schema/v1/examples/invalid-custom-behavior-argument-type.cem,contentType=application/vnd.cem.schema+cem,schema=https://cem.dev/ns/schema/1 \
+  --to-content-type application/cem --to-schema https://cem.dev/ns/cem-ml/1 \
+  --cemt-formatter-profile tabular --cemt-color-profile terminal --output-color-type \
+  ansi-256
+```
+
+![Preview of CEM Schema Definition Language Package invalid-custom-behavior-argument-type example](examples/previews/invalid-custom-behavior-argument-type.cem.svg)
+
+### invalid-custom-behavior-signature
+
+- Source: [`examples/invalid-custom-behavior-signature.cem`](examples/invalid-custom-behavior-signature.cem)
+- Content type: `application/vnd.cem.schema+cem`
+- Schema: `https://cem.dev/ns/schema/1`
+- Expected result: `fail`
+- Expected diagnostics: `cem.schema_definition.invalid_diagnostic_behavior_contract`
+- Preview renderer: `CLI convert, tabular formatter, preview HTML + html2svg`
+- Preview HTML: `dist/cem_ml/schema-packages/schema/v1/examples/invalid-custom-behavior-signature.cem.html`
+
+```bash
+dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
+  uri=packages/cem_ml/schema-packages/schema/v1/examples/invalid-custom-behavior-signature.cem,contentType=application/vnd.cem.schema+cem,schema=https://cem.dev/ns/schema/1 \
+  --to-content-type application/cem --to-schema https://cem.dev/ns/cem-ml/1 \
+  --cemt-formatter-profile tabular --cemt-color-profile terminal --output-color-type \
+  ansi-256
+```
+
+![Preview of CEM Schema Definition Language Package invalid-custom-behavior-signature example](examples/previews/invalid-custom-behavior-signature.cem.svg)
+
+### invalid-custom-behavior-unsafe-call
+
+- Source: [`examples/invalid-custom-behavior-unsafe-call.cem`](examples/invalid-custom-behavior-unsafe-call.cem)
+- Content type: `application/vnd.cem.schema+cem`
+- Schema: `https://cem.dev/ns/schema/1`
+- Expected result: `fail`
+- Expected diagnostics: `cem.schema_behavior.function_failed`
+- Preview renderer: `CLI convert, tabular formatter, preview HTML + html2svg`
+- Preview HTML: `dist/cem_ml/schema-packages/schema/v1/examples/invalid-custom-behavior-unsafe-call.cem.html`
+
+```bash
+dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
+  uri=packages/cem_ml/schema-packages/schema/v1/examples/invalid-custom-behavior-unsafe-call.cem,contentType=application/vnd.cem.schema+cem,schema=https://cem.dev/ns/schema/1 \
+  --to-content-type application/cem --to-schema https://cem.dev/ns/cem-ml/1 \
+  --cemt-formatter-profile tabular --cemt-color-profile terminal --output-color-type \
+  ansi-256
+```
+
+![Preview of CEM Schema Definition Language Package invalid-custom-behavior-unsafe-call example](examples/previews/invalid-custom-behavior-unsafe-call.cem.svg)
+
+### invalid-custom-behavior-contracts
+
+- Source: [`examples/invalid-custom-behavior-contracts.cem`](examples/invalid-custom-behavior-contracts.cem)
+- Content type: `application/vnd.cem.schema+cem`
+- Schema: `https://cem.dev/ns/schema/1`
+- Expected result: `fail`
+- Expected diagnostics: `cem.schema_definition.invalid_diagnostic_behavior_contract`
+- Preview renderer: `CLI convert, tabular formatter, preview HTML + html2svg`
+- Preview HTML: `dist/cem_ml/schema-packages/schema/v1/examples/invalid-custom-behavior-contracts.cem.html`
+
+```bash
+dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
+  uri=packages/cem_ml/schema-packages/schema/v1/examples/invalid-custom-behavior-contracts.cem,contentType=application/vnd.cem.schema+cem,schema=https://cem.dev/ns/schema/1 \
+  --to-content-type application/cem --to-schema https://cem.dev/ns/cem-ml/1 \
+  --cemt-formatter-profile tabular --cemt-color-profile terminal --output-color-type \
+  ansi-256
+```
+
+![Preview of CEM Schema Definition Language Package invalid-custom-behavior-contracts example](examples/previews/invalid-custom-behavior-contracts.cem.svg)
+
+### invalid-datatype-param-length
+
+- Source: [`examples/invalid-datatype-param-length.cem`](examples/invalid-datatype-param-length.cem)
+- Content type: `application/vnd.cem.schema+cem`
+- Schema: `https://cem.dev/ns/schema/1`
+- Expected result: `fail`
+- Expected diagnostics: `cem.schema_definition.invalid_datatype_param`
+- Preview renderer: `CLI convert, tabular formatter, preview HTML + html2svg`
+- Preview HTML: `dist/cem_ml/schema-packages/schema/v1/examples/invalid-datatype-param-length.cem.html`
+
+```bash
+dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
+  uri=packages/cem_ml/schema-packages/schema/v1/examples/invalid-datatype-param-length.cem,contentType=application/vnd.cem.schema+cem,schema=https://cem.dev/ns/schema/1 \
+  --to-content-type application/cem --to-schema https://cem.dev/ns/cem-ml/1 \
+  --cemt-formatter-profile tabular --cemt-color-profile terminal --output-color-type \
+  ansi-256
+```
+
+![Preview of CEM Schema Definition Language Package invalid-datatype-param-length example](examples/previews/invalid-datatype-param-length.cem.svg)
+
+### invalid-datatype-param-bound
+
+- Source: [`examples/invalid-datatype-param-bound.cem`](examples/invalid-datatype-param-bound.cem)
+- Content type: `application/vnd.cem.schema+cem`
+- Schema: `https://cem.dev/ns/schema/1`
+- Expected result: `fail`
+- Expected diagnostics: `cem.schema_definition.invalid_datatype_param`
+- Preview renderer: `CLI convert, tabular formatter, preview HTML + html2svg`
+- Preview HTML: `dist/cem_ml/schema-packages/schema/v1/examples/invalid-datatype-param-bound.cem.html`
+
+```bash
+dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
+  uri=packages/cem_ml/schema-packages/schema/v1/examples/invalid-datatype-param-bound.cem,contentType=application/vnd.cem.schema+cem,schema=https://cem.dev/ns/schema/1 \
+  --to-content-type application/cem --to-schema https://cem.dev/ns/cem-ml/1 \
+  --cemt-formatter-profile tabular --cemt-color-profile terminal --output-color-type \
+  ansi-256
+```
+
+![Preview of CEM Schema Definition Language Package invalid-datatype-param-bound example](examples/previews/invalid-datatype-param-bound.cem.svg)
+
+### invalid-datatype-param-pattern
+
+- Source: [`examples/invalid-datatype-param-pattern.cem`](examples/invalid-datatype-param-pattern.cem)
+- Content type: `application/vnd.cem.schema+cem`
+- Schema: `https://cem.dev/ns/schema/1`
+- Expected result: `fail`
+- Expected diagnostics: `cem.schema_definition.invalid_datatype_param`
+- Preview renderer: `CLI convert, tabular formatter, preview HTML + html2svg`
+- Preview HTML: `dist/cem_ml/schema-packages/schema/v1/examples/invalid-datatype-param-pattern.cem.html`
+
+```bash
+dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
+  uri=packages/cem_ml/schema-packages/schema/v1/examples/invalid-datatype-param-pattern.cem,contentType=application/vnd.cem.schema+cem,schema=https://cem.dev/ns/schema/1 \
+  --to-content-type application/cem --to-schema https://cem.dev/ns/cem-ml/1 \
+  --cemt-formatter-profile tabular --cemt-color-profile terminal --output-color-type \
+  ansi-256
+```
+
+![Preview of CEM Schema Definition Language Package invalid-datatype-param-pattern example](examples/previews/invalid-datatype-param-pattern.cem.svg)
+
+### invalid-datatype-param-digits
+
+- Source: [`examples/invalid-datatype-param-digits.cem`](examples/invalid-datatype-param-digits.cem)
+- Content type: `application/vnd.cem.schema+cem`
+- Schema: `https://cem.dev/ns/schema/1`
+- Expected result: `fail`
+- Expected diagnostics: `cem.schema_definition.invalid_datatype_param`
+- Preview renderer: `CLI convert, tabular formatter, preview HTML + html2svg`
+- Preview HTML: `dist/cem_ml/schema-packages/schema/v1/examples/invalid-datatype-param-digits.cem.html`
+
+```bash
+dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
+  uri=packages/cem_ml/schema-packages/schema/v1/examples/invalid-datatype-param-digits.cem,contentType=application/vnd.cem.schema+cem,schema=https://cem.dev/ns/schema/1 \
+  --to-content-type application/cem --to-schema https://cem.dev/ns/cem-ml/1 \
+  --cemt-formatter-profile tabular --cemt-color-profile terminal --output-color-type \
+  ansi-256
+```
+
+![Preview of CEM Schema Definition Language Package invalid-datatype-param-digits example](examples/previews/invalid-datatype-param-digits.cem.svg)
+
+### invalid-datatype-param-uri-media
+
+- Source: [`examples/invalid-datatype-param-uri-media.cem`](examples/invalid-datatype-param-uri-media.cem)
+- Content type: `application/vnd.cem.schema+cem`
+- Schema: `https://cem.dev/ns/schema/1`
+- Expected result: `fail`
+- Expected diagnostics: `cem.schema_definition.invalid_datatype_param`
+- Preview renderer: `CLI convert, tabular formatter, preview HTML + html2svg`
+- Preview HTML: `dist/cem_ml/schema-packages/schema/v1/examples/invalid-datatype-param-uri-media.cem.html`
+
+```bash
+dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
+  uri=packages/cem_ml/schema-packages/schema/v1/examples/invalid-datatype-param-uri-media.cem,contentType=application/vnd.cem.schema+cem,schema=https://cem.dev/ns/schema/1 \
+  --to-content-type application/cem --to-schema https://cem.dev/ns/cem-ml/1 \
+  --cemt-formatter-profile tabular --cemt-color-profile terminal --output-color-type \
+  ansi-256
+```
+
+![Preview of CEM Schema Definition Language Package invalid-datatype-param-uri-media example](examples/previews/invalid-datatype-param-uri-media.cem.svg)
+
+### invalid-field-contract-presence
+
+- Source: [`examples/invalid-field-contract-presence.cem`](examples/invalid-field-contract-presence.cem)
+- Content type: `application/vnd.cem.schema+cem`
+- Schema: `https://cem.dev/ns/schema/1`
+- Expected result: `fail`
+- Expected diagnostics: `cem.schema_definition.invalid_field_contract`
+- Preview renderer: `CLI convert, tabular formatter, preview HTML + html2svg`
+- Preview HTML: `dist/cem_ml/schema-packages/schema/v1/examples/invalid-field-contract-presence.cem.html`
+
+```bash
+dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
+  uri=packages/cem_ml/schema-packages/schema/v1/examples/invalid-field-contract-presence.cem,contentType=application/vnd.cem.schema+cem,schema=https://cem.dev/ns/schema/1 \
+  --to-content-type application/cem --to-schema https://cem.dev/ns/cem-ml/1 \
+  --cemt-formatter-profile tabular --cemt-color-profile terminal --output-color-type \
+  ansi-256
+```
+
+![Preview of CEM Schema Definition Language Package invalid-field-contract-presence example](examples/previews/invalid-field-contract-presence.cem.svg)
+
+### invalid-field-contract-condition
+
+- Source: [`examples/invalid-field-contract-condition.cem`](examples/invalid-field-contract-condition.cem)
+- Content type: `application/vnd.cem.schema+cem`
+- Schema: `https://cem.dev/ns/schema/1`
+- Expected result: `fail`
+- Expected diagnostics: `cem.schema_definition.invalid_field_contract`
+- Preview renderer: `CLI convert, tabular formatter, preview HTML + html2svg`
+- Preview HTML: `dist/cem_ml/schema-packages/schema/v1/examples/invalid-field-contract-condition.cem.html`
+
+```bash
+dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
+  uri=packages/cem_ml/schema-packages/schema/v1/examples/invalid-field-contract-condition.cem,contentType=application/vnd.cem.schema+cem,schema=https://cem.dev/ns/schema/1 \
+  --to-content-type application/cem --to-schema https://cem.dev/ns/cem-ml/1 \
+  --cemt-formatter-profile tabular --cemt-color-profile terminal --output-color-type \
+  ansi-256
+```
+
+![Preview of CEM Schema Definition Language Package invalid-field-contract-condition example](examples/previews/invalid-field-contract-condition.cem.svg)
+
+### invalid-field-contract-child-sequence
+
+- Source: [`examples/invalid-field-contract-child-sequence.cem`](examples/invalid-field-contract-child-sequence.cem)
+- Content type: `application/vnd.cem.schema+cem`
+- Schema: `https://cem.dev/ns/schema/1`
+- Expected result: `fail`
+- Expected diagnostics: `cem.schema_definition.invalid_field_contract`
+- Preview renderer: `CLI convert, tabular formatter, preview HTML + html2svg`
+- Preview HTML: `dist/cem_ml/schema-packages/schema/v1/examples/invalid-field-contract-child-sequence.cem.html`
+
+```bash
+dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
+  uri=packages/cem_ml/schema-packages/schema/v1/examples/invalid-field-contract-child-sequence.cem,contentType=application/vnd.cem.schema+cem,schema=https://cem.dev/ns/schema/1 \
+  --to-content-type application/cem --to-schema https://cem.dev/ns/cem-ml/1 \
+  --cemt-formatter-profile tabular --cemt-color-profile terminal --output-color-type \
+  ansi-256
+```
+
+![Preview of CEM Schema Definition Language Package invalid-field-contract-child-sequence example](examples/previews/invalid-field-contract-child-sequence.cem.svg)
+
+### invalid-attribute-default
+
+- Source: [`examples/invalid-attribute-default.cem`](examples/invalid-attribute-default.cem)
+- Content type: `application/vnd.cem.schema+cem`
+- Schema: `https://cem.dev/ns/schema/1`
+- Expected result: `fail`
+- Expected diagnostics: `cem.schema_definition.invalid_default_value`
+- Preview renderer: `CLI convert, tabular formatter, preview HTML + html2svg`
+- Preview HTML: `dist/cem_ml/schema-packages/schema/v1/examples/invalid-attribute-default.cem.html`
+
+```bash
+dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
+  uri=packages/cem_ml/schema-packages/schema/v1/examples/invalid-attribute-default.cem,contentType=application/vnd.cem.schema+cem,schema=https://cem.dev/ns/schema/1 \
+  --to-content-type application/cem --to-schema https://cem.dev/ns/cem-ml/1 \
+  --cemt-formatter-profile tabular --cemt-color-profile terminal --output-color-type \
+  ansi-256
+```
+
+![Preview of CEM Schema Definition Language Package invalid-attribute-default example](examples/previews/invalid-attribute-default.cem.svg)
+
+### invalid-unclosed-schema
+
+- Source: [`examples/invalid-unclosed-schema.cem`](examples/invalid-unclosed-schema.cem)
+- Content type: `application/vnd.cem.schema+cem`
+- Schema: `https://cem.dev/ns/schema/1`
+- Expected result: `fail`
+- Expected diagnostics: `cem.ast.unclosed_scope`
+- Preview renderer: `CLI convert, tabular formatter, preview HTML + html2svg`
+- Preview HTML: `dist/cem_ml/schema-packages/schema/v1/examples/invalid-unclosed-schema.cem.html`
+
+```bash
+dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
+  uri=packages/cem_ml/schema-packages/schema/v1/examples/invalid-unclosed-schema.cem,contentType=application/vnd.cem.schema+cem,schema=https://cem.dev/ns/schema/1 \
+  --to-content-type application/cem --to-schema https://cem.dev/ns/cem-ml/1 \
+  --cemt-formatter-profile tabular --cemt-color-profile terminal --output-color-type \
+  ansi-256
+```
+
+![Preview of CEM Schema Definition Language Package invalid-unclosed-schema example](examples/previews/invalid-unclosed-schema.cem.svg)

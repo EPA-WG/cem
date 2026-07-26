@@ -40,23 +40,55 @@ The schema describes Markdown resources as a document model:
 Variant-specific parsers can refine this model through converter profiles
 instead of changing the generic Markdown schema identity.
 
-## Validation Examples
+## Examples
 
-The schema-owned examples live in [`examples/`](examples/) and are used by the
-CLI validation integration tests.
+This section is generated from `package.cem` `{example}` metadata by the
+`samples2readme` Nx target. Each SVG previews the example content, not
+the validation report. The target writes a preformatted HTML preview to
+`dist/cem_ml/schema-packages/<package>/v1/examples/<example-file>.html`,
+then renders the `<pre>` spans through headless Chromium into
+`examples/previews/<example-file>.svg`.
+Source snapshots are used only where the current CLI cannot yet render
+the package formatter/colorizer path for that content identity.
 
-| Example                                                         | Purpose                                                               | Expected result                                  |
-| --------------------------------------------------------------- | --------------------------------------------------------------------- | ------------------------------------------------ |
-| [`basic-document.md`](examples/basic-document.md)               | CommonMark headings, emphasis, links, and lists.                      | Pass                                             |
-| [`gfm-worklog.md`](examples/gfm-worklog.md)                     | GFM-style table and task list using the `variant=GFM` parser profile. | Pass                                             |
-| [`invalid-embedded-html.md`](examples/invalid-embedded-html.md) | Raw HTML rejected by the default embedded HTML policy.                | Fail with `cem.markdown.embedded_html_rejected`  |
-| [`unknown-variant.md`](examples/unknown-variant.md)             | Valid Markdown with an unregistered `variant` content-type parameter. | Pass with warning `cem.markdown.unknown_variant` |
+### basic-document
 
-Validate an example explicitly against this schema:
+- Source: [`examples/basic-document.md`](examples/basic-document.md)
+- Content type: `text/markdown; charset=utf-8; variant=CommonMark`
+- Schema: `https://cem.dev/ns/data/markdown/1`
+- Expected result: `pass`
+- Preview renderer: `source snapshot HTML + html2svg`
+- Preview HTML: `dist/cem_ml/schema-packages/markdown/v1/examples/basic-document.md.html`
+![Preview of Markdown Resource Schema Package basic-document example](examples/previews/basic-document.md.svg)
 
-```bash
-cargo run -p cem-ml-cli -- validate \
-  --content-type 'text/markdown; charset=utf-8; variant=CommonMark' \
-  --schema https://cem.dev/ns/data/markdown/1 \
-  packages/cem_ml/schema-packages/markdown/v1/examples/basic-document.md
-```
+### gfm-worklog
+
+- Source: [`examples/gfm-worklog.md`](examples/gfm-worklog.md)
+- Content type: `text/markdown; charset=utf-8; variant=GFM`
+- Schema: `https://cem.dev/ns/data/markdown/1`
+- Expected result: `pass`
+- Preview renderer: `source snapshot HTML + html2svg`
+- Preview HTML: `dist/cem_ml/schema-packages/markdown/v1/examples/gfm-worklog.md.html`
+![Preview of Markdown Resource Schema Package gfm-worklog example](examples/previews/gfm-worklog.md.svg)
+
+### invalid-embedded-html
+
+- Source: [`examples/invalid-embedded-html.md`](examples/invalid-embedded-html.md)
+- Content type: `text/markdown; charset=utf-8; variant=CommonMark`
+- Schema: `https://cem.dev/ns/data/markdown/1`
+- Expected result: `fail`
+- Expected diagnostics: `cem.markdown.embedded_html_rejected`
+- Preview renderer: `source snapshot HTML + html2svg`
+- Preview HTML: `dist/cem_ml/schema-packages/markdown/v1/examples/invalid-embedded-html.md.html`
+![Preview of Markdown Resource Schema Package invalid-embedded-html example](examples/previews/invalid-embedded-html.md.svg)
+
+### unknown-variant
+
+- Source: [`examples/unknown-variant.md`](examples/unknown-variant.md)
+- Content type: `text/markdown; charset=utf-8; variant=CustomWiki`
+- Schema: `https://cem.dev/ns/data/markdown/1`
+- Expected result: `pass`
+- Expected diagnostics: `cem.markdown.unknown_variant`
+- Preview renderer: `source snapshot HTML + html2svg`
+- Preview HTML: `dist/cem_ml/schema-packages/markdown/v1/examples/unknown-variant.md.html`
+![Preview of Markdown Resource Schema Package unknown-variant example](examples/previews/unknown-variant.md.svg)

@@ -10613,6 +10613,125 @@ fn render_report_markdown(report: &cem_ml::report::Report) -> String {
     out
 }
 
+fn render_validate_stdout_report(
+    report: &cem_ml::report::Report,
+    format: cli::ValidateFormat,
+) -> String {
+    match format {
+        cli::ValidateFormat::Html => render_report_html(report),
+        _ => serde_json::to_string_pretty(report).unwrap_or_default(),
+    }
+}
+
+fn render_report_html(report: &cem_ml::report::Report) -> String {
+    let mut out = String::new();
+    out.push_str("<!doctype html>\n");
+    out.push_str("<html lang=\"en\">\n");
+    out.push_str("<head>\n");
+    out.push_str("<meta charset=\"utf-8\">\n");
+    out.push_str("<title>cem-ml validation report</title>\n");
+    out.push_str("<style>\n");
+    out.push_str(
+        "html{font:14px ui-sans-serif,system-ui,sans-serif;background:#f7f8fa;color:#1f2328}\
+         body{margin:0;padding:24px}main{max-width:980px;margin:0 auto}\
+         h1{font-size:22px;line-height:1.2;margin:0 0 16px}\
+         h2{font-size:15px;line-height:1.3;margin:20px 0 8px}\
+         .summary{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:8px}\
+         .metric{border:1px solid #d0d7de;border-radius:6px;background:#fff;padding:10px}\
+         .metric b{display:block;font-size:20px;line-height:1.1}.metric span{color:#57606a;font-size:12px}\
+         .meta,.diagnostic{border:1px solid #d0d7de;border-radius:6px;background:#fff;padding:12px;margin:8px 0}\
+         code{font:12px ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}\
+         .pass{color:#1a7f37}.warn{color:#9a6700}.fail{color:#cf222e}\
+         .diagnostic header{display:flex;gap:8px;align-items:center;margin-bottom:6px}\
+         .badge{border-radius:999px;padding:2px 8px;background:#f6f8fa;border:1px solid #d0d7de;font-size:12px}\
+         p{margin:6px 0;color:#57606a}\n",
+    );
+    out.push_str("</style>\n");
+    out.push_str("</head>\n<body>\n<main>\n");
+    out.push_str("<h1>cem-ml validation report</h1>\n");
+    let status_class = if report.summary.fatal_count + report.summary.error_count > 0 {
+        "fail"
+    } else if report.summary.warning_count > 0 {
+        "warn"
+    } else {
+        "pass"
+    };
+    out.push_str("<section class=\"summary\" aria-label=\"Report summary\">\n");
+    render_report_html_metric(&mut out, "Inputs", report.summary.input_count);
+    render_report_html_metric(&mut out, "Info", report.summary.info_count);
+    render_report_html_metric(&mut out, "Warnings", report.summary.warning_count);
+    render_report_html_metric(&mut out, "Errors", report.summary.error_count);
+    render_report_html_metric(&mut out, "Fatal", report.summary.fatal_count);
+    render_report_html_metric(&mut out, "Hard", report.summary.hard_violation_count);
+    out.push_str("</section>\n");
+    out.push_str("<section class=\"meta\">\n");
+    out.push_str("<h2>Inputs</h2>\n");
+    for input in &report.inputs {
+        out.push_str("<p><code>");
+        push_xml_escaped_text(&mut out, input);
+        out.push_str("</code></p>\n");
+    }
+    out.push_str("<h2>Options</h2>\n");
+    out.push_str("<p>fail level: <code>");
+    push_xml_escaped_text(&mut out, engine_fail_level_label(report.options.fail_level));
+    out.push_str("</code></p>\n");
+    if let Some(content_type) = report.options.content_type.as_deref() {
+        out.push_str("<p>content type: <code>");
+        push_xml_escaped_text(&mut out, content_type);
+        out.push_str("</code></p>\n");
+    }
+    if let Some(schema) = report.options.schema.as_deref() {
+        out.push_str("<p>schema: <code>");
+        push_xml_escaped_text(&mut out, schema);
+        out.push_str("</code></p>\n");
+    }
+    out.push_str("</section>\n");
+    out.push_str("<section>\n");
+    out.push_str("<h2 class=\"");
+    out.push_str(status_class);
+    out.push_str("\">Diagnostics</h2>\n");
+    if report.diagnostics.is_empty() {
+        out.push_str("<p class=\"pass\">No diagnostics.</p>\n");
+    } else {
+        for diagnostic in &report.diagnostics {
+            out.push_str("<article class=\"diagnostic\">\n<header><span class=\"badge ");
+            out.push_str(severity_label(diagnostic.severity));
+            out.push_str("\">");
+            push_xml_escaped_text(&mut out, severity_label(diagnostic.severity));
+            out.push_str("</span><code>");
+            push_xml_escaped_text(&mut out, &diagnostic.code);
+            out.push_str("</code></header>\n<p>");
+            push_xml_escaped_text(&mut out, &diagnostic.message);
+            out.push_str("</p>\n");
+            if let Some(uri) = diagnostic.uri.as_deref() {
+                out.push_str("<p><code>");
+                push_xml_escaped_text(&mut out, uri);
+                if let Some(line) = diagnostic.line {
+                    out.push(':');
+                    out.push_str(&line.to_string());
+                    if let Some(column) = diagnostic.column {
+                        out.push(':');
+                        out.push_str(&column.to_string());
+                    }
+                }
+                out.push_str("</code></p>\n");
+            }
+            out.push_str("</article>\n");
+        }
+    }
+    out.push_str("</section>\n");
+    out.push_str("</main>\n</body>\n</html>\n");
+    out
+}
+
+fn render_report_html_metric(out: &mut String, label: &str, value: u32) {
+    out.push_str("<div class=\"metric\"><b>");
+    out.push_str(&value.to_string());
+    out.push_str("</b><span>");
+    push_xml_escaped_text(out, label);
+    out.push_str("</span></div>\n");
+}
+
 fn render_source_map_summary(
     transform: Option<&cem_ml::report::TransformReport>,
     transform_graph: Option<&cem_ml::report::TransformGraphReport>,
@@ -10883,8 +11002,8 @@ pub fn run_validate<E: CemMlEngine + ?Sized>(
             return Outcome::code(EXIT_IO);
         }
         if !s.quiet {
-            let json = serde_json::to_string_pretty(&report).unwrap_or_default();
-            let _ = writeln!(s.stdout, "{json}");
+            let rendered = render_validate_stdout_report(&report, args.format);
+            let _ = writeln!(s.stdout, "{rendered}");
         }
         if fail_for_summary(args.fail_level, &report) {
             return Outcome::code(EXIT_HARD_FAILURE);
@@ -10911,8 +11030,8 @@ pub fn run_validate<E: CemMlEngine + ?Sized>(
                 return Outcome::code(EXIT_IO);
             }
             if !s.quiet {
-                let json = serde_json::to_string_pretty(&resp.report).unwrap_or_default();
-                let _ = writeln!(s.stdout, "{json}");
+                let rendered = render_validate_stdout_report(&resp.report, args.format);
+                let _ = writeln!(s.stdout, "{rendered}");
             }
             if fail_for_summary(args.fail_level, &resp.report) {
                 Outcome::code(EXIT_HARD_FAILURE)
@@ -12313,6 +12432,22 @@ mod tests {
             index += 1;
         }
         out
+    }
+
+    fn html_text_content(input: &str) -> String {
+        let mut text = String::new();
+        let mut in_tag = false;
+        for ch in input.chars() {
+            match ch {
+                '<' => in_tag = true,
+                '>' if in_tag => in_tag = false,
+                _ if !in_tag => text.push(ch),
+                _ => {}
+            }
+        }
+        text.replace("&lt;", "<")
+            .replace("&gt;", ">")
+            .replace("&amp;", "&")
     }
 
     fn test_cem_document(input: &str) -> cem_ml::parser::document::CemDocument {
@@ -15784,6 +15919,25 @@ mod tests {
             assert!(v["options"].get(k).is_some(), "missing options.{k}");
         }
         assert_eq!(v["options"]["failLevel"], "validate");
+    }
+
+    #[test]
+    fn validate_format_html_emits_html_report_stdout() {
+        let p = write_fixture("validate-html-report.cem", "{x}");
+        let (outcome, stdout, _) = run(
+            &FakeEngine,
+            &["validate", "--format", "html", p.to_str().unwrap()],
+        );
+
+        assert_eq!(outcome.exit_code, EXIT_OK);
+        assert!(stdout.starts_with("<!doctype html>"), "{stdout}");
+        assert!(
+            stdout.contains("<h1>cem-ml validation report</h1>"),
+            "{stdout}"
+        );
+        assert!(stdout.contains("<section class=\"summary\""), "{stdout}");
+        assert!(stdout.contains("validate-html-report.cem"), "{stdout}");
+        assert!(serde_json::from_str::<serde_json::Value>(&stdout).is_err());
     }
 
     #[test]
@@ -25231,6 +25385,77 @@ declare let broken = 1 +
         assert_eq!(
             stdout,
             "id    ,name  ,total \r\n...789,Al...a,123.45\r\n    42,Bo    ,  9.5 \r\n"
+        );
+    }
+
+    #[test]
+    fn convert_csv_html_color_profile_file_output_wraps_pre_and_preserves_terminal_text() {
+        let p = write_fixture(
+            "convert-csv-html-color-profile.csv",
+            "id,name,total\n123456789,Alexandria,123.4567\n42,Bo,9.5\n",
+        );
+        let out_path =
+            std::env::temp_dir().join("cem-ml-cli-tests/convert-csv-html-color-profile.html");
+        let _ = std::fs::remove_file(&out_path);
+        let common_args = [
+            "convert",
+            p.to_str().unwrap(),
+            "--content-type",
+            "text/csv",
+            "--schema",
+            cem_ml::schema::registry::CSV_SCHEMA_URI,
+            "--to-content-type",
+            "text/csv",
+            "--to-schema",
+            cem_ml::schema::registry::CSV_SCHEMA_URI,
+            "--cemt-formatter-profile",
+            "tabular",
+            "--cemt-formatter-option",
+            "csv.maxFieldWidth=6",
+            "--cemt-formatter-option",
+            "csv.stringTrim=middle",
+        ];
+        let mut terminal_args = Vec::from(common_args);
+        terminal_args.extend([
+            "--cemt-color-profile",
+            "terminal",
+            "--output-color-type",
+            "ansi-256",
+        ]);
+        let (terminal_outcome, terminal_stdout, terminal_stderr) =
+            run(&RealCemMlEngine::new(), &terminal_args);
+        assert_eq!(terminal_outcome.exit_code, EXIT_OK, "{terminal_stderr}");
+        assert!(terminal_stderr.trim().is_empty(), "{terminal_stderr}");
+        assert!(terminal_stdout.contains("\x1b["), "{terminal_stdout:?}");
+
+        let mut html_args = Vec::from(common_args);
+        html_args.extend([
+            "--cemt-color-profile",
+            "html",
+            "--out",
+            out_path.to_str().unwrap(),
+        ]);
+        let (html_outcome, html_stdout, html_stderr) = run(&RealCemMlEngine::new(), &html_args);
+        assert_eq!(html_outcome.exit_code, EXIT_OK, "{html_stderr}");
+        assert!(html_stdout.trim().is_empty(), "{html_stdout}");
+        assert!(html_stderr.trim().is_empty(), "{html_stderr}");
+
+        let written = std::fs::read_to_string(&out_path).unwrap();
+        assert!(
+            written.starts_with(
+                r#"<pre class="cem-output cem-output-csv" style="white-space: pre; tab-size: 8">"#
+            ),
+            "{written}"
+        );
+        assert!(written.ends_with("</pre>"), "{written}");
+        assert!(written.contains(r#"data-role="data.field.1""#), "{written}");
+        assert!(
+            written.contains(r#"style="color: var(--cem-color-data-field-1, "#),
+            "{written}"
+        );
+        assert_eq!(
+            html_text_content(&written),
+            strip_ansi_codes(&terminal_stdout)
         );
     }
 

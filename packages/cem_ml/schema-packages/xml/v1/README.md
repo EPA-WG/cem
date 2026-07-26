@@ -44,25 +44,111 @@ The package declares CEMT formatter and colorizer artifacts in `package.cem`.
 The public formatter profile names are `compact`, `pretty`, and `tabular`.
 The public colorizer profile names are `terminal`, `html`, and `md`.
 
-## Validation Examples
+## Examples
 
-Validate XML resources through the CLI with the schema URI and content type:
+This section is generated from `package.cem` `{example}` metadata by the
+`samples2readme` Nx target. Each SVG previews the example content, not
+the validation report. The target writes a preformatted HTML preview to
+`dist/cem_ml/schema-packages/<package>/v1/examples/<example-file>.html`,
+then renders the `<pre>` spans through headless Chromium into
+`examples/previews/<example-file>.svg`.
+Source snapshots are used only where the current CLI cannot yet render
+the package formatter/colorizer path for that content identity.
+
+### basic-document
+
+- Source: [`examples/basic-document.xml`](examples/basic-document.xml)
+- Content type: `application/xml`
+- Schema: `https://cem.dev/ns/data/xml/1`
+- Expected result: `pass`
+- Preview renderer: `CLI convert, tabular formatter, preview HTML + html2svg`
+- Preview HTML: `dist/cem_ml/schema-packages/xml/v1/examples/basic-document.xml.html`
 
 ```bash
-cem-ml validate --format json \
-  --content-type application/xml \
-  --schema https://cem.dev/ns/data/xml/1 \
-  packages/cem_ml/schema-packages/xml/v1/examples/basic-document.xml
+dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
+  uri=packages/cem_ml/schema-packages/xml/v1/examples/basic-document.xml,contentType=application/xml,schema=https://cem.dev/ns/data/xml/1 \
+  --from-format xml --to-content-type application/xml --to-schema \
+  https://cem.dev/ns/data/xml/1 --cemt-formatter-profile tabular --cemt-color-profile \
+  terminal --output-color-type ansi-256
 ```
 
-Checked examples:
+![Preview of XML Resource Schema Package basic-document example](examples/previews/basic-document.xml.svg)
 
-- [basic-document.xml](examples/basic-document.xml): a minimal XML document.
-- [namespaced-document.xml](examples/namespaced-document.xml): default and
-  prefixed namespace declarations.
-- [invalid-mismatched-tag.xml](examples/invalid-mismatched-tag.xml): reports
-  `cem.xml.parse_error`.
-- [invalid-unbound-prefix.xml](examples/invalid-unbound-prefix.xml): reports
-  `cem.xml.unbound_namespace_prefix`.
-- [invalid-doctype.xml](examples/invalid-doctype.xml): reports
-  `cem.xml.dtd_rejected` under the current no-DTD runtime policy.
+### namespaced-document
+
+- Source: [`examples/namespaced-document.xml`](examples/namespaced-document.xml)
+- Content type: `text/xml; charset=utf-8`
+- Schema: `https://cem.dev/ns/data/xml/1`
+- Expected result: `pass`
+- Preview renderer: `CLI convert, tabular formatter, preview HTML + html2svg`
+- Preview HTML: `dist/cem_ml/schema-packages/xml/v1/examples/namespaced-document.xml.html`
+
+```bash
+dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
+  'uri=packages/cem_ml/schema-packages/xml/v1/examples/namespaced-document.xml,contentType=text/xml; charset=utf-8,schema=https://cem.dev/ns/data/xml/1' \
+  --from-format xml --to-content-type 'text/xml; charset=utf-8' --to-schema \
+  https://cem.dev/ns/data/xml/1 --cemt-formatter-profile tabular --cemt-color-profile \
+  terminal --output-color-type ansi-256
+```
+
+![Preview of XML Resource Schema Package namespaced-document example](examples/previews/namespaced-document.xml.svg)
+
+### invalid-mismatched-tag
+
+- Source: [`examples/invalid-mismatched-tag.xml`](examples/invalid-mismatched-tag.xml)
+- Content type: `application/xml`
+- Schema: `https://cem.dev/ns/data/xml/1`
+- Expected result: `fail`
+- Expected diagnostics: `cem.xml.parse_error`
+- Preview renderer: `CLI convert, tabular formatter, preview HTML + html2svg`
+- Preview HTML: `dist/cem_ml/schema-packages/xml/v1/examples/invalid-mismatched-tag.xml.html`
+
+```bash
+dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
+  uri=packages/cem_ml/schema-packages/xml/v1/examples/invalid-mismatched-tag.xml,contentType=application/xml,schema=https://cem.dev/ns/data/xml/1 \
+  --from-format xml --to-content-type application/xml --to-schema \
+  https://cem.dev/ns/data/xml/1 --cemt-formatter-profile tabular --cemt-color-profile \
+  terminal --output-color-type ansi-256
+```
+
+![Preview of XML Resource Schema Package invalid-mismatched-tag example](examples/previews/invalid-mismatched-tag.xml.svg)
+
+### invalid-unbound-prefix
+
+- Source: [`examples/invalid-unbound-prefix.xml`](examples/invalid-unbound-prefix.xml)
+- Content type: `application/xml`
+- Schema: `https://cem.dev/ns/data/xml/1`
+- Expected result: `fail`
+- Expected diagnostics: `cem.xml.unbound_namespace_prefix`
+- Preview renderer: `CLI convert, tabular formatter, preview HTML + html2svg`
+- Preview HTML: `dist/cem_ml/schema-packages/xml/v1/examples/invalid-unbound-prefix.xml.html`
+
+```bash
+dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
+  uri=packages/cem_ml/schema-packages/xml/v1/examples/invalid-unbound-prefix.xml,contentType=application/xml,schema=https://cem.dev/ns/data/xml/1 \
+  --from-format xml --to-content-type application/xml --to-schema \
+  https://cem.dev/ns/data/xml/1 --cemt-formatter-profile tabular --cemt-color-profile \
+  terminal --output-color-type ansi-256
+```
+
+![Preview of XML Resource Schema Package invalid-unbound-prefix example](examples/previews/invalid-unbound-prefix.xml.svg)
+
+### invalid-doctype
+
+- Source: [`examples/invalid-doctype.xml`](examples/invalid-doctype.xml)
+- Content type: `application/xml`
+- Schema: `https://cem.dev/ns/data/xml/1`
+- Expected result: `fail`
+- Expected diagnostics: `cem.xml.dtd_rejected`
+- Preview renderer: `CLI convert, tabular formatter, preview HTML + html2svg`
+- Preview HTML: `dist/cem_ml/schema-packages/xml/v1/examples/invalid-doctype.xml.html`
+
+```bash
+dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
+  uri=packages/cem_ml/schema-packages/xml/v1/examples/invalid-doctype.xml,contentType=application/xml,schema=https://cem.dev/ns/data/xml/1 \
+  --from-format xml --to-content-type application/xml --to-schema \
+  https://cem.dev/ns/data/xml/1 --cemt-formatter-profile tabular --cemt-color-profile \
+  terminal --output-color-type ansi-256
+```
+
+![Preview of XML Resource Schema Package invalid-doctype example](examples/previews/invalid-doctype.xml.svg)

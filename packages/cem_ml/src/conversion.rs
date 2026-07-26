@@ -3881,11 +3881,10 @@ pub fn execute_csv_document_output_pipeline_with_environment(
     target_scope: &ScopeConfig,
     diagnostic_uri: Option<&str>,
 ) -> ConversionOutputPipelineExecution {
-    let output_color_selection =
-        match csv_output_color_selection(target_scope.output_color_type.as_deref()) {
-            Ok(selection) => selection,
-            Err(message) => return csv_output_pipeline_failed(diagnostic_uri, message),
-        };
+    let output_color_selection = match csv_output_color_selection_for_scope(target_scope) {
+        Ok(selection) => selection,
+        Err(message) => return csv_output_pipeline_failed(diagnostic_uri, message),
+    };
     let local_artifact_cache = ConversionOutputPipelineArtifactCache::default();
     let cached_environment = if environment.artifact_cache.is_some() {
         *environment
@@ -4287,6 +4286,32 @@ fn csv_output_color_selection(
         .map_err(|message| {
             format!("invalid CSV output color type `{output_color_type}`: {message}")
         })
+}
+
+fn csv_output_color_selection_for_scope(
+    target_scope: &ScopeConfig,
+) -> Result<Option<TransformTemplateOutputColorSelection>, String> {
+    if let Some(selection) = csv_output_color_selection(target_scope.output_color_type.as_deref())?
+    {
+        return Ok(Some(selection));
+    }
+
+    let Some(color_profile) = target_scope
+        .cemt_color_profile
+        .as_deref()
+        .map(str::trim)
+        .filter(|profile| !profile.is_empty())
+    else {
+        return Ok(None);
+    };
+
+    if color_profile == "html" {
+        return parse_transform_template_output_color_type("html")
+            .map(Some)
+            .map_err(|message| format!("invalid inferred CSV HTML output color type: {message}"));
+    }
+
+    Ok(None)
 }
 
 fn csv_output_color_selection_requests_color(
@@ -14563,6 +14588,11 @@ mod tests {
             output_color_type: Some("html-css-vars".to_owned()),
             ..ScopeConfig::default()
         };
+        let html_color_profile_scope = ScopeConfig {
+            cemt_formatter_profile: Some("tabular".to_owned()),
+            cemt_color_profile: Some("html".to_owned()),
+            ..ScopeConfig::default()
+        };
         let html_tab_size_scope = ScopeConfig {
             cemt_formatter_profile: Some("tabular".to_owned()),
             cemt_formatter_options: BTreeMap::from([("tabSize".to_owned(), "6".to_owned())]),
@@ -14588,6 +14618,12 @@ mod tests {
             &html_scope,
             Some("builtin:csv-html-output"),
         );
+        let html_color_profile = execute_csv_document_output_pipeline_with_environment(
+            &environment,
+            table.clone(),
+            &html_color_profile_scope,
+            Some("builtin:csv-html-color-profile-output"),
+        );
         let html_tab_size = execute_csv_document_output_pipeline_with_environment(
             &environment,
             table.clone(),
@@ -14608,6 +14644,11 @@ mod tests {
         );
         assert!(html.diagnostics.is_empty(), "{:?}", html.diagnostics);
         assert!(
+            html_color_profile.diagnostics.is_empty(),
+            "{:?}",
+            html_color_profile.diagnostics
+        );
+        assert!(
             html_tab_size.diagnostics.is_empty(),
             "{:?}",
             html_tab_size.diagnostics
@@ -14622,12 +14663,23 @@ mod tests {
         let terminal_text =
             strip_ansi_codes(terminal.output.as_ref().and_then(Value::as_str).unwrap());
         let html_output = html.output.as_ref().and_then(Value::as_str).unwrap();
+        let html_color_profile_output = html_color_profile
+            .output
+            .as_ref()
+            .and_then(Value::as_str)
+            .unwrap();
         let plain_output = plain.output.as_ref().and_then(Value::as_str).unwrap();
         assert!(
             html_output.starts_with(&csv_html_preview_prefix(
                 DEFAULT_FORMATTER_TAB_SIZE as usize
             )),
             "{html_output}"
+        );
+        assert!(
+            html_color_profile_output.starts_with(&csv_html_preview_prefix(
+                DEFAULT_FORMATTER_TAB_SIZE as usize
+            )),
+            "{html_color_profile_output}"
         );
         assert!(
             html_tab_size
@@ -14647,6 +14699,11 @@ mod tests {
             "{html_output}"
         );
         assert_eq!(html_text_content(html_output), terminal_text);
+        assert_eq!(html_text_content(html_color_profile_output), terminal_text);
+        assert!(
+            html_color_profile_output.contains(r#"style="color: var(--cem-color-data-field-1, "#),
+            "{html_color_profile_output}"
+        );
         assert!(!plain_output.contains('\u{1b}'), "{plain_output}");
         assert_eq!(plain_output, terminal_text);
     }

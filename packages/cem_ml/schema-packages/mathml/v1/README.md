@@ -34,17 +34,149 @@ policy is supplied by a later conversion layer.
 
 ## Examples
 
-- [basic-presentation.mml](examples/basic-presentation.mml): a minimal
-  presentation MathML expression.
-- [content-expression.mathml](examples/content-expression.mathml): a content
-  MathML expression for the content media-type alias.
-- [semantics-external-annotation.mml](examples/semantics-external-annotation.mml):
-  valid MathML that reports a warning for an external annotation source.
-- [invalid-missing-namespace.mml](examples/invalid-missing-namespace.mml):
-  XML with a `math` root that does not claim the MathML namespace.
-- [invalid-root-not-math.mml](examples/invalid-root-not-math.mml): MathML
-  namespace content with the wrong document root.
-- [invalid-content-profile-presentation-only.mml](examples/invalid-content-profile-presentation-only.mml):
-  presentation-only MathML checked as `application/mathml-content+xml`.
-- [invalid-not-well-formed.mml](examples/invalid-not-well-formed.mml):
-  malformed XML.
+This section is generated from `package.cem` `{example}` metadata by the
+`samples2readme` Nx target. Each SVG previews the example content, not
+the validation report. The target writes a preformatted HTML preview to
+`dist/cem_ml/schema-packages/<package>/v1/examples/<example-file>.html`,
+then renders the `<pre>` spans through headless Chromium into
+`examples/previews/<example-file>.svg`.
+Source snapshots are used only where the current CLI cannot yet render
+the package formatter/colorizer path for that content identity.
+
+### basic-presentation
+
+- Source: [`examples/basic-presentation.mml`](examples/basic-presentation.mml)
+- Content type: `application/mathml+xml`
+- Schema: `https://cem.dev/ns/data/mathml/1`
+- Expected result: `pass`
+- Preview renderer: `CLI convert, tabular formatter, preview HTML + html2svg`
+- Preview HTML: `dist/cem_ml/schema-packages/mathml/v1/examples/basic-presentation.mml.html`
+
+```bash
+dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
+  uri=packages/cem_ml/schema-packages/mathml/v1/examples/basic-presentation.mml,contentType=application/mathml+xml,schema=https://cem.dev/ns/data/mathml/1 \
+  --from-format xml --to-content-type application/mathml+xml --to-schema \
+  https://cem.dev/ns/data/mathml/1 --cemt-formatter-profile tabular --cemt-color-profile \
+  terminal --output-color-type ansi-256
+```
+
+![Preview of MathML schema package v1 basic-presentation example](examples/previews/basic-presentation.mml.svg)
+
+### content-expression
+
+- Source: [`examples/content-expression.mathml`](examples/content-expression.mathml)
+- Content type: `application/mathml-content+xml`
+- Schema: `https://cem.dev/ns/data/mathml/1`
+- Expected result: `pass`
+- Preview renderer: `CLI convert, tabular formatter, preview HTML + html2svg`
+- Preview HTML: `dist/cem_ml/schema-packages/mathml/v1/examples/content-expression.mathml.html`
+
+```bash
+dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
+  uri=packages/cem_ml/schema-packages/mathml/v1/examples/content-expression.mathml,contentType=application/mathml-content+xml,schema=https://cem.dev/ns/data/mathml/1 \
+  --from-format xml --to-content-type application/mathml-content+xml --to-schema \
+  https://cem.dev/ns/data/mathml/1 --cemt-formatter-profile tabular --cemt-color-profile \
+  terminal --output-color-type ansi-256
+```
+
+![Preview of MathML schema package v1 content-expression example](examples/previews/content-expression.mathml.svg)
+
+### semantics-external-annotation
+
+- Source: [`examples/semantics-external-annotation.mml`](examples/semantics-external-annotation.mml)
+- Content type: `application/mathml+xml`
+- Schema: `https://cem.dev/ns/data/mathml/1`
+- Expected result: `pass`
+- Expected diagnostics: `cem.mathml.external_annotation_rejected`
+- Preview renderer: `CLI convert, tabular formatter, preview HTML + html2svg`
+- Preview HTML: `dist/cem_ml/schema-packages/mathml/v1/examples/semantics-external-annotation.mml.html`
+
+```bash
+dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
+  uri=packages/cem_ml/schema-packages/mathml/v1/examples/semantics-external-annotation.mml,contentType=application/mathml+xml,schema=https://cem.dev/ns/data/mathml/1 \
+  --from-format xml --to-content-type application/mathml+xml --to-schema \
+  https://cem.dev/ns/data/mathml/1 --cemt-formatter-profile tabular --cemt-color-profile \
+  terminal --output-color-type ansi-256
+```
+
+![Preview of MathML schema package v1 semantics-external-annotation example](examples/previews/semantics-external-annotation.mml.svg)
+
+### invalid-missing-namespace
+
+- Source: [`examples/invalid-missing-namespace.mml`](examples/invalid-missing-namespace.mml)
+- Content type: `application/mathml+xml`
+- Schema: `https://cem.dev/ns/data/mathml/1`
+- Expected result: `fail`
+- Expected diagnostics: `cem.mathml.namespace_missing`
+- Preview renderer: `CLI convert, tabular formatter, preview HTML + html2svg`
+- Preview HTML: `dist/cem_ml/schema-packages/mathml/v1/examples/invalid-missing-namespace.mml.html`
+
+```bash
+dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
+  uri=packages/cem_ml/schema-packages/mathml/v1/examples/invalid-missing-namespace.mml,contentType=application/mathml+xml,schema=https://cem.dev/ns/data/mathml/1 \
+  --from-format xml --to-content-type application/mathml+xml --to-schema \
+  https://cem.dev/ns/data/mathml/1 --cemt-formatter-profile tabular --cemt-color-profile \
+  terminal --output-color-type ansi-256
+```
+
+![Preview of MathML schema package v1 invalid-missing-namespace example](examples/previews/invalid-missing-namespace.mml.svg)
+
+### invalid-root-not-math
+
+- Source: [`examples/invalid-root-not-math.mml`](examples/invalid-root-not-math.mml)
+- Content type: `application/mathml+xml`
+- Schema: `https://cem.dev/ns/data/mathml/1`
+- Expected result: `fail`
+- Expected diagnostics: `cem.mathml.root_not_math`
+- Preview renderer: `CLI convert, tabular formatter, preview HTML + html2svg`
+- Preview HTML: `dist/cem_ml/schema-packages/mathml/v1/examples/invalid-root-not-math.mml.html`
+
+```bash
+dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
+  uri=packages/cem_ml/schema-packages/mathml/v1/examples/invalid-root-not-math.mml,contentType=application/mathml+xml,schema=https://cem.dev/ns/data/mathml/1 \
+  --from-format xml --to-content-type application/mathml+xml --to-schema \
+  https://cem.dev/ns/data/mathml/1 --cemt-formatter-profile tabular --cemt-color-profile \
+  terminal --output-color-type ansi-256
+```
+
+![Preview of MathML schema package v1 invalid-root-not-math example](examples/previews/invalid-root-not-math.mml.svg)
+
+### invalid-content-profile-presentation-only
+
+- Source: [`examples/invalid-content-profile-presentation-only.mml`](examples/invalid-content-profile-presentation-only.mml)
+- Content type: `application/mathml-content+xml`
+- Schema: `https://cem.dev/ns/data/mathml/1`
+- Expected result: `fail`
+- Expected diagnostics: `cem.mathml.malformed_expression`
+- Preview renderer: `CLI convert, tabular formatter, preview HTML + html2svg`
+- Preview HTML: `dist/cem_ml/schema-packages/mathml/v1/examples/invalid-content-profile-presentation-only.mml.html`
+
+```bash
+dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
+  uri=packages/cem_ml/schema-packages/mathml/v1/examples/invalid-content-profile-presentation-only.mml,contentType=application/mathml-content+xml,schema=https://cem.dev/ns/data/mathml/1 \
+  --from-format xml --to-content-type application/mathml-content+xml --to-schema \
+  https://cem.dev/ns/data/mathml/1 --cemt-formatter-profile tabular --cemt-color-profile \
+  terminal --output-color-type ansi-256
+```
+
+![Preview of MathML schema package v1 invalid-content-profile-presentation-only example](examples/previews/invalid-content-profile-presentation-only.mml.svg)
+
+### invalid-not-well-formed
+
+- Source: [`examples/invalid-not-well-formed.mml`](examples/invalid-not-well-formed.mml)
+- Content type: `application/mathml+xml`
+- Schema: `https://cem.dev/ns/data/mathml/1`
+- Expected result: `fail`
+- Expected diagnostics: `cem.mathml.not_well_formed_xml`
+- Preview renderer: `CLI convert, tabular formatter, preview HTML + html2svg`
+- Preview HTML: `dist/cem_ml/schema-packages/mathml/v1/examples/invalid-not-well-formed.mml.html`
+
+```bash
+dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
+  uri=packages/cem_ml/schema-packages/mathml/v1/examples/invalid-not-well-formed.mml,contentType=application/mathml+xml,schema=https://cem.dev/ns/data/mathml/1 \
+  --from-format xml --to-content-type application/mathml+xml --to-schema \
+  https://cem.dev/ns/data/mathml/1 --cemt-formatter-profile tabular --cemt-color-profile \
+  terminal --output-color-type ansi-256
+```
+
+![Preview of MathML schema package v1 invalid-not-well-formed example](examples/previews/invalid-not-well-formed.mml.svg)

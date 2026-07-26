@@ -215,8 +215,8 @@ shape, or visible presentation output changes, update the SVG previews in
 `examples/previews/` in the same change by running
 `node packages/cem_ml/schema-packages/cem-ml/v1/scripts/verify-previews.mjs --update`.
 
-The package `verify` target regenerates previews into `dist/previews/` and
-fails on drift.
+The package `verify` target writes generated preview HTML/SVG artifacts into
+`dist/cem_ml/schema-packages/cem-ml/v1/examples/` and fails on drift.
 
 ## Verification
 
@@ -271,45 +271,131 @@ Tracked but not complete:
 - additional alias content-type examples if alias-specific parser or lifecycle
   behavior changes.
 
-## Validation Examples
+## Examples
 
-The schema-owned examples live in [`examples/`](examples/) and are used by the
-CLI validation integration tests.
+This section is generated from `package.cem` `{example}` metadata by the
+`samples2readme` Nx target. Each SVG previews the example content, not
+the validation report. The target writes a preformatted HTML preview to
+`dist/cem_ml/schema-packages/<package>/v1/examples/<example-file>.html`,
+then renders the `<pre>` spans through headless Chromium into
+`examples/previews/<example-file>.svg`.
+Source snapshots are used only where the current CLI cannot yet render
+the package formatter/colorizer path for that content identity.
 
-| Example | Content type | Purpose | Expected result |
-| --- | --- | --- | --- |
-| [`basic.cem`](examples/basic.cem) | `application/cem` | Minimal persisted CEM-ML document. | Pass |
-| [`nested-handoff.cem`](examples/nested-handoff.cem) | `application/cem` | Namespaced content with a `text/html` handoff boundary. | Pass |
-| [`embedded-handoffs.cem`](examples/embedded-handoffs.cem) | `application/cem` | Scoped style/script, XML CDATA, and JSON string handoff payloads with bounded deferred-parser diagnostics. | Pass with `cem.handoff.child_parser_deferred` |
-| [`formatter-coloring-pipeline.package-artifacts.fixture.cem`](examples/formatter-coloring-pipeline.package-artifacts.fixture.cem) | `application/cem` | Checked stage fixture generated through manifest-declared formatter/colorizer artifacts selected by explicit CEMT aliases. | Fail with `cem.schema.unresolved_namespace` under direct CEM-ML schema validation |
-| [`invalid-unclosed-scope.cem`](examples/invalid-unclosed-scope.cem) | `application/cem` | Missing closing scope syntax diagnostic. | Fail with `cem.ast.unclosed_scope` |
-| [`invalid-unsupported-handoffs.cem`](examples/invalid-unsupported-handoffs.cem) | `application/cem` | CSF-like and future vendor JSON handoff content types. | Fail with `cem.handoff.unsupported_content_type` |
+### basic
 
-Validate an example explicitly against this schema:
-
-```bash
-cargo run -p cem-ml-cli -- validate \
-  --format json \
-  --content-type application/cem \
-  --schema https://cem.dev/ns/cem-ml/1 \
-  packages/cem_ml/schema-packages/cem-ml/v1/examples/basic.cem
-```
-
-![Preview of the CEM-ML validation JSON report](examples/previews/basic-validate.svg)
-
-Render the same example through the package-owned tabular formatter and terminal
-colorizer:
+- Source: [`examples/basic.cem`](examples/basic.cem)
+- Content type: `application/cem`
+- Schema: `https://cem.dev/ns/cem-ml/1`
+- Expected result: `pass`
+- Preview renderer: `CLI convert, tabular formatter, preview HTML + html2svg`
+- Preview HTML: `dist/cem_ml/schema-packages/cem-ml/v1/examples/basic.cem.html`
 
 ```bash
-cargo run -p cem-ml-cli -- convert \
-  packages/cem_ml/schema-packages/cem-ml/v1/examples/basic.cem \
-  --content-type application/cem \
-  --schema https://cem.dev/ns/cem-ml/1 \
-  --to-content-type application/cem \
-  --to-schema https://cem.dev/ns/cem-ml/1 \
-  --cemt-formatter-profile tabular \
-  --cemt-color-profile terminal \
-  --output-color-type ansi-256
+dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
+  uri=packages/cem_ml/schema-packages/cem-ml/v1/examples/basic.cem,contentType=application/cem,schema=https://cem.dev/ns/cem-ml/1 \
+  --to-content-type application/cem --to-schema https://cem.dev/ns/cem-ml/1 \
+  --cemt-formatter-profile tabular --cemt-color-profile terminal --output-color-type \
+  ansi-256
 ```
 
-![Preview of the CEM-ML tabular terminal formatter output](examples/previews/basic-tabular-terminal.svg)
+![Preview of CEM-ML Generic Schema Package basic example](examples/previews/basic.cem.svg)
+
+### nested-handoff
+
+- Source: [`examples/nested-handoff.cem`](examples/nested-handoff.cem)
+- Content type: `application/cem`
+- Schema: `https://cem.dev/ns/cem-ml/1`
+- Expected result: `pass`
+- Preview renderer: `CLI convert, tabular formatter, preview HTML + html2svg`
+- Preview HTML: `dist/cem_ml/schema-packages/cem-ml/v1/examples/nested-handoff.cem.html`
+
+```bash
+dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
+  uri=packages/cem_ml/schema-packages/cem-ml/v1/examples/nested-handoff.cem,contentType=application/cem,schema=https://cem.dev/ns/cem-ml/1 \
+  --to-content-type application/cem --to-schema https://cem.dev/ns/cem-ml/1 \
+  --cemt-formatter-profile tabular --cemt-color-profile terminal --output-color-type \
+  ansi-256
+```
+
+![Preview of CEM-ML Generic Schema Package nested-handoff example](examples/previews/nested-handoff.cem.svg)
+
+### embedded-handoffs
+
+- Source: [`examples/embedded-handoffs.cem`](examples/embedded-handoffs.cem)
+- Content type: `application/cem`
+- Schema: `https://cem.dev/ns/cem-ml/1`
+- Expected result: `pass`
+- Expected diagnostics: `cem.handoff.child_parser_deferred`
+- Preview renderer: `CLI convert, tabular formatter, preview HTML + html2svg`
+- Preview HTML: `dist/cem_ml/schema-packages/cem-ml/v1/examples/embedded-handoffs.cem.html`
+
+```bash
+dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
+  uri=packages/cem_ml/schema-packages/cem-ml/v1/examples/embedded-handoffs.cem,contentType=application/cem,schema=https://cem.dev/ns/cem-ml/1 \
+  --to-content-type application/cem --to-schema https://cem.dev/ns/cem-ml/1 \
+  --cemt-formatter-profile tabular --cemt-color-profile terminal --output-color-type \
+  ansi-256
+```
+
+![Preview of CEM-ML Generic Schema Package embedded-handoffs example](examples/previews/embedded-handoffs.cem.svg)
+
+### formatter-coloring-pipeline-package-artifacts
+
+- Source: [`examples/formatter-coloring-pipeline.package-artifacts.fixture.cem`](examples/formatter-coloring-pipeline.package-artifacts.fixture.cem)
+- Content type: `application/cem`
+- Schema: `https://cem.dev/ns/cem-ml/1`
+- Expected result: `fail`
+- Expected diagnostics: `cem.schema.unresolved_namespace`
+- Preview renderer: `CLI convert, tabular formatter, preview HTML + html2svg`
+- Preview HTML: `dist/cem_ml/schema-packages/cem-ml/v1/examples/formatter-coloring-pipeline.package-artifacts.fixture.cem.html`
+
+```bash
+dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
+  uri=packages/cem_ml/schema-packages/cem-ml/v1/examples/formatter-coloring-pipeline.package-artifacts.fixture.cem,contentType=application/cem,schema=https://cem.dev/ns/cem-ml/1 \
+  --to-content-type application/cem --to-schema https://cem.dev/ns/cem-ml/1 \
+  --cemt-formatter-profile tabular --cemt-color-profile terminal --output-color-type \
+  ansi-256
+```
+
+![Preview of CEM-ML Generic Schema Package formatter-coloring-pipeline-package-artifacts example](examples/previews/formatter-coloring-pipeline.package-artifacts.fixture.cem.svg)
+
+### invalid-unclosed-scope
+
+- Source: [`examples/invalid-unclosed-scope.cem`](examples/invalid-unclosed-scope.cem)
+- Content type: `application/cem`
+- Schema: `https://cem.dev/ns/cem-ml/1`
+- Expected result: `fail`
+- Expected diagnostics: `cem.ast.unclosed_scope`
+- Preview renderer: `CLI convert, tabular formatter, preview HTML + html2svg`
+- Preview HTML: `dist/cem_ml/schema-packages/cem-ml/v1/examples/invalid-unclosed-scope.cem.html`
+
+```bash
+dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
+  uri=packages/cem_ml/schema-packages/cem-ml/v1/examples/invalid-unclosed-scope.cem,contentType=application/cem,schema=https://cem.dev/ns/cem-ml/1 \
+  --to-content-type application/cem --to-schema https://cem.dev/ns/cem-ml/1 \
+  --cemt-formatter-profile tabular --cemt-color-profile terminal --output-color-type \
+  ansi-256
+```
+
+![Preview of CEM-ML Generic Schema Package invalid-unclosed-scope example](examples/previews/invalid-unclosed-scope.cem.svg)
+
+### invalid-unsupported-handoffs
+
+- Source: [`examples/invalid-unsupported-handoffs.cem`](examples/invalid-unsupported-handoffs.cem)
+- Content type: `application/cem`
+- Schema: `https://cem.dev/ns/cem-ml/1`
+- Expected result: `fail`
+- Expected diagnostics: `cem.handoff.unsupported_content_type`
+- Preview renderer: `CLI convert, tabular formatter, preview HTML + html2svg`
+- Preview HTML: `dist/cem_ml/schema-packages/cem-ml/v1/examples/invalid-unsupported-handoffs.cem.html`
+
+```bash
+dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
+  uri=packages/cem_ml/schema-packages/cem-ml/v1/examples/invalid-unsupported-handoffs.cem,contentType=application/cem,schema=https://cem.dev/ns/cem-ml/1 \
+  --to-content-type application/cem --to-schema https://cem.dev/ns/cem-ml/1 \
+  --cemt-formatter-profile tabular --cemt-color-profile terminal --output-color-type \
+  ansi-256
+```
+
+![Preview of CEM-ML Generic Schema Package invalid-unsupported-handoffs example](examples/previews/invalid-unsupported-handoffs.cem.svg)

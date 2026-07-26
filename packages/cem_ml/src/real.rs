@@ -4888,7 +4888,24 @@ fn csv_direct_output_primary_identity(
 fn csv_direct_output_color_selection(
     target_scope: &ScopeConfig,
 ) -> Option<TransformTemplateOutputColorSelection> {
-    parse_transform_template_output_color_type(target_scope.output_color_type.as_deref()?).ok()
+    if let Some(output_color_type) = target_scope
+        .output_color_type
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+    {
+        return parse_transform_template_output_color_type(output_color_type).ok();
+    }
+
+    match target_scope
+        .cemt_color_profile
+        .as_deref()
+        .map(str::trim)
+        .filter(|profile| !profile.is_empty())
+    {
+        Some("html") => parse_transform_template_output_color_type("html").ok(),
+        _ => None,
+    }
 }
 
 fn csv_direct_output_color_selection_requests_color(

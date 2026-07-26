@@ -56,14 +56,129 @@ do not provide accessible name material.
 
 ## Examples
 
-- [basic-icon.svg](examples/basic-icon.svg): a minimal named icon.
-- [bar-chart.svg](examples/bar-chart.svg): a small chart using internal
-  definitions and fragment-only paint references.
-- [unnamed-icon.svg](examples/unnamed-icon.svg): valid SVG with a warning for
-  missing accessible name material.
-- [invalid-missing-namespace.svg](examples/invalid-missing-namespace.svg):
-  XML with an `svg` root that does not claim the SVG namespace.
-- [invalid-script.svg](examples/invalid-script.svg): executable SVG script,
-  rejected by default policy.
-- [invalid-external-image.svg](examples/invalid-external-image.svg): external
-  image reference without an explicit resolver policy.
+This section is generated from `package.cem` `{example}` metadata by the
+`samples2readme` Nx target. Each SVG previews the example content, not
+the validation report. The target writes a preformatted HTML preview to
+`dist/cem_ml/schema-packages/<package>/v1/examples/<example-file>.html`,
+then renders the `<pre>` spans through headless Chromium into
+`examples/previews/<example-file>.svg`.
+Source snapshots are used only where the current CLI cannot yet render
+the package formatter/colorizer path for that content identity.
+
+### basic-icon
+
+- Source: [`examples/basic-icon.svg`](examples/basic-icon.svg)
+- Content type: `image/svg+xml`
+- Schema: `https://cem.dev/ns/data/svg/1`
+- Expected result: `pass`
+- Preview renderer: `CLI convert, tabular formatter, preview HTML + html2svg`
+- Preview HTML: `dist/cem_ml/schema-packages/svg/v1/examples/basic-icon.svg.html`
+
+```bash
+dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
+  uri=packages/cem_ml/schema-packages/svg/v1/examples/basic-icon.svg,contentType=image/svg+xml,schema=https://cem.dev/ns/data/svg/1 \
+  --from-format xml --to-content-type image/svg+xml --to-schema \
+  https://cem.dev/ns/data/svg/1 --cemt-formatter-profile tabular --cemt-color-profile \
+  terminal --output-color-type ansi-256
+```
+
+![Preview of SVG Resource Schema Package basic-icon example](examples/previews/basic-icon.svg.svg)
+
+### bar-chart
+
+- Source: [`examples/bar-chart.svg`](examples/bar-chart.svg)
+- Content type: `image/svg+xml`
+- Schema: `https://cem.dev/ns/data/svg/1`
+- Expected result: `pass`
+- Preview renderer: `CLI convert, tabular formatter, preview HTML + html2svg`
+- Preview HTML: `dist/cem_ml/schema-packages/svg/v1/examples/bar-chart.svg.html`
+
+```bash
+dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
+  uri=packages/cem_ml/schema-packages/svg/v1/examples/bar-chart.svg,contentType=image/svg+xml,schema=https://cem.dev/ns/data/svg/1 \
+  --from-format xml --to-content-type image/svg+xml --to-schema \
+  https://cem.dev/ns/data/svg/1 --cemt-formatter-profile tabular --cemt-color-profile \
+  terminal --output-color-type ansi-256
+```
+
+![Preview of SVG Resource Schema Package bar-chart example](examples/previews/bar-chart.svg.svg)
+
+### unnamed-icon
+
+- Source: [`examples/unnamed-icon.svg`](examples/unnamed-icon.svg)
+- Content type: `image/svg+xml`
+- Schema: `https://cem.dev/ns/data/svg/1`
+- Expected result: `pass`
+- Expected diagnostics: `cem.svg.accessible_name_missing`
+- Preview renderer: `CLI convert, tabular formatter, preview HTML + html2svg`
+- Preview HTML: `dist/cem_ml/schema-packages/svg/v1/examples/unnamed-icon.svg.html`
+
+```bash
+dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
+  uri=packages/cem_ml/schema-packages/svg/v1/examples/unnamed-icon.svg,contentType=image/svg+xml,schema=https://cem.dev/ns/data/svg/1 \
+  --from-format xml --to-content-type image/svg+xml --to-schema \
+  https://cem.dev/ns/data/svg/1 --cemt-formatter-profile tabular --cemt-color-profile \
+  terminal --output-color-type ansi-256
+```
+
+![Preview of SVG Resource Schema Package unnamed-icon example](examples/previews/unnamed-icon.svg.svg)
+
+### invalid-missing-namespace
+
+- Source: [`examples/invalid-missing-namespace.svg`](examples/invalid-missing-namespace.svg)
+- Content type: `image/svg+xml`
+- Schema: `https://cem.dev/ns/data/svg/1`
+- Expected result: `fail`
+- Expected diagnostics: `cem.svg.namespace_missing`
+- Preview renderer: `CLI convert, tabular formatter, preview HTML + html2svg`
+- Preview HTML: `dist/cem_ml/schema-packages/svg/v1/examples/invalid-missing-namespace.svg.html`
+
+```bash
+dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
+  uri=packages/cem_ml/schema-packages/svg/v1/examples/invalid-missing-namespace.svg,contentType=image/svg+xml,schema=https://cem.dev/ns/data/svg/1 \
+  --from-format xml --to-content-type image/svg+xml --to-schema \
+  https://cem.dev/ns/data/svg/1 --cemt-formatter-profile tabular --cemt-color-profile \
+  terminal --output-color-type ansi-256
+```
+
+![Preview of SVG Resource Schema Package invalid-missing-namespace example](examples/previews/invalid-missing-namespace.svg.svg)
+
+### invalid-script
+
+- Source: [`examples/invalid-script.svg`](examples/invalid-script.svg)
+- Content type: `image/svg+xml`
+- Schema: `https://cem.dev/ns/data/svg/1`
+- Expected result: `fail`
+- Expected diagnostics: `cem.svg.script_rejected`
+- Preview renderer: `CLI convert, tabular formatter, preview HTML + html2svg`
+- Preview HTML: `dist/cem_ml/schema-packages/svg/v1/examples/invalid-script.svg.html`
+
+```bash
+dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
+  uri=packages/cem_ml/schema-packages/svg/v1/examples/invalid-script.svg,contentType=image/svg+xml,schema=https://cem.dev/ns/data/svg/1 \
+  --from-format xml --to-content-type image/svg+xml --to-schema \
+  https://cem.dev/ns/data/svg/1 --cemt-formatter-profile tabular --cemt-color-profile \
+  terminal --output-color-type ansi-256
+```
+
+![Preview of SVG Resource Schema Package invalid-script example](examples/previews/invalid-script.svg.svg)
+
+### invalid-external-image
+
+- Source: [`examples/invalid-external-image.svg`](examples/invalid-external-image.svg)
+- Content type: `image/svg+xml`
+- Schema: `https://cem.dev/ns/data/svg/1`
+- Expected result: `fail`
+- Expected diagnostics: `cem.svg.external_resource_rejected`
+- Preview renderer: `CLI convert, tabular formatter, preview HTML + html2svg`
+- Preview HTML: `dist/cem_ml/schema-packages/svg/v1/examples/invalid-external-image.svg.html`
+
+```bash
+dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
+  uri=packages/cem_ml/schema-packages/svg/v1/examples/invalid-external-image.svg,contentType=image/svg+xml,schema=https://cem.dev/ns/data/svg/1 \
+  --from-format xml --to-content-type image/svg+xml --to-schema \
+  https://cem.dev/ns/data/svg/1 --cemt-formatter-profile tabular --cemt-color-profile \
+  terminal --output-color-type ansi-256
+```
+
+![Preview of SVG Resource Schema Package invalid-external-image example](examples/previews/invalid-external-image.svg.svg)

@@ -453,11 +453,23 @@ extension inference alone.
 Package README command examples are demo contracts. When they show meaningful
 stdout, report JSON, formatted text, or rendered output, place a matching SVG
 preview directly after the fenced command block and store the asset in
-`examples/previews/`. The preview should represent the command's stable
-user-facing result rather than local build noise such as Cargo compilation
-lines. The preview must be refreshed when relevant source fixtures, CEMT
-formatters/colorizers/converters, CLI report fields, color palettes, spacing,
-or presentation rules change.
+`examples/previews/`. Manifest-declared `{example}` samples are propagated into
+the README Examples section by the package-local `samples2readme` Nx target,
+which renders the example content as SVG, not the validation report. When the
+current runtime has an executable formatter/colorizer path for that content
+identity, the target runs the CLI `convert` pipeline with the `tabular`
+formatter profile, writes a preformatted HTML preview to
+`dist/cem_ml/schema-packages/<package>/v1/examples/`, and renders the `<pre>`
+`<span>` runs through headless Chromium into an SVG. Packages whose
+formatter/colorizer artifacts are not executable through the current CLI preview
+path use a source snapshot SVG until that runtime path exists.
+Additional hand-authored command previews may still use the package-local
+`scripts/verify-previews.mjs --update` helper. The preview should represent the
+command's stable user-facing result rather than local build noise such as Cargo
+compilation lines. The preview must be refreshed when relevant source fixtures,
+CEMT formatters/colorizers/converters, CLI report fields, color palettes,
+spacing, or presentation rules change. Local setup needs the Playwright headless
+browser dependencies documented in `docs/project.md`.
 
 Formatter assets live under `formatters/` and are CEMT (`.cemt`) transforms so
 they participate in the normal output pipeline and preserve source-map ranges.
@@ -582,10 +594,23 @@ schema-packages/{package-id}/v1/
    shape, and at least one invalid contract. Declare every source example in
    `package.cem` with content type, schema URI, expected result, and explicit
    expected diagnostics for invalid cases. Link those examples from the package
-   README. When the README includes command-line examples with visible output,
-   add an SVG preview under `examples/previews/` immediately after each command
-   block and update it whenever the command, fixture, formatter/colorizer,
-   converter, CLI report shape, or presentation output changes. Generate
+   README by running `yarn nx run
+   cem_ml_schema_package_{package-id-with-underscores}_v1:samples2readme`.
+   That target rewrites the Examples section, emits `<example-file>.svg`
+   previews under `examples/previews/`, writes matching preview HTML to
+   `dist/cem_ml/schema-packages/<package>/v1/examples/`, and depends on the
+   package manifest, README, example files, preview scripts, and CLI/Rust
+   sources for Nx cache invalidation. The generated SVG must show the example
+   content. It should use the CLI `convert` path with the tabular formatter and
+   formatter-compatible colorizer wherever the package runtime can render that
+   content identity, falling back to a source snapshot only for content
+   identities that are not executable through the current preview path. When the
+   README includes additional hand-authored command-line examples with visible
+   output, add an SVG preview under `examples/previews/` immediately after each
+   command block and update it with the package-local
+   `scripts/verify-previews.mjs --update` command whenever the command, fixture,
+   formatter/colorizer, converter, CLI report shape, or presentation output
+   changes. The preview generators depend on Playwright Chromium. Generate
    `.example.cem` sidecars only when a downstream package consumer needs a
    CEM-format projection of the manifest metadata.
 

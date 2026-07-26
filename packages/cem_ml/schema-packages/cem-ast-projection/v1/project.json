@@ -4,6 +4,43 @@
     "projectType": "library",
     "sourceRoot": "packages/cem_ml/schema-packages/cem-ast-projection/v1",
     "targets": {
+        "samples2readme": {
+            "cache": true,
+            "executor": "nx:run-commands",
+            "dependsOn": [
+                {
+                    "projects": [
+                        "cem_ml_cli"
+                    ],
+                    "target": "build"
+                }
+            ],
+            "options": {
+                "commands": [
+                    "node packages/cem_ml/schema-packages/scripts/samples2readme.mjs {projectRoot}"
+                ],
+                "parallel": false,
+                "cwd": "{workspaceRoot}"
+            },
+            "inputs": [
+                "{projectRoot}/package.cem",
+                "{projectRoot}/README.md",
+                "{projectRoot}/examples/**/*",
+                "!{projectRoot}/examples/previews/**/*",
+                "{workspaceRoot}/packages/cem_ml/schema-packages/scripts/**/*.mjs",
+                "{workspaceRoot}/Cargo.toml",
+                "{workspaceRoot}/Cargo.lock",
+                "{workspaceRoot}/packages/cem_ml/src/**/*.rs",
+                "{workspaceRoot}/packages/cem_ml/Cargo.toml",
+                "{workspaceRoot}/packages/cem_ml_cli/src/**/*.rs",
+                "{workspaceRoot}/packages/cem_ml_cli/Cargo.toml"
+            ],
+            "outputs": [
+                "{projectRoot}/README.md",
+                "{projectRoot}/examples/previews",
+                "{workspaceRoot}/dist/cem_ml/schema-packages/cem-ast-projection/v1/examples"
+            ]
+        },
         "verify": {
             "cache": true,
             "executor": "nx:run-commands",
@@ -45,7 +82,7 @@
             ],
             "outputs": [
                 "{projectRoot}/dist/cem-ml.report.json",
-                "{projectRoot}/dist/previews"
+                "{workspaceRoot}/dist/cem_ml/schema-packages/cem-ast-projection/v1/examples"
             ]
         }
     },

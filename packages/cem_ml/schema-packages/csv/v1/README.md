@@ -435,84 +435,323 @@ The migration is not complete until these gates pass:
   `yarn nx run cem_ml:test` pass after the Rust-specific CSV validator is
   removed.
 
-## Validation Examples
+## Examples
 
-The schema-owned examples live in [`examples/`](examples/) and are used by the
-CLI validation integration tests.
+This section is generated from `package.cem` `{example}` metadata by the
+`samples2readme` Nx target. Each SVG previews the example content, not
+the validation report. The target writes a preformatted HTML preview to
+`dist/cem_ml/schema-packages/<package>/v1/examples/<example-file>.html`,
+then renders the `<pre>` spans through headless Chromium into
+`examples/previews/<example-file>.svg`.
+Source snapshots are used only where the current CLI cannot yet render
+the package formatter/colorizer path for that content identity.
 
-<!--
-AI maintenance: when changing the command examples below, their referenced CSV
-fixtures, formatter/colorizer assets, CLI report shape, or CSV presentation
-output, refresh the matching SVG previews with
-`node packages/cem_ml/schema-packages/csv/v1/scripts/verify-previews.mjs --update`
-and commit the preview changes in the same change.
--->
+### basic-table
 
-| Example | Content type | Purpose | Expected result |
-| --- | --- | --- | --- |
-| [`basic-table.csv`](examples/basic-table.csv) | `text/csv` | Minimal table with a header row and scalar fields. | Pass |
-| [`quoted-fields.csv`](examples/quoted-fields.csv) | `text/csv` | Quoted fields with an embedded newline and escaped quote. | Pass |
-| [`header-absent.csv`](examples/header-absent.csv) | `text/csv; header=absent` | Data rows with `header=absent` content-type metadata. | Pass |
-| [`line-ending-lf.csv`](examples/line-ending-lf.csv) | `text/csv` | LF-delimited rows accepted by the parser and used by repo fixtures. | Pass |
-| [`line-ending-crlf.csv`](examples/line-ending-crlf.csv) | `text/csv` | CRLF-delimited rows for strict `text/csv` interchange coverage. | Pass |
-| [`utf8-bom.csv`](examples/utf8-bom.csv) | `text/csv; charset=utf-8` | UTF-8 source with a byte-order mark at the beginning of the first field. | Pass |
-| [`spaced-fields.csv`](examples/spaced-fields.csv) | `text/csv` | Leading and trailing spaces preserved as field content. | Pass |
-| [`tabs-and-empty-fields.csv`](examples/tabs-and-empty-fields.csv) | `text/csv` | Tab characters and empty fields preserved as field content. | Pass |
-| [`formula-looking-values.csv`](examples/formula-looking-values.csv) | `text/csv` | CSV-syntax-valid values that spreadsheet applications may treat as formulas. | Pass |
-| [`wide-unicode.csv`](examples/wide-unicode.csv) | `text/csv; charset=utf-8` | Non-ASCII display-width coverage for formatter review output. | Pass |
-| [`invalid-unclosed-quote.csv`](examples/invalid-unclosed-quote.csv) | `text/csv` | Unterminated quoted field rejected by the CSV quote policy. | Fail with `cem.csv.unclosed_quote` |
-| [`invalid-quote-escape.csv`](examples/invalid-quote-escape.csv) | `text/csv` | Quote inside an unquoted field rejected by the CSV quote policy. | Fail with `cem.csv.invalid_quote_escape` |
-| [`ragged-row.csv`](examples/ragged-row.csv) | `text/csv` | Row width differs from the first row. | Pass with warning `cem.csv.inconsistent_field_count` |
-| [`unsupported-charset.csv`](examples/unsupported-charset.csv) | `text/csv; charset=iso-8859-1` | MIME charset requires transcoding before direct CSV validation. | Fail with `cem.csv.unsupported_encoding` |
-| [`us-ascii-non-ascii-byte.csv`](examples/us-ascii-non-ascii-byte.csv) | `text/csv; charset=us-ascii` | Source declares US-ASCII but contains a non-ASCII byte. | Fail with `cem.csv.unsupported_encoding` |
-| [`invalid-header-parameter.csv`](examples/invalid-header-parameter.csv) | `text/csv; header=maybe` | CSV bytes are valid, but MIME header metadata is invalid. | Pass with warning `cem.csv.invalid_header_parameter` |
-
-Validate an example explicitly against this schema:
+- Source: [`examples/basic-table.csv`](examples/basic-table.csv)
+- Content type: `text/csv`
+- Schema: `https://cem.dev/ns/data/csv/1`
+- Expected result: `pass`
+- Preview renderer: `CLI convert, tabular formatter, preview HTML + html2svg`
+- Preview HTML: `dist/cem_ml/schema-packages/csv/v1/examples/basic-table.csv.html`
 
 ```bash
-dist/target/cem_ml_cli/debug/cem-ml validate \
-  --format json \
-  --content-type text/csv \
-  --schema https://cem.dev/ns/data/csv/1 \
-  packages/cem_ml/schema-packages/csv/v1/examples/basic-table.csv
+dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
+  uri=packages/cem_ml/schema-packages/csv/v1/examples/basic-table.csv,contentType=text/csv,schema=https://cem.dev/ns/data/csv/1 \
+  --to-content-type text/csv --to-schema https://cem.dev/ns/data/csv/1 \
+  --cemt-formatter-profile tabular --cemt-color-profile html --cemt-formatter-option \
+  csv.maxFieldWidth=24 --cemt-formatter-option csv.stringTrim=middle
 ```
 
-![Preview of the validation JSON report](examples/previews/basic-table-validate.svg)
+![Preview of CSV Resource Schema Package basic-table example](examples/previews/basic-table.csv.svg)
 
-Convert the checked-in basic table with the package `pretty` formatter and
-ANSI terminal color on stdout from a built CLI binary. The color profile
-decorates terminal presentation only. Use `compact` for canonical import-safe
-CSV; readable profiles may carry presentation spacing.
+### quoted-fields
+
+- Source: [`examples/quoted-fields.csv`](examples/quoted-fields.csv)
+- Content type: `text/csv`
+- Schema: `https://cem.dev/ns/data/csv/1`
+- Expected result: `pass`
+- Preview renderer: `CLI convert, tabular formatter, preview HTML + html2svg`
+- Preview HTML: `dist/cem_ml/schema-packages/csv/v1/examples/quoted-fields.csv.html`
 
 ```bash
-dist/target/cem_ml_cli/debug/cem-ml convert \
-  packages/cem_ml/schema-packages/csv/v1/examples/basic-table.csv \
-  --content-type text/csv \
-  --schema https://cem.dev/ns/data/csv/1 \
-  --to-content-type text/csv \
-  --to-schema https://cem.dev/ns/data/csv/1 \
-  --cemt-formatter-profile pretty \
-  --cemt-color-profile terminal \
-  --output-color-type ansi-256
+dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
+  uri=packages/cem_ml/schema-packages/csv/v1/examples/quoted-fields.csv,contentType=text/csv,schema=https://cem.dev/ns/data/csv/1 \
+  --to-content-type text/csv --to-schema https://cem.dev/ns/data/csv/1 \
+  --cemt-formatter-profile tabular --cemt-color-profile html --cemt-formatter-option \
+  csv.maxFieldWidth=24 --cemt-formatter-option csv.stringTrim=middle
 ```
 
-![Preview of the colored pretty CSV output](examples/previews/basic-table-pretty-terminal.svg)
+![Preview of CSV Resource Schema Package quoted-fields example](examples/previews/quoted-fields.csv.svg)
 
-Render the same table as tabular review output with a maximum field display
-width and middle string trimming:
+### header-absent
+
+- Source: [`examples/header-absent.csv`](examples/header-absent.csv)
+- Content type: `text/csv; header=absent`
+- Schema: `https://cem.dev/ns/data/csv/1`
+- Expected result: `pass`
+- Preview renderer: `CLI convert, tabular formatter, preview HTML + html2svg`
+- Preview HTML: `dist/cem_ml/schema-packages/csv/v1/examples/header-absent.csv.html`
 
 ```bash
-dist/target/cem_ml_cli/debug/cem-ml convert \
-  packages/cem_ml/schema-packages/csv/v1/examples/basic-table.csv \
-  --content-type text/csv \
-  --schema https://cem.dev/ns/data/csv/1 \
-  --to-content-type text/csv \
-  --to-schema https://cem.dev/ns/data/csv/1 \
-  --cemt-formatter-profile tabular \
-  --cemt-formatter-option csv.maxFieldWidth=24 \
-  --cemt-formatter-option csv.stringTrim=middle \
-  --cemt-color-profile terminal \
-  --output-color-type ansi-256
+dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
+  'uri=packages/cem_ml/schema-packages/csv/v1/examples/header-absent.csv,contentType=text/csv; header=absent,schema=https://cem.dev/ns/data/csv/1' \
+  --to-content-type text/csv --to-schema https://cem.dev/ns/data/csv/1 \
+  --cemt-formatter-profile tabular --cemt-color-profile html --cemt-formatter-option \
+  csv.maxFieldWidth=24 --cemt-formatter-option csv.stringTrim=middle
 ```
 
-![Preview of the colored tabular CSV output](examples/previews/basic-table-tabular-terminal.svg)
+![Preview of CSV Resource Schema Package header-absent example](examples/previews/header-absent.csv.svg)
+
+### line-ending-lf
+
+- Source: [`examples/line-ending-lf.csv`](examples/line-ending-lf.csv)
+- Content type: `text/csv`
+- Schema: `https://cem.dev/ns/data/csv/1`
+- Expected result: `pass`
+- Preview renderer: `CLI convert, tabular formatter, preview HTML + html2svg`
+- Preview HTML: `dist/cem_ml/schema-packages/csv/v1/examples/line-ending-lf.csv.html`
+
+```bash
+dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
+  uri=packages/cem_ml/schema-packages/csv/v1/examples/line-ending-lf.csv,contentType=text/csv,schema=https://cem.dev/ns/data/csv/1 \
+  --to-content-type text/csv --to-schema https://cem.dev/ns/data/csv/1 \
+  --cemt-formatter-profile tabular --cemt-color-profile html --cemt-formatter-option \
+  csv.maxFieldWidth=24 --cemt-formatter-option csv.stringTrim=middle
+```
+
+![Preview of CSV Resource Schema Package line-ending-lf example](examples/previews/line-ending-lf.csv.svg)
+
+### line-ending-crlf
+
+- Source: [`examples/line-ending-crlf.csv`](examples/line-ending-crlf.csv)
+- Content type: `text/csv`
+- Schema: `https://cem.dev/ns/data/csv/1`
+- Expected result: `pass`
+- Preview renderer: `CLI convert, tabular formatter, preview HTML + html2svg`
+- Preview HTML: `dist/cem_ml/schema-packages/csv/v1/examples/line-ending-crlf.csv.html`
+
+```bash
+dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
+  uri=packages/cem_ml/schema-packages/csv/v1/examples/line-ending-crlf.csv,contentType=text/csv,schema=https://cem.dev/ns/data/csv/1 \
+  --to-content-type text/csv --to-schema https://cem.dev/ns/data/csv/1 \
+  --cemt-formatter-profile tabular --cemt-color-profile html --cemt-formatter-option \
+  csv.maxFieldWidth=24 --cemt-formatter-option csv.stringTrim=middle
+```
+
+![Preview of CSV Resource Schema Package line-ending-crlf example](examples/previews/line-ending-crlf.csv.svg)
+
+### utf8-bom
+
+- Source: [`examples/utf8-bom.csv`](examples/utf8-bom.csv)
+- Content type: `text/csv; charset=utf-8`
+- Schema: `https://cem.dev/ns/data/csv/1`
+- Expected result: `pass`
+- Preview renderer: `CLI convert, tabular formatter, preview HTML + html2svg`
+- Preview HTML: `dist/cem_ml/schema-packages/csv/v1/examples/utf8-bom.csv.html`
+
+```bash
+dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
+  'uri=packages/cem_ml/schema-packages/csv/v1/examples/utf8-bom.csv,contentType=text/csv; charset=utf-8,schema=https://cem.dev/ns/data/csv/1' \
+  --to-content-type text/csv --to-schema https://cem.dev/ns/data/csv/1 \
+  --cemt-formatter-profile tabular --cemt-color-profile html --cemt-formatter-option \
+  csv.maxFieldWidth=24 --cemt-formatter-option csv.stringTrim=middle
+```
+
+![Preview of CSV Resource Schema Package utf8-bom example](examples/previews/utf8-bom.csv.svg)
+
+### spaced-fields
+
+- Source: [`examples/spaced-fields.csv`](examples/spaced-fields.csv)
+- Content type: `text/csv`
+- Schema: `https://cem.dev/ns/data/csv/1`
+- Expected result: `pass`
+- Preview renderer: `CLI convert, tabular formatter, preview HTML + html2svg`
+- Preview HTML: `dist/cem_ml/schema-packages/csv/v1/examples/spaced-fields.csv.html`
+
+```bash
+dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
+  uri=packages/cem_ml/schema-packages/csv/v1/examples/spaced-fields.csv,contentType=text/csv,schema=https://cem.dev/ns/data/csv/1 \
+  --to-content-type text/csv --to-schema https://cem.dev/ns/data/csv/1 \
+  --cemt-formatter-profile tabular --cemt-color-profile html --cemt-formatter-option \
+  csv.maxFieldWidth=24 --cemt-formatter-option csv.stringTrim=middle
+```
+
+![Preview of CSV Resource Schema Package spaced-fields example](examples/previews/spaced-fields.csv.svg)
+
+### tabs-and-empty-fields
+
+- Source: [`examples/tabs-and-empty-fields.csv`](examples/tabs-and-empty-fields.csv)
+- Content type: `text/csv`
+- Schema: `https://cem.dev/ns/data/csv/1`
+- Expected result: `pass`
+- Preview renderer: `CLI convert, tabular formatter, preview HTML + html2svg`
+- Preview HTML: `dist/cem_ml/schema-packages/csv/v1/examples/tabs-and-empty-fields.csv.html`
+
+```bash
+dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
+  uri=packages/cem_ml/schema-packages/csv/v1/examples/tabs-and-empty-fields.csv,contentType=text/csv,schema=https://cem.dev/ns/data/csv/1 \
+  --to-content-type text/csv --to-schema https://cem.dev/ns/data/csv/1 \
+  --cemt-formatter-profile tabular --cemt-color-profile html --cemt-formatter-option \
+  csv.maxFieldWidth=24 --cemt-formatter-option csv.stringTrim=middle
+```
+
+![Preview of CSV Resource Schema Package tabs-and-empty-fields example](examples/previews/tabs-and-empty-fields.csv.svg)
+
+### formula-looking-values
+
+- Source: [`examples/formula-looking-values.csv`](examples/formula-looking-values.csv)
+- Content type: `text/csv`
+- Schema: `https://cem.dev/ns/data/csv/1`
+- Expected result: `pass`
+- Preview renderer: `CLI convert, tabular formatter, preview HTML + html2svg`
+- Preview HTML: `dist/cem_ml/schema-packages/csv/v1/examples/formula-looking-values.csv.html`
+
+```bash
+dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
+  uri=packages/cem_ml/schema-packages/csv/v1/examples/formula-looking-values.csv,contentType=text/csv,schema=https://cem.dev/ns/data/csv/1 \
+  --to-content-type text/csv --to-schema https://cem.dev/ns/data/csv/1 \
+  --cemt-formatter-profile tabular --cemt-color-profile html --cemt-formatter-option \
+  csv.maxFieldWidth=24 --cemt-formatter-option csv.stringTrim=middle
+```
+
+![Preview of CSV Resource Schema Package formula-looking-values example](examples/previews/formula-looking-values.csv.svg)
+
+### wide-unicode
+
+- Source: [`examples/wide-unicode.csv`](examples/wide-unicode.csv)
+- Content type: `text/csv; charset=utf-8`
+- Schema: `https://cem.dev/ns/data/csv/1`
+- Expected result: `pass`
+- Preview renderer: `CLI convert, tabular formatter, preview HTML + html2svg`
+- Preview HTML: `dist/cem_ml/schema-packages/csv/v1/examples/wide-unicode.csv.html`
+
+```bash
+dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
+  'uri=packages/cem_ml/schema-packages/csv/v1/examples/wide-unicode.csv,contentType=text/csv; charset=utf-8,schema=https://cem.dev/ns/data/csv/1' \
+  --to-content-type text/csv --to-schema https://cem.dev/ns/data/csv/1 \
+  --cemt-formatter-profile tabular --cemt-color-profile html --cemt-formatter-option \
+  csv.maxFieldWidth=24 --cemt-formatter-option csv.stringTrim=middle
+```
+
+![Preview of CSV Resource Schema Package wide-unicode example](examples/previews/wide-unicode.csv.svg)
+
+### invalid-unclosed-quote
+
+- Source: [`examples/invalid-unclosed-quote.csv`](examples/invalid-unclosed-quote.csv)
+- Content type: `text/csv`
+- Schema: `https://cem.dev/ns/data/csv/1`
+- Expected result: `fail`
+- Expected diagnostics: `cem.csv.unclosed_quote`
+- Preview renderer: `CLI convert, tabular formatter, preview HTML + html2svg`
+- Preview HTML: `dist/cem_ml/schema-packages/csv/v1/examples/invalid-unclosed-quote.csv.html`
+
+```bash
+dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
+  uri=packages/cem_ml/schema-packages/csv/v1/examples/invalid-unclosed-quote.csv,contentType=text/csv,schema=https://cem.dev/ns/data/csv/1 \
+  --to-content-type text/csv --to-schema https://cem.dev/ns/data/csv/1 \
+  --cemt-formatter-profile tabular --cemt-color-profile html --cemt-formatter-option \
+  csv.maxFieldWidth=24 --cemt-formatter-option csv.stringTrim=middle
+```
+
+![Preview of CSV Resource Schema Package invalid-unclosed-quote example](examples/previews/invalid-unclosed-quote.csv.svg)
+
+### invalid-quote-escape
+
+- Source: [`examples/invalid-quote-escape.csv`](examples/invalid-quote-escape.csv)
+- Content type: `text/csv`
+- Schema: `https://cem.dev/ns/data/csv/1`
+- Expected result: `fail`
+- Expected diagnostics: `cem.csv.invalid_quote_escape`
+- Preview renderer: `CLI convert, tabular formatter, preview HTML + html2svg`
+- Preview HTML: `dist/cem_ml/schema-packages/csv/v1/examples/invalid-quote-escape.csv.html`
+
+```bash
+dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
+  uri=packages/cem_ml/schema-packages/csv/v1/examples/invalid-quote-escape.csv,contentType=text/csv,schema=https://cem.dev/ns/data/csv/1 \
+  --to-content-type text/csv --to-schema https://cem.dev/ns/data/csv/1 \
+  --cemt-formatter-profile tabular --cemt-color-profile html --cemt-formatter-option \
+  csv.maxFieldWidth=24 --cemt-formatter-option csv.stringTrim=middle
+```
+
+![Preview of CSV Resource Schema Package invalid-quote-escape example](examples/previews/invalid-quote-escape.csv.svg)
+
+### ragged-row
+
+- Source: [`examples/ragged-row.csv`](examples/ragged-row.csv)
+- Content type: `text/csv`
+- Schema: `https://cem.dev/ns/data/csv/1`
+- Expected result: `pass`
+- Expected diagnostics: `cem.csv.inconsistent_field_count`
+- Preview renderer: `CLI convert, tabular formatter, preview HTML + html2svg`
+- Preview HTML: `dist/cem_ml/schema-packages/csv/v1/examples/ragged-row.csv.html`
+
+```bash
+dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
+  uri=packages/cem_ml/schema-packages/csv/v1/examples/ragged-row.csv,contentType=text/csv,schema=https://cem.dev/ns/data/csv/1 \
+  --to-content-type text/csv --to-schema https://cem.dev/ns/data/csv/1 \
+  --cemt-formatter-profile tabular --cemt-color-profile html --cemt-formatter-option \
+  csv.maxFieldWidth=24 --cemt-formatter-option csv.stringTrim=middle
+```
+
+![Preview of CSV Resource Schema Package ragged-row example](examples/previews/ragged-row.csv.svg)
+
+### unsupported-charset
+
+- Source: [`examples/unsupported-charset.csv`](examples/unsupported-charset.csv)
+- Content type: `text/csv; charset=iso-8859-1`
+- Schema: `https://cem.dev/ns/data/csv/1`
+- Expected result: `fail`
+- Expected diagnostics: `cem.csv.unsupported_encoding`
+- Preview renderer: `CLI convert, tabular formatter, preview HTML + html2svg`
+- Preview HTML: `dist/cem_ml/schema-packages/csv/v1/examples/unsupported-charset.csv.html`
+
+```bash
+dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
+  'uri=packages/cem_ml/schema-packages/csv/v1/examples/unsupported-charset.csv,contentType=text/csv; charset=iso-8859-1,schema=https://cem.dev/ns/data/csv/1' \
+  --to-content-type text/csv --to-schema https://cem.dev/ns/data/csv/1 \
+  --cemt-formatter-profile tabular --cemt-color-profile html --cemt-formatter-option \
+  csv.maxFieldWidth=24 --cemt-formatter-option csv.stringTrim=middle
+```
+
+![Preview of CSV Resource Schema Package unsupported-charset example](examples/previews/unsupported-charset.csv.svg)
+
+### us-ascii-non-ascii-byte
+
+- Source: [`examples/us-ascii-non-ascii-byte.csv`](examples/us-ascii-non-ascii-byte.csv)
+- Content type: `text/csv; charset=us-ascii`
+- Schema: `https://cem.dev/ns/data/csv/1`
+- Expected result: `fail`
+- Expected diagnostics: `cem.csv.unsupported_encoding`
+- Preview renderer: `CLI convert, tabular formatter, preview HTML + html2svg`
+- Preview HTML: `dist/cem_ml/schema-packages/csv/v1/examples/us-ascii-non-ascii-byte.csv.html`
+
+```bash
+dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
+  'uri=packages/cem_ml/schema-packages/csv/v1/examples/us-ascii-non-ascii-byte.csv,contentType=text/csv; charset=us-ascii,schema=https://cem.dev/ns/data/csv/1' \
+  --to-content-type text/csv --to-schema https://cem.dev/ns/data/csv/1 \
+  --cemt-formatter-profile tabular --cemt-color-profile html --cemt-formatter-option \
+  csv.maxFieldWidth=24 --cemt-formatter-option csv.stringTrim=middle
+```
+
+![Preview of CSV Resource Schema Package us-ascii-non-ascii-byte example](examples/previews/us-ascii-non-ascii-byte.csv.svg)
+
+### invalid-header-parameter
+
+- Source: [`examples/invalid-header-parameter.csv`](examples/invalid-header-parameter.csv)
+- Content type: `text/csv; header=maybe`
+- Schema: `https://cem.dev/ns/data/csv/1`
+- Expected result: `pass`
+- Expected diagnostics: `cem.csv.invalid_header_parameter`
+- Preview renderer: `CLI convert, tabular formatter, preview HTML + html2svg`
+- Preview HTML: `dist/cem_ml/schema-packages/csv/v1/examples/invalid-header-parameter.csv.html`
+
+```bash
+dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
+  'uri=packages/cem_ml/schema-packages/csv/v1/examples/invalid-header-parameter.csv,contentType=text/csv; header=maybe,schema=https://cem.dev/ns/data/csv/1' \
+  --to-content-type text/csv --to-schema https://cem.dev/ns/data/csv/1 \
+  --cemt-formatter-profile tabular --cemt-color-profile html --cemt-formatter-option \
+  csv.maxFieldWidth=24 --cemt-formatter-option csv.stringTrim=middle
+```
+
+![Preview of CSV Resource Schema Package invalid-header-parameter example](examples/previews/invalid-header-parameter.csv.svg)

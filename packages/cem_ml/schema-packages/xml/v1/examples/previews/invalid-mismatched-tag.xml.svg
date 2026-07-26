@@ -1,0 +1,3 @@
+<svg role="img" aria-labelledby="title desc" xmlns="http://www.w3.org/2000/svg" width="251" height="15" viewBox="0 0 251 15" xml:space="preserve">
+<title id="title">XML Resource Schema Package invalid-mismatched-tag example preview</title>
+<desc id="desc">Preview of examples/invalid-mismatched-tag.xml from package.cem example metadata.</desc><text x="0" y="0" fill="rgb(214, 222, 230)" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="13px" font-style="normal" font-weight="400" letter-spacing="normal" dominant-baseline="text-before-edge" xml:space="preserve">&lt;root&gt;&lt;item&gt;Broken&lt;/item&gt;&lt;/root&gt;</text></svg>

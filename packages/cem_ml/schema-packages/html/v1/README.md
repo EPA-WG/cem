@@ -44,16 +44,148 @@ well-formedness.
 
 ## Examples
 
-- [basic-document.html](examples/basic-document.html): a complete HTML document.
-- [fragment.html](examples/fragment.html): an incomplete fragment accepted by
-  the HTML parser contract.
-- [svg-mathml-islands.html](examples/svg-mathml-islands.html): HTML with SVG
-  and MathML tags using their parser-default namespaces.
-- [invalid-script.html](examples/invalid-script.html): executable script
-  rejected by default policy.
-- [invalid-external-resource.html](examples/invalid-external-resource.html):
-  external resource access without resolver policy.
-- [invalid-custom-element.html](examples/invalid-custom-element.html): invalid
-  custom-element name.
-- [encoding-conflict.html](examples/encoding-conflict.html): warning-only MIME
-  charset and meta charset conflict.
+This section is generated from `package.cem` `{example}` metadata by the
+`samples2readme` Nx target. Each SVG previews the example content, not
+the validation report. The target writes a preformatted HTML preview to
+`dist/cem_ml/schema-packages/<package>/v1/examples/<example-file>.html`,
+then renders the `<pre>` spans through headless Chromium into
+`examples/previews/<example-file>.svg`.
+Source snapshots are used only where the current CLI cannot yet render
+the package formatter/colorizer path for that content identity.
+
+### basic-document
+
+- Source: [`examples/basic-document.html`](examples/basic-document.html)
+- Content type: `text/html`
+- Schema: `https://cem.dev/ns/data/html/1`
+- Expected result: `pass`
+- Preview renderer: `CLI convert, tabular formatter, preview HTML + html2svg`
+- Preview HTML: `dist/cem_ml/schema-packages/html/v1/examples/basic-document.html.html`
+
+```bash
+dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
+  uri=packages/cem_ml/schema-packages/html/v1/examples/basic-document.html,contentType=text/html,schema=https://cem.dev/ns/data/html/1 \
+  --from-format html --to-content-type text/html --to-schema \
+  https://cem.dev/ns/data/html/1 --cemt-formatter-profile tabular --cemt-color-profile \
+  terminal --output-color-type ansi-256
+```
+
+![Preview of HTML schema package v1 basic-document example](examples/previews/basic-document.html.svg)
+
+### fragment
+
+- Source: [`examples/fragment.html`](examples/fragment.html)
+- Content type: `text/html`
+- Schema: `https://cem.dev/ns/data/html/1`
+- Expected result: `pass`
+- Preview renderer: `CLI convert, tabular formatter, preview HTML + html2svg`
+- Preview HTML: `dist/cem_ml/schema-packages/html/v1/examples/fragment.html.html`
+
+```bash
+dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
+  uri=packages/cem_ml/schema-packages/html/v1/examples/fragment.html,contentType=text/html,schema=https://cem.dev/ns/data/html/1 \
+  --from-format html --to-content-type text/html --to-schema \
+  https://cem.dev/ns/data/html/1 --cemt-formatter-profile tabular --cemt-color-profile \
+  terminal --output-color-type ansi-256
+```
+
+![Preview of HTML schema package v1 fragment example](examples/previews/fragment.html.svg)
+
+### svg-mathml-islands
+
+- Source: [`examples/svg-mathml-islands.html`](examples/svg-mathml-islands.html)
+- Content type: `text/html`
+- Schema: `https://cem.dev/ns/data/html/1`
+- Expected result: `pass`
+- Preview renderer: `CLI convert, tabular formatter, preview HTML + html2svg`
+- Preview HTML: `dist/cem_ml/schema-packages/html/v1/examples/svg-mathml-islands.html.html`
+
+```bash
+dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
+  uri=packages/cem_ml/schema-packages/html/v1/examples/svg-mathml-islands.html,contentType=text/html,schema=https://cem.dev/ns/data/html/1 \
+  --from-format html --to-content-type text/html --to-schema \
+  https://cem.dev/ns/data/html/1 --cemt-formatter-profile tabular --cemt-color-profile \
+  terminal --output-color-type ansi-256
+```
+
+![Preview of HTML schema package v1 svg-mathml-islands example](examples/previews/svg-mathml-islands.html.svg)
+
+### invalid-script
+
+- Source: [`examples/invalid-script.html`](examples/invalid-script.html)
+- Content type: `text/html`
+- Schema: `https://cem.dev/ns/data/html/1`
+- Expected result: `fail`
+- Expected diagnostics: `cem.html.script_rejected`
+- Preview renderer: `CLI convert, tabular formatter, preview HTML + html2svg`
+- Preview HTML: `dist/cem_ml/schema-packages/html/v1/examples/invalid-script.html.html`
+
+```bash
+dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
+  uri=packages/cem_ml/schema-packages/html/v1/examples/invalid-script.html,contentType=text/html,schema=https://cem.dev/ns/data/html/1 \
+  --from-format html --to-content-type text/html --to-schema \
+  https://cem.dev/ns/data/html/1 --cemt-formatter-profile tabular --cemt-color-profile \
+  terminal --output-color-type ansi-256
+```
+
+![Preview of HTML schema package v1 invalid-script example](examples/previews/invalid-script.html.svg)
+
+### invalid-external-resource
+
+- Source: [`examples/invalid-external-resource.html`](examples/invalid-external-resource.html)
+- Content type: `text/html`
+- Schema: `https://cem.dev/ns/data/html/1`
+- Expected result: `fail`
+- Expected diagnostics: `cem.html.external_resource_rejected`
+- Preview renderer: `CLI convert, tabular formatter, preview HTML + html2svg`
+- Preview HTML: `dist/cem_ml/schema-packages/html/v1/examples/invalid-external-resource.html.html`
+
+```bash
+dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
+  uri=packages/cem_ml/schema-packages/html/v1/examples/invalid-external-resource.html,contentType=text/html,schema=https://cem.dev/ns/data/html/1 \
+  --from-format html --to-content-type text/html --to-schema \
+  https://cem.dev/ns/data/html/1 --cemt-formatter-profile tabular --cemt-color-profile \
+  terminal --output-color-type ansi-256
+```
+
+![Preview of HTML schema package v1 invalid-external-resource example](examples/previews/invalid-external-resource.html.svg)
+
+### invalid-custom-element
+
+- Source: [`examples/invalid-custom-element.html`](examples/invalid-custom-element.html)
+- Content type: `text/html`
+- Schema: `https://cem.dev/ns/data/html/1`
+- Expected result: `fail`
+- Expected diagnostics: `cem.html.custom_element_name_invalid`
+- Preview renderer: `CLI convert, tabular formatter, preview HTML + html2svg`
+- Preview HTML: `dist/cem_ml/schema-packages/html/v1/examples/invalid-custom-element.html.html`
+
+```bash
+dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
+  uri=packages/cem_ml/schema-packages/html/v1/examples/invalid-custom-element.html,contentType=text/html,schema=https://cem.dev/ns/data/html/1 \
+  --from-format html --to-content-type text/html --to-schema \
+  https://cem.dev/ns/data/html/1 --cemt-formatter-profile tabular --cemt-color-profile \
+  terminal --output-color-type ansi-256
+```
+
+![Preview of HTML schema package v1 invalid-custom-element example](examples/previews/invalid-custom-element.html.svg)
+
+### encoding-conflict
+
+- Source: [`examples/encoding-conflict.html`](examples/encoding-conflict.html)
+- Content type: `text/html; charset=windows-1252`
+- Schema: `https://cem.dev/ns/data/html/1`
+- Expected result: `pass`
+- Expected diagnostics: `cem.html.encoding_conflict`
+- Preview renderer: `CLI convert, tabular formatter, preview HTML + html2svg`
+- Preview HTML: `dist/cem_ml/schema-packages/html/v1/examples/encoding-conflict.html.html`
+
+```bash
+dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
+  'uri=packages/cem_ml/schema-packages/html/v1/examples/encoding-conflict.html,contentType=text/html; charset=windows-1252,schema=https://cem.dev/ns/data/html/1' \
+  --from-format html --to-content-type text/html --to-schema \
+  https://cem.dev/ns/data/html/1 --cemt-formatter-profile tabular --cemt-color-profile \
+  terminal --output-color-type ansi-256
+```
+
+![Preview of HTML schema package v1 encoding-conflict example](examples/previews/encoding-conflict.html.svg)

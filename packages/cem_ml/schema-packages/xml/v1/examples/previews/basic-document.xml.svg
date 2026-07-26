@@ -1,0 +1,3 @@
+<svg role="img" aria-labelledby="title desc" xmlns="http://www.w3.org/2000/svg" width="846" height="15" viewBox="0 0 846 15" xml:space="preserve">
+<title id="title">XML Resource Schema Package basic-document example preview</title>
+<desc id="desc">Preview of examples/basic-document.xml from package.cem example metadata.</desc><text x="0" y="0" fill="rgb(214, 222, 230)" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="13px" font-style="normal" font-weight="400" letter-spacing="normal" dominant-baseline="text-before-edge" xml:space="preserve">&lt;?xml version="1.0" encoding="UTF-8"?&gt;&lt;catalog&gt;&lt;item id="a1"&gt;Alpha&lt;/item&gt;&lt;item id="b2"&gt;Beta&lt;/item&gt;&lt;/catalog&gt;</text></svg>
