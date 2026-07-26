@@ -8,40 +8,16 @@
 //! `SourceMapStack` rooted in the originating tokenizer frame plus a
 //! `TransformKind::CemAstBuilder` frame appended by this layer.
 
-use crate::diagnostics::{Diagnostic, Severity};
 use crate::events::{EventNormalizer, NormalizedEvent, ScalarValue, TriviaKind};
+use crate::parser::diagnostics::{
+    builtin_cem_ml_parser_diagnostic_catalog, cem_ml_parser_fact_diagnostic,
+    CemMlParserDiagnosticCatalog, CemMlParserFact, CemMlParserFactKind,
+};
 use crate::parser::document::CemDocument;
 use crate::parser::format;
 use crate::parser::{AstNodeId, CemAstNode, ExpandedName, NameSlot};
-use crate::schema::document_model::compile_schema_document_model;
-use crate::schema::registry::CEM_ML_SCHEMA_URI;
 use crate::source::ByteRange;
 use crate::source_map::{FrameSpan, SourceMapFrame, SourceMapStack, TransformKind};
-use serde_json::json;
-use std::collections::BTreeMap;
-use std::sync::OnceLock;
-
-const CEM_ML_PACKAGE_ID: &str = "cem-ml";
-const CEM_ML_AST_REPORT_BEHAVIOR: &str = "cem-ml-ast-report-fact";
-const CEM_ML_DOC_REPORT_BEHAVIOR: &str = "cem-ml-doc-report-fact";
-#[cfg(test)]
-const AST_UNBALANCED_CLOSE_CONTRACT: &str = "ast-unbalanced-close";
-#[cfg(test)]
-const AST_UNCLOSED_SCOPE_CONTRACT: &str = "ast-unclosed-scope";
-#[cfg(test)]
-const AST_UNRESOLVED_REFERENCE_CONTRACT: &str = "ast-unresolved-reference";
-#[cfg(test)]
-const DOC_VERSION_MISSING_CONTRACT: &str = "doc-version-missing";
-#[cfg(test)]
-const DOC_SEMVER_INVALID_CONTRACT: &str = "doc-semver-invalid";
-#[cfg(test)]
-const DOC_FORMAT_UNKNOWN_CONTRACT: &str = "doc-format-unknown";
-#[cfg(test)]
-const DOC_VERSION_UNSUPPORTED_CONTRACT: &str = "doc-version-unsupported";
-#[cfg(test)]
-const DOC_PRERELEASE_UNMATCHED_CONTRACT: &str = "doc-prerelease-unmatched";
-#[cfg(test)]
-const DOC_VERSION_RESOLVED_CONTRACT: &str = "doc-version-resolved";
 
 /// One parent slot on the build stack.
 #[derive(Debug)]
@@ -609,169 +585,34 @@ impl<E: EventNormalizer> CemAstBuilder<E> {
         message: String,
         source_map: Option<SourceMapStack>,
     ) {
-        let binding = if let Some(catalog) = self.cem_ml_parser_diagnostics.as_ref() {
-            catalog.binding_for_fact(kind).cloned()
-        } else {
-            builtin_cem_ml_parser_diagnostic_catalog()
-                .binding_for_fact(kind)
-                .cloned()
-        };
-        let Some(binding) = binding else {
-            return;
-        };
-        self.doc.diagnostics.push(cem_ml_parser_fact_diagnostic(
+        let fact = CemMlParserFact {
             kind,
-            &binding,
             byte_offset,
             message,
             source_map,
-        ));
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum CemMlParserFactKind {
-    AstUnbalancedClose,
-    AstUnclosedScope,
-    AstUnresolvedReference,
-    DocVersionMissing,
-    DocSemverInvalid,
-    DocFormatUnknown,
-    DocVersionUnsupported,
-    DocPrereleaseUnmatched,
-    DocVersionResolved,
-}
-
-impl CemMlParserFactKind {
-    fn as_str(self) -> &'static str {
-        match self {
-            Self::AstUnbalancedClose => "ast-unbalanced-close",
-            Self::AstUnclosedScope => "ast-unclosed-scope",
-            Self::AstUnresolvedReference => "ast-unresolved-reference",
-            Self::DocVersionMissing => "doc-version-missing",
-            Self::DocSemverInvalid => "doc-semver-invalid",
-            Self::DocFormatUnknown => "doc-format-unknown",
-            Self::DocVersionUnsupported => "doc-version-unsupported",
-            Self::DocPrereleaseUnmatched => "doc-prerelease-unmatched",
-            Self::DocVersionResolved => "doc-version-resolved",
+        };
+        let catalog = self
+            .cem_ml_parser_diagnostics
+            .as_ref()
+            .or_else(|| Some(builtin_cem_ml_parser_diagnostic_catalog()));
+        if let Some(diagnostic) = cem_ml_parser_fact_diagnostic(&fact, catalog) {
+            self.doc.diagnostics.push(diagnostic);
         }
-    }
-
-    fn from_doc_directive_error(error: &format::DocDirectiveError) -> Self {
-        match error {
-            format::DocDirectiveError::SemverInvalid { .. } => Self::DocSemverInvalid,
-            format::DocDirectiveError::FormatUnknown { .. } => Self::DocFormatUnknown,
-            format::DocDirectiveError::VersionUnsupported { .. } => Self::DocVersionUnsupported,
-            format::DocDirectiveError::PrereleaseUnmatched { .. } => Self::DocPrereleaseUnmatched,
-        }
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-struct CemMlParserDiagnosticCatalog {
-    fact_bindings: BTreeMap<String, CemMlParserDiagnosticBinding>,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-struct CemMlParserDiagnosticBinding {
-    fact_kind: String,
-    contract: String,
-    behavior: Option<String>,
-    diagnostic_code: String,
-    severity: Severity,
-    policy: Option<String>,
-}
-
-impl CemMlParserDiagnosticCatalog {
-    fn from_builtin() -> Self {
-        let source =
-            crate::schema::package_sources::builtin_schema_package_source(CEM_ML_PACKAGE_ID)
-                .expect("built-in CEM-ML schema package source must be registered");
-        Self::from_schema_source(source.schema_source)
-    }
-
-    fn from_schema_source(schema_source: &str) -> Self {
-        let model = compile_schema_document_model(CEM_ML_SCHEMA_URI, schema_source);
-        let fact_bindings = model
-            .constraints
-            .values()
-            .filter_map(|constraint| {
-                let behavior = constraint.behavior.as_deref()?.trim();
-                if !matches!(
-                    behavior,
-                    CEM_ML_AST_REPORT_BEHAVIOR | CEM_ML_DOC_REPORT_BEHAVIOR
-                ) {
-                    return None;
-                }
-                let fact_kind = constraint.fact_kind.as_deref()?.trim();
-                if fact_kind.is_empty() {
-                    return None;
-                }
-                let diagnostic_code = constraint.diagnostic.as_deref()?.trim();
-                if diagnostic_code.is_empty() {
-                    return None;
-                }
-                let diagnostic = model.diagnostics.get(diagnostic_code)?;
-                Some((
-                    fact_kind.to_owned(),
-                    CemMlParserDiagnosticBinding {
-                        fact_kind: fact_kind.to_owned(),
-                        contract: constraint.kind.clone(),
-                        behavior: constraint.behavior.clone(),
-                        diagnostic_code: diagnostic.code.clone(),
-                        severity: diagnostic.severity,
-                        policy: constraint.policy.clone(),
-                    },
-                ))
-            })
-            .collect();
-
-        Self { fact_bindings }
-    }
-
-    fn binding_for_fact(&self, kind: CemMlParserFactKind) -> Option<&CemMlParserDiagnosticBinding> {
-        self.fact_bindings.get(kind.as_str())
-    }
-}
-
-fn builtin_cem_ml_parser_diagnostic_catalog() -> &'static CemMlParserDiagnosticCatalog {
-    static CATALOG: OnceLock<CemMlParserDiagnosticCatalog> = OnceLock::new();
-    CATALOG.get_or_init(CemMlParserDiagnosticCatalog::from_builtin)
-}
-
-fn cem_ml_parser_fact_diagnostic(
-    kind: CemMlParserFactKind,
-    binding: &CemMlParserDiagnosticBinding,
-    byte_offset: Option<u64>,
-    message: String,
-    source_map: Option<SourceMapStack>,
-) -> Diagnostic {
-    Diagnostic {
-        uri: None,
-        line: None,
-        column: None,
-        byte_offset,
-        code: binding.diagnostic_code.clone(),
-        severity: binding.severity,
-        message,
-        node: None,
-        details: Some(json!({
-            "contract": binding.contract,
-            "behavior": binding.behavior,
-            "factKind": kind.as_str(),
-            "policy": binding.policy,
-            "sourceRange": {
-                "byteOffset": byte_offset,
-            },
-        })),
-        source_map,
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::diagnostics::{Diagnostic, Severity};
     use crate::events::cem::CemEventNormalizer;
+    use crate::parser::diagnostics::{
+        AST_UNBALANCED_CLOSE_CONTRACT, AST_UNCLOSED_SCOPE_CONTRACT,
+        AST_UNRESOLVED_REFERENCE_CONTRACT, CEM_ML_AST_REPORT_BEHAVIOR, CEM_ML_DOC_REPORT_BEHAVIOR,
+        CEM_ML_PACKAGE_ID, DOC_FORMAT_UNKNOWN_CONTRACT, DOC_PRERELEASE_UNMATCHED_CONTRACT,
+        DOC_SEMVER_INVALID_CONTRACT, DOC_VERSION_MISSING_CONTRACT, DOC_VERSION_RESOLVED_CONTRACT,
+        DOC_VERSION_UNSUPPORTED_CONTRACT,
+    };
     use crate::query;
     use crate::source::{BytesSource, SourceId};
     use crate::tokenizer::cem::CemTokenizer;

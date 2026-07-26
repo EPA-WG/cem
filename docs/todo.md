@@ -28,9 +28,12 @@ stream.
       bindings for `cem.doc.version_missing`, `cem.doc.semver_invalid`,
       `cem.doc.format_unknown`, `cem.doc.version_unsupported`,
       `cem.doc.prerelease_unmatched`, and `cem.doc.version_resolved`.
-- [ ] Move CEM-ML tokenizer/syntax and namespace diagnostics behind
+- [x] Move CEM-ML tokenizer diagnostics behind a pre-AST neutral fact stream
+      interpreted by schema-owned bindings, including tokenizer scope and
+      malformed lexical facts with source maps.
+- [ ] Move remaining CEM-ML syntax and namespace diagnostics behind
       schema-owned fact bindings, including invalid names, unbound prefixes,
-      and tokenizer/syntax scope facts.
+      and syntax/namespace scope facts.
 - [ ] Move remaining CEM-ML schema-machine and handoff diagnostics behind the
       same neutral fact boundary, including unbalanced/unclosed schema scopes,
       unsupported/deferred handoffs, and XSLT dispatch/version diagnostics.

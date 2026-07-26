@@ -23,7 +23,11 @@
 //! - Bare `{...}` text interpolation in content is rejected with
 //!   `cem.tokenizer.bare_brace_text` and skipped.
 
-use crate::diagnostics::{Diagnostic, Severity};
+use crate::diagnostics::Diagnostic;
+use crate::parser::diagnostics::{
+    builtin_cem_ml_parser_diagnostic_catalog, cem_ml_parser_fact_diagnostic,
+    CemMlParserDiagnosticCatalog, CemMlParserFact, CemMlParserFactKind,
+};
 use crate::source::decode::{DecodeConfig, Utf8Decoder};
 use crate::source::{ByteRange, ByteSource, EncodingDecoder, SourceId};
 use crate::source_map::{FrameSpan, SourceMapFrame, SourceMapStack, TransformKind};
@@ -36,6 +40,8 @@ pub struct CemTokenizer {
     cursor: usize,
     pending: VecDeque<SchemaToken>,
     diagnostics: Vec<Diagnostic>,
+    facts: Vec<CemMlParserFact>,
+    cem_ml_parser_diagnostics: Option<CemMlParserDiagnosticCatalog>,
     /// Source-map stack pushed onto every token. Tier A: one frame per
     /// tokenizer instance identifying the CEM profile + originating source.
     base_source_map: SourceMapStack,
@@ -73,6 +79,8 @@ impl CemTokenizer {
             cursor: 0,
             pending: VecDeque::new(),
             diagnostics,
+            facts: Vec::new(),
+            cem_ml_parser_diagnostics: None,
             base_source_map,
             end_offset,
         };
@@ -82,7 +90,38 @@ impl CemTokenizer {
 
     /// Drain accumulated diagnostics (decoder + tokenizer).
     pub fn take_diagnostics(&mut self) -> Vec<Diagnostic> {
-        std::mem::take(&mut self.diagnostics)
+        let mut diagnostics = std::mem::take(&mut self.diagnostics);
+        let facts = std::mem::take(&mut self.facts);
+        if facts.is_empty() {
+            return diagnostics;
+        }
+        let catalog = self
+            .cem_ml_parser_diagnostics
+            .as_ref()
+            .or_else(|| Some(builtin_cem_ml_parser_diagnostic_catalog()));
+        diagnostics.extend(
+            facts
+                .into_iter()
+                .filter_map(|fact| cem_ml_parser_fact_diagnostic(&fact, catalog)),
+        );
+        diagnostics
+    }
+
+    /// Drain neutral tokenizer facts before they are interpreted as
+    /// diagnostics. This test hook asserts the pre-AST boundary before
+    /// production callers consume those facts through `take_diagnostics`.
+    #[cfg(test)]
+    pub(crate) fn take_facts(&mut self) -> Vec<CemMlParserFact> {
+        std::mem::take(&mut self.facts)
+    }
+
+    #[cfg(test)]
+    fn with_cem_ml_parser_diagnostic_catalog(
+        mut self,
+        catalog: CemMlParserDiagnosticCatalog,
+    ) -> Self {
+        self.cem_ml_parser_diagnostics = Some(catalog);
+        self
     }
 
     pub fn source_id(&self) -> SourceId {
@@ -186,11 +225,10 @@ impl CemTokenizer {
                 }
                 (None, _) => {
                     let range = self.range_from(start, self.cursor);
-                    self.diagnostic(
-                        "cem.tokenizer.unterminated_block_comment",
-                        Severity::Error,
+                    self.parser_fact(
+                        CemMlParserFactKind::TokenizerUnterminatedBlockComment,
                         "block comment is not terminated".into(),
-                        range.start,
+                        range,
                     );
                     let data: String = self.scalars[body_start..self.cursor]
                         .iter()
@@ -351,11 +389,10 @@ impl CemTokenizer {
                 // `scan_content_until_close`; at structural scan-node entry we
                 // emit an error and skip to the next `}`.
                 let range = self.range_from(open_start, self.cursor);
-                self.diagnostic(
-                    "cem.tokenizer.bare_brace_text",
-                    Severity::Error,
+                self.parser_fact(
+                    CemMlParserFactKind::TokenizerBareBraceText,
                     "bare `{...}` text interpolation is not permitted".into(),
-                    range.start,
+                    range,
                 );
                 self.emit(
                     SchemaTokenKind::Error {
@@ -455,11 +492,10 @@ impl CemTokenizer {
         if self.peek() == Some(quote) {
             self.cursor += 1;
         } else {
-            self.diagnostic(
-                "cem.tokenizer.unterminated_string",
-                Severity::Error,
+            self.parser_fact(
+                CemMlParserFactKind::TokenizerUnterminatedString,
                 "unterminated quoted attribute value".into(),
-                self.current_offset(),
+                self.point_range(self.current_offset()),
             );
             data.push('\u{FFFD}');
         }
@@ -500,11 +536,10 @@ impl CemTokenizer {
         if self.peek() == Some('}') {
             self.cursor += 1;
         } else {
-            self.diagnostic(
-                "cem.tokenizer.unterminated_avt_span",
-                Severity::Error,
+            self.parser_fact(
+                CemMlParserFactKind::TokenizerUnterminatedAvtSpan,
                 "unterminated `{...}` cem-ql span in attribute value".into(),
-                self.current_offset(),
+                self.point_range(self.current_offset()),
             );
         }
         let range = self.range_from(start, self.cursor);
@@ -543,11 +578,10 @@ impl CemTokenizer {
             self.flush_whitespace_trivia();
             match self.peek() {
                 None => {
-                    self.diagnostic(
-                        "cem.tokenizer.unterminated_node",
-                        Severity::Error,
+                    self.parser_fact(
+                        CemMlParserFactKind::TokenizerUnterminatedNode,
                         "node is not closed with `}`".into(),
-                        self.current_offset(),
+                        self.point_range(self.current_offset()),
                     );
                     return;
                 }
@@ -599,13 +633,12 @@ impl CemTokenizer {
                             }
                         }
                         let range = self.range_from(start, self.cursor);
-                        self.diagnostic(
-                            "cem.tokenizer.bare_brace_text",
-                            Severity::Error,
+                        self.parser_fact(
+                            CemMlParserFactKind::TokenizerBareBraceText,
                             "bare `{...}` text interpolation in content is not permitted; \
                              use `{$ ...}` for an expression node"
                                 .into(),
-                            range.start,
+                            range,
                         );
                         self.emit(
                             SchemaTokenKind::Error {
@@ -667,11 +700,10 @@ impl CemTokenizer {
     fn scan_processing_instruction(&mut self, open_start: usize) {
         let target_start = self.cursor;
         if !matches!(self.peek(), Some(c) if is_name_start(c)) {
-            self.diagnostic(
-                "cem.tokenizer.invalid_processing_instruction",
-                Severity::Error,
+            self.parser_fact(
+                CemMlParserFactKind::TokenizerInvalidProcessingInstruction,
                 "processing instruction is missing a target name".into(),
-                self.current_offset(),
+                self.point_range(self.current_offset()),
             );
         } else {
             self.cursor += 1;
@@ -709,11 +741,10 @@ impl CemTokenizer {
                     return;
                 }
                 (None, _) => {
-                    self.diagnostic(
-                        "cem.tokenizer.unterminated_processing_instruction",
-                        Severity::Error,
+                    self.parser_fact(
+                        CemMlParserFactKind::TokenizerUnterminatedProcessingInstruction,
                         "processing instruction is missing its closing `?>`".into(),
-                        self.current_offset(),
+                        self.point_range(self.current_offset()),
                     );
                     let data: String = self.scalars[data_start..self.cursor]
                         .iter()
@@ -781,11 +812,10 @@ impl CemTokenizer {
                 range,
             );
         } else {
-            self.diagnostic(
-                "cem.tokenizer.unterminated_expression",
-                Severity::Error,
+            self.parser_fact(
+                CemMlParserFactKind::TokenizerUnterminatedExpression,
                 "expression node `{$ ...}` is not closed with `}`".into(),
-                self.current_offset(),
+                self.point_range(self.current_offset()),
             );
         }
     }
@@ -813,11 +843,10 @@ impl CemTokenizer {
                     .map(|(c, _)| *c)
                     .collect();
                 let range = self.range_from(start, self.cursor);
-                self.diagnostic(
-                    "cem.tokenizer.unterminated_rich_content",
-                    Severity::Error,
+                self.parser_fact(
+                    CemMlParserFactKind::TokenizerUnterminatedRichContent,
                     "rich-content enclosure is not terminated".into(),
-                    range.start,
+                    range,
                 );
                 self.emit(SchemaTokenKind::RichContent { data: body }, range);
                 return;
@@ -873,19 +902,27 @@ impl CemTokenizer {
         });
     }
 
-    fn diagnostic(&mut self, code: &str, severity: Severity, message: String, byte_offset: u64) {
-        self.diagnostics.push(Diagnostic {
-            uri: None,
-            line: None,
-            column: None,
-            byte_offset: Some(byte_offset),
-            code: code.to_owned(),
-            severity,
+    fn point_range(&self, byte_offset: u64) -> ByteRange {
+        ByteRange::new(byte_offset, 0)
+    }
+
+    fn parser_fact(&mut self, kind: CemMlParserFactKind, message: String, byte_range: ByteRange) {
+        self.facts.push(CemMlParserFact {
+            kind,
+            byte_offset: Some(byte_range.start),
             message,
-            node: None,
-            details: None,
-            source_map: None,
+            source_map: Some(self.source_map_for_range(byte_range)),
         });
+    }
+
+    fn source_map_for_range(&self, byte_range: ByteRange) -> SourceMapStack {
+        let mut stack = self.base_source_map.clone();
+        stack.push(SourceMapFrame {
+            source_id: self.source_id,
+            span: FrameSpan::Single(byte_range),
+            transform: TransformKind::CemTokenizer,
+        });
+        stack
     }
 }
 
@@ -914,17 +951,43 @@ fn is_qname_continue(c: char) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::diagnostics::Severity;
+    use crate::parser::diagnostics::{
+        CEM_ML_PACKAGE_ID, CEM_ML_TOKENIZER_REPORT_BEHAVIOR, TOKENIZER_BARE_BRACE_TEXT_CONTRACT,
+        TOKENIZER_INVALID_PROCESSING_INSTRUCTION_CONTRACT,
+        TOKENIZER_UNTERMINATED_AVT_SPAN_CONTRACT, TOKENIZER_UNTERMINATED_BLOCK_COMMENT_CONTRACT,
+        TOKENIZER_UNTERMINATED_EXPRESSION_CONTRACT, TOKENIZER_UNTERMINATED_NODE_CONTRACT,
+        TOKENIZER_UNTERMINATED_PROCESSING_INSTRUCTION_CONTRACT,
+        TOKENIZER_UNTERMINATED_RICH_CONTENT_CONTRACT, TOKENIZER_UNTERMINATED_STRING_CONTRACT,
+    };
     use crate::source::{BytesSource, SourceId};
+
+    fn drain_tokens(tokenizer: &mut CemTokenizer) -> Vec<SchemaToken> {
+        let mut out = Vec::new();
+        while let Some(tok) = tokenizer.next_token() {
+            out.push(tok);
+        }
+        out
+    }
 
     fn tokenize(input: &str) -> (Vec<SchemaToken>, Vec<Diagnostic>) {
         let src = BytesSource::new(SourceId(1), input.as_bytes().to_vec());
         let mut t = CemTokenizer::from_source(src);
-        let mut out = Vec::new();
-        while let Some(tok) = t.next_token() {
-            out.push(tok);
-        }
+        let out = drain_tokens(&mut t);
         let diags = t.take_diagnostics();
         (out, diags)
+    }
+
+    fn tokenize_with_catalog(
+        input: &str,
+        catalog: CemMlParserDiagnosticCatalog,
+    ) -> (Vec<SchemaToken>, Vec<Diagnostic>) {
+        let src = BytesSource::new(SourceId(1), input.as_bytes().to_vec());
+        let mut tokenizer =
+            CemTokenizer::from_source(src).with_cem_ml_parser_diagnostic_catalog(catalog);
+        let tokens = drain_tokens(&mut tokenizer);
+        let diagnostics = tokenizer.take_diagnostics();
+        (tokens, diagnostics)
     }
 
     fn kinds(tokens: &[SchemaToken]) -> Vec<&'static str> {
@@ -1163,8 +1226,166 @@ mod tests {
         let (tokens, diags) = tokenize("{p Hello {.name}}");
         assert!(!diags.is_empty());
         assert_eq!(diags[0].code, "cem.tokenizer.bare_brace_text");
+        assert_eq!(
+            diags[0].details.as_ref().unwrap()["contract"],
+            TOKENIZER_BARE_BRACE_TEXT_CONTRACT
+        );
+        assert_eq!(
+            diags[0].details.as_ref().unwrap()["factKind"],
+            "tokenizer-bare-brace-text"
+        );
+        assert!(
+            diags[0].source_map.is_some(),
+            "tokenizer facts must preserve source maps"
+        );
         // Error token emitted.
         assert!(tokens.iter().any(|t| matches!(&t.kind, SchemaTokenKind::Error { code } if code == "cem.tokenizer.bare_brace_text")));
+    }
+
+    #[test]
+    fn bare_brace_text_records_pre_ast_fact_before_diagnostic_interpretation() {
+        let src = BytesSource::new(SourceId(1), b"{p Hello {.name}}".to_vec());
+        let mut tokenizer = CemTokenizer::from_source(src);
+        let tokens = drain_tokens(&mut tokenizer);
+        let facts = tokenizer.take_facts();
+        let fact = facts
+            .iter()
+            .find(|fact| fact.kind == CemMlParserFactKind::TokenizerBareBraceText)
+            .expect("neutral tokenizer fact");
+
+        assert_eq!(fact.kind.as_str(), "tokenizer-bare-brace-text");
+        assert_eq!(
+            fact.message,
+            "bare `{...}` text interpolation in content is not permitted; \
+             use `{$ ...}` for an expression node"
+        );
+        assert!(fact.byte_offset.is_some());
+        assert!(fact.source_map.is_some());
+        assert!(tokens.iter().any(|token| {
+            matches!(&token.kind, SchemaTokenKind::Error { code } if code == "cem.tokenizer.bare_brace_text")
+        }));
+    }
+
+    #[test]
+    fn cem_ml_tokenizer_fact_diagnostic_bindings_are_schema_declared_by_fact_kind() {
+        let catalog = CemMlParserDiagnosticCatalog::from_builtin();
+        let cases = [
+            (
+                CemMlParserFactKind::TokenizerUnterminatedBlockComment,
+                TOKENIZER_UNTERMINATED_BLOCK_COMMENT_CONTRACT,
+                "cem.tokenizer.unterminated_block_comment",
+            ),
+            (
+                CemMlParserFactKind::TokenizerBareBraceText,
+                TOKENIZER_BARE_BRACE_TEXT_CONTRACT,
+                "cem.tokenizer.bare_brace_text",
+            ),
+            (
+                CemMlParserFactKind::TokenizerUnterminatedString,
+                TOKENIZER_UNTERMINATED_STRING_CONTRACT,
+                "cem.tokenizer.unterminated_string",
+            ),
+            (
+                CemMlParserFactKind::TokenizerUnterminatedAvtSpan,
+                TOKENIZER_UNTERMINATED_AVT_SPAN_CONTRACT,
+                "cem.tokenizer.unterminated_avt_span",
+            ),
+            (
+                CemMlParserFactKind::TokenizerUnterminatedNode,
+                TOKENIZER_UNTERMINATED_NODE_CONTRACT,
+                "cem.tokenizer.unterminated_node",
+            ),
+            (
+                CemMlParserFactKind::TokenizerInvalidProcessingInstruction,
+                TOKENIZER_INVALID_PROCESSING_INSTRUCTION_CONTRACT,
+                "cem.tokenizer.invalid_processing_instruction",
+            ),
+            (
+                CemMlParserFactKind::TokenizerUnterminatedProcessingInstruction,
+                TOKENIZER_UNTERMINATED_PROCESSING_INSTRUCTION_CONTRACT,
+                "cem.tokenizer.unterminated_processing_instruction",
+            ),
+            (
+                CemMlParserFactKind::TokenizerUnterminatedExpression,
+                TOKENIZER_UNTERMINATED_EXPRESSION_CONTRACT,
+                "cem.tokenizer.unterminated_expression",
+            ),
+            (
+                CemMlParserFactKind::TokenizerUnterminatedRichContent,
+                TOKENIZER_UNTERMINATED_RICH_CONTENT_CONTRACT,
+                "cem.tokenizer.unterminated_rich_content",
+            ),
+        ];
+
+        for (fact_kind, contract, diagnostic_code) in cases {
+            let binding = catalog
+                .binding_for_fact(fact_kind)
+                .unwrap_or_else(|| panic!("schema binding for {}", fact_kind.as_str()));
+            assert_eq!(binding.fact_kind, fact_kind.as_str());
+            assert_eq!(binding.contract, contract);
+            assert_eq!(
+                binding.behavior.as_deref(),
+                Some(CEM_ML_TOKENIZER_REPORT_BEHAVIOR)
+            );
+            assert_eq!(binding.diagnostic_code, diagnostic_code);
+            assert_eq!(binding.severity, Severity::Error);
+        }
+    }
+
+    #[test]
+    fn cem_ml_tokenizer_diagnostic_code_and_severity_are_schema_owned() {
+        let source = crate::schema::package_sources::builtin_schema_package_source(CEM_ML_PACKAGE_ID)
+            .expect("CEM-ML package source")
+            .schema_source
+            .replace(
+                r#"{constraint @kind="tokenizer-bare-brace-text" @target="text" @diagnostic="cem.tokenizer.bare_brace_text" @behavior="cem-ml-tokenizer-report-fact" @fact-kind="tokenizer-bare-brace-text" @policy="bare brace interpolation in content is rejected; expression content must use {$ ...}"}"#,
+                r#"{constraint @kind="tokenizer-bare-brace-text" @target="text" @diagnostic="example.tokenizer.brace" @behavior="cem-ml-tokenizer-report-fact" @fact-kind="tokenizer-bare-brace-text" @policy="bare brace interpolation in content is rejected; expression content must use {$ ...}"}"#,
+            )
+            .replace(
+                r#"{diagnostic @code="cem.tokenizer.bare_brace_text" @severity="error"}"#,
+                r#"{diagnostic @code="example.tokenizer.brace" @severity="warning"}"#,
+            );
+        let catalog = CemMlParserDiagnosticCatalog::from_schema_source(&source);
+        let (_tokens, diagnostics) = tokenize_with_catalog("{p Hello {.name}}", catalog);
+        let diagnostic = diagnostics
+            .iter()
+            .find(|diagnostic| diagnostic.code == "example.tokenizer.brace")
+            .expect("mutated schema-owned tokenizer diagnostic");
+
+        assert_eq!(diagnostic.severity, Severity::Warning);
+        assert_eq!(
+            diagnostic.details.as_ref().unwrap()["contract"],
+            TOKENIZER_BARE_BRACE_TEXT_CONTRACT
+        );
+        assert_eq!(
+            diagnostic.details.as_ref().unwrap()["factKind"],
+            "tokenizer-bare-brace-text"
+        );
+    }
+
+    #[test]
+    fn cem_ml_tokenizer_unbound_fact_stays_neutral() {
+        let source =
+            crate::schema::package_sources::builtin_schema_package_source(CEM_ML_PACKAGE_ID)
+                .expect("CEM-ML package source")
+                .schema_source
+                .replace(
+                    r#"@fact-kind="tokenizer-bare-brace-text""#,
+                    r#"@fact-kind="schema-ignored-tokenizer-brace""#,
+                );
+        let catalog = CemMlParserDiagnosticCatalog::from_schema_source(&source);
+        assert!(catalog
+            .binding_for_fact(CemMlParserFactKind::TokenizerBareBraceText)
+            .is_none());
+
+        let (_tokens, diagnostics) = tokenize_with_catalog("{p Hello {.name}}", catalog);
+        assert!(
+            diagnostics
+                .iter()
+                .all(|diagnostic| diagnostic.code != "cem.tokenizer.bare_brace_text"),
+            "unbound tokenizer facts stay neutral instead of falling back to Rust-owned diagnostics: {:?}",
+            diagnostics
+        );
     }
 
     #[test]

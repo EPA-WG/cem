@@ -5,6 +5,7 @@
 //! interpreters consume.
 
 pub mod builder;
+pub mod diagnostics;
 pub mod document;
 pub mod format;
 

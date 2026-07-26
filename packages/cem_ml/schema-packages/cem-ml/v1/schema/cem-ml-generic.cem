@@ -85,6 +85,15 @@
         {constraint @kind="doc-version-unsupported" @target="directive" @diagnostic="cem.doc.version_unsupported" @behavior="cem-ml-doc-report-fact" @fact-kind="doc-version-unsupported" @policy="@doc version constraints must resolve against the embedded CEM-ML document profile"}
         {constraint @kind="doc-prerelease-unmatched" @target="directive" @diagnostic="cem.doc.prerelease_unmatched" @behavior="cem-ml-doc-report-fact" @fact-kind="doc-prerelease-unmatched" @policy="@doc prerelease constraints require an exact embedded prerelease match"}
         {constraint @kind="doc-version-resolved" @target="directive" @diagnostic="cem.doc.version_resolved" @behavior="cem-ml-doc-report-fact" @fact-kind="doc-version-resolved" @policy="successful @doc resolution records the canonical document format identity"}
+        {constraint @kind="tokenizer-unterminated-block-comment" @target="comment" @diagnostic="cem.tokenizer.unterminated_block_comment" @behavior="cem-ml-tokenizer-report-fact" @fact-kind="tokenizer-unterminated-block-comment" @policy="block comments must close before end of input"}
+        {constraint @kind="tokenizer-bare-brace-text" @target="text" @diagnostic="cem.tokenizer.bare_brace_text" @behavior="cem-ml-tokenizer-report-fact" @fact-kind="tokenizer-bare-brace-text" @policy="bare brace interpolation in content is rejected; expression content must use {$ ...}"}
+        {constraint @kind="tokenizer-unterminated-string" @target="attribute" @diagnostic="cem.tokenizer.unterminated_string" @behavior="cem-ml-tokenizer-report-fact" @fact-kind="tokenizer-unterminated-string" @policy="quoted attribute values must close with their opening quote character"}
+        {constraint @kind="tokenizer-unterminated-avt-span" @target="attribute" @diagnostic="cem.tokenizer.unterminated_avt_span" @behavior="cem-ml-tokenizer-report-fact" @fact-kind="tokenizer-unterminated-avt-span" @policy="attribute CEM-QL spans must close their brace scope"}
+        {constraint @kind="tokenizer-unterminated-node" @target="element" @diagnostic="cem.tokenizer.unterminated_node" @behavior="cem-ml-tokenizer-report-fact" @fact-kind="tokenizer-unterminated-node" @policy="node scopes must close before end of input"}
+        {constraint @kind="tokenizer-invalid-processing-instruction" @target="processing-instruction" @diagnostic="cem.tokenizer.invalid_processing_instruction" @behavior="cem-ml-tokenizer-report-fact" @fact-kind="tokenizer-invalid-processing-instruction" @policy="processing instructions must declare a target name"}
+        {constraint @kind="tokenizer-unterminated-processing-instruction" @target="processing-instruction" @diagnostic="cem.tokenizer.unterminated_processing_instruction" @behavior="cem-ml-tokenizer-report-fact" @fact-kind="tokenizer-unterminated-processing-instruction" @policy="processing instructions must close with ?>"}
+        {constraint @kind="tokenizer-unterminated-expression" @target="expression" @diagnostic="cem.tokenizer.unterminated_expression" @behavior="cem-ml-tokenizer-report-fact" @fact-kind="tokenizer-unterminated-expression" @policy="expression nodes must close their brace scope"}
+        {constraint @kind="tokenizer-unterminated-rich-content" @target="raw-text" @diagnostic="cem.tokenizer.unterminated_rich_content" @behavior="cem-ml-tokenizer-report-fact" @fact-kind="tokenizer-unterminated-rich-content" @policy="rich-content fenced blocks must close with triple backticks"}
     }
 
     {diagnostics |
@@ -94,6 +103,15 @@
         {diagnostic @code="cem.doc.version_unsupported" @severity="error"}
         {diagnostic @code="cem.doc.prerelease_unmatched" @severity="error"}
         {diagnostic @code="cem.doc.version_resolved" @severity="info"}
+        {diagnostic @code="cem.tokenizer.unterminated_block_comment" @severity="error"}
+        {diagnostic @code="cem.tokenizer.bare_brace_text" @severity="error"}
+        {diagnostic @code="cem.tokenizer.unterminated_string" @severity="error"}
+        {diagnostic @code="cem.tokenizer.unterminated_avt_span" @severity="error"}
+        {diagnostic @code="cem.tokenizer.unterminated_node" @severity="error"}
+        {diagnostic @code="cem.tokenizer.invalid_processing_instruction" @severity="error"}
+        {diagnostic @code="cem.tokenizer.unterminated_processing_instruction" @severity="error"}
+        {diagnostic @code="cem.tokenizer.unterminated_expression" @severity="error"}
+        {diagnostic @code="cem.tokenizer.unterminated_rich_content" @severity="error"}
         {diagnostic @code="cem.ast.unbalanced_close" @severity="error"}
         {diagnostic @code="cem.ast.unclosed_scope" @severity="error"}
         {diagnostic @code="cem.ast.unresolved_reference" @severity="warning"}
