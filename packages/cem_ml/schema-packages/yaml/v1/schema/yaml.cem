@@ -25,7 +25,7 @@
     }
 
     {elements |
-        {element @name="stream" @required-attributes="encoding" @children="directive* document* comment*"}
+        {element @name="stream" @required-attributes="encoding" @children="directive* document* parse-fact* comment*"}
         {element @name="document" @optional-attributes="version explicit-start explicit-end" @children="node comment*"}
         {element @name="node" @required-attributes="kind" @optional-attributes="tag anchor alias source-id byte-offset byte-length" @children="mapping sequence scalar alias"}
         {element @name="mapping" @children="pair*"}
@@ -36,6 +36,7 @@
         {element @name="scalar" @optional-attributes="value style implicit-kind lexeme"}
         {element @name="alias" @required-attributes="ref"}
         {element @name="directive" @required-attributes="name" @optional-attributes="value"}
+        {element @name="parse-fact" @required-attributes="kind" @optional-attributes="contract behavior diagnostic-code diagnostic-severity recoverable fatal parameter actual expected line column byte-offset byte-length message"}
         {element @name="comment" @optional-attributes="value"}
     }
 
@@ -57,17 +58,31 @@
         {attribute @name="implicit-kind" @type="schema:identifier" @values="string integer float boolean null timestamp binary"}
         {attribute @name="lexeme" @type="schema:string"}
         {attribute @name="name" @type="schema:identifier"}
+        {attribute @name="contract" @type="schema:identifier"}
+        {attribute @name="behavior" @type="schema:identifier"}
+        {attribute @name="diagnostic-code" @type="schema:identifier"}
+        {attribute @name="diagnostic-severity" @type="schema:identifier" @values="info warning error fatal"}
+        {attribute @name="recoverable" @type="schema:boolean"}
+        {attribute @name="fatal" @type="schema:boolean"}
+        {attribute @name="parameter" @type="schema:identifier"}
+        {attribute @name="actual" @type="schema:string"}
+        {attribute @name="expected" @type="schema:string"}
+        {attribute @name="line" @type="cemml:integer"}
+        {attribute @name="column" @type="cemml:integer"}
+        {attribute @name="message" @type="schema:string"}
     }
 
     {constraints |
-        {constraint @kind="yaml-source-parser" @target="stream" @policy="delegate-to-yaml-parser"}
+        {constraint @kind="yaml-source-parser" @target="stream" @diagnostic="cem.yaml.parse_error" @behavior="yaml-parse-report-fact" @fact-kind="parse-error" @policy="delegate-to-yaml-parser"}
+        {constraint @kind="utf-8-decode" @target="stream" @diagnostic="cem.yaml.unsupported_encoding" @behavior="yaml-parse-report-fact" @fact-kind="unsupported-encoding" @policy="YAML source bytes must be valid UTF-8 before parsing"}
         {constraint @kind="multi-document-stream-supported" @target="stream" @policy="required"}
         {constraint @kind="mapping-entry-order-preserved" @target="mapping" @policy="required"}
         {constraint @kind="sequence-item-order-preserved" @target="sequence" @policy="required"}
-        {constraint @kind="anchor-alias-graph-preserved" @target="node" @policy="required when parser exposes anchors"}
-        {constraint @kind="safe-tag-resolution" @target="node" @policy="reject executable or host-object tags unless explicitly enabled"}
+        {constraint @kind="anchor-alias-graph-preserved" @target="node" @diagnostic="cem.yaml.unresolved_alias" @behavior="yaml-parse-report-fact" @fact-kind="unresolved-alias" @policy="required when parser exposes anchors"}
+        {constraint @kind="duplicate-anchor-policy" @target="node" @diagnostic="cem.yaml.duplicate_anchor" @behavior="yaml-parse-report-fact" @fact-kind="duplicate-anchor" @policy="duplicate anchor names are reported because later aliases resolve to the latest parser binding"}
+        {constraint @kind="safe-tag-resolution" @target="node" @diagnostic="cem.yaml.unsafe_tag" @behavior="yaml-parse-report-fact" @fact-kind="unsafe-tag" @policy="reject executable or host-object tags unless explicitly enabled"}
         {constraint @kind="json-compatible-profile" @target="document" @policy="optional converter profile may reject non-json keys, cycles, custom tags, and non-json scalars"}
-        {constraint @kind="source-map-preferred" @target="node" @policy="required when parser exposes source ranges"}
+        {constraint @kind="source-map-preferred" @target="node" @diagnostic="cem.yaml.source_map_unavailable" @behavior="yaml-parse-report-fact" @fact-kind="source-map-unavailable" @policy="required when parser exposes source ranges"}
     }
 
     {diagnostics |

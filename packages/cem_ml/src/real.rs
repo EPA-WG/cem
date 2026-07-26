@@ -5173,7 +5173,7 @@ fn run_scheduled_validation_documents(
             source_bytes_for_projection = Some(loaded.bytes.clone());
             if matches!(
                 loaded.ast_stream.as_ref(),
-                Some(LoadedInputAstStream::CsvDocument(_))
+                Some(LoadedInputAstStream::CsvDocument(_) | LoadedInputAstStream::YamlDocument(_))
             ) {
                 return;
             }

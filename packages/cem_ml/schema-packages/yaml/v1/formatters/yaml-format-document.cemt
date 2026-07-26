@@ -6,13 +6,13 @@
     {format-function
         @name="yaml.format-document"
         @category="yaml-document"
-        @subject="json"
-        @produces="tokens"
+        @subject="yaml-document"
+        @produces="cem-tree"
         @content-type="application/yaml"
         @schema="https://cem.dev/ns/data/yaml/1"
         @canonical=true
         @deterministic=true
         @streamable=true |
-        {param @name="subject" @type="json" @required=true}
+        {param @name="subject" @type="any" @required=true}
     }
 }

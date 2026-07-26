@@ -460,9 +460,29 @@ Remaining dependency-ordered package checklist:
 - [x] `cem-dom-projection/v1`
 - [x] `cem-ml/v1`
 - [x] `csv/v1`
+- [ ] `yaml/v1`
+  - [x] Add schema-owned YAML parse-fact bindings for parse errors,
+        unsupported UTF-8, unresolved aliases, duplicate anchors, unsafe tags,
+        and source-map-unavailable facts.
+  - [x] Add a typed YAML lifecycle AST stream and register a YAML input adapter
+        so YAML validation no longer falls through to CEM parsing.
+  - [x] Remove JSON subject/token declarations from YAML formatter/colorizer
+        CEMT boundaries in favor of typed YAML document/CEM tree boundaries.
+  - [x] Keep YAML target/export selection explicitly unsupported until a
+        first-class YAML output layer exists.
+  - [ ] Add first-class YAML export support with a YAML layer format and route
+        same-schema YAML conversion through the YAML formatter/colorizer/writer
+        pipeline instead of a generic JSON-value bridge.
+  - [ ] Expand YAML formatter/colorizer bodies for compact, pretty, tabular,
+        terminal, HTML, and Markdown profile semantics with drift tests.
+  - [ ] Expand `cem_ml_schema_package_yaml_v1:verify` so it runs manifest
+        validation, manifest-index coverage, schema-owned CLI example
+        validation, formatter/colorizer tests, README/SVG preview drift, and
+        generated artifact drift.
+  - [ ] Expand YAML README Verification, Release Behavior, and tracked
+        incomplete-work sections.
 - [ ] `json/v1`
 - [ ] `json-schema/v1`
-- [ ] `yaml/v1`
 - [ ] `markdown/v1`
 - [ ] `xml/v1`
 - [ ] `relax-ng/v1`
@@ -503,11 +523,9 @@ Remaining dependency-ordered package checklist:
 
 ### Next Work Item
 
-Review and align `json/v1` against the common schema-package AC:
-manifest-derived examples, README command/SVG preview drift, package-local
-verify coverage, source identity, parser/diagnostic ownership, formatter and
-colorizer contracts, JSON standards/interchange boundaries, and any fixture gaps
-that need explicit todo checkitems.
+Implement first-class `yaml/v1` export support with a YAML layer format, then
+route same-schema YAML conversion through the YAML formatter/colorizer/writer
+pipeline instead of a generic JSON-value bridge.
 
 ## Current Verification Commands
 

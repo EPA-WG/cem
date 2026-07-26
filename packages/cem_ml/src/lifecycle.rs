@@ -18,13 +18,16 @@ use crate::schema::registry::{
     HTML_CONTENT_TYPE, HTML_NAMESPACE_URI, HTML_SCHEMA_URI, MATHML_CONTENT_TYPE,
     MATHML_NAMESPACE_URI, MATHML_SCHEMA_URI, SVG_CONTENT_TYPE, SVG_NAMESPACE_URI, SVG_SCHEMA_URI,
     XHTML_CONTENT_TYPE, XHTML_SCHEMA_URI, XML_CONTENT_TYPE, XML_SCHEMA_URI, XSLT_NAMESPACE_URI,
-    XSLT_SCHEMA_URI,
+    XSLT_SCHEMA_URI, YAML_CONTENT_TYPE, YAML_SCHEMA_URI,
 };
 use crate::transform_config::TRANSFORM_CONFIG_SCHEMA_URI;
 use crate::validation::csv::{
     csv_document_ast_from_source_bytes, CsvDocumentAst, CsvSourceValidationRequest,
 };
 use crate::validation::xslt::{validate_xslt_source_bytes, XsltSourceValidationRequest};
+use crate::validation::yaml::{
+    yaml_document_ast_from_source_bytes, YamlDocumentAst, YamlSourceValidationRequest,
+};
 use serde_json::json;
 
 pub const ADAPTER_AMBIGUOUS_CODE: &str = "cem.lifecycle.adapter_ambiguous";
@@ -71,6 +74,7 @@ pub struct LoadedInput {
 #[derive(Debug, Clone)]
 pub enum LoadedInputAstStream {
     CsvDocument(CsvDocumentAst),
+    YamlDocument(YamlDocumentAst),
 }
 
 #[derive(Debug, Clone)]
@@ -108,6 +112,7 @@ impl LifecycleRegistry {
         registry.register(HtmlAdapter);
         registry.register(XmlAdapter);
         registry.register(CsvAdapter);
+        registry.register(YamlAdapter);
         registry.register(CustomElementXsltCompatAdapter);
         registry.register(DomBinaryProjectionAdapter);
         registry.register(AstBinaryProjectionAdapter);
@@ -605,6 +610,89 @@ fn matches_csv_identity(identity: &FormatIdentity) -> bool {
     explicit_schema_matches
 }
 
+struct YamlAdapter;
+
+impl LifecycleAdapter for YamlAdapter {
+    fn id(&self) -> &'static str {
+        "yaml"
+    }
+
+    fn matches_input(&self, identity: &FormatIdentity) -> bool {
+        matches_yaml_identity(identity)
+    }
+
+    fn load(&self, input: &EngineInput, identity: &FormatIdentity) -> LoadedInput {
+        let content_type = identity
+            .content_type
+            .as_deref()
+            .or(input.root_scope.default_content_type.as_deref())
+            .unwrap_or(YAML_CONTENT_TYPE);
+        let (stream, diagnostics) =
+            yaml_document_ast_from_source_bytes(YamlSourceValidationRequest {
+                bytes: &input.bytes,
+                source_uri: &input.uri,
+                content_type: Some(content_type),
+            });
+        LoadedInput {
+            bytes: input.bytes.clone(),
+            from_format: input.from_format.unwrap_or(InputFormat::Cem),
+            ast_stream: stream.map(LoadedInputAstStream::YamlDocument),
+            diagnostics: yaml_lifecycle_adapter_diagnostics(self.id(), diagnostics),
+            adapter_id: Some(self.id()),
+        }
+    }
+}
+
+fn matches_yaml_identity(identity: &FormatIdentity) -> bool {
+    let explicit_schema_matches = identity
+        .schema
+        .as_deref()
+        .map(str::trim)
+        .is_some_and(|schema| schema == YAML_SCHEMA_URI);
+    if let Some(content_type) = identity.content_type.as_deref() {
+        return matches!(
+            content_type_essence(content_type).as_str(),
+            YAML_CONTENT_TYPE | "application/x-yaml" | "text/yaml" | "text/x-yaml"
+        ) && (identity.schema.is_none() || explicit_schema_matches);
+    }
+    explicit_schema_matches
+}
+
+fn yaml_lifecycle_adapter_diagnostics(
+    adapter_id: &'static str,
+    diagnostics: Vec<Diagnostic>,
+) -> Vec<Diagnostic> {
+    diagnostics
+        .into_iter()
+        .map(|mut diagnostic| {
+            let lifecycle_details = json!({
+                "adapterId": adapter_id,
+                "operation": "load",
+                "profile": "yaml-source-import",
+                "sourceMapContract": "parser-markers",
+                "internalContentType": YAML_CONTENT_TYPE,
+                "internalSchema": YAML_SCHEMA_URI,
+            });
+            diagnostic.details = match diagnostic.details.take() {
+                Some(mut details) if details.is_object() => {
+                    if let Some(object) = details.as_object_mut() {
+                        object.insert("lifecycle".to_owned(), lifecycle_details);
+                    }
+                    Some(details)
+                }
+                Some(details) => Some(json!({
+                    "lifecycle": lifecycle_details,
+                    "upstream": details,
+                })),
+                None => Some(json!({
+                    "lifecycle": lifecycle_details,
+                })),
+            };
+            diagnostic
+        })
+        .collect()
+}
+
 fn csv_lifecycle_adapter_diagnostics(
     adapter_id: &'static str,
     diagnostics: Vec<Diagnostic>,
@@ -991,9 +1079,13 @@ mod tests {
             .load(&input(b"id,name\n1,Ada\n"), &context(CSV_CONTENT_TYPE));
         assert_eq!(loaded.adapter_id, Some("csv"));
         assert!(loaded.diagnostics.is_empty());
-        let LoadedInputAstStream::CsvDocument(table) = loaded
+        let table = match loaded
             .ast_stream
-            .expect("CSV adapter emits internal AST stream");
+            .expect("CSV adapter emits internal AST stream")
+        {
+            LoadedInputAstStream::CsvDocument(table) => table,
+            other => panic!("CSV adapter emitted unexpected AST stream: {other:?}"),
+        };
         assert_eq!(table.source.content_type, CSV_CONTENT_TYPE);
         assert_eq!(table.rows[0].fields[0].value, "id");
         let field_source = table.rows[0].fields[0].range.source_map();
@@ -1002,6 +1094,55 @@ mod tests {
         };
         assert_eq!(field_range.start, 0);
         assert_eq!(table.rows[1].fields[1].value, "Ada");
+    }
+
+    #[test]
+    fn builtins_load_yaml_content_type_as_internal_ast_stream() {
+        let loaded = LifecycleRegistry::with_builtin_adapters().load(
+            &input(b"name: Ada\nactive: true\n"),
+            &context(YAML_CONTENT_TYPE),
+        );
+        assert_eq!(loaded.adapter_id, Some("yaml"));
+        assert!(loaded.diagnostics.is_empty());
+        let stream = match loaded
+            .ast_stream
+            .expect("YAML adapter emits internal AST stream")
+        {
+            LoadedInputAstStream::YamlDocument(stream) => stream,
+            other => panic!("YAML adapter emitted unexpected AST stream: {other:?}"),
+        };
+        assert_eq!(stream.source.content_type, YAML_CONTENT_TYPE);
+        assert_eq!(stream.documents.len(), 1);
+        let root = stream.documents[0]
+            .root
+            .as_ref()
+            .expect("YAML document root");
+        assert_eq!(root.kind, crate::validation::yaml::YamlNodeKind::Mapping);
+        assert_eq!(root.mapping[0].key.value.as_deref(), Some("name"));
+        assert_eq!(root.mapping[0].value.value.as_deref(), Some("Ada"));
+        let key_source = root.mapping[0].key.range.source_map();
+        let crate::source_map::FrameSpan::Single(key_range) = key_source.frames[0].span else {
+            panic!("YAML key source range should be single-span");
+        };
+        assert_eq!(key_range.start, 0);
+    }
+
+    #[test]
+    fn builtins_do_not_claim_yaml_target_without_export_layer() {
+        let target = FormatIdentity {
+            content_type: Some(YAML_CONTENT_TYPE.to_owned()),
+            schema: Some(YAML_SCHEMA_URI.to_owned()),
+            ..FormatIdentity::default()
+        };
+        let selected = LifecycleRegistry::with_builtin_adapters()
+            .select_export(Some(&target), LayerFormat::Cem);
+
+        assert_eq!(selected.to_format, LayerFormat::Cem);
+        assert_eq!(selected.adapter_id, None);
+        assert!(selected
+            .diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.code == TARGET_ADAPTER_UNSUPPORTED_CODE));
     }
 
     #[test]
