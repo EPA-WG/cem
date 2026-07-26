@@ -26,9 +26,10 @@ use cem_ml_transform_cem_ql::{
 use std::collections::{BTreeMap, BTreeSet};
 use std::ffi::OsStr;
 use std::fs;
-use std::io::{self, Write};
+use std::io::{self, Read, Write};
 use std::path::{Path, PathBuf};
 use std::sync::OnceLock;
+use std::time::Duration;
 
 pub const EXIT_OK: u8 = 0;
 pub const EXIT_HARD_FAILURE: u8 = 1;
@@ -82,6 +83,9 @@ const WRITE_PURPOSES: [ResolvePurpose; 3] = [
 const CONVERT_TABULAR_FORMATTER_PROFILE: &str = "tabular";
 const CONVERT_TABULAR_COLOR_PROFILE: &str = "terminal";
 const CONVERT_TABULAR_OUTPUT_COLOR_TYPE: &str = "ansi-256";
+
+const HTTP_READ_TIMEOUT: Duration = Duration::from_secs(30);
+const HTTP_READ_MAX_BYTES: u64 = 32 * 1024 * 1024;
 
 const TRANSFORM_GRAPH_IMPORT_GLOB_MAX_ENTRIES: usize = 1024;
 
@@ -231,6 +235,85 @@ impl ResourceResolver for LocalMirrorResolver {
             }
         }
         Ok(entries)
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+struct HttpReadResolver;
+
+impl ResourceResolver for HttpReadResolver {
+    fn read(&self, request: &ResolveRequest) -> Result<ResolvedRead, ResolverDiagnostic> {
+        let client = reqwest::blocking::Client::builder()
+            .timeout(HTTP_READ_TIMEOUT)
+            .user_agent(concat!("cem-ml-cli/", env!("CARGO_PKG_VERSION")))
+            .redirect(reqwest::redirect::Policy::limited(10))
+            .build()
+            .map_err(|error| ResolverDiagnostic::Io {
+                uri: request.uri.clone(),
+                message: format!("failed to initialize HTTP client: {error}"),
+            })?;
+        let response = client
+            .get(&request.uri)
+            .send()
+            .map_err(|error| ResolverDiagnostic::Io {
+                uri: request.uri.clone(),
+                message: format!("HTTP read failed: {error}"),
+            })?;
+        let status = response.status();
+        if !status.is_success() {
+            let reason = status.canonical_reason().unwrap_or("HTTP error");
+            return Err(ResolverDiagnostic::Io {
+                uri: request.uri.clone(),
+                message: format!("HTTP {status} {reason}"),
+            });
+        }
+        if response
+            .content_length()
+            .is_some_and(|length| length > HTTP_READ_MAX_BYTES)
+        {
+            return Err(ResolverDiagnostic::Io {
+                uri: request.uri.clone(),
+                message: format!("HTTP response is larger than {} bytes", HTTP_READ_MAX_BYTES),
+            });
+        }
+        let resolved_uri = response.url().as_str().to_owned();
+        let content_type = response
+            .headers()
+            .get(reqwest::header::CONTENT_TYPE)
+            .and_then(|value| value.to_str().ok())
+            .map(str::to_owned)
+            .or_else(|| request.content_type_hint.clone());
+        let mut reader = response.take(HTTP_READ_MAX_BYTES + 1);
+        let mut bytes = Vec::new();
+        reader
+            .read_to_end(&mut bytes)
+            .map_err(|error| ResolverDiagnostic::Io {
+                uri: resolved_uri.clone(),
+                message: format!("HTTP response read failed: {error}"),
+            })?;
+        if bytes.len() as u64 > HTTP_READ_MAX_BYTES {
+            return Err(ResolverDiagnostic::Io {
+                uri: resolved_uri,
+                message: format!("HTTP response is larger than {} bytes", HTTP_READ_MAX_BYTES),
+            });
+        }
+        Ok(ResolvedRead {
+            uri: resolved_uri,
+            bytes,
+            content_type,
+        })
+    }
+
+    fn write(
+        &self,
+        request: &ResolveRequest,
+        _bytes: &[u8],
+    ) -> Result<ResolvedWrite, ResolverDiagnostic> {
+        Err(ResolverDiagnostic::UnsupportedResolver {
+            uri: request.uri.clone(),
+            purpose: request.purpose,
+            direction: ResolveDirection::Write,
+        })
     }
 }
 
@@ -953,6 +1036,7 @@ fn register_cli_resolvers(
     c: &cli::ContextOptions,
     config: Option<&RunConfig>,
 ) {
+    register_builtin_http_input_resolvers(registry);
     let mut read_mappings = c
         .resolver_read_maps
         .iter()
@@ -985,6 +1069,17 @@ fn register_cli_resolvers(
         ResolveDirection::Write,
         &WRITE_PURPOSES,
     );
+}
+
+fn register_builtin_http_input_resolvers(registry: &mut ResolverRegistry) {
+    for scheme in ["http", "https"] {
+        registry.register(
+            scheme,
+            ResolvePurpose::Input,
+            ResolveDirection::Read,
+            HttpReadResolver,
+        );
+    }
 }
 
 fn register_resolver_mappings(
@@ -12393,6 +12488,50 @@ mod tests {
         p
     }
 
+    struct HttpFixture {
+        url: String,
+        handle: Option<std::thread::JoinHandle<()>>,
+    }
+
+    impl HttpFixture {
+        fn finish(mut self) {
+            if let Some(handle) = self.handle.take() {
+                handle.join().expect("HTTP fixture thread joins");
+            }
+        }
+    }
+
+    fn http_input_fixture(path: &str, body: &[u8], content_type: &str) -> HttpFixture {
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        let addr = listener.local_addr().unwrap();
+        let body = body.to_vec();
+        let content_type = content_type.to_owned();
+        let path = path.to_owned();
+        let handle = std::thread::spawn(move || {
+            let (mut stream, _) = listener.accept().unwrap();
+            let mut request = [0u8; 4096];
+            let _ = std::io::Read::read(&mut stream, &mut request);
+            let response_header = format!(
+                concat!(
+                    "HTTP/1.1 200 OK\r\n",
+                    "Content-Type: {}\r\n",
+                    "Content-Length: {}\r\n",
+                    "Connection: close\r\n",
+                    "\r\n"
+                ),
+                content_type,
+                body.len()
+            );
+            std::io::Write::write_all(&mut stream, response_header.as_bytes()).unwrap();
+            std::io::Write::write_all(&mut stream, &body).unwrap();
+        });
+
+        HttpFixture {
+            url: format!("http://{addr}{path}"),
+            handle: Some(handle),
+        }
+    }
+
     fn write_single_output_convert_config(
         name: &str,
         input: &Path,
@@ -15505,7 +15644,7 @@ mod tests {
 
     #[test]
     fn parse_remote_uri_input_is_rejected_without_resolver() {
-        let uri = "https://example.test/input.cem";
+        let uri = "cem+remote://example.test/input.cem";
         assert_remote_input_uri_rejected(&["parse", uri], uri);
     }
 
@@ -20147,20 +20286,16 @@ start =
 
     #[test]
     fn validate_input_spec_remote_uri_input_is_rejected_without_resolver() {
+        let uri = "cem+remote://example.test/input.cem";
+        let input_spec = format!("uri={uri}");
         let (outcome, stdout, stderr) = run(
             &RealCemMlEngine::new(),
-            &[
-                "validate",
-                "--format",
-                "json",
-                "--input-spec",
-                "uri=https://example.test/input.cem",
-            ],
+            &["validate", "--format", "json", "--input-spec", &input_spec],
         );
 
         assert_eq!(outcome.exit_code, EXIT_IO);
         assert!(stdout.trim().is_empty());
-        assert_remote_resolver_boundary(&stderr, "https://example.test/input.cem");
+        assert_remote_resolver_boundary(&stderr, uri);
     }
 
     #[test]
@@ -20181,24 +20316,20 @@ start =
 
     #[test]
     fn validate_positional_remote_uri_input_is_rejected_without_resolver() {
+        let uri = "cem+remote://example.test/input.cem";
         let (outcome, stdout, stderr) = run(
             &RealCemMlEngine::new(),
-            &[
-                "validate",
-                "--format",
-                "json",
-                "https://example.test/input.cem",
-            ],
+            &["validate", "--format", "json", uri],
         );
 
         assert_eq!(outcome.exit_code, EXIT_IO);
         assert!(stdout.trim().is_empty());
-        assert_remote_resolver_boundary(&stderr, "https://example.test/input.cem");
+        assert_remote_resolver_boundary(&stderr, uri);
     }
 
     #[test]
     fn check_positional_remote_uri_input_is_rejected_without_resolver() {
-        let uri = "https://example.test/check.cem";
+        let uri = "cem+remote://example.test/check.cem";
         assert_remote_input_uri_rejected(&["check", "--format", "json", uri], uri);
     }
 
@@ -20221,7 +20352,7 @@ start =
             &config_path,
             serde_json::json!({
                 "inputs": [{
-                    "uri": "https://example.test/input.cem"
+                    "uri": "cem+remote://example.test/input.cem"
                 }]
             })
             .to_string(),
@@ -20235,7 +20366,7 @@ start =
 
         assert_eq!(outcome.exit_code, EXIT_IO);
         assert!(stdout.trim().is_empty());
-        assert_remote_resolver_boundary(&stderr, "https://example.test/input.cem");
+        assert_remote_resolver_boundary(&stderr, "cem+remote://example.test/input.cem");
     }
 
     #[test]
@@ -21322,6 +21453,28 @@ start =
     }
 
     #[test]
+    fn http_uri_input_uses_builtin_read_resolver() {
+        let fixture = http_input_fixture("/source", b"{main | Remote}", "application/cem");
+        let context = context(&cli::ContextOptions::default());
+
+        let input = engine_input(
+            &context,
+            Path::new(&fixture.url),
+            None,
+            ScopeConfig::default(),
+        )
+        .unwrap();
+
+        assert_eq!(input.uri, fixture.url);
+        assert_eq!(input.bytes, b"{main | Remote}");
+        assert_eq!(
+            input.root_scope.default_content_type.as_deref(),
+            Some("application/cem")
+        );
+        fixture.finish();
+    }
+
+    #[test]
     fn custom_uri_config_uses_registered_read_resolver() {
         let context = context_with_read_resolver(
             ResolvePurpose::Config,
@@ -21896,7 +22049,7 @@ start =
 
     #[test]
     fn convert_remote_uri_input_is_rejected_without_resolver() {
-        let uri = "https://example.test/convert.cem";
+        let uri = "cem+remote://example.test/convert.cem";
         assert_remote_input_uri_rejected(&["convert", uri], uri);
     }
 
@@ -21909,6 +22062,18 @@ start =
         assert_eq!(outcome.exit_code, EXIT_OK, "{stderr}");
         let v: serde_json::Value = serde_json::from_str(stdout.trim()).expect("valid JSON");
         assert_eq!(v["input"], file_uri);
+    }
+
+    #[test]
+    fn convert_http_uri_input_reads_remote_input() {
+        let fixture = http_input_fixture("/convert.cem", b"{p | Remote}", "application/cem");
+        let url = fixture.url.clone();
+        let (outcome, stdout, stderr) = run(&FakeEngine, &["convert", &url]);
+        fixture.finish();
+
+        assert_eq!(outcome.exit_code, EXIT_OK, "{stderr}");
+        let v: serde_json::Value = serde_json::from_str(stdout.trim()).expect("valid JSON");
+        assert_eq!(v["input"], url);
     }
 
     #[test]
@@ -23155,7 +23320,7 @@ start =
 
     #[test]
     fn bench_remote_uri_input_is_rejected_without_resolver() {
-        let uri = "https://example.test/bench.cem";
+        let uri = "cem+remote://example.test/bench.cem";
         assert_remote_input_uri_rejected(&["bench", "--format", "json", uri], uri);
     }
 
@@ -23430,14 +23595,12 @@ start =
 
     #[test]
     fn fixture_validate_remote_uri_input_is_rejected_without_resolver() {
-        let (outcome, stdout, stderr) = run(
-            &RealCemMlEngine::new(),
-            &["fixture", "validate", "https://example.test/fixture.cem"],
-        );
+        let uri = "cem+remote://example.test/fixture.cem";
+        let (outcome, stdout, stderr) = run(&RealCemMlEngine::new(), &["fixture", "validate", uri]);
 
         assert_eq!(outcome.exit_code, EXIT_IO);
         assert!(stdout.trim().is_empty());
-        assert_remote_input_resolver_boundary(&stderr, "https://example.test/fixture.cem");
+        assert_remote_input_resolver_boundary(&stderr, uri);
     }
 
     #[test]
@@ -23526,7 +23689,7 @@ start =
 
     #[test]
     fn fixture_roundtrip_remote_uri_input_is_rejected_without_resolver() {
-        let uri = "https://example.test/fixture-roundtrip.cem";
+        let uri = "cem+remote://example.test/fixture-roundtrip.cem";
         let (outcome, stdout, stderr) =
             run(&RealCemMlEngine::new(), &["fixture", "roundtrip", uri]);
 
@@ -23694,7 +23857,7 @@ start =
 
     #[test]
     fn inspect_remote_uri_input_is_rejected_without_resolver() {
-        let uri = "https://example.test/inspect.cem";
+        let uri = "cem+remote://example.test/inspect.cem";
         assert_remote_input_uri_rejected(&["inspect", uri], uri);
     }
 
@@ -23814,7 +23977,7 @@ start =
 
     #[test]
     fn trace_remote_uri_input_is_rejected_without_resolver() {
-        let uri = "https://example.test/trace.cem";
+        let uri = "cem+remote://example.test/trace.cem";
         assert_remote_input_uri_rejected(&["trace", uri], uri);
     }
 
