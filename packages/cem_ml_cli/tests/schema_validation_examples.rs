@@ -1039,7 +1039,7 @@ fn cem_ml_embedded_handoff_diagnostics_carry_source_map_bounds_through_cli() {
                 stdout(&output)
             )
         });
-    assert_eq!(diagnostic["severity"], "info");
+    assert_eq!(diagnostic["severity"], "warning");
 }
 
 #[test]

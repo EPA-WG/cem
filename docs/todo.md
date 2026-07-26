@@ -43,13 +43,17 @@ stream.
       schema-owned semantic fact catalog, preserving AST source maps and
       letting `schema/cem-ml-generic.cem` own code, severity, behavior,
       fact kind, and policy for `cem.lint.unbound_prefix`.
-- [ ] Move remaining active CEM-ML syntax and namespace diagnostics behind
+- [x] Move remaining active CEM-ML syntax and namespace diagnostics behind
       schema-owned fact bindings after that boundary is decided, including
       invalid names if/when an active emitter exists, and schema-machine
       namespace/scope facts.
-- [ ] Move remaining CEM-ML schema-machine and handoff diagnostics behind the
+- [x] Move remaining CEM-ML schema-machine and handoff diagnostics behind the
       same neutral fact boundary, including unbalanced/unclosed schema scopes,
       unsupported/deferred handoffs, and XSLT dispatch/version diagnostics.
+- [ ] Move remaining CEM Core vocab and schema-scoping machine diagnostics
+      behind schema-owned fact bindings, including unknown annotations,
+      annotation values, state matrix violations, schema source scoping errors,
+      invalid namespace directives, and non-streamable schema constraints.
 - [ ] Move remaining CEM-ML formatter writer-adjacent primitives for
       block-child whitespace and content-boundary construction into CEMT
       helpers, or declare the host-primitive contract explicitly as the

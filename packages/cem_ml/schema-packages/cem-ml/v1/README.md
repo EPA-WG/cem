@@ -69,16 +69,20 @@ runtime validation reports:
 - `cem.syntax.unclosed_scope`
 - `cem.syntax.invalid_name`
 - `cem.namespace.unbound_prefix`
+- `cem.schema.unbalanced_close`
 - `cem.schema.unclosed_scope`
 - `cem.schema.unresolved_namespace`
+- `cem.schema.unresolved_namespace_allowed`
+- `cem.schema.unresolved_namespace_ignored`
 - `cem.handoff.xslt_dispatched`
+- `cem.xslt.version_invalid`
 - `cem.handoff.child_parser_deferred`
 - `cem.handoff.unsupported_content_type`
 - `cem.content_type.unsupported_handoff`
 
 Current incomplete boundary: byte-accurate parsing, handoff dispatch facts, and
-some parser diagnostic emission still run through native Rust. The target shape
-is Rust extracting neutral parse and handoff facts while this package's `.cem`
+some CEM Core vocab/scoping diagnostic emission still run through native Rust.
+The target shape is Rust extracting neutral facts while this package's `.cem`
 schema owns code, severity, and structured details.
 
 ## Folder Contract

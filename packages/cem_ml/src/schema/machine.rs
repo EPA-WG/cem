@@ -13,6 +13,10 @@
 use crate::diagnostics::{Diagnostic, Severity};
 use crate::events::{EventNormalizer, HandoffRecord, NormalizedEvent, ScalarValue};
 use crate::handoff::{is_supported_content_type, HandoffStack};
+use crate::schema::diagnostics::{
+    cem_ml_schema_fact_diagnostic, CemMlSchemaDiagnosticCatalog, CemMlSchemaFact,
+    CemMlSchemaFactKind,
+};
 use crate::schema::disposition::{self, Disposition, RunMode};
 use crate::schema::namespace::NsContext;
 use crate::schema::scoping::{
@@ -92,6 +96,7 @@ pub struct CemSchemaMachine<E: EventNormalizer> {
     /// specifiers, values are URI/path identities resolved before base-path
     /// fallback.
     schema_source_aliases: BTreeMap<String, String>,
+    cem_ml_schema_diagnostics: Option<CemMlSchemaDiagnosticCatalog>,
     finished: bool,
 }
 
@@ -180,6 +185,7 @@ impl<E: EventNormalizer> CemSchemaMachine<E> {
             pending_xslt_version: None,
             schema_source_base: None,
             schema_source_aliases: BTreeMap::new(),
+            cem_ml_schema_diagnostics: None,
             finished: false,
         }
     }
@@ -217,6 +223,15 @@ impl<E: EventNormalizer> CemSchemaMachine<E> {
     ) -> Self {
         self.schema_source_base = module_map.and_then(module_map_schema_base);
         self.schema_source_aliases = entries.clone();
+        self
+    }
+
+    #[cfg(test)]
+    fn with_cem_ml_schema_diagnostic_catalog(
+        mut self,
+        catalog: CemMlSchemaDiagnosticCatalog,
+    ) -> Self {
+        self.cem_ml_schema_diagnostics = Some(catalog);
         self
     }
 
@@ -337,6 +352,13 @@ impl<E: EventNormalizer> CemSchemaMachine<E> {
             frames: self.frames,
             handoffs_at_eof: self.handoffs.depth(),
             diagnostics: self.diagnostics,
+        }
+    }
+
+    fn push_schema_fact_diagnostic(&mut self, fact: CemMlSchemaFact) {
+        let catalog = self.cem_ml_schema_diagnostics.as_ref();
+        if let Some(diagnostic) = cem_ml_schema_fact_diagnostic(&fact, catalog) {
+            self.diagnostics.push(diagnostic);
         }
     }
 
@@ -478,17 +500,12 @@ impl<E: EventNormalizer> CemSchemaMachine<E> {
 
     fn on_close(&mut self, _name: &str) {
         if self.frames.is_empty() {
-            self.diagnostics.push(Diagnostic {
-                uri: None,
-                line: None,
-                column: None,
+            self.push_schema_fact_diagnostic(CemMlSchemaFact {
+                kind: CemMlSchemaFactKind::SchemaUnbalancedClose,
                 byte_offset: None,
-                code: "cem.schema.unbalanced_close".to_owned(),
-                severity: Severity::Error,
                 message: "close-scope event with no matching open frame".to_owned(),
-                node: None,
-                details: None,
                 source_map: None,
+                details: None,
             });
             return;
         }
@@ -582,27 +599,27 @@ impl<E: EventNormalizer> CemSchemaMachine<E> {
         }
         let uri = namespace_uri.unwrap_or_default();
         let decision = disposition::resolve_disposition(self.run_mode, None, None);
-        let (code, severity) = match decision.disposition {
-            Disposition::Reject => ("cem.schema.unresolved_namespace", Severity::Error),
-            Disposition::Allow => ("cem.schema.unresolved_namespace_allowed", Severity::Info),
-            Disposition::Ignore => ("cem.schema.unresolved_namespace_ignored", Severity::Info),
+        let kind = match decision.disposition {
+            Disposition::Reject => CemMlSchemaFactKind::SchemaUnresolvedNamespaceReject,
+            Disposition::Allow => CemMlSchemaFactKind::SchemaUnresolvedNamespaceAllow,
+            Disposition::Ignore => CemMlSchemaFactKind::SchemaUnresolvedNamespaceIgnore,
         };
-        self.diagnostics.push(Diagnostic {
-            uri: None,
-            line: None,
-            column: None,
+        self.push_schema_fact_diagnostic(CemMlSchemaFact {
+            kind,
             byte_offset: Some(frame.source_span.start),
-            code: code.to_owned(),
-            severity,
             message: format!(
                 "element `{name}` is in unresolved namespace `{uri}` (no metadata, schema, or rule); \
                  {mode:?} run disposition: {disp:?}",
                 mode = decision.mode,
                 disp = decision.disposition
             ),
-            node: None,
-            details: None,
             source_map: Some(frame.source_map_stack.clone()),
+            details: Some(serde_json::json!({
+                "element": name,
+                "namespace": uri,
+                "mode": format!("{:?}", decision.mode),
+                "disposition": format!("{:?}", decision.disposition),
+            })),
         });
     }
 
@@ -616,40 +633,35 @@ impl<E: EventNormalizer> CemSchemaMachine<E> {
     /// separately (AC-P-6.9).
     fn emit_xslt_dispatch(&mut self, frame: &SchemaFrame) {
         let byte_offset = Some(frame.source_span.start);
-        let source_map = Some(frame.source_map_stack.clone());
         match xslt::resolve_xslt_dispatch(self.pending_xslt_version.as_deref()) {
-            Ok(dispatch) => self.diagnostics.push(Diagnostic {
-                uri: None,
-                line: None,
-                column: None,
+            Ok(dispatch) => self.push_schema_fact_diagnostic(CemMlSchemaFact {
+                kind: CemMlSchemaFactKind::HandoffXsltDispatched,
                 byte_offset,
-                code: "cem.handoff.xslt_dispatched".to_owned(),
-                severity: Severity::Info,
                 message: format!(
                     "xsl: region dispatched as an isolated handoff, version-pinned to XSLT {}.{} \
                      (adapter line {}); not interpreted as CEM-ML",
                     dispatch.requested.major, dispatch.requested.minor, dispatch.adapter_line
                 ),
-                node: None,
-                source_map,
-
-                details: None,
+                source_map: Some(frame.source_map_stack.clone()),
+                details: Some(serde_json::json!({
+                    "requestedVersion": {
+                        "major": dispatch.requested.major,
+                        "minor": dispatch.requested.minor,
+                    },
+                    "adapterLine": dispatch.adapter_line.to_string(),
+                })),
             }),
-            Err(error) => self.diagnostics.push(Diagnostic {
-                uri: None,
-                line: None,
-                column: None,
+            Err(error) => self.push_schema_fact_diagnostic(CemMlSchemaFact {
+                kind: CemMlSchemaFactKind::HandoffXsltVersionInvalid,
                 byte_offset,
-                code: "cem.xslt.version_invalid".to_owned(),
-                severity: Severity::Error,
                 message: format!(
                     "xsl: region dispatched but its `xsl:stylesheet/@version` is {error:?}; \
                      cannot version-pin the XSLT handoff"
                 ),
-                node: None,
-                source_map,
-
-                details: None,
+                source_map: Some(frame.source_map_stack.clone()),
+                details: Some(serde_json::json!({
+                    "versionError": format!("{:?}", error),
+                })),
             }),
         }
     }
@@ -697,32 +709,22 @@ impl<E: EventNormalizer> CemSchemaMachine<E> {
             "returnCondition": "parent-scope-close",
         }));
         if !is_supported_content_type(&content_type) {
-            self.diagnostics.push(Diagnostic {
-                uri: None,
-                line: None,
-                column: None,
+            self.push_schema_fact_diagnostic(CemMlSchemaFact {
+                kind: CemMlSchemaFactKind::HandoffUnsupportedContentType,
                 byte_offset: Some(span.start),
-                code: "cem.handoff.unsupported_content_type".to_owned(),
-                severity: Severity::Error,
                 message: format!(
                     "content type `{content_type}` has no Tier A handoff; region is bounded but not interpreted"
                 ),
-                node: None,
                 details,
                 source_map: Some(diagnostic_source_map),
             });
         } else {
-            self.diagnostics.push(Diagnostic {
-                uri: None,
-                line: None,
-                column: None,
+            self.push_schema_fact_diagnostic(CemMlSchemaFact {
+                kind: CemMlSchemaFactKind::HandoffChildParserDeferred,
                 byte_offset: Some(span.start),
-                code: "cem.handoff.child_parser_deferred".to_owned(),
-                severity: Severity::Info,
                 message: format!(
                     "child parser for `{content_type}` lands in Phase 11; region preserved as opaque text bounded by the parent scope's close"
                 ),
-                node: None,
                 details,
                 source_map: Some(diagnostic_source_map),
             });
@@ -1263,21 +1265,18 @@ impl<E: EventNormalizer> CemSchemaMachine<E> {
 
     fn finalize(&mut self) {
         // Any frames still on the stack at EOF mean unbalanced opens.
-        for frame in self.frames.iter() {
-            self.diagnostics.push(Diagnostic {
-                uri: None,
-                line: None,
-                column: None,
+        for frame in self.frames.clone() {
+            self.push_schema_fact_diagnostic(CemMlSchemaFact {
+                kind: CemMlSchemaFactKind::SchemaUnclosedScope,
                 byte_offset: Some(frame.source_span.start),
-                code: "cem.schema.unclosed_scope".to_owned(),
-                severity: Severity::Error,
                 message: match &frame.expected_close {
                     Some(name) => format!("scope `{}` did not close before EOF", name),
                     None => "anonymous scope did not close before EOF".to_owned(),
                 },
-                node: None,
-                details: None,
-                source_map: None,
+                source_map: Some(frame.source_map_stack.clone()),
+                details: Some(serde_json::json!({
+                    "scope": frame.expected_close.as_deref(),
+                })),
             });
         }
         // Reject non-streamable constraints at finalize so the diagnostic
@@ -1351,6 +1350,14 @@ impl<E: EventNormalizer> SchemaMachine for CemSchemaMachine<E> {
 mod tests {
     use super::*;
     use crate::events::cem::CemEventNormalizer;
+    use crate::schema::diagnostics::{
+        CemMlSchemaDiagnosticCatalog, CEM_ML_PACKAGE_ID, CEM_ML_SCHEMA_REPORT_BEHAVIOR,
+        HANDOFF_CHILD_PARSER_DEFERRED_CONTRACT, HANDOFF_UNSUPPORTED_CONTENT_TYPE_CONTRACT,
+        HANDOFF_XSLT_DISPATCHED_CONTRACT, HANDOFF_XSLT_VERSION_INVALID_CONTRACT,
+        SCHEMA_UNBALANCED_CLOSE_CONTRACT, SCHEMA_UNCLOSED_SCOPE_CONTRACT,
+        SCHEMA_UNRESOLVED_NAMESPACE_ALLOW_CONTRACT, SCHEMA_UNRESOLVED_NAMESPACE_IGNORE_CONTRACT,
+        SCHEMA_UNRESOLVED_NAMESPACE_REJECT_CONTRACT,
+    };
     use crate::source::{BytesSource, SourceId};
     use crate::tokenizer::cem::CemTokenizer;
 
@@ -1359,6 +1366,27 @@ mod tests {
         let tok = CemTokenizer::from_source(src);
         let normalizer = CemEventNormalizer::new(tok);
         CemSchemaMachine::new(CompiledSchema::cem_core(), normalizer).run()
+    }
+
+    fn run_schema_with_catalog(
+        input: &str,
+        catalog: CemMlSchemaDiagnosticCatalog,
+    ) -> SchemaMachineOutcome {
+        let src = BytesSource::new(SourceId(1), input.as_bytes().to_vec());
+        let tok = CemTokenizer::from_source(src);
+        let normalizer = CemEventNormalizer::new(tok);
+        CemSchemaMachine::new(CompiledSchema::cem_core(), normalizer)
+            .with_cem_ml_schema_diagnostic_catalog(catalog)
+            .run()
+    }
+
+    fn run_schema_with_xslt_dispatch(input: &str) -> SchemaMachineOutcome {
+        let src = BytesSource::new(SourceId(1), input.as_bytes().to_vec());
+        let tok = CemTokenizer::from_source(src);
+        let normalizer = CemEventNormalizer::new(tok);
+        CemSchemaMachine::new(CompiledSchema::cem_core(), normalizer)
+            .with_xslt_dispatch(true)
+            .run()
     }
 
     fn handoff_diagnostic<'a>(
@@ -1410,6 +1438,126 @@ mod tests {
             .frames
             .iter()
             .any(|frame| matches!(frame.transform, TransformKind::CemTokenizer)));
+    }
+
+    #[test]
+    fn cem_ml_schema_fact_diagnostic_bindings_are_schema_declared_by_fact_kind() {
+        let source =
+            crate::schema::package_sources::builtin_schema_package_source(CEM_ML_PACKAGE_ID)
+                .expect("CEM-ML package source")
+                .schema_source;
+        let catalog = CemMlSchemaDiagnosticCatalog::from_schema_source(source);
+        for (fact_kind, code, contract) in [
+            (
+                CemMlSchemaFactKind::SchemaUnbalancedClose,
+                "cem.schema.unbalanced_close",
+                SCHEMA_UNBALANCED_CLOSE_CONTRACT,
+            ),
+            (
+                CemMlSchemaFactKind::SchemaUnclosedScope,
+                "cem.schema.unclosed_scope",
+                SCHEMA_UNCLOSED_SCOPE_CONTRACT,
+            ),
+            (
+                CemMlSchemaFactKind::SchemaUnresolvedNamespaceReject,
+                "cem.schema.unresolved_namespace",
+                SCHEMA_UNRESOLVED_NAMESPACE_REJECT_CONTRACT,
+            ),
+            (
+                CemMlSchemaFactKind::SchemaUnresolvedNamespaceAllow,
+                "cem.schema.unresolved_namespace_allowed",
+                SCHEMA_UNRESOLVED_NAMESPACE_ALLOW_CONTRACT,
+            ),
+            (
+                CemMlSchemaFactKind::SchemaUnresolvedNamespaceIgnore,
+                "cem.schema.unresolved_namespace_ignored",
+                SCHEMA_UNRESOLVED_NAMESPACE_IGNORE_CONTRACT,
+            ),
+            (
+                CemMlSchemaFactKind::HandoffXsltDispatched,
+                "cem.handoff.xslt_dispatched",
+                HANDOFF_XSLT_DISPATCHED_CONTRACT,
+            ),
+            (
+                CemMlSchemaFactKind::HandoffXsltVersionInvalid,
+                "cem.xslt.version_invalid",
+                HANDOFF_XSLT_VERSION_INVALID_CONTRACT,
+            ),
+            (
+                CemMlSchemaFactKind::HandoffChildParserDeferred,
+                "cem.handoff.child_parser_deferred",
+                HANDOFF_CHILD_PARSER_DEFERRED_CONTRACT,
+            ),
+            (
+                CemMlSchemaFactKind::HandoffUnsupportedContentType,
+                "cem.handoff.unsupported_content_type",
+                HANDOFF_UNSUPPORTED_CONTENT_TYPE_CONTRACT,
+            ),
+        ] {
+            let binding = catalog
+                .binding_for_fact(fact_kind)
+                .unwrap_or_else(|| panic!("{fact_kind:?} binding"));
+            assert_eq!(binding.fact_kind, fact_kind.as_str());
+            assert_eq!(binding.diagnostic_code, code);
+            assert_eq!(binding.contract, contract);
+            assert_eq!(
+                binding.behavior.as_deref(),
+                Some(CEM_ML_SCHEMA_REPORT_BEHAVIOR)
+            );
+        }
+    }
+
+    #[test]
+    fn cem_ml_schema_diagnostic_code_and_severity_are_schema_owned() {
+        let source =
+            crate::schema::package_sources::builtin_schema_package_source(CEM_ML_PACKAGE_ID)
+                .expect("CEM-ML package source")
+                .schema_source
+                .replace(
+                    r#"@diagnostic="cem.handoff.child_parser_deferred""#,
+                    r#"@diagnostic="example.handoff.deferred""#,
+                )
+                .replace(
+                    r#"{diagnostic @code="cem.handoff.child_parser_deferred" @severity="warning"}"#,
+                    r#"{diagnostic @code="example.handoff.deferred" @severity="error"}"#,
+                );
+        let catalog = CemMlSchemaDiagnosticCatalog::from_schema_source(&source);
+        let out = run_schema_with_catalog(r#"{@type="text/html" | <p>hi</p>}"#, catalog);
+        let diagnostic = out
+            .diagnostics
+            .iter()
+            .find(|diagnostic| diagnostic.code == "example.handoff.deferred")
+            .expect("schema-owned handoff diagnostic");
+        assert_eq!(diagnostic.severity, Severity::Error);
+        assert_eq!(
+            diagnostic.details.as_ref().and_then(|details| {
+                details["contract"]
+                    .as_str()
+                    .map(|contract| contract.to_owned())
+            }),
+            Some(HANDOFF_CHILD_PARSER_DEFERRED_CONTRACT.to_owned())
+        );
+    }
+
+    #[test]
+    fn cem_ml_schema_fact_without_binding_stays_neutral() {
+        let source =
+            crate::schema::package_sources::builtin_schema_package_source(CEM_ML_PACKAGE_ID)
+                .expect("CEM-ML package source")
+                .schema_source
+                .replace(
+                    r#"@fact-kind="handoff-child-parser-deferred""#,
+                    r#"@fact-kind="handoff-child-parser-muted""#,
+                );
+        let catalog = CemMlSchemaDiagnosticCatalog::from_schema_source(&source);
+        let out = run_schema_with_catalog(r#"{@type="text/html" | <p>hi</p>}"#, catalog);
+        assert!(
+            out.diagnostics
+                .iter()
+                .all(|diagnostic| diagnostic.code != "cem.handoff.child_parser_deferred"),
+            "schema-machine facts without schema bindings must not fall back to hard-coded diagnostics: {:?}",
+            out.diagnostics
+        );
     }
 
     #[test]
@@ -1484,10 +1632,23 @@ mod tests {
         // Tokenizer flags `cem.tokenizer.unterminated_node`; the schema
         // machine adds `cem.schema.unclosed_scope` for the still-open
         // frame at finalize.
-        assert!(out
+        let diagnostic = out
             .diagnostics
             .iter()
-            .any(|d| d.code == "cem.schema.unclosed_scope"));
+            .find(|d| d.code == "cem.schema.unclosed_scope")
+            .expect("schema unclosed-scope diagnostic");
+        assert_eq!(
+            diagnostic.details.as_ref().and_then(|details| {
+                details["contract"]
+                    .as_str()
+                    .map(|contract| contract.to_owned())
+            }),
+            Some(SCHEMA_UNCLOSED_SCOPE_CONTRACT.to_owned())
+        );
+        assert!(
+            diagnostic.source_map.is_some(),
+            "schema fact diagnostic should preserve the open frame source map"
+        );
     }
 
     #[test]
@@ -1536,10 +1697,10 @@ mod tests {
     }
 
     #[test]
-    fn supported_content_type_emits_deferred_info_diag() {
+    fn supported_content_type_emits_deferred_schema_diag() {
         let out = run_schema(r#"{@type="text/html" | <p>hi</p>}"#);
         let deferred = handoff_diagnostic(&out, "cem.handoff.child_parser_deferred", "text/html");
-        assert_eq!(deferred.severity, Severity::Info);
+        assert_eq!(deferred.severity, Severity::Warning);
         assert!(deferred.message.contains("text/html"));
         assert_handoff_diagnostic_bounds(deferred, "text/html");
         // No hard violations from a supported handoff.
@@ -1574,7 +1735,7 @@ mod tests {
             let out = run_schema(input);
             let deferred =
                 handoff_diagnostic(&out, "cem.handoff.child_parser_deferred", content_type);
-            assert_eq!(deferred.severity, Severity::Info);
+            assert_eq!(deferred.severity, Severity::Warning);
             assert_handoff_diagnostic_bounds(deferred, content_type);
             assert_eq!(
                 out.hard_violations(),
@@ -1624,6 +1785,58 @@ mod tests {
                 .iter()
                 .all(|d| d.code != "cem.schema.unclosed_scope"));
         }
+    }
+
+    #[test]
+    fn xslt_dispatch_emits_schema_owned_fact_diagnostic() {
+        let out = run_schema_with_xslt_dispatch(
+            r#"@ns xsl = "http://www.w3.org/1999/XSL/Transform"
+{xsl:stylesheet @version="1.0" | {xsl:template | body}}"#,
+        );
+        let diagnostic = out
+            .diagnostics
+            .iter()
+            .find(|diagnostic| diagnostic.code == "cem.handoff.xslt_dispatched")
+            .expect("XSLT dispatch diagnostic");
+        assert_eq!(diagnostic.severity, Severity::Info);
+        assert_eq!(
+            diagnostic.details.as_ref().and_then(|details| {
+                details["contract"]
+                    .as_str()
+                    .map(|contract| contract.to_owned())
+            }),
+            Some(HANDOFF_XSLT_DISPATCHED_CONTRACT.to_owned())
+        );
+        assert_eq!(
+            diagnostic.details.as_ref().and_then(|details| {
+                details["requestedVersion"]["major"]
+                    .as_u64()
+                    .zip(details["requestedVersion"]["minor"].as_u64())
+            }),
+            Some((1, 0))
+        );
+    }
+
+    #[test]
+    fn xslt_invalid_version_emits_schema_owned_fact_diagnostic() {
+        let out = run_schema_with_xslt_dispatch(
+            r#"@ns xsl = "http://www.w3.org/1999/XSL/Transform"
+{xsl:stylesheet @version="invalid" | {xsl:template | body}}"#,
+        );
+        let diagnostic = out
+            .diagnostics
+            .iter()
+            .find(|diagnostic| diagnostic.code == "cem.xslt.version_invalid")
+            .expect("XSLT version diagnostic");
+        assert_eq!(diagnostic.severity, Severity::Error);
+        assert_eq!(
+            diagnostic.details.as_ref().and_then(|details| {
+                details["contract"]
+                    .as_str()
+                    .map(|contract| contract.to_owned())
+            }),
+            Some(HANDOFF_XSLT_VERSION_INVALID_CONTRACT.to_owned())
+        );
     }
 
     #[test]

@@ -95,6 +95,15 @@
         {constraint @kind="tokenizer-unterminated-expression" @target="expression" @diagnostic="cem.tokenizer.unterminated_expression" @behavior="cem-ml-tokenizer-report-fact" @fact-kind="tokenizer-unterminated-expression" @policy="expression nodes must close their brace scope"}
         {constraint @kind="tokenizer-unterminated-rich-content" @target="raw-text" @diagnostic="cem.tokenizer.unterminated_rich_content" @behavior="cem-ml-tokenizer-report-fact" @fact-kind="tokenizer-unterminated-rich-content" @policy="rich-content fenced blocks must close with triple backticks"}
         {constraint @kind="semantic-unbound-prefix" @target="attribute" @diagnostic="cem.lint.unbound_prefix" @behavior="cem-ml-semantic-report-fact" @fact-kind="semantic-unbound-prefix" @policy="document validation reports prefixed attributes whose prefix is not declared by active namespace bindings or accepted by the active language family"}
+        {constraint @kind="schema-unbalanced-close" @target="document" @diagnostic="cem.schema.unbalanced_close" @behavior="cem-ml-schema-report-fact" @fact-kind="schema-unbalanced-close" @policy="schema-machine close-scope events must match an open schema frame"}
+        {constraint @kind="schema-unclosed-scope" @target="document" @diagnostic="cem.schema.unclosed_scope" @behavior="cem-ml-schema-report-fact" @fact-kind="schema-unclosed-scope" @policy="schema-machine frames must close before end of input"}
+        {constraint @kind="schema-unresolved-namespace-reject" @target="element" @diagnostic="cem.schema.unresolved_namespace" @behavior="cem-ml-schema-report-fact" @fact-kind="schema-unresolved-namespace-reject" @policy="application-mode unresolved namespaces without active schema metadata are rejected"}
+        {constraint @kind="schema-unresolved-namespace-allow" @target="element" @diagnostic="cem.schema.unresolved_namespace_allowed" @behavior="cem-ml-schema-report-fact" @fact-kind="schema-unresolved-namespace-allow" @policy="development/build unresolved namespace allow dispositions are reported as schema-machine facts"}
+        {constraint @kind="schema-unresolved-namespace-ignore" @target="element" @diagnostic="cem.schema.unresolved_namespace_ignored" @behavior="cem-ml-schema-report-fact" @fact-kind="schema-unresolved-namespace-ignore" @policy="development/build unresolved namespace ignore dispositions are reported as schema-machine facts"}
+        {constraint @kind="handoff-xslt-dispatched" @target="element" @diagnostic="cem.handoff.xslt_dispatched" @behavior="cem-ml-schema-report-fact" @fact-kind="handoff-xslt-dispatched" @policy="opted-in XSLT namespace regions are isolated as version-pinned handoffs"}
+        {constraint @kind="handoff-xslt-version-invalid" @target="element" @diagnostic="cem.xslt.version_invalid" @behavior="cem-ml-schema-report-fact" @fact-kind="handoff-xslt-version-invalid" @policy="opted-in XSLT namespace handoffs must declare a valid XSLT stylesheet version"}
+        {constraint @kind="handoff-child-parser-deferred" @target="content-scope" @diagnostic="cem.handoff.child_parser_deferred" @behavior="cem-ml-schema-report-fact" @fact-kind="handoff-child-parser-deferred" @policy="supported child content-type handoffs remain bounded and opaque until the child parser phase"}
+        {constraint @kind="handoff-unsupported-content-type" @target="content-scope" @diagnostic="cem.handoff.unsupported_content_type" @behavior="cem-ml-schema-report-fact" @fact-kind="handoff-unsupported-content-type" @policy="unsupported child content-type handoffs remain bounded but are not interpreted"}
     }
 
     {diagnostics |
@@ -120,9 +129,13 @@
         {diagnostic @code="cem.syntax.unclosed_scope" @severity="error"}
         {diagnostic @code="cem.syntax.invalid_name" @severity="error"}
         {diagnostic @code="cem.namespace.unbound_prefix" @severity="error"}
+        {diagnostic @code="cem.schema.unbalanced_close" @severity="error"}
         {diagnostic @code="cem.schema.unclosed_scope" @severity="error"}
         {diagnostic @code="cem.schema.unresolved_namespace" @severity="error"}
+        {diagnostic @code="cem.schema.unresolved_namespace_allowed" @severity="info"}
+        {diagnostic @code="cem.schema.unresolved_namespace_ignored" @severity="info"}
         {diagnostic @code="cem.handoff.xslt_dispatched" @severity="info"}
+        {diagnostic @code="cem.xslt.version_invalid" @severity="error"}
         {diagnostic @code="cem.handoff.child_parser_deferred" @severity="warning"}
         {diagnostic @code="cem.handoff.unsupported_content_type" @severity="error"}
         {diagnostic @code="cem.content_type.unsupported_handoff" @severity="error"}
