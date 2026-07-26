@@ -76,6 +76,10 @@ use crate::validation::{
     cem_events_projection::{
         validate_cem_events_projection_source_bytes, CemEventsProjectionSourceValidationRequest,
     },
+    diagnostics::{
+        builtin_cem_ml_semantic_diagnostic_catalog, cem_ml_semantic_fact_diagnostic,
+        CemMlSemanticDiagnosticCatalog, CemMlSemanticFact, CemMlSemanticFactKind,
+    },
     html::{validate_html_source_bytes, HtmlSourceValidationRequest},
     mathml::{validate_mathml_source_bytes, MathMlSourceValidationRequest},
     relax_ng::{validate_relax_ng_source_bytes, RelaxNgSourceValidationRequest},
@@ -182,6 +186,26 @@ fn diag_at_with_details(
     let mut diagnostic = diag_at(code, severity, message, node);
     diagnostic.details = Some(details);
     diagnostic
+}
+
+fn semantic_fact_at(
+    kind: CemMlSemanticFactKind,
+    message: String,
+    node: &CemAstNode,
+    details: serde_json::Value,
+) -> CemMlSemanticFact {
+    let stack = source_stack_for_node(node);
+    let byte_offset = stack.frames.first().and_then(|f| match &f.span {
+        FrameSpan::Single(r) => Some(r.start),
+        FrameSpan::Multi(rs) => rs.first().map(|r| r.start),
+    });
+    CemMlSemanticFact {
+        kind,
+        byte_offset,
+        message,
+        source_map: Some(stack.clone()),
+        details: Some(details),
+    }
 }
 
 fn source_stack_for_node(node: &CemAstNode) -> &SourceMapStack {
@@ -1017,7 +1041,29 @@ fn is_url_bearing_attribute(local: &str) -> bool {
 
 // ---------- Authoring Lints ----------
 
-pub struct UnboundPrefixRule;
+#[derive(Default)]
+pub struct UnboundPrefixRule {
+    cem_ml_semantic_diagnostics: Option<CemMlSemanticDiagnosticCatalog>,
+}
+
+impl UnboundPrefixRule {
+    #[cfg(test)]
+    fn with_cem_ml_semantic_diagnostic_catalog(
+        mut self,
+        catalog: CemMlSemanticDiagnosticCatalog,
+    ) -> Self {
+        self.cem_ml_semantic_diagnostics = Some(catalog);
+        self
+    }
+
+    fn semantic_fact_diagnostic(&self, fact: &CemMlSemanticFact) -> Option<Diagnostic> {
+        let catalog = self
+            .cem_ml_semantic_diagnostics
+            .as_ref()
+            .or_else(|| Some(builtin_cem_ml_semantic_diagnostic_catalog()));
+        cem_ml_semantic_fact_diagnostic(fact, catalog)
+    }
+}
 
 impl SemanticRule for UnboundPrefixRule {
     fn descriptor(&self) -> &RuleDescriptor {
@@ -1046,15 +1092,21 @@ impl SemanticRule for UnboundPrefixRule {
             if prefix == "with" && is_template_family_language_document(ctx) {
                 continue;
             }
-            out.push(diag_at(
-                "cem.lint.unbound_prefix",
-                Severity::Warning,
+            let fact = semantic_fact_at(
+                CemMlSemanticFactKind::UnboundPrefix,
                 format!(
                     "namespace prefix `{prefix}` on `@{prefix}:{}` is not bound by any active `@ns` declaration",
                     expanded_name.local_name
                 ),
                 node,
-            ));
+                serde_json::json!({
+                    "prefix": prefix,
+                    "attribute": expanded_name.local_name,
+                }),
+            );
+            if let Some(diagnostic) = self.semantic_fact_diagnostic(&fact) {
+                out.push(diagnostic);
+            }
         }
         out
     }
@@ -3436,6 +3488,9 @@ mod tests {
     use super::*;
     use crate::schema::document_model::compile_schema_document_model;
     use crate::schema::package_sources::builtin_schema_package_source;
+    use crate::validation::diagnostics::{
+        CEM_ML_PACKAGE_ID, CEM_ML_SEMANTIC_REPORT_BEHAVIOR, SEMANTIC_UNBOUND_PREFIX_CONTRACT,
+    };
     use crate::validation::{run, RuleRegistry};
 
     fn parse(input: &str) -> crate::parser::document::CemDocument {
@@ -3451,6 +3506,26 @@ mod tests {
 
     fn run_rules(input: &str) -> Vec<Diagnostic> {
         run_rules_with_identity(input, None, None)
+    }
+
+    fn run_unbound_prefix_rule_with_catalog(
+        input: &str,
+        catalog: CemMlSemanticDiagnosticCatalog,
+    ) -> Vec<Diagnostic> {
+        let doc = parse(input);
+        let upstream: Vec<Diagnostic> = doc.diagnostics.clone();
+        let rule = UnboundPrefixRule::default().with_cem_ml_semantic_diagnostic_catalog(catalog);
+        rule.run(&RuleContext {
+            document: &doc,
+            schema_uri: None,
+            content_type: None,
+            source_uri: None,
+            resource_reader: None,
+            schema_registry: None,
+            schema_document_models: None,
+            upstream_diagnostics: &upstream,
+            schema_behavior_evaluator: None,
+        })
     }
 
     fn run_rules_with_identity(
@@ -3712,7 +3787,102 @@ mod tests {
     #[test]
     fn unbound_prefix_flagged_on_unknown_namespace() {
         let diags = run_rules(r#"{main @bogus:role="x" | hi}"#);
-        assert!(diags.iter().any(|d| d.code == "cem.lint.unbound_prefix"));
+        let diagnostic = diags
+            .iter()
+            .find(|d| d.code == "cem.lint.unbound_prefix")
+            .expect("schema-owned unbound-prefix lint");
+        assert_eq!(diagnostic.severity, Severity::Warning);
+        assert_eq!(
+            diagnostic.details.as_ref().unwrap()["contract"],
+            SEMANTIC_UNBOUND_PREFIX_CONTRACT
+        );
+        assert_eq!(
+            diagnostic.details.as_ref().unwrap()["factKind"],
+            "semantic-unbound-prefix"
+        );
+        assert_eq!(
+            diagnostic.details.as_ref().unwrap()["semantic"]["prefix"],
+            "bogus"
+        );
+        assert!(
+            diagnostic.source_map.is_some(),
+            "semantic facts must preserve source maps"
+        );
+    }
+
+    #[test]
+    fn cem_ml_semantic_fact_diagnostic_bindings_are_schema_declared_by_fact_kind() {
+        let catalog = CemMlSemanticDiagnosticCatalog::from_builtin();
+        let binding = catalog
+            .binding_for_fact(CemMlSemanticFactKind::UnboundPrefix)
+            .expect("schema binding for semantic unbound prefix");
+
+        assert_eq!(binding.fact_kind, "semantic-unbound-prefix");
+        assert_eq!(binding.contract, SEMANTIC_UNBOUND_PREFIX_CONTRACT);
+        assert_eq!(
+            binding.behavior.as_deref(),
+            Some(CEM_ML_SEMANTIC_REPORT_BEHAVIOR)
+        );
+        assert_eq!(binding.diagnostic_code, "cem.lint.unbound_prefix");
+        assert_eq!(binding.severity, Severity::Warning);
+    }
+
+    #[test]
+    fn cem_ml_semantic_diagnostic_code_and_severity_are_schema_owned() {
+        let source = crate::schema::package_sources::builtin_schema_package_source(CEM_ML_PACKAGE_ID)
+            .expect("CEM-ML package source")
+            .schema_source
+            .replace(
+                r#"{constraint @kind="semantic-unbound-prefix" @target="attribute" @diagnostic="cem.lint.unbound_prefix" @behavior="cem-ml-semantic-report-fact" @fact-kind="semantic-unbound-prefix" @policy="document validation reports prefixed attributes whose prefix is not declared by active namespace bindings or accepted by the active language family"}"#,
+                r#"{constraint @kind="semantic-unbound-prefix" @target="attribute" @diagnostic="example.semantic.prefix" @behavior="cem-ml-semantic-report-fact" @fact-kind="semantic-unbound-prefix" @policy="document validation reports prefixed attributes whose prefix is not declared by active namespace bindings or accepted by the active language family"}"#,
+            )
+            .replace(
+                r#"{diagnostic @code="cem.lint.unbound_prefix" @severity="warning"}"#,
+                r#"{diagnostic @code="example.semantic.prefix" @severity="error"}"#,
+            );
+        let catalog = CemMlSemanticDiagnosticCatalog::from_schema_source(&source);
+        let diagnostics =
+            run_unbound_prefix_rule_with_catalog(r#"{main @bogus:role="x" | hi}"#, catalog);
+        let diagnostic = diagnostics
+            .iter()
+            .find(|diagnostic| diagnostic.code == "example.semantic.prefix")
+            .expect("mutated schema-owned semantic diagnostic");
+
+        assert_eq!(diagnostic.severity, Severity::Error);
+        assert_eq!(
+            diagnostic.details.as_ref().unwrap()["contract"],
+            SEMANTIC_UNBOUND_PREFIX_CONTRACT
+        );
+        assert_eq!(
+            diagnostic.details.as_ref().unwrap()["factKind"],
+            "semantic-unbound-prefix"
+        );
+    }
+
+    #[test]
+    fn cem_ml_semantic_unbound_fact_stays_neutral() {
+        let source =
+            crate::schema::package_sources::builtin_schema_package_source(CEM_ML_PACKAGE_ID)
+                .expect("CEM-ML package source")
+                .schema_source
+                .replace(
+                    r#"@fact-kind="semantic-unbound-prefix""#,
+                    r#"@fact-kind="schema-ignored-semantic-prefix""#,
+                );
+        let catalog = CemMlSemanticDiagnosticCatalog::from_schema_source(&source);
+        assert!(catalog
+            .binding_for_fact(CemMlSemanticFactKind::UnboundPrefix)
+            .is_none());
+
+        let diagnostics =
+            run_unbound_prefix_rule_with_catalog(r#"{main @bogus:role="x" | hi}"#, catalog);
+        assert!(
+            diagnostics
+                .iter()
+                .all(|diagnostic| diagnostic.code != "cem.lint.unbound_prefix"),
+            "unbound semantic facts stay neutral instead of falling back to Rust-owned diagnostics: {:?}",
+            diagnostics
+        );
     }
 
     #[test]

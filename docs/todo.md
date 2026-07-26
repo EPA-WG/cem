@@ -36,13 +36,17 @@ stream.
       prefixes are currently reported as document-validation
       `cem.lint.unbound_prefix`, while unresolved namespace and scope
       diagnostics are emitted by the schema machine as `cem.schema.*`.
-- [ ] Decide the boundary for `cem.lint.unbound_prefix`: either move
-      document-validation lints behind a separate schema-owned semantic fact
-      catalog, fold this one rule into the CEM-ML parser fact catalog, or
-      leave it for the schema-machine/validation diagnostic migration.
+- [x] Decide the boundary for `cem.lint.unbound_prefix`: document-validation
+      lints use a separate schema-owned semantic fact catalog rather than the
+      parser fact catalog or the schema-machine diagnostic catalog.
+- [x] Move active CEM-ML unbound-prefix document-validation lint behind the
+      schema-owned semantic fact catalog, preserving AST source maps and
+      letting `schema/cem-ml-generic.cem` own code, severity, behavior,
+      fact kind, and policy for `cem.lint.unbound_prefix`.
 - [ ] Move remaining active CEM-ML syntax and namespace diagnostics behind
       schema-owned fact bindings after that boundary is decided, including
-      invalid names, unbound prefixes, and syntax/namespace scope facts.
+      invalid names if/when an active emitter exists, and schema-machine
+      namespace/scope facts.
 - [ ] Move remaining CEM-ML schema-machine and handoff diagnostics behind the
       same neutral fact boundary, including unbalanced/unclosed schema scopes,
       unsupported/deferred handoffs, and XSLT dispatch/version diagnostics.

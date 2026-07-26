@@ -94,6 +94,7 @@
         {constraint @kind="tokenizer-unterminated-processing-instruction" @target="processing-instruction" @diagnostic="cem.tokenizer.unterminated_processing_instruction" @behavior="cem-ml-tokenizer-report-fact" @fact-kind="tokenizer-unterminated-processing-instruction" @policy="processing instructions must close with ?>"}
         {constraint @kind="tokenizer-unterminated-expression" @target="expression" @diagnostic="cem.tokenizer.unterminated_expression" @behavior="cem-ml-tokenizer-report-fact" @fact-kind="tokenizer-unterminated-expression" @policy="expression nodes must close their brace scope"}
         {constraint @kind="tokenizer-unterminated-rich-content" @target="raw-text" @diagnostic="cem.tokenizer.unterminated_rich_content" @behavior="cem-ml-tokenizer-report-fact" @fact-kind="tokenizer-unterminated-rich-content" @policy="rich-content fenced blocks must close with triple backticks"}
+        {constraint @kind="semantic-unbound-prefix" @target="attribute" @diagnostic="cem.lint.unbound_prefix" @behavior="cem-ml-semantic-report-fact" @fact-kind="semantic-unbound-prefix" @policy="document validation reports prefixed attributes whose prefix is not declared by active namespace bindings or accepted by the active language family"}
     }
 
     {diagnostics |
@@ -112,6 +113,7 @@
         {diagnostic @code="cem.tokenizer.unterminated_processing_instruction" @severity="error"}
         {diagnostic @code="cem.tokenizer.unterminated_expression" @severity="error"}
         {diagnostic @code="cem.tokenizer.unterminated_rich_content" @severity="error"}
+        {diagnostic @code="cem.lint.unbound_prefix" @severity="warning"}
         {diagnostic @code="cem.ast.unbalanced_close" @severity="error"}
         {diagnostic @code="cem.ast.unclosed_scope" @severity="error"}
         {diagnostic @code="cem.ast.unresolved_reference" @severity="warning"}

@@ -37,6 +37,7 @@ pub mod cem_ast_projection;
 pub mod cem_dom_projection;
 pub mod cem_events_projection;
 pub mod csv;
+pub(crate) mod diagnostics;
 pub mod html;
 pub mod mathml;
 pub mod relax_ng;
@@ -170,7 +171,7 @@ impl RuleRegistry {
         r.register(Box::new(rules::SchemaDocumentModelRule));
         r.register(Box::new(rules::SchemaPackageConverterContractRule));
         r.register(Box::new(rules::OpenContentPolicyRule));
-        r.register(Box::new(rules::UnboundPrefixRule));
+        r.register(Box::new(rules::UnboundPrefixRule::default()));
         r.register(Box::new(rules::NoncanonicalDelimiterRule));
         r.register(Box::new(rules::SuspiciousContentTypeSwitchRule));
         r.register(Box::new(rules::RelaxedBoundaryRule));
