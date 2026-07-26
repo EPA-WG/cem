@@ -10,6 +10,13 @@ history.
 Current active slice: schema package folder alignment, continuing with
 `json/v1` after closing the CSV package alignment slice.
 
+### Immediate: README Sample Preview Generation
+
+- [x] Add a manifest-derived `samples2readme` generator that refreshes README
+      example sections and SVG content previews from schema-package
+      `package.cem` example metadata, using CLI tabular formatter/colorizer
+      previews where executable and source snapshots where not.
+
 ### Completed Immediate Phase: CSV Formatter Review Findings
 
 - [x] Document that CSV `pretty` and `tabular` are visual presentation formats:

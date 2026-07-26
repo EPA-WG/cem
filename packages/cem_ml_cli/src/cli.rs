@@ -591,6 +591,12 @@ pub struct ConvertArgs {
     pub output_color_type: Option<String>,
 
     #[arg(
+        long = "tabular",
+        help = "Shortcut for tabular CEMT formatting with terminal colors; explicit CEMT and output color options override individual defaults"
+    )]
+    pub tabular: bool,
+
+    #[arg(
         long = "cemt-formatter",
         value_name = "NAME",
         help = "Explicit CEMT formatter function for formatted CEM tree output; resolves package profile ambiguity"
@@ -1151,6 +1157,16 @@ mod tests {
             panic!("expected convert command");
         };
         assert_eq!(args.output_color_type.as_deref(), Some("html-css-vars"));
+    }
+
+    #[test]
+    fn convert_tabular_shortcut_parses() {
+        let cli = try_parse(&["convert", "--tabular", "input.cem"]).unwrap();
+
+        let Command::Convert(args) = cli.command else {
+            panic!("expected convert command");
+        };
+        assert!(args.tabular);
     }
 
     #[test]

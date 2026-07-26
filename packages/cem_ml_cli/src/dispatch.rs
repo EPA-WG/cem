@@ -79,6 +79,10 @@ const WRITE_PURPOSES: [ResolvePurpose; 3] = [
     ResolvePurpose::ObserveEvents,
 ];
 
+const CONVERT_TABULAR_FORMATTER_PROFILE: &str = "tabular";
+const CONVERT_TABULAR_COLOR_PROFILE: &str = "terminal";
+const CONVERT_TABULAR_OUTPUT_COLOR_TYPE: &str = "ansi-256";
+
 const TRANSFORM_GRAPH_IMPORT_GLOB_MAX_ENTRIES: usize = 1024;
 
 #[derive(Debug, Clone)]
@@ -1060,15 +1064,42 @@ fn output_scope_defaults(args: &cli::ConvertArgs) -> ScopeConfig {
         module_map: args.context.module_map.clone(),
         base_uri: args.context.base_uri.clone(),
         policy: args.context.scope_policy.clone(),
-        output_color_type: args.output_color_type.clone(),
+        output_color_type: convert_output_color_type(args),
         cemt_formatter: args.cemt_formatter.clone(),
-        cemt_formatter_profile: args.cemt_formatter_profile.clone(),
+        cemt_formatter_profile: convert_cemt_formatter_profile(args),
         cemt_formatter_options: context_key_values(&args.cemt_formatter_options),
         cemt_colorizer: args.cemt_colorizer.clone(),
-        cemt_color_profile: args.cemt_color_profile.clone(),
+        cemt_color_profile: convert_cemt_color_profile(args),
         version_pins: context_key_values(&args.context.version_pins),
         budgets: context_key_values(&args.context.scope_budgets),
     }
+}
+
+fn convert_output_color_type(args: &cli::ConvertArgs) -> Option<String> {
+    args.output_color_type.clone().or_else(|| {
+        args.tabular
+            .then(|| CONVERT_TABULAR_OUTPUT_COLOR_TYPE.to_owned())
+    })
+}
+
+fn convert_effective_output_color_type(args: &cli::ConvertArgs) -> Option<&str> {
+    args.output_color_type
+        .as_deref()
+        .or_else(|| args.tabular.then_some(CONVERT_TABULAR_OUTPUT_COLOR_TYPE))
+}
+
+fn convert_cemt_formatter_profile(args: &cli::ConvertArgs) -> Option<String> {
+    args.cemt_formatter_profile.clone().or_else(|| {
+        args.tabular
+            .then(|| CONVERT_TABULAR_FORMATTER_PROFILE.to_owned())
+    })
+}
+
+fn convert_cemt_color_profile(args: &cli::ConvertArgs) -> Option<String> {
+    args.cemt_color_profile.clone().or_else(|| {
+        args.tabular
+            .then(|| CONVERT_TABULAR_COLOR_PROFILE.to_owned())
+    })
 }
 
 fn context_namespaces(c: &cli::ContextOptions) -> BTreeMap<String, String> {
@@ -1155,9 +1186,7 @@ fn convert_target_scope(args: &cli::ConvertArgs) -> ScopeConfig {
 }
 
 fn validate_convert_output_color_type(args: &cli::ConvertArgs) -> Result<(), CliRequestError> {
-    let Some(output_color_type) = args
-        .output_color_type
-        .as_deref()
+    let Some(output_color_type) = convert_effective_output_color_type(args)
         .map(str::trim)
         .filter(|value| !value.is_empty())
     else {
@@ -2897,7 +2926,11 @@ fn run_convert_fanout<E: CemMlEngine + ?Sized>(
                             &resp,
                             target.as_ref(),
                             args.out.as_deref(),
-                            args.output_color_type.as_deref(),
+                            output
+                                .root_scope
+                                .output_color_type
+                                .as_deref()
+                                .or_else(|| convert_effective_output_color_type(args)),
                             s,
                         ) {
                             let _ = writeln!(s.stderr, "cem-ml: write failure: {e}");
@@ -2985,7 +3018,11 @@ fn run_convert_fanout<E: CemMlEngine + ?Sized>(
                     &resp,
                     target.as_ref(),
                     Some(destination.as_path()),
-                    args.output_color_type.as_deref(),
+                    output
+                        .root_scope
+                        .output_color_type
+                        .as_deref()
+                        .or_else(|| convert_effective_output_color_type(args)),
                     s,
                 ) {
                     let _ = writeln!(s.stderr, "cem-ml: write failure: {e}");
@@ -11286,7 +11323,7 @@ pub fn run_convert<E: CemMlEngine + ?Sized>(
                 &resp,
                 target.as_ref(),
                 out.as_deref(),
-                args.output_color_type.as_deref(),
+                convert_effective_output_color_type(&args),
                 s,
             ) {
                 let _ = writeln!(s.stderr, "cem-ml: write failure: {e}");
@@ -24124,6 +24161,65 @@ start =
             v["targetScope"]["cemtFormatterOptions"]["lineEnding"],
             "crlf"
         );
+    }
+
+    #[test]
+    fn convert_tabular_shortcut_populates_terminal_cemt_defaults() {
+        let p = write_fixture("convert-tabular-shortcut.cem", "@doc cem-ml 1\n{p | Hi}");
+        let (outcome, stdout, stderr) = run(
+            &FakeEngine,
+            &[
+                "--no-color",
+                "convert",
+                "--to-format",
+                "html",
+                "--tabular",
+                p.to_str().unwrap(),
+            ],
+        );
+
+        assert_eq!(outcome.exit_code, EXIT_OK, "{stderr}");
+        let v: serde_json::Value = serde_json::from_str(stdout.trim()).unwrap();
+        assert_eq!(
+            v["targetScope"]["cemtFormatterProfile"],
+            CONVERT_TABULAR_FORMATTER_PROFILE
+        );
+        assert_eq!(
+            v["targetScope"]["cemtColorProfile"],
+            CONVERT_TABULAR_COLOR_PROFILE
+        );
+        assert_eq!(
+            v["targetScope"]["outputColorType"],
+            CONVERT_TABULAR_OUTPUT_COLOR_TYPE
+        );
+    }
+
+    #[test]
+    fn convert_tabular_shortcut_preserves_explicit_overrides() {
+        let p = write_fixture("convert-tabular-overrides.cem", "@doc cem-ml 1\n{p | Hi}");
+        let (outcome, stdout, stderr) = run(
+            &FakeEngine,
+            &[
+                "--no-color",
+                "convert",
+                "--to-format",
+                "html",
+                "--tabular",
+                "--cemt-formatter-profile",
+                "compact",
+                "--cemt-color-profile",
+                "html",
+                "--output-color-type",
+                "html-css-vars",
+                p.to_str().unwrap(),
+            ],
+        );
+
+        assert_eq!(outcome.exit_code, EXIT_OK, "{stderr}");
+        let v: serde_json::Value = serde_json::from_str(stdout.trim()).unwrap();
+        assert_eq!(v["targetScope"]["cemtFormatterProfile"], "compact");
+        assert_eq!(v["targetScope"]["cemtColorProfile"], "html");
+        assert_eq!(v["targetScope"]["outputColorType"], "html-css-vars");
     }
 
     #[test]
