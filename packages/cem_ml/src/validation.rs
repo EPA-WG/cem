@@ -36,11 +36,13 @@
 pub mod cem_ast_projection;
 pub mod cem_dom_projection;
 pub mod cem_events_projection;
+pub mod css;
 pub mod csv;
 pub(crate) mod diagnostics;
 pub mod generic_data;
 pub mod html;
 pub mod json;
+pub mod markdown;
 pub mod mathml;
 pub mod relax_ng;
 pub mod rules;

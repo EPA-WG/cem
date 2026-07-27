@@ -47,11 +47,11 @@ use crate::schema::registry::{
     CEM_EVENTS_PROJECTION_CONTENT_TYPE, CEM_EVENTS_PROJECTION_SCHEMA_URI, CEM_ML_CONTENT_TYPE,
     CEM_ML_SCHEMA_URI, CEM_NATIVE_TEMPLATE_CONTENT_TYPE, CEM_NATIVE_TEMPLATE_SCHEMA_URI,
     CEM_SCHEMA_CONTENT_TYPE, CEM_SCHEMA_PACKAGE_CONTENT_TYPE, CEM_SCHEMA_PACKAGE_URI,
-    CEM_SCHEMA_URI, CEM_TRANSFORM_CONTENT_TYPE, CEM_TRANSFORM_SCHEMA_URI, HTML_CONTENT_TYPE,
-    HTML_SCHEMA_URI, MATHML_CONTENT_TYPE, MATHML_SCHEMA_URI, RELAX_NG_COMPACT_CONTENT_TYPE,
-    RELAX_NG_SCHEMA_URI, RELAX_NG_XML_CONTENT_TYPE, SVG_CONTENT_TYPE, SVG_SCHEMA_URI,
-    XHTML_CONTENT_TYPE, XHTML_SCHEMA_URI, XML_CONTENT_TYPE, XML_SCHEMA_URI, XSLT_CONTENT_TYPE,
-    XSLT_SCHEMA_URI,
+    CEM_SCHEMA_URI, CEM_TRANSFORM_CONTENT_TYPE, CEM_TRANSFORM_SCHEMA_URI, CSS_CONTENT_TYPE,
+    CSS_SCHEMA_URI, HTML_CONTENT_TYPE, HTML_SCHEMA_URI, MARKDOWN_CONTENT_TYPE, MARKDOWN_SCHEMA_URI,
+    MATHML_CONTENT_TYPE, MATHML_SCHEMA_URI, RELAX_NG_COMPACT_CONTENT_TYPE, RELAX_NG_SCHEMA_URI,
+    RELAX_NG_XML_CONTENT_TYPE, SVG_CONTENT_TYPE, SVG_SCHEMA_URI, XHTML_CONTENT_TYPE,
+    XHTML_SCHEMA_URI, XML_CONTENT_TYPE, XML_SCHEMA_URI, XSLT_CONTENT_TYPE, XSLT_SCHEMA_URI,
 };
 use crate::schema::vocab::CompiledSchema;
 use crate::source::{BytesSource, SourceId};
@@ -76,11 +76,13 @@ use crate::validation::{
     cem_events_projection::{
         validate_cem_events_projection_source_bytes, CemEventsProjectionSourceValidationRequest,
     },
+    css::{validate_css_source_bytes, CssSourceValidationRequest},
     diagnostics::{
         builtin_cem_ml_semantic_diagnostic_catalog, cem_ml_semantic_fact_diagnostic,
         CemMlSemanticDiagnosticCatalog, CemMlSemanticFact, CemMlSemanticFactKind,
     },
     html::{validate_html_source_bytes, HtmlSourceValidationRequest},
+    markdown::{validate_markdown_source_bytes, MarkdownSourceValidationRequest},
     mathml::{validate_mathml_source_bytes, MathMlSourceValidationRequest},
     relax_ng::{validate_relax_ng_source_bytes, RelaxNgSourceValidationRequest},
     svg::{validate_svg_source_bytes, SvgSourceValidationRequest},
@@ -2784,6 +2786,22 @@ fn validate_schema_package_example_source_bytes(
             ));
         }
         SchemaPackageExampleTokenizer::Cem => parse_example_cem_document(bytes),
+        SchemaPackageExampleTokenizer::Markdown => {
+            return Some(validate_markdown_source_bytes(
+                MarkdownSourceValidationRequest {
+                    bytes,
+                    source_uri,
+                    content_type: Some(content_type),
+                },
+            ));
+        }
+        SchemaPackageExampleTokenizer::Css => {
+            return Some(validate_css_source_bytes(CssSourceValidationRequest {
+                bytes,
+                source_uri,
+                content_type: Some(content_type),
+            }));
+        }
         SchemaPackageExampleTokenizer::Html => {
             return Some(validate_html_source_bytes(HtmlSourceValidationRequest {
                 bytes,
@@ -2880,7 +2898,9 @@ enum SchemaPackageExampleTokenizer {
     CemAstProjection,
     CemDomProjection,
     CemEventsProjection,
+    Css,
     Html,
+    Markdown,
     MathMl,
     RelaxNg,
     Svg,
@@ -2917,6 +2937,12 @@ fn schema_package_example_tokenizer(
     }
     if content_type == HTML_CONTENT_TYPE || schema_uri == HTML_SCHEMA_URI {
         return Some(SchemaPackageExampleTokenizer::Html);
+    }
+    if content_type == MARKDOWN_CONTENT_TYPE || schema_uri == MARKDOWN_SCHEMA_URI {
+        return Some(SchemaPackageExampleTokenizer::Markdown);
+    }
+    if content_type == CSS_CONTENT_TYPE || schema_uri == CSS_SCHEMA_URI {
+        return Some(SchemaPackageExampleTokenizer::Css);
     }
     if matches!(
         content_type.as_str(),
