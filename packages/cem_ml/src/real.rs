@@ -12262,6 +12262,32 @@ mod tests {
     }
 
     #[test]
+    fn validate_yaml_source_consumes_lifecycle_ast_without_cem_parse() {
+        let mut source = input(b"name: Ada\nactive: true\n", "document.yaml");
+        source.identity = Some(FormatIdentity {
+            content_type: Some(YAML_CONTENT_TYPE.to_owned()),
+            schema: Some(YAML_SCHEMA_URI.to_owned()),
+            ..FormatIdentity::default()
+        });
+        let req = ValidateRequest {
+            inputs: vec![source],
+            projection: ValidateProjection::Json,
+            fail_level: FailLevel::Validate,
+            context: ctx(),
+        };
+
+        let resp = RealCemMlEngine::new().validate(req).unwrap();
+
+        assert_eq!(resp.report.summary.input_count, 1);
+        assert_eq!(resp.report.summary.hard_violation_count, 0);
+        assert!(
+            resp.report.diagnostics.is_empty(),
+            "YAML validation should be completed by the lifecycle AST stream, not CEM parsing: {:?}",
+            resp.report.diagnostics
+        );
+    }
+
+    #[test]
     fn convert_yaml_same_schema_uses_lifecycle_output_pipeline() {
         let mut source = input(b"name: Ada\nactive: true\n", "document.yaml");
         source.identity = Some(FormatIdentity {

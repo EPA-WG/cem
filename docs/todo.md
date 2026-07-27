@@ -89,11 +89,14 @@ Current active slice: generic data AST stream bridge alignment.
       into `RealCemMlEngine` lifecycle validation, so `text/csv` validation
       consumes the lifecycle-owned `CsvDocumentAst` stream and schema-owned
       parse-fact diagnostics without falling through to CEM parsing.
-- [ ] Move CLI-owned source validation collectors for JSON, YAML,
-      Markdown, CSS, HTML, XML, SVG, MathML, Relax NG, XSLT, CEM-QL, and
-      native-template behind engine lifecycle adapters, or prove each collector
-      consumes the same imported DOM/AST and source-map model as
-      `RealCemMlEngine`.
+- [x] Prove the CLI JSON/YAML source validation collectors consume the same
+      typed source import AST and schema-owned parse-fact diagnostics as
+      `RealCemMlEngine`, removing CLI-local JSON/YAML parser shortcuts while
+      preserving direct-report compatibility for mixed validation inputs.
+- [ ] Move CLI-owned source validation collectors for Markdown, CSS, HTML, XML,
+      SVG, MathML, Relax NG, XSLT, CEM-QL, and native-template behind engine
+      lifecycle adapters, or prove each collector consumes the same imported
+      DOM/AST and source-map model as `RealCemMlEngine`.
 - [x] Fix the CEM-ML `ast` projection so it no longer aliases `dom_json`:
       replace `projection::ast_json` with a source-map-bearing typed CEM
       tree AST stream consumed as CEM-ML/CEMT data, not as a DOM/JSON
@@ -556,10 +559,11 @@ Remaining dependency-ordered package checklist:
 
 ### Next Work Item
 
-Move CLI-owned source validation collectors for JSON, YAML, Markdown, CSS,
-HTML, XML, SVG, MathML, Relax NG, XSLT, CEM-QL, and native-template behind
-engine lifecycle adapters, or prove each collector consumes the same imported
-DOM/AST and source-map model as `RealCemMlEngine`.
+Move or prove the remaining CLI-owned source validation collectors for
+Markdown, CSS, HTML, XML, SVG, MathML, Relax NG, XSLT, CEM-QL, and
+native-template. Start with HTML/XML-family validators, because matching
+library validators already exist and can be routed behind lifecycle adapters
+before tackling Markdown, CSS, CEM-QL, and native-template.
 
 ## Current Verification Commands
 
