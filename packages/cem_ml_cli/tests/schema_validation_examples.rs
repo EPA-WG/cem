@@ -497,6 +497,265 @@ fn validate_schema_owned_package_examples(package_id: &str) {
     validate_schema_owned_examples_grouped(&examples);
 }
 
+fn schema_package_root_relative(package_id: &str) -> String {
+    format!("packages/cem_ml/schema-packages/{package_id}/v1")
+}
+
+fn schema_package_project_json(package_id: &str) -> serde_json::Value {
+    let root = schema_package_root_relative(package_id);
+    let path = workspace_path(&format!("{root}/project.json"));
+    serde_json::from_str(
+        &fs::read_to_string(&path)
+            .unwrap_or_else(|err| panic!("{} is readable: {err}", path.display())),
+    )
+    .unwrap_or_else(|err| panic!("{} is project JSON: {err}", path.display()))
+}
+
+fn schema_package_project_target<'a>(
+    project: &'a serde_json::Value,
+    package_id: &str,
+    target: &str,
+) -> &'a serde_json::Value {
+    project
+        .get("targets")
+        .and_then(|targets| targets.get(target))
+        .unwrap_or_else(|| panic!("schema package `{package_id}` has `{target}` target"))
+}
+
+fn target_string_entries(target: &serde_json::Value, key: &str) -> Vec<String> {
+    target
+        .get(key)
+        .and_then(serde_json::Value::as_array)
+        .map(|entries| {
+            entries
+                .iter()
+                .filter_map(serde_json::Value::as_str)
+                .map(str::to_owned)
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
+fn target_command_strings(target: &serde_json::Value) -> Vec<String> {
+    let mut commands = Vec::new();
+    if let Some(command) = target
+        .pointer("/options/command")
+        .and_then(serde_json::Value::as_str)
+    {
+        commands.push(command.to_owned());
+    }
+    if let Some(command_list) = target
+        .pointer("/options/commands")
+        .and_then(serde_json::Value::as_array)
+    {
+        for command in command_list {
+            if let Some(value) = command.as_str() {
+                commands.push(value.to_owned());
+            } else if let Some(value) = command.get("command").and_then(serde_json::Value::as_str) {
+                commands.push(value.to_owned());
+            }
+        }
+    }
+    commands
+}
+
+fn assert_target_entry(
+    package_id: &str,
+    target: &str,
+    key: &str,
+    entries: &[String],
+    expected: &str,
+) {
+    assert!(
+        entries.iter().any(|entry| entry == expected),
+        "schema package `{package_id}` `{target}` target must declare `{expected}` in `{key}`; got {entries:#?}"
+    );
+}
+
+fn target_depends_on_named_target(target: &serde_json::Value, expected: &str) -> bool {
+    target
+        .get("dependsOn")
+        .and_then(serde_json::Value::as_array)
+        .is_some_and(|depends_on| {
+            depends_on
+                .iter()
+                .any(|entry| entry.as_str() == Some(expected))
+        })
+}
+
+fn target_depends_on_cem_ml_cli_build(target: &serde_json::Value) -> bool {
+    target
+        .get("dependsOn")
+        .and_then(serde_json::Value::as_array)
+        .is_some_and(|depends_on| {
+            depends_on.iter().any(|entry| {
+                entry.get("target").and_then(serde_json::Value::as_str) == Some("build")
+                    && entry
+                        .get("projects")
+                        .and_then(serde_json::Value::as_array)
+                        .is_some_and(|projects| {
+                            projects
+                                .iter()
+                                .any(|project| project.as_str() == Some("cem_ml_cli"))
+                        })
+            })
+        })
+}
+
+fn expected_result_label(result: SchemaPackageExampleExpectedResult) -> &'static str {
+    match result {
+        SchemaPackageExampleExpectedResult::Pass => "pass",
+        SchemaPackageExampleExpectedResult::Fail => "fail",
+    }
+}
+
+fn html_escape(value: &str) -> String {
+    value
+        .replace('&', "&amp;")
+        .replace('<', "&lt;")
+        .replace('>', "&gt;")
+        .replace('"', "&quot;")
+}
+
+fn safe_preview_file_stem(value: &str) -> String {
+    value
+        .chars()
+        .map(|ch| {
+            if ch.is_ascii_alphanumeric() || matches!(ch, '.' | '_' | '-') {
+                ch
+            } else {
+                '-'
+            }
+        })
+        .collect::<String>()
+        .trim_matches('-')
+        .to_owned()
+}
+
+fn preview_file_base(example_path: &str) -> String {
+    let file_name = Path::new(example_path)
+        .file_name()
+        .and_then(|name| name.to_str())
+        .unwrap_or_else(|| panic!("example path `{example_path}` has a UTF-8 file name"));
+    safe_preview_file_stem(file_name)
+}
+
+fn package_readme_example_path(package_id: &str, example_path: &str) -> String {
+    let prefix = format!("schema-packages/{package_id}/v1/");
+    example_path
+        .strip_prefix(&prefix)
+        .unwrap_or(example_path)
+        .to_owned()
+}
+
+fn readme_example_details_range(readme: &str, example_id: &str) -> (usize, usize) {
+    let marker = format!("<details>\n<summary>{}</summary>", html_escape(example_id));
+    let start = readme
+        .find(&marker)
+        .unwrap_or_else(|| panic!("README has collapsed details for example `{example_id}`"));
+    let end = readme[start..]
+        .find("\n</details>")
+        .map(|offset| start + offset + "\n</details>".len())
+        .unwrap_or_else(|| panic!("README closes details for example `{example_id}`"));
+    (start, end)
+}
+
+fn assert_readme_preview_contract(
+    package_id: &str,
+    readme: &str,
+    example: &SchemaPackageExampleDescriptor,
+) -> bool {
+    let (details_start, details_end) = readme_example_details_range(readme, &example.id);
+    let details = &readme[details_start..details_end];
+    let readme_example_path = package_readme_example_path(package_id, &example.path);
+    let preview_base = preview_file_base(&example.path);
+    let preview_path = format!("examples/previews/{preview_base}.svg");
+    let html_preview_path =
+        format!("dist/cem_ml/schema-packages/{package_id}/v1/examples/{preview_base}.html");
+
+    assert!(
+        details.contains(&format!(
+            "- Source: [`{}`](./{})",
+            readme_example_path, readme_example_path
+        )),
+        "schema package `{package_id}` README example `{}` must keep Source as a package-relative link",
+        example.id
+    );
+    assert!(
+        details.contains(&format!("- Content type: `{}`", example.content_type)),
+        "schema package `{package_id}` README example `{}` must show content type",
+        example.id
+    );
+    assert!(
+        details.contains(&format!("- Schema: `{}`", example.schema)),
+        "schema package `{package_id}` README example `{}` must show schema URI",
+        example.id
+    );
+    assert!(
+        details.contains(&format!(
+            "- Expected result: `{}`",
+            expected_result_label(example.expected_result)
+        )),
+        "schema package `{package_id}` README example `{}` must show expected result",
+        example.id
+    );
+    for code in &example.expected_diagnostic_codes {
+        assert!(
+            details.contains(&format!("`{code}`")),
+            "schema package `{package_id}` README example `{}` must list expected diagnostic `{code}`",
+            example.id
+        );
+    }
+    assert!(
+        details.contains(&format!("- Preview HTML: `{html_preview_path}`")),
+        "schema package `{package_id}` README example `{}` must declare generated preview HTML",
+        example.id
+    );
+
+    let after_details = &readme[details_end..];
+    let next_content = after_details
+        .lines()
+        .find(|line| !line.trim().is_empty())
+        .unwrap_or_else(|| panic!("README has preview after `{}` details", example.id));
+    assert!(
+        next_content.contains(&format!("]({preview_path})")),
+        "schema package `{package_id}` README example `{}` must put SVG preview as the next sibling after details; next line was `{next_content}`",
+        example.id
+    );
+    assert!(
+        workspace_path(&format!(
+            "{}/{}",
+            schema_package_root_relative(package_id),
+            preview_path
+        ))
+        .exists(),
+        "schema package `{package_id}` checked-in preview `{preview_path}` exists"
+    );
+
+    let source_snapshot = details.contains("source snapshot HTML + html2svg");
+    if source_snapshot {
+        assert!(
+            !details.contains("```bash"),
+            "schema package `{package_id}` README example `{}` source-snapshot waiver must not pretend to be an executable CLI preview",
+            example.id
+        );
+    } else {
+        assert!(
+            details.contains("CLI convert, tabular formatter, preview HTML + html2svg"),
+            "schema package `{package_id}` README example `{}` must identify executable previews",
+            example.id
+        );
+        assert!(
+            details.contains("dist/target/cem_ml_cli/debug/cem-ml")
+                && details.contains("--cemt-formatter-profile")
+                && details.contains("tabular"),
+            "schema package `{package_id}` README example `{}` executable preview must show the tabular CLI convert command",
+            example.id
+        );
+    }
+    source_snapshot
+}
+
 fn validate_schema_owned_example_paths(paths: &[&str]) {
     let examples = paths
         .iter()
@@ -678,6 +937,206 @@ fn schema_owned_csv_examples_emit_schema_owned_contract_details() {
 fn schema_owned_examples_cover_runtime_constraints() {
     let examples = schema_owned_validation_examples_from_package_manifest("schema-package");
     assert_schema_package_runtime_constraint_example_coverage(&examples);
+}
+
+#[test]
+fn schema_package_preview_and_validation_paths_track_source_boundaries() {
+    let manifest_package_ids = schema_package_manifest_paths()
+        .iter()
+        .map(|path| schema_package_id_from_manifest_path(path))
+        .collect::<BTreeSet<_>>();
+    let builtin_package_ids = builtin_schema_package_sources()
+        .iter()
+        .map(|source| source.package_id.to_owned())
+        .collect::<BTreeSet<_>>();
+    assert_eq!(
+        manifest_package_ids, builtin_package_ids,
+        "built-in package catalog and checked-in schema package manifests must stay aligned"
+    );
+
+    let validation_test_source = fs::read_to_string(workspace_path(
+        "packages/cem_ml_cli/tests/schema_validation_examples.rs",
+    ))
+    .expect("schema validation integration test source is readable");
+
+    for package_id in builtin_package_ids {
+        let package_root = schema_package_root_relative(&package_id);
+        let readme_path = workspace_path(&format!("{package_root}/README.md"));
+        let readme = fs::read_to_string(&readme_path)
+            .unwrap_or_else(|err| panic!("{} is readable: {err}", readme_path.display()));
+        assert!(
+            readme.contains("This section is generated from `package.cem` `{example}` metadata"),
+            "schema package `{package_id}` README must identify manifest-owned examples"
+        );
+        assert!(
+            readme
+                .contains("Source snapshots are used only where the current CLI cannot yet render"),
+            "schema package `{package_id}` README must carry the source-snapshot waiver language"
+        );
+
+        let project = schema_package_project_json(&package_id);
+        let build = schema_package_project_target(&project, &package_id, "build");
+        assert!(
+            target_depends_on_named_target(build, "samples2readme"),
+            "schema package `{package_id}` build target must depend on samples2readme"
+        );
+        let build_outputs = target_string_entries(build, "outputs");
+        assert_target_entry(
+            &package_id,
+            "build",
+            "outputs",
+            &build_outputs,
+            &format!(
+                "{workspaceRoot}/dist/cem_ml/schema-packages/{package_id}/v1/examples/*.html",
+                workspaceRoot = "{workspaceRoot}"
+            ),
+        );
+        assert_target_entry(
+            &package_id,
+            "build",
+            "outputs",
+            &build_outputs,
+            "{projectRoot}/examples/previews/*.svg",
+        );
+
+        let samples2readme = schema_package_project_target(&project, &package_id, "samples2readme");
+        assert!(
+            target_depends_on_cem_ml_cli_build(samples2readme),
+            "schema package `{package_id}` samples2readme target must depend on cem_ml_cli:build"
+        );
+        let sample_commands = target_command_strings(samples2readme);
+        assert!(
+            sample_commands.iter().any(|command| {
+                command == "node packages/cem_ml/schema-packages/scripts/samples2readme.mjs {projectRoot}"
+            }),
+            "schema package `{package_id}` samples2readme target must use the shared preview renderer; got {sample_commands:#?}"
+        );
+        let sample_inputs = target_string_entries(samples2readme, "inputs");
+        for expected in [
+            "{projectRoot}/package.cem",
+            "{projectRoot}/README.md",
+            "{projectRoot}/examples/**/*",
+            "!{projectRoot}/examples/previews/**/*",
+            "{workspaceRoot}/packages/cem_ml/schema-packages/scripts/**/*.mjs",
+            "{workspaceRoot}/packages/cem_ml/src/**/*.rs",
+            "{workspaceRoot}/packages/cem_ml_cli/src/**/*.rs",
+        ] {
+            assert_target_entry(
+                &package_id,
+                "samples2readme",
+                "inputs",
+                &sample_inputs,
+                expected,
+            );
+        }
+        let sample_outputs = target_string_entries(samples2readme, "outputs");
+        assert_target_entry(
+            &package_id,
+            "samples2readme",
+            "outputs",
+            &sample_outputs,
+            "{projectRoot}/README.md",
+        );
+        assert_target_entry(
+            &package_id,
+            "samples2readme",
+            "outputs",
+            &sample_outputs,
+            &format!(
+                "{workspaceRoot}/dist/cem_ml/schema-packages/{package_id}/v1/examples/*.html",
+                workspaceRoot = "{workspaceRoot}"
+            ),
+        );
+        assert_target_entry(
+            &package_id,
+            "samples2readme",
+            "outputs",
+            &sample_outputs,
+            "{projectRoot}/examples/previews/*.svg",
+        );
+
+        let verify = schema_package_project_target(&project, &package_id, "verify");
+        assert!(
+            target_depends_on_cem_ml_cli_build(verify),
+            "schema package `{package_id}` verify target must depend on cem_ml_cli:build"
+        );
+        let verify_commands = target_command_strings(verify);
+        assert!(
+            verify_commands.iter().any(|command| {
+                command.contains("--content-type application/vnd.cem.schema-package+cem")
+                    && command.contains("--schema https://cem.dev/ns/schema-package/1")
+                    && command.contains(&format!("{package_root}/package.cem"))
+            }),
+            "schema package `{package_id}` verify target must validate package.cem through the CLI; got {verify_commands:#?}"
+        );
+        if matches!(package_id.as_str(), "csv" | "json" | "yaml") {
+            assert!(
+                verify_commands
+                    .iter()
+                    .any(|command| command.contains(
+                        "data_format_cross_conversions_require_generic_ast_stream_boundary"
+                    )),
+                "schema package `{package_id}` verify target must include the generic data AST boundary guard"
+            );
+        }
+
+        if package_id == "schema-package" {
+            for test_name in [
+                "schema_owned_schema_package_core_examples_validate_through_cli",
+                "schema_owned_schema_package_converter_examples_validate_through_cli",
+                "schema_owned_schema_package_artifact_schema_examples_validate_through_cli",
+                "schema_owned_schema_package_example_contract_examples_validate_through_cli",
+            ] {
+                assert!(
+                    validation_test_source.contains(&format!("fn {test_name}()")),
+                    "schema-package validation examples must stay covered by `{test_name}`"
+                );
+            }
+        } else {
+            let test_name = format!(
+                "schema_owned_{}_examples_validate_through_cli",
+                package_id.replace('-', "_")
+            );
+            let compact =
+                format!("schema_owned_package_validation_test!({test_name}, \"{package_id}\");");
+            let expanded =
+                format!("schema_owned_package_validation_test!(\n    {test_name},\n    \"{package_id}\"\n);");
+            assert!(
+                validation_test_source.contains(&compact)
+                    || validation_test_source.contains(&expanded),
+                "schema package `{package_id}` must stay registered in schema-owned CLI validation tests"
+            );
+        }
+
+        let package = builtin_schema_package_source(&package_id)
+            .unwrap_or_else(|| panic!("schema package `{package_id}` is built in"));
+        let examples = schema_package_examples_from_package_sources(package)
+            .unwrap_or_else(|err| panic!("schema package `{package_id}` examples parse: {err}"));
+        assert!(
+            !examples.is_empty(),
+            "schema package `{package_id}` must declare manifest-owned examples"
+        );
+        let mut source_snapshot_count = 0usize;
+        for example in &examples {
+            let source = workspace_path(&schema_package_example_workspace_path(&example.path));
+            assert!(
+                source.exists(),
+                "schema package `{package_id}` example source `{}` exists",
+                example.path
+            );
+            if assert_readme_preview_contract(&package_id, &readme, example) {
+                source_snapshot_count += 1;
+            }
+        }
+        if source_snapshot_count > 0 {
+            assert!(
+                readme.contains(
+                    "Source snapshots are used only where the current CLI cannot yet render"
+                ),
+                "schema package `{package_id}` must track source snapshot preview waivers"
+            );
+        }
+    }
 }
 
 #[test]

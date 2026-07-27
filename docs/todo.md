@@ -126,7 +126,7 @@ Current active slice: generic data AST stream bridge alignment.
       `projection::dom_json` now emits full `sourceMap` stacks for document,
       element, attribute, and leaf nodes while preserving legacy `byteRange`
       fields for compatibility.
-- [ ] Add regression coverage that every schema-package preview and validation
+- [x] Add regression coverage that every schema-package preview and validation
       path either uses the generic source import boundary or has an explicit
       tracked waiver with equivalent source-map and artifact metadata.
 - [ ] Preserve YAML comments/directives in the typed YAML AST stream and render
