@@ -93,10 +93,17 @@ Current active slice: generic data AST stream bridge alignment.
       typed source import AST and schema-owned parse-fact diagnostics as
       `RealCemMlEngine`, removing CLI-local JSON/YAML parser shortcuts while
       preserving direct-report compatibility for mixed validation inputs.
-- [ ] Move CLI-owned source validation collectors for Markdown, CSS, HTML, XML,
-      SVG, MathML, Relax NG, XSLT, CEM-QL, and native-template behind engine
-      lifecycle adapters, or prove each collector consumes the same imported
-      DOM/AST and source-map model as `RealCemMlEngine`.
+- [x] Prove the CLI HTML/XML-family source validation collectors consume the
+      same shared package/library validators as schema-package example
+      validation: HTML, XHTML, XML, SVG, MathML, and Relax NG collector entry
+      points now delegate to `cem_ml::validation::*::validate_*_source_bytes`
+      with source bytes, URI, content type, and source-map diagnostics
+      preserved; XSLT has no CLI-owned direct collector and already validates
+      through the lifecycle/package validator path.
+- [ ] Move CLI-owned source validation collectors for Markdown, CSS, CEM-QL,
+      and native-template behind engine lifecycle adapters, or prove each
+      collector consumes the same imported DOM/AST and source-map model as
+      `RealCemMlEngine`.
 - [x] Fix the CEM-ML `ast` projection so it no longer aliases `dom_json`:
       replace `projection::ast_json` with a source-map-bearing typed CEM
       tree AST stream consumed as CEM-ML/CEMT data, not as a DOM/JSON

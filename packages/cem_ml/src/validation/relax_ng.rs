@@ -270,11 +270,22 @@ fn inspect_relax_ng_xml_element(
             ));
         } else if element.local_name == "start" {
             *start_seen = true;
+        } else if matches!(element.local_name.as_str(), "include" | "externalRef") {
+            diagnostics.push(relax_ng_diagnostic(
+                request,
+                source,
+                element.byte_offset,
+                if element.local_name == "include" {
+                    "cem.relax_ng.include_rejected"
+                } else {
+                    "cem.relax_ng.external_ref_rejected"
+                },
+                format!(
+                    "RELAX NG `{}` is rejected until resolver policy enables it",
+                    element.local_name
+                ),
+            ));
         }
-    } else if !element.namespace_uri.is_empty() || relax_ng_known_xml_element(&element.local_name) {
-        diagnostics.push(relax_ng_unknown_element_diagnostic(
-            request, source, element,
-        ));
     }
 }
 
@@ -495,6 +506,28 @@ mod tests {
         });
 
         assert!(has_code(&diagnostics, "cem.relax_ng.unknown_element"));
+    }
+
+    #[test]
+    fn relax_ng_xml_validator_preserves_foreign_annotations() {
+        let diagnostics = validate_relax_ng_source_bytes(RelaxNgSourceValidationRequest {
+            bytes: br#"<grammar xmlns="http://relaxng.org/ns/structure/1.0" xmlns:a="urn:annotation"><start><element name="note"><a:documentation>Visible to tooling.</a:documentation><text/></element></start></grammar>"#,
+            source_uri: "fixture.rng",
+            content_type: Some("application/relax-ng+xml"),
+        });
+
+        assert!(diagnostics.is_empty(), "{diagnostics:?}");
+    }
+
+    #[test]
+    fn relax_ng_xml_validator_rejects_external_ref() {
+        let diagnostics = validate_relax_ng_source_bytes(RelaxNgSourceValidationRequest {
+            bytes: br#"<grammar xmlns="http://relaxng.org/ns/structure/1.0"><start><externalRef href="https://example.test/schema.rng"/></start></grammar>"#,
+            source_uri: "fixture.rng",
+            content_type: Some("application/relax-ng+xml"),
+        });
+
+        assert!(has_code(&diagnostics, "cem.relax_ng.external_ref_rejected"));
     }
 
     #[test]
