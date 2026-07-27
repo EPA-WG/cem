@@ -64,7 +64,14 @@ external syntax such as JSON, HTML, or XML:
    formatted CEM tree, coloring enriches that tree, and only then does the
    writer emit target-native bytes. The writer does not recreate either chain
    in Rust.
-6. **Command examples carry SVG previews.** Package README command-line
+6. **Data-format conversion is mediated by the generic AST stream.** A source
+   package imports source bytes into its typed AST with source maps, lowers that
+   typed AST to the generic data AST stream, and then the target package consumes
+   the generic stream for target-native output. JSON, YAML, CSV, and future
+   JavaScript object-like inputs such as JSONP must not use direct format-pair
+   bridges or source-specific shortcuts; each format contributes source and
+   target adapters around the generic boundary.
+7. **Command examples carry SVG previews.** Package README command-line
    examples that demonstrate visible output should be followed immediately by a
    package-relative SVG preview of the resulting terminal report, formatted
    bytes, rendered document, or other user-visible artifact. Store these
@@ -74,7 +81,7 @@ external syntax such as JSON, HTML, or XML:
    or presentation output changes, AI-assisted edits must update the affected
    SVG preview in the same change or explicitly state that the preview remains
    unchanged because the visible output did not change.
-7. **Resolver policy is separate from resource adapters.** CEM-ML resolver
+8. **Resolver policy is separate from resource adapters.** CEM-ML resolver
    policy decides whether a request is denied, passed through, or explicitly
    substituted before a local read or `ResourceResolver` dispatch happens.
    `ResourceResolver` implementations stay byte/resource adapters: they read,
@@ -86,7 +93,7 @@ external syntax such as JSON, HTML, or XML:
    diagnostics and cache/dependency identity. Passive validation, formatting,
    colorizing, and preview generation must not perform policy-sensitive
    resource reads unless that package explicitly documents a resolving mode.
-8. **Embedded expression schemas are language-owned.** Parent packages declare
+9. **Embedded expression schemas are language-owned.** Parent packages declare
    expression slots, expected bindings, result type/nullability, evaluation
    phase, source ranges, and safety policy; they do not own a private
    expression grammar. The shared CEM expression contract is the CEM-QL

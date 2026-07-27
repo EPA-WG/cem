@@ -7,7 +7,7 @@ history.
 
 ## Immediate Goal
 
-Current active slice: generic JSON/YAML data bridge alignment.
+Current active slice: generic data AST stream bridge alignment.
 
 ### Immediate: CSV Source Import To Internal AST Stream
 
@@ -65,10 +65,19 @@ Current active slice: generic JSON/YAML data bridge alignment.
       CEM-owned internal DOM/AST stream with source-map stacks instead of
       producing `cem.lifecycle.adapter_unsupported` or falling back to CEM
       syntax parsing.
-- [ ] Move generic JSON/YAML data conversion off `serde_json::Value` or
-      command-local document shortcuts and onto the generic source import
-      DOM/AST boundary, or prove that the fast path emits identical DOM/AST,
-      diagnostics, source-map, and artifact metadata.
+- [x] Move JSON/YAML data conversion off `serde_json::Value`,
+      command-local document shortcuts, and direct format-pair bridges. JSON
+      and YAML conversion now routes through source package import AST, the
+      generic AST stream boundary, and target package output; future JavaScript
+      object-like inputs such as JSONP must follow the same pattern rather than
+      coupling to JSON directly.
+- [ ] Apply the same generic AST stream boundary to CSV and every future
+      data-format content conversion, so new formats add source and target
+      adapters around the generic boundary instead of direct pair converters.
+- [ ] Add conversion-boundary validation coverage that fails when any
+      content-type conversion directly couples two concrete data formats
+      without the generic AST stream between them, including JSON, YAML, CSV,
+      and future JavaScript object-like formats.
 - [x] Move CSV direct conversion and preview generation behind the same source
       import DOM/AST boundary, preserving row and field source ranges, parser
       facts, formatter/colorizer inputs, and writer source maps without a
@@ -544,9 +553,9 @@ Remaining dependency-ordered package checklist:
 
 ### Next Work Item
 
-Move generic JSON/YAML data conversion off `serde_json::Value` or prove the
-fast path emits the same typed AST, diagnostics, source-map, and artifact
-metadata as the schema-package source import boundary.
+Add conversion-boundary validation coverage that fails when content-type
+conversion directly couples concrete data formats without the generic AST stream
+between source package import and target package output.
 
 ## Current Verification Commands
 

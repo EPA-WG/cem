@@ -68,15 +68,15 @@ use crate::transform_template::{
     TransformTemplateTerminalColorCapability,
 };
 use crate::validation::csv::CsvDocumentAst;
-use crate::validation::json::JsonDocumentAst;
-use crate::validation::yaml::YamlDocumentAst;
+use crate::validation::generic_data::GenericDataDocumentAst;
+use crate::validation::json::{generic_data_ast_to_json_cemt_subject, JsonDocumentAst};
+use crate::validation::yaml::{generic_data_ast_to_yaml_cemt_subject, YamlDocumentAst};
 use serde_json::Value;
 use std::cell::RefCell;
 use std::collections::{BTreeMap, BTreeSet};
 use std::fmt;
 use std::path::{Path, PathBuf};
 use std::time::Instant;
-use yaml_rust2::{Yaml, YamlEmitter, YamlLoader};
 
 pub const CONVERSION_PARITY_NATIVE_PAIR_MISSING_CODE: &str =
     "cem.converter.parity_native_pair_missing";
@@ -549,144 +549,6 @@ pub struct ConversionParityFixture {
 pub struct ConversionParityFixtureExecution {
     pub output: Option<Value>,
     pub diagnostics: Vec<Diagnostic>,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct GenericDataTextDocument {
-    pub content: String,
-    pub content_type: String,
-    pub schema: String,
-}
-
-#[derive(Debug, Clone)]
-pub enum GenericDataTextConversionOutcome {
-    Unsupported,
-    Converted {
-        document: GenericDataTextDocument,
-        diagnostics: Vec<Diagnostic>,
-    },
-    Failed {
-        diagnostics: Vec<Diagnostic>,
-    },
-}
-
-#[derive(Debug, Clone)]
-pub struct GenericDataValueAst {
-    pub value: Value,
-}
-
-#[derive(Debug, Clone)]
-pub enum GenericDataTextAstReadOutcome {
-    Unsupported,
-    Read {
-        ast: GenericDataValueAst,
-        diagnostics: Vec<Diagnostic>,
-    },
-    Failed {
-        diagnostics: Vec<Diagnostic>,
-    },
-}
-
-#[derive(Debug, Clone)]
-pub enum GenericDataTextAstWriteOutcome {
-    Unsupported,
-    Written {
-        document: GenericDataTextDocument,
-        diagnostics: Vec<Diagnostic>,
-    },
-    Failed {
-        diagnostics: Vec<Diagnostic>,
-    },
-}
-
-pub fn convert_generic_data_text(
-    schema_registry: &SchemaRegistry,
-    source: &FormatIdentity,
-    target: &FormatIdentity,
-    uri: Option<&str>,
-    bytes: &[u8],
-) -> GenericDataTextConversionOutcome {
-    let source_is_yaml = format_identity_matches_schema(schema_registry, source, YAML_SCHEMA_URI);
-    let target_is_yaml = format_identity_matches_schema(schema_registry, target, YAML_SCHEMA_URI);
-    let source_is_json =
-        format_identity_matches_schema(schema_registry, source, JSON_VALUE_SCHEMA_URI);
-    let target_is_json =
-        format_identity_matches_schema(schema_registry, target, JSON_VALUE_SCHEMA_URI);
-    if (source_is_yaml && target_is_yaml) || (source_is_json && target_is_json) {
-        return GenericDataTextConversionOutcome::Unsupported;
-    }
-
-    if !generic_data_text_source_is_supported(schema_registry, source)
-        || !generic_data_text_target_is_supported(schema_registry, target)
-    {
-        return GenericDataTextConversionOutcome::Unsupported;
-    }
-
-    let (ast, mut diagnostics) =
-        match read_generic_data_text_ast(schema_registry, source, uri, bytes) {
-            GenericDataTextAstReadOutcome::Unsupported => {
-                return GenericDataTextConversionOutcome::Unsupported;
-            }
-            GenericDataTextAstReadOutcome::Read { ast, diagnostics } => (ast, diagnostics),
-            GenericDataTextAstReadOutcome::Failed { diagnostics } => {
-                return GenericDataTextConversionOutcome::Failed { diagnostics };
-            }
-        };
-
-    match write_generic_data_text_ast(schema_registry, target, &ast) {
-        GenericDataTextAstWriteOutcome::Unsupported => {
-            GenericDataTextConversionOutcome::Unsupported
-        }
-        GenericDataTextAstWriteOutcome::Written {
-            document,
-            diagnostics: mut write_diagnostics,
-        } => {
-            diagnostics.append(&mut write_diagnostics);
-            GenericDataTextConversionOutcome::Converted {
-                document,
-                diagnostics,
-            }
-        }
-        GenericDataTextAstWriteOutcome::Failed {
-            diagnostics: mut write_diagnostics,
-        } => {
-            diagnostics.append(&mut write_diagnostics);
-            GenericDataTextConversionOutcome::Failed { diagnostics }
-        }
-    }
-}
-
-pub fn read_generic_data_text_ast(
-    schema_registry: &SchemaRegistry,
-    source: &FormatIdentity,
-    uri: Option<&str>,
-    bytes: &[u8],
-) -> GenericDataTextAstReadOutcome {
-    if format_identity_matches_schema(schema_registry, source, YAML_SCHEMA_URI) {
-        return read_yaml_text_ast(uri, bytes);
-    }
-
-    if format_identity_matches_schema(schema_registry, source, JSON_VALUE_SCHEMA_URI) {
-        return read_json_text_ast(uri, bytes);
-    }
-
-    GenericDataTextAstReadOutcome::Unsupported
-}
-
-pub fn write_generic_data_text_ast(
-    schema_registry: &SchemaRegistry,
-    target: &FormatIdentity,
-    ast: &GenericDataValueAst,
-) -> GenericDataTextAstWriteOutcome {
-    if format_identity_matches_schema(schema_registry, target, JSON_VALUE_SCHEMA_URI) {
-        return write_json_text_ast(target, ast);
-    }
-
-    if format_identity_matches_schema(schema_registry, target, YAML_SCHEMA_URI) {
-        return write_yaml_text_ast(target, ast);
-    }
-
-    GenericDataTextAstWriteOutcome::Unsupported
 }
 
 pub trait ConversionParityFixtureExecutor {
@@ -1398,364 +1260,6 @@ impl std::error::Error for ConversionExecutionError {}
 impl From<ConversionLookupError> for ConversionExecutionError {
     fn from(error: ConversionLookupError) -> Self {
         Self::Lookup(error)
-    }
-}
-
-fn generic_data_text_source_is_supported(
-    schema_registry: &SchemaRegistry,
-    source: &FormatIdentity,
-) -> bool {
-    format_identity_matches_schema(schema_registry, source, YAML_SCHEMA_URI)
-        || format_identity_matches_schema(schema_registry, source, JSON_VALUE_SCHEMA_URI)
-}
-
-fn generic_data_text_target_is_supported(
-    schema_registry: &SchemaRegistry,
-    target: &FormatIdentity,
-) -> bool {
-    format_identity_matches_schema(schema_registry, target, JSON_VALUE_SCHEMA_URI)
-        || format_identity_matches_schema(schema_registry, target, YAML_SCHEMA_URI)
-}
-
-fn read_yaml_text_ast(uri: Option<&str>, bytes: &[u8]) -> GenericDataTextAstReadOutcome {
-    let mut diagnostics = Vec::new();
-    let source = match std::str::from_utf8(bytes) {
-        Ok(source) => source,
-        Err(error) => {
-            diagnostics.push(generic_data_diagnostic(
-                uri,
-                None,
-                None,
-                "cem.yaml.unsupported_encoding",
-                Severity::Error,
-                format!("YAML source must be valid UTF-8: {error}"),
-            ));
-            return GenericDataTextAstReadOutcome::Failed { diagnostics };
-        }
-    };
-
-    diagnostics.extend(collect_yaml_text_diagnostics(uri, source));
-    if diagnostics
-        .iter()
-        .any(|diagnostic| diagnostic.severity.is_hard_violation())
-    {
-        return GenericDataTextAstReadOutcome::Failed { diagnostics };
-    }
-
-    let documents = match YamlLoader::load_from_str(source) {
-        Ok(documents) => documents,
-        Err(error) => {
-            diagnostics.push(yaml_parse_diagnostic(uri, &error));
-            return GenericDataTextAstReadOutcome::Failed { diagnostics };
-        }
-    };
-    let value = yaml_documents_to_json_value(documents);
-
-    GenericDataTextAstReadOutcome::Read {
-        ast: GenericDataValueAst { value },
-        diagnostics,
-    }
-}
-
-fn read_json_text_ast(uri: Option<&str>, bytes: &[u8]) -> GenericDataTextAstReadOutcome {
-    match serde_json::from_slice::<Value>(bytes) {
-        Ok(value) => GenericDataTextAstReadOutcome::Read {
-            ast: GenericDataValueAst { value },
-            diagnostics: Vec::new(),
-        },
-        Err(error) => GenericDataTextAstReadOutcome::Failed {
-            diagnostics: vec![json_parse_diagnostic(uri, &error)],
-        },
-    }
-}
-
-fn write_json_text_ast(
-    target: &FormatIdentity,
-    ast: &GenericDataValueAst,
-) -> GenericDataTextAstWriteOutcome {
-    let content = match serde_json::to_string_pretty(&ast.value) {
-        Ok(content) => content,
-        Err(error) => {
-            return GenericDataTextAstWriteOutcome::Failed {
-                diagnostics: vec![generic_data_diagnostic(
-                    None,
-                    None,
-                    None,
-                    "cem.json.emit_error",
-                    Severity::Error,
-                    format!("JSON emit error: {error}"),
-                )],
-            };
-        }
-    };
-
-    GenericDataTextAstWriteOutcome::Written {
-        document: GenericDataTextDocument {
-            content,
-            content_type: target
-                .content_type
-                .clone()
-                .unwrap_or_else(|| JSON_CONTENT_TYPE.to_owned()),
-            schema: target
-                .schema
-                .clone()
-                .unwrap_or_else(|| JSON_VALUE_SCHEMA_URI.to_owned()),
-        },
-        diagnostics: Vec::new(),
-    }
-}
-
-fn write_yaml_text_ast(
-    target: &FormatIdentity,
-    ast: &GenericDataValueAst,
-) -> GenericDataTextAstWriteOutcome {
-    let yaml = json_value_to_yaml(&ast.value);
-    let mut content = String::new();
-    let mut emitter = YamlEmitter::new(&mut content);
-    emitter.multiline_strings(true);
-    if let Err(error) = emitter.dump(&yaml) {
-        return GenericDataTextAstWriteOutcome::Failed {
-            diagnostics: vec![generic_data_diagnostic(
-                None,
-                None,
-                None,
-                "cem.yaml.emit_error",
-                Severity::Error,
-                format!("YAML emit error: {error}"),
-            )],
-        };
-    }
-
-    GenericDataTextAstWriteOutcome::Written {
-        document: GenericDataTextDocument {
-            content,
-            content_type: target
-                .content_type
-                .clone()
-                .unwrap_or_else(|| YAML_CONTENT_TYPE.to_owned()),
-            schema: target
-                .schema
-                .clone()
-                .unwrap_or_else(|| YAML_SCHEMA_URI.to_owned()),
-        },
-        diagnostics: Vec::new(),
-    }
-}
-
-fn format_identity_matches_schema(
-    schema_registry: &SchemaRegistry,
-    identity: &FormatIdentity,
-    schema_uri: &str,
-) -> bool {
-    let explicit_schema_matches = identity
-        .schema
-        .as_deref()
-        .map(str::trim)
-        .is_some_and(|schema| schema == schema_uri);
-
-    let Some(content_type) = identity.content_type.as_deref() else {
-        return explicit_schema_matches;
-    };
-
-    let Ok(descriptor) = schema_registry.resolve_content_type(content_type) else {
-        return false;
-    };
-    descriptor.schema_uri == schema_uri && (identity.schema.is_none() || explicit_schema_matches)
-}
-
-fn yaml_documents_to_json_value(documents: Vec<Yaml>) -> Value {
-    let mut values = documents
-        .into_iter()
-        .map(yaml_to_json_value)
-        .collect::<Vec<_>>();
-    if values.len() == 1 {
-        values.remove(0)
-    } else {
-        Value::Array(values)
-    }
-}
-
-fn yaml_to_json_value(value: Yaml) -> Value {
-    match value {
-        Yaml::Real(raw) => raw
-            .replace('_', "")
-            .parse::<f64>()
-            .ok()
-            .and_then(serde_json::Number::from_f64)
-            .map(Value::Number)
-            .unwrap_or(Value::String(raw)),
-        Yaml::Integer(value) => Value::Number(value.into()),
-        Yaml::String(value) => Value::String(value),
-        Yaml::Boolean(value) => Value::Bool(value),
-        Yaml::Array(values) => Value::Array(values.into_iter().map(yaml_to_json_value).collect()),
-        Yaml::Hash(entries) => {
-            let mut out = serde_json::Map::new();
-            for (key, value) in entries {
-                out.insert(yaml_key_to_json_key(key), yaml_to_json_value(value));
-            }
-            Value::Object(out)
-        }
-        Yaml::Alias(_) | Yaml::Null | Yaml::BadValue => Value::Null,
-    }
-}
-
-fn yaml_key_to_json_key(key: Yaml) -> String {
-    match key {
-        Yaml::String(value) => value,
-        Yaml::Integer(value) => value.to_string(),
-        Yaml::Real(value) => value,
-        Yaml::Boolean(value) => value.to_string(),
-        Yaml::Null => "null".to_owned(),
-        other => serde_json::to_string(&yaml_to_json_value(other)).unwrap_or_default(),
-    }
-}
-
-fn json_value_to_yaml(value: &Value) -> Yaml {
-    match value {
-        Value::Null => Yaml::Null,
-        Value::Bool(value) => Yaml::Boolean(*value),
-        Value::Number(number) => {
-            if let Some(value) = number.as_i64() {
-                Yaml::Integer(value)
-            } else {
-                Yaml::Real(number.to_string())
-            }
-        }
-        Value::String(value) => Yaml::String(value.clone()),
-        Value::Array(values) => Yaml::Array(values.iter().map(json_value_to_yaml).collect()),
-        Value::Object(fields) => {
-            let mut out = yaml_rust2::yaml::Hash::new();
-            for (key, value) in fields {
-                out.insert(Yaml::String(key.clone()), json_value_to_yaml(value));
-            }
-            Yaml::Hash(out)
-        }
-    }
-}
-
-fn json_parse_diagnostic(uri: Option<&str>, error: &serde_json::Error) -> Diagnostic {
-    generic_data_diagnostic(
-        uri,
-        u32::try_from(error.line()).ok(),
-        u32::try_from(error.column()).ok(),
-        "cem.json.parse_error",
-        Severity::Error,
-        format!("JSON parse error: {error}"),
-    )
-}
-
-fn yaml_parse_diagnostic(uri: Option<&str>, error: &yaml_rust2::scanner::ScanError) -> Diagnostic {
-    let marker = error.marker();
-    generic_data_diagnostic(
-        uri,
-        u32::try_from(marker.line()).ok(),
-        u32::try_from(marker.col()).ok(),
-        "cem.yaml.parse_error",
-        Severity::Error,
-        format!("YAML parse error: {error}"),
-    )
-}
-
-fn collect_yaml_text_diagnostics(uri: Option<&str>, source: &str) -> Vec<Diagnostic> {
-    let mut receiver = YamlDiagnosticReceiver {
-        uri,
-        diagnostics: Vec::new(),
-    };
-    let mut parser = yaml_rust2::parser::Parser::new_from_str(source);
-    if let Err(error) = parser.load(&mut receiver, true) {
-        receiver
-            .diagnostics
-            .push(yaml_parse_diagnostic(uri, &error));
-    }
-    receiver.diagnostics
-}
-
-struct YamlDiagnosticReceiver<'a> {
-    uri: Option<&'a str>,
-    diagnostics: Vec<Diagnostic>,
-}
-
-impl yaml_rust2::parser::MarkedEventReceiver for YamlDiagnosticReceiver<'_> {
-    fn on_event(&mut self, ev: yaml_rust2::parser::Event, marker: yaml_rust2::scanner::Marker) {
-        match ev {
-            yaml_rust2::parser::Event::Scalar(_, _, _, Some(tag))
-            | yaml_rust2::parser::Event::SequenceStart(_, Some(tag))
-            | yaml_rust2::parser::Event::MappingStart(_, Some(tag)) => {
-                if !is_safe_yaml_tag(&tag) {
-                    self.diagnostics.push(generic_data_diagnostic(
-                        self.uri,
-                        u32::try_from(marker.line()).ok(),
-                        u32::try_from(marker.col()).ok(),
-                        "cem.yaml.unsafe_tag",
-                        Severity::Error,
-                        format!(
-                            "YAML node uses unsupported explicit tag `{}`",
-                            yaml_tag_display(&tag)
-                        ),
-                    ));
-                }
-            }
-            _ => {}
-        }
-    }
-}
-
-fn is_safe_yaml_tag(tag: &yaml_rust2::parser::Tag) -> bool {
-    let handle = tag.handle.trim();
-    let suffix = tag.suffix.trim();
-    if handle.is_empty() && suffix.is_empty() {
-        return true;
-    }
-
-    match handle {
-        "!" => suffix.is_empty(),
-        "!!" | "tag:yaml.org,2002:" => is_safe_yaml_core_tag_name(suffix),
-        _ => false,
-    }
-}
-
-fn is_safe_yaml_core_tag_name(name: &str) -> bool {
-    matches!(
-        name,
-        "binary"
-            | "bool"
-            | "float"
-            | "int"
-            | "map"
-            | "merge"
-            | "null"
-            | "omap"
-            | "pairs"
-            | "seq"
-            | "set"
-            | "str"
-            | "timestamp"
-            | "value"
-            | "yaml"
-    )
-}
-
-fn yaml_tag_display(tag: &yaml_rust2::parser::Tag) -> String {
-    format!("{}{}", tag.handle, tag.suffix)
-}
-
-fn generic_data_diagnostic(
-    uri: Option<&str>,
-    line: Option<u32>,
-    column: Option<u32>,
-    code: &str,
-    severity: Severity,
-    message: impl Into<String>,
-) -> Diagnostic {
-    Diagnostic {
-        uri: uri.map(str::to_owned),
-        line,
-        column,
-        code: code.to_owned(),
-        severity,
-        message: message.into(),
-        details: None,
-        ..Diagnostic::default()
     }
 }
 
@@ -4585,6 +4089,27 @@ impl YamlDocumentOutputSubject for YamlDocumentAst {
     }
 }
 
+#[derive(Debug, Clone)]
+pub struct GenericDataYamlDocumentOutputSubject {
+    ast: GenericDataDocumentAst,
+}
+
+impl GenericDataYamlDocumentOutputSubject {
+    pub fn new(ast: GenericDataDocumentAst) -> Self {
+        Self { ast }
+    }
+}
+
+impl YamlDocumentOutputSubject for GenericDataYamlDocumentOutputSubject {
+    fn source_line_ending(&self) -> Option<&str> {
+        self.ast.source_line_ending()
+    }
+
+    fn into_cemt_subject(self) -> Value {
+        generic_data_ast_to_yaml_cemt_subject(&self.ast)
+    }
+}
+
 #[cfg(test)]
 impl YamlDocumentOutputSubject for Value {
     fn source_line_ending(&self) -> Option<&str> {
@@ -5174,6 +4699,27 @@ impl JsonDocumentOutputSubject for JsonDocumentAst {
 
     fn into_cemt_subject(self) -> Value {
         self.to_cemt_subject()
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct GenericDataJsonDocumentOutputSubject {
+    ast: GenericDataDocumentAst,
+}
+
+impl GenericDataJsonDocumentOutputSubject {
+    pub fn new(ast: GenericDataDocumentAst) -> Self {
+        Self { ast }
+    }
+}
+
+impl JsonDocumentOutputSubject for GenericDataJsonDocumentOutputSubject {
+    fn source_line_ending(&self) -> Option<&str> {
+        self.ast.source_line_ending()
+    }
+
+    fn into_cemt_subject(self) -> Value {
+        generic_data_ast_to_json_cemt_subject(&self.ast)
     }
 }
 

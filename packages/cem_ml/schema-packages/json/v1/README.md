@@ -51,13 +51,18 @@ Formatter profiles render typed `json-document` subjects into CEM tree
 artifacts; colorizer profiles consume CEM tree artifacts for terminal, HTML, and
 Markdown output.
 
-Cross JSON/YAML conversion still uses the generic data bridge until that bridge
-is moved onto the same typed import boundary.
+Cross data-format conversion imports JSON into the typed JSON AST first, lowers
+that AST into the generic data AST stream, and lets the target package consume
+the generic stream for output. JSON/YAML conversion must not use a direct
+format-pair bridge, and future JavaScript object-like inputs such as JSONP must
+follow the same source-package AST to generic-AST to target-package output
+pattern.
 
 ## Tracked Incomplete Work
 
-- Move the generic JSON/YAML data bridge off `serde_json::Value` or prove it
-  emits identical typed AST, diagnostics, source maps, and artifact metadata.
+- Add conversion-boundary validation coverage that fails when a content-type
+  conversion directly couples JSON to another concrete data format without the
+  generic AST stream between them.
 
 ## Examples
 

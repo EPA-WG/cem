@@ -18,8 +18,8 @@ use crate::conversion::{
     execute_yaml_document_output_pipeline_with_environment, ConversionExecution,
     ConversionOutputPipeline, ConversionOutputPipelineEnvironment,
     ConversionPackageArtifactDescriptor, ConversionPackageArtifactRead,
-    ConversionRustFallbackDescriptor, GenericDataTextConversionOutcome, GenericDataTextDocument,
-    CONVERSION_OUTPUT_PIPELINE_EXECUTION_CODE,
+    ConversionRustFallbackDescriptor, GenericDataJsonDocumentOutputSubject,
+    GenericDataYamlDocumentOutputSubject, CONVERSION_OUTPUT_PIPELINE_EXECUTION_CODE,
 };
 use crate::diagnostics::{
     project_diagnostics_for_source, source_map_coordinate_details, Diagnostic, Severity,
@@ -89,6 +89,7 @@ use crate::transform_template::{
     TRANSFORM_TEMPLATE_PARAM_TYPE_CODE, TRANSFORM_TEMPLATE_PARAM_UNKNOWN_CODE,
 };
 use crate::validation::csv::CsvDocumentAst;
+use crate::validation::generic_data::GenericDataDocumentAst;
 use crate::validation::json::JsonDocumentAst;
 use crate::validation::yaml::YamlDocumentAst;
 use crate::validation::{
@@ -4598,11 +4599,17 @@ fn text_content_hash(bytes: &[u8]) -> String {
     format!("cem-text/1+blake3:{}", blake3::hash(bytes).to_hex())
 }
 
-fn primary_bytes_from_text_document(document: &GenericDataTextDocument) -> PrimaryBytes {
-    let bytes = document.content.as_bytes().to_vec();
+fn primary_bytes_from_text_document(
+    content: &str,
+    content_type: impl Into<String>,
+    schema: impl Into<String>,
+) -> PrimaryBytes {
+    let content_type = content_type.into();
+    let schema = schema.into();
+    let bytes = content.as_bytes().to_vec();
     PrimaryBytes {
-        content_type: document.content_type.clone(),
-        schema: Some(document.schema.clone()),
+        content_type,
+        schema: Some(schema),
         format_version: "cem-text/1".to_owned(),
         hash_scheme: "cem-text/1+blake3".to_owned(),
         hash: text_content_hash(&bytes),
@@ -4632,79 +4639,6 @@ fn primary_bytes_from_binary_artifact(
         hash_scheme: artifact.hash_scheme.clone(),
         hash: artifact.hash.clone(),
         bytes,
-    }
-}
-
-fn maybe_convert_generic_data_text(
-    request: &ConvertRequest,
-    started_at: Instant,
-) -> Option<ConvertResponse> {
-    let source = request
-        .input
-        .identity
-        .clone()
-        .unwrap_or_else(|| request.input.root_scope.format_identity());
-    let target = request
-        .target
-        .clone()
-        .or_else(|| request.target_scope.format_identity_option())?;
-
-    let outcome = crate::conversion::convert_generic_data_text(
-        &request.context.schema_registry,
-        &source,
-        &target,
-        Some(&request.input.uri),
-        &request.input.bytes,
-    );
-
-    let mut diagnostics = Vec::new();
-    diagnostics.extend(root_scope_metadata_diagnostics(
-        &request.input.uri,
-        &request.input.root_scope,
-        "input",
-    ));
-    diagnostics.extend(root_scope_metadata_diagnostics(
-        &request.input.uri,
-        &request.target_scope,
-        "output",
-    ));
-
-    match outcome {
-        GenericDataTextConversionOutcome::Unsupported => None,
-        GenericDataTextConversionOutcome::Converted {
-            document,
-            diagnostics: mut conversion_diagnostics,
-        } => {
-            diagnostics.append(&mut conversion_diagnostics);
-            append_convert_time_budget_diagnostics(&mut diagnostics, request, started_at);
-            let primary_bytes = primary_bytes_from_text_document(&document);
-            let hash = primary_bytes.hash.clone();
-            Some(ConvertResponse {
-                primary: json!({
-                    "kind": "document",
-                    "contentType": document.content_type,
-                    "schema": document.schema,
-                    "hash": hash,
-                }),
-                primary_bytes: Some(primary_bytes),
-                conversion: None,
-                diagnostics,
-                scheduler_trace: crate::report::SchedulerTraceReport::default(),
-            })
-        }
-        GenericDataTextConversionOutcome::Failed {
-            diagnostics: mut conversion_diagnostics,
-        } => {
-            diagnostics.append(&mut conversion_diagnostics);
-            append_convert_time_budget_diagnostics(&mut diagnostics, request, started_at);
-            Some(ConvertResponse {
-                primary: Value::Null,
-                primary_bytes: None,
-                conversion: None,
-                diagnostics,
-                scheduler_trace: crate::report::SchedulerTraceReport::default(),
-            })
-        }
     }
 }
 
@@ -5024,6 +4958,73 @@ fn convert_loaded_yaml_ast_output(
     )
 }
 
+fn convert_loaded_generic_data_ast_to_yaml_output(
+    context: &EngineContext,
+    request: &ConvertRequest,
+    document: GenericDataDocumentAst,
+    diagnostics: &mut Vec<Diagnostic>,
+) -> (Value, Option<PrimaryBytes>, ConvertExecutionMetadata) {
+    let metadata =
+        convert_metadata_for_generic_data_to_yaml_lifecycle_output(&request.target_scope);
+    let environment = ConversionOutputPipelineEnvironment {
+        schema_registry: &context.schema_registry,
+        conversion_registry: &context.converter_registry,
+        package_artifact_reader: None,
+        artifact_cache: None,
+    };
+    let execution = execute_yaml_document_output_pipeline_with_environment(
+        &environment,
+        GenericDataYamlDocumentOutputSubject::new(document),
+        &request.target_scope,
+        Some(&request.input.uri),
+    );
+    diagnostics.extend(execution.diagnostics.clone());
+    if diagnostics
+        .iter()
+        .any(|diagnostic| diagnostic.severity.is_hard_violation())
+    {
+        return (Value::Null, None, metadata);
+    }
+
+    let content = execution
+        .output
+        .as_ref()
+        .and_then(Value::as_str)
+        .unwrap_or_default()
+        .to_owned();
+    let target = request
+        .target
+        .clone()
+        .or_else(|| request.target_scope.format_identity_option())
+        .unwrap_or_else(|| FormatIdentity {
+            content_type: Some(YAML_CONTENT_TYPE.to_owned()),
+            schema: Some(YAML_SCHEMA_URI.to_owned()),
+            ..FormatIdentity::default()
+        });
+    let (content_type, schema, format_version) =
+        yaml_direct_output_primary_identity(&target, &request.target_scope);
+    let bytes = content.into_bytes();
+    let primary_bytes = PrimaryBytes {
+        content_type,
+        schema: Some(schema.clone()),
+        format_version,
+        hash_scheme: "cem-text/1+blake3".to_owned(),
+        hash: text_content_hash(&bytes),
+        bytes,
+    };
+    let hash = primary_bytes.hash.clone();
+    (
+        json!({
+            "kind": "document",
+            "contentType": primary_bytes.content_type,
+            "schema": schema,
+            "hash": hash,
+        }),
+        Some(primary_bytes),
+        metadata,
+    )
+}
+
 fn yaml_direct_output_is_html(target_scope: &ScopeConfig) -> bool {
     yaml_direct_output_color_selection(target_scope)
         .as_ref()
@@ -5150,6 +5151,15 @@ fn convert_metadata_for_yaml_lifecycle_output(
     }
 }
 
+fn convert_metadata_for_generic_data_to_yaml_lifecycle_output(
+    target_scope: &ScopeConfig,
+) -> ConvertExecutionMetadata {
+    let mut metadata = convert_metadata_for_yaml_lifecycle_output(target_scope);
+    metadata.converter_id = Some("generic-data-ast-to-yaml-output".to_owned());
+    metadata.implementation = Some("generic-data-ast-stream-to-yaml-output-pipeline".to_owned());
+    metadata
+}
+
 fn json_direct_output_primary_identity(
     target: &FormatIdentity,
     target_scope: &ScopeConfig,
@@ -5190,6 +5200,73 @@ fn convert_loaded_json_ast_output(
     let execution = execute_json_document_output_pipeline_with_environment(
         &environment,
         document,
+        &request.target_scope,
+        Some(&request.input.uri),
+    );
+    diagnostics.extend(execution.diagnostics.clone());
+    if diagnostics
+        .iter()
+        .any(|diagnostic| diagnostic.severity.is_hard_violation())
+    {
+        return (Value::Null, None, metadata);
+    }
+
+    let content = execution
+        .output
+        .as_ref()
+        .and_then(Value::as_str)
+        .unwrap_or_default()
+        .to_owned();
+    let target = request
+        .target
+        .clone()
+        .or_else(|| request.target_scope.format_identity_option())
+        .unwrap_or_else(|| FormatIdentity {
+            content_type: Some(JSON_CONTENT_TYPE.to_owned()),
+            schema: Some(JSON_VALUE_SCHEMA_URI.to_owned()),
+            ..FormatIdentity::default()
+        });
+    let (content_type, schema, format_version) =
+        json_direct_output_primary_identity(&target, &request.target_scope);
+    let bytes = content.into_bytes();
+    let primary_bytes = PrimaryBytes {
+        content_type,
+        schema: Some(schema.clone()),
+        format_version,
+        hash_scheme: "cem-text/1+blake3".to_owned(),
+        hash: text_content_hash(&bytes),
+        bytes,
+    };
+    let hash = primary_bytes.hash.clone();
+    (
+        json!({
+            "kind": "document",
+            "contentType": primary_bytes.content_type,
+            "schema": schema,
+            "hash": hash,
+        }),
+        Some(primary_bytes),
+        metadata,
+    )
+}
+
+fn convert_loaded_generic_data_ast_to_json_output(
+    context: &EngineContext,
+    request: &ConvertRequest,
+    document: GenericDataDocumentAst,
+    diagnostics: &mut Vec<Diagnostic>,
+) -> (Value, Option<PrimaryBytes>, ConvertExecutionMetadata) {
+    let metadata =
+        convert_metadata_for_generic_data_to_json_lifecycle_output(&request.target_scope);
+    let environment = ConversionOutputPipelineEnvironment {
+        schema_registry: &context.schema_registry,
+        conversion_registry: &context.converter_registry,
+        package_artifact_reader: None,
+        artifact_cache: None,
+    };
+    let execution = execute_json_document_output_pipeline_with_environment(
+        &environment,
+        GenericDataJsonDocumentOutputSubject::new(document),
         &request.target_scope,
         Some(&request.input.uri),
     );
@@ -5366,22 +5443,13 @@ fn convert_metadata_for_json_lifecycle_output(
     }
 }
 
-fn append_convert_time_budget_diagnostics(
-    diagnostics: &mut Vec<Diagnostic>,
-    request: &ConvertRequest,
-    started_at: Instant,
-) {
-    let elapsed_ns = started_at.elapsed().as_nanos();
-    diagnostics.extend(time_budget_diagnostics(
-        &request.input.root_scope,
-        &["convertms", "converttimebudgetms"],
-        elapsed_ns,
-    ));
-    diagnostics.extend(time_budget_diagnostics(
-        &request.target_scope,
-        &["convertms", "converttimebudgetms"],
-        elapsed_ns,
-    ));
+fn convert_metadata_for_generic_data_to_json_lifecycle_output(
+    target_scope: &ScopeConfig,
+) -> ConvertExecutionMetadata {
+    let mut metadata = convert_metadata_for_json_lifecycle_output(target_scope);
+    metadata.converter_id = Some("generic-data-ast-to-json-output".to_owned());
+    metadata.implementation = Some("generic-data-ast-stream-to-json-output-pipeline".to_owned());
+    metadata
 }
 
 fn template_module_diagnostic(
@@ -6364,9 +6432,6 @@ impl CemMlEngine for RealCemMlEngine {
 
     fn convert(&self, mut request: ConvertRequest) -> EngineResult<ConvertResponse> {
         let started_at = Instant::now();
-        if let Some(response) = maybe_convert_generic_data_text(&request, started_at) {
-            return Ok(response);
-        }
         let (context, mut package_diagnostics) =
             context_with_loaded_schema_package_manifests(&request.context)?;
         request.context = context.clone();
@@ -6516,6 +6581,34 @@ impl CemMlEngine for RealCemMlEngine {
                             return;
                         }
 
+                        if to_format == LayerFormat::Json {
+                            if diagnostics
+                                .iter()
+                                .any(|diagnostic| diagnostic.severity.is_hard_violation())
+                            {
+                                primary = Some(Value::Null);
+                                conversion = Some(
+                                    convert_metadata_for_generic_data_to_json_lifecycle_output(
+                                        &request.target_scope,
+                                    ),
+                                );
+                                return;
+                            }
+
+                            let generic_document = document_value.to_generic_data_ast();
+                            let (json_primary, json_primary_bytes, json_conversion) =
+                                convert_loaded_generic_data_ast_to_json_output(
+                                    &context,
+                                    &request,
+                                    generic_document,
+                                    &mut diagnostics,
+                                );
+                            primary = Some(json_primary);
+                            primary_bytes = json_primary_bytes;
+                            conversion = Some(json_conversion);
+                            return;
+                        }
+
                         diagnostics.push(Diagnostic {
                             uri: Some(request.input.uri.clone()),
                             code: "cem.lifecycle.internal_ast_target_unsupported".to_owned(),
@@ -6560,6 +6653,34 @@ impl CemMlEngine for RealCemMlEngine {
                             primary = Some(json_primary);
                             primary_bytes = json_primary_bytes;
                             conversion = Some(json_conversion);
+                            return;
+                        }
+
+                        if to_format == LayerFormat::Yaml {
+                            if diagnostics
+                                .iter()
+                                .any(|diagnostic| diagnostic.severity.is_hard_violation())
+                            {
+                                primary = Some(Value::Null);
+                                conversion = Some(
+                                    convert_metadata_for_generic_data_to_yaml_lifecycle_output(
+                                        &request.target_scope,
+                                    ),
+                                );
+                                return;
+                            }
+
+                            let generic_document = document_value.to_generic_data_ast();
+                            let (yaml_primary, yaml_primary_bytes, yaml_conversion) =
+                                convert_loaded_generic_data_ast_to_yaml_output(
+                                    &context,
+                                    &request,
+                                    generic_document,
+                                    &mut diagnostics,
+                                );
+                            primary = Some(yaml_primary);
+                            primary_bytes = yaml_primary_bytes;
+                            conversion = Some(yaml_conversion);
                             return;
                         }
 
@@ -6620,12 +6741,11 @@ impl CemMlEngine for RealCemMlEngine {
                         Value::Null
                     });
                     if let Some(content) = cem_primary.get("content").and_then(Value::as_str) {
-                        let document = GenericDataTextDocument {
-                            content: content.to_owned(),
-                            content_type: CEM_ML_CONTENT_TYPE.to_owned(),
-                            schema: CEM_ML_SCHEMA_URI.to_owned(),
-                        };
-                        primary_bytes = Some(primary_bytes_from_text_document(&document));
+                        primary_bytes = Some(primary_bytes_from_text_document(
+                            content,
+                            CEM_ML_CONTENT_TYPE,
+                            CEM_ML_SCHEMA_URI,
+                        ));
                     }
                     cem_primary
                 }
@@ -12053,6 +12173,112 @@ mod tests {
         assert_eq!(output["active"], true);
         assert_eq!(resp.primary["kind"], "document");
         assert_eq!(resp.primary["contentType"], JSON_CONTENT_TYPE);
+    }
+
+    #[test]
+    fn convert_yaml_to_json_uses_generic_data_ast_stream() {
+        let mut source = input(b"name: Ada\nactive: true\n", "document.yaml");
+        source.identity = Some(FormatIdentity {
+            content_type: Some(YAML_CONTENT_TYPE.to_owned()),
+            schema: Some(YAML_SCHEMA_URI.to_owned()),
+            ..FormatIdentity::default()
+        });
+        let target = FormatIdentity {
+            content_type: Some(JSON_CONTENT_TYPE.to_owned()),
+            schema: Some(JSON_VALUE_SCHEMA_URI.to_owned()),
+            ..FormatIdentity::default()
+        };
+        let req = ConvertRequest {
+            input: source,
+            to_format: LayerFormat::DomJson,
+            preserve_source_offsets: false,
+            context: ctx(),
+            target: Some(target),
+            target_scope: ScopeConfig {
+                cemt_formatter_profile: Some("compact".to_owned()),
+                ..ScopeConfig::default()
+            },
+            scheduler_scope_id: 0,
+        };
+
+        let resp = RealCemMlEngine::new().convert(req).unwrap();
+
+        assert!(
+            resp.diagnostics.is_empty(),
+            "YAML to JSON conversion should route through lifecycle and generic AST: {:?}",
+            resp.diagnostics
+        );
+        assert_eq!(
+            resp.conversion
+                .as_ref()
+                .and_then(|conversion| conversion.converter_id.as_deref()),
+            Some("generic-data-ast-to-json-output")
+        );
+        assert_eq!(
+            resp.conversion
+                .as_ref()
+                .and_then(|conversion| conversion.implementation.as_deref()),
+            Some("generic-data-ast-stream-to-json-output-pipeline")
+        );
+        let primary_bytes = resp.primary_bytes.as_ref().expect("JSON primary bytes");
+        assert_eq!(primary_bytes.content_type, JSON_CONTENT_TYPE);
+        assert_eq!(primary_bytes.schema.as_deref(), Some(JSON_VALUE_SCHEMA_URI));
+        let output: Value = serde_json::from_slice(&primary_bytes.bytes).unwrap();
+        assert_eq!(output["name"], "Ada");
+        assert_eq!(output["active"], true);
+    }
+
+    #[test]
+    fn convert_json_to_yaml_uses_generic_data_ast_stream() {
+        let mut source = input(br#"{"name":"Ada","active":true}"#, "document.json");
+        source.identity = Some(FormatIdentity {
+            content_type: Some(JSON_CONTENT_TYPE.to_owned()),
+            schema: Some(JSON_VALUE_SCHEMA_URI.to_owned()),
+            ..FormatIdentity::default()
+        });
+        let target = FormatIdentity {
+            content_type: Some(YAML_CONTENT_TYPE.to_owned()),
+            schema: Some(YAML_SCHEMA_URI.to_owned()),
+            ..FormatIdentity::default()
+        };
+        let req = ConvertRequest {
+            input: source,
+            to_format: LayerFormat::DomJson,
+            preserve_source_offsets: false,
+            context: ctx(),
+            target: Some(target),
+            target_scope: ScopeConfig {
+                cemt_formatter_profile: Some("compact".to_owned()),
+                ..ScopeConfig::default()
+            },
+            scheduler_scope_id: 0,
+        };
+
+        let resp = RealCemMlEngine::new().convert(req).unwrap();
+
+        assert!(
+            resp.diagnostics.is_empty(),
+            "JSON to YAML conversion should route through lifecycle and generic AST: {:?}",
+            resp.diagnostics
+        );
+        assert_eq!(
+            resp.conversion
+                .as_ref()
+                .and_then(|conversion| conversion.converter_id.as_deref()),
+            Some("generic-data-ast-to-yaml-output")
+        );
+        assert_eq!(
+            resp.conversion
+                .as_ref()
+                .and_then(|conversion| conversion.implementation.as_deref()),
+            Some("generic-data-ast-stream-to-yaml-output-pipeline")
+        );
+        let primary_bytes = resp.primary_bytes.as_ref().expect("YAML primary bytes");
+        assert_eq!(primary_bytes.content_type, YAML_CONTENT_TYPE);
+        assert_eq!(primary_bytes.schema.as_deref(), Some(YAML_SCHEMA_URI));
+        let output = std::str::from_utf8(&primary_bytes.bytes).unwrap();
+        assert!(output.contains("name: Ada"), "{output}");
+        assert!(output.contains("active: true"), "{output}");
     }
 
     #[test]

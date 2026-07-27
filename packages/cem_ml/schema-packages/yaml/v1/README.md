@@ -55,6 +55,13 @@ The schema describes YAML streams as a lossless resource model:
 Parsers must use safe tag resolution by default. Host-object or executable tags
 belong behind explicit adapter policy and runtime limits.
 
+Cross data-format conversion imports YAML into the typed YAML AST first, lowers
+that AST into the generic data AST stream, and lets the target package consume
+the generic stream for output. YAML/JSON conversion must not use a direct
+format-pair bridge, and future JavaScript object-like inputs such as JSONP must
+follow the same source-package AST to generic-AST to target-package output
+pattern.
+
 ## Verification
 
 `cem_ml_schema_package_yaml_v1:verify` validates `package.cem`, checks example
