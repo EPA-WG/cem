@@ -99,7 +99,8 @@
                     "cargo test -p cem-ml builtin_json_formatter_profiles_execute_package_cemt_assets -- --nocapture",
                     "cargo test -p cem-ml builtin_json_colorizer_profiles_execute_package_cemt_assets -- --nocapture",
                     "cargo test -p cem-ml convert_json_same_schema_uses_lifecycle_ast_stream -- --nocapture",
-                    "cargo test -p cem-ml-cli convert_json_same_schema_uses_lifecycle_ast_stream -- --nocapture"
+                    "cargo test -p cem-ml-cli convert_json_same_schema -- --nocapture",
+                    "node packages/cem_ml/schema-packages/json/v1/scripts/verify-previews.mjs"
                 ],
                 "parallel": false,
                 "cwd": "{workspaceRoot}"
@@ -111,14 +112,17 @@
                 "{projectRoot}/formatters/**/*.cemt",
                 "{projectRoot}/colorizers/**/*.cemt",
                 "{projectRoot}/converters/**/*.cemt",
+                "{projectRoot}/scripts/**/*.mjs",
                 "{projectRoot}/examples/**/*",
+                "{workspaceRoot}/packages/cem_ml/schema-packages/scripts/**/*.mjs",
                 "{workspaceRoot}/packages/cem_ml/src/**/*.rs",
                 "{workspaceRoot}/packages/cem_ml/Cargo.toml",
                 "{workspaceRoot}/packages/cem_ml_cli/src/**/*.rs",
                 "{workspaceRoot}/packages/cem_ml_cli/Cargo.toml"
             ],
             "outputs": [
-                "{projectRoot}/dist/cem-ml.report.json"
+                "{projectRoot}/dist/cem-ml.report.json",
+                "{workspaceRoot}/dist/cem_ml/schema-packages/json/v1/examples/*.html"
             ]
         }
     },

@@ -38,7 +38,8 @@ The schema describes JSON values as a lossless resource model:
 
 `cem_ml_schema_package_json_v1:verify` validates the package manifest, checks
 that package examples are manifest-indexed, and runs focused lifecycle adapter,
-engine conversion, and CLI same-schema JSON regressions.
+engine conversion, CLI same-schema JSON regressions, and README/SVG preview
+drift checks.
 
 ## Release Behavior
 
@@ -55,8 +56,6 @@ is moved onto the same typed import boundary.
 
 ## Tracked Incomplete Work
 
-- Add JSON README/SVG preview drift checks once package-owned JSON formatter
-  and colorizer bodies are expanded.
 - Move the generic JSON/YAML data bridge off `serde_json::Value` or prove it
   emits identical typed AST, diagnostics, source maps, and artifact metadata.
 

@@ -7,7 +7,7 @@ history.
 
 ## Immediate Goal
 
-Current active slice: `json/v1` schema-package folder alignment.
+Current active slice: generic JSON/YAML data bridge alignment.
 
 ### Immediate: CSV Source Import To Internal AST Stream
 
@@ -484,7 +484,7 @@ Remaining dependency-ordered package checklist:
         generated artifact drift.
   - [x] Expand YAML README Verification, Release Behavior, and tracked
         incomplete-work sections.
-- [ ] `json/v1`
+- [x] `json/v1`
   - [x] Add schema-owned JSON parse-fact bindings for parse errors,
         unsupported UTF-8, duplicate member names, and source-map-unavailable
         facts.
@@ -501,7 +501,7 @@ Remaining dependency-ordered package checklist:
   - [x] Move JSON formatter/colorizer CEMT assets from shared `json`/`tokens`
         stubs to typed JSON document/CEM-tree boundaries, covering compact,
         pretty, tabular, terminal, HTML, and Markdown semantics.
-  - [ ] Add JSON README/SVG preview drift checks after package-owned JSON
+  - [x] Add JSON README/SVG preview drift checks after package-owned JSON
         formatter/colorizer bodies render the example previews.
 - [ ] `json-schema/v1`
 - [ ] `markdown/v1`
@@ -544,9 +544,9 @@ Remaining dependency-ordered package checklist:
 
 ### Next Work Item
 
-Align `json/v1` with the schema-package folder contract: typed lifecycle input,
-manifest-indexed examples, package-owned formatter/colorizer boundaries,
-README/SVG preview drift checks, and package-local verify coverage.
+Move generic JSON/YAML data conversion off `serde_json::Value` or prove the
+fast path emits the same typed AST, diagnostics, source-map, and artifact
+metadata as the schema-package source import boundary.
 
 ## Current Verification Commands
 

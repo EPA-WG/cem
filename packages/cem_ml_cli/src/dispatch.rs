@@ -3218,6 +3218,11 @@ fn write_convert_primary(
     s: &mut Streams<'_>,
 ) -> io::Result<()> {
     if let Some(primary_bytes) = response.primary_bytes.as_ref() {
+        let output_color_type = if convert_response_has_rendered_terminal_color(response) {
+            None
+        } else {
+            output_color_type
+        };
         return write_primary_bytes_with_console_color(
             context,
             primary_bytes,
@@ -3234,6 +3239,18 @@ fn write_convert_primary(
         output_color_type,
         s,
     )
+}
+
+fn convert_response_has_rendered_terminal_color(response: &eng::ConvertResponse) -> bool {
+    response
+        .conversion
+        .as_ref()
+        .and_then(|conversion| conversion.output_pipeline.as_ref())
+        .is_some_and(|pipeline| {
+            pipeline.stages.iter().any(|stage| {
+                stage.stage == "colorizer" && stage.profile.as_deref() == Some("terminal")
+            })
+        })
 }
 
 fn write_convert_artifact_json_if_requested(
@@ -16937,6 +16954,48 @@ active: true
             "{stderr}"
         );
         let output: serde_json::Value = serde_json::from_str(&stdout).unwrap();
+        assert_eq!(output["name"], "Ada");
+        assert_eq!(output["active"], true);
+    }
+
+    #[test]
+    fn convert_json_same_schema_terminal_color_is_not_double_colored() {
+        let p = write_fixture(
+            "convert-json-same-schema-terminal-color.json",
+            r#"{"name":"Ada","active":true}"#,
+        );
+        let input_spec = format!(
+            "uri={},contentType=application/json,schema={}",
+            p.display(),
+            cem_ml::schema::registry::JSON_VALUE_SCHEMA_URI
+        );
+
+        let (outcome, stdout, stderr) = run(
+            &RealCemMlEngine::new(),
+            &[
+                "convert",
+                "--input-spec",
+                &input_spec,
+                "--to-content-type",
+                "application/json",
+                "--to-schema",
+                cem_ml::schema::registry::JSON_VALUE_SCHEMA_URI,
+                "--cemt-formatter-profile",
+                "tabular",
+                "--output-color-type",
+                "ansi-256",
+            ],
+        );
+
+        assert_eq!(outcome.exit_code, EXIT_OK, "{stderr}");
+        assert!(stderr.trim().is_empty(), "{stderr}");
+        assert!(stdout.contains("\x1b["), "{stdout}");
+        let visible = strip_ansi_codes(&stdout);
+        assert!(
+            !visible.contains('\x1b'),
+            "stripping ANSI should not leave visible control bytes: {visible:?}"
+        );
+        let output: serde_json::Value = serde_json::from_str(&visible).unwrap();
         assert_eq!(output["name"], "Ada");
         assert_eq!(output["active"], true);
     }
