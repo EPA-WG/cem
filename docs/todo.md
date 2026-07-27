@@ -110,10 +110,11 @@ Current active slice: generic data AST stream bridge alignment.
       module and expression validation through the CEM-QL parser/compiler,
       import resolution, type checking, source-map diagnostic projection, and
       the existing `cem_ml`/`cem_ql` dependency boundary.
-- [ ] Move the native-template source validation collector behind engine
-      lifecycle adapters, or prove it consumes the same imported DOM/AST,
-      embedded CEM-QL expression diagnostics, and source-map model as
-      `RealCemMlEngine`.
+- [x] Move the native-template source validation collector behind the
+      `cem_ml_transform_cem_ql` bridge boundary: CLI dispatch now delegates
+      generic template embedding validation and native-template embedded
+      CEM-QL expression validation through shared source-byte, identity, URI,
+      and source-map request APIs instead of directly invoking `cem_ql`.
 - [x] Fix the CEM-ML `ast` projection so it no longer aliases `dom_json`:
       replace `projection::ast_json` with a source-map-bearing typed CEM
       tree AST stream consumed as CEM-ML/CEMT data, not as a DOM/JSON

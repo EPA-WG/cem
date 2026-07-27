@@ -16,8 +16,8 @@ use cem_ml::diagnostics::{Diagnostic, Severity};
 use cem_ml::engine::{
     ConvertExecutionMetadata, ConvertOutputPipelineMetadata, ConvertOutputPipelineStageMetadata,
     ConvertRequest, ConvertRequestHandler, ConvertResponse, EngineContext, FormatIdentity,
-    LayerFormat, PrimaryBytes, TemplateInput, TransformTemplateEntrypoint, TransformTemplateKind,
-    TRANSFORM_TEMPLATE_UNSUPPORTED_CODE,
+    InputFormat, LayerFormat, PrimaryBytes, TemplateInput, TransformTemplateEntrypoint,
+    TransformTemplateKind, TRANSFORM_TEMPLATE_UNSUPPORTED_CODE,
 };
 use cem_ml::interpreter::OutputSpan;
 use cem_ml::legacy_custom_element::{
@@ -38,8 +38,10 @@ use cem_ml::schema::registry::{
     CEM_ML_CONTENT_TYPE, CEM_ML_SCHEMA_URI, CEM_QL_CONTENT_TYPE, CEM_QL_SCHEMA_URI,
     HTML_CONTENT_TYPE, HTML_SCHEMA_URI,
 };
-use cem_ml::source::{ByteRange, SourceId};
+use cem_ml::source::{ByteRange, BytesSource, SourceId};
 use cem_ml::source_map::{FrameSpan, SourceMapFrame, SourceMapStack, TransformKind};
+use cem_ml::tokenizer::cem::CemTokenizer;
+use cem_ml::tokenizer::{SchemaToken, SchemaTokenizer};
 use cem_ml::transform_template::{
     parse_cem_native_template_module_options, parse_transform_template_output_color_type,
     TransformTemplateAdapter, TransformTemplateAdapterCapability, TransformTemplateAdapterError,
@@ -69,6 +71,9 @@ use cem_ql::render::{
     render_plan_to_xml_with_source_map, CompileTemplateOptions, RenderPlan, RenderPlanAttribute,
     RenderPlanNode, TemplateArtifact, TemplateAttributeValue, TemplateData, TemplateNode,
 };
+use cem_ql::template::{
+    compile_embedding, extract_embeddings, DefaultAttributeClassifier, EmbeddedExpression,
+};
 use cem_ql::types::Type;
 use serde_json::{json, Map, Number, Value};
 
@@ -79,6 +84,37 @@ const TRANSFORM_CALL_NODE: &str = "__cem_transform_call";
 
 #[derive(Debug, Clone, Copy)]
 pub struct CemQlSourceValidationRequest<'a> {
+    pub bytes: &'a [u8],
+    pub source_uri: &'a str,
+    pub content_type: Option<&'a str>,
+    pub schema: Option<&'a str>,
+}
+
+#[derive(Debug, Clone, Copy, Default)]
+pub struct CemQlTemplateEmbeddingIdentity<'a> {
+    pub content_type: Option<&'a str>,
+    pub schema: Option<&'a str>,
+}
+
+impl<'a> From<Option<&'a FormatIdentity>> for CemQlTemplateEmbeddingIdentity<'a> {
+    fn from(identity: Option<&'a FormatIdentity>) -> Self {
+        Self {
+            content_type: identity.and_then(|identity| identity.content_type.as_deref()),
+            schema: identity.and_then(|identity| identity.schema.as_deref()),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct CemQlTemplateEmbeddingValidationRequest<'a> {
+    pub bytes: &'a [u8],
+    pub from_format: InputFormat,
+    pub source_uri: Option<&'a str>,
+    pub identity: CemQlTemplateEmbeddingIdentity<'a>,
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct CemNativeTemplateExpressionValidationRequest<'a> {
     pub bytes: &'a [u8],
     pub source_uri: &'a str,
     pub content_type: Option<&'a str>,
@@ -2494,6 +2530,185 @@ fn cem_ql_legacy_replacement(token: &str) -> &'static str {
     }
 }
 
+/// Validate CEM-native host template embeddings against the CEM-QL compiler.
+///
+/// This mirrors the engine-facing CEM-template boundary: non-CEM inputs do not
+/// host CEM-QL embeddings, schema-definition inputs leave behavior expressions
+/// to the schema behavior evaluator, and native-template / transform identities
+/// use the context-aware renderer compiler.
+pub fn validate_cem_ql_template_embedding_source_bytes(
+    request: CemQlTemplateEmbeddingValidationRequest<'_>,
+) -> Vec<Diagnostic> {
+    if !matches!(request.from_format, InputFormat::Cem) {
+        return Vec::new();
+    }
+    if cem_ql_template_identity_is_transform(request.identity) {
+        return validate_context_aware_template_embedding_source_bytes(request, true);
+    }
+    if cem_ql_template_identity_is_native_template(request.identity) {
+        return validate_context_aware_template_embedding_source_bytes(request, false);
+    }
+    if cem_ql_template_identity_is_schema_definition(request.identity) {
+        return Vec::new();
+    }
+    validate_raw_template_embedding_source_bytes(request)
+}
+
+pub fn validate_cem_native_template_embedded_expression_source_bytes(
+    request: CemNativeTemplateExpressionValidationRequest<'_>,
+) -> Vec<Diagnostic> {
+    if !cem_native_template_expression_validation_request_matches_identity(&request) {
+        return Vec::new();
+    }
+
+    let Ok(source) = std::str::from_utf8(request.bytes) else {
+        return Vec::new();
+    };
+
+    let expressions =
+        cem_ql::embedded::extract_embedded_expressions_from_source(request.source_uri, source);
+    let mut diagnostics = cem_ql::embedded::compile_embedded_expressions(&expressions)
+        .into_iter()
+        .flat_map(|report| {
+            report
+                .diagnostics
+                .into_iter()
+                .map(|diagnostic| diagnostic.diagnostic)
+        })
+        .collect::<Vec<_>>();
+    for diagnostic in &mut diagnostics {
+        if diagnostic.uri.as_deref() == Some(request.source_uri) {
+            diagnostic.uri = None;
+        }
+    }
+    finish_cem_ql_source_validation_diagnostics(
+        request.source_uri,
+        request.bytes,
+        &mut diagnostics,
+    );
+    diagnostics
+}
+
+fn validate_raw_template_embedding_source_bytes(
+    request: CemQlTemplateEmbeddingValidationRequest<'_>,
+) -> Vec<Diagnostic> {
+    let tokens = tokenize_cem_source(request.bytes);
+    let classifier = DefaultAttributeClassifier;
+    let mut diagnostics = Vec::new();
+    let ctx = CompileContext::default();
+    for embedding in extract_embeddings(&tokens, &classifier) {
+        let (_, diags) = compile_embedding(&embedding, &ctx);
+        for diagnostic in diags {
+            diagnostics.push(annotate_template_embedding_uri(
+                diagnostic,
+                request.source_uri,
+                &embedding,
+            ));
+        }
+    }
+    diagnostics
+}
+
+fn validate_context_aware_template_embedding_source_bytes(
+    request: CemQlTemplateEmbeddingValidationRequest<'_>,
+    skip_cemt_function_bodies: bool,
+) -> Vec<Diagnostic> {
+    let source = std::str::from_utf8(request.bytes).unwrap_or("");
+    let artifact = compile_template(
+        source,
+        &CompileTemplateOptions {
+            host_bindings: Vec::new(),
+            skip_cemt_function_bodies,
+        },
+    );
+    artifact
+        .diagnostics
+        .into_iter()
+        .map(|diagnostic| annotate_template_diagnostic_uri(diagnostic, request.source_uri))
+        .collect()
+}
+
+fn cem_ql_template_identity_is_native_template(
+    identity: CemQlTemplateEmbeddingIdentity<'_>,
+) -> bool {
+    identity
+        .schema
+        .is_some_and(|schema| matches!(schema.trim(), CEM_NATIVE_TEMPLATE_SCHEMA_URI))
+        || identity.content_type.is_some_and(|content_type| {
+            matches!(
+                content_type_essence(content_type).as_str(),
+                cem_ml::schema::registry::CEM_NATIVE_TEMPLATE_CONTENT_TYPE
+            )
+        })
+}
+
+fn cem_ql_template_identity_is_transform(identity: CemQlTemplateEmbeddingIdentity<'_>) -> bool {
+    identity.schema.is_some_and(|schema| {
+        matches!(
+            schema.trim(),
+            cem_ml::schema::registry::CEM_TRANSFORM_SCHEMA_URI
+        )
+    }) || identity.content_type.is_some_and(|content_type| {
+        matches!(
+            content_type_essence(content_type).as_str(),
+            cem_ml::schema::registry::CEM_TRANSFORM_CONTENT_TYPE
+        )
+    })
+}
+
+fn cem_ql_template_identity_is_schema_definition(
+    identity: CemQlTemplateEmbeddingIdentity<'_>,
+) -> bool {
+    identity
+        .schema
+        .is_some_and(|schema| matches!(schema.trim(), cem_ml::schema::registry::CEM_SCHEMA_URI))
+        || identity.content_type.is_some_and(|content_type| {
+            matches!(
+                content_type_essence(content_type).as_str(),
+                cem_ml::schema::registry::CEM_SCHEMA_CONTENT_TYPE
+            )
+        })
+}
+
+fn cem_native_template_expression_validation_request_matches_identity(
+    request: &CemNativeTemplateExpressionValidationRequest<'_>,
+) -> bool {
+    request.schema.map(str::trim) == Some(CEM_NATIVE_TEMPLATE_SCHEMA_URI)
+        || request.content_type.is_some_and(|content_type| {
+            content_type_essence(content_type)
+                == cem_ml::schema::registry::CEM_NATIVE_TEMPLATE_CONTENT_TYPE
+        })
+}
+
+fn tokenize_cem_source(bytes: &[u8]) -> Vec<SchemaToken> {
+    let src = BytesSource::new(SourceId(1), bytes.to_vec());
+    let mut tokenizer = CemTokenizer::from_source(src);
+    let _ = tokenizer.take_diagnostics();
+    let mut out = Vec::new();
+    while let Some(token) = tokenizer.next_token() {
+        out.push(token);
+    }
+    out
+}
+
+fn annotate_template_embedding_uri(
+    mut diagnostic: Diagnostic,
+    uri: Option<&str>,
+    _embedding: &EmbeddedExpression,
+) -> Diagnostic {
+    if diagnostic.uri.is_none() {
+        diagnostic.uri = uri.map(str::to_owned);
+    }
+    diagnostic
+}
+
+fn annotate_template_diagnostic_uri(mut diagnostic: Diagnostic, uri: Option<&str>) -> Diagnostic {
+    if diagnostic.uri.is_none() {
+        diagnostic.uri = uri.map(str::to_owned);
+    }
+    diagnostic
+}
+
 pub fn validate_cem_ql_source_bytes(request: CemQlSourceValidationRequest<'_>) -> Vec<Diagnostic> {
     let Ok(source) = std::str::from_utf8(request.bytes) else {
         return vec![cem_ql_invalid_utf8_diagnostic(request.source_uri)];
@@ -4269,6 +4484,151 @@ count + 1"#,
         });
 
         assert!(has_diagnostic_code(&diagnostics, "cem.ql.invalid_utf8"));
+    }
+
+    #[test]
+    fn template_embedding_validator_reports_generic_broken_embeddings() {
+        let diagnostics = validate_cem_ql_template_embedding_source_bytes(
+            CemQlTemplateEmbeddingValidationRequest {
+                bytes: b"{p | {$ 1 + }}",
+                from_format: InputFormat::Cem,
+                source_uri: Some("broken.cem"),
+                identity: CemQlTemplateEmbeddingIdentity::default(),
+            },
+        );
+
+        assert!(diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.code.starts_with("cem.ql.")));
+        assert!(diagnostics
+            .iter()
+            .all(|diagnostic| diagnostic.uri.as_deref() == Some("broken.cem")));
+    }
+
+    #[test]
+    fn template_embedding_validator_skips_html_inputs() {
+        let diagnostics = validate_cem_ql_template_embedding_source_bytes(
+            CemQlTemplateEmbeddingValidationRequest {
+                bytes: b"<p>Hello {{ not-cem-ql }}</p>",
+                from_format: InputFormat::Html,
+                source_uri: Some("page.html"),
+                identity: CemQlTemplateEmbeddingIdentity::default(),
+            },
+        );
+
+        assert!(
+            diagnostics.is_empty(),
+            "HTML inputs produce no cem-ql template diagnostics; got {diagnostics:?}"
+        );
+    }
+
+    #[test]
+    fn template_embedding_validator_leaves_schema_behaviors_to_schema_evaluator() {
+        let diagnostics = validate_cem_ql_template_embedding_source_bytes(
+            CemQlTemplateEmbeddingValidationRequest {
+                bytes: br#"{schema |
+                {behaviors |
+                    {behavior @select="resource" @match='kind = "page"' |
+                        {function @name="result" @returns="object" |
+                            {body | {$ { message: "Page", details: { kind: $kind } } }}
+                        }
+                    }
+                }
+            }"#,
+                from_format: InputFormat::Cem,
+                source_uri: Some("schema.cem"),
+                identity: CemQlTemplateEmbeddingIdentity {
+                    content_type: Some(cem_ml::schema::registry::CEM_SCHEMA_CONTENT_TYPE),
+                    schema: Some(cem_ml::schema::registry::CEM_SCHEMA_URI),
+                },
+            },
+        );
+
+        assert!(
+            diagnostics.is_empty(),
+            "schema behavior CEM-QL surfaces should be validated by the schema evaluator: {diagnostics:?}"
+        );
+    }
+
+    #[test]
+    fn template_embedding_validator_accepts_transform_context_bindings() {
+        let diagnostics = validate_cem_ql_template_embedding_source_bytes(
+            CemQlTemplateEmbeddingValidationRequest {
+                bytes: include_bytes!(
+                    "../../cem_ml/schema-packages/cem-dom-projection/v1/converters/dom-to-html.cemt"
+                ),
+                from_format: InputFormat::Cem,
+                source_uri: Some("dom-to-html.cemt"),
+                identity: CemQlTemplateEmbeddingIdentity {
+                    content_type: Some(CEM_TRANSFORM_CONTENT_TYPE),
+                    schema: Some(cem_ml::schema::registry::CEM_TRANSFORM_SCHEMA_URI),
+                },
+            },
+        );
+
+        assert!(
+            diagnostics.is_empty(),
+            "context-aware CEMT validation should accept loop/call bindings: {diagnostics:?}"
+        );
+    }
+
+    #[test]
+    fn template_embedding_validator_accepts_cemt_runtime_function_bodies() {
+        let diagnostics = validate_cem_ql_template_embedding_source_bytes(
+            CemQlTemplateEmbeddingValidationRequest {
+                bytes: include_bytes!(
+                    "../../cem_ml/schema-packages/cem-transform/v1/examples/function-declarations.cemt"
+                ),
+                from_format: InputFormat::Cem,
+                source_uri: Some("function-declarations.cemt"),
+                identity: CemQlTemplateEmbeddingIdentity {
+                    content_type: Some(CEM_TRANSFORM_CONTENT_TYPE),
+                    schema: Some(cem_ml::schema::registry::CEM_TRANSFORM_SCHEMA_URI),
+                },
+            },
+        );
+
+        assert!(
+            diagnostics.is_empty(),
+            "CEMT runtime function bodies should not be compiled as CEM-QL render expressions: {diagnostics:?}"
+        );
+    }
+
+    #[test]
+    fn native_template_expression_validator_preserves_slot_source_details() {
+        const SOURCE_URI: &str =
+            "packages/cem_ml/schema-packages/cem-native-template/v1/examples/invalid-expression-parse.cem";
+        let diagnostics = validate_cem_native_template_embedded_expression_source_bytes(
+            CemNativeTemplateExpressionValidationRequest {
+                bytes: include_bytes!(
+                    "../../cem_ml/schema-packages/cem-native-template/v1/examples/invalid-expression-parse.cem"
+                ),
+                source_uri: SOURCE_URI,
+                content_type: Some(cem_ml::schema::registry::CEM_NATIVE_TEMPLATE_CONTENT_TYPE),
+                schema: Some(CEM_NATIVE_TEMPLATE_SCHEMA_URI),
+            },
+        );
+
+        let diagnostic = diagnostics
+            .iter()
+            .find(|diagnostic| diagnostic.code == "cem.ql.use_rust_boolean_ops")
+            .unwrap_or_else(|| {
+                panic!("missing native-template CEM-QL diagnostic: {diagnostics:?}")
+            });
+        assert_eq!(diagnostic.uri.as_deref(), Some(SOURCE_URI));
+        assert!(diagnostic.line.is_some(), "{diagnostic:?}");
+        assert!(diagnostic.column.is_some(), "{diagnostic:?}");
+        let details = diagnostic
+            .details
+            .as_ref()
+            .expect("native-template diagnostic carries expression-slot details");
+        assert_eq!(details["expressionSlot"]["contract"], "expression-slot");
+        assert_eq!(
+            details["expressionSlot"]["hostPackage"],
+            "cem-native-template/v1"
+        );
+        assert_eq!(details["expressionSlot"]["slotKind"], "test-attribute");
+        assert!(details["expressionSlot"]["expressionRange"]["byteOffset"].is_u64());
     }
 
     fn packaged_dom_projection_artifact(value: Value) -> TransformTemplateDataArtifact {

@@ -6,7 +6,6 @@
 #![allow(clippy::items_after_test_module)]
 
 use crate::cli;
-use crate::template_pass;
 use cem_ml::engine::{self as eng, CemMlEngine, EngineError};
 use cem_ml::resolver::{
     is_windows_drive_path, local_file_uri_to_path, local_path_or_file_uri, uri_scheme,
@@ -22,6 +21,8 @@ use cem_ml::transform_config::{
 };
 use cem_ml_transform_cem_ql::{
     engine_context_with_cem_ql_template_adapter, register_cem_ql_source_output_converter,
+    CemNativeTemplateExpressionValidationRequest, CemQlTemplateEmbeddingIdentity,
+    CemQlTemplateEmbeddingValidationRequest,
 };
 use std::collections::{BTreeMap, BTreeSet};
 use std::ffi::OsStr;
@@ -4176,12 +4177,16 @@ fn collect_embedding_diagnostics(
     let mut diagnostics = Vec::new();
     for input in inputs {
         let from = input.from_format.unwrap_or(eng::InputFormat::Cem);
-        diagnostics.extend(template_pass::run_with_identity(
-            &input.bytes,
-            from,
-            Some(&input.uri),
-            template_pass::TemplatePassIdentity::from(input.identity.as_ref()),
-        ));
+        diagnostics.extend(
+            cem_ml_transform_cem_ql::validate_cem_ql_template_embedding_source_bytes(
+                CemQlTemplateEmbeddingValidationRequest {
+                    bytes: &input.bytes,
+                    from_format: from,
+                    source_uri: Some(&input.uri),
+                    identity: CemQlTemplateEmbeddingIdentity::from(input.identity.as_ref()),
+                },
+            ),
+        );
         diagnostics.extend(collect_cem_native_template_expression_diagnostics(input));
     }
     diagnostics
@@ -4261,13 +4266,6 @@ fn direct_source_validation_report(
 fn is_cem_ql_source_input(input: &eng::EngineInput) -> bool {
     source_input_matches_schema_uri(input, cem_ml::schema::registry::CEM_QL_SCHEMA_URI)
         || is_cem_ql_expression_source_input(input)
-}
-
-fn is_cem_native_template_source_input(input: &eng::EngineInput) -> bool {
-    source_input_matches_schema_uri(
-        input,
-        cem_ml::schema::registry::CEM_NATIVE_TEMPLATE_SCHEMA_URI,
-    )
 }
 
 fn is_json_source_input(input: &eng::EngineInput) -> bool {
@@ -4416,42 +4414,18 @@ fn collect_cem_ql_source_diagnostics(
 fn collect_cem_native_template_expression_diagnostics(
     input: &eng::EngineInput,
 ) -> Vec<cem_ml::diagnostics::Diagnostic> {
-    if !is_cem_native_template_source_input(input) {
-        return Vec::new();
-    }
-
-    let Ok(source) = std::str::from_utf8(&input.bytes) else {
-        return Vec::new();
-    };
-
-    let expressions =
-        cem_ql::embedded::extract_embedded_expressions_from_source(&input.uri, source);
-    let mut diagnostics = cem_ql::embedded::compile_embedded_expressions(&expressions)
-        .into_iter()
-        .flat_map(|report| {
-            report
-                .diagnostics
-                .into_iter()
-                .map(|diagnostic| diagnostic.diagnostic)
-        })
-        .collect::<Vec<_>>();
-    for diagnostic in &mut diagnostics {
-        if diagnostic.uri.as_deref() == Some(input.uri.as_str()) {
-            diagnostic.uri = None;
-        }
-    }
-    finish_cem_ql_source_diagnostics(input, &mut diagnostics);
-    diagnostics
-}
-
-fn finish_cem_ql_source_diagnostics(
-    input: &eng::EngineInput,
-    diagnostics: &mut [cem_ml::diagnostics::Diagnostic],
-) {
-    cem_ml::diagnostics::project_diagnostics_for_source(diagnostics, &input.bytes);
-    for diagnostic in diagnostics {
-        diagnostic.uri.get_or_insert_with(|| input.uri.clone());
-    }
+    let identity = input
+        .identity
+        .clone()
+        .unwrap_or_else(|| input.root_scope.format_identity());
+    cem_ml_transform_cem_ql::validate_cem_native_template_embedded_expression_source_bytes(
+        CemNativeTemplateExpressionValidationRequest {
+            bytes: &input.bytes,
+            source_uri: &input.uri,
+            content_type: identity.content_type.as_deref(),
+            schema: identity.schema.as_deref(),
+        },
+    )
 }
 
 fn is_cem_ql_expression_source_input(input: &eng::EngineInput) -> bool {
@@ -5576,12 +5550,16 @@ fn collect_fixture_embedding_diagnostics(
         } else {
             input.bytes.clone()
         };
-        diagnostics.extend(template_pass::run_with_identity(
-            &bytes,
-            from,
-            Some(&input.uri),
-            template_pass::TemplatePassIdentity::from(input.identity.as_ref()),
-        ));
+        diagnostics.extend(
+            cem_ml_transform_cem_ql::validate_cem_ql_template_embedding_source_bytes(
+                CemQlTemplateEmbeddingValidationRequest {
+                    bytes: &bytes,
+                    from_format: from,
+                    source_uri: Some(&input.uri),
+                    identity: CemQlTemplateEmbeddingIdentity::from(input.identity.as_ref()),
+                },
+            ),
+        );
     }
     Ok(diagnostics)
 }
@@ -6974,11 +6952,13 @@ pub fn run_parse<E: CemMlEngine + ?Sized>(
         Ok(i) => i,
         Err(err) => return handle_cli_request_error(err, s),
     };
-    let embedding_diags = template_pass::run_with_identity(
-        &input.bytes,
-        input.from_format.unwrap_or(eng::InputFormat::Cem),
-        Some(input.uri.as_str()),
-        template_pass::TemplatePassIdentity::from(input.identity.as_ref()),
+    let embedding_diags = cem_ml_transform_cem_ql::validate_cem_ql_template_embedding_source_bytes(
+        CemQlTemplateEmbeddingValidationRequest {
+            bytes: &input.bytes,
+            from_format: input.from_format.unwrap_or(eng::InputFormat::Cem),
+            source_uri: Some(input.uri.as_str()),
+            identity: CemQlTemplateEmbeddingIdentity::from(input.identity.as_ref()),
+        },
     );
     let input_uri = input.uri.clone();
     let req = eng::ParseRequest {

@@ -158,7 +158,6 @@ version = "0.1.0"
 dependencies = [
  "cem-ml",
  "cem-ml-transform-cem-ql",
- "cem-ql",
  "clap",
  "quick-xml",
  "reqwest",
