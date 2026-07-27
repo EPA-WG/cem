@@ -888,6 +888,7 @@ fn to_engine_layer_format(f: cli::LayerFormat) -> eng::LayerFormat {
         cli::LayerFormat::Xml => eng::LayerFormat::Xml,
         cli::LayerFormat::Csv => eng::LayerFormat::Csv,
         cli::LayerFormat::Yaml => eng::LayerFormat::Yaml,
+        cli::LayerFormat::Json => eng::LayerFormat::Json,
         cli::LayerFormat::DomJson => eng::LayerFormat::DomJson,
         cli::LayerFormat::Ast => eng::LayerFormat::Ast,
         cli::LayerFormat::Events => eng::LayerFormat::Events,
@@ -904,6 +905,7 @@ fn layer_format_alias_id(f: cli::LayerFormat) -> &'static str {
         cli::LayerFormat::Xml => "xml",
         cli::LayerFormat::Csv => "csv",
         cli::LayerFormat::Yaml => "yaml",
+        cli::LayerFormat::Json => "json",
         cli::LayerFormat::DomJson => "dom-json",
         cli::LayerFormat::Ast => "ast",
         cli::LayerFormat::Events => "events",
@@ -16897,6 +16899,46 @@ active: true
             "{written}"
         );
         assert_eq!(html_text_content(&written), "name: Ada\nactive: true\n");
+    }
+
+    #[test]
+    fn convert_json_same_schema_uses_lifecycle_ast_stream() {
+        let p = write_fixture(
+            "convert-json-same-schema.json",
+            r#"{"name":"Ada","active":true}"#,
+        );
+        let input_spec = format!(
+            "uri={},contentType=application/json,schema={}",
+            p.display(),
+            cem_ml::schema::registry::JSON_VALUE_SCHEMA_URI
+        );
+
+        let (outcome, stdout, stderr) = run(
+            &RealCemMlEngine::new(),
+            &[
+                "convert",
+                "--input-spec",
+                &input_spec,
+                "--to-content-type",
+                "application/json",
+                "--to-schema",
+                cem_ml::schema::registry::JSON_VALUE_SCHEMA_URI,
+                "--to-format",
+                "json",
+                "--cemt-formatter-profile",
+                "compact",
+            ],
+        );
+
+        assert_eq!(outcome.exit_code, EXIT_OK, "{stderr}");
+        assert!(stderr.trim().is_empty(), "{stderr}");
+        assert!(
+            !stderr.contains("cem.lifecycle.adapter_unsupported"),
+            "{stderr}"
+        );
+        let output: serde_json::Value = serde_json::from_str(&stdout).unwrap();
+        assert_eq!(output["name"], "Ada");
+        assert_eq!(output["active"], true);
     }
 
     #[test]

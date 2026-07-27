@@ -55,6 +55,7 @@ pub enum LayerFormat {
     Xml,
     Csv,
     Yaml,
+    Json,
     DomJson,
     Ast,
     Events,

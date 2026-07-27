@@ -43,11 +43,12 @@
 
     {constraints |
         {constraint @kind="single-root-value" @target="document" @policy="required"}
-        {constraint @kind="json-source-parser" @target="document" @policy="delegate-to-json-parser"}
+        {constraint @kind="json-source-parser" @target="document" @diagnostic="cem.json.parse_error" @behavior="json-parse-report-fact" @fact-kind="parse-error" @policy="delegate-to-json-parser"}
+        {constraint @kind="utf-8-decode" @target="document" @diagnostic="cem.json.unsupported_encoding" @behavior="json-parse-report-fact" @fact-kind="unsupported-encoding" @policy="JSON source bytes must be valid UTF-8 before parsing"}
         {constraint @kind="object-member-order-preserved" @target="object" @policy="required"}
         {constraint @kind="array-item-order-preserved" @target="array" @policy="required"}
-        {constraint @kind="duplicate-member-name-policy" @target="object" @policy="preserve and report when consumer forbids duplicates"}
-        {constraint @kind="source-map-preferred" @target="value" @policy="required when parser exposes source ranges"}
+        {constraint @kind="duplicate-member-name-policy" @target="object" @diagnostic="cem.json.duplicate_member_name" @behavior="json-parse-report-fact" @fact-kind="duplicate-member-name" @policy="preserve and report duplicate names for consumers that forbid duplicates"}
+        {constraint @kind="source-map-preferred" @target="value" @diagnostic="cem.json.source_map_unavailable" @behavior="json-parse-report-fact" @fact-kind="source-map-unavailable" @policy="required when parser exposes source ranges"}
     }
 
     {diagnostics |

@@ -39,6 +39,7 @@ pub mod cem_events_projection;
 pub mod csv;
 pub(crate) mod diagnostics;
 pub mod html;
+pub mod json;
 pub mod mathml;
 pub mod relax_ng;
 pub mod rules;

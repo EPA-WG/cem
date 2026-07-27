@@ -60,7 +60,7 @@ Current active slice: `json/v1` schema-package folder alignment.
 - [x] Add executable CEM-ML package review coverage that fails when the README
       “tracked but not complete” items are not represented as open todo
       checkitems or package-local waiver metadata.
-- [ ] Add a JSON lifecycle input adapter that lowers `application/json`,
+- [x] Add a JSON lifecycle input adapter that lowers `application/json`,
       `text/json`, and `https://cem.dev/ns/data/json/1` sources into the
       CEM-owned internal DOM/AST stream with source-map stacks instead of
       producing `cem.lifecycle.adapter_unsupported` or falling back to CEM
@@ -485,6 +485,24 @@ Remaining dependency-ordered package checklist:
   - [x] Expand YAML README Verification, Release Behavior, and tracked
         incomplete-work sections.
 - [ ] `json/v1`
+  - [x] Add schema-owned JSON parse-fact bindings for parse errors,
+        unsupported UTF-8, duplicate member names, and source-map-unavailable
+        facts.
+  - [x] Add a typed JSON lifecycle AST stream and register a JSON input adapter
+        so JSON validation no longer falls through to CEM parsing.
+  - [x] Add JSON target/export selection with a first-class JSON output layer.
+  - [x] Route same-schema JSON conversion through the JSON lifecycle AST stream
+        instead of the generic `serde_json::Value` bridge.
+  - [x] Expand `cem_ml_schema_package_json_v1:verify` so it runs manifest
+        validation, manifest-index coverage, lifecycle adapter/export tests,
+        engine same-schema conversion coverage, and CLI same-schema coverage.
+  - [x] Expand JSON README Verification, Release Behavior, and tracked
+        incomplete-work sections.
+  - [ ] Move JSON formatter/colorizer CEMT assets from shared `json`/`tokens`
+        stubs to typed JSON document/CEM-tree boundaries, covering compact,
+        pretty, tabular, terminal, HTML, and Markdown semantics.
+  - [ ] Add JSON README/SVG preview drift checks after package-owned JSON
+        formatter/colorizer bodies render the example previews.
 - [ ] `json-schema/v1`
 - [ ] `markdown/v1`
 - [ ] `xml/v1`

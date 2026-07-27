@@ -15,14 +15,18 @@ use crate::schema::registry::{
     CEM_NATIVE_TEMPLATE_CONTENT_TYPE, CEM_NATIVE_TEMPLATE_SCHEMA_URI, CEM_SCHEMA_CONTENT_TYPE,
     CEM_SCHEMA_PACKAGE_CONTENT_TYPE, CEM_SCHEMA_PACKAGE_URI, CEM_SCHEMA_URI,
     CEM_TRANSFORM_CONTENT_TYPE, CEM_TRANSFORM_SCHEMA_URI, CSV_CONTENT_TYPE, CSV_SCHEMA_URI,
-    HTML_CONTENT_TYPE, HTML_NAMESPACE_URI, HTML_SCHEMA_URI, MATHML_CONTENT_TYPE,
-    MATHML_NAMESPACE_URI, MATHML_SCHEMA_URI, SVG_CONTENT_TYPE, SVG_NAMESPACE_URI, SVG_SCHEMA_URI,
-    XHTML_CONTENT_TYPE, XHTML_SCHEMA_URI, XML_CONTENT_TYPE, XML_SCHEMA_URI, XSLT_NAMESPACE_URI,
-    XSLT_SCHEMA_URI, YAML_CONTENT_TYPE, YAML_SCHEMA_URI,
+    HTML_CONTENT_TYPE, HTML_NAMESPACE_URI, HTML_SCHEMA_URI, JSON_CONTENT_TYPE,
+    JSON_VALUE_SCHEMA_URI, MATHML_CONTENT_TYPE, MATHML_NAMESPACE_URI, MATHML_SCHEMA_URI,
+    SVG_CONTENT_TYPE, SVG_NAMESPACE_URI, SVG_SCHEMA_URI, XHTML_CONTENT_TYPE, XHTML_SCHEMA_URI,
+    XML_CONTENT_TYPE, XML_SCHEMA_URI, XSLT_NAMESPACE_URI, XSLT_SCHEMA_URI, YAML_CONTENT_TYPE,
+    YAML_SCHEMA_URI,
 };
 use crate::transform_config::TRANSFORM_CONFIG_SCHEMA_URI;
 use crate::validation::csv::{
     csv_document_ast_from_source_bytes, CsvDocumentAst, CsvSourceValidationRequest,
+};
+use crate::validation::json::{
+    json_document_ast_from_source_bytes, JsonDocumentAst, JsonSourceValidationRequest,
 };
 use crate::validation::xslt::{validate_xslt_source_bytes, XsltSourceValidationRequest};
 use crate::validation::yaml::{
@@ -75,6 +79,7 @@ pub struct LoadedInput {
 pub enum LoadedInputAstStream {
     CsvDocument(CsvDocumentAst),
     YamlDocument(YamlDocumentAst),
+    JsonDocument(JsonDocumentAst),
 }
 
 #[derive(Debug, Clone)]
@@ -113,6 +118,7 @@ impl LifecycleRegistry {
         registry.register(XmlAdapter);
         registry.register(CsvAdapter);
         registry.register(YamlAdapter);
+        registry.register(JsonAdapter);
         registry.register(CustomElementXsltCompatAdapter);
         registry.register(DomBinaryProjectionAdapter);
         registry.register(AstBinaryProjectionAdapter);
@@ -666,6 +672,97 @@ fn matches_yaml_identity(identity: &FormatIdentity) -> bool {
     explicit_schema_matches
 }
 
+struct JsonAdapter;
+
+impl LifecycleAdapter for JsonAdapter {
+    fn id(&self) -> &'static str {
+        "json"
+    }
+
+    fn matches_input(&self, identity: &FormatIdentity) -> bool {
+        matches_json_identity(identity)
+    }
+
+    fn load(&self, input: &EngineInput, identity: &FormatIdentity) -> LoadedInput {
+        let content_type = identity
+            .content_type
+            .as_deref()
+            .or(input.root_scope.default_content_type.as_deref())
+            .unwrap_or(JSON_CONTENT_TYPE);
+        let (document, diagnostics) =
+            json_document_ast_from_source_bytes(JsonSourceValidationRequest {
+                bytes: &input.bytes,
+                source_uri: &input.uri,
+                content_type: Some(content_type),
+            });
+        LoadedInput {
+            bytes: input.bytes.clone(),
+            from_format: input.from_format.unwrap_or(InputFormat::Cem),
+            ast_stream: document.map(LoadedInputAstStream::JsonDocument),
+            diagnostics: json_lifecycle_adapter_diagnostics(self.id(), diagnostics),
+            adapter_id: Some(self.id()),
+        }
+    }
+
+    fn matches_target(&self, identity: &FormatIdentity) -> bool {
+        matches_json_identity(identity)
+    }
+
+    fn target_format(&self) -> Option<LayerFormat> {
+        Some(LayerFormat::Json)
+    }
+}
+
+fn matches_json_identity(identity: &FormatIdentity) -> bool {
+    let explicit_schema_matches = identity
+        .schema
+        .as_deref()
+        .map(str::trim)
+        .is_some_and(|schema| schema == JSON_VALUE_SCHEMA_URI);
+    if let Some(content_type) = identity.content_type.as_deref() {
+        return matches!(
+            content_type_essence(content_type).as_str(),
+            JSON_CONTENT_TYPE | "text/json"
+        ) && (identity.schema.is_none() || explicit_schema_matches);
+    }
+    explicit_schema_matches
+}
+
+fn json_lifecycle_adapter_diagnostics(
+    adapter_id: &'static str,
+    diagnostics: Vec<Diagnostic>,
+) -> Vec<Diagnostic> {
+    diagnostics
+        .into_iter()
+        .map(|mut diagnostic| {
+            let lifecycle_details = json!({
+                "adapterId": adapter_id,
+                "operation": "load",
+                "profile": "json-source-import",
+                "sourceMapContract": "source-ranges",
+                "internalContentType": JSON_CONTENT_TYPE,
+                "internalSchema": JSON_VALUE_SCHEMA_URI,
+            });
+            diagnostic.details = match diagnostic.details.take() {
+                Some(mut details) if details.is_object() => {
+                    if let Some(object) = details.as_object_mut() {
+                        object.insert("lifecycle".to_owned(), lifecycle_details);
+                    }
+                    Some(details)
+                }
+                Some(details) => Some(json!({
+                    "lifecycle": lifecycle_details,
+                    "upstream": details,
+                })),
+                None => Some(json!({
+                    "lifecycle": lifecycle_details,
+                })),
+            };
+            diagnostic
+        })
+        .collect()
+}
+
 fn yaml_lifecycle_adapter_diagnostics(
     adapter_id: &'static str,
     diagnostics: Vec<Diagnostic>,
@@ -1136,6 +1233,40 @@ mod tests {
     }
 
     #[test]
+    fn builtins_load_json_content_type_as_internal_ast_stream() {
+        let loaded = LifecycleRegistry::with_builtin_adapters().load(
+            &input(br#"{"name":"Ada","active":true}"#),
+            &context(JSON_CONTENT_TYPE),
+        );
+        assert_eq!(loaded.adapter_id, Some("json"));
+        assert!(loaded.diagnostics.is_empty());
+        let document = match loaded
+            .ast_stream
+            .expect("JSON adapter emits internal AST stream")
+        {
+            LoadedInputAstStream::JsonDocument(document) => document,
+            other => panic!("JSON adapter emitted unexpected AST stream: {other:?}"),
+        };
+        assert_eq!(document.source.content_type, JSON_CONTENT_TYPE);
+        let root = document.root.as_ref().expect("JSON root value");
+        let crate::validation::json::JsonValueAst::Object { members, .. } = root else {
+            panic!("JSON root should be an object");
+        };
+        assert_eq!(members[0].name, "name");
+        let name_source = members[0].name_range.source_map();
+        let crate::source_map::FrameSpan::Single(name_range) = name_source.frames[0].span else {
+            panic!("JSON member name source range should be single-span");
+        };
+        assert_eq!(name_range.start, 1);
+        assert_eq!(
+            document
+                .to_json_value()
+                .and_then(|value| value["name"].as_str().map(str::to_owned)),
+            Some("Ada".to_owned())
+        );
+    }
+
+    #[test]
     fn builtins_select_yaml_target_export_layer() {
         let target = FormatIdentity {
             content_type: Some(YAML_CONTENT_TYPE.to_owned()),
@@ -1147,6 +1278,21 @@ mod tests {
 
         assert_eq!(selected.to_format, LayerFormat::Yaml);
         assert_eq!(selected.adapter_id, Some("yaml"));
+        assert!(selected.diagnostics.is_empty());
+    }
+
+    #[test]
+    fn builtins_select_json_target_export_layer() {
+        let target = FormatIdentity {
+            content_type: Some(JSON_CONTENT_TYPE.to_owned()),
+            schema: Some(JSON_VALUE_SCHEMA_URI.to_owned()),
+            ..FormatIdentity::default()
+        };
+        let selected = LifecycleRegistry::with_builtin_adapters()
+            .select_export(Some(&target), LayerFormat::Cem);
+
+        assert_eq!(selected.to_format, LayerFormat::Json);
+        assert_eq!(selected.adapter_id, Some("json"));
         assert!(selected.diagnostics.is_empty());
     }
 

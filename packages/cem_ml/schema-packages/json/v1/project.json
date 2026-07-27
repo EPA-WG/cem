@@ -12,6 +12,11 @@
             ],
             "inputs": [
                 "{projectRoot}/package.cem",
+                "{projectRoot}/schema/**/*.cem",
+                "{projectRoot}/formatters/**/*.cemt",
+                "{projectRoot}/colorizers/**/*.cemt",
+                "{projectRoot}/converters/**/*.cemt",
+                "{projectRoot}/scripts/**/*.mjs",
                 "{projectRoot}/examples/**/*",
                 "!{projectRoot}/examples/previews/**/*",
                 "{workspaceRoot}/packages/cem_ml/schema-packages/scripts/**/*.mjs",
@@ -48,6 +53,11 @@
             "inputs": [
                 "{projectRoot}/package.cem",
                 "{projectRoot}/README.md",
+                "{projectRoot}/schema/**/*.cem",
+                "{projectRoot}/formatters/**/*.cemt",
+                "{projectRoot}/colorizers/**/*.cemt",
+                "{projectRoot}/converters/**/*.cemt",
+                "{projectRoot}/scripts/**/*.mjs",
                 "{projectRoot}/examples/**/*",
                 "!{projectRoot}/examples/previews/**/*",
                 "{workspaceRoot}/packages/cem_ml/schema-packages/scripts/**/*.mjs",
@@ -78,7 +88,13 @@
             "options": {
                 "commands": [
                     "mkdir -p packages/cem_ml/schema-packages/json/v1/dist",
-                    "./dist/target/cem_ml_cli/debug/cem-ml --quiet validate --fail-level parse --format json --content-type application/vnd.cem.schema-package+cem --schema https://cem.dev/ns/schema-package/1 --report-json packages/cem_ml/schema-packages/json/v1/dist packages/cem_ml/schema-packages/json/v1/package.cem"
+                    "./dist/target/cem_ml_cli/debug/cem-ml --quiet validate --fail-level parse --format json --content-type application/vnd.cem.schema-package+cem --schema https://cem.dev/ns/schema-package/1 --report-json packages/cem_ml/schema-packages/json/v1/dist packages/cem_ml/schema-packages/json/v1/package.cem",
+                    "cargo test -p cem-ml json_package_examples_are_manifest_indexed -- --nocapture",
+                    "cargo test -p cem-ml builtins_load_json_content_type_as_internal_ast_stream -- --nocapture",
+                    "cargo test -p cem-ml builtins_select_json_target_export_layer -- --nocapture",
+                    "cargo test -p cem-ml validate_json_source_consumes_lifecycle_ast_without_cem_parse -- --nocapture",
+                    "cargo test -p cem-ml convert_json_same_schema_uses_lifecycle_ast_stream -- --nocapture",
+                    "cargo test -p cem-ml-cli convert_json_same_schema_uses_lifecycle_ast_stream -- --nocapture"
                 ],
                 "parallel": false,
                 "cwd": "{workspaceRoot}"

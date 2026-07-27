@@ -51,8 +51,8 @@ use crate::schema::registry::{
     CEM_ML_SCHEMA_URI, CEM_NATIVE_TEMPLATE_CONTENT_TYPE, CEM_NATIVE_TEMPLATE_SCHEMA_URI,
     CEM_SCHEMA_CONTENT_TYPE, CEM_SCHEMA_PACKAGE_CONTENT_TYPE, CEM_SCHEMA_PACKAGE_URI,
     CSS_CONTENT_TYPE, CSS_SCHEMA_URI, CSV_CONTENT_TYPE, CSV_SCHEMA_URI, HTML_CONTENT_TYPE,
-    HTML_SCHEMA_URI, XHTML_CONTENT_TYPE, XHTML_SCHEMA_URI, XML_CONTENT_TYPE, XML_SCHEMA_URI,
-    YAML_CONTENT_TYPE, YAML_SCHEMA_URI,
+    HTML_SCHEMA_URI, JSON_CONTENT_TYPE, JSON_VALUE_SCHEMA_URI, XHTML_CONTENT_TYPE,
+    XHTML_SCHEMA_URI, XML_CONTENT_TYPE, XML_SCHEMA_URI, YAML_CONTENT_TYPE, YAML_SCHEMA_URI,
 };
 use crate::schema::vocab::CompiledSchema;
 use crate::source::line_index::LineIndex;
@@ -88,6 +88,7 @@ use crate::transform_template::{
     TRANSFORM_TEMPLATE_PARAM_TYPE_CODE, TRANSFORM_TEMPLATE_PARAM_UNKNOWN_CODE,
 };
 use crate::validation::csv::CsvDocumentAst;
+use crate::validation::json::JsonDocumentAst;
 use crate::validation::yaml::YamlDocumentAst;
 use crate::validation::{
     rules::validate_cem_native_template_source_semantics, RuleContext, RuleRegistry,
@@ -5148,6 +5149,95 @@ fn convert_metadata_for_yaml_lifecycle_output(
     }
 }
 
+fn json_direct_output_primary_identity(target: &FormatIdentity) -> (String, String, String) {
+    (
+        target
+            .content_type
+            .clone()
+            .unwrap_or_else(|| JSON_CONTENT_TYPE.to_owned()),
+        target
+            .schema
+            .clone()
+            .unwrap_or_else(|| JSON_VALUE_SCHEMA_URI.to_owned()),
+        "json/1".to_owned(),
+    )
+}
+
+fn convert_loaded_json_ast_output(
+    request: &ConvertRequest,
+    document: JsonDocumentAst,
+) -> (Value, Option<PrimaryBytes>, ConvertExecutionMetadata) {
+    let metadata = convert_metadata_for_json_lifecycle_output(&request.target_scope);
+    let formatter_profile = request
+        .target_scope
+        .cemt_formatter_profile
+        .as_deref()
+        .map(str::trim)
+        .filter(|profile| !profile.is_empty())
+        .unwrap_or("compact");
+    let content = document.to_json_text(formatter_profile);
+    let target = request
+        .target
+        .clone()
+        .or_else(|| request.target_scope.format_identity_option())
+        .unwrap_or_else(|| FormatIdentity {
+            content_type: Some(JSON_CONTENT_TYPE.to_owned()),
+            schema: Some(JSON_VALUE_SCHEMA_URI.to_owned()),
+            ..FormatIdentity::default()
+        });
+    let (content_type, schema, format_version) = json_direct_output_primary_identity(&target);
+    let bytes = content.into_bytes();
+    let primary_bytes = PrimaryBytes {
+        content_type,
+        schema: Some(schema.clone()),
+        format_version,
+        hash_scheme: "cem-text/1+blake3".to_owned(),
+        hash: text_content_hash(&bytes),
+        bytes,
+    };
+    let hash = primary_bytes.hash.clone();
+    (
+        json!({
+            "kind": "document",
+            "contentType": primary_bytes.content_type,
+            "schema": schema,
+            "hash": hash,
+        }),
+        Some(primary_bytes),
+        metadata,
+    )
+}
+
+fn convert_metadata_for_json_lifecycle_output(
+    target_scope: &ScopeConfig,
+) -> ConvertExecutionMetadata {
+    ConvertExecutionMetadata {
+        converter_id: Some("json-lifecycle-output".to_owned()),
+        implementation: Some("lifecycle-json-ast-output".to_owned()),
+        rust_fallback: None,
+        output_pipeline: Some(ConvertOutputPipelineMetadata {
+            stages: vec![ConvertOutputPipelineStageMetadata {
+                stage: "writer".to_owned(),
+                function: None,
+                profile: Some(
+                    target_scope
+                        .cemt_formatter_profile
+                        .clone()
+                        .unwrap_or_else(|| "compact".to_owned()),
+                ),
+                content_type: Some(JSON_CONTENT_TYPE.to_owned()),
+                schema: Some(JSON_VALUE_SCHEMA_URI.to_owned()),
+                category: Some("json-document".to_owned()),
+                produces: Some(
+                    TransformTemplateOutputProducedKind::Text
+                        .as_str()
+                        .to_owned(),
+                ),
+            }],
+        }),
+    }
+}
+
 fn append_convert_time_budget_diagnostics(
     diagnostics: &mut Vec<Diagnostic>,
     request: &ConvertRequest,
@@ -5392,7 +5482,11 @@ fn run_scheduled_validation_documents(
             source_bytes_for_projection = Some(loaded.bytes.clone());
             if matches!(
                 loaded.ast_stream.as_ref(),
-                Some(LoadedInputAstStream::CsvDocument(_) | LoadedInputAstStream::YamlDocument(_))
+                Some(
+                    LoadedInputAstStream::CsvDocument(_)
+                        | LoadedInputAstStream::YamlDocument(_)
+                        | LoadedInputAstStream::JsonDocument(_)
+                )
             ) {
                 return;
             }
@@ -6315,6 +6409,48 @@ impl CemMlEngine for RealCemMlEngine {
                         primary = Some(Value::Null);
                         return;
                     }
+                    LoadedInputAstStream::JsonDocument(document_value) => {
+                        if to_format == LayerFormat::Json {
+                            if diagnostics
+                                .iter()
+                                .any(|diagnostic| diagnostic.severity.is_hard_violation())
+                            {
+                                primary = Some(Value::Null);
+                                conversion = Some(convert_metadata_for_json_lifecycle_output(
+                                    &request.target_scope,
+                                ));
+                                return;
+                            }
+
+                            let (json_primary, json_primary_bytes, json_conversion) =
+                                convert_loaded_json_ast_output(&request, document_value);
+                            primary = Some(json_primary);
+                            primary_bytes = json_primary_bytes;
+                            conversion = Some(json_conversion);
+                            return;
+                        }
+
+                        diagnostics.push(Diagnostic {
+                            uri: Some(request.input.uri.clone()),
+                            code: "cem.lifecycle.internal_ast_target_unsupported".to_owned(),
+                            severity: Severity::Fatal,
+                            message: format!(
+                                "JSON lifecycle input cannot be exported through `{to_format:?}` without a registered JSON AST export adapter"
+                            ),
+                            details: Some(json!({
+                                "lifecycle": {
+                                    "adapterId": loaded.adapter_id,
+                                    "operation": "export",
+                                    "internalContentType": JSON_CONTENT_TYPE,
+                                    "internalSchema": JSON_VALUE_SCHEMA_URI,
+                                    "targetFormat": format!("{to_format:?}"),
+                                }
+                            })),
+                            ..Diagnostic::default()
+                        });
+                        primary = Some(Value::Null);
+                        return;
+                    }
                 }
             }
 
@@ -6613,6 +6749,21 @@ impl CemMlEngine for RealCemMlEngine {
                         details: Some(json!({
                             "targetContentType": YAML_CONTENT_TYPE,
                             "targetSchema": YAML_SCHEMA_URI,
+                        })),
+                        ..Diagnostic::default()
+                    });
+                    Value::Null
+                }
+                LayerFormat::Json => {
+                    diagnostics.push(Diagnostic {
+                        uri: Some(request.input.uri.clone()),
+                        code: "cem.lifecycle.json_source_required".to_owned(),
+                        severity: Severity::Fatal,
+                        message: "JSON export requires a JSON lifecycle input AST stream or a registered converter"
+                            .to_owned(),
+                        details: Some(json!({
+                            "targetContentType": JSON_CONTENT_TYPE,
+                            "targetSchema": JSON_VALUE_SCHEMA_URI,
                         })),
                         ..Diagnostic::default()
                     });
@@ -11635,6 +11786,32 @@ mod tests {
     }
 
     #[test]
+    fn validate_json_source_consumes_lifecycle_ast_without_cem_parse() {
+        let mut source = input(br#"{"name":"Ada","active":true}"#, "document.json");
+        source.identity = Some(FormatIdentity {
+            content_type: Some(JSON_CONTENT_TYPE.to_owned()),
+            schema: Some(JSON_VALUE_SCHEMA_URI.to_owned()),
+            ..FormatIdentity::default()
+        });
+        let req = ValidateRequest {
+            inputs: vec![source],
+            projection: ValidateProjection::Json,
+            fail_level: FailLevel::Validate,
+            context: ctx(),
+        };
+
+        let resp = RealCemMlEngine::new().validate(req).unwrap();
+
+        assert_eq!(resp.report.summary.input_count, 1);
+        assert_eq!(resp.report.summary.hard_violation_count, 0);
+        assert!(
+            resp.report.diagnostics.is_empty(),
+            "JSON validation should be completed by the lifecycle AST stream, not CEM parsing: {:?}",
+            resp.report.diagnostics
+        );
+    }
+
+    #[test]
     fn convert_yaml_same_schema_uses_lifecycle_output_pipeline() {
         let mut source = input(b"name: Ada\nactive: true\n", "document.yaml");
         source.identity = Some(FormatIdentity {
@@ -11688,6 +11865,61 @@ mod tests {
         );
         assert_eq!(resp.primary["kind"], "document");
         assert_eq!(resp.primary["contentType"], YAML_CONTENT_TYPE);
+    }
+
+    #[test]
+    fn convert_json_same_schema_uses_lifecycle_ast_stream() {
+        let mut source = input(br#"{"name":"Ada","active":true}"#, "document.json");
+        source.identity = Some(FormatIdentity {
+            content_type: Some(JSON_CONTENT_TYPE.to_owned()),
+            schema: Some(JSON_VALUE_SCHEMA_URI.to_owned()),
+            ..FormatIdentity::default()
+        });
+        let target = FormatIdentity {
+            content_type: Some(JSON_CONTENT_TYPE.to_owned()),
+            schema: Some(JSON_VALUE_SCHEMA_URI.to_owned()),
+            ..FormatIdentity::default()
+        };
+        let req = ConvertRequest {
+            input: source,
+            to_format: LayerFormat::DomJson,
+            preserve_source_offsets: false,
+            context: ctx(),
+            target: Some(target),
+            target_scope: ScopeConfig {
+                cemt_formatter_profile: Some("compact".to_owned()),
+                ..ScopeConfig::default()
+            },
+            scheduler_scope_id: 0,
+        };
+
+        let resp = RealCemMlEngine::new().convert(req).unwrap();
+
+        assert!(
+            resp.diagnostics.is_empty(),
+            "JSON same-schema conversion should stay on the lifecycle AST path: {:?}",
+            resp.diagnostics
+        );
+        assert_eq!(
+            resp.conversion
+                .as_ref()
+                .and_then(|conversion| conversion.converter_id.as_deref()),
+            Some("json-lifecycle-output")
+        );
+        assert_eq!(
+            resp.conversion
+                .as_ref()
+                .and_then(|conversion| conversion.implementation.as_deref()),
+            Some("lifecycle-json-ast-output")
+        );
+        let primary_bytes = resp.primary_bytes.as_ref().expect("JSON primary bytes");
+        assert_eq!(primary_bytes.content_type, JSON_CONTENT_TYPE);
+        assert_eq!(primary_bytes.schema.as_deref(), Some(JSON_VALUE_SCHEMA_URI));
+        let output: Value = serde_json::from_slice(&primary_bytes.bytes).unwrap();
+        assert_eq!(output["name"], "Ada");
+        assert_eq!(output["active"], true);
+        assert_eq!(resp.primary["kind"], "document");
+        assert_eq!(resp.primary["contentType"], JSON_CONTENT_TYPE);
     }
 
     #[test]

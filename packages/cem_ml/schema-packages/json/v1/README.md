@@ -1,6 +1,6 @@
 # JSON Resource Schema Package
 
-Status: schema, examples, formatter, and colorizer package frame
+Status: schema, examples, lifecycle input/output adapter, formatter, and colorizer package frame
 
 This package defines registry identity for generic JSON text resources.
 
@@ -33,6 +33,32 @@ The schema describes JSON values as a lossless resource model:
 - arrays preserve item order;
 - strings, numbers, booleans, and null preserve their JSON value kind;
 - parsers should retain lexical/source-map information when available.
+
+## Verification
+
+`cem_ml_schema_package_json_v1:verify` validates the package manifest, checks
+that package examples are manifest-indexed, and runs focused lifecycle adapter,
+engine conversion, and CLI same-schema JSON regressions.
+
+## Release Behavior
+
+`application/json`, `text/json`, and `https://cem.dev/ns/data/json/1` inputs
+are imported by a JSON lifecycle adapter into a CEM-owned typed AST stream with
+source ranges/source-map stacks. Same-schema JSON output consumes that typed AST
+stream and emits JSON through the lifecycle output boundary.
+
+Cross JSON/YAML conversion still uses the generic data bridge until that bridge
+is moved onto the same typed import boundary.
+
+## Tracked Incomplete Work
+
+- Move JSON formatter/colorizer CEMT assets from shared `json`/`tokens` stubs
+  to typed JSON document/CEM-tree package functions for compact, pretty,
+  tabular, terminal, HTML, and Markdown output.
+- Add JSON README/SVG preview drift checks once package-owned JSON formatter
+  and colorizer bodies are expanded.
+- Move the generic JSON/YAML data bridge off `serde_json::Value` or prove it
+  emits identical typed AST, diagnostics, source maps, and artifact metadata.
 
 ## Examples
 

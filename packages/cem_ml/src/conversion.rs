@@ -607,7 +607,11 @@ pub fn convert_generic_data_text(
 ) -> GenericDataTextConversionOutcome {
     let source_is_yaml = format_identity_matches_schema(schema_registry, source, YAML_SCHEMA_URI);
     let target_is_yaml = format_identity_matches_schema(schema_registry, target, YAML_SCHEMA_URI);
-    if source_is_yaml && target_is_yaml {
+    let source_is_json =
+        format_identity_matches_schema(schema_registry, source, JSON_VALUE_SCHEMA_URI);
+    let target_is_json =
+        format_identity_matches_schema(schema_registry, target, JSON_VALUE_SCHEMA_URI);
+    if (source_is_yaml && target_is_yaml) || (source_is_json && target_is_json) {
         return GenericDataTextConversionOutcome::Unsupported;
     }
 
