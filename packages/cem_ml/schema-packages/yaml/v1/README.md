@@ -1,6 +1,6 @@
 # YAML Resource Schema Package
 
-Status: schema, examples, formatter, and colorizer package frame
+Status: schema, examples, and package-owned formatter/colorizer bodies
 
 This package defines registry identity for generic YAML resources.
 
@@ -29,6 +29,17 @@ The package declares CEMT formatter and colorizer artifacts in `package.cem`.
 The public formatter profile names are `compact`, `pretty`, and `tabular`.
 The public colorizer profile names are `terminal`, `html`, and `md`.
 
+Formatter and colorizer semantics are owned by these package CEMT files. Rust
+resolves package artifacts, executes the CEMT bodies, validates the generated
+`cem-tree`, and writes the final text/HTML preview output.
+
+- `formatters/compact.cemt`
+- `formatters/pretty.cemt`
+- `formatters/tabular.cemt`
+- `colorizers/terminal.cemt`
+- `colorizers/html.cemt`
+- `colorizers/md.cemt`
+
 ## Resource Model
 
 The schema describes YAML streams as a lossless resource model:
@@ -43,6 +54,29 @@ The schema describes YAML streams as a lossless resource model:
 
 Parsers must use safe tag resolution by default. Host-object or executable tags
 belong behind explicit adapter policy and runtime limits.
+
+## Verification
+
+`cem_ml_schema_package_yaml_v1:verify` validates `package.cem`, checks example
+and artifact manifest drift, runs the YAML CEMT formatter/colorizer execution
+tests, runs the CLI lifecycle smoke test, and verifies README SVG preview drift.
+
+`cem_ml_schema_package_yaml_v1:build` depends on `samples2readme`, which renders
+example previews into `examples/previews/*.svg` and writes the generated HTML
+under `dist/cem_ml/schema-packages/yaml/v1/examples/*.html`.
+
+## Release Behavior
+
+The built-in conversion registry loads this package's formatter and colorizer
+artifacts from the embedded schema-package catalog. Runtime output must execute
+the package CEMT bodies for YAML-to-YAML rendering; Rust fallback formatting is
+not part of the release contract.
+
+## Tracked Incomplete Work
+
+- Comment and directive preservation depends on parser model coverage. When the
+  parser exposes those nodes, the package formatter should render them from the
+  YAML AST stream instead of host fallback code.
 
 ## Examples
 

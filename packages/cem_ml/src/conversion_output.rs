@@ -6,8 +6,11 @@
 
 use crate::conversion::ConversionOutputPipelineExecution;
 use crate::diagnostics::{Diagnostic, Severity};
+#[cfg(test)]
 use crate::interpreter::OutputSpan;
+#[cfg(test)]
 use crate::source::ByteRange;
+#[cfg(test)]
 use crate::source_map::SourceMapStack;
 use crate::transform_template::{
     TransformTemplateEncodedArtifact, TransformTemplateModuleVisibility,
@@ -103,6 +106,7 @@ pub(crate) fn wrap_html_pre_container_artifact(
     artifact.value = Value::String(format!("{prefix}{text}</pre>"));
 }
 
+#[cfg(test)]
 pub(crate) fn output_span_value_for_source_map(
     text: &str,
     source_map: Option<&Value>,

@@ -1,0 +1,761 @@
+@doc cem-ml 1
+@ns transform = "https://cem.dev/ns/transform/cem/1"
+@default transform
+
+{module @version="1.0.0" |
+    {format-function
+        @name="yaml.format-document"
+        @visibility="public"
+        @category="yaml-document"
+        @subject="yaml-document"
+        @produces="cem-tree"
+        @content-type="application/yaml"
+        @schema="https://cem.dev/ns/data/yaml/1"
+        @profile="compact"
+        @canonical=true
+        @deterministic=true
+        @streamable=true |
+        {param @name="subject" @type="any" @required=true}
+        {body |
+            {$ {
+                kind: "cem-tree",
+                contentType: "application/yaml",
+                schema: "https://cem.dev/ns/data/yaml/1",
+                category: "yaml-document",
+                formatterProfile: $formatterProfile,
+                formatNodes: [
+                    {
+                        kind: "format-marker",
+                        name: "yaml.format-document",
+                        formatterRole: "formatter.boundary",
+                        formatterProfile: $formatterProfile
+                    },
+                    {
+                        kind: "format-decision",
+                        name: "yaml.layout",
+                        formatterRole: "formatter.layout",
+                        formatterProfile: $formatterProfile,
+                        value: {
+                            layout: call("yaml.format-document.layout", { profile: $formatterProfile }),
+                            lineEnding: $lineEnding,
+                            indent: "  "
+                        }
+                    }
+                ],
+                nodes: extend(
+                    [
+                        {
+                            kind: "yaml.format-marker",
+                            writerKind: "token",
+                            text: "",
+                            role: "formatter.boundary",
+                            value: {
+                                name: "yaml.format-document",
+                                formatterProfile: $formatterProfile
+                            }
+                        },
+                        {
+                            kind: "yaml.format-decision",
+                            writerKind: "token",
+                            text: "",
+                            role: "formatter.layout",
+                            value: {
+                                layout: call("yaml.format-document.layout", { profile: $formatterProfile }),
+                                lineEnding: $lineEnding,
+                                indent: "  "
+                            }
+                        }
+                    ],
+                    call("yaml.format-document.documents", {
+                        documents: match(typeOf($subject.documents), {
+                            array: $subject.documents,
+                            default: []
+                        }),
+                        profile: $formatterProfile
+                    })
+                )
+            } }
+        }
+    }
+
+    {function @name="yaml.format-document.layout" @visibility="private" @returns="string" @deterministic=true |
+        {param @name="profile" @type="string" @required=true}
+        {body |
+            {$ match($profile, {
+                compact: "compact-block-document",
+                pretty: "pretty-block-document",
+                "yaml.pretty": "pretty-block-document",
+                tabular: "tabular-block-document",
+                default: "block-document"
+            }) }
+        }
+    }
+
+    {function @name="yaml.format-document.documents" @visibility="private" @returns="array" @deterministic=true |
+        {param @name="documents" @type="array" @required=true}
+        {param @name="profile" @type="string" @required=true}
+        {body |
+            {$ match(length($documents), {
+                0: call("yaml.format-document.null-line", { sourceMap: null }),
+                default: fold($documents, [], extend(
+                    $acc,
+                    call("yaml.format-document.document", {
+                        document: $item,
+                        documentCount: length($documents),
+                        profile: $profile
+                    })
+                ))
+            }) }
+        }
+    }
+
+    {function @name="yaml.format-document.document" @visibility="private" @returns="array" @deterministic=true |
+        {param @name="document" @type="object" @required=true}
+        {param @name="documentCount" @type="integer" @required=true}
+        {param @name="profile" @type="string" @required=true}
+        {body |
+            {$ extend(
+                match(gt($documentCount, 1), {
+                    true: [
+                        call("yaml.format-document.token", {
+                            kind: "yaml.document-start",
+                            text: "---",
+                            role: "syntax.punctuation",
+                            sourceMap: match(exists($document.sourceMap), { true: $document.sourceMap, false: null }),
+                            profile: $profile
+                        }),
+                        call("yaml.format-document.line-ending", { profile: $profile })
+                    ],
+                    false: []
+                }),
+                match(typeOf($document.root), {
+                    object: call("yaml.format-document.node-block", {
+                        node: $document.root,
+                        indent: "",
+                        profile: $profile
+                    }),
+                    default: call("yaml.format-document.null-line", { sourceMap: null })
+                })
+            ) }
+        }
+    }
+
+    {function @name="yaml.format-document.node-block" @visibility="private" @returns="array" @deterministic=true |
+        {param @name="node" @type="object" @required=true}
+        {param @name="indent" @type="string" @required=true}
+        {param @name="profile" @type="string" @required=true}
+        {body |
+            {$ match($node.kind, {
+                mapping: call("yaml.format-document.mapping-block", { node: $node, indent: $indent, profile: $profile }),
+                sequence: call("yaml.format-document.sequence-block", { node: $node, indent: $indent, profile: $profile }),
+                scalar: extend(
+                    call("yaml.format-document.indent", { indent: $indent }),
+                    extend(
+                        call("yaml.format-document.node-inline", { node: $node, scalarRole: "syntax.string", profile: $profile }),
+                        [call("yaml.format-document.line-ending", { profile: $profile })]
+                    )
+                ),
+                alias: extend(
+                    call("yaml.format-document.indent", { indent: $indent }),
+                    extend(
+                        call("yaml.format-document.node-inline", { node: $node, scalarRole: "syntax.string", profile: $profile }),
+                        [call("yaml.format-document.line-ending", { profile: $profile })]
+                    )
+                ),
+                default: extend(
+                    call("yaml.format-document.indent", { indent: $indent }),
+                    call("yaml.format-document.null-line", {
+                        sourceMap: match(exists($node.sourceMap), { true: $node.sourceMap, false: null })
+                    })
+                )
+            }) }
+        }
+    }
+
+    {function @name="yaml.format-document.mapping-block" @visibility="private" @returns="array" @deterministic=true |
+        {param @name="node" @type="object" @required=true}
+        {param @name="indent" @type="string" @required=true}
+        {param @name="profile" @type="string" @required=true}
+        {body |
+            {$ match(length(match(typeOf($node.mapping), { array: $node.mapping, default: [] })), {
+                0: extend(
+                    call("yaml.format-document.indent", { indent: $indent }),
+                    extend(
+                        call("yaml.format-document.empty-collection-inline", { node: $node, profile: $profile }),
+                        [call("yaml.format-document.line-ending", { profile: $profile })]
+                    )
+                ),
+                default: fold(match(typeOf($node.mapping), { array: $node.mapping, default: [] }), [], extend(
+                    $acc,
+                    call("yaml.format-document.mapping-pair", {
+                        pair: $item,
+                        indent: $indent,
+                        profile: $profile
+                    })
+                ))
+            }) }
+        }
+    }
+
+    {function @name="yaml.format-document.mapping-pair" @visibility="private" @returns="array" @deterministic=true |
+        {param @name="pair" @type="object" @required=true}
+        {param @name="indent" @type="string" @required=true}
+        {param @name="profile" @type="string" @required=true}
+        {body |
+            {$ match(call("yaml.format-document.node-can-inline", { node: $pair.key }), {
+                true: extend(
+                    call("yaml.format-document.indent", { indent: $indent }),
+                    extend(
+                        call("yaml.format-document.node-inline", { node: $pair.key, scalarRole: "syntax.name", profile: $profile }),
+                        call("yaml.format-document.mapping-value", {
+                            value: $pair.value,
+                            indent: $indent,
+                            profile: $profile
+                        })
+                    )
+                ),
+                false: extend(
+                    call("yaml.format-document.indent", { indent: $indent }),
+                    extend(
+                        [
+                            call("yaml.format-document.token", {
+                                kind: "yaml.complex-key",
+                                text: "?",
+                                role: "syntax.punctuation",
+                                sourceMap: null,
+                                profile: $profile
+                            }),
+                            call("yaml.format-document.line-ending", { profile: $profile })
+                        ],
+                        extend(
+                            call("yaml.format-document.node-block", {
+                                node: $pair.key,
+                                indent: concat($indent, "  "),
+                                profile: $profile
+                            }),
+                            extend(
+                                call("yaml.format-document.indent", { indent: $indent }),
+                                call("yaml.format-document.mapping-value", {
+                                    value: $pair.value,
+                                    indent: $indent,
+                                    profile: $profile
+                                })
+                            )
+                        )
+                    )
+                )
+            }) }
+        }
+    }
+
+    {function @name="yaml.format-document.mapping-value" @visibility="private" @returns="array" @deterministic=true |
+        {param @name="value" @type="any" @required=true @nullable=true}
+        {param @name="indent" @type="string" @required=true}
+        {param @name="profile" @type="string" @required=true}
+        {body |
+            {$ extend(
+                [call("yaml.format-document.token", {
+                    kind: "yaml.mapping-separator",
+                    text: ":",
+                    role: "syntax.punctuation",
+                    sourceMap: null,
+                    profile: $profile
+                })],
+                match(call("yaml.format-document.node-can-inline", { node: $value }), {
+                    true: extend(
+                        [call("yaml.format-document.token", {
+                            kind: "yaml.space",
+                            text: " ",
+                            role: "syntax.raw",
+                            sourceMap: null,
+                            profile: $profile
+                        })],
+                        extend(
+                            call("yaml.format-document.node-inline", { node: $value, scalarRole: "syntax.string", profile: $profile }),
+                            [call("yaml.format-document.line-ending", { profile: $profile })]
+                        )
+                    ),
+                    false: extend(
+                        [call("yaml.format-document.line-ending", { profile: $profile })],
+                        call("yaml.format-document.node-block", {
+                            node: $value,
+                            indent: concat($indent, "  "),
+                            profile: $profile
+                        })
+                    )
+                })
+            ) }
+        }
+    }
+
+    {function @name="yaml.format-document.sequence-block" @visibility="private" @returns="array" @deterministic=true |
+        {param @name="node" @type="object" @required=true}
+        {param @name="indent" @type="string" @required=true}
+        {param @name="profile" @type="string" @required=true}
+        {body |
+            {$ match(length(match(typeOf($node.sequence), { array: $node.sequence, default: [] })), {
+                0: extend(
+                    call("yaml.format-document.indent", { indent: $indent }),
+                    extend(
+                        call("yaml.format-document.empty-collection-inline", { node: $node, profile: $profile }),
+                        [call("yaml.format-document.line-ending", { profile: $profile })]
+                    )
+                ),
+                default: fold(match(typeOf($node.sequence), { array: $node.sequence, default: [] }), [], extend(
+                    $acc,
+                    call("yaml.format-document.sequence-item", {
+                        item: $item,
+                        indent: $indent,
+                        profile: $profile
+                    })
+                ))
+            }) }
+        }
+    }
+
+    {function @name="yaml.format-document.sequence-item" @visibility="private" @returns="array" @deterministic=true |
+        {param @name="item" @type="any" @required=true @nullable=true}
+        {param @name="indent" @type="string" @required=true}
+        {param @name="profile" @type="string" @required=true}
+        {body |
+            {$ extend(
+                call("yaml.format-document.indent", { indent: $indent }),
+                extend(
+                    [call("yaml.format-document.token", {
+                        kind: "yaml.sequence-marker",
+                        text: "-",
+                        role: "syntax.punctuation",
+                        sourceMap: null,
+                        profile: $profile
+                    })],
+                    match(call("yaml.format-document.node-can-inline", { node: $item }), {
+                        true: extend(
+                            [call("yaml.format-document.token", {
+                                kind: "yaml.space",
+                                text: " ",
+                                role: "syntax.raw",
+                                sourceMap: null,
+                                profile: $profile
+                            })],
+                            extend(
+                                call("yaml.format-document.node-inline", { node: $item, scalarRole: "syntax.string", profile: $profile }),
+                                [call("yaml.format-document.line-ending", { profile: $profile })]
+                            )
+                        ),
+                        false: extend(
+                            [call("yaml.format-document.line-ending", { profile: $profile })],
+                            call("yaml.format-document.node-block", {
+                                node: $item,
+                                indent: concat($indent, "  "),
+                                profile: $profile
+                            })
+                        )
+                    })
+                )
+            ) }
+        }
+    }
+
+    {function @name="yaml.format-document.node-inline" @visibility="private" @returns="array" @deterministic=true |
+        {param @name="node" @type="any" @required=true @nullable=true}
+        {param @name="scalarRole" @type="string" @required=true}
+        {param @name="profile" @type="string" @required=true}
+        {body |
+            {$ extend(
+                call("yaml.format-document.node-prefix", { node: $node, profile: $profile }),
+                match($node.kind, {
+                    alias: [call("yaml.format-document.token", {
+                        kind: "yaml.alias",
+                        text: concat("*", match(typeOf($node.alias), { string: $node.alias, default: "" })),
+                        role: "syntax.attribute",
+                        sourceMap: match(exists($node.sourceMap), { true: $node.sourceMap, false: null }),
+                        profile: $profile
+                    })],
+                    scalar: [call("yaml.format-document.token", {
+                        kind: "yaml.scalar",
+                        text: call("yaml.format-document.scalar-text", {
+                            value: match(typeOf($node.value), { string: $node.value, default: "" }),
+                            implicitKind: match(typeOf($node.implicitKind), { string: $node.implicitKind, default: "string" }),
+                            style: match(typeOf($node.style), { string: $node.style, default: "plain" })
+                        }),
+                        role: call("yaml.format-document.scalar-role", {
+                            implicitKind: match(typeOf($node.implicitKind), { string: $node.implicitKind, default: "string" }),
+                            fallback: $scalarRole
+                        }),
+                        sourceMap: match(exists($node.sourceMap), { true: $node.sourceMap, false: null }),
+                        profile: $profile
+                    })],
+                    mapping: call("yaml.format-document.empty-collection-inline", { node: $node, profile: $profile }),
+                    sequence: call("yaml.format-document.empty-collection-inline", { node: $node, profile: $profile }),
+                    default: [call("yaml.format-document.token", {
+                        kind: "yaml.scalar",
+                        text: "null",
+                        role: "syntax.keyword",
+                        sourceMap: match(exists($node.sourceMap), { true: $node.sourceMap, false: null }),
+                        profile: $profile
+                    })]
+                })
+            ) }
+        }
+    }
+
+    {function @name="yaml.format-document.node-prefix" @visibility="private" @returns="array" @deterministic=true |
+        {param @name="node" @type="any" @required=true @nullable=true}
+        {param @name="profile" @type="string" @required=true}
+        {body |
+            {$ extend(
+                match(typeOf($node.tag), {
+                    string: match(length(trim($node.tag)), {
+                        0: [],
+                        default: [
+                            call("yaml.format-document.token", {
+                                kind: "yaml.tag",
+                                text: trim($node.tag),
+                                role: "syntax.keyword",
+                                sourceMap: match(exists($node.sourceMap), { true: $node.sourceMap, false: null }),
+                                profile: $profile
+                            }),
+                            call("yaml.format-document.token", {
+                                kind: "yaml.space",
+                                text: " ",
+                                role: "syntax.raw",
+                                sourceMap: null,
+                                profile: $profile
+                            })
+                        ]
+                    }),
+                    default: []
+                }),
+                match(typeOf($node.anchor), {
+                    string: match(length(trim($node.anchor)), {
+                        0: [],
+                        default: [
+                            call("yaml.format-document.token", {
+                                kind: "yaml.anchor",
+                                text: concat("&", trim($node.anchor)),
+                                role: "syntax.attribute",
+                                sourceMap: match(exists($node.sourceMap), { true: $node.sourceMap, false: null }),
+                                profile: $profile
+                            }),
+                            call("yaml.format-document.token", {
+                                kind: "yaml.space",
+                                text: " ",
+                                role: "syntax.raw",
+                                sourceMap: null,
+                                profile: $profile
+                            })
+                        ]
+                    }),
+                    default: []
+                })
+            ) }
+        }
+    }
+
+    {function @name="yaml.format-document.empty-collection-inline" @visibility="private" @returns="array" @deterministic=true |
+        {param @name="node" @type="object" @required=true}
+        {param @name="profile" @type="string" @required=true}
+        {body |
+            {$ extend(
+                call("yaml.format-document.node-prefix", { node: $node, profile: $profile }),
+                [call("yaml.format-document.token", {
+                    kind: match($node.kind, { sequence: "yaml.sequence-empty", default: "yaml.mapping-empty" }),
+                    text: match($node.kind, { sequence: "[]", default: "{}" }),
+                    role: "syntax.punctuation",
+                    sourceMap: match(exists($node.sourceMap), { true: $node.sourceMap, false: null }),
+                    profile: $profile
+                })]
+            ) }
+        }
+    }
+
+    {function @name="yaml.format-document.node-can-inline" @visibility="private" @returns="boolean" @deterministic=true |
+        {param @name="node" @type="any" @required=true @nullable=true}
+        {body |
+            {$ match($node.kind, {
+                scalar: true,
+                alias: true,
+                mapping: match(length(match(typeOf($node.mapping), { array: $node.mapping, default: [] })), {
+                    0: true,
+                    default: false
+                }),
+                sequence: match(length(match(typeOf($node.sequence), { array: $node.sequence, default: [] })), {
+                    0: true,
+                    default: false
+                }),
+                default: true
+            }) }
+        }
+    }
+
+    {function @name="yaml.format-document.scalar-role" @visibility="private" @returns="string" @deterministic=true |
+        {param @name="implicitKind" @type="string" @required=true}
+        {param @name="fallback" @type="string" @required=true}
+        {body |
+            {$ match($fallback, {
+                "syntax.name": "syntax.name",
+                default: match($implicitKind, {
+                    integer: "syntax.number",
+                    float: "syntax.number",
+                    boolean: "syntax.keyword",
+                    null: "syntax.keyword",
+                    string: "syntax.string",
+                    timestamp: "syntax.string",
+                    binary: "syntax.string",
+                    default: "syntax.string"
+                })
+            }) }
+        }
+    }
+
+    {function @name="yaml.format-document.scalar-text" @visibility="private" @returns="string" @deterministic=true |
+        {param @name="value" @type="string" @required=true}
+        {param @name="implicitKind" @type="string" @required=true}
+        {param @name="style" @type="string" @required=true}
+        {body |
+            {$ match($style, {
+                plain: match($implicitKind, {
+                    string: match(call("yaml.format-document.plain-string-safe", { value: $value }), {
+                        true: $value,
+                        false: call("yaml.format-document.double-quoted", { value: $value })
+                    }),
+                    default: match(call("yaml.format-document.plain-scalar-safe", { value: $value }), {
+                        true: match(length($value), { 0: "null", default: $value }),
+                        false: call("yaml.format-document.double-quoted", { value: $value })
+                    })
+                }),
+                default: call("yaml.format-document.double-quoted", { value: $value })
+            }) }
+        }
+    }
+
+    {function @name="yaml.format-document.plain-string-safe" @visibility="private" @returns="boolean" @deterministic=true |
+        {param @name="value" @type="string" @required=true}
+        {body |
+            {$ match(call("yaml.format-document.plain-scalar-safe", { value: $value }), {
+                false: false,
+                true: call("yaml.format-document.plain-string-keeps-kind", { value: $value })
+            }) }
+        }
+    }
+
+    {function @name="yaml.format-document.plain-string-keeps-kind" @visibility="private" @returns="boolean" @deterministic=true |
+        {param @name="value" @type="string" @required=true}
+        {body |
+            {$ match(length(trim($value)), {
+                0: false,
+                default: match(trim($value), {
+                    "~": false,
+                    null: false,
+                    Null: false,
+                    NULL: false,
+                    true: false,
+                    True: false,
+                    TRUE: false,
+                    false: false,
+                    False: false,
+                    FALSE: false,
+                    default: match(isAsciiInteger($value), {
+                        true: false,
+                        false: match(isAsciiDecimal($value), {
+                            true: false,
+                            false: true
+                        })
+                    })
+                })
+            }) }
+        }
+    }
+
+    {function @name="yaml.format-document.plain-scalar-safe" @visibility="private" @returns="boolean" @deterministic=true |
+        {param @name="value" @type="string" @required=true}
+        {body |
+            {$ match(length($value), {
+                0: false,
+                default: match(startsWith($value, " "), {
+                    true: false,
+                    false: match(endsWith($value, " "), {
+                        true: false,
+                        false: match(contains($value, "\n"), {
+                            true: false,
+                            false: match(contains($value, "\r"), {
+                                true: false,
+                                false: match(call("yaml.format-document.plain-has-unsafe-leading", { value: $value }), {
+                                    true: false,
+                                    false: match(call("yaml.format-document.plain-has-unsafe-char", { value: $value }), {
+                                        true: false,
+                                        false: true
+                                    })
+                                })
+                            })
+                        })
+                    })
+                })
+            }) }
+        }
+    }
+
+    {function @name="yaml.format-document.plain-has-unsafe-leading" @visibility="private" @returns="boolean" @deterministic=true |
+        {param @name="value" @type="string" @required=true}
+        {body |
+            {$ match(get($value, 0), {
+                "-": true,
+                "?": true,
+                ":": true,
+                ",": true,
+                "[": true,
+                "]": true,
+                "{": true,
+                "}": true,
+                "#": true,
+                "&": true,
+                "*": true,
+                "!": true,
+                "|": true,
+                ">": true,
+                "'": true,
+                "\"": true,
+                "%": true,
+                "@": true,
+                "`": true,
+                default: false
+            }) }
+        }
+    }
+
+    {function @name="yaml.format-document.plain-has-unsafe-char" @visibility="private" @returns="boolean" @deterministic=true |
+        {param @name="value" @type="string" @required=true}
+        {body |
+            {$ match(contains($value, ":"), {
+                true: true,
+                false: match(contains($value, "#"), {
+                    true: true,
+                    false: match(contains($value, "["), {
+                        true: true,
+                        false: match(contains($value, "]"), {
+                            true: true,
+                            false: match(contains($value, "{"), {
+                                true: true,
+                                false: match(contains($value, "}"), {
+                                    true: true,
+                                    false: match(contains($value, ","), {
+                                        true: true,
+                                        false: contains($value, "\t")
+                                    })
+                                })
+                            })
+                        })
+                    })
+                })
+            }) }
+        }
+    }
+
+    {function @name="yaml.format-document.double-quoted" @visibility="private" @returns="string" @deterministic=true |
+        {param @name="value" @type="string" @required=true}
+        {body |
+            {$ concat("\"", concat(
+                replace(
+                    replace(
+                        replace(
+                            replace(
+                                replace($value, "\\", "\\\\"),
+                                "\"",
+                                "\\\""
+                            ),
+                            "\n",
+                            "\\n"
+                        ),
+                        "\r",
+                        "\\r"
+                    ),
+                    "\t",
+                    "\\t"
+                ),
+                "\""
+            )) }
+        }
+    }
+
+    {function @name="yaml.format-document.indent" @visibility="private" @returns="array" @deterministic=true |
+        {param @name="indent" @type="string" @required=true}
+        {body |
+            {$ match(length($indent), {
+                0: [],
+                default: [call("yaml.format-document.token", {
+                    kind: "yaml.indent",
+                    text: $indent,
+                    role: "syntax.raw",
+                    sourceMap: null,
+                    profile: $formatterProfile
+                })]
+            }) }
+        }
+    }
+
+    {function @name="yaml.format-document.null-line" @visibility="private" @returns="array" @deterministic=true |
+        {param @name="sourceMap" @type="any" @required=true @nullable=true}
+        {body |
+            {$ [
+                call("yaml.format-document.token", {
+                    kind: "yaml.scalar",
+                    text: "null",
+                    role: "syntax.keyword",
+                    sourceMap: $sourceMap,
+                    profile: $formatterProfile
+                }),
+                call("yaml.format-document.line-ending", { profile: $formatterProfile })
+            ] }
+        }
+    }
+
+    {function @name="yaml.format-document.line-ending" @visibility="private" @returns="object" @deterministic=true |
+        {param @name="profile" @type="string" @required=true}
+        {body |
+            {$ call("yaml.format-document.token", {
+                kind: "yaml.line-ending",
+                text: match($lineEnding, { crlf: "\r\n", default: "\n" }),
+                role: "syntax.punctuation",
+                sourceMap: null,
+                profile: $profile
+            }) }
+        }
+    }
+
+    {function @name="yaml.format-document.token" @visibility="private" @returns="object" @deterministic=true |
+        {param @name="kind" @type="string" @required=true}
+        {param @name="text" @type="string" @required=true}
+        {param @name="role" @type="string" @required=true}
+        {param @name="sourceMap" @type="any" @required=true @nullable=true}
+        {param @name="profile" @type="string" @required=true}
+        {body |
+            {$ {
+                kind: $kind,
+                writerKind: "token",
+                text: $text,
+                role: $role,
+                style: { colorRole: $role },
+                outputSpan: call("yaml.format-document.output-span", { sourceMap: $sourceMap }),
+                value: {
+                    formatterProfile: $profile
+                }
+            } }
+        }
+    }
+
+    {function @name="yaml.format-document.output-span" @visibility="private" @returns="any" @nullable=true @deterministic=true |
+        {param @name="sourceMap" @type="any" @required=true @nullable=true}
+        {body |
+            {$ match(typeOf($sourceMap), {
+                null: null,
+                default: {
+                    outputRange: {
+                        start: 0,
+                        len: 0
+                    },
+                    origin: $sourceMap
+                }
+            }) }
+        }
+    }
+}

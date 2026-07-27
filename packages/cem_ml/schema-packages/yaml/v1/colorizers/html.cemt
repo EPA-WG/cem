@@ -1,0 +1,125 @@
+@doc cem-ml 1
+@ns transform = "https://cem.dev/ns/transform/cem/1"
+@default transform
+
+{module @version="1.0.0" |
+    {color-function
+        @name="yaml.color-document"
+        @visibility="public"
+        @category="yaml-document"
+        @subject="cem-tree"
+        @produces="cem-tree"
+        @content-type="application/yaml"
+        @schema="https://cem.dev/ns/data/yaml/1"
+        @profile="html"
+        @canonical=false
+        @deterministic=true
+        @streamable=true |
+        {param @name="subject" @type="object" @required=true}
+        {body |
+            {$ {
+                kind: "cem-tree",
+                contentType: "application/yaml",
+                schema: "https://cem.dev/ns/data/yaml/1",
+                category: "yaml-document",
+                formatterProfile: match(exists($subject.formatterProfile), {
+                    true: $subject.formatterProfile,
+                    false: "unknown"
+                }),
+                formatNodes: match(exists($subject.formatNodes), {
+                    true: $subject.formatNodes,
+                    false: []
+                }),
+                colorProfile: "html",
+                colorOutput: "html",
+                colored: true,
+                colorNodes: [
+                    {
+                        kind: "color-marker",
+                        name: "yaml.color-document",
+                        colorizerRole: "colorizer.boundary",
+                        colorProfile: "html",
+                        colorOutput: "html"
+                    },
+                    {
+                        kind: "color-decision",
+                        name: "yaml.role-classes",
+                        colorizerRole: "colorizer.role",
+                        colorProfile: "html",
+                        colorOutput: "html"
+                    }
+                ],
+                nodes: map(
+                    match(exists($subject.nodes), {
+                        true: $subject.nodes,
+                        false: []
+                    }),
+                    call("yaml.color-document.token", {
+                        token: $item,
+                        profile: "html",
+                        output: "html"
+                    })
+                )
+            } }
+        }
+    }
+
+    {function @name="yaml.color-document.token" @visibility="private" @returns="object" @deterministic=true |
+        {param @name="token" @type="object" @required=true}
+        {param @name="profile" @type="string" @required=true}
+        {param @name="output" @type="string" @required=true}
+        {body |
+            {$ merge(
+                set($token, "value", merge(
+                    match(typeOf($token.value), {
+                        object: $token.value,
+                        default: {}
+                    }),
+                    {
+                        colorProfile: $profile,
+                        colorRole: call("yaml.color-document.role", { token: $token }),
+                        colorOutput: $output
+                    }
+                )),
+                {
+                    style: call("yaml.color-document.style", {
+                        token: $token,
+                        profile: $profile,
+                        role: call("yaml.color-document.role", { token: $token }),
+                        output: $output
+                    })
+                }
+            ) }
+        }
+    }
+
+    {function @name="yaml.color-document.role" @visibility="private" @returns="string" @deterministic=true |
+        {param @name="token" @type="object" @required=true}
+        {body |
+            {$ match(typeOf($token.role), {
+                string: $token.role,
+                default: match(typeOf($token.style.colorRole), {
+                    string: $token.style.colorRole,
+                    default: "syntax.raw"
+                })
+            }) }
+        }
+    }
+
+    {function @name="yaml.color-document.style" @visibility="private" @returns="object" @deterministic=true |
+        {param @name="token" @type="object" @required=true}
+        {param @name="profile" @type="string" @required=true}
+        {param @name="role" @type="string" @required=true}
+        {param @name="output" @type="string" @required=true}
+        {body |
+            {$ {
+                colorRole: $role,
+                colorProfile: $profile,
+                colorOutput: $output,
+                htmlMode: "classes",
+                class: concat("cem-color cem-color-", replace($role, ".", "-")),
+                color: concat("var(--cem-color-", concat(replace($role, ".", "-"), ")"))
+            } }
+        }
+    }
+}

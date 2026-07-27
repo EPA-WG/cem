@@ -171,13 +171,33 @@ static BUILTIN_SCHEMA_PACKAGE_ARTIFACT_SOURCES: &[BuiltinSchemaPackageArtifactSo
     },
     BuiltinSchemaPackageArtifactSource {
         package_id: "yaml",
-        path: "schema-packages/yaml/v1/formatters/yaml-format-document.cemt",
-        source: include_str!("../../schema-packages/yaml/v1/formatters/yaml-format-document.cemt"),
+        path: "schema-packages/yaml/v1/formatters/compact.cemt",
+        source: include_str!("../../schema-packages/yaml/v1/formatters/compact.cemt"),
     },
     BuiltinSchemaPackageArtifactSource {
         package_id: "yaml",
-        path: "schema-packages/yaml/v1/colorizers/yaml-color-document.cemt",
-        source: include_str!("../../schema-packages/yaml/v1/colorizers/yaml-color-document.cemt"),
+        path: "schema-packages/yaml/v1/formatters/pretty.cemt",
+        source: include_str!("../../schema-packages/yaml/v1/formatters/pretty.cemt"),
+    },
+    BuiltinSchemaPackageArtifactSource {
+        package_id: "yaml",
+        path: "schema-packages/yaml/v1/formatters/tabular.cemt",
+        source: include_str!("../../schema-packages/yaml/v1/formatters/tabular.cemt"),
+    },
+    BuiltinSchemaPackageArtifactSource {
+        package_id: "yaml",
+        path: "schema-packages/yaml/v1/colorizers/terminal.cemt",
+        source: include_str!("../../schema-packages/yaml/v1/colorizers/terminal.cemt"),
+    },
+    BuiltinSchemaPackageArtifactSource {
+        package_id: "yaml",
+        path: "schema-packages/yaml/v1/colorizers/html.cemt",
+        source: include_str!("../../schema-packages/yaml/v1/colorizers/html.cemt"),
+    },
+    BuiltinSchemaPackageArtifactSource {
+        package_id: "yaml",
+        path: "schema-packages/yaml/v1/colorizers/md.cemt",
+        source: include_str!("../../schema-packages/yaml/v1/colorizers/md.cemt"),
     },
     BuiltinSchemaPackageArtifactSource {
         package_id: "csv",
@@ -1627,6 +1647,90 @@ mod tests {
                 .map(|code| vec![code.to_owned()])
                 .unwrap_or_default();
             assert_eq!(example.expected_diagnostic_codes, expected_codes);
+        }
+    }
+
+    #[test]
+    fn yaml_output_assets_follow_schema_package_readme_contract() {
+        let package = builtin_schema_package_source("yaml").expect("YAML package source");
+        let artifacts =
+            package_manifest_artifact_attrs(package.package_id, package.manifest_source);
+        let output_asset_paths = artifacts
+            .iter()
+            .filter(|attrs| {
+                matches!(
+                    attrs.get("kind").map(String::as_str),
+                    Some("formatter" | "colorizer")
+                )
+            })
+            .filter_map(|attrs| attrs.get("path").cloned())
+            .collect::<BTreeSet<_>>();
+        let expected_paths = [
+            "schema-packages/yaml/v1/formatters/compact.cemt",
+            "schema-packages/yaml/v1/formatters/pretty.cemt",
+            "schema-packages/yaml/v1/formatters/tabular.cemt",
+            "schema-packages/yaml/v1/colorizers/terminal.cemt",
+            "schema-packages/yaml/v1/colorizers/html.cemt",
+            "schema-packages/yaml/v1/colorizers/md.cemt",
+        ]
+        .into_iter()
+        .map(str::to_owned)
+        .collect::<BTreeSet<_>>();
+
+        assert_eq!(output_asset_paths, expected_paths);
+
+        for (path, kind, profile_attr, profile) in [
+            (
+                "schema-packages/yaml/v1/formatters/compact.cemt",
+                "formatter",
+                "formatter-profile",
+                "compact",
+            ),
+            (
+                "schema-packages/yaml/v1/formatters/pretty.cemt",
+                "formatter",
+                "formatter-profile",
+                "pretty",
+            ),
+            (
+                "schema-packages/yaml/v1/formatters/tabular.cemt",
+                "formatter",
+                "formatter-profile",
+                "tabular",
+            ),
+            (
+                "schema-packages/yaml/v1/colorizers/terminal.cemt",
+                "colorizer",
+                "color-profile",
+                "terminal",
+            ),
+            (
+                "schema-packages/yaml/v1/colorizers/html.cemt",
+                "colorizer",
+                "color-profile",
+                "html",
+            ),
+            (
+                "schema-packages/yaml/v1/colorizers/md.cemt",
+                "colorizer",
+                "color-profile",
+                "md",
+            ),
+        ] {
+            let attrs = artifacts
+                .iter()
+                .find(|attrs| attrs.get("path").map(String::as_str) == Some(path))
+                .unwrap_or_else(|| panic!("YAML output asset `{path}`"));
+            assert_eq!(attrs.get("kind").map(String::as_str), Some(kind));
+            assert_eq!(attrs.get(profile_attr).map(String::as_str), Some(profile));
+            let function_profile = match profile {
+                "pretty" => "yaml.pretty",
+                _ => profile,
+            };
+            assert_eq!(
+                attrs.get("function-profile").map(String::as_str),
+                Some(function_profile)
+            );
         }
     }
 
@@ -3192,23 +3296,39 @@ mod tests {
 
     #[test]
     fn catalog_exposes_yaml_output_artifact_sources() {
-        let formatter = builtin_schema_package_artifact_source(
-            "yaml",
-            "schema-packages/yaml/v1/formatters/yaml-format-document.cemt",
-        )
-        .expect("YAML formatter source");
-        let colorizer = builtin_schema_package_artifact_source(
-            "yaml",
-            "schema-packages/yaml/v1/colorizers/yaml-color-document.cemt",
-        )
-        .expect("YAML colorizer source");
+        for profile in BASELINE_FORMATTER_PROFILES {
+            let formatter = builtin_schema_package_artifact_source(
+                "yaml",
+                &format!("schema-packages/yaml/v1/formatters/{profile}.cemt"),
+            )
+            .unwrap_or_else(|| panic!("YAML `{profile}` formatter source"));
+            let function_profile = match *profile {
+                "pretty" => "yaml.pretty",
+                _ => profile,
+            };
 
-        assert!(formatter.source.contains(r#"@name="yaml.format-document""#));
-        assert!(formatter.source.contains(r#"@category="yaml-document""#));
-        assert!(colorizer.source.contains(r#"@name="yaml.color-document""#));
-        assert!(colorizer
-            .source
-            .contains(r#"@content-type="application/yaml""#));
+            assert!(formatter.source.contains(r#"@name="yaml.format-document""#));
+            assert!(formatter.source.contains(r#"@category="yaml-document""#));
+            assert!(formatter
+                .source
+                .contains(&format!(r#"@profile="{function_profile}""#)));
+        }
+
+        for profile in BASELINE_COLORIZER_PROFILES {
+            let colorizer = builtin_schema_package_artifact_source(
+                "yaml",
+                &format!("schema-packages/yaml/v1/colorizers/{profile}.cemt"),
+            )
+            .unwrap_or_else(|| panic!("YAML `{profile}` colorizer source"));
+
+            assert!(colorizer.source.contains(r#"@name="yaml.color-document""#));
+            assert!(colorizer
+                .source
+                .contains(r#"@content-type="application/yaml""#));
+            assert!(colorizer
+                .source
+                .contains(&format!(r#"@profile="{profile}""#)));
+        }
     }
 
     #[test]

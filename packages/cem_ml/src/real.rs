@@ -5023,9 +5023,12 @@ fn convert_loaded_yaml_ast_output(
 }
 
 fn yaml_direct_output_is_html(target_scope: &ScopeConfig) -> bool {
-    yaml_direct_output_html_color_selection(target_scope)
+    yaml_direct_output_color_selection(target_scope)
         .as_ref()
-        .is_some_and(yaml_direct_output_color_selection_requests_color)
+        .is_some_and(|selection| {
+            selection.target.category == "html-color"
+                && yaml_direct_output_color_selection_requests_color(selection)
+        })
         || target_scope
             .cemt_color_profile
             .as_deref()
@@ -5033,7 +5036,7 @@ fn yaml_direct_output_is_html(target_scope: &ScopeConfig) -> bool {
             .is_some_and(|profile| profile == "html")
 }
 
-fn yaml_direct_output_html_color_selection(
+fn yaml_direct_output_color_selection(
     target_scope: &ScopeConfig,
 ) -> Option<TransformTemplateOutputColorSelection> {
     let output_color_type = target_scope
@@ -5041,14 +5044,33 @@ fn yaml_direct_output_html_color_selection(
         .as_deref()
         .map(str::trim)
         .filter(|value| !value.is_empty())?;
-    let selection = parse_transform_template_output_color_type(output_color_type).ok()?;
-    (selection.target.category == "html-color").then_some(selection)
+    parse_transform_template_output_color_type(output_color_type).ok()
 }
 
 fn yaml_direct_output_color_selection_requests_color(
     selection: &TransformTemplateOutputColorSelection,
 ) -> bool {
     selection.output_color_type != "none"
+}
+
+fn yaml_direct_output_color_profile(target_scope: &ScopeConfig) -> Option<String> {
+    let explicit = target_scope
+        .cemt_color_profile
+        .as_deref()
+        .map(str::trim)
+        .filter(|profile| !profile.is_empty())
+        .filter(|profile| matches!(*profile, "terminal" | "html" | "md"))
+        .map(str::to_owned);
+    if explicit.is_some() {
+        return explicit;
+    }
+    yaml_direct_output_color_selection(target_scope)
+        .filter(yaml_direct_output_color_selection_requests_color)
+        .and_then(|selection| match selection.target.category.as_str() {
+            "html-color" => Some("html".to_owned()),
+            "terminal-color" => Some("terminal".to_owned()),
+            _ => None,
+        })
 }
 
 fn convert_metadata_for_yaml_lifecycle_output(
@@ -5059,8 +5081,8 @@ fn convert_metadata_for_yaml_lifecycle_output(
         .clone()
         .unwrap_or_else(|| "compact".to_owned());
     let html_output = yaml_direct_output_is_html(target_scope);
-    let color_profile = html_output.then(|| "html".to_owned());
-    let writer_profile = yaml_direct_output_html_color_selection(target_scope)
+    let color_profile = yaml_direct_output_color_profile(target_scope);
+    let writer_profile = yaml_direct_output_color_selection(target_scope)
         .filter(yaml_direct_output_color_selection_requests_color)
         .map(|selection| selection.output_color_type)
         .or_else(|| color_profile.clone());

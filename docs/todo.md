@@ -7,8 +7,7 @@ history.
 
 ## Immediate Goal
 
-Current active slice: CSV source import into the lifecycle-owned internal AST
-stream.
+Current active slice: `json/v1` schema-package folder alignment.
 
 ### Immediate: CSV Source Import To Internal AST Stream
 
@@ -98,6 +97,10 @@ stream.
 - [ ] Add regression coverage that every schema-package preview and validation
       path either uses the generic source import boundary or has an explicit
       tracked waiver with equivalent source-map and artifact metadata.
+- [ ] Preserve YAML comments/directives in the typed YAML AST stream and render
+      them from package CEMT once parser coverage exposes those nodes; until
+      then, YAML formatter/colorizer ownership covers the typed document node
+      model without comment/directive presentation nodes.
 
 ### Immediate: README Sample Preview Generation
 
@@ -460,7 +463,7 @@ Remaining dependency-ordered package checklist:
 - [x] `cem-dom-projection/v1`
 - [x] `cem-ml/v1`
 - [x] `csv/v1`
-- [ ] `yaml/v1`
+- [x] `yaml/v1`
   - [x] Add schema-owned YAML parse-fact bindings for parse errors,
         unsupported UTF-8, unresolved aliases, duplicate anchors, unsafe tags,
         and source-map-unavailable facts.
@@ -473,13 +476,13 @@ Remaining dependency-ordered package checklist:
   - [x] Add first-class YAML export support with a YAML layer format and route
         same-schema YAML conversion through the YAML formatter/colorizer/writer
         pipeline instead of a generic JSON-value bridge.
-  - [ ] Expand YAML formatter/colorizer bodies for compact, pretty, tabular,
+  - [x] Expand YAML formatter/colorizer bodies for compact, pretty, tabular,
         terminal, HTML, and Markdown profile semantics with drift tests.
-  - [ ] Expand `cem_ml_schema_package_yaml_v1:verify` so it runs manifest
+  - [x] Expand `cem_ml_schema_package_yaml_v1:verify` so it runs manifest
         validation, manifest-index coverage, schema-owned CLI example
         validation, formatter/colorizer tests, README/SVG preview drift, and
         generated artifact drift.
-  - [ ] Expand YAML README Verification, Release Behavior, and tracked
+  - [x] Expand YAML README Verification, Release Behavior, and tracked
         incomplete-work sections.
 - [ ] `json/v1`
 - [ ] `json-schema/v1`
@@ -523,11 +526,9 @@ Remaining dependency-ordered package checklist:
 
 ### Next Work Item
 
-Expand `yaml/v1` formatter/colorizer bodies for compact, pretty, tabular,
-terminal, HTML, and Markdown profile semantics with drift tests. The current
-first-class YAML output layer preserves typed AST/source-map ownership, but its
-formatter/colorizer stage executions still use Rust fallback bodies until the
-package CEMT functions own those profile semantics.
+Align `json/v1` with the schema-package folder contract: typed lifecycle input,
+manifest-indexed examples, package-owned formatter/colorizer boundaries,
+README/SVG preview drift checks, and package-local verify coverage.
 
 ## Current Verification Commands
 

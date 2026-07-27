@@ -17,73 +17,79 @@
 
     {artifact
         @kind="formatter"
-        @path="formatters/yaml-format-document.cemt"
+        @path="formatters/compact.cemt"
         @content-type="application/vnd.cem.transform+cem"
         @schema="https://cem.dev/ns/transform/cem/1"
         @target-content-type="application/yaml"
         @target-schema="https://cem.dev/ns/data/yaml/1"
         @target-category="yaml-document"
         @function-name="yaml.format-document"
+        @function-profile="compact"
         @formatter-profile="compact"
     }
 
     {artifact
         @kind="formatter"
-        @path="formatters/yaml-format-document.cemt"
+        @path="formatters/pretty.cemt"
         @content-type="application/vnd.cem.transform+cem"
         @schema="https://cem.dev/ns/transform/cem/1"
         @target-content-type="application/yaml"
         @target-schema="https://cem.dev/ns/data/yaml/1"
         @target-category="yaml-document"
         @function-name="yaml.format-document"
+        @function-profile="yaml.pretty"
         @formatter-profile="pretty"
     }
 
     {artifact
         @kind="formatter"
-        @path="formatters/yaml-format-document.cemt"
+        @path="formatters/tabular.cemt"
         @content-type="application/vnd.cem.transform+cem"
         @schema="https://cem.dev/ns/transform/cem/1"
         @target-content-type="application/yaml"
         @target-schema="https://cem.dev/ns/data/yaml/1"
         @target-category="yaml-document"
         @function-name="yaml.format-document"
+        @function-profile="tabular"
         @formatter-profile="tabular"
     }
 
     {artifact
         @kind="colorizer"
-        @path="colorizers/yaml-color-document.cemt"
+        @path="colorizers/terminal.cemt"
         @content-type="application/vnd.cem.transform+cem"
         @schema="https://cem.dev/ns/transform/cem/1"
         @target-content-type="application/yaml"
         @target-schema="https://cem.dev/ns/data/yaml/1"
         @target-category="yaml-document"
         @function-name="yaml.color-document"
+        @function-profile="terminal"
         @color-profile="terminal"
     }
 
     {artifact
         @kind="colorizer"
-        @path="colorizers/yaml-color-document.cemt"
+        @path="colorizers/html.cemt"
         @content-type="application/vnd.cem.transform+cem"
         @schema="https://cem.dev/ns/transform/cem/1"
         @target-content-type="application/yaml"
         @target-schema="https://cem.dev/ns/data/yaml/1"
         @target-category="yaml-document"
         @function-name="yaml.color-document"
+        @function-profile="html"
         @color-profile="html"
     }
 
     {artifact
         @kind="colorizer"
-        @path="colorizers/yaml-color-document.cemt"
+        @path="colorizers/md.cemt"
         @content-type="application/vnd.cem.transform+cem"
         @schema="https://cem.dev/ns/transform/cem/1"
         @target-content-type="application/yaml"
         @target-schema="https://cem.dev/ns/data/yaml/1"
         @target-category="yaml-document"
         @function-name="yaml.color-document"
+        @function-profile="md"
         @color-profile="md"
     }
 
