@@ -67,7 +67,7 @@ use crate::transform_template::{
     TransformTemplateTargetSyntaxKind, TransformTemplateTargetSyntaxRules,
     TransformTemplateTerminalColorCapability,
 };
-use crate::validation::csv::CsvDocumentAst;
+use crate::validation::csv::{generic_data_ast_to_csv_cemt_subject, CsvDocumentAst};
 use crate::validation::generic_data::GenericDataDocumentAst;
 use crate::validation::json::{generic_data_ast_to_json_cemt_subject, JsonDocumentAst};
 use crate::validation::yaml::{generic_data_ast_to_yaml_cemt_subject, YamlDocumentAst};
@@ -3450,6 +3450,30 @@ impl CsvDocumentOutputSubject for CsvDocumentAst {
 
     fn into_cemt_subject(self) -> Value {
         self.to_cemt_subject()
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct GenericDataCsvDocumentOutputSubject {
+    table: Value,
+    line_ending: Option<String>,
+}
+
+impl GenericDataCsvDocumentOutputSubject {
+    pub fn new(ast: GenericDataDocumentAst) -> (Self, Vec<Diagnostic>) {
+        let line_ending = ast.line_ending.clone();
+        let (table, diagnostics) = generic_data_ast_to_csv_cemt_subject(&ast);
+        (Self { table, line_ending }, diagnostics)
+    }
+}
+
+impl CsvDocumentOutputSubject for GenericDataCsvDocumentOutputSubject {
+    fn source_line_ending(&self) -> Option<&str> {
+        self.line_ending.as_deref()
+    }
+
+    fn into_cemt_subject(self) -> Value {
+        self.table
     }
 }
 

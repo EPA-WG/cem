@@ -71,9 +71,12 @@ Current active slice: generic data AST stream bridge alignment.
       generic AST stream boundary, and target package output; future JavaScript
       object-like inputs such as JSONP must follow the same pattern rather than
       coupling to JSON directly.
-- [ ] Apply the same generic AST stream boundary to CSV and every future
+- [x] Apply the same generic AST stream boundary to CSV and every future
       data-format content conversion, so new formats add source and target
       adapters around the generic boundary instead of direct pair converters.
+- [x] Add focused CSV generic AST cross-format fixtures for `header=present`
+      CSV to JSON and JSON object to CSV so the bridge proves target bytes, not
+      only conversion metadata.
 - [x] Add conversion-boundary validation coverage that fails when any
       content-type conversion directly couples two concrete data formats
       without the generic AST stream between them, including JSON, YAML, CSV,
@@ -553,10 +556,10 @@ Remaining dependency-ordered package checklist:
 
 ### Next Work Item
 
-Apply the generic data AST stream boundary to CSV cross-format conversion so
-CSV can participate in data-format content conversion through source package
-import AST, the generic AST stream, and target package output instead of staying
-unsupported.
+Move CLI-owned source validation collectors for JSON, YAML, Markdown, CSS,
+HTML, XML, SVG, MathML, Relax NG, XSLT, CEM-QL, and native-template behind
+engine lifecycle adapters, or prove each collector consumes the same imported
+DOM/AST and source-map model as `RealCemMlEngine`.
 
 ## Current Verification Commands
 

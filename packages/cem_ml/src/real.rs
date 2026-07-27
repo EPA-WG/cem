@@ -18,8 +18,9 @@ use crate::conversion::{
     execute_yaml_document_output_pipeline_with_environment, ConversionExecution,
     ConversionOutputPipeline, ConversionOutputPipelineEnvironment,
     ConversionPackageArtifactDescriptor, ConversionPackageArtifactRead,
-    ConversionRustFallbackDescriptor, GenericDataJsonDocumentOutputSubject,
-    GenericDataYamlDocumentOutputSubject, CONVERSION_OUTPUT_PIPELINE_EXECUTION_CODE,
+    ConversionRustFallbackDescriptor, GenericDataCsvDocumentOutputSubject,
+    GenericDataJsonDocumentOutputSubject, GenericDataYamlDocumentOutputSubject,
+    CONVERSION_OUTPUT_PIPELINE_EXECUTION_CODE,
 };
 use crate::diagnostics::{
     project_diagnostics_for_source, source_map_coordinate_details, Diagnostic, Severity,
@@ -4735,6 +4736,81 @@ fn convert_loaded_csv_ast_output(
     )
 }
 
+fn convert_loaded_generic_data_ast_to_csv_output(
+    context: &EngineContext,
+    request: &ConvertRequest,
+    document: GenericDataDocumentAst,
+    diagnostics: &mut Vec<Diagnostic>,
+) -> (Value, Option<PrimaryBytes>, ConvertExecutionMetadata) {
+    let metadata = convert_metadata_for_generic_data_to_csv_lifecycle_output(&request.target_scope);
+    let (subject, mut projection_diagnostics) = GenericDataCsvDocumentOutputSubject::new(document);
+    diagnostics.append(&mut projection_diagnostics);
+    if diagnostics
+        .iter()
+        .any(|diagnostic| diagnostic.severity.is_hard_violation())
+    {
+        return (Value::Null, None, metadata);
+    }
+
+    let environment = ConversionOutputPipelineEnvironment {
+        schema_registry: &context.schema_registry,
+        conversion_registry: &context.converter_registry,
+        package_artifact_reader: None,
+        artifact_cache: None,
+    };
+    let execution = execute_csv_document_output_pipeline_with_environment(
+        &environment,
+        subject,
+        &request.target_scope,
+        Some(&request.input.uri),
+    );
+    diagnostics.extend(execution.diagnostics.clone());
+    if diagnostics
+        .iter()
+        .any(|diagnostic| diagnostic.severity.is_hard_violation())
+    {
+        return (Value::Null, None, metadata);
+    }
+
+    let content = execution
+        .output
+        .as_ref()
+        .and_then(Value::as_str)
+        .unwrap_or_default()
+        .to_owned();
+    let target = request
+        .target
+        .clone()
+        .or_else(|| request.target_scope.format_identity_option())
+        .unwrap_or_else(|| FormatIdentity {
+            content_type: Some(CSV_CONTENT_TYPE.to_owned()),
+            schema: Some(CSV_SCHEMA_URI.to_owned()),
+            ..FormatIdentity::default()
+        });
+    let (content_type, schema, format_version) =
+        csv_direct_output_primary_identity(&target, &request.target_scope);
+    let bytes = content.into_bytes();
+    let primary_bytes = PrimaryBytes {
+        content_type,
+        schema: Some(schema.clone()),
+        format_version,
+        hash_scheme: "cem-text/1+blake3".to_owned(),
+        hash: text_content_hash(&bytes),
+        bytes,
+    };
+    let hash = primary_bytes.hash.clone();
+    (
+        json!({
+            "kind": "document",
+            "contentType": primary_bytes.content_type,
+            "schema": schema,
+            "hash": hash,
+        }),
+        Some(primary_bytes),
+        metadata,
+    )
+}
+
 fn csv_direct_output_color_selection(
     target_scope: &ScopeConfig,
 ) -> Option<TransformTemplateOutputColorSelection> {
@@ -4866,6 +4942,15 @@ fn convert_metadata_for_csv_lifecycle_output(
             ],
         }),
     }
+}
+
+fn convert_metadata_for_generic_data_to_csv_lifecycle_output(
+    target_scope: &ScopeConfig,
+) -> ConvertExecutionMetadata {
+    let mut metadata = convert_metadata_for_csv_lifecycle_output(target_scope);
+    metadata.converter_id = Some("generic-data-ast-to-csv-output".to_owned());
+    metadata.implementation = Some("generic-data-ast-stream-to-csv-output-pipeline".to_owned());
+    metadata
 }
 
 fn yaml_direct_output_primary_identity(
@@ -6534,6 +6619,62 @@ impl CemMlEngine for RealCemMlEngine {
                             return;
                         }
 
+                        if to_format == LayerFormat::Json {
+                            if diagnostics
+                                .iter()
+                                .any(|diagnostic| diagnostic.severity.is_hard_violation())
+                            {
+                                primary = Some(Value::Null);
+                                conversion = Some(
+                                    convert_metadata_for_generic_data_to_json_lifecycle_output(
+                                        &request.target_scope,
+                                    ),
+                                );
+                                return;
+                            }
+
+                            let generic_document = table_value.to_generic_data_ast();
+                            let (json_primary, json_primary_bytes, json_conversion) =
+                                convert_loaded_generic_data_ast_to_json_output(
+                                    &context,
+                                    &request,
+                                    generic_document,
+                                    &mut diagnostics,
+                                );
+                            primary = Some(json_primary);
+                            primary_bytes = json_primary_bytes;
+                            conversion = Some(json_conversion);
+                            return;
+                        }
+
+                        if to_format == LayerFormat::Yaml {
+                            if diagnostics
+                                .iter()
+                                .any(|diagnostic| diagnostic.severity.is_hard_violation())
+                            {
+                                primary = Some(Value::Null);
+                                conversion = Some(
+                                    convert_metadata_for_generic_data_to_yaml_lifecycle_output(
+                                        &request.target_scope,
+                                    ),
+                                );
+                                return;
+                            }
+
+                            let generic_document = table_value.to_generic_data_ast();
+                            let (yaml_primary, yaml_primary_bytes, yaml_conversion) =
+                                convert_loaded_generic_data_ast_to_yaml_output(
+                                    &context,
+                                    &request,
+                                    generic_document,
+                                    &mut diagnostics,
+                                );
+                            primary = Some(yaml_primary);
+                            primary_bytes = yaml_primary_bytes;
+                            conversion = Some(yaml_conversion);
+                            return;
+                        }
+
                         diagnostics.push(Diagnostic {
                             uri: Some(request.input.uri.clone()),
                             code: "cem.lifecycle.internal_ast_target_unsupported".to_owned(),
@@ -6609,6 +6750,34 @@ impl CemMlEngine for RealCemMlEngine {
                             return;
                         }
 
+                        if to_format == LayerFormat::Csv {
+                            if diagnostics
+                                .iter()
+                                .any(|diagnostic| diagnostic.severity.is_hard_violation())
+                            {
+                                primary = Some(Value::Null);
+                                conversion = Some(
+                                    convert_metadata_for_generic_data_to_csv_lifecycle_output(
+                                        &request.target_scope,
+                                    ),
+                                );
+                                return;
+                            }
+
+                            let generic_document = document_value.to_generic_data_ast();
+                            let (csv_primary, csv_primary_bytes, csv_conversion) =
+                                convert_loaded_generic_data_ast_to_csv_output(
+                                    &context,
+                                    &request,
+                                    generic_document,
+                                    &mut diagnostics,
+                                );
+                            primary = Some(csv_primary);
+                            primary_bytes = csv_primary_bytes;
+                            conversion = Some(csv_conversion);
+                            return;
+                        }
+
                         diagnostics.push(Diagnostic {
                             uri: Some(request.input.uri.clone()),
                             code: "cem.lifecycle.internal_ast_target_unsupported".to_owned(),
@@ -6681,6 +6850,34 @@ impl CemMlEngine for RealCemMlEngine {
                             primary = Some(yaml_primary);
                             primary_bytes = yaml_primary_bytes;
                             conversion = Some(yaml_conversion);
+                            return;
+                        }
+
+                        if to_format == LayerFormat::Csv {
+                            if diagnostics
+                                .iter()
+                                .any(|diagnostic| diagnostic.severity.is_hard_violation())
+                            {
+                                primary = Some(Value::Null);
+                                conversion = Some(
+                                    convert_metadata_for_generic_data_to_csv_lifecycle_output(
+                                        &request.target_scope,
+                                    ),
+                                );
+                                return;
+                            }
+
+                            let generic_document = document_value.to_generic_data_ast();
+                            let (csv_primary, csv_primary_bytes, csv_conversion) =
+                                convert_loaded_generic_data_ast_to_csv_output(
+                                    &context,
+                                    &request,
+                                    generic_document,
+                                    &mut diagnostics,
+                                );
+                            primary = Some(csv_primary);
+                            primary_bytes = csv_primary_bytes;
+                            conversion = Some(csv_conversion);
                             return;
                         }
 
@@ -12281,6 +12478,111 @@ mod tests {
         assert!(output.contains("active: true"), "{output}");
     }
 
+    #[test]
+    fn convert_csv_header_present_to_json_uses_generic_data_ast_stream() {
+        let mut source = input(b"id,name\n1,Ada\n", "table.csv");
+        source.identity = Some(FormatIdentity {
+            content_type: Some(format!("{CSV_CONTENT_TYPE}; header=present")),
+            schema: Some(CSV_SCHEMA_URI.to_owned()),
+            ..FormatIdentity::default()
+        });
+        let target = FormatIdentity {
+            content_type: Some(JSON_CONTENT_TYPE.to_owned()),
+            schema: Some(JSON_VALUE_SCHEMA_URI.to_owned()),
+            ..FormatIdentity::default()
+        };
+        let req = ConvertRequest {
+            input: source,
+            to_format: LayerFormat::Json,
+            preserve_source_offsets: false,
+            context: ctx(),
+            target: Some(target),
+            target_scope: ScopeConfig {
+                cemt_formatter_profile: Some("compact".to_owned()),
+                ..ScopeConfig::default()
+            },
+            scheduler_scope_id: 0,
+        };
+
+        let resp = RealCemMlEngine::new().convert(req).unwrap();
+
+        assert!(
+            resp.diagnostics.is_empty(),
+            "CSV to JSON conversion should route through lifecycle and generic AST: {:?}",
+            resp.diagnostics
+        );
+        assert_eq!(
+            resp.conversion
+                .as_ref()
+                .and_then(|conversion| conversion.converter_id.as_deref()),
+            Some("generic-data-ast-to-json-output")
+        );
+        assert_eq!(
+            resp.conversion
+                .as_ref()
+                .and_then(|conversion| conversion.implementation.as_deref()),
+            Some("generic-data-ast-stream-to-json-output-pipeline")
+        );
+        let primary_bytes = resp.primary_bytes.as_ref().expect("JSON primary bytes");
+        assert_eq!(primary_bytes.content_type, JSON_CONTENT_TYPE);
+        assert_eq!(primary_bytes.schema.as_deref(), Some(JSON_VALUE_SCHEMA_URI));
+        let output: Value = serde_json::from_slice(&primary_bytes.bytes).unwrap();
+        assert_eq!(output[0]["id"], "1");
+        assert_eq!(output[0]["name"], "Ada");
+    }
+
+    #[test]
+    fn convert_json_to_csv_uses_generic_data_ast_stream() {
+        let mut source = input(br#"{"name":"Ada","active":true}"#, "document.json");
+        source.identity = Some(FormatIdentity {
+            content_type: Some(JSON_CONTENT_TYPE.to_owned()),
+            schema: Some(JSON_VALUE_SCHEMA_URI.to_owned()),
+            ..FormatIdentity::default()
+        });
+        let target = FormatIdentity {
+            content_type: Some(CSV_CONTENT_TYPE.to_owned()),
+            schema: Some(CSV_SCHEMA_URI.to_owned()),
+            ..FormatIdentity::default()
+        };
+        let req = ConvertRequest {
+            input: source,
+            to_format: LayerFormat::Csv,
+            preserve_source_offsets: false,
+            context: ctx(),
+            target: Some(target),
+            target_scope: ScopeConfig {
+                cemt_formatter_profile: Some("compact".to_owned()),
+                ..ScopeConfig::default()
+            },
+            scheduler_scope_id: 0,
+        };
+
+        let resp = RealCemMlEngine::new().convert(req).unwrap();
+
+        assert!(
+            resp.diagnostics.is_empty(),
+            "JSON to CSV conversion should route through lifecycle and generic AST: {:?}",
+            resp.diagnostics
+        );
+        assert_eq!(
+            resp.conversion
+                .as_ref()
+                .and_then(|conversion| conversion.converter_id.as_deref()),
+            Some("generic-data-ast-to-csv-output")
+        );
+        assert_eq!(
+            resp.conversion
+                .as_ref()
+                .and_then(|conversion| conversion.implementation.as_deref()),
+            Some("generic-data-ast-stream-to-csv-output-pipeline")
+        );
+        let primary_bytes = resp.primary_bytes.as_ref().expect("CSV primary bytes");
+        assert_eq!(primary_bytes.content_type, CSV_CONTENT_TYPE);
+        assert_eq!(primary_bytes.schema.as_deref(), Some(CSV_SCHEMA_URI));
+        let output = std::str::from_utf8(&primary_bytes.bytes).unwrap();
+        assert_eq!(output, "name,active\nAda,true\n");
+    }
+
     #[derive(Debug, Clone, Copy)]
     struct DataFormatConversionCase {
         name: &'static str,
@@ -12359,41 +12661,32 @@ mod tests {
                 let resp = RealCemMlEngine::new()
                     .convert(data_format_convert_request(source, target))
                     .unwrap();
-                let conversion = resp.conversion.as_ref();
-                if resp.primary_bytes.is_some() {
-                    let conversion = conversion.unwrap_or_else(|| {
-                        panic!(
-                            "{} to {} succeeded without conversion metadata",
-                            source.name, target.name
-                        )
-                    });
-                    let converter_id = conversion.converter_id.as_deref().unwrap_or_default();
-                    let implementation = conversion.implementation.as_deref().unwrap_or_default();
-                    assert!(
-                        converter_id.starts_with("generic-data-ast-to-"),
-                        "{} to {} succeeded through non-generic converter `{converter_id}`",
-                        source.name,
-                        target.name
-                    );
-                    assert!(
-                        implementation.starts_with("generic-data-ast-stream-to-"),
-                        "{} to {} succeeded through non-generic implementation `{implementation}`",
-                        source.name,
-                        target.name
-                    );
-                    continue;
-                }
-
                 assert!(
-                    resp.diagnostics
-                        .iter()
-                        .any(|diagnostic| diagnostic.code
-                            == "cem.lifecycle.internal_ast_target_unsupported"
-                            && diagnostic.severity.is_hard_violation()),
-                    "{} to {} must either use the generic data AST stream or fail at the lifecycle AST export boundary: {:?}",
+                    resp.primary_bytes.is_some(),
+                    "{} to {} should complete through the generic data AST stream: {:?}",
                     source.name,
                     target.name,
                     resp.diagnostics
+                );
+                let conversion = resp.conversion.as_ref().unwrap_or_else(|| {
+                    panic!(
+                        "{} to {} succeeded without conversion metadata",
+                        source.name, target.name
+                    )
+                });
+                let converter_id = conversion.converter_id.as_deref().unwrap_or_default();
+                let implementation = conversion.implementation.as_deref().unwrap_or_default();
+                assert!(
+                    converter_id.starts_with("generic-data-ast-to-"),
+                    "{} to {} succeeded through non-generic converter `{converter_id}`",
+                    source.name,
+                    target.name
+                );
+                assert!(
+                    implementation.starts_with("generic-data-ast-stream-to-"),
+                    "{} to {} succeeded through non-generic implementation `{implementation}`",
+                    source.name,
+                    target.name
                 );
             }
         }

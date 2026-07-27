@@ -4,10 +4,16 @@ use crate::schema::registry::{CSV_CONTENT_TYPE, CSV_SCHEMA_URI};
 use crate::source::decode::Utf8Decoder;
 use crate::source::{ByteRange, BytesSource, EncodingDecoder, SourceId};
 use crate::source_map::{FrameSpan, SourceMapFrame, SourceMapStack, TransformKind};
-use serde_json::json;
+use crate::validation::generic_data::{
+    GenericDataDocumentAst, GenericDataMappingEntryAst, GenericDataSourceAst,
+    GenericDataSourceRangeAst, GenericDataStreamDocumentAst, GenericDataValueAst,
+};
+use serde_json::{json, Value};
 use std::collections::BTreeMap;
 
 const CSV_PACKAGE_ID: &str = "csv";
+pub const GENERIC_DATA_CSV_NESTED_VALUE_UNSUPPORTED_CODE: &str =
+    "cem.lifecycle.generic_data_csv_nested_value_unsupported";
 
 #[derive(Debug, Clone, Copy)]
 pub struct CsvSourceValidationRequest<'a> {
@@ -30,7 +36,7 @@ pub struct CsvDocumentAst {
 }
 
 impl CsvDocumentAst {
-    pub fn to_cemt_subject(&self) -> serde_json::Value {
+    pub fn to_cemt_subject(&self) -> Value {
         let mut table = serde_json::Map::new();
         table.insert("kind".to_owned(), json!("csv-table"));
         table.insert("source".to_owned(), self.source.to_cemt_subject());
@@ -44,7 +50,7 @@ impl CsvDocumentAst {
         table.insert("dialect".to_owned(), self.dialect.to_cemt_subject());
         table.insert(
             "parseFacts".to_owned(),
-            serde_json::Value::Array(
+            Value::Array(
                 self.parse_facts
                     .iter()
                     .map(CsvDocumentParseFact::to_cemt_subject)
@@ -53,7 +59,7 @@ impl CsvDocumentAst {
         );
         table.insert(
             "rows".to_owned(),
-            serde_json::Value::Array(
+            Value::Array(
                 self.rows
                     .iter()
                     .map(CsvRecordAst::to_cemt_subject)
@@ -63,7 +69,463 @@ impl CsvDocumentAst {
         if let Some(line_ending) = self.line_ending.as_deref() {
             table.insert("lineEnding".to_owned(), json!(line_ending));
         }
-        serde_json::Value::Object(table)
+        Value::Object(table)
+    }
+
+    pub fn to_generic_data_ast(&self) -> GenericDataDocumentAst {
+        let root = if self.header == "present" && !self.rows.is_empty() {
+            csv_records_to_generic_data_mapping_sequence(&self.rows)
+        } else {
+            csv_records_to_generic_data_row_sequence(&self.rows)
+        };
+        let source_range = root
+            .as_ref()
+            .map(|root| root.source_range().clone())
+            .unwrap_or_else(GenericDataSourceRangeAst::generated);
+        GenericDataDocumentAst {
+            source: GenericDataSourceAst {
+                uri: self.source.uri.clone(),
+                content_type: self.source.content_type.clone(),
+                media_type: self.source.media_type.clone(),
+                parameters: self.source.parameters.clone(),
+                byte_length: self.source.byte_length,
+            },
+            documents: vec![GenericDataStreamDocumentAst {
+                index: 0,
+                source_range,
+                root,
+            }],
+            line_ending: self.line_ending.clone(),
+        }
+    }
+}
+
+pub fn generic_data_ast_to_csv_cemt_subject(
+    ast: &GenericDataDocumentAst,
+) -> (Value, Vec<Diagnostic>) {
+    let mut diagnostics = Vec::new();
+    let roots = ast
+        .documents
+        .iter()
+        .filter_map(|document| document.root.as_ref())
+        .collect::<Vec<_>>();
+    let rows = if roots.len() == 1 {
+        generic_data_value_to_csv_rows(roots[0], &ast.source.uri, &mut diagnostics)
+    } else {
+        generic_data_values_to_csv_rows(&roots, &ast.source.uri, &mut diagnostics)
+    };
+    let header = if rows.header_present {
+        "present"
+    } else {
+        "absent"
+    };
+    let mut table = serde_json::Map::new();
+    table.insert("kind".to_owned(), json!("csv-table"));
+    table.insert("source".to_owned(), ast.source.to_cemt_subject());
+    table.insert("encoding".to_owned(), json!("utf-8"));
+    table.insert(
+        "encodingReport".to_owned(),
+        json!({
+            "normalizedCharset": "utf-8",
+            "decoderStatus": "decoded",
+        }),
+    );
+    table.insert("delimiter".to_owned(), json!(","));
+    table.insert("header".to_owned(), json!(header));
+    let mut dialect = serde_json::Map::new();
+    dialect.insert("delimiter".to_owned(), json!(","));
+    dialect.insert("quote".to_owned(), json!("\""));
+    dialect.insert("escape".to_owned(), json!("double-quote"));
+    dialect.insert("header".to_owned(), json!(header));
+    if let Some(line_ending) = ast.line_ending.as_deref() {
+        dialect.insert("lineEnding".to_owned(), json!(line_ending));
+        table.insert("lineEnding".to_owned(), json!(line_ending));
+    }
+    table.insert("dialect".to_owned(), Value::Object(dialect));
+    table.insert("parseFacts".to_owned(), Value::Array(Vec::new()));
+    table.insert("rows".to_owned(), Value::Array(rows.rows));
+    (Value::Object(table), diagnostics)
+}
+
+struct GenericDataCsvRows {
+    header_present: bool,
+    rows: Vec<Value>,
+}
+
+fn csv_records_to_generic_data_row_sequence(rows: &[CsvRecordAst]) -> Option<GenericDataValueAst> {
+    let source_range = csv_records_source_range(rows);
+    Some(GenericDataValueAst::Sequence {
+        source_range,
+        items: rows
+            .iter()
+            .map(|row| GenericDataValueAst::Sequence {
+                source_range: csv_source_range_to_generic_data_range(row.range),
+                items: row
+                    .fields
+                    .iter()
+                    .map(csv_field_to_generic_data_string)
+                    .collect(),
+            })
+            .collect(),
+    })
+}
+
+fn csv_records_to_generic_data_mapping_sequence(
+    rows: &[CsvRecordAst],
+) -> Option<GenericDataValueAst> {
+    let header = rows.first()?;
+    let source_range = csv_records_source_range(rows);
+    Some(GenericDataValueAst::Sequence {
+        source_range,
+        items: rows
+            .iter()
+            .skip(1)
+            .map(|row| GenericDataValueAst::Mapping {
+                source_range: csv_source_range_to_generic_data_range(row.range),
+                entries: row
+                    .fields
+                    .iter()
+                    .enumerate()
+                    .map(|(index, field)| {
+                        let key = header.fields.get(index).map_or_else(
+                            || GenericDataValueAst::String {
+                                source_range: GenericDataSourceRangeAst::generated(),
+                                value: format!("field{}", index + 1),
+                                lexeme: None,
+                                style: None,
+                            },
+                            csv_field_to_generic_data_string,
+                        );
+                        GenericDataMappingEntryAst {
+                            index,
+                            key,
+                            value: csv_field_to_generic_data_string(field),
+                            source_range: csv_source_range_to_generic_data_range(field.range),
+                        }
+                    })
+                    .collect(),
+            })
+            .collect(),
+    })
+}
+
+fn csv_field_to_generic_data_string(field: &CsvFieldAst) -> GenericDataValueAst {
+    GenericDataValueAst::String {
+        source_range: csv_source_range_to_generic_data_range(field.range),
+        value: field.value.clone(),
+        lexeme: None,
+        style: None,
+    }
+}
+
+fn csv_records_source_range(rows: &[CsvRecordAst]) -> GenericDataSourceRangeAst {
+    match (rows.first(), rows.last()) {
+        (Some(first), Some(last)) => csv_source_range_to_generic_data_range(CsvSourceRange {
+            start: first.range.start,
+            end: last.range.end,
+        }),
+        _ => GenericDataSourceRangeAst::generated(),
+    }
+}
+
+fn csv_source_range_to_generic_data_range(range: CsvSourceRange) -> GenericDataSourceRangeAst {
+    GenericDataSourceRangeAst {
+        byte_offset: range.start.byte_offset,
+        byte_length: range.byte_length(),
+        line: range.start.line,
+        column: range.start.column,
+        source_map: Some(range.source_map()),
+    }
+}
+
+fn generic_data_value_to_csv_rows(
+    value: &GenericDataValueAst,
+    uri: &str,
+    diagnostics: &mut Vec<Diagnostic>,
+) -> GenericDataCsvRows {
+    match value {
+        GenericDataValueAst::Mapping { entries, .. } => {
+            generic_data_mappings_to_csv_rows(&[entries], uri, diagnostics)
+        }
+        GenericDataValueAst::Sequence { items, .. } => {
+            if items
+                .iter()
+                .all(|item| matches!(item, GenericDataValueAst::Mapping { .. }))
+            {
+                let mappings = items
+                    .iter()
+                    .filter_map(|item| match item {
+                        GenericDataValueAst::Mapping { entries, .. } => Some(entries),
+                        _ => None,
+                    })
+                    .collect::<Vec<_>>();
+                return generic_data_mappings_to_csv_rows(&mappings, uri, diagnostics);
+            }
+            let has_mapping = items
+                .iter()
+                .any(|item| matches!(item, GenericDataValueAst::Mapping { .. }));
+            if has_mapping {
+                diagnostics.push(generic_data_csv_unsupported_diagnostic(
+                    uri,
+                    value.source_range(),
+                    "mixed mapping and non-mapping generic data sequences cannot be projected to CSV without a tabular schema",
+                ));
+                return GenericDataCsvRows {
+                    header_present: false,
+                    rows: Vec::new(),
+                };
+            }
+            GenericDataCsvRows {
+                header_present: false,
+                rows: items
+                    .iter()
+                    .enumerate()
+                    .map(|(index, item)| {
+                        generic_data_value_to_csv_row(index, item, uri, diagnostics)
+                    })
+                    .collect(),
+            }
+        }
+        _ => GenericDataCsvRows {
+            header_present: false,
+            rows: vec![generic_data_scalar_to_csv_row(0, value, uri, diagnostics)],
+        },
+    }
+}
+
+fn generic_data_values_to_csv_rows(
+    values: &[&GenericDataValueAst],
+    uri: &str,
+    diagnostics: &mut Vec<Diagnostic>,
+) -> GenericDataCsvRows {
+    if values
+        .iter()
+        .all(|value| matches!(value, GenericDataValueAst::Mapping { .. }))
+    {
+        let mappings = values
+            .iter()
+            .filter_map(|value| match value {
+                GenericDataValueAst::Mapping { entries, .. } => Some(entries),
+                _ => None,
+            })
+            .collect::<Vec<_>>();
+        return generic_data_mappings_to_csv_rows(&mappings, uri, diagnostics);
+    }
+    if values
+        .iter()
+        .any(|value| matches!(value, GenericDataValueAst::Mapping { .. }))
+    {
+        let generated_range = GenericDataSourceRangeAst::generated();
+        diagnostics.push(generic_data_csv_unsupported_diagnostic(
+            uri,
+            values
+                .first()
+                .map(|value| value.source_range())
+                .unwrap_or(&generated_range),
+            "mixed mapping and non-mapping generic data documents cannot be projected to CSV without a tabular schema",
+        ));
+        return GenericDataCsvRows {
+            header_present: false,
+            rows: Vec::new(),
+        };
+    }
+    GenericDataCsvRows {
+        header_present: false,
+        rows: values
+            .iter()
+            .enumerate()
+            .map(|(index, value)| generic_data_value_to_csv_row(index, value, uri, diagnostics))
+            .collect(),
+    }
+}
+
+fn generic_data_mappings_to_csv_rows(
+    mappings: &[&Vec<GenericDataMappingEntryAst>],
+    uri: &str,
+    diagnostics: &mut Vec<Diagnostic>,
+) -> GenericDataCsvRows {
+    let mut header_names = Vec::<(String, GenericDataSourceRangeAst)>::new();
+    for entries in mappings {
+        for entry in entries.iter() {
+            let name = generic_data_value_to_csv_scalar_text(&entry.key, uri, diagnostics);
+            if !header_names.iter().any(|(existing, _)| existing == &name) {
+                header_names.push((name, entry.key.source_range().clone()));
+            }
+        }
+    }
+
+    let mut rows = Vec::new();
+    rows.push(generic_data_header_row_to_csv_row(&header_names));
+    rows.extend(mappings.iter().enumerate().map(|(row_offset, entries)| {
+        generic_data_mapping_to_csv_row(row_offset + 1, &header_names, entries, uri, diagnostics)
+    }));
+    GenericDataCsvRows {
+        header_present: true,
+        rows,
+    }
+}
+
+fn generic_data_header_row_to_csv_row(
+    header_names: &[(String, GenericDataSourceRangeAst)],
+) -> Value {
+    let source_range = header_names
+        .first()
+        .map(|(_, range)| range.clone())
+        .unwrap_or_else(GenericDataSourceRangeAst::generated);
+    csv_cemt_row(
+        0,
+        &source_range,
+        header_names
+            .iter()
+            .enumerate()
+            .map(|(index, (name, range))| csv_cemt_field(index, name, range))
+            .collect(),
+    )
+}
+
+fn generic_data_mapping_to_csv_row(
+    row_index: usize,
+    header_names: &[(String, GenericDataSourceRangeAst)],
+    entries: &[GenericDataMappingEntryAst],
+    uri: &str,
+    diagnostics: &mut Vec<Diagnostic>,
+) -> Value {
+    let source_range = entries
+        .first()
+        .map(|entry| entry.source_range.clone())
+        .unwrap_or_else(GenericDataSourceRangeAst::generated);
+    let fields = header_names
+        .iter()
+        .enumerate()
+        .map(|(field_index, (header, _))| {
+            let value = entries
+                .iter()
+                .find(|entry| {
+                    generic_data_value_to_csv_scalar_text(&entry.key, uri, diagnostics) == *header
+                })
+                .map(|entry| {
+                    (
+                        generic_data_value_to_csv_scalar_text(&entry.value, uri, diagnostics),
+                        entry.value.source_range().clone(),
+                    )
+                })
+                .unwrap_or_else(|| ("".to_owned(), GenericDataSourceRangeAst::generated()));
+            csv_cemt_field(field_index, &value.0, &value.1)
+        })
+        .collect();
+    csv_cemt_row(row_index, &source_range, fields)
+}
+
+fn generic_data_value_to_csv_row(
+    row_index: usize,
+    value: &GenericDataValueAst,
+    uri: &str,
+    diagnostics: &mut Vec<Diagnostic>,
+) -> Value {
+    match value {
+        GenericDataValueAst::Sequence {
+            source_range,
+            items,
+        } => csv_cemt_row(
+            row_index,
+            source_range,
+            items
+                .iter()
+                .enumerate()
+                .map(|(field_index, item)| {
+                    let value = generic_data_value_to_csv_scalar_text(item, uri, diagnostics);
+                    csv_cemt_field(field_index, &value, item.source_range())
+                })
+                .collect(),
+        ),
+        _ => generic_data_scalar_to_csv_row(row_index, value, uri, diagnostics),
+    }
+}
+
+fn generic_data_scalar_to_csv_row(
+    row_index: usize,
+    value: &GenericDataValueAst,
+    uri: &str,
+    diagnostics: &mut Vec<Diagnostic>,
+) -> Value {
+    let field_value = generic_data_value_to_csv_scalar_text(value, uri, diagnostics);
+    csv_cemt_row(
+        row_index,
+        value.source_range(),
+        vec![csv_cemt_field(0, &field_value, value.source_range())],
+    )
+}
+
+fn generic_data_value_to_csv_scalar_text(
+    value: &GenericDataValueAst,
+    uri: &str,
+    diagnostics: &mut Vec<Diagnostic>,
+) -> String {
+    match value {
+        GenericDataValueAst::String { value, .. } => value.clone(),
+        GenericDataValueAst::Number { lexeme, .. } => lexeme.clone(),
+        GenericDataValueAst::Boolean { value, .. } => value.to_string(),
+        GenericDataValueAst::Null { .. } => String::new(),
+        GenericDataValueAst::Alias { alias, .. } => alias.clone().unwrap_or_default(),
+        GenericDataValueAst::Mapping { source_range, .. }
+        | GenericDataValueAst::Sequence { source_range, .. } => {
+            diagnostics.push(generic_data_csv_unsupported_diagnostic(
+                uri,
+                source_range,
+                "nested generic data values cannot be projected to a CSV field without an explicit flattening schema",
+            ));
+            String::new()
+        }
+    }
+}
+
+fn csv_cemt_row(
+    index: usize,
+    source_range: &GenericDataSourceRangeAst,
+    fields: Vec<Value>,
+) -> Value {
+    json!({
+        "index": index,
+        "fieldCount": fields.len(),
+        "byteOffset": source_range.byte_offset,
+        "byteLength": source_range.byte_length,
+        "sourceRange": source_range.to_cemt_subject(),
+        "sourceMap": source_range.source_map_subject(),
+        "fields": fields,
+    })
+}
+
+fn csv_cemt_field(index: usize, value: &str, source_range: &GenericDataSourceRangeAst) -> Value {
+    json!({
+        "index": index,
+        "value": value,
+        "quoted": false,
+        "byteOffset": source_range.byte_offset,
+        "byteLength": source_range.byte_length,
+        "sourceRange": source_range.to_cemt_subject(),
+        "sourceMap": source_range.source_map_subject(),
+    })
+}
+
+fn generic_data_csv_unsupported_diagnostic(
+    uri: &str,
+    source_range: &GenericDataSourceRangeAst,
+    message: impl Into<String>,
+) -> Diagnostic {
+    Diagnostic {
+        uri: Some(uri.to_owned()),
+        code: GENERIC_DATA_CSV_NESTED_VALUE_UNSUPPORTED_CODE.to_owned(),
+        severity: Severity::Fatal,
+        message: message.into(),
+        details: Some(json!({
+            "sourceRange": source_range.to_cemt_subject(),
+            "sourceMap": source_range.source_map_subject(),
+            "target": {
+                "contentType": CSV_CONTENT_TYPE,
+                "schema": CSV_SCHEMA_URI,
+            },
+        })),
+        ..Diagnostic::default()
     }
 }
 
