@@ -4397,54 +4397,18 @@ fn collect_cem_ql_source_diagnostics(
 ) -> Vec<cem_ml::diagnostics::Diagnostic> {
     let mut diagnostics = Vec::new();
     for input in inputs {
-        let Ok(source) = std::str::from_utf8(&input.bytes) else {
-            diagnostics.push(cem_ql_invalid_utf8_diagnostic(input));
-            continue;
-        };
-
-        if is_cem_ql_expression_source_input(input) {
-            let mut input_diagnostics = Vec::new();
-            let context = cem_ql::api::StandaloneExpressionContext::default()
-                .with_input(cem_ql::eval::ItemStream::empty(), cem_ql::types::Type::Any);
-            match cem_ql::api::compile_expression(source, &context) {
-                Ok(compiled) => {
-                    input_diagnostics.extend(compiled.diagnostics);
-                }
-                Err(error) => {
-                    input_diagnostics.extend(error.diagnostics);
-                }
-            }
-            finish_cem_ql_source_diagnostics(input, &mut input_diagnostics);
-            diagnostics.extend(input_diagnostics);
-            continue;
-        }
-
-        let mut input_diagnostics = Vec::new();
-        let parsed = cem_ql::api::parse(source);
-        if !parsed.module.nodes.iter().any(|node| {
-            matches!(
-                node,
-                cem_ql::parser::SurfaceNode::Module(module) if !module.uri.trim().is_empty()
-            )
-        }) {
-            input_diagnostics.push(cem_ql_module_uri_missing_diagnostic(input));
-        }
-        input_diagnostics.extend(
-            cem_ql::api::resolve_imports(&parsed.module, &cem_ql::resolve::ImportPolicy::new())
-                .into_iter(),
-        );
-        input_diagnostics.extend(parsed.diagnostics);
-        if !input_diagnostics
-            .iter()
-            .any(|diagnostic| diagnostic.severity.is_hard_violation())
-        {
-            input_diagnostics.extend(
-                cem_ql::api::type_check(&parsed.module, &cem_ql::api::CompileContext::default())
-                    .into_iter(),
-            );
-        }
-        finish_cem_ql_source_diagnostics(input, &mut input_diagnostics);
-        diagnostics.extend(input_diagnostics);
+        let identity = input
+            .identity
+            .clone()
+            .unwrap_or_else(|| input.root_scope.format_identity());
+        diagnostics.extend(cem_ml_transform_cem_ql::validate_cem_ql_source_bytes(
+            cem_ml_transform_cem_ql::CemQlSourceValidationRequest {
+                bytes: &input.bytes,
+                source_uri: &input.uri,
+                content_type: identity.content_type.as_deref(),
+                schema: identity.schema.as_deref(),
+            },
+        ));
     }
     diagnostics
 }
@@ -4504,28 +4468,6 @@ fn is_cem_ql_expression_source_input(input: &eng::EngineInput) -> bool {
         })
         || identity.schema.as_deref().map(str::trim)
             == Some(cem_ml::schema::registry::CEM_QL_EXPRESSION_SCHEMA_URI)
-}
-
-fn cem_ql_invalid_utf8_diagnostic(input: &eng::EngineInput) -> cem_ml::diagnostics::Diagnostic {
-    cem_ml::diagnostics::Diagnostic {
-        uri: Some(input.uri.clone()),
-        code: "cem.ql.invalid_utf8".to_owned(),
-        severity: cem_ml::diagnostics::Severity::Error,
-        message: "CEM-QL source must be valid UTF-8".to_owned(),
-        ..cem_ml::diagnostics::Diagnostic::default()
-    }
-}
-
-fn cem_ql_module_uri_missing_diagnostic(
-    _input: &eng::EngineInput,
-) -> cem_ml::diagnostics::Diagnostic {
-    cem_ml::diagnostics::Diagnostic {
-        uri: None,
-        code: "cem.ql.module_uri_missing".to_owned(),
-        severity: cem_ml::diagnostics::Severity::Error,
-        message: "CEM-QL module source requires a `module \"...\"` URI declaration".to_owned(),
-        ..cem_ml::diagnostics::Diagnostic::default()
-    }
 }
 
 fn collect_json_source_diagnostics(

@@ -77,6 +77,14 @@ pub const CEM_QL_EXPRESSION_TEMPLATE_ADAPTER_ID: &str = "cem-ql-expression-templ
 pub const XSLT_PARITY_TEMPLATE_ADAPTER_ID: &str = "cem-ql-xslt-parity-template";
 const TRANSFORM_CALL_NODE: &str = "__cem_transform_call";
 
+#[derive(Debug, Clone, Copy)]
+pub struct CemQlSourceValidationRequest<'a> {
+    pub bytes: &'a [u8],
+    pub source_uri: &'a str,
+    pub content_type: Option<&'a str>,
+    pub schema: Option<&'a str>,
+}
+
 #[derive(Debug, Clone, Default)]
 pub struct CemQlTransformTemplateAdapter;
 
@@ -2486,6 +2494,77 @@ fn cem_ql_legacy_replacement(token: &str) -> &'static str {
     }
 }
 
+pub fn validate_cem_ql_source_bytes(request: CemQlSourceValidationRequest<'_>) -> Vec<Diagnostic> {
+    let Ok(source) = std::str::from_utf8(request.bytes) else {
+        return vec![cem_ql_invalid_utf8_diagnostic(request.source_uri)];
+    };
+
+    let mut diagnostics = if cem_ql_source_validation_request_is_expression(&request) {
+        let context =
+            StandaloneExpressionContext::default().with_input(ItemStream::empty(), Type::Any);
+        match compile_expression(source, &context) {
+            Ok(compiled) => compiled.diagnostics,
+            Err(error) => error.diagnostics,
+        }
+    } else {
+        let mut diagnostics = Vec::new();
+        let parsed = cem_ql::api::parse(source);
+        if !parsed.module.nodes.iter().any(|node| {
+            matches!(
+                node,
+                SurfaceNode::Module(module) if !module.uri.trim().is_empty()
+            )
+        }) {
+            diagnostics.push(cem_ql_module_uri_missing_diagnostic(request.source_uri));
+        }
+        diagnostics.extend(
+            cem_ql::api::resolve_imports(&parsed.module, &cem_ql::resolve::ImportPolicy::new())
+                .into_iter(),
+        );
+        diagnostics.extend(parsed.diagnostics);
+        if !diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.severity.is_hard_violation())
+        {
+            diagnostics.extend(
+                cem_ql::api::type_check(&parsed.module, &CompileContext::default()).into_iter(),
+            );
+        }
+        diagnostics
+    };
+
+    finish_cem_ql_source_validation_diagnostics(
+        request.source_uri,
+        request.bytes,
+        &mut diagnostics,
+    );
+    diagnostics
+}
+
+fn cem_ql_source_validation_request_is_expression(
+    request: &CemQlSourceValidationRequest<'_>,
+) -> bool {
+    request
+        .content_type
+        .map(content_type_essence)
+        .is_some_and(|content_type| {
+            content_type == cem_ml::schema::registry::CEM_QL_EXPRESSION_CONTENT_TYPE
+        })
+        || request.schema.map(str::trim)
+            == Some(cem_ml::schema::registry::CEM_QL_EXPRESSION_SCHEMA_URI)
+}
+
+fn finish_cem_ql_source_validation_diagnostics(
+    source_uri: &str,
+    bytes: &[u8],
+    diagnostics: &mut [Diagnostic],
+) {
+    cem_ml::diagnostics::project_diagnostics_for_source(diagnostics, bytes);
+    for diagnostic in diagnostics {
+        diagnostic.uri.get_or_insert_with(|| source_uri.to_owned());
+    }
+}
+
 fn cem_ql_parse_diagnostics(input_uri: &str, parsed: &ParseResult) -> Vec<Diagnostic> {
     let mut diagnostics = Vec::new();
     if !parsed.module.nodes.iter().any(|node| {
@@ -4140,6 +4219,57 @@ mod tests {
     );
     const SCHEMA_PACKAGE_SCHEMA: &str =
         include_str!("../../cem_ml/schema-packages/schema-package/v1/schema/schema-package.cem");
+
+    fn has_diagnostic_code(diagnostics: &[Diagnostic], code: &str) -> bool {
+        diagnostics.iter().any(|diagnostic| diagnostic.code == code)
+    }
+
+    #[test]
+    fn cem_ql_source_validator_accepts_module_source() {
+        let diagnostics = validate_cem_ql_source_bytes(CemQlSourceValidationRequest {
+            bytes: br#"module "https://example.test/queries/main"
+
+declare let count = 2
+
+count + 1"#,
+            source_uri: "fixture.cemql",
+            content_type: Some(CEM_QL_CONTENT_TYPE),
+            schema: Some(CEM_QL_SCHEMA_URI),
+        });
+
+        assert!(diagnostics.is_empty(), "{diagnostics:?}");
+    }
+
+    #[test]
+    fn cem_ql_source_validator_reports_expression_parse_error_without_module_uri() {
+        let diagnostics = validate_cem_ql_source_bytes(CemQlSourceValidationRequest {
+            bytes: b"input +",
+            source_uri: "fixture.cemql",
+            content_type: Some(cem_ml::schema::registry::CEM_QL_EXPRESSION_CONTENT_TYPE),
+            schema: Some(cem_ml::schema::registry::CEM_QL_EXPRESSION_SCHEMA_URI),
+        });
+
+        assert!(has_diagnostic_code(&diagnostics, "cem.ql.parse_error"));
+        assert!(!has_diagnostic_code(
+            &diagnostics,
+            "cem.ql.module_uri_missing"
+        ));
+        assert!(diagnostics
+            .iter()
+            .all(|diagnostic| diagnostic.uri.as_deref() == Some("fixture.cemql")));
+    }
+
+    #[test]
+    fn cem_ql_source_validator_reports_invalid_utf8() {
+        let diagnostics = validate_cem_ql_source_bytes(CemQlSourceValidationRequest {
+            bytes: b"module \"https://example.test/queries/invalid\"\n\n\xff",
+            source_uri: "fixture.cemql",
+            content_type: Some(CEM_QL_CONTENT_TYPE),
+            schema: Some(CEM_QL_SCHEMA_URI),
+        });
+
+        assert!(has_diagnostic_code(&diagnostics, "cem.ql.invalid_utf8"));
+    }
 
     fn packaged_dom_projection_artifact(value: Value) -> TransformTemplateDataArtifact {
         TransformTemplateDataArtifact {

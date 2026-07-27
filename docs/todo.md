@@ -105,9 +105,14 @@ Current active slice: generic data AST stream bridge alignment.
       validators; CLI direct validation and schema-package example validation
       now both delegate through the same bytes, URI, content type, and
       source-map diagnostic boundary.
-- [ ] Move CLI-owned source validation collectors for CEM-QL and
-      native-template behind engine lifecycle adapters, or prove each collector
-      consumes the same imported DOM/AST and source-map model as
+- [x] Move the CEM-QL source validation collector out of CLI-owned parser
+      dispatch and into the `cem_ml_transform_cem_ql` bridge crate, preserving
+      module and expression validation through the CEM-QL parser/compiler,
+      import resolution, type checking, source-map diagnostic projection, and
+      the existing `cem_ml`/`cem_ql` dependency boundary.
+- [ ] Move the native-template source validation collector behind engine
+      lifecycle adapters, or prove it consumes the same imported DOM/AST,
+      embedded CEM-QL expression diagnostics, and source-map model as
       `RealCemMlEngine`.
 - [x] Fix the CEM-ML `ast` projection so it no longer aliases `dom_json`:
       replace `projection::ast_json` with a source-map-bearing typed CEM
