@@ -95,6 +95,7 @@
                     "cargo test -p cem-ml builtin_yaml_lifecycle_output_pipeline -- --nocapture",
                     "cargo test -p cem-ml builtin_yaml_formatter_profiles_execute_package_cemt_assets -- --nocapture",
                     "cargo test -p cem-ml builtin_yaml_colorizer_profiles_execute_package_cemt_assets -- --nocapture",
+                    "cargo test -p cem-ml data_format_cross_conversions_require_generic_ast_stream_boundary -- --nocapture",
                     "cargo test -p cem-ml-cli convert_yaml_same_schema_uses_lifecycle_output_pipeline -- --nocapture",
                     "node packages/cem_ml/schema-packages/yaml/v1/scripts/verify-previews.mjs"
                 ],

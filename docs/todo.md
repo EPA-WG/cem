@@ -74,7 +74,7 @@ Current active slice: generic data AST stream bridge alignment.
 - [ ] Apply the same generic AST stream boundary to CSV and every future
       data-format content conversion, so new formats add source and target
       adapters around the generic boundary instead of direct pair converters.
-- [ ] Add conversion-boundary validation coverage that fails when any
+- [x] Add conversion-boundary validation coverage that fails when any
       content-type conversion directly couples two concrete data formats
       without the generic AST stream between them, including JSON, YAML, CSV,
       and future JavaScript object-like formats.
@@ -553,9 +553,10 @@ Remaining dependency-ordered package checklist:
 
 ### Next Work Item
 
-Add conversion-boundary validation coverage that fails when content-type
-conversion directly couples concrete data formats without the generic AST stream
-between source package import and target package output.
+Apply the generic data AST stream boundary to CSV cross-format conversion so
+CSV can participate in data-format content conversion through source package
+import AST, the generic AST stream, and target package output instead of staying
+unsupported.
 
 ## Current Verification Commands
 

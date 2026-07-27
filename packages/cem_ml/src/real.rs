@@ -12281,6 +12281,124 @@ mod tests {
         assert!(output.contains("active: true"), "{output}");
     }
 
+    #[derive(Debug, Clone, Copy)]
+    struct DataFormatConversionCase {
+        name: &'static str,
+        bytes: &'static [u8],
+        uri: &'static str,
+        content_type: &'static str,
+        schema: &'static str,
+        layer_format: LayerFormat,
+    }
+
+    fn data_format_conversion_cases() -> [DataFormatConversionCase; 3] {
+        [
+            DataFormatConversionCase {
+                name: "json",
+                bytes: br#"{"name":"Ada","active":true}"#,
+                uri: "document.json",
+                content_type: JSON_CONTENT_TYPE,
+                schema: JSON_VALUE_SCHEMA_URI,
+                layer_format: LayerFormat::Json,
+            },
+            DataFormatConversionCase {
+                name: "yaml",
+                bytes: b"name: Ada\nactive: true\n",
+                uri: "document.yaml",
+                content_type: YAML_CONTENT_TYPE,
+                schema: YAML_SCHEMA_URI,
+                layer_format: LayerFormat::Yaml,
+            },
+            DataFormatConversionCase {
+                name: "csv",
+                bytes: b"id,name\n1,Ada\n",
+                uri: "table.csv",
+                content_type: CSV_CONTENT_TYPE,
+                schema: CSV_SCHEMA_URI,
+                layer_format: LayerFormat::Csv,
+            },
+        ]
+    }
+
+    fn data_format_convert_request(
+        source: DataFormatConversionCase,
+        target: DataFormatConversionCase,
+    ) -> ConvertRequest {
+        let mut input = input(source.bytes, source.uri);
+        input.identity = Some(FormatIdentity {
+            content_type: Some(source.content_type.to_owned()),
+            schema: Some(source.schema.to_owned()),
+            ..FormatIdentity::default()
+        });
+        ConvertRequest {
+            input,
+            to_format: target.layer_format,
+            preserve_source_offsets: false,
+            context: ctx(),
+            target: Some(FormatIdentity {
+                content_type: Some(target.content_type.to_owned()),
+                schema: Some(target.schema.to_owned()),
+                ..FormatIdentity::default()
+            }),
+            target_scope: ScopeConfig {
+                cemt_formatter_profile: Some("compact".to_owned()),
+                ..ScopeConfig::default()
+            },
+            scheduler_scope_id: 0,
+        }
+    }
+
+    #[test]
+    fn data_format_cross_conversions_require_generic_ast_stream_boundary() {
+        let formats = data_format_conversion_cases();
+        for source in formats {
+            for target in formats {
+                if source.name == target.name {
+                    continue;
+                }
+                let resp = RealCemMlEngine::new()
+                    .convert(data_format_convert_request(source, target))
+                    .unwrap();
+                let conversion = resp.conversion.as_ref();
+                if resp.primary_bytes.is_some() {
+                    let conversion = conversion.unwrap_or_else(|| {
+                        panic!(
+                            "{} to {} succeeded without conversion metadata",
+                            source.name, target.name
+                        )
+                    });
+                    let converter_id = conversion.converter_id.as_deref().unwrap_or_default();
+                    let implementation = conversion.implementation.as_deref().unwrap_or_default();
+                    assert!(
+                        converter_id.starts_with("generic-data-ast-to-"),
+                        "{} to {} succeeded through non-generic converter `{converter_id}`",
+                        source.name,
+                        target.name
+                    );
+                    assert!(
+                        implementation.starts_with("generic-data-ast-stream-to-"),
+                        "{} to {} succeeded through non-generic implementation `{implementation}`",
+                        source.name,
+                        target.name
+                    );
+                    continue;
+                }
+
+                assert!(
+                    resp.diagnostics
+                        .iter()
+                        .any(|diagnostic| diagnostic.code
+                            == "cem.lifecycle.internal_ast_target_unsupported"
+                            && diagnostic.severity.is_hard_violation()),
+                    "{} to {} must either use the generic data AST stream or fail at the lifecycle AST export boundary: {:?}",
+                    source.name,
+                    target.name,
+                    resp.diagnostics
+                );
+            }
+        }
+    }
+
     #[test]
     fn check_csv_source_reports_schema_owned_lifecycle_diagnostics() {
         let mut source = input(b"id,name\n1,\"Ada\n", "table.csv");

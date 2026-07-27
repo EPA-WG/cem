@@ -89,6 +89,7 @@
                     "cargo test -p cem-ml builtin_csv_colorizer_profiles_execute_package_cemt_assets --target-dir dist/target/cem_ml_cli",
                     "cargo test -p cem-ml builtin_csv_output_pipeline_renders_html_color_backend_with_terminal_text_parity --target-dir dist/target/cem_ml_cli",
                     "cargo test -p cem-ml builtin_csv_output_pipeline_generates_output_spans_from_formatter_tokens --target-dir dist/target/cem_ml_cli",
+                    "cargo test -p cem-ml data_format_cross_conversions_require_generic_ast_stream_boundary --target-dir dist/target/cem_ml_cli",
                     "node packages/cem_ml/schema-packages/csv/v1/scripts/verify-previews.mjs"
                 ],
                 "parallel": false,
