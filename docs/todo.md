@@ -122,11 +122,10 @@ Current active slice: generic data AST stream bridge alignment.
 - [x] Replace CSV native input/output stream carriers that still use
       `serde_json::Value` with typed CSV/CEMT AST models, leaving any
       dynamic lowering isolated to explicit CEMT adapter boundaries.
-- [ ] Fix or explicitly declare the reduced-fidelity contract for the CEM-ML
-      `dom-json` debug projection when callers expect source-map preservation:
-      `CemDocument` and the CEM tree AST stream preserve `SourceMapStack`, but
-      `projection::dom_json` omits `sourceMap` and can expose collapsed byte
-      ranges.
+- [x] Fix the CEM-ML `dom-json` debug projection source-map contract:
+      `projection::dom_json` now emits full `sourceMap` stacks for document,
+      element, attribute, and leaf nodes while preserving legacy `byteRange`
+      fields for compatibility.
 - [ ] Add regression coverage that every schema-package preview and validation
       path either uses the generic source import boundary or has an explicit
       tracked waiver with equivalent source-map and artifact metadata.

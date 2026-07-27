@@ -13234,6 +13234,10 @@ mod tests {
         };
         let resp = RealCemMlEngine::new().convert(req).unwrap();
         assert_eq!(resp.primary["kind"], "document");
+        assert!(resp.primary["sourceMap"]["frames"].as_array().is_some());
+        assert!(resp.primary["children"][0]["sourceMap"]["frames"]
+            .as_array()
+            .is_some());
         assert_eq!(resp.scheduler_trace.event_count, 9);
     }
 

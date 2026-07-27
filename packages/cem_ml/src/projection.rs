@@ -1051,17 +1051,22 @@ fn hex_encode(bytes: &[u8]) -> String {
 ///       "namespace": "",
 ///       "attributes": [{ "name": "cem:screen", "value": "login", "namespace": "cem" }],
 ///       "children": [...],
-///       "byteRange": { "start": 130, "len": 12 }
+///       "byteRange": { "start": 130, "len": 12 },
+///       "sourceMap": { "frames": [...] }
 ///     }
 ///   ]
 /// }
 /// ```
 pub fn dom_json(doc: &CemDocument) -> Value {
-    let root = doc.root().cloned();
-    match root {
-        Some(CemAstNode::Document { root_children, .. }) => json!({
+    match doc.root() {
+        Some(CemAstNode::Document {
+            root_children,
+            source,
+            ..
+        }) => json!({
             "kind": "document",
             "children": root_children.iter().filter_map(|id| project_node(doc, *id)).collect::<Vec<_>>(),
+            "sourceMap": source,
         }),
         _ => Value::Null,
     }
@@ -1344,11 +1349,13 @@ fn project_node(doc: &CemDocument, id: AstNodeId) -> Option<Value> {
                     CemAstNode::Attribute {
                         expanded_name,
                         value,
+                        source,
                         ..
                     } => Some(json!({
                         "name": expanded_name.local_name,
                         "namespace": expanded_name.namespace_uri,
                         "value": value,
+                        "sourceMap": source,
                     })),
                     _ => None,
                 })
@@ -1359,26 +1366,27 @@ fn project_node(doc: &CemDocument, id: AstNodeId) -> Option<Value> {
                 "namespace": expanded_name.namespace_uri,
                 "attributes": attrs,
                 "children": children.iter().filter_map(|cid| project_node(doc, *cid)).collect::<Vec<_>>(),
-                "byteRange": project_byte_range(source.frames.first().and_then(|f| match &f.span {
-                    crate::source_map::FrameSpan::Single(r) => Some(*r),
-                    crate::source_map::FrameSpan::Multi(rs) => rs.first().copied(),
-                })),
+                "byteRange": project_byte_range(stack_origin(source)),
+                "sourceMap": source,
             })
         }
         CemAstNode::Text { data, source, .. } => json!({
             "kind": "text",
             "data": data,
             "byteRange": project_byte_range(stack_origin(source)),
+            "sourceMap": source,
         }),
         CemAstNode::Whitespace { data, source, .. } => json!({
             "kind": "whitespace",
             "data": data,
             "byteRange": project_byte_range(stack_origin(source)),
+            "sourceMap": source,
         }),
         CemAstNode::Comment { data, source, .. } => json!({
             "kind": "comment",
             "data": data,
             "byteRange": project_byte_range(stack_origin(source)),
+            "sourceMap": source,
         }),
         CemAstNode::ProcessingInstruction {
             target,
@@ -1391,21 +1399,25 @@ fn project_node(doc: &CemDocument, id: AstNodeId) -> Option<Value> {
             "target": target,
             "data": data,
             "byteRange": project_byte_range(stack_origin(source)),
+            "sourceMap": source,
         }),
         CemAstNode::Cdata { data, source, .. } => json!({
             "kind": "cdata",
             "data": data,
             "byteRange": project_byte_range(stack_origin(source)),
+            "sourceMap": source,
         }),
         CemAstNode::RawText { data, source, .. } => json!({
             "kind": "raw-text",
             "data": data,
             "byteRange": project_byte_range(stack_origin(source)),
+            "sourceMap": source,
         }),
         CemAstNode::Error { code, source, .. } => json!({
             "kind": "error",
             "code": code,
             "byteRange": project_byte_range(stack_origin(source)),
+            "sourceMap": source,
         }),
         CemAstNode::Attribute { .. } => return None,
     };
@@ -1787,6 +1799,29 @@ mod tests {
         assert_eq!(attr["name"], "action");
         assert_eq!(attr["namespace"], "cem");
         assert_eq!(attr["value"], "primary");
+    }
+
+    #[test]
+    fn dom_json_preserves_source_maps_with_legacy_byte_ranges() {
+        let doc = parse(r#"{button @cem:action=primary | Save}"#);
+        let v = dom_json(&doc);
+        let button = v["children"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|c| c["name"] == "button")
+            .unwrap();
+        let attr = &button["attributes"][0];
+        let text = &button["children"][0];
+
+        assert!(v["sourceMap"]["frames"].is_array());
+        assert!(button["sourceMap"]["frames"].is_array());
+        assert!(attr["sourceMap"]["frames"].is_array());
+        assert!(text["sourceMap"]["frames"].is_array());
+        assert!(button["byteRange"]["start"].is_u64());
+        assert!(button["byteRange"]["len"].is_u64());
+        assert!(text["byteRange"]["start"].is_u64());
+        assert!(text["byteRange"]["len"].is_u64());
     }
 
     #[test]
