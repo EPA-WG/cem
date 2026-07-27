@@ -3,16 +3,130 @@
 @default transform
 
 {module @version="1.0.0" |
-    {color-function
-        @name="json.color-document"
-        @category="json-document"
-        @subject="tokens"
-        @produces="tokens"
-        @content-type="application/json"
-        @schema="https://cem.dev/ns/data/json/1"
-        @canonical=false
-        @deterministic=true
-        @streamable=true |
-        {param @name="subject" @type="array" @required=true}
+    {function @name="json.color-document.tree" @visibility="private" @returns="object" @deterministic=true |
+        {param @name="subject" @type="object" @required=true}
+        {param @name="profile" @type="string" @required=true}
+        {param @name="output" @type="string" @required=true}
+        {body |
+            {$ {
+                kind: "cem-tree",
+                contentType: "application/json",
+                schema: "https://cem.dev/ns/data/json/1",
+                category: "json-document",
+                formatterProfile: match(exists($subject.formatterProfile), {
+                    true: $subject.formatterProfile,
+                    false: "unknown"
+                }),
+                formatNodes: match(exists($subject.formatNodes), {
+                    true: $subject.formatNodes,
+                    false: []
+                }),
+                colorProfile: $profile,
+                colorOutput: $output,
+                colored: true,
+                colorNodes: [
+                    {
+                        kind: "color-marker",
+                        name: "json.color-document",
+                        colorizerRole: "colorizer.boundary",
+                        colorProfile: $profile,
+                        colorOutput: $output
+                    },
+                    {
+                        kind: "color-decision",
+                        name: "json.role-palette",
+                        colorizerRole: "colorizer.role",
+                        colorProfile: $profile,
+                        colorOutput: $output
+                    }
+                ],
+                nodes: map(
+                    match(exists($subject.nodes), {
+                        true: $subject.nodes,
+                        false: []
+                    }),
+                    call("json.color-document.token", {
+                        token: $item,
+                        profile: $profile,
+                        output: $output
+                    })
+                )
+            } }
+        }
+    }
+
+    {function @name="json.color-document.token" @visibility="private" @returns="object" @deterministic=true |
+        {param @name="token" @type="object" @required=true}
+        {param @name="profile" @type="string" @required=true}
+        {param @name="output" @type="string" @required=true}
+        {body |
+            {$ merge(
+                set($token, "value", merge(
+                    match(typeOf($token.value), {
+                        object: $token.value,
+                        default: {}
+                    }),
+                    {
+                        colorProfile: $profile,
+                        colorRole: call("json.color-document.role", { token: $token }),
+                        colorOutput: $output
+                    }
+                )),
+                {
+                    style: call("json.color-document.style", {
+                        token: $token,
+                        profile: $profile,
+                        role: call("json.color-document.role", { token: $token }),
+                        output: $output
+                    })
+                }
+            ) }
+        }
+    }
+
+    {function @name="json.color-document.role" @visibility="private" @returns="string" @deterministic=true |
+        {param @name="token" @type="object" @required=true}
+        {body |
+            {$ match(typeOf($token.role), {
+                string: $token.role,
+                default: match(typeOf($token.style.colorRole), {
+                    string: $token.style.colorRole,
+                    default: "syntax.raw"
+                })
+            }) }
+        }
+    }
+
+    {function @name="json.color-document.style" @visibility="private" @returns="object" @deterministic=true |
+        {param @name="token" @type="object" @required=true}
+        {param @name="profile" @type="string" @required=true}
+        {param @name="role" @type="string" @required=true}
+        {param @name="output" @type="string" @required=true}
+        {body |
+            {$ match($profile, {
+                html: {
+                    colorRole: $role,
+                    colorProfile: $profile,
+                    colorOutput: $output,
+                    htmlMode: "classes",
+                    class: concat("cem-color cem-color-", replace($role, ".", "-")),
+                    color: concat("var(--cem-color-", concat(replace($role, ".", "-"), ")"))
+                },
+                md: {
+                    colorRole: $role,
+                    colorProfile: $profile,
+                    colorOutput: $output,
+                    wrapper: "span",
+                    class: concat("cem-color cem-color-", replace($role, ".", "-"))
+                },
+                default: {
+                    colorRole: $role,
+                    colorProfile: $profile,
+                    colorOutput: $output,
+                    terminalCapability: "auto",
+                    color: concat("terminal.", $role)
+                }
+            }) }
+        }
     }
 }

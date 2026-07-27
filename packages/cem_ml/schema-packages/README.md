@@ -268,7 +268,10 @@ expression transformation file.
 `json/v1` defines generic JSON text resource identity. It owns
 `application/json` and claims `text/json` as an alias. JSON source is not
 CEM-ML syntax, and this package intentionally does not claim JSON Schema or
-CEM-specific projection/vendor `+json` content types.
+CEM-specific projection/vendor `+json` content types. JSON same-schema output
+uses typed lifecycle AST subjects and package CEMT formatter/colorizer assets,
+not a generic JSON value writer, so duplicate members and source-map metadata
+remain available to the output pipeline.
 
 `yaml/v1` defines generic YAML resource identity. It owns `application/yaml`
 and claims the common compatibility aliases `application/x-yaml`, `text/yaml`,

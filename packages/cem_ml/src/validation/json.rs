@@ -63,17 +63,6 @@ impl JsonDocumentAst {
     pub fn to_json_value(&self) -> Option<Value> {
         self.root.as_ref().map(JsonValueAst::to_json_value)
     }
-
-    pub fn to_json_text(&self, formatter_profile: &str) -> String {
-        let style = JsonWriterStyle {
-            pretty: matches!(formatter_profile, "pretty" | "tabular"),
-            indent_width: 2,
-        };
-        self.root
-            .as_ref()
-            .map(|root| root.to_json_text(style, 0))
-            .unwrap_or_else(|| "null".to_owned())
-    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -222,6 +211,7 @@ impl JsonDocumentParseFact {
 pub struct JsonMemberAst {
     pub index: usize,
     pub name: String,
+    pub name_lexeme: String,
     pub name_range: JsonSourceRange,
     pub range: JsonSourceRange,
     pub value: JsonValueAst,
@@ -232,6 +222,7 @@ impl JsonMemberAst {
         json!({
             "index": self.index,
             "name": self.name,
+            "nameLexeme": self.name_lexeme,
             "nameSourceRange": self.name_range.to_cemt_subject(),
             "nameSourceMap": self.name_range.source_map(),
             "sourceRange": self.range.to_cemt_subject(),
@@ -357,81 +348,6 @@ impl JsonValueAst {
             Self::Null { .. } => {}
         }
         Value::Object(value)
-    }
-
-    fn to_json_text(&self, style: JsonWriterStyle, depth: usize) -> String {
-        match self {
-            Self::Object { members, .. } => {
-                if members.is_empty() {
-                    return "{}".to_owned();
-                }
-                if !style.pretty {
-                    let fields = members
-                        .iter()
-                        .map(|member| {
-                            format!(
-                                "{}:{}",
-                                json_string_literal(&member.name),
-                                member.value.to_json_text(style, depth + 1)
-                            )
-                        })
-                        .collect::<Vec<_>>()
-                        .join(",");
-                    return format!("{{{fields}}}");
-                }
-                let child_indent = style.indent(depth + 1);
-                let closing_indent = style.indent(depth);
-                let fields = members
-                    .iter()
-                    .map(|member| {
-                        format!(
-                            "{child_indent}{}: {}",
-                            json_string_literal(&member.name),
-                            member.value.to_json_text(style, depth + 1)
-                        )
-                    })
-                    .collect::<Vec<_>>()
-                    .join(",\n");
-                format!("{{\n{fields}\n{closing_indent}}}")
-            }
-            Self::Array { items, .. } => {
-                if items.is_empty() {
-                    return "[]".to_owned();
-                }
-                if !style.pretty {
-                    let values = items
-                        .iter()
-                        .map(|item| item.to_json_text(style, depth + 1))
-                        .collect::<Vec<_>>()
-                        .join(",");
-                    return format!("[{values}]");
-                }
-                let child_indent = style.indent(depth + 1);
-                let closing_indent = style.indent(depth);
-                let values = items
-                    .iter()
-                    .map(|item| format!("{child_indent}{}", item.to_json_text(style, depth + 1)))
-                    .collect::<Vec<_>>()
-                    .join(",\n");
-                format!("[\n{values}\n{closing_indent}]")
-            }
-            Self::String { value, .. } => json_string_literal(value),
-            Self::Number { lexeme, .. } => lexeme.clone(),
-            Self::Boolean { value, .. } => value.to_string(),
-            Self::Null { .. } => "null".to_owned(),
-        }
-    }
-}
-
-#[derive(Debug, Clone, Copy)]
-struct JsonWriterStyle {
-    pretty: bool,
-    indent_width: usize,
-}
-
-impl JsonWriterStyle {
-    fn indent(self, depth: usize) -> String {
-        " ".repeat(self.indent_width.saturating_mul(depth))
     }
 }
 
@@ -848,6 +764,7 @@ impl<'a> JsonParser<'a> {
             members.push(JsonMemberAst {
                 index: members.len(),
                 name: key.value,
+                name_lexeme: key.lexeme,
                 name_range: key.range,
                 range: member_range,
                 value,
@@ -1148,10 +1065,6 @@ fn json_content_type_essence(content_type: &str) -> String {
         .to_ascii_lowercase()
 }
 
-fn json_string_literal(value: &str) -> String {
-    serde_json::to_string(value).expect("JSON string serialization should not fail")
-}
-
 fn json_detect_line_ending_style(source: &str) -> Option<&'static str> {
     let has_crlf = source.contains("\r\n");
     let has_lone_cr = source
@@ -1219,9 +1132,12 @@ mod tests {
                 .and_then(Value::as_str),
             Some("duplicate-member-name")
         );
-        assert_eq!(
-            document.expect("JSON document AST").to_json_text("compact"),
-            r#"{"name":"Ada","name":"Lin"}"#
-        );
+        let document = document.expect("JSON document AST");
+        let root = document.root.as_ref().expect("JSON document root");
+        let JsonValueAst::Object { members, .. } = root else {
+            panic!("duplicate-member fixture root should be object");
+        };
+        assert_eq!(members[0].name_lexeme, r#""name""#);
+        assert_eq!(members[1].name_lexeme, r#""name""#);
     }
 }

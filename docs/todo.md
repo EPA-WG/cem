@@ -498,7 +498,7 @@ Remaining dependency-ordered package checklist:
         engine same-schema conversion coverage, and CLI same-schema coverage.
   - [x] Expand JSON README Verification, Release Behavior, and tracked
         incomplete-work sections.
-  - [ ] Move JSON formatter/colorizer CEMT assets from shared `json`/`tokens`
+  - [x] Move JSON formatter/colorizer CEMT assets from shared `json`/`tokens`
         stubs to typed JSON document/CEM-tree boundaries, covering compact,
         pretty, tabular, terminal, HTML, and Markdown semantics.
   - [ ] Add JSON README/SVG preview drift checks after package-owned JSON

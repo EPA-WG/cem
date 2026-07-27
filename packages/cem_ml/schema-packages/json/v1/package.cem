@@ -15,7 +15,7 @@
 
     {artifact
         @kind="formatter"
-        @path="formatters/json-format-document.cemt"
+        @path="formatters/compact.cemt"
         @content-type="application/vnd.cem.transform+cem"
         @schema="https://cem.dev/ns/transform/cem/1"
         @target-content-type="application/json"
@@ -27,7 +27,7 @@
 
     {artifact
         @kind="formatter"
-        @path="formatters/json-format-document.cemt"
+        @path="formatters/pretty.cemt"
         @content-type="application/vnd.cem.transform+cem"
         @schema="https://cem.dev/ns/transform/cem/1"
         @target-content-type="application/json"
@@ -39,7 +39,7 @@
 
     {artifact
         @kind="formatter"
-        @path="formatters/json-format-document.cemt"
+        @path="formatters/tabular.cemt"
         @content-type="application/vnd.cem.transform+cem"
         @schema="https://cem.dev/ns/transform/cem/1"
         @target-content-type="application/json"
@@ -50,8 +50,18 @@
     }
 
     {artifact
+        @kind="formatter-helper"
+        @path="formatters/json-format-document.cemt"
+        @content-type="application/vnd.cem.transform+cem"
+        @schema="https://cem.dev/ns/transform/cem/1"
+        @target-content-type="application/json"
+        @target-schema="https://cem.dev/ns/data/json/1"
+        @target-category="json-document"
+    }
+
+    {artifact
         @kind="colorizer"
-        @path="colorizers/json-color-document.cemt"
+        @path="colorizers/terminal.cemt"
         @content-type="application/vnd.cem.transform+cem"
         @schema="https://cem.dev/ns/transform/cem/1"
         @target-content-type="application/json"
@@ -63,7 +73,7 @@
 
     {artifact
         @kind="colorizer"
-        @path="colorizers/json-color-document.cemt"
+        @path="colorizers/html.cemt"
         @content-type="application/vnd.cem.transform+cem"
         @schema="https://cem.dev/ns/transform/cem/1"
         @target-content-type="application/json"
@@ -75,7 +85,7 @@
 
     {artifact
         @kind="colorizer"
-        @path="colorizers/json-color-document.cemt"
+        @path="colorizers/md.cemt"
         @content-type="application/vnd.cem.transform+cem"
         @schema="https://cem.dev/ns/transform/cem/1"
         @target-content-type="application/json"
@@ -83,6 +93,16 @@
         @target-category="json-document"
         @function-name="json.color-document"
         @color-profile="md"
+    }
+
+    {artifact
+        @kind="colorizer-helper"
+        @path="colorizers/json-color-document.cemt"
+        @content-type="application/vnd.cem.transform+cem"
+        @schema="https://cem.dev/ns/transform/cem/1"
+        @target-content-type="application/json"
+        @target-schema="https://cem.dev/ns/data/json/1"
+        @target-category="json-document"
     }
 
     {example

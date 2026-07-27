@@ -147,8 +147,38 @@ static BUILTIN_SCHEMA_PACKAGE_ARTIFACT_SOURCES: &[BuiltinSchemaPackageArtifactSo
     },
     BuiltinSchemaPackageArtifactSource {
         package_id: "json",
+        path: "schema-packages/json/v1/formatters/compact.cemt",
+        source: include_str!("../../schema-packages/json/v1/formatters/compact.cemt"),
+    },
+    BuiltinSchemaPackageArtifactSource {
+        package_id: "json",
+        path: "schema-packages/json/v1/formatters/pretty.cemt",
+        source: include_str!("../../schema-packages/json/v1/formatters/pretty.cemt"),
+    },
+    BuiltinSchemaPackageArtifactSource {
+        package_id: "json",
+        path: "schema-packages/json/v1/formatters/tabular.cemt",
+        source: include_str!("../../schema-packages/json/v1/formatters/tabular.cemt"),
+    },
+    BuiltinSchemaPackageArtifactSource {
+        package_id: "json",
         path: "schema-packages/json/v1/formatters/json-format-document.cemt",
         source: include_str!("../../schema-packages/json/v1/formatters/json-format-document.cemt"),
+    },
+    BuiltinSchemaPackageArtifactSource {
+        package_id: "json",
+        path: "schema-packages/json/v1/colorizers/terminal.cemt",
+        source: include_str!("../../schema-packages/json/v1/colorizers/terminal.cemt"),
+    },
+    BuiltinSchemaPackageArtifactSource {
+        package_id: "json",
+        path: "schema-packages/json/v1/colorizers/html.cemt",
+        source: include_str!("../../schema-packages/json/v1/colorizers/html.cemt"),
+    },
+    BuiltinSchemaPackageArtifactSource {
+        package_id: "json",
+        path: "schema-packages/json/v1/colorizers/md.cemt",
+        source: include_str!("../../schema-packages/json/v1/colorizers/md.cemt"),
     },
     BuiltinSchemaPackageArtifactSource {
         package_id: "json",
@@ -3250,21 +3280,37 @@ mod tests {
     fn catalog_exposes_json_output_artifact_sources() {
         let formatter = builtin_schema_package_artifact_source(
             "json",
-            "schema-packages/json/v1/formatters/json-format-document.cemt",
+            "schema-packages/json/v1/formatters/tabular.cemt",
         )
         .expect("JSON formatter source");
+        let formatter_helper = builtin_schema_package_artifact_source(
+            "json",
+            "schema-packages/json/v1/formatters/json-format-document.cemt",
+        )
+        .expect("JSON formatter helper source");
         let colorizer = builtin_schema_package_artifact_source(
+            "json",
+            "schema-packages/json/v1/colorizers/html.cemt",
+        )
+        .expect("JSON colorizer source");
+        let colorizer_helper = builtin_schema_package_artifact_source(
             "json",
             "schema-packages/json/v1/colorizers/json-color-document.cemt",
         )
-        .expect("JSON colorizer source");
+        .expect("JSON colorizer helper source");
 
         assert!(formatter.source.contains(r#"@name="json.format-document""#));
         assert!(formatter.source.contains(r#"@category="json-document""#));
+        assert!(formatter_helper
+            .source
+            .contains(r#"@name="json.format-document.tree""#));
         assert!(colorizer.source.contains(r#"@name="json.color-document""#));
         assert!(colorizer
             .source
             .contains(r#"@content-type="application/json""#));
+        assert!(colorizer_helper
+            .source
+            .contains(r#"@name="json.color-document.tree""#));
     }
 
     #[test]

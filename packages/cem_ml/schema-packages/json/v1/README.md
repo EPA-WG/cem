@@ -45,16 +45,16 @@ engine conversion, and CLI same-schema JSON regressions.
 `application/json`, `text/json`, and `https://cem.dev/ns/data/json/1` inputs
 are imported by a JSON lifecycle adapter into a CEM-owned typed AST stream with
 source ranges/source-map stacks. Same-schema JSON output consumes that typed AST
-stream and emits JSON through the lifecycle output boundary.
+stream and emits JSON through package-owned CEMT formatter/colorizer functions.
+Formatter profiles render typed `json-document` subjects into CEM tree
+artifacts; colorizer profiles consume CEM tree artifacts for terminal, HTML, and
+Markdown output.
 
 Cross JSON/YAML conversion still uses the generic data bridge until that bridge
 is moved onto the same typed import boundary.
 
 ## Tracked Incomplete Work
 
-- Move JSON formatter/colorizer CEMT assets from shared `json`/`tokens` stubs
-  to typed JSON document/CEM-tree package functions for compact, pretty,
-  tabular, terminal, HTML, and Markdown output.
 - Add JSON README/SVG preview drift checks once package-owned JSON formatter
   and colorizer bodies are expanded.
 - Move the generic JSON/YAML data bridge off `serde_json::Value` or prove it

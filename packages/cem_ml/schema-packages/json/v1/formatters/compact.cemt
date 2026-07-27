@@ -1,0 +1,21 @@
+@doc cem-ml 1
+@ns transform = "https://cem.dev/ns/transform/cem/1"
+@default transform
+
+{module @version="1.0.0" |
+    {format-function
+        @name="json.format-document"
+        @visibility="public"
+        @category="json-document"
+        @subject="json-document"
+        @produces="cem-tree"
+        @content-type="application/json"
+        @schema="https://cem.dev/ns/data/json/1"
+        @profile="compact"
+        @canonical=true
+        @deterministic=true
+        @streamable=true |
+        {param @name="subject" @type="any" @required=true}
+        {body | {$ merge(call("json.format-document.tree", { subject: $subject, profile: $formatterProfile }), {}) } }
+    }
+}

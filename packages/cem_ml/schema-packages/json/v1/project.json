@@ -93,6 +93,11 @@
                     "cargo test -p cem-ml builtins_load_json_content_type_as_internal_ast_stream -- --nocapture",
                     "cargo test -p cem-ml builtins_select_json_target_export_layer -- --nocapture",
                     "cargo test -p cem-ml validate_json_source_consumes_lifecycle_ast_without_cem_parse -- --nocapture",
+                    "cargo test -p cem-ml builtin_json_lifecycle_output_pipeline_formats_typed_ast_without_value_bridge -- --nocapture",
+                    "cargo test -p cem-ml builtin_json_lifecycle_output_pipeline_preserves_duplicate_members -- --nocapture",
+                    "cargo test -p cem-ml builtin_json_lifecycle_output_pipeline_wraps_html_color_pre -- --nocapture",
+                    "cargo test -p cem-ml builtin_json_formatter_profiles_execute_package_cemt_assets -- --nocapture",
+                    "cargo test -p cem-ml builtin_json_colorizer_profiles_execute_package_cemt_assets -- --nocapture",
                     "cargo test -p cem-ml convert_json_same_schema_uses_lifecycle_ast_stream -- --nocapture",
                     "cargo test -p cem-ml-cli convert_json_same_schema_uses_lifecycle_ast_stream -- --nocapture"
                 ],

@@ -14,6 +14,7 @@ use crate::conversion::{
     execute_conversion_output_pipeline_from_formatted_cem_tree_with_environment,
     execute_conversion_output_pipeline_with_environment,
     execute_csv_document_output_pipeline_with_environment,
+    execute_json_document_output_pipeline_with_environment,
     execute_yaml_document_output_pipeline_with_environment, ConversionExecution,
     ConversionOutputPipeline, ConversionOutputPipelineEnvironment,
     ConversionPackageArtifactDescriptor, ConversionPackageArtifactRead,
@@ -5149,7 +5150,17 @@ fn convert_metadata_for_yaml_lifecycle_output(
     }
 }
 
-fn json_direct_output_primary_identity(target: &FormatIdentity) -> (String, String, String) {
+fn json_direct_output_primary_identity(
+    target: &FormatIdentity,
+    target_scope: &ScopeConfig,
+) -> (String, String, String) {
+    if json_direct_output_is_html(target_scope) {
+        return (
+            HTML_CONTENT_TYPE.to_owned(),
+            HTML_SCHEMA_URI.to_owned(),
+            "json-html/1".to_owned(),
+        );
+    }
     (
         target
             .content_type
@@ -5164,18 +5175,38 @@ fn json_direct_output_primary_identity(target: &FormatIdentity) -> (String, Stri
 }
 
 fn convert_loaded_json_ast_output(
+    context: &EngineContext,
     request: &ConvertRequest,
     document: JsonDocumentAst,
+    diagnostics: &mut Vec<Diagnostic>,
 ) -> (Value, Option<PrimaryBytes>, ConvertExecutionMetadata) {
     let metadata = convert_metadata_for_json_lifecycle_output(&request.target_scope);
-    let formatter_profile = request
-        .target_scope
-        .cemt_formatter_profile
-        .as_deref()
-        .map(str::trim)
-        .filter(|profile| !profile.is_empty())
-        .unwrap_or("compact");
-    let content = document.to_json_text(formatter_profile);
+    let environment = ConversionOutputPipelineEnvironment {
+        schema_registry: &context.schema_registry,
+        conversion_registry: &context.converter_registry,
+        package_artifact_reader: None,
+        artifact_cache: None,
+    };
+    let execution = execute_json_document_output_pipeline_with_environment(
+        &environment,
+        document,
+        &request.target_scope,
+        Some(&request.input.uri),
+    );
+    diagnostics.extend(execution.diagnostics.clone());
+    if diagnostics
+        .iter()
+        .any(|diagnostic| diagnostic.severity.is_hard_violation())
+    {
+        return (Value::Null, None, metadata);
+    }
+
+    let content = execution
+        .output
+        .as_ref()
+        .and_then(Value::as_str)
+        .unwrap_or_default()
+        .to_owned();
     let target = request
         .target
         .clone()
@@ -5185,7 +5216,8 @@ fn convert_loaded_json_ast_output(
             schema: Some(JSON_VALUE_SCHEMA_URI.to_owned()),
             ..FormatIdentity::default()
         });
-    let (content_type, schema, format_version) = json_direct_output_primary_identity(&target);
+    let (content_type, schema, format_version) =
+        json_direct_output_primary_identity(&target, &request.target_scope);
     let bytes = content.into_bytes();
     let primary_bytes = PrimaryBytes {
         content_type,
@@ -5208,32 +5240,128 @@ fn convert_loaded_json_ast_output(
     )
 }
 
+fn json_direct_output_is_html(target_scope: &ScopeConfig) -> bool {
+    json_direct_output_color_selection(target_scope)
+        .as_ref()
+        .is_some_and(|selection| {
+            selection.target.category == "html-color"
+                && json_direct_output_color_selection_requests_color(selection)
+        })
+        || target_scope
+            .cemt_color_profile
+            .as_deref()
+            .map(str::trim)
+            .is_some_and(|profile| profile == "html")
+}
+
+fn json_direct_output_color_selection(
+    target_scope: &ScopeConfig,
+) -> Option<TransformTemplateOutputColorSelection> {
+    let output_color_type = target_scope
+        .output_color_type
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())?;
+    parse_transform_template_output_color_type(output_color_type).ok()
+}
+
+fn json_direct_output_color_selection_requests_color(
+    selection: &TransformTemplateOutputColorSelection,
+) -> bool {
+    selection.output_color_type != "none"
+}
+
+fn json_direct_output_color_profile(target_scope: &ScopeConfig) -> Option<String> {
+    let explicit = target_scope
+        .cemt_color_profile
+        .as_deref()
+        .map(str::trim)
+        .filter(|profile| !profile.is_empty())
+        .filter(|profile| matches!(*profile, "terminal" | "html" | "md"))
+        .map(str::to_owned);
+    if explicit.is_some() {
+        return explicit;
+    }
+    json_direct_output_color_selection(target_scope)
+        .filter(json_direct_output_color_selection_requests_color)
+        .and_then(|selection| match selection.target.category.as_str() {
+            "html-color" => Some("html".to_owned()),
+            "terminal-color" => Some("terminal".to_owned()),
+            _ => None,
+        })
+}
+
 fn convert_metadata_for_json_lifecycle_output(
     target_scope: &ScopeConfig,
 ) -> ConvertExecutionMetadata {
+    let formatter_profile = target_scope
+        .cemt_formatter_profile
+        .clone()
+        .unwrap_or_else(|| "compact".to_owned());
+    let html_output = json_direct_output_is_html(target_scope);
+    let color_profile = json_direct_output_color_profile(target_scope);
+    let writer_profile = json_direct_output_color_selection(target_scope)
+        .filter(json_direct_output_color_selection_requests_color)
+        .map(|selection| selection.output_color_type)
+        .or_else(|| color_profile.clone());
+    let (writer_content_type, writer_schema, writer_category) = if html_output {
+        (HTML_CONTENT_TYPE, HTML_SCHEMA_URI, "html-document")
+    } else {
+        (JSON_CONTENT_TYPE, JSON_VALUE_SCHEMA_URI, "json-document")
+    };
     ConvertExecutionMetadata {
         converter_id: Some("json-lifecycle-output".to_owned()),
-        implementation: Some("lifecycle-json-ast-output".to_owned()),
+        implementation: Some("lifecycle-json-output-pipeline".to_owned()),
         rust_fallback: None,
         output_pipeline: Some(ConvertOutputPipelineMetadata {
-            stages: vec![ConvertOutputPipelineStageMetadata {
-                stage: "writer".to_owned(),
-                function: None,
-                profile: Some(
-                    target_scope
-                        .cemt_formatter_profile
-                        .clone()
-                        .unwrap_or_else(|| "compact".to_owned()),
-                ),
-                content_type: Some(JSON_CONTENT_TYPE.to_owned()),
-                schema: Some(JSON_VALUE_SCHEMA_URI.to_owned()),
-                category: Some("json-document".to_owned()),
-                produces: Some(
-                    TransformTemplateOutputProducedKind::Text
-                        .as_str()
-                        .to_owned(),
-                ),
-            }],
+            stages: vec![
+                ConvertOutputPipelineStageMetadata {
+                    stage: "formatter".to_owned(),
+                    function: Some(
+                        target_scope
+                            .cemt_formatter
+                            .clone()
+                            .unwrap_or_else(|| "json.format-document".to_owned()),
+                    ),
+                    profile: Some(formatter_profile),
+                    content_type: Some(JSON_CONTENT_TYPE.to_owned()),
+                    schema: Some(JSON_VALUE_SCHEMA_URI.to_owned()),
+                    category: Some("json-document".to_owned()),
+                    produces: Some(
+                        TransformTemplateOutputProducedKind::CemTree
+                            .as_str()
+                            .to_owned(),
+                    ),
+                },
+                ConvertOutputPipelineStageMetadata {
+                    stage: "colorizer".to_owned(),
+                    function: color_profile
+                        .as_ref()
+                        .map(|_| "json.color-document".to_owned()),
+                    profile: color_profile,
+                    content_type: Some(JSON_CONTENT_TYPE.to_owned()),
+                    schema: Some(JSON_VALUE_SCHEMA_URI.to_owned()),
+                    category: Some("json-document".to_owned()),
+                    produces: Some(
+                        TransformTemplateOutputProducedKind::CemTree
+                            .as_str()
+                            .to_owned(),
+                    ),
+                },
+                ConvertOutputPipelineStageMetadata {
+                    stage: "writer".to_owned(),
+                    function: None,
+                    profile: writer_profile,
+                    content_type: Some(writer_content_type.to_owned()),
+                    schema: Some(writer_schema.to_owned()),
+                    category: Some(writer_category.to_owned()),
+                    produces: Some(
+                        TransformTemplateOutputProducedKind::Text
+                            .as_str()
+                            .to_owned(),
+                    ),
+                },
+            ],
         }),
     }
 }
@@ -6423,7 +6551,12 @@ impl CemMlEngine for RealCemMlEngine {
                             }
 
                             let (json_primary, json_primary_bytes, json_conversion) =
-                                convert_loaded_json_ast_output(&request, document_value);
+                                convert_loaded_json_ast_output(
+                                    &context,
+                                    &request,
+                                    document_value,
+                                    &mut diagnostics,
+                                );
                             primary = Some(json_primary);
                             primary_bytes = json_primary_bytes;
                             conversion = Some(json_conversion);
@@ -11910,7 +12043,7 @@ mod tests {
             resp.conversion
                 .as_ref()
                 .and_then(|conversion| conversion.implementation.as_deref()),
-            Some("lifecycle-json-ast-output")
+            Some("lifecycle-json-output-pipeline")
         );
         let primary_bytes = resp.primary_bytes.as_ref().expect("JSON primary bytes");
         assert_eq!(primary_bytes.content_type, JSON_CONTENT_TYPE);
