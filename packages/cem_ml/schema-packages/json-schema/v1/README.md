@@ -26,9 +26,11 @@ The package declares CEMT formatter and colorizer artifacts in `package.cem`.
 The public formatter profile names are `compact`, `pretty`, and `tabular`.
 The public colorizer profile names are `terminal`, `html`, and `md`.
 
-Current formatter/colorizer assets are registered package artifacts, but their
-bodies are still bootstrap stubs over raw JSON/tokens. Moving them to typed JSON
-Schema document and CEM-tree boundaries is tracked incomplete work.
+Formatter/colorizer assets consume the typed JSON Schema document and CEM-tree
+stage boundaries. The formatter emits formatted CEM-tree output for `compact`,
+`pretty`, and `tabular`; the colorizer consumes that tree and returns colored
+CEM-tree output for `terminal`, `html`, and `md` before the generic writer emits
+text or HTML.
 
 ## Resource Model
 
@@ -54,6 +56,8 @@ The package-local `cem_ml_schema_package_json_schema_v1:verify` target checks:
 - manifest validation against the schema-package schema;
 - manifest-index coverage for all declared examples;
 - embedded formatter/colorizer artifact catalog registration;
+- JSON Schema formatter/colorizer CEMT execution through package-owned
+  JSON Schema document and CEM-tree boundaries;
 - JSON Schema AST, lifecycle adapter, and engine validation routing tests;
 - CLI validation behavior for a valid Draft 2020-12 schema and an unsupported
   dialect;
@@ -71,9 +75,6 @@ release contract.
 
 ## Tracked Incomplete Work
 
-- Formatter/colorizer CEMT bodies still use raw JSON/token boundaries. They
-  must move to package-owned JSON Schema document and formatted/colored
-  CEM-tree boundaries.
 - README previews intentionally use source snapshots until the package-owned
   output layer can render JSON Schema examples directly.
 

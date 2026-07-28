@@ -5,14 +5,580 @@
 {module @version="1.0.0" |
     {format-function
         @name="json-schema.format-document"
+        @visibility="public"
         @category="json-schema-document"
-        @subject="json"
-        @produces="tokens"
+        @subject="json-schema-document"
+        @produces="cem-tree"
         @content-type="application/schema+json"
         @schema="https://cem.dev/ns/data/json-schema/1"
+        @profile="compact"
         @canonical=true
         @deterministic=true
         @streamable=true |
-        {param @name="subject" @type="json" @required=true}
+        {param @name="subject" @type="object" @required=true}
+        {body | {$ merge(call("json-schema.format-document.tree", { subject: $subject, profile: $formatterProfile }), {}) } }
+    }
+
+    {format-function
+        @name="json-schema.format-document"
+        @visibility="public"
+        @category="json-schema-document"
+        @subject="json-schema-document"
+        @produces="cem-tree"
+        @content-type="application/schema+json"
+        @schema="https://cem.dev/ns/data/json-schema/1"
+        @profile="json.pretty"
+        @canonical=false
+        @deterministic=true
+        @streamable=true |
+        {param @name="subject" @type="object" @required=true}
+        {body | {$ merge(call("json-schema.format-document.tree", { subject: $subject, profile: $formatterProfile }), {}) } }
+    }
+
+    {format-function
+        @name="json-schema.format-document"
+        @visibility="public"
+        @category="json-schema-document"
+        @subject="json-schema-document"
+        @produces="cem-tree"
+        @content-type="application/schema+json"
+        @schema="https://cem.dev/ns/data/json-schema/1"
+        @profile="tabular"
+        @canonical=false
+        @deterministic=true
+        @streamable=true |
+        {param @name="subject" @type="object" @required=true}
+        {body | {$ merge(call("json-schema.format-document.tree", { subject: $subject, profile: $formatterProfile }), {}) } }
+    }
+
+    {function @name="json-schema.format-document.tree" @visibility="private" @returns="object" @deterministic=true |
+        {param @name="subject" @type="object" @required=true}
+        {param @name="profile" @type="string" @required=true}
+        {body |
+            {$ {
+                kind: "cem-tree",
+                contentType: "application/schema+json",
+                schema: "https://cem.dev/ns/data/json-schema/1",
+                category: "json-schema-document",
+                formatterProfile: $profile,
+                formatNodes: [
+                    {
+                        kind: "format-marker",
+                        name: "json-schema.format-document",
+                        formatterRole: "formatter.boundary",
+                        formatterProfile: $profile
+                    },
+                    {
+                        kind: "format-decision",
+                        name: "json-schema.layout",
+                        formatterRole: "formatter.layout",
+                        formatterProfile: $profile,
+                        value: {
+                            layout: call("json-schema.format-document.layout", { profile: $profile }),
+                            lineEnding: $lineEnding,
+                            indent: "  "
+                        }
+                    }
+                ],
+                nodes: extend(
+                    [
+                        {
+                            kind: "json-schema.format-marker",
+                            writerKind: "token",
+                            text: "",
+                            role: "formatter.boundary",
+                            value: {
+                                name: "json-schema.format-document",
+                                formatterProfile: $profile
+                            }
+                        },
+                        {
+                            kind: "json-schema.format-decision",
+                            writerKind: "token",
+                            text: "",
+                            role: "formatter.layout",
+                            value: {
+                                layout: call("json-schema.format-document.layout", { profile: $profile }),
+                                lineEnding: $lineEnding,
+                                indent: "  "
+                            }
+                        }
+                    ],
+                    call("json-schema.format-document.value", {
+                        node: match(typeOf($subject.json.root), { object: $subject.json.root, default: { kind: "null" } }),
+                        depth: 0,
+                        profile: $profile
+                    })
+                )
+            } }
+        }
+    }
+
+    {function @name="json-schema.format-document.layout" @visibility="private" @returns="string" @deterministic=true |
+        {param @name="profile" @type="string" @required=true}
+        {body |
+            {$ match($profile, {
+                compact: "compact-json-schema-document",
+                pretty: "pretty-json-schema-document",
+                "json.pretty": "pretty-json-schema-document",
+                "json-schema.pretty": "pretty-json-schema-document",
+                tabular: "tabular-json-schema-document",
+                default: "json-schema-document"
+            }) }
+        }
+    }
+
+    {function @name="json-schema.format-document.value" @visibility="private" @returns="array" @deterministic=true |
+        {param @name="node" @type="object" @required=true}
+        {param @name="depth" @type="integer" @required=true}
+        {param @name="profile" @type="string" @required=true}
+        {body |
+            {$ match($node.kind, {
+                object: call("json-schema.format-document.object", { node: $node, depth: $depth, profile: $profile }),
+                array: call("json-schema.format-document.array", { node: $node, depth: $depth, profile: $profile }),
+                string: [call("json-schema.format-document.scalar-token", {
+                    kind: "json-schema.string",
+                    text: call("json-schema.format-document.string-lexeme", { node: $node }),
+                    role: "syntax.string",
+                    node: $node,
+                    profile: $profile
+                })],
+                number: [call("json-schema.format-document.scalar-token", {
+                    kind: "json-schema.number",
+                    text: match(typeOf($node.lexeme), { string: $node.lexeme, default: "0" }),
+                    role: "syntax.number",
+                    node: $node,
+                    profile: $profile
+                })],
+                boolean: [call("json-schema.format-document.scalar-token", {
+                    kind: "json-schema.boolean",
+                    text: match($node.value, { true: "true", false: "false", default: "false" }),
+                    role: "syntax.keyword",
+                    node: $node,
+                    profile: $profile
+                })],
+                null: [call("json-schema.format-document.scalar-token", {
+                    kind: "json-schema.null",
+                    text: "null",
+                    role: "syntax.keyword",
+                    node: $node,
+                    profile: $profile
+                })],
+                default: [call("json-schema.format-document.scalar-token", {
+                    kind: "json-schema.null",
+                    text: "null",
+                    role: "syntax.keyword",
+                    node: $node,
+                    profile: $profile
+                })]
+            }) }
+        }
+    }
+
+    {function @name="json-schema.format-document.object" @visibility="private" @returns="array" @deterministic=true |
+        {param @name="node" @type="object" @required=true}
+        {param @name="depth" @type="integer" @required=true}
+        {param @name="profile" @type="string" @required=true}
+        {body |
+            {$ match(length(match(typeOf($node.members), { array: $node.members, default: [] })), {
+                0: [
+                    call("json-schema.format-document.token", {
+                        kind: "json-schema.object-empty",
+                        text: "{}",
+                        role: "syntax.punctuation",
+                        sourceMap: match(exists($node.sourceMap), { true: $node.sourceMap, false: null }),
+                        value: { formatterProfile: $profile }
+                    })
+                ],
+                default: match($profile, {
+                    compact: call("json-schema.format-document.object-compact", { node: $node, depth: $depth, profile: $profile }),
+                    default: call("json-schema.format-document.object-pretty", { node: $node, depth: $depth, profile: $profile })
+                })
+            }) }
+        }
+    }
+
+    {function @name="json-schema.format-document.object-compact" @visibility="private" @returns="array" @deterministic=true |
+        {param @name="node" @type="object" @required=true}
+        {param @name="depth" @type="integer" @required=true}
+        {param @name="profile" @type="string" @required=true}
+        {body |
+            {$ extend(
+                [call("json-schema.format-document.token", {
+                    kind: "json-schema.object-open",
+                    text: "{",
+                    role: "syntax.punctuation",
+                    sourceMap: match(exists($node.sourceMap), { true: $node.sourceMap, false: null }),
+                    value: { formatterProfile: $profile }
+                })],
+                extend(
+                    fold(match(typeOf($node.members), { array: $node.members, default: [] }), [], extend(
+                        $acc,
+                        extend(
+                            match(length($acc), {
+                                0: [],
+                                default: [call("json-schema.format-document.comma", { profile: $profile })]
+                            }),
+                            call("json-schema.format-document.member-compact", { member: $item, depth: $depth, profile: $profile })
+                        )
+                    )),
+                    [call("json-schema.format-document.token", {
+                        kind: "json-schema.object-close",
+                        text: "}",
+                        role: "syntax.punctuation",
+                        sourceMap: match(exists($node.sourceMap), { true: $node.sourceMap, false: null }),
+                        value: { formatterProfile: $profile }
+                    })]
+                )
+            ) }
+        }
+    }
+
+    {function @name="json-schema.format-document.object-pretty" @visibility="private" @returns="array" @deterministic=true |
+        {param @name="node" @type="object" @required=true}
+        {param @name="depth" @type="integer" @required=true}
+        {param @name="profile" @type="string" @required=true}
+        {body |
+            {$ extend(
+                [
+                    call("json-schema.format-document.token", {
+                        kind: "json-schema.object-open",
+                        text: "{",
+                        role: "syntax.punctuation",
+                        sourceMap: match(exists($node.sourceMap), { true: $node.sourceMap, false: null }),
+                        value: { formatterProfile: $profile }
+                    }),
+                    call("json-schema.format-document.line-ending", { sourceMap: null })
+                ],
+                extend(
+                    fold(match(typeOf($node.members), { array: $node.members, default: [] }), [], extend(
+                        $acc,
+                        extend(
+                            match(length($acc), {
+                                0: [],
+                                default: [
+                                    call("json-schema.format-document.comma", { profile: $profile }),
+                                    call("json-schema.format-document.line-ending", { sourceMap: null })
+                                ]
+                            }),
+                            call("json-schema.format-document.member-pretty", { member: $item, depth: $depth, profile: $profile })
+                        )
+                    )),
+                    [
+                        call("json-schema.format-document.line-ending", { sourceMap: null }),
+                        call("json-schema.format-document.indent", { depth: $depth }),
+                        call("json-schema.format-document.token", {
+                            kind: "json-schema.object-close",
+                            text: "}",
+                            role: "syntax.punctuation",
+                            sourceMap: match(exists($node.sourceMap), { true: $node.sourceMap, false: null }),
+                            value: { formatterProfile: $profile }
+                        })
+                    ]
+                )
+            ) }
+        }
+    }
+
+    {function @name="json-schema.format-document.member-compact" @visibility="private" @returns="array" @deterministic=true |
+        {param @name="member" @type="object" @required=true}
+        {param @name="depth" @type="integer" @required=true}
+        {param @name="profile" @type="string" @required=true}
+        {body |
+            {$ extend(
+                [
+                    call("json-schema.format-document.member-name", { member: $member, profile: $profile }),
+                    call("json-schema.format-document.token", {
+                        kind: "json-schema.name-separator",
+                        text: ":",
+                        role: "syntax.punctuation",
+                        sourceMap: match(exists($member.sourceMap), { true: $member.sourceMap, false: null }),
+                        value: { formatterProfile: $profile }
+                    })
+                ],
+                call("json-schema.format-document.value", { node: $member.value, depth: add($depth, 1), profile: $profile })
+            ) }
+        }
+    }
+
+    {function @name="json-schema.format-document.member-pretty" @visibility="private" @returns="array" @deterministic=true |
+        {param @name="member" @type="object" @required=true}
+        {param @name="depth" @type="integer" @required=true}
+        {param @name="profile" @type="string" @required=true}
+        {body |
+            {$ extend(
+                [
+                    call("json-schema.format-document.indent", { depth: add($depth, 1) }),
+                    call("json-schema.format-document.member-name", { member: $member, profile: $profile }),
+                    call("json-schema.format-document.token", {
+                        kind: "json-schema.name-separator",
+                        text: ": ",
+                        role: "syntax.punctuation",
+                        sourceMap: match(exists($member.sourceMap), { true: $member.sourceMap, false: null }),
+                        value: { formatterProfile: $profile }
+                    })
+                ],
+                call("json-schema.format-document.value", { node: $member.value, depth: add($depth, 1), profile: $profile })
+            ) }
+        }
+    }
+
+    {function @name="json-schema.format-document.member-name" @visibility="private" @returns="object" @deterministic=true |
+        {param @name="member" @type="object" @required=true}
+        {param @name="profile" @type="string" @required=true}
+        {body |
+            {$ call("json-schema.format-document.token", {
+                kind: "json-schema.member-name",
+                text: match(typeOf($member.nameLexeme), {
+                    string: $member.nameLexeme,
+                    default: call("json-schema.format-document.double-quoted", { value: match(typeOf($member.name), { string: $member.name, default: "" }) })
+                }),
+                role: "syntax.name",
+                sourceMap: match(exists($member.nameSourceMap), { true: $member.nameSourceMap, false: null }),
+                value: {
+                    formatterProfile: $profile,
+                    memberIndex: match(exists($member.index), { true: $member.index, false: 0 })
+                }
+            }) }
+        }
+    }
+
+    {function @name="json-schema.format-document.array" @visibility="private" @returns="array" @deterministic=true |
+        {param @name="node" @type="object" @required=true}
+        {param @name="depth" @type="integer" @required=true}
+        {param @name="profile" @type="string" @required=true}
+        {body |
+            {$ match(length(match(typeOf($node.items), { array: $node.items, default: [] })), {
+                0: [
+                    call("json-schema.format-document.token", {
+                        kind: "json-schema.array-empty",
+                        text: "[]",
+                        role: "syntax.punctuation",
+                        sourceMap: match(exists($node.sourceMap), { true: $node.sourceMap, false: null }),
+                        value: { formatterProfile: $profile }
+                    })
+                ],
+                default: match($profile, {
+                    compact: call("json-schema.format-document.array-compact", { node: $node, depth: $depth, profile: $profile }),
+                    default: call("json-schema.format-document.array-pretty", { node: $node, depth: $depth, profile: $profile })
+                })
+            }) }
+        }
+    }
+
+    {function @name="json-schema.format-document.array-compact" @visibility="private" @returns="array" @deterministic=true |
+        {param @name="node" @type="object" @required=true}
+        {param @name="depth" @type="integer" @required=true}
+        {param @name="profile" @type="string" @required=true}
+        {body |
+            {$ extend(
+                [call("json-schema.format-document.token", {
+                    kind: "json-schema.array-open",
+                    text: "[",
+                    role: "syntax.punctuation",
+                    sourceMap: match(exists($node.sourceMap), { true: $node.sourceMap, false: null }),
+                    value: { formatterProfile: $profile }
+                })],
+                extend(
+                    fold(match(typeOf($node.items), { array: $node.items, default: [] }), [], extend(
+                        $acc,
+                        extend(
+                            match(length($acc), {
+                                0: [],
+                                default: [call("json-schema.format-document.comma", { profile: $profile })]
+                            }),
+                            call("json-schema.format-document.value", { node: $item, depth: add($depth, 1), profile: $profile })
+                        )
+                    )),
+                    [call("json-schema.format-document.token", {
+                        kind: "json-schema.array-close",
+                        text: "]",
+                        role: "syntax.punctuation",
+                        sourceMap: match(exists($node.sourceMap), { true: $node.sourceMap, false: null }),
+                        value: { formatterProfile: $profile }
+                    })]
+                )
+            ) }
+        }
+    }
+
+    {function @name="json-schema.format-document.array-pretty" @visibility="private" @returns="array" @deterministic=true |
+        {param @name="node" @type="object" @required=true}
+        {param @name="depth" @type="integer" @required=true}
+        {param @name="profile" @type="string" @required=true}
+        {body |
+            {$ extend(
+                [
+                    call("json-schema.format-document.token", {
+                        kind: "json-schema.array-open",
+                        text: "[",
+                        role: "syntax.punctuation",
+                        sourceMap: match(exists($node.sourceMap), { true: $node.sourceMap, false: null }),
+                        value: { formatterProfile: $profile }
+                    }),
+                    call("json-schema.format-document.line-ending", { sourceMap: null })
+                ],
+                extend(
+                    fold(match(typeOf($node.items), { array: $node.items, default: [] }), [], extend(
+                        $acc,
+                        extend(
+                            match(length($acc), {
+                                0: [],
+                                default: [
+                                    call("json-schema.format-document.comma", { profile: $profile }),
+                                    call("json-schema.format-document.line-ending", { sourceMap: null })
+                                ]
+                            }),
+                            extend(
+                                [call("json-schema.format-document.indent", { depth: add($depth, 1) })],
+                                call("json-schema.format-document.value", { node: $item, depth: add($depth, 1), profile: $profile })
+                            )
+                        )
+                    )),
+                    [
+                        call("json-schema.format-document.line-ending", { sourceMap: null }),
+                        call("json-schema.format-document.indent", { depth: $depth }),
+                        call("json-schema.format-document.token", {
+                            kind: "json-schema.array-close",
+                            text: "]",
+                            role: "syntax.punctuation",
+                            sourceMap: match(exists($node.sourceMap), { true: $node.sourceMap, false: null }),
+                            value: { formatterProfile: $profile }
+                        })
+                    ]
+                )
+            ) }
+        }
+    }
+
+    {function @name="json-schema.format-document.scalar-token" @visibility="private" @returns="object" @deterministic=true |
+        {param @name="kind" @type="string" @required=true}
+        {param @name="text" @type="string" @required=true}
+        {param @name="role" @type="string" @required=true}
+        {param @name="node" @type="object" @required=true}
+        {param @name="profile" @type="string" @required=true}
+        {body |
+            {$ call("json-schema.format-document.token", {
+                kind: $kind,
+                text: $text,
+                role: $role,
+                sourceMap: match(exists($node.sourceMap), { true: $node.sourceMap, false: null }),
+                value: {
+                    formatterProfile: $profile,
+                    sourceRange: match(exists($node.sourceRange), { true: $node.sourceRange, false: null })
+                }
+            }) }
+        }
+    }
+
+    {function @name="json-schema.format-document.string-lexeme" @visibility="private" @returns="string" @deterministic=true |
+        {param @name="node" @type="object" @required=true}
+        {body |
+            {$ match(typeOf($node.lexeme), {
+                string: $node.lexeme,
+                default: call("json-schema.format-document.double-quoted", { value: match(typeOf($node.value), { string: $node.value, default: "" }) })
+            }) }
+        }
+    }
+
+    {function @name="json-schema.format-document.comma" @visibility="private" @returns="object" @deterministic=true |
+        {param @name="profile" @type="string" @required=true}
+        {body |
+            {$ call("json-schema.format-document.token", {
+                kind: "json-schema.comma",
+                text: ",",
+                role: "syntax.punctuation",
+                sourceMap: null,
+                value: { formatterProfile: $profile }
+            }) }
+        }
+    }
+
+    {function @name="json-schema.format-document.line-ending" @visibility="private" @returns="object" @deterministic=true |
+        {param @name="sourceMap" @type="any" @required=true @nullable=true}
+        {body |
+            {$ call("json-schema.format-document.token", {
+                kind: "json-schema.line-ending",
+                text: match($lineEnding, { crlf: "\r\n", default: "\n" }),
+                role: "syntax.raw",
+                sourceMap: $sourceMap,
+                value: { formatterProfile: $formatterProfile }
+            }) }
+        }
+    }
+
+    {function @name="json-schema.format-document.indent" @visibility="private" @returns="object" @deterministic=true |
+        {param @name="depth" @type="integer" @required=true}
+        {body |
+            {$ call("json-schema.format-document.token", {
+                kind: "json-schema.indent",
+                text: repeat("  ", $depth),
+                role: "syntax.raw",
+                sourceMap: null,
+                value: { formatterProfile: $formatterProfile }
+            }) }
+        }
+    }
+
+    {function @name="json-schema.format-document.token" @visibility="private" @returns="object" @deterministic=true |
+        {param @name="kind" @type="string" @required=true}
+        {param @name="text" @type="string" @required=true}
+        {param @name="role" @type="string" @required=true}
+        {param @name="sourceMap" @type="any" @required=true @nullable=true}
+        {param @name="value" @type="object" @required=true}
+        {body |
+            {$ {
+                kind: $kind,
+                writerKind: "token",
+                text: $text,
+                role: $role,
+                style: { colorRole: $role },
+                sourceMap: $sourceMap,
+                outputSpan: call("json-schema.format-document.output-span", { sourceMap: $sourceMap }),
+                value: $value
+            } }
+        }
+    }
+
+    {function @name="json-schema.format-document.output-span" @visibility="private" @returns="any" @nullable=true @deterministic=true |
+        {param @name="sourceMap" @type="any" @required=true @nullable=true}
+        {body |
+            {$ match(typeOf($sourceMap), {
+                null: null,
+                default: {
+                    outputRange: {
+                        start: 0,
+                        len: 0
+                    },
+                    origin: $sourceMap
+                }
+            }) }
+        }
+    }
+
+    {function @name="json-schema.format-document.double-quoted" @visibility="private" @returns="string" @deterministic=true |
+        {param @name="value" @type="string" @required=true}
+        {body |
+            {$ concat("\"", concat(
+                replace(
+                    replace(
+                        replace(
+                            replace(
+                                replace($value, "\\", "\\\\"),
+                                "\"",
+                                "\\\""
+                            ),
+                            "\n",
+                            "\\n"
+                        ),
+                        "\r",
+                        "\\r"
+                    ),
+                    "\t",
+                    "\\t"
+                ),
+                "\""
+            )) }
+        }
     }
 }

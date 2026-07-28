@@ -15,6 +15,7 @@ use crate::conversion::{
     execute_conversion_output_pipeline_with_environment,
     execute_csv_document_output_pipeline_with_environment,
     execute_json_document_output_pipeline_with_environment,
+    execute_json_schema_document_output_pipeline_with_environment,
     execute_yaml_document_output_pipeline_with_environment, ConversionExecution,
     ConversionOutputPipeline, ConversionOutputPipelineEnvironment,
     ConversionPackageArtifactDescriptor, ConversionPackageArtifactRead,
@@ -93,6 +94,7 @@ use crate::transform_template::{
 use crate::validation::csv::CsvDocumentAst;
 use crate::validation::generic_data::GenericDataDocumentAst;
 use crate::validation::json::JsonDocumentAst;
+use crate::validation::json_schema::JsonSchemaDocumentAst;
 use crate::validation::yaml::YamlDocumentAst;
 use crate::validation::{
     rules::validate_cem_native_template_source_semantics, RuleContext, RuleRegistry,
@@ -5270,6 +5272,30 @@ fn json_direct_output_primary_identity(
     )
 }
 
+fn json_schema_direct_output_primary_identity(
+    target: &FormatIdentity,
+    target_scope: &ScopeConfig,
+) -> (String, String, String) {
+    if json_direct_output_is_html(target_scope) {
+        return (
+            HTML_CONTENT_TYPE.to_owned(),
+            HTML_SCHEMA_URI.to_owned(),
+            "json-schema-html/1".to_owned(),
+        );
+    }
+    (
+        target
+            .content_type
+            .clone()
+            .unwrap_or_else(|| JSON_SCHEMA_CONTENT_TYPE.to_owned()),
+        target
+            .schema
+            .clone()
+            .unwrap_or_else(|| JSON_SCHEMA_SCHEMA_URI.to_owned()),
+        "json-schema/1".to_owned(),
+    )
+}
+
 fn convert_loaded_json_ast_output(
     context: &EngineContext,
     request: &ConvertRequest,
@@ -5314,6 +5340,72 @@ fn convert_loaded_json_ast_output(
         });
     let (content_type, schema, format_version) =
         json_direct_output_primary_identity(&target, &request.target_scope);
+    let bytes = content.into_bytes();
+    let primary_bytes = PrimaryBytes {
+        content_type,
+        schema: Some(schema.clone()),
+        format_version,
+        hash_scheme: "cem-text/1+blake3".to_owned(),
+        hash: text_content_hash(&bytes),
+        bytes,
+    };
+    let hash = primary_bytes.hash.clone();
+    (
+        json!({
+            "kind": "document",
+            "contentType": primary_bytes.content_type,
+            "schema": schema,
+            "hash": hash,
+        }),
+        Some(primary_bytes),
+        metadata,
+    )
+}
+
+fn convert_loaded_json_schema_ast_output(
+    context: &EngineContext,
+    request: &ConvertRequest,
+    document: JsonSchemaDocumentAst,
+    diagnostics: &mut Vec<Diagnostic>,
+) -> (Value, Option<PrimaryBytes>, ConvertExecutionMetadata) {
+    let metadata = convert_metadata_for_json_schema_lifecycle_output(&request.target_scope);
+    let environment = ConversionOutputPipelineEnvironment {
+        schema_registry: &context.schema_registry,
+        conversion_registry: &context.converter_registry,
+        package_artifact_reader: None,
+        artifact_cache: None,
+    };
+    let execution = execute_json_schema_document_output_pipeline_with_environment(
+        &environment,
+        document,
+        &request.target_scope,
+        Some(&request.input.uri),
+    );
+    diagnostics.extend(execution.diagnostics.clone());
+    if diagnostics
+        .iter()
+        .any(|diagnostic| diagnostic.severity.is_hard_violation())
+    {
+        return (Value::Null, None, metadata);
+    }
+
+    let content = execution
+        .output
+        .as_ref()
+        .and_then(Value::as_str)
+        .unwrap_or_default()
+        .to_owned();
+    let target = request
+        .target
+        .clone()
+        .or_else(|| request.target_scope.format_identity_option())
+        .unwrap_or_else(|| FormatIdentity {
+            content_type: Some(JSON_SCHEMA_CONTENT_TYPE.to_owned()),
+            schema: Some(JSON_SCHEMA_SCHEMA_URI.to_owned()),
+            ..FormatIdentity::default()
+        });
+    let (content_type, schema, format_version) =
+        json_schema_direct_output_primary_identity(&target, &request.target_scope);
     let bytes = content.into_bytes();
     let primary_bytes = PrimaryBytes {
         content_type,
@@ -5541,10 +5633,80 @@ fn convert_metadata_for_generic_data_to_json_lifecycle_output(
 fn convert_metadata_for_json_schema_lifecycle_output(
     target_scope: &ScopeConfig,
 ) -> ConvertExecutionMetadata {
-    let mut metadata = convert_metadata_for_json_lifecycle_output(target_scope);
-    metadata.converter_id = Some("json-schema-lifecycle-output".to_owned());
-    metadata.implementation = Some("json-schema-ast-stream-to-json-output-pipeline".to_owned());
-    metadata
+    let formatter_profile = target_scope
+        .cemt_formatter_profile
+        .clone()
+        .unwrap_or_else(|| "compact".to_owned());
+    let html_output = json_direct_output_is_html(target_scope);
+    let color_profile = json_direct_output_color_profile(target_scope);
+    let writer_profile = json_direct_output_color_selection(target_scope)
+        .filter(json_direct_output_color_selection_requests_color)
+        .map(|selection| selection.output_color_type)
+        .or_else(|| color_profile.clone());
+    let (writer_content_type, writer_schema, writer_category) = if html_output {
+        (HTML_CONTENT_TYPE, HTML_SCHEMA_URI, "html-document")
+    } else {
+        (
+            JSON_SCHEMA_CONTENT_TYPE,
+            JSON_SCHEMA_SCHEMA_URI,
+            "json-schema-document",
+        )
+    };
+    ConvertExecutionMetadata {
+        converter_id: Some("json-schema-lifecycle-output".to_owned()),
+        implementation: Some("json-schema-ast-stream-to-json-output-pipeline".to_owned()),
+        rust_fallback: None,
+        output_pipeline: Some(ConvertOutputPipelineMetadata {
+            stages: vec![
+                ConvertOutputPipelineStageMetadata {
+                    stage: "formatter".to_owned(),
+                    function: Some(
+                        target_scope
+                            .cemt_formatter
+                            .clone()
+                            .unwrap_or_else(|| "json-schema.format-document".to_owned()),
+                    ),
+                    profile: Some(formatter_profile),
+                    content_type: Some(JSON_SCHEMA_CONTENT_TYPE.to_owned()),
+                    schema: Some(JSON_SCHEMA_SCHEMA_URI.to_owned()),
+                    category: Some("json-schema-document".to_owned()),
+                    produces: Some(
+                        TransformTemplateOutputProducedKind::CemTree
+                            .as_str()
+                            .to_owned(),
+                    ),
+                },
+                ConvertOutputPipelineStageMetadata {
+                    stage: "colorizer".to_owned(),
+                    function: color_profile
+                        .as_ref()
+                        .map(|_| "json-schema.color-document".to_owned()),
+                    profile: color_profile,
+                    content_type: Some(JSON_SCHEMA_CONTENT_TYPE.to_owned()),
+                    schema: Some(JSON_SCHEMA_SCHEMA_URI.to_owned()),
+                    category: Some("json-schema-document".to_owned()),
+                    produces: Some(
+                        TransformTemplateOutputProducedKind::CemTree
+                            .as_str()
+                            .to_owned(),
+                    ),
+                },
+                ConvertOutputPipelineStageMetadata {
+                    stage: "writer".to_owned(),
+                    function: None,
+                    profile: writer_profile,
+                    content_type: Some(writer_content_type.to_owned()),
+                    schema: Some(writer_schema.to_owned()),
+                    category: Some(writer_category.to_owned()),
+                    produces: Some(
+                        TransformTemplateOutputProducedKind::Text
+                            .as_str()
+                            .to_owned(),
+                    ),
+                },
+            ],
+        }),
+    }
 }
 
 fn template_module_diagnostic(
@@ -6935,17 +7097,13 @@ impl CemMlEngine for RealCemMlEngine {
                                 return;
                             }
 
-                            let (json_primary, json_primary_bytes, mut json_conversion) =
-                                convert_loaded_json_ast_output(
+                            let (json_primary, json_primary_bytes, json_conversion) =
+                                convert_loaded_json_schema_ast_output(
                                     &context,
                                     &request,
-                                    document_value.into_json_document_ast(),
+                                    document_value,
                                     &mut diagnostics,
                                 );
-                            json_conversion.converter_id =
-                                Some("json-schema-lifecycle-output".to_owned());
-                            json_conversion.implementation =
-                                Some("json-schema-ast-stream-to-json-output-pipeline".to_owned());
                             primary = Some(json_primary);
                             primary_bytes = json_primary_bytes;
                             conversion = Some(json_conversion);

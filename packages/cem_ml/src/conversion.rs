@@ -31,8 +31,9 @@ use crate::schema::registry::{
     CEM_AST_PROJECTION_SCHEMA_URI, CEM_DOM_PROJECTION_CONTENT_TYPE, CEM_DOM_PROJECTION_SCHEMA_URI,
     CEM_EVENTS_PROJECTION_SCHEMA_URI, CEM_ML_CONTENT_TYPE, CEM_ML_SCHEMA_URI, CEM_QL_SCHEMA_URI,
     CEM_TRANSFORM_CONTENT_TYPE, CEM_TRANSFORM_SCHEMA_URI, CSV_CONTENT_TYPE, CSV_SCHEMA_URI,
-    HTML_CONTENT_TYPE, HTML_SCHEMA_URI, JSON_CONTENT_TYPE, JSON_VALUE_SCHEMA_URI, XML_CONTENT_TYPE,
-    XML_SCHEMA_URI, YAML_CONTENT_TYPE, YAML_SCHEMA_URI,
+    HTML_CONTENT_TYPE, HTML_SCHEMA_URI, JSON_CONTENT_TYPE, JSON_SCHEMA_CONTENT_TYPE,
+    JSON_SCHEMA_SCHEMA_URI, JSON_VALUE_SCHEMA_URI, XML_CONTENT_TYPE, XML_SCHEMA_URI,
+    YAML_CONTENT_TYPE, YAML_SCHEMA_URI,
 };
 use crate::source::{BytesSource, SourceId};
 use crate::source_map::SourceMapStack;
@@ -70,6 +71,7 @@ use crate::transform_template::{
 use crate::validation::csv::{generic_data_ast_to_csv_cemt_subject, CsvDocumentAst};
 use crate::validation::generic_data::GenericDataDocumentAst;
 use crate::validation::json::{generic_data_ast_to_json_cemt_subject, JsonDocumentAst};
+use crate::validation::json_schema::JsonSchemaDocumentAst;
 use crate::validation::yaml::{generic_data_ast_to_yaml_cemt_subject, YamlDocumentAst};
 use serde_json::Value;
 use std::cell::RefCell;
@@ -2314,6 +2316,24 @@ const JSON_COLOR_CEMT_STAGE_SPEC: CemTreeCemtOutputStageSpec = CemTreeCemtOutput
     role: "colorizer",
 };
 
+const JSON_SCHEMA_FORMAT_CEMT_STAGE_SPEC: CemTreeCemtOutputStageSpec = CemTreeCemtOutputStageSpec {
+    adapter_id: "json-schema-format-cemt",
+    artifact_kind: CEM_TREE_FORMATTER_ARTIFACT_KIND,
+    declaration_element: "{format-function",
+    function_kind: TransformTemplateOutputFunctionKind::Format,
+    function_name: "json-schema.format-document",
+    role: "formatter",
+};
+
+const JSON_SCHEMA_COLOR_CEMT_STAGE_SPEC: CemTreeCemtOutputStageSpec = CemTreeCemtOutputStageSpec {
+    adapter_id: "json-schema-color-cemt",
+    artifact_kind: CEM_TREE_COLORIZER_ARTIFACT_KIND,
+    declaration_element: "{color-function",
+    function_kind: TransformTemplateOutputFunctionKind::Color,
+    function_name: "json-schema.color-document",
+    role: "colorizer",
+};
+
 #[cfg(test)]
 fn cem_tree_format_cemt_stage(
     target: &TransformTemplateEncodingTarget,
@@ -3070,15 +3090,16 @@ fn execute_conversion_cem_tree_output_stage(
     let mut module_options = parse_response.module_options;
     let loaded_helpers =
         load_cem_tree_cemt_output_stage_helpers(environment, &stage, &mut module_options)?;
+    let mut execution_binding = binding.clone();
     let parsed_stage_function = module_options
         .output_functions
         .iter()
         .find(|function| {
             function.kind == stage.function_kind
                 && function.name.as_str() == stage.function_name.as_str()
+                && function.profile == execution_binding.function.profile
         })
         .cloned();
-    let mut execution_binding = binding.clone();
     if let Some(parsed_function) = parsed_stage_function {
         if parsed_function.body_declared {
             execution_binding.function = parsed_function;
@@ -4758,6 +4779,35 @@ impl JsonDocumentOutputSubject for Value {
     }
 }
 
+pub trait JsonSchemaDocumentOutputSubject {
+    fn source_line_ending(&self) -> Option<&str>;
+    fn into_cemt_subject(self) -> Value;
+}
+
+impl JsonSchemaDocumentOutputSubject for JsonSchemaDocumentAst {
+    fn source_line_ending(&self) -> Option<&str> {
+        self.json.line_ending.as_deref()
+    }
+
+    fn into_cemt_subject(self) -> Value {
+        self.to_cemt_subject()
+    }
+}
+
+#[cfg(test)]
+impl JsonSchemaDocumentOutputSubject for Value {
+    fn source_line_ending(&self) -> Option<&str> {
+        self.get("json")
+            .and_then(|json| json.get("lineEnding"))
+            .and_then(Value::as_str)
+            .or_else(|| self.get("lineEnding").and_then(Value::as_str))
+    }
+
+    fn into_cemt_subject(self) -> Value {
+        self
+    }
+}
+
 pub fn execute_json_document_output_pipeline_with_environment(
     environment: &ConversionOutputPipelineEnvironment<'_>,
     document: impl JsonDocumentOutputSubject,
@@ -5104,6 +5154,357 @@ pub fn execute_json_document_output_pipeline_with_environment(
     }
 }
 
+pub fn execute_json_schema_document_output_pipeline_with_environment(
+    environment: &ConversionOutputPipelineEnvironment<'_>,
+    document: impl JsonSchemaDocumentOutputSubject,
+    target_scope: &ScopeConfig,
+    diagnostic_uri: Option<&str>,
+) -> ConversionOutputPipelineExecution {
+    let formatter_name = match json_schema_formatter_name_for_scope(target_scope) {
+        Ok(name) => name,
+        Err(message) => return json_schema_output_pipeline_failed(diagnostic_uri, message),
+    };
+    let formatter_profile = match json_schema_formatter_profile_for_scope(target_scope) {
+        Ok(profile) => profile,
+        Err(message) => return json_schema_output_pipeline_failed(diagnostic_uri, message),
+    };
+    let presentation_options = match JsonFormatterPresentationOptions::from_options(
+        &target_scope.cemt_formatter_options,
+    ) {
+        Ok(options) => options,
+        Err(message) => return json_schema_output_pipeline_failed(diagnostic_uri, message),
+    };
+    let output_color_selection = match json_schema_output_color_selection_for_scope(target_scope) {
+        Ok(selection) => selection,
+        Err(message) => return json_schema_output_pipeline_failed(diagnostic_uri, message),
+    };
+    let line_ending =
+        json_formatter_line_ending(document.source_line_ending(), &presentation_options);
+    let document_subject = document.into_cemt_subject();
+    let local_artifact_cache = ConversionOutputPipelineArtifactCache::default();
+    let cached_environment = if environment.artifact_cache.is_some() {
+        *environment
+    } else {
+        ConversionOutputPipelineEnvironment {
+            schema_registry: environment.schema_registry,
+            conversion_registry: environment.conversion_registry,
+            package_artifact_reader: environment.package_artifact_reader,
+            artifact_cache: Some(&local_artifact_cache),
+        }
+    };
+    let environment = &cached_environment;
+    let target = TransformTemplateEncodingTarget::new(
+        JSON_SCHEMA_CONTENT_TYPE,
+        JSON_SCHEMA_SCHEMA_URI,
+        "json-schema-document",
+    );
+    let format_options = TransformTemplateEncodeOptions {
+        formatter: Some(formatter_name.clone()),
+        formatter_profile: Some(formatter_profile.clone()),
+        formatter_options: target_scope.cemt_formatter_options.clone(),
+        line_ending: line_ending.clone(),
+        mode: TransformTemplateEncodedArtifactMode::Document,
+        canonical: formatter_profile == "compact",
+        source_map_policy: TransformTemplateSourceMapPolicy::Generated,
+        ..TransformTemplateEncodeOptions::default()
+    };
+    let (format_stage, format_binding) = match resolve_cemt_output_stage_binding(
+        environment,
+        "JSON Schema",
+        JSON_SCHEMA_FORMAT_CEMT_STAGE_SPEC,
+        &target,
+        Some(formatter_profile.as_str()),
+        Some(formatter_name.as_str()),
+        &document_subject,
+        "json-schema-document",
+        format_options,
+    ) {
+        Ok(resolved) => resolved,
+        Err(message) => return json_schema_output_pipeline_failed(diagnostic_uri, message),
+    };
+    let format_started = Instant::now();
+    let format_result = execute_conversion_cem_tree_output_stage(
+        environment,
+        format_stage,
+        &format_binding,
+        &document_subject,
+    );
+    let format_elapsed_ns = Some(format_started.elapsed().as_nanos());
+    let (formatted_output, format_execution) = match format_result {
+        Ok(output) => output,
+        Err(message) => {
+            return json_schema_output_pipeline_failed_with_timings(
+                diagnostic_uri,
+                format!(
+                    "CEMT formatter `{}` failed: {message}",
+                    format_binding.function.name
+                ),
+                format_elapsed_ns,
+                None,
+                None,
+            );
+        }
+    };
+    let format_execution = Some(format_execution);
+    let formatted_artifact = format_binding.artifact_from_value(formatted_output);
+    let mut formatted_context =
+        TransformTemplateEncodedArtifactInsertionContext::from_encoding_target(
+            &target,
+            Some(TransformTemplateOutputProducedKind::CemTree),
+        );
+    formatted_context.formatter_profile = formatted_artifact
+        .identity
+        .formatter_profile
+        .clone()
+        .or_else(|| Some(formatter_profile.clone()));
+    formatted_context.mode = Some(TransformTemplateEncodedArtifactMode::Document);
+    formatted_context.canonical = Some(formatter_profile == "compact");
+    formatted_context.source_map_policy = Some(TransformTemplateSourceMapPolicy::Generated);
+    if let Err(error) = formatted_artifact.validate_insertion(&formatted_context) {
+        return json_schema_output_pipeline_failed_with_timings(
+            diagnostic_uri,
+            error.diagnostic(diagnostic_uri).message,
+            format_elapsed_ns,
+            None,
+            None,
+        );
+    }
+
+    let cemt_color_profile = match json_schema_cemt_color_profile_for_output(
+        target_scope,
+        output_color_selection.as_ref(),
+    ) {
+        Ok(profile) => profile,
+        Err(message) => return json_schema_output_pipeline_failed(diagnostic_uri, message),
+    };
+    let wants_color = target_scope
+        .cemt_colorizer
+        .as_deref()
+        .map(str::trim)
+        .is_some_and(|name| !name.is_empty())
+        || cemt_color_profile.is_some()
+        || output_color_selection
+            .as_ref()
+            .is_some_and(json_schema_output_color_selection_requests_color);
+    let mut color_elapsed_ns = None;
+    let (writer_artifact, color_execution, colored_cem_tree) = if wants_color {
+        let colorizer_name = target_scope
+            .cemt_colorizer
+            .as_deref()
+            .map(str::trim)
+            .filter(|name| !name.is_empty())
+            .unwrap_or(JSON_SCHEMA_COLOR_CEMT_STAGE_SPEC.function_name);
+        let color_profile = cemt_color_profile.as_deref().unwrap_or("terminal");
+        let color_options = TransformTemplateEncodeOptions {
+            formatter_options: target_scope.cemt_formatter_options.clone(),
+            formatter_profile: formatted_artifact
+                .identity
+                .formatter_profile
+                .clone()
+                .or_else(|| Some(formatter_profile.clone())),
+            colorizer: Some(colorizer_name.to_owned()),
+            color_profile: Some(color_profile.to_owned()),
+            line_ending: line_ending.clone(),
+            mode: TransformTemplateEncodedArtifactMode::Document,
+            canonical: false,
+            source_map_policy: TransformTemplateSourceMapPolicy::Generated,
+            ..TransformTemplateEncodeOptions::default()
+        };
+        let (color_stage, color_binding) = match resolve_cemt_output_stage_binding(
+            environment,
+            "JSON Schema",
+            JSON_SCHEMA_COLOR_CEMT_STAGE_SPEC,
+            &target,
+            Some(color_profile),
+            Some(colorizer_name),
+            &formatted_artifact.value,
+            "cem-tree",
+            color_options,
+        ) {
+            Ok(resolved) => resolved,
+            Err(message) => return json_schema_output_pipeline_failed(diagnostic_uri, message),
+        };
+        let color_started = Instant::now();
+        let color_result = execute_conversion_cem_tree_output_stage(
+            environment,
+            color_stage,
+            &color_binding,
+            &formatted_artifact.value,
+        );
+        color_elapsed_ns = Some(color_started.elapsed().as_nanos());
+        let (colored_output, color_execution) = match color_result {
+            Ok(output) => output,
+            Err(message) => {
+                return json_schema_output_pipeline_failed_with_timings(
+                    diagnostic_uri,
+                    format!(
+                        "CEMT colorizer `{}` failed: {message}",
+                        color_binding.function.name
+                    ),
+                    format_elapsed_ns,
+                    color_elapsed_ns,
+                    None,
+                );
+            }
+        };
+        let colored_artifact = color_binding.artifact_from_value(colored_output);
+        let mut colored_context =
+            TransformTemplateEncodedArtifactInsertionContext::from_encoding_target(
+                &target,
+                Some(TransformTemplateOutputProducedKind::CemTree),
+            );
+        colored_context.formatter_profile = colored_artifact
+            .identity
+            .formatter_profile
+            .clone()
+            .or_else(|| Some(formatter_profile.clone()));
+        colored_context.color_profile = Some(color_profile.to_owned());
+        colored_context.mode = Some(TransformTemplateEncodedArtifactMode::Document);
+        colored_context.source_map_policy = Some(TransformTemplateSourceMapPolicy::Generated);
+        if let Err(error) = colored_artifact.validate_insertion(&colored_context) {
+            return json_schema_output_pipeline_failed_with_timings(
+                diagnostic_uri,
+                error.diagnostic(diagnostic_uri).message,
+                format_elapsed_ns,
+                color_elapsed_ns,
+                None,
+            );
+        }
+        (
+            colored_artifact.clone(),
+            Some(color_execution),
+            Some(colored_artifact),
+        )
+    } else {
+        (formatted_artifact.clone(), None, None)
+    };
+
+    let wrap_html_output = output_color_selection
+        .as_ref()
+        .is_some_and(json_schema_output_color_selection_is_html)
+        || writer_artifact.identity.color_profile.as_deref() == Some("html");
+    let mut writer_context = TransformTemplateEncodedArtifactInsertionContext::from_encoding_target(
+        &target,
+        Some(TransformTemplateOutputProducedKind::Text),
+    );
+    writer_context.formatter_profile = writer_artifact
+        .identity
+        .formatter_profile
+        .clone()
+        .or_else(|| Some(formatter_profile.clone()));
+    writer_context.color_profile = writer_artifact.identity.color_profile.clone();
+    writer_context.output_color_type = output_color_selection
+        .as_ref()
+        .map(|selection| selection.output_color_type.clone());
+    if output_color_selection
+        .as_ref()
+        .is_some_and(json_schema_output_color_selection_is_terminal)
+    {
+        writer_context.color_capability = output_color_selection
+            .as_ref()
+            .map(|selection| selection.output_color_type.clone());
+    }
+    writer_context.mode = Some(TransformTemplateEncodedArtifactMode::Document);
+    writer_context.source_map_policy = Some(TransformTemplateSourceMapPolicy::Generated);
+    let evaluated = TransformTemplateEvaluatedEncodeExpression {
+        expression: TransformTemplateEncodeExpression {
+            owner: Some("json-schema-direct-output".to_owned()),
+            expression: "json-schema-direct-output writer".to_owned(),
+            subject: "json-schema-document".to_owned(),
+            subject_type: Some("cem-tree".to_owned()),
+            target,
+            options: TransformTemplateEncodeOptions::default(),
+        },
+        subject: writer_artifact.value.clone(),
+        binding: TransformTemplateEncodeBinding {
+            function: json_schema_output_function_descriptor(
+                if color_execution.is_some() {
+                    JSON_SCHEMA_COLOR_CEMT_STAGE_SPEC.function_name
+                } else {
+                    JSON_SCHEMA_FORMAT_CEMT_STAGE_SPEC.function_name
+                },
+                "json-schema-document",
+                if color_execution.is_some() {
+                    "cem-tree"
+                } else {
+                    "json-schema-document"
+                },
+                if color_execution.is_some() {
+                    TransformTemplateOutputFunctionKind::Color
+                } else {
+                    TransformTemplateOutputFunctionKind::Format
+                },
+                TransformTemplateOutputProducedKind::CemTree,
+                writer_artifact
+                    .identity
+                    .color_profile
+                    .clone()
+                    .or_else(|| writer_artifact.identity.formatter_profile.clone())
+                    .or_else(|| Some(formatter_profile.clone())),
+            ),
+            subject_type: "cem-tree".to_owned(),
+            identity: writer_artifact.identity.clone(),
+            options: TransformTemplateEncodeOptions::default(),
+        },
+        artifact: writer_artifact,
+    };
+    let writer_started = Instant::now();
+    let mut composition = compose_transform_template_encoded_text_artifacts(
+        &[evaluated],
+        &writer_context,
+        diagnostic_uri,
+    );
+    let writer_elapsed_ns = Some(writer_started.elapsed().as_nanos());
+    if !composition.diagnostics.is_empty() {
+        return ConversionOutputPipelineExecution {
+            output: None,
+            diagnostics: std::mem::take(&mut composition.diagnostics),
+            format_execution,
+            color_execution,
+            format_elapsed_ns,
+            color_elapsed_ns,
+            writer_elapsed_ns,
+            formatted_cem_tree: Some(formatted_artifact),
+            colored_cem_tree,
+            ..ConversionOutputPipelineExecution::default()
+        };
+    }
+    match composition.artifact {
+        Some(mut artifact) => {
+            if wrap_html_output {
+                json_schema_wrap_html_preview_artifact(
+                    &mut artifact,
+                    presentation_options.tab_size,
+                );
+            }
+            ConversionOutputPipelineExecution {
+                output: Some(artifact.value),
+                source_map: artifact.source_map,
+                output_spans: artifact.output_spans,
+                format_execution,
+                color_execution,
+                format_elapsed_ns,
+                color_elapsed_ns,
+                writer_elapsed_ns,
+                formatted_cem_tree: Some(formatted_artifact),
+                colored_cem_tree,
+                diagnostics: Vec::new(),
+            }
+        }
+        None => ConversionOutputPipelineExecution {
+            output: None,
+            format_execution,
+            color_execution,
+            format_elapsed_ns,
+            color_elapsed_ns,
+            writer_elapsed_ns,
+            formatted_cem_tree: Some(formatted_artifact),
+            colored_cem_tree,
+            ..ConversionOutputPipelineExecution::default()
+        },
+    }
+}
+
 fn json_formatter_name_for_scope(target_scope: &ScopeConfig) -> Result<String, String> {
     let name = target_scope
         .cemt_formatter
@@ -5229,6 +5630,133 @@ fn json_cemt_color_profile_for_output(
         .or_else(|| inferred.map(str::to_owned)))
 }
 
+fn json_schema_formatter_name_for_scope(target_scope: &ScopeConfig) -> Result<String, String> {
+    let name = target_scope
+        .cemt_formatter
+        .as_deref()
+        .map(str::trim)
+        .filter(|name| !name.is_empty())
+        .unwrap_or(JSON_SCHEMA_FORMAT_CEMT_STAGE_SPEC.function_name);
+    if name != JSON_SCHEMA_FORMAT_CEMT_STAGE_SPEC.function_name {
+        return Err(format!(
+            "unsupported JSON Schema formatter `{name}`; first-class JSON Schema output currently supports `{}`",
+            JSON_SCHEMA_FORMAT_CEMT_STAGE_SPEC.function_name
+        ));
+    }
+    Ok(name.to_owned())
+}
+
+fn json_schema_formatter_profile_for_scope(target_scope: &ScopeConfig) -> Result<String, String> {
+    let profile = target_scope
+        .cemt_formatter_profile
+        .as_deref()
+        .map(str::trim)
+        .filter(|profile| !profile.is_empty())
+        .unwrap_or("compact");
+    if !matches!(profile, "compact" | "pretty" | "tabular") {
+        return Err(format!(
+            "unsupported JSON Schema formatter profile `{profile}`; supported profiles are compact, pretty, and tabular"
+        ));
+    }
+    Ok(profile.to_owned())
+}
+
+fn json_schema_output_color_selection(
+    output_color_type: Option<&str>,
+) -> Result<Option<TransformTemplateOutputColorSelection>, String> {
+    let Some(output_color_type) = output_color_type
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+    else {
+        return Ok(None);
+    };
+    parse_transform_template_output_color_type(output_color_type)
+        .map(Some)
+        .map_err(|message| {
+            format!("invalid JSON Schema output color type `{output_color_type}`: {message}")
+        })
+}
+
+fn json_schema_output_color_selection_for_scope(
+    target_scope: &ScopeConfig,
+) -> Result<Option<TransformTemplateOutputColorSelection>, String> {
+    json_schema_output_color_selection(target_scope.output_color_type.as_deref())
+}
+
+fn json_schema_output_color_selection_requests_color(
+    selection: &TransformTemplateOutputColorSelection,
+) -> bool {
+    selection.output_color_type != "none"
+}
+
+fn json_schema_output_color_selection_is_html(
+    selection: &TransformTemplateOutputColorSelection,
+) -> bool {
+    selection.target.category == "html-color"
+        && json_schema_output_color_selection_requests_color(selection)
+}
+
+fn json_schema_output_color_selection_is_terminal(
+    selection: &TransformTemplateOutputColorSelection,
+) -> bool {
+    selection.target.category == "terminal-color"
+        && json_schema_output_color_selection_requests_color(selection)
+}
+
+fn json_schema_cemt_color_profile_for_output(
+    target_scope: &ScopeConfig,
+    output_color_selection: Option<&TransformTemplateOutputColorSelection>,
+) -> Result<Option<String>, String> {
+    if let Some(name) = target_scope
+        .cemt_colorizer
+        .as_deref()
+        .map(str::trim)
+        .filter(|name| !name.is_empty())
+    {
+        if name != JSON_SCHEMA_COLOR_CEMT_STAGE_SPEC.function_name {
+            return Err(format!(
+                "unsupported JSON Schema colorizer `{name}`; first-class JSON Schema output currently supports `{}`",
+                JSON_SCHEMA_COLOR_CEMT_STAGE_SPEC.function_name
+            ));
+        }
+    }
+    let explicit = target_scope
+        .cemt_color_profile
+        .as_deref()
+        .map(str::trim)
+        .filter(|profile| !profile.is_empty());
+    let explicit = match explicit {
+        Some("terminal" | "html" | "md") => explicit,
+        Some("none") => None,
+        Some(profile) => {
+            return Err(format!(
+                "unsupported JSON Schema color profile `{profile}`; supported profiles are terminal, html, md, and none"
+            ));
+        }
+        None => None,
+    };
+    let inferred = output_color_selection
+        .filter(|selection| json_schema_output_color_selection_requests_color(selection))
+        .and_then(|selection| match selection.target.category.as_str() {
+            "html-color" => Some("html"),
+            "terminal-color" => Some("terminal"),
+            _ => None,
+        });
+    if let (Some(explicit), Some(inferred)) = (explicit, inferred) {
+        if explicit != inferred {
+            return Err(format!(
+                "JSON Schema color profile `{explicit}` conflicts with output color type `{}`; use `{inferred}` or omit `--cemt-color-profile`",
+                output_color_selection
+                    .map(|selection| selection.output_color_type.as_str())
+                    .unwrap_or_default()
+            ));
+        }
+    }
+    Ok(explicit
+        .map(str::to_owned)
+        .or_else(|| inferred.map(str::to_owned)))
+}
+
 const JSON_HTML_PREVIEW_CLASS: &str = "cem-output-json";
 
 #[cfg(test)]
@@ -5241,6 +5769,20 @@ fn json_wrap_html_preview_artifact(
     tab_size: usize,
 ) {
     wrap_html_pre_container_artifact(artifact, JSON_HTML_PREVIEW_CLASS, tab_size);
+}
+
+const JSON_SCHEMA_HTML_PREVIEW_CLASS: &str = "cem-output-json-schema";
+
+#[cfg(test)]
+fn json_schema_html_preview_prefix(tab_size: usize) -> String {
+    crate::conversion_output::html_pre_container_prefix(JSON_SCHEMA_HTML_PREVIEW_CLASS, tab_size)
+}
+
+fn json_schema_wrap_html_preview_artifact(
+    artifact: &mut TransformTemplateEncodedArtifact,
+    tab_size: usize,
+) {
+    wrap_html_pre_container_artifact(artifact, JSON_SCHEMA_HTML_PREVIEW_CLASS, tab_size);
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -5319,6 +5861,53 @@ fn json_output_pipeline_failed_with_timings(
     failed_pipeline_execution(
         "json-direct-output",
         Some("json"),
+        diagnostic_uri,
+        message,
+        format_elapsed_ns,
+        color_elapsed_ns,
+        writer_elapsed_ns,
+    )
+}
+
+fn json_schema_output_function_descriptor(
+    name: &str,
+    category: &str,
+    subject: &str,
+    kind: TransformTemplateOutputFunctionKind,
+    produces: TransformTemplateOutputProducedKind,
+    profile: Option<String>,
+) -> TransformTemplateOutputFunctionDescriptor {
+    cemt_output_function_descriptor(CemtOutputFunctionDescriptorSpec {
+        owner: "json-schema",
+        name,
+        category,
+        subject,
+        kind,
+        produces,
+        content_type: JSON_SCHEMA_CONTENT_TYPE,
+        schema: JSON_SCHEMA_SCHEMA_URI,
+        canonical: false,
+        profile,
+    })
+}
+
+fn json_schema_output_pipeline_failed(
+    diagnostic_uri: Option<&str>,
+    message: String,
+) -> ConversionOutputPipelineExecution {
+    json_schema_output_pipeline_failed_with_timings(diagnostic_uri, message, None, None, None)
+}
+
+fn json_schema_output_pipeline_failed_with_timings(
+    diagnostic_uri: Option<&str>,
+    message: String,
+    format_elapsed_ns: Option<u128>,
+    color_elapsed_ns: Option<u128>,
+    writer_elapsed_ns: Option<u128>,
+) -> ConversionOutputPipelineExecution {
+    failed_pipeline_execution(
+        "json-schema-direct-output",
+        Some("json-schema"),
         diagnostic_uri,
         message,
         format_elapsed_ns,
@@ -9241,6 +9830,7 @@ fn builtin_converter_package_schema_uris() -> &'static [&'static str] {
         CEM_EVENTS_PROJECTION_SCHEMA_URI,
         CEM_QL_SCHEMA_URI,
         JSON_VALUE_SCHEMA_URI,
+        JSON_SCHEMA_SCHEMA_URI,
         CSV_SCHEMA_URI,
         YAML_SCHEMA_URI,
     ]
@@ -14854,6 +15444,18 @@ mod tests {
                 "schema-packages/json/v1/colorizers/json-color-document.cemt",
                 include_str!("../schema-packages/json/v1/colorizers/json-color-document.cemt"),
             ),
+            (
+                "schema-packages/json-schema/v1/formatters/json-schema-format-document.cemt",
+                include_str!(
+                    "../schema-packages/json-schema/v1/formatters/json-schema-format-document.cemt"
+                ),
+            ),
+            (
+                "schema-packages/json-schema/v1/colorizers/json-schema-color-document.cemt",
+                include_str!(
+                    "../schema-packages/json-schema/v1/colorizers/json-schema-color-document.cemt"
+                ),
+            ),
         ] {
             assert!(
                 !source.contains("@subject=\"json\""),
@@ -16047,6 +16649,245 @@ mod tests {
                 );
             }
         }
+    }
+
+    #[test]
+    fn builtin_json_schema_lifecycle_output_pipeline_executes_package_cemt_assets() {
+        let schema_registry = SchemaRegistry::with_builtin_schemas();
+        let conversion_registry = ConversionRegistry::with_builtin_converters();
+        let environment = ConversionOutputPipelineEnvironment {
+            schema_registry: &schema_registry,
+            conversion_registry: &conversion_registry,
+            package_artifact_reader: None,
+            artifact_cache: None,
+        };
+        let document = serde_json::json!({
+            "kind": "json-schema-document",
+            "contentType": JSON_SCHEMA_CONTENT_TYPE,
+            "schema": JSON_SCHEMA_SCHEMA_URI,
+            "dialect": "https://json-schema.org/draft/2020-12/schema",
+            "json": {
+                "kind": "json-document",
+                "lineEnding": "lf",
+                "root": {
+                    "kind": "object",
+                    "members": [
+                        {
+                            "index": 0,
+                            "name": "$schema",
+                            "nameLexeme": "\"$schema\"",
+                            "value": {
+                                "kind": "string",
+                                "value": "https://json-schema.org/draft/2020-12/schema",
+                                "lexeme": "\"https://json-schema.org/draft/2020-12/schema\""
+                            }
+                        },
+                        {
+                            "index": 1,
+                            "name": "type",
+                            "nameLexeme": "\"type\"",
+                            "value": {
+                                "kind": "string",
+                                "value": "object",
+                                "lexeme": "\"object\""
+                            }
+                        }
+                    ]
+                }
+            }
+        });
+
+        for (profile, tree_profile, layout, expected_output) in [
+            (
+                "compact",
+                "compact",
+                "compact-json-schema-document",
+                "{\"$schema\":\"https://json-schema.org/draft/2020-12/schema\",\"type\":\"object\"}",
+            ),
+            (
+                "pretty",
+                "json.pretty",
+                "pretty-json-schema-document",
+                "{\n  \"$schema\": \"https://json-schema.org/draft/2020-12/schema\",\n  \"type\": \"object\"\n}",
+            ),
+            (
+                "tabular",
+                "tabular",
+                "tabular-json-schema-document",
+                "{\n  \"$schema\": \"https://json-schema.org/draft/2020-12/schema\",\n  \"type\": \"object\"\n}",
+            ),
+        ] {
+            let target_scope = ScopeConfig {
+                cemt_formatter_profile: Some(profile.to_owned()),
+                ..ScopeConfig::default()
+            };
+            let execution = execute_json_schema_document_output_pipeline_with_environment(
+                &environment,
+                document.clone(),
+                &target_scope,
+                Some("builtin:json-schema-output"),
+            );
+
+            assert!(
+                execution.diagnostics.is_empty(),
+                "{profile}: {:?}",
+                execution.diagnostics
+            );
+            assert!(
+                matches!(
+                    execution.format_execution,
+                    Some(ConversionOutputPipelineStageExecution::CemtAdapter {
+                        ref adapter_id,
+                        ref function_name,
+                        ref body_function_name,
+                        ..
+                    }) if adapter_id == "json-schema-format-cemt"
+                        && function_name == "json-schema.format-document"
+                        && body_function_name.as_deref() == Some("json-schema.format-document")
+                ),
+                "{profile}: {:?}",
+                execution.format_execution
+            );
+            assert_eq!(
+                execution.output.as_ref().and_then(Value::as_str),
+                Some(expected_output),
+                "{profile}"
+            );
+            let formatted = execution
+                .formatted_cem_tree
+                .as_ref()
+                .unwrap_or_else(|| panic!("{profile} formatted tree"));
+            assert_eq!(formatted.value["kind"], "cem-tree");
+            assert_eq!(formatted.value["contentType"], JSON_SCHEMA_CONTENT_TYPE);
+            assert_eq!(formatted.value["schema"], JSON_SCHEMA_SCHEMA_URI);
+            assert_eq!(formatted.value["category"], "json-schema-document");
+            assert_eq!(formatted.value["formatterProfile"], tree_profile);
+            assert_eq!(formatted.value["formatNodes"][1]["value"]["layout"], layout);
+            assert_eq!(
+                formatted.value["nodes"][0]["value"]["name"],
+                "json-schema.format-document"
+            );
+        }
+
+        assert!(
+            builtin_schema_package_artifact_source(
+                "json-schema",
+                "schema-packages/json-schema/v1/formatters/json-schema-format-document.cemt",
+            )
+            .is_some_and(|source| source.source.contains("{body |")),
+            "JSON Schema formatter asset must be embedded with an executable body"
+        );
+    }
+
+    #[test]
+    fn builtin_json_schema_colorizer_profiles_execute_package_cemt_assets() {
+        let schema_registry = SchemaRegistry::with_builtin_schemas();
+        let conversion_registry = ConversionRegistry::with_builtin_converters();
+        let environment = ConversionOutputPipelineEnvironment {
+            schema_registry: &schema_registry,
+            conversion_registry: &conversion_registry,
+            package_artifact_reader: None,
+            artifact_cache: None,
+        };
+        let document = serde_json::json!({
+            "kind": "json-schema-document",
+            "contentType": JSON_SCHEMA_CONTENT_TYPE,
+            "schema": JSON_SCHEMA_SCHEMA_URI,
+            "dialect": "https://json-schema.org/draft/2020-12/schema",
+            "json": {
+                "kind": "json-document",
+                "root": {
+                    "kind": "object",
+                    "members": [{
+                        "index": 0,
+                        "name": "type",
+                        "nameLexeme": "\"type\"",
+                        "value": {
+                            "kind": "string",
+                            "value": "object",
+                            "lexeme": "\"object\""
+                        }
+                    }]
+                }
+            }
+        });
+
+        for (profile, output, style_key, style_value) in [
+            ("terminal", "terminal", "terminalCapability", "auto"),
+            ("html", "html", "htmlMode", "classes"),
+            ("md", "md", "wrapper", "span"),
+        ] {
+            let target_scope = ScopeConfig {
+                cemt_color_profile: Some(profile.to_owned()),
+                ..ScopeConfig::default()
+            };
+            let execution = execute_json_schema_document_output_pipeline_with_environment(
+                &environment,
+                document.clone(),
+                &target_scope,
+                Some("builtin:json-schema-color-output"),
+            );
+
+            assert!(
+                execution.diagnostics.is_empty(),
+                "{profile}: {:?}",
+                execution.diagnostics
+            );
+            assert!(
+                matches!(
+                    execution.color_execution,
+                    Some(ConversionOutputPipelineStageExecution::CemtAdapter {
+                        ref adapter_id,
+                        ref function_name,
+                        ref body_function_name,
+                        ..
+                    }) if adapter_id == "json-schema-color-cemt"
+                        && function_name == "json-schema.color-document"
+                        && body_function_name.as_deref() == Some("json-schema.color-document")
+                ),
+                "{profile}: {:?}",
+                execution.color_execution
+            );
+            let colored = execution
+                .colored_cem_tree
+                .as_ref()
+                .unwrap_or_else(|| panic!("{profile} colored tree"));
+            assert_eq!(colored.value["contentType"], JSON_SCHEMA_CONTENT_TYPE);
+            assert_eq!(colored.value["schema"], JSON_SCHEMA_SCHEMA_URI);
+            assert_eq!(colored.value["category"], "json-schema-document");
+            assert_eq!(colored.value["colorProfile"], profile);
+            assert_eq!(colored.value["colorOutput"], output);
+            assert_eq!(colored.value["nodes"][3]["style"][style_key], style_value);
+            assert_eq!(
+                colored.value["nodes"][3]["value"]["colorRole"],
+                "syntax.name"
+            );
+            if profile == "html" {
+                let output = execution.output.as_ref().and_then(Value::as_str).unwrap();
+                assert!(
+                    output.starts_with(&json_schema_html_preview_prefix(
+                        default_formatter_tab_size()
+                    )),
+                    "{output}"
+                );
+                assert!(output.contains(r#"data-role="syntax.name""#), "{output}");
+                assert_eq!(html_text_content(output), r#"{"type":"object"}"#);
+            } else {
+                assert_eq!(
+                    strip_ansi_codes(execution.output.as_ref().and_then(Value::as_str).unwrap()),
+                    r#"{"type":"object"}"#
+                );
+            }
+        }
+
+        assert!(
+            builtin_schema_package_artifact_source(
+                "json-schema",
+                "schema-packages/json-schema/v1/colorizers/json-schema-color-document.cemt",
+            )
+            .is_some_and(|source| source.source.contains("{body |")),
+            "JSON Schema colorizer asset must be embedded with an executable body"
+        );
     }
 
     fn execute_builtin_csv_colorizer_profile(

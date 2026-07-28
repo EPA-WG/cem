@@ -562,7 +562,7 @@ Remaining dependency-ordered package checklist:
         and dialect diagnostics into an engine-reachable typed JSON Schema AST
         stream with neutral parse/dialect facts and schema-owned diagnostic
         bindings.
-  - [ ] Move JSON Schema formatter/colorizer CEMT assets away from raw
+  - [x] Move JSON Schema formatter/colorizer CEMT assets away from raw
         `json`/`tokens` boundaries to package-owned JSON Schema document and
         formatted/colored CEM-tree boundaries.
   - [ ] Route JSON Schema README previews through package formatter/colorizer

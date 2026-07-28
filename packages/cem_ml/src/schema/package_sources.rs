@@ -3332,12 +3332,22 @@ mod tests {
         assert!(formatter
             .source
             .contains(r#"@category="json-schema-document""#));
+        assert!(formatter
+            .source
+            .contains(r#"@subject="json-schema-document""#));
+        assert!(formatter.source.contains(r#"@produces="cem-tree""#));
         assert!(colorizer
             .source
             .contains(r#"@name="json-schema.color-document""#));
+        assert!(colorizer.source.contains(r#"@subject="cem-tree""#));
+        assert!(colorizer.source.contains(r#"@produces="cem-tree""#));
         assert!(colorizer
             .source
             .contains(r#"@content-type="application/schema+json""#));
+        assert!(!formatter.source.contains(r#"@subject="json""#));
+        assert!(!formatter.source.contains(r#"@produces="tokens""#));
+        assert!(!colorizer.source.contains(r#"@subject="tokens""#));
+        assert!(!colorizer.source.contains(r#"@produces="tokens""#));
     }
 
     #[test]
