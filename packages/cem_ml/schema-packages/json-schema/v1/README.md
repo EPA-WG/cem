@@ -73,17 +73,12 @@ validation of instance documents, remote reference loading, dynamic scope
 resolution, and vocabulary assertion semantics are not part of the current
 release contract.
 
-## Tracked Incomplete Work
-
-- Invalid JSON Schema README previews still use source snapshots until the
-  lifecycle/output path can render recoverable parse and dialect-failure AST
-  previews directly.
-
 ## Examples
 
 This section is generated from `package.cem` `{example}` metadata by the
-`samples2readme` Nx target. Each SVG previews the example content, not
-the validation report. The target writes a preformatted HTML preview to
+`samples2readme` Nx target. Each SVG previews the rendered example
+content or validation diagnostics for expected-fail examples. The target writes a
+preformatted HTML preview to
 `dist/cem_ml/schema-packages/<package>/v1/examples/<example-file>.html`,
 then renders the `<pre>` spans through headless Chromium into
 `examples/previews/<example-file>.svg`.
@@ -164,8 +159,14 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
 - Schema: `https://cem.dev/ns/data/json-schema/1`
 - Expected result: `fail`
 - Expected diagnostics: `cem.json_schema.unsupported_dialect`
-- Preview renderer: `source snapshot HTML + html2svg`
+- Preview renderer: `CLI validate, JSON report, preview HTML + html2svg`
 - Preview HTML: `dist/cem_ml/schema-packages/json-schema/v1/examples/invalid-unsupported-dialect.schema.json.html`
+
+```bash
+dist/target/cem_ml_cli/debug/cem-ml validate --format json --fail-level parse \
+  --content-type application/schema+json --schema https://cem.dev/ns/data/json-schema/1 \
+  packages/cem_ml/schema-packages/json-schema/v1/examples/invalid-unsupported-dialect.schema.json
+```
 
 </details>
 
@@ -179,8 +180,14 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
 - Schema: `https://cem.dev/ns/data/json-schema/1`
 - Expected result: `fail`
 - Expected diagnostics: `cem.json_schema.parse_error`
-- Preview renderer: `source snapshot HTML + html2svg`
+- Preview renderer: `CLI validate, JSON report, preview HTML + html2svg`
 - Preview HTML: `dist/cem_ml/schema-packages/json-schema/v1/examples/invalid-parse.schema.json.html`
+
+```bash
+dist/target/cem_ml_cli/debug/cem-ml validate --format json --fail-level parse \
+  --content-type application/schema+json --schema https://cem.dev/ns/data/json-schema/1 \
+  packages/cem_ml/schema-packages/json-schema/v1/examples/invalid-parse.schema.json
+```
 
 </details>
 

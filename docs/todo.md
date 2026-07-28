@@ -554,7 +554,7 @@ Remaining dependency-ordered package checklist:
         pretty, tabular, terminal, HTML, and Markdown semantics.
   - [x] Add JSON README/SVG preview drift checks after package-owned JSON
         formatter/colorizer bodies render the example previews.
-- [ ] `json-schema/v1`
+- [x] `json-schema/v1`
   - [x] Expand package-local verification so JSON Schema runs manifest
         validation, manifest-index coverage, embedded artifact catalog tests,
         CLI validation behavior tests, and README/SVG preview drift checks.
@@ -569,7 +569,7 @@ Remaining dependency-ordered package checklist:
         formatter/colorizer output now that the typed output layer exists.
   - [x] Add a JSON Schema `nested-data` fixture with three nested object
         enclosures for tabular formatter preview coverage.
-  - [ ] Add a recoverable JSON Schema invalid-input preview path for parse and
+  - [x] Add a recoverable JSON Schema invalid-input preview path for parse and
         dialect-failure examples, then remove the remaining source-snapshot
         preview fallback for `json-schema/v1`.
 - [ ] `markdown/v1`

@@ -11,7 +11,7 @@ const cli = join(workspaceRoot, 'dist/target/cem_ml_cli/debug/cem-ml');
 const update = process.argv.includes('--update');
 const packageLabel = 'JSON Schema Resource Schema Package';
 
-function jsonSchemaExampleCase({ id, file, minHeight = 190 }) {
+function jsonSchemaValidateExampleCase({ id, file, minHeight = 520 }) {
     const path = `packages/cem_ml/schema-packages/json-schema/v1/examples/${file}`;
     return {
         id: `${id}-preview`,
@@ -19,11 +19,23 @@ function jsonSchemaExampleCase({ id, file, minHeight = 190 }) {
         html: `${file}.html`,
         title: `${packageLabel} ${id} example preview`,
         description: `Preview of examples/${file} from package.cem example metadata.`,
-        terminalTitle: `source ${file}`,
-        renderer: 'text',
-        sourcePath: path,
-        width: 920,
+        terminalTitle: `json-schema validate ${file}`,
+        renderer: 'json',
+        expectedStatus: 'success',
+        width: 1040,
         minHeight,
+        args: [
+            'validate',
+            '--format',
+            'json',
+            '--fail-level',
+            'parse',
+            '--content-type',
+            'application/schema+json',
+            '--schema',
+            'https://cem.dev/ns/data/json-schema/1',
+            path,
+        ],
     };
 }
 
@@ -74,11 +86,11 @@ const cases = [
         file: 'nested-data.schema.json',
         minHeight: 430,
     }),
-    jsonSchemaExampleCase({
+    jsonSchemaValidateExampleCase({
         id: 'invalid-unsupported-dialect',
         file: 'invalid-unsupported-dialect.schema.json',
     }),
-    jsonSchemaExampleCase({ id: 'invalid-parse', file: 'invalid-parse.schema.json' }),
+    jsonSchemaValidateExampleCase({ id: 'invalid-parse', file: 'invalid-parse.schema.json' }),
 ];
 
 await verifyReadmePreviews({

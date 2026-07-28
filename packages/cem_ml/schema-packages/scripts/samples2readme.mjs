@@ -292,7 +292,19 @@ function previewPlanForExample(example, manifest) {
 
     if (isJsonSchemaTextExample(example, manifest, essence)) {
         if (example.expectedResult !== 'pass') {
-            return sourceOnly;
+            return {
+                label: 'json-schema validate',
+                renderer: 'json',
+                expectedStatus: 'success',
+                width: 1040,
+                minHeight: 520,
+                args: validatePreviewArgs(inputPath, {
+                    format: 'json',
+                    failLevel: 'parse',
+                    contentType: example.contentType,
+                    schema: example.schema,
+                }),
+            };
         }
         return {
             label: 'json-schema',
@@ -396,6 +408,21 @@ function convertPreviewArgs(
     return args;
 }
 
+function validatePreviewArgs(
+    inputPath,
+    { format = 'json', failLevel = 'validate', contentType = null, schema = null } = {},
+) {
+    const args = ['validate', '--format', format, '--fail-level', failLevel];
+    if (contentType) {
+        args.push('--content-type', contentType);
+    }
+    if (schema) {
+        args.push('--schema', schema);
+    }
+    args.push(inputPath);
+    return args;
+}
+
 function contentTypeEssence(contentType) {
     return contentType.split(';', 1)[0].trim().toLowerCase();
 }
@@ -461,12 +488,23 @@ function isXmlFamilyExample(essence) {
 }
 
 function generatedExamplesSection(manifest, packageLabel) {
+    const hasValidationPreviews = manifest.examples.some(
+        (example) => previewPlanForExample(example, manifest).args?.[0] === 'validate',
+    );
     const lines = [
         '## Examples',
         '',
         'This section is generated from `package.cem` `{example}` metadata by the',
-        '`samples2readme` Nx target. Each SVG previews the example content, not',
-        'the validation report. The target writes a preformatted HTML preview to',
+        ...(hasValidationPreviews
+            ? [
+                  '`samples2readme` Nx target. Each SVG previews the rendered example',
+                  'content or validation diagnostics for expected-fail examples. The target writes a',
+                  'preformatted HTML preview to',
+              ]
+            : [
+                  '`samples2readme` Nx target. Each SVG previews the example content, not',
+                  'the validation report. The target writes a preformatted HTML preview to',
+              ]),
         '`dist/cem_ml/schema-packages/<package>/v1/examples/<example-file>.html`,',
         'then renders the `<pre>` spans through headless Chromium into',
         '`examples/previews/<example-file>.svg`.',
@@ -522,6 +560,9 @@ function shellCommandLines(args) {
 function previewRendererLabel(plan) {
     if (plan.sourcePath) {
         return 'source snapshot HTML + html2svg';
+    }
+    if (plan.args?.[0] === 'validate') {
+        return 'CLI validate, JSON report, preview HTML + html2svg';
     }
     return 'CLI convert, tabular formatter, preview HTML + html2svg';
 }
