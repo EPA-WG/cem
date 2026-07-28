@@ -9720,12 +9720,36 @@ fn transform_template_cem_tree_writer_format_decision_value<'a>(
         .and_then(|nodes| {
             nodes.iter().find_map(|node| {
                 let fields = node.as_object()?;
-                (fields.get("kind").and_then(Value::as_str) == Some("format-decision")
-                    && fields.get("name").and_then(Value::as_str) == Some(name))
-                .then(|| fields.get("value").and_then(Value::as_str))
-                .flatten()
+                if fields.get("kind").and_then(Value::as_str) != Some("format-decision") {
+                    return None;
+                }
+                let decision_name = fields.get("name").and_then(Value::as_str)?;
+                if decision_name == name {
+                    return fields.get("value").and_then(Value::as_str);
+                }
+                if !transform_template_cem_tree_writer_is_layout_decision(fields, decision_name) {
+                    return None;
+                }
+                let layout_value = fields.get("value")?.as_object()?;
+                let layout_field = transform_template_cem_tree_writer_layout_decision_field(name);
+                layout_value.get(layout_field).and_then(Value::as_str)
             })
         })
+}
+
+fn transform_template_cem_tree_writer_is_layout_decision(
+    fields: &serde_json::Map<String, Value>,
+    decision_name: &str,
+) -> bool {
+    decision_name.ends_with(".layout")
+        || fields.get("formatterRole").and_then(Value::as_str) == Some("formatter.layout")
+}
+
+fn transform_template_cem_tree_writer_layout_decision_field(name: &str) -> &str {
+    match name {
+        "line-ending" => "lineEnding",
+        _ => name,
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -30601,8 +30625,13 @@ mod tests {
             "colorOutput": "html",
             "formatNodes": [{
                 "kind": "format-decision",
-                "name": "indent",
-                "value": "  "
+                "name": "json.layout",
+                "formatterRole": "formatter.layout",
+                "value": {
+                    "layout": "tabular-json-document",
+                    "lineEnding": "lf",
+                    "indent": "  "
+                }
             }],
             "nodes": nodes
         });
@@ -30693,8 +30722,13 @@ mod tests {
             "colorOutput": "html",
             "formatNodes": [{
                 "kind": "format-decision",
-                "name": "indent",
-                "value": "  "
+                "name": "json-schema.layout",
+                "formatterRole": "formatter.layout",
+                "value": {
+                    "layout": "tabular-json-schema-document",
+                    "lineEnding": "lf",
+                    "indent": "  "
+                }
             }],
             "nodes": nodes
         });
