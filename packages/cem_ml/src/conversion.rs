@@ -16507,7 +16507,7 @@ mod tests {
                 "schema-packages/json/v1/formatters/tabular.cemt",
                 "tabular",
                 "tabular-json-document",
-                "{\n  \"name\": \"Ada\",\n  \"items\": [\n    1,\n    true\n  ]\n}",
+                "{\n  \"name\": \"Ada\",\n  \"items\": [\n    1,\n    true\n] }",
             ),
         ] {
             let target_scope = ScopeConfig {
