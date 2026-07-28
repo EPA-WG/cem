@@ -579,7 +579,7 @@ Remaining dependency-ordered package checklist:
   - [x] Move Markdown source validation out of CLI-owned direct validation into
         an engine-reachable typed Markdown AST stream with neutral parse,
         encoding, variant, and embedded-HTML facts plus source-map ranges.
-  - [ ] Move Markdown formatter/colorizer CEMT assets away from raw
+  - [x] Move Markdown formatter/colorizer CEMT assets away from raw
         `json`/`tokens` stubs to package-owned Markdown document and
         formatted/colored CEM-tree boundaries.
   - [ ] Route Markdown README previews through package formatter/colorizer

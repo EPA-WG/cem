@@ -47,6 +47,8 @@ The package-local `cem_ml_schema_package_markdown_v1:verify` target checks:
 - manifest validation against the schema-package schema;
 - manifest-index coverage for all declared examples;
 - embedded formatter/colorizer artifact catalog registration;
+- formatter/colorizer CEMT body execution over `markdown-document` and
+  `cem-tree` boundaries;
 - Markdown source validation behavior for valid CommonMark, missing charset,
   unknown variant, embedded HTML rejection, and unsupported UTF-8;
 - CLI validation behavior for the same Markdown source cases;
@@ -59,14 +61,15 @@ Validation currently recognizes UTF-8 Markdown text, checks the `charset` and
 and rejects embedded HTML unless a future policy permits it. Markdown source
 validation now opens a typed Markdown AST/event stream with source metadata,
 encoding facts, variant facts, parser events, embedded-HTML facts, and source
-maps before projecting diagnostics. Package-owned formatter/colorizer output
-bodies, trusted HTML rendering modes, and variant-specific extension models are
-not part of the current release contract.
+maps before projecting diagnostics. Package-owned formatter/colorizer bodies
+now consume the `markdown-document` subject and pass formatted/colored
+`cem-tree` artifacts to the writer. The current formatter is an event-stream
+writer, not a full Markdown block/inline reflow engine. Trusted HTML rendering
+modes and variant-specific extension models are not part of the current release
+contract.
 
 ## Tracked Incomplete Work
 
-- Formatter/colorizer CEMT assets are currently package declarations with
-  placeholder raw `json`/`tokens` boundaries.
 - README previews intentionally use source snapshots until package-owned
   Markdown formatter/colorizer output can render examples directly.
 

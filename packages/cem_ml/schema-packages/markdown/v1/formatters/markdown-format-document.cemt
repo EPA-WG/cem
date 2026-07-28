@@ -5,14 +5,391 @@
 {module @version="1.0.0" |
     {format-function
         @name="markdown.format-document"
+        @visibility="public"
         @category="markdown-document"
-        @subject="json"
-        @produces="tokens"
+        @subject="markdown-document"
+        @produces="cem-tree"
         @content-type="text/markdown"
         @schema="https://cem.dev/ns/data/markdown/1"
+        @profile="compact"
         @canonical=true
         @deterministic=true
         @streamable=true |
-        {param @name="subject" @type="json" @required=true}
+        {param @name="subject" @type="object" @required=true}
+        {body | {$ merge(call("markdown.format-document.tree", { subject: $subject, profile: "compact" }), {}) } }
+    }
+
+    {format-function
+        @name="markdown.format-document"
+        @visibility="public"
+        @category="markdown-document"
+        @subject="markdown-document"
+        @produces="cem-tree"
+        @content-type="text/markdown"
+        @schema="https://cem.dev/ns/data/markdown/1"
+        @profile="pretty"
+        @canonical=false
+        @deterministic=true
+        @streamable=true |
+        {param @name="subject" @type="object" @required=true}
+        {body | {$ merge(call("markdown.format-document.tree", { subject: $subject, profile: "pretty" }), {}) } }
+    }
+
+    {format-function
+        @name="markdown.format-document"
+        @visibility="public"
+        @category="markdown-document"
+        @subject="markdown-document"
+        @produces="cem-tree"
+        @content-type="text/markdown"
+        @schema="https://cem.dev/ns/data/markdown/1"
+        @profile="tabular"
+        @canonical=false
+        @deterministic=true
+        @streamable=true |
+        {param @name="subject" @type="object" @required=true}
+        {body | {$ merge(call("markdown.format-document.tree", { subject: $subject, profile: "tabular" }), {}) } }
+    }
+
+    {function @name="markdown.format-document.tree" @visibility="private" @returns="object" @deterministic=true |
+        {param @name="subject" @type="object" @required=true}
+        {param @name="profile" @type="string" @required=true}
+        {body |
+            {$ {
+                kind: "cem-tree",
+                contentType: "text/markdown",
+                schema: "https://cem.dev/ns/data/markdown/1",
+                category: "markdown-document",
+                formatterProfile: $profile,
+                formatNodes: [
+                    {
+                        kind: "format-marker",
+                        name: "markdown.format-document",
+                        formatterRole: "formatter.boundary",
+                        formatterProfile: $profile
+                    },
+                    {
+                        kind: "format-decision",
+                        name: "markdown.layout",
+                        formatterRole: "formatter.layout",
+                        formatterProfile: $profile,
+                        value: {
+                            layout: call("markdown.format-document.layout", { profile: $profile }),
+                            lineEnding: $lineEnding,
+                            indent: $indent,
+                            tabSize: $tabSize,
+                            sourceBoundary: "markdown-document"
+                        }
+                    }
+                ],
+                nodes: extend(
+                    [
+                        {
+                            kind: "markdown.format-marker",
+                            writerKind: "token",
+                            text: "",
+                            role: "formatter.boundary",
+                            value: {
+                                name: "markdown.format-document",
+                                formatterProfile: $profile
+                            }
+                        },
+                        {
+                            kind: "markdown.format-decision",
+                            writerKind: "token",
+                            text: "",
+                            role: "formatter.layout",
+                            value: {
+                                layout: call("markdown.format-document.layout", { profile: $profile }),
+                                lineEnding: $lineEnding,
+                                indent: $indent,
+                                tabSize: $tabSize
+                            }
+                        }
+                    ],
+                    call("markdown.format-document.events", {
+                        events: match(typeOf($subject.events), {
+                            array: $subject.events,
+                            default: []
+                        }),
+                        profile: $profile
+                    })
+                )
+            } }
+        }
+    }
+
+    {function @name="markdown.format-document.layout" @visibility="private" @returns="string" @deterministic=true |
+        {param @name="profile" @type="string" @required=true}
+        {body |
+            {$ match($profile, {
+                compact: "compact-markdown-events",
+                pretty: "pretty-markdown-events",
+                tabular: "tabular-markdown-events",
+                default: "markdown-events"
+            }) }
+        }
+    }
+
+    {function @name="markdown.format-document.events" @visibility="private" @returns="array" @deterministic=true |
+        {param @name="events" @type="array" @required=true}
+        {param @name="profile" @type="string" @required=true}
+        {body |
+            {$ fold($events, [], extend(
+                $acc,
+                call("markdown.format-document.event", { event: $item, profile: $profile })
+            )) }
+        }
+    }
+
+    {function @name="markdown.format-document.event" @visibility="private" @returns="array" @deterministic=true |
+        {param @name="event" @type="object" @required=true}
+        {param @name="profile" @type="string" @required=true}
+        {body |
+            {$ match($event.kind, {
+                start: call("markdown.format-document.start", { event: $event, profile: $profile }),
+                end: call("markdown.format-document.end", { event: $event, profile: $profile }),
+                text: [
+                    call("markdown.format-document.event-token", {
+                        event: $event,
+                        kind: "markdown.text",
+                        text: call("markdown.format-document.event-text", { event: $event }),
+                        role: "syntax.text",
+                        profile: $profile
+                    })
+                ],
+                code: [
+                    call("markdown.format-document.event-token", {
+                        event: $event,
+                        kind: "markdown.code-span",
+                        text: concat("`", concat(call("markdown.format-document.event-text", { event: $event }), "`")),
+                        role: "syntax.string",
+                        profile: $profile
+                    })
+                ],
+                html: [
+                    call("markdown.format-document.event-token", {
+                        event: $event,
+                        kind: "markdown.html",
+                        text: call("markdown.format-document.event-text", { event: $event }),
+                        role: "embedded.html",
+                        profile: $profile
+                    })
+                ],
+                "inline-html": [
+                    call("markdown.format-document.event-token", {
+                        event: $event,
+                        kind: "markdown.inline-html",
+                        text: call("markdown.format-document.event-text", { event: $event }),
+                        role: "embedded.html",
+                        profile: $profile
+                    })
+                ],
+                "soft-break": [call("markdown.format-document.line-ending", { profile: $profile })],
+                "hard-break": [call("markdown.format-document.line-ending", { profile: $profile })],
+                "thematic-break": [
+                    call("markdown.format-document.token", {
+                        kind: "markdown.thematic-break",
+                        text: "---",
+                        role: "syntax.punctuation",
+                        sourceMap: call("markdown.format-document.source-map", { event: $event }),
+                        profile: $profile,
+                        value: { formatterProfile: $profile }
+                    }),
+                    call("markdown.format-document.line-ending", { profile: $profile })
+                ],
+                "task-list-marker": [
+                    call("markdown.format-document.event-token", {
+                        event: $event,
+                        kind: "markdown.task-list-marker",
+                        text: match($event.checked, { true: "[x] ", false: "[ ] ", default: "[ ] " }),
+                        role: "syntax.keyword",
+                        profile: $profile
+                    })
+                ],
+                default: []
+            }) }
+        }
+    }
+
+    {function @name="markdown.format-document.start" @visibility="private" @returns="array" @deterministic=true |
+        {param @name="event" @type="object" @required=true}
+        {param @name="profile" @type="string" @required=true}
+        {body |
+            {$ match($event.tag, {
+                heading: [
+                    call("markdown.format-document.event-token", {
+                        event: $event,
+                        kind: "markdown.heading-marker",
+                        text: call("markdown.format-document.heading-marker", { event: $event }),
+                        role: "syntax.punctuation",
+                        profile: $profile
+                    })
+                ],
+                "list-item": [
+                    call("markdown.format-document.event-token", {
+                        event: $event,
+                        kind: "markdown.list-marker",
+                        text: "- ",
+                        role: "syntax.punctuation",
+                        profile: $profile
+                    })
+                ],
+                "code-block": [
+                    call("markdown.format-document.event-token", {
+                        event: $event,
+                        kind: "markdown.code-fence",
+                        text: concat("```", match(typeOf($event.info), { string: $event.info, default: "" })),
+                        role: "syntax.punctuation",
+                        profile: $profile
+                    }),
+                    call("markdown.format-document.line-ending", { profile: $profile })
+                ],
+                link: [
+                    call("markdown.format-document.event-token", {
+                        event: $event,
+                        kind: "markdown.link-open",
+                        text: "[",
+                        role: "syntax.punctuation",
+                        profile: $profile
+                    })
+                ],
+                image: [
+                    call("markdown.format-document.event-token", {
+                        event: $event,
+                        kind: "markdown.image-open",
+                        text: "![",
+                        role: "syntax.punctuation",
+                        profile: $profile
+                    })
+                ],
+                default: []
+            }) }
+        }
+    }
+
+    {function @name="markdown.format-document.end" @visibility="private" @returns="array" @deterministic=true |
+        {param @name="event" @type="object" @required=true}
+        {param @name="profile" @type="string" @required=true}
+        {body |
+            {$ match($event.tag, {
+                paragraph: [call("markdown.format-document.line-ending", { profile: $profile }), call("markdown.format-document.line-ending", { profile: $profile })],
+                heading: [call("markdown.format-document.line-ending", { profile: $profile }), call("markdown.format-document.line-ending", { profile: $profile })],
+                "list-item": [call("markdown.format-document.line-ending", { profile: $profile })],
+                "code-block": [
+                    call("markdown.format-document.event-token", {
+                        event: $event,
+                        kind: "markdown.code-fence",
+                        text: "```",
+                        role: "syntax.punctuation",
+                        profile: $profile
+                    }),
+                    call("markdown.format-document.line-ending", { profile: $profile })
+                ],
+                link: [
+                    call("markdown.format-document.event-token", {
+                        event: $event,
+                        kind: "markdown.link-close",
+                        text: concat("](", concat(match(typeOf($event.destination), { string: $event.destination, default: "" }), ")")),
+                        role: "syntax.punctuation",
+                        profile: $profile
+                    })
+                ],
+                image: [
+                    call("markdown.format-document.event-token", {
+                        event: $event,
+                        kind: "markdown.image-close",
+                        text: concat("](", concat(match(typeOf($event.destination), { string: $event.destination, default: "" }), ")")),
+                        role: "syntax.punctuation",
+                        profile: $profile
+                    })
+                ],
+                default: []
+            }) }
+        }
+    }
+
+    {function @name="markdown.format-document.heading-marker" @visibility="private" @returns="string" @deterministic=true |
+        {param @name="event" @type="object" @required=true}
+        {body |
+            {$ match($event.level, {
+                1: "# ",
+                2: "## ",
+                3: "### ",
+                4: "#### ",
+                5: "##### ",
+                6: "###### ",
+                default: "# "
+            }) }
+        }
+    }
+
+    {function @name="markdown.format-document.event-text" @visibility="private" @returns="string" @deterministic=true |
+        {param @name="event" @type="object" @required=true}
+        {body | {$ match(typeOf($event.text), { string: $event.text, default: "" }) } }
+    }
+
+    {function @name="markdown.format-document.source-map" @visibility="private" @returns="any" @nullable=true @deterministic=true |
+        {param @name="event" @type="object" @required=true}
+        {body | {$ match(exists($event.sourceMap), { true: $event.sourceMap, false: null }) } }
+    }
+
+    {function @name="markdown.format-document.event-token" @visibility="private" @returns="object" @deterministic=true |
+        {param @name="event" @type="object" @required=true}
+        {param @name="kind" @type="string" @required=true}
+        {param @name="text" @type="string" @required=true}
+        {param @name="role" @type="string" @required=true}
+        {param @name="profile" @type="string" @required=true}
+        {body |
+            {$ call("markdown.format-document.token", {
+                kind: $kind,
+                text: $text,
+                role: $role,
+                sourceMap: call("markdown.format-document.source-map", { event: $event }),
+                profile: $profile,
+                value: {
+                    eventIndex: $event.index,
+                    eventKind: $event.kind,
+                    eventTag: $event.tag,
+                    formatterProfile: $profile
+                }
+            }) }
+        }
+    }
+
+    {function @name="markdown.format-document.line-ending" @visibility="private" @returns="object" @deterministic=true |
+        {param @name="profile" @type="string" @required=true}
+        {body |
+            {$ call("markdown.format-document.token", {
+                kind: "markdown.line-ending",
+                text: $lineEnding,
+                role: "formatter.boundary",
+                sourceMap: null,
+                profile: $profile,
+                value: { formatterProfile: $profile }
+            }) }
+        }
+    }
+
+    {function @name="markdown.format-document.token" @visibility="private" @returns="object" @deterministic=true |
+        {param @name="kind" @type="string" @required=true}
+        {param @name="text" @type="string" @required=true}
+        {param @name="role" @type="string" @required=true}
+        {param @name="sourceMap" @type="any" @required=true @nullable=true}
+        {param @name="profile" @type="string" @required=true}
+        {param @name="value" @type="object" @required=true}
+        {body |
+            {$ {
+                kind: $kind,
+                writerKind: "token",
+                text: $text,
+                role: $role,
+                sourceMap: $sourceMap,
+                value: merge($value, {
+                    formatterProfile: $profile,
+                    package: "markdown"
+                })
+            } }
+        }
     }
 }

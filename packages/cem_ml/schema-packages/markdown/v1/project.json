@@ -91,6 +91,7 @@
                     "./dist/target/cem_ml_cli/debug/cem-ml --quiet validate --fail-level parse --format json --content-type application/vnd.cem.schema-package+cem --schema https://cem.dev/ns/schema-package/1 --report-json packages/cem_ml/schema-packages/markdown/v1/dist packages/cem_ml/schema-packages/markdown/v1/package.cem",
                     "cargo test -p cem-ml markdown_package_examples_are_manifest_indexed -- --nocapture",
                     "cargo test -p cem-ml catalog_exposes_markdown_output_artifact_sources -- --nocapture",
+                    "cargo test -p cem-ml evaluate_encode_expressions_executes_markdown_package_cemt_boundaries -- --nocapture",
                     "cargo test -p cem-ml markdown_source_validator -- --nocapture",
                     "cargo test -p cem-ml-cli validate_markdown_source -- --nocapture",
                     "node packages/cem_ml/schema-packages/markdown/v1/scripts/verify-previews.mjs"

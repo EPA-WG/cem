@@ -12714,6 +12714,10 @@ fn append_transform_template_semantic_subject_type_candidates(
         append_transform_template_subject_type_hint(candidates, "cem-tree");
     }
 
+    if object.get("kind").and_then(Value::as_str) == Some("markdown-document") {
+        append_transform_template_subject_type_hint(candidates, "markdown-document");
+    }
+
     if object.get("bytes").is_some_and(Value::is_array) {
         append_transform_template_subject_type_hint(candidates, "bytes");
     }
@@ -32288,6 +32292,20 @@ mod tests {
         );
         assert_eq!(
             transform_template_encode_subject_type_candidates(&json!({
+                "kind": "markdown-document",
+                "events": []
+            })),
+            vec![
+                "markdown-document".to_owned(),
+                "event-stream".to_owned(),
+                "events".to_owned(),
+                "map".to_owned(),
+                "object".to_owned(),
+                "json".to_owned()
+            ]
+        );
+        assert_eq!(
+            transform_template_encode_subject_type_candidates(&json!({
                 "subjectType": "HTMLNode",
                 "node": {"localName": "section"}
             })),
@@ -33186,6 +33204,181 @@ mod tests {
         assert_eq!(
             evaluated.artifact.value["colorNodes"][0]["name"],
             "acme.color-tree"
+        );
+    }
+
+    #[test]
+    fn evaluate_encode_expressions_executes_markdown_package_cemt_boundaries() {
+        let formatter_source =
+            crate::schema::package_sources::builtin_schema_package_artifact_source(
+                "markdown",
+                "schema-packages/markdown/v1/formatters/markdown-format-document.cemt",
+            )
+            .expect("Markdown formatter source");
+        let colorizer_source =
+            crate::schema::package_sources::builtin_schema_package_artifact_source(
+                "markdown",
+                "schema-packages/markdown/v1/colorizers/markdown-color-document.cemt",
+            )
+            .expect("Markdown colorizer source");
+
+        let formatter =
+            parse_cem_native_template_module_options(TransformTemplateModuleParseRequest {
+                template: template_input(
+                    formatter_source.path,
+                    formatter_source.source,
+                    Some(FormatIdentity {
+                        schema: Some(CEM_TRANSFORM_SCHEMA_URI.to_owned()),
+                        ..FormatIdentity::default()
+                    }),
+                ),
+            });
+        assert!(
+            formatter.diagnostics.is_empty(),
+            "{:?}",
+            formatter.diagnostics
+        );
+        let colorizer =
+            parse_cem_native_template_module_options(TransformTemplateModuleParseRequest {
+                template: template_input(
+                    colorizer_source.path,
+                    colorizer_source.source,
+                    Some(FormatIdentity {
+                        schema: Some(CEM_TRANSFORM_SCHEMA_URI.to_owned()),
+                        ..FormatIdentity::default()
+                    }),
+                ),
+            });
+        assert!(
+            colorizer.diagnostics.is_empty(),
+            "{:?}",
+            colorizer.diagnostics
+        );
+
+        let mut registry =
+            TransformTemplateOutputFunctionRegistry::from_module_options(&formatter.module_options);
+        registry
+            .runtime_functions
+            .extend(cemt_runtime_functions_from_module_options(
+                &colorizer.module_options,
+            ));
+        for function in colorizer.module_options.output_functions.clone() {
+            registry.register(function);
+        }
+        let markdown_formatter = registry
+            .functions()
+            .iter()
+            .find(|function| {
+                function.name == "markdown.format-document"
+                    && function.profile.as_deref() == Some("pretty")
+            })
+            .expect("pretty Markdown formatter");
+        assert_eq!(markdown_formatter.subject, "markdown-document");
+        assert_eq!(
+            markdown_formatter.produces,
+            TransformTemplateOutputProducedKind::CemTree
+        );
+        let markdown_colorizer = registry
+            .functions()
+            .iter()
+            .find(|function| {
+                function.name == "markdown.color-document"
+                    && function.profile.as_deref() == Some("html")
+            })
+            .expect("HTML Markdown colorizer");
+        assert_eq!(markdown_colorizer.subject, "cem-tree");
+        assert_eq!(
+            markdown_colorizer.produces,
+            TransformTemplateOutputProducedKind::CemTree
+        );
+
+        let (document, markdown_diagnostics) =
+            crate::validation::markdown::markdown_document_ast_from_source_bytes(
+                crate::validation::markdown::MarkdownSourceValidationRequest {
+                    bytes: b"# Release Notes\n\nThis has `code`.\n",
+                    source_uri: "fixture.md",
+                    content_type: Some("text/markdown; charset=utf-8; variant=CommonMark"),
+                },
+            );
+        assert!(markdown_diagnostics.is_empty(), "{markdown_diagnostics:?}");
+        let mut values = BTreeMap::new();
+        values.insert(
+            "node".to_owned(),
+            json!({
+                "markdown": document.expect("Markdown document").to_cemt_subject()
+            }),
+        );
+        let expression = parse_transform_template_encode_expression(
+            r#"encode($node.markdown, { contentType: "text/markdown", schema: "https://cem.dev/ns/data/markdown/1", category: "markdown-document" }, { formatter: "markdown.format-document", colorizer: "markdown.color-document", profile: "pretty", colorProfile: "html" })"#,
+            None,
+        )
+        .expect("Markdown encode expression parses")
+        .expect("Markdown encode expression");
+
+        let mut fallback_calls = Vec::new();
+        let evaluated = evaluate_transform_template_encode_expressions(
+            &[expression],
+            TransformTemplateEncodeEvaluationContext {
+                registry: &registry,
+                value_bindings: &values,
+                host_capabilities: &BTreeSet::new(),
+                output_color_type: None,
+                uri: Some("templates/markdown-package-boundaries.cemt"),
+            },
+            |binding, _subject| {
+                fallback_calls.push(binding.function.name.clone());
+                Err(format!(
+                    "fallback should not execute {}",
+                    binding.function.name
+                ))
+            },
+        );
+
+        assert!(
+            evaluated.diagnostics.is_empty(),
+            "{:?}",
+            evaluated.diagnostics
+        );
+        assert!(fallback_calls.is_empty(), "{fallback_calls:?}");
+        assert_eq!(evaluated.encoded.len(), 1);
+        let evaluated = &evaluated.encoded[0];
+        assert_eq!(evaluated.binding.function.name, "markdown.color-document");
+        assert_eq!(
+            evaluated.artifact.identity.produces,
+            TransformTemplateOutputProducedKind::CemTree
+        );
+        assert_eq!(
+            evaluated.artifact.identity.color_profile.as_deref(),
+            Some("html")
+        );
+        assert_eq!(evaluated.artifact.value["kind"], "cem-tree");
+        assert_eq!(evaluated.artifact.value["category"], "markdown-document");
+        assert_eq!(evaluated.artifact.value["formatterProfile"], "pretty");
+        assert_eq!(evaluated.artifact.value["colorProfile"], "html");
+        assert_eq!(
+            evaluated.artifact.value["formatNodes"][0]["name"],
+            "markdown.format-document"
+        );
+        assert_eq!(
+            evaluated.artifact.value["colorNodes"][0]["name"],
+            "markdown.color-document"
+        );
+        let nodes = evaluated.artifact.value["nodes"]
+            .as_array()
+            .expect("Markdown CEM tree nodes");
+        let heading = nodes
+            .iter()
+            .find(|node| node["kind"] == "markdown.heading-marker")
+            .expect("heading marker token");
+        assert_eq!(heading["style"]["colorRole"], "syntax.punctuation");
+        let text = nodes
+            .iter()
+            .find(|node| node["text"] == "Release Notes")
+            .expect("heading text token");
+        assert_eq!(text["style"]["colorRole"], "syntax.text");
+        assert_eq!(
+            text["sourceMap"]["frames"].as_array().map(Vec::len),
+            Some(1)
         );
     }
 

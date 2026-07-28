@@ -3437,12 +3437,21 @@ mod tests {
         assert!(formatter
             .source
             .contains(r#"@category="markdown-document""#));
+        assert!(formatter.source.contains(r#"@subject="markdown-document""#));
+        assert!(formatter.source.contains(r#"@produces="cem-tree""#));
         assert!(colorizer
             .source
             .contains(r#"@name="markdown.color-document""#));
+        assert!(colorizer.source.contains(r#"@subject="cem-tree""#));
+        assert!(colorizer.source.contains(r#"@produces="cem-tree""#));
         assert!(colorizer
             .source
             .contains(r#"@content-type="text/markdown""#));
+        assert!(!formatter.source.contains(r#"@subject="json""#));
+        assert!(!formatter.source.contains(r#"@produces="tokens""#));
+        assert!(!formatter.source.contains(r#"@type="json""#));
+        assert!(!colorizer.source.contains(r#"@subject="tokens""#));
+        assert!(!colorizer.source.contains(r#"@produces="tokens""#));
     }
 
     #[test]
