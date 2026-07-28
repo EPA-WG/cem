@@ -81,9 +81,11 @@ not part of the release contract.
 
 ## Tracked Incomplete Work
 
-- Comment and directive preservation depends on parser model coverage. When the
-  parser exposes those nodes, the package formatter should render them from the
-  YAML AST stream instead of host fallback code.
+- Directive preservation is implemented in the typed YAML AST stream and package
+  CEMT formatter/colorizer path.
+- Comment preservation is blocked on parser model coverage. The current Rust
+  YAML parser skips comments before token/event delivery, so comment rendering
+  needs an explicit parser/trivia strategy rather than source-string heuristics.
 
 ## Examples
 

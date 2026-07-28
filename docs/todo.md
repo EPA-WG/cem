@@ -139,6 +139,15 @@ Current active slice: generic data AST stream bridge alignment.
       - [ ] Expose YAML comments as typed parser presentation nodes with byte
             ranges/source maps before rendering them; the current `yaml-rust2`
             scanner skips comments and provides no comment token/event boundary.
+            - [x] Confirm the current Rust YAML parser boundary cannot expose
+                  comments: `yaml-rust2` skips comments inside scanner
+                  whitespace handling and has no public comment token/event.
+            - [ ] Choose and implement the YAML comment parser strategy before
+                  adding render output: patch/upstream comment events in the
+                  YAML parser, adopt a presentation parser for YAML trivia, or
+                  build a schema-owned trivia lexer with fixtures covering
+                  quoted scalars, block scalars, inline comments, and full-line
+                  comments.
 
 ### Immediate: README Sample Preview Generation
 
