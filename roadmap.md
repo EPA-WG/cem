@@ -13,7 +13,7 @@ This roadmap is intentionally higher level than `docs/todo.md`. Use this file to
 | CEM token/theme core | Canonical token specs, generated CSS, DTCG JSON, TypeScript metadata, and reports. | `packages/cem-theme` |
 | Native platform adapters | iOS Swift and Android Kotlin/Compose outputs generated from the same token spine. | `packages/cem-theme/dist/lib/token-platforms` |
 | CEM parser/runtime foundation | Schema-defined streaming parser layers: byte decoding, tokenization, normalized events, validation, AST/source maps, binary AST chunks, and implementation handoff. | `packages/cem_ml` |
-| CEM structural lifecycle CLI | Validation, load into the internal CEM AST/event model, and export/convert across schema + content-type identities. Built-in adapters cover CEM-ML, HTML/XML parity, and the immediate XSLT 1.0 custom-element compatibility profile; future adapters register through the plugin/content-type model. | `packages/cem_ml_cli`, `packages/cem_ml` |
+| CEM structural lifecycle CLI | Validation, load into the internal CEM AST/event model, and export/convert across schema + content-type identities. Built-in adapters cover CEM-ML, HTML/XML parity, and the immediate XSLT 1.0 custom-element compatibility profile; future adapters register through the plugin/content-type model. Distribution targets include npm, standalone Linux binaries, Homebrew, and Windows binaries/installers. | `packages/cem_ml_cli`, `packages/cem_ml` |
 | CEM custom-element substrate | Declarative no-JS runtime centered on `<cem-element>`: scoped data islands, event-to-data wiring, and light-DOM re-render from CEM-ML/CEM-QL templates. Staged in `@epa-wg/cem-elements`; edge/SSR and `@epa-wg/custom-element` adoption are follow-up phases after the browser substrate is stable. | `packages/cem-elements`, future `packages/custom-element` |
 | CEM component set | Material-style UI coverage expressed in CEM semantics: buttons, fields, lists, nav, cards, dialogs, tables, tabs, etc. | `packages/cem-components` |
 | Figma UI Kit | Designer-facing components, variants, variables, usage examples, and governance workflow. | `examples/figma`, future design artifacts |
@@ -394,11 +394,16 @@ Deliverables:
 - Migration guides and deprecation reports.
 - CI gates for build, lint, token reports, component tests, docs links, examples, and native compilation.
 - Package export maps and published artifacts for stable public contracts.
+- `cem-ml` CLI public distribution: npm package with platform binary resolution, standalone Linux release archives,
+  Homebrew formula/tap packaging, Windows binaries or installer artifacts, checksums/signing metadata, install docs,
+  smoke tests for each install path, and version alignment with the Rust crate and WASM/browser release.
 - Contribution guidelines for token specs, components, docs, and design kit updates.
 
 Exit criteria:
 
 - A release can be cut with confidence that token, web, native, Figma, docs, and demo contracts are coherent.
+- Users can install `cem-ml` from npm, Linux release artifacts, Homebrew, and Windows release artifacts and run the same
+  CLI smoke test on each platform.
 
 ## Suggested Milestone Sequence
 
@@ -415,7 +420,7 @@ Exit criteria:
 | M6 | CEM site | Public documentation should be generated from stable package and component contracts. |
 | M7 | Figma site demo plus matching web fixtures | Full-flow demo proves the system across design and implementation. |
 | M8 | Native package hardening | Native artifacts become product-grade once token/component semantics are stable. |
-| M9 | Release governance | Formalize compatibility after public contracts are proven. |
+| M9 | Release governance and CLI distribution | Formalize compatibility after public contracts are proven, then publish/install `cem-ml` through npm, Linux release archives, Homebrew, and Windows artifacts. |
 
 ## Near-Term Backlog
 
