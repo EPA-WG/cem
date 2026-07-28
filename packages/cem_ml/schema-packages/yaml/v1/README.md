@@ -79,14 +79,14 @@ artifacts from the embedded schema-package catalog. Runtime output must execute
 the package CEMT bodies for YAML-to-YAML rendering; Rust fallback formatting is
 not part of the release contract.
 
-## Tracked Incomplete Work
+## Implementation Notes
 
 - Directive preservation is implemented in the typed YAML AST stream and package
   CEMT formatter/colorizer path.
 - Comment preservation is implemented as schema-owned typed presentation nodes
-  with byte ranges/source maps. The package formatter renders those nodes as
-  comment lines; source-order interleaving for trailing inline comments and
-  in-document full-line comments remains tracked work.
+  with byte ranges/source maps. The package formatter interleaves positioned
+  full-line and inline comments by source line/indent; unpositioned legacy
+  comment subjects keep the stream-level fallback.
 
 ## Examples
 

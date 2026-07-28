@@ -75,7 +75,7 @@
                             profile: $formatterProfile
                         }),
                         extend(
-                            call("yaml.format-document.comments", {
+                            call("yaml.format-document.comments-unpositioned", {
                                 comments: match(typeOf($subject.comments), {
                                     array: $subject.comments,
                                     default: []
@@ -85,6 +85,10 @@
                             call("yaml.format-document.documents", {
                                 documents: match(typeOf($subject.documents), {
                                     array: $subject.documents,
+                                    default: []
+                                }),
+                                comments: match(typeOf($subject.comments), {
+                                    array: $subject.comments,
                                     default: []
                                 }),
                                 directiveCount: length(match(typeOf($subject.directives), {
@@ -115,17 +119,28 @@
 
     {function @name="yaml.format-document.documents" @visibility="private" @returns="array" @deterministic=true |
         {param @name="documents" @type="array" @required=true}
+        {param @name="comments" @type="array" @required=true}
         {param @name="directiveCount" @type="integer" @required=true}
         {param @name="profile" @type="string" @required=true}
         {body |
             {$ match(length($documents), {
-                0: call("yaml.format-document.null-line", { sourceMap: null }),
+                0: extend(
+                    call("yaml.format-document.comments-between-lines", {
+                        comments: $comments,
+                        afterLine: 0,
+                        beforeLine: call("yaml.format-document.stream-end-line", {}),
+                        indent: "",
+                        profile: $profile
+                    }),
+                    call("yaml.format-document.null-line", { sourceMap: null })
+                ),
                 default: fold($documents, [], extend(
                     $acc,
                     call("yaml.format-document.document", {
                         document: $item,
                         documentCount: length($documents),
                         forceDocumentStart: gt($directiveCount, 0),
+                        comments: $comments,
                         profile: $profile
                     })
                 ))
@@ -197,17 +212,84 @@
         }
     }
 
-    {function @name="yaml.format-document.comments" @visibility="private" @returns="array" @deterministic=true |
+    {function @name="yaml.format-document.comments-unpositioned" @visibility="private" @returns="array" @deterministic=true |
         {param @name="comments" @type="array" @required=true}
         {param @name="profile" @type="string" @required=true}
         {body |
-            {$ fold($comments, [], extend(
-                $acc,
-                call("yaml.format-document.comment", {
-                    comment: $item,
-                    profile: $profile
-                })
-            )) }
+            {$ fold($comments, [], match(call("yaml.format-document.same-value", {
+                left: call("yaml.format-document.comment-line", { comment: $item }),
+                right: 0
+            }), {
+                true: extend(
+                    $acc,
+                    call("yaml.format-document.comment", {
+                        comment: $item,
+                        profile: $profile
+                    })
+                ),
+                false: $acc
+            })) }
+        }
+    }
+
+    {function @name="yaml.format-document.comments-between-lines" @visibility="private" @returns="array" @deterministic=true |
+        {param @name="comments" @type="array" @required=true}
+        {param @name="afterLine" @type="integer" @required=true}
+        {param @name="beforeLine" @type="integer" @required=true}
+        {param @name="indent" @type="string" @required=true}
+        {param @name="profile" @type="string" @required=true}
+        {body |
+            {$ fold($comments, [], match(call("yaml.format-document.comment-is-line-between", {
+                comment: $item,
+                afterLine: $afterLine,
+                beforeLine: $beforeLine,
+                indent: $indent
+            }), {
+                true: extend(
+                    $acc,
+                    call("yaml.format-document.comment", {
+                        comment: $item,
+                        profile: $profile
+                    })
+                ),
+                false: $acc
+            })) }
+        }
+    }
+
+    {function @name="yaml.format-document.inline-comments-for-line" @visibility="private" @returns="array" @deterministic=true |
+        {param @name="comments" @type="array" @required=true}
+        {param @name="line" @type="integer" @required=true}
+        {param @name="profile" @type="string" @required=true}
+        {body |
+            {$ fold($comments, [], match(call("yaml.format-document.comment-is-inline-on-line", {
+                comment: $item,
+                line: $line
+            }), {
+                true: extend(
+                    $acc,
+                    [
+                        call("yaml.format-document.token", {
+                            kind: "yaml.space",
+                            text: " ",
+                            role: "syntax.raw",
+                            sourceMap: null,
+                            profile: $profile
+                        }),
+                        call("yaml.format-document.token", {
+                            kind: "yaml.comment",
+                            text: match(typeOf($item.text), {
+                                string: $item.text,
+                                default: concat("# ", match(typeOf($item.value), { string: $item.value, default: "" }))
+                            }),
+                            role: "syntax.comment",
+                            sourceMap: match(exists($item.sourceMap), { true: $item.sourceMap, false: null }),
+                            profile: $profile
+                        })
+                    ]
+                ),
+                false: $acc
+            })) }
         }
     }
 
@@ -243,6 +325,7 @@
         {param @name="document" @type="object" @required=true}
         {param @name="documentCount" @type="integer" @required=true}
         {param @name="forceDocumentStart" @type="boolean" @required=true}
+        {param @name="comments" @type="array" @required=true}
         {param @name="profile" @type="string" @required=true}
         {body |
             {$ extend(
@@ -263,6 +346,9 @@
                     object: call("yaml.format-document.node-block", {
                         node: $document.root,
                         indent: "",
+                        comments: $comments,
+                        previousLine: 0,
+                        endLine: call("yaml.format-document.stream-end-line", {}),
                         profile: $profile
                     }),
                     default: call("yaml.format-document.null-line", { sourceMap: null })
@@ -274,30 +360,119 @@
     {function @name="yaml.format-document.node-block" @visibility="private" @returns="array" @deterministic=true |
         {param @name="node" @type="object" @required=true}
         {param @name="indent" @type="string" @required=true}
+        {param @name="comments" @type="array" @required=true}
+        {param @name="previousLine" @type="integer" @required=true}
+        {param @name="endLine" @type="integer" @required=true}
         {param @name="profile" @type="string" @required=true}
         {body |
             {$ match($node.kind, {
-                mapping: call("yaml.format-document.mapping-block", { node: $node, indent: $indent, profile: $profile }),
-                sequence: call("yaml.format-document.sequence-block", { node: $node, indent: $indent, profile: $profile }),
+                mapping: call("yaml.format-document.mapping-block", {
+                    node: $node,
+                    indent: $indent,
+                    comments: $comments,
+                    previousLine: $previousLine,
+                    endLine: $endLine,
+                    profile: $profile
+                }),
+                sequence: call("yaml.format-document.sequence-block", {
+                    node: $node,
+                    indent: $indent,
+                    comments: $comments,
+                    previousLine: $previousLine,
+                    endLine: $endLine,
+                    profile: $profile
+                }),
                 scalar: extend(
-                    call("yaml.format-document.indent", { indent: $indent }),
                     extend(
-                        call("yaml.format-document.node-inline", { node: $node, scalarRole: "syntax.string", profile: $profile }),
-                        [call("yaml.format-document.line-ending", { profile: $profile })]
+                        call("yaml.format-document.comments-between-lines", {
+                            comments: $comments,
+                            afterLine: $previousLine,
+                            beforeLine: call("yaml.format-document.node-line", { node: $node }),
+                            indent: $indent,
+                            profile: $profile
+                        }),
+                        extend(
+                            call("yaml.format-document.indent", { indent: $indent }),
+                            extend(
+                                call("yaml.format-document.node-inline", { node: $node, scalarRole: "syntax.string", profile: $profile }),
+                                extend(
+                                    call("yaml.format-document.inline-comments-for-line", {
+                                        comments: $comments,
+                                        line: call("yaml.format-document.node-line", { node: $node }),
+                                        profile: $profile
+                                    }),
+                                    extend(
+                                        [call("yaml.format-document.line-ending", { profile: $profile })],
+                                        call("yaml.format-document.comments-between-lines", {
+                                            comments: $comments,
+                                            afterLine: call("yaml.format-document.node-line", { node: $node }),
+                                            beforeLine: $endLine,
+                                            indent: $indent,
+                                            profile: $profile
+                                        })
+                                    )
+                                )
+                            )
+                        )
                     )
                 ),
                 alias: extend(
-                    call("yaml.format-document.indent", { indent: $indent }),
                     extend(
-                        call("yaml.format-document.node-inline", { node: $node, scalarRole: "syntax.string", profile: $profile }),
-                        [call("yaml.format-document.line-ending", { profile: $profile })]
+                        call("yaml.format-document.comments-between-lines", {
+                            comments: $comments,
+                            afterLine: $previousLine,
+                            beforeLine: call("yaml.format-document.node-line", { node: $node }),
+                            indent: $indent,
+                            profile: $profile
+                        }),
+                        extend(
+                            call("yaml.format-document.indent", { indent: $indent }),
+                            extend(
+                                call("yaml.format-document.node-inline", { node: $node, scalarRole: "syntax.string", profile: $profile }),
+                                extend(
+                                    call("yaml.format-document.inline-comments-for-line", {
+                                        comments: $comments,
+                                        line: call("yaml.format-document.node-line", { node: $node }),
+                                        profile: $profile
+                                    }),
+                                    extend(
+                                        [call("yaml.format-document.line-ending", { profile: $profile })],
+                                        call("yaml.format-document.comments-between-lines", {
+                                            comments: $comments,
+                                            afterLine: call("yaml.format-document.node-line", { node: $node }),
+                                            beforeLine: $endLine,
+                                            indent: $indent,
+                                            profile: $profile
+                                        })
+                                    )
+                                )
+                            )
+                        )
                     )
                 ),
                 default: extend(
-                    call("yaml.format-document.indent", { indent: $indent }),
-                    call("yaml.format-document.null-line", {
-                        sourceMap: match(exists($node.sourceMap), { true: $node.sourceMap, false: null })
-                    })
+                    call("yaml.format-document.comments-between-lines", {
+                        comments: $comments,
+                        afterLine: $previousLine,
+                        beforeLine: call("yaml.format-document.node-line", { node: $node }),
+                        indent: $indent,
+                        profile: $profile
+                    }),
+                    extend(
+                        call("yaml.format-document.indent", { indent: $indent }),
+                        extend(
+                            call("yaml.format-document.null-line", {
+                                sourceMap: match(exists($node.sourceMap), { true: $node.sourceMap, false: null })
+                            }),
+                            call("yaml.format-document.comments-between-lines", {
+                                comments: $comments,
+                                afterLine: call("yaml.format-document.node-line", { node: $node }),
+                                beforeLine: $endLine,
+                                indent: $indent,
+                                profile: $profile
+                            })
+                        )
+                    )
                 )
             }) }
         }
@@ -306,24 +481,83 @@
     {function @name="yaml.format-document.mapping-block" @visibility="private" @returns="array" @deterministic=true |
         {param @name="node" @type="object" @required=true}
         {param @name="indent" @type="string" @required=true}
+        {param @name="comments" @type="array" @required=true}
+        {param @name="previousLine" @type="integer" @required=true}
+        {param @name="endLine" @type="integer" @required=true}
         {param @name="profile" @type="string" @required=true}
         {body |
             {$ match(length(match(typeOf($node.mapping), { array: $node.mapping, default: [] })), {
                 0: extend(
-                    call("yaml.format-document.indent", { indent: $indent }),
+                    call("yaml.format-document.comments-between-lines", {
+                        comments: $comments,
+                        afterLine: $previousLine,
+                        beforeLine: call("yaml.format-document.node-line", { node: $node }),
+                        indent: $indent,
+                        profile: $profile
+                    }),
                     extend(
-                        call("yaml.format-document.empty-collection-inline", { node: $node, profile: $profile }),
-                        [call("yaml.format-document.line-ending", { profile: $profile })]
+                        call("yaml.format-document.indent", { indent: $indent }),
+                        extend(
+                            call("yaml.format-document.empty-collection-inline", { node: $node, profile: $profile }),
+                            extend(
+                                call("yaml.format-document.inline-comments-for-line", {
+                                    comments: $comments,
+                                    line: call("yaml.format-document.node-line", { node: $node }),
+                                    profile: $profile
+                                }),
+                                extend(
+                                    [call("yaml.format-document.line-ending", { profile: $profile })],
+                                    call("yaml.format-document.comments-between-lines", {
+                                        comments: $comments,
+                                        afterLine: call("yaml.format-document.node-line", { node: $node }),
+                                        beforeLine: $endLine,
+                                        indent: $indent,
+                                        profile: $profile
+                                    })
+                                )
+                            )
+                        )
                     )
                 ),
-                default: fold(match(typeOf($node.mapping), { array: $node.mapping, default: [] }), [], extend(
-                    $acc,
-                    call("yaml.format-document.mapping-pair", {
-                        pair: $item,
+                default: extend(
+                    fold(match(typeOf($node.mapping), { array: $node.mapping, default: [] }), [], extend(
+                        $acc,
+                        extend(
+                            call("yaml.format-document.comments-between-lines", {
+                                comments: $comments,
+                                afterLine: call("yaml.format-document.mapping-previous-line", {
+                                    pairs: match(typeOf($node.mapping), { array: $node.mapping, default: [] }),
+                                    index: $index,
+                                    previousLine: $previousLine
+                                }),
+                                beforeLine: call("yaml.format-document.mapping-pair-line", { pair: $item }),
+                                indent: $indent,
+                                profile: $profile
+                            }),
+                            call("yaml.format-document.mapping-pair", {
+                                pair: $item,
+                                indent: $indent,
+                                comments: $comments,
+                                pairLine: call("yaml.format-document.mapping-pair-line", { pair: $item }),
+                                nextLine: call("yaml.format-document.mapping-next-line", {
+                                    pairs: match(typeOf($node.mapping), { array: $node.mapping, default: [] }),
+                                    index: $index,
+                                    endLine: $endLine
+                                }),
+                                profile: $profile
+                            })
+                        )
+                    )),
+                    call("yaml.format-document.comments-between-lines", {
+                        comments: $comments,
+                        afterLine: call("yaml.format-document.mapping-pair-line", {
+                            pair: last(match(typeOf($node.mapping), { array: $node.mapping, default: [] }))
+                        }),
+                        beforeLine: $endLine,
                         indent: $indent,
                         profile: $profile
                     })
-                ))
+                )
             }) }
         }
     }
@@ -331,6 +565,9 @@
     {function @name="yaml.format-document.mapping-pair" @visibility="private" @returns="array" @deterministic=true |
         {param @name="pair" @type="object" @required=true}
         {param @name="indent" @type="string" @required=true}
+        {param @name="comments" @type="array" @required=true}
+        {param @name="pairLine" @type="integer" @required=true}
+        {param @name="nextLine" @type="integer" @required=true}
         {param @name="profile" @type="string" @required=true}
         {body |
             {$ match(call("yaml.format-document.node-can-inline", { node: $pair.key }), {
@@ -341,6 +578,9 @@
                         call("yaml.format-document.mapping-value", {
                             value: $pair.value,
                             indent: $indent,
+                            comments: $comments,
+                            line: $pairLine,
+                            nextLine: $nextLine,
                             profile: $profile
                         })
                     )
@@ -359,20 +599,26 @@
                             call("yaml.format-document.line-ending", { profile: $profile })
                         ],
                         extend(
-                            call("yaml.format-document.node-block", {
-                                node: $pair.key,
-                                indent: concat($indent, "  "),
-                                profile: $profile
-                            }),
-                            extend(
-                                call("yaml.format-document.indent", { indent: $indent }),
-                                call("yaml.format-document.mapping-value", {
-                                    value: $pair.value,
-                                    indent: $indent,
+                                call("yaml.format-document.node-block", {
+                                    node: $pair.key,
+                                    indent: concat($indent, "  "),
+                                    comments: $comments,
+                                    previousLine: $pairLine,
+                                    endLine: $nextLine,
                                     profile: $profile
-                                })
+                                }),
+                                extend(
+                                    call("yaml.format-document.indent", { indent: $indent }),
+                                    call("yaml.format-document.mapping-value", {
+                                        value: $pair.value,
+                                        indent: $indent,
+                                        comments: $comments,
+                                        line: $pairLine,
+                                        nextLine: $nextLine,
+                                        profile: $profile
+                                    })
+                                )
                             )
-                        )
                     )
                 )
             }) }
@@ -382,6 +628,9 @@
     {function @name="yaml.format-document.mapping-value" @visibility="private" @returns="array" @deterministic=true |
         {param @name="value" @type="any" @required=true @nullable=true}
         {param @name="indent" @type="string" @required=true}
+        {param @name="comments" @type="array" @required=true}
+        {param @name="line" @type="integer" @required=true}
+        {param @name="nextLine" @type="integer" @required=true}
         {param @name="profile" @type="string" @required=true}
         {body |
             {$ extend(
@@ -403,14 +652,31 @@
                         })],
                         extend(
                             call("yaml.format-document.node-inline", { node: $value, scalarRole: "syntax.string", profile: $profile }),
-                            [call("yaml.format-document.line-ending", { profile: $profile })]
+                            extend(
+                                call("yaml.format-document.inline-comments-for-line", {
+                                    comments: $comments,
+                                    line: $line,
+                                    profile: $profile
+                                }),
+                                [call("yaml.format-document.line-ending", { profile: $profile })]
+                            )
                         )
                     ),
                     false: extend(
-                        [call("yaml.format-document.line-ending", { profile: $profile })],
+                        extend(
+                            call("yaml.format-document.inline-comments-for-line", {
+                                comments: $comments,
+                                line: $line,
+                                profile: $profile
+                            }),
+                            [call("yaml.format-document.line-ending", { profile: $profile })]
+                        ),
                         call("yaml.format-document.node-block", {
                             node: $value,
                             indent: concat($indent, "  "),
+                            comments: $comments,
+                            previousLine: $line,
+                            endLine: $nextLine,
                             profile: $profile
                         })
                     )
@@ -422,24 +688,83 @@
     {function @name="yaml.format-document.sequence-block" @visibility="private" @returns="array" @deterministic=true |
         {param @name="node" @type="object" @required=true}
         {param @name="indent" @type="string" @required=true}
+        {param @name="comments" @type="array" @required=true}
+        {param @name="previousLine" @type="integer" @required=true}
+        {param @name="endLine" @type="integer" @required=true}
         {param @name="profile" @type="string" @required=true}
         {body |
             {$ match(length(match(typeOf($node.sequence), { array: $node.sequence, default: [] })), {
                 0: extend(
-                    call("yaml.format-document.indent", { indent: $indent }),
+                    call("yaml.format-document.comments-between-lines", {
+                        comments: $comments,
+                        afterLine: $previousLine,
+                        beforeLine: call("yaml.format-document.node-line", { node: $node }),
+                        indent: $indent,
+                        profile: $profile
+                    }),
                     extend(
-                        call("yaml.format-document.empty-collection-inline", { node: $node, profile: $profile }),
-                        [call("yaml.format-document.line-ending", { profile: $profile })]
+                        call("yaml.format-document.indent", { indent: $indent }),
+                        extend(
+                            call("yaml.format-document.empty-collection-inline", { node: $node, profile: $profile }),
+                            extend(
+                                call("yaml.format-document.inline-comments-for-line", {
+                                    comments: $comments,
+                                    line: call("yaml.format-document.node-line", { node: $node }),
+                                    profile: $profile
+                                }),
+                                extend(
+                                    [call("yaml.format-document.line-ending", { profile: $profile })],
+                                    call("yaml.format-document.comments-between-lines", {
+                                        comments: $comments,
+                                        afterLine: call("yaml.format-document.node-line", { node: $node }),
+                                        beforeLine: $endLine,
+                                        indent: $indent,
+                                        profile: $profile
+                                    })
+                                )
+                            )
+                        )
                     )
                 ),
-                default: fold(match(typeOf($node.sequence), { array: $node.sequence, default: [] }), [], extend(
-                    $acc,
-                    call("yaml.format-document.sequence-item", {
-                        item: $item,
+                default: extend(
+                    fold(match(typeOf($node.sequence), { array: $node.sequence, default: [] }), [], extend(
+                        $acc,
+                        extend(
+                            call("yaml.format-document.comments-between-lines", {
+                                comments: $comments,
+                                afterLine: call("yaml.format-document.sequence-previous-line", {
+                                    items: match(typeOf($node.sequence), { array: $node.sequence, default: [] }),
+                                    index: $index,
+                                    previousLine: $previousLine
+                                }),
+                                beforeLine: call("yaml.format-document.node-line", { node: $item }),
+                                indent: $indent,
+                                profile: $profile
+                            }),
+                            call("yaml.format-document.sequence-item", {
+                                item: $item,
+                                indent: $indent,
+                                comments: $comments,
+                                itemLine: call("yaml.format-document.node-line", { node: $item }),
+                                nextLine: call("yaml.format-document.sequence-next-line", {
+                                    items: match(typeOf($node.sequence), { array: $node.sequence, default: [] }),
+                                    index: $index,
+                                    endLine: $endLine
+                                }),
+                                profile: $profile
+                            })
+                        )
+                    )),
+                    call("yaml.format-document.comments-between-lines", {
+                        comments: $comments,
+                        afterLine: call("yaml.format-document.node-line", {
+                            node: last(match(typeOf($node.sequence), { array: $node.sequence, default: [] }))
+                        }),
+                        beforeLine: $endLine,
                         indent: $indent,
                         profile: $profile
                     })
-                ))
+                )
             }) }
         }
     }
@@ -447,6 +772,9 @@
     {function @name="yaml.format-document.sequence-item" @visibility="private" @returns="array" @deterministic=true |
         {param @name="item" @type="any" @required=true @nullable=true}
         {param @name="indent" @type="string" @required=true}
+        {param @name="comments" @type="array" @required=true}
+        {param @name="itemLine" @type="integer" @required=true}
+        {param @name="nextLine" @type="integer" @required=true}
         {param @name="profile" @type="string" @required=true}
         {body |
             {$ extend(
@@ -470,14 +798,31 @@
                             })],
                             extend(
                                 call("yaml.format-document.node-inline", { node: $item, scalarRole: "syntax.string", profile: $profile }),
-                                [call("yaml.format-document.line-ending", { profile: $profile })]
+                                extend(
+                                    call("yaml.format-document.inline-comments-for-line", {
+                                        comments: $comments,
+                                        line: $itemLine,
+                                        profile: $profile
+                                    }),
+                                    [call("yaml.format-document.line-ending", { profile: $profile })]
+                                )
                             )
                         ),
                         false: extend(
-                            [call("yaml.format-document.line-ending", { profile: $profile })],
+                            extend(
+                                call("yaml.format-document.inline-comments-for-line", {
+                                    comments: $comments,
+                                    line: $itemLine,
+                                    profile: $profile
+                                }),
+                                [call("yaml.format-document.line-ending", { profile: $profile })]
+                            ),
                             call("yaml.format-document.node-block", {
                                 node: $item,
                                 indent: concat($indent, "  "),
+                                comments: $comments,
+                                previousLine: $itemLine,
+                                endLine: $nextLine,
                                 profile: $profile
                             })
                         )
@@ -615,6 +960,185 @@
                     default: false
                 }),
                 default: true
+            }) }
+        }
+    }
+
+    {function @name="yaml.format-document.stream-end-line" @visibility="private" @returns="integer" @deterministic=true |
+        {body |
+            {$ 2147483647 }
+        }
+    }
+
+    {function @name="yaml.format-document.same-value" @visibility="private" @returns="boolean" @deterministic=true |
+        {param @name="left" @type="any" @required=true}
+        {param @name="right" @type="any" @required=true}
+        {body |
+            {$ match(lte($left, $right), {
+                true: gte($left, $right),
+                false: false
+            }) }
+        }
+    }
+
+    {function @name="yaml.format-document.comment-line" @visibility="private" @returns="integer" @deterministic=true |
+        {param @name="comment" @type="object" @required=true}
+        {body |
+            {$ match(exists($comment.sourceRange.line), {
+                true: $comment.sourceRange.line,
+                false: 0
+            }) }
+        }
+    }
+
+    {function @name="yaml.format-document.node-line" @visibility="private" @returns="integer" @deterministic=true |
+        {param @name="node" @type="any" @required=true @nullable=true}
+        {body |
+            {$ match(exists($node.sourceRange.line), {
+                true: $node.sourceRange.line,
+                false: 0
+            }) }
+        }
+    }
+
+    {function @name="yaml.format-document.comment-indent" @visibility="private" @returns="string" @deterministic=true |
+        {param @name="comment" @type="object" @required=true}
+        {body |
+            {$ match(typeOf($comment.indent), {
+                string: $comment.indent,
+                default: ""
+            }) }
+        }
+    }
+
+    {function @name="yaml.format-document.comment-is-line-between" @visibility="private" @returns="boolean" @deterministic=true |
+        {param @name="comment" @type="object" @required=true}
+        {param @name="afterLine" @type="integer" @required=true}
+        {param @name="beforeLine" @type="integer" @required=true}
+        {param @name="indent" @type="string" @required=true}
+        {body |
+            {$ match($comment.placement, {
+                line: match(gt(call("yaml.format-document.comment-line", { comment: $comment }), $afterLine), {
+                    true: match(lt(call("yaml.format-document.comment-line", { comment: $comment }), $beforeLine), {
+                        true: call("yaml.format-document.same-value", {
+                            left: call("yaml.format-document.comment-indent", { comment: $comment }),
+                            right: $indent
+                        }),
+                        false: false
+                    }),
+                    false: false
+                }),
+                default: false
+            }) }
+        }
+    }
+
+    {function @name="yaml.format-document.comment-is-inline-on-line" @visibility="private" @returns="boolean" @deterministic=true |
+        {param @name="comment" @type="object" @required=true}
+        {param @name="line" @type="integer" @required=true}
+        {body |
+            {$ match($comment.placement, {
+                inline: match(gt(call("yaml.format-document.comment-line", { comment: $comment }), 0), {
+                    true: call("yaml.format-document.same-value", {
+                        left: call("yaml.format-document.comment-line", { comment: $comment }),
+                        right: $line
+                    }),
+                    false: false
+                }),
+                default: false
+            }) }
+        }
+    }
+
+    {function @name="yaml.format-document.mapping-pair-line" @visibility="private" @returns="integer" @deterministic=true |
+        {param @name="pair" @type="object" @required=true}
+        {body |
+            {$ call("yaml.format-document.node-line", { node: $pair.key }) }
+        }
+    }
+
+    {function @name="yaml.format-document.mapping-pair-line-at" @visibility="private" @returns="integer" @deterministic=true |
+        {param @name="pairs" @type="array" @required=true}
+        {param @name="index" @type="integer" @required=true}
+        {param @name="defaultLine" @type="integer" @required=true}
+        {body |
+            {$ match(lt($index, length($pairs)), {
+                true: call("yaml.format-document.mapping-pair-line", {
+                    pair: get($pairs, $index)
+                }),
+                false: $defaultLine
+            }) }
+        }
+    }
+
+    {function @name="yaml.format-document.mapping-previous-line" @visibility="private" @returns="integer" @deterministic=true |
+        {param @name="pairs" @type="array" @required=true}
+        {param @name="index" @type="integer" @required=true}
+        {param @name="previousLine" @type="integer" @required=true}
+        {body |
+            {$ match($index, {
+                0: $previousLine,
+                default: call("yaml.format-document.mapping-pair-line-at", {
+                    pairs: $pairs,
+                    index: sub($index, 1),
+                    defaultLine: $previousLine
+                })
+            }) }
+        }
+    }
+
+    {function @name="yaml.format-document.mapping-next-line" @visibility="private" @returns="integer" @deterministic=true |
+        {param @name="pairs" @type="array" @required=true}
+        {param @name="index" @type="integer" @required=true}
+        {param @name="endLine" @type="integer" @required=true}
+        {body |
+            {$ call("yaml.format-document.mapping-pair-line-at", {
+                pairs: $pairs,
+                index: add($index, 1),
+                defaultLine: $endLine
+            }) }
+        }
+    }
+
+    {function @name="yaml.format-document.sequence-node-line-at" @visibility="private" @returns="integer" @deterministic=true |
+        {param @name="items" @type="array" @required=true}
+        {param @name="index" @type="integer" @required=true}
+        {param @name="defaultLine" @type="integer" @required=true}
+        {body |
+            {$ match(lt($index, length($items)), {
+                true: call("yaml.format-document.node-line", {
+                    node: get($items, $index)
+                }),
+                false: $defaultLine
+            }) }
+        }
+    }
+
+    {function @name="yaml.format-document.sequence-previous-line" @visibility="private" @returns="integer" @deterministic=true |
+        {param @name="items" @type="array" @required=true}
+        {param @name="index" @type="integer" @required=true}
+        {param @name="previousLine" @type="integer" @required=true}
+        {body |
+            {$ match($index, {
+                0: $previousLine,
+                default: call("yaml.format-document.sequence-node-line-at", {
+                    items: $items,
+                    index: sub($index, 1),
+                    defaultLine: $previousLine
+                })
+            }) }
+        }
+    }
+
+    {function @name="yaml.format-document.sequence-next-line" @visibility="private" @returns="integer" @deterministic=true |
+        {param @name="items" @type="array" @required=true}
+        {param @name="index" @type="integer" @required=true}
+        {param @name="endLine" @type="integer" @required=true}
+        {body |
+            {$ call("yaml.format-document.sequence-node-line-at", {
+                items: $items,
+                index: add($index, 1),
+                defaultLine: $endLine
             }) }
         }
     }

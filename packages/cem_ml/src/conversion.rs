@@ -15253,6 +15253,70 @@ mod tests {
     }
 
     #[test]
+    fn builtin_yaml_lifecycle_output_pipeline_interleaves_comments_by_source_position() {
+        let schema_registry = SchemaRegistry::with_builtin_schemas();
+        let conversion_registry = ConversionRegistry::with_builtin_converters();
+        let environment = ConversionOutputPipelineEnvironment {
+            schema_registry: &schema_registry,
+            conversion_registry: &conversion_registry,
+            package_artifact_reader: None,
+            artifact_cache: None,
+        };
+        let source = b"# header\nname: Ada # inline name\ndetails:\n  # nested\n  role: admin # inline role\n  active: true\n# tail\n";
+        let (document, projection_diagnostics) =
+            crate::validation::yaml::yaml_stream_value_from_source_bytes(
+                crate::validation::yaml::YamlSourceValidationRequest {
+                    bytes: source,
+                    source_uri: "memory://yaml-comment-order.yaml",
+                    content_type: Some(YAML_CONTENT_TYPE),
+                },
+            );
+        assert!(
+            projection_diagnostics.is_empty(),
+            "{projection_diagnostics:?}"
+        );
+        let document = document.expect("valid YAML projects a typed stream");
+        let target_scope = ScopeConfig {
+            cemt_formatter_profile: Some("tabular".to_owned()),
+            ..ScopeConfig::default()
+        };
+
+        let execution = execute_yaml_document_output_pipeline_with_environment(
+            &environment,
+            document,
+            &target_scope,
+            Some("builtin:yaml-comment-source-order-output"),
+        );
+
+        assert!(
+            execution.diagnostics.is_empty(),
+            "{:?}",
+            execution.diagnostics
+        );
+        assert_eq!(
+            execution.output.as_ref().and_then(Value::as_str),
+            Some(
+                "# header\nname: Ada # inline name\ndetails:\n  # nested\n  role: admin # inline role\n  active: true\n# tail\n"
+            )
+        );
+        let formatted = execution
+            .formatted_cem_tree
+            .as_ref()
+            .expect("formatted YAML CEM tree");
+        let comment_texts = formatted.value["nodes"]
+            .as_array()
+            .expect("format nodes")
+            .iter()
+            .filter(|node| node["kind"] == "yaml.comment")
+            .map(|node| node["text"].as_str().unwrap_or("").to_owned())
+            .collect::<Vec<_>>();
+        assert_eq!(
+            comment_texts,
+            ["# header", "# inline name", "# nested", "# inline role", "# tail"]
+        );
+    }
+
+    #[test]
     fn builtin_yaml_lifecycle_output_pipeline_wraps_html_color_pre() {
         let schema_registry = SchemaRegistry::with_builtin_schemas();
         let conversion_registry = ConversionRegistry::with_builtin_converters();

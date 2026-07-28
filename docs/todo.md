@@ -148,10 +148,10 @@ Current active slice: generic data AST stream bridge alignment.
                   build a schema-owned trivia lexer with fixtures covering
                   quoted scalars, block scalars, inline comments, and full-line
                   comments.
-- [ ] Interleave YAML comment presentation nodes by source position in package
+- [x] Interleave YAML comment presentation nodes by source position in package
       formatter output, including trailing inline comments and in-document
-      full-line comments; the current formatter renders preserved comments as
-      stream-level comment lines before document content.
+      full-line comments. Positioned comments now render by source line/indent;
+      unpositioned legacy comment subjects keep the stream-level fallback.
 
 ### Immediate: README Sample Preview Generation
 
