@@ -26,6 +26,10 @@ The package declares CEMT formatter and colorizer artifacts in `package.cem`.
 The public formatter profile names are `compact`, `pretty`, and `tabular`.
 The public colorizer profile names are `terminal`, `html`, and `md`.
 
+Current formatter/colorizer assets are registered package artifacts, but their
+bodies are still bootstrap stubs over raw JSON/tokens. Moving them to typed JSON
+Schema document and CEM-tree boundaries is tracked incomplete work.
+
 ## Resource Model
 
 The schema describes the JSON Schema document model used by registry loaders and
@@ -42,6 +46,36 @@ Generic CEM reference normalization may finalize a document URI, but JSON
 Schema reference traversal remains loader-owned. `$ref` and `$dynamicRef`
 resolution must account for `$id`, anchors, dynamic anchors, dialect, and
 dynamic scope instead of reducing those edges to generic URL joining.
+
+## Verification
+
+The package-local `cem_ml_schema_package_json_schema_v1:verify` target checks:
+
+- manifest validation against the schema-package schema;
+- manifest-index coverage for all declared examples;
+- embedded formatter/colorizer artifact catalog registration;
+- CLI validation behavior for a valid Draft 2020-12 schema and an unsupported
+  dialect;
+- README SVG preview drift for every manifest example.
+
+## Release Behavior
+
+Validation currently recognizes Draft 2020-12 dialect declarations and reports
+unsupported or missing dialects. JSON parse errors and dialect diagnostics are
+observable through the CLI validation path. Full JSON Schema validation of
+instance documents, remote reference loading, dynamic scope resolution, and
+vocabulary assertion semantics are not part of the current release contract.
+
+## Tracked Incomplete Work
+
+- JSON Schema source validation still lives in CLI-owned Rust dispatch code.
+  It must move to an engine-reachable typed JSON Schema AST stream with neutral
+  parser/dialect facts and schema-owned diagnostic bindings.
+- Formatter/colorizer CEMT bodies still use raw JSON/token boundaries. They
+  must move to package-owned JSON Schema document and formatted/colored
+  CEM-tree boundaries.
+- README previews intentionally use source snapshots until the package-owned
+  output layer can render JSON Schema examples directly.
 
 ## Examples
 

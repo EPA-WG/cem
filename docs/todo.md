@@ -555,6 +555,19 @@ Remaining dependency-ordered package checklist:
   - [x] Add JSON README/SVG preview drift checks after package-owned JSON
         formatter/colorizer bodies render the example previews.
 - [ ] `json-schema/v1`
+  - [x] Expand package-local verification so JSON Schema runs manifest
+        validation, manifest-index coverage, embedded artifact catalog tests,
+        CLI validation behavior tests, and README/SVG preview drift checks.
+  - [ ] Move JSON Schema source validation out of CLI-owned ad hoc JSON parse
+        and dialect diagnostics into an engine-reachable typed JSON Schema AST
+        stream with neutral parse/dialect facts and schema-owned diagnostic
+        bindings.
+  - [ ] Move JSON Schema formatter/colorizer CEMT assets away from raw
+        `json`/`tokens` boundaries to package-owned JSON Schema document and
+        formatted/colored CEM-tree boundaries.
+  - [ ] Route JSON Schema README previews through package formatter/colorizer
+        output once the typed output layer exists; source snapshots remain the
+        tracked fallback until then.
 - [ ] `markdown/v1`
 - [ ] `xml/v1`
 - [ ] `relax-ng/v1`
