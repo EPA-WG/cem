@@ -16,10 +16,11 @@ use crate::schema::registry::{
     CEM_SCHEMA_PACKAGE_CONTENT_TYPE, CEM_SCHEMA_PACKAGE_URI, CEM_SCHEMA_URI,
     CEM_TRANSFORM_CONTENT_TYPE, CEM_TRANSFORM_SCHEMA_URI, CSV_CONTENT_TYPE, CSV_SCHEMA_URI,
     HTML_CONTENT_TYPE, HTML_NAMESPACE_URI, HTML_SCHEMA_URI, JSON_CONTENT_TYPE,
-    JSON_SCHEMA_CONTENT_TYPE, JSON_SCHEMA_SCHEMA_URI, JSON_VALUE_SCHEMA_URI, MATHML_CONTENT_TYPE,
-    MATHML_NAMESPACE_URI, MATHML_SCHEMA_URI, SVG_CONTENT_TYPE, SVG_NAMESPACE_URI, SVG_SCHEMA_URI,
-    XHTML_CONTENT_TYPE, XHTML_SCHEMA_URI, XML_CONTENT_TYPE, XML_SCHEMA_URI, XSLT_NAMESPACE_URI,
-    XSLT_SCHEMA_URI, YAML_CONTENT_TYPE, YAML_SCHEMA_URI,
+    JSON_SCHEMA_CONTENT_TYPE, JSON_SCHEMA_SCHEMA_URI, JSON_VALUE_SCHEMA_URI, MARKDOWN_CONTENT_TYPE,
+    MARKDOWN_SCHEMA_URI, MATHML_CONTENT_TYPE, MATHML_NAMESPACE_URI, MATHML_SCHEMA_URI,
+    SVG_CONTENT_TYPE, SVG_NAMESPACE_URI, SVG_SCHEMA_URI, XHTML_CONTENT_TYPE, XHTML_SCHEMA_URI,
+    XML_CONTENT_TYPE, XML_SCHEMA_URI, XSLT_NAMESPACE_URI, XSLT_SCHEMA_URI, YAML_CONTENT_TYPE,
+    YAML_SCHEMA_URI,
 };
 use crate::transform_config::TRANSFORM_CONFIG_SCHEMA_URI;
 use crate::validation::csv::{
@@ -31,6 +32,9 @@ use crate::validation::json::{
 use crate::validation::json_schema::{
     json_schema_document_ast_from_source_bytes, JsonSchemaDocumentAst,
     JsonSchemaSourceValidationRequest,
+};
+use crate::validation::markdown::{
+    markdown_document_ast_from_source_bytes, MarkdownDocumentAst, MarkdownSourceValidationRequest,
 };
 use crate::validation::xslt::{validate_xslt_source_bytes, XsltSourceValidationRequest};
 use crate::validation::yaml::{
@@ -85,6 +89,7 @@ pub enum LoadedInputAstStream {
     YamlDocument(YamlDocumentAst),
     JsonDocument(JsonDocumentAst),
     JsonSchemaDocument(JsonSchemaDocumentAst),
+    MarkdownDocument(MarkdownDocumentAst),
 }
 
 #[derive(Debug, Clone)]
@@ -125,6 +130,7 @@ impl LifecycleRegistry {
         registry.register(YamlAdapter);
         registry.register(JsonSchemaAdapter);
         registry.register(JsonAdapter);
+        registry.register(MarkdownAdapter);
         registry.register(CustomElementXsltCompatAdapter);
         registry.register(DomBinaryProjectionAdapter);
         registry.register(AstBinaryProjectionAdapter);
@@ -794,6 +800,60 @@ fn matches_json_identity(identity: &FormatIdentity) -> bool {
     explicit_schema_matches
 }
 
+struct MarkdownAdapter;
+
+impl LifecycleAdapter for MarkdownAdapter {
+    fn id(&self) -> &'static str {
+        "markdown"
+    }
+
+    fn matches_input(&self, identity: &FormatIdentity) -> bool {
+        matches_markdown_identity(identity)
+    }
+
+    fn load(&self, input: &EngineInput, identity: &FormatIdentity) -> LoadedInput {
+        let content_type = identity
+            .content_type
+            .as_deref()
+            .or(input.root_scope.default_content_type.as_deref())
+            .unwrap_or(MARKDOWN_CONTENT_TYPE);
+        let (document, diagnostics) =
+            markdown_document_ast_from_source_bytes(MarkdownSourceValidationRequest {
+                bytes: &input.bytes,
+                source_uri: &input.uri,
+                content_type: Some(content_type),
+            });
+        LoadedInput {
+            bytes: input.bytes.clone(),
+            from_format: input.from_format.unwrap_or(InputFormat::Cem),
+            ast_stream: document.map(LoadedInputAstStream::MarkdownDocument),
+            diagnostics: markdown_lifecycle_adapter_diagnostics(self.id(), diagnostics),
+            adapter_id: Some(self.id()),
+        }
+    }
+
+    fn matches_target(&self, identity: &FormatIdentity) -> bool {
+        matches_markdown_identity(identity)
+    }
+
+    fn target_format(&self) -> Option<LayerFormat> {
+        Some(LayerFormat::Markdown)
+    }
+}
+
+fn matches_markdown_identity(identity: &FormatIdentity) -> bool {
+    let explicit_schema_matches = identity
+        .schema
+        .as_deref()
+        .map(str::trim)
+        .is_some_and(|schema| schema == MARKDOWN_SCHEMA_URI);
+    if let Some(content_type) = identity.content_type.as_deref() {
+        return content_type_essence(content_type) == MARKDOWN_CONTENT_TYPE
+            && (identity.schema.is_none() || explicit_schema_matches);
+    }
+    explicit_schema_matches
+}
+
 fn json_schema_lifecycle_adapter_diagnostics(
     adapter_id: &'static str,
     diagnostics: Vec<Diagnostic>,
@@ -880,6 +940,41 @@ fn yaml_lifecycle_adapter_diagnostics(
                 "sourceMapContract": "parser-markers",
                 "internalContentType": YAML_CONTENT_TYPE,
                 "internalSchema": YAML_SCHEMA_URI,
+            });
+            diagnostic.details = match diagnostic.details.take() {
+                Some(mut details) if details.is_object() => {
+                    if let Some(object) = details.as_object_mut() {
+                        object.insert("lifecycle".to_owned(), lifecycle_details);
+                    }
+                    Some(details)
+                }
+                Some(details) => Some(json!({
+                    "lifecycle": lifecycle_details,
+                    "upstream": details,
+                })),
+                None => Some(json!({
+                    "lifecycle": lifecycle_details,
+                })),
+            };
+            diagnostic
+        })
+        .collect()
+}
+
+fn markdown_lifecycle_adapter_diagnostics(
+    adapter_id: &'static str,
+    diagnostics: Vec<Diagnostic>,
+) -> Vec<Diagnostic> {
+    diagnostics
+        .into_iter()
+        .map(|mut diagnostic| {
+            let lifecycle_details = json!({
+                "adapterId": adapter_id,
+                "operation": "load",
+                "profile": "markdown-source-import",
+                "sourceMapContract": "parser-events",
+                "internalContentType": MARKDOWN_CONTENT_TYPE,
+                "internalSchema": MARKDOWN_SCHEMA_URI,
             });
             diagnostic.details = match diagnostic.details.take() {
                 Some(mut details) if details.is_object() => {
@@ -1400,6 +1495,34 @@ mod tests {
     }
 
     #[test]
+    fn builtins_load_markdown_content_type_as_internal_ast_stream() {
+        let loaded = LifecycleRegistry::with_builtin_adapters().load(
+            &input(b"# Release Notes\n\n- Added schema validation.\n"),
+            &context("text/markdown; charset=utf-8; variant=CommonMark"),
+        );
+        assert_eq!(loaded.adapter_id, Some("markdown"));
+        assert!(loaded.diagnostics.is_empty());
+        let document = match loaded
+            .ast_stream
+            .expect("Markdown adapter emits internal AST stream")
+        {
+            LoadedInputAstStream::MarkdownDocument(document) => document,
+            other => panic!("Markdown adapter emitted unexpected AST stream: {other:?}"),
+        };
+        assert_eq!(
+            document.source.content_type,
+            "text/markdown; charset=utf-8; variant=CommonMark"
+        );
+        assert_eq!(document.source.media_type, MARKDOWN_CONTENT_TYPE);
+        assert_eq!(document.variant, "CommonMark");
+        assert!(document
+            .events
+            .iter()
+            .any(|event| event.kind.as_str() == "text"
+                && event.text.as_deref() == Some("Release Notes")));
+    }
+
+    #[test]
     fn builtins_load_json_schema_reports_schema_owned_dialect_diagnostics() {
         let loaded = LifecycleRegistry::with_builtin_adapters().load(
             &input(br#"{"$schema":"http://json-schema.org/draft-07/schema#","type":"object"}"#),
@@ -1466,6 +1589,21 @@ mod tests {
 
         assert_eq!(selected.to_format, LayerFormat::Json);
         assert_eq!(selected.adapter_id, Some("json-schema"));
+        assert!(selected.diagnostics.is_empty());
+    }
+
+    #[test]
+    fn builtins_select_markdown_target_export_layer() {
+        let target = FormatIdentity {
+            content_type: Some(MARKDOWN_CONTENT_TYPE.to_owned()),
+            schema: Some(MARKDOWN_SCHEMA_URI.to_owned()),
+            ..FormatIdentity::default()
+        };
+        let selected = LifecycleRegistry::with_builtin_adapters()
+            .select_export(Some(&target), LayerFormat::Cem);
+
+        assert_eq!(selected.to_format, LayerFormat::Markdown);
+        assert_eq!(selected.adapter_id, Some("markdown"));
         assert!(selected.diagnostics.is_empty());
     }
 

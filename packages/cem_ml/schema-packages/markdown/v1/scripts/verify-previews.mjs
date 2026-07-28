@@ -11,7 +11,50 @@ const cli = join(workspaceRoot, 'dist/target/cem_ml_cli/debug/cem-ml');
 const update = process.argv.includes('--update');
 const packageLabel = 'Markdown Resource Schema Package';
 
-function markdownSourceExampleCase({ id, file }) {
+function markdownInputSpec(file, contentType) {
+    const path = `packages/cem_ml/schema-packages/markdown/v1/examples/${file}`;
+    return `uri=${path},contentType=${contentType},schema=https://cem.dev/ns/data/markdown/1`;
+}
+
+function markdownCliExampleCase({
+    id,
+    file,
+    contentType = 'text/markdown; charset=utf-8; variant=CommonMark',
+    minHeight = 190,
+}) {
+    return {
+        id: `${id}-preview`,
+        preview: `${file}.svg`,
+        html: `${file}.html`,
+        title: `${packageLabel} ${id} example preview`,
+        description: `Preview of examples/${file} from package.cem example metadata.`,
+        terminalTitle: `markdown ${file}`,
+        renderer: 'html',
+        expectedStatus: 'any',
+        width: 920,
+        minHeight,
+        args: [
+            'convert',
+            '--input-spec',
+            markdownInputSpec(file, contentType),
+            '--to-content-type',
+            'text/markdown',
+            '--to-schema',
+            'https://cem.dev/ns/data/markdown/1',
+            '--cemt-formatter-profile',
+            'tabular',
+            '--cemt-color-profile',
+            'html',
+        ],
+    };
+}
+
+function markdownValidateExampleCase({
+    id,
+    file,
+    contentType = 'text/markdown; charset=utf-8; variant=CommonMark',
+    minHeight = 520,
+}) {
     const path = `packages/cem_ml/schema-packages/markdown/v1/examples/${file}`;
     return {
         id: `${id}-preview`,
@@ -19,19 +62,43 @@ function markdownSourceExampleCase({ id, file }) {
         html: `${file}.html`,
         title: `${packageLabel} ${id} example preview`,
         description: `Preview of examples/${file} from package.cem example metadata.`,
-        terminalTitle: `source ${file}`,
-        renderer: 'text',
-        sourcePath: path,
-        width: 920,
-        minHeight: 190,
+        terminalTitle: `markdown validate ${file}`,
+        renderer: 'json',
+        expectedStatus: 'success',
+        width: 1040,
+        minHeight,
+        args: [
+            'validate',
+            '--format',
+            'json',
+            '--fail-level',
+            'parse',
+            '--content-type',
+            contentType,
+            '--schema',
+            'https://cem.dev/ns/data/markdown/1',
+            path,
+        ],
     };
 }
 
 const cases = [
-    markdownSourceExampleCase({ id: 'basic-document', file: 'basic-document.md' }),
-    markdownSourceExampleCase({ id: 'gfm-worklog', file: 'gfm-worklog.md' }),
-    markdownSourceExampleCase({ id: 'invalid-embedded-html', file: 'invalid-embedded-html.md' }),
-    markdownSourceExampleCase({ id: 'unknown-variant', file: 'unknown-variant.md' }),
+    markdownCliExampleCase({ id: 'basic-document', file: 'basic-document.md' }),
+    markdownCliExampleCase({
+        id: 'gfm-worklog',
+        file: 'gfm-worklog.md',
+        contentType: 'text/markdown; charset=utf-8; variant=GFM',
+        minHeight: 250,
+    }),
+    markdownValidateExampleCase({
+        id: 'invalid-embedded-html',
+        file: 'invalid-embedded-html.md',
+    }),
+    markdownCliExampleCase({
+        id: 'unknown-variant',
+        file: 'unknown-variant.md',
+        contentType: 'text/markdown; charset=utf-8; variant=CustomWiki',
+    }),
 ];
 
 await verifyReadmePreviews({

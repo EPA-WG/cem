@@ -16,6 +16,7 @@ use crate::conversion::{
     execute_csv_document_output_pipeline_with_environment,
     execute_json_document_output_pipeline_with_environment,
     execute_json_schema_document_output_pipeline_with_environment,
+    execute_markdown_document_output_pipeline_with_environment,
     execute_yaml_document_output_pipeline_with_environment, ConversionExecution,
     ConversionOutputPipeline, ConversionOutputPipelineEnvironment,
     ConversionPackageArtifactDescriptor, ConversionPackageArtifactRead,
@@ -55,8 +56,8 @@ use crate::schema::registry::{
     CEM_SCHEMA_CONTENT_TYPE, CEM_SCHEMA_PACKAGE_CONTENT_TYPE, CEM_SCHEMA_PACKAGE_URI,
     CSS_CONTENT_TYPE, CSS_SCHEMA_URI, CSV_CONTENT_TYPE, CSV_SCHEMA_URI, HTML_CONTENT_TYPE,
     HTML_SCHEMA_URI, JSON_CONTENT_TYPE, JSON_SCHEMA_CONTENT_TYPE, JSON_SCHEMA_SCHEMA_URI,
-    JSON_VALUE_SCHEMA_URI, XHTML_CONTENT_TYPE, XHTML_SCHEMA_URI, XML_CONTENT_TYPE, XML_SCHEMA_URI,
-    YAML_CONTENT_TYPE, YAML_SCHEMA_URI,
+    JSON_VALUE_SCHEMA_URI, MARKDOWN_CONTENT_TYPE, MARKDOWN_SCHEMA_URI, XHTML_CONTENT_TYPE,
+    XHTML_SCHEMA_URI, XML_CONTENT_TYPE, XML_SCHEMA_URI, YAML_CONTENT_TYPE, YAML_SCHEMA_URI,
 };
 use crate::schema::vocab::CompiledSchema;
 use crate::source::line_index::LineIndex;
@@ -95,6 +96,7 @@ use crate::validation::csv::CsvDocumentAst;
 use crate::validation::generic_data::GenericDataDocumentAst;
 use crate::validation::json::JsonDocumentAst;
 use crate::validation::json_schema::JsonSchemaDocumentAst;
+use crate::validation::markdown::MarkdownDocumentAst;
 use crate::validation::yaml::YamlDocumentAst;
 use crate::validation::{
     rules::validate_cem_native_template_source_semantics, RuleContext, RuleRegistry,
@@ -5428,6 +5430,96 @@ fn convert_loaded_json_schema_ast_output(
     )
 }
 
+fn markdown_direct_output_primary_identity(
+    target: &FormatIdentity,
+    target_scope: &ScopeConfig,
+) -> (String, String, String) {
+    if markdown_direct_output_is_html(target_scope) {
+        return (
+            HTML_CONTENT_TYPE.to_owned(),
+            HTML_SCHEMA_URI.to_owned(),
+            "markdown-html/1".to_owned(),
+        );
+    }
+    (
+        target
+            .content_type
+            .clone()
+            .unwrap_or_else(|| MARKDOWN_CONTENT_TYPE.to_owned()),
+        target
+            .schema
+            .clone()
+            .unwrap_or_else(|| MARKDOWN_SCHEMA_URI.to_owned()),
+        "markdown/1".to_owned(),
+    )
+}
+
+fn convert_loaded_markdown_ast_output(
+    context: &EngineContext,
+    request: &ConvertRequest,
+    document: MarkdownDocumentAst,
+    diagnostics: &mut Vec<Diagnostic>,
+) -> (Value, Option<PrimaryBytes>, ConvertExecutionMetadata) {
+    let metadata = convert_metadata_for_markdown_lifecycle_output(&request.target_scope);
+    let environment = ConversionOutputPipelineEnvironment {
+        schema_registry: &context.schema_registry,
+        conversion_registry: &context.converter_registry,
+        package_artifact_reader: None,
+        artifact_cache: None,
+    };
+    let execution = execute_markdown_document_output_pipeline_with_environment(
+        &environment,
+        document,
+        &request.target_scope,
+        Some(&request.input.uri),
+    );
+    diagnostics.extend(execution.diagnostics.clone());
+    if diagnostics
+        .iter()
+        .any(|diagnostic| diagnostic.severity.is_hard_violation())
+    {
+        return (Value::Null, None, metadata);
+    }
+
+    let content = execution
+        .output
+        .as_ref()
+        .and_then(Value::as_str)
+        .unwrap_or_default()
+        .to_owned();
+    let target = request
+        .target
+        .clone()
+        .or_else(|| request.target_scope.format_identity_option())
+        .unwrap_or_else(|| FormatIdentity {
+            content_type: Some(MARKDOWN_CONTENT_TYPE.to_owned()),
+            schema: Some(MARKDOWN_SCHEMA_URI.to_owned()),
+            ..FormatIdentity::default()
+        });
+    let (content_type, schema, format_version) =
+        markdown_direct_output_primary_identity(&target, &request.target_scope);
+    let bytes = content.into_bytes();
+    let primary_bytes = PrimaryBytes {
+        content_type,
+        schema: Some(schema.clone()),
+        format_version,
+        hash_scheme: "cem-text/1+blake3".to_owned(),
+        hash: text_content_hash(&bytes),
+        bytes,
+    };
+    let hash = primary_bytes.hash.clone();
+    (
+        json!({
+            "kind": "document",
+            "contentType": primary_bytes.content_type,
+            "schema": schema,
+            "hash": hash,
+        }),
+        Some(primary_bytes),
+        metadata,
+    )
+}
+
 fn convert_loaded_generic_data_ast_to_json_output(
     context: &EngineContext,
     request: &ConvertRequest,
@@ -5685,6 +5777,136 @@ fn convert_metadata_for_json_schema_lifecycle_output(
                     content_type: Some(JSON_SCHEMA_CONTENT_TYPE.to_owned()),
                     schema: Some(JSON_SCHEMA_SCHEMA_URI.to_owned()),
                     category: Some("json-schema-document".to_owned()),
+                    produces: Some(
+                        TransformTemplateOutputProducedKind::CemTree
+                            .as_str()
+                            .to_owned(),
+                    ),
+                },
+                ConvertOutputPipelineStageMetadata {
+                    stage: "writer".to_owned(),
+                    function: None,
+                    profile: writer_profile,
+                    content_type: Some(writer_content_type.to_owned()),
+                    schema: Some(writer_schema.to_owned()),
+                    category: Some(writer_category.to_owned()),
+                    produces: Some(
+                        TransformTemplateOutputProducedKind::Text
+                            .as_str()
+                            .to_owned(),
+                    ),
+                },
+            ],
+        }),
+    }
+}
+
+fn markdown_direct_output_is_html(target_scope: &ScopeConfig) -> bool {
+    markdown_direct_output_color_selection(target_scope)
+        .as_ref()
+        .is_some_and(|selection| {
+            selection.target.category == "html-color"
+                && markdown_direct_output_color_selection_requests_color(selection)
+        })
+        || target_scope
+            .cemt_color_profile
+            .as_deref()
+            .map(str::trim)
+            .is_some_and(|profile| profile == "html")
+}
+
+fn markdown_direct_output_color_selection(
+    target_scope: &ScopeConfig,
+) -> Option<TransformTemplateOutputColorSelection> {
+    let output_color_type = target_scope
+        .output_color_type
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())?;
+    parse_transform_template_output_color_type(output_color_type).ok()
+}
+
+fn markdown_direct_output_color_selection_requests_color(
+    selection: &TransformTemplateOutputColorSelection,
+) -> bool {
+    selection.output_color_type != "none"
+}
+
+fn markdown_direct_output_color_profile(target_scope: &ScopeConfig) -> Option<String> {
+    let explicit = target_scope
+        .cemt_color_profile
+        .as_deref()
+        .map(str::trim)
+        .filter(|profile| !profile.is_empty())
+        .filter(|profile| matches!(*profile, "terminal" | "html" | "md"))
+        .map(str::to_owned);
+    if explicit.is_some() {
+        return explicit;
+    }
+    markdown_direct_output_color_selection(target_scope)
+        .filter(markdown_direct_output_color_selection_requests_color)
+        .and_then(|selection| match selection.target.category.as_str() {
+            "html-color" => Some("html".to_owned()),
+            "terminal-color" => Some("terminal".to_owned()),
+            _ => None,
+        })
+}
+
+fn convert_metadata_for_markdown_lifecycle_output(
+    target_scope: &ScopeConfig,
+) -> ConvertExecutionMetadata {
+    let formatter_profile = target_scope
+        .cemt_formatter_profile
+        .clone()
+        .unwrap_or_else(|| "compact".to_owned());
+    let html_output = markdown_direct_output_is_html(target_scope);
+    let color_profile = markdown_direct_output_color_profile(target_scope);
+    let writer_profile = markdown_direct_output_color_selection(target_scope)
+        .filter(markdown_direct_output_color_selection_requests_color)
+        .map(|selection| selection.output_color_type)
+        .or_else(|| color_profile.clone());
+    let (writer_content_type, writer_schema, writer_category) = if html_output {
+        (HTML_CONTENT_TYPE, HTML_SCHEMA_URI, "html-document")
+    } else {
+        (
+            MARKDOWN_CONTENT_TYPE,
+            MARKDOWN_SCHEMA_URI,
+            "markdown-document",
+        )
+    };
+    ConvertExecutionMetadata {
+        converter_id: Some("markdown-lifecycle-output".to_owned()),
+        implementation: Some("markdown-ast-stream-to-markdown-output-pipeline".to_owned()),
+        rust_fallback: None,
+        output_pipeline: Some(ConvertOutputPipelineMetadata {
+            stages: vec![
+                ConvertOutputPipelineStageMetadata {
+                    stage: "formatter".to_owned(),
+                    function: Some(
+                        target_scope
+                            .cemt_formatter
+                            .clone()
+                            .unwrap_or_else(|| "markdown.format-document".to_owned()),
+                    ),
+                    profile: Some(formatter_profile),
+                    content_type: Some(MARKDOWN_CONTENT_TYPE.to_owned()),
+                    schema: Some(MARKDOWN_SCHEMA_URI.to_owned()),
+                    category: Some("markdown-document".to_owned()),
+                    produces: Some(
+                        TransformTemplateOutputProducedKind::CemTree
+                            .as_str()
+                            .to_owned(),
+                    ),
+                },
+                ConvertOutputPipelineStageMetadata {
+                    stage: "colorizer".to_owned(),
+                    function: color_profile
+                        .as_ref()
+                        .map(|_| "markdown.color-document".to_owned()),
+                    profile: color_profile,
+                    content_type: Some(MARKDOWN_CONTENT_TYPE.to_owned()),
+                    schema: Some(MARKDOWN_SCHEMA_URI.to_owned()),
+                    category: Some("markdown-document".to_owned()),
                     produces: Some(
                         TransformTemplateOutputProducedKind::CemTree
                             .as_str()
@@ -5992,10 +6214,11 @@ fn loaded_input_consumes_validation_without_cem_parse(loaded: &LoadedInput) -> b
                 | LoadedInputAstStream::YamlDocument(_)
                 | LoadedInputAstStream::JsonDocument(_)
                 | LoadedInputAstStream::JsonSchemaDocument(_)
+                | LoadedInputAstStream::MarkdownDocument(_)
         )
     ) || matches!(
         loaded.adapter_id,
-        Some("csv" | "yaml" | "json" | "json-schema")
+        Some("csv" | "yaml" | "json" | "json-schema" | "markdown")
     )
 }
 
@@ -7131,6 +7354,53 @@ impl CemMlEngine for RealCemMlEngine {
                         primary = Some(Value::Null);
                         return;
                     }
+                    LoadedInputAstStream::MarkdownDocument(document_value) => {
+                        if to_format == LayerFormat::Markdown {
+                            if diagnostics
+                                .iter()
+                                .any(|diagnostic| diagnostic.severity.is_hard_violation())
+                            {
+                                primary = Some(Value::Null);
+                                conversion = Some(convert_metadata_for_markdown_lifecycle_output(
+                                    &request.target_scope,
+                                ));
+                                return;
+                            }
+
+                            let (markdown_primary, markdown_primary_bytes, markdown_conversion) =
+                                convert_loaded_markdown_ast_output(
+                                    &context,
+                                    &request,
+                                    document_value,
+                                    &mut diagnostics,
+                                );
+                            primary = Some(markdown_primary);
+                            primary_bytes = markdown_primary_bytes;
+                            conversion = Some(markdown_conversion);
+                            return;
+                        }
+
+                        diagnostics.push(Diagnostic {
+                            uri: Some(request.input.uri.clone()),
+                            code: "cem.lifecycle.internal_ast_target_unsupported".to_owned(),
+                            severity: Severity::Fatal,
+                            message: format!(
+                                "Markdown lifecycle input cannot be exported through `{to_format:?}` without a registered Markdown AST export adapter"
+                            ),
+                            details: Some(json!({
+                                "lifecycle": {
+                                    "adapterId": loaded.adapter_id,
+                                    "operation": "export",
+                                    "internalContentType": MARKDOWN_CONTENT_TYPE,
+                                    "internalSchema": MARKDOWN_SCHEMA_URI,
+                                    "targetFormat": format!("{to_format:?}"),
+                                }
+                            })),
+                            ..Diagnostic::default()
+                        });
+                        primary = Some(Value::Null);
+                        return;
+                    }
                 }
             }
 
@@ -7443,6 +7713,21 @@ impl CemMlEngine for RealCemMlEngine {
                         details: Some(json!({
                             "targetContentType": JSON_CONTENT_TYPE,
                             "targetSchema": JSON_VALUE_SCHEMA_URI,
+                        })),
+                        ..Diagnostic::default()
+                    });
+                    Value::Null
+                }
+                LayerFormat::Markdown => {
+                    diagnostics.push(Diagnostic {
+                        uri: Some(request.input.uri.clone()),
+                        code: "cem.lifecycle.markdown_source_required".to_owned(),
+                        severity: Severity::Fatal,
+                        message: "Markdown export requires a Markdown lifecycle input AST stream or a registered converter"
+                            .to_owned(),
+                        details: Some(json!({
+                            "targetContentType": MARKDOWN_CONTENT_TYPE,
+                            "targetSchema": MARKDOWN_SCHEMA_URI,
                         })),
                         ..Diagnostic::default()
                     });

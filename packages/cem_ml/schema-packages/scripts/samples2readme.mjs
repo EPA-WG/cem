@@ -337,6 +337,37 @@ function previewPlanForExample(example, manifest) {
         };
     }
 
+    if (isMarkdownTextExample(example, manifest, essence)) {
+        if (example.expectedResult !== 'pass') {
+            return {
+                label: 'markdown validate',
+                renderer: 'json',
+                expectedStatus: 'success',
+                width: 1040,
+                minHeight: 520,
+                args: validatePreviewArgs(inputPath, {
+                    format: 'json',
+                    failLevel: 'parse',
+                    contentType: example.contentType,
+                    schema: example.schema,
+                }),
+            };
+        }
+        return {
+            label: 'markdown',
+            renderer: 'html',
+            expectedStatus,
+            width: 920,
+            minHeight: 190,
+            args: convertPreviewArgs(inputSpec, {
+                toContentType: 'text/markdown',
+                toSchema: 'https://cem.dev/ns/data/markdown/1',
+                colorProfile: 'html',
+                outputColorType: null,
+            }),
+        };
+    }
+
     if (isHtmlExample(essence)) {
         return {
             label: 'html',
@@ -469,6 +500,10 @@ function isYamlTextExample(_example, manifest, essence) {
     );
 }
 
+function isMarkdownTextExample(_example, manifest, essence) {
+    return manifest.packageId === 'markdown' && essence === 'text/markdown';
+}
+
 function isHtmlExample(essence) {
     return essence === 'text/html';
 }
@@ -491,6 +526,10 @@ function generatedExamplesSection(manifest, packageLabel) {
     const hasValidationPreviews = manifest.examples.some(
         (example) => previewPlanForExample(example, manifest).args?.[0] === 'validate',
     );
+    const hasSourceSnapshotFallback = manifest.examples.some((example) => {
+        const plan = previewPlanForExample(example, manifest);
+        return Boolean(plan.sourcePath || plan.fallbackSourcePath);
+    });
     const lines = [
         '## Examples',
         '',
@@ -508,8 +547,12 @@ function generatedExamplesSection(manifest, packageLabel) {
         '`dist/cem_ml/schema-packages/<package>/v1/examples/<example-file>.html`,',
         'then renders the `<pre>` spans through headless Chromium into',
         '`examples/previews/<example-file>.svg`.',
-        'Source snapshots are used only where the current CLI cannot yet render',
-        'the package formatter/colorizer path for that content identity.',
+        ...(hasSourceSnapshotFallback
+            ? [
+                  'Source snapshots are used only where the current CLI cannot yet render',
+                  'the package formatter/colorizer path for that content identity.',
+              ]
+            : []),
         '',
     ];
     for (const example of manifest.examples) {

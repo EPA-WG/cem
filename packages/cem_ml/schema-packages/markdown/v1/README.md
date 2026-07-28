@@ -68,21 +68,15 @@ writer, not a full Markdown block/inline reflow engine. Trusted HTML rendering
 modes and variant-specific extension models are not part of the current release
 contract.
 
-## Tracked Incomplete Work
-
-- README previews intentionally use source snapshots until package-owned
-  Markdown formatter/colorizer output can render examples directly.
-
 ## Examples
 
 This section is generated from `package.cem` `{example}` metadata by the
-`samples2readme` Nx target. Each SVG previews the example content, not
-the validation report. The target writes a preformatted HTML preview to
+`samples2readme` Nx target. Each SVG previews the rendered example
+content or validation diagnostics for expected-fail examples. The target writes a
+preformatted HTML preview to
 `dist/cem_ml/schema-packages/<package>/v1/examples/<example-file>.html`,
 then renders the `<pre>` spans through headless Chromium into
 `examples/previews/<example-file>.svg`.
-Source snapshots are used only where the current CLI cannot yet render
-the package formatter/colorizer path for that content identity.
 
 <details>
 <summary>basic-document</summary>
@@ -91,8 +85,15 @@ the package formatter/colorizer path for that content identity.
 - Content type: `text/markdown; charset=utf-8; variant=CommonMark`
 - Schema: `https://cem.dev/ns/data/markdown/1`
 - Expected result: `pass`
-- Preview renderer: `source snapshot HTML + html2svg`
+- Preview renderer: `CLI convert, tabular formatter, preview HTML + html2svg`
 - Preview HTML: `dist/cem_ml/schema-packages/markdown/v1/examples/basic-document.md.html`
+
+```bash
+dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
+  'uri=packages/cem_ml/schema-packages/markdown/v1/examples/basic-document.md,contentType=text/markdown; charset=utf-8; variant=CommonMark,schema=https://cem.dev/ns/data/markdown/1' \
+  --to-content-type text/markdown --to-schema https://cem.dev/ns/data/markdown/1 \
+  --cemt-formatter-profile tabular --cemt-color-profile html
+```
 
 </details>
 
@@ -105,8 +106,15 @@ the package formatter/colorizer path for that content identity.
 - Content type: `text/markdown; charset=utf-8; variant=GFM`
 - Schema: `https://cem.dev/ns/data/markdown/1`
 - Expected result: `pass`
-- Preview renderer: `source snapshot HTML + html2svg`
+- Preview renderer: `CLI convert, tabular formatter, preview HTML + html2svg`
 - Preview HTML: `dist/cem_ml/schema-packages/markdown/v1/examples/gfm-worklog.md.html`
+
+```bash
+dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
+  'uri=packages/cem_ml/schema-packages/markdown/v1/examples/gfm-worklog.md,contentType=text/markdown; charset=utf-8; variant=GFM,schema=https://cem.dev/ns/data/markdown/1' \
+  --to-content-type text/markdown --to-schema https://cem.dev/ns/data/markdown/1 \
+  --cemt-formatter-profile tabular --cemt-color-profile html
+```
 
 </details>
 
@@ -120,8 +128,15 @@ the package formatter/colorizer path for that content identity.
 - Schema: `https://cem.dev/ns/data/markdown/1`
 - Expected result: `fail`
 - Expected diagnostics: `cem.markdown.embedded_html_rejected`
-- Preview renderer: `source snapshot HTML + html2svg`
+- Preview renderer: `CLI validate, JSON report, preview HTML + html2svg`
 - Preview HTML: `dist/cem_ml/schema-packages/markdown/v1/examples/invalid-embedded-html.md.html`
+
+```bash
+dist/target/cem_ml_cli/debug/cem-ml validate --format json --fail-level parse \
+  --content-type 'text/markdown; charset=utf-8; variant=CommonMark' --schema \
+  https://cem.dev/ns/data/markdown/1 \
+  packages/cem_ml/schema-packages/markdown/v1/examples/invalid-embedded-html.md
+```
 
 </details>
 
@@ -135,8 +150,15 @@ the package formatter/colorizer path for that content identity.
 - Schema: `https://cem.dev/ns/data/markdown/1`
 - Expected result: `pass`
 - Expected diagnostics: `cem.markdown.unknown_variant`
-- Preview renderer: `source snapshot HTML + html2svg`
+- Preview renderer: `CLI convert, tabular formatter, preview HTML + html2svg`
 - Preview HTML: `dist/cem_ml/schema-packages/markdown/v1/examples/unknown-variant.md.html`
+
+```bash
+dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
+  'uri=packages/cem_ml/schema-packages/markdown/v1/examples/unknown-variant.md,contentType=text/markdown; charset=utf-8; variant=CustomWiki,schema=https://cem.dev/ns/data/markdown/1' \
+  --to-content-type text/markdown --to-schema https://cem.dev/ns/data/markdown/1 \
+  --cemt-formatter-profile tabular --cemt-color-profile html
+```
 
 </details>
 

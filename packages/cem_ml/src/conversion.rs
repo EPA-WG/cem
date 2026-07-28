@@ -32,8 +32,8 @@ use crate::schema::registry::{
     CEM_EVENTS_PROJECTION_SCHEMA_URI, CEM_ML_CONTENT_TYPE, CEM_ML_SCHEMA_URI, CEM_QL_SCHEMA_URI,
     CEM_TRANSFORM_CONTENT_TYPE, CEM_TRANSFORM_SCHEMA_URI, CSV_CONTENT_TYPE, CSV_SCHEMA_URI,
     HTML_CONTENT_TYPE, HTML_SCHEMA_URI, JSON_CONTENT_TYPE, JSON_SCHEMA_CONTENT_TYPE,
-    JSON_SCHEMA_SCHEMA_URI, JSON_VALUE_SCHEMA_URI, XML_CONTENT_TYPE, XML_SCHEMA_URI,
-    YAML_CONTENT_TYPE, YAML_SCHEMA_URI,
+    JSON_SCHEMA_SCHEMA_URI, JSON_VALUE_SCHEMA_URI, MARKDOWN_CONTENT_TYPE, MARKDOWN_SCHEMA_URI,
+    XML_CONTENT_TYPE, XML_SCHEMA_URI, YAML_CONTENT_TYPE, YAML_SCHEMA_URI,
 };
 use crate::source::{BytesSource, SourceId};
 use crate::source_map::SourceMapStack;
@@ -72,6 +72,7 @@ use crate::validation::csv::{generic_data_ast_to_csv_cemt_subject, CsvDocumentAs
 use crate::validation::generic_data::GenericDataDocumentAst;
 use crate::validation::json::{generic_data_ast_to_json_cemt_subject, JsonDocumentAst};
 use crate::validation::json_schema::JsonSchemaDocumentAst;
+use crate::validation::markdown::MarkdownDocumentAst;
 use crate::validation::yaml::{generic_data_ast_to_yaml_cemt_subject, YamlDocumentAst};
 use serde_json::Value;
 use std::cell::RefCell;
@@ -2331,6 +2332,24 @@ const JSON_SCHEMA_COLOR_CEMT_STAGE_SPEC: CemTreeCemtOutputStageSpec = CemTreeCem
     declaration_element: "{color-function",
     function_kind: TransformTemplateOutputFunctionKind::Color,
     function_name: "json-schema.color-document",
+    role: "colorizer",
+};
+
+const MARKDOWN_FORMAT_CEMT_STAGE_SPEC: CemTreeCemtOutputStageSpec = CemTreeCemtOutputStageSpec {
+    adapter_id: "markdown-format-cemt",
+    artifact_kind: CEM_TREE_FORMATTER_ARTIFACT_KIND,
+    declaration_element: "{format-function",
+    function_kind: TransformTemplateOutputFunctionKind::Format,
+    function_name: "markdown.format-document",
+    role: "formatter",
+};
+
+const MARKDOWN_COLOR_CEMT_STAGE_SPEC: CemTreeCemtOutputStageSpec = CemTreeCemtOutputStageSpec {
+    adapter_id: "markdown-color-cemt",
+    artifact_kind: CEM_TREE_COLORIZER_ARTIFACT_KIND,
+    declaration_element: "{color-function",
+    function_kind: TransformTemplateOutputFunctionKind::Color,
+    function_name: "markdown.color-document",
     role: "colorizer",
 };
 
@@ -5908,6 +5927,604 @@ fn json_schema_output_pipeline_failed_with_timings(
     failed_pipeline_execution(
         "json-schema-direct-output",
         Some("json-schema"),
+        diagnostic_uri,
+        message,
+        format_elapsed_ns,
+        color_elapsed_ns,
+        writer_elapsed_ns,
+    )
+}
+
+pub trait MarkdownDocumentOutputSubject {
+    fn source_line_ending(&self) -> Option<&str>;
+    fn into_cemt_subject(self) -> Value;
+}
+
+impl MarkdownDocumentOutputSubject for MarkdownDocumentAst {
+    fn source_line_ending(&self) -> Option<&str> {
+        self.line_ending.as_deref()
+    }
+
+    fn into_cemt_subject(self) -> Value {
+        self.to_cemt_subject()
+    }
+}
+
+#[cfg(test)]
+impl MarkdownDocumentOutputSubject for Value {
+    fn source_line_ending(&self) -> Option<&str> {
+        self.get("lineEnding").and_then(Value::as_str)
+    }
+
+    fn into_cemt_subject(self) -> Value {
+        self
+    }
+}
+
+pub fn execute_markdown_document_output_pipeline_with_environment(
+    environment: &ConversionOutputPipelineEnvironment<'_>,
+    document: impl MarkdownDocumentOutputSubject,
+    target_scope: &ScopeConfig,
+    diagnostic_uri: Option<&str>,
+) -> ConversionOutputPipelineExecution {
+    let formatter_name = match markdown_formatter_name_for_scope(target_scope) {
+        Ok(name) => name,
+        Err(message) => return markdown_output_pipeline_failed(diagnostic_uri, message),
+    };
+    let formatter_profile = match markdown_formatter_profile_for_scope(target_scope) {
+        Ok(profile) => profile,
+        Err(message) => return markdown_output_pipeline_failed(diagnostic_uri, message),
+    };
+    let presentation_options = match MarkdownFormatterPresentationOptions::from_options(
+        &target_scope.cemt_formatter_options,
+    ) {
+        Ok(options) => options,
+        Err(message) => return markdown_output_pipeline_failed(diagnostic_uri, message),
+    };
+    let output_color_selection = match markdown_output_color_selection_for_scope(target_scope) {
+        Ok(selection) => selection,
+        Err(message) => return markdown_output_pipeline_failed(diagnostic_uri, message),
+    };
+    let line_ending =
+        markdown_formatter_line_ending(document.source_line_ending(), &presentation_options);
+    let document_subject = document.into_cemt_subject();
+    let local_artifact_cache = ConversionOutputPipelineArtifactCache::default();
+    let cached_environment = if environment.artifact_cache.is_some() {
+        *environment
+    } else {
+        ConversionOutputPipelineEnvironment {
+            schema_registry: environment.schema_registry,
+            conversion_registry: environment.conversion_registry,
+            package_artifact_reader: environment.package_artifact_reader,
+            artifact_cache: Some(&local_artifact_cache),
+        }
+    };
+    let environment = &cached_environment;
+    let target = TransformTemplateEncodingTarget::new(
+        MARKDOWN_CONTENT_TYPE,
+        MARKDOWN_SCHEMA_URI,
+        "markdown-document",
+    );
+    let format_options = TransformTemplateEncodeOptions {
+        formatter: Some(formatter_name.clone()),
+        formatter_profile: Some(formatter_profile.clone()),
+        formatter_options: target_scope.cemt_formatter_options.clone(),
+        line_ending: line_ending.clone(),
+        mode: TransformTemplateEncodedArtifactMode::Document,
+        canonical: formatter_profile == "compact",
+        source_map_policy: TransformTemplateSourceMapPolicy::Generated,
+        ..TransformTemplateEncodeOptions::default()
+    };
+    let (format_stage, format_binding) = match resolve_cemt_output_stage_binding(
+        environment,
+        "Markdown",
+        MARKDOWN_FORMAT_CEMT_STAGE_SPEC,
+        &target,
+        Some(formatter_profile.as_str()),
+        Some(formatter_name.as_str()),
+        &document_subject,
+        "markdown-document",
+        format_options,
+    ) {
+        Ok(resolved) => resolved,
+        Err(message) => return markdown_output_pipeline_failed(diagnostic_uri, message),
+    };
+    let format_started = Instant::now();
+    let format_result = execute_conversion_cem_tree_output_stage(
+        environment,
+        format_stage,
+        &format_binding,
+        &document_subject,
+    );
+    let format_elapsed_ns = Some(format_started.elapsed().as_nanos());
+    let (formatted_output, format_execution) = match format_result {
+        Ok(output) => output,
+        Err(message) => {
+            return markdown_output_pipeline_failed_with_timings(
+                diagnostic_uri,
+                format!(
+                    "CEMT formatter `{}` failed: {message}",
+                    format_binding.function.name
+                ),
+                format_elapsed_ns,
+                None,
+                None,
+            );
+        }
+    };
+    let format_execution = Some(format_execution);
+    let formatted_artifact = format_binding.artifact_from_value(formatted_output);
+    let mut formatted_context =
+        TransformTemplateEncodedArtifactInsertionContext::from_encoding_target(
+            &target,
+            Some(TransformTemplateOutputProducedKind::CemTree),
+        );
+    formatted_context.formatter_profile = formatted_artifact
+        .identity
+        .formatter_profile
+        .clone()
+        .or_else(|| Some(formatter_profile.clone()));
+    formatted_context.mode = Some(TransformTemplateEncodedArtifactMode::Document);
+    formatted_context.canonical = Some(formatter_profile == "compact");
+    formatted_context.source_map_policy = Some(TransformTemplateSourceMapPolicy::Generated);
+    if let Err(error) = formatted_artifact.validate_insertion(&formatted_context) {
+        return markdown_output_pipeline_failed_with_timings(
+            diagnostic_uri,
+            error.diagnostic(diagnostic_uri).message,
+            format_elapsed_ns,
+            None,
+            None,
+        );
+    }
+
+    let cemt_color_profile =
+        match markdown_cemt_color_profile_for_output(target_scope, output_color_selection.as_ref())
+        {
+            Ok(profile) => profile,
+            Err(message) => return markdown_output_pipeline_failed(diagnostic_uri, message),
+        };
+    let wants_color = target_scope
+        .cemt_colorizer
+        .as_deref()
+        .map(str::trim)
+        .is_some_and(|name| !name.is_empty())
+        || cemt_color_profile.is_some()
+        || output_color_selection
+            .as_ref()
+            .is_some_and(markdown_output_color_selection_requests_color);
+    let mut color_elapsed_ns = None;
+    let (writer_artifact, color_execution, colored_cem_tree) = if wants_color {
+        let colorizer_name = target_scope
+            .cemt_colorizer
+            .as_deref()
+            .map(str::trim)
+            .filter(|name| !name.is_empty())
+            .unwrap_or(MARKDOWN_COLOR_CEMT_STAGE_SPEC.function_name);
+        let color_profile = cemt_color_profile.as_deref().unwrap_or("terminal");
+        let color_options = TransformTemplateEncodeOptions {
+            formatter_options: target_scope.cemt_formatter_options.clone(),
+            formatter_profile: formatted_artifact
+                .identity
+                .formatter_profile
+                .clone()
+                .or_else(|| Some(formatter_profile.clone())),
+            colorizer: Some(colorizer_name.to_owned()),
+            color_profile: Some(color_profile.to_owned()),
+            line_ending: line_ending.clone(),
+            mode: TransformTemplateEncodedArtifactMode::Document,
+            canonical: false,
+            source_map_policy: TransformTemplateSourceMapPolicy::Generated,
+            ..TransformTemplateEncodeOptions::default()
+        };
+        let (color_stage, color_binding) = match resolve_cemt_output_stage_binding(
+            environment,
+            "Markdown",
+            MARKDOWN_COLOR_CEMT_STAGE_SPEC,
+            &target,
+            Some(color_profile),
+            Some(colorizer_name),
+            &formatted_artifact.value,
+            "cem-tree",
+            color_options,
+        ) {
+            Ok(resolved) => resolved,
+            Err(message) => return markdown_output_pipeline_failed(diagnostic_uri, message),
+        };
+        let color_started = Instant::now();
+        let color_result = execute_conversion_cem_tree_output_stage(
+            environment,
+            color_stage,
+            &color_binding,
+            &formatted_artifact.value,
+        );
+        color_elapsed_ns = Some(color_started.elapsed().as_nanos());
+        let (colored_output, color_execution) = match color_result {
+            Ok(output) => output,
+            Err(message) => {
+                return markdown_output_pipeline_failed_with_timings(
+                    diagnostic_uri,
+                    format!(
+                        "CEMT colorizer `{}` failed: {message}",
+                        color_binding.function.name
+                    ),
+                    format_elapsed_ns,
+                    color_elapsed_ns,
+                    None,
+                );
+            }
+        };
+        let colored_artifact = color_binding.artifact_from_value(colored_output);
+        let mut colored_context =
+            TransformTemplateEncodedArtifactInsertionContext::from_encoding_target(
+                &target,
+                Some(TransformTemplateOutputProducedKind::CemTree),
+            );
+        colored_context.formatter_profile = colored_artifact
+            .identity
+            .formatter_profile
+            .clone()
+            .or_else(|| Some(formatter_profile.clone()));
+        colored_context.color_profile = Some(color_profile.to_owned());
+        colored_context.mode = Some(TransformTemplateEncodedArtifactMode::Document);
+        colored_context.source_map_policy = Some(TransformTemplateSourceMapPolicy::Generated);
+        if let Err(error) = colored_artifact.validate_insertion(&colored_context) {
+            return markdown_output_pipeline_failed_with_timings(
+                diagnostic_uri,
+                error.diagnostic(diagnostic_uri).message,
+                format_elapsed_ns,
+                color_elapsed_ns,
+                None,
+            );
+        }
+        (
+            colored_artifact.clone(),
+            Some(color_execution),
+            Some(colored_artifact),
+        )
+    } else {
+        (formatted_artifact.clone(), None, None)
+    };
+
+    let wrap_html_output = output_color_selection
+        .as_ref()
+        .is_some_and(markdown_output_color_selection_is_html)
+        || writer_artifact.identity.color_profile.as_deref() == Some("html");
+    let mut writer_context = TransformTemplateEncodedArtifactInsertionContext::from_encoding_target(
+        &target,
+        Some(TransformTemplateOutputProducedKind::Text),
+    );
+    writer_context.formatter_profile = writer_artifact
+        .identity
+        .formatter_profile
+        .clone()
+        .or_else(|| Some(formatter_profile.clone()));
+    writer_context.color_profile = writer_artifact.identity.color_profile.clone();
+    writer_context.output_color_type = output_color_selection
+        .as_ref()
+        .map(|selection| selection.output_color_type.clone());
+    if output_color_selection
+        .as_ref()
+        .is_some_and(markdown_output_color_selection_is_terminal)
+    {
+        writer_context.color_capability = output_color_selection
+            .as_ref()
+            .map(|selection| selection.output_color_type.clone());
+    }
+    writer_context.mode = Some(TransformTemplateEncodedArtifactMode::Document);
+    writer_context.source_map_policy = Some(TransformTemplateSourceMapPolicy::Generated);
+    let evaluated = TransformTemplateEvaluatedEncodeExpression {
+        expression: TransformTemplateEncodeExpression {
+            owner: Some("markdown-direct-output".to_owned()),
+            expression: "markdown-direct-output writer".to_owned(),
+            subject: "markdown-document".to_owned(),
+            subject_type: Some("cem-tree".to_owned()),
+            target,
+            options: TransformTemplateEncodeOptions::default(),
+        },
+        subject: writer_artifact.value.clone(),
+        binding: TransformTemplateEncodeBinding {
+            function: markdown_output_function_descriptor(
+                if color_execution.is_some() {
+                    MARKDOWN_COLOR_CEMT_STAGE_SPEC.function_name
+                } else {
+                    MARKDOWN_FORMAT_CEMT_STAGE_SPEC.function_name
+                },
+                "markdown-document",
+                if color_execution.is_some() {
+                    "cem-tree"
+                } else {
+                    "markdown-document"
+                },
+                if color_execution.is_some() {
+                    TransformTemplateOutputFunctionKind::Color
+                } else {
+                    TransformTemplateOutputFunctionKind::Format
+                },
+                TransformTemplateOutputProducedKind::CemTree,
+                writer_artifact
+                    .identity
+                    .color_profile
+                    .clone()
+                    .or_else(|| writer_artifact.identity.formatter_profile.clone())
+                    .or_else(|| Some(formatter_profile.clone())),
+            ),
+            subject_type: "cem-tree".to_owned(),
+            identity: writer_artifact.identity.clone(),
+            options: TransformTemplateEncodeOptions::default(),
+        },
+        artifact: writer_artifact,
+    };
+    let writer_started = Instant::now();
+    let mut composition = compose_transform_template_encoded_text_artifacts(
+        &[evaluated],
+        &writer_context,
+        diagnostic_uri,
+    );
+    let writer_elapsed_ns = Some(writer_started.elapsed().as_nanos());
+    if !composition.diagnostics.is_empty() {
+        return ConversionOutputPipelineExecution {
+            output: None,
+            diagnostics: std::mem::take(&mut composition.diagnostics),
+            format_execution,
+            color_execution,
+            format_elapsed_ns,
+            color_elapsed_ns,
+            writer_elapsed_ns,
+            formatted_cem_tree: Some(formatted_artifact),
+            colored_cem_tree,
+            ..ConversionOutputPipelineExecution::default()
+        };
+    }
+    match composition.artifact {
+        Some(mut artifact) => {
+            if wrap_html_output {
+                markdown_wrap_html_preview_artifact(&mut artifact, presentation_options.tab_size);
+            }
+            ConversionOutputPipelineExecution {
+                output: Some(artifact.value),
+                source_map: artifact.source_map,
+                output_spans: artifact.output_spans,
+                format_execution,
+                color_execution,
+                format_elapsed_ns,
+                color_elapsed_ns,
+                writer_elapsed_ns,
+                formatted_cem_tree: Some(formatted_artifact),
+                colored_cem_tree,
+                diagnostics: Vec::new(),
+            }
+        }
+        None => ConversionOutputPipelineExecution {
+            output: None,
+            format_execution,
+            color_execution,
+            format_elapsed_ns,
+            color_elapsed_ns,
+            writer_elapsed_ns,
+            formatted_cem_tree: Some(formatted_artifact),
+            colored_cem_tree,
+            ..ConversionOutputPipelineExecution::default()
+        },
+    }
+}
+
+fn markdown_formatter_name_for_scope(target_scope: &ScopeConfig) -> Result<String, String> {
+    let name = target_scope
+        .cemt_formatter
+        .as_deref()
+        .map(str::trim)
+        .filter(|name| !name.is_empty())
+        .unwrap_or(MARKDOWN_FORMAT_CEMT_STAGE_SPEC.function_name);
+    if name != MARKDOWN_FORMAT_CEMT_STAGE_SPEC.function_name {
+        return Err(format!(
+            "unsupported Markdown formatter `{name}`; first-class Markdown output currently supports `{}`",
+            MARKDOWN_FORMAT_CEMT_STAGE_SPEC.function_name
+        ));
+    }
+    Ok(name.to_owned())
+}
+
+fn markdown_formatter_profile_for_scope(target_scope: &ScopeConfig) -> Result<String, String> {
+    let profile = target_scope
+        .cemt_formatter_profile
+        .as_deref()
+        .map(str::trim)
+        .filter(|profile| !profile.is_empty())
+        .unwrap_or("compact");
+    if !matches!(profile, "compact" | "pretty" | "tabular") {
+        return Err(format!(
+            "unsupported Markdown formatter profile `{profile}`; supported profiles are compact, pretty, and tabular"
+        ));
+    }
+    Ok(profile.to_owned())
+}
+
+fn markdown_output_color_selection(
+    output_color_type: Option<&str>,
+) -> Result<Option<TransformTemplateOutputColorSelection>, String> {
+    let Some(output_color_type) = output_color_type
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+    else {
+        return Ok(None);
+    };
+    parse_transform_template_output_color_type(output_color_type)
+        .map(Some)
+        .map_err(|message| {
+            format!("invalid Markdown output color type `{output_color_type}`: {message}")
+        })
+}
+
+fn markdown_output_color_selection_for_scope(
+    target_scope: &ScopeConfig,
+) -> Result<Option<TransformTemplateOutputColorSelection>, String> {
+    markdown_output_color_selection(target_scope.output_color_type.as_deref())
+}
+
+fn markdown_output_color_selection_requests_color(
+    selection: &TransformTemplateOutputColorSelection,
+) -> bool {
+    selection.output_color_type != "none"
+}
+
+fn markdown_output_color_selection_is_html(
+    selection: &TransformTemplateOutputColorSelection,
+) -> bool {
+    selection.target.category == "html-color"
+        && markdown_output_color_selection_requests_color(selection)
+}
+
+fn markdown_output_color_selection_is_terminal(
+    selection: &TransformTemplateOutputColorSelection,
+) -> bool {
+    selection.target.category == "terminal-color"
+        && markdown_output_color_selection_requests_color(selection)
+}
+
+fn markdown_cemt_color_profile_for_output(
+    target_scope: &ScopeConfig,
+    output_color_selection: Option<&TransformTemplateOutputColorSelection>,
+) -> Result<Option<String>, String> {
+    if let Some(name) = target_scope
+        .cemt_colorizer
+        .as_deref()
+        .map(str::trim)
+        .filter(|name| !name.is_empty())
+    {
+        if name != MARKDOWN_COLOR_CEMT_STAGE_SPEC.function_name {
+            return Err(format!(
+                "unsupported Markdown colorizer `{name}`; first-class Markdown output currently supports `{}`",
+                MARKDOWN_COLOR_CEMT_STAGE_SPEC.function_name
+            ));
+        }
+    }
+    let explicit = target_scope
+        .cemt_color_profile
+        .as_deref()
+        .map(str::trim)
+        .filter(|profile| !profile.is_empty());
+    let explicit = match explicit {
+        Some("terminal" | "html" | "md") => explicit,
+        Some("none") => None,
+        Some(profile) => {
+            return Err(format!(
+                "unsupported Markdown color profile `{profile}`; supported profiles are terminal, html, md, and none"
+            ));
+        }
+        None => None,
+    };
+    let inferred = output_color_selection
+        .filter(|selection| markdown_output_color_selection_requests_color(selection))
+        .and_then(|selection| match selection.target.category.as_str() {
+            "html-color" => Some("html"),
+            "terminal-color" => Some("terminal"),
+            _ => None,
+        });
+    if let (Some(explicit), Some(inferred)) = (explicit, inferred) {
+        if explicit != inferred {
+            return Err(format!(
+                "Markdown color profile `{explicit}` conflicts with output color type `{}`; use `{inferred}` or omit `--cemt-color-profile`",
+                output_color_selection
+                    .map(|selection| selection.output_color_type.as_str())
+                    .unwrap_or_default()
+            ));
+        }
+    }
+    Ok(explicit
+        .map(str::to_owned)
+        .or_else(|| inferred.map(str::to_owned)))
+}
+
+const MARKDOWN_HTML_PREVIEW_CLASS: &str = "cem-output-markdown";
+
+#[cfg(test)]
+fn markdown_html_preview_prefix(tab_size: usize) -> String {
+    crate::conversion_output::html_pre_container_prefix(MARKDOWN_HTML_PREVIEW_CLASS, tab_size)
+}
+
+fn markdown_wrap_html_preview_artifact(
+    artifact: &mut TransformTemplateEncodedArtifact,
+    tab_size: usize,
+) {
+    wrap_html_pre_container_artifact(artifact, MARKDOWN_HTML_PREVIEW_CLASS, tab_size);
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct MarkdownFormatterPresentationOptions {
+    line_ending: Option<FormatterLineEndingMode>,
+    tab_size: usize,
+}
+
+impl MarkdownFormatterPresentationOptions {
+    fn from_options(options: &BTreeMap<String, String>) -> Result<Self, String> {
+        let mut parsed = Self {
+            line_ending: None,
+            tab_size: default_formatter_tab_size(),
+        };
+        for (key, value) in options {
+            match key.as_str() {
+                "lineEnding" => {
+                    parsed.line_ending = Some(parse_formatter_line_ending_option(key, value)?);
+                }
+                "tabSize" => {
+                    parsed.tab_size = parse_positive_formatter_usize_option(key, value)?;
+                }
+                _ if key.starts_with("markdown.") => {
+                    return Err(format!("unsupported Markdown formatter option `{key}`"));
+                }
+                _ => {}
+            }
+        }
+        Ok(parsed)
+    }
+}
+
+fn markdown_formatter_line_ending(
+    source_line_ending: Option<&str>,
+    options: &MarkdownFormatterPresentationOptions,
+) -> Option<String> {
+    resolve_formatter_line_ending(source_line_ending, options.line_ending)
+}
+
+fn markdown_output_function_descriptor(
+    name: &str,
+    category: &str,
+    subject: &str,
+    kind: TransformTemplateOutputFunctionKind,
+    produces: TransformTemplateOutputProducedKind,
+    profile: Option<String>,
+) -> TransformTemplateOutputFunctionDescriptor {
+    cemt_output_function_descriptor(CemtOutputFunctionDescriptorSpec {
+        owner: "markdown",
+        name,
+        category,
+        subject,
+        kind,
+        produces,
+        content_type: MARKDOWN_CONTENT_TYPE,
+        schema: MARKDOWN_SCHEMA_URI,
+        canonical: false,
+        profile,
+    })
+}
+
+fn markdown_output_pipeline_failed(
+    diagnostic_uri: Option<&str>,
+    message: String,
+) -> ConversionOutputPipelineExecution {
+    markdown_output_pipeline_failed_with_timings(diagnostic_uri, message, None, None, None)
+}
+
+fn markdown_output_pipeline_failed_with_timings(
+    diagnostic_uri: Option<&str>,
+    message: String,
+    format_elapsed_ns: Option<u128>,
+    color_elapsed_ns: Option<u128>,
+    writer_elapsed_ns: Option<u128>,
+) -> ConversionOutputPipelineExecution {
+    failed_pipeline_execution(
+        "markdown-direct-output",
+        Some("markdown"),
         diagnostic_uri,
         message,
         format_elapsed_ns,
@@ -9833,6 +10450,7 @@ fn builtin_converter_package_schema_uris() -> &'static [&'static str] {
         JSON_SCHEMA_SCHEMA_URI,
         CSV_SCHEMA_URI,
         YAML_SCHEMA_URI,
+        MARKDOWN_SCHEMA_URI,
     ]
 }
 
@@ -15567,6 +16185,35 @@ mod tests {
         json_test_output_span(start, len)["origin"].clone()
     }
 
+    fn markdown_test_output_span(start: u64, len: u32) -> Value {
+        serde_json::json!({
+            "outputRange": {
+                "start": start,
+                "len": len
+            },
+            "origin": {
+                "frames": [{
+                    "source_id": 1,
+                    "span": {
+                        "kind": "Single",
+                        "ranges": {
+                            "start": start,
+                            "len": len
+                        }
+                    },
+                    "transform": {
+                        "kind": "ContentTypeTransform",
+                        "content_type": MARKDOWN_CONTENT_TYPE
+                    }
+                }]
+            }
+        })
+    }
+
+    fn markdown_test_source_map(start: u64, len: u32) -> Value {
+        markdown_test_output_span(start, len)["origin"].clone()
+    }
+
     #[test]
     fn builtin_yaml_lifecycle_output_pipeline_formats_typed_ast_without_json_bridge() {
         let schema_registry = SchemaRegistry::with_builtin_schemas();
@@ -15914,7 +16561,13 @@ mod tests {
             .collect::<Vec<_>>();
         assert_eq!(
             comment_texts,
-            ["# header", "# inline name", "# nested", "# inline role", "# tail"]
+            [
+                "# header",
+                "# inline name",
+                "# nested",
+                "# inline role",
+                "# tail"
+            ]
         );
     }
 
@@ -16887,6 +17540,255 @@ mod tests {
             )
             .is_some_and(|source| source.source.contains("{body |")),
             "JSON Schema colorizer asset must be embedded with an executable body"
+        );
+    }
+
+    #[test]
+    fn builtin_markdown_lifecycle_output_pipeline_executes_package_cemt_assets() {
+        let schema_registry = SchemaRegistry::with_builtin_schemas();
+        let conversion_registry = ConversionRegistry::with_builtin_converters();
+        let environment = ConversionOutputPipelineEnvironment {
+            schema_registry: &schema_registry,
+            conversion_registry: &conversion_registry,
+            package_artifact_reader: None,
+            artifact_cache: None,
+        };
+        let document = serde_json::json!({
+            "kind": "markdown-document",
+            "contentType": MARKDOWN_CONTENT_TYPE,
+            "schema": MARKDOWN_SCHEMA_URI,
+            "lineEnding": "lf",
+            "events": [
+                {
+                    "index": 0,
+                    "kind": "start",
+                    "tag": "heading",
+                    "level": 1,
+                    "sourceMap": markdown_test_source_map(0, 1)
+                },
+                {
+                    "index": 1,
+                    "kind": "text",
+                    "text": "Release Notes",
+                    "sourceMap": markdown_test_source_map(2, 13)
+                },
+                {
+                    "index": 2,
+                    "kind": "end",
+                    "tag": "heading",
+                    "sourceMap": markdown_test_source_map(15, 0)
+                },
+                {
+                    "index": 3,
+                    "kind": "start",
+                    "tag": "paragraph",
+                    "sourceMap": markdown_test_source_map(17, 0)
+                },
+                {
+                    "index": 4,
+                    "kind": "text",
+                    "text": "Ready",
+                    "sourceMap": markdown_test_source_map(17, 5)
+                },
+                {
+                    "index": 5,
+                    "kind": "end",
+                    "tag": "paragraph",
+                    "sourceMap": markdown_test_source_map(22, 0)
+                }
+            ]
+        });
+
+        for (profile, layout, expected_output) in [
+            (
+                "compact",
+                "compact-markdown-events",
+                "# Release Notes\n\nReady\n\n",
+            ),
+            (
+                "pretty",
+                "pretty-markdown-events",
+                "# Release Notes\n\nReady\n\n",
+            ),
+            (
+                "tabular",
+                "tabular-markdown-events",
+                "# Release Notes\n\nReady\n\n",
+            ),
+        ] {
+            let target_scope = ScopeConfig {
+                cemt_formatter_profile: Some(profile.to_owned()),
+                ..ScopeConfig::default()
+            };
+            let execution = execute_markdown_document_output_pipeline_with_environment(
+                &environment,
+                document.clone(),
+                &target_scope,
+                Some("builtin:markdown-output"),
+            );
+
+            assert!(
+                execution.diagnostics.is_empty(),
+                "{profile}: {:?}",
+                execution.diagnostics
+            );
+            assert!(
+                matches!(
+                    execution.format_execution,
+                    Some(ConversionOutputPipelineStageExecution::CemtAdapter {
+                        ref adapter_id,
+                        ref function_name,
+                        ref body_function_name,
+                        ..
+                    }) if adapter_id == "markdown-format-cemt"
+                        && function_name == "markdown.format-document"
+                        && body_function_name.as_deref() == Some("markdown.format-document")
+                ),
+                "{profile}: {:?}",
+                execution.format_execution
+            );
+            assert_eq!(
+                execution.output.as_ref().and_then(Value::as_str),
+                Some(expected_output),
+                "{profile}"
+            );
+            let formatted = execution
+                .formatted_cem_tree
+                .as_ref()
+                .unwrap_or_else(|| panic!("{profile} formatted tree"));
+            assert_eq!(formatted.value["kind"], "cem-tree");
+            assert_eq!(formatted.value["contentType"], MARKDOWN_CONTENT_TYPE);
+            assert_eq!(formatted.value["schema"], MARKDOWN_SCHEMA_URI);
+            assert_eq!(formatted.value["category"], "markdown-document");
+            assert_eq!(formatted.value["formatterProfile"], profile);
+            assert_eq!(formatted.value["formatNodes"][1]["value"]["layout"], layout);
+            assert_eq!(
+                formatted.value["nodes"][0]["value"]["name"],
+                "markdown.format-document"
+            );
+        }
+
+        assert!(
+            builtin_schema_package_artifact_source(
+                "markdown",
+                "schema-packages/markdown/v1/formatters/markdown-format-document.cemt",
+            )
+            .is_some_and(|source| source.source.contains("{body |")),
+            "Markdown formatter asset must be embedded with an executable body"
+        );
+    }
+
+    #[test]
+    fn builtin_markdown_colorizer_profiles_execute_package_cemt_assets() {
+        let schema_registry = SchemaRegistry::with_builtin_schemas();
+        let conversion_registry = ConversionRegistry::with_builtin_converters();
+        let environment = ConversionOutputPipelineEnvironment {
+            schema_registry: &schema_registry,
+            conversion_registry: &conversion_registry,
+            package_artifact_reader: None,
+            artifact_cache: None,
+        };
+        let document = serde_json::json!({
+            "kind": "markdown-document",
+            "contentType": MARKDOWN_CONTENT_TYPE,
+            "schema": MARKDOWN_SCHEMA_URI,
+            "lineEnding": "lf",
+            "events": [
+                {
+                    "index": 0,
+                    "kind": "start",
+                    "tag": "heading",
+                    "level": 1
+                },
+                {
+                    "index": 1,
+                    "kind": "text",
+                    "text": "Release Notes"
+                },
+                {
+                    "index": 2,
+                    "kind": "end",
+                    "tag": "heading"
+                }
+            ]
+        });
+
+        for (profile, output, style_key, style_value) in [
+            ("terminal", "terminal", "terminalCapability", "auto"),
+            ("html", "html", "htmlMode", "classes"),
+            ("md", "md", "wrapper", "span"),
+        ] {
+            let target_scope = ScopeConfig {
+                cemt_color_profile: Some(profile.to_owned()),
+                ..ScopeConfig::default()
+            };
+            let execution = execute_markdown_document_output_pipeline_with_environment(
+                &environment,
+                document.clone(),
+                &target_scope,
+                Some("builtin:markdown-color-output"),
+            );
+
+            assert!(
+                execution.diagnostics.is_empty(),
+                "{profile}: {:?}",
+                execution.diagnostics
+            );
+            assert!(
+                matches!(
+                    execution.color_execution,
+                    Some(ConversionOutputPipelineStageExecution::CemtAdapter {
+                        ref adapter_id,
+                        ref function_name,
+                        ref body_function_name,
+                        ..
+                    }) if adapter_id == "markdown-color-cemt"
+                        && function_name == "markdown.color-document"
+                        && body_function_name.as_deref() == Some("markdown.color-document")
+                ),
+                "{profile}: {:?}",
+                execution.color_execution
+            );
+            let colored = execution
+                .colored_cem_tree
+                .as_ref()
+                .unwrap_or_else(|| panic!("{profile} colored tree"));
+            assert_eq!(colored.value["contentType"], MARKDOWN_CONTENT_TYPE);
+            assert_eq!(colored.value["schema"], MARKDOWN_SCHEMA_URI);
+            assert_eq!(colored.value["category"], "markdown-document");
+            assert_eq!(colored.value["colorProfile"], profile);
+            assert_eq!(colored.value["colorOutput"], output);
+            assert_eq!(colored.value["nodes"][2]["style"][style_key], style_value);
+            assert_eq!(
+                colored.value["nodes"][2]["value"]["colorRole"],
+                "syntax.punctuation"
+            );
+            if profile == "html" {
+                let output = execution.output.as_ref().and_then(Value::as_str).unwrap();
+                assert!(
+                    output.starts_with(&markdown_html_preview_prefix(default_formatter_tab_size())),
+                    "{output}"
+                );
+                assert!(
+                    output.contains(r#"data-role="syntax.punctuation""#),
+                    "{output}"
+                );
+                assert_eq!(html_text_content(output), "# Release Notes\n\n");
+            } else {
+                assert_eq!(
+                    strip_ansi_codes(execution.output.as_ref().and_then(Value::as_str).unwrap()),
+                    "# Release Notes\n\n"
+                );
+            }
+        }
+
+        assert!(
+            builtin_schema_package_artifact_source(
+                "markdown",
+                "schema-packages/markdown/v1/colorizers/markdown-color-document.cemt",
+            )
+            .is_some_and(|source| source.source.contains("{body |")),
+            "Markdown colorizer asset must be embedded with an executable body"
         );
     }
 

@@ -890,6 +890,7 @@ fn to_engine_layer_format(f: cli::LayerFormat) -> eng::LayerFormat {
         cli::LayerFormat::Csv => eng::LayerFormat::Csv,
         cli::LayerFormat::Yaml => eng::LayerFormat::Yaml,
         cli::LayerFormat::Json => eng::LayerFormat::Json,
+        cli::LayerFormat::Markdown => eng::LayerFormat::Markdown,
         cli::LayerFormat::DomJson => eng::LayerFormat::DomJson,
         cli::LayerFormat::Ast => eng::LayerFormat::Ast,
         cli::LayerFormat::Events => eng::LayerFormat::Events,
@@ -907,6 +908,7 @@ fn layer_format_alias_id(f: cli::LayerFormat) -> &'static str {
         cli::LayerFormat::Csv => "csv",
         cli::LayerFormat::Yaml => "yaml",
         cli::LayerFormat::Json => "json",
+        cli::LayerFormat::Markdown => "markdown",
         cli::LayerFormat::DomJson => "dom-json",
         cli::LayerFormat::Ast => "ast",
         cli::LayerFormat::Events => "events",
@@ -12813,6 +12815,71 @@ active: true
             "{written}"
         );
         assert_eq!(html_text_content(&written), "name: Ada\nactive: true\n");
+    }
+
+    #[test]
+    fn convert_markdown_same_schema_uses_lifecycle_output_pipeline() {
+        let p = write_fixture(
+            "convert-markdown-same-schema.md",
+            r#"# Release Notes
+
+This document has **strong** text and a link.
+
+- Added schema validation.
+"#,
+        );
+        let out_path =
+            std::env::temp_dir().join("cem-ml-cli-tests/convert-markdown-same-schema.html");
+        let _ = std::fs::remove_file(&out_path);
+        let input_spec = format!(
+            "uri={},contentType=text/markdown; charset=utf-8; variant=CommonMark,schema={}",
+            p.display(),
+            cem_ml::schema::registry::MARKDOWN_SCHEMA_URI
+        );
+
+        let (outcome, stdout, stderr) = run(
+            &RealCemMlEngine::new(),
+            &[
+                "convert",
+                "--input-spec",
+                &input_spec,
+                "--to-content-type",
+                "text/markdown",
+                "--to-schema",
+                cem_ml::schema::registry::MARKDOWN_SCHEMA_URI,
+                "--cemt-formatter-profile",
+                "tabular",
+                "--cemt-color-profile",
+                "html",
+                "--out",
+                out_path.to_str().unwrap(),
+            ],
+        );
+
+        assert_eq!(outcome.exit_code, EXIT_OK, "{stderr}");
+        assert!(stdout.trim().is_empty(), "{stdout}");
+        assert!(stderr.trim().is_empty(), "{stderr}");
+        let written = std::fs::read_to_string(&out_path).unwrap();
+        assert!(
+            !stderr.contains("cem.lifecycle.adapter_unsupported"),
+            "{stderr}"
+        );
+        assert!(
+            !stderr.contains("cem.lifecycle.target_adapter_unsupported"),
+            "{stderr}"
+        );
+        assert!(
+            written.starts_with(
+                r#"<pre class="cem-output cem-output-markdown" style="white-space: pre; tab-size: 8">"#
+            ),
+            "{written}"
+        );
+        assert!(written.ends_with("</pre>"), "{written}");
+        assert!(
+            written.contains(r#"data-role="syntax.punctuation""#),
+            "{written}"
+        );
+        assert!(html_text_content(&written).starts_with("# Release Notes\n\n"));
     }
 
     #[test]

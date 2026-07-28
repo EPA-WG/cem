@@ -92,8 +92,13 @@
                     "cargo test -p cem-ml markdown_package_examples_are_manifest_indexed -- --nocapture",
                     "cargo test -p cem-ml catalog_exposes_markdown_output_artifact_sources -- --nocapture",
                     "cargo test -p cem-ml evaluate_encode_expressions_executes_markdown_package_cemt_boundaries -- --nocapture",
+                    "cargo test -p cem-ml builtins_load_markdown_content_type_as_internal_ast_stream -- --nocapture",
+                    "cargo test -p cem-ml builtins_select_markdown_target_export_layer -- --nocapture",
+                    "cargo test -p cem-ml builtin_markdown_lifecycle_output_pipeline_executes_package_cemt_assets -- --nocapture",
+                    "cargo test -p cem-ml builtin_markdown_colorizer_profiles_execute_package_cemt_assets -- --nocapture",
                     "cargo test -p cem-ml markdown_source_validator -- --nocapture",
                     "cargo test -p cem-ml-cli validate_markdown_source -- --nocapture",
+                    "cargo test -p cem-ml-cli convert_markdown_same_schema_uses_lifecycle_output_pipeline -- --nocapture",
                     "node packages/cem_ml/schema-packages/markdown/v1/scripts/verify-previews.mjs"
                 ],
                 "parallel": false,

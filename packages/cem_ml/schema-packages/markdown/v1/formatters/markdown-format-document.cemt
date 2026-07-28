@@ -350,7 +350,7 @@
                 value: {
                     eventIndex: $event.index,
                     eventKind: $event.kind,
-                    eventTag: $event.tag,
+                    eventTag: match(exists($event.tag), { true: $event.tag, false: null }),
                     formatterProfile: $profile
                 }
             }) }
@@ -362,7 +362,7 @@
         {body |
             {$ call("markdown.format-document.token", {
                 kind: "markdown.line-ending",
-                text: $lineEnding,
+                text: match($lineEnding, { crlf: "\r\n", default: "\n" }),
                 role: "formatter.boundary",
                 sourceMap: null,
                 profile: $profile,
