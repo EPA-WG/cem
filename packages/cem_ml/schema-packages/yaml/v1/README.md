@@ -83,9 +83,10 @@ not part of the release contract.
 
 - Directive preservation is implemented in the typed YAML AST stream and package
   CEMT formatter/colorizer path.
-- Comment preservation is blocked on parser model coverage. The current Rust
-  YAML parser skips comments before token/event delivery, so comment rendering
-  needs an explicit parser/trivia strategy rather than source-string heuristics.
+- Comment preservation is implemented as schema-owned typed presentation nodes
+  with byte ranges/source maps. The package formatter renders those nodes as
+  comment lines; source-order interleaving for trailing inline comments and
+  in-document full-line comments remains tracked work.
 
 ## Examples
 

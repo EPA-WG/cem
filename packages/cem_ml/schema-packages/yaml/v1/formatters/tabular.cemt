@@ -74,17 +74,26 @@
                             }),
                             profile: $formatterProfile
                         }),
-                        call("yaml.format-document.documents", {
-                            documents: match(typeOf($subject.documents), {
-                                array: $subject.documents,
-                                default: []
+                        extend(
+                            call("yaml.format-document.comments", {
+                                comments: match(typeOf($subject.comments), {
+                                    array: $subject.comments,
+                                    default: []
+                                }),
+                                profile: $formatterProfile
                             }),
-                            directiveCount: length(match(typeOf($subject.directives), {
-                                array: $subject.directives,
-                                default: []
-                            })),
-                            profile: $formatterProfile
-                        })
+                            call("yaml.format-document.documents", {
+                                documents: match(typeOf($subject.documents), {
+                                    array: $subject.documents,
+                                    default: []
+                                }),
+                                directiveCount: length(match(typeOf($subject.directives), {
+                                    array: $subject.directives,
+                                    default: []
+                                })),
+                                profile: $formatterProfile
+                            })
+                        )
                     )
                 )
             } }
@@ -184,6 +193,48 @@
                     }),
                     [call("yaml.format-document.line-ending", { profile: $profile })]
                 )
+            ) }
+        }
+    }
+
+    {function @name="yaml.format-document.comments" @visibility="private" @returns="array" @deterministic=true |
+        {param @name="comments" @type="array" @required=true}
+        {param @name="profile" @type="string" @required=true}
+        {body |
+            {$ fold($comments, [], extend(
+                $acc,
+                call("yaml.format-document.comment", {
+                    comment: $item,
+                    profile: $profile
+                })
+            )) }
+        }
+    }
+
+    {function @name="yaml.format-document.comment" @visibility="private" @returns="array" @deterministic=true |
+        {param @name="comment" @type="object" @required=true}
+        {param @name="profile" @type="string" @required=true}
+        {body |
+            {$ extend(
+                call("yaml.format-document.indent", {
+                    indent: match($comment.placement, {
+                        line: match(typeOf($comment.indent), { string: $comment.indent, default: "" }),
+                        default: ""
+                    })
+                }),
+                [
+                    call("yaml.format-document.token", {
+                        kind: "yaml.comment",
+                        text: match(typeOf($comment.text), {
+                            string: $comment.text,
+                            default: concat("# ", match(typeOf($comment.value), { string: $comment.value, default: "" }))
+                        }),
+                        role: "syntax.comment",
+                        sourceMap: match(exists($comment.sourceMap), { true: $comment.sourceMap, false: null }),
+                        profile: $profile
+                    }),
+                    call("yaml.format-document.line-ending", { profile: $profile })
+                ]
             ) }
         }
     }

@@ -37,7 +37,7 @@
         {element @name="alias" @required-attributes="ref"}
         {element @name="directive" @required-attributes="name" @optional-attributes="value"}
         {element @name="parse-fact" @required-attributes="kind" @optional-attributes="contract behavior diagnostic-code diagnostic-severity recoverable fatal parameter actual expected line column byte-offset byte-length message"}
-        {element @name="comment" @optional-attributes="value"}
+        {element @name="comment" @optional-attributes="value text indent placement source-id byte-offset byte-length"}
     }
 
     {attributes |
@@ -54,6 +54,9 @@
         {attribute @name="byte-offset" @type="cemml:integer"}
         {attribute @name="byte-length" @type="cemml:integer"}
         {attribute @name="value" @type="schema:string"}
+        {attribute @name="text" @type="schema:string"}
+        {attribute @name="indent" @type="schema:string"}
+        {attribute @name="placement" @type="schema:identifier" @values="line inline"}
         {attribute @name="style" @type="schema:identifier" @values="plain single-quoted double-quoted literal folded flow block"}
         {attribute @name="implicit-kind" @type="schema:identifier" @values="string integer float boolean null timestamp binary"}
         {attribute @name="lexeme" @type="schema:string"}

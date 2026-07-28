@@ -15161,6 +15161,98 @@ mod tests {
     }
 
     #[test]
+    fn builtin_yaml_lifecycle_output_pipeline_renders_stream_comments_from_package_cemt() {
+        let schema_registry = SchemaRegistry::with_builtin_schemas();
+        let conversion_registry = ConversionRegistry::with_builtin_converters();
+        let environment = ConversionOutputPipelineEnvironment {
+            schema_registry: &schema_registry,
+            conversion_registry: &conversion_registry,
+            package_artifact_reader: None,
+            artifact_cache: None,
+        };
+        let document = serde_json::json!({
+            "kind": "yaml-stream",
+            "lineEnding": "lf",
+            "comments": [
+                {
+                    "index": 0,
+                    "text": "# header",
+                    "value": "header",
+                    "indent": "",
+                    "placement": "line",
+                    "sourceMap": yaml_test_source_map(0, 8)
+                },
+                {
+                    "index": 1,
+                    "text": "# inline comment",
+                    "value": "inline comment",
+                    "indent": "",
+                    "placement": "inline",
+                    "sourceMap": yaml_test_source_map(20, 16)
+                },
+                {
+                    "index": 2,
+                    "text": "# tail",
+                    "value": "tail",
+                    "indent": "  ",
+                    "placement": "line",
+                    "sourceMap": yaml_test_source_map(40, 6)
+                }
+            ],
+            "documents": [{
+                "index": 0,
+                "root": {
+                    "kind": "mapping",
+                    "mapping": [{
+                        "index": 0,
+                        "key": {
+                            "kind": "scalar",
+                            "value": "name",
+                            "style": "plain",
+                            "implicitKind": "string"
+                        },
+                        "value": {
+                            "kind": "scalar",
+                            "value": "Ada",
+                            "style": "plain",
+                            "implicitKind": "string"
+                        }
+                    }]
+                }
+            }]
+        });
+        let target_scope = ScopeConfig {
+            cemt_formatter_profile: Some("tabular".to_owned()),
+            ..ScopeConfig::default()
+        };
+
+        let execution = execute_yaml_document_output_pipeline_with_environment(
+            &environment,
+            document,
+            &target_scope,
+            Some("builtin:yaml-comment-output"),
+        );
+
+        assert!(
+            execution.diagnostics.is_empty(),
+            "{:?}",
+            execution.diagnostics
+        );
+        assert_eq!(
+            execution.output.as_ref().and_then(Value::as_str),
+            Some("# header\n# inline comment\n  # tail\nname: Ada\n")
+        );
+        let formatted = execution
+            .formatted_cem_tree
+            .as_ref()
+            .expect("formatted YAML CEM tree");
+        assert_eq!(formatted.value["nodes"][2]["kind"], "yaml.comment");
+        assert_eq!(formatted.value["nodes"][2]["role"], "syntax.comment");
+        assert_eq!(formatted.value["nodes"][6]["kind"], "yaml.indent");
+        assert_eq!(formatted.value["nodes"][7]["kind"], "yaml.comment");
+    }
+
+    #[test]
     fn builtin_yaml_lifecycle_output_pipeline_wraps_html_color_pre() {
         let schema_registry = SchemaRegistry::with_builtin_schemas();
         let conversion_registry = ConversionRegistry::with_builtin_converters();

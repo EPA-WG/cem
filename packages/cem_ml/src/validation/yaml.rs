@@ -30,6 +30,7 @@ pub struct YamlDocumentAst {
     pub encoding_report: YamlEncodingReportAst,
     pub parse_facts: Vec<YamlDocumentParseFact>,
     pub directives: Vec<YamlDirectiveAst>,
+    pub comments: Vec<YamlCommentAst>,
     pub documents: Vec<YamlStreamDocumentAst>,
     pub line_ending: Option<String>,
 }
@@ -61,6 +62,15 @@ impl YamlDocumentAst {
                 self.directives
                     .iter()
                     .map(YamlDirectiveAst::to_cemt_subject)
+                    .collect(),
+            ),
+        );
+        stream.insert(
+            "comments".to_owned(),
+            Value::Array(
+                self.comments
+                    .iter()
+                    .map(YamlCommentAst::to_cemt_subject)
                     .collect(),
             ),
         );
@@ -121,6 +131,7 @@ pub fn generic_data_ast_to_yaml_cemt_subject(ast: &GenericDataDocumentAst) -> Va
     );
     stream.insert("parseFacts".to_owned(), Value::Array(Vec::new()));
     stream.insert("directives".to_owned(), Value::Array(Vec::new()));
+    stream.insert("comments".to_owned(), Value::Array(Vec::new()));
     stream.insert(
         "documents".to_owned(),
         Value::Array(
@@ -302,6 +313,47 @@ impl YamlDirectiveAst {
             "sourceRange": self.range.to_cemt_subject(),
             "sourceMap": self.range.source_map(),
         })
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct YamlCommentAst {
+    pub index: usize,
+    pub value: String,
+    pub text: String,
+    pub indent: String,
+    pub placement: YamlCommentPlacement,
+    pub range: YamlSourceRange,
+}
+
+impl YamlCommentAst {
+    fn to_cemt_subject(&self) -> Value {
+        json!({
+            "index": self.index,
+            "kind": "comment",
+            "value": self.value,
+            "text": self.text,
+            "indent": self.indent,
+            "placement": self.placement.as_str(),
+            "byteOffset": self.range.start.byte_offset,
+            "sourceRange": self.range.to_cemt_subject(),
+            "sourceMap": self.range.source_map(),
+        })
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum YamlCommentPlacement {
+    Line,
+    Inline,
+}
+
+impl YamlCommentPlacement {
+    fn as_str(self) -> &'static str {
+        match self {
+            Self::Line => "line",
+            Self::Inline => "inline",
+        }
     }
 }
 
@@ -642,6 +694,17 @@ impl YamlSourceRange {
         }
     }
 
+    fn from_parts(line: u32, column: u32, byte_offset: u64, byte_length: u64) -> Self {
+        Self {
+            start: YamlSourcePosition {
+                line,
+                column,
+                byte_offset,
+            },
+            byte_length,
+        }
+    }
+
     fn byte_range(self) -> ByteRange {
         ByteRange::new(
             self.start.byte_offset,
@@ -821,6 +884,7 @@ struct YamlLexicalFacts {
     anchor_names_by_id: BTreeMap<usize, String>,
     duplicate_anchor_facts: Vec<YamlParseFact>,
     directives: Vec<YamlDirectiveAst>,
+    comments: Vec<YamlCommentAst>,
 }
 
 pub fn validate_yaml_source_bytes(request: YamlSourceValidationRequest<'_>) -> Vec<Diagnostic> {
@@ -865,6 +929,7 @@ pub fn yaml_document_ast_from_source_bytes(
         encoding_report: YamlEncodingReportAst::from_report(&report),
         parse_facts: yaml_parse_facts_for_document(&report, &contracts),
         directives: lexical.directives,
+        comments: lexical.comments,
         documents,
         line_ending: line_ending.map(str::to_owned),
     };
@@ -971,6 +1036,7 @@ fn collect_yaml_lexical_facts(source: &str) -> YamlLexicalFacts {
     let mut next_anchor_id = 1usize;
     let mut directive_index = 0usize;
     let mut scanner = Scanner::new(source.chars());
+    facts.comments = collect_yaml_comments(source);
 
     for token in scanner.by_ref() {
         match token.1 {
@@ -1011,6 +1077,156 @@ fn collect_yaml_lexical_facts(source: &str) -> YamlLexicalFacts {
     }
 
     facts
+}
+
+fn collect_yaml_comments(source: &str) -> Vec<YamlCommentAst> {
+    let mut comments = Vec::new();
+    let mut line_start = 0usize;
+    let mut line_number = 1u32;
+    let mut block_scalar_parent_indent: Option<usize> = None;
+    let bytes = source.as_bytes();
+
+    while line_start < source.len() {
+        let mut line_end = line_start;
+        while line_end < source.len() && !matches!(bytes[line_end], b'\n' | b'\r') {
+            line_end += 1;
+        }
+        let line = &source[line_start..line_end];
+        let line_indent = yaml_line_indent_columns(line);
+        let line_has_content = !line.trim().is_empty();
+
+        if let Some(parent_indent) = block_scalar_parent_indent {
+            if !line_has_content || line_indent > parent_indent {
+                line_start = yaml_next_line_start(bytes, line_end);
+                line_number = line_number.saturating_add(1);
+                continue;
+            }
+            block_scalar_parent_indent = None;
+        }
+
+        let comment_start = yaml_comment_start_in_line(line);
+        if let Some(comment_start) = comment_start {
+            let before_comment = &line[..comment_start];
+            let text = &line[comment_start..];
+            let placement = if before_comment.trim().is_empty() {
+                YamlCommentPlacement::Line
+            } else {
+                YamlCommentPlacement::Inline
+            };
+            let indent = match placement {
+                YamlCommentPlacement::Line => before_comment.to_owned(),
+                YamlCommentPlacement::Inline => String::new(),
+            };
+            comments.push(YamlCommentAst {
+                index: comments.len(),
+                value: text.trim_start_matches('#').trim_start().to_owned(),
+                text: text.to_owned(),
+                indent,
+                placement,
+                range: YamlSourceRange::from_parts(
+                    line_number,
+                    yaml_column_for_byte_index(line, comment_start),
+                    (line_start + comment_start) as u64,
+                    text.len() as u64,
+                ),
+            });
+        }
+
+        if yaml_line_starts_block_scalar(line, comment_start) {
+            block_scalar_parent_indent = Some(line_indent);
+        }
+
+        line_start = yaml_next_line_start(bytes, line_end);
+        line_number = line_number.saturating_add(1);
+    }
+
+    comments
+}
+
+fn yaml_next_line_start(bytes: &[u8], line_end: usize) -> usize {
+    match bytes.get(line_end) {
+        Some(b'\r') if bytes.get(line_end + 1) == Some(&b'\n') => line_end + 2,
+        Some(b'\r' | b'\n') => line_end + 1,
+        _ => line_end,
+    }
+}
+
+fn yaml_line_indent_columns(line: &str) -> usize {
+    line.chars()
+        .take_while(|ch| matches!(ch, ' ' | '\t'))
+        .count()
+}
+
+fn yaml_column_for_byte_index(line: &str, byte_index: usize) -> u32 {
+    u32::try_from(line[..byte_index].chars().count().saturating_add(1)).unwrap_or(u32::MAX)
+}
+
+fn yaml_comment_start_in_line(line: &str) -> Option<usize> {
+    let mut chars = line.char_indices().peekable();
+    let mut in_single_quote = false;
+    let mut in_double_quote = false;
+    let mut escaped = false;
+
+    while let Some((index, ch)) = chars.next() {
+        if in_double_quote {
+            if escaped {
+                escaped = false;
+            } else if ch == '\\' {
+                escaped = true;
+            } else if ch == '"' {
+                in_double_quote = false;
+            }
+            continue;
+        }
+
+        if in_single_quote {
+            if ch == '\'' {
+                if matches!(chars.peek(), Some((_, '\''))) {
+                    chars.next();
+                } else {
+                    in_single_quote = false;
+                }
+            }
+            continue;
+        }
+
+        match ch {
+            '"' => in_double_quote = true,
+            '\'' => in_single_quote = true,
+            '#' if yaml_hash_can_start_comment(line, index) => return Some(index),
+            _ => {}
+        }
+    }
+
+    None
+}
+
+fn yaml_hash_can_start_comment(line: &str, byte_index: usize) -> bool {
+    let before = &line[..byte_index];
+    before.trim().is_empty()
+        || before
+            .chars()
+            .next_back()
+            .is_some_and(|ch| ch.is_whitespace())
+}
+
+fn yaml_line_starts_block_scalar(line: &str, comment_start: Option<usize>) -> bool {
+    let content = comment_start
+        .map(|index| &line[..index])
+        .unwrap_or(line)
+        .trim_end();
+    let Some(token) = content.split_whitespace().next_back() else {
+        return false;
+    };
+    yaml_block_scalar_indicator_token(token)
+}
+
+fn yaml_block_scalar_indicator_token(token: &str) -> bool {
+    let mut chars = token.chars();
+    let Some(first) = chars.next() else {
+        return false;
+    };
+    matches!(first, '|' | '>') && chars.all(|ch| matches!(ch, '+' | '-' | '0'..='9'))
 }
 
 fn yaml_project_documents(
@@ -1610,6 +1826,51 @@ mod tests {
         assert_eq!(
             stream["documents"][0]["root"]["mapping"][0]["key"]["value"],
             "name"
+        );
+    }
+
+    #[test]
+    fn yaml_stream_projection_preserves_comment_presentation_nodes() {
+        let (stream, diagnostics) =
+            yaml_stream_value_from_source_bytes(YamlSourceValidationRequest {
+                bytes: br##"# header
+quoted: "# not a comment"
+plain: value # inline comment
+literal: |
+  # scalar content
+after: ok
+  # tail
+"##,
+                source_uri: "memory://comments.yaml",
+                content_type: Some("application/yaml"),
+            });
+
+        assert!(
+            diagnostics.is_empty(),
+            "valid YAML comments should not produce diagnostics: {diagnostics:#?}"
+        );
+        let stream = stream.expect("valid YAML projects stream data");
+        let comments = stream["comments"].as_array().expect("comments");
+        assert_eq!(comments.len(), 3);
+        assert_eq!(comments[0]["text"], "# header");
+        assert_eq!(comments[0]["value"], "header");
+        assert_eq!(comments[0]["placement"], "line");
+        assert_eq!(comments[0]["sourceRange"]["line"], 1);
+        assert_eq!(comments[0]["sourceRange"]["column"], 1);
+        assert_eq!(comments[1]["text"], "# inline comment");
+        assert_eq!(comments[1]["value"], "inline comment");
+        assert_eq!(comments[1]["placement"], "inline");
+        assert_eq!(comments[1]["sourceRange"]["line"], 3);
+        assert_eq!(comments[2]["text"], "# tail");
+        assert_eq!(comments[2]["indent"], "  ");
+        assert_eq!(comments[2]["sourceMap"]["frames"][0]["source_id"], 1);
+        assert_eq!(
+            stream["documents"][0]["root"]["mapping"][1]["value"]["value"],
+            "value"
+        );
+        assert_eq!(
+            stream["documents"][0]["root"]["mapping"][2]["value"]["value"],
+            "# scalar content\n"
         );
     }
 

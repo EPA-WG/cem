@@ -129,25 +129,29 @@ Current active slice: generic data AST stream bridge alignment.
 - [x] Add regression coverage that every schema-package preview and validation
       path either uses the generic source import boundary or has an explicit
       tracked waiver with equivalent source-map and artifact metadata.
-- [ ] Preserve YAML comments/directives in the typed YAML AST stream and render
+- [x] Preserve YAML comments/directives in the typed YAML AST stream and render
       them from package CEMT once parser coverage exposes those nodes; until
       then, YAML formatter/colorizer ownership covers the typed document node
       model without comment/directive presentation nodes.
       - [x] Render schema-owned YAML directives from the typed stream in the
             package CEMT formatter/colorizer path, including the required
             explicit document start after directive headers.
-      - [ ] Expose YAML comments as typed parser presentation nodes with byte
+      - [x] Expose YAML comments as typed parser presentation nodes with byte
             ranges/source maps before rendering them; the current `yaml-rust2`
             scanner skips comments and provides no comment token/event boundary.
             - [x] Confirm the current Rust YAML parser boundary cannot expose
                   comments: `yaml-rust2` skips comments inside scanner
                   whitespace handling and has no public comment token/event.
-            - [ ] Choose and implement the YAML comment parser strategy before
+            - [x] Choose and implement the YAML comment parser strategy before
                   adding render output: patch/upstream comment events in the
                   YAML parser, adopt a presentation parser for YAML trivia, or
                   build a schema-owned trivia lexer with fixtures covering
                   quoted scalars, block scalars, inline comments, and full-line
                   comments.
+- [ ] Interleave YAML comment presentation nodes by source position in package
+      formatter output, including trailing inline comments and in-document
+      full-line comments; the current formatter renders preserved comments as
+      stream-level comment lines before document content.
 
 ### Immediate: README Sample Preview Generation
 
