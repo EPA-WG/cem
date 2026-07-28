@@ -290,6 +290,26 @@ function previewPlanForExample(example, manifest) {
         };
     }
 
+    if (isJsonSchemaTextExample(example, manifest, essence)) {
+        if (example.expectedResult !== 'pass') {
+            return sourceOnly;
+        }
+        return {
+            label: 'json-schema',
+            renderer: 'html',
+            expectedStatus,
+            fallbackSourcePath: inputPath,
+            width: 820,
+            minHeight: 190,
+            args: convertPreviewArgs(inputSpec, {
+                toContentType: 'application/schema+json',
+                toSchema: 'https://cem.dev/ns/data/json-schema/1',
+                colorProfile: 'html',
+                outputColorType: null,
+            }),
+        };
+    }
+
     if (isYamlTextExample(example, manifest, essence)) {
         return {
             label: 'yaml',
@@ -400,6 +420,15 @@ function isJsonTextExample(_example, manifest, essence) {
     return (
         manifest.packageId === 'json' &&
         (essence === 'application/json' || essence === 'text/json')
+    );
+}
+
+function isJsonSchemaTextExample(_example, manifest, essence) {
+    return (
+        manifest.packageId === 'json-schema' &&
+        (essence === 'application/schema+json' ||
+            essence === 'application/json' ||
+            essence === 'text/json')
     );
 }
 

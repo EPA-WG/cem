@@ -27,12 +27,47 @@ function jsonSchemaExampleCase({ id, file, minHeight = 190 }) {
     };
 }
 
+function jsonSchemaCliExampleCase({ id, file, minHeight = 190 }) {
+    const path = `packages/cem_ml/schema-packages/json-schema/v1/examples/${file}`;
+    const inputSpec = `uri=${path},contentType=application/schema+json,schema=https://cem.dev/ns/data/json-schema/1`;
+    return {
+        id: `${id}-preview`,
+        preview: `${file}.svg`,
+        html: `${file}.html`,
+        title: `${packageLabel} ${id} example preview`,
+        description: `Preview of examples/${file} from package.cem example metadata.`,
+        terminalTitle: `json-schema ${file}`,
+        renderer: 'html',
+        expectedStatus: 'any',
+        fallbackSourcePath: path,
+        width: 820,
+        minHeight,
+        args: [
+            'convert',
+            '--input-spec',
+            inputSpec,
+            '--to-content-type',
+            'application/schema+json',
+            '--to-schema',
+            'https://cem.dev/ns/data/json-schema/1',
+            '--cemt-formatter-profile',
+            'tabular',
+            '--cemt-color-profile',
+            'html',
+        ],
+    };
+}
+
 const cases = [
-    jsonSchemaExampleCase({ id: 'basic-schema', file: 'basic-schema.schema.json', minHeight: 240 }),
-    jsonSchemaExampleCase({
+    jsonSchemaCliExampleCase({
+        id: 'basic-schema',
+        file: 'basic-schema.schema.json',
+        minHeight: 310,
+    }),
+    jsonSchemaCliExampleCase({
         id: 'catalog-schema',
         file: 'catalog-schema.schema.json',
-        minHeight: 440,
+        minHeight: 520,
     }),
     jsonSchemaExampleCase({
         id: 'invalid-unsupported-dialect',

@@ -75,8 +75,9 @@ release contract.
 
 ## Tracked Incomplete Work
 
-- README previews intentionally use source snapshots until the package-owned
-  output layer can render JSON Schema examples directly.
+- Invalid JSON Schema README previews still use source snapshots until the
+  lifecycle/output path can render recoverable parse and dialect-failure AST
+  previews directly.
 
 ## Examples
 
@@ -96,8 +97,16 @@ the package formatter/colorizer path for that content identity.
 - Content type: `application/schema+json`
 - Schema: `https://cem.dev/ns/data/json-schema/1`
 - Expected result: `pass`
-- Preview renderer: `source snapshot HTML + html2svg`
+- Preview renderer: `CLI convert, tabular formatter, preview HTML + html2svg`
 - Preview HTML: `dist/cem_ml/schema-packages/json-schema/v1/examples/basic-schema.schema.json.html`
+
+```bash
+dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
+  uri=packages/cem_ml/schema-packages/json-schema/v1/examples/basic-schema.schema.json,contentType=application/schema+json,schema=https://cem.dev/ns/data/json-schema/1 \
+  --to-content-type application/schema+json --to-schema \
+  https://cem.dev/ns/data/json-schema/1 --cemt-formatter-profile tabular \
+  --cemt-color-profile html
+```
 
 </details>
 
@@ -110,8 +119,16 @@ the package formatter/colorizer path for that content identity.
 - Content type: `application/schema+json`
 - Schema: `https://cem.dev/ns/data/json-schema/1`
 - Expected result: `pass`
-- Preview renderer: `source snapshot HTML + html2svg`
+- Preview renderer: `CLI convert, tabular formatter, preview HTML + html2svg`
 - Preview HTML: `dist/cem_ml/schema-packages/json-schema/v1/examples/catalog-schema.schema.json.html`
+
+```bash
+dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
+  uri=packages/cem_ml/schema-packages/json-schema/v1/examples/catalog-schema.schema.json,contentType=application/schema+json,schema=https://cem.dev/ns/data/json-schema/1 \
+  --to-content-type application/schema+json --to-schema \
+  https://cem.dev/ns/data/json-schema/1 --cemt-formatter-profile tabular \
+  --cemt-color-profile html
+```
 
 </details>
 

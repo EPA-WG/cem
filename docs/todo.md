@@ -565,9 +565,11 @@ Remaining dependency-ordered package checklist:
   - [x] Move JSON Schema formatter/colorizer CEMT assets away from raw
         `json`/`tokens` boundaries to package-owned JSON Schema document and
         formatted/colored CEM-tree boundaries.
-  - [ ] Route JSON Schema README previews through package formatter/colorizer
-        output once the typed output layer exists; source snapshots remain the
-        tracked fallback until then.
+  - [x] Route syntax-valid JSON Schema README previews through package
+        formatter/colorizer output now that the typed output layer exists.
+  - [ ] Add a recoverable JSON Schema invalid-input preview path for parse and
+        dialect-failure examples, then remove the remaining source-snapshot
+        preview fallback for `json-schema/v1`.
 - [ ] `markdown/v1`
 - [ ] `xml/v1`
 - [ ] `relax-ng/v1`
