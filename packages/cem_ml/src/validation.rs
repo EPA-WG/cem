@@ -42,6 +42,7 @@ pub(crate) mod diagnostics;
 pub mod generic_data;
 pub mod html;
 pub mod json;
+pub mod json_schema;
 pub mod markdown;
 pub mod mathml;
 pub mod relax_ng;

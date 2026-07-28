@@ -4469,16 +4469,17 @@ fn collect_json_schema_source_diagnostics(
 ) -> Vec<cem_ml::diagnostics::Diagnostic> {
     let mut diagnostics = Vec::new();
     for input in inputs {
-        let value = match serde_json::from_slice::<serde_json::Value>(&input.bytes) {
-            Ok(value) => value,
-            Err(error) => {
-                diagnostics.push(json_schema_parse_error_diagnostic(input, &error));
-                continue;
-            }
-        };
-        if let Some(diagnostic) = json_schema_dialect_diagnostic(input, &value) {
-            diagnostics.push(diagnostic);
-        }
+        let content_type = input_source_content_type(input)
+            .unwrap_or_else(|| cem_ml::schema::registry::JSON_SCHEMA_CONTENT_TYPE.to_owned());
+        diagnostics.extend(
+            cem_ml::validation::json_schema::validate_json_schema_source_bytes(
+                cem_ml::validation::json_schema::JsonSchemaSourceValidationRequest {
+                    bytes: &input.bytes,
+                    source_uri: &input.uri,
+                    content_type: Some(&content_type),
+                },
+            ),
+        );
     }
     diagnostics
 }
@@ -5479,58 +5480,6 @@ fn cem_projection_diagnostic(
         code: code.to_owned(),
         severity: cem_ml::diagnostics::Severity::Error,
         message,
-        ..cem_ml::diagnostics::Diagnostic::default()
-    }
-}
-
-fn json_schema_parse_error_diagnostic(
-    input: &eng::EngineInput,
-    error: &serde_json::Error,
-) -> cem_ml::diagnostics::Diagnostic {
-    cem_ml::diagnostics::Diagnostic {
-        uri: Some(input.uri.clone()),
-        line: u32::try_from(error.line()).ok(),
-        column: u32::try_from(error.column()).ok(),
-        code: "cem.json_schema.parse_error".to_owned(),
-        severity: cem_ml::diagnostics::Severity::Error,
-        message: format!("JSON Schema parse error: {error}"),
-        ..cem_ml::diagnostics::Diagnostic::default()
-    }
-}
-
-fn json_schema_dialect_diagnostic(
-    input: &eng::EngineInput,
-    value: &serde_json::Value,
-) -> Option<cem_ml::diagnostics::Diagnostic> {
-    let serde_json::Value::Object(object) = value else {
-        return Some(json_schema_unsupported_dialect_diagnostic(
-            input,
-            "JSON Schema document must be an object with a `$schema` dialect declaration",
-        ));
-    };
-    match object.get("$schema").and_then(serde_json::Value::as_str) {
-        Some("https://json-schema.org/draft/2020-12/schema")
-        | Some("https://json-schema.org/draft/2020-12/schema#") => None,
-        Some(dialect) => Some(json_schema_unsupported_dialect_diagnostic(
-            input,
-            &format!("unsupported JSON Schema dialect `{dialect}`; expected Draft 2020-12"),
-        )),
-        None => Some(json_schema_unsupported_dialect_diagnostic(
-            input,
-            "JSON Schema object is missing required `$schema` dialect declaration",
-        )),
-    }
-}
-
-fn json_schema_unsupported_dialect_diagnostic(
-    input: &eng::EngineInput,
-    message: &str,
-) -> cem_ml::diagnostics::Diagnostic {
-    cem_ml::diagnostics::Diagnostic {
-        uri: Some(input.uri.clone()),
-        code: "cem.json_schema.unsupported_dialect".to_owned(),
-        severity: cem_ml::diagnostics::Severity::Error,
-        message: message.to_owned(),
         ..cem_ml::diagnostics::Diagnostic::default()
     }
 }

@@ -714,7 +714,7 @@ impl JsonSourceRange {
         }
     }
 
-    fn to_cemt_subject(self) -> Value {
+    pub fn to_cemt_subject(self) -> Value {
         json!({
             "byteOffset": self.start.byte_offset,
             "byteLength": self.byte_length,
@@ -835,6 +835,16 @@ pub fn json_document_ast_from_source_bytes(
     let report = extract_json_parse_report(request);
     let contracts = JsonSchemaContractCatalog::from_builtin();
     let diagnostics = validate_json_parse_report(&report, &contracts);
+    let document = json_document_ast_from_parse_report(request, &report);
+
+    (document, diagnostics)
+}
+
+pub fn json_document_ast_from_parse_report(
+    request: JsonSourceValidationRequest<'_>,
+    report: &JsonParseReport,
+) -> Option<JsonDocumentAst> {
+    let contracts = JsonSchemaContractCatalog::from_builtin();
     let parse_facts = report
         .facts
         .iter()
@@ -850,7 +860,7 @@ pub fn json_document_ast_from_source_bytes(
         line_ending: report.line_ending.clone(),
     });
 
-    (document, diagnostics)
+    document
 }
 
 pub fn extract_json_parse_report(request: JsonSourceValidationRequest<'_>) -> JsonParseReport {

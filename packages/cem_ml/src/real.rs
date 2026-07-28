@@ -53,8 +53,9 @@ use crate::schema::registry::{
     CEM_ML_SCHEMA_URI, CEM_NATIVE_TEMPLATE_CONTENT_TYPE, CEM_NATIVE_TEMPLATE_SCHEMA_URI,
     CEM_SCHEMA_CONTENT_TYPE, CEM_SCHEMA_PACKAGE_CONTENT_TYPE, CEM_SCHEMA_PACKAGE_URI,
     CSS_CONTENT_TYPE, CSS_SCHEMA_URI, CSV_CONTENT_TYPE, CSV_SCHEMA_URI, HTML_CONTENT_TYPE,
-    HTML_SCHEMA_URI, JSON_CONTENT_TYPE, JSON_VALUE_SCHEMA_URI, XHTML_CONTENT_TYPE,
-    XHTML_SCHEMA_URI, XML_CONTENT_TYPE, XML_SCHEMA_URI, YAML_CONTENT_TYPE, YAML_SCHEMA_URI,
+    HTML_SCHEMA_URI, JSON_CONTENT_TYPE, JSON_SCHEMA_CONTENT_TYPE, JSON_SCHEMA_SCHEMA_URI,
+    JSON_VALUE_SCHEMA_URI, XHTML_CONTENT_TYPE, XHTML_SCHEMA_URI, XML_CONTENT_TYPE, XML_SCHEMA_URI,
+    YAML_CONTENT_TYPE, YAML_SCHEMA_URI,
 };
 use crate::schema::vocab::CompiledSchema;
 use crate::source::line_index::LineIndex;
@@ -5537,6 +5538,15 @@ fn convert_metadata_for_generic_data_to_json_lifecycle_output(
     metadata
 }
 
+fn convert_metadata_for_json_schema_lifecycle_output(
+    target_scope: &ScopeConfig,
+) -> ConvertExecutionMetadata {
+    let mut metadata = convert_metadata_for_json_lifecycle_output(target_scope);
+    metadata.converter_id = Some("json-schema-lifecycle-output".to_owned());
+    metadata.implementation = Some("json-schema-ast-stream-to-json-output-pipeline".to_owned());
+    metadata
+}
+
 fn template_module_diagnostic(
     uri: Option<&str>,
     code: &str,
@@ -5761,14 +5771,7 @@ fn run_scheduled_validation_documents(
                 .unwrap_or_else(|| load_input_through_lifecycle(input, context));
             input_diags.append(&mut loaded.diagnostics);
             source_bytes_for_projection = Some(loaded.bytes.clone());
-            if matches!(
-                loaded.ast_stream.as_ref(),
-                Some(
-                    LoadedInputAstStream::CsvDocument(_)
-                        | LoadedInputAstStream::YamlDocument(_)
-                        | LoadedInputAstStream::JsonDocument(_)
-                )
-            ) {
+            if loaded_input_consumes_validation_without_cem_parse(&loaded) {
                 return;
             }
             if is_transform_config_schema(input, context) {
@@ -5817,6 +5820,21 @@ fn run_scheduled_validation_documents(
         all_diags.extend(input_diags);
     }
     Ok((all_diags, trace))
+}
+
+fn loaded_input_consumes_validation_without_cem_parse(loaded: &LoadedInput) -> bool {
+    matches!(
+        loaded.ast_stream.as_ref(),
+        Some(
+            LoadedInputAstStream::CsvDocument(_)
+                | LoadedInputAstStream::YamlDocument(_)
+                | LoadedInputAstStream::JsonDocument(_)
+                | LoadedInputAstStream::JsonSchemaDocument(_)
+        )
+    ) || matches!(
+        loaded.adapter_id,
+        Some("csv" | "yaml" | "json" | "json-schema")
+    )
 }
 
 fn effective_input_identity(input: &EngineInput, context: &EngineContext) -> FormatIdentity {
@@ -6894,6 +6912,59 @@ impl CemMlEngine for RealCemMlEngine {
                                     "operation": "export",
                                     "internalContentType": JSON_CONTENT_TYPE,
                                     "internalSchema": JSON_VALUE_SCHEMA_URI,
+                                    "targetFormat": format!("{to_format:?}"),
+                                }
+                            })),
+                            ..Diagnostic::default()
+                        });
+                        primary = Some(Value::Null);
+                        return;
+                    }
+                    LoadedInputAstStream::JsonSchemaDocument(document_value) => {
+                        if to_format == LayerFormat::Json {
+                            if diagnostics
+                                .iter()
+                                .any(|diagnostic| diagnostic.severity.is_hard_violation())
+                            {
+                                primary = Some(Value::Null);
+                                conversion = Some(
+                                    convert_metadata_for_json_schema_lifecycle_output(
+                                        &request.target_scope,
+                                    ),
+                                );
+                                return;
+                            }
+
+                            let (json_primary, json_primary_bytes, mut json_conversion) =
+                                convert_loaded_json_ast_output(
+                                    &context,
+                                    &request,
+                                    document_value.into_json_document_ast(),
+                                    &mut diagnostics,
+                                );
+                            json_conversion.converter_id =
+                                Some("json-schema-lifecycle-output".to_owned());
+                            json_conversion.implementation =
+                                Some("json-schema-ast-stream-to-json-output-pipeline".to_owned());
+                            primary = Some(json_primary);
+                            primary_bytes = json_primary_bytes;
+                            conversion = Some(json_conversion);
+                            return;
+                        }
+
+                        diagnostics.push(Diagnostic {
+                            uri: Some(request.input.uri.clone()),
+                            code: "cem.lifecycle.internal_ast_target_unsupported".to_owned(),
+                            severity: Severity::Fatal,
+                            message: format!(
+                                "JSON Schema lifecycle input cannot be exported through `{to_format:?}` without a registered JSON Schema AST export adapter"
+                            ),
+                            details: Some(json!({
+                                "lifecycle": {
+                                    "adapterId": loaded.adapter_id,
+                                    "operation": "export",
+                                    "internalContentType": JSON_SCHEMA_CONTENT_TYPE,
+                                    "internalSchema": JSON_SCHEMA_SCHEMA_URI,
                                     "targetFormat": format!("{to_format:?}"),
                                 }
                             })),
@@ -12257,6 +12328,81 @@ mod tests {
         assert!(
             resp.report.diagnostics.is_empty(),
             "JSON validation should be completed by the lifecycle AST stream, not CEM parsing: {:?}",
+            resp.report.diagnostics
+        );
+    }
+
+    #[test]
+    fn validate_json_schema_source_consumes_lifecycle_ast_without_cem_parse() {
+        let mut source = input(
+            br#"{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object"}"#,
+            "document.schema.json",
+        );
+        source.identity = Some(FormatIdentity {
+            content_type: Some(JSON_SCHEMA_CONTENT_TYPE.to_owned()),
+            schema: Some(JSON_SCHEMA_SCHEMA_URI.to_owned()),
+            ..FormatIdentity::default()
+        });
+        let req = ValidateRequest {
+            inputs: vec![source],
+            projection: ValidateProjection::Json,
+            fail_level: FailLevel::Validate,
+            context: ctx(),
+        };
+
+        let resp = RealCemMlEngine::new().validate(req).unwrap();
+
+        assert_eq!(resp.report.summary.input_count, 1);
+        assert_eq!(resp.report.summary.hard_violation_count, 0);
+        assert!(
+            resp.report.diagnostics.is_empty(),
+            "JSON Schema validation should be completed by the lifecycle AST stream, not CEM parsing: {:?}",
+            resp.report.diagnostics
+        );
+    }
+
+    #[test]
+    fn validate_json_schema_source_reports_schema_owned_lifecycle_diagnostics() {
+        let mut source = input(
+            br#"{"$schema":"http://json-schema.org/draft-07/schema#","type":"object"}"#,
+            "document.schema.json",
+        );
+        source.identity = Some(FormatIdentity {
+            content_type: Some(JSON_SCHEMA_CONTENT_TYPE.to_owned()),
+            schema: Some(JSON_SCHEMA_SCHEMA_URI.to_owned()),
+            ..FormatIdentity::default()
+        });
+        let req = ValidateRequest {
+            inputs: vec![source],
+            projection: ValidateProjection::Json,
+            fail_level: FailLevel::Validate,
+            context: ctx(),
+        };
+
+        let resp = RealCemMlEngine::new().validate(req).unwrap();
+
+        assert!(resp.report.summary.hard_violation_count >= 1);
+        let diagnostic = resp
+            .report
+            .diagnostics
+            .iter()
+            .find(|diagnostic| diagnostic.code == "cem.json_schema.unsupported_dialect")
+            .expect("schema-owned JSON Schema dialect diagnostic");
+        assert_eq!(
+            diagnostic
+                .details
+                .as_ref()
+                .and_then(|details| details.get("lifecycle"))
+                .and_then(|details| details.get("adapterId"))
+                .and_then(Value::as_str),
+            Some("json-schema")
+        );
+        assert!(
+            resp.report.diagnostics.iter().all(|diagnostic| {
+                !diagnostic.code.starts_with("cem.token")
+                    && !diagnostic.code.starts_with("cem.parser")
+            }),
+            "JSON Schema validation must not fall through to CEM token/parser diagnostics: {:?}",
             resp.report.diagnostics
         );
     }

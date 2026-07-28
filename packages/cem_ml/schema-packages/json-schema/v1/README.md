@@ -54,6 +54,7 @@ The package-local `cem_ml_schema_package_json_schema_v1:verify` target checks:
 - manifest validation against the schema-package schema;
 - manifest-index coverage for all declared examples;
 - embedded formatter/colorizer artifact catalog registration;
+- JSON Schema AST, lifecycle adapter, and engine validation routing tests;
 - CLI validation behavior for a valid Draft 2020-12 schema and an unsupported
   dialect;
 - README SVG preview drift for every manifest example.
@@ -62,15 +63,14 @@ The package-local `cem_ml_schema_package_json_schema_v1:verify` target checks:
 
 Validation currently recognizes Draft 2020-12 dialect declarations and reports
 unsupported or missing dialects. JSON parse errors and dialect diagnostics are
-observable through the CLI validation path. Full JSON Schema validation of
-instance documents, remote reference loading, dynamic scope resolution, and
-vocabulary assertion semantics are not part of the current release contract.
+bound to schema-owned diagnostics through the JSON Schema lifecycle AST stream;
+CLI validation delegates to the same library boundary. Full JSON Schema
+validation of instance documents, remote reference loading, dynamic scope
+resolution, and vocabulary assertion semantics are not part of the current
+release contract.
 
 ## Tracked Incomplete Work
 
-- JSON Schema source validation still lives in CLI-owned Rust dispatch code.
-  It must move to an engine-reachable typed JSON Schema AST stream with neutral
-  parser/dialect facts and schema-owned diagnostic bindings.
 - Formatter/colorizer CEMT bodies still use raw JSON/token boundaries. They
   must move to package-owned JSON Schema document and formatted/colored
   CEM-tree boundaries.

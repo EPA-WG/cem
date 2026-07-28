@@ -558,7 +558,7 @@ Remaining dependency-ordered package checklist:
   - [x] Expand package-local verification so JSON Schema runs manifest
         validation, manifest-index coverage, embedded artifact catalog tests,
         CLI validation behavior tests, and README/SVG preview drift checks.
-  - [ ] Move JSON Schema source validation out of CLI-owned ad hoc JSON parse
+  - [x] Move JSON Schema source validation out of CLI-owned ad hoc JSON parse
         and dialect diagnostics into an engine-reachable typed JSON Schema AST
         stream with neutral parse/dialect facts and schema-owned diagnostic
         bindings.

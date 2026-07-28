@@ -91,6 +91,10 @@
                     "./dist/target/cem_ml_cli/debug/cem-ml --quiet validate --fail-level parse --format json --content-type application/vnd.cem.schema-package+cem --schema https://cem.dev/ns/schema-package/1 --report-json packages/cem_ml/schema-packages/json-schema/v1/dist packages/cem_ml/schema-packages/json-schema/v1/package.cem",
                     "cargo test -p cem-ml json_schema_package_examples_are_manifest_indexed -- --nocapture",
                     "cargo test -p cem-ml catalog_exposes_json_schema_output_artifact_sources -- --nocapture",
+                    "cargo test -p cem-ml json_schema_ast -- --nocapture",
+                    "cargo test -p cem-ml builtins_load_json_schema -- --nocapture",
+                    "cargo test -p cem-ml builtins_select_json_schema_target_export_layer -- --nocapture",
+                    "cargo test -p cem-ml validate_json_schema_source -- --nocapture",
                     "cargo test -p cem-ml-cli validate_json_schema_source_uses_json_schema_validator -- --nocapture",
                     "cargo test -p cem-ml-cli validate_json_schema_source_reports_unsupported_dialect -- --nocapture",
                     "node packages/cem_ml/schema-packages/json-schema/v1/scripts/verify-previews.mjs"
