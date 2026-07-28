@@ -15898,7 +15898,7 @@ mod tests {
         assert_eq!(
             execution.output.as_ref().and_then(Value::as_str),
             Some(
-                "# header\nname: Ada # inline name\ndetails:\n  # nested\n  role: admin # inline role\n  active: true\n# tail\n"
+                "# header\nname: Ada # inline name\ndetails:\n    # nested\n    role: admin # inline role\n    active: true\n# tail\n"
             )
         );
         let formatted = execution
@@ -16102,7 +16102,7 @@ mod tests {
             );
             assert_eq!(
                 execution.output.as_ref().and_then(Value::as_str),
-                Some("name: Ada\ncode: \"123\"\nitems:\n  - one\n"),
+                Some("name: Ada\ncode: \"123\"\nitems:\n    - one\n"),
                 "{profile}"
             );
             let formatted = execution
@@ -16274,7 +16274,7 @@ mod tests {
         );
         assert_eq!(
             execution.output.as_ref().and_then(Value::as_str),
-            Some("{\n  \"name\": \"Ada\",\n  \"active\": true\n}")
+            Some("{\n    \"name\": \"Ada\",\n    \"active\": true\n}")
         );
         assert!(
             matches!(
@@ -16500,14 +16500,14 @@ mod tests {
                 "schema-packages/json/v1/formatters/pretty.cemt",
                 "json.pretty",
                 "pretty-json-document",
-                "{\n  \"name\": \"Ada\",\n  \"items\": [\n    1,\n    true\n  ]\n}",
+                "{\n    \"name\": \"Ada\",\n    \"items\": [\n        1,\n        true\n    ]\n}",
             ),
             (
                 "tabular",
                 "schema-packages/json/v1/formatters/tabular.cemt",
                 "tabular",
                 "tabular-json-document",
-                "{\n  \"name\": \"Ada\",\n  \"items\": [\n    1,\n    true\n] }",
+                "{\n    \"name\": \"Ada\",\n    \"items\": [\n        1,\n        true\n]   }",
             ),
         ] {
             let target_scope = ScopeConfig {
@@ -16708,13 +16708,13 @@ mod tests {
                 "pretty",
                 "json.pretty",
                 "pretty-json-schema-document",
-                "{\n  \"$schema\": \"https://json-schema.org/draft/2020-12/schema\",\n  \"type\": \"object\"\n}",
+                "{\n    \"$schema\": \"https://json-schema.org/draft/2020-12/schema\",\n    \"type\": \"object\"\n}",
             ),
             (
                 "tabular",
                 "tabular",
                 "tabular-json-schema-document",
-                "{\n  \"$schema\": \"https://json-schema.org/draft/2020-12/schema\",\n  \"type\": \"object\"\n}",
+                "{\n    \"$schema\": \"https://json-schema.org/draft/2020-12/schema\",\n    \"type\": \"object\"\n}",
             ),
         ] {
             let target_scope = ScopeConfig {

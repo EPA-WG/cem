@@ -28,7 +28,7 @@
                         value: {
                             layout: call("json.format-document.layout", { profile: $profile }),
                             lineEnding: $lineEnding,
-                            indent: "  "
+                            indent: $indent
                         }
                     }
                 ],
@@ -52,7 +52,7 @@
                             value: {
                                 layout: call("json.format-document.layout", { profile: $profile }),
                                 lineEnding: $lineEnding,
-                                indent: "  "
+                                indent: $indent
                             }
                         }
                     ],
@@ -463,7 +463,7 @@
         {body |
             {$ call("json.format-document.token", {
                 kind: "json.indent",
-                text: repeat("  ", $depth),
+                text: repeat($indent, $depth),
                 role: "syntax.raw",
                 sourceMap: null,
                 value: { formatterProfile: $formatterProfile }

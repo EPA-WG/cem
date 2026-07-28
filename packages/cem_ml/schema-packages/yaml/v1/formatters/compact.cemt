@@ -38,7 +38,7 @@
                         value: {
                             layout: call("yaml.format-document.layout", { profile: $formatterProfile }),
                             lineEnding: $lineEnding,
-                            indent: "  "
+                            indent: $indent
                         }
                     }
                 ],
@@ -62,7 +62,7 @@
                             value: {
                                 layout: call("yaml.format-document.layout", { profile: $formatterProfile }),
                                 lineEnding: $lineEnding,
-                                indent: "  "
+                                indent: $indent
                             }
                         }
                     ],
@@ -130,6 +130,7 @@
                         afterLine: 0,
                         beforeLine: call("yaml.format-document.stream-end-line", {}),
                         indent: "",
+                        sourceIndent: "",
                         profile: $profile
                     }),
                     call("yaml.format-document.null-line", { sourceMap: null })
@@ -224,6 +225,7 @@
                     $acc,
                     call("yaml.format-document.comment", {
                         comment: $item,
+                        indent: call("yaml.format-document.comment-indent", { comment: $item }),
                         profile: $profile
                     })
                 ),
@@ -237,18 +239,20 @@
         {param @name="afterLine" @type="integer" @required=true}
         {param @name="beforeLine" @type="integer" @required=true}
         {param @name="indent" @type="string" @required=true}
+        {param @name="sourceIndent" @type="string" @required=true}
         {param @name="profile" @type="string" @required=true}
         {body |
             {$ fold($comments, [], match(call("yaml.format-document.comment-is-line-between", {
                 comment: $item,
                 afterLine: $afterLine,
                 beforeLine: $beforeLine,
-                indent: $indent
+                sourceIndent: $sourceIndent
             }), {
                 true: extend(
                     $acc,
                     call("yaml.format-document.comment", {
                         comment: $item,
+                        indent: $indent,
                         profile: $profile
                     })
                 ),
@@ -295,12 +299,13 @@
 
     {function @name="yaml.format-document.comment" @visibility="private" @returns="array" @deterministic=true |
         {param @name="comment" @type="object" @required=true}
+        {param @name="indent" @type="string" @required=true}
         {param @name="profile" @type="string" @required=true}
         {body |
             {$ extend(
                 call("yaml.format-document.indent", {
                     indent: match($comment.placement, {
-                        line: match(typeOf($comment.indent), { string: $comment.indent, default: "" }),
+                        line: $indent,
                         default: ""
                     })
                 }),
@@ -346,6 +351,8 @@
                     object: call("yaml.format-document.node-block", {
                         node: $document.root,
                         indent: "",
+                        indentUnit: $indent,
+                        sourceIndent: "",
                         comments: $comments,
                         previousLine: 0,
                         endLine: call("yaml.format-document.stream-end-line", {}),
@@ -360,6 +367,8 @@
     {function @name="yaml.format-document.node-block" @visibility="private" @returns="array" @deterministic=true |
         {param @name="node" @type="object" @required=true}
         {param @name="indent" @type="string" @required=true}
+        {param @name="indentUnit" @type="string" @required=true}
+        {param @name="sourceIndent" @type="string" @required=true}
         {param @name="comments" @type="array" @required=true}
         {param @name="previousLine" @type="integer" @required=true}
         {param @name="endLine" @type="integer" @required=true}
@@ -369,6 +378,8 @@
                 mapping: call("yaml.format-document.mapping-block", {
                     node: $node,
                     indent: $indent,
+                    indentUnit: $indentUnit,
+                    sourceIndent: $sourceIndent,
                     comments: $comments,
                     previousLine: $previousLine,
                     endLine: $endLine,
@@ -377,6 +388,8 @@
                 sequence: call("yaml.format-document.sequence-block", {
                     node: $node,
                     indent: $indent,
+                    indentUnit: $indentUnit,
+                    sourceIndent: $sourceIndent,
                     comments: $comments,
                     previousLine: $previousLine,
                     endLine: $endLine,
@@ -389,6 +402,7 @@
                             afterLine: $previousLine,
                             beforeLine: call("yaml.format-document.node-line", { node: $node }),
                             indent: $indent,
+                            sourceIndent: $sourceIndent,
                             profile: $profile
                         }),
                         extend(
@@ -408,6 +422,7 @@
                                             afterLine: call("yaml.format-document.node-line", { node: $node }),
                                             beforeLine: $endLine,
                                             indent: $indent,
+                                            sourceIndent: $sourceIndent,
                                             profile: $profile
                                         })
                                     )
@@ -423,6 +438,7 @@
                             afterLine: $previousLine,
                             beforeLine: call("yaml.format-document.node-line", { node: $node }),
                             indent: $indent,
+                            sourceIndent: $sourceIndent,
                             profile: $profile
                         }),
                         extend(
@@ -442,6 +458,7 @@
                                             afterLine: call("yaml.format-document.node-line", { node: $node }),
                                             beforeLine: $endLine,
                                             indent: $indent,
+                                            sourceIndent: $sourceIndent,
                                             profile: $profile
                                         })
                                     )
@@ -456,6 +473,7 @@
                         afterLine: $previousLine,
                         beforeLine: call("yaml.format-document.node-line", { node: $node }),
                         indent: $indent,
+                        sourceIndent: $sourceIndent,
                         profile: $profile
                     }),
                     extend(
@@ -469,6 +487,7 @@
                                 afterLine: call("yaml.format-document.node-line", { node: $node }),
                                 beforeLine: $endLine,
                                 indent: $indent,
+                                sourceIndent: $sourceIndent,
                                 profile: $profile
                             })
                         )
@@ -481,6 +500,8 @@
     {function @name="yaml.format-document.mapping-block" @visibility="private" @returns="array" @deterministic=true |
         {param @name="node" @type="object" @required=true}
         {param @name="indent" @type="string" @required=true}
+        {param @name="indentUnit" @type="string" @required=true}
+        {param @name="sourceIndent" @type="string" @required=true}
         {param @name="comments" @type="array" @required=true}
         {param @name="previousLine" @type="integer" @required=true}
         {param @name="endLine" @type="integer" @required=true}
@@ -493,6 +514,7 @@
                         afterLine: $previousLine,
                         beforeLine: call("yaml.format-document.node-line", { node: $node }),
                         indent: $indent,
+                        sourceIndent: call("yaml.format-document.mapping-source-indent", { node: $node, fallback: $sourceIndent }),
                         profile: $profile
                     }),
                     extend(
@@ -512,6 +534,7 @@
                                         afterLine: call("yaml.format-document.node-line", { node: $node }),
                                         beforeLine: $endLine,
                                         indent: $indent,
+                                        sourceIndent: call("yaml.format-document.mapping-source-indent", { node: $node, fallback: $sourceIndent }),
                                         profile: $profile
                                     })
                                 )
@@ -532,11 +555,14 @@
                                 }),
                                 beforeLine: call("yaml.format-document.mapping-pair-line", { pair: $item }),
                                 indent: $indent,
+                                sourceIndent: call("yaml.format-document.mapping-source-indent", { node: $node, fallback: $sourceIndent }),
                                 profile: $profile
                             }),
                             call("yaml.format-document.mapping-pair", {
                                 pair: $item,
                                 indent: $indent,
+                                indentUnit: $indentUnit,
+                                sourceIndent: call("yaml.format-document.mapping-source-indent", { node: $node, fallback: $sourceIndent }),
                                 comments: $comments,
                                 pairLine: call("yaml.format-document.mapping-pair-line", { pair: $item }),
                                 nextLine: call("yaml.format-document.mapping-next-line", {
@@ -555,6 +581,7 @@
                         }),
                         beforeLine: $endLine,
                         indent: $indent,
+                        sourceIndent: call("yaml.format-document.mapping-source-indent", { node: $node, fallback: $sourceIndent }),
                         profile: $profile
                     })
                 )
@@ -565,6 +592,8 @@
     {function @name="yaml.format-document.mapping-pair" @visibility="private" @returns="array" @deterministic=true |
         {param @name="pair" @type="object" @required=true}
         {param @name="indent" @type="string" @required=true}
+        {param @name="indentUnit" @type="string" @required=true}
+        {param @name="sourceIndent" @type="string" @required=true}
         {param @name="comments" @type="array" @required=true}
         {param @name="pairLine" @type="integer" @required=true}
         {param @name="nextLine" @type="integer" @required=true}
@@ -578,6 +607,8 @@
                         call("yaml.format-document.mapping-value", {
                             value: $pair.value,
                             indent: $indent,
+                            indentUnit: $indentUnit,
+                            sourceIndent: $sourceIndent,
                             comments: $comments,
                             line: $pairLine,
                             nextLine: $nextLine,
@@ -601,7 +632,9 @@
                         extend(
                                 call("yaml.format-document.node-block", {
                                     node: $pair.key,
-                                    indent: concat($indent, "  "),
+                                    indent: concat($indent, $indentUnit),
+                                    indentUnit: $indentUnit,
+                                    sourceIndent: call("yaml.format-document.node-source-indent", { node: $pair.key }),
                                     comments: $comments,
                                     previousLine: $pairLine,
                                     endLine: $nextLine,
@@ -612,6 +645,8 @@
                                     call("yaml.format-document.mapping-value", {
                                         value: $pair.value,
                                         indent: $indent,
+                                        indentUnit: $indentUnit,
+                                        sourceIndent: $sourceIndent,
                                         comments: $comments,
                                         line: $pairLine,
                                         nextLine: $nextLine,
@@ -628,6 +663,8 @@
     {function @name="yaml.format-document.mapping-value" @visibility="private" @returns="array" @deterministic=true |
         {param @name="value" @type="any" @required=true @nullable=true}
         {param @name="indent" @type="string" @required=true}
+        {param @name="indentUnit" @type="string" @required=true}
+        {param @name="sourceIndent" @type="string" @required=true}
         {param @name="comments" @type="array" @required=true}
         {param @name="line" @type="integer" @required=true}
         {param @name="nextLine" @type="integer" @required=true}
@@ -673,7 +710,9 @@
                         ),
                         call("yaml.format-document.node-block", {
                             node: $value,
-                            indent: concat($indent, "  "),
+                            indent: concat($indent, $indentUnit),
+                            indentUnit: $indentUnit,
+                            sourceIndent: call("yaml.format-document.node-source-indent", { node: $value }),
                             comments: $comments,
                             previousLine: $line,
                             endLine: $nextLine,
@@ -688,6 +727,8 @@
     {function @name="yaml.format-document.sequence-block" @visibility="private" @returns="array" @deterministic=true |
         {param @name="node" @type="object" @required=true}
         {param @name="indent" @type="string" @required=true}
+        {param @name="indentUnit" @type="string" @required=true}
+        {param @name="sourceIndent" @type="string" @required=true}
         {param @name="comments" @type="array" @required=true}
         {param @name="previousLine" @type="integer" @required=true}
         {param @name="endLine" @type="integer" @required=true}
@@ -700,6 +741,7 @@
                         afterLine: $previousLine,
                         beforeLine: call("yaml.format-document.node-line", { node: $node }),
                         indent: $indent,
+                        sourceIndent: call("yaml.format-document.sequence-source-indent", { node: $node, fallback: $sourceIndent }),
                         profile: $profile
                     }),
                     extend(
@@ -719,6 +761,7 @@
                                         afterLine: call("yaml.format-document.node-line", { node: $node }),
                                         beforeLine: $endLine,
                                         indent: $indent,
+                                        sourceIndent: call("yaml.format-document.sequence-source-indent", { node: $node, fallback: $sourceIndent }),
                                         profile: $profile
                                     })
                                 )
@@ -739,11 +782,14 @@
                                 }),
                                 beforeLine: call("yaml.format-document.node-line", { node: $item }),
                                 indent: $indent,
+                                sourceIndent: call("yaml.format-document.sequence-source-indent", { node: $node, fallback: $sourceIndent }),
                                 profile: $profile
                             }),
                             call("yaml.format-document.sequence-item", {
                                 item: $item,
                                 indent: $indent,
+                                indentUnit: $indentUnit,
+                                sourceIndent: call("yaml.format-document.sequence-source-indent", { node: $node, fallback: $sourceIndent }),
                                 comments: $comments,
                                 itemLine: call("yaml.format-document.node-line", { node: $item }),
                                 nextLine: call("yaml.format-document.sequence-next-line", {
@@ -762,6 +808,7 @@
                         }),
                         beforeLine: $endLine,
                         indent: $indent,
+                        sourceIndent: call("yaml.format-document.sequence-source-indent", { node: $node, fallback: $sourceIndent }),
                         profile: $profile
                     })
                 )
@@ -772,6 +819,8 @@
     {function @name="yaml.format-document.sequence-item" @visibility="private" @returns="array" @deterministic=true |
         {param @name="item" @type="any" @required=true @nullable=true}
         {param @name="indent" @type="string" @required=true}
+        {param @name="indentUnit" @type="string" @required=true}
+        {param @name="sourceIndent" @type="string" @required=true}
         {param @name="comments" @type="array" @required=true}
         {param @name="itemLine" @type="integer" @required=true}
         {param @name="nextLine" @type="integer" @required=true}
@@ -819,7 +868,9 @@
                             ),
                             call("yaml.format-document.node-block", {
                                 node: $item,
-                                indent: concat($indent, "  "),
+                                indent: concat($indent, $indentUnit),
+                                indentUnit: $indentUnit,
+                                sourceIndent: call("yaml.format-document.node-source-indent", { node: $item }),
                                 comments: $comments,
                                 previousLine: $itemLine,
                                 endLine: $nextLine,
@@ -1001,6 +1052,50 @@
         }
     }
 
+    {function @name="yaml.format-document.node-source-column" @visibility="private" @returns="integer" @deterministic=true |
+        {param @name="node" @type="any" @required=true @nullable=true}
+        {body |
+            {$ match(exists($node.sourceRange.column), {
+                true: $node.sourceRange.column,
+                false: 1
+            }) }
+        }
+    }
+
+    {function @name="yaml.format-document.node-source-indent" @visibility="private" @returns="string" @deterministic=true |
+        {param @name="node" @type="any" @required=true @nullable=true}
+        {body |
+            {$ match(gt(call("yaml.format-document.node-source-column", { node: $node }), 1), {
+                true: repeat(" ", sub(call("yaml.format-document.node-source-column", { node: $node }), 1)),
+                false: ""
+            }) }
+        }
+    }
+
+    {function @name="yaml.format-document.mapping-source-indent" @visibility="private" @returns="string" @deterministic=true |
+        {param @name="node" @type="object" @required=true}
+        {param @name="fallback" @type="string" @required=true}
+        {body |
+            {$ match(length(match(typeOf($node.mapping), { array: $node.mapping, default: [] })), {
+                0: $fallback,
+                default: call("yaml.format-document.node-source-indent", {
+                    node: get(get(match(typeOf($node.mapping), { array: $node.mapping, default: [] }), 0), "key")
+                })
+            }) }
+        }
+    }
+
+    {function @name="yaml.format-document.sequence-source-indent" @visibility="private" @returns="string" @deterministic=true |
+        {param @name="node" @type="object" @required=true}
+        {param @name="fallback" @type="string" @required=true}
+        {body |
+            {$ match(length(match(typeOf($node.sequence), { array: $node.sequence, default: [] })), {
+                0: $fallback,
+                default: call("yaml.format-document.node-source-indent", { node: $node })
+            }) }
+        }
+    }
+
     {function @name="yaml.format-document.comment-indent" @visibility="private" @returns="string" @deterministic=true |
         {param @name="comment" @type="object" @required=true}
         {body |
@@ -1015,14 +1110,14 @@
         {param @name="comment" @type="object" @required=true}
         {param @name="afterLine" @type="integer" @required=true}
         {param @name="beforeLine" @type="integer" @required=true}
-        {param @name="indent" @type="string" @required=true}
+        {param @name="sourceIndent" @type="string" @required=true}
         {body |
             {$ match($comment.placement, {
                 line: match(gt(call("yaml.format-document.comment-line", { comment: $comment }), $afterLine), {
                     true: match(lt(call("yaml.format-document.comment-line", { comment: $comment }), $beforeLine), {
                         true: call("yaml.format-document.same-value", {
                             left: call("yaml.format-document.comment-indent", { comment: $comment }),
-                            right: $indent
+                            right: $sourceIndent
                         }),
                         false: false
                     }),

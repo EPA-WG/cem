@@ -76,7 +76,7 @@
                         value: {
                             layout: call("json-schema.format-document.layout", { profile: $profile }),
                             lineEnding: $lineEnding,
-                            indent: "  "
+                            indent: $indent
                         }
                     }
                 ],
@@ -100,7 +100,7 @@
                             value: {
                                 layout: call("json-schema.format-document.layout", { profile: $profile }),
                                 lineEnding: $lineEnding,
-                                indent: "  "
+                                indent: $indent
                             }
                         }
                     ],
@@ -512,7 +512,7 @@
         {body |
             {$ call("json-schema.format-document.token", {
                 kind: "json-schema.indent",
-                text: repeat("  ", $depth),
+                text: repeat($indent, $depth),
                 role: "syntax.raw",
                 sourceMap: null,
                 value: { formatterProfile: $formatterProfile }
