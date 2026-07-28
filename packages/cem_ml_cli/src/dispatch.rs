@@ -12883,6 +12883,71 @@ This document has **strong** text and a link.
     }
 
     #[test]
+    fn convert_markdown_to_html_embeds_cem_ml_svg() {
+        let p = write_fixture(
+            "convert-markdown-to-html-svg.md",
+            r##"# Browser Markdown
+
+Markdown can produce browser HTML.
+
+```cem-ml svg
+@doc cem-ml 1
+{svg @xmlns="http://www.w3.org/2000/svg" @viewBox="0 0 80 40" |
+    {title | Inline SVG}
+    {path @d="M10 20h60M40 8v24"}
+}
+```
+"##,
+        );
+        let out_path =
+            std::env::temp_dir().join("cem-ml-cli-tests/convert-markdown-to-html-svg.html");
+        let _ = std::fs::remove_file(&out_path);
+        let input_spec = format!(
+            "uri={},contentType=text/markdown; charset=utf-8; variant=CommonMark,schema={}",
+            p.display(),
+            cem_ml::schema::registry::MARKDOWN_SCHEMA_URI
+        );
+
+        let (outcome, stdout, stderr) = run(
+            &RealCemMlEngine::new(),
+            &[
+                "convert",
+                "--input-spec",
+                &input_spec,
+                "--to-content-type",
+                "text/html",
+                "--to-schema",
+                cem_ml::schema::registry::HTML_SCHEMA_URI,
+                "--cemt-formatter-profile",
+                "tabular",
+                "--cemt-color-profile",
+                "html",
+                "--out",
+                out_path.to_str().unwrap(),
+            ],
+        );
+
+        assert_eq!(outcome.exit_code, EXIT_OK, "{stderr}");
+        assert!(stdout.trim().is_empty(), "{stdout}");
+        assert!(stderr.trim().is_empty(), "{stderr}");
+        let written = std::fs::read_to_string(&out_path).unwrap();
+        assert!(
+            !stderr.contains("cem.lifecycle.internal_ast_target_unsupported"),
+            "{stderr}"
+        );
+        let visible = html_text_content(&written);
+        assert!(visible.contains("<h1>Browser Markdown</h1>"), "{visible}");
+        assert!(visible.contains("<svg"), "{visible}");
+        assert!(visible.contains("<title>Inline SVG</title>"), "{visible}");
+        assert!(visible.contains("<path"), "{visible}");
+        assert!(
+            written.contains(r#"data-role="syntax.name""#)
+                || written.contains(r#"data-role="syntax.punctuation""#),
+            "{written}"
+        );
+    }
+
+    #[test]
     fn convert_json_same_schema_uses_lifecycle_ast_stream() {
         let p = write_fixture(
             "convert-json-same-schema.json",

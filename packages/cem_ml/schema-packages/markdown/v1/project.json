@@ -99,6 +99,7 @@
                     "cargo test -p cem-ml markdown_source_validator -- --nocapture",
                     "cargo test -p cem-ml-cli validate_markdown_source -- --nocapture",
                     "cargo test -p cem-ml-cli convert_markdown_same_schema_uses_lifecycle_output_pipeline -- --nocapture",
+                    "cargo test -p cem-ml-cli convert_markdown_to_html_embeds_cem_ml_svg -- --nocapture",
                     "node packages/cem_ml/schema-packages/markdown/v1/scripts/verify-previews.mjs"
                 ],
                 "parallel": false,

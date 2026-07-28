@@ -68,6 +68,12 @@ writer, not a full Markdown block/inline reflow engine. Trusted HTML rendering
 modes and variant-specific extension models are not part of the current release
 contract.
 
+Markdown documents can also export to `text/html` through the typed Markdown
+AST stream. The current HTML export covers common block and inline Markdown and
+supports fenced `cem-ml svg` blocks as trusted package examples: the fenced
+CEM-ML is parsed and rendered as inline SVG markup before the generated HTML is
+passed through the HTML formatter/colorizer preview path.
+
 ## Examples
 
 This section is generated from `package.cem` `{example}` metadata by the
@@ -119,6 +125,28 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
 </details>
 
 ![Preview of Markdown Resource Schema Package gfm-worklog example](examples/previews/gfm-worklog.md.svg)
+
+<details>
+<summary>markdown-html-svg</summary>
+
+- Source: [`examples/markdown1.md`](./examples/markdown1.md)
+- Content type: `text/markdown; charset=utf-8; variant=CommonMark`
+- Schema: `https://cem.dev/ns/data/markdown/1`
+- Expected result: `pass`
+- Preview renderer: `CLI convert, tabular formatter, preview HTML + html2svg`
+- Preview HTML: `dist/cem_ml/schema-packages/markdown/v1/examples/markdown1.md.html.html`
+
+```bash
+dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
+  'uri=packages/cem_ml/schema-packages/markdown/v1/examples/markdown1.md,contentType=text/markdown; charset=utf-8; variant=CommonMark,schema=https://cem.dev/ns/data/markdown/1' \
+  --to-content-type text/html --to-schema https://cem.dev/ns/data/html/1 \
+  --cemt-formatter-profile tabular --cemt-color-profile terminal --output-color-type \
+  ansi-256
+```
+
+</details>
+
+![Preview of Markdown Resource Schema Package markdown-html-svg example](examples/previews/markdown1.md.html.svg)
 
 <details>
 <summary>invalid-embedded-html</summary>

@@ -192,10 +192,11 @@ function unescapeCemString(value) {
 
 function previewCaseForExample(example, manifest, packageLabel) {
     const plan = previewPlanForExample(example, manifest);
+    const fileBase = plan.previewBase ?? previewFileBase(example);
     return {
         id: `${example.id}-preview`,
-        preview: `${previewFileBase(example)}.svg`,
-        html: `${previewFileBase(example)}.html`,
+        preview: `${fileBase}.svg`,
+        html: `${fileBase}.html`,
         title: `${packageLabel} ${example.id} example preview`,
         description: `Preview of ${example.path} from package.cem example metadata.`,
         terminalTitle: `${plan.label} ${basename(example.path)}`,
@@ -333,6 +334,21 @@ function previewPlanForExample(example, manifest) {
             args: convertPreviewArgs(inputSpec, {
                 toContentType: 'application/yaml',
                 toSchema: 'https://cem.dev/ns/data/yaml/1',
+            }),
+        };
+    }
+
+    if (isMarkdownToHtmlExample(example, manifest, essence)) {
+        return {
+            label: 'markdown html',
+            renderer: 'ansi',
+            expectedStatus,
+            previewBase: `${basename(example.path)}.html`,
+            width: 980,
+            minHeight: 220,
+            args: convertPreviewArgs(inputSpec, {
+                toContentType: 'text/html',
+                toSchema: 'https://cem.dev/ns/data/html/1',
             }),
         };
     }
@@ -504,6 +520,10 @@ function isMarkdownTextExample(_example, manifest, essence) {
     return manifest.packageId === 'markdown' && essence === 'text/markdown';
 }
 
+function isMarkdownToHtmlExample(example, manifest, essence) {
+    return isMarkdownTextExample(example, manifest, essence) && basename(example.path) === 'markdown1.md';
+}
+
 function isHtmlExample(essence) {
     return essence === 'text/html';
 }
@@ -557,8 +577,9 @@ function generatedExamplesSection(manifest, packageLabel) {
     ];
     for (const example of manifest.examples) {
         const plan = previewPlanForExample(example, manifest);
-        const preview = `examples/previews/${previewFileBase(example)}.svg`;
-        const htmlPreview = `dist/cem_ml/schema-packages/${manifest.packageId}/v1/examples/${previewFileBase(example)}.html`;
+        const fileBase = plan.previewBase ?? previewFileBase(example);
+        const preview = `examples/previews/${fileBase}.svg`;
+        const htmlPreview = `dist/cem_ml/schema-packages/${manifest.packageId}/v1/examples/${fileBase}.html`;
         lines.push('<details>', `<summary>${escapeHtml(example.id)}</summary>`, '');
         lines.push(`- Source: [\`${example.path}\`](${relativeMarkdownLink(example.path)})`);
         lines.push(`- Content type: \`${example.contentType}\``);

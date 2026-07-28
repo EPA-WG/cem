@@ -2009,7 +2009,7 @@ mod tests {
             top_level_example_paths("markdown"),
             "markdown top-level examples must be discoverable from package.cem"
         );
-        assert_eq!(examples.len(), 4);
+        assert_eq!(examples.len(), 5);
         assert!(examples
             .iter()
             .all(|example| example.schema == MARKDOWN_SCHEMA_URI));
@@ -2024,6 +2024,12 @@ mod tests {
             (
                 "gfm-worklog",
                 "text/markdown; charset=utf-8; variant=GFM",
+                SchemaPackageExampleExpectedResult::Pass,
+                None,
+            ),
+            (
+                "markdown-html-svg",
+                "text/markdown; charset=utf-8; variant=CommonMark",
                 SchemaPackageExampleExpectedResult::Pass,
                 None,
             ),

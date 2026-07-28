@@ -82,6 +82,41 @@ function markdownValidateExampleCase({
     };
 }
 
+function markdownHtmlExampleCase({
+    id,
+    file,
+    contentType = 'text/markdown; charset=utf-8; variant=CommonMark',
+    minHeight = 220,
+}) {
+    return {
+        id: `${id}-preview`,
+        preview: `${file}.html.svg`,
+        html: `${file}.html.html`,
+        title: `${packageLabel} ${id} example preview`,
+        description: `Preview of examples/${file} from package.cem example metadata.`,
+        terminalTitle: `markdown html ${file}`,
+        renderer: 'ansi',
+        expectedStatus: 'any',
+        width: 980,
+        minHeight,
+        args: [
+            'convert',
+            '--input-spec',
+            markdownInputSpec(file, contentType),
+            '--to-content-type',
+            'text/html',
+            '--to-schema',
+            'https://cem.dev/ns/data/html/1',
+            '--cemt-formatter-profile',
+            'tabular',
+            '--cemt-color-profile',
+            'terminal',
+            '--output-color-type',
+            'ansi-256',
+        ],
+    };
+}
+
 const cases = [
     markdownCliExampleCase({ id: 'basic-document', file: 'basic-document.md' }),
     markdownCliExampleCase({
@@ -89,6 +124,10 @@ const cases = [
         file: 'gfm-worklog.md',
         contentType: 'text/markdown; charset=utf-8; variant=GFM',
         minHeight: 250,
+    }),
+    markdownHtmlExampleCase({
+        id: 'markdown-html-svg',
+        file: 'markdown1.md',
     }),
     markdownValidateExampleCase({
         id: 'invalid-embedded-html',

@@ -24,6 +24,10 @@ use crate::conversion::{
     GenericDataJsonDocumentOutputSubject, GenericDataYamlDocumentOutputSubject,
     CONVERSION_OUTPUT_PIPELINE_EXECUTION_CODE,
 };
+use crate::conversion_output::{
+    cemt_output_function_descriptor, default_formatter_tab_size, html_pre_container_prefix,
+    parse_positive_formatter_usize_option, CemtOutputFunctionDescriptorSpec,
+};
 use crate::diagnostics::{
     project_diagnostics_for_source, source_map_coordinate_details, Diagnostic, Severity,
 };
@@ -71,20 +75,28 @@ use crate::transform_config::{
     parse_transform_graph_config, TransformGraphParseRequest, TRANSFORM_CONFIG_SCHEMA_URI,
 };
 use crate::transform_template::{
+    compose_transform_template_encoded_text_artifacts,
     evaluate_transform_template_encode_expressions, parse_cem_native_template_module_options,
     parse_transform_template_output_color_type, transform_template_call_argument_is_dynamic,
+    transform_template_encode_html_attribute, transform_template_encode_html_text,
     transform_template_encode_options_line_ending_data, try_apply_transform_template_let_bindings,
     TransformTemplateAdapter, TransformTemplateAdapterLookup, TransformTemplateCompileRequest,
     TransformTemplateCompiledArtifact, TransformTemplateDataArtifact,
-    TransformTemplateEncodeEvaluationContext, TransformTemplateEncodedArtifactInsertionContext,
+    TransformTemplateEncodeBinding, TransformTemplateEncodeEvaluationContext,
+    TransformTemplateEncodeExpression, TransformTemplateEncodeOptions,
+    TransformTemplateEncodedArtifact, TransformTemplateEncodedArtifactIdentity,
+    TransformTemplateEncodedArtifactInsertionContext, TransformTemplateEncodedArtifactMode,
+    TransformTemplateEncodingTarget, TransformTemplateEvaluatedEncodeExpression,
     TransformTemplateModuleCacheKey, TransformTemplateModuleDependencyKind,
     TransformTemplateModuleImport, TransformTemplateModuleOptions,
     TransformTemplateModuleParamDeclaration, TransformTemplateModuleParamType,
     TransformTemplateModuleParseRequest, TransformTemplateModulePreflight,
     TransformTemplateModuleVisibility, TransformTemplateOutputArtifact,
-    TransformTemplateOutputColorSelection, TransformTemplateOutputFunctionRegistry,
-    TransformTemplateOutputProducedKind, TransformTemplateRenderRequest,
-    TransformTemplateResolvedModule, CEM_TEMPLATE_IMPORT_DENIED_CODE,
+    TransformTemplateOutputColorSelection, TransformTemplateOutputFunctionKind,
+    TransformTemplateOutputFunctionRegistry, TransformTemplateOutputProducedKind,
+    TransformTemplateRenderRequest, TransformTemplateResolvedModule,
+    TransformTemplateSourceMapPolicy, TransformTemplateWriterToken,
+    TransformTemplateWriterTokenStream, CEM_TEMPLATE_IMPORT_DENIED_CODE,
     CEM_TEMPLATE_IMPORT_UNRESOLVED_CODE, TRANSFORM_TEMPLATE_CALL_UNKNOWN_CODE,
     TRANSFORM_TEMPLATE_ENTRYPOINT_NOT_PUBLIC_CODE, TRANSFORM_TEMPLATE_IMPORT_ALIAS_DUPLICATE_CODE,
     TRANSFORM_TEMPLATE_IMPORT_CYCLE_CODE, TRANSFORM_TEMPLATE_IMPORT_DEPTH_CODE,
@@ -5520,6 +5532,673 @@ fn convert_loaded_markdown_ast_output(
     )
 }
 
+fn convert_loaded_markdown_ast_to_html_output(
+    context: &EngineContext,
+    request: &ConvertRequest,
+    document: MarkdownDocumentAst,
+    diagnostics: &mut Vec<Diagnostic>,
+) -> (Value, Option<PrimaryBytes>, ConvertExecutionMetadata) {
+    let pipeline =
+        cemt_output_pipeline_for_scope(direct_html_output_pipeline(), &request.target_scope);
+    let mut metadata =
+        convert_metadata_for_direct_output_pipeline("markdown-html-output", &pipeline);
+    metadata.implementation = Some("markdown-ast-stream-to-html-output-pipeline".to_owned());
+
+    let html = markdown_document_ast_to_html(&document, context, &request.input.uri, diagnostics);
+    if diagnostics
+        .iter()
+        .any(|diagnostic| diagnostic.severity.is_hard_violation())
+    {
+        return (Value::Null, None, metadata);
+    }
+
+    let Some(content) = markdown_generated_html_output(
+        &html,
+        &request.target_scope,
+        Some(&request.input.uri),
+        diagnostics,
+    ) else {
+        return (Value::Null, None, metadata);
+    };
+    let primary_bytes =
+        primary_bytes_from_text_document(&content, HTML_CONTENT_TYPE, HTML_SCHEMA_URI);
+    let hash = primary_bytes.hash.clone();
+    let primary = json!({
+        "kind": "document",
+        "contentType": primary_bytes.content_type,
+        "schema": HTML_SCHEMA_URI,
+        "hash": hash,
+    });
+    (primary, Some(primary_bytes), metadata)
+}
+
+#[derive(Debug, Default)]
+struct MarkdownHtmlCodeBlock {
+    info: String,
+    text: String,
+}
+
+fn markdown_document_ast_to_html(
+    document: &MarkdownDocumentAst,
+    context: &EngineContext,
+    source_uri: &str,
+    diagnostics: &mut Vec<Diagnostic>,
+) -> String {
+    let mut html = String::new();
+    let mut code_block: Option<MarkdownHtmlCodeBlock> = None;
+
+    for event in &document.events {
+        if let Some(block) = code_block.as_mut() {
+            if event.kind == "end" && event.tag.as_deref() == Some("code-block") {
+                let block = code_block.take().expect("active Markdown code block");
+                html.push_str(&markdown_code_block_to_html(
+                    block,
+                    context,
+                    source_uri,
+                    diagnostics,
+                ));
+                continue;
+            }
+            if let Some(text) = event.text.as_deref() {
+                block.text.push_str(text);
+            } else if matches!(event.kind.as_str(), "soft-break" | "hard-break") {
+                block.text.push('\n');
+            }
+            continue;
+        }
+
+        match event.kind.as_str() {
+            "start" => {
+                if event.tag.as_deref() == Some("code-block") {
+                    code_block = Some(MarkdownHtmlCodeBlock {
+                        info: event.info.clone().unwrap_or_default(),
+                        text: String::new(),
+                    });
+                } else {
+                    markdown_push_start_html(&mut html, event);
+                }
+            }
+            "end" => markdown_push_end_html(&mut html, event),
+            "text" => html.push_str(&transform_template_encode_html_text(
+                event.text.as_deref().unwrap_or_default(),
+            )),
+            "code" => {
+                html.push_str("<code>");
+                html.push_str(&transform_template_encode_html_text(
+                    event.text.as_deref().unwrap_or_default(),
+                ));
+                html.push_str("</code>");
+            }
+            "soft-break" => html.push('\n'),
+            "hard-break" => html.push_str("<br>\n"),
+            "thematic-break" => html.push_str("<hr>\n"),
+            "task-list-marker" => {
+                if event.checked.unwrap_or(false) {
+                    html.push_str("<input type=\"checkbox\" disabled checked> ");
+                } else {
+                    html.push_str("<input type=\"checkbox\" disabled> ");
+                }
+            }
+            _ => {}
+        }
+    }
+
+    if let Some(block) = code_block {
+        html.push_str(&markdown_code_block_to_html(
+            block,
+            context,
+            source_uri,
+            diagnostics,
+        ));
+    }
+
+    html
+}
+
+fn markdown_push_start_html(
+    html: &mut String,
+    event: &crate::validation::markdown::MarkdownEventAst,
+) {
+    match event.tag.as_deref() {
+        Some("paragraph") => html.push_str("<p>"),
+        Some("heading") => {
+            let level = event.level.unwrap_or(1).clamp(1, 6);
+            html.push_str(&format!("<h{level}>"));
+        }
+        Some("blockquote") => html.push_str("<blockquote>\n"),
+        Some("list") => html.push_str("<ul>\n"),
+        Some("ordered-list") => {
+            if let Some(start) = event.ordered_start {
+                html.push_str(&format!("<ol start=\"{start}\">\n"));
+            } else {
+                html.push_str("<ol>\n");
+            }
+        }
+        Some("list-item") => html.push_str("<li>"),
+        Some("emphasis") => html.push_str("<em>"),
+        Some("strong") => html.push_str("<strong>"),
+        Some("strikethrough") => html.push_str("<del>"),
+        Some("link") => {
+            html.push_str("<a href=\"");
+            html.push_str(&transform_template_encode_html_attribute(
+                event.destination.as_deref().unwrap_or_default(),
+            ));
+            html.push_str("\">");
+        }
+        Some("table") => html.push_str("<table>\n"),
+        Some("table-head") => html.push_str("<thead>\n"),
+        Some("table-row") => html.push_str("<tr>"),
+        Some("table-cell") => html.push_str("<td>"),
+        _ => {}
+    }
+}
+
+fn markdown_push_end_html(
+    html: &mut String,
+    event: &crate::validation::markdown::MarkdownEventAst,
+) {
+    match event.tag.as_deref() {
+        Some("paragraph") => html.push_str("</p>\n"),
+        Some("heading") => {
+            let level = event.level.unwrap_or(1).clamp(1, 6);
+            html.push_str(&format!("</h{level}>\n"));
+        }
+        Some("blockquote") => html.push_str("</blockquote>\n"),
+        Some("list") => html.push_str("</ul>\n"),
+        Some("ordered-list") => html.push_str("</ol>\n"),
+        Some("list-item") => html.push_str("</li>\n"),
+        Some("emphasis") => html.push_str("</em>"),
+        Some("strong") => html.push_str("</strong>"),
+        Some("strikethrough") => html.push_str("</del>"),
+        Some("link") => html.push_str("</a>"),
+        Some("table") => html.push_str("</table>\n"),
+        Some("table-head") => html.push_str("</thead>\n"),
+        Some("table-row") => html.push_str("</tr>\n"),
+        Some("table-cell") => html.push_str("</td>"),
+        _ => {}
+    }
+}
+
+fn markdown_code_block_to_html(
+    block: MarkdownHtmlCodeBlock,
+    context: &EngineContext,
+    source_uri: &str,
+    diagnostics: &mut Vec<Diagnostic>,
+) -> String {
+    if markdown_code_block_is_cem_ml_svg(&block.info) {
+        return markdown_cem_ml_embed_to_html(&block.text, context, source_uri, diagnostics)
+            .map(|mut html| {
+                if !html.ends_with('\n') {
+                    html.push('\n');
+                }
+                html
+            })
+            .unwrap_or_else(|| markdown_plain_code_block_to_html(&block.info, &block.text));
+    }
+    markdown_plain_code_block_to_html(&block.info, &block.text)
+}
+
+fn markdown_code_block_is_cem_ml_svg(info: &str) -> bool {
+    let tokens = info
+        .split_whitespace()
+        .map(|token| token.trim().to_ascii_lowercase())
+        .collect::<Vec<_>>();
+    tokens
+        .iter()
+        .any(|token| matches!(token.as_str(), "cem" | "cem-ml" | "cemml"))
+        && tokens.iter().any(|token| token == "svg")
+}
+
+fn markdown_plain_code_block_to_html(info: &str, text: &str) -> String {
+    let language = info.split_whitespace().next().unwrap_or_default();
+    let mut html = String::new();
+    html.push_str("<pre><code");
+    if !language.is_empty() && language != "indented" {
+        html.push_str(" class=\"language-");
+        html.push_str(&transform_template_encode_html_attribute(language));
+        html.push('"');
+    }
+    html.push('>');
+    html.push_str(&transform_template_encode_html_text(text));
+    html.push_str("</code></pre>\n");
+    html
+}
+
+fn markdown_cem_ml_embed_to_html(
+    source: &str,
+    context: &EngineContext,
+    source_uri: &str,
+    diagnostics: &mut Vec<Diagnostic>,
+) -> Option<String> {
+    let embed_uri = format!("{source_uri}#markdown-cem-ml-embed");
+    let scope = ScopeConfig::default();
+    let run = run_pipeline_as_scoped_with_context_and_source_uri(
+        source.as_bytes(),
+        InputFormat::Cem,
+        &scope,
+        context,
+        &embed_uri,
+    );
+    let hard = run
+        .diagnostics
+        .iter()
+        .any(|diagnostic| diagnostic.severity.is_hard_violation());
+    diagnostics.extend(run.diagnostics);
+    if hard {
+        return None;
+    }
+
+    let rendered = LightDomInterpreter::new().render(&run.document);
+    let hard = rendered
+        .diagnostics
+        .iter()
+        .any(|diagnostic| diagnostic.severity.is_hard_violation());
+    diagnostics.extend(rendered.diagnostics);
+    if hard {
+        return None;
+    }
+    Some(rendered.rendered)
+}
+
+fn markdown_generated_html_output(
+    source: &str,
+    target_scope: &ScopeConfig,
+    diagnostic_uri: Option<&str>,
+    diagnostics: &mut Vec<Diagnostic>,
+) -> Option<String> {
+    let source = markdown_format_generated_html_source(source, target_scope);
+    let target =
+        TransformTemplateEncodingTarget::new(HTML_CONTENT_TYPE, HTML_SCHEMA_URI, "html-document");
+    let formatter_profile = markdown_html_formatter_profile(target_scope);
+    let output_color_type = markdown_html_output_color_type(target_scope);
+    let color_profile = markdown_html_color_profile(target_scope, output_color_type.as_deref());
+    let color_capability =
+        markdown_html_color_capability(target_scope, output_color_type.as_deref());
+    let token_stream = TransformTemplateWriterTokenStream {
+        tokens: markdown_html_source_writer_tokens(&source),
+    };
+    let token_value = serde_json::to_value(token_stream).unwrap_or_else(|_| json!({"tokens": []}));
+    let mut identity = TransformTemplateEncodedArtifactIdentity::new(
+        TransformTemplateOutputProducedKind::Tokens,
+        target.clone(),
+    );
+    identity.formatter_profile = Some(formatter_profile.clone());
+    identity.color_profile = color_profile.clone();
+    identity.color_capability = color_capability.clone();
+    identity.mode = TransformTemplateEncodedArtifactMode::Document;
+    identity.canonical = false;
+    identity.source_map_policy = TransformTemplateSourceMapPolicy::Generated;
+    let artifact = TransformTemplateEncodedArtifact::new(identity.clone(), token_value.clone());
+    let binding = TransformTemplateEncodeBinding {
+        function: cemt_output_function_descriptor(CemtOutputFunctionDescriptorSpec {
+            owner: "html",
+            name: if color_profile.is_some() {
+                "html.color-document"
+            } else {
+                "html.format-document"
+            },
+            category: "html-document",
+            subject: "html-document",
+            kind: if color_profile.is_some() {
+                TransformTemplateOutputFunctionKind::Color
+            } else {
+                TransformTemplateOutputFunctionKind::Format
+            },
+            produces: TransformTemplateOutputProducedKind::Tokens,
+            content_type: HTML_CONTENT_TYPE,
+            schema: HTML_SCHEMA_URI,
+            canonical: false,
+            profile: color_profile
+                .clone()
+                .or_else(|| Some(formatter_profile.clone())),
+        }),
+        subject_type: "tokens".to_owned(),
+        identity: identity.clone(),
+        options: TransformTemplateEncodeOptions::default(),
+    };
+    let evaluated = TransformTemplateEvaluatedEncodeExpression {
+        expression: TransformTemplateEncodeExpression {
+            owner: Some("markdown-html-output".to_owned()),
+            expression: "markdown-html-output writer".to_owned(),
+            subject: "html-document".to_owned(),
+            subject_type: Some("tokens".to_owned()),
+            target: target.clone(),
+            options: TransformTemplateEncodeOptions::default(),
+        },
+        subject: token_value,
+        binding,
+        artifact,
+    };
+    let mut writer_context = TransformTemplateEncodedArtifactInsertionContext::from_encoding_target(
+        &target,
+        Some(TransformTemplateOutputProducedKind::Text),
+    );
+    writer_context.formatter_profile = Some(formatter_profile);
+    writer_context.color_profile = color_profile;
+    writer_context.color_capability = color_capability;
+    writer_context.output_color_type = output_color_type.clone();
+    writer_context.mode = Some(TransformTemplateEncodedArtifactMode::Document);
+    writer_context.source_map_policy = Some(TransformTemplateSourceMapPolicy::Generated);
+    let mut composition = compose_transform_template_encoded_text_artifacts(
+        &[evaluated],
+        &writer_context,
+        diagnostic_uri,
+    );
+    diagnostics.append(&mut composition.diagnostics);
+    let mut content = composition
+        .artifact
+        .and_then(|artifact| artifact.value.as_str().map(str::to_owned))?;
+    if markdown_html_output_wraps_pre(target_scope, output_color_type.as_deref()) {
+        let tab_size = match markdown_html_output_tab_size(target_scope) {
+            Ok(tab_size) => tab_size,
+            Err(message) => {
+                diagnostics.push(Diagnostic {
+                    uri: diagnostic_uri.map(str::to_owned),
+                    code: "cem.formatter.option_invalid".to_owned(),
+                    severity: Severity::Fatal,
+                    message,
+                    ..Diagnostic::default()
+                });
+                return None;
+            }
+        };
+        let prefix = html_pre_container_prefix("cem-output-html", tab_size);
+        content = format!("{prefix}{content}</pre>");
+    }
+    Some(content)
+}
+
+fn markdown_format_generated_html_source(source: &str, target_scope: &ScopeConfig) -> String {
+    let mut formatted = source.trim_end().to_owned();
+    match target_scope
+        .cemt_formatter_profile
+        .as_deref()
+        .map(str::trim)
+        .unwrap_or("compact")
+    {
+        "tabular" | "pretty" => {
+            formatted = formatted.replace("><", ">\n<");
+        }
+        _ => {}
+    }
+    if !formatted.ends_with('\n') {
+        formatted.push('\n');
+    }
+    formatted
+}
+
+fn markdown_html_formatter_profile(target_scope: &ScopeConfig) -> String {
+    target_scope
+        .cemt_formatter_profile
+        .as_deref()
+        .map(str::trim)
+        .filter(|profile| !profile.is_empty())
+        .unwrap_or("compact")
+        .to_owned()
+}
+
+fn markdown_html_output_color_type(target_scope: &ScopeConfig) -> Option<String> {
+    if let Some(output_color_type) = target_scope
+        .output_color_type
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+    {
+        return Some(output_color_type.to_owned());
+    }
+    match target_scope
+        .cemt_color_profile
+        .as_deref()
+        .map(str::trim)
+        .filter(|profile| !profile.is_empty())
+    {
+        Some("html") => Some("html".to_owned()),
+        _ => None,
+    }
+}
+
+fn markdown_html_color_profile(
+    target_scope: &ScopeConfig,
+    output_color_type: Option<&str>,
+) -> Option<String> {
+    if let Some(output_color_type) = output_color_type {
+        if let Ok(selection) = parse_transform_template_output_color_type(output_color_type) {
+            return match selection.target.category.as_str() {
+                "html-color" => Some(selection.output_color_type),
+                "terminal-color" => Some("terminal".to_owned()),
+                _ => None,
+            };
+        }
+    }
+    target_scope
+        .cemt_color_profile
+        .as_deref()
+        .map(str::trim)
+        .filter(|profile| !profile.is_empty() && *profile != "none")
+        .map(str::to_owned)
+}
+
+fn markdown_html_color_capability(
+    target_scope: &ScopeConfig,
+    output_color_type: Option<&str>,
+) -> Option<String> {
+    if let Some(output_color_type) = output_color_type {
+        if let Ok(selection) = parse_transform_template_output_color_type(output_color_type) {
+            if selection.target.category == "terminal-color"
+                && selection.output_color_type != "none"
+            {
+                return Some(selection.output_color_type);
+            }
+        }
+    }
+    target_scope
+        .output_color_type
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(str::to_owned)
+}
+
+fn markdown_html_output_wraps_pre(
+    target_scope: &ScopeConfig,
+    output_color_type: Option<&str>,
+) -> bool {
+    if let Some(output_color_type) = output_color_type {
+        if let Ok(selection) = parse_transform_template_output_color_type(output_color_type) {
+            return selection.target.category == "html-color"
+                && selection.output_color_type != "none";
+        }
+    }
+    target_scope
+        .cemt_color_profile
+        .as_deref()
+        .map(str::trim)
+        .is_some_and(|profile| profile == "html")
+}
+
+fn markdown_html_output_tab_size(target_scope: &ScopeConfig) -> Result<usize, String> {
+    match target_scope.cemt_formatter_options.get("tabSize") {
+        Some(value) => parse_positive_formatter_usize_option("tabSize", value),
+        None => Ok(default_formatter_tab_size()),
+    }
+}
+
+fn markdown_html_source_writer_tokens(source: &str) -> Vec<TransformTemplateWriterToken> {
+    let mut tokens = Vec::new();
+    let mut cursor = 0usize;
+    while cursor < source.len() {
+        let rest = &source[cursor..];
+        if rest.starts_with("<!--") {
+            let end = rest
+                .find("-->")
+                .map(|index| cursor + index + 3)
+                .unwrap_or(source.len());
+            markdown_push_html_token(
+                &mut tokens,
+                "html.comment",
+                &source[cursor..end],
+                Some("syntax.comment"),
+            );
+            cursor = end;
+            continue;
+        }
+        if rest.starts_with('<') {
+            let end = rest
+                .find('>')
+                .map(|index| cursor + index + 1)
+                .unwrap_or(source.len());
+            markdown_push_html_tag_tokens(&mut tokens, &source[cursor..end]);
+            cursor = end;
+            continue;
+        }
+        let end = rest
+            .find('<')
+            .map(|index| cursor + index)
+            .unwrap_or(source.len());
+        markdown_push_html_text_tokens(&mut tokens, &source[cursor..end]);
+        cursor = end;
+    }
+    tokens
+}
+
+fn markdown_push_html_text_tokens(tokens: &mut Vec<TransformTemplateWriterToken>, text: &str) {
+    if text.is_empty() {
+        return;
+    }
+    if text.trim().is_empty() {
+        markdown_push_html_token(tokens, "html.whitespace", text, None);
+    } else {
+        markdown_push_html_token(tokens, "html.text", text, Some("syntax.string"));
+    }
+}
+
+fn markdown_push_html_tag_tokens(tokens: &mut Vec<TransformTemplateWriterToken>, tag: &str) {
+    let Some(inner) = tag
+        .strip_prefix('<')
+        .and_then(|value| value.strip_suffix('>'))
+    else {
+        markdown_push_html_token(tokens, "html.text", tag, Some("syntax.raw"));
+        return;
+    };
+    markdown_push_html_token(tokens, "html.punctuation", "<", Some("syntax.punctuation"));
+    let mut cursor = 0usize;
+    if inner.starts_with('/') {
+        markdown_push_html_token(tokens, "html.punctuation", "/", Some("syntax.punctuation"));
+        cursor = 1;
+    }
+    cursor = markdown_push_html_tag_space(tokens, inner, cursor);
+    let name_end = markdown_html_scan_until(inner, cursor, |ch| {
+        ch.is_whitespace() || matches!(ch, '/' | '>')
+    });
+    if name_end > cursor {
+        markdown_push_html_token(
+            tokens,
+            "html.name",
+            &inner[cursor..name_end],
+            Some("syntax.name"),
+        );
+        cursor = name_end;
+    }
+    while cursor < inner.len() {
+        cursor = markdown_push_html_tag_space(tokens, inner, cursor);
+        if cursor >= inner.len() {
+            break;
+        }
+        if inner[cursor..].starts_with('/') {
+            markdown_push_html_token(tokens, "html.punctuation", "/", Some("syntax.punctuation"));
+            cursor += 1;
+            continue;
+        }
+        let attr_end = markdown_html_scan_until(inner, cursor, |ch| {
+            ch.is_whitespace() || matches!(ch, '=' | '/')
+        });
+        if attr_end == cursor {
+            markdown_push_html_token(
+                tokens,
+                "html.punctuation",
+                &inner[cursor..cursor + 1],
+                Some("syntax.punctuation"),
+            );
+            cursor += 1;
+            continue;
+        }
+        markdown_push_html_token(
+            tokens,
+            "html.attribute",
+            &inner[cursor..attr_end],
+            Some("syntax.attribute"),
+        );
+        cursor = markdown_push_html_tag_space(tokens, inner, attr_end);
+        if cursor < inner.len() && inner[cursor..].starts_with('=') {
+            markdown_push_html_token(tokens, "html.punctuation", "=", Some("syntax.punctuation"));
+            cursor += 1;
+            cursor = markdown_push_html_tag_space(tokens, inner, cursor);
+            let value_end = markdown_html_attribute_value_end(inner, cursor);
+            if value_end > cursor {
+                markdown_push_html_token(
+                    tokens,
+                    "html.string",
+                    &inner[cursor..value_end],
+                    Some("syntax.string"),
+                );
+                cursor = value_end;
+            }
+        }
+    }
+    markdown_push_html_token(tokens, "html.punctuation", ">", Some("syntax.punctuation"));
+}
+
+fn markdown_push_html_tag_space(
+    tokens: &mut Vec<TransformTemplateWriterToken>,
+    source: &str,
+    cursor: usize,
+) -> usize {
+    let end = markdown_html_scan_until(source, cursor, |ch| !ch.is_whitespace());
+    if end > cursor {
+        markdown_push_html_token(tokens, "html.whitespace", &source[cursor..end], None);
+    }
+    end
+}
+
+fn markdown_html_scan_until(source: &str, cursor: usize, stop: impl Fn(char) -> bool) -> usize {
+    for (offset, ch) in source[cursor..].char_indices() {
+        if stop(ch) {
+            return cursor + offset;
+        }
+    }
+    source.len()
+}
+
+fn markdown_html_attribute_value_end(source: &str, cursor: usize) -> usize {
+    let Some(first) = source[cursor..].chars().next() else {
+        return cursor;
+    };
+    if matches!(first, '"' | '\'') {
+        let quote_len = first.len_utf8();
+        let after_quote = cursor + quote_len;
+        for (offset, ch) in source[after_quote..].char_indices() {
+            if ch == first {
+                return after_quote + offset + quote_len;
+            }
+        }
+        return source.len();
+    }
+    markdown_html_scan_until(source, cursor, |ch| ch.is_whitespace() || ch == '/')
+}
+
+fn markdown_push_html_token(
+    tokens: &mut Vec<TransformTemplateWriterToken>,
+    kind: &str,
+    text: &str,
+    role: Option<&str>,
+) {
+    let mut token = TransformTemplateWriterToken::new(kind).with_text(text.to_owned());
+    if let Some(role) = role {
+        token = token.with_role(role.to_owned());
+    }
+    tokens.push(token);
+}
+
 fn convert_loaded_generic_data_ast_to_json_output(
     context: &EngineContext,
     request: &ConvertRequest,
@@ -7355,6 +8034,36 @@ impl CemMlEngine for RealCemMlEngine {
                         return;
                     }
                     LoadedInputAstStream::MarkdownDocument(document_value) => {
+                        if to_format == LayerFormat::Html {
+                            if diagnostics
+                                .iter()
+                                .any(|diagnostic| diagnostic.severity.is_hard_violation())
+                            {
+                                primary = Some(Value::Null);
+                                let pipeline = cemt_output_pipeline_for_scope(
+                                    direct_html_output_pipeline(),
+                                    &request.target_scope,
+                                );
+                                conversion = Some(convert_metadata_for_direct_output_pipeline(
+                                    "markdown-html-output",
+                                    &pipeline,
+                                ));
+                                return;
+                            }
+
+                            let (html_primary, html_primary_bytes, html_conversion) =
+                                convert_loaded_markdown_ast_to_html_output(
+                                    &context,
+                                    &request,
+                                    document_value,
+                                    &mut diagnostics,
+                                );
+                            primary = Some(html_primary);
+                            primary_bytes = html_primary_bytes;
+                            conversion = Some(html_conversion);
+                            return;
+                        }
+
                         if to_format == LayerFormat::Markdown {
                             if diagnostics
                                 .iter()

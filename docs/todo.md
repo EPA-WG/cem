@@ -586,6 +586,10 @@ Remaining dependency-ordered package checklist:
         output now that the typed output layer exists; expected-fail examples
         preview schema-owned validation diagnostics instead of source
         snapshots.
+  - [x] Add a Markdown-to-HTML README fixture that converts `markdown1.md`
+        through the typed Markdown AST stream into HTML tabular formatter
+        output, including a fenced `cem-ml svg` block rendered as inline SVG
+        markup and previewed as `markdown1.md.html.html`.
 - [ ] `xml/v1`
 - [ ] `relax-ng/v1`
 - [ ] `xhtml/v1`

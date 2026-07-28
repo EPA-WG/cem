@@ -101,6 +101,14 @@
     }
 
     {example
+        @id="markdown-html-svg"
+        @path="examples/markdown1.md"
+        @content-type="text/markdown; charset=utf-8; variant=CommonMark"
+        @schema="https://cem.dev/ns/data/markdown/1"
+        @expected-result="pass"
+    }
+
+    {example
         @id="invalid-embedded-html"
         @path="examples/invalid-embedded-html.md"
         @content-type="text/markdown; charset=utf-8; variant=CommonMark"
