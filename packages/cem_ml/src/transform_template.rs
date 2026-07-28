@@ -9907,6 +9907,18 @@ struct TransformTemplateRenderedTextLine {
 }
 
 #[derive(Debug, Clone)]
+struct TransformTemplateCemTreeWriterTokenLine {
+    tokens: Vec<Value>,
+    line_ending: Option<Value>,
+}
+
+#[derive(Debug, Clone)]
+struct TransformTemplateCemTreeWriterTokenCloseScopeLine {
+    leading_tokens: Vec<Value>,
+    close_token: Value,
+}
+
+#[derive(Debug, Clone)]
 struct TransformTemplateRenderedTextCloseScopeLine {
     leading_whitespace: String,
     close_token: String,
@@ -10063,6 +10075,167 @@ fn transform_template_cem_tree_writer_indent(value: &Value) -> String {
     transform_template_cem_tree_writer_format_decision_value(value, "indent")
         .map(str::to_owned)
         .unwrap_or_else(|| DEFAULT_FORMATTER_INDENT.to_owned())
+}
+
+fn transform_template_compact_tabular_cem_tree_writer_token_close_scopes(
+    nodes: &[Value],
+    value: &Value,
+    writer_boundary_context: &TransformTemplateEncodedArtifactInsertionContext,
+    line_ending: &str,
+) -> Option<Vec<Value>> {
+    if !transform_template_cem_tree_writer_uses_tabular_profile(value, writer_boundary_context)
+        || line_ending.is_empty()
+        || !nodes
+            .iter()
+            .all(transform_template_cem_tree_value_is_writer_token)
+    {
+        return None;
+    }
+    let indent = transform_template_cem_tree_writer_indent(value);
+    if indent.is_empty() {
+        return None;
+    }
+    let lines = transform_template_cem_tree_writer_token_lines(nodes, line_ending);
+    if lines.len() < 2 {
+        return None;
+    }
+    let separator = transform_template_rendered_text_close_scope_separator(&indent);
+    let mut compacted = Vec::with_capacity(nodes.len());
+    let mut changed = false;
+    let mut index = 0usize;
+    while index < lines.len() {
+        let Some(first_close_scope) =
+            transform_template_cem_tree_writer_token_close_scope_line(&lines[index])
+        else {
+            transform_template_push_cem_tree_writer_token_line(&mut compacted, &lines[index]);
+            index += 1;
+            continue;
+        };
+        let mut close_scopes = vec![first_close_scope];
+        let mut last_close_line = index;
+        while last_close_line + 1 < lines.len() {
+            let Some(next_close_scope) = transform_template_cem_tree_writer_token_close_scope_line(
+                &lines[last_close_line + 1],
+            ) else {
+                break;
+            };
+            close_scopes.push(next_close_scope);
+            last_close_line += 1;
+        }
+        if close_scopes.len() <= 1 {
+            transform_template_push_cem_tree_writer_token_line(&mut compacted, &lines[index]);
+            index += 1;
+            continue;
+        }
+
+        changed = true;
+        if let Some(outer_close_scope) = close_scopes.last() {
+            compacted.extend(outer_close_scope.leading_tokens.iter().cloned());
+        }
+        for (close_index, close_scope) in close_scopes.iter().enumerate() {
+            if close_index > 0 {
+                compacted.push(
+                    transform_template_cem_tree_writer_token_close_scope_separator(&separator),
+                );
+            }
+            compacted.push(close_scope.close_token.clone());
+        }
+        if let Some(line_ending) = lines[last_close_line].line_ending.as_ref() {
+            compacted.push(line_ending.clone());
+        }
+        index = last_close_line + 1;
+    }
+    changed.then_some(compacted)
+}
+
+fn transform_template_cem_tree_writer_token_lines(
+    nodes: &[Value],
+    line_ending: &str,
+) -> Vec<TransformTemplateCemTreeWriterTokenLine> {
+    let mut lines = Vec::new();
+    let mut current = Vec::new();
+    for node in nodes {
+        if transform_template_cem_tree_writer_token_text(node) == Some(line_ending) {
+            lines.push(TransformTemplateCemTreeWriterTokenLine {
+                tokens: std::mem::take(&mut current),
+                line_ending: Some(node.clone()),
+            });
+        } else {
+            current.push(node.clone());
+        }
+    }
+    if !current.is_empty() {
+        lines.push(TransformTemplateCemTreeWriterTokenLine {
+            tokens: current,
+            line_ending: None,
+        });
+    }
+    lines
+}
+
+fn transform_template_push_cem_tree_writer_token_line(
+    output: &mut Vec<Value>,
+    line: &TransformTemplateCemTreeWriterTokenLine,
+) {
+    output.extend(line.tokens.iter().cloned());
+    if let Some(line_ending) = line.line_ending.as_ref() {
+        output.push(line_ending.clone());
+    }
+}
+
+fn transform_template_cem_tree_writer_token_close_scope_line(
+    line: &TransformTemplateCemTreeWriterTokenLine,
+) -> Option<TransformTemplateCemTreeWriterTokenCloseScopeLine> {
+    let mut leading_tokens = Vec::new();
+    let mut close_token = None;
+    for token in &line.tokens {
+        let text = transform_template_cem_tree_writer_token_text(token)?;
+        if text.is_empty() || text.chars().all(char::is_whitespace) {
+            if close_token.is_none() {
+                leading_tokens.push(token.clone());
+            } else if !text.is_empty() {
+                return None;
+            }
+            continue;
+        }
+        if close_token.is_none() && transform_template_cem_tree_writer_token_is_close_scope(text) {
+            close_token = Some(token.clone());
+            continue;
+        }
+        return None;
+    }
+    close_token.map(
+        |close_token| TransformTemplateCemTreeWriterTokenCloseScopeLine {
+            leading_tokens,
+            close_token,
+        },
+    )
+}
+
+fn transform_template_cem_tree_writer_token_text(value: &Value) -> Option<&str> {
+    let fields = value.as_object()?;
+    transform_template_cem_tree_fields_are_writer_token(fields)
+        .then(|| fields.get("text").and_then(Value::as_str))
+        .flatten()
+}
+
+fn transform_template_cem_tree_writer_token_is_close_scope(text: &str) -> bool {
+    matches!(text, "}" | "]")
+}
+
+fn transform_template_cem_tree_writer_token_close_scope_separator(separator: &str) -> Value {
+    serde_json::json!({
+        "kind": "formatter.close-spacing",
+        "writerKind": "token",
+        "text": separator,
+        "role": "syntax.raw",
+        "style": {
+            "colorRole": "syntax.raw"
+        },
+        "value": {
+            "formatterRole": "formatter.close-spacing"
+        }
+    })
 }
 
 fn transform_template_rendered_text_lines(
@@ -10228,6 +10401,24 @@ fn transform_template_rendered_text_without_terminal_escapes(text: &str) -> Stri
     result
 }
 
+#[cfg(test)]
+fn transform_template_rendered_text_without_html_tags(text: &str) -> String {
+    let mut result = String::new();
+    let mut in_tag = false;
+    for ch in text.chars() {
+        match ch {
+            '<' => in_tag = true,
+            '>' if in_tag => in_tag = false,
+            _ if !in_tag => result.push(ch),
+            _ => {}
+        }
+    }
+    result
+        .replace("&lt;", "<")
+        .replace("&gt;", ">")
+        .replace("&amp;", "&")
+}
+
 fn transform_template_rendered_text_line_parts(
     text: &str,
 ) -> Vec<TransformTemplateRenderedTextLinePart> {
@@ -10323,13 +10514,34 @@ fn transform_template_cem_tree_value_to_rendered_text(
     );
     rendered.line_ending = line_ending;
     if let Some(nodes) = object.get("nodes").and_then(Value::as_array) {
-        transform_template_render_cem_tree_nodes(nodes, syntax, &mut rendered)?;
+        let compacted = transform_template_compact_tabular_cem_tree_writer_token_close_scopes(
+            nodes,
+            value,
+            writer_boundary_context,
+            &rendered.line_ending,
+        );
+        transform_template_render_cem_tree_nodes(
+            compacted.as_deref().unwrap_or(nodes),
+            syntax,
+            &mut rendered,
+        )?;
     } else if let Some(node) = object.get("node") {
         transform_template_render_cem_tree_node(node, syntax, &mut rendered)?;
     } else if let Some(root) = object.get("root") {
         match root {
             Value::Array(nodes) => {
-                transform_template_render_cem_tree_nodes(nodes, syntax, &mut rendered)?
+                let compacted =
+                    transform_template_compact_tabular_cem_tree_writer_token_close_scopes(
+                        nodes,
+                        value,
+                        writer_boundary_context,
+                        &rendered.line_ending,
+                    );
+                transform_template_render_cem_tree_nodes(
+                    compacted.as_deref().unwrap_or(nodes),
+                    syntax,
+                    &mut rendered,
+                )?
             }
             Value::Object(_) => {
                 transform_template_render_cem_tree_node(root, syntax, &mut rendered)?
@@ -30279,6 +30491,98 @@ mod tests {
         assert!(
             rendered.text.contains("\u{1b}[38;5;81m}\u{1b}[0m"),
             "expected merged closing scopes to preserve terminal color, got:\n{}",
+            rendered.text
+        );
+    }
+
+    #[test]
+    fn tabular_writer_merges_adjacent_writer_token_closing_scopes_before_html_coloring() {
+        fn token(kind: &str, text: &str, role: &str) -> Value {
+            json!({
+                "kind": kind,
+                "writerKind": "token",
+                "text": text,
+                "role": role,
+                "style": {
+                    "colorRole": role
+                }
+            })
+        }
+
+        let nodes = vec![
+            token("json.object-open", "{", "syntax.punctuation"),
+            token("json.line-ending", "\n", "syntax.raw"),
+            token("json.indent", "  ", "syntax.raw"),
+            token("json.member-name", "\"a\"", "syntax.name"),
+            token("json.name-separator", ": ", "syntax.punctuation"),
+            token("json.array-open", "[", "syntax.punctuation"),
+            token("json.line-ending", "\n", "syntax.raw"),
+            token("json.indent", "    ", "syntax.raw"),
+            token("json.object-open", "{", "syntax.punctuation"),
+            token("json.line-ending", "\n", "syntax.raw"),
+            token("json.indent", "      ", "syntax.raw"),
+            token("json.member-name", "\"b\"", "syntax.name"),
+            token("json.name-separator", ": ", "syntax.punctuation"),
+            token("json.object-open", "{", "syntax.punctuation"),
+            token("json.line-ending", "\n", "syntax.raw"),
+            token("json.indent", "        ", "syntax.raw"),
+            token("json.member-name", "\"c\"", "syntax.name"),
+            token("json.name-separator", ": ", "syntax.punctuation"),
+            token("json.number", "1", "syntax.number"),
+            token("json.line-ending", "\n", "syntax.raw"),
+            token("json.indent", "      ", "syntax.raw"),
+            token("json.object-close", "}", "syntax.punctuation"),
+            token("json.line-ending", "\n", "syntax.raw"),
+            token("json.indent", "    ", "syntax.raw"),
+            token("json.object-close", "}", "syntax.punctuation"),
+            token("json.line-ending", "\n", "syntax.raw"),
+            token("json.indent", "  ", "syntax.raw"),
+            token("json.array-close", "]", "syntax.punctuation"),
+            token("json.line-ending", "\n", "syntax.raw"),
+            token("json.object-close", "}", "syntax.punctuation"),
+        ];
+        let tree = json!({
+            "kind": "cem-tree",
+            "contentType": JSON_CONTENT_TYPE,
+            "schema": JSON_VALUE_SCHEMA_URI,
+            "category": "json-document",
+            "formatterProfile": "tabular",
+            "colorProfile": "html",
+            "colorOutput": "html",
+            "formatNodes": [{
+                "kind": "format-decision",
+                "name": "indent",
+                "value": "  "
+            }],
+            "nodes": nodes
+        });
+        let mut context = TransformTemplateEncodedArtifactInsertionContext::new(
+            JSON_CONTENT_TYPE,
+            JSON_VALUE_SCHEMA_URI,
+        )
+        .with_category("json-document")
+        .with_produces(TransformTemplateOutputProducedKind::Text);
+        context.formatter_profile = Some("tabular".to_owned());
+        context.color_profile = Some("html".to_owned());
+        context.output_color_type = Some("html-css-vars".to_owned());
+
+        let rendered = transform_template_cem_tree_value_to_rendered_text(&tree, &context)
+            .expect("tabular JSON writer-token stream renders");
+        let visible = transform_template_rendered_text_without_html_tags(&rendered.text);
+
+        assert!(
+            visible.contains("\n} } ] }"),
+            "expected adjacent JSON close scopes to merge, got:\n{visible}"
+        );
+        assert!(
+            !visible.contains("\n      }\n    }\n  ]\n}"),
+            "expected adjacent JSON close scopes not to split, got:\n{visible}"
+        );
+        assert!(
+            rendered
+                .text
+                .contains(r#"<span class="cem-color cem-color-syntax-punctuation""#),
+            "expected HTML token coloring to be preserved, got:\n{}",
             rendered.text
         );
     }

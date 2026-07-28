@@ -264,13 +264,9 @@
                             call("json-schema.format-document.member-pretty", { member: $item, depth: $depth, profile: $profile })
                         )
                     )),
-                    extend(
-                        call("json-schema.format-document.closing-prefix", {
-                            node: get(last(match(typeOf($node.members), { array: $node.members, default: [] })), "value"),
-                            depth: $depth,
-                            profile: $profile
-                        }),
-                        [
+                    [
+                        call("json-schema.format-document.line-ending", { sourceMap: null }),
+                        call("json-schema.format-document.indent", { depth: $depth }),
                         call("json-schema.format-document.token", {
                             kind: "json-schema.object-close",
                             text: "}",
@@ -278,8 +274,7 @@
                             sourceMap: match(exists($node.sourceMap), { true: $node.sourceMap, false: null }),
                             value: { formatterProfile: $profile }
                         })
-                        ]
-                    )
+                    ]
                 )
             ) }
         }
@@ -440,13 +435,9 @@
                             )
                         )
                     )),
-                    extend(
-                        call("json-schema.format-document.closing-prefix", {
-                            node: last(match(typeOf($node.items), { array: $node.items, default: [] })),
-                            depth: $depth,
-                            profile: $profile
-                        }),
-                        [
+                    [
+                        call("json-schema.format-document.line-ending", { sourceMap: null }),
+                        call("json-schema.format-document.indent", { depth: $depth }),
                         call("json-schema.format-document.token", {
                             kind: "json-schema.array-close",
                             text: "]",
@@ -454,51 +445,9 @@
                             sourceMap: match(exists($node.sourceMap), { true: $node.sourceMap, false: null }),
                             value: { formatterProfile: $profile }
                         })
-                        ]
-                    )
+                    ]
                 )
             ) }
-        }
-    }
-
-    {function @name="json-schema.format-document.closing-prefix" @visibility="private" @returns="array" @deterministic=true |
-        {param @name="node" @type="object" @required=true}
-        {param @name="depth" @type="integer" @required=true}
-        {param @name="profile" @type="string" @required=true}
-        {body |
-            {$ match($profile, {
-                tabular: match(call("json-schema.format-document.value-is-container", { node: $node }), {
-                    true: [call("json-schema.format-document.token", {
-                        kind: "json-schema.close-spacing",
-                        text: " ",
-                        role: "syntax.raw",
-                        sourceMap: null,
-                        value: { formatterProfile: $profile }
-                    })],
-                    default: call("json-schema.format-document.block-closing-prefix", { depth: $depth })
-                }),
-                default: call("json-schema.format-document.block-closing-prefix", { depth: $depth })
-            }) }
-        }
-    }
-
-    {function @name="json-schema.format-document.block-closing-prefix" @visibility="private" @returns="array" @deterministic=true |
-        {param @name="depth" @type="integer" @required=true}
-        {body |
-            {$ [
-                call("json-schema.format-document.line-ending", { sourceMap: null }),
-                call("json-schema.format-document.indent", { depth: $depth })
-            ] }
-        }
-    }
-
-    {function @name="json-schema.format-document.value-is-container" @visibility="private" @returns="boolean" @deterministic=true |
-        {param @name="node" @type="object" @required=true}
-        {body |
-            {$ match(typeOf($node), {
-                object: match($node.kind, { object: true, array: true, default: false }),
-                default: false
-            }) }
         }
     }
 
