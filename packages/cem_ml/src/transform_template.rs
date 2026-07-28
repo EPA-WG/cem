@@ -9916,6 +9916,7 @@ struct TransformTemplateCemTreeWriterTokenLine {
 struct TransformTemplateCemTreeWriterTokenCloseScopeLine {
     leading_tokens: Vec<Value>,
     close_token: Value,
+    trailing_tokens: Vec<Value>,
 }
 
 #[derive(Debug, Clone)]
@@ -10122,6 +10123,16 @@ fn transform_template_compact_tabular_cem_tree_writer_token_close_scopes(
             close_scopes.push(next_close_scope);
             last_close_line += 1;
         }
+        if last_close_line + 1 < lines.len() {
+            if let Some(next_close_scope) =
+                transform_template_cem_tree_writer_token_close_scope_line_with_trailing_suffix(
+                    &lines[last_close_line + 1],
+                )
+            {
+                close_scopes.push(next_close_scope);
+                last_close_line += 1;
+            }
+        }
         if close_scopes.len() <= 1 {
             transform_template_push_cem_tree_writer_token_line(&mut compacted, &lines[index]);
             index += 1;
@@ -10139,6 +10150,9 @@ fn transform_template_compact_tabular_cem_tree_writer_token_close_scopes(
                 );
             }
             compacted.push(close_scope.close_token.clone());
+        }
+        if let Some(outer_close_scope) = close_scopes.last() {
+            compacted.extend(outer_close_scope.trailing_tokens.iter().cloned());
         }
         if let Some(line_ending) = lines[last_close_line].line_ending.as_ref() {
             compacted.push(line_ending.clone());
@@ -10186,20 +10200,51 @@ fn transform_template_push_cem_tree_writer_token_line(
 fn transform_template_cem_tree_writer_token_close_scope_line(
     line: &TransformTemplateCemTreeWriterTokenLine,
 ) -> Option<TransformTemplateCemTreeWriterTokenCloseScopeLine> {
+    transform_template_cem_tree_writer_token_close_scope_line_with_options(line, false)
+}
+
+fn transform_template_cem_tree_writer_token_close_scope_line_with_trailing_suffix(
+    line: &TransformTemplateCemTreeWriterTokenLine,
+) -> Option<TransformTemplateCemTreeWriterTokenCloseScopeLine> {
+    transform_template_cem_tree_writer_token_close_scope_line_with_options(line, true)
+        .filter(|line| !line.trailing_tokens.is_empty())
+}
+
+fn transform_template_cem_tree_writer_token_close_scope_line_with_options(
+    line: &TransformTemplateCemTreeWriterTokenLine,
+    allow_trailing_suffix: bool,
+) -> Option<TransformTemplateCemTreeWriterTokenCloseScopeLine> {
     let mut leading_tokens = Vec::new();
     let mut close_token = None;
+    let mut trailing_tokens = Vec::new();
     for token in &line.tokens {
         let text = transform_template_cem_tree_writer_token_text(token)?;
-        if text.is_empty() || text.chars().all(char::is_whitespace) {
-            if close_token.is_none() {
+        if close_token.is_none() {
+            if text.is_empty() || text.chars().all(char::is_whitespace) {
                 leading_tokens.push(token.clone());
-            } else if !text.is_empty() {
+                continue;
+            }
+            if transform_template_cem_tree_writer_token_is_close_scope(text) {
+                close_token = Some(token.clone());
+                continue;
+            }
+            return None;
+        }
+        if text.is_empty() {
+            continue;
+        }
+        if text.chars().all(char::is_whitespace) {
+            if allow_trailing_suffix {
+                trailing_tokens.push(token.clone());
+            } else {
                 return None;
             }
             continue;
         }
-        if close_token.is_none() && transform_template_cem_tree_writer_token_is_close_scope(text) {
-            close_token = Some(token.clone());
+        if allow_trailing_suffix
+            && transform_template_cem_tree_writer_token_is_close_scope_suffix(text)
+        {
+            trailing_tokens.push(token.clone());
             continue;
         }
         return None;
@@ -10208,6 +10253,7 @@ fn transform_template_cem_tree_writer_token_close_scope_line(
         |close_token| TransformTemplateCemTreeWriterTokenCloseScopeLine {
             leading_tokens,
             close_token,
+            trailing_tokens,
         },
     )
 }
@@ -10221,6 +10267,10 @@ fn transform_template_cem_tree_writer_token_text(value: &Value) -> Option<&str> 
 
 fn transform_template_cem_tree_writer_token_is_close_scope(text: &str) -> bool {
     matches!(text, "}" | "]")
+}
+
+fn transform_template_cem_tree_writer_token_is_close_scope_suffix(text: &str) -> bool {
+    text == ","
 }
 
 fn transform_template_cem_tree_writer_token_close_scope_separator(separator: &str) -> Value {
@@ -30577,6 +30627,98 @@ mod tests {
         assert!(
             !visible.contains("\n      }\n    }\n  ]\n}"),
             "expected adjacent JSON close scopes not to split, got:\n{visible}"
+        );
+        assert!(
+            rendered
+                .text
+                .contains(r#"<span class="cem-color cem-color-syntax-punctuation""#),
+            "expected HTML token coloring to be preserved, got:\n{}",
+            rendered.text
+        );
+    }
+
+    #[test]
+    fn tabular_writer_merges_writer_token_closing_scopes_with_outer_comma() {
+        fn token(kind: &str, text: &str, role: &str) -> Value {
+            json!({
+                "kind": kind,
+                "writerKind": "token",
+                "text": text,
+                "role": role,
+                "style": {
+                    "colorRole": role
+                }
+            })
+        }
+
+        let nodes = vec![
+            token("json-schema.object-open", "{", "syntax.punctuation"),
+            token("json-schema.line-ending", "\n", "syntax.raw"),
+            token("json-schema.indent", "  ", "syntax.raw"),
+            token("json-schema.member-name", "\"site\"", "syntax.name"),
+            token("json-schema.name-separator", ": ", "syntax.punctuation"),
+            token("json-schema.object-open", "{", "syntax.punctuation"),
+            token("json-schema.line-ending", "\n", "syntax.raw"),
+            token("json-schema.indent", "    ", "syntax.raw"),
+            token("json-schema.member-name", "\"metrics\"", "syntax.name"),
+            token("json-schema.name-separator", ": ", "syntax.punctuation"),
+            token("json-schema.object-open", "{", "syntax.punctuation"),
+            token("json-schema.line-ending", "\n", "syntax.raw"),
+            token("json-schema.indent", "      ", "syntax.raw"),
+            token("json-schema.member-name", "\"views\"", "syntax.name"),
+            token("json-schema.name-separator", ": ", "syntax.punctuation"),
+            token("json-schema.number", "42", "syntax.number"),
+            token("json-schema.line-ending", "\n", "syntax.raw"),
+            token("json-schema.indent", "    ", "syntax.raw"),
+            token("json-schema.object-close", "}", "syntax.punctuation"),
+            token("json-schema.line-ending", "\n", "syntax.raw"),
+            token("json-schema.indent", "  ", "syntax.raw"),
+            token("json-schema.object-close", "}", "syntax.punctuation"),
+            token("json-schema.comma", ",", "syntax.punctuation"),
+            token("json-schema.line-ending", "\n", "syntax.raw"),
+            token("json-schema.indent", "  ", "syntax.raw"),
+            token("json-schema.member-name", "\"items\"", "syntax.name"),
+            token("json-schema.name-separator", ": ", "syntax.punctuation"),
+            token("json-schema.array-empty", "[]", "syntax.punctuation"),
+            token("json-schema.line-ending", "\n", "syntax.raw"),
+            token("json-schema.object-close", "}", "syntax.punctuation"),
+        ];
+        let tree = json!({
+            "kind": "cem-tree",
+            "contentType": crate::schema::registry::JSON_SCHEMA_CONTENT_TYPE,
+            "schema": crate::schema::registry::JSON_SCHEMA_SCHEMA_URI,
+            "category": "json-document",
+            "formatterProfile": "tabular",
+            "colorProfile": "html",
+            "colorOutput": "html",
+            "formatNodes": [{
+                "kind": "format-decision",
+                "name": "indent",
+                "value": "  "
+            }],
+            "nodes": nodes
+        });
+        let mut context = TransformTemplateEncodedArtifactInsertionContext::new(
+            crate::schema::registry::JSON_SCHEMA_CONTENT_TYPE,
+            crate::schema::registry::JSON_SCHEMA_SCHEMA_URI,
+        )
+        .with_category("json-document")
+        .with_produces(TransformTemplateOutputProducedKind::Text);
+        context.formatter_profile = Some("tabular".to_owned());
+        context.color_profile = Some("html".to_owned());
+        context.output_color_type = Some("html-css-vars".to_owned());
+
+        let rendered = transform_template_cem_tree_value_to_rendered_text(&tree, &context)
+            .expect("tabular JSON Schema writer-token stream renders");
+        let visible = transform_template_rendered_text_without_html_tags(&rendered.text);
+
+        assert!(
+            visible.contains("\n  } },\n  \"items\""),
+            "expected metrics and site close scopes to merge with comma, got:\n{visible}"
+        );
+        assert!(
+            !visible.contains("\n    }\n  },"),
+            "expected metrics and site close scopes not to split, got:\n{visible}"
         );
         assert!(
             rendered

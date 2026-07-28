@@ -4,23 +4,47 @@
   "title": "Nested data",
   "type": "object",
   "properties": {
-    "record": {
+    "site": {
       "type": "object",
       "properties": {
-        "profile": {
+        "title": {
+          "type": "string"
+        },
+        "tags": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "metrics": {
           "type": "object",
           "properties": {
-            "settings": {
-              "type": "object",
-              "properties": {
-                "theme": {
-                  "type": "string"
-                }
-              }
+            "views": {
+              "type": "integer"
+            },
+            "ratio": {
+              "type": "number"
             }
           }
         }
       }
+    },
+    "items": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "active": {
+            "type": "boolean"
+          }
+        }
+      }
+    },
+    "metadata": {
+      "type": "null"
     }
   }
 }
