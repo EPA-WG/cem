@@ -1586,6 +1586,34 @@ mod tests {
     }
 
     #[test]
+    fn yaml_stream_projection_preserves_directives_with_source_maps() {
+        let (stream, diagnostics) =
+            yaml_stream_value_from_source_bytes(YamlSourceValidationRequest {
+                bytes: b"%YAML 1.2\n%TAG !e! tag:example.com,2026:\n---\nname: Ada\n",
+                source_uri: "memory://directives.yaml",
+                content_type: Some("application/yaml"),
+            });
+
+        assert!(
+            diagnostics.is_empty(),
+            "valid YAML directives should not produce diagnostics: {diagnostics:#?}"
+        );
+        let stream = stream.expect("valid YAML projects stream data");
+        let directives = stream["directives"].as_array().expect("directives");
+        assert_eq!(directives.len(), 2);
+        assert_eq!(directives[0]["name"], "YAML");
+        assert_eq!(directives[0]["value"], "1.2");
+        assert_eq!(directives[1]["name"], "TAG");
+        assert_eq!(directives[1]["value"], "!e! tag:example.com,2026:");
+        assert_eq!(directives[0]["sourceMap"]["frames"][0]["source_id"], 1);
+        assert_eq!(directives[1]["sourceRange"]["line"], 2);
+        assert_eq!(
+            stream["documents"][0]["root"]["mapping"][0]["key"]["value"],
+            "name"
+        );
+    }
+
+    #[test]
     fn yaml_duplicate_anchor_is_recoverable_schema_owned_fact() {
         let (stream, diagnostics) =
             yaml_stream_value_from_source_bytes(YamlSourceValidationRequest {

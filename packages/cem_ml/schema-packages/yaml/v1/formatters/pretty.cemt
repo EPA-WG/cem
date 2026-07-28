@@ -66,13 +66,26 @@
                             }
                         }
                     ],
-                    call("yaml.format-document.documents", {
-                        documents: match(typeOf($subject.documents), {
-                            array: $subject.documents,
-                            default: []
+                    extend(
+                        call("yaml.format-document.directives", {
+                            directives: match(typeOf($subject.directives), {
+                                array: $subject.directives,
+                                default: []
+                            }),
+                            profile: $formatterProfile
                         }),
-                        profile: $formatterProfile
-                    })
+                        call("yaml.format-document.documents", {
+                            documents: match(typeOf($subject.documents), {
+                                array: $subject.documents,
+                                default: []
+                            }),
+                            directiveCount: length(match(typeOf($subject.directives), {
+                                array: $subject.directives,
+                                default: []
+                            })),
+                            profile: $formatterProfile
+                        })
+                    )
                 )
             } }
         }
@@ -93,6 +106,7 @@
 
     {function @name="yaml.format-document.documents" @visibility="private" @returns="array" @deterministic=true |
         {param @name="documents" @type="array" @required=true}
+        {param @name="directiveCount" @type="integer" @required=true}
         {param @name="profile" @type="string" @required=true}
         {body |
             {$ match(length($documents), {
@@ -102,6 +116,7 @@
                     call("yaml.format-document.document", {
                         document: $item,
                         documentCount: length($documents),
+                        forceDocumentStart: gt($directiveCount, 0),
                         profile: $profile
                     })
                 ))
@@ -109,13 +124,78 @@
         }
     }
 
-    {function @name="yaml.format-document.document" @visibility="private" @returns="array" @deterministic=true |
-        {param @name="document" @type="object" @required=true}
-        {param @name="documentCount" @type="integer" @required=true}
+    {function @name="yaml.format-document.directives" @visibility="private" @returns="array" @deterministic=true |
+        {param @name="directives" @type="array" @required=true}
+        {param @name="profile" @type="string" @required=true}
+        {body |
+            {$ fold($directives, [], extend(
+                $acc,
+                call("yaml.format-document.directive", {
+                    directive: $item,
+                    profile: $profile
+                })
+            )) }
+        }
+    }
+
+    {function @name="yaml.format-document.directive" @visibility="private" @returns="array" @deterministic=true |
+        {param @name="directive" @type="object" @required=true}
         {param @name="profile" @type="string" @required=true}
         {body |
             {$ extend(
-                match(gt($documentCount, 1), {
+                [
+                    call("yaml.format-document.token", {
+                        kind: "yaml.directive-marker",
+                        text: "%",
+                        role: "syntax.punctuation",
+                        sourceMap: match(exists($directive.sourceMap), { true: $directive.sourceMap, false: null }),
+                        profile: $profile
+                    }),
+                    call("yaml.format-document.token", {
+                        kind: "yaml.directive-name",
+                        text: match(typeOf($directive.name), { string: trim($directive.name), default: "" }),
+                        role: "syntax.keyword",
+                        sourceMap: match(exists($directive.sourceMap), { true: $directive.sourceMap, false: null }),
+                        profile: $profile
+                    })
+                ],
+                extend(
+                    match(typeOf($directive.value), {
+                        string: match(length(trim($directive.value)), {
+                            0: [],
+                            default: [
+                                call("yaml.format-document.token", {
+                                    kind: "yaml.space",
+                                    text: " ",
+                                    role: "syntax.raw",
+                                    sourceMap: null,
+                                    profile: $profile
+                                }),
+                                call("yaml.format-document.token", {
+                                    kind: "yaml.directive-value",
+                                    text: trim($directive.value),
+                                    role: "syntax.string",
+                                    sourceMap: match(exists($directive.sourceMap), { true: $directive.sourceMap, false: null }),
+                                    profile: $profile
+                                })
+                            ]
+                        }),
+                        default: []
+                    }),
+                    [call("yaml.format-document.line-ending", { profile: $profile })]
+                )
+            ) }
+        }
+    }
+
+    {function @name="yaml.format-document.document" @visibility="private" @returns="array" @deterministic=true |
+        {param @name="document" @type="object" @required=true}
+        {param @name="documentCount" @type="integer" @required=true}
+        {param @name="forceDocumentStart" @type="boolean" @required=true}
+        {param @name="profile" @type="string" @required=true}
+        {body |
+            {$ extend(
+                match(match($forceDocumentStart, { true: true, false: gt($documentCount, 1) }), {
                     true: [
                         call("yaml.format-document.token", {
                             kind: "yaml.document-start",

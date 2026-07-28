@@ -133,6 +133,12 @@ Current active slice: generic data AST stream bridge alignment.
       them from package CEMT once parser coverage exposes those nodes; until
       then, YAML formatter/colorizer ownership covers the typed document node
       model without comment/directive presentation nodes.
+      - [x] Render schema-owned YAML directives from the typed stream in the
+            package CEMT formatter/colorizer path, including the required
+            explicit document start after directive headers.
+      - [ ] Expose YAML comments as typed parser presentation nodes with byte
+            ranges/source maps before rendering them; the current `yaml-rust2`
+            scanner skips comments and provides no comment token/event boundary.
 
 ### Immediate: README Sample Preview Generation
 

@@ -15079,6 +15079,88 @@ mod tests {
     }
 
     #[test]
+    fn builtin_yaml_lifecycle_output_pipeline_renders_stream_directives_from_package_cemt() {
+        let schema_registry = SchemaRegistry::with_builtin_schemas();
+        let conversion_registry = ConversionRegistry::with_builtin_converters();
+        let environment = ConversionOutputPipelineEnvironment {
+            schema_registry: &schema_registry,
+            conversion_registry: &conversion_registry,
+            package_artifact_reader: None,
+            artifact_cache: None,
+        };
+        let document = serde_json::json!({
+            "kind": "yaml-stream",
+            "lineEnding": "lf",
+            "directives": [
+                {
+                    "index": 0,
+                    "name": "YAML",
+                    "value": "1.2",
+                    "sourceMap": yaml_test_source_map(0, 9)
+                },
+                {
+                    "index": 1,
+                    "name": "TAG",
+                    "value": "!e! tag:example.com,2026:",
+                    "sourceMap": yaml_test_source_map(10, 34)
+                }
+            ],
+            "documents": [{
+                "index": 0,
+                "sourceMap": yaml_test_source_map(45, 3),
+                "root": {
+                    "kind": "mapping",
+                    "mapping": [{
+                        "index": 0,
+                        "key": {
+                            "kind": "scalar",
+                            "value": "name",
+                            "style": "plain",
+                            "implicitKind": "string"
+                        },
+                        "value": {
+                            "kind": "scalar",
+                            "value": "Ada",
+                            "style": "plain",
+                            "implicitKind": "string"
+                        }
+                    }]
+                }
+            }]
+        });
+        let target_scope = ScopeConfig {
+            cemt_formatter_profile: Some("tabular".to_owned()),
+            ..ScopeConfig::default()
+        };
+
+        let execution = execute_yaml_document_output_pipeline_with_environment(
+            &environment,
+            document,
+            &target_scope,
+            Some("builtin:yaml-directive-output"),
+        );
+
+        assert!(
+            execution.diagnostics.is_empty(),
+            "{:?}",
+            execution.diagnostics
+        );
+        assert_eq!(
+            execution.output.as_ref().and_then(Value::as_str),
+            Some("%YAML 1.2\n%TAG !e! tag:example.com,2026:\n---\nname: Ada\n")
+        );
+        let formatted = execution
+            .formatted_cem_tree
+            .as_ref()
+            .expect("formatted YAML CEM tree");
+        assert_eq!(formatted.value["nodes"][2]["kind"], "yaml.directive-marker");
+        assert_eq!(formatted.value["nodes"][3]["kind"], "yaml.directive-name");
+        assert_eq!(formatted.value["nodes"][5]["kind"], "yaml.directive-value");
+        assert_eq!(formatted.value["nodes"][8]["kind"], "yaml.directive-name");
+        assert_eq!(formatted.value["nodes"][12]["kind"], "yaml.document-start");
+    }
+
+    #[test]
     fn builtin_yaml_lifecycle_output_pipeline_wraps_html_color_pre() {
         let schema_registry = SchemaRegistry::with_builtin_schemas();
         let conversion_registry = ConversionRegistry::with_builtin_converters();
