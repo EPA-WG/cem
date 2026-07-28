@@ -573,6 +573,18 @@ Remaining dependency-ordered package checklist:
         dialect-failure examples, then remove the remaining source-snapshot
         preview fallback for `json-schema/v1`.
 - [ ] `markdown/v1`
+  - [x] Expand package-local verification so Markdown runs manifest
+        validation, manifest-index coverage, embedded artifact catalog tests,
+        CLI validation behavior tests, and README/SVG preview drift checks.
+  - [ ] Move Markdown source validation out of CLI-owned direct validation into
+        an engine-reachable typed Markdown AST stream with neutral parse,
+        encoding, variant, and embedded-HTML facts plus source-map ranges.
+  - [ ] Move Markdown formatter/colorizer CEMT assets away from raw
+        `json`/`tokens` stubs to package-owned Markdown document and
+        formatted/colored CEM-tree boundaries.
+  - [ ] Route Markdown README previews through package formatter/colorizer
+        output once the typed output layer exists; source snapshots remain the
+        tracked fallback until then.
 - [ ] `xml/v1`
 - [ ] `relax-ng/v1`
 - [ ] `xhtml/v1`

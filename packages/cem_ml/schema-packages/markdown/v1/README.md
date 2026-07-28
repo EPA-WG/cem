@@ -40,6 +40,37 @@ The schema describes Markdown resources as a document model:
 Variant-specific parsers can refine this model through converter profiles
 instead of changing the generic Markdown schema identity.
 
+## Verification
+
+The package-local `cem_ml_schema_package_markdown_v1:verify` target checks:
+
+- manifest validation against the schema-package schema;
+- manifest-index coverage for all declared examples;
+- embedded formatter/colorizer artifact catalog registration;
+- Markdown source validation behavior for valid CommonMark, missing charset,
+  unknown variant, embedded HTML rejection, and unsupported UTF-8;
+- CLI validation behavior for the same Markdown source cases;
+- README SVG preview drift for every manifest example.
+
+## Release Behavior
+
+Validation currently recognizes UTF-8 Markdown text, checks the `charset` and
+`variant` content-type parameters, enables GFM parser options for GFM variants,
+and rejects embedded HTML unless a future policy permits it. Markdown source
+validation is still a direct source-validation path; a typed Markdown lifecycle
+AST stream, package-owned formatter/colorizer output bodies, trusted HTML
+rendering modes, and variant-specific extension models are not part of the
+current release contract.
+
+## Tracked Incomplete Work
+
+- Markdown validation still reports directly from the source validator instead
+  of returning a typed Markdown lifecycle AST stream with neutral parse facts.
+- Formatter/colorizer CEMT assets are currently package declarations with
+  placeholder raw `json`/`tokens` boundaries.
+- README previews intentionally use source snapshots until package-owned
+  Markdown formatter/colorizer output can render examples directly.
+
 ## Examples
 
 This section is generated from `package.cem` `{example}` metadata by the
