@@ -57,15 +57,14 @@ The package-local `cem_ml_schema_package_markdown_v1:verify` target checks:
 Validation currently recognizes UTF-8 Markdown text, checks the `charset` and
 `variant` content-type parameters, enables GFM parser options for GFM variants,
 and rejects embedded HTML unless a future policy permits it. Markdown source
-validation is still a direct source-validation path; a typed Markdown lifecycle
-AST stream, package-owned formatter/colorizer output bodies, trusted HTML
-rendering modes, and variant-specific extension models are not part of the
-current release contract.
+validation now opens a typed Markdown AST/event stream with source metadata,
+encoding facts, variant facts, parser events, embedded-HTML facts, and source
+maps before projecting diagnostics. Package-owned formatter/colorizer output
+bodies, trusted HTML rendering modes, and variant-specific extension models are
+not part of the current release contract.
 
 ## Tracked Incomplete Work
 
-- Markdown validation still reports directly from the source validator instead
-  of returning a typed Markdown lifecycle AST stream with neutral parse facts.
 - Formatter/colorizer CEMT assets are currently package declarations with
   placeholder raw `json`/`tokens` boundaries.
 - README previews intentionally use source snapshots until package-owned

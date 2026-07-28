@@ -576,7 +576,7 @@ Remaining dependency-ordered package checklist:
   - [x] Expand package-local verification so Markdown runs manifest
         validation, manifest-index coverage, embedded artifact catalog tests,
         CLI validation behavior tests, and README/SVG preview drift checks.
-  - [ ] Move Markdown source validation out of CLI-owned direct validation into
+  - [x] Move Markdown source validation out of CLI-owned direct validation into
         an engine-reachable typed Markdown AST stream with neutral parse,
         encoding, variant, and embedded-HTML facts plus source-map ranges.
   - [ ] Move Markdown formatter/colorizer CEMT assets away from raw

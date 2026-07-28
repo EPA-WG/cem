@@ -82,7 +82,7 @@ use crate::validation::{
         CemMlSemanticDiagnosticCatalog, CemMlSemanticFact, CemMlSemanticFactKind,
     },
     html::{validate_html_source_bytes, HtmlSourceValidationRequest},
-    markdown::{validate_markdown_source_bytes, MarkdownSourceValidationRequest},
+    markdown::{markdown_document_ast_from_source_bytes, MarkdownSourceValidationRequest},
     mathml::{validate_mathml_source_bytes, MathMlSourceValidationRequest},
     relax_ng::{validate_relax_ng_source_bytes, RelaxNgSourceValidationRequest},
     svg::{validate_svg_source_bytes, SvgSourceValidationRequest},
@@ -2787,13 +2787,13 @@ fn validate_schema_package_example_source_bytes(
         }
         SchemaPackageExampleTokenizer::Cem => parse_example_cem_document(bytes),
         SchemaPackageExampleTokenizer::Markdown => {
-            return Some(validate_markdown_source_bytes(
-                MarkdownSourceValidationRequest {
+            let (_, diagnostics) =
+                markdown_document_ast_from_source_bytes(MarkdownSourceValidationRequest {
                     bytes,
                     source_uri,
                     content_type: Some(content_type),
-                },
-            ));
+                });
+            return Some(diagnostics);
         }
         SchemaPackageExampleTokenizer::Css => {
             return Some(validate_css_source_bytes(CssSourceValidationRequest {

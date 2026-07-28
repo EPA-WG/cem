@@ -4510,15 +4510,15 @@ fn collect_markdown_source_diagnostics(
     let mut diagnostics = Vec::new();
     for input in inputs {
         let content_type = input_source_content_type(input);
-        diagnostics.extend(
-            cem_ml::validation::markdown::validate_markdown_source_bytes(
+        let (_, mut input_diagnostics) =
+            cem_ml::validation::markdown::markdown_document_ast_from_source_bytes(
                 cem_ml::validation::markdown::MarkdownSourceValidationRequest {
                     bytes: &input.bytes,
                     source_uri: &input.uri,
                     content_type: content_type.as_deref(),
                 },
-            ),
-        );
+            );
+        diagnostics.append(&mut input_diagnostics);
     }
     diagnostics
 }
