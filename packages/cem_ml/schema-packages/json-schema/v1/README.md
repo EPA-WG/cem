@@ -135,6 +135,28 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
 ![Preview of JSON Schema Resource Schema Package catalog-schema example](examples/previews/catalog-schema.schema.json.svg)
 
 <details>
+<summary>nested-data</summary>
+
+- Source: [`examples/nested-data.schema.json`](./examples/nested-data.schema.json)
+- Content type: `application/schema+json`
+- Schema: `https://cem.dev/ns/data/json-schema/1`
+- Expected result: `pass`
+- Preview renderer: `CLI convert, tabular formatter, preview HTML + html2svg`
+- Preview HTML: `dist/cem_ml/schema-packages/json-schema/v1/examples/nested-data.schema.json.html`
+
+```bash
+dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
+  uri=packages/cem_ml/schema-packages/json-schema/v1/examples/nested-data.schema.json,contentType=application/schema+json,schema=https://cem.dev/ns/data/json-schema/1 \
+  --to-content-type application/schema+json --to-schema \
+  https://cem.dev/ns/data/json-schema/1 --cemt-formatter-profile tabular \
+  --cemt-color-profile html
+```
+
+</details>
+
+![Preview of JSON Schema Resource Schema Package nested-data example](examples/previews/nested-data.schema.json.svg)
+
+<details>
 <summary>invalid-unsupported-dialect</summary>
 
 - Source: [`examples/invalid-unsupported-dialect.schema.json`](./examples/invalid-unsupported-dialect.schema.json)

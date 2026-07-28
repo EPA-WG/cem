@@ -69,6 +69,11 @@ const cases = [
         file: 'catalog-schema.schema.json',
         minHeight: 520,
     }),
+    jsonSchemaCliExampleCase({
+        id: 'nested-data',
+        file: 'nested-data.schema.json',
+        minHeight: 430,
+    }),
     jsonSchemaExampleCase({
         id: 'invalid-unsupported-dialect',
         file: 'invalid-unsupported-dialect.schema.json',

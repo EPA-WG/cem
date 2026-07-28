@@ -567,6 +567,8 @@ Remaining dependency-ordered package checklist:
         formatted/colored CEM-tree boundaries.
   - [x] Route syntax-valid JSON Schema README previews through package
         formatter/colorizer output now that the typed output layer exists.
+  - [x] Add a JSON Schema `nested-data` fixture with three nested object
+        enclosures for tabular formatter preview coverage.
   - [ ] Add a recoverable JSON Schema invalid-input preview path for parse and
         dialect-failure examples, then remove the remaining source-snapshot
         preview fallback for `json-schema/v1`.

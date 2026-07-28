@@ -101,6 +101,14 @@
     }
 
     {example
+        @id="nested-data"
+        @path="examples/nested-data.schema.json"
+        @content-type="application/schema+json"
+        @schema="https://cem.dev/ns/data/json-schema/1"
+        @expected-result="pass"
+    }
+
+    {example
         @id="invalid-unsupported-dialect"
         @path="examples/invalid-unsupported-dialect.schema.json"
         @content-type="application/schema+json"
