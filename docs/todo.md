@@ -589,7 +589,10 @@ Remaining dependency-ordered package checklist:
   - [x] Add a Markdown-to-HTML README fixture that converts `markdown1.md`
         through the typed Markdown AST stream into HTML tabular formatter
         output, including a fenced `cem-ml svg` block rendered as inline SVG
-        markup and previewed as `markdown1.md.html.html`.
+        markup and previewed as `markdown1.md.html`.
+  - [x] Replace Markdown README SVG previews with CLI-generated HTML files
+        embedded as fenced `html` snippets, and stop generating
+        `examples/previews/*.svg` for `markdown/v1`.
 - [ ] `xml/v1`
 - [ ] `relax-ng/v1`
 - [ ] `xhtml/v1`

@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 
-import { readFileSync, writeFileSync } from 'node:fs';
+import { spawnSync } from 'node:child_process';
+import { mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { basename, dirname, join, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { verifyReadmePreviews } from './readme-preview.mjs';
@@ -21,23 +22,29 @@ const readmePath = join(packageRoot, 'README.md');
 const manifest = parseManifest(readFileSync(manifestPath, 'utf8'), packageRoot);
 const readme = readFileSync(readmePath, 'utf8');
 const packageLabel = readme.match(/^#\s+(.+)$/m)?.[1]?.trim() ?? manifest.packageId;
-const cases = manifest.examples.map((example) =>
-    previewCaseForExample(example, manifest, packageLabel),
-);
 
-await verifyReadmePreviews({
-    workspaceRoot,
-    packageRoot,
-    cli,
-    update: true,
-    cases,
-    packageLabel,
-    refreshCommand: `yarn nx run ${projectNameForPackageRoot(packageRoot)}:samples2readme`,
-});
+let inlinePreviews = null;
+if (isMarkdownPackageManifest(manifest)) {
+    inlinePreviews = generateMarkdownHtmlReadmePreviews(manifest, packageLabel);
+} else {
+    const cases = manifest.examples.map((example) =>
+        previewCaseForExample(example, manifest, packageLabel),
+    );
+
+    await verifyReadmePreviews({
+        workspaceRoot,
+        packageRoot,
+        cli,
+        update: true,
+        cases,
+        packageLabel,
+        refreshCommand: `yarn nx run ${projectNameForPackageRoot(packageRoot)}:samples2readme`,
+    });
+}
 
 writeFileSync(
     readmePath,
-    replaceExamplesSection(readme, generatedExamplesSection(manifest, packageLabel)),
+    replaceExamplesSection(readme, generatedExamplesSection(manifest, packageLabel, inlinePreviews)),
     'utf8',
 );
 console.log(`Updated ${relative(workspaceRoot, readmePath)} from package.cem examples.`);
@@ -338,21 +345,6 @@ function previewPlanForExample(example, manifest) {
         };
     }
 
-    if (isMarkdownToHtmlExample(example, manifest, essence)) {
-        return {
-            label: 'markdown html',
-            renderer: 'ansi',
-            expectedStatus,
-            previewBase: `${basename(example.path)}.html`,
-            width: 980,
-            minHeight: 220,
-            args: convertPreviewArgs(inputSpec, {
-                toContentType: 'text/html',
-                toSchema: 'https://cem.dev/ns/data/html/1',
-            }),
-        };
-    }
-
     if (isMarkdownTextExample(example, manifest, essence)) {
         if (example.expectedResult !== 'pass') {
             return {
@@ -520,8 +512,8 @@ function isMarkdownTextExample(_example, manifest, essence) {
     return manifest.packageId === 'markdown' && essence === 'text/markdown';
 }
 
-function isMarkdownToHtmlExample(example, manifest, essence) {
-    return isMarkdownTextExample(example, manifest, essence) && basename(example.path) === 'markdown1.md';
+function isMarkdownPackageManifest(manifest) {
+    return manifest.packageId === 'markdown';
 }
 
 function isHtmlExample(essence) {
@@ -542,7 +534,11 @@ function isXmlFamilyExample(essence) {
     );
 }
 
-function generatedExamplesSection(manifest, packageLabel) {
+function generatedExamplesSection(manifest, packageLabel, inlinePreviews = null) {
+    if (isMarkdownPackageManifest(manifest) && inlinePreviews) {
+        return generatedMarkdownExamplesSection(manifest, inlinePreviews);
+    }
+
     const hasValidationPreviews = manifest.examples.some(
         (example) => previewPlanForExample(example, manifest).args?.[0] === 'validate',
     );
@@ -601,6 +597,163 @@ function generatedExamplesSection(manifest, packageLabel) {
         }
         lines.push('', '</details>', '');
         lines.push(`![Preview of ${packageLabel} ${example.id} example](${preview})`, '');
+    }
+    return `${lines.join('\n').trimEnd()}\n`;
+}
+
+function generateMarkdownHtmlReadmePreviews(manifest, packageLabel) {
+    const generatedRoot = join(
+        workspaceRoot,
+        'dist/cem_ml/schema-packages',
+        manifest.packageId,
+        'v1/examples',
+    );
+    mkdirSync(generatedRoot, { recursive: true });
+    removeMarkdownReadmePreviewArtifacts(generatedRoot);
+    rmSync(join(packageRoot, 'examples/previews'), { recursive: true, force: true });
+
+    const cliEnv = { ...process.env };
+    delete cliEnv.NO_COLOR;
+    const previews = new Map();
+    for (const example of manifest.examples) {
+        const plan = markdownReadmePreviewPlan(example, manifest, generatedRoot);
+        runMarkdownReadmePreviewCommand({ plan, cliEnv, packageLabel });
+        if (plan.outputPath) {
+            plan.content = readFileSync(plan.outputPath, 'utf8');
+        }
+        previews.set(example.id, plan);
+    }
+    return previews;
+}
+
+function removeMarkdownReadmePreviewArtifacts(directory) {
+    let entries;
+    try {
+        entries = readdirSync(directory, { withFileTypes: true });
+    } catch {
+        return;
+    }
+    for (const entry of entries) {
+        if (entry.isFile() && (entry.name.endsWith('.html') || entry.name.endsWith('.svg'))) {
+            rmSync(join(directory, entry.name), { force: true });
+        }
+    }
+}
+
+function markdownReadmePreviewPlan(example, manifest, generatedRoot) {
+    const inputPath = relative(workspaceRoot, join(packageRoot, example.path));
+    const inputSpec = inputSpecForExample(example, inputPath);
+    if (example.expectedResult !== 'pass') {
+        return {
+            label: 'markdown validate',
+            rendererLabel: 'CLI validate; no HTML preview for expected-fail example',
+            outputRelativePath: null,
+            outputPath: null,
+            args: validatePreviewArgs(inputPath, {
+                format: 'json',
+                failLevel: 'parse',
+                contentType: example.contentType,
+                schema: example.schema,
+            }),
+            expectedStatus: 'success',
+            content: null,
+        };
+    }
+
+    const fileBase = `${basename(example.path)}.html`;
+    const outputPath = join(generatedRoot, fileBase);
+    const outputRelativePath = relative(workspaceRoot, outputPath);
+    return {
+        label: 'markdown html',
+        rendererLabel: 'CLI convert, Markdown AST to HTML, README html snippet',
+        outputRelativePath,
+        outputPath,
+        args: convertPreviewArgs(inputSpec, {
+            toContentType: 'text/html',
+            toSchema: 'https://cem.dev/ns/data/html/1',
+            colorProfile: 'none',
+            outputColorType: null,
+            extra: ['--out', outputRelativePath],
+        }),
+        expectedStatus: 'success',
+        content: null,
+    };
+}
+
+function runMarkdownReadmePreviewCommand({ plan, cliEnv, packageLabel }) {
+    const result = spawnSync(cli, plan.args, {
+        cwd: workspaceRoot,
+        encoding: 'utf8',
+        env: cliEnv,
+        maxBuffer: 1024 * 1024,
+    });
+    if (!previewStatusMatches(result.status, plan.expectedStatus)) {
+        throw new Error(
+            [
+                `${packageLabel} README example command failed: ${cli} ${plan.args.join(' ')}`,
+                `exit status: ${result.status}`,
+                result.stdout,
+                result.stderr,
+            ]
+                .filter(Boolean)
+                .join('\n'),
+        );
+    }
+}
+
+function previewStatusMatches(status, expectedStatus) {
+    if (expectedStatus === 'any') {
+        return true;
+    }
+    if (expectedStatus === 'failure') {
+        return status !== 0;
+    }
+    return status === 0;
+}
+
+function generatedMarkdownExamplesSection(manifest, inlinePreviews) {
+    const lines = [
+        '## Examples',
+        '',
+        'This section is generated from `package.cem` `{example}` metadata by the',
+        '`samples2readme` Nx target. Passing Markdown examples are converted by the',
+        'CLI to browser HTML and written to',
+        '`dist/cem_ml/schema-packages/markdown/v1/examples/<example-name>.md.html`.',
+        'The README embeds that generated file content directly as a fenced `html`',
+        'snippet. README preview SVGs are not generated for this package.',
+        '',
+    ];
+    for (const example of manifest.examples) {
+        const plan = inlinePreviews.get(example.id);
+        lines.push('<details>', `<summary>${escapeHtml(example.id)}</summary>`, '');
+        lines.push(`- Source: [\`${example.path}\`](${relativeMarkdownLink(example.path)})`);
+        lines.push(`- Content type: \`${example.contentType}\``);
+        lines.push(`- Schema: \`${example.schema}\``);
+        lines.push(`- Expected result: \`${example.expectedResult}\``);
+        if (example.expectedDiagnostics.length > 0) {
+            lines.push(
+                `- Expected diagnostics: ${example.expectedDiagnostics
+                    .map((code) => `\`${code}\``)
+                    .join(', ')}`,
+            );
+        }
+        lines.push(`- Preview renderer: \`${plan.rendererLabel}\``);
+        if (plan.outputRelativePath) {
+            lines.push(`- HTML output: \`${plan.outputRelativePath}\``);
+        } else {
+            lines.push('- HTML output: not generated for expected-fail examples');
+        }
+        if (plan.args) {
+            lines.push('', '```bash');
+            lines.push(...shellCommandLines(['dist/target/cem_ml_cli/debug/cem-ml', ...plan.args]));
+            lines.push('```');
+        }
+        lines.push('', '</details>', '');
+        if (plan.content !== null) {
+            lines.push('```html');
+            lines.push(plan.content.trimEnd());
+            lines.push('```', '');
+        }
     }
     return `${lines.join('\n').trimEnd()}\n`;
 }
