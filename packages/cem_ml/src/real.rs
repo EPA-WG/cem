@@ -5586,6 +5586,7 @@ fn markdown_document_ast_to_html(
 ) -> String {
     let mut html = String::new();
     let mut code_block: Option<MarkdownHtmlCodeBlock> = None;
+    let mut table_head_depth = 0_u32;
 
     for event in &document.events {
         if let Some(block) = code_block.as_mut() {
@@ -5615,10 +5616,18 @@ fn markdown_document_ast_to_html(
                         text: String::new(),
                     });
                 } else {
-                    markdown_push_start_html(&mut html, event);
+                    markdown_push_start_html(&mut html, event, table_head_depth > 0);
+                    if event.tag.as_deref() == Some("table-head") {
+                        table_head_depth = table_head_depth.saturating_add(1);
+                    }
                 }
             }
-            "end" => markdown_push_end_html(&mut html, event),
+            "end" => {
+                markdown_push_end_html(&mut html, event, table_head_depth > 0);
+                if event.tag.as_deref() == Some("table-head") {
+                    table_head_depth = table_head_depth.saturating_sub(1);
+                }
+            }
             "text" => html.push_str(&transform_template_encode_html_text(
                 event.text.as_deref().unwrap_or_default(),
             )),
@@ -5658,6 +5667,7 @@ fn markdown_document_ast_to_html(
 fn markdown_push_start_html(
     html: &mut String,
     event: &crate::validation::markdown::MarkdownEventAst,
+    inside_table_head: bool,
 ) {
     match event.tag.as_deref() {
         Some("paragraph") => html.push_str("<p>"),
@@ -5686,8 +5696,9 @@ fn markdown_push_start_html(
             html.push_str("\">");
         }
         Some("table") => html.push_str("<table>\n"),
-        Some("table-head") => html.push_str("<thead>\n"),
+        Some("table-head") => html.push_str("<thead>\n<tr>"),
         Some("table-row") => html.push_str("<tr>"),
+        Some("table-cell") if inside_table_head => html.push_str("<th>"),
         Some("table-cell") => html.push_str("<td>"),
         _ => {}
     }
@@ -5696,6 +5707,7 @@ fn markdown_push_start_html(
 fn markdown_push_end_html(
     html: &mut String,
     event: &crate::validation::markdown::MarkdownEventAst,
+    inside_table_head: bool,
 ) {
     match event.tag.as_deref() {
         Some("paragraph") => html.push_str("</p>\n"),
@@ -5712,8 +5724,9 @@ fn markdown_push_end_html(
         Some("strikethrough") => html.push_str("</del>"),
         Some("link") => html.push_str("</a>"),
         Some("table") => html.push_str("</table>\n"),
-        Some("table-head") => html.push_str("</thead>\n"),
+        Some("table-head") => html.push_str("</tr>\n</thead>\n"),
         Some("table-row") => html.push_str("</tr>\n"),
+        Some("table-cell") if inside_table_head => html.push_str("</th>"),
         Some("table-cell") => html.push_str("</td>"),
         _ => {}
     }

@@ -12948,6 +12948,65 @@ Markdown can produce browser HTML.
     }
 
     #[test]
+    fn convert_markdown_gfm_to_html_renders_tables_and_task_lists() {
+        let p = write_fixture(
+            "convert-markdown-gfm-to-html.md",
+            r#"# Worklog
+
+| Task | Status |
+| --- | --- |
+| Schema validation | Done |
+
+- [x] Add parser-backed validation.
+- [ ] Connect converter profiles.
+"#,
+        );
+        let input_spec = format!(
+            "uri={},contentType=text/markdown; charset=utf-8; variant=GFM,schema={}",
+            p.display(),
+            cem_ml::schema::registry::MARKDOWN_SCHEMA_URI
+        );
+
+        let (outcome, stdout, stderr) = run(
+            &RealCemMlEngine::new(),
+            &[
+                "convert",
+                "--input-spec",
+                &input_spec,
+                "--to-content-type",
+                "text/html",
+                "--to-schema",
+                cem_ml::schema::registry::HTML_SCHEMA_URI,
+                "--cemt-formatter-profile",
+                "tabular",
+                "--cemt-color-profile",
+                "none",
+            ],
+        );
+
+        assert_eq!(outcome.exit_code, EXIT_OK, "{stderr}");
+        assert!(stderr.trim().is_empty(), "{stderr}");
+        assert!(stdout.contains("<table>"), "{stdout}");
+        assert!(stdout.contains("<thead>"), "{stdout}");
+        assert!(stdout.contains("<thead>\n<tr>\n<th>Task</th>"), "{stdout}");
+        assert!(stdout.contains("<th>Task</th>"), "{stdout}");
+        assert!(stdout.contains("<td>Schema validation</td>"), "{stdout}");
+        assert!(
+            stdout.contains(r#"<input type="checkbox" disabled checked> "#),
+            "{stdout}"
+        );
+        assert!(
+            stdout.contains(r#"<input type="checkbox" disabled> "#),
+            "{stdout}"
+        );
+        assert!(!stdout.contains("| Task | Status |</p>"), "{stdout}");
+        assert!(
+            !stdout.contains("[x] Add parser-backed validation"),
+            "{stdout}"
+        );
+    }
+
+    #[test]
     fn convert_json_same_schema_uses_lifecycle_ast_stream() {
         let p = write_fixture(
             "convert-json-same-schema.json",

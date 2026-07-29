@@ -593,6 +593,8 @@ Remaining dependency-ordered package checklist:
   - [x] Replace Markdown README SVG previews with CLI-generated HTML files
         embedded as fenced `html` snippets, and stop generating
         `examples/previews/*.svg` for `markdown/v1`.
+  - [x] Add regression coverage for GFM Markdown table and task-list
+        conversion through the typed Markdown AST stream into HTML output.
 - [ ] `xml/v1`
 - [ ] `relax-ng/v1`
 - [ ] `xhtml/v1`

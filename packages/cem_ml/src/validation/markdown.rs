@@ -961,6 +961,9 @@ fn markdown_parser_options(variant: Option<&str>) -> pulldown_cmark::Options {
             || variant.eq_ignore_ascii_case("github-flavored-markdown")
     }) {
         options.insert(pulldown_cmark::Options::ENABLE_GFM);
+        options.insert(pulldown_cmark::Options::ENABLE_TABLES);
+        options.insert(pulldown_cmark::Options::ENABLE_TASKLISTS);
+        options.insert(pulldown_cmark::Options::ENABLE_STRIKETHROUGH);
     }
     options
 }
@@ -1054,11 +1057,18 @@ mod tests {
     }
 
     fn open_ast(source: &str) -> (MarkdownDocumentAst, Vec<Diagnostic>) {
+        open_ast_with_content_type(source, "text/markdown; charset=utf-8; variant=CommonMark")
+    }
+
+    fn open_ast_with_content_type(
+        source: &str,
+        content_type: &str,
+    ) -> (MarkdownDocumentAst, Vec<Diagnostic>) {
         let (document, diagnostics) =
             markdown_document_ast_from_source_bytes(MarkdownSourceValidationRequest {
                 bytes: source.as_bytes(),
                 source_uri: "fixture.md",
-                content_type: Some("text/markdown; charset=utf-8; variant=CommonMark"),
+                content_type: Some(content_type),
             });
         (document.expect("Markdown document AST"), diagnostics)
     }
@@ -1112,6 +1122,33 @@ mod tests {
                 .map(Vec::len),
             Some(1)
         );
+    }
+
+    #[test]
+    fn markdown_gfm_variant_emits_table_and_task_list_ast_events() {
+        let (document, diagnostics) = open_ast_with_content_type(
+            "# Worklog\n\n| Task | Status |\n| --- | --- |\n| Schema validation | Done |\n\n- [x] Add parser-backed validation.\n- [ ] Connect converter profiles.\n",
+            "text/markdown; charset=utf-8; variant=GFM",
+        );
+
+        assert!(diagnostics.is_empty(), "{diagnostics:?}");
+        assert_eq!(document.variant, "GFM");
+        assert!(document
+            .events
+            .iter()
+            .any(|event| event.kind == "start" && event.tag.as_deref() == Some("table")));
+        assert!(document
+            .events
+            .iter()
+            .any(|event| event.kind == "start" && event.tag.as_deref() == Some("table-row")));
+        assert!(document
+            .events
+            .iter()
+            .any(|event| event.kind == "task-list-marker" && event.checked == Some(true)));
+        assert!(document
+            .events
+            .iter()
+            .any(|event| event.kind == "task-list-marker" && event.checked == Some(false)));
     }
 
     #[test]

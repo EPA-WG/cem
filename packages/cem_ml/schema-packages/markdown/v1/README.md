@@ -136,13 +136,27 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
 
 ```html
 <h1>Worklog</h1>
-<p>| Task | Status |
-| --- | --- |
-| Schema validation | Done |
-| Markdown examples | In review |</p>
+<table>
+<thead>
+<tr>
+<th>Task</th>
+<th>Status</th>
+</tr>
+</thead>
+<tr>
+<td>Schema validation</td>
+<td>Done</td>
+</tr>
+<tr>
+<td>Markdown examples</td>
+<td>In review</td>
+</tr>
+</table>
 <ul>
-<li>[x] Add parser-backed validation.</li>
-<li>[ ] Connect converter profiles.</li>
+<li>
+<input type="checkbox" disabled checked> Add parser-backed validation.</li>
+<li>
+<input type="checkbox" disabled> Connect converter profiles.</li>
 </ul>
 <blockquote>
 <p>Keep embedded HTML behind an explicit policy.</p>
