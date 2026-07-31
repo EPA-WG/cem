@@ -269,8 +269,39 @@
                         value: { formatterProfile: $profile }
                     })
                 ],
-                call("json.format-document.value", { node: $member.value, depth: add($depth, 1), profile: $profile })
+                extend(
+                    call("json.format-document.member-value-prefix", { member: $member, depth: $depth }),
+                    call("json.format-document.value", { node: $member.value, depth: add($depth, 1), profile: $profile })
+                )
             ) }
+        }
+    }
+
+    {function @name="json.format-document.member-value-prefix" @visibility="private" @returns="array" @deterministic=true |
+        {param @name="member" @type="object" @required=true}
+        {param @name="depth" @type="integer" @required=true}
+        {body |
+            {$ match(call("json.format-document.member-value-scope-on-next-line", { node: $member.value }), {
+                true: [
+                    call("json.format-document.line-ending", { sourceMap: null }),
+                    call("json.format-document.indent", { depth: add($depth, 1) })
+                ],
+                false: []
+            }) }
+        }
+    }
+
+    {function @name="json.format-document.member-value-scope-on-next-line" @visibility="private" @returns="boolean" @deterministic=true |
+        {param @name="node" @type="object" @required=true}
+        {body |
+            {$ match(call("json.format-document.scope-opening-new-line", {}), {
+                true: false,
+                false: match($node.kind, {
+                    object: match(length(match(typeOf($node.members), { array: $node.members, default: [] })), { 0: false, default: true }),
+                    array: match(length(match(typeOf($node.items), { array: $node.items, default: [] })), { 0: false, default: true }),
+                    default: false
+                })
+            }) }
         }
     }
 

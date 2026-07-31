@@ -17136,6 +17136,26 @@ mod tests {
                     },
                     {
                         "index": 1,
+                        "name": "site",
+                        "nameLexeme": "\"site\"",
+                        "value": {
+                            "kind": "object",
+                            "members": [
+                                {
+                                    "index": 0,
+                                    "name": "title",
+                                    "nameLexeme": "\"title\"",
+                                    "value": {
+                                        "kind": "string",
+                                        "value": "CEM Demo",
+                                        "lexeme": "\"CEM Demo\""
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    {
+                        "index": 2,
                         "name": "items",
                         "nameLexeme": "\"items\"",
                         "value": {
@@ -17163,21 +17183,21 @@ mod tests {
                 "schema-packages/json/v1/formatters/compact.cemt",
                 "compact",
                 "compact-json-document",
-                "{\"name\":\"Ada\",\"items\":[1,true]}\n",
+                "{\"name\":\"Ada\",\"site\":{\"title\":\"CEM Demo\"},\"items\":[1,true]}\n",
             ),
             (
                 "pretty",
                 "schema-packages/json/v1/formatters/pretty.cemt",
                 "json.pretty",
                 "pretty-json-document",
-                "{   \"name\": \"Ada\"\n,   \"items\": [   1\n    ,   true\n    ]\n}\n",
+                "{   \"name\": \"Ada\"\n,   \"site\": \n    {   \"title\": \"CEM Demo\"\n    }\n,   \"items\": \n    [   1\n    ,   true\n    ]\n}\n",
             ),
             (
                 "tabular",
                 "schema-packages/json/v1/formatters/tabular.cemt",
                 "tabular",
                 "tabular-json-document",
-                "{   \"name\": \"Ada\"\n,   \"items\": [   1\n    ,   true\n]   }\n",
+                "{   \"name\": \"Ada\"\n,   \"site\": \n    {   \"title\": \"CEM Demo\"\n    }\n,   \"items\": \n    [   1\n    ,   true\n]   }\n",
             ),
         ] {
             let target_scope = ScopeConfig {
@@ -17450,6 +17470,36 @@ mod tests {
                                 "value": "object",
                                 "lexeme": "\"object\""
                             }
+                        },
+                        {
+                            "index": 2,
+                            "name": "properties",
+                            "nameLexeme": "\"properties\"",
+                            "value": {
+                                "kind": "object",
+                                "members": [
+                                    {
+                                        "index": 0,
+                                        "name": "title",
+                                        "nameLexeme": "\"title\"",
+                                        "value": {
+                                            "kind": "object",
+                                            "members": [
+                                                {
+                                                    "index": 0,
+                                                    "name": "type",
+                                                    "nameLexeme": "\"type\"",
+                                                    "value": {
+                                                        "kind": "string",
+                                                        "value": "string",
+                                                        "lexeme": "\"string\""
+                                                    }
+                                                }
+                                            ]
+                                        }
+                                    }
+                                ]
+                            }
                         }
                     ]
                 }
@@ -17461,19 +17511,19 @@ mod tests {
                 "compact",
                 "compact",
                 "compact-json-schema-document",
-                "{\"$schema\":\"https://json-schema.org/draft/2020-12/schema\",\"type\":\"object\"}\n",
+                "{\"$schema\":\"https://json-schema.org/draft/2020-12/schema\",\"type\":\"object\",\"properties\":{\"title\":{\"type\":\"string\"}}}\n",
             ),
             (
                 "pretty",
                 "json.pretty",
                 "pretty-json-schema-document",
-                "{   \"$schema\": \"https://json-schema.org/draft/2020-12/schema\"\n,   \"type\": \"object\"\n}\n",
+                "{   \"$schema\": \"https://json-schema.org/draft/2020-12/schema\"\n,   \"type\": \"object\"\n,   \"properties\": \n    {   \"title\": \n        {   \"type\": \"string\"\n        }\n    }\n}\n",
             ),
             (
                 "tabular",
                 "tabular",
                 "tabular-json-schema-document",
-                "{   \"$schema\": \"https://json-schema.org/draft/2020-12/schema\"\n,   \"type\": \"object\"\n}\n",
+                "{   \"$schema\": \"https://json-schema.org/draft/2020-12/schema\"\n,   \"type\": \"object\"\n,   \"properties\": \n    {   \"title\": \n        {   \"type\": \"string\"\n}   }   }\n",
             ),
         ] {
             let target_scope = ScopeConfig {

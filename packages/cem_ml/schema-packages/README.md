@@ -135,6 +135,9 @@ tests:
   `scopeOpeningNewLine=false` when that layout is valid for the target syntax.
   The opening delimiter consumes one display column, so an all-space four-space
   indent renders as three spaces after `{` or `[` before the first value.
+  Non-empty object or array member values should put the nested opening
+  delimiter on the next indentation column so delimiter lines remain vertically
+  aligned with their comma scope.
   `scopeOpeningNewLine=true` and `leadingComma=false` restore the conventional
   newline-after-open and comma-after-item layout;
 - formatter final newline: text output writers append a final newline by

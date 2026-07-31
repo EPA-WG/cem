@@ -33,10 +33,11 @@ CEM-tree output for `terminal`, `html`, and `md` before the generic writer emits
 text or HTML.
 
 Readable formatter profiles inherit JSON-family comma-scope defaults:
-`leadingComma=true` and `scopeOpeningNewLine=false`. Use
-`--cemt-formatter-option leadingComma=false` and
-`--cemt-formatter-option scopeOpeningNewLine=true` to request the conventional
-comma-after-item, newline-after-open layout.
+`leadingComma=true` and `scopeOpeningNewLine=false`, with non-empty nested
+object or array member values opening on the next aligned indentation column.
+Use `--cemt-formatter-option leadingComma=false` and `--cemt-formatter-option
+scopeOpeningNewLine=true` to request the conventional comma-after-item,
+newline-after-open layout.
 
 ## Resource Model
 
