@@ -32,6 +32,12 @@ stage boundaries. The formatter emits formatted CEM-tree output for `compact`,
 CEM-tree output for `terminal`, `html`, and `md` before the generic writer emits
 text or HTML.
 
+Readable formatter profiles inherit JSON-family comma-scope defaults:
+`leadingComma=true` and `scopeOpeningNewLine=false`. Use
+`--cemt-formatter-option leadingComma=false` and
+`--cemt-formatter-option scopeOpeningNewLine=true` to request the conventional
+comma-after-item, newline-after-open layout.
+
 ## Resource Model
 
 The schema describes the JSON Schema document model used by registry loaders and

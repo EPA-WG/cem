@@ -79,7 +79,8 @@ use crate::transform_template::{
     evaluate_transform_template_encode_expressions, parse_cem_native_template_module_options,
     parse_transform_template_output_color_type, transform_template_call_argument_is_dynamic,
     transform_template_encode_html_attribute, transform_template_encode_html_text,
-    transform_template_encode_options_line_ending_data, try_apply_transform_template_let_bindings,
+    transform_template_encode_options_line_ending_data,
+    transform_template_ensure_text_ends_with_newline, try_apply_transform_template_let_bindings,
     TransformTemplateAdapter, TransformTemplateAdapterLookup, TransformTemplateCompileRequest,
     TransformTemplateCompiledArtifact, TransformTemplateDataArtifact,
     TransformTemplateEncodeBinding, TransformTemplateEncodeEvaluationContext,
@@ -5918,6 +5919,7 @@ fn markdown_generated_html_output(
         let prefix = html_pre_container_prefix("cem-output-html", tab_size);
         content = format!("{prefix}{content}</pre>");
     }
+    transform_template_ensure_text_ends_with_newline(&mut content);
     Some(content)
 }
 
@@ -10526,7 +10528,7 @@ mod tests {
         assert!(diagnostics.is_empty(), "{diagnostics:?}");
         assert_eq!(
             output.value,
-            Value::String("Hello &lt;CEM&gt; &amp; friends".to_owned())
+            Value::String("Hello &lt;CEM&gt; &amp; friends\n".to_owned())
         );
         assert_eq!(
             output
@@ -10733,7 +10735,7 @@ mod tests {
         .expect("template renders");
 
         assert!(diagnostics.is_empty(), "{diagnostics:?}");
-        assert_eq!(output.value, Value::String("Hello CEM".to_owned()));
+        assert_eq!(output.value, Value::String("Hello CEM\n".to_owned()));
         assert_eq!(
             output
                 .identity
@@ -10932,7 +10934,7 @@ mod tests {
         assert!(diagnostics.is_empty(), "{diagnostics:?}");
         assert_eq!(
             output.value,
-            Value::String(r#"["Hello",2,true]"#.to_owned())
+            Value::String("[\"Hello\",2,true]\n".to_owned())
         );
         assert_eq!(
             output
@@ -11132,7 +11134,7 @@ mod tests {
         assert!(diagnostics.is_empty(), "{diagnostics:?}");
         assert_eq!(
             output.value,
-            Value::String("[\n    \"Hello\",\n    2,\n    true\n]".to_owned())
+            Value::String("[\n    \"Hello\",\n    2,\n    true\n]\n".to_owned())
         );
     }
 
@@ -11308,7 +11310,7 @@ mod tests {
         assert!(diagnostics.is_empty(), "{diagnostics:?}");
         assert_eq!(
             output.value,
-            Value::String("Hello &lt;CEM&gt; &amp; \"friends\"".to_owned())
+            Value::String("Hello &lt;CEM&gt; &amp; \"friends\"\n".to_owned())
         );
         assert_eq!(
             output
@@ -11409,7 +11411,7 @@ mod tests {
         assert!(diagnostics.is_empty(), "{diagnostics:?}");
         assert_eq!(
             output.value,
-            Value::String("Line 1\r\nLine 2 &lt;CEM&gt; &amp; friends".to_owned())
+            Value::String("Line 1\r\nLine 2 &lt;CEM&gt; &amp; friends\r\n".to_owned())
         );
     }
 

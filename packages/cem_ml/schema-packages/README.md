@@ -130,6 +130,16 @@ tests:
   whitespace string to repeat per depth level; spaces and tabs in this value
   must be preserved rather than trimmed. Packages that emit indented output must
   read the generic option before applying package-specific layout rules;
+- formatter comma scopes: readable formatter profiles for formats whose fields
+  or items are comma-delimited should default to `leadingComma=true` and
+  `scopeOpeningNewLine=false` when that layout is valid for the target syntax.
+  The opening delimiter consumes one display column, so an all-space four-space
+  indent renders as three spaces after `{` or `[` before the first value.
+  `scopeOpeningNewLine=true` and `leadingComma=false` restore the conventional
+  newline-after-open and comma-after-item layout;
+- formatter final newline: text output writers append a final newline by
+  default at the top-level output boundary. Binary output preserves bytes
+  exactly and does not receive a synthetic terminator;
 - formatter tab stops: readable formatter profiles that emit literal tab
   characters default to an eight-column tab-stop assumption. `tabSize` is a
   generic formatter option whose positive integer value must be carried through
@@ -487,8 +497,8 @@ Every package should expose at least these formatter profiles:
 
 - `compact`: the default profile, minimizing optional whitespace while keeping
   deterministic byte output.
-- `pretty`: a readable profile aligned with common Prettier-style defaults for
-  indentation, wrapping, and stable ordering.
+- `pretty`: a readable profile for indentation, wrapping, stable ordering, and
+  comma-scope placement.
 - `tabular`: vertically aligned where useful, wrapping only after the
   `wrapColumn` target is reached and keeping scope closers on the same line
   when they fit.

@@ -16625,8 +16625,12 @@ mod tests {
         );
         let output = execution.output.as_ref().and_then(Value::as_str).unwrap();
         assert!(output.starts_with(&yaml_html_preview_prefix(6)), "{output}");
+        assert!(output.ends_with("</pre>\n"), "{output}");
         assert!(output.contains(r#"data-role="syntax.name""#), "{output}");
-        assert_eq!(html_text_content(output), "name: Ada\n");
+        assert_eq!(
+            html_text_content(output.strip_suffix('\n').unwrap_or(output)),
+            "name: Ada\n"
+        );
         assert!(
             matches!(
                 execution.color_execution,
@@ -16927,7 +16931,7 @@ mod tests {
         );
         assert_eq!(
             execution.output.as_ref().and_then(Value::as_str),
-            Some("{\n    \"name\": \"Ada\",\n    \"active\": true\n}")
+            Some("{   \"name\": \"Ada\"\n,   \"active\": true\n}\n")
         );
         assert!(
             matches!(
@@ -16953,9 +16957,18 @@ mod tests {
         assert_eq!(formatted.value["contentType"], JSON_CONTENT_TYPE);
         assert_eq!(formatted.value["category"], "json-document");
         assert_eq!(formatted.value["formatterProfile"], "tabular");
-        assert_eq!(
-            formatted.value["nodes"][5]["outputSpan"]["origin"],
-            json_test_source_map(1, 6)
+        let expected_name_origin = json_test_source_map(1, 6);
+        let has_formatted_name_span = formatted.value["nodes"]
+            .as_array()
+            .expect("formatted JSON CEM tree nodes")
+            .iter()
+            .any(|node| {
+                node.get("outputSpan").and_then(|span| span.get("origin"))
+                    == Some(&expected_name_origin)
+            });
+        assert!(
+            has_formatted_name_span,
+            "formatted JSON tree should retain member-name source map spans"
         );
         let has_name_span = execution.output_spans.iter().any(|span| {
             let crate::source_map::FrameSpan::Single(origin) = span.origin.frames[0].span else {
@@ -17022,7 +17035,7 @@ mod tests {
         );
         assert_eq!(
             execution.output.as_ref().and_then(Value::as_str),
-            Some(r#"{"name":"Ada","name":"Lin"}"#)
+            Some("{\"name\":\"Ada\",\"name\":\"Lin\"}\n")
         );
     }
 
@@ -17072,8 +17085,12 @@ mod tests {
         );
         let output = execution.output.as_ref().and_then(Value::as_str).unwrap();
         assert!(output.starts_with(&json_html_preview_prefix(6)), "{output}");
+        assert!(output.ends_with("</pre>\n"), "{output}");
         assert!(output.contains(r#"data-role="syntax.name""#), "{output}");
-        assert_eq!(html_text_content(output), r#"{"name":"Ada"}"#);
+        assert_eq!(
+            html_text_content(output.strip_suffix('\n').unwrap_or(output)),
+            r#"{"name":"Ada"}"#
+        );
         assert!(
             matches!(
                 execution.color_execution,
@@ -17146,21 +17163,21 @@ mod tests {
                 "schema-packages/json/v1/formatters/compact.cemt",
                 "compact",
                 "compact-json-document",
-                "{\"name\":\"Ada\",\"items\":[1,true]}",
+                "{\"name\":\"Ada\",\"items\":[1,true]}\n",
             ),
             (
                 "pretty",
                 "schema-packages/json/v1/formatters/pretty.cemt",
                 "json.pretty",
                 "pretty-json-document",
-                "{\n    \"name\": \"Ada\",\n    \"items\": [\n        1,\n        true\n    ]\n}",
+                "{   \"name\": \"Ada\"\n,   \"items\": [   1\n    ,   true\n    ]\n}\n",
             ),
             (
                 "tabular",
                 "schema-packages/json/v1/formatters/tabular.cemt",
                 "tabular",
                 "tabular-json-document",
-                "{\n    \"name\": \"Ada\",\n    \"items\": [\n        1,\n        true\n]   }",
+                "{   \"name\": \"Ada\"\n,   \"items\": [   1\n    ,   true\n]   }\n",
             ),
         ] {
             let target_scope = ScopeConfig {
@@ -17215,6 +17232,95 @@ mod tests {
                 "{profile} formatter asset must be embedded with an executable body"
             );
         }
+    }
+
+    #[test]
+    fn builtin_json_formatter_applies_comma_and_scope_opening_options() {
+        let schema_registry = SchemaRegistry::with_builtin_schemas();
+        let conversion_registry = ConversionRegistry::with_builtin_converters();
+        let environment = ConversionOutputPipelineEnvironment {
+            schema_registry: &schema_registry,
+            conversion_registry: &conversion_registry,
+            package_artifact_reader: None,
+            artifact_cache: None,
+        };
+        let document = serde_json::json!({
+            "kind": "json-document",
+            "lineEnding": "lf",
+            "root": {
+                "kind": "object",
+                "members": [
+                    {
+                        "index": 0,
+                        "name": "name",
+                        "nameLexeme": "\"name\"",
+                        "value": {
+                            "kind": "string",
+                            "value": "Ada",
+                            "lexeme": "\"Ada\""
+                        }
+                    },
+                    {
+                        "index": 1,
+                        "name": "items",
+                        "nameLexeme": "\"items\"",
+                        "value": {
+                            "kind": "array",
+                            "items": [
+                                {
+                                    "kind": "number",
+                                    "lexeme": "1",
+                                    "numberKind": "integer"
+                                },
+                                {
+                                    "kind": "boolean",
+                                    "value": true
+                                }
+                            ]
+                        }
+                    }
+                ]
+            }
+        });
+        let target_scope = ScopeConfig {
+            cemt_formatter_profile: Some("pretty".to_owned()),
+            cemt_formatter_options: BTreeMap::from([
+                ("leadingComma".to_owned(), "false".to_owned()),
+                ("scopeOpeningNewLine".to_owned(), "true".to_owned()),
+            ]),
+            ..ScopeConfig::default()
+        };
+
+        let execution = execute_json_document_output_pipeline_with_environment(
+            &environment,
+            document,
+            &target_scope,
+            Some("builtin:json-layout-options"),
+        );
+
+        assert!(
+            execution.diagnostics.is_empty(),
+            "{:?}",
+            execution.diagnostics
+        );
+        assert_eq!(
+            execution.output.as_ref().and_then(Value::as_str),
+            Some(
+                "{\n    \"name\": \"Ada\",\n    \"items\": [\n        1,\n        true\n    ]\n}\n"
+            )
+        );
+        let formatted = execution
+            .formatted_cem_tree
+            .as_ref()
+            .expect("formatted JSON CEM tree");
+        assert_eq!(
+            formatted.value["formatNodes"][1]["value"]["leadingComma"],
+            false
+        );
+        assert_eq!(
+            formatted.value["formatNodes"][1]["value"]["scopeOpeningNewLine"],
+            true
+        );
     }
 
     #[test]
@@ -17298,7 +17404,7 @@ mod tests {
             } else {
                 assert_eq!(
                     strip_ansi_codes(execution.output.as_ref().and_then(Value::as_str).unwrap()),
-                    r#"{"name":"Ada"}"#
+                    "{\"name\":\"Ada\"}\n"
                 );
             }
         }
@@ -17355,19 +17461,19 @@ mod tests {
                 "compact",
                 "compact",
                 "compact-json-schema-document",
-                "{\"$schema\":\"https://json-schema.org/draft/2020-12/schema\",\"type\":\"object\"}",
+                "{\"$schema\":\"https://json-schema.org/draft/2020-12/schema\",\"type\":\"object\"}\n",
             ),
             (
                 "pretty",
                 "json.pretty",
                 "pretty-json-schema-document",
-                "{\n    \"$schema\": \"https://json-schema.org/draft/2020-12/schema\",\n    \"type\": \"object\"\n}",
+                "{   \"$schema\": \"https://json-schema.org/draft/2020-12/schema\"\n,   \"type\": \"object\"\n}\n",
             ),
             (
                 "tabular",
                 "tabular",
                 "tabular-json-schema-document",
-                "{\n    \"$schema\": \"https://json-schema.org/draft/2020-12/schema\",\n    \"type\": \"object\"\n}",
+                "{   \"$schema\": \"https://json-schema.org/draft/2020-12/schema\"\n,   \"type\": \"object\"\n}\n",
             ),
         ] {
             let target_scope = ScopeConfig {
@@ -17429,6 +17535,90 @@ mod tests {
             )
             .is_some_and(|source| source.source.contains("{body |")),
             "JSON Schema formatter asset must be embedded with an executable body"
+        );
+    }
+
+    #[test]
+    fn builtin_json_schema_formatter_applies_comma_and_scope_opening_options() {
+        let schema_registry = SchemaRegistry::with_builtin_schemas();
+        let conversion_registry = ConversionRegistry::with_builtin_converters();
+        let environment = ConversionOutputPipelineEnvironment {
+            schema_registry: &schema_registry,
+            conversion_registry: &conversion_registry,
+            package_artifact_reader: None,
+            artifact_cache: None,
+        };
+        let document = serde_json::json!({
+            "kind": "json-schema-document",
+            "contentType": JSON_SCHEMA_CONTENT_TYPE,
+            "schema": JSON_SCHEMA_SCHEMA_URI,
+            "dialect": "https://json-schema.org/draft/2020-12/schema",
+            "json": {
+                "kind": "json-document",
+                "lineEnding": "lf",
+                "root": {
+                    "kind": "object",
+                    "members": [
+                        {
+                            "index": 0,
+                            "name": "$schema",
+                            "nameLexeme": "\"$schema\"",
+                            "value": {
+                                "kind": "string",
+                                "value": "https://json-schema.org/draft/2020-12/schema",
+                                "lexeme": "\"https://json-schema.org/draft/2020-12/schema\""
+                            }
+                        },
+                        {
+                            "index": 1,
+                            "name": "type",
+                            "nameLexeme": "\"type\"",
+                            "value": {
+                                "kind": "string",
+                                "value": "object",
+                                "lexeme": "\"object\""
+                            }
+                        }
+                    ]
+                }
+            }
+        });
+        let target_scope = ScopeConfig {
+            cemt_formatter_profile: Some("pretty".to_owned()),
+            cemt_formatter_options: BTreeMap::from([
+                ("leadingComma".to_owned(), "false".to_owned()),
+                ("scopeOpeningNewLine".to_owned(), "true".to_owned()),
+            ]),
+            ..ScopeConfig::default()
+        };
+
+        let execution = execute_json_schema_document_output_pipeline_with_environment(
+            &environment,
+            document,
+            &target_scope,
+            Some("builtin:json-schema-layout-options"),
+        );
+
+        assert!(
+            execution.diagnostics.is_empty(),
+            "{:?}",
+            execution.diagnostics
+        );
+        assert_eq!(
+            execution.output.as_ref().and_then(Value::as_str),
+            Some("{\n    \"$schema\": \"https://json-schema.org/draft/2020-12/schema\",\n    \"type\": \"object\"\n}\n")
+        );
+        let formatted = execution
+            .formatted_cem_tree
+            .as_ref()
+            .expect("formatted JSON Schema CEM tree");
+        assert_eq!(
+            formatted.value["formatNodes"][1]["value"]["leadingComma"],
+            false
+        );
+        assert_eq!(
+            formatted.value["formatNodes"][1]["value"]["scopeOpeningNewLine"],
+            true
         );
     }
 
@@ -17524,11 +17714,15 @@ mod tests {
                     "{output}"
                 );
                 assert!(output.contains(r#"data-role="syntax.name""#), "{output}");
-                assert_eq!(html_text_content(output), r#"{"type":"object"}"#);
+                assert!(output.ends_with("</pre>\n"), "{output}");
+                assert_eq!(
+                    html_text_content(output.strip_suffix('\n').unwrap_or(output)),
+                    r#"{"type":"object"}"#
+                );
             } else {
                 assert_eq!(
                     strip_ansi_codes(execution.output.as_ref().and_then(Value::as_str).unwrap()),
-                    r#"{"type":"object"}"#
+                    "{\"type\":\"object\"}\n"
                 );
             }
         }
@@ -17773,7 +17967,11 @@ mod tests {
                     output.contains(r#"data-role="syntax.punctuation""#),
                     "{output}"
                 );
-                assert_eq!(html_text_content(output), "# Release Notes\n\n");
+                assert!(output.ends_with("</pre>\n"), "{output}");
+                assert_eq!(
+                    html_text_content(output.strip_suffix('\n').unwrap_or(output)),
+                    "# Release Notes\n\n"
+                );
             } else {
                 assert_eq!(
                     strip_ansi_codes(execution.output.as_ref().and_then(Value::as_str).unwrap()),
@@ -18446,8 +18644,23 @@ mod tests {
             html_output.contains(r#"style="color: var(--cem-color-data-field-1, "#),
             "{html_output}"
         );
-        assert_eq!(html_text_content(html_output), terminal_text);
-        assert_eq!(html_text_content(html_color_profile_output), terminal_text);
+        assert!(html_output.ends_with("</pre>\n"), "{html_output}");
+        assert!(
+            html_color_profile_output.ends_with("</pre>\n"),
+            "{html_color_profile_output}"
+        );
+        assert_eq!(
+            html_text_content(html_output.strip_suffix('\n').unwrap_or(html_output)),
+            terminal_text
+        );
+        assert_eq!(
+            html_text_content(
+                html_color_profile_output
+                    .strip_suffix('\n')
+                    .unwrap_or(html_color_profile_output)
+            ),
+            terminal_text
+        );
         assert!(
             html_color_profile_output.contains(r#"style="color: var(--cem-color-data-field-1, "#),
             "{html_color_profile_output}"

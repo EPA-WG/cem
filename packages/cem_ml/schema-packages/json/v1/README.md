@@ -24,6 +24,12 @@ The package declares CEMT formatter and colorizer artifacts in `package.cem`.
 The public formatter profile names are `compact`, `pretty`, and `tabular`.
 The public colorizer profile names are `terminal`, `html`, and `md`.
 
+Readable formatter profiles default to leading commas and no newline after an
+opening object or array delimiter, for example `{   "name": "Ada"\n,   "id":
+1\n}`. Use `--cemt-formatter-option leadingComma=false` and
+`--cemt-formatter-option scopeOpeningNewLine=true` to request the conventional
+comma-after-item, newline-after-open layout.
+
 ## Resource Model
 
 The schema describes JSON values as a lossless resource model:

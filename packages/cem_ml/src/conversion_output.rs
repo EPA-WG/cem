@@ -13,10 +13,10 @@ use crate::source::ByteRange;
 #[cfg(test)]
 use crate::source_map::SourceMapStack;
 use crate::transform_template::{
-    TransformTemplateEncodedArtifact, TransformTemplateModuleVisibility,
-    TransformTemplateOutputFunctionDescriptor, TransformTemplateOutputFunctionImplementation,
-    TransformTemplateOutputFunctionKind, TransformTemplateOutputProducedKind,
-    DEFAULT_FORMATTER_TAB_SIZE,
+    transform_template_ensure_text_ends_with_newline, TransformTemplateEncodedArtifact,
+    TransformTemplateModuleVisibility, TransformTemplateOutputFunctionDescriptor,
+    TransformTemplateOutputFunctionImplementation, TransformTemplateOutputFunctionKind,
+    TransformTemplateOutputProducedKind, DEFAULT_FORMATTER_TAB_SIZE,
 };
 use serde_json::Value;
 
@@ -103,7 +103,9 @@ pub(crate) fn wrap_html_pre_container_artifact(
     for span in &mut artifact.output_spans {
         span.output_range.start = span.output_range.start.saturating_add(prefix_len);
     }
-    artifact.value = Value::String(format!("{prefix}{text}</pre>"));
+    let mut wrapped = format!("{prefix}{text}</pre>");
+    transform_template_ensure_text_ends_with_newline(&mut wrapped);
+    artifact.value = Value::String(wrapped);
 }
 
 #[cfg(test)]
@@ -237,7 +239,7 @@ mod tests {
         assert!(output.starts_with(
             r#"<pre class="cem-output cem-output-json" style="white-space: pre; tab-size: 4">"#
         ));
-        assert!(output.ends_with("</pre>"));
+        assert!(output.ends_with("</pre>\n"));
         assert_eq!(
             artifact.output_spans[0].output_range.start,
             html_pre_container_prefix("cem-output-json", 4).len() as u64

@@ -2749,10 +2749,10 @@ impl TransformTemplateTargetSyntaxRules {
                 requires_valid_utf8: text_like,
                 allows_binary_output: syntax == TransformTemplateTargetSyntaxKind::Binary,
                 final_newline: match syntax {
-                    TransformTemplateTargetSyntaxKind::Csv => {
-                        TransformTemplateFinalNewlinePolicy::Optional
+                    TransformTemplateTargetSyntaxKind::Binary => {
+                        TransformTemplateFinalNewlinePolicy::Preserve
                     }
-                    _ => TransformTemplateFinalNewlinePolicy::Preserve,
+                    _ => TransformTemplateFinalNewlinePolicy::Required,
                 },
             },
             void_elements: if syntax == TransformTemplateTargetSyntaxKind::Html {
@@ -8872,16 +8872,128 @@ pub fn compose_transform_template_encoded_text_artifacts(
         };
     };
 
+    let mut artifact = TransformTemplateEncodedArtifact {
+        identity,
+        value: Value::String(output),
+        source_map,
+        output_spans,
+        encoded: true,
+    };
+    transform_template_apply_output_final_newline_policy(&mut artifact, &text_context);
+
     TransformTemplateEncodedArtifactCompositionResponse {
-        artifact: Some(TransformTemplateEncodedArtifact {
-            identity,
-            value: Value::String(output),
-            source_map,
-            output_spans,
-            encoded: true,
-        }),
+        artifact: Some(artifact),
         diagnostics,
     }
+}
+
+pub(crate) fn transform_template_ensure_text_ends_with_newline(output: &mut String) {
+    if output.is_empty() {
+        return;
+    }
+    if output.ends_with('\n') {
+        return;
+    }
+    if transform_template_move_trailing_ansi_after_final_newline(output) {
+        return;
+    }
+    let newline = if output.contains("\r\n") {
+        "\r\n"
+    } else {
+        "\n"
+    };
+    output.push_str(newline);
+}
+
+fn transform_template_move_trailing_ansi_after_final_newline(output: &mut String) -> bool {
+    let Some(ansi_start) = transform_template_trailing_ansi_suffix_start(output.as_str()) else {
+        return false;
+    };
+    let before_ansi = &output[..ansi_start];
+    let newline = if before_ansi.ends_with("\r\n") {
+        "\r\n"
+    } else if before_ansi.ends_with('\n') {
+        "\n"
+    } else {
+        return false;
+    };
+    let truncate_to = ansi_start.saturating_sub(newline.len());
+    let ansi_suffix = output[ansi_start..].to_owned();
+    output.truncate(truncate_to);
+    output.push_str(&ansi_suffix);
+    output.push_str(newline);
+    true
+}
+
+fn transform_template_trailing_ansi_suffix_start(output: &str) -> Option<usize> {
+    let mut start = output.len();
+    while let Some(escape_start) = output[..start].rfind("\u{1b}[") {
+        if !transform_template_is_ansi_csi_sequence(&output.as_bytes()[escape_start..start]) {
+            break;
+        }
+        start = escape_start;
+    }
+    (start < output.len()).then_some(start)
+}
+
+fn transform_template_is_ansi_csi_sequence(bytes: &[u8]) -> bool {
+    if bytes.len() < 3 || bytes.first() != Some(&0x1b) || bytes.get(1) != Some(&b'[') {
+        return false;
+    }
+    let Some((&final_byte, params)) = bytes[2..].split_last() else {
+        return false;
+    };
+    params.iter().all(|byte| (0x20..=0x3f).contains(byte)) && (0x40..=0x7e).contains(&final_byte)
+}
+
+pub(crate) fn transform_template_apply_output_final_newline_policy(
+    artifact: &mut TransformTemplateEncodedArtifact,
+    context: &TransformTemplateEncodedArtifactInsertionContext,
+) {
+    if context
+        .context
+        .as_deref()
+        .map(str::trim)
+        .is_some_and(|value| !value.is_empty())
+    {
+        return;
+    }
+    let category = context.category.as_deref().unwrap_or_default();
+    let target = TransformTemplateEncodingTarget::new(
+        context.content_type.as_str(),
+        context.schema.as_str(),
+        category,
+    );
+    let Ok(rules) = target.syntax_rules(&TransformTemplateEncodeOptions::default()) else {
+        return;
+    };
+    if rules.syntax != TransformTemplateTargetSyntaxKind::Html
+        && transform_template_output_context_uses_html_preview_wrapper(context)
+    {
+        return;
+    }
+    if rules.writer_boundaries.final_newline != TransformTemplateFinalNewlinePolicy::Required {
+        return;
+    }
+    let Value::String(output) = &mut artifact.value else {
+        return;
+    };
+    transform_template_ensure_text_ends_with_newline(output);
+}
+
+fn transform_template_output_context_uses_html_preview_wrapper(
+    context: &TransformTemplateEncodedArtifactInsertionContext,
+) -> bool {
+    context
+        .color_profile
+        .as_deref()
+        .map(str::trim)
+        .is_some_and(|profile| profile == "html")
+        || context
+            .output_color_type
+            .as_deref()
+            .map(str::trim)
+            .is_some_and(|output_color_type| output_color_type.contains("html"))
 }
 
 fn text_composition_artifact_for_evaluated_encode(
@@ -32569,7 +32681,7 @@ mod tests {
         );
         assert_eq!(
             csv_rules.writer_boundaries.final_newline,
-            TransformTemplateFinalNewlinePolicy::Optional
+            TransformTemplateFinalNewlinePolicy::Required
         );
         assert!(csv_rules.is_valid_identifier("Column A"));
         assert!(!csv_rules.is_valid_identifier("Column\nA"));
@@ -32591,6 +32703,10 @@ mod tests {
         assert!(!binary_rules.writer_boundaries.requires_valid_utf8);
         assert!(binary_rules.writer_boundaries.allows_binary_output);
         assert!(binary_rules.writer_boundaries.default_charset.is_none());
+        assert_eq!(
+            binary_rules.writer_boundaries.final_newline,
+            TransformTemplateFinalNewlinePolicy::Preserve
+        );
 
         let opaque_rules = TransformTemplateEncodingTarget::new(
             "application/x-custom",
@@ -34010,7 +34126,7 @@ mod tests {
         );
         assert_eq!(
             artifact.value,
-            Value::String("{card @tone=info | {span | Ready}}".to_owned())
+            Value::String("{card @tone=info | {span | Ready}}\n".to_owned())
         );
         assert!(artifact.source_map.is_some());
         assert!(artifact.output_spans.len() > 1);
@@ -34368,7 +34484,7 @@ mod tests {
         assert_eq!(
             artifact.value,
             Value::String(
-                "<card tone=\"info\" class=\"cem-color cem-color-syntax-name cem-color-has-attributes\" data-cem-attribute-roles=\"tone:syntax.attribute\" data-role=\"syntax.name\" style=\"color: var(--cem-color-syntax-name, #087990)\"><span class=\"cem-color cem-color-syntax-string\" data-role=\"syntax.string\" style=\"color: var(--cem-color-syntax-string, #067647)\">Ready</span></card>"
+                "<card tone=\"info\" class=\"cem-color cem-color-syntax-name cem-color-has-attributes\" data-cem-attribute-roles=\"tone:syntax.attribute\" data-role=\"syntax.name\" style=\"color: var(--cem-color-syntax-name, #087990)\"><span class=\"cem-color cem-color-syntax-string\" data-role=\"syntax.string\" style=\"color: var(--cem-color-syntax-string, #067647)\">Ready</span></card>\n"
                     .to_owned()
             )
         );

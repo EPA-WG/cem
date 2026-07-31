@@ -28,7 +28,9 @@
                         value: {
                             layout: call("json.format-document.layout", { profile: $profile }),
                             lineEnding: $lineEnding,
-                            indent: $indent
+                            indent: $indent,
+                            leadingComma: call("json.format-document.leading-comma", {}),
+                            scopeOpeningNewLine: call("json.format-document.scope-opening-new-line", {})
                         }
                     }
                 ],
@@ -52,7 +54,9 @@
                             value: {
                                 layout: call("json.format-document.layout", { profile: $profile }),
                                 lineEnding: $lineEnding,
-                                indent: $indent
+                                indent: $indent,
+                                leadingComma: call("json.format-document.leading-comma", {}),
+                                scopeOpeningNewLine: call("json.format-document.scope-opening-new-line", {})
                             }
                         }
                     ],
@@ -198,19 +202,16 @@
                         role: "syntax.punctuation",
                         sourceMap: match(exists($node.sourceMap), { true: $node.sourceMap, false: null }),
                         value: { formatterProfile: $profile }
-                    }),
-                    call("json.format-document.line-ending", { sourceMap: null })
+                    })
                 ],
                 extend(
                     fold(match(typeOf($node.members), { array: $node.members, default: [] }), [], extend(
                         $acc,
                         extend(
-                            match(length($acc), {
-                                0: [],
-                                default: [
-                                    call("json.format-document.comma", { profile: $profile }),
-                                    call("json.format-document.line-ending", { sourceMap: null })
-                                ]
+                            call("json.format-document.item-prefix", {
+                                first: match(length($acc), { 0: true, default: false }),
+                                depth: $depth,
+                                profile: $profile
                             }),
                             call("json.format-document.member-pretty", { member: $item, depth: $depth, profile: $profile })
                         )
@@ -259,7 +260,6 @@
         {body |
             {$ extend(
                 [
-                    call("json.format-document.indent", { depth: add($depth, 1) }),
                     call("json.format-document.member-name", { member: $member, profile: $profile }),
                     call("json.format-document.token", {
                         kind: "json.name-separator",
@@ -366,24 +366,18 @@
                         role: "syntax.punctuation",
                         sourceMap: match(exists($node.sourceMap), { true: $node.sourceMap, false: null }),
                         value: { formatterProfile: $profile }
-                    }),
-                    call("json.format-document.line-ending", { sourceMap: null })
+                    })
                 ],
                 extend(
                     fold(match(typeOf($node.items), { array: $node.items, default: [] }), [], extend(
                         $acc,
                         extend(
-                            match(length($acc), {
-                                0: [],
-                                default: [
-                                    call("json.format-document.comma", { profile: $profile }),
-                                    call("json.format-document.line-ending", { sourceMap: null })
-                                ]
+                            call("json.format-document.item-prefix", {
+                                first: match(length($acc), { 0: true, default: false }),
+                                depth: $depth,
+                                profile: $profile
                             }),
-                            extend(
-                                [call("json.format-document.indent", { depth: add($depth, 1) })],
-                                call("json.format-document.value", { node: $item, depth: add($depth, 1), profile: $profile })
-                            )
+                            call("json.format-document.value", { node: $item, depth: add($depth, 1), profile: $profile })
                         )
                     )),
                     [
@@ -399,6 +393,120 @@
                     ]
                 )
             ) }
+        }
+    }
+
+    {function @name="json.format-document.item-prefix" @visibility="private" @returns="array" @deterministic=true |
+        {param @name="first" @type="boolean" @required=true}
+        {param @name="depth" @type="integer" @required=true}
+        {param @name="profile" @type="string" @required=true}
+        {body |
+            {$ match($first, {
+                true: call("json.format-document.first-item-prefix", { depth: $depth, profile: $profile }),
+                false: call("json.format-document.next-item-prefix", { depth: $depth, profile: $profile })
+            }) }
+        }
+    }
+
+    {function @name="json.format-document.first-item-prefix" @visibility="private" @returns="array" @deterministic=true |
+        {param @name="depth" @type="integer" @required=true}
+        {param @name="profile" @type="string" @required=true}
+        {body |
+            {$ match(call("json.format-document.scope-opening-new-line", {}), {
+                true: [
+                    call("json.format-document.line-ending", { sourceMap: null }),
+                    call("json.format-document.indent", { depth: add($depth, 1) })
+                ],
+                false: call("json.format-document.scope-opening-space", { profile: $profile })
+            }) }
+        }
+    }
+
+    {function @name="json.format-document.next-item-prefix" @visibility="private" @returns="array" @deterministic=true |
+        {param @name="depth" @type="integer" @required=true}
+        {param @name="profile" @type="string" @required=true}
+        {body |
+            {$ match(call("json.format-document.leading-comma", {}), {
+                true: extend(
+                    [
+                        call("json.format-document.line-ending", { sourceMap: null }),
+                        call("json.format-document.indent", { depth: $depth }),
+                        call("json.format-document.comma", { profile: $profile })
+                    ],
+                    call("json.format-document.scope-opening-space", { profile: $profile })
+                ),
+                false: [
+                    call("json.format-document.comma", { profile: $profile }),
+                    call("json.format-document.line-ending", { sourceMap: null }),
+                    call("json.format-document.indent", { depth: add($depth, 1) })
+                ]
+            }) }
+        }
+    }
+
+    {function @name="json.format-document.scope-opening-space" @visibility="private" @returns="array" @deterministic=true |
+        {param @name="profile" @type="string" @required=true}
+        {body |
+            {$ match(call("json.format-document.scope-opening-space-text", {}), {
+                "": [],
+                default: [call("json.format-document.token", {
+                    kind: "json.scope-opening-space",
+                    text: call("json.format-document.scope-opening-space-text", {}),
+                    role: "syntax.raw",
+                    sourceMap: null,
+                    value: { formatterProfile: $profile }
+                })]
+            }) }
+        }
+    }
+
+    {function @name="json.format-document.scope-opening-space-text" @visibility="private" @returns="string" @deterministic=true |
+        {body |
+            {$ match(replace($indent, " ", ""), {
+                "": repeat(" ", max(sub(length($indent), 1), 0)),
+                default: $indent
+            }) }
+        }
+    }
+
+    {function @name="json.format-document.leading-comma" @visibility="private" @returns="boolean" @deterministic=true |
+        {body |
+            {$ match(exists($formatterOptions.leadingComma), {
+                true: call("json.format-document.boolean-option", { value: $formatterOptions.leadingComma, defaultValue: true }),
+                false: true
+            }) }
+        }
+    }
+
+    {function @name="json.format-document.scope-opening-new-line" @visibility="private" @returns="boolean" @deterministic=true |
+        {body |
+            {$ match(exists($formatterOptions.scopeOpeningNewLine), {
+                true: call("json.format-document.boolean-option", { value: $formatterOptions.scopeOpeningNewLine, defaultValue: false }),
+                false: match(exists($formatterOptions.scopeBeginningNewLine), {
+                    true: call("json.format-document.boolean-option", { value: $formatterOptions.scopeBeginningNewLine, defaultValue: false }),
+                    false: false
+                })
+            }) }
+        }
+    }
+
+    {function @name="json.format-document.boolean-option" @visibility="private" @returns="boolean" @deterministic=true |
+        {param @name="value" @type="any" @required=true}
+        {param @name="defaultValue" @type="boolean" @required=true}
+        {body |
+            {$ match($value, {
+                true: true,
+                false: false,
+                "true": true,
+                "false": false,
+                "1": true,
+                "0": false,
+                "yes": true,
+                "no": false,
+                "on": true,
+                "off": false,
+                default: $defaultValue
+            }) }
         }
     }
 
