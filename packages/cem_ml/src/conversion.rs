@@ -2226,6 +2226,7 @@ struct CemTreeCemtOutputStage {
     package_id: String,
     target: TransformTemplateEncodingTarget,
     stage_profile: Option<String>,
+    function_profile: Option<String>,
     template_uri: String,
     template_bytes: Vec<u8>,
     declaration_element: &'static str,
@@ -2444,11 +2445,18 @@ fn cem_tree_cemt_output_stage(
         .as_deref()
         .unwrap_or(spec.function_name)
         .to_owned();
+    let function_profile = artifact
+        .function_profile
+        .as_deref()
+        .map(str::trim)
+        .filter(|profile| !profile.is_empty())
+        .map(str::to_owned);
     Ok(CemTreeCemtOutputStage {
         adapter_id: spec.adapter_id,
         package_id,
         target: target.clone(),
         stage_profile: stage_profile.map(str::to_owned),
+        function_profile,
         template_uri: artifact_source.uri,
         template_bytes: artifact_source.bytes,
         declaration_element: spec.declaration_element,
@@ -2971,20 +2979,23 @@ fn execute_conversion_cem_tree_output_stage_body(
         ))
     };
 
-    if expressions.is_empty() {
-        if binding.function.body_expression.is_none() {
-            return Ok(None);
-        }
+    let context = TransformTemplateEncodeEvaluationContext {
+        registry: &registry,
+        value_bindings: &value_bindings,
+        host_capabilities: &host_capabilities,
+        output_color_type: None,
+        uri: Some(request.compiled.template_uri.as_str()),
+    };
+    if binding
+        .function
+        .body_expression
+        .as_deref()
+        .is_some_and(|expression| cemt_output_expression_starts_with_call(expression, "encode"))
+    {
         let value = execute_transform_template_encode_binding(
             binding,
             &request.primary_input.value,
-            &TransformTemplateEncodeEvaluationContext {
-                registry: &registry,
-                value_bindings: &value_bindings,
-                host_capabilities: &host_capabilities,
-                output_color_type: None,
-                uri: Some(request.compiled.template_uri.as_str()),
-            },
+            &context,
             &mut reject_encode_facade,
         )
         .map_err(|message| {
@@ -2997,17 +3008,28 @@ fn execute_conversion_cem_tree_output_stage_body(
         return Ok(Some(value));
     }
 
-    let response = evaluate_transform_template_encode_expressions(
-        &expressions,
-        TransformTemplateEncodeEvaluationContext {
-            registry: &registry,
-            value_bindings: &value_bindings,
-            host_capabilities: &host_capabilities,
-            output_color_type: None,
-            uri: Some(request.compiled.template_uri.as_str()),
-        },
-        reject_encode_facade,
-    );
+    if expressions.is_empty() {
+        if binding.function.body_expression.is_none() {
+            return Ok(None);
+        }
+        let value = execute_transform_template_encode_binding(
+            binding,
+            &request.primary_input.value,
+            &context,
+            &mut reject_encode_facade,
+        )
+        .map_err(|message| {
+            TransformTemplateAdapterError::failed(
+                stage.adapter_id,
+                TransformTemplateAdapterExecutionPhase::Render,
+                message,
+            )
+        })?;
+        return Ok(Some(value));
+    }
+
+    let response =
+        evaluate_transform_template_encode_expressions(&expressions, context, reject_encode_facade);
     if !response.diagnostics.is_empty() {
         let message = response
             .diagnostics
@@ -3110,19 +3132,13 @@ fn execute_conversion_cem_tree_output_stage(
     let loaded_helpers =
         load_cem_tree_cemt_output_stage_helpers(environment, &stage, &mut module_options)?;
     let mut execution_binding = binding.clone();
-    let parsed_stage_function = module_options
-        .output_functions
-        .iter()
-        .find(|function| {
-            function.kind == stage.function_kind
-                && function.name.as_str() == stage.function_name.as_str()
-                && function.profile == execution_binding.function.profile
-        })
-        .cloned();
+    let parsed_stage_function = conversion_cem_tree_output_stage_function(
+        &module_options,
+        &stage,
+        &execution_binding.function,
+    );
     if let Some(parsed_function) = parsed_stage_function {
-        if parsed_function.body_declared {
-            execution_binding.function = parsed_function;
-        }
+        execution_binding.function = parsed_function;
     }
     validate_cem_tree_cemt_output_stage_helper_resolution(
         &stage,
@@ -3207,6 +3223,65 @@ fn execute_conversion_cem_tree_output_stage(
             body_function_name,
         },
     ))
+}
+
+fn conversion_cem_tree_output_stage_function(
+    module_options: &TransformTemplateModuleOptions,
+    stage: &CemTreeCemtOutputStage,
+    binding_function: &TransformTemplateOutputFunctionDescriptor,
+) -> Option<TransformTemplateOutputFunctionDescriptor> {
+    let candidates = module_options
+        .output_functions
+        .iter()
+        .filter(|function| {
+            function.kind == stage.function_kind
+                && function.name.as_str() == stage.function_name.as_str()
+                && function.body_declared
+        })
+        .collect::<Vec<_>>();
+    let mut selected = candidates
+        .iter()
+        .copied()
+        .find(|function| function.profile == binding_function.profile)
+        .or_else(|| {
+            stage.function_profile.as_deref().and_then(|profile| {
+                candidates
+                    .iter()
+                    .copied()
+                    .find(|function| function.profile.as_deref() == Some(profile))
+            })
+        })
+        .or_else(|| {
+            candidates
+                .iter()
+                .copied()
+                .find(|function| function.profile.is_none())
+        })
+        .or_else(|| match candidates.as_slice() {
+            [function] => Some(*function),
+            _ => None,
+        })?
+        .clone();
+    if selected.profile.is_none() {
+        selected.profile = binding_function.profile.clone();
+    }
+    Some(selected)
+}
+
+fn cemt_output_expression_starts_with_call(expression: &str, name: &str) -> bool {
+    let expression = expression.trim_start();
+    let Some(rest) = expression.strip_prefix(name) else {
+        return false;
+    };
+    if expression.len() > name.len()
+        && expression[name.len()..]
+            .chars()
+            .next()
+            .is_some_and(|ch| ch.is_ascii_alphanumeric() || matches!(ch, '_' | '-' | '.'))
+    {
+        return false;
+    }
+    rest.trim_start().starts_with('(')
 }
 
 pub fn execute_conversion_output_pipeline(
@@ -15500,6 +15575,7 @@ mod tests {
                 "cem-tree",
             ),
             stage_profile: Some("compact".to_owned()),
+            function_profile: None,
             template_uri: "builtin:cem.format-tree.direct.cemt".to_owned(),
             template_bytes: r#"@doc cem-ml 1
 @ns transform = "https://cem.dev/ns/transform/cem/1"
@@ -15629,6 +15705,7 @@ mod tests {
                 "cem-tree",
             ),
             stage_profile: Some("compact".to_owned()),
+            function_profile: None,
             template_uri: "builtin:cem.format-tree.no-body.cemt".to_owned(),
             template_bytes: r#"@doc cem-ml 1
 @ns transform = "https://cem.dev/ns/transform/cem/1"
@@ -15700,6 +15777,7 @@ mod tests {
                 "cem-tree",
             ),
             stage_profile: Some("compact".to_owned()),
+            function_profile: None,
             template_uri: "builtin:cem.format-tree.encode-facade.cemt".to_owned(),
             template_bytes: r#"@doc cem-ml 1
 @ns transform = "https://cem.dev/ns/transform/cem/1"
@@ -15776,6 +15854,7 @@ mod tests {
                 "cem-tree",
             ),
             stage_profile: Some("acme.format-tree".to_owned()),
+            function_profile: None,
             template_uri: "builtin:acme.format-tree.no-extends.cemt".to_owned(),
             template_bytes: r#"@doc cem-ml 1
 @ns transform = "https://cem.dev/ns/transform/cem/1"
@@ -18933,6 +19012,7 @@ mod tests {
                 "cem-tree",
             ),
             stage_profile: Some("classes".to_owned()),
+            function_profile: None,
             template_uri: "builtin:cem.color-tree.direct.cemt".to_owned(),
             template_bytes: r#"@doc cem-ml 1
 @ns transform = "https://cem.dev/ns/transform/cem/1"
