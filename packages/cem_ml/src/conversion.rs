@@ -33,8 +33,8 @@ use crate::schema::registry::{
     CEM_TRANSFORM_CONTENT_TYPE, CEM_TRANSFORM_SCHEMA_URI, CSV_CONTENT_TYPE, CSV_SCHEMA_URI,
     HTML_CONTENT_TYPE, HTML_SCHEMA_URI, JSON_CONTENT_TYPE, JSON_SCHEMA_CONTENT_TYPE,
     JSON_SCHEMA_SCHEMA_URI, JSON_VALUE_SCHEMA_URI, MARKDOWN_CONTENT_TYPE, MARKDOWN_SCHEMA_URI,
-    RELAX_NG_SCHEMA_URI, XHTML_CONTENT_TYPE, XHTML_SCHEMA_URI, XML_CONTENT_TYPE, XML_SCHEMA_URI,
-    YAML_CONTENT_TYPE, YAML_SCHEMA_URI,
+    RELAX_NG_SCHEMA_URI, SVG_CONTENT_TYPE, SVG_SCHEMA_URI, XHTML_CONTENT_TYPE, XHTML_SCHEMA_URI,
+    XML_CONTENT_TYPE, XML_SCHEMA_URI, YAML_CONTENT_TYPE, YAML_SCHEMA_URI,
 };
 use crate::source::{BytesSource, SourceId};
 use crate::source_map::SourceMapStack;
@@ -75,6 +75,7 @@ use crate::validation::json::{generic_data_ast_to_json_cemt_subject, JsonDocumen
 use crate::validation::json_schema::JsonSchemaDocumentAst;
 use crate::validation::markdown::MarkdownDocumentAst;
 use crate::validation::relax_ng::{RelaxNgDocumentAst, RelaxNgSyntaxKind};
+use crate::validation::svg::SvgDocumentAst;
 use crate::validation::xhtml::XhtmlDocumentAst;
 use crate::validation::xml::XmlDocumentAst;
 use crate::validation::yaml::{generic_data_ast_to_yaml_cemt_subject, YamlDocumentAst};
@@ -2391,6 +2392,24 @@ const XHTML_COLOR_CEMT_STAGE_SPEC: CemTreeCemtOutputStageSpec = CemTreeCemtOutpu
     declaration_element: "{color-function",
     function_kind: TransformTemplateOutputFunctionKind::Color,
     function_name: "xhtml.color-document",
+    role: "colorizer",
+};
+
+const SVG_FORMAT_CEMT_STAGE_SPEC: CemTreeCemtOutputStageSpec = CemTreeCemtOutputStageSpec {
+    adapter_id: "svg-format-cemt",
+    artifact_kind: CEM_TREE_FORMATTER_ARTIFACT_KIND,
+    declaration_element: "{format-function",
+    function_kind: TransformTemplateOutputFunctionKind::Format,
+    function_name: "svg.format-document",
+    role: "formatter",
+};
+
+const SVG_COLOR_CEMT_STAGE_SPEC: CemTreeCemtOutputStageSpec = CemTreeCemtOutputStageSpec {
+    adapter_id: "svg-color-cemt",
+    artifact_kind: CEM_TREE_COLORIZER_ARTIFACT_KIND,
+    declaration_element: "{color-function",
+    function_kind: TransformTemplateOutputFunctionKind::Color,
+    function_name: "svg.color-document",
     role: "colorizer",
 };
 
@@ -6712,6 +6731,16 @@ impl XmlDocumentOutputSubject for XhtmlDocumentAst {
     }
 }
 
+impl XmlDocumentOutputSubject for SvgDocumentAst {
+    fn source_line_ending(&self) -> Option<&str> {
+        self.line_ending.as_deref()
+    }
+
+    fn into_cemt_subject(self) -> Value {
+        self.to_cemt_subject()
+    }
+}
+
 #[cfg(test)]
 impl XmlDocumentOutputSubject for Value {
     fn source_line_ending(&self) -> Option<&str> {
@@ -6750,6 +6779,21 @@ pub fn execute_xhtml_document_output_pipeline_with_environment(
         target_scope,
         diagnostic_uri,
         XmlFamilyOutputSpec::xhtml(),
+    )
+}
+
+pub fn execute_svg_document_output_pipeline_with_environment(
+    environment: &ConversionOutputPipelineEnvironment<'_>,
+    document: SvgDocumentAst,
+    target_scope: &ScopeConfig,
+    diagnostic_uri: Option<&str>,
+) -> ConversionOutputPipelineExecution {
+    execute_xml_family_document_output_pipeline_with_environment(
+        environment,
+        document,
+        target_scope,
+        diagnostic_uri,
+        XmlFamilyOutputSpec::svg(),
     )
 }
 
@@ -6795,6 +6839,21 @@ impl XmlFamilyOutputSpec {
             formatter_option_prefix: "xhtml.",
             converter_id: "xhtml-direct-output",
             diagnostic_node: "xhtml",
+        }
+    }
+
+    const fn svg() -> Self {
+        Self {
+            label: "SVG",
+            formatter: SVG_FORMAT_CEMT_STAGE_SPEC,
+            colorizer: SVG_COLOR_CEMT_STAGE_SPEC,
+            content_type: SVG_CONTENT_TYPE,
+            schema: SVG_SCHEMA_URI,
+            category: "svg-document",
+            subject_kind: "svg-document",
+            formatter_option_prefix: "svg.",
+            converter_id: "svg-direct-output",
+            diagnostic_node: "svg",
         }
     }
 }
@@ -11264,6 +11323,7 @@ fn builtin_converter_package_schema_uris() -> &'static [&'static str] {
         MARKDOWN_SCHEMA_URI,
         RELAX_NG_SCHEMA_URI,
         XHTML_SCHEMA_URI,
+        SVG_SCHEMA_URI,
     ]
 }
 
@@ -18895,6 +18955,159 @@ mod tests {
             assert_eq!(colored.value["contentType"], XHTML_CONTENT_TYPE);
             assert_eq!(colored.value["schema"], XHTML_SCHEMA_URI);
             assert_eq!(colored.value["category"], "xhtml-document");
+            assert_eq!(colored.value["colorProfile"], profile);
+            assert_eq!(colored.value["nodes"][2]["style"][style_key], style_value);
+        }
+    }
+
+    #[test]
+    fn builtin_svg_lifecycle_output_pipeline_executes_package_cemt_assets() {
+        let schema_registry = SchemaRegistry::with_builtin_schemas();
+        let conversion_registry = ConversionRegistry::with_builtin_converters();
+        let environment = ConversionOutputPipelineEnvironment {
+            schema_registry: &schema_registry,
+            conversion_registry: &conversion_registry,
+            package_artifact_reader: None,
+            artifact_cache: None,
+        };
+        let source = br##"<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 24 24"><title>Typed SVG</title><defs><path id="mark"/></defs><use xlink:href="#mark"/></svg>
+"##;
+        let (document, diagnostics) = crate::validation::svg::svg_document_ast_from_source_bytes(
+            crate::validation::svg::SvgSourceValidationRequest {
+                bytes: source,
+                source_uri: "builtin:svg-output",
+                content_type: Some(SVG_CONTENT_TYPE),
+            },
+        );
+        assert!(diagnostics.is_empty(), "{diagnostics:?}");
+
+        for (profile, artifact_profile) in [
+            ("compact", "compact"),
+            ("pretty", "xml.pretty"),
+            ("tabular", "tabular"),
+        ] {
+            let target_scope = ScopeConfig {
+                cemt_formatter_profile: Some(profile.to_owned()),
+                ..ScopeConfig::default()
+            };
+            let execution = execute_svg_document_output_pipeline_with_environment(
+                &environment,
+                document.clone().expect("SVG document"),
+                &target_scope,
+                Some("builtin:svg-output"),
+            );
+
+            assert!(
+                execution.diagnostics.is_empty(),
+                "{profile}: {:?}",
+                execution.diagnostics
+            );
+            assert!(
+                matches!(
+                    execution.format_execution,
+                    Some(ConversionOutputPipelineStageExecution::CemtAdapter {
+                        ref adapter_id,
+                        ref function_name,
+                        ref body_function_name,
+                        ..
+                    }) if adapter_id == "svg-format-cemt"
+                        && function_name == "svg.format-document"
+                        && body_function_name.as_deref() == Some("svg.format-document")
+                ),
+                "{profile}: {:?}",
+                execution.format_execution
+            );
+            assert_eq!(
+                execution.output.as_ref().and_then(Value::as_str),
+                Some(std::str::from_utf8(source).unwrap()),
+                "{profile}"
+            );
+            let formatted = execution
+                .formatted_cem_tree
+                .as_ref()
+                .unwrap_or_else(|| panic!("{profile} formatted tree"));
+            assert_eq!(formatted.value["contentType"], SVG_CONTENT_TYPE);
+            assert_eq!(formatted.value["schema"], SVG_SCHEMA_URI);
+            assert_eq!(formatted.value["category"], "svg-document");
+            assert_eq!(formatted.value["formatterProfile"], artifact_profile);
+            assert_eq!(
+                formatted.value["formatNodes"][1]["value"]["layout"],
+                format!("lexical-lossless-{profile}")
+            );
+            assert!(formatted.value["nodes"]
+                .as_array()
+                .is_some_and(|nodes| nodes.iter().any(|node| {
+                    node["kind"] == "svg.empty-element"
+                        && node["value"]["qualifiedName"] == "use"
+                        && node["sourceMap"] != Value::Null
+                })));
+        }
+    }
+
+    #[test]
+    fn builtin_svg_colorizer_profiles_execute_package_cemt_assets() {
+        let schema_registry = SchemaRegistry::with_builtin_schemas();
+        let conversion_registry = ConversionRegistry::with_builtin_converters();
+        let environment = ConversionOutputPipelineEnvironment {
+            schema_registry: &schema_registry,
+            conversion_registry: &conversion_registry,
+            package_artifact_reader: None,
+            artifact_cache: None,
+        };
+        let source =
+            b"<svg xmlns=\"http://www.w3.org/2000/svg\"><title>Color</title><path/></svg>\n";
+        let (document, diagnostics) = crate::validation::svg::svg_document_ast_from_source_bytes(
+            crate::validation::svg::SvgSourceValidationRequest {
+                bytes: source,
+                source_uri: "builtin:svg-color-output",
+                content_type: Some(SVG_CONTENT_TYPE),
+            },
+        );
+        assert!(diagnostics.is_empty(), "{diagnostics:?}");
+
+        for (profile, style_key, style_value) in [
+            ("terminal", "terminalCapability", "auto"),
+            ("html", "htmlMode", "classes"),
+            ("md", "wrapper", "span"),
+        ] {
+            let target_scope = ScopeConfig {
+                cemt_color_profile: Some(profile.to_owned()),
+                ..ScopeConfig::default()
+            };
+            let execution = execute_svg_document_output_pipeline_with_environment(
+                &environment,
+                document.clone().expect("SVG document"),
+                &target_scope,
+                Some("builtin:svg-color-output"),
+            );
+            assert!(
+                execution.diagnostics.is_empty(),
+                "{profile}: {:?}",
+                execution.diagnostics
+            );
+            assert!(
+                matches!(
+                    execution.color_execution,
+                    Some(ConversionOutputPipelineStageExecution::CemtAdapter {
+                        ref adapter_id,
+                        ref function_name,
+                        ref body_function_name,
+                        ..
+                    }) if adapter_id == "cem-tree-color-cemt"
+                        && function_name == "svg.color-document"
+                        && body_function_name.as_deref() == Some("svg.color-document")
+                ),
+                "{profile}: {:?}",
+                execution.color_execution
+            );
+            let colored = execution
+                .colored_cem_tree
+                .as_ref()
+                .unwrap_or_else(|| panic!("{profile} colored tree"));
+            assert_eq!(colored.value["contentType"], SVG_CONTENT_TYPE);
+            assert_eq!(colored.value["schema"], SVG_SCHEMA_URI);
+            assert_eq!(colored.value["category"], "svg-document");
             assert_eq!(colored.value["colorProfile"], profile);
             assert_eq!(colored.value["nodes"][2]["style"][style_key], style_value);
         }

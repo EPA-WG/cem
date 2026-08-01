@@ -480,6 +480,37 @@ function previewPlanForExample(example, manifest) {
         };
     }
 
+    if (isSvgTextExample(example, manifest, essence)) {
+        if (example.expectedResult !== 'pass') {
+            return {
+                label: 'svg validate',
+                renderer: 'json',
+                expectedStatus: 'success',
+                width: 1040,
+                minHeight: 520,
+                args: validatePreviewArgs(inputPath, {
+                    format: 'json',
+                    failLevel: 'parse',
+                    contentType: example.contentType,
+                    schema: example.schema,
+                }),
+            };
+        }
+        return {
+            label: 'svg',
+            renderer: 'html',
+            expectedStatus: 'success',
+            width: 980,
+            minHeight: 190,
+            args: convertPreviewArgs(inputSpec, {
+                toContentType: example.contentType,
+                toSchema: example.schema,
+                colorProfile: 'html',
+                outputColorType: null,
+            }),
+        };
+    }
+
     if (isXmlFamilyExample(essence)) {
         return {
             label: 'xml',
@@ -601,6 +632,10 @@ function isGenericXmlTextExample(_example, manifest, essence) {
 
 function isXhtmlTextExample(_example, manifest, essence) {
     return manifest.packageId === 'xhtml' && essence === 'application/xhtml+xml';
+}
+
+function isSvgTextExample(_example, manifest, essence) {
+    return manifest.packageId === 'svg' && essence === 'image/svg+xml';
 }
 
 function isMarkdownPackageManifest(manifest) {

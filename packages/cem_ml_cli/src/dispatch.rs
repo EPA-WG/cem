@@ -8135,13 +8135,7 @@ mod tests {
         r#"<p class="cem-color cem-color-syntax-name" data-role="syntax.name">"#,
         r#"<span class="cem-color cem-color-syntax-string" data-role="syntax.string">Hi</span></p>"#
     );
-    const COLORED_SVG_HI_HTML: &str = concat!(
-        r#"<svg class="cem-color cem-color-syntax-name" data-role="syntax.name">"#,
-        r#"<title class="cem-color cem-color-syntax-name" data-role="syntax.name">"#,
-        r#"<span class="cem-color cem-color-syntax-string" data-role="syntax.string">Hi</span></title>"#,
-        "</svg>"
-    );
-    const FORMATTED_SVG_HI_XML: &str = "<svg><title>Hi</title></svg>";
+    const FORMATTED_SVG_HI_XML: &str = "<svg><title>Hi</title></svg>\n";
     const FORMATTED_P_HI_XML: &str = "<p>Hi</p>\n";
 
     fn yaml_documents_to_json_value(documents: Vec<yaml_rust2::Yaml>) -> serde_json::Value {
@@ -12952,6 +12946,38 @@ This document has **strong** text and a link.
     }
 
     #[test]
+    fn convert_svg_same_schema_uses_dedicated_lifecycle_output_pipeline() {
+        let source = r#"<?xml version="1.0"?><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><title>Download</title><path d="M12 3v18"/></svg>"#;
+        let p = write_fixture("convert-svg-same-schema.svg", source);
+        let input_spec = format!(
+            "uri={},contentType=image/svg+xml,schema={}",
+            p.display(),
+            cem_ml::schema::registry::SVG_SCHEMA_URI
+        );
+
+        let (outcome, stdout, stderr) = run(
+            &RealCemMlEngine::new(),
+            &[
+                "convert",
+                "--input-spec",
+                &input_spec,
+                "--to-content-type",
+                "image/svg+xml",
+                "--to-schema",
+                cem_ml::schema::registry::SVG_SCHEMA_URI,
+                "--cemt-formatter-profile",
+                "tabular",
+            ],
+        );
+
+        assert_eq!(outcome.exit_code, EXIT_OK, "{stderr}");
+        assert!(stderr.trim().is_empty(), "{stderr}");
+        assert_eq!(stdout, format!("{source}\n"));
+        assert!(!stdout.contains("cem.schema."));
+        assert!(!stdout.contains("cem.lifecycle."));
+    }
+
+    #[test]
     fn convert_relax_ng_xml_same_schema_uses_typed_lifecycle_output_pipeline() {
         let source = r#"<grammar xmlns="http://relaxng.org/ns/structure/1.0"><start><element name="note"><text/></element></start></grammar>"#;
         let p = write_fixture("convert-relax-ng-same-schema.rng", source);
@@ -16193,8 +16219,11 @@ start =
     }
 
     #[test]
-    fn validate_svg_schema_selects_html_input_adapter() {
-        let p = write_fixture("validate-svg-schema.data", "<svg><title>Hi</title></svg>");
+    fn validate_svg_namespace_schema_selects_dedicated_svg_input_adapter() {
+        let p = write_fixture(
+            "validate-svg-schema.data",
+            r#"<svg xmlns="http://www.w3.org/2000/svg"><title>Hi</title></svg>"#,
+        );
         let (outcome, stdout, stderr) = run(
             &RealCemMlEngine::new(),
             &[
@@ -17309,7 +17338,7 @@ start =
     }
 
     #[test]
-    fn validate_positional_svg_uses_inferred_xml_input_adapter() {
+    fn validate_positional_svg_uses_inferred_dedicated_input_adapter() {
         let p = write_fixture(
             "validate-positional-svg.svg",
             r#"<svg xmlns="http://www.w3.org/2000/svg"><title>Download</title></svg>"#,
@@ -22083,7 +22112,7 @@ declare let broken = 1 +
     }
 
     #[test]
-    fn convert_to_content_type_svg_selects_xml_export_adapter() {
+    fn convert_to_content_type_svg_selects_dedicated_svg_export_adapter() {
         let p = write_fixture("convert-target-svg.cem", "{svg | {title | Hi}}");
         let (outcome, stdout, stderr) = run(
             &RealCemMlEngine::new(),
@@ -22155,7 +22184,7 @@ declare let broken = 1 +
     }
 
     #[test]
-    fn convert_to_svg_schema_selects_html_export_adapter() {
+    fn convert_to_svg_namespace_schema_selects_dedicated_svg_export_adapter() {
         let p = write_fixture("convert-target-svg-schema.cem", "{svg | {title | Hi}}");
         let (outcome, stdout, stderr) = run(
             &RealCemMlEngine::new(),
@@ -22174,7 +22203,7 @@ declare let broken = 1 +
             !stderr.contains("cem.lifecycle.target_adapter_unsupported"),
             "{stderr}"
         );
-        assert_eq!(stdout, COLORED_SVG_HI_HTML);
+        assert_eq!(stdout, FORMATTED_SVG_HI_XML);
     }
 
     #[test]

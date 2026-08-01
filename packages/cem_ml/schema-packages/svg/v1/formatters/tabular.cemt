@@ -1,0 +1,21 @@
+@doc cem-ml 1
+@ns transform = "https://cem.dev/ns/transform/cem/1"
+@default transform
+
+{module @version="1.0.0" |
+    {format-function
+        @name="svg.format-document"
+        @visibility="public"
+        @category="svg-document"
+        @subject="svg-document"
+        @produces="cem-tree"
+        @content-type="image/svg+xml"
+        @schema="https://cem.dev/ns/data/svg/1"
+        @profile="tabular"
+        @canonical=false
+        @deterministic=true
+        @streamable=true |
+        {param @name="subject" @type="object" @required=true}
+        {body | {$ merge(call("svg.format-document.tree", { subject: $subject, profile: "tabular" }), {}) } }
+    }
+}

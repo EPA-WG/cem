@@ -655,7 +655,21 @@ Remaining dependency-ordered package checklist:
         preserve lexical XHTML and the default final newline.
   - [x] Expand manifest/index embedding, lifecycle, engine/CLI, profile,
         schema-owned example, README/SVG preview, safety, and release gates.
-- [ ] `svg/v1`
+- [x] `svg/v1`
+  - [x] Add a dedicated typed `SvgDocumentAst` lifecycle stream that preserves
+        SVG identity, XML lexical events, qualified names and XLink attributes,
+        foreign-content boundaries, MIME parameters, ranges, and source maps.
+  - [x] Route standalone SVG content type, package schema, and namespace
+        identities through the dedicated SVG adapter without HTML, generic XML,
+        or CEM fallthrough while retaining embedded HTML/XHTML SVG handling.
+  - [x] Bind XML safety, root/namespace, `viewBox`, accessibility, URI/resource,
+        script/event-handler, foreign-content, and source-map facts to
+        diagnostics declared in `schema/svg.cem`.
+  - [x] Replace placeholder formatter/colorizer artifacts with executable
+        compact/pretty/tabular and terminal/HTML/Markdown CEMT profiles that
+        preserve lexical SVG and the default final newline.
+  - [x] Expand manifest/index embedding, lifecycle, engine/CLI, profile,
+        schema-owned example, README/SVG preview, safety, and release gates.
 - [ ] `mathml/v1`
 - [ ] `xslt/v1`
 - [ ] `html/v1`
@@ -691,35 +705,40 @@ Remaining dependency-ordered package checklist:
 
 ### Next Work Item
 
-Align `svg/v1` with the common schema-package acceptance criteria. Start with a
-dedicated typed `SvgDocumentAst` lifecycle stream that reuses the generic XML
-event model while retaining `image/svg+xml`, the SVG package schema and
-namespace, MIME parameters, XML declaration and doctype, qualified names and
-XLink attributes, foreign-content boundaries, source ranges, and source maps.
-Replace generic XML passthrough for standalone SVG documents with an SVG adapter
-and prove that loading, validation, and same-schema output cannot fall through
-to the HTML, generic XML, or CEM adapters. Keep embedded `<svg>` handling inside
-HTML/XHTML documents separate from the standalone SVG document lifecycle.
+Align `mathml/v1` with the common schema-package acceptance criteria. Start with
+a dedicated typed `MathMlDocumentAst` lifecycle stream over the generic XML
+event model. Retain the primary `application/mathml+xml` identity, presentation
+and content media-type aliases, package schema and MathML namespace, MIME
+parameters, XML declaration and doctype, qualified names, annotation and
+foreign-content boundaries, source ranges, source maps, and selected
+presentation/content profile. Replace generic XML passthrough for standalone
+MathML with a MathML adapter and prove that content type, package schema, and
+standalone namespace loading, validation, and same-schema output cannot fall
+through to HTML, generic XML, or CEM. Keep MathML embedded in HTML/XHTML as part
+of the containing document lifecycle.
 
-Move direct SVG validation behind the typed adapter. Emit neutral XML parse,
-encoding, root/namespace, `viewBox`, title/accessibility, external-resource,
-script/reference, foreign-content, and source-map facts, then bind them to
-diagnostics declared in `schema/svg.cem`. Document the XML doctype/entity rules
-inherited from `xml/v1` and define explicit URI, script, and external-resource
-safety policy owned by SVG. Preserve XML serialization and SVG attribute case;
-do not apply HTML parsing or serialization behavior.
+Move direct MathML validation behind the typed adapter. Emit neutral XML parse,
+encoding, root/namespace, media-profile, presentation/content expression,
+`semantics`/annotation, accessibility text, external annotation, foreign
+content, DTD/entity, and source-map facts. Bind reportable facts to diagnostics
+declared by `schema/mathml.cem`, replacing its legacy `name`/`applies-to`/`rule`
+constraints with executable `kind`/`target`/`behavior`/`fact-kind` contracts.
+Define explicit external annotation and URI resolver safety while preserving
+the reject-only XML doctype/entity policy. Preserve XML serialization and
+MathML element/attribute case without HTML parser recovery.
 
-Replace placeholder formatter/colorizer artifacts with package-owned SVG
-document and CEM-tree contracts for compact, pretty, tabular, terminal, HTML,
-and Markdown profiles. Preserve lexical XML content and the default final
-newline until an SVG-aware whitespace/reflow policy exists. Route passing README
-examples through those assets, render expected failures from schema-owned
-diagnostics, and remove source-snapshot fallback. Finish with package
-manifest/index embedding, lifecycle and same-schema engine/CLI tests, profile
-execution, namespace/XLink/resource/entity policy tests, README safety and
-release documentation, schema-owned examples, preview drift checks, and an
-expanded `cem_ml_schema_package_svg_v1:verify` target. Continue with
-`mathml/v1` only after that standalone SVG contract is green.
+Replace the shared placeholder formatter/colorizer files with package-owned
+compact, pretty, tabular, terminal, HTML, and Markdown CEMT wrappers plus
+MathML document/CEM-tree helpers. Preserve lexical XML content, profile media
+type, and the default final newline until mixed presentation/content whitespace
+semantics are defined. Route passing README examples through those assets,
+render expected failures from schema-owned diagnostics, and remove source
+snapshot fallback. Finish with manifest/index embedding, lifecycle and
+same-schema engine/CLI tests for all three media types, profile execution,
+namespace/expression/annotation/entity policy tests, release and safety docs,
+schema-owned examples, preview drift checks, and an expanded
+`cem_ml_schema_package_mathml_v1:verify` target. Continue with `xslt/v1` only
+after the standalone MathML contract is green.
 
 ## Current Verification Commands
 

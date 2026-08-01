@@ -451,8 +451,38 @@ static BUILTIN_SCHEMA_PACKAGE_ARTIFACT_SOURCES: &[BuiltinSchemaPackageArtifactSo
     },
     BuiltinSchemaPackageArtifactSource {
         package_id: "svg",
+        path: "schema-packages/svg/v1/formatters/compact.cemt",
+        source: include_str!("../../schema-packages/svg/v1/formatters/compact.cemt"),
+    },
+    BuiltinSchemaPackageArtifactSource {
+        package_id: "svg",
+        path: "schema-packages/svg/v1/formatters/pretty.cemt",
+        source: include_str!("../../schema-packages/svg/v1/formatters/pretty.cemt"),
+    },
+    BuiltinSchemaPackageArtifactSource {
+        package_id: "svg",
+        path: "schema-packages/svg/v1/formatters/tabular.cemt",
+        source: include_str!("../../schema-packages/svg/v1/formatters/tabular.cemt"),
+    },
+    BuiltinSchemaPackageArtifactSource {
+        package_id: "svg",
         path: "schema-packages/svg/v1/formatters/svg-format-document.cemt",
         source: include_str!("../../schema-packages/svg/v1/formatters/svg-format-document.cemt"),
+    },
+    BuiltinSchemaPackageArtifactSource {
+        package_id: "svg",
+        path: "schema-packages/svg/v1/colorizers/terminal.cemt",
+        source: include_str!("../../schema-packages/svg/v1/colorizers/terminal.cemt"),
+    },
+    BuiltinSchemaPackageArtifactSource {
+        package_id: "svg",
+        path: "schema-packages/svg/v1/colorizers/html.cemt",
+        source: include_str!("../../schema-packages/svg/v1/colorizers/html.cemt"),
+    },
+    BuiltinSchemaPackageArtifactSource {
+        package_id: "svg",
+        path: "schema-packages/svg/v1/colorizers/md.cemt",
+        source: include_str!("../../schema-packages/svg/v1/colorizers/md.cemt"),
     },
     BuiltinSchemaPackageArtifactSource {
         package_id: "svg",
@@ -3797,23 +3827,35 @@ mod tests {
 
     #[test]
     fn catalog_exposes_svg_output_artifact_sources() {
-        let formatter = builtin_schema_package_artifact_source(
-            "svg",
+        for (path, function, profile) in [
+            ("formatters/compact.cemt", "svg.format-document", "compact"),
+            (
+                "formatters/pretty.cemt",
+                "svg.format-document",
+                "xml.pretty",
+            ),
+            ("formatters/tabular.cemt", "svg.format-document", "tabular"),
+            ("colorizers/terminal.cemt", "svg.color-document", "terminal"),
+            ("colorizers/html.cemt", "svg.color-document", "html"),
+            ("colorizers/md.cemt", "svg.color-document", "md"),
+        ] {
+            let full_path = format!("schema-packages/svg/v1/{path}");
+            let artifact = builtin_schema_package_artifact_source("svg", &full_path)
+                .unwrap_or_else(|| panic!("SVG artifact source `{full_path}`"));
+            assert!(artifact.source.contains(&format!(r#"@name="{function}""#)));
+            assert!(artifact
+                .source
+                .contains(&format!(r#"@profile="{profile}""#)));
+            assert!(artifact.source.contains("{body |"));
+        }
+        for path in [
             "schema-packages/svg/v1/formatters/svg-format-document.cemt",
-        )
-        .expect("SVG formatter source");
-        let colorizer = builtin_schema_package_artifact_source(
-            "svg",
             "schema-packages/svg/v1/colorizers/svg-color-document.cemt",
-        )
-        .expect("SVG colorizer source");
-
-        assert!(formatter.source.contains(r#"@name="svg.format-document""#));
-        assert!(formatter.source.contains(r#"@category="svg-document""#));
-        assert!(colorizer.source.contains(r#"@name="svg.color-document""#));
-        assert!(colorizer
-            .source
-            .contains(r#"@content-type="image/svg+xml""#));
+        ] {
+            let helper = builtin_schema_package_artifact_source("svg", path)
+                .unwrap_or_else(|| panic!("SVG helper source `{path}`"));
+            assert!(helper.source.contains("{body |"));
+        }
     }
 
     #[test]

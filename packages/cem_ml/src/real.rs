@@ -18,6 +18,7 @@ use crate::conversion::{
     execute_json_schema_document_output_pipeline_with_environment,
     execute_markdown_document_output_pipeline_with_environment,
     execute_relax_ng_document_output_pipeline_with_environment,
+    execute_svg_document_output_pipeline_with_environment,
     execute_xhtml_document_output_pipeline_with_environment,
     execute_xml_document_output_pipeline_with_environment,
     execute_yaml_document_output_pipeline_with_environment, ConversionExecution,
@@ -64,8 +65,8 @@ use crate::schema::registry::{
     CSS_CONTENT_TYPE, CSS_SCHEMA_URI, CSV_CONTENT_TYPE, CSV_SCHEMA_URI, HTML_CONTENT_TYPE,
     HTML_SCHEMA_URI, JSON_CONTENT_TYPE, JSON_SCHEMA_CONTENT_TYPE, JSON_SCHEMA_SCHEMA_URI,
     JSON_VALUE_SCHEMA_URI, MARKDOWN_CONTENT_TYPE, MARKDOWN_SCHEMA_URI, RELAX_NG_SCHEMA_URI,
-    XHTML_CONTENT_TYPE, XHTML_SCHEMA_URI, XML_CONTENT_TYPE, XML_SCHEMA_URI, YAML_CONTENT_TYPE,
-    YAML_SCHEMA_URI,
+    SVG_CONTENT_TYPE, SVG_SCHEMA_URI, XHTML_CONTENT_TYPE, XHTML_SCHEMA_URI, XML_CONTENT_TYPE,
+    XML_SCHEMA_URI, YAML_CONTENT_TYPE, YAML_SCHEMA_URI,
 };
 use crate::schema::vocab::CompiledSchema;
 use crate::source::line_index::LineIndex;
@@ -115,6 +116,7 @@ use crate::validation::json::JsonDocumentAst;
 use crate::validation::json_schema::JsonSchemaDocumentAst;
 use crate::validation::markdown::MarkdownDocumentAst;
 use crate::validation::relax_ng::{RelaxNgDocumentAst, RelaxNgSyntaxKind};
+use crate::validation::svg::SvgDocumentAst;
 use crate::validation::xhtml::XhtmlDocumentAst;
 use crate::validation::xml::XmlDocumentAst;
 use crate::validation::yaml::YamlDocumentAst;
@@ -5610,6 +5612,74 @@ fn convert_loaded_xhtml_ast_output(
     )
 }
 
+fn convert_loaded_svg_ast_output(
+    context: &EngineContext,
+    request: &ConvertRequest,
+    document: SvgDocumentAst,
+    diagnostics: &mut Vec<Diagnostic>,
+) -> (Value, Option<PrimaryBytes>, ConvertExecutionMetadata) {
+    let metadata = convert_metadata_for_svg_lifecycle_output(&request.target_scope);
+    let environment = ConversionOutputPipelineEnvironment {
+        schema_registry: &context.schema_registry,
+        conversion_registry: &context.converter_registry,
+        package_artifact_reader: None,
+        artifact_cache: None,
+    };
+    let execution = execute_svg_document_output_pipeline_with_environment(
+        &environment,
+        document,
+        &request.target_scope,
+        Some(&request.input.uri),
+    );
+    diagnostics.extend(execution.diagnostics.clone());
+    if diagnostics
+        .iter()
+        .any(|diagnostic| diagnostic.severity.is_hard_violation())
+    {
+        return (Value::Null, None, metadata);
+    }
+
+    let content = execution
+        .output
+        .as_ref()
+        .and_then(Value::as_str)
+        .unwrap_or_default()
+        .to_owned();
+    let target = request
+        .target
+        .clone()
+        .or_else(|| request.target_scope.format_identity_option())
+        .unwrap_or_else(|| FormatIdentity {
+            content_type: Some(SVG_CONTENT_TYPE.to_owned()),
+            schema: Some(SVG_SCHEMA_URI.to_owned()),
+            ..FormatIdentity::default()
+        });
+    let content_type = target
+        .content_type
+        .unwrap_or_else(|| SVG_CONTENT_TYPE.to_owned());
+    let schema = target.schema.unwrap_or_else(|| SVG_SCHEMA_URI.to_owned());
+    let bytes = content.into_bytes();
+    let primary_bytes = PrimaryBytes {
+        content_type,
+        schema: Some(schema.clone()),
+        format_version: "svg/1".to_owned(),
+        hash_scheme: "cem-text/1+blake3".to_owned(),
+        hash: text_content_hash(&bytes),
+        bytes,
+    };
+    let hash = primary_bytes.hash.clone();
+    (
+        json!({
+            "kind": "document",
+            "contentType": primary_bytes.content_type,
+            "schema": schema,
+            "hash": hash,
+        }),
+        Some(primary_bytes),
+        metadata,
+    )
+}
+
 fn convert_loaded_relax_ng_ast_output(
     context: &EngineContext,
     request: &ConvertRequest,
@@ -7001,6 +7071,75 @@ fn convert_metadata_for_xhtml_lifecycle_output(
     }
 }
 
+fn convert_metadata_for_svg_lifecycle_output(
+    target_scope: &ScopeConfig,
+) -> ConvertExecutionMetadata {
+    let formatter_profile = target_scope
+        .cemt_formatter_profile
+        .clone()
+        .unwrap_or_else(|| "compact".to_owned());
+    let color_profile = xml_direct_output_color_profile(target_scope);
+    let writer_profile = target_scope
+        .output_color_type
+        .clone()
+        .or_else(|| color_profile.clone());
+    ConvertExecutionMetadata {
+        converter_id: Some("svg-lifecycle-output".to_owned()),
+        implementation: Some("svg-ast-stream-to-svg-output-pipeline".to_owned()),
+        rust_fallback: None,
+        output_pipeline: Some(ConvertOutputPipelineMetadata {
+            stages: vec![
+                ConvertOutputPipelineStageMetadata {
+                    stage: "formatter".to_owned(),
+                    function: Some(
+                        target_scope
+                            .cemt_formatter
+                            .clone()
+                            .unwrap_or_else(|| "svg.format-document".to_owned()),
+                    ),
+                    profile: Some(formatter_profile),
+                    content_type: Some(SVG_CONTENT_TYPE.to_owned()),
+                    schema: Some(SVG_SCHEMA_URI.to_owned()),
+                    category: Some("svg-document".to_owned()),
+                    produces: Some(
+                        TransformTemplateOutputProducedKind::CemTree
+                            .as_str()
+                            .to_owned(),
+                    ),
+                },
+                ConvertOutputPipelineStageMetadata {
+                    stage: "colorizer".to_owned(),
+                    function: color_profile
+                        .as_ref()
+                        .map(|_| "svg.color-document".to_owned()),
+                    profile: color_profile,
+                    content_type: Some(SVG_CONTENT_TYPE.to_owned()),
+                    schema: Some(SVG_SCHEMA_URI.to_owned()),
+                    category: Some("svg-document".to_owned()),
+                    produces: Some(
+                        TransformTemplateOutputProducedKind::CemTree
+                            .as_str()
+                            .to_owned(),
+                    ),
+                },
+                ConvertOutputPipelineStageMetadata {
+                    stage: "writer".to_owned(),
+                    function: None,
+                    profile: writer_profile,
+                    content_type: Some(SVG_CONTENT_TYPE.to_owned()),
+                    schema: Some(SVG_SCHEMA_URI.to_owned()),
+                    category: Some("svg-document".to_owned()),
+                    produces: Some(
+                        TransformTemplateOutputProducedKind::Text
+                            .as_str()
+                            .to_owned(),
+                    ),
+                },
+            ],
+        }),
+    }
+}
+
 fn convert_metadata_for_relax_ng_lifecycle_output(
     target_scope: &ScopeConfig,
     syntax_kind: RelaxNgSyntaxKind,
@@ -7362,6 +7501,7 @@ fn loaded_input_consumes_validation_without_cem_parse(loaded: &LoadedInput) -> b
                 | LoadedInputAstStream::MarkdownDocument(_)
                 | LoadedInputAstStream::XmlDocument(_)
                 | LoadedInputAstStream::XhtmlDocument(_)
+                | LoadedInputAstStream::SvgDocument(_)
                 | LoadedInputAstStream::RelaxNgDocument(_)
         )
     ) || matches!(
@@ -8636,6 +8776,33 @@ impl CemMlEngine for RealCemMlEngine {
                             return;
                         }
                         // Cross-schema XHTML exports require an explicit registered converter.
+                    }
+                    LoadedInputAstStream::SvgDocument(document_value) => {
+                        if to_format == LayerFormat::Xml && export_adapter_id == Some("svg") {
+                            if diagnostics
+                                .iter()
+                                .any(|diagnostic| diagnostic.severity.is_hard_violation())
+                            {
+                                primary = Some(Value::Null);
+                                conversion = Some(convert_metadata_for_svg_lifecycle_output(
+                                    &request.target_scope,
+                                ));
+                                return;
+                            }
+
+                            let (svg_primary, svg_primary_bytes, svg_conversion) =
+                                convert_loaded_svg_ast_output(
+                                    &context,
+                                    &request,
+                                    document_value,
+                                    &mut diagnostics,
+                                );
+                            primary = Some(svg_primary);
+                            primary_bytes = svg_primary_bytes;
+                            conversion = Some(svg_conversion);
+                            return;
+                        }
+                        // Cross-schema SVG exports require an explicit registered converter.
                     }
                     LoadedInputAstStream::RelaxNgDocument(document_value) => {
                         if to_format == LayerFormat::Xml
@@ -14204,6 +14371,35 @@ mod tests {
     }
 
     #[test]
+    fn validate_svg_source_consumes_dedicated_lifecycle_ast_without_html_xml_or_cem_parse() {
+        let mut source = input(
+            br#"<?xml version="1.0"?><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><title>Download</title><path d="M12 3v18"/></svg>"#,
+            "document.svg",
+        );
+        source.identity = Some(FormatIdentity {
+            content_type: Some(SVG_CONTENT_TYPE.to_owned()),
+            schema: Some(SVG_SCHEMA_URI.to_owned()),
+            ..FormatIdentity::default()
+        });
+        let req = ValidateRequest {
+            inputs: vec![source],
+            projection: ValidateProjection::Json,
+            fail_level: FailLevel::Validate,
+            context: ctx(),
+        };
+
+        let resp = RealCemMlEngine::new().validate(req).unwrap();
+
+        assert_eq!(resp.report.summary.input_count, 1);
+        assert_eq!(resp.report.summary.hard_violation_count, 0);
+        assert!(
+            resp.report.diagnostics.is_empty(),
+            "SVG validation must stay on the dedicated lifecycle AST path: {:?}",
+            resp.report.diagnostics
+        );
+    }
+
+    #[test]
     fn validate_relax_ng_sources_consume_typed_lifecycle_ast_without_cem_parse() {
         for (bytes, uri, content_type) in [
             (
@@ -14352,6 +14548,62 @@ mod tests {
         assert_eq!(primary_bytes.bytes, expected);
         assert_eq!(resp.primary["kind"], "document");
         assert_eq!(resp.primary["contentType"], XHTML_CONTENT_TYPE);
+    }
+
+    #[test]
+    fn convert_svg_same_schema_uses_dedicated_lifecycle_output_pipeline() {
+        let svg = br#"<?xml version="1.0"?><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><title>Download</title><path d="M12 3v18"/></svg>"#;
+        let mut source = input(svg, "document.svg");
+        source.identity = Some(FormatIdentity {
+            content_type: Some(SVG_CONTENT_TYPE.to_owned()),
+            schema: Some(SVG_SCHEMA_URI.to_owned()),
+            ..FormatIdentity::default()
+        });
+        let target = FormatIdentity {
+            content_type: Some(SVG_CONTENT_TYPE.to_owned()),
+            schema: Some(SVG_SCHEMA_URI.to_owned()),
+            ..FormatIdentity::default()
+        };
+        let req = ConvertRequest {
+            input: source,
+            to_format: LayerFormat::DomJson,
+            preserve_source_offsets: false,
+            context: ctx(),
+            target: Some(target),
+            target_scope: ScopeConfig {
+                cemt_formatter_profile: Some("tabular".to_owned()),
+                ..ScopeConfig::default()
+            },
+            scheduler_scope_id: 0,
+        };
+
+        let resp = RealCemMlEngine::new().convert(req).unwrap();
+
+        assert!(
+            resp.diagnostics.is_empty(),
+            "SVG same-schema conversion must stay on the dedicated lifecycle AST path: {:?}",
+            resp.diagnostics
+        );
+        assert_eq!(
+            resp.conversion
+                .as_ref()
+                .and_then(|conversion| conversion.converter_id.as_deref()),
+            Some("svg-lifecycle-output")
+        );
+        assert_eq!(
+            resp.conversion
+                .as_ref()
+                .and_then(|conversion| conversion.implementation.as_deref()),
+            Some("svg-ast-stream-to-svg-output-pipeline")
+        );
+        let primary_bytes = resp.primary_bytes.as_ref().expect("SVG primary bytes");
+        assert_eq!(primary_bytes.content_type, SVG_CONTENT_TYPE);
+        assert_eq!(primary_bytes.schema.as_deref(), Some(SVG_SCHEMA_URI));
+        let mut expected = svg.to_vec();
+        expected.push(b'\n');
+        assert_eq!(primary_bytes.bytes, expected);
+        assert_eq!(resp.primary["kind"], "document");
+        assert_eq!(resp.primary["contentType"], SVG_CONTENT_TYPE);
     }
 
     #[test]

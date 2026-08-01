@@ -41,6 +41,9 @@ use crate::validation::relax_ng::{
     relax_ng_document_ast_from_source_bytes, RelaxNgDocumentAst, RelaxNgSourceValidationRequest,
     RelaxNgSyntaxKind,
 };
+use crate::validation::svg::{
+    svg_document_ast_from_source_bytes, SvgDocumentAst, SvgSourceValidationRequest,
+};
 use crate::validation::xhtml::{
     xhtml_document_ast_from_source_bytes, XhtmlDocumentAst, XhtmlSourceValidationRequest,
 };
@@ -67,13 +70,9 @@ const HTML_NAMESPACE: &str = HTML_NAMESPACE_URI;
 const SVG_NAMESPACE: &str = SVG_NAMESPACE_URI;
 const MATHML_NAMESPACE: &str = MATHML_NAMESPACE_URI;
 const XSLT_NAMESPACE: &str = XSLT_NAMESPACE_URI;
-const HTML_ADAPTER_SCHEMA_IDENTITIES: &[&str] = &[
-    HTML_SCHEMA_URI,
-    HTML_NAMESPACE,
-    SVG_NAMESPACE,
-    MATHML_NAMESPACE,
-];
-const XML_ADAPTER_SCHEMA_IDENTITIES: &[&str] = &[XML_SCHEMA_URI, SVG_SCHEMA_URI, MATHML_SCHEMA_URI];
+const HTML_ADAPTER_SCHEMA_IDENTITIES: &[&str] =
+    &[HTML_SCHEMA_URI, HTML_NAMESPACE, MATHML_NAMESPACE];
+const XML_ADAPTER_SCHEMA_IDENTITIES: &[&str] = &[XML_SCHEMA_URI, MATHML_SCHEMA_URI];
 const CEM_ML_SCHEMA_IDENTITIES: &[&str] = &[
     CEM_ML_SCHEMA_URI,
     CEM_SCHEMA_URI,
@@ -102,6 +101,7 @@ pub enum LoadedInputAstStream {
     MarkdownDocument(MarkdownDocumentAst),
     XmlDocument(XmlDocumentAst),
     XhtmlDocument(XhtmlDocumentAst),
+    SvgDocument(SvgDocumentAst),
     RelaxNgDocument(RelaxNgDocumentAst),
 }
 
@@ -138,6 +138,7 @@ impl LifecycleRegistry {
         let mut registry = Self::new();
         registry.register(CemMlAdapter);
         registry.register(XhtmlAdapter);
+        registry.register(SvgAdapter);
         registry.register(HtmlAdapter);
         registry.register(RelaxNgAdapter);
         registry.register(XmlAdapter);
@@ -539,7 +540,7 @@ impl LifecycleAdapter for HtmlAdapter {
             || matches_schema_without_content_type(identity, HTML_ADAPTER_SCHEMA_IDENTITIES)
             || matches_namespace_without_content_type_or_schema(
                 identity,
-                &[HTML_NAMESPACE, SVG_NAMESPACE, MATHML_NAMESPACE],
+                &[HTML_NAMESPACE, MATHML_NAMESPACE],
             )
     }
 
@@ -610,6 +611,61 @@ fn matches_xhtml_identity(identity: &FormatIdentity) -> bool {
     explicit_schema_matches
 }
 
+struct SvgAdapter;
+
+impl LifecycleAdapter for SvgAdapter {
+    fn id(&self) -> &'static str {
+        "svg"
+    }
+
+    fn matches_input(&self, identity: &FormatIdentity) -> bool {
+        matches_svg_identity(identity)
+    }
+
+    fn load(&self, input: &EngineInput, identity: &FormatIdentity) -> LoadedInput {
+        let content_type = identity
+            .content_type
+            .as_deref()
+            .or(input.root_scope.default_content_type.as_deref())
+            .unwrap_or(SVG_CONTENT_TYPE);
+        let (document, diagnostics) =
+            svg_document_ast_from_source_bytes(SvgSourceValidationRequest {
+                bytes: &input.bytes,
+                source_uri: &input.uri,
+                content_type: Some(content_type),
+            });
+        LoadedInput {
+            bytes: input.bytes.clone(),
+            from_format: InputFormat::Xml,
+            ast_stream: document.map(LoadedInputAstStream::SvgDocument),
+            diagnostics,
+            adapter_id: Some(self.id()),
+        }
+    }
+
+    fn matches_target(&self, identity: &FormatIdentity) -> bool {
+        matches_svg_identity(identity)
+    }
+
+    fn target_format(&self) -> Option<LayerFormat> {
+        Some(LayerFormat::Xml)
+    }
+}
+
+fn matches_svg_identity(identity: &FormatIdentity) -> bool {
+    let explicit_schema_matches = identity
+        .schema
+        .as_deref()
+        .map(str::trim)
+        .is_some_and(|schema| matches!(schema, SVG_SCHEMA_URI | SVG_NAMESPACE_URI));
+    if let Some(content_type) = identity.content_type.as_deref() {
+        return content_type_essence(content_type) == SVG_CONTENT_TYPE
+            && (identity.schema.is_none() || explicit_schema_matches);
+    }
+    explicit_schema_matches
+        || matches_namespace_without_content_type_or_schema(identity, &[SVG_NAMESPACE])
+}
+
 struct XmlAdapter;
 
 impl LifecycleAdapter for XmlAdapter {
@@ -623,7 +679,6 @@ impl LifecycleAdapter for XmlAdapter {
             &[
                 XML_CONTENT_TYPE,
                 "text/xml",
-                SVG_CONTENT_TYPE,
                 MATHML_CONTENT_TYPE,
                 "application/mathml-presentation+xml",
                 "application/mathml-content+xml",
@@ -1626,14 +1681,26 @@ mod tests {
     }
 
     #[test]
-    fn builtins_load_svg_content_type_as_xml() {
+    fn builtins_load_svg_content_type_as_dedicated_internal_ast_stream() {
         let loaded = LifecycleRegistry::with_builtin_adapters().load(
-            &input(b"<svg><title>Hi</title></svg>"),
-            &context("image/svg+xml"),
+            &input(br#"<svg xmlns="http://www.w3.org/2000/svg"><title>Hi</title></svg>"#),
+            &context(SVG_CONTENT_TYPE),
         );
         assert_eq!(loaded.from_format, InputFormat::Xml);
-        assert_eq!(loaded.adapter_id, Some("xml"));
-        assert!(loaded.diagnostics.is_empty());
+        assert_eq!(loaded.adapter_id, Some("svg"));
+        assert!(loaded.diagnostics.is_empty(), "{:?}", loaded.diagnostics);
+        let document = match loaded
+            .ast_stream
+            .expect("SVG adapter emits internal AST stream")
+        {
+            LoadedInputAstStream::SvgDocument(document) => document,
+            other => panic!("SVG adapter emitted unexpected AST stream: {other:?}"),
+        };
+        assert_eq!(document.source.media_type, SVG_CONTENT_TYPE);
+        assert!(document.xml_document.events.iter().any(|event| {
+            event.qualified_name.as_deref() == Some("svg")
+                && event.namespace_uri.as_deref() == Some(SVG_NAMESPACE_URI)
+        }));
     }
 
     #[test]
@@ -2165,17 +2232,21 @@ mod tests {
     }
 
     #[test]
-    fn svg_schema_selects_html_input_when_content_type_absent() {
+    fn svg_namespace_schema_selects_dedicated_svg_input_when_content_type_absent() {
         let loaded = LifecycleRegistry::with_builtin_adapters().load(
-            &input(b"<svg><title>Hi</title></svg>"),
+            &input(br#"<svg xmlns="http://www.w3.org/2000/svg"><title>Hi</title></svg>"#),
             &EngineContext {
                 schema: Some(SVG_NAMESPACE.to_owned()),
                 ..EngineContext::default()
             },
         );
-        assert_eq!(loaded.from_format, InputFormat::Html);
-        assert_eq!(loaded.adapter_id, Some("html"));
+        assert_eq!(loaded.from_format, InputFormat::Xml);
+        assert_eq!(loaded.adapter_id, Some("svg"));
         assert!(loaded.diagnostics.is_empty());
+        assert!(matches!(
+            loaded.ast_stream,
+            Some(LoadedInputAstStream::SvgDocument(_))
+        ));
     }
 
     #[test]
@@ -2193,7 +2264,7 @@ mod tests {
     }
 
     #[test]
-    fn svg_package_schema_selects_xml_input_when_content_type_absent() {
+    fn svg_package_schema_selects_dedicated_svg_input_when_content_type_absent() {
         let loaded = LifecycleRegistry::with_builtin_adapters().load(
             &input(b"<svg xmlns=\"http://www.w3.org/2000/svg\"><title>Hi</title></svg>"),
             &EngineContext {
@@ -2202,8 +2273,12 @@ mod tests {
             },
         );
         assert_eq!(loaded.from_format, InputFormat::Xml);
-        assert_eq!(loaded.adapter_id, Some("xml"));
+        assert_eq!(loaded.adapter_id, Some("svg"));
         assert!(loaded.diagnostics.is_empty());
+        assert!(matches!(
+            loaded.ast_stream,
+            Some(LoadedInputAstStream::SvgDocument(_))
+        ));
     }
 
     #[test]
@@ -2253,8 +2328,9 @@ mod tests {
     }
 
     #[test]
-    fn svg_namespace_selects_html_input_when_content_type_and_schema_absent() {
-        let mut source = input(b"<svg><title>Hi</title></svg>");
+    fn svg_namespace_selects_dedicated_svg_input_when_content_type_and_schema_absent() {
+        let mut source =
+            input(br#"<svg xmlns="http://www.w3.org/2000/svg"><title>Hi</title></svg>"#);
         source.identity = Some(FormatIdentity {
             namespaces: std::collections::BTreeMap::from([(
                 "svg".to_owned(),
@@ -2266,8 +2342,8 @@ mod tests {
         let loaded =
             LifecycleRegistry::with_builtin_adapters().load(&source, &EngineContext::default());
 
-        assert_eq!(loaded.from_format, InputFormat::Html);
-        assert_eq!(loaded.adapter_id, Some("html"));
+        assert_eq!(loaded.from_format, InputFormat::Xml);
+        assert_eq!(loaded.adapter_id, Some("svg"));
         assert!(loaded.diagnostics.is_empty());
     }
 
@@ -2425,7 +2501,7 @@ mod tests {
         let selected = LifecycleRegistry::with_builtin_adapters()
             .select_export(Some(&target), LayerFormat::DomJson);
         assert_eq!(selected.to_format, LayerFormat::Xml);
-        assert_eq!(selected.adapter_id, Some("xml"));
+        assert_eq!(selected.adapter_id, Some("svg"));
         assert!(selected.diagnostics.is_empty());
     }
 
@@ -2446,7 +2522,7 @@ mod tests {
     }
 
     #[test]
-    fn svg_target_content_type_selects_xml_export() {
+    fn svg_target_content_type_selects_dedicated_svg_export() {
         let target = FormatIdentity {
             content_type: Some(SVG_CONTENT_TYPE.to_owned()),
             ..FormatIdentity::default()
@@ -2454,7 +2530,7 @@ mod tests {
         let selected = LifecycleRegistry::with_builtin_adapters()
             .select_export(Some(&target), LayerFormat::DomJson);
         assert_eq!(selected.to_format, LayerFormat::Xml);
-        assert_eq!(selected.adapter_id, Some("xml"));
+        assert_eq!(selected.adapter_id, Some("svg"));
         assert!(selected.diagnostics.is_empty());
     }
 
@@ -2472,7 +2548,7 @@ mod tests {
     }
 
     #[test]
-    fn svg_package_schema_selects_xml_export_when_content_type_absent() {
+    fn svg_package_schema_selects_dedicated_svg_export_when_content_type_absent() {
         let target = FormatIdentity {
             schema: Some(SVG_SCHEMA_URI.to_owned()),
             ..FormatIdentity::default()
@@ -2480,7 +2556,7 @@ mod tests {
         let selected = LifecycleRegistry::with_builtin_adapters()
             .select_export(Some(&target), LayerFormat::DomJson);
         assert_eq!(selected.to_format, LayerFormat::Xml);
-        assert_eq!(selected.adapter_id, Some("xml"));
+        assert_eq!(selected.adapter_id, Some("svg"));
         assert!(selected.diagnostics.is_empty());
     }
 
@@ -2602,15 +2678,15 @@ mod tests {
     }
 
     #[test]
-    fn svg_schema_selects_html_export_when_content_type_absent() {
+    fn svg_namespace_schema_selects_dedicated_svg_export_when_content_type_absent() {
         let target = FormatIdentity {
             schema: Some(SVG_NAMESPACE.to_owned()),
             ..FormatIdentity::default()
         };
         let selected = LifecycleRegistry::with_builtin_adapters()
             .select_export(Some(&target), LayerFormat::DomJson);
-        assert_eq!(selected.to_format, LayerFormat::Html);
-        assert_eq!(selected.adapter_id, Some("html"));
+        assert_eq!(selected.to_format, LayerFormat::Xml);
+        assert_eq!(selected.adapter_id, Some("svg"));
         assert!(selected.diagnostics.is_empty());
     }
 
@@ -2654,7 +2730,7 @@ mod tests {
     }
 
     #[test]
-    fn svg_namespace_selects_html_export_when_content_type_and_schema_absent() {
+    fn svg_namespace_selects_dedicated_svg_export_when_content_type_and_schema_absent() {
         let target = FormatIdentity {
             namespaces: std::collections::BTreeMap::from([(
                 "svg".to_owned(),
@@ -2664,8 +2740,8 @@ mod tests {
         };
         let selected = LifecycleRegistry::with_builtin_adapters()
             .select_export(Some(&target), LayerFormat::DomJson);
-        assert_eq!(selected.to_format, LayerFormat::Html);
-        assert_eq!(selected.adapter_id, Some("html"));
+        assert_eq!(selected.to_format, LayerFormat::Xml);
+        assert_eq!(selected.adapter_id, Some("svg"));
         assert!(selected.diagnostics.is_empty());
     }
 

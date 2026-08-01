@@ -4,15 +4,162 @@
 
 {module @version="1.0.0" |
     {format-function
-        @name="svg.format-document"
+        @name="svg.format-document.tree"
+        @visibility="private"
         @category="svg-document"
-        @subject="json"
-        @produces="tokens"
+        @subject="svg-document"
+        @produces="cem-tree"
         @content-type="image/svg+xml"
         @schema="https://cem.dev/ns/data/svg/1"
         @canonical=true
         @deterministic=true
         @streamable=true |
-        {param @name="subject" @type="json" @required=true}
+        {param @name="subject" @type="object" @required=true}
+        {param @name="profile" @type="string" @required=true}
+        {body |
+            {$ {
+                kind: "cem-tree",
+                contentType: "image/svg+xml",
+                schema: "https://cem.dev/ns/data/svg/1",
+                category: "svg-document",
+                formatterProfile: $profile,
+                formatNodes: [
+                    {
+                        kind: "format-marker",
+                        name: "svg.format-document",
+                        formatterRole: "formatter.boundary",
+                        formatterProfile: $profile
+                    },
+                    {
+                        kind: "format-decision",
+                        name: "svg.lexical-xml-layout",
+                        formatterRole: "formatter.layout",
+                        formatterProfile: $profile,
+                        value: {
+                            layout: call("svg.format-document.layout", { profile: $profile }),
+                            lineEnding: $lineEnding,
+                            indent: $indent,
+                            tabSize: $tabSize,
+                            sourceBoundary: "svg-document"
+                        }
+                    }
+                ],
+                nodes: extend(
+                    [
+                        call("svg.format-document.token", {
+                            kind: "svg.format-marker",
+                            text: "",
+                            role: "formatter.boundary",
+                            sourceMap: null,
+                            value: { name: "svg.format-document", formatterProfile: $profile }
+                        }),
+                        call("svg.format-document.token", {
+                            kind: "svg.format-decision",
+                            text: "",
+                            role: "formatter.layout",
+                            sourceMap: null,
+                            value: {
+                                layout: call("svg.format-document.layout", { profile: $profile }),
+                                formatterProfile: $profile,
+                                lineEnding: $lineEnding,
+                                indent: $indent,
+                                tabSize: $tabSize
+                            }
+                        })
+                    ],
+                    call("svg.format-document.events", {
+                        events: match(typeOf($subject.events), { array: $subject.events, default: [] }),
+                        profile: $profile
+                    })
+                )
+            } }
+        }
+    }
+
+    {function @name="svg.format-document.layout" @visibility="private" @returns="string" @deterministic=true |
+        {param @name="profile" @type="string" @required=true}
+        {body |
+            {$ match($profile, {
+                compact: "lexical-lossless-compact",
+                pretty: "lexical-lossless-pretty",
+                "xml.pretty": "lexical-lossless-pretty",
+                tabular: "lexical-lossless-tabular",
+                default: "lexical-lossless"
+            }) }
+        }
+    }
+
+    {function @name="svg.format-document.events" @visibility="private" @returns="array" @deterministic=true |
+        {param @name="events" @type="array" @required=true}
+        {param @name="profile" @type="string" @required=true}
+        {body |
+            {$ fold($events, [], extend(
+                $acc,
+                [call("svg.format-document.event", { event: $item, profile: $profile })]
+            )) }
+        }
+    }
+
+    {function @name="svg.format-document.event" @visibility="private" @returns="object" @deterministic=true |
+        {param @name="event" @type="object" @required=true}
+        {param @name="profile" @type="string" @required=true}
+        {body |
+            {$ call("svg.format-document.token", {
+                kind: concat("svg.", match(typeOf($event.kind), { string: $event.kind, default: "raw" })),
+                text: match(typeOf($event.lexeme), { string: $event.lexeme, default: "" }),
+                role: call("svg.format-document.role", { event: $event }),
+                sourceMap: match(exists($event.sourceMap), { true: $event.sourceMap, false: null }),
+                value: {
+                    formatterProfile: $profile,
+                    eventKind: match(typeOf($event.kind), { string: $event.kind, default: "raw" }),
+                    depth: match(typeOf($event.depth), { integer: $event.depth, default: 0 }),
+                    qualifiedName: match(exists($event.qualifiedName), { true: $event.qualifiedName, false: null }),
+                    namespaceUri: match(exists($event.namespaceUri), { true: $event.namespaceUri, false: null }),
+                    sourceRange: match(exists($event.sourceRange), { true: $event.sourceRange, false: null })
+                }
+            }) }
+        }
+    }
+
+    {function @name="svg.format-document.role" @visibility="private" @returns="string" @deterministic=true |
+        {param @name="event" @type="object" @required=true}
+        {body |
+            {$ match($event.kind, {
+                declaration: "syntax.keyword",
+                "start-element": "syntax.name",
+                "empty-element": "syntax.name",
+                "end-element": "syntax.name",
+                text: "syntax.text",
+                cdata: "syntax.string",
+                comment: "syntax.comment",
+                "processing-instruction": "syntax.keyword",
+                doctype: "syntax.keyword",
+                "entity-reference": "syntax.string",
+                default: "syntax.raw"
+            }) }
+        }
+    }
+
+    {function @name="svg.format-document.token" @visibility="private" @returns="object" @deterministic=true |
+        {param @name="kind" @type="string" @required=true}
+        {param @name="text" @type="string" @required=true}
+        {param @name="role" @type="string" @required=true}
+        {param @name="sourceMap" @type="any" @required=true @nullable=true}
+        {param @name="value" @type="object" @required=true}
+        {body |
+            {$ {
+                kind: $kind,
+                writerKind: "token",
+                text: $text,
+                role: $role,
+                style: { colorRole: $role },
+                sourceMap: $sourceMap,
+                outputSpan: match(typeOf($sourceMap), {
+                    null: null,
+                    default: { outputRange: { start: 0, len: 0 }, origin: $sourceMap }
+                }),
+                value: $value
+            } }
+        }
     }
 }

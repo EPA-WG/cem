@@ -1,6 +1,19 @@
 use crate::diagnostics::{Diagnostic, Severity};
-use crate::schema::registry::SVG_NAMESPACE_URI;
-use std::collections::BTreeMap;
+use crate::schema::document_model::compile_schema_document_model;
+use crate::schema::package_sources::builtin_schema_package_source;
+use crate::schema::registry::{SVG_CONTENT_TYPE, SVG_NAMESPACE_URI, SVG_SCHEMA_URI};
+use crate::source::{ByteRange, SourceId};
+use crate::source_map::{FrameSpan, SourceMapFrame, SourceMapStack, TransformKind};
+use crate::validation::xml::{
+    xml_document_ast_from_source_bytes, XmlAttributeAst, XmlDocumentAst, XmlEventAst, XmlEventKind,
+    XmlParseFactKind, XmlSourceValidationRequest,
+};
+use serde_json::{json, Value};
+use std::collections::{BTreeMap, BTreeSet};
+use std::sync::OnceLock;
+
+const SVG_PACKAGE_ID: &str = "svg";
+const SVG_FACT_BEHAVIOR: &str = "svg-report-fact";
 
 #[derive(Debug, Clone, Copy)]
 pub struct SvgSourceValidationRequest<'a> {
@@ -9,345 +22,537 @@ pub struct SvgSourceValidationRequest<'a> {
     pub content_type: Option<&'a str>,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SvgDocumentAst {
+    pub source: SvgDocumentSource,
+    pub xml_document: XmlDocumentAst,
+    pub facts: Vec<SvgFact>,
+    pub line_ending: Option<String>,
+}
+
+impl SvgDocumentAst {
+    pub fn to_cemt_subject(&self) -> Value {
+        json!({
+            "kind": "svg-document",
+            "contentType": SVG_CONTENT_TYPE,
+            "schema": SVG_SCHEMA_URI,
+            "category": "svg-document",
+            "source": self.source.to_cemt_subject(),
+            "resourceKind": self.xml_document.resource_kind,
+            "encodingReport": {
+                "mimeCharset": self.xml_document.encoding_report.mime_charset,
+                "declarationEncoding": self.xml_document.encoding_report.declaration_encoding,
+                "normalizedEncoding": self.xml_document.encoding_report.normalized_encoding,
+                "decoderStatus": self.xml_document.encoding_report.decoder_status,
+            },
+            "parseFacts": self
+                .facts
+                .iter()
+                .map(SvgFact::to_cemt_subject)
+                .collect::<Vec<_>>(),
+            "events": self
+                .xml_document
+                .events
+                .iter()
+                .map(svg_event_to_cemt_subject)
+                .collect::<Vec<_>>(),
+            "lineEnding": self.line_ending,
+        })
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SvgDocumentSource {
+    pub uri: String,
+    pub content_type: String,
+    pub media_type: String,
+    pub parameters: BTreeMap<String, String>,
+    pub byte_length: usize,
+}
+
+impl SvgDocumentSource {
+    fn from_xml(document: &XmlDocumentAst) -> Self {
+        Self {
+            uri: document.source.uri.clone(),
+            content_type: document.source.content_type.clone(),
+            media_type: document.source.media_type.clone(),
+            parameters: document.source.parameters.clone(),
+            byte_length: document.source.byte_length,
+        }
+    }
+
+    fn to_cemt_subject(&self) -> Value {
+        json!({
+            "uri": self.uri,
+            "contentType": self.content_type,
+            "mediaType": self.media_type,
+            "parameters": self.parameters,
+            "byteLength": self.byte_length,
+        })
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct SvgSourcePosition {
+    pub line: u32,
+    pub column: u32,
+    pub byte_offset: u64,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct SvgSourceRange {
+    pub start: SvgSourcePosition,
+    pub byte_length: u64,
+}
+
+impl SvgSourceRange {
+    fn from_event(event: &XmlEventAst) -> Self {
+        Self {
+            start: SvgSourcePosition {
+                line: event.source_range.start.line,
+                column: event.source_range.start.column,
+                byte_offset: event.source_range.start.byte_offset,
+            },
+            byte_length: event.source_range.byte_length,
+        }
+    }
+
+    fn from_xml_fact(
+        line: Option<u32>,
+        column: Option<u32>,
+        byte_offset: Option<u64>,
+        byte_length: Option<u64>,
+    ) -> Option<Self> {
+        Some(Self {
+            start: SvgSourcePosition {
+                line: line.unwrap_or(1),
+                column: column.unwrap_or(1),
+                byte_offset: byte_offset?,
+            },
+            byte_length: byte_length.unwrap_or(1),
+        })
+    }
+
+    fn to_cemt_subject(self) -> Value {
+        json!({
+            "byteOffset": self.start.byte_offset,
+            "byteLength": self.byte_length,
+            "line": self.start.line,
+            "column": self.start.column,
+        })
+    }
+
+    fn source_map(self) -> SourceMapStack {
+        SourceMapStack {
+            frames: vec![SourceMapFrame {
+                source_id: SourceId(1),
+                span: FrameSpan::Single(ByteRange::new(
+                    self.start.byte_offset,
+                    u32::try_from(self.byte_length).unwrap_or(u32::MAX),
+                )),
+                transform: TransformKind::ContentTypeTransform {
+                    content_type: SVG_CONTENT_TYPE.to_owned(),
+                },
+            }],
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub enum SvgFactKind {
+    NotWellFormedXml,
+    UnsupportedEncoding,
+    EncodingConflict,
+    UnboundNamespacePrefix,
+    DuplicateAttribute,
+    DtdRejected,
+    ExternalEntityRejected,
+    EntityExpansionLimit,
+    SourceMapUnavailable,
+    RootNotSvg,
+    NamespaceMissing,
+    ViewBoxInvalid,
+    AccessibleNameMissing,
+    ExternalResourceRejected,
+    ScriptRejected,
+    ForeignContentRejected,
+    RootObserved,
+    NamespaceObserved,
+    ViewBoxObserved,
+    TitleObserved,
+    ReferenceObserved,
+    DoctypeObserved,
+    ForeignContentObserved,
+}
+
+impl SvgFactKind {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::NotWellFormedXml => "not-well-formed-xml",
+            Self::UnsupportedEncoding => "unsupported-encoding",
+            Self::EncodingConflict => "encoding-conflict",
+            Self::UnboundNamespacePrefix => "unbound-namespace-prefix",
+            Self::DuplicateAttribute => "duplicate-attribute",
+            Self::DtdRejected => "dtd-rejected",
+            Self::ExternalEntityRejected => "external-entity-rejected",
+            Self::EntityExpansionLimit => "entity-expansion-limit",
+            Self::SourceMapUnavailable => "source-map-unavailable",
+            Self::RootNotSvg => "root-not-svg",
+            Self::NamespaceMissing => "namespace-missing",
+            Self::ViewBoxInvalid => "view-box-invalid",
+            Self::AccessibleNameMissing => "accessible-name-missing",
+            Self::ExternalResourceRejected => "external-resource-rejected",
+            Self::ScriptRejected => "script-rejected",
+            Self::ForeignContentRejected => "foreign-content-rejected",
+            Self::RootObserved => "root-observed",
+            Self::NamespaceObserved => "namespace-observed",
+            Self::ViewBoxObserved => "view-box-observed",
+            Self::TitleObserved => "title-observed",
+            Self::ReferenceObserved => "reference-observed",
+            Self::DoctypeObserved => "doctype-observed",
+            Self::ForeignContentObserved => "foreign-content-observed",
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SvgFact {
+    pub kind: SvgFactKind,
+    pub source_range: Option<SvgSourceRange>,
+    pub message: String,
+    pub value: Option<String>,
+}
+
+impl SvgFact {
+    fn to_cemt_subject(&self) -> Value {
+        json!({
+            "kind": self.kind.as_str(),
+            "sourceRange": self.source_range.map(SvgSourceRange::to_cemt_subject),
+            "message": self.message,
+            "value": self.value,
+        })
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct SvgDiagnosticBinding {
+    contract: String,
+    behavior: Option<String>,
+    diagnostic_code: String,
+    severity: Severity,
+    policy: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SvgSchemaContractCatalog {
+    fact_bindings: BTreeMap<String, SvgDiagnosticBinding>,
+}
+
+impl SvgSchemaContractCatalog {
+    pub fn from_builtin() -> &'static Self {
+        static CATALOG: OnceLock<SvgSchemaContractCatalog> = OnceLock::new();
+        CATALOG.get_or_init(|| {
+            let source = builtin_schema_package_source(SVG_PACKAGE_ID)
+                .expect("built-in SVG schema package source must be registered");
+            Self::from_schema_source(source.schema_source)
+        })
+    }
+
+    pub fn from_schema_source(schema_source: &str) -> Self {
+        let model = compile_schema_document_model(SVG_SCHEMA_URI, schema_source);
+        let fact_bindings = model
+            .constraints
+            .values()
+            .filter_map(|constraint| {
+                if constraint.behavior.as_deref()?.trim() != SVG_FACT_BEHAVIOR {
+                    return None;
+                }
+                let fact_kind = constraint.fact_kind.as_deref()?.trim();
+                let diagnostic_code = constraint.diagnostic.as_deref()?.trim();
+                if fact_kind.is_empty() || diagnostic_code.is_empty() {
+                    return None;
+                }
+                let diagnostic = model.diagnostics.get(diagnostic_code)?;
+                Some((
+                    fact_kind.to_owned(),
+                    SvgDiagnosticBinding {
+                        contract: constraint.kind.clone(),
+                        behavior: constraint.behavior.clone(),
+                        diagnostic_code: diagnostic.code.clone(),
+                        severity: diagnostic.severity,
+                        policy: constraint.policy.clone(),
+                    },
+                ))
+            })
+            .collect();
+        Self { fact_bindings }
+    }
+
+    fn binding_for_fact(&self, kind: SvgFactKind) -> Option<&SvgDiagnosticBinding> {
+        self.fact_bindings.get(kind.as_str())
+    }
+}
+
 pub fn validate_svg_source_bytes(request: SvgSourceValidationRequest<'_>) -> Vec<Diagnostic> {
-    let _ = request.content_type;
-    let source = match std::str::from_utf8(request.bytes) {
-        Ok(source) => source,
-        Err(error) => {
-            return vec![svg_not_well_formed_diagnostic(
-                &request,
-                "",
-                u64::try_from(error.valid_up_to()).ok(),
-                format!("SVG source must be valid UTF-8: {error}"),
-            )];
-        }
-    };
-
-    validate_svg_source(&request, source)
-}
-
-#[derive(Clone, Debug)]
-struct SvgAttributeView {
-    namespace_uri: String,
-    local_name: String,
-    value: String,
-}
-
-#[derive(Clone, Debug)]
-struct SvgElementFrame {
-    local_name: String,
-    namespace_uri: String,
-    attributes: Vec<SvgAttributeView>,
-}
-
-#[derive(Clone, Debug, Default)]
-struct SvgDocumentState {
-    root_is_svg: bool,
-    root_has_accessible_name: bool,
-    root_accessibility_exempt: bool,
-    reported_external_resource: bool,
-    reported_script: bool,
-}
-
-fn validate_svg_source(request: &SvgSourceValidationRequest<'_>, source: &str) -> Vec<Diagnostic> {
-    let mut diagnostics = Vec::new();
-    let mut reader = quick_xml::Reader::from_str(source);
-    reader.config_mut().check_comments = true;
-
-    let mut element_stack: Vec<SvgElementFrame> = Vec::new();
-    let mut namespace_stack = vec![xml_initial_namespaces()];
-    let mut root_count = 0usize;
-    let mut state = SvgDocumentState::default();
-
-    loop {
-        match reader.read_event() {
-            Ok(quick_xml::events::Event::Start(start)) => {
-                let start_offset = xml_event_position(&reader, &start, false);
-                let (frame, namespaces, mut event_diagnostics) =
-                    svg_start_frame(request, source, &start, &namespace_stack, start_offset);
-                diagnostics.append(&mut event_diagnostics);
-                svg_validate_element(
-                    request,
-                    source,
-                    start_offset,
-                    &frame,
-                    &element_stack,
-                    &mut state,
-                    &mut root_count,
-                    &mut diagnostics,
-                );
-                element_stack.push(frame);
-                namespace_stack.push(namespaces);
-            }
-            Ok(quick_xml::events::Event::Empty(start)) => {
-                let start_offset = xml_event_position(&reader, &start, true);
-                let (frame, _, mut event_diagnostics) =
-                    svg_start_frame(request, source, &start, &namespace_stack, start_offset);
-                diagnostics.append(&mut event_diagnostics);
-                svg_validate_element(
-                    request,
-                    source,
-                    start_offset,
-                    &frame,
-                    &element_stack,
-                    &mut state,
-                    &mut root_count,
-                    &mut diagnostics,
-                );
-            }
-            Ok(quick_xml::events::Event::End(_)) => {
-                if element_stack.pop().is_some() && namespace_stack.len() > 1 {
-                    namespace_stack.pop();
-                }
-            }
-            Ok(quick_xml::events::Event::Text(text)) => {
-                if element_stack.is_empty() && !xml_bytes_are_whitespace(text.as_ref()) {
-                    diagnostics.push(svg_not_well_formed_diagnostic(
-                        request,
-                        source,
-                        Some(reader.error_position()),
-                        "SVG document cannot contain character data outside the document element"
-                            .to_owned(),
-                    ));
-                }
-            }
-            Ok(quick_xml::events::Event::DocType(_)) => {
-                if !state.reported_external_resource {
-                    state.reported_external_resource = true;
-                    diagnostics.push(svg_diagnostic(
-                        request,
-                        source,
-                        Some(reader.error_position()),
-                        "cem.svg.external_resource_rejected",
-                        Severity::Error,
-                        "SVG DOCTYPE declarations are rejected because they can reference external resources"
-                            .to_owned(),
-                    ));
-                }
-            }
-            Ok(quick_xml::events::Event::Eof) => break,
-            Ok(_) => {}
-            Err(error) => {
-                diagnostics.push(svg_xml_error_diagnostic(
-                    request,
-                    source,
-                    Some(reader.error_position()),
-                    &error,
-                ));
-                break;
-            }
-        }
-    }
-
-    if root_count == 0 {
-        diagnostics.push(svg_not_well_formed_diagnostic(
-            request,
-            source,
-            Some(0),
-            "SVG document must contain a document element".to_owned(),
-        ));
-    } else if state.root_is_svg
-        && !state.root_accessibility_exempt
-        && !state.root_has_accessible_name
-    {
-        diagnostics.push(svg_diagnostic(
-            request,
-            source,
-            Some(0),
-            "cem.svg.accessible_name_missing",
-            Severity::Warning,
-            "Visible SVG root should provide title, desc, aria-label, or aria-labelledby"
-                .to_owned(),
-        ));
-    }
-
+    let (_, diagnostics) = svg_document_ast_from_source_bytes(request);
     diagnostics
 }
 
-fn svg_start_frame(
-    request: &SvgSourceValidationRequest<'_>,
-    source: &str,
-    start: &quick_xml::events::BytesStart<'_>,
-    namespace_stack: &[BTreeMap<String, String>],
-    byte_offset: Option<u64>,
-) -> (SvgElementFrame, BTreeMap<String, String>, Vec<Diagnostic>) {
-    let mut diagnostics = Vec::new();
-    let mut raw_attributes = Vec::new();
-    let mut namespaces = namespace_stack
-        .last()
-        .cloned()
-        .unwrap_or_else(xml_initial_namespaces);
-
-    for attribute in start.attributes().with_checks(false) {
-        match attribute {
-            Ok(attribute) => {
-                let name = qname_display(attribute.key.as_ref());
-                let value = String::from_utf8_lossy(attribute.value.as_ref()).into_owned();
-                if name == "xmlns" {
-                    namespaces.insert(String::new(), value.clone());
-                } else if let Some(prefix) = name.strip_prefix("xmlns:") {
-                    namespaces.insert(prefix.to_owned(), value.clone());
-                }
-                raw_attributes.push((name, value));
-            }
-            Err(error) => diagnostics.push(svg_not_well_formed_diagnostic(
-                request,
-                source,
-                byte_offset,
-                format!("SVG XML attribute parse error: {error}"),
-            )),
-        }
-    }
-
-    let qualified_name = qname_display(start.name().as_ref());
-    if let Some(prefix) = xml_qname_prefix(&qualified_name) {
-        if !xml_prefix_is_bound(&namespaces, prefix) {
-            diagnostics.push(svg_not_well_formed_diagnostic(
-                request,
-                source,
-                byte_offset,
-                format!("SVG namespace prefix `{prefix}` is not bound for `{qualified_name}`"),
-            ));
-        }
-    }
-
-    let (namespace_uri, local_name) = xml_element_expanded_name(&qualified_name, &namespaces);
-    let attributes = raw_attributes
-        .into_iter()
-        .filter(|(qualified_name, _)| !xml_attribute_is_namespace_declaration(qualified_name))
-        .map(|(qualified_name, value)| {
-            if let Some(prefix) = xml_qname_prefix(&qualified_name) {
-                if !xml_prefix_is_bound(&namespaces, prefix) {
-                    diagnostics.push(svg_not_well_formed_diagnostic(
-                        request,
-                        source,
-                        byte_offset,
-                        format!(
-                            "SVG namespace prefix `{prefix}` is not bound for attribute `{qualified_name}`"
-                        ),
-                    ));
-                }
-            }
-            let (namespace_uri, local_name) =
-                xml_attribute_expanded_name(&qualified_name, &namespaces);
-            SvgAttributeView {
-                namespace_uri,
-                local_name,
-                value,
-            }
-        })
-        .collect();
-
+pub fn svg_document_ast_from_source_bytes(
+    request: SvgSourceValidationRequest<'_>,
+) -> (Option<SvgDocumentAst>, Vec<Diagnostic>) {
+    let (xml_document, _) = xml_document_ast_from_source_bytes(XmlSourceValidationRequest {
+        bytes: request.bytes,
+        source_uri: request.source_uri,
+        content_type: request.content_type.or(Some(SVG_CONTENT_TYPE)),
+    });
+    let Some(xml_document) = xml_document else {
+        return (None, Vec::new());
+    };
+    let source = SvgDocumentSource::from_xml(&xml_document);
+    let facts = svg_facts(&xml_document);
+    let diagnostics = svg_diagnostics(
+        request.source_uri,
+        &source.media_type,
+        &facts,
+        SvgSchemaContractCatalog::from_builtin(),
+    );
+    let line_ending = xml_document.line_ending.clone();
     (
-        SvgElementFrame {
-            local_name,
-            namespace_uri,
-            attributes,
-        },
-        namespaces,
+        Some(SvgDocumentAst {
+            source,
+            xml_document,
+            facts,
+            line_ending,
+        }),
         diagnostics,
     )
 }
 
-fn svg_validate_element(
-    request: &SvgSourceValidationRequest<'_>,
-    source: &str,
-    byte_offset: Option<u64>,
-    frame: &SvgElementFrame,
-    element_stack: &[SvgElementFrame],
-    state: &mut SvgDocumentState,
-    root_count: &mut usize,
-    diagnostics: &mut Vec<Diagnostic>,
-) {
-    if element_stack.is_empty() {
-        *root_count += 1;
-        if *root_count > 1 {
-            diagnostics.push(svg_not_well_formed_diagnostic(
-                request,
-                source,
-                byte_offset,
-                "SVG document must have exactly one document element".to_owned(),
-            ));
-            return;
+fn svg_facts(document: &XmlDocumentAst) -> Vec<SvgFact> {
+    let mut facts = document
+        .parse_facts
+        .iter()
+        .map(|fact| SvgFact {
+            kind: match fact.kind {
+                XmlParseFactKind::ParseError => SvgFactKind::NotWellFormedXml,
+                XmlParseFactKind::UnsupportedEncoding => SvgFactKind::UnsupportedEncoding,
+                XmlParseFactKind::EncodingConflict => SvgFactKind::EncodingConflict,
+                XmlParseFactKind::UnboundNamespacePrefix => SvgFactKind::UnboundNamespacePrefix,
+                XmlParseFactKind::DuplicateAttribute => SvgFactKind::DuplicateAttribute,
+                XmlParseFactKind::DtdRejected => SvgFactKind::DtdRejected,
+                XmlParseFactKind::ExternalEntityRejected => SvgFactKind::ExternalEntityRejected,
+                XmlParseFactKind::EntityExpansionLimit => SvgFactKind::EntityExpansionLimit,
+                XmlParseFactKind::SourceMapUnavailable => SvgFactKind::SourceMapUnavailable,
+            },
+            source_range: SvgSourceRange::from_xml_fact(
+                fact.line,
+                fact.column,
+                fact.byte_offset,
+                fact.byte_length,
+            ),
+            message: fact.message.clone(),
+            value: Some(fact.kind.as_str().to_owned()),
+        })
+        .collect::<Vec<_>>();
+
+    let mut root_seen = false;
+    let mut root_is_svg = false;
+    let mut root_has_accessible_name = false;
+    let mut root_accessibility_exempt = false;
+    let mut external_resource_reported = false;
+    let mut script_reported = false;
+    let mut foreign_namespaces = BTreeSet::new();
+
+    for event in &document.events {
+        let range = Some(SvgSourceRange::from_event(event));
+        if event.source_range.byte_length == 0 {
+            facts.push(SvgFact {
+                kind: SvgFactKind::SourceMapUnavailable,
+                source_range: range,
+                message: "SVG event does not expose a non-empty source range".to_owned(),
+                value: Some(event.index.to_string()),
+            });
         }
-        if frame.local_name != "svg" {
-            diagnostics.push(svg_diagnostic(
-                request,
-                source,
-                byte_offset,
-                "cem.svg.root_not_svg",
-                Severity::Error,
-                format!(
-                    "SVG root element must be `svg`, found `{}`",
-                    frame.local_name
-                ),
-            ));
-            return;
+        if event.kind == XmlEventKind::Doctype {
+            facts.push(SvgFact {
+                kind: SvgFactKind::DoctypeObserved,
+                source_range: range,
+                message: "SVG doctype declaration was parsed and preserved".to_owned(),
+                value: event.value.clone(),
+            });
         }
-        if frame.namespace_uri != SVG_NAMESPACE_URI {
-            diagnostics.push(svg_diagnostic(
-                request,
-                source,
-                byte_offset,
-                "cem.svg.namespace_missing",
-                Severity::Error,
-                "SVG root `svg` element must use the http://www.w3.org/2000/svg namespace"
-                    .to_owned(),
-            ));
-            return;
+        if !matches!(
+            event.kind,
+            XmlEventKind::StartElement | XmlEventKind::EmptyElement
+        ) {
+            continue;
         }
 
-        state.root_is_svg = true;
-        state.root_has_accessible_name = svg_frame_has_accessible_name_attribute(frame);
-        state.root_accessibility_exempt = svg_frame_is_accessibility_exempt(frame);
-    } else if state.root_is_svg
-        && element_stack.len() == 1
-        && frame.namespace_uri == SVG_NAMESPACE_URI
-        && matches!(frame.local_name.as_str(), "title" | "desc")
-    {
-        state.root_has_accessible_name = true;
-    }
-
-    if frame.namespace_uri == SVG_NAMESPACE_URI
-        && frame.local_name == "script"
-        && !state.reported_script
-    {
-        state.reported_script = true;
-        diagnostics.push(svg_diagnostic(
-            request,
-            source,
-            byte_offset,
-            "cem.svg.script_rejected",
-            Severity::Error,
-            "SVG script elements are rejected unless an explicit execution policy is enabled"
-                .to_owned(),
-        ));
-    }
-
-    if !state.reported_external_resource {
-        if let Some(attribute) = frame
-            .attributes
-            .iter()
-            .find(|attribute| svg_attribute_requires_resource_policy(attribute))
+        let local_name = event.local_name.as_deref().unwrap_or_default();
+        let namespace_uri = event.namespace_uri.as_deref().unwrap_or_default();
+        if !root_seen && event.depth == 0 {
+            root_seen = true;
+            facts.push(SvgFact {
+                kind: SvgFactKind::RootObserved,
+                source_range: range,
+                message: format!("SVG root element `{local_name}` was parsed"),
+                value: event.qualified_name.clone(),
+            });
+            if local_name != "svg" {
+                facts.push(SvgFact {
+                    kind: SvgFactKind::RootNotSvg,
+                    source_range: range,
+                    message: format!(
+                        "SVG root element must be `svg`, found `{}`",
+                        event.qualified_name.as_deref().unwrap_or(local_name)
+                    ),
+                    value: event.qualified_name.clone(),
+                });
+            } else if namespace_uri != SVG_NAMESPACE_URI {
+                facts.push(SvgFact {
+                    kind: SvgFactKind::NamespaceMissing,
+                    source_range: range,
+                    message: format!(
+                        "SVG root `svg` element must use the `{SVG_NAMESPACE_URI}` namespace"
+                    ),
+                    value: Some(namespace_uri.to_owned()),
+                });
+            } else {
+                root_is_svg = true;
+                root_has_accessible_name = svg_event_has_accessible_name_attribute(event);
+                root_accessibility_exempt = svg_event_is_accessibility_exempt(event);
+                facts.push(SvgFact {
+                    kind: SvgFactKind::NamespaceObserved,
+                    source_range: range,
+                    message: "SVG document namespace was parsed".to_owned(),
+                    value: Some(SVG_NAMESPACE_URI.to_owned()),
+                });
+                if let Some(view_box) = svg_attribute(event, "viewBox") {
+                    facts.push(SvgFact {
+                        kind: SvgFactKind::ViewBoxObserved,
+                        source_range: range,
+                        message: "SVG root viewBox was parsed".to_owned(),
+                        value: Some(view_box.value.clone()),
+                    });
+                    if !svg_view_box_is_valid(&view_box.value) {
+                        facts.push(SvgFact {
+                            kind: SvgFactKind::ViewBoxInvalid,
+                            source_range: range,
+                            message: format!(
+                                "SVG viewBox must contain four finite numbers with non-negative width and height, found `{}`",
+                                view_box.value
+                            ),
+                            value: Some(view_box.value.clone()),
+                        });
+                    }
+                }
+            }
+        } else if root_is_svg
+            && event.depth == 1
+            && namespace_uri == SVG_NAMESPACE_URI
+            && matches!(local_name, "title" | "desc")
         {
-            state.reported_external_resource = true;
-            diagnostics.push(svg_diagnostic(
-                request,
-                source,
-                byte_offset,
-                "cem.svg.external_resource_rejected",
-                Severity::Error,
-                format!(
-                    "SVG attribute `{}` references an external resource without an explicit resolver policy",
-                    attribute.local_name
+            root_has_accessible_name = true;
+            facts.push(SvgFact {
+                kind: SvgFactKind::TitleObserved,
+                source_range: range,
+                message: format!("SVG root accessibility element `{local_name}` was parsed"),
+                value: event.qualified_name.clone(),
+            });
+        }
+
+        if namespace_uri == SVG_NAMESPACE_URI
+            && (local_name == "script" || svg_event_has_script_handler(event))
+            && !script_reported
+        {
+            script_reported = true;
+            facts.push(SvgFact {
+                kind: SvgFactKind::ScriptRejected,
+                source_range: range,
+                message: "SVG scripts and event-handler attributes are rejected unless an explicit execution policy is enabled".to_owned(),
+                value: event.qualified_name.clone(),
+            });
+        }
+
+        for attribute in &event.attributes {
+            if svg_attribute_is_reference(attribute) {
+                facts.push(SvgFact {
+                    kind: SvgFactKind::ReferenceObserved,
+                    source_range: range,
+                    message: format!(
+                        "SVG reference attribute `{}` was parsed",
+                        attribute.qualified_name
+                    ),
+                    value: Some(attribute.value.clone()),
+                });
+            }
+            if !external_resource_reported && svg_attribute_requires_resource_policy(attribute) {
+                external_resource_reported = true;
+                facts.push(SvgFact {
+                    kind: SvgFactKind::ExternalResourceRejected,
+                    source_range: range,
+                    message: format!(
+                        "SVG attribute `{}` references an external resource without an explicit resolver policy",
+                        attribute.qualified_name
+                    ),
+                    value: Some(attribute.value.clone()),
+                });
+            }
+        }
+
+        if !namespace_uri.is_empty()
+            && namespace_uri != SVG_NAMESPACE_URI
+            && foreign_namespaces.insert(namespace_uri.to_owned())
+        {
+            facts.push(SvgFact {
+                kind: SvgFactKind::ForeignContentObserved,
+                source_range: range,
+                message: format!("SVG foreign-content namespace `{namespace_uri}` was parsed"),
+                value: Some(namespace_uri.to_owned()),
+            });
+            facts.push(SvgFact {
+                kind: SvgFactKind::ForeignContentRejected,
+                source_range: range,
+                message: format!(
+                    "SVG foreign-content namespace `{namespace_uri}` requires an explicit registered schema or converter policy"
                 ),
-            ));
+                value: Some(namespace_uri.to_owned()),
+            });
         }
     }
+
+    if root_is_svg && !root_accessibility_exempt && !root_has_accessible_name {
+        facts.push(SvgFact {
+            kind: SvgFactKind::AccessibleNameMissing,
+            source_range: document
+                .events
+                .iter()
+                .find(|event| {
+                    event.depth == 0
+                        && matches!(
+                            event.kind,
+                            XmlEventKind::StartElement | XmlEventKind::EmptyElement
+                        )
+                })
+                .map(SvgSourceRange::from_event),
+            message: "Visible SVG root should provide title, desc, aria-label, or aria-labelledby"
+                .to_owned(),
+            value: None,
+        });
+    }
+    facts
 }
 
-fn svg_frame_has_accessible_name_attribute(frame: &SvgElementFrame) -> bool {
-    frame.attributes.iter().any(|attribute| {
+fn svg_attribute<'a>(event: &'a XmlEventAst, local_name: &str) -> Option<&'a XmlAttributeAst> {
+    event
+        .attributes
+        .iter()
+        .find(|attribute| attribute.local_name == local_name)
+}
+
+fn svg_event_has_accessible_name_attribute(event: &XmlEventAst) -> bool {
+    event.attributes.iter().any(|attribute| {
         matches!(
             attribute.local_name.as_str(),
             "aria-label" | "aria-labelledby"
@@ -355,29 +560,40 @@ fn svg_frame_has_accessible_name_attribute(frame: &SvgElementFrame) -> bool {
     })
 }
 
-fn svg_frame_is_accessibility_exempt(frame: &SvgElementFrame) -> bool {
-    frame.attributes.iter().any(|attribute| {
+fn svg_event_is_accessibility_exempt(event: &XmlEventAst) -> bool {
+    event.attributes.iter().any(|attribute| {
         let value = attribute.value.trim().to_ascii_lowercase();
         (attribute.local_name == "aria-hidden" && value == "true")
             || (attribute.local_name == "role" && matches!(value.as_str(), "none" | "presentation"))
-            || (attribute.local_name == "hidden" && attribute.namespace_uri.is_empty())
+            || (attribute.local_name == "hidden" && attribute.namespace_uri.is_none())
     })
 }
 
-fn svg_attribute_requires_resource_policy(attribute: &SvgAttributeView) -> bool {
-    let is_direct_resource_reference = matches!(attribute.local_name.as_str(), "href" | "src");
-    (is_direct_resource_reference
+fn svg_event_has_script_handler(event: &XmlEventAst) -> bool {
+    event.attributes.iter().any(|attribute| {
+        attribute.namespace_uri.is_none()
+            && attribute.local_name.len() > 2
+            && attribute.local_name.to_ascii_lowercase().starts_with("on")
+    })
+}
+
+fn svg_attribute_is_reference(attribute: &XmlAttributeAst) -> bool {
+    matches!(attribute.local_name.as_str(), "href" | "src")
+        || attribute.value.to_ascii_lowercase().contains("url(")
+}
+
+fn svg_attribute_requires_resource_policy(attribute: &XmlAttributeAst) -> bool {
+    (matches!(attribute.local_name.as_str(), "href" | "src")
         && svg_direct_resource_reference_requires_policy(&attribute.value))
         || svg_css_url_reference_requires_policy(&attribute.value)
 }
 
 fn svg_direct_resource_reference_requires_policy(value: &str) -> bool {
-    let trimmed = value.trim();
-    if trimmed.is_empty() {
-        return false;
-    }
-    let unquoted = trimmed.trim_matches('"').trim_matches('\'');
-    if unquoted.starts_with('#') || unquoted.to_ascii_lowercase().starts_with("data:") {
+    let unquoted = value.trim().trim_matches('"').trim_matches('\'');
+    if unquoted.is_empty()
+        || unquoted.starts_with('#')
+        || unquoted.to_ascii_lowercase().starts_with("data:")
+    {
         return false;
     }
     true
@@ -397,7 +613,7 @@ fn svg_css_url_reference_requires_policy(value: &str) -> bool {
             .trim()
             .trim_matches('"')
             .trim_matches('\'');
-        if svg_url_function_reference_requires_policy(reference) {
+        if !reference.starts_with('#') && !reference.to_ascii_lowercase().starts_with("data:") {
             return true;
         }
         search_start = url_start + 4;
@@ -405,178 +621,135 @@ fn svg_css_url_reference_requires_policy(value: &str) -> bool {
     false
 }
 
-fn svg_url_function_reference_requires_policy(value: &str) -> bool {
-    let trimmed = value.trim();
-    if trimmed.starts_with('#') {
+fn svg_view_box_is_valid(value: &str) -> bool {
+    let values = value
+        .split(|ch: char| ch.is_ascii_whitespace() || ch == ',')
+        .filter(|part| !part.is_empty())
+        .map(str::parse::<f64>)
+        .collect::<Result<Vec<_>, _>>();
+    let Ok(values) = values else {
         return false;
-    }
-    !trimmed.to_ascii_lowercase().starts_with("data:")
+    };
+    values.len() == 4
+        && values.iter().all(|value| value.is_finite())
+        && values[2] >= 0.0
+        && values[3] >= 0.0
 }
 
-fn xml_element_expanded_name(
-    qualified_name: &str,
-    namespaces: &BTreeMap<String, String>,
-) -> (String, String) {
-    if let Some((prefix, local_name)) = qualified_name.split_once(':') {
-        (
-            namespaces.get(prefix).cloned().unwrap_or_default(),
-            local_name.to_owned(),
-        )
-    } else {
-        (
-            namespaces.get("").cloned().unwrap_or_default(),
-            qualified_name.to_owned(),
-        )
-    }
+fn svg_diagnostics(
+    source_uri: &str,
+    content_type: &str,
+    facts: &[SvgFact],
+    contracts: &SvgSchemaContractCatalog,
+) -> Vec<Diagnostic> {
+    facts
+        .iter()
+        .filter_map(|fact| {
+            let binding = contracts.binding_for_fact(fact.kind)?;
+            Some(Diagnostic {
+                uri: Some(source_uri.to_owned()),
+                line: fact.source_range.map(|range| range.start.line),
+                column: fact.source_range.map(|range| range.start.column),
+                byte_offset: fact.source_range.map(|range| range.start.byte_offset),
+                code: binding.diagnostic_code.clone(),
+                severity: binding.severity,
+                message: fact.message.clone(),
+                details: Some(json!({
+                    "svg": {
+                        "phase": "xml-parse-and-svg-semantics",
+                        "factKind": fact.kind.as_str(),
+                        "contract": binding.contract,
+                        "behavior": binding.behavior,
+                        "policy": binding.policy,
+                        "contentType": content_type,
+                        "value": fact.value,
+                        "sourceRange": fact.source_range.map(SvgSourceRange::to_cemt_subject),
+                    }
+                })),
+                source_map: fact.source_range.map(SvgSourceRange::source_map),
+                ..Diagnostic::default()
+            })
+        })
+        .collect()
 }
 
-fn xml_attribute_expanded_name(
-    qualified_name: &str,
-    namespaces: &BTreeMap<String, String>,
-) -> (String, String) {
-    if let Some((prefix, local_name)) = qualified_name.split_once(':') {
-        let namespace_uri = namespaces.get(prefix).cloned().unwrap_or_default();
-        (namespace_uri, local_name.to_owned())
-    } else {
-        (String::new(), qualified_name.to_owned())
-    }
-}
-
-fn xml_qname_prefix(qualified_name: &str) -> Option<&str> {
-    qualified_name
-        .split_once(':')
-        .map(|(prefix, _)| prefix)
-        .filter(|prefix| !prefix.is_empty() && *prefix != "xml")
-}
-
-fn xml_prefix_is_bound(namespaces: &BTreeMap<String, String>, prefix: &str) -> bool {
-    namespaces
-        .get(prefix)
-        .is_some_and(|namespace| !namespace.trim().is_empty())
-}
-
-fn xml_attribute_is_namespace_declaration(qualified_name: &str) -> bool {
-    qualified_name == "xmlns" || qualified_name.starts_with("xmlns:")
-}
-
-fn svg_xml_error_diagnostic(
-    request: &SvgSourceValidationRequest<'_>,
-    source: &str,
-    byte_offset: Option<u64>,
-    error: &quick_xml::Error,
-) -> Diagnostic {
-    svg_not_well_formed_diagnostic(
-        request,
-        source,
-        byte_offset,
-        format!("SVG XML parse error: {error}"),
-    )
-}
-
-fn svg_not_well_formed_diagnostic(
-    request: &SvgSourceValidationRequest<'_>,
-    source: &str,
-    byte_offset: Option<u64>,
-    message: String,
-) -> Diagnostic {
-    svg_diagnostic(
-        request,
-        source,
-        byte_offset,
-        "cem.svg.not_well_formed_xml",
-        Severity::Error,
-        message,
-    )
-}
-
-fn svg_diagnostic(
-    request: &SvgSourceValidationRequest<'_>,
-    source: &str,
-    byte_offset: Option<u64>,
-    code: &'static str,
-    severity: Severity,
-    message: String,
-) -> Diagnostic {
-    let (line, column) = byte_offset
-        .and_then(|offset| usize::try_from(offset).ok())
-        .map(|offset| line_col(source, offset))
-        .map(|(line, column)| (Some(line), Some(column)))
-        .unwrap_or((None, None));
-    Diagnostic {
-        uri: Some(request.source_uri.to_owned()),
-        line,
-        column,
-        byte_offset,
-        code: code.to_owned(),
-        severity,
-        message,
-        ..Diagnostic::default()
-    }
-}
-
-fn xml_initial_namespaces() -> BTreeMap<String, String> {
-    BTreeMap::from([
-        (
-            "xml".to_owned(),
-            "http://www.w3.org/XML/1998/namespace".to_owned(),
-        ),
-        (
-            "xmlns".to_owned(),
-            "http://www.w3.org/2000/xmlns/".to_owned(),
-        ),
-    ])
-}
-
-fn xml_event_position(
-    reader: &quick_xml::Reader<&[u8]>,
-    start: &quick_xml::events::BytesStart<'_>,
-    empty: bool,
-) -> Option<u64> {
-    let markup_overhead = if empty { 3 } else { 2 };
-    reader
-        .buffer_position()
-        .checked_sub(start.as_ref().len() as u64 + markup_overhead)
-}
-
-fn xml_bytes_are_whitespace(bytes: &[u8]) -> bool {
-    std::str::from_utf8(bytes)
-        .map(|value| value.chars().all(char::is_whitespace))
-        .unwrap_or(false)
-}
-
-fn qname_display(bytes: &[u8]) -> String {
-    String::from_utf8_lossy(bytes).into_owned()
-}
-
-fn line_col(source: &str, byte_offset: usize) -> (u32, u32) {
-    let mut line = 1u32;
-    let mut column = 1u32;
-    let limit = byte_offset.min(source.len());
-    for byte in source[..limit].bytes() {
-        if byte == b'\n' {
-            line = line.saturating_add(1);
-            column = 1;
-        } else {
-            column = column.saturating_add(1);
-        }
-    }
-    (line, column)
+fn svg_event_to_cemt_subject(event: &XmlEventAst) -> Value {
+    let range = SvgSourceRange::from_event(event);
+    json!({
+        "index": event.index,
+        "kind": event.kind.as_str(),
+        "depth": event.depth,
+        "qualifiedName": event.qualified_name,
+        "localName": event.local_name,
+        "prefix": event.prefix,
+        "namespaceUri": event.namespace_uri,
+        "attributes": event.attributes.iter().map(|attribute| json!({
+            "qualifiedName": attribute.qualified_name,
+            "localName": attribute.local_name,
+            "prefix": attribute.prefix,
+            "namespaceUri": attribute.namespace_uri,
+            "value": attribute.value,
+        })).collect::<Vec<_>>(),
+        "value": event.value,
+        "lexeme": event.lexeme,
+        "whitespaceOnly": event.whitespace_only,
+        "sourceRange": range.to_cemt_subject(),
+        "sourceMap": range.source_map(),
+    })
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
 
+    fn parse(source: &str) -> (SvgDocumentAst, Vec<Diagnostic>) {
+        let (document, diagnostics) =
+            svg_document_ast_from_source_bytes(SvgSourceValidationRequest {
+                bytes: source.as_bytes(),
+                source_uri: "fixture.svg",
+                content_type: Some(SVG_CONTENT_TYPE),
+            });
+        (document.expect("typed SVG document"), diagnostics)
+    }
+
     fn validate(source: &str) -> Vec<Diagnostic> {
-        validate_svg_source_bytes(SvgSourceValidationRequest {
-            bytes: source.as_bytes(),
-            source_uri: "fixture.svg",
-            content_type: Some("image/svg+xml"),
-        })
+        parse(source).1
     }
 
     fn has_code(diagnostics: &[Diagnostic], code: &str) -> bool {
         diagnostics.iter().any(|diagnostic| diagnostic.code == code)
+    }
+
+    #[test]
+    fn svg_ast_reuses_xml_events_with_svg_identity_xlink_and_source_maps() {
+        let source = r##"<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 24 24">
+  <title>Download</title>
+  <use xlink:href="#download"/>
+</svg>
+"##;
+        let (document, diagnostics) = parse(source);
+
+        assert!(diagnostics.is_empty(), "{diagnostics:?}");
+        assert_eq!(document.source.media_type, SVG_CONTENT_TYPE);
+        assert!(document
+            .xml_document
+            .events
+            .iter()
+            .all(|event| event.source_range.byte_length > 0));
+        assert!(document.xml_document.events.iter().any(|event| {
+            event.attributes.iter().any(|attribute| {
+                attribute.qualified_name == "xlink:href"
+                    && attribute.namespace_uri.as_deref() == Some("http://www.w3.org/1999/xlink")
+            })
+        }));
+        let subject = document.to_cemt_subject();
+        assert_eq!(subject["kind"], json!("svg-document"));
+        assert_eq!(subject["schema"], json!(SVG_SCHEMA_URI));
+        assert_eq!(
+            subject["events"][0]["sourceMap"]["frames"][0]["transform"]["content_type"],
+            json!(SVG_CONTENT_TYPE)
+        );
     }
 
     #[test]
@@ -588,69 +761,55 @@ mod tests {
 </svg>
 "#,
         );
-
         assert!(diagnostics.is_empty(), "{diagnostics:?}");
     }
 
     #[test]
-    fn svg_source_validator_reports_missing_namespace() {
-        let diagnostics = validate(
-            r#"<svg role="img" viewBox="0 0 24 24">
-  <title>Missing namespace</title>
-</svg>
-"#,
-        );
-
-        assert!(has_code(&diagnostics, "cem.svg.namespace_missing"));
-    }
-
-    #[test]
-    fn svg_source_validator_reports_root_not_svg() {
-        let diagnostics = validate(
-            r#"<section xmlns="http://www.w3.org/2000/svg">
-  <title>Wrong root</title>
-</section>
-"#,
-        );
-
-        assert!(has_code(&diagnostics, "cem.svg.root_not_svg"));
-    }
-
-    #[test]
-    fn svg_source_validator_reports_script_rejected() {
-        let diagnostics = validate(
-            r#"<svg xmlns="http://www.w3.org/2000/svg" role="img">
-  <title>Scripted</title>
-  <script>alert("blocked")</script>
-</svg>
-"#,
-        );
-
-        assert!(has_code(&diagnostics, "cem.svg.script_rejected"));
-    }
-
-    #[test]
-    fn svg_source_validator_reports_external_resource_rejected() {
-        let diagnostics = validate(
-            r#"<svg xmlns="http://www.w3.org/2000/svg" role="img">
-  <title>External image</title>
-  <image href="https://example.test/logo.png"/>
-</svg>
-"#,
-        );
-
-        assert!(has_code(&diagnostics, "cem.svg.external_resource_rejected"));
+    fn svg_source_validator_reports_schema_bound_policy_facts() {
+        for (source, code) in [
+            (
+                r#"<svg role="img"><title>Missing namespace</title></svg>"#,
+                "cem.svg.namespace_missing",
+            ),
+            (
+                r#"<section xmlns="http://www.w3.org/2000/svg"><title>Wrong root</title></section>"#,
+                "cem.svg.root_not_svg",
+            ),
+            (
+                r#"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 -1 24"><title>Bad viewport</title></svg>"#,
+                "cem.svg.view_box_invalid",
+            ),
+            (
+                r#"<svg xmlns="http://www.w3.org/2000/svg"><title>Scripted</title><script>alert(1)</script></svg>"#,
+                "cem.svg.script_rejected",
+            ),
+            (
+                r#"<svg xmlns="http://www.w3.org/2000/svg"><title>External</title><image href="https://example.test/logo.png"/></svg>"#,
+                "cem.svg.external_resource_rejected",
+            ),
+            (
+                r#"<svg xmlns="http://www.w3.org/2000/svg"><title>Foreign</title><foreignObject><p xmlns="http://www.w3.org/1999/xhtml">Text</p></foreignObject></svg>"#,
+                "cem.svg.foreign_content_rejected",
+            ),
+        ] {
+            let diagnostics = validate(source);
+            assert!(has_code(&diagnostics, code), "{diagnostics:?}");
+            assert!(diagnostics.iter().all(|diagnostic| {
+                diagnostic
+                    .details
+                    .as_ref()
+                    .and_then(|details| details.get("svg"))
+                    .and_then(|details| details.get("behavior"))
+                    == Some(&json!(SVG_FACT_BEHAVIOR))
+            }));
+        }
     }
 
     #[test]
     fn svg_source_validator_reports_accessible_name_missing_warning() {
         let diagnostics = validate(
-            r#"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
-  <path d="M12 3v18"/>
-</svg>
-"#,
+            r#"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 3v18"/></svg>"#,
         );
-
         assert!(has_code(&diagnostics, "cem.svg.accessible_name_missing"));
         assert!(diagnostics
             .iter()
@@ -660,13 +819,39 @@ mod tests {
     #[test]
     fn svg_source_validator_reports_not_well_formed_xml() {
         let diagnostics = validate(
-            r#"<svg xmlns="http://www.w3.org/2000/svg" role="img">
-  <title>Broken</title>
-  <path>
-</svg>
-"#,
+            r#"<svg xmlns="http://www.w3.org/2000/svg" role="img"><title>Broken</title><path></svg>"#,
         );
-
         assert!(has_code(&diagnostics, "cem.svg.not_well_formed_xml"));
+    }
+
+    #[test]
+    fn svg_inherits_xml_doctype_and_entity_safety_policy() {
+        let diagnostics = validate(
+            r#"<!DOCTYPE svg [<!ENTITY remote SYSTEM "https://example.test/entity">]>
+<svg xmlns="http://www.w3.org/2000/svg"><title>&remote;</title></svg>"#,
+        );
+        assert!(has_code(&diagnostics, "cem.svg.dtd_rejected"));
+        assert!(has_code(&diagnostics, "cem.svg.external_entity_rejected"));
+    }
+
+    #[test]
+    fn svg_preserves_mime_parameters_and_rejects_event_handlers() {
+        let (document, diagnostics) = svg_document_ast_from_source_bytes(
+            SvgSourceValidationRequest {
+                bytes: br#"<svg xmlns="http://www.w3.org/2000/svg" aria-hidden="true" onload="run()"/>"#,
+                source_uri: "fixture.svg",
+                content_type: Some("image/svg+xml; charset=UTF-8"),
+            },
+        );
+        assert!(has_code(&diagnostics, "cem.svg.script_rejected"));
+        assert_eq!(
+            document
+                .expect("typed SVG document")
+                .source
+                .parameters
+                .get("charset")
+                .map(String::as_str),
+            Some("UTF-8")
+        );
     }
 }

@@ -116,29 +116,46 @@
     }
 
     {constraints |
-        {constraint @kind="svg-source-parser" @target="document" @policy="delegate-to-xml-parser-with-svg-schema"}
+        {constraint @kind="svg-source-parser" @target="document" @diagnostic="cem.svg.not_well_formed_xml" @behavior="svg-report-fact" @fact-kind="not-well-formed-xml" @policy="delegate to the generic XML event parser while retaining SVG schema identity"}
+        {constraint @kind="svg-source-encoding" @target="document" @diagnostic="cem.svg.unsupported_encoding" @behavior="svg-report-fact" @fact-kind="unsupported-encoding" @policy="inherit the XML package UTF-8 and US-ASCII decoder policy"}
+        {constraint @kind="svg-encoding-conflict" @target="document" @diagnostic="cem.svg.encoding_conflict" @behavior="svg-report-fact" @fact-kind="encoding-conflict" @policy="MIME charset and XML declaration encoding must not conflict"}
+        {constraint @kind="svg-namespace-prefix-binding" @target="document" @diagnostic="cem.svg.unbound_namespace_prefix" @behavior="svg-report-fact" @fact-kind="unbound-namespace-prefix" @policy="inherit XML namespace prefix binding rules, including qualified XLink attributes"}
+        {constraint @kind="svg-attribute-namespace-uniqueness" @target="document" @diagnostic="cem.svg.duplicate_attribute" @behavior="svg-report-fact" @fact-kind="duplicate-attribute" @policy="inherit XML expanded-name attribute uniqueness rules"}
         {constraint @kind="image-svg-primary" @target="document" @policy="image/svg+xml is the canonical media type for SVG resources"}
         {constraint @kind="xml-base-schema-compatible" @target="document" @policy="required"}
-        {constraint @kind="svg-namespace-required" @target="svg" @policy="root element must use http://www.w3.org/2000/svg"}
-        {constraint @kind="root-svg-element" @target="document" @policy="required"}
+        {constraint @kind="svg-namespace-required" @target="svg" @diagnostic="cem.svg.namespace_missing" @behavior="svg-report-fact" @fact-kind="namespace-missing" @policy="root element must use http://www.w3.org/2000/svg"}
+        {constraint @kind="root-svg-element" @target="document" @diagnostic="cem.svg.root_not_svg" @behavior="svg-report-fact" @fact-kind="root-not-svg" @policy="required"}
         {constraint @kind="well-formed-xml" @target="document" @policy="required"}
         {constraint @kind="svgz-content-encoding" @target="document" @policy=".svgz is image/svg+xml with gzip content encoding, not a separate schema identity"}
-        {constraint @kind="visible-svg-accessible-name" @target="svg" @policy="visible SVG should provide title desc or ARIA name material"}
-        {constraint @kind="external-resource-policy" @target="graphics" @policy="external URI references require explicit resolver policy"}
-        {constraint @kind="script-policy" @target="script" @policy="reject executable script unless explicitly enabled by policy"}
+        {constraint @kind="view-box-shape" @target="svg" @diagnostic="cem.svg.view_box_invalid" @behavior="svg-report-fact" @fact-kind="view-box-invalid" @policy="viewBox contains four finite numbers and has non-negative width and height"}
+        {constraint @kind="visible-svg-accessible-name" @target="svg" @diagnostic="cem.svg.accessible_name_missing" @behavior="svg-report-fact" @fact-kind="accessible-name-missing" @policy="visible SVG should provide title desc or ARIA name material"}
+        {constraint @kind="external-resource-policy" @target="graphics" @diagnostic="cem.svg.external_resource_rejected" @behavior="svg-report-fact" @fact-kind="external-resource-rejected" @policy="external URI references require explicit resolver policy; local fragments and data URIs remain lexical references"}
+        {constraint @kind="script-policy" @target="script" @diagnostic="cem.svg.script_rejected" @behavior="svg-report-fact" @fact-kind="script-rejected" @policy="reject script elements and event-handler attributes unless explicitly enabled by execution policy"}
         {constraint @kind="style-policy" @target="style" @policy="preserve CSS but do not execute or fetch external resources without policy"}
-        {constraint @kind="foreign-content-declared" @target="foreign-content" @policy="foreign namespaces require their own schema package or explicit converter profile"}
-        {constraint @kind="source-map-preferred" @target="graphics" @policy="required when parser exposes source ranges"}
+        {constraint @kind="foreign-content-declared" @target="foreign-content" @diagnostic="cem.svg.foreign_content_rejected" @behavior="svg-report-fact" @fact-kind="foreign-content-rejected" @policy="foreign namespaces require their own registered schema package or explicit converter profile"}
+        {constraint @kind="doctype-policy" @target="document" @diagnostic="cem.svg.dtd_rejected" @behavior="svg-report-fact" @fact-kind="dtd-rejected" @policy="preserve doctype lexemes but inherit XML rejection of DTD declarations until an explicit resolver policy enables them"}
+        {constraint @kind="external-entity-policy" @target="document" @diagnostic="cem.svg.external_entity_rejected" @behavior="svg-report-fact" @fact-kind="external-entity-rejected" @policy="inherit XML rejection of non-built-in entity references"}
+        {constraint @kind="entity-expansion-limit" @target="document" @diagnostic="cem.svg.entity_expansion_limit" @behavior="svg-report-fact" @fact-kind="entity-expansion-limit" @policy="inherit XML entity expansion safety limits"}
+        {constraint @kind="source-map-preferred" @target="graphics" @diagnostic="cem.svg.source_map_unavailable" @behavior="svg-report-fact" @fact-kind="source-map-unavailable" @policy="required when parser exposes source ranges"}
     }
 
     {diagnostics |
         {diagnostic @code="cem.svg.parse_error" @severity="error"}
         {diagnostic @code="cem.svg.not_well_formed_xml" @severity="error"}
+        {diagnostic @code="cem.svg.unsupported_encoding" @severity="error"}
+        {diagnostic @code="cem.svg.encoding_conflict" @severity="error"}
+        {diagnostic @code="cem.svg.unbound_namespace_prefix" @severity="error"}
+        {diagnostic @code="cem.svg.duplicate_attribute" @severity="error"}
+        {diagnostic @code="cem.svg.dtd_rejected" @severity="error"}
+        {diagnostic @code="cem.svg.external_entity_rejected" @severity="error"}
+        {diagnostic @code="cem.svg.entity_expansion_limit" @severity="error"}
         {diagnostic @code="cem.svg.root_not_svg" @severity="error"}
         {diagnostic @code="cem.svg.namespace_missing" @severity="error"}
+        {diagnostic @code="cem.svg.view_box_invalid" @severity="error"}
         {diagnostic @code="cem.svg.invalid_path_data" @severity="warning"}
         {diagnostic @code="cem.svg.external_resource_rejected" @severity="error"}
         {diagnostic @code="cem.svg.script_rejected" @severity="error"}
+        {diagnostic @code="cem.svg.foreign_content_rejected" @severity="error"}
         {diagnostic @code="cem.svg.accessible_name_missing" @severity="warning"}
         {diagnostic @code="cem.svg.source_map_unavailable" @severity="info"}
     }

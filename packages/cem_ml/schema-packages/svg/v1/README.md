@@ -1,6 +1,10 @@
 # SVG Resource Schema Package
 
-This package defines registry identity for SVG resources.
+Status: schema, typed XML lifecycle input/output adapter, examples, formatter,
+and colorizer
+
+This package defines registry identity and executable source handling for SVG
+resources.
 
 SVG source is not CEM-ML syntax. The schema package and this manifest are
 authored in CEM-ML, but resources with the `image/svg+xml` content type are
@@ -33,10 +37,59 @@ The schema describes SVG resources as an XML-based graphics document model:
 - foreign content must be handled by a registered schema package or converter
   profile.
 
-Validation routes `image/svg+xml` through the SVG schema package and reuses the
-XML event reader as the parser. Conversion/export lifecycle routing still uses
-the XML adapter for standalone SVG resources. A bare SVG namespace in mixed HTML
-remains an embedded-namespace hint for the HTML adapter.
+Standalone SVG input is represented by `SvgDocumentAst`. It reuses the generic
+typed XML event stream while preserving SVG content type/schema identity, MIME
+parameters, XML declarations and doctypes, qualified element and attribute
+names, XLink attributes, foreign-content boundaries, source ranges, source-map
+stacks, and detected line endings. Embedded `<svg>` inside an HTML or XHTML
+document remains part of that containing document's lifecycle.
+
+## Parser Facts And Diagnostics
+
+The adapter emits neutral facts for XML parse and encoding errors, namespace
+binding and attribute uniqueness, root and SVG namespace identity, `viewBox`
+shape, title and ARIA accessibility material, references, external resources,
+scripts and event handlers, foreign content, DTD/entity safety, and source-map
+availability. Constraints in `schema/svg.cem` bind reportable facts to
+package-owned diagnostics through `svg-report-fact`; observed lexical structure
+remains available as non-diagnostic facts.
+
+The generic XML parser owns well-formedness, encoding, qualified-name,
+namespace, duplicate-attribute, DTD, entity, and source-range mechanics. SVG
+owns root/namespace, viewport, accessibility, URI, executable content, and
+foreign-content policy. The current validator does not perform complete SVG
+vocabulary, geometry, CSS, animation, filter, or path-data validation.
+
+## Output Artifacts
+
+The package owns `compact`, `pretty`, and `tabular` formatter wrappers plus
+`terminal`, `html`, and `md` colorizer wrappers. The formatter consumes an
+`svg-document` and emits a package-owned CEM tree; the colorizer consumes that
+tree before the shared text writer.
+
+All profiles currently preserve source lexemes and SVG attribute case. Their
+metadata records a `lexical-lossless-*` layout decision while whitespace reflow
+remains deferred. Same-schema output retains XML declarations, doctype and
+entity lexemes, empty-element spelling, qualified names, XLink attributes,
+foreign content, detected line endings, and appends one final newline when
+absent.
+
+## Resolver And Script Safety
+
+The lifecycle registry selects the `svg` adapter for `image/svg+xml`,
+`https://cem.dev/ns/data/svg/1`, or a standalone
+`http://www.w3.org/2000/svg` document identity. It does not fall through to the
+HTML, generic XML, or CEM adapters. Same-schema output uses XML serialization
+and package-owned SVG CEMT assets; it never applies HTML parsing or
+serialization behavior.
+
+Local fragment and `data:` references are preserved without dereferencing.
+Other `href`, `xlink:href`, `src`, and CSS `url(...)` references are rejected
+until an explicit resolver policy exists. Script elements and event-handler
+attributes are rejected until an execution policy exists. Foreign namespaces
+require an explicit registered schema or converter policy. The inherited XML
+policy preserves doctype/entity lexemes but rejects DTD declarations and
+non-built-in entities without resolving filesystem or network resources.
 
 ## Validation
 
@@ -49,21 +102,43 @@ cem-ml validate --format json \
   packages/cem_ml/schema-packages/svg/v1/examples/basic-icon.svg
 ```
 
-The direct validator parses SVG as XML, requires an `svg` root in the SVG
-namespace, rejects scripts and external resource references unless an explicit
-policy is available, and reports warning diagnostics for visible SVG roots that
-do not provide accessible name material.
+## Verification
+
+`yarn nx run cem_ml_schema_package_svg_v1:verify` runs manifest validation,
+complete example indexing, schema-derived fact tests, dedicated lifecycle
+load/export coverage, exact same-schema engine and CLI conversion, executable
+formatter/colorizer profile tests, schema-owned CLI example validation, and
+README/SVG preview drift checks with no source fallback.
+
+## Release Behavior
+
+Standalone SVG input is parsed once into `SvgDocumentAst` through the generic
+XML event model and validated from SVG schema fact bindings. Same-schema
+conversion executes the package formatter, optional colorizer, and XML text
+writer; output metadata identifies `svg-lifecycle-output` and
+`svg-ast-stream-to-svg-output-pipeline`. Cross-schema conversion requires an
+explicit registered converter path.
+
+## Tracked Incomplete Work
+
+- Add complete SVG vocabulary, geometry, path-data, CSS, animation, filter, and
+  paint validation independently of XML well-formedness.
+- Define SVG-aware whitespace/reflow semantics before formatter profiles alter
+  lexical content.
+- Add explicit bounded DTD/entity, URI resolver, script, and external-resource
+  policies before permitting resource access or execution.
+- Compose foreign HTML, XHTML, MathML, and other namespace validation through
+  explicit schema-package contracts without changing SVG serialization.
 
 ## Examples
 
 This section is generated from `package.cem` `{example}` metadata by the
-`samples2readme` Nx target. Each SVG previews the example content, not
-the validation report. The target writes a preformatted HTML preview to
+`samples2readme` Nx target. Each SVG previews the rendered example
+content or validation diagnostics for expected-fail examples. The target writes a
+preformatted HTML preview to
 `dist/cem_ml/schema-packages/<package>/v1/examples/<example-file>.html`,
 then renders the `<pre>` spans through headless Chromium into
 `examples/previews/<example-file>.svg`.
-Source snapshots are used only where the current CLI cannot yet render
-the package formatter/colorizer path for that content identity.
 
 <details>
 <summary>basic-icon</summary>
@@ -78,9 +153,8 @@ the package formatter/colorizer path for that content identity.
 ```bash
 dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
   uri=packages/cem_ml/schema-packages/svg/v1/examples/basic-icon.svg,contentType=image/svg+xml,schema=https://cem.dev/ns/data/svg/1 \
-  --from-format xml --to-content-type image/svg+xml --to-schema \
-  https://cem.dev/ns/data/svg/1 --cemt-formatter-profile tabular --cemt-color-profile \
-  terminal --output-color-type ansi-256
+  --to-content-type image/svg+xml --to-schema https://cem.dev/ns/data/svg/1 \
+  --cemt-formatter-profile tabular --cemt-color-profile html
 ```
 
 </details>
@@ -100,9 +174,8 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
 ```bash
 dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
   uri=packages/cem_ml/schema-packages/svg/v1/examples/bar-chart.svg,contentType=image/svg+xml,schema=https://cem.dev/ns/data/svg/1 \
-  --from-format xml --to-content-type image/svg+xml --to-schema \
-  https://cem.dev/ns/data/svg/1 --cemt-formatter-profile tabular --cemt-color-profile \
-  terminal --output-color-type ansi-256
+  --to-content-type image/svg+xml --to-schema https://cem.dev/ns/data/svg/1 \
+  --cemt-formatter-profile tabular --cemt-color-profile html
 ```
 
 </details>
@@ -123,9 +196,8 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
 ```bash
 dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
   uri=packages/cem_ml/schema-packages/svg/v1/examples/unnamed-icon.svg,contentType=image/svg+xml,schema=https://cem.dev/ns/data/svg/1 \
-  --from-format xml --to-content-type image/svg+xml --to-schema \
-  https://cem.dev/ns/data/svg/1 --cemt-formatter-profile tabular --cemt-color-profile \
-  terminal --output-color-type ansi-256
+  --to-content-type image/svg+xml --to-schema https://cem.dev/ns/data/svg/1 \
+  --cemt-formatter-profile tabular --cemt-color-profile html
 ```
 
 </details>
@@ -140,15 +212,13 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
 - Schema: `https://cem.dev/ns/data/svg/1`
 - Expected result: `fail`
 - Expected diagnostics: `cem.svg.namespace_missing`
-- Preview renderer: `CLI convert, tabular formatter, preview HTML + html2svg`
+- Preview renderer: `CLI validate, JSON report, preview HTML + html2svg`
 - Preview HTML: `dist/cem_ml/schema-packages/svg/v1/examples/invalid-missing-namespace.svg.html`
 
 ```bash
-dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
-  uri=packages/cem_ml/schema-packages/svg/v1/examples/invalid-missing-namespace.svg,contentType=image/svg+xml,schema=https://cem.dev/ns/data/svg/1 \
-  --from-format xml --to-content-type image/svg+xml --to-schema \
-  https://cem.dev/ns/data/svg/1 --cemt-formatter-profile tabular --cemt-color-profile \
-  terminal --output-color-type ansi-256
+dist/target/cem_ml_cli/debug/cem-ml validate --format json --fail-level parse \
+  --content-type image/svg+xml --schema https://cem.dev/ns/data/svg/1 \
+  packages/cem_ml/schema-packages/svg/v1/examples/invalid-missing-namespace.svg
 ```
 
 </details>
@@ -163,15 +233,13 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
 - Schema: `https://cem.dev/ns/data/svg/1`
 - Expected result: `fail`
 - Expected diagnostics: `cem.svg.script_rejected`
-- Preview renderer: `CLI convert, tabular formatter, preview HTML + html2svg`
+- Preview renderer: `CLI validate, JSON report, preview HTML + html2svg`
 - Preview HTML: `dist/cem_ml/schema-packages/svg/v1/examples/invalid-script.svg.html`
 
 ```bash
-dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
-  uri=packages/cem_ml/schema-packages/svg/v1/examples/invalid-script.svg,contentType=image/svg+xml,schema=https://cem.dev/ns/data/svg/1 \
-  --from-format xml --to-content-type image/svg+xml --to-schema \
-  https://cem.dev/ns/data/svg/1 --cemt-formatter-profile tabular --cemt-color-profile \
-  terminal --output-color-type ansi-256
+dist/target/cem_ml_cli/debug/cem-ml validate --format json --fail-level parse \
+  --content-type image/svg+xml --schema https://cem.dev/ns/data/svg/1 \
+  packages/cem_ml/schema-packages/svg/v1/examples/invalid-script.svg
 ```
 
 </details>
@@ -186,15 +254,13 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
 - Schema: `https://cem.dev/ns/data/svg/1`
 - Expected result: `fail`
 - Expected diagnostics: `cem.svg.external_resource_rejected`
-- Preview renderer: `CLI convert, tabular formatter, preview HTML + html2svg`
+- Preview renderer: `CLI validate, JSON report, preview HTML + html2svg`
 - Preview HTML: `dist/cem_ml/schema-packages/svg/v1/examples/invalid-external-image.svg.html`
 
 ```bash
-dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
-  uri=packages/cem_ml/schema-packages/svg/v1/examples/invalid-external-image.svg,contentType=image/svg+xml,schema=https://cem.dev/ns/data/svg/1 \
-  --from-format xml --to-content-type image/svg+xml --to-schema \
-  https://cem.dev/ns/data/svg/1 --cemt-formatter-profile tabular --cemt-color-profile \
-  terminal --output-color-type ansi-256
+dist/target/cem_ml_cli/debug/cem-ml validate --format json --fail-level parse \
+  --content-type image/svg+xml --schema https://cem.dev/ns/data/svg/1 \
+  packages/cem_ml/schema-packages/svg/v1/examples/invalid-external-image.svg
 ```
 
 </details>
