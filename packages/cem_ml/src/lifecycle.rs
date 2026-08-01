@@ -37,6 +37,10 @@ use crate::validation::json_schema::{
 use crate::validation::markdown::{
     markdown_document_ast_from_source_bytes, MarkdownDocumentAst, MarkdownSourceValidationRequest,
 };
+use crate::validation::mathml::{
+    mathml_document_ast_from_source_bytes, MathMlDocumentAst, MathMlSourceValidationRequest,
+    MATHML_CONTENT_CONTENT_TYPE, MATHML_PRESENTATION_CONTENT_TYPE,
+};
 use crate::validation::relax_ng::{
     relax_ng_document_ast_from_source_bytes, RelaxNgDocumentAst, RelaxNgSourceValidationRequest,
     RelaxNgSyntaxKind,
@@ -70,9 +74,8 @@ const HTML_NAMESPACE: &str = HTML_NAMESPACE_URI;
 const SVG_NAMESPACE: &str = SVG_NAMESPACE_URI;
 const MATHML_NAMESPACE: &str = MATHML_NAMESPACE_URI;
 const XSLT_NAMESPACE: &str = XSLT_NAMESPACE_URI;
-const HTML_ADAPTER_SCHEMA_IDENTITIES: &[&str] =
-    &[HTML_SCHEMA_URI, HTML_NAMESPACE, MATHML_NAMESPACE];
-const XML_ADAPTER_SCHEMA_IDENTITIES: &[&str] = &[XML_SCHEMA_URI, MATHML_SCHEMA_URI];
+const HTML_ADAPTER_SCHEMA_IDENTITIES: &[&str] = &[HTML_SCHEMA_URI, HTML_NAMESPACE];
+const XML_ADAPTER_SCHEMA_IDENTITIES: &[&str] = &[XML_SCHEMA_URI];
 const CEM_ML_SCHEMA_IDENTITIES: &[&str] = &[
     CEM_ML_SCHEMA_URI,
     CEM_SCHEMA_URI,
@@ -102,6 +105,7 @@ pub enum LoadedInputAstStream {
     XmlDocument(XmlDocumentAst),
     XhtmlDocument(XhtmlDocumentAst),
     SvgDocument(SvgDocumentAst),
+    MathMlDocument(MathMlDocumentAst),
     RelaxNgDocument(RelaxNgDocumentAst),
 }
 
@@ -139,6 +143,7 @@ impl LifecycleRegistry {
         registry.register(CemMlAdapter);
         registry.register(XhtmlAdapter);
         registry.register(SvgAdapter);
+        registry.register(MathMlAdapter);
         registry.register(HtmlAdapter);
         registry.register(RelaxNgAdapter);
         registry.register(XmlAdapter);
@@ -538,10 +543,7 @@ impl LifecycleAdapter for HtmlAdapter {
     fn matches_input(&self, identity: &FormatIdentity) -> bool {
         matches_content_type(identity, &[HTML_CONTENT_TYPE])
             || matches_schema_without_content_type(identity, HTML_ADAPTER_SCHEMA_IDENTITIES)
-            || matches_namespace_without_content_type_or_schema(
-                identity,
-                &[HTML_NAMESPACE, MATHML_NAMESPACE],
-            )
+            || matches_namespace_without_content_type_or_schema(identity, &[HTML_NAMESPACE])
     }
 
     fn load(&self, input: &EngineInput, _: &FormatIdentity) -> LoadedInput {
@@ -666,6 +668,63 @@ fn matches_svg_identity(identity: &FormatIdentity) -> bool {
         || matches_namespace_without_content_type_or_schema(identity, &[SVG_NAMESPACE])
 }
 
+struct MathMlAdapter;
+
+impl LifecycleAdapter for MathMlAdapter {
+    fn id(&self) -> &'static str {
+        "mathml"
+    }
+
+    fn matches_input(&self, identity: &FormatIdentity) -> bool {
+        matches_mathml_identity(identity)
+    }
+
+    fn load(&self, input: &EngineInput, identity: &FormatIdentity) -> LoadedInput {
+        let content_type = identity
+            .content_type
+            .as_deref()
+            .or(input.root_scope.default_content_type.as_deref())
+            .unwrap_or(MATHML_CONTENT_TYPE);
+        let (document, diagnostics) =
+            mathml_document_ast_from_source_bytes(MathMlSourceValidationRequest {
+                bytes: &input.bytes,
+                source_uri: &input.uri,
+                content_type: Some(content_type),
+            });
+        LoadedInput {
+            bytes: input.bytes.clone(),
+            from_format: InputFormat::Xml,
+            ast_stream: document.map(LoadedInputAstStream::MathMlDocument),
+            diagnostics,
+            adapter_id: Some(self.id()),
+        }
+    }
+
+    fn matches_target(&self, identity: &FormatIdentity) -> bool {
+        matches_mathml_identity(identity)
+    }
+
+    fn target_format(&self) -> Option<LayerFormat> {
+        Some(LayerFormat::Xml)
+    }
+}
+
+fn matches_mathml_identity(identity: &FormatIdentity) -> bool {
+    let explicit_schema_matches = identity
+        .schema
+        .as_deref()
+        .map(str::trim)
+        .is_some_and(|schema| matches!(schema, MATHML_SCHEMA_URI | MATHML_NAMESPACE_URI));
+    if let Some(content_type) = identity.content_type.as_deref() {
+        return matches!(
+            content_type_essence(content_type).as_str(),
+            MATHML_CONTENT_TYPE | MATHML_PRESENTATION_CONTENT_TYPE | MATHML_CONTENT_CONTENT_TYPE
+        ) && (identity.schema.is_none() || explicit_schema_matches);
+    }
+    explicit_schema_matches
+        || matches_namespace_without_content_type_or_schema(identity, &[MATHML_NAMESPACE])
+}
+
 struct XmlAdapter;
 
 impl LifecycleAdapter for XmlAdapter {
@@ -674,16 +733,8 @@ impl LifecycleAdapter for XmlAdapter {
     }
 
     fn matches_input(&self, identity: &FormatIdentity) -> bool {
-        matches_content_type(
-            identity,
-            &[
-                XML_CONTENT_TYPE,
-                "text/xml",
-                MATHML_CONTENT_TYPE,
-                "application/mathml-presentation+xml",
-                "application/mathml-content+xml",
-            ],
-        ) || matches_schema_without_content_type(identity, XML_ADAPTER_SCHEMA_IDENTITIES)
+        matches_content_type(identity, &[XML_CONTENT_TYPE, "text/xml"])
+            || matches_schema_without_content_type(identity, XML_ADAPTER_SCHEMA_IDENTITIES)
     }
 
     fn load(&self, input: &EngineInput, identity: &FormatIdentity) -> LoadedInput {
@@ -1704,14 +1755,40 @@ mod tests {
     }
 
     #[test]
-    fn builtins_load_mathml_content_type_as_xml() {
-        let loaded = LifecycleRegistry::with_builtin_adapters().load(
-            &input(br#"<math xmlns="http://www.w3.org/1998/Math/MathML"><mi>x</mi></math>"#),
-            &context(MATHML_CONTENT_TYPE),
-        );
-        assert_eq!(loaded.from_format, InputFormat::Xml);
-        assert_eq!(loaded.adapter_id, Some("xml"));
-        assert!(loaded.diagnostics.is_empty());
+    fn builtins_load_mathml_content_types_as_dedicated_internal_ast_stream() {
+        for (content_type, expected_profile) in [
+            (
+                MATHML_CONTENT_TYPE,
+                crate::validation::mathml::MathMlMediaProfile::Generic,
+            ),
+            (
+                MATHML_PRESENTATION_CONTENT_TYPE,
+                crate::validation::mathml::MathMlMediaProfile::Presentation,
+            ),
+            (
+                MATHML_CONTENT_CONTENT_TYPE,
+                crate::validation::mathml::MathMlMediaProfile::Content,
+            ),
+        ] {
+            let source = if content_type == MATHML_CONTENT_CONTENT_TYPE {
+                br#"<math xmlns="http://www.w3.org/1998/Math/MathML"><apply><plus/><ci>x</ci></apply></math>"#.as_slice()
+            } else {
+                br#"<math xmlns="http://www.w3.org/1998/Math/MathML"><mi>x</mi></math>"#.as_slice()
+            };
+            let loaded = LifecycleRegistry::with_builtin_adapters()
+                .load(&input(source), &context(content_type));
+            assert_eq!(loaded.from_format, InputFormat::Xml);
+            assert_eq!(loaded.adapter_id, Some("mathml"));
+            assert!(loaded.diagnostics.is_empty(), "{:?}", loaded.diagnostics);
+            let document = match loaded
+                .ast_stream
+                .expect("MathML adapter emits internal AST stream")
+            {
+                LoadedInputAstStream::MathMlDocument(document) => document,
+                other => panic!("MathML adapter emitted unexpected AST stream: {other:?}"),
+            };
+            assert_eq!(document.media_profile, expected_profile);
+        }
     }
 
     #[test]
@@ -2250,17 +2327,21 @@ mod tests {
     }
 
     #[test]
-    fn mathml_schema_selects_html_input_when_content_type_absent() {
+    fn mathml_namespace_schema_selects_dedicated_mathml_input_when_content_type_absent() {
         let loaded = LifecycleRegistry::with_builtin_adapters().load(
-            &input(b"<math><mi>x</mi></math>"),
+            &input(br#"<math xmlns="http://www.w3.org/1998/Math/MathML"><mi>x</mi></math>"#),
             &EngineContext {
                 schema: Some(MATHML_NAMESPACE.to_owned()),
                 ..EngineContext::default()
             },
         );
-        assert_eq!(loaded.from_format, InputFormat::Html);
-        assert_eq!(loaded.adapter_id, Some("html"));
+        assert_eq!(loaded.from_format, InputFormat::Xml);
+        assert_eq!(loaded.adapter_id, Some("mathml"));
         assert!(loaded.diagnostics.is_empty());
+        assert!(matches!(
+            loaded.ast_stream,
+            Some(LoadedInputAstStream::MathMlDocument(_))
+        ));
     }
 
     #[test]
@@ -2282,7 +2363,7 @@ mod tests {
     }
 
     #[test]
-    fn mathml_package_schema_selects_xml_input_when_content_type_absent() {
+    fn mathml_package_schema_selects_dedicated_mathml_input_when_content_type_absent() {
         let loaded = LifecycleRegistry::with_builtin_adapters().load(
             &input(br#"<math xmlns="http://www.w3.org/1998/Math/MathML"><mi>x</mi></math>"#),
             &EngineContext {
@@ -2291,8 +2372,12 @@ mod tests {
             },
         );
         assert_eq!(loaded.from_format, InputFormat::Xml);
-        assert_eq!(loaded.adapter_id, Some("xml"));
+        assert_eq!(loaded.adapter_id, Some("mathml"));
         assert!(loaded.diagnostics.is_empty());
+        assert!(matches!(
+            loaded.ast_stream,
+            Some(LoadedInputAstStream::MathMlDocument(_))
+        ));
     }
 
     #[test]
@@ -2348,8 +2433,9 @@ mod tests {
     }
 
     #[test]
-    fn mathml_namespace_selects_html_input_when_content_type_and_schema_absent() {
-        let mut source = input(b"<math><mi>x</mi></math>");
+    fn mathml_namespace_selects_dedicated_mathml_input_when_content_type_and_schema_absent() {
+        let mut source =
+            input(br#"<math xmlns="http://www.w3.org/1998/Math/MathML"><mi>x</mi></math>"#);
         source.identity = Some(FormatIdentity {
             namespaces: std::collections::BTreeMap::from([(
                 "mathml".to_owned(),
@@ -2361,8 +2447,8 @@ mod tests {
         let loaded =
             LifecycleRegistry::with_builtin_adapters().load(&source, &EngineContext::default());
 
-        assert_eq!(loaded.from_format, InputFormat::Html);
-        assert_eq!(loaded.adapter_id, Some("html"));
+        assert_eq!(loaded.from_format, InputFormat::Xml);
+        assert_eq!(loaded.adapter_id, Some("mathml"));
         assert!(loaded.diagnostics.is_empty());
     }
 
@@ -2535,16 +2621,22 @@ mod tests {
     }
 
     #[test]
-    fn mathml_target_content_type_selects_xml_export() {
-        let target = FormatIdentity {
-            content_type: Some(MATHML_CONTENT_TYPE.to_owned()),
-            ..FormatIdentity::default()
-        };
-        let selected = LifecycleRegistry::with_builtin_adapters()
-            .select_export(Some(&target), LayerFormat::DomJson);
-        assert_eq!(selected.to_format, LayerFormat::Xml);
-        assert_eq!(selected.adapter_id, Some("xml"));
-        assert!(selected.diagnostics.is_empty());
+    fn mathml_target_content_types_select_dedicated_mathml_export() {
+        for content_type in [
+            MATHML_CONTENT_TYPE,
+            MATHML_PRESENTATION_CONTENT_TYPE,
+            MATHML_CONTENT_CONTENT_TYPE,
+        ] {
+            let target = FormatIdentity {
+                content_type: Some(content_type.to_owned()),
+                ..FormatIdentity::default()
+            };
+            let selected = LifecycleRegistry::with_builtin_adapters()
+                .select_export(Some(&target), LayerFormat::DomJson);
+            assert_eq!(selected.to_format, LayerFormat::Xml);
+            assert_eq!(selected.adapter_id, Some("mathml"));
+            assert!(selected.diagnostics.is_empty());
+        }
     }
 
     #[test]
@@ -2561,7 +2653,7 @@ mod tests {
     }
 
     #[test]
-    fn mathml_package_schema_selects_xml_export_when_content_type_absent() {
+    fn mathml_package_schema_selects_dedicated_mathml_export_when_content_type_absent() {
         let target = FormatIdentity {
             schema: Some(MATHML_SCHEMA_URI.to_owned()),
             ..FormatIdentity::default()
@@ -2569,7 +2661,7 @@ mod tests {
         let selected = LifecycleRegistry::with_builtin_adapters()
             .select_export(Some(&target), LayerFormat::DomJson);
         assert_eq!(selected.to_format, LayerFormat::Xml);
-        assert_eq!(selected.adapter_id, Some("xml"));
+        assert_eq!(selected.adapter_id, Some("mathml"));
         assert!(selected.diagnostics.is_empty());
     }
 
@@ -2691,15 +2783,15 @@ mod tests {
     }
 
     #[test]
-    fn mathml_schema_selects_html_export_when_content_type_absent() {
+    fn mathml_namespace_schema_selects_dedicated_mathml_export_when_content_type_absent() {
         let target = FormatIdentity {
             schema: Some(MATHML_NAMESPACE.to_owned()),
             ..FormatIdentity::default()
         };
         let selected = LifecycleRegistry::with_builtin_adapters()
             .select_export(Some(&target), LayerFormat::DomJson);
-        assert_eq!(selected.to_format, LayerFormat::Html);
-        assert_eq!(selected.adapter_id, Some("html"));
+        assert_eq!(selected.to_format, LayerFormat::Xml);
+        assert_eq!(selected.adapter_id, Some("mathml"));
         assert!(selected.diagnostics.is_empty());
     }
 
@@ -2746,7 +2838,7 @@ mod tests {
     }
 
     #[test]
-    fn mathml_namespace_selects_html_export_when_content_type_and_schema_absent() {
+    fn mathml_namespace_selects_dedicated_mathml_export_when_content_type_and_schema_absent() {
         let target = FormatIdentity {
             namespaces: std::collections::BTreeMap::from([(
                 "mathml".to_owned(),
@@ -2756,8 +2848,8 @@ mod tests {
         };
         let selected = LifecycleRegistry::with_builtin_adapters()
             .select_export(Some(&target), LayerFormat::DomJson);
-        assert_eq!(selected.to_format, LayerFormat::Html);
-        assert_eq!(selected.adapter_id, Some("html"));
+        assert_eq!(selected.to_format, LayerFormat::Xml);
+        assert_eq!(selected.adapter_id, Some("mathml"));
         assert!(selected.diagnostics.is_empty());
     }
 

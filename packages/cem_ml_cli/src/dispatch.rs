@@ -12978,6 +12978,55 @@ This document has **strong** text and a link.
     }
 
     #[test]
+    fn convert_mathml_same_schema_uses_dedicated_lifecycle_output_pipeline_for_all_media_types() {
+        for (name, content_type, source) in [
+            (
+                "generic",
+                cem_ml::schema::registry::MATHML_CONTENT_TYPE,
+                r#"<?xml version="1.0"?><math xmlns="http://www.w3.org/1998/Math/MathML"><mi>x</mi></math>"#,
+            ),
+            (
+                "presentation",
+                cem_ml::validation::mathml::MATHML_PRESENTATION_CONTENT_TYPE,
+                r#"<?xml version="1.0"?><math xmlns="http://www.w3.org/1998/Math/MathML"><mrow><mi>x</mi></mrow></math>"#,
+            ),
+            (
+                "content",
+                cem_ml::validation::mathml::MATHML_CONTENT_CONTENT_TYPE,
+                r#"<?xml version="1.0"?><math xmlns="http://www.w3.org/1998/Math/MathML"><apply><plus/><ci>x</ci></apply></math>"#,
+            ),
+        ] {
+            let p = write_fixture(&format!("convert-mathml-{name}-same-schema.mml"), source);
+            let input_spec = format!(
+                "uri={},contentType={content_type},schema={}",
+                p.display(),
+                cem_ml::schema::registry::MATHML_SCHEMA_URI
+            );
+
+            let (outcome, stdout, stderr) = run(
+                &RealCemMlEngine::new(),
+                &[
+                    "convert",
+                    "--input-spec",
+                    &input_spec,
+                    "--to-content-type",
+                    content_type,
+                    "--to-schema",
+                    cem_ml::schema::registry::MATHML_SCHEMA_URI,
+                    "--cemt-formatter-profile",
+                    "tabular",
+                ],
+            );
+
+            assert_eq!(outcome.exit_code, EXIT_OK, "{name}: {stderr}");
+            assert!(stderr.trim().is_empty(), "{name}: {stderr}");
+            assert_eq!(stdout, format!("{source}\n"), "{name}");
+            assert!(!stdout.contains("cem.schema."));
+            assert!(!stdout.contains("cem.lifecycle."));
+        }
+    }
+
+    #[test]
     fn convert_relax_ng_xml_same_schema_uses_typed_lifecycle_output_pipeline() {
         let source = r#"<grammar xmlns="http://relaxng.org/ns/structure/1.0"><start><element name="note"><text/></element></start></grammar>"#;
         let p = write_fixture("convert-relax-ng-same-schema.rng", source);
@@ -16538,21 +16587,11 @@ start =
             );
 
             let report: serde_json::Value = serde_json::from_str(stdout.trim()).unwrap();
-            if name == "mathml-namespace" {
-                assert_eq!(outcome.exit_code, EXIT_HARD_FAILURE, "{name}: {stderr}");
-                assert!(
-                    report["summary"]["hardViolationCount"]
-                        .as_u64()
-                        .is_some_and(|count| count > 0),
-                    "{name}: {report:#}"
-                );
-            } else {
-                assert_eq!(outcome.exit_code, EXIT_OK, "{name}: {stderr}");
-                assert_eq!(
-                    report["summary"]["hardViolationCount"], 0,
-                    "{name}: {report:#}"
-                );
-            }
+            assert_eq!(outcome.exit_code, EXIT_OK, "{name}: {stderr}");
+            assert_eq!(
+                report["summary"]["hardViolationCount"], 0,
+                "{name}: {report:#}"
+            );
             assert_eq!(report["summary"]["inputCount"], 1, "{name}: {report:#}");
             assert_report_has_no_lifecycle_adapter_unsupported(&report);
         }

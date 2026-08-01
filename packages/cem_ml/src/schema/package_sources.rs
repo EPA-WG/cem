@@ -491,10 +491,40 @@ static BUILTIN_SCHEMA_PACKAGE_ARTIFACT_SOURCES: &[BuiltinSchemaPackageArtifactSo
     },
     BuiltinSchemaPackageArtifactSource {
         package_id: "mathml",
+        path: "schema-packages/mathml/v1/formatters/compact.cemt",
+        source: include_str!("../../schema-packages/mathml/v1/formatters/compact.cemt"),
+    },
+    BuiltinSchemaPackageArtifactSource {
+        package_id: "mathml",
+        path: "schema-packages/mathml/v1/formatters/pretty.cemt",
+        source: include_str!("../../schema-packages/mathml/v1/formatters/pretty.cemt"),
+    },
+    BuiltinSchemaPackageArtifactSource {
+        package_id: "mathml",
+        path: "schema-packages/mathml/v1/formatters/tabular.cemt",
+        source: include_str!("../../schema-packages/mathml/v1/formatters/tabular.cemt"),
+    },
+    BuiltinSchemaPackageArtifactSource {
+        package_id: "mathml",
         path: "schema-packages/mathml/v1/formatters/mathml-format-document.cemt",
         source: include_str!(
             "../../schema-packages/mathml/v1/formatters/mathml-format-document.cemt"
         ),
+    },
+    BuiltinSchemaPackageArtifactSource {
+        package_id: "mathml",
+        path: "schema-packages/mathml/v1/colorizers/terminal.cemt",
+        source: include_str!("../../schema-packages/mathml/v1/colorizers/terminal.cemt"),
+    },
+    BuiltinSchemaPackageArtifactSource {
+        package_id: "mathml",
+        path: "schema-packages/mathml/v1/colorizers/html.cemt",
+        source: include_str!("../../schema-packages/mathml/v1/colorizers/html.cemt"),
+    },
+    BuiltinSchemaPackageArtifactSource {
+        package_id: "mathml",
+        path: "schema-packages/mathml/v1/colorizers/md.cemt",
+        source: include_str!("../../schema-packages/mathml/v1/colorizers/md.cemt"),
     },
     BuiltinSchemaPackageArtifactSource {
         package_id: "mathml",
@@ -3860,27 +3890,47 @@ mod tests {
 
     #[test]
     fn catalog_exposes_mathml_output_artifact_sources() {
-        let formatter = builtin_schema_package_artifact_source(
-            "mathml",
+        for (path, function, profile) in [
+            (
+                "formatters/compact.cemt",
+                "mathml.format-document",
+                "compact",
+            ),
+            (
+                "formatters/pretty.cemt",
+                "mathml.format-document",
+                "xml.pretty",
+            ),
+            (
+                "formatters/tabular.cemt",
+                "mathml.format-document",
+                "tabular",
+            ),
+            (
+                "colorizers/terminal.cemt",
+                "mathml.color-document",
+                "terminal",
+            ),
+            ("colorizers/html.cemt", "mathml.color-document", "html"),
+            ("colorizers/md.cemt", "mathml.color-document", "md"),
+        ] {
+            let full_path = format!("schema-packages/mathml/v1/{path}");
+            let artifact = builtin_schema_package_artifact_source("mathml", &full_path)
+                .unwrap_or_else(|| panic!("MathML artifact source `{full_path}`"));
+            assert!(artifact.source.contains(&format!(r#"@name="{function}""#)));
+            assert!(artifact
+                .source
+                .contains(&format!(r#"@profile="{profile}""#)));
+            assert!(artifact.source.contains("{body |"));
+        }
+        for path in [
             "schema-packages/mathml/v1/formatters/mathml-format-document.cemt",
-        )
-        .expect("MathML formatter source");
-        let colorizer = builtin_schema_package_artifact_source(
-            "mathml",
             "schema-packages/mathml/v1/colorizers/mathml-color-document.cemt",
-        )
-        .expect("MathML colorizer source");
-
-        assert!(formatter
-            .source
-            .contains(r#"@name="mathml.format-document""#));
-        assert!(formatter.source.contains(r#"@category="mathml-document""#));
-        assert!(colorizer
-            .source
-            .contains(r#"@name="mathml.color-document""#));
-        assert!(colorizer
-            .source
-            .contains(r#"@content-type="application/mathml+xml""#));
+        ] {
+            let helper = builtin_schema_package_artifact_source("mathml", path)
+                .unwrap_or_else(|| panic!("MathML helper source `{path}`"));
+            assert!(helper.source.contains("{body |"));
+        }
     }
 
     #[test]

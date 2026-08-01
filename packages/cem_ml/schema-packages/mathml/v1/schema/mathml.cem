@@ -75,31 +75,50 @@
     }
 
     {constraints |
-        {constraint @name="mathml-source-parser" @applies-to="document" @rule="delegate-to-xml-parser-with-mathml-schema"}
-        {constraint @name="application-mathml-primary" @applies-to="document" @rule="primary-content-type-must-be-application-mathml+xml"}
-        {constraint @name="presentation-content-profiles" @applies-to="document" @rule="profile-specific-media-types-map-to-presentation-or-content-subtrees"}
-        {constraint @name="xml-base-compatible" @applies-to="document" @rule="mathml-must-preserve-xml-namespace-attributes-entity-boundaries-and-source-map-identity"}
-        {constraint @name="mathml-root" @applies-to="math" @rule="root-element-must-be-mathml-math-in-mathml-namespace"}
-        {constraint @name="presentation-and-content-mixed-model" @applies-to="semantics" @rule="semantics-may-pair-presentation-content-and-annotation-subtrees"}
-        {constraint @name="annotation-external-policy" @applies-to="annotation" @rule="external-annotation-sources-require-loader-policy-approval"}
-        {constraint @name="accessibility-text" @applies-to="math" @rule="alttext-or-semantic-annotation-should-be-preserved-when-provided"}
-        {constraint @name="source-map" @applies-to="document" @rule="source-id-byte-offset-and-byte-length-are-stable-source-identity-fields"}
+        {constraint @kind="mathml-source-parser" @target="document" @diagnostic="cem.mathml.not_well_formed_xml" @behavior="mathml-report-fact" @fact-kind="not-well-formed-xml" @policy="delegate to the generic XML event parser while retaining MathML schema and media-profile identity"}
+        {constraint @kind="mathml-source-encoding" @target="document" @diagnostic="cem.mathml.unsupported_encoding" @behavior="mathml-report-fact" @fact-kind="unsupported-encoding" @policy="inherit the XML package UTF-8 and US-ASCII decoder policy"}
+        {constraint @kind="mathml-encoding-conflict" @target="document" @diagnostic="cem.mathml.encoding_conflict" @behavior="mathml-report-fact" @fact-kind="encoding-conflict" @policy="MIME charset and XML declaration encoding must not conflict"}
+        {constraint @kind="mathml-namespace-prefix-binding" @target="document" @diagnostic="cem.mathml.unbound_namespace_prefix" @behavior="mathml-report-fact" @fact-kind="unbound-namespace-prefix" @policy="inherit XML namespace prefix binding rules"}
+        {constraint @kind="mathml-attribute-namespace-uniqueness" @target="document" @diagnostic="cem.mathml.duplicate_attribute" @behavior="mathml-report-fact" @fact-kind="duplicate-attribute" @policy="inherit XML expanded-name attribute uniqueness rules"}
+        {constraint @kind="application-mathml-primary" @target="document" @policy="application/mathml+xml is the canonical media type; presentation and content aliases select their corresponding expression profiles"}
+        {constraint @kind="presentation-content-profiles" @target="document" @diagnostic="cem.mathml.malformed_expression" @behavior="mathml-report-fact" @fact-kind="malformed-expression" @policy="profile-specific media types must contain presentation or content expression subtrees respectively"}
+        {constraint @kind="profile-parameter" @target="document" @diagnostic="cem.mathml.unsupported_profile" @behavior="mathml-report-fact" @fact-kind="unsupported-profile" @policy="profile parameter values are generic presentation or content"}
+        {constraint @kind="xml-base-compatible" @target="document" @policy="preserve XML namespace attributes entity boundaries lexical events and source identity"}
+        {constraint @kind="mathml-root-element" @target="math" @diagnostic="cem.mathml.root_not_math" @behavior="mathml-report-fact" @fact-kind="root-not-math" @policy="root element must be math"}
+        {constraint @kind="mathml-namespace-required" @target="math" @diagnostic="cem.mathml.namespace_missing" @behavior="mathml-report-fact" @fact-kind="namespace-missing" @policy="root math element must use http://www.w3.org/1998/Math/MathML"}
+        {constraint @kind="presentation-and-content-mixed-model" @target="semantics" @policy="generic MathML semantics may pair presentation content and annotation subtrees"}
+        {constraint @kind="annotation-external-policy" @target="annotation" @diagnostic="cem.mathml.external_annotation_rejected" @behavior="mathml-report-fact" @fact-kind="external-annotation-rejected" @policy="external src and definitionURL references require explicit resolver policy; fragments and data URIs remain lexical references"}
+        {constraint @kind="foreign-content-policy" @target="foreign-content" @diagnostic="cem.mathml.foreign_content_rejected" @behavior="mathml-report-fact" @fact-kind="foreign-content-rejected" @policy="foreign annotation namespaces require their own registered schema package or explicit converter profile"}
+        {constraint @kind="accessibility-text" @target="math" @policy="preserve alttext semantics and annotation accessibility material when provided"}
+        {constraint @kind="doctype-policy" @target="document" @diagnostic="cem.mathml.dtd_rejected" @behavior="mathml-report-fact" @fact-kind="dtd-rejected" @policy="preserve doctype lexemes but inherit XML rejection of DTD declarations until an explicit resolver policy enables them"}
+        {constraint @kind="external-entity-policy" @target="document" @diagnostic="cem.mathml.external_entity_rejected" @behavior="mathml-report-fact" @fact-kind="external-entity-rejected" @policy="inherit XML rejection of non-built-in entity references"}
+        {constraint @kind="entity-expansion-limit" @target="document" @diagnostic="cem.mathml.entity_expansion_limit" @behavior="mathml-report-fact" @fact-kind="entity-expansion-limit" @policy="inherit XML entity expansion safety limits"}
+        {constraint @kind="source-map" @target="document" @diagnostic="cem.mathml.source_map" @behavior="mathml-report-fact" @fact-kind="source-map-unavailable" @policy="source ranges and source maps are required when the XML parser exposes source identity"}
     }
 
     {diagnostics |
         {diagnostic @code="cem.mathml.parse_error" @severity="error" @message="MathML could not be parsed as XML."}
         {diagnostic @code="cem.mathml.not_well_formed_xml" @severity="error" @message="MathML input is not well-formed XML."}
+        {diagnostic @code="cem.mathml.unsupported_encoding" @severity="error" @message="MathML source encoding is not supported."}
+        {diagnostic @code="cem.mathml.encoding_conflict" @severity="error" @message="MathML MIME charset conflicts with its XML declaration encoding."}
+        {diagnostic @code="cem.mathml.unbound_namespace_prefix" @severity="error" @message="MathML contains an unbound XML namespace prefix."}
+        {diagnostic @code="cem.mathml.duplicate_attribute" @severity="error" @message="MathML contains duplicate attributes by expanded XML name."}
+        {diagnostic @code="cem.mathml.dtd_rejected" @severity="error" @message="MathML DTD declarations are rejected by the default XML safety policy."}
+        {diagnostic @code="cem.mathml.external_entity_rejected" @severity="error" @message="MathML external entity references are rejected by the default XML safety policy."}
+        {diagnostic @code="cem.mathml.entity_expansion_limit" @severity="error" @message="MathML entity expansion exceeded the XML safety limit."}
         {diagnostic @code="cem.mathml.root_not_math" @severity="error" @message="MathML document root must be math."}
         {diagnostic @code="cem.mathml.namespace_missing" @severity="error" @message="MathML root must use the MathML namespace."}
         {diagnostic @code="cem.mathml.unsupported_profile" @severity="warning" @message="MathML media profile is not supported by the selected adapter."}
         {diagnostic @code="cem.mathml.malformed_expression" @severity="error" @message="MathML expression violates the selected profile constraints."}
         {diagnostic @code="cem.mathml.external_annotation_rejected" @severity="warning" @message="External MathML annotation was rejected by loader policy."}
-        {diagnostic @code="cem.mathml.source_map" @severity="warning" @message="MathML source map information is incomplete."}
+        {diagnostic @code="cem.mathml.foreign_content_rejected" @severity="error" @message="MathML foreign content requires an explicit schema or converter policy."}
+        {diagnostic @code="cem.mathml.source_map" @severity="info" @message="MathML source map information is incomplete."}
     }
 
     {compatibility |
         {note | MathML is XML-backed. The package owns application/mathml+xml as the primary resource type and application/mathml-presentation+xml and application/mathml-content+xml as registered profile-specific aliases.}
         {note | The registered MathML namespace is http://www.w3.org/1998/Math/MathML. The preferred file extension is .mml; .mathml is accepted as a compatibility spelling.}
-        {note | MathML embedded in HTML is selected through the HTML adapter by namespace when no explicit schema or content type is present; standalone MathML package identity selects XML.}
+        {note | Standalone MathML content type, package schema, and MathML namespace identities select the dedicated MathML lifecycle adapter. MathML embedded in HTML or XHTML remains part of the containing document lifecycle.}
+        {note | DTD declarations and external entities inherit the reject-only XML safety policy. External annotation src and definitionURL references require explicit resolver approval; local fragments and data URIs remain lexical references.}
     }
 }

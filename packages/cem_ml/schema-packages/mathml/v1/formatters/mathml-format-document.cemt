@@ -4,15 +4,162 @@
 
 {module @version="1.0.0" |
     {format-function
-        @name="mathml.format-document"
+        @name="mathml.format-document.tree"
+        @visibility="private"
         @category="mathml-document"
-        @subject="json"
-        @produces="tokens"
+        @subject="mathml-document"
+        @produces="cem-tree"
         @content-type="application/mathml+xml"
         @schema="https://cem.dev/ns/data/mathml/1"
         @canonical=true
         @deterministic=true
         @streamable=true |
-        {param @name="subject" @type="json" @required=true}
+        {param @name="subject" @type="object" @required=true}
+        {param @name="profile" @type="string" @required=true}
+        {body |
+            {$ {
+                kind: "cem-tree",
+                contentType: "application/mathml+xml",
+                schema: "https://cem.dev/ns/data/mathml/1",
+                category: "mathml-document",
+                formatterProfile: $profile,
+                formatNodes: [
+                    {
+                        kind: "format-marker",
+                        name: "mathml.format-document",
+                        formatterRole: "formatter.boundary",
+                        formatterProfile: $profile
+                    },
+                    {
+                        kind: "format-decision",
+                        name: "mathml.lexical-xml-layout",
+                        formatterRole: "formatter.layout",
+                        formatterProfile: $profile,
+                        value: {
+                            layout: call("mathml.format-document.layout", { profile: $profile }),
+                            lineEnding: $lineEnding,
+                            indent: $indent,
+                            tabSize: $tabSize,
+                            sourceBoundary: "mathml-document"
+                        }
+                    }
+                ],
+                nodes: extend(
+                    [
+                        call("mathml.format-document.token", {
+                            kind: "mathml.format-marker",
+                            text: "",
+                            role: "formatter.boundary",
+                            sourceMap: null,
+                            value: { name: "mathml.format-document", formatterProfile: $profile }
+                        }),
+                        call("mathml.format-document.token", {
+                            kind: "mathml.format-decision",
+                            text: "",
+                            role: "formatter.layout",
+                            sourceMap: null,
+                            value: {
+                                layout: call("mathml.format-document.layout", { profile: $profile }),
+                                formatterProfile: $profile,
+                                lineEnding: $lineEnding,
+                                indent: $indent,
+                                tabSize: $tabSize
+                            }
+                        })
+                    ],
+                    call("mathml.format-document.events", {
+                        events: match(typeOf($subject.events), { array: $subject.events, default: [] }),
+                        profile: $profile
+                    })
+                )
+            } }
+        }
+    }
+
+    {function @name="mathml.format-document.layout" @visibility="private" @returns="string" @deterministic=true |
+        {param @name="profile" @type="string" @required=true}
+        {body |
+            {$ match($profile, {
+                compact: "lexical-lossless-compact",
+                pretty: "lexical-lossless-pretty",
+                "xml.pretty": "lexical-lossless-pretty",
+                tabular: "lexical-lossless-tabular",
+                default: "lexical-lossless"
+            }) }
+        }
+    }
+
+    {function @name="mathml.format-document.events" @visibility="private" @returns="array" @deterministic=true |
+        {param @name="events" @type="array" @required=true}
+        {param @name="profile" @type="string" @required=true}
+        {body |
+            {$ fold($events, [], extend(
+                $acc,
+                [call("mathml.format-document.event", { event: $item, profile: $profile })]
+            )) }
+        }
+    }
+
+    {function @name="mathml.format-document.event" @visibility="private" @returns="object" @deterministic=true |
+        {param @name="event" @type="object" @required=true}
+        {param @name="profile" @type="string" @required=true}
+        {body |
+            {$ call("mathml.format-document.token", {
+                kind: concat("mathml.", match(typeOf($event.kind), { string: $event.kind, default: "raw" })),
+                text: match(typeOf($event.lexeme), { string: $event.lexeme, default: "" }),
+                role: call("mathml.format-document.role", { event: $event }),
+                sourceMap: match(exists($event.sourceMap), { true: $event.sourceMap, false: null }),
+                value: {
+                    formatterProfile: $profile,
+                    eventKind: match(typeOf($event.kind), { string: $event.kind, default: "raw" }),
+                    depth: match(typeOf($event.depth), { integer: $event.depth, default: 0 }),
+                    qualifiedName: match(exists($event.qualifiedName), { true: $event.qualifiedName, false: null }),
+                    namespaceUri: match(exists($event.namespaceUri), { true: $event.namespaceUri, false: null }),
+                    sourceRange: match(exists($event.sourceRange), { true: $event.sourceRange, false: null })
+                }
+            }) }
+        }
+    }
+
+    {function @name="mathml.format-document.role" @visibility="private" @returns="string" @deterministic=true |
+        {param @name="event" @type="object" @required=true}
+        {body |
+            {$ match($event.kind, {
+                declaration: "syntax.keyword",
+                "start-element": "syntax.name",
+                "empty-element": "syntax.name",
+                "end-element": "syntax.name",
+                text: "syntax.text",
+                cdata: "syntax.string",
+                comment: "syntax.comment",
+                "processing-instruction": "syntax.keyword",
+                doctype: "syntax.keyword",
+                "entity-reference": "syntax.string",
+                default: "syntax.raw"
+            }) }
+        }
+    }
+
+    {function @name="mathml.format-document.token" @visibility="private" @returns="object" @deterministic=true |
+        {param @name="kind" @type="string" @required=true}
+        {param @name="text" @type="string" @required=true}
+        {param @name="role" @type="string" @required=true}
+        {param @name="sourceMap" @type="any" @required=true @nullable=true}
+        {param @name="value" @type="object" @required=true}
+        {body |
+            {$ {
+                kind: $kind,
+                writerKind: "token",
+                text: $text,
+                role: $role,
+                style: { colorRole: $role },
+                sourceMap: $sourceMap,
+                outputSpan: match(typeOf($sourceMap), {
+                    null: null,
+                    default: { outputRange: { start: 0, len: 0 }, origin: $sourceMap }
+                }),
+                value: $value
+            } }
+        }
     }
 }

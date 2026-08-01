@@ -17,6 +17,7 @@ use crate::conversion::{
     execute_json_document_output_pipeline_with_environment,
     execute_json_schema_document_output_pipeline_with_environment,
     execute_markdown_document_output_pipeline_with_environment,
+    execute_mathml_document_output_pipeline_with_environment,
     execute_relax_ng_document_output_pipeline_with_environment,
     execute_svg_document_output_pipeline_with_environment,
     execute_xhtml_document_output_pipeline_with_environment,
@@ -64,9 +65,9 @@ use crate::schema::registry::{
     CEM_SCHEMA_CONTENT_TYPE, CEM_SCHEMA_PACKAGE_CONTENT_TYPE, CEM_SCHEMA_PACKAGE_URI,
     CSS_CONTENT_TYPE, CSS_SCHEMA_URI, CSV_CONTENT_TYPE, CSV_SCHEMA_URI, HTML_CONTENT_TYPE,
     HTML_SCHEMA_URI, JSON_CONTENT_TYPE, JSON_SCHEMA_CONTENT_TYPE, JSON_SCHEMA_SCHEMA_URI,
-    JSON_VALUE_SCHEMA_URI, MARKDOWN_CONTENT_TYPE, MARKDOWN_SCHEMA_URI, RELAX_NG_SCHEMA_URI,
-    SVG_CONTENT_TYPE, SVG_SCHEMA_URI, XHTML_CONTENT_TYPE, XHTML_SCHEMA_URI, XML_CONTENT_TYPE,
-    XML_SCHEMA_URI, YAML_CONTENT_TYPE, YAML_SCHEMA_URI,
+    JSON_VALUE_SCHEMA_URI, MARKDOWN_CONTENT_TYPE, MARKDOWN_SCHEMA_URI, MATHML_CONTENT_TYPE,
+    MATHML_SCHEMA_URI, RELAX_NG_SCHEMA_URI, SVG_CONTENT_TYPE, SVG_SCHEMA_URI, XHTML_CONTENT_TYPE,
+    XHTML_SCHEMA_URI, XML_CONTENT_TYPE, XML_SCHEMA_URI, YAML_CONTENT_TYPE, YAML_SCHEMA_URI,
 };
 use crate::schema::vocab::CompiledSchema;
 use crate::source::line_index::LineIndex;
@@ -115,6 +116,7 @@ use crate::validation::generic_data::GenericDataDocumentAst;
 use crate::validation::json::JsonDocumentAst;
 use crate::validation::json_schema::JsonSchemaDocumentAst;
 use crate::validation::markdown::MarkdownDocumentAst;
+use crate::validation::mathml::MathMlDocumentAst;
 use crate::validation::relax_ng::{RelaxNgDocumentAst, RelaxNgSyntaxKind};
 use crate::validation::svg::SvgDocumentAst;
 use crate::validation::xhtml::XhtmlDocumentAst;
@@ -5680,6 +5682,76 @@ fn convert_loaded_svg_ast_output(
     )
 }
 
+fn convert_loaded_mathml_ast_output(
+    context: &EngineContext,
+    request: &ConvertRequest,
+    document: MathMlDocumentAst,
+    diagnostics: &mut Vec<Diagnostic>,
+) -> (Value, Option<PrimaryBytes>, ConvertExecutionMetadata) {
+    let metadata = convert_metadata_for_mathml_lifecycle_output(&request.target_scope);
+    let environment = ConversionOutputPipelineEnvironment {
+        schema_registry: &context.schema_registry,
+        conversion_registry: &context.converter_registry,
+        package_artifact_reader: None,
+        artifact_cache: None,
+    };
+    let execution = execute_mathml_document_output_pipeline_with_environment(
+        &environment,
+        document,
+        &request.target_scope,
+        Some(&request.input.uri),
+    );
+    diagnostics.extend(execution.diagnostics.clone());
+    if diagnostics
+        .iter()
+        .any(|diagnostic| diagnostic.severity.is_hard_violation())
+    {
+        return (Value::Null, None, metadata);
+    }
+
+    let content = execution
+        .output
+        .as_ref()
+        .and_then(Value::as_str)
+        .unwrap_or_default()
+        .to_owned();
+    let target = request
+        .target
+        .clone()
+        .or_else(|| request.target_scope.format_identity_option())
+        .unwrap_or_else(|| FormatIdentity {
+            content_type: Some(MATHML_CONTENT_TYPE.to_owned()),
+            schema: Some(MATHML_SCHEMA_URI.to_owned()),
+            ..FormatIdentity::default()
+        });
+    let content_type = target
+        .content_type
+        .unwrap_or_else(|| MATHML_CONTENT_TYPE.to_owned());
+    let schema = target
+        .schema
+        .unwrap_or_else(|| MATHML_SCHEMA_URI.to_owned());
+    let bytes = content.into_bytes();
+    let primary_bytes = PrimaryBytes {
+        content_type,
+        schema: Some(schema.clone()),
+        format_version: "mathml/1".to_owned(),
+        hash_scheme: "cem-text/1+blake3".to_owned(),
+        hash: text_content_hash(&bytes),
+        bytes,
+    };
+    let hash = primary_bytes.hash.clone();
+    (
+        json!({
+            "kind": "document",
+            "contentType": primary_bytes.content_type,
+            "schema": schema,
+            "hash": hash,
+        }),
+        Some(primary_bytes),
+        metadata,
+    )
+}
+
 fn convert_loaded_relax_ng_ast_output(
     context: &EngineContext,
     request: &ConvertRequest,
@@ -7140,6 +7212,75 @@ fn convert_metadata_for_svg_lifecycle_output(
     }
 }
 
+fn convert_metadata_for_mathml_lifecycle_output(
+    target_scope: &ScopeConfig,
+) -> ConvertExecutionMetadata {
+    let formatter_profile = target_scope
+        .cemt_formatter_profile
+        .clone()
+        .unwrap_or_else(|| "compact".to_owned());
+    let color_profile = xml_direct_output_color_profile(target_scope);
+    let writer_profile = target_scope
+        .output_color_type
+        .clone()
+        .or_else(|| color_profile.clone());
+    ConvertExecutionMetadata {
+        converter_id: Some("mathml-lifecycle-output".to_owned()),
+        implementation: Some("mathml-ast-stream-to-mathml-output-pipeline".to_owned()),
+        rust_fallback: None,
+        output_pipeline: Some(ConvertOutputPipelineMetadata {
+            stages: vec![
+                ConvertOutputPipelineStageMetadata {
+                    stage: "formatter".to_owned(),
+                    function: Some(
+                        target_scope
+                            .cemt_formatter
+                            .clone()
+                            .unwrap_or_else(|| "mathml.format-document".to_owned()),
+                    ),
+                    profile: Some(formatter_profile),
+                    content_type: Some(MATHML_CONTENT_TYPE.to_owned()),
+                    schema: Some(MATHML_SCHEMA_URI.to_owned()),
+                    category: Some("mathml-document".to_owned()),
+                    produces: Some(
+                        TransformTemplateOutputProducedKind::CemTree
+                            .as_str()
+                            .to_owned(),
+                    ),
+                },
+                ConvertOutputPipelineStageMetadata {
+                    stage: "colorizer".to_owned(),
+                    function: color_profile
+                        .as_ref()
+                        .map(|_| "mathml.color-document".to_owned()),
+                    profile: color_profile,
+                    content_type: Some(MATHML_CONTENT_TYPE.to_owned()),
+                    schema: Some(MATHML_SCHEMA_URI.to_owned()),
+                    category: Some("mathml-document".to_owned()),
+                    produces: Some(
+                        TransformTemplateOutputProducedKind::CemTree
+                            .as_str()
+                            .to_owned(),
+                    ),
+                },
+                ConvertOutputPipelineStageMetadata {
+                    stage: "writer".to_owned(),
+                    function: None,
+                    profile: writer_profile,
+                    content_type: Some(MATHML_CONTENT_TYPE.to_owned()),
+                    schema: Some(MATHML_SCHEMA_URI.to_owned()),
+                    category: Some("mathml-document".to_owned()),
+                    produces: Some(
+                        TransformTemplateOutputProducedKind::Text
+                            .as_str()
+                            .to_owned(),
+                    ),
+                },
+            ],
+        }),
+    }
+}
+
 fn convert_metadata_for_relax_ng_lifecycle_output(
     target_scope: &ScopeConfig,
     syntax_kind: RelaxNgSyntaxKind,
@@ -7502,6 +7643,7 @@ fn loaded_input_consumes_validation_without_cem_parse(loaded: &LoadedInput) -> b
                 | LoadedInputAstStream::XmlDocument(_)
                 | LoadedInputAstStream::XhtmlDocument(_)
                 | LoadedInputAstStream::SvgDocument(_)
+                | LoadedInputAstStream::MathMlDocument(_)
                 | LoadedInputAstStream::RelaxNgDocument(_)
         )
     ) || matches!(
@@ -8803,6 +8945,33 @@ impl CemMlEngine for RealCemMlEngine {
                             return;
                         }
                         // Cross-schema SVG exports require an explicit registered converter.
+                    }
+                    LoadedInputAstStream::MathMlDocument(document_value) => {
+                        if to_format == LayerFormat::Xml && export_adapter_id == Some("mathml") {
+                            if diagnostics
+                                .iter()
+                                .any(|diagnostic| diagnostic.severity.is_hard_violation())
+                            {
+                                primary = Some(Value::Null);
+                                conversion = Some(convert_metadata_for_mathml_lifecycle_output(
+                                    &request.target_scope,
+                                ));
+                                return;
+                            }
+
+                            let (mathml_primary, mathml_primary_bytes, mathml_conversion) =
+                                convert_loaded_mathml_ast_output(
+                                    &context,
+                                    &request,
+                                    document_value,
+                                    &mut diagnostics,
+                                );
+                            primary = Some(mathml_primary);
+                            primary_bytes = mathml_primary_bytes;
+                            conversion = Some(mathml_conversion);
+                            return;
+                        }
+                        // Cross-schema MathML exports require an explicit registered converter.
                     }
                     LoadedInputAstStream::RelaxNgDocument(document_value) => {
                         if to_format == LayerFormat::Xml
@@ -14400,6 +14569,35 @@ mod tests {
     }
 
     #[test]
+    fn validate_mathml_source_consumes_dedicated_lifecycle_ast_without_html_xml_or_cem_parse() {
+        let mut source = input(
+            br#"<?xml version="1.0"?><math xmlns="http://www.w3.org/1998/Math/MathML" alttext="x plus one"><mrow><mi>x</mi><mo>+</mo><mn>1</mn></mrow></math>"#,
+            "document.mml",
+        );
+        source.identity = Some(FormatIdentity {
+            content_type: Some(MATHML_CONTENT_TYPE.to_owned()),
+            schema: Some(MATHML_SCHEMA_URI.to_owned()),
+            ..FormatIdentity::default()
+        });
+        let req = ValidateRequest {
+            inputs: vec![source],
+            projection: ValidateProjection::Json,
+            fail_level: FailLevel::Validate,
+            context: ctx(),
+        };
+
+        let resp = RealCemMlEngine::new().validate(req).unwrap();
+
+        assert_eq!(resp.report.summary.input_count, 1);
+        assert_eq!(resp.report.summary.hard_violation_count, 0);
+        assert!(
+            resp.report.diagnostics.is_empty(),
+            "MathML validation must stay on the dedicated lifecycle AST path: {:?}",
+            resp.report.diagnostics
+        );
+    }
+
+    #[test]
     fn validate_relax_ng_sources_consume_typed_lifecycle_ast_without_cem_parse() {
         for (bytes, uri, content_type) in [
             (
@@ -14604,6 +14802,71 @@ mod tests {
         assert_eq!(primary_bytes.bytes, expected);
         assert_eq!(resp.primary["kind"], "document");
         assert_eq!(resp.primary["contentType"], SVG_CONTENT_TYPE);
+    }
+
+    #[test]
+    fn convert_mathml_same_schema_preserves_all_media_profiles_and_final_newline() {
+        for (content_type, mathml) in [
+            (
+                MATHML_CONTENT_TYPE,
+                br#"<?xml version="1.0"?><math xmlns="http://www.w3.org/1998/Math/MathML"><mi>x</mi></math>"#.as_slice(),
+            ),
+            (
+                crate::validation::mathml::MATHML_PRESENTATION_CONTENT_TYPE,
+                br#"<?xml version="1.0"?><math xmlns="http://www.w3.org/1998/Math/MathML"><mrow><mi>x</mi></mrow></math>"#.as_slice(),
+            ),
+            (
+                crate::validation::mathml::MATHML_CONTENT_CONTENT_TYPE,
+                br#"<?xml version="1.0"?><math xmlns="http://www.w3.org/1998/Math/MathML"><apply><plus/><ci>x</ci></apply></math>"#.as_slice(),
+            ),
+        ] {
+            let mut source = input(mathml, "document.mml");
+            source.identity = Some(FormatIdentity {
+                content_type: Some(content_type.to_owned()),
+                schema: Some(MATHML_SCHEMA_URI.to_owned()),
+                ..FormatIdentity::default()
+            });
+            let req = ConvertRequest {
+                input: source,
+                to_format: LayerFormat::DomJson,
+                preserve_source_offsets: false,
+                context: ctx(),
+                target: Some(FormatIdentity {
+                    content_type: Some(content_type.to_owned()),
+                    schema: Some(MATHML_SCHEMA_URI.to_owned()),
+                    ..FormatIdentity::default()
+                }),
+                target_scope: ScopeConfig {
+                    cemt_formatter_profile: Some("tabular".to_owned()),
+                    ..ScopeConfig::default()
+                },
+                scheduler_scope_id: 0,
+            };
+
+            let resp = RealCemMlEngine::new().convert(req).unwrap();
+
+            assert!(resp.diagnostics.is_empty(), "{:?}", resp.diagnostics);
+            assert_eq!(
+                resp.conversion
+                    .as_ref()
+                    .and_then(|conversion| conversion.converter_id.as_deref()),
+                Some("mathml-lifecycle-output")
+            );
+            assert_eq!(
+                resp.conversion
+                    .as_ref()
+                    .and_then(|conversion| conversion.implementation.as_deref()),
+                Some("mathml-ast-stream-to-mathml-output-pipeline")
+            );
+            let primary_bytes = resp.primary_bytes.as_ref().expect("MathML primary bytes");
+            assert_eq!(primary_bytes.content_type, content_type);
+            assert_eq!(primary_bytes.schema.as_deref(), Some(MATHML_SCHEMA_URI));
+            let mut expected = mathml.to_vec();
+            expected.push(b'\n');
+            assert_eq!(primary_bytes.bytes, expected);
+            assert_eq!(resp.primary["kind"], "document");
+            assert_eq!(resp.primary["contentType"], content_type);
+        }
     }
 
     #[test]

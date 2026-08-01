@@ -1,0 +1,21 @@
+@doc cem-ml 1
+@ns transform = "https://cem.dev/ns/transform/cem/1"
+@default transform
+
+{module @version="1.0.0" |
+    {format-function
+        @name="mathml.format-document"
+        @visibility="public"
+        @category="mathml-document"
+        @subject="mathml-document"
+        @produces="cem-tree"
+        @content-type="application/mathml+xml"
+        @schema="https://cem.dev/ns/data/mathml/1"
+        @profile="xml.pretty"
+        @canonical=false
+        @deterministic=true
+        @streamable=true |
+        {param @name="subject" @type="object" @required=true}
+        {body | {$ merge(call("mathml.format-document.tree", { subject: $subject, profile: "xml.pretty" }), {}) } }
+    }
+}

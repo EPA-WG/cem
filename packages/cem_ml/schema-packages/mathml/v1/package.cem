@@ -17,7 +17,7 @@
 
     {artifact
         @kind="formatter"
-        @path="formatters/mathml-format-document.cemt"
+        @path="formatters/compact.cemt"
         @content-type="application/vnd.cem.transform+cem"
         @schema="https://cem.dev/ns/transform/cem/1"
         @target-content-type="application/mathml+xml"
@@ -29,7 +29,7 @@
 
     {artifact
         @kind="formatter"
-        @path="formatters/mathml-format-document.cemt"
+        @path="formatters/pretty.cemt"
         @content-type="application/vnd.cem.transform+cem"
         @schema="https://cem.dev/ns/transform/cem/1"
         @target-content-type="application/mathml+xml"
@@ -41,7 +41,7 @@
 
     {artifact
         @kind="formatter"
-        @path="formatters/mathml-format-document.cemt"
+        @path="formatters/tabular.cemt"
         @content-type="application/vnd.cem.transform+cem"
         @schema="https://cem.dev/ns/transform/cem/1"
         @target-content-type="application/mathml+xml"
@@ -52,8 +52,19 @@
     }
 
     {artifact
+        @kind="formatter-helper"
+        @path="formatters/mathml-format-document.cemt"
+        @content-type="application/vnd.cem.transform+cem"
+        @schema="https://cem.dev/ns/transform/cem/1"
+        @target-content-type="application/mathml+xml"
+        @target-schema="https://cem.dev/ns/data/mathml/1"
+        @target-category="mathml-document"
+        @function-name="mathml.format-document.tree"
+    }
+
+    {artifact
         @kind="colorizer"
-        @path="colorizers/mathml-color-document.cemt"
+        @path="colorizers/terminal.cemt"
         @content-type="application/vnd.cem.transform+cem"
         @schema="https://cem.dev/ns/transform/cem/1"
         @target-content-type="application/mathml+xml"
@@ -65,7 +76,7 @@
 
     {artifact
         @kind="colorizer"
-        @path="colorizers/mathml-color-document.cemt"
+        @path="colorizers/html.cemt"
         @content-type="application/vnd.cem.transform+cem"
         @schema="https://cem.dev/ns/transform/cem/1"
         @target-content-type="application/mathml+xml"
@@ -77,7 +88,7 @@
 
     {artifact
         @kind="colorizer"
-        @path="colorizers/mathml-color-document.cemt"
+        @path="colorizers/md.cemt"
         @content-type="application/vnd.cem.transform+cem"
         @schema="https://cem.dev/ns/transform/cem/1"
         @target-content-type="application/mathml+xml"
@@ -85,6 +96,17 @@
         @target-category="mathml-document"
         @function-name="mathml.color-document"
         @color-profile="md"
+    }
+
+    {artifact
+        @kind="colorizer-helper"
+        @path="colorizers/mathml-color-document.cemt"
+        @content-type="application/vnd.cem.transform+cem"
+        @schema="https://cem.dev/ns/transform/cem/1"
+        @target-content-type="application/mathml+xml"
+        @target-schema="https://cem.dev/ns/data/mathml/1"
+        @target-category="mathml-document"
+        @function-name="mathml.color-document.tree"
     }
 
     {example

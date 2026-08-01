@@ -670,7 +670,21 @@ Remaining dependency-ordered package checklist:
         preserve lexical SVG and the default final newline.
   - [x] Expand manifest/index embedding, lifecycle, engine/CLI, profile,
         schema-owned example, README/SVG preview, safety, and release gates.
-- [ ] `mathml/v1`
+- [x] `mathml/v1`
+  - [x] Add a dedicated typed `MathMlDocumentAst` lifecycle stream over the
+        generic XML event model, preserving all three media types, selected
+        profile, MIME parameters, lexical events, ranges, and source maps.
+  - [x] Route standalone MathML content type, package schema, and namespace
+        identities through the dedicated adapter without HTML, generic XML, or
+        CEM fallthrough while retaining embedded HTML/XHTML MathML handling.
+  - [x] Bind XML safety, root/namespace, media-profile, expression,
+        semantics/annotation, accessibility, external URI, foreign-content,
+        and source-map facts to diagnostics declared in `schema/mathml.cem`.
+  - [x] Replace placeholder formatter/colorizer artifacts with executable
+        compact/pretty/tabular and terminal/HTML/Markdown CEMT profiles that
+        preserve lexical MathML, media-profile identity, and the final newline.
+  - [x] Expand manifest/index embedding, lifecycle, engine/CLI, all-media-type,
+        schema-owned example, README/SVG preview, safety, and release gates.
 - [ ] `xslt/v1`
 - [ ] `html/v1`
 - [ ] `css/v1`
@@ -705,40 +719,43 @@ Remaining dependency-ordered package checklist:
 
 ### Next Work Item
 
-Align `mathml/v1` with the common schema-package acceptance criteria. Start with
-a dedicated typed `MathMlDocumentAst` lifecycle stream over the generic XML
-event model. Retain the primary `application/mathml+xml` identity, presentation
-and content media-type aliases, package schema and MathML namespace, MIME
-parameters, XML declaration and doctype, qualified names, annotation and
-foreign-content boundaries, source ranges, source maps, and selected
-presentation/content profile. Replace generic XML passthrough for standalone
-MathML with a MathML adapter and prove that content type, package schema, and
-standalone namespace loading, validation, and same-schema output cannot fall
-through to HTML, generic XML, or CEM. Keep MathML embedded in HTML/XHTML as part
-of the containing document lifecycle.
+Align `xslt/v1` with the common schema-package acceptance criteria while
+preserving the existing compatibility boundary. Add a dedicated typed
+`XsltStylesheetAst` lifecycle stream over the generic XML event model for
+standard `application/xslt+xml`, `text/xsl`, the package schema, and the XSLT
+namespace. Retain MIME parameters, XML declaration and doctype, qualified
+names, stylesheet version, top-level declarations/templates, literal result
+and extension namespaces, XPath-bearing attributes as lexical values, source
+ranges, and source maps. Prove standard standalone identities cannot fall
+through to generic XML, HTML, or CEM. Keep the four `custom-element-xslt`
+aliases on the bounded `custom-element-xslt-compat` adapter because that path
+also accepts legacy fragments and lowers supported constructs to CEM; do not
+silently reinterpret those compatibility inputs as standard XSLT XML.
 
-Move direct MathML validation behind the typed adapter. Emit neutral XML parse,
-encoding, root/namespace, media-profile, presentation/content expression,
-`semantics`/annotation, accessibility text, external annotation, foreign
-content, DTD/entity, and source-map facts. Bind reportable facts to diagnostics
-declared by `schema/mathml.cem`, replacing its legacy `name`/`applies-to`/`rule`
-constraints with executable `kind`/`target`/`behavior`/`fact-kind` contracts.
-Define explicit external annotation and URI resolver safety while preserving
-the reject-only XML doctype/entity policy. Preserve XML serialization and
-MathML element/attribute case without HTML parser recovery.
+Move standard XSLT validation behind the typed adapter. Emit neutral XML parse,
+encoding, root/namespace, version, declaration/template, entrypoint, external
+URI, extension instruction/function, browser-engine rejection, DTD/entity, and
+source-map facts. Bind reportable facts to diagnostics declared by
+`schema/xslt.cem` through executable `kind`/`target`/`diagnostic`/`behavior`/
+`fact-kind` contracts. Define resolver policy for `xsl:include`, `xsl:import`,
+`document()`, and `xsl:result-document`; preserve the current reject-only XML
+DTD/entity policy and the prohibition on browser `XSLTProcessor`. Keep XPath
+and AVT parsing/execution outside the source lifecycle unless an existing
+bounded compatibility rule owns it explicitly.
 
-Replace the shared placeholder formatter/colorizer files with package-owned
-compact, pretty, tabular, terminal, HTML, and Markdown CEMT wrappers plus
-MathML document/CEM-tree helpers. Preserve lexical XML content, profile media
-type, and the default final newline until mixed presentation/content whitespace
-semantics are defined. Route passing README examples through those assets,
-render expected failures from schema-owned diagnostics, and remove source
-snapshot fallback. Finish with manifest/index embedding, lifecycle and
-same-schema engine/CLI tests for all three media types, profile execution,
-namespace/expression/annotation/entity policy tests, release and safety docs,
-schema-owned examples, preview drift checks, and an expanded
-`cem_ml_schema_package_mathml_v1:verify` target. Continue with `xslt/v1` only
-after the standalone MathML contract is green.
+Replace placeholder output assets with package-owned compact, pretty, tabular,
+terminal, HTML, and Markdown CEMT wrappers plus stylesheet/CEM-tree helpers.
+Preserve lexical XML, XSLT namespace/version, XPath attribute text, literal
+result elements, and the default final newline until stylesheet-aware reflow is
+defined. Route standard passing previews through those assets and expected
+failures through schema diagnostics. Add an explicit non-snapshot preview path
+for both legacy compatibility examples without changing their adapter
+semantics. Finish with manifest/index embedding, lifecycle and same-schema
+engine/CLI tests for both standard media types, compatibility non-regression
+tests for all four legacy aliases, profile execution, URI/extension/entity
+safety coverage, release docs, preview drift checks, and an expanded
+`cem_ml_schema_package_xslt_v1:verify` target. Continue with `html/v1` only
+after both standard XSLT and bounded compatibility contracts are green.
 
 ## Current Verification Commands
 

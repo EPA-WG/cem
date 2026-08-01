@@ -511,6 +511,37 @@ function previewPlanForExample(example, manifest) {
         };
     }
 
+    if (isMathMlTextExample(example, manifest, essence)) {
+        if (example.expectedResult !== 'pass') {
+            return {
+                label: 'mathml validate',
+                renderer: 'json',
+                expectedStatus: 'success',
+                width: 1040,
+                minHeight: 520,
+                args: validatePreviewArgs(inputPath, {
+                    format: 'json',
+                    failLevel: 'parse',
+                    contentType: example.contentType,
+                    schema: example.schema,
+                }),
+            };
+        }
+        return {
+            label: 'mathml',
+            renderer: 'html',
+            expectedStatus: 'success',
+            width: 980,
+            minHeight: 190,
+            args: convertPreviewArgs(inputSpec, {
+                toContentType: example.contentType,
+                toSchema: example.schema,
+                colorProfile: 'html',
+                outputColorType: null,
+            }),
+        };
+    }
+
     if (isXmlFamilyExample(essence)) {
         return {
             label: 'xml',
@@ -638,6 +669,15 @@ function isSvgTextExample(_example, manifest, essence) {
     return manifest.packageId === 'svg' && essence === 'image/svg+xml';
 }
 
+function isMathMlTextExample(_example, manifest, essence) {
+    return (
+        manifest.packageId === 'mathml' &&
+        (essence === 'application/mathml+xml' ||
+            essence === 'application/mathml-presentation+xml' ||
+            essence === 'application/mathml-content+xml')
+    );
+}
+
 function isMarkdownPackageManifest(manifest) {
     return manifest.packageId === 'markdown';
 }
@@ -652,6 +692,7 @@ function isXmlFamilyExample(essence) {
         essence === 'text/xml' ||
         essence === 'image/svg+xml' ||
         essence === 'application/mathml+xml' ||
+        essence === 'application/mathml-presentation+xml' ||
         essence === 'application/mathml-content+xml' ||
         essence === 'application/xslt+xml' ||
         essence === 'text/xsl'

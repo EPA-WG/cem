@@ -33,8 +33,9 @@ use crate::schema::registry::{
     CEM_TRANSFORM_CONTENT_TYPE, CEM_TRANSFORM_SCHEMA_URI, CSV_CONTENT_TYPE, CSV_SCHEMA_URI,
     HTML_CONTENT_TYPE, HTML_SCHEMA_URI, JSON_CONTENT_TYPE, JSON_SCHEMA_CONTENT_TYPE,
     JSON_SCHEMA_SCHEMA_URI, JSON_VALUE_SCHEMA_URI, MARKDOWN_CONTENT_TYPE, MARKDOWN_SCHEMA_URI,
-    RELAX_NG_SCHEMA_URI, SVG_CONTENT_TYPE, SVG_SCHEMA_URI, XHTML_CONTENT_TYPE, XHTML_SCHEMA_URI,
-    XML_CONTENT_TYPE, XML_SCHEMA_URI, YAML_CONTENT_TYPE, YAML_SCHEMA_URI,
+    MATHML_CONTENT_TYPE, MATHML_SCHEMA_URI, RELAX_NG_SCHEMA_URI, SVG_CONTENT_TYPE, SVG_SCHEMA_URI,
+    XHTML_CONTENT_TYPE, XHTML_SCHEMA_URI, XML_CONTENT_TYPE, XML_SCHEMA_URI, YAML_CONTENT_TYPE,
+    YAML_SCHEMA_URI,
 };
 use crate::source::{BytesSource, SourceId};
 use crate::source_map::SourceMapStack;
@@ -74,6 +75,7 @@ use crate::validation::generic_data::GenericDataDocumentAst;
 use crate::validation::json::{generic_data_ast_to_json_cemt_subject, JsonDocumentAst};
 use crate::validation::json_schema::JsonSchemaDocumentAst;
 use crate::validation::markdown::MarkdownDocumentAst;
+use crate::validation::mathml::MathMlDocumentAst;
 use crate::validation::relax_ng::{RelaxNgDocumentAst, RelaxNgSyntaxKind};
 use crate::validation::svg::SvgDocumentAst;
 use crate::validation::xhtml::XhtmlDocumentAst;
@@ -2410,6 +2412,24 @@ const SVG_COLOR_CEMT_STAGE_SPEC: CemTreeCemtOutputStageSpec = CemTreeCemtOutputS
     declaration_element: "{color-function",
     function_kind: TransformTemplateOutputFunctionKind::Color,
     function_name: "svg.color-document",
+    role: "colorizer",
+};
+
+const MATHML_FORMAT_CEMT_STAGE_SPEC: CemTreeCemtOutputStageSpec = CemTreeCemtOutputStageSpec {
+    adapter_id: "mathml-format-cemt",
+    artifact_kind: CEM_TREE_FORMATTER_ARTIFACT_KIND,
+    declaration_element: "{format-function",
+    function_kind: TransformTemplateOutputFunctionKind::Format,
+    function_name: "mathml.format-document",
+    role: "formatter",
+};
+
+const MATHML_COLOR_CEMT_STAGE_SPEC: CemTreeCemtOutputStageSpec = CemTreeCemtOutputStageSpec {
+    adapter_id: "mathml-color-cemt",
+    artifact_kind: CEM_TREE_COLORIZER_ARTIFACT_KIND,
+    declaration_element: "{color-function",
+    function_kind: TransformTemplateOutputFunctionKind::Color,
+    function_name: "mathml.color-document",
     role: "colorizer",
 };
 
@@ -6741,6 +6761,16 @@ impl XmlDocumentOutputSubject for SvgDocumentAst {
     }
 }
 
+impl XmlDocumentOutputSubject for MathMlDocumentAst {
+    fn source_line_ending(&self) -> Option<&str> {
+        self.line_ending.as_deref()
+    }
+
+    fn into_cemt_subject(self) -> Value {
+        self.to_cemt_subject()
+    }
+}
+
 #[cfg(test)]
 impl XmlDocumentOutputSubject for Value {
     fn source_line_ending(&self) -> Option<&str> {
@@ -6794,6 +6824,21 @@ pub fn execute_svg_document_output_pipeline_with_environment(
         target_scope,
         diagnostic_uri,
         XmlFamilyOutputSpec::svg(),
+    )
+}
+
+pub fn execute_mathml_document_output_pipeline_with_environment(
+    environment: &ConversionOutputPipelineEnvironment<'_>,
+    document: MathMlDocumentAst,
+    target_scope: &ScopeConfig,
+    diagnostic_uri: Option<&str>,
+) -> ConversionOutputPipelineExecution {
+    execute_xml_family_document_output_pipeline_with_environment(
+        environment,
+        document,
+        target_scope,
+        diagnostic_uri,
+        XmlFamilyOutputSpec::mathml(),
     )
 }
 
@@ -6854,6 +6899,21 @@ impl XmlFamilyOutputSpec {
             formatter_option_prefix: "svg.",
             converter_id: "svg-direct-output",
             diagnostic_node: "svg",
+        }
+    }
+
+    const fn mathml() -> Self {
+        Self {
+            label: "MathML",
+            formatter: MATHML_FORMAT_CEMT_STAGE_SPEC,
+            colorizer: MATHML_COLOR_CEMT_STAGE_SPEC,
+            content_type: MATHML_CONTENT_TYPE,
+            schema: MATHML_SCHEMA_URI,
+            category: "mathml-document",
+            subject_kind: "mathml-document",
+            formatter_option_prefix: "mathml.",
+            converter_id: "mathml-direct-output",
+            diagnostic_node: "mathml",
         }
     }
 }
@@ -11324,6 +11384,7 @@ fn builtin_converter_package_schema_uris() -> &'static [&'static str] {
         RELAX_NG_SCHEMA_URI,
         XHTML_SCHEMA_URI,
         SVG_SCHEMA_URI,
+        MATHML_SCHEMA_URI,
     ]
 }
 
@@ -19108,6 +19169,161 @@ mod tests {
             assert_eq!(colored.value["contentType"], SVG_CONTENT_TYPE);
             assert_eq!(colored.value["schema"], SVG_SCHEMA_URI);
             assert_eq!(colored.value["category"], "svg-document");
+            assert_eq!(colored.value["colorProfile"], profile);
+            assert_eq!(colored.value["nodes"][2]["style"][style_key], style_value);
+        }
+    }
+
+    #[test]
+    fn builtin_mathml_lifecycle_output_pipeline_executes_package_cemt_assets() {
+        let schema_registry = SchemaRegistry::with_builtin_schemas();
+        let conversion_registry = ConversionRegistry::with_builtin_converters();
+        let environment = ConversionOutputPipelineEnvironment {
+            schema_registry: &schema_registry,
+            conversion_registry: &conversion_registry,
+            package_artifact_reader: None,
+            artifact_cache: None,
+        };
+        let source = br#"<?xml version="1.0" encoding="UTF-8"?>
+<math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>x</mi><mo>+</mo><mn>1</mn></mrow><annotation encoding="application/json"/></semantics></math>
+"#;
+        let (document, diagnostics) =
+            crate::validation::mathml::mathml_document_ast_from_source_bytes(
+                crate::validation::mathml::MathMlSourceValidationRequest {
+                    bytes: source,
+                    source_uri: "builtin:mathml-output",
+                    content_type: Some(MATHML_CONTENT_TYPE),
+                },
+            );
+        assert!(diagnostics.is_empty(), "{diagnostics:?}");
+
+        for (profile, artifact_profile) in [
+            ("compact", "compact"),
+            ("pretty", "xml.pretty"),
+            ("tabular", "tabular"),
+        ] {
+            let target_scope = ScopeConfig {
+                cemt_formatter_profile: Some(profile.to_owned()),
+                ..ScopeConfig::default()
+            };
+            let execution = execute_mathml_document_output_pipeline_with_environment(
+                &environment,
+                document.clone().expect("MATHML document"),
+                &target_scope,
+                Some("builtin:mathml-output"),
+            );
+
+            assert!(
+                execution.diagnostics.is_empty(),
+                "{profile}: {:?}",
+                execution.diagnostics
+            );
+            assert!(
+                matches!(
+                    execution.format_execution,
+                    Some(ConversionOutputPipelineStageExecution::CemtAdapter {
+                        ref adapter_id,
+                        ref function_name,
+                        ref body_function_name,
+                        ..
+                    }) if adapter_id == "mathml-format-cemt"
+                        && function_name == "mathml.format-document"
+                        && body_function_name.as_deref() == Some("mathml.format-document")
+                ),
+                "{profile}: {:?}",
+                execution.format_execution
+            );
+            assert_eq!(
+                execution.output.as_ref().and_then(Value::as_str),
+                Some(std::str::from_utf8(source).unwrap()),
+                "{profile}"
+            );
+            let formatted = execution
+                .formatted_cem_tree
+                .as_ref()
+                .unwrap_or_else(|| panic!("{profile} formatted tree"));
+            assert_eq!(formatted.value["contentType"], MATHML_CONTENT_TYPE);
+            assert_eq!(formatted.value["schema"], MATHML_SCHEMA_URI);
+            assert_eq!(formatted.value["category"], "mathml-document");
+            assert_eq!(formatted.value["formatterProfile"], artifact_profile);
+            assert_eq!(
+                formatted.value["formatNodes"][1]["value"]["layout"],
+                format!("lexical-lossless-{profile}")
+            );
+            assert!(formatted.value["nodes"]
+                .as_array()
+                .is_some_and(|nodes| nodes.iter().any(|node| {
+                    node["kind"] == "mathml.empty-element"
+                        && node["value"]["qualifiedName"] == "annotation"
+                        && node["sourceMap"] != Value::Null
+                })));
+        }
+    }
+
+    #[test]
+    fn builtin_mathml_colorizer_profiles_execute_package_cemt_assets() {
+        let schema_registry = SchemaRegistry::with_builtin_schemas();
+        let conversion_registry = ConversionRegistry::with_builtin_converters();
+        let environment = ConversionOutputPipelineEnvironment {
+            schema_registry: &schema_registry,
+            conversion_registry: &conversion_registry,
+            package_artifact_reader: None,
+            artifact_cache: None,
+        };
+        let source =
+            b"<math xmlns=\"http://www.w3.org/1998/Math/MathML\"><mi>x</mi><mo>+</mo><mn>1</mn></math>\n";
+        let (document, diagnostics) =
+            crate::validation::mathml::mathml_document_ast_from_source_bytes(
+                crate::validation::mathml::MathMlSourceValidationRequest {
+                    bytes: source,
+                    source_uri: "builtin:mathml-color-output",
+                    content_type: Some(MATHML_CONTENT_TYPE),
+                },
+            );
+        assert!(diagnostics.is_empty(), "{diagnostics:?}");
+
+        for (profile, style_key, style_value) in [
+            ("terminal", "terminalCapability", "auto"),
+            ("html", "htmlMode", "classes"),
+            ("md", "wrapper", "span"),
+        ] {
+            let target_scope = ScopeConfig {
+                cemt_color_profile: Some(profile.to_owned()),
+                ..ScopeConfig::default()
+            };
+            let execution = execute_mathml_document_output_pipeline_with_environment(
+                &environment,
+                document.clone().expect("MATHML document"),
+                &target_scope,
+                Some("builtin:mathml-color-output"),
+            );
+            assert!(
+                execution.diagnostics.is_empty(),
+                "{profile}: {:?}",
+                execution.diagnostics
+            );
+            assert!(
+                matches!(
+                    execution.color_execution,
+                    Some(ConversionOutputPipelineStageExecution::CemtAdapter {
+                        ref adapter_id,
+                        ref function_name,
+                        ref body_function_name,
+                        ..
+                    }) if adapter_id == "cem-tree-color-cemt"
+                        && function_name == "mathml.color-document"
+                        && body_function_name.as_deref() == Some("mathml.color-document")
+                ),
+                "{profile}: {:?}",
+                execution.color_execution
+            );
+            let colored = execution
+                .colored_cem_tree
+                .as_ref()
+                .unwrap_or_else(|| panic!("{profile} colored tree"));
+            assert_eq!(colored.value["contentType"], MATHML_CONTENT_TYPE);
+            assert_eq!(colored.value["schema"], MATHML_SCHEMA_URI);
+            assert_eq!(colored.value["category"], "mathml-document");
             assert_eq!(colored.value["colorProfile"], profile);
             assert_eq!(colored.value["nodes"][2]["style"][style_key], style_value);
         }
