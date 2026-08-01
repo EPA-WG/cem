@@ -4,15 +4,131 @@
 
 {module @version="1.0.0" |
     {color-function
-        @name="xslt.color-stylesheet"
+        @name="xslt.color-stylesheet.tree"
+        @visibility="private"
         @category="xslt-stylesheet"
-        @subject="tokens"
-        @produces="tokens"
+        @subject="cem-tree"
+        @produces="cem-tree"
         @content-type="application/xslt+xml"
         @schema="https://cem.dev/ns/transform/xslt/1"
         @canonical=false
         @deterministic=true
         @streamable=true |
-        {param @name="subject" @type="array" @required=true}
+        {param @name="subject" @type="object" @required=true}
+        {param @name="profile" @type="string" @required=true}
+        {param @name="output" @type="string" @required=true}
+        {body |
+            {$ {
+                kind: "cem-tree",
+                contentType: "application/xslt+xml",
+                schema: "https://cem.dev/ns/transform/xslt/1",
+                category: "xslt-stylesheet",
+                formatterProfile: match(exists($subject.formatterProfile), {
+                    true: $subject.formatterProfile,
+                    false: "unknown"
+                }),
+                formatNodes: match(exists($subject.formatNodes), {
+                    true: $subject.formatNodes,
+                    false: []
+                }),
+                colorProfile: $profile,
+                colorOutput: $output,
+                colored: true,
+                colorNodes: [
+                    {
+                        kind: "color-marker",
+                        name: "xslt.color-stylesheet",
+                        colorizerRole: "colorizer.boundary",
+                        colorProfile: $profile,
+                        colorOutput: $output
+                    },
+                    {
+                        kind: "color-decision",
+                        name: "xslt.role-palette",
+                        colorizerRole: "colorizer.role",
+                        colorProfile: $profile,
+                        colorOutput: $output
+                    }
+                ],
+                nodes: map(
+                    match(exists($subject.nodes), { true: $subject.nodes, false: [] }),
+                    call("xslt.color-stylesheet.token", {
+                        token: $item,
+                        profile: $profile,
+                        output: $output
+                    })
+                )
+            } }
+        }
+    }
+
+    {function @name="xslt.color-stylesheet.token" @visibility="private" @returns="object" @deterministic=true |
+        {param @name="token" @type="object" @required=true}
+        {param @name="profile" @type="string" @required=true}
+        {param @name="output" @type="string" @required=true}
+        {body |
+            {$ merge(
+                set($token, "value", merge(
+                    match(typeOf($token.value), { object: $token.value, default: {} }),
+                    {
+                        colorProfile: $profile,
+                        colorRole: call("xslt.color-stylesheet.role", { token: $token }),
+                        colorOutput: $output
+                    }
+                )),
+                {
+                    style: call("xslt.color-stylesheet.style", {
+                        profile: $profile,
+                        role: call("xslt.color-stylesheet.role", { token: $token }),
+                        output: $output
+                    })
+                }
+            ) }
+        }
+    }
+
+    {function @name="xslt.color-stylesheet.role" @visibility="private" @returns="string" @deterministic=true |
+        {param @name="token" @type="object" @required=true}
+        {body |
+            {$ match(typeOf($token.role), {
+                string: $token.role,
+                default: match(typeOf($token.style.colorRole), {
+                    string: $token.style.colorRole,
+                    default: "syntax.raw"
+                })
+            }) }
+        }
+    }
+
+    {function @name="xslt.color-stylesheet.style" @visibility="private" @returns="object" @deterministic=true |
+        {param @name="profile" @type="string" @required=true}
+        {param @name="role" @type="string" @required=true}
+        {param @name="output" @type="string" @required=true}
+        {body |
+            {$ match($profile, {
+                html: {
+                    colorRole: $role,
+                    colorProfile: $profile,
+                    colorOutput: $output,
+                    htmlMode: "classes",
+                    class: concat("cem-color cem-color-", replace($role, ".", "-")),
+                    color: concat("var(--cem-color-", concat(replace($role, ".", "-"), ")"))
+                },
+                md: {
+                    colorRole: $role,
+                    colorProfile: $profile,
+                    colorOutput: $output,
+                    wrapper: "span",
+                    class: concat("cem-color cem-color-", replace($role, ".", "-"))
+                },
+                default: {
+                    colorRole: $role,
+                    colorProfile: $profile,
+                    colorOutput: $output,
+                    terminalCapability: "auto",
+                    color: concat("terminal.", $role)
+                }
+            }) }
+        }
     }
 }

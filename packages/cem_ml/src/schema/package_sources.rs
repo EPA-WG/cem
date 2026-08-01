@@ -535,10 +535,40 @@ static BUILTIN_SCHEMA_PACKAGE_ARTIFACT_SOURCES: &[BuiltinSchemaPackageArtifactSo
     },
     BuiltinSchemaPackageArtifactSource {
         package_id: "xslt",
+        path: "schema-packages/xslt/v1/formatters/compact.cemt",
+        source: include_str!("../../schema-packages/xslt/v1/formatters/compact.cemt"),
+    },
+    BuiltinSchemaPackageArtifactSource {
+        package_id: "xslt",
+        path: "schema-packages/xslt/v1/formatters/pretty.cemt",
+        source: include_str!("../../schema-packages/xslt/v1/formatters/pretty.cemt"),
+    },
+    BuiltinSchemaPackageArtifactSource {
+        package_id: "xslt",
+        path: "schema-packages/xslt/v1/formatters/tabular.cemt",
+        source: include_str!("../../schema-packages/xslt/v1/formatters/tabular.cemt"),
+    },
+    BuiltinSchemaPackageArtifactSource {
+        package_id: "xslt",
         path: "schema-packages/xslt/v1/formatters/xslt-format-stylesheet.cemt",
         source: include_str!(
             "../../schema-packages/xslt/v1/formatters/xslt-format-stylesheet.cemt"
         ),
+    },
+    BuiltinSchemaPackageArtifactSource {
+        package_id: "xslt",
+        path: "schema-packages/xslt/v1/colorizers/terminal.cemt",
+        source: include_str!("../../schema-packages/xslt/v1/colorizers/terminal.cemt"),
+    },
+    BuiltinSchemaPackageArtifactSource {
+        package_id: "xslt",
+        path: "schema-packages/xslt/v1/colorizers/html.cemt",
+        source: include_str!("../../schema-packages/xslt/v1/colorizers/html.cemt"),
+    },
+    BuiltinSchemaPackageArtifactSource {
+        package_id: "xslt",
+        path: "schema-packages/xslt/v1/colorizers/md.cemt",
+        source: include_str!("../../schema-packages/xslt/v1/colorizers/md.cemt"),
     },
     BuiltinSchemaPackageArtifactSource {
         package_id: "xslt",
@@ -3935,26 +3965,46 @@ mod tests {
 
     #[test]
     fn catalog_exposes_xslt_output_artifact_sources() {
-        let formatter = builtin_schema_package_artifact_source(
-            "xslt",
+        for (path, function, profile) in [
+            (
+                "formatters/compact.cemt",
+                "xslt.format-stylesheet",
+                "compact",
+            ),
+            (
+                "formatters/pretty.cemt",
+                "xslt.format-stylesheet",
+                "xml.pretty",
+            ),
+            (
+                "formatters/tabular.cemt",
+                "xslt.format-stylesheet",
+                "tabular",
+            ),
+            (
+                "colorizers/terminal.cemt",
+                "xslt.color-stylesheet",
+                "terminal",
+            ),
+            ("colorizers/html.cemt", "xslt.color-stylesheet", "html"),
+            ("colorizers/md.cemt", "xslt.color-stylesheet", "md"),
+        ] {
+            let full_path = format!("schema-packages/xslt/v1/{path}");
+            let artifact = builtin_schema_package_artifact_source("xslt", &full_path)
+                .unwrap_or_else(|| panic!("XSLT artifact source `{path}`"));
+            assert!(artifact.source.contains(&format!(r#"@name="{function}""#)));
+            assert!(artifact
+                .source
+                .contains(&format!(r#"@profile="{profile}""#)));
+            assert!(artifact.source.contains("{body |"));
+        }
+        for path in [
             "schema-packages/xslt/v1/formatters/xslt-format-stylesheet.cemt",
-        )
-        .expect("XSLT formatter source");
-        let colorizer = builtin_schema_package_artifact_source(
-            "xslt",
             "schema-packages/xslt/v1/colorizers/xslt-color-stylesheet.cemt",
-        )
-        .expect("XSLT colorizer source");
-
-        assert!(formatter
-            .source
-            .contains(r#"@name="xslt.format-stylesheet""#));
-        assert!(formatter.source.contains(r#"@category="xslt-stylesheet""#));
-        assert!(colorizer
-            .source
-            .contains(r#"@name="xslt.color-stylesheet""#));
-        assert!(colorizer
-            .source
-            .contains(r#"@content-type="application/xslt+xml""#));
+        ] {
+            let helper = builtin_schema_package_artifact_source("xslt", path)
+                .unwrap_or_else(|| panic!("XSLT helper source `{path}`"));
+            assert!(helper.source.contains("{body |"));
+        }
     }
 }

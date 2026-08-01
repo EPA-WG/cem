@@ -22,6 +22,7 @@ use crate::conversion::{
     execute_svg_document_output_pipeline_with_environment,
     execute_xhtml_document_output_pipeline_with_environment,
     execute_xml_document_output_pipeline_with_environment,
+    execute_xslt_stylesheet_output_pipeline_with_environment,
     execute_yaml_document_output_pipeline_with_environment, ConversionExecution,
     ConversionOutputPipeline, ConversionOutputPipelineEnvironment,
     ConversionPackageArtifactDescriptor, ConversionPackageArtifactRead,
@@ -67,7 +68,8 @@ use crate::schema::registry::{
     HTML_SCHEMA_URI, JSON_CONTENT_TYPE, JSON_SCHEMA_CONTENT_TYPE, JSON_SCHEMA_SCHEMA_URI,
     JSON_VALUE_SCHEMA_URI, MARKDOWN_CONTENT_TYPE, MARKDOWN_SCHEMA_URI, MATHML_CONTENT_TYPE,
     MATHML_SCHEMA_URI, RELAX_NG_SCHEMA_URI, SVG_CONTENT_TYPE, SVG_SCHEMA_URI, XHTML_CONTENT_TYPE,
-    XHTML_SCHEMA_URI, XML_CONTENT_TYPE, XML_SCHEMA_URI, YAML_CONTENT_TYPE, YAML_SCHEMA_URI,
+    XHTML_SCHEMA_URI, XML_CONTENT_TYPE, XML_SCHEMA_URI, XSLT_CONTENT_TYPE, XSLT_SCHEMA_URI,
+    YAML_CONTENT_TYPE, YAML_SCHEMA_URI,
 };
 use crate::schema::vocab::CompiledSchema;
 use crate::source::line_index::LineIndex;
@@ -121,6 +123,7 @@ use crate::validation::relax_ng::{RelaxNgDocumentAst, RelaxNgSyntaxKind};
 use crate::validation::svg::SvgDocumentAst;
 use crate::validation::xhtml::XhtmlDocumentAst;
 use crate::validation::xml::XmlDocumentAst;
+use crate::validation::xslt::XsltStylesheetAst;
 use crate::validation::yaml::YamlDocumentAst;
 use crate::validation::{
     rules::validate_cem_native_template_source_semantics, RuleContext, RuleRegistry,
@@ -5752,6 +5755,74 @@ fn convert_loaded_mathml_ast_output(
     )
 }
 
+fn convert_loaded_xslt_ast_output(
+    context: &EngineContext,
+    request: &ConvertRequest,
+    stylesheet: XsltStylesheetAst,
+    diagnostics: &mut Vec<Diagnostic>,
+) -> (Value, Option<PrimaryBytes>, ConvertExecutionMetadata) {
+    let metadata = convert_metadata_for_xslt_lifecycle_output(&request.target_scope);
+    let environment = ConversionOutputPipelineEnvironment {
+        schema_registry: &context.schema_registry,
+        conversion_registry: &context.converter_registry,
+        package_artifact_reader: None,
+        artifact_cache: None,
+    };
+    let execution = execute_xslt_stylesheet_output_pipeline_with_environment(
+        &environment,
+        stylesheet,
+        &request.target_scope,
+        Some(&request.input.uri),
+    );
+    diagnostics.extend(execution.diagnostics.clone());
+    if diagnostics
+        .iter()
+        .any(|diagnostic| diagnostic.severity.is_hard_violation())
+    {
+        return (Value::Null, None, metadata);
+    }
+
+    let content = execution
+        .output
+        .as_ref()
+        .and_then(Value::as_str)
+        .unwrap_or_default()
+        .to_owned();
+    let target = request
+        .target
+        .clone()
+        .or_else(|| request.target_scope.format_identity_option())
+        .unwrap_or_else(|| FormatIdentity {
+            content_type: Some(XSLT_CONTENT_TYPE.to_owned()),
+            schema: Some(XSLT_SCHEMA_URI.to_owned()),
+            ..FormatIdentity::default()
+        });
+    let content_type = target
+        .content_type
+        .unwrap_or_else(|| XSLT_CONTENT_TYPE.to_owned());
+    let schema = target.schema.unwrap_or_else(|| XSLT_SCHEMA_URI.to_owned());
+    let bytes = content.into_bytes();
+    let primary_bytes = PrimaryBytes {
+        content_type,
+        schema: Some(schema.clone()),
+        format_version: "xslt/1".to_owned(),
+        hash_scheme: "cem-text/1+blake3".to_owned(),
+        hash: text_content_hash(&bytes),
+        bytes,
+    };
+    let hash = primary_bytes.hash.clone();
+    (
+        json!({
+            "kind": "document",
+            "contentType": primary_bytes.content_type,
+            "schema": schema,
+            "hash": hash,
+        }),
+        Some(primary_bytes),
+        metadata,
+    )
+}
+
 fn convert_loaded_relax_ng_ast_output(
     context: &EngineContext,
     request: &ConvertRequest,
@@ -7281,6 +7352,75 @@ fn convert_metadata_for_mathml_lifecycle_output(
     }
 }
 
+fn convert_metadata_for_xslt_lifecycle_output(
+    target_scope: &ScopeConfig,
+) -> ConvertExecutionMetadata {
+    let formatter_profile = target_scope
+        .cemt_formatter_profile
+        .clone()
+        .unwrap_or_else(|| "compact".to_owned());
+    let color_profile = xml_direct_output_color_profile(target_scope);
+    let writer_profile = target_scope
+        .output_color_type
+        .clone()
+        .or_else(|| color_profile.clone());
+    ConvertExecutionMetadata {
+        converter_id: Some("xslt-lifecycle-output".to_owned()),
+        implementation: Some("xslt-ast-stream-to-xslt-output-pipeline".to_owned()),
+        rust_fallback: None,
+        output_pipeline: Some(ConvertOutputPipelineMetadata {
+            stages: vec![
+                ConvertOutputPipelineStageMetadata {
+                    stage: "formatter".to_owned(),
+                    function: Some(
+                        target_scope
+                            .cemt_formatter
+                            .clone()
+                            .unwrap_or_else(|| "xslt.format-stylesheet".to_owned()),
+                    ),
+                    profile: Some(formatter_profile),
+                    content_type: Some(XSLT_CONTENT_TYPE.to_owned()),
+                    schema: Some(XSLT_SCHEMA_URI.to_owned()),
+                    category: Some("xslt-stylesheet".to_owned()),
+                    produces: Some(
+                        TransformTemplateOutputProducedKind::CemTree
+                            .as_str()
+                            .to_owned(),
+                    ),
+                },
+                ConvertOutputPipelineStageMetadata {
+                    stage: "colorizer".to_owned(),
+                    function: color_profile
+                        .as_ref()
+                        .map(|_| "xslt.color-stylesheet".to_owned()),
+                    profile: color_profile,
+                    content_type: Some(XSLT_CONTENT_TYPE.to_owned()),
+                    schema: Some(XSLT_SCHEMA_URI.to_owned()),
+                    category: Some("xslt-stylesheet".to_owned()),
+                    produces: Some(
+                        TransformTemplateOutputProducedKind::CemTree
+                            .as_str()
+                            .to_owned(),
+                    ),
+                },
+                ConvertOutputPipelineStageMetadata {
+                    stage: "writer".to_owned(),
+                    function: None,
+                    profile: writer_profile,
+                    content_type: Some(XSLT_CONTENT_TYPE.to_owned()),
+                    schema: Some(XSLT_SCHEMA_URI.to_owned()),
+                    category: Some("xslt-stylesheet".to_owned()),
+                    produces: Some(
+                        TransformTemplateOutputProducedKind::Text
+                            .as_str()
+                            .to_owned(),
+                    ),
+                },
+            ],
+        }),
+    }
+}
+
 fn convert_metadata_for_relax_ng_lifecycle_output(
     target_scope: &ScopeConfig,
     syntax_kind: RelaxNgSyntaxKind,
@@ -7644,6 +7784,7 @@ fn loaded_input_consumes_validation_without_cem_parse(loaded: &LoadedInput) -> b
                 | LoadedInputAstStream::XhtmlDocument(_)
                 | LoadedInputAstStream::SvgDocument(_)
                 | LoadedInputAstStream::MathMlDocument(_)
+                | LoadedInputAstStream::XsltStylesheet(_)
                 | LoadedInputAstStream::RelaxNgDocument(_)
         )
     ) || matches!(
@@ -8972,6 +9113,33 @@ impl CemMlEngine for RealCemMlEngine {
                             return;
                         }
                         // Cross-schema MathML exports require an explicit registered converter.
+                    }
+                    LoadedInputAstStream::XsltStylesheet(stylesheet_value) => {
+                        if to_format == LayerFormat::Xml && export_adapter_id == Some("xslt") {
+                            if diagnostics
+                                .iter()
+                                .any(|diagnostic| diagnostic.severity.is_hard_violation())
+                            {
+                                primary = Some(Value::Null);
+                                conversion = Some(convert_metadata_for_xslt_lifecycle_output(
+                                    &request.target_scope,
+                                ));
+                                return;
+                            }
+
+                            let (xslt_primary, xslt_primary_bytes, xslt_conversion) =
+                                convert_loaded_xslt_ast_output(
+                                    &context,
+                                    &request,
+                                    stylesheet_value,
+                                    &mut diagnostics,
+                                );
+                            primary = Some(xslt_primary);
+                            primary_bytes = xslt_primary_bytes;
+                            conversion = Some(xslt_conversion);
+                            return;
+                        }
+                        // Cross-schema XSLT exports require an explicit registered converter.
                     }
                     LoadedInputAstStream::RelaxNgDocument(document_value) => {
                         if to_format == LayerFormat::Xml
@@ -14598,6 +14766,35 @@ mod tests {
     }
 
     #[test]
+    fn validate_xslt_source_consumes_dedicated_lifecycle_ast_without_html_xml_or_cem_parse() {
+        let mut source = input(
+            br#"<?xml version="1.0"?><xsl:stylesheet xmlns:xsl="http://www.w3.org/1999/XSL/Transform" version="1.0"><xsl:template match="/"><main><xsl:value-of select="catalog/title"/></main></xsl:template></xsl:stylesheet>"#,
+            "stylesheet.xsl",
+        );
+        source.identity = Some(FormatIdentity {
+            content_type: Some(XSLT_CONTENT_TYPE.to_owned()),
+            schema: Some(XSLT_SCHEMA_URI.to_owned()),
+            ..FormatIdentity::default()
+        });
+        let req = ValidateRequest {
+            inputs: vec![source],
+            projection: ValidateProjection::Json,
+            fail_level: FailLevel::Validate,
+            context: ctx(),
+        };
+
+        let resp = RealCemMlEngine::new().validate(req).unwrap();
+
+        assert_eq!(resp.report.summary.input_count, 1);
+        assert_eq!(resp.report.summary.hard_violation_count, 0);
+        assert!(
+            resp.report.diagnostics.is_empty(),
+            "XSLT validation must stay on the dedicated lifecycle AST path: {:?}",
+            resp.report.diagnostics
+        );
+    }
+
+    #[test]
     fn validate_relax_ng_sources_consume_typed_lifecycle_ast_without_cem_parse() {
         for (bytes, uri, content_type) in [
             (
@@ -14862,6 +15059,62 @@ mod tests {
             assert_eq!(primary_bytes.content_type, content_type);
             assert_eq!(primary_bytes.schema.as_deref(), Some(MATHML_SCHEMA_URI));
             let mut expected = mathml.to_vec();
+            expected.push(b'\n');
+            assert_eq!(primary_bytes.bytes, expected);
+            assert_eq!(resp.primary["kind"], "document");
+            assert_eq!(resp.primary["contentType"], content_type);
+        }
+    }
+
+    #[test]
+    fn convert_xslt_same_schema_preserves_standard_media_types_and_final_newline() {
+        let stylesheet = br#"<?xml version="1.0"?><xsl:stylesheet xmlns:xsl="http://www.w3.org/1999/XSL/Transform" version="1.0"><xsl:template match="/"><main><xsl:value-of select="catalog/title"/></main></xsl:template></xsl:stylesheet>"#;
+        for content_type in [
+            XSLT_CONTENT_TYPE,
+            crate::validation::xslt::XSLT_TEXT_CONTENT_TYPE,
+        ] {
+            let mut source = input(stylesheet, "stylesheet.xsl");
+            source.identity = Some(FormatIdentity {
+                content_type: Some(content_type.to_owned()),
+                schema: Some(XSLT_SCHEMA_URI.to_owned()),
+                ..FormatIdentity::default()
+            });
+            let req = ConvertRequest {
+                input: source,
+                to_format: LayerFormat::DomJson,
+                preserve_source_offsets: false,
+                context: ctx(),
+                target: Some(FormatIdentity {
+                    content_type: Some(content_type.to_owned()),
+                    schema: Some(XSLT_SCHEMA_URI.to_owned()),
+                    ..FormatIdentity::default()
+                }),
+                target_scope: ScopeConfig {
+                    cemt_formatter_profile: Some("tabular".to_owned()),
+                    ..ScopeConfig::default()
+                },
+                scheduler_scope_id: 0,
+            };
+
+            let resp = RealCemMlEngine::new().convert(req).unwrap();
+
+            assert!(resp.diagnostics.is_empty(), "{:?}", resp.diagnostics);
+            assert_eq!(
+                resp.conversion
+                    .as_ref()
+                    .and_then(|conversion| conversion.converter_id.as_deref()),
+                Some("xslt-lifecycle-output")
+            );
+            assert_eq!(
+                resp.conversion
+                    .as_ref()
+                    .and_then(|conversion| conversion.implementation.as_deref()),
+                Some("xslt-ast-stream-to-xslt-output-pipeline")
+            );
+            let primary_bytes = resp.primary_bytes.as_ref().expect("XSLT primary bytes");
+            assert_eq!(primary_bytes.content_type, content_type);
+            assert_eq!(primary_bytes.schema.as_deref(), Some(XSLT_SCHEMA_URI));
+            let mut expected = stylesheet.to_vec();
             expected.push(b'\n');
             assert_eq!(primary_bytes.bytes, expected);
             assert_eq!(resp.primary["kind"], "document");

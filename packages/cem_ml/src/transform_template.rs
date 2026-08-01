@@ -21733,7 +21733,7 @@ impl TransformTemplateAdapterRegistry {
         registry.register(StaticTransformTemplateAdapter::new(
             "xslt-template",
             TransformTemplateKind::Xslt,
-            crate::legacy_custom_element::TEMPLATE_CONTENT_TYPES,
+            crate::legacy_custom_element::XSLT_TEMPLATE_CONTENT_TYPES,
             &[XSLT_SCHEMA_URI],
             &[crate::schema::xslt::XSL_NAMESPACE],
         ));

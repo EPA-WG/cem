@@ -685,7 +685,24 @@ Remaining dependency-ordered package checklist:
         preserve lexical MathML, media-profile identity, and the final newline.
   - [x] Expand manifest/index embedding, lifecycle, engine/CLI, all-media-type,
         schema-owned example, README/SVG preview, safety, and release gates.
-- [ ] `xslt/v1`
+- [x] `xslt/v1`
+  - [x] Add a dedicated typed `XsltStylesheetAst` lifecycle stream over the
+        generic XML event model, preserving both standard media types, MIME
+        parameters, lexical XML, stylesheet version, XPath-bearing attributes,
+        ranges, and source maps.
+  - [x] Route standard content type, package schema, and namespace identities
+        through the dedicated adapter without generic XML, HTML, CEM, or legacy
+        lowering fallthrough while retaining all four custom-element aliases on
+        the bounded compatibility adapter.
+  - [x] Bind XML safety, root/namespace, version, entrypoint, external URI,
+        extension instruction/function, browser-engine policy, declaration,
+        literal-result, XPath, and source-map facts to `schema/xslt.cem`.
+  - [x] Replace placeholder formatter/colorizer artifacts with executable
+        compact/pretty/tabular and terminal/HTML/Markdown CEMT profiles that
+        preserve lexical stylesheets and the default final newline.
+  - [x] Expand manifest/index embedding, lifecycle, engine/CLI, standard and
+        compatibility identity, parity, README/SVG preview, safety, and release
+        gates without source-snapshot previews.
 - [ ] `html/v1`
 - [ ] `css/v1`
 - [ ] Run the final registry/package validation gate after the dependency
@@ -719,43 +736,43 @@ Remaining dependency-ordered package checklist:
 
 ### Next Work Item
 
-Align `xslt/v1` with the common schema-package acceptance criteria while
-preserving the existing compatibility boundary. Add a dedicated typed
-`XsltStylesheetAst` lifecycle stream over the generic XML event model for
-standard `application/xslt+xml`, `text/xsl`, the package schema, and the XSLT
-namespace. Retain MIME parameters, XML declaration and doctype, qualified
-names, stylesheet version, top-level declarations/templates, literal result
-and extension namespaces, XPath-bearing attributes as lexical values, source
-ranges, and source maps. Prove standard standalone identities cannot fall
-through to generic XML, HTML, or CEM. Keep the four `custom-element-xslt`
-aliases on the bounded `custom-element-xslt-compat` adapter because that path
-also accepts legacy fragments and lowers supported constructs to CEM; do not
-silently reinterpret those compatibility inputs as standard XSLT XML.
+Align `html/v1` with the common schema-package acceptance criteria. Replace the
+current passthrough `HtmlAdapter` and ad hoc validation scanner with a dedicated
+typed `HtmlDocumentAst` lifecycle stream over the existing native HTML
+tokenizer and recovery pipeline. Preserve `text/html` parameters, document
+versus fragment mode, doctype and comments, original tag and attribute lexemes,
+HTML ASCII case-folded semantic names, void/raw-text/RCDATA boundaries,
+duplicate attributes, source ranges, source maps, line endings, and parser
+recovery decisions. Keep XHTML on its XML-backed adapter. Preserve SVG and
+MathML islands as foreign-content events owned by the containing HTML document,
+including namespace transitions and integration points; do not dispatch those
+embedded islands as standalone resources.
 
-Move standard XSLT validation behind the typed adapter. Emit neutral XML parse,
-encoding, root/namespace, version, declaration/template, entrypoint, external
-URI, extension instruction/function, browser-engine rejection, DTD/entity, and
-source-map facts. Bind reportable facts to diagnostics declared by
-`schema/xslt.cem` through executable `kind`/`target`/`diagnostic`/`behavior`/
-`fact-kind` contracts. Define resolver policy for `xsl:include`, `xsl:import`,
-`document()`, and `xsl:result-document`; preserve the current reject-only XML
-DTD/entity policy and the prohibition on browser `XSLTProcessor`. Keep XPath
-and AVT parsing/execution outside the source lifecycle unless an existing
-bounded compatibility rule owns it explicitly.
+Move direct HTML validation behind the typed adapter. Emit neutral encoding,
+tokenizer/recovery, document/fragment structure, nesting, duplicate attribute,
+custom-element name, script/event-handler, external resource, SVG/MathML
+foreign-content, raw-text, and source-map facts. Bind reportable facts to
+diagnostics declared by `schema/html.cem` through executable
+`kind`/`target`/`diagnostic`/`behavior`/`fact-kind` contracts. Define resolver
+policy for URL-bearing elements and attributes, retain script and inline event
+handler rejection unless an explicit capability is registered, and preserve
+the existing UTF-8/meta/MIME charset conflict behavior without using XML
+well-formedness rules. Prove content type, package schema, and HTML namespace
+identity loading and same-schema output cannot fall through to generic HTML
+token/CEM parsing outside the typed lifecycle.
 
 Replace placeholder output assets with package-owned compact, pretty, tabular,
-terminal, HTML, and Markdown CEMT wrappers plus stylesheet/CEM-tree helpers.
-Preserve lexical XML, XSLT namespace/version, XPath attribute text, literal
-result elements, and the default final newline until stylesheet-aware reflow is
-defined. Route standard passing previews through those assets and expected
-failures through schema diagnostics. Add an explicit non-snapshot preview path
-for both legacy compatibility examples without changing their adapter
-semantics. Finish with manifest/index embedding, lifecycle and same-schema
-engine/CLI tests for both standard media types, compatibility non-regression
-tests for all four legacy aliases, profile execution, URI/extension/entity
-safety coverage, release docs, preview drift checks, and an expanded
-`cem_ml_schema_package_xslt_v1:verify` target. Continue with `html/v1` only
-after both standard XSLT and bounded compatibility contracts are green.
+terminal, HTML, and Markdown CEMT wrappers plus HTML document/CEM-tree helpers.
+Preserve lexical source in compact mode and the default final newline; define
+pretty/tabular behavior only for safe HTML token boundaries so raw text,
+preformatted content, optional end tags, and foreign-content case are not
+changed semantically. Route passing previews through package profiles and
+expected failures through schema diagnostics without source snapshots. Finish
+with manifest/index embedding, lifecycle and same-schema engine/CLI tests,
+document/fragment and foreign-island coverage, formatter/colorizer execution,
+encoding/resource/script safety tests, release docs, preview drift checks, and
+an expanded `cem_ml_schema_package_html_v1:verify` target. Continue with
+`css/v1` only after the typed HTML contract is green.
 
 ## Current Verification Commands
 

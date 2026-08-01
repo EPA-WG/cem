@@ -34,8 +34,8 @@ use crate::schema::registry::{
     HTML_CONTENT_TYPE, HTML_SCHEMA_URI, JSON_CONTENT_TYPE, JSON_SCHEMA_CONTENT_TYPE,
     JSON_SCHEMA_SCHEMA_URI, JSON_VALUE_SCHEMA_URI, MARKDOWN_CONTENT_TYPE, MARKDOWN_SCHEMA_URI,
     MATHML_CONTENT_TYPE, MATHML_SCHEMA_URI, RELAX_NG_SCHEMA_URI, SVG_CONTENT_TYPE, SVG_SCHEMA_URI,
-    XHTML_CONTENT_TYPE, XHTML_SCHEMA_URI, XML_CONTENT_TYPE, XML_SCHEMA_URI, YAML_CONTENT_TYPE,
-    YAML_SCHEMA_URI,
+    XHTML_CONTENT_TYPE, XHTML_SCHEMA_URI, XML_CONTENT_TYPE, XML_SCHEMA_URI, XSLT_CONTENT_TYPE,
+    XSLT_SCHEMA_URI, YAML_CONTENT_TYPE, YAML_SCHEMA_URI,
 };
 use crate::source::{BytesSource, SourceId};
 use crate::source_map::SourceMapStack;
@@ -80,6 +80,7 @@ use crate::validation::relax_ng::{RelaxNgDocumentAst, RelaxNgSyntaxKind};
 use crate::validation::svg::SvgDocumentAst;
 use crate::validation::xhtml::XhtmlDocumentAst;
 use crate::validation::xml::XmlDocumentAst;
+use crate::validation::xslt::XsltStylesheetAst;
 use crate::validation::yaml::{generic_data_ast_to_yaml_cemt_subject, YamlDocumentAst};
 use serde_json::Value;
 use std::cell::RefCell;
@@ -2430,6 +2431,24 @@ const MATHML_COLOR_CEMT_STAGE_SPEC: CemTreeCemtOutputStageSpec = CemTreeCemtOutp
     declaration_element: "{color-function",
     function_kind: TransformTemplateOutputFunctionKind::Color,
     function_name: "mathml.color-document",
+    role: "colorizer",
+};
+
+const XSLT_FORMAT_CEMT_STAGE_SPEC: CemTreeCemtOutputStageSpec = CemTreeCemtOutputStageSpec {
+    adapter_id: "xslt-format-cemt",
+    artifact_kind: CEM_TREE_FORMATTER_ARTIFACT_KIND,
+    declaration_element: "{format-function",
+    function_kind: TransformTemplateOutputFunctionKind::Format,
+    function_name: "xslt.format-stylesheet",
+    role: "formatter",
+};
+
+const XSLT_COLOR_CEMT_STAGE_SPEC: CemTreeCemtOutputStageSpec = CemTreeCemtOutputStageSpec {
+    adapter_id: "xslt-color-cemt",
+    artifact_kind: CEM_TREE_COLORIZER_ARTIFACT_KIND,
+    declaration_element: "{color-function",
+    function_kind: TransformTemplateOutputFunctionKind::Color,
+    function_name: "xslt.color-stylesheet",
     role: "colorizer",
 };
 
@@ -6771,6 +6790,16 @@ impl XmlDocumentOutputSubject for MathMlDocumentAst {
     }
 }
 
+impl XmlDocumentOutputSubject for XsltStylesheetAst {
+    fn source_line_ending(&self) -> Option<&str> {
+        self.line_ending.as_deref()
+    }
+
+    fn into_cemt_subject(self) -> Value {
+        self.to_cemt_subject()
+    }
+}
+
 #[cfg(test)]
 impl XmlDocumentOutputSubject for Value {
     fn source_line_ending(&self) -> Option<&str> {
@@ -6839,6 +6868,21 @@ pub fn execute_mathml_document_output_pipeline_with_environment(
         target_scope,
         diagnostic_uri,
         XmlFamilyOutputSpec::mathml(),
+    )
+}
+
+pub fn execute_xslt_stylesheet_output_pipeline_with_environment(
+    environment: &ConversionOutputPipelineEnvironment<'_>,
+    stylesheet: XsltStylesheetAst,
+    target_scope: &ScopeConfig,
+    diagnostic_uri: Option<&str>,
+) -> ConversionOutputPipelineExecution {
+    execute_xml_family_document_output_pipeline_with_environment(
+        environment,
+        stylesheet,
+        target_scope,
+        diagnostic_uri,
+        XmlFamilyOutputSpec::xslt(),
     )
 }
 
@@ -6914,6 +6958,21 @@ impl XmlFamilyOutputSpec {
             formatter_option_prefix: "mathml.",
             converter_id: "mathml-direct-output",
             diagnostic_node: "mathml",
+        }
+    }
+
+    const fn xslt() -> Self {
+        Self {
+            label: "XSLT",
+            formatter: XSLT_FORMAT_CEMT_STAGE_SPEC,
+            colorizer: XSLT_COLOR_CEMT_STAGE_SPEC,
+            content_type: XSLT_CONTENT_TYPE,
+            schema: XSLT_SCHEMA_URI,
+            category: "xslt-stylesheet",
+            subject_kind: "xslt-stylesheet",
+            formatter_option_prefix: "xslt.",
+            converter_id: "xslt-direct-output",
+            diagnostic_node: "xslt",
         }
     }
 }
@@ -11385,6 +11444,7 @@ fn builtin_converter_package_schema_uris() -> &'static [&'static str] {
         XHTML_SCHEMA_URI,
         SVG_SCHEMA_URI,
         MATHML_SCHEMA_URI,
+        XSLT_SCHEMA_URI,
     ]
 }
 
@@ -19324,6 +19384,144 @@ mod tests {
             assert_eq!(colored.value["contentType"], MATHML_CONTENT_TYPE);
             assert_eq!(colored.value["schema"], MATHML_SCHEMA_URI);
             assert_eq!(colored.value["category"], "mathml-document");
+            assert_eq!(colored.value["colorProfile"], profile);
+            assert_eq!(colored.value["nodes"][2]["style"][style_key], style_value);
+        }
+    }
+
+    #[test]
+    fn builtin_xslt_lifecycle_output_pipeline_executes_package_cemt_assets() {
+        let schema_registry = SchemaRegistry::with_builtin_schemas();
+        let conversion_registry = ConversionRegistry::with_builtin_converters();
+        let environment = ConversionOutputPipelineEnvironment {
+            schema_registry: &schema_registry,
+            conversion_registry: &conversion_registry,
+            package_artifact_reader: None,
+            artifact_cache: None,
+        };
+        let source = br#"<?xml version="1.0" encoding="UTF-8"?>
+<xsl:stylesheet xmlns:xsl="http://www.w3.org/1999/XSL/Transform" version="1.0"><xsl:template match="/"><main><xsl:value-of select="catalog/title"/></main></xsl:template></xsl:stylesheet>
+"#;
+        let (stylesheet, diagnostics) =
+            crate::validation::xslt::xslt_stylesheet_ast_from_source_bytes(
+                crate::validation::xslt::XsltSourceValidationRequest {
+                    bytes: source,
+                    source_uri: "builtin:xslt-output",
+                    content_type: Some(XSLT_CONTENT_TYPE),
+                },
+            );
+        assert!(diagnostics.is_empty(), "{diagnostics:?}");
+
+        for (profile, artifact_profile) in [
+            ("compact", "compact"),
+            ("pretty", "xml.pretty"),
+            ("tabular", "tabular"),
+        ] {
+            let target_scope = ScopeConfig {
+                cemt_formatter_profile: Some(profile.to_owned()),
+                ..ScopeConfig::default()
+            };
+            let execution = execute_xslt_stylesheet_output_pipeline_with_environment(
+                &environment,
+                stylesheet.clone().expect("XSLT stylesheet"),
+                &target_scope,
+                Some("builtin:xslt-output"),
+            );
+            assert!(
+                execution.diagnostics.is_empty(),
+                "{profile}: {:?}",
+                execution.diagnostics
+            );
+            assert!(
+                matches!(
+                    execution.format_execution,
+                    Some(ConversionOutputPipelineStageExecution::CemtAdapter {
+                        ref adapter_id,
+                        ref function_name,
+                        ref body_function_name,
+                        ..
+                    }) if adapter_id == "xslt-format-cemt"
+                        && function_name == "xslt.format-stylesheet"
+                        && body_function_name.as_deref() == Some("xslt.format-stylesheet")
+                ),
+                "{profile}: {:?}",
+                execution.format_execution
+            );
+            assert_eq!(
+                execution.output.as_ref().and_then(Value::as_str),
+                Some(std::str::from_utf8(source).unwrap()),
+                "{profile}"
+            );
+            let formatted = execution
+                .formatted_cem_tree
+                .as_ref()
+                .unwrap_or_else(|| panic!("{profile} formatted tree"));
+            assert_eq!(formatted.value["contentType"], XSLT_CONTENT_TYPE);
+            assert_eq!(formatted.value["schema"], XSLT_SCHEMA_URI);
+            assert_eq!(formatted.value["category"], "xslt-stylesheet");
+            assert_eq!(formatted.value["formatterProfile"], artifact_profile);
+            assert_eq!(
+                formatted.value["formatNodes"][1]["value"]["layout"],
+                format!("lexical-lossless-{profile}")
+            );
+            assert!(formatted.value["nodes"]
+                .as_array()
+                .is_some_and(|nodes| nodes.iter().any(|node| {
+                    node["kind"] == "xslt.empty-element"
+                        && node["value"]["qualifiedName"] == "xsl:value-of"
+                        && node["sourceMap"] != Value::Null
+                })));
+        }
+    }
+
+    #[test]
+    fn builtin_xslt_colorizer_profiles_execute_package_cemt_assets() {
+        let schema_registry = SchemaRegistry::with_builtin_schemas();
+        let conversion_registry = ConversionRegistry::with_builtin_converters();
+        let environment = ConversionOutputPipelineEnvironment {
+            schema_registry: &schema_registry,
+            conversion_registry: &conversion_registry,
+            package_artifact_reader: None,
+            artifact_cache: None,
+        };
+        let source = b"<xsl:stylesheet xmlns:xsl=\"http://www.w3.org/1999/XSL/Transform\" version=\"1.0\"><xsl:template match=\"/\"><main/></xsl:template></xsl:stylesheet>\n";
+        let (stylesheet, diagnostics) =
+            crate::validation::xslt::xslt_stylesheet_ast_from_source_bytes(
+                crate::validation::xslt::XsltSourceValidationRequest {
+                    bytes: source,
+                    source_uri: "builtin:xslt-color-output",
+                    content_type: Some(XSLT_CONTENT_TYPE),
+                },
+            );
+        assert!(diagnostics.is_empty(), "{diagnostics:?}");
+
+        for (profile, style_key, style_value) in [
+            ("terminal", "terminalCapability", "auto"),
+            ("html", "htmlMode", "classes"),
+            ("md", "wrapper", "span"),
+        ] {
+            let target_scope = ScopeConfig {
+                cemt_color_profile: Some(profile.to_owned()),
+                ..ScopeConfig::default()
+            };
+            let execution = execute_xslt_stylesheet_output_pipeline_with_environment(
+                &environment,
+                stylesheet.clone().expect("XSLT stylesheet"),
+                &target_scope,
+                Some("builtin:xslt-color-output"),
+            );
+            assert!(
+                execution.diagnostics.is_empty(),
+                "{profile}: {:?}",
+                execution.diagnostics
+            );
+            let colored = execution
+                .colored_cem_tree
+                .as_ref()
+                .unwrap_or_else(|| panic!("{profile} colored tree"));
+            assert_eq!(colored.value["contentType"], XSLT_CONTENT_TYPE);
+            assert_eq!(colored.value["schema"], XSLT_SCHEMA_URI);
+            assert_eq!(colored.value["category"], "xslt-stylesheet");
             assert_eq!(colored.value["colorProfile"], profile);
             assert_eq!(colored.value["nodes"][2]["style"][style_key], style_value);
         }

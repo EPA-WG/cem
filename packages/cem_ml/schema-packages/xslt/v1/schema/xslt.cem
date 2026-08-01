@@ -86,24 +86,42 @@
     }
 
     {constraints |
-        {constraint @kind="xslt-source-parser" @target="stylesheet-module" @policy="delegate-to-xml-parser-with-xslt-schema"}
+        {constraint @kind="xslt-source-parser" @target="stylesheet-module" @diagnostic="cem.xslt.not_well_formed_xml" @behavior="xslt-report-fact" @fact-kind="not-well-formed-xml" @policy="delegate to the generic XML event parser while retaining XSLT schema and media-type identity"}
+        {constraint @kind="xslt-source-encoding" @target="stylesheet-module" @diagnostic="cem.xslt.unsupported_encoding" @behavior="xslt-report-fact" @fact-kind="unsupported-encoding" @policy="inherit the XML package UTF-8 and US-ASCII decoder policy"}
+        {constraint @kind="xslt-encoding-conflict" @target="stylesheet-module" @diagnostic="cem.xslt.encoding_conflict" @behavior="xslt-report-fact" @fact-kind="encoding-conflict" @policy="MIME charset and XML declaration encoding must not conflict"}
+        {constraint @kind="xslt-namespace-prefix-binding" @target="stylesheet-module" @diagnostic="cem.xslt.unbound_namespace_prefix" @behavior="xslt-report-fact" @fact-kind="unbound-namespace-prefix" @policy="inherit XML namespace prefix binding rules"}
+        {constraint @kind="xslt-attribute-namespace-uniqueness" @target="stylesheet-module" @diagnostic="cem.xslt.duplicate_attribute" @behavior="xslt-report-fact" @fact-kind="duplicate-attribute" @policy="inherit XML expanded-name attribute uniqueness rules"}
         {constraint @kind="application-xslt-primary" @target="stylesheet-module" @policy="application/xslt+xml is the canonical registered media type for XSLT stylesheet modules"}
         {constraint @kind="text-xsl-legacy-alias" @target="stylesheet-module" @policy="text/xsl is accepted as a compatibility alias for old browser and XML-stylesheet processing-instruction usage"}
         {constraint @kind="custom-element-aliases" @target="stylesheet-module" @policy="custom-element-xslt aliases select the bounded legacy custom-element compatibility adapter"}
         {constraint @kind="xml-base-schema-compatible" @target="stylesheet-module" @policy="required"}
-        {constraint @kind="xslt-namespace-required" @target="stylesheet" @policy="stylesheet and transform roots must use http://www.w3.org/1999/XSL/Transform"}
-        {constraint @kind="version-required" @target="stylesheet" @policy="xsl:stylesheet or xsl:transform version is required for version-pinned dispatch"}
+        {constraint @kind="xslt-root-element" @target="stylesheet" @diagnostic="cem.xslt.root_not_stylesheet" @behavior="xslt-report-fact" @fact-kind="root-not-stylesheet" @policy="root element must be xsl:stylesheet or xsl:transform"}
+        {constraint @kind="xslt-namespace-required" @target="stylesheet" @diagnostic="cem.xslt.namespace_missing" @behavior="xslt-report-fact" @fact-kind="namespace-missing" @policy="stylesheet and transform roots must use http://www.w3.org/1999/XSL/Transform"}
+        {constraint @kind="version-required" @target="stylesheet" @diagnostic="cem.xslt.version_missing" @behavior="xslt-report-fact" @fact-kind="version-missing" @policy="xsl:stylesheet or xsl:transform version is required for version-pinned dispatch"}
+        {constraint @kind="version-lexical-form" @target="stylesheet" @diagnostic="cem.xslt.version_malformed" @behavior="xslt-report-fact" @fact-kind="version-malformed" @policy="version must use major.minor decimal syntax"}
+        {constraint @kind="version-supported" @target="stylesheet" @diagnostic="cem.xslt.unsupported_version" @behavior="xslt-report-fact" @fact-kind="unsupported-version" @policy="the native source lifecycle recognizes XSLT versions 1 through 3"}
         {constraint @kind="version-stable-namespace" @target="stylesheet" @policy="the XSLT namespace is not the version source; the version attribute resolves against the CEM adapter line"}
         {constraint @kind="bounded-compatibility-profile" @target="stylesheet" @policy="current executable support is the bounded legacy custom-element and XSLT parity profile, not a full XSLT 3 or 4 engine"}
         {constraint @kind="no-browser-xslt-engine" @target="stylesheet" @policy="do not delegate execution to browser XSLTProcessor"}
-        {constraint @kind="external-uri-policy" @target="declaration" @policy="include import document and result-document URI access require explicit resolver policy"}
-        {constraint @kind="extension-policy" @target="instruction" @policy="extension functions and extension instructions require explicit capability support"}
-        {constraint @kind="source-map-preferred" @target="instruction" @policy="required when parser exposes source ranges"}
+        {constraint @kind="entrypoint-required" @target="template" @diagnostic="cem.xslt.entrypoint_missing" @behavior="xslt-report-fact" @fact-kind="entrypoint-missing" @policy="at least one top-level xsl:template is required"}
+        {constraint @kind="external-uri-policy" @target="declaration" @diagnostic="cem.xslt.external_uri_rejected" @behavior="xslt-report-fact" @fact-kind="external-uri-rejected" @policy="include import document and result-document URI access require explicit resolver policy; local fragments and data URIs remain lexical references"}
+        {constraint @kind="extension-policy" @target="instruction" @diagnostic="legacy_xslt.unsupported_construct" @behavior="xslt-report-fact" @fact-kind="unsupported-construct" @policy="extension functions and extension instructions require explicit capability support"}
+        {constraint @kind="doctype-policy" @target="stylesheet-module" @diagnostic="cem.xslt.dtd_rejected" @behavior="xslt-report-fact" @fact-kind="dtd-rejected" @policy="preserve doctype lexemes but inherit XML rejection of DTD declarations until an explicit resolver policy enables them"}
+        {constraint @kind="external-entity-policy" @target="stylesheet-module" @diagnostic="cem.xslt.external_entity_rejected" @behavior="xslt-report-fact" @fact-kind="external-entity-rejected" @policy="inherit XML rejection of non-built-in entity references"}
+        {constraint @kind="entity-expansion-limit" @target="stylesheet-module" @diagnostic="cem.xslt.entity_expansion_limit" @behavior="xslt-report-fact" @fact-kind="entity-expansion-limit" @policy="inherit XML entity expansion safety limits"}
+        {constraint @kind="source-map-preferred" @target="instruction" @diagnostic="cem.xslt.source_map_unavailable" @behavior="xslt-report-fact" @fact-kind="source-map-unavailable" @policy="source ranges and source maps are required when the XML parser exposes source identity"}
     }
 
     {diagnostics |
         {diagnostic @code="cem.xslt.parse_error" @severity="error"}
         {diagnostic @code="cem.xslt.not_well_formed_xml" @severity="error"}
+        {diagnostic @code="cem.xslt.unsupported_encoding" @severity="error"}
+        {diagnostic @code="cem.xslt.encoding_conflict" @severity="error"}
+        {diagnostic @code="cem.xslt.unbound_namespace_prefix" @severity="error"}
+        {diagnostic @code="cem.xslt.duplicate_attribute" @severity="error"}
+        {diagnostic @code="cem.xslt.dtd_rejected" @severity="error"}
+        {diagnostic @code="cem.xslt.external_entity_rejected" @severity="error"}
+        {diagnostic @code="cem.xslt.entity_expansion_limit" @severity="error"}
         {diagnostic @code="cem.xslt.root_not_stylesheet" @severity="error"}
         {diagnostic @code="cem.xslt.namespace_missing" @severity="error"}
         {diagnostic @code="cem.xslt.version_missing" @severity="error"}

@@ -25,8 +25,17 @@ pub const TEMPLATE_CONTENT_TYPES: &[&str] = &[
     "text/custom-element-xslt",
     "application/custom-element-xslt",
     "text/x-custom-element-xslt",
+];
+
+/// Standard and compatibility media types accepted when XSLT is used as an
+/// explicit transform-template resource rather than as lifecycle input.
+pub const XSLT_TEMPLATE_CONTENT_TYPES: &[&str] = &[
     "application/xslt+xml",
     "text/xsl",
+    TEMPLATE_LANG,
+    "text/custom-element-xslt",
+    "application/custom-element-xslt",
+    "text/x-custom-element-xslt",
 ];
 
 /// Diagnostic code emitted when a legacy XPath function has no CEM-QL mapping.
@@ -3539,10 +3548,10 @@ mod tests {
         assert!(is_legacy_custom_element_content_type(
             "text/custom-element-xslt; charset=utf-8"
         ));
-        assert!(is_legacy_custom_element_content_type(
+        assert!(!is_legacy_custom_element_content_type(
             "application/xslt+xml"
         ));
-        assert!(is_legacy_custom_element_content_type(
+        assert!(!is_legacy_custom_element_content_type(
             "text/xsl; charset=utf-8"
         ));
         assert!(!is_legacy_custom_element_content_type("text/html"));

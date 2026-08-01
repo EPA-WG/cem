@@ -20,8 +20,8 @@ use crate::schema::registry::{
     MARKDOWN_SCHEMA_URI, MATHML_CONTENT_TYPE, MATHML_NAMESPACE_URI, MATHML_SCHEMA_URI,
     RELAX_NG_COMPACT_CONTENT_TYPE, RELAX_NG_SCHEMA_URI, RELAX_NG_XML_CONTENT_TYPE,
     SVG_CONTENT_TYPE, SVG_NAMESPACE_URI, SVG_SCHEMA_URI, XHTML_CONTENT_TYPE, XHTML_SCHEMA_URI,
-    XML_CONTENT_TYPE, XML_SCHEMA_URI, XSLT_NAMESPACE_URI, XSLT_SCHEMA_URI, YAML_CONTENT_TYPE,
-    YAML_SCHEMA_URI,
+    XML_CONTENT_TYPE, XML_SCHEMA_URI, XSLT_CONTENT_TYPE, XSLT_NAMESPACE_URI, XSLT_SCHEMA_URI,
+    YAML_CONTENT_TYPE, YAML_SCHEMA_URI,
 };
 use crate::transform_config::TRANSFORM_CONFIG_SCHEMA_URI;
 use crate::validation::csv::{
@@ -54,7 +54,10 @@ use crate::validation::xhtml::{
 use crate::validation::xml::{
     xml_document_ast_from_source_bytes, XmlDocumentAst, XmlSourceValidationRequest,
 };
-use crate::validation::xslt::{validate_xslt_source_bytes, XsltSourceValidationRequest};
+use crate::validation::xslt::{
+    validate_xslt_compat_source_bytes, xslt_stylesheet_ast_from_source_bytes,
+    XsltSourceValidationRequest, XsltStylesheetAst, XSLT_TEXT_CONTENT_TYPE,
+};
 use crate::validation::yaml::{
     yaml_document_ast_from_source_bytes, YamlDocumentAst, YamlSourceValidationRequest,
 };
@@ -106,6 +109,7 @@ pub enum LoadedInputAstStream {
     XhtmlDocument(XhtmlDocumentAst),
     SvgDocument(SvgDocumentAst),
     MathMlDocument(MathMlDocumentAst),
+    XsltStylesheet(XsltStylesheetAst),
     RelaxNgDocument(RelaxNgDocumentAst),
 }
 
@@ -144,6 +148,7 @@ impl LifecycleRegistry {
         registry.register(XhtmlAdapter);
         registry.register(SvgAdapter);
         registry.register(MathMlAdapter);
+        registry.register(XsltAdapter);
         registry.register(HtmlAdapter);
         registry.register(RelaxNgAdapter);
         registry.register(XmlAdapter);
@@ -723,6 +728,63 @@ fn matches_mathml_identity(identity: &FormatIdentity) -> bool {
     }
     explicit_schema_matches
         || matches_namespace_without_content_type_or_schema(identity, &[MATHML_NAMESPACE])
+}
+
+struct XsltAdapter;
+
+impl LifecycleAdapter for XsltAdapter {
+    fn id(&self) -> &'static str {
+        "xslt"
+    }
+
+    fn matches_input(&self, identity: &FormatIdentity) -> bool {
+        matches_xslt_identity(identity)
+    }
+
+    fn load(&self, input: &EngineInput, identity: &FormatIdentity) -> LoadedInput {
+        let content_type = identity
+            .content_type
+            .as_deref()
+            .or(input.root_scope.default_content_type.as_deref())
+            .unwrap_or(XSLT_CONTENT_TYPE);
+        let (stylesheet, diagnostics) =
+            xslt_stylesheet_ast_from_source_bytes(XsltSourceValidationRequest {
+                bytes: &input.bytes,
+                source_uri: &input.uri,
+                content_type: Some(content_type),
+            });
+        LoadedInput {
+            bytes: input.bytes.clone(),
+            from_format: InputFormat::Xml,
+            ast_stream: stylesheet.map(LoadedInputAstStream::XsltStylesheet),
+            diagnostics,
+            adapter_id: Some(self.id()),
+        }
+    }
+
+    fn matches_target(&self, identity: &FormatIdentity) -> bool {
+        matches_xslt_identity(identity)
+    }
+
+    fn target_format(&self) -> Option<LayerFormat> {
+        Some(LayerFormat::Xml)
+    }
+}
+
+fn matches_xslt_identity(identity: &FormatIdentity) -> bool {
+    let explicit_schema_matches = identity
+        .schema
+        .as_deref()
+        .map(str::trim)
+        .is_some_and(|schema| matches!(schema, XSLT_SCHEMA_URI | XSLT_NAMESPACE_URI));
+    if let Some(content_type) = identity.content_type.as_deref() {
+        return matches!(
+            content_type_essence(content_type).as_str(),
+            XSLT_CONTENT_TYPE | XSLT_TEXT_CONTENT_TYPE
+        ) && (identity.schema.is_none() || explicit_schema_matches);
+    }
+    explicit_schema_matches
+        || matches_namespace_without_content_type_or_schema(identity, &[XSLT_NAMESPACE])
 }
 
 struct XmlAdapter;
@@ -1324,8 +1386,6 @@ impl LifecycleAdapter for CustomElementXsltCompatAdapter {
             .as_deref()
             .map(crate::legacy_custom_element::is_legacy_custom_element_content_type)
             .unwrap_or(false)
-            || matches_schema_without_content_type(identity, &[XSLT_SCHEMA_URI])
-            || matches_namespace_without_content_type_or_schema(identity, &[XSLT_NAMESPACE])
     }
 
     fn load(&self, input: &EngineInput, identity: &FormatIdentity) -> LoadedInput {
@@ -1336,7 +1396,7 @@ impl LifecycleAdapter for CustomElementXsltCompatAdapter {
             .and_then(|identity| identity.content_type.as_deref())
             .or_else(|| input.root_scope.default_content_type.as_deref())
             .or(identity.content_type.as_deref());
-        let mut diagnostics = validate_xslt_source_bytes(XsltSourceValidationRequest {
+        let mut diagnostics = validate_xslt_compat_source_bytes(XsltSourceValidationRequest {
             bytes: &input.bytes,
             source_uri: &input.uri,
             content_type: source_content_type,
@@ -2023,42 +2083,48 @@ mod tests {
     }
 
     #[test]
-    fn builtins_load_custom_element_xslt_compat_to_cem() {
-        let loaded = LifecycleRegistry::with_builtin_adapters().load(
-            &input(br#"<if test="$ready"><button>Go</button></if>"#),
-            &context("custom-element-xslt"),
-        );
-        assert_eq!(loaded.from_format, InputFormat::Cem);
-        assert_eq!(
-            loaded.adapter_id,
-            Some(CUSTOM_ELEMENT_XSLT_COMPAT_ADAPTER_ID)
-        );
-        assert!(String::from_utf8(loaded.bytes)
-            .unwrap()
-            .contains("{cem:if @test=\"ready\""));
+    fn builtins_load_all_custom_element_xslt_compat_aliases_to_cem() {
+        for content_type in crate::legacy_custom_element::TEMPLATE_CONTENT_TYPES {
+            let loaded = LifecycleRegistry::with_builtin_adapters().load(
+                &input(br#"<if test="$ready"><button>Go</button></if>"#),
+                &context(content_type),
+            );
+            assert_eq!(loaded.from_format, InputFormat::Cem, "{content_type}");
+            assert_eq!(
+                loaded.adapter_id,
+                Some(CUSTOM_ELEMENT_XSLT_COMPAT_ADAPTER_ID),
+                "{content_type}"
+            );
+            assert!(
+                String::from_utf8(loaded.bytes)
+                    .unwrap()
+                    .contains("{cem:if @test=\"ready\""),
+                "{content_type}"
+            );
+        }
     }
 
     #[test]
-    fn builtins_load_standard_xslt_content_type_to_cem() {
-        let loaded = LifecycleRegistry::with_builtin_adapters().load(
+    fn builtins_load_standard_xslt_content_types_as_dedicated_internal_ast_stream() {
+        for content_type in [XSLT_CONTENT_TYPE, XSLT_TEXT_CONTENT_TYPE] {
+            let loaded = LifecycleRegistry::with_builtin_adapters().load(
             &input(
                 br#"<xsl:stylesheet xmlns:xsl="http://www.w3.org/1999/XSL/Transform" version="1.0"><xsl:template match="/"><xsl:if test="$ready"><button>Go</button></xsl:if></xsl:template></xsl:stylesheet>"#,
             ),
-            &context("application/xslt+xml"),
+                &context(content_type),
         );
-        assert_eq!(loaded.from_format, InputFormat::Cem);
-        assert_eq!(
-            loaded.adapter_id,
-            Some(CUSTOM_ELEMENT_XSLT_COMPAT_ADAPTER_ID)
-        );
-        assert!(loaded.diagnostics.is_empty());
-        assert!(String::from_utf8(loaded.bytes)
-            .unwrap()
-            .contains("{cem:if @test=\"ready\""));
+            assert_eq!(loaded.from_format, InputFormat::Xml);
+            assert_eq!(loaded.adapter_id, Some("xslt"));
+            assert!(loaded.diagnostics.is_empty());
+            assert!(matches!(
+                loaded.ast_stream,
+                Some(LoadedInputAstStream::XsltStylesheet(_))
+            ));
+        }
     }
 
     #[test]
-    fn xslt_schema_selects_custom_element_xslt_compat_when_content_type_absent() {
+    fn xslt_schema_selects_dedicated_xslt_when_content_type_absent() {
         let loaded = LifecycleRegistry::with_builtin_adapters().load(
             &input(
                 br#"<xsl:stylesheet xmlns:xsl="http://www.w3.org/1999/XSL/Transform" version="1.0"><xsl:template match="/"><xsl:if test="$ready"><button>Go</button></xsl:if></xsl:template></xsl:stylesheet>"#,
@@ -2068,15 +2134,13 @@ mod tests {
                 ..EngineContext::default()
             },
         );
-        assert_eq!(loaded.from_format, InputFormat::Cem);
-        assert_eq!(
-            loaded.adapter_id,
-            Some(CUSTOM_ELEMENT_XSLT_COMPAT_ADAPTER_ID)
-        );
+        assert_eq!(loaded.from_format, InputFormat::Xml);
+        assert_eq!(loaded.adapter_id, Some("xslt"));
         assert!(loaded.diagnostics.is_empty());
-        assert!(String::from_utf8(loaded.bytes)
-            .unwrap()
-            .contains("{cem:if @test=\"ready\""));
+        assert!(matches!(
+            loaded.ast_stream,
+            Some(LoadedInputAstStream::XsltStylesheet(_))
+        ));
     }
 
     #[test]
@@ -2085,7 +2149,7 @@ mod tests {
             &input(
                 br#"<xsl:stylesheet xmlns:xsl="http://www.w3.org/1999/XSL/Transform"><xsl:template match="/"><main/></xsl:template></xsl:stylesheet>"#,
             ),
-            &context("application/xslt+xml"),
+            &context("custom-element-xslt"),
         );
 
         let diagnostic = loaded
@@ -2453,7 +2517,7 @@ mod tests {
     }
 
     #[test]
-    fn xslt_namespace_selects_custom_element_xslt_compat_when_content_type_and_schema_absent() {
+    fn xslt_namespace_selects_dedicated_xslt_when_content_type_and_schema_absent() {
         let mut source = input(
             br#"<xsl:stylesheet xmlns:xsl="http://www.w3.org/1999/XSL/Transform" version="1.0"><xsl:template match="/"><xsl:if test="$ready"><button>Go</button></xsl:if></xsl:template></xsl:stylesheet>"#,
         );
@@ -2468,15 +2532,13 @@ mod tests {
         let loaded =
             LifecycleRegistry::with_builtin_adapters().load(&source, &EngineContext::default());
 
-        assert_eq!(loaded.from_format, InputFormat::Cem);
-        assert_eq!(
-            loaded.adapter_id,
-            Some(CUSTOM_ELEMENT_XSLT_COMPAT_ADAPTER_ID)
-        );
+        assert_eq!(loaded.from_format, InputFormat::Xml);
+        assert_eq!(loaded.adapter_id, Some("xslt"));
         assert!(loaded.diagnostics.is_empty());
-        assert!(String::from_utf8(loaded.bytes)
-            .unwrap()
-            .contains("{cem:if @test=\"ready\""));
+        assert!(matches!(
+            loaded.ast_stream,
+            Some(LoadedInputAstStream::XsltStylesheet(_))
+        ));
     }
 
     #[test]
@@ -2640,6 +2702,21 @@ mod tests {
     }
 
     #[test]
+    fn xslt_target_content_types_select_dedicated_xslt_export() {
+        for content_type in [XSLT_CONTENT_TYPE, XSLT_TEXT_CONTENT_TYPE] {
+            let target = FormatIdentity {
+                content_type: Some(content_type.to_owned()),
+                ..FormatIdentity::default()
+            };
+            let selected = LifecycleRegistry::with_builtin_adapters()
+                .select_export(Some(&target), LayerFormat::DomJson);
+            assert_eq!(selected.to_format, LayerFormat::Xml);
+            assert_eq!(selected.adapter_id, Some("xslt"));
+            assert!(selected.diagnostics.is_empty());
+        }
+    }
+
+    #[test]
     fn svg_package_schema_selects_dedicated_svg_export_when_content_type_absent() {
         let target = FormatIdentity {
             schema: Some(SVG_SCHEMA_URI.to_owned()),
@@ -2662,6 +2739,19 @@ mod tests {
             .select_export(Some(&target), LayerFormat::DomJson);
         assert_eq!(selected.to_format, LayerFormat::Xml);
         assert_eq!(selected.adapter_id, Some("mathml"));
+        assert!(selected.diagnostics.is_empty());
+    }
+
+    #[test]
+    fn xslt_package_schema_selects_dedicated_xslt_export_when_content_type_absent() {
+        let target = FormatIdentity {
+            schema: Some(XSLT_SCHEMA_URI.to_owned()),
+            ..FormatIdentity::default()
+        };
+        let selected = LifecycleRegistry::with_builtin_adapters()
+            .select_export(Some(&target), LayerFormat::DomJson);
+        assert_eq!(selected.to_format, LayerFormat::Xml);
+        assert_eq!(selected.adapter_id, Some("xslt"));
         assert!(selected.diagnostics.is_empty());
     }
 
@@ -2792,6 +2882,19 @@ mod tests {
             .select_export(Some(&target), LayerFormat::DomJson);
         assert_eq!(selected.to_format, LayerFormat::Xml);
         assert_eq!(selected.adapter_id, Some("mathml"));
+        assert!(selected.diagnostics.is_empty());
+    }
+
+    #[test]
+    fn xslt_namespace_schema_selects_dedicated_xslt_export_when_content_type_absent() {
+        let target = FormatIdentity {
+            schema: Some(XSLT_NAMESPACE.to_owned()),
+            ..FormatIdentity::default()
+        };
+        let selected = LifecycleRegistry::with_builtin_adapters()
+            .select_export(Some(&target), LayerFormat::DomJson);
+        assert_eq!(selected.to_format, LayerFormat::Xml);
+        assert_eq!(selected.adapter_id, Some("xslt"));
         assert!(selected.diagnostics.is_empty());
     }
 

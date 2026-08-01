@@ -4,15 +4,162 @@
 
 {module @version="1.0.0" |
     {format-function
-        @name="xslt.format-stylesheet"
+        @name="xslt.format-stylesheet.tree"
+        @visibility="private"
         @category="xslt-stylesheet"
-        @subject="json"
-        @produces="tokens"
+        @subject="xslt-stylesheet"
+        @produces="cem-tree"
         @content-type="application/xslt+xml"
         @schema="https://cem.dev/ns/transform/xslt/1"
         @canonical=true
         @deterministic=true
         @streamable=true |
-        {param @name="subject" @type="json" @required=true}
+        {param @name="subject" @type="object" @required=true}
+        {param @name="profile" @type="string" @required=true}
+        {body |
+            {$ {
+                kind: "cem-tree",
+                contentType: "application/xslt+xml",
+                schema: "https://cem.dev/ns/transform/xslt/1",
+                category: "xslt-stylesheet",
+                formatterProfile: $profile,
+                formatNodes: [
+                    {
+                        kind: "format-marker",
+                        name: "xslt.format-stylesheet",
+                        formatterRole: "formatter.boundary",
+                        formatterProfile: $profile
+                    },
+                    {
+                        kind: "format-decision",
+                        name: "xslt.lexical-xml-layout",
+                        formatterRole: "formatter.layout",
+                        formatterProfile: $profile,
+                        value: {
+                            layout: call("xslt.format-stylesheet.layout", { profile: $profile }),
+                            lineEnding: $lineEnding,
+                            indent: $indent,
+                            tabSize: $tabSize,
+                            sourceBoundary: "xslt-stylesheet"
+                        }
+                    }
+                ],
+                nodes: extend(
+                    [
+                        call("xslt.format-stylesheet.token", {
+                            kind: "xslt.format-marker",
+                            text: "",
+                            role: "formatter.boundary",
+                            sourceMap: null,
+                            value: { name: "xslt.format-stylesheet", formatterProfile: $profile }
+                        }),
+                        call("xslt.format-stylesheet.token", {
+                            kind: "xslt.format-decision",
+                            text: "",
+                            role: "formatter.layout",
+                            sourceMap: null,
+                            value: {
+                                layout: call("xslt.format-stylesheet.layout", { profile: $profile }),
+                                formatterProfile: $profile,
+                                lineEnding: $lineEnding,
+                                indent: $indent,
+                                tabSize: $tabSize
+                            }
+                        })
+                    ],
+                    call("xslt.format-stylesheet.events", {
+                        events: match(typeOf($subject.events), { array: $subject.events, default: [] }),
+                        profile: $profile
+                    })
+                )
+            } }
+        }
+    }
+
+    {function @name="xslt.format-stylesheet.layout" @visibility="private" @returns="string" @deterministic=true |
+        {param @name="profile" @type="string" @required=true}
+        {body |
+            {$ match($profile, {
+                compact: "lexical-lossless-compact",
+                pretty: "lexical-lossless-pretty",
+                "xml.pretty": "lexical-lossless-pretty",
+                tabular: "lexical-lossless-tabular",
+                default: "lexical-lossless"
+            }) }
+        }
+    }
+
+    {function @name="xslt.format-stylesheet.events" @visibility="private" @returns="array" @deterministic=true |
+        {param @name="events" @type="array" @required=true}
+        {param @name="profile" @type="string" @required=true}
+        {body |
+            {$ fold($events, [], extend(
+                $acc,
+                [call("xslt.format-stylesheet.event", { event: $item, profile: $profile })]
+            )) }
+        }
+    }
+
+    {function @name="xslt.format-stylesheet.event" @visibility="private" @returns="object" @deterministic=true |
+        {param @name="event" @type="object" @required=true}
+        {param @name="profile" @type="string" @required=true}
+        {body |
+            {$ call("xslt.format-stylesheet.token", {
+                kind: concat("xslt.", match(typeOf($event.kind), { string: $event.kind, default: "raw" })),
+                text: match(typeOf($event.lexeme), { string: $event.lexeme, default: "" }),
+                role: call("xslt.format-stylesheet.role", { event: $event }),
+                sourceMap: match(exists($event.sourceMap), { true: $event.sourceMap, false: null }),
+                value: {
+                    formatterProfile: $profile,
+                    eventKind: match(typeOf($event.kind), { string: $event.kind, default: "raw" }),
+                    depth: match(typeOf($event.depth), { integer: $event.depth, default: 0 }),
+                    qualifiedName: match(exists($event.qualifiedName), { true: $event.qualifiedName, false: null }),
+                    namespaceUri: match(exists($event.namespaceUri), { true: $event.namespaceUri, false: null }),
+                    sourceRange: match(exists($event.sourceRange), { true: $event.sourceRange, false: null })
+                }
+            }) }
+        }
+    }
+
+    {function @name="xslt.format-stylesheet.role" @visibility="private" @returns="string" @deterministic=true |
+        {param @name="event" @type="object" @required=true}
+        {body |
+            {$ match($event.kind, {
+                declaration: "syntax.keyword",
+                "start-element": "syntax.name",
+                "empty-element": "syntax.name",
+                "end-element": "syntax.name",
+                text: "syntax.text",
+                cdata: "syntax.string",
+                comment: "syntax.comment",
+                "processing-instruction": "syntax.keyword",
+                doctype: "syntax.keyword",
+                "entity-reference": "syntax.string",
+                default: "syntax.raw"
+            }) }
+        }
+    }
+
+    {function @name="xslt.format-stylesheet.token" @visibility="private" @returns="object" @deterministic=true |
+        {param @name="kind" @type="string" @required=true}
+        {param @name="text" @type="string" @required=true}
+        {param @name="role" @type="string" @required=true}
+        {param @name="sourceMap" @type="any" @required=true @nullable=true}
+        {param @name="value" @type="object" @required=true}
+        {body |
+            {$ {
+                kind: $kind,
+                writerKind: "token",
+                text: $text,
+                role: $role,
+                style: { colorRole: $role },
+                sourceMap: $sourceMap,
+                outputSpan: match(typeOf($sourceMap), {
+                    null: null,
+                    default: { outputRange: { start: 0, len: 0 }, origin: $sourceMap }
+                }),
+                value: $value
+            } }
+        }
     }
 }

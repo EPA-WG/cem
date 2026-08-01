@@ -8593,21 +8593,15 @@ mod tests {
         );
     }
 
-    fn assert_report_has_xslt_lifecycle_diagnostic(report: &serde_json::Value, code: &str) {
+    fn assert_report_has_standard_xslt_diagnostic(report: &serde_json::Value, code: &str) {
         let diagnostic = report_diagnostics(report)
             .iter()
             .find(|diag| diag["code"] == code)
             .unwrap_or_else(|| panic!("missing diagnostic `{code}` in {report:#}"));
-        let lifecycle = &diagnostic["details"]["lifecycle"];
-        assert_eq!(
-            lifecycle["adapterId"],
-            cem_ml::lifecycle::CUSTOM_ELEMENT_XSLT_COMPAT_ADAPTER_ID
-        );
-        assert_eq!(
-            lifecycle["profile"],
-            "xslt-1.0-limited-exslt-custom-element-compat"
-        );
-        assert_eq!(lifecycle["sourceMapContract"], "generated-boundary");
+        let xslt = &diagnostic["details"]["xslt"];
+        assert_eq!(xslt["behavior"], "xslt-report-fact");
+        assert_eq!(xslt["phase"], "xml-parse-and-xslt-semantics");
+        assert!(xslt["sourceRange"].is_object());
     }
 
     fn assert_remote_resolver_boundary(stderr: &str, uri: &str) {
@@ -16343,7 +16337,7 @@ start =
     }
 
     #[test]
-    fn validate_xslt_namespace_selects_custom_element_xslt_input_adapter() {
+    fn validate_xslt_namespace_selects_dedicated_xslt_input_adapter() {
         let p = write_fixture(
             "validate-xslt-namespace.data",
             r#"<xsl:stylesheet xmlns:xsl="http://www.w3.org/1999/XSL/Transform" version="1.0">
@@ -16632,7 +16626,7 @@ start =
     }
 
     #[test]
-    fn validate_xslt_input_spec_reports_lifecycle_profile_details() {
+    fn validate_xslt_input_spec_reports_schema_bound_typed_details() {
         let p = write_fixture(
             "validate-input-spec-xslt-missing-version.xsl",
             r#"<xsl:stylesheet xmlns:xsl="http://www.w3.org/1999/XSL/Transform">
@@ -16658,7 +16652,7 @@ start =
 
         assert_eq!(outcome.exit_code, EXIT_HARD_FAILURE, "{stderr}");
         let report: serde_json::Value = serde_json::from_str(stdout.trim()).unwrap();
-        assert_report_has_xslt_lifecycle_diagnostic(&report, "cem.xslt.version_missing");
+        assert_report_has_standard_xslt_diagnostic(&report, "cem.xslt.version_missing");
     }
 
     #[test]
@@ -22607,7 +22601,7 @@ declare let broken = 1 +
     }
 
     #[test]
-    fn convert_xslt_input_spec_report_preserves_lifecycle_profile_details() {
+    fn convert_xslt_input_spec_report_preserves_schema_bound_typed_details() {
         let p = write_fixture(
             "convert-input-spec-xslt-missing-version.xsl",
             r#"<xsl:stylesheet xmlns:xsl="http://www.w3.org/1999/XSL/Transform">
@@ -22639,11 +22633,11 @@ declare let broken = 1 +
         assert_eq!(outcome.exit_code, EXIT_OK, "{stderr}");
         let report: serde_json::Value =
             serde_json::from_str(&std::fs::read_to_string(report_path).unwrap()).unwrap();
-        assert_report_has_xslt_lifecycle_diagnostic(&report, "cem.xslt.version_missing");
+        assert_report_has_standard_xslt_diagnostic(&report, "cem.xslt.version_missing");
     }
 
     #[test]
-    fn convert_xslt_namespace_routes_to_engine_lowering() {
+    fn convert_custom_element_xslt_alias_routes_to_engine_lowering() {
         let p = write_fixture(
             "legacy-custom-element-xsl-namespace.data",
             r#"<xsl:if test="$ready"><button>Go</button></xsl:if>"#,
@@ -22652,8 +22646,8 @@ declare let broken = 1 +
             &RealCemMlEngine::new(),
             &[
                 "convert",
-                "--namespace",
-                "xsl=http://www.w3.org/1999/XSL/Transform",
+                "--content-type",
+                "custom-element-xslt",
                 "--to-content-type",
                 "application/cem+xml",
                 p.to_str().unwrap(),
@@ -22661,6 +22655,46 @@ declare let broken = 1 +
         );
         assert_eq!(outcome.exit_code, EXIT_OK, "{stderr}");
         assert_eq!(stdout, "{cem:if @test=ready |\n    {button | Go}\n}\n");
+    }
+
+    #[test]
+    fn convert_standard_xslt_media_types_preserves_stylesheet_and_final_newline() {
+        let source = r#"<?xml version="1.0"?><xsl:stylesheet xmlns:xsl="http://www.w3.org/1999/XSL/Transform" version="1.0"><xsl:template match="/"><main><xsl:value-of select="catalog/title"/></main></xsl:template></xsl:stylesheet>"#;
+        for content_type in [
+            cem_ml::schema::registry::XSLT_CONTENT_TYPE,
+            cem_ml::validation::xslt::XSLT_TEXT_CONTENT_TYPE,
+        ] {
+            let p = write_fixture(
+                &format!(
+                    "convert-standard-xslt-{}.xsl",
+                    content_type.replace('/', "-").replace('+', "-")
+                ),
+                source,
+            );
+            let (outcome, stdout, stderr) = run(
+                &RealCemMlEngine::new(),
+                &[
+                    "convert",
+                    "--input-spec",
+                    &format!(
+                        "uri={},contentType={},schema={}",
+                        p.display(),
+                        content_type,
+                        cem_ml::schema::registry::XSLT_SCHEMA_URI
+                    ),
+                    "--to-content-type",
+                    content_type,
+                    "--to-schema",
+                    cem_ml::schema::registry::XSLT_SCHEMA_URI,
+                    "--cemt-formatter-profile",
+                    "tabular",
+                ],
+            );
+
+            assert_eq!(outcome.exit_code, EXIT_OK, "{content_type}: {stderr}");
+            assert_eq!(stdout, format!("{source}\n"), "{content_type}");
+            assert!(!stderr.contains("cem.lifecycle.adapter_unsupported"));
+        }
     }
 
     #[test]

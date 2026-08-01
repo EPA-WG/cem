@@ -1,0 +1,10 @@
+@doc cem-ml 1
+@ns transform = "https://cem.dev/ns/transform/cem/1"
+@default transform
+
+{module @version="1.0.0" |
+    {format-function @name="xslt.format-stylesheet" @visibility="public" @category="xslt-stylesheet" @subject="xslt-stylesheet" @produces="cem-tree" @content-type="application/xslt+xml" @schema="https://cem.dev/ns/transform/xslt/1" @profile="compact" @canonical=true @deterministic=true @streamable=true |
+        {param @name="subject" @type="object" @required=true}
+        {body | {$ merge(call("xslt.format-stylesheet.tree", { subject: $subject, profile: "compact" }), {}) } }
+    }
+}

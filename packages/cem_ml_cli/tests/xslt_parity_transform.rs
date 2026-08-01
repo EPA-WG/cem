@@ -72,7 +72,7 @@ fn direct_cli_executes_xslt_parity_for_login_profile_shape() {
         "--template",
         template.to_str().expect("template path is utf-8"),
         "--template-content-type",
-        "application/xslt+xml",
+        "custom-element-xslt",
         "--to-content-type",
         "text/html",
         "--report-json",
@@ -110,7 +110,7 @@ fn direct_cli_executes_xslt_named_entrypoint_and_params() {
         "--template",
         template.to_str().expect("template path is utf-8"),
         "--template-content-type",
-        "application/xslt+xml",
+        "custom-element-xslt",
         "--template-entrypoint",
         "profile",
         "--param",
@@ -152,7 +152,7 @@ fn direct_cli_reports_missing_xslt_named_entrypoint() {
         "--template",
         template.to_str().expect("template path is utf-8"),
         "--template-content-type",
-        "application/xslt+xml",
+        "custom-element-xslt",
         "--template-entrypoint",
         "missing",
         "--to-content-type",
@@ -193,7 +193,7 @@ fn direct_cli_reports_unsupported_xslt_construct_without_output() {
         "--template",
         template.to_str().expect("template path is utf-8"),
         "--template-content-type",
-        "application/xslt+xml",
+        "custom-element-xslt",
         "--to-content-type",
         "text/html",
         "--out",
@@ -235,7 +235,7 @@ fn graph_config_executes_xslt_parity_asset_list_and_writes_sidecar() {
         &graph,
         r#"{run |
   {import @id=asset @src="asset.cem" @content-type="text/cem-ml" |
-    {transform @id=html @src="assets.xsl" @template-content-type="application/xslt+xml" @entrypoint="assets" |
+    {transform @id=html @src="assets.xsl" @template-content-type="custom-element-xslt" @entrypoint="assets" |
       {param @name="suffix" @value="{stem}"}
       {export @id=main @out="out/assets.html" @content-type="text/html"}
     }
@@ -294,7 +294,7 @@ fn graph_config_reports_missing_xslt_named_entrypoint_without_export() {
         &graph,
         r#"{run |
   {import @id=asset @src="asset.cem" @content-type="text/cem-ml" |
-    {transform @id=html @src="assets.xsl" @template-content-type="application/xslt+xml" @entrypoint="missing" |
+    {transform @id=html @src="assets.xsl" @template-content-type="custom-element-xslt" @entrypoint="missing" |
       {export @id=main @out="out/assets.html" @content-type="text/html"}
     }
   }
@@ -347,7 +347,7 @@ fn graph_config_reports_unsupported_xslt_construct_without_export() {
         &graph,
         r#"{run |
   {import @id=asset @src="asset.cem" @content-type="text/cem-ml" |
-    {transform @id=html @src="assets.xsl" @template-content-type="application/xslt+xml" |
+    {transform @id=html @src="assets.xsl" @template-content-type="custom-element-xslt" |
       {export @id=main @out="out/assets.html" @content-type="text/html"}
     }
   }
@@ -413,7 +413,7 @@ fn graph_config_executes_mixed_cem_native_and_xslt_stage_policies() {
       {param @name="title" @value="{stem}"}
       {export @id=cardOut @out="out/card.html" @content-type="text/html"}
     }
-    {transform @id=shell @src="shell.xsl" @template-content-type="application/xslt+xml" |
+    {transform @id=shell @src="shell.xsl" @template-content-type="custom-element-xslt" |
       {export @id=shellOut @out="out/shell.html" @content-type="text/html"}
     }
   }
@@ -467,7 +467,7 @@ fn graph_config_projects_inline_style_export_to_css_and_links_html() {
         &graph,
         r#"{run |
   {import @id=asset @src="asset.cem" @content-type="text/cem-ml" |
-    {transform @id=page @src="page.xsl" @template-content-type="application/xslt+xml" |
+    {transform @id=page @src="page.xsl" @template-content-type="custom-element-xslt" |
       {export @id=htmlOut @out="out/page.html" @content-type="text/html"}
       {export @id=inlineOut @out="out/page-inline.html" @content-type="text/html" @style-policy="inline"}
       {export @id=omitOut @out="out/page-omit.html" @content-type="text/html" @style-policy="omit"}
