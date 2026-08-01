@@ -73,7 +73,7 @@
     }
 
     {constraints |
-        {constraint @kind="xml-source-parser" @target="document" @policy="delegate-to-xml-parser"}
+        {constraint @kind="xml-source-parser" @target="document" @diagnostic="cem.xml.parse_error" @behavior="xml-parse-report-fact" @fact-kind="parse-error" @policy="delegate-to-xml-parser"}
         {constraint @kind="application-xml-primary" @target="document" @policy="application/xml is the canonical media type for generic XML documents"}
         {constraint @kind="text-xml-alias" @target="document" @policy="text/xml resolves to the same generic XML schema identity"}
         {constraint @kind="plus-xml-not-claimed" @target="document" @policy="domain media types ending in +xml must use their own schema package and may depend on this XML package"}
@@ -82,10 +82,14 @@
         {constraint @kind="namespace-bindings-preserved" @target="element" @policy="required"}
         {constraint @kind="attribute-namespace-uniqueness" @target="element" @policy="attributes are unique by expanded namespace URI and local name"}
         {constraint @kind="child-order-preserved" @target="element" @policy="required"}
-        {constraint @kind="encoding-source-priority" @target="document" @policy="preserve BOM, MIME charset, and XML declaration encoding; report conflicts"}
-        {constraint @kind="external-entity-policy" @target="entity-reference" @policy="reject external entity resolution unless explicitly enabled by policy"}
-        {constraint @kind="dtd-policy" @target="doctype" @policy="preserve declarations but do not fetch external subsets unless explicitly enabled by policy"}
-        {constraint @kind="source-map-preferred" @target="node" @policy="required when parser exposes source ranges"}
+        {constraint @kind="xml-source-encoding" @target="document" @diagnostic="cem.xml.unsupported_encoding" @behavior="xml-parse-report-fact" @fact-kind="unsupported-encoding" @policy="XML source bytes and declared encodings must use a supported decoder"}
+        {constraint @kind="encoding-source-priority" @target="document" @diagnostic="cem.xml.encoding_conflict" @behavior="xml-parse-report-fact" @fact-kind="encoding-conflict" @policy="preserve BOM, MIME charset, and XML declaration encoding; report conflicts"}
+        {constraint @kind="namespace-prefix-binding" @target="element" @diagnostic="cem.xml.unbound_namespace_prefix" @behavior="xml-parse-report-fact" @fact-kind="unbound-namespace-prefix" @policy="element and attribute prefixes must resolve through in-scope namespace declarations"}
+        {constraint @kind="attribute-namespace-uniqueness-fact" @target="element" @diagnostic="cem.xml.duplicate_attribute" @behavior="xml-parse-report-fact" @fact-kind="duplicate-attribute" @policy="attributes are unique by expanded namespace URI and local name"}
+        {constraint @kind="external-entity-policy" @target="entity-reference" @diagnostic="cem.xml.external_entity_rejected" @behavior="xml-parse-report-fact" @fact-kind="external-entity-rejected" @policy="reject external entity resolution unless explicitly enabled by policy"}
+        {constraint @kind="entity-expansion-limit" @target="entity-reference" @diagnostic="cem.xml.entity_expansion_limit" @behavior="xml-parse-report-fact" @fact-kind="entity-expansion-limit" @policy="entity expansion must remain within the parser safety limit"}
+        {constraint @kind="dtd-policy" @target="doctype" @diagnostic="cem.xml.dtd_rejected" @behavior="xml-parse-report-fact" @fact-kind="dtd-rejected" @policy="preserve declarations but do not fetch external subsets unless explicitly enabled by policy"}
+        {constraint @kind="source-map-preferred" @target="node" @diagnostic="cem.xml.source_map_unavailable" @behavior="xml-parse-report-fact" @fact-kind="source-map-unavailable" @policy="required when parser exposes source ranges"}
     }
 
     {diagnostics |

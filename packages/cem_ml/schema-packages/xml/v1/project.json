@@ -7,11 +7,14 @@
         "build": {
             "cache": true,
             "executor": "nx:noop",
-            "dependsOn": [
-                "samples2readme"
-            ],
+            "dependsOn": ["samples2readme"],
             "inputs": [
                 "{projectRoot}/package.cem",
+                "{projectRoot}/schema/**/*.cem",
+                "{projectRoot}/formatters/**/*.cemt",
+                "{projectRoot}/colorizers/**/*.cemt",
+                "{projectRoot}/converters/**/*.cemt",
+                "{projectRoot}/scripts/**/*.mjs",
                 "{projectRoot}/examples/**/*",
                 "!{projectRoot}/examples/previews/**/*",
                 "{workspaceRoot}/packages/cem_ml/schema-packages/scripts/**/*.mjs",
@@ -32,22 +35,23 @@
             "executor": "nx:run-commands",
             "dependsOn": [
                 {
-                    "projects": [
-                        "cem_ml_cli"
-                    ],
+                    "projects": ["cem_ml_cli"],
                     "target": "build"
                 }
             ],
             "options": {
-                "commands": [
-                    "node packages/cem_ml/schema-packages/scripts/samples2readme.mjs {projectRoot}"
-                ],
+                "commands": ["node packages/cem_ml/schema-packages/scripts/samples2readme.mjs {projectRoot}"],
                 "parallel": false,
                 "cwd": "{workspaceRoot}"
             },
             "inputs": [
                 "{projectRoot}/package.cem",
                 "{projectRoot}/README.md",
+                "{projectRoot}/schema/**/*.cem",
+                "{projectRoot}/formatters/**/*.cemt",
+                "{projectRoot}/colorizers/**/*.cemt",
+                "{projectRoot}/converters/**/*.cemt",
+                "{projectRoot}/scripts/**/*.mjs",
                 "{projectRoot}/examples/**/*",
                 "!{projectRoot}/examples/previews/**/*",
                 "{workspaceRoot}/packages/cem_ml/schema-packages/scripts/**/*.mjs",
@@ -69,16 +73,27 @@
             "executor": "nx:run-commands",
             "dependsOn": [
                 {
-                    "projects": [
-                        "cem_ml_cli"
-                    ],
+                    "projects": ["cem_ml_cli"],
                     "target": "build"
                 }
             ],
             "options": {
                 "commands": [
                     "mkdir -p packages/cem_ml/schema-packages/xml/v1/dist",
-                    "./dist/target/cem_ml_cli/debug/cem-ml --quiet validate --fail-level parse --format json --content-type application/vnd.cem.schema-package+cem --schema https://cem.dev/ns/schema-package/1 --report-json packages/cem_ml/schema-packages/xml/v1/dist packages/cem_ml/schema-packages/xml/v1/package.cem"
+                    "./dist/target/cem_ml_cli/debug/cem-ml --quiet validate --fail-level parse --format json --content-type application/vnd.cem.schema-package+cem --schema https://cem.dev/ns/schema-package/1 --report-json packages/cem_ml/schema-packages/xml/v1/dist packages/cem_ml/schema-packages/xml/v1/package.cem",
+                    "cargo test -p cem-ml xml_package_examples_are_manifest_indexed -- --nocapture",
+                    "cargo test -p cem-ml catalog_exposes_xml_output_artifact_sources -- --nocapture",
+                    "cargo test -p cem-ml xml_source_validator -- --nocapture",
+                    "cargo test -p cem-ml builtins_load_xml_content_type_as_internal_ast_stream -- --nocapture",
+                    "cargo test -p cem-ml xml_target_content_type_selects_xml_export -- --nocapture",
+                    "cargo test -p cem-ml validate_xml_source_consumes_lifecycle_ast_without_cem_parse -- --nocapture",
+                    "cargo test -p cem-ml convert_xml_same_schema_uses_lifecycle_output_pipeline -- --nocapture",
+                    "cargo test -p cem-ml builtin_xml_lifecycle_output_pipeline_executes_package_cemt_assets -- --nocapture",
+                    "cargo test -p cem-ml builtin_xml_colorizer_profiles_execute_package_cemt_assets -- --nocapture",
+                    "cargo test -p cem-ml-cli validate_xml_source -- --nocapture",
+                    "cargo test -p cem-ml-cli convert_xml_same_schema_uses_lifecycle_output_pipeline -- --nocapture",
+                    "cargo test -p cem-ml-cli --test schema_validation_examples schema_owned_xml_examples_validate_through_cli -- --nocapture",
+                    "node packages/cem_ml/schema-packages/xml/v1/scripts/verify-previews.mjs"
                 ],
                 "parallel": false,
                 "cwd": "{workspaceRoot}"
@@ -90,20 +105,15 @@
                 "{projectRoot}/formatters/**/*.cemt",
                 "{projectRoot}/colorizers/**/*.cemt",
                 "{projectRoot}/converters/**/*.cemt",
+                "{projectRoot}/scripts/**/*.mjs",
                 "{projectRoot}/examples/**/*",
                 "{workspaceRoot}/packages/cem_ml/src/**/*.rs",
                 "{workspaceRoot}/packages/cem_ml/Cargo.toml",
                 "{workspaceRoot}/packages/cem_ml_cli/src/**/*.rs",
                 "{workspaceRoot}/packages/cem_ml_cli/Cargo.toml"
             ],
-            "outputs": [
-                "{projectRoot}/dist/cem-ml.report.json"
-            ]
+            "outputs": ["{projectRoot}/dist/cem-ml.report.json"]
         }
     },
-    "tags": [
-        "scope:cem-ml",
-        "type:schema-package",
-        "lang:cem"
-    ]
+    "tags": ["scope:cem-ml", "type:schema-package", "lang:cem"]
 }

@@ -295,8 +295,38 @@ static BUILTIN_SCHEMA_PACKAGE_ARTIFACT_SOURCES: &[BuiltinSchemaPackageArtifactSo
     },
     BuiltinSchemaPackageArtifactSource {
         package_id: "xml",
+        path: "schema-packages/xml/v1/formatters/compact.cemt",
+        source: include_str!("../../schema-packages/xml/v1/formatters/compact.cemt"),
+    },
+    BuiltinSchemaPackageArtifactSource {
+        package_id: "xml",
+        path: "schema-packages/xml/v1/formatters/pretty.cemt",
+        source: include_str!("../../schema-packages/xml/v1/formatters/pretty.cemt"),
+    },
+    BuiltinSchemaPackageArtifactSource {
+        package_id: "xml",
+        path: "schema-packages/xml/v1/formatters/tabular.cemt",
+        source: include_str!("../../schema-packages/xml/v1/formatters/tabular.cemt"),
+    },
+    BuiltinSchemaPackageArtifactSource {
+        package_id: "xml",
         path: "schema-packages/xml/v1/formatters/xml-format-document.cemt",
         source: include_str!("../../schema-packages/xml/v1/formatters/xml-format-document.cemt"),
+    },
+    BuiltinSchemaPackageArtifactSource {
+        package_id: "xml",
+        path: "schema-packages/xml/v1/colorizers/terminal.cemt",
+        source: include_str!("../../schema-packages/xml/v1/colorizers/terminal.cemt"),
+    },
+    BuiltinSchemaPackageArtifactSource {
+        package_id: "xml",
+        path: "schema-packages/xml/v1/colorizers/html.cemt",
+        source: include_str!("../../schema-packages/xml/v1/colorizers/html.cemt"),
+    },
+    BuiltinSchemaPackageArtifactSource {
+        package_id: "xml",
+        path: "schema-packages/xml/v1/colorizers/md.cemt",
+        source: include_str!("../../schema-packages/xml/v1/colorizers/md.cemt"),
     },
     BuiltinSchemaPackageArtifactSource {
         package_id: "xml",
@@ -3500,23 +3530,51 @@ mod tests {
 
     #[test]
     fn catalog_exposes_xml_output_artifact_sources() {
-        let formatter = builtin_schema_package_artifact_source(
-            "xml",
-            "schema-packages/xml/v1/formatters/xml-format-document.cemt",
-        )
-        .expect("XML formatter source");
-        let colorizer = builtin_schema_package_artifact_source(
-            "xml",
-            "schema-packages/xml/v1/colorizers/xml-color-document.cemt",
-        )
-        .expect("XML colorizer source");
+        for (path, profile) in [
+            ("formatters/compact.cemt", "compact"),
+            ("formatters/pretty.cemt", "xml.pretty"),
+            ("formatters/tabular.cemt", "tabular"),
+        ] {
+            let formatter = builtin_schema_package_artifact_source(
+                "xml",
+                &format!("schema-packages/xml/v1/{path}"),
+            )
+            .unwrap_or_else(|| panic!("XML formatter source `{path}`"));
+            assert!(formatter.source.contains(r#"@name="xml.format-document""#));
+            assert!(formatter.source.contains(r#"@category="xml-document""#));
+            assert!(formatter
+                .source
+                .contains(&format!(r#"@profile="{profile}""#)));
+            assert!(formatter.source.contains("{body |"));
+        }
+        for (path, profile) in [
+            ("colorizers/terminal.cemt", "terminal"),
+            ("colorizers/html.cemt", "html"),
+            ("colorizers/md.cemt", "md"),
+        ] {
+            let colorizer = builtin_schema_package_artifact_source(
+                "xml",
+                &format!("schema-packages/xml/v1/{path}"),
+            )
+            .unwrap_or_else(|| panic!("XML colorizer source `{path}`"));
+            assert!(colorizer.source.contains(r#"@name="xml.color-document""#));
+            assert!(colorizer
+                .source
+                .contains(r#"@content-type="application/xml""#));
+            assert!(colorizer
+                .source
+                .contains(&format!(r#"@profile="{profile}""#)));
+            assert!(colorizer.source.contains("{body |"));
+        }
 
-        assert!(formatter.source.contains(r#"@name="xml.format-document""#));
-        assert!(formatter.source.contains(r#"@category="xml-document""#));
-        assert!(colorizer.source.contains(r#"@name="xml.color-document""#));
-        assert!(colorizer
-            .source
-            .contains(r#"@content-type="application/xml""#));
+        for path in [
+            "schema-packages/xml/v1/formatters/xml-format-document.cemt",
+            "schema-packages/xml/v1/colorizers/xml-color-document.cemt",
+        ] {
+            let helper = builtin_schema_package_artifact_source("xml", path)
+                .unwrap_or_else(|| panic!("XML helper source `{path}`"));
+            assert!(helper.source.contains("{body |"));
+        }
     }
 
     #[test]

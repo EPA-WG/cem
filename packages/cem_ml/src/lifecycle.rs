@@ -36,6 +36,9 @@ use crate::validation::json_schema::{
 use crate::validation::markdown::{
     markdown_document_ast_from_source_bytes, MarkdownDocumentAst, MarkdownSourceValidationRequest,
 };
+use crate::validation::xml::{
+    xml_document_ast_from_source_bytes, XmlDocumentAst, XmlSourceValidationRequest,
+};
 use crate::validation::xslt::{validate_xslt_source_bytes, XsltSourceValidationRequest};
 use crate::validation::yaml::{
     yaml_document_ast_from_source_bytes, YamlDocumentAst, YamlSourceValidationRequest,
@@ -90,6 +93,7 @@ pub enum LoadedInputAstStream {
     JsonDocument(JsonDocumentAst),
     JsonSchemaDocument(JsonSchemaDocumentAst),
     MarkdownDocument(MarkdownDocumentAst),
+    XmlDocument(XmlDocumentAst),
 }
 
 #[derive(Debug, Clone)]
@@ -562,8 +566,28 @@ impl LifecycleAdapter for XmlAdapter {
         ) || matches_schema_without_content_type(identity, XML_ADAPTER_SCHEMA_IDENTITIES)
     }
 
-    fn load(&self, input: &EngineInput, _: &FormatIdentity) -> LoadedInput {
-        passthrough_load(input, InputFormat::Xml, Some(self.id()))
+    fn load(&self, input: &EngineInput, identity: &FormatIdentity) -> LoadedInput {
+        if !matches_generic_xml_identity(identity) {
+            return passthrough_load(input, InputFormat::Xml, Some(self.id()));
+        }
+        let content_type = identity
+            .content_type
+            .as_deref()
+            .or(input.root_scope.default_content_type.as_deref())
+            .unwrap_or(XML_CONTENT_TYPE);
+        let (document, diagnostics) =
+            xml_document_ast_from_source_bytes(XmlSourceValidationRequest {
+                bytes: &input.bytes,
+                source_uri: &input.uri,
+                content_type: Some(content_type),
+            });
+        LoadedInput {
+            bytes: input.bytes.clone(),
+            from_format: InputFormat::Xml,
+            ast_stream: document.map(LoadedInputAstStream::XmlDocument),
+            diagnostics,
+            adapter_id: Some(self.id()),
+        }
     }
 
     fn matches_target(&self, identity: &FormatIdentity) -> bool {
@@ -573,6 +597,28 @@ impl LifecycleAdapter for XmlAdapter {
     fn target_format(&self) -> Option<LayerFormat> {
         Some(LayerFormat::Xml)
     }
+}
+
+fn matches_generic_xml_identity(identity: &FormatIdentity) -> bool {
+    let schema_matches = identity
+        .schema
+        .as_deref()
+        .map(str::trim)
+        .is_some_and(|schema| schema == XML_SCHEMA_URI);
+    let content_type_matches = identity
+        .content_type
+        .as_deref()
+        .is_some_and(|content_type| {
+            matches!(
+                content_type_essence(content_type).as_str(),
+                XML_CONTENT_TYPE
+                    | "text/xml"
+                    | "application/xml-external-parsed-entity"
+                    | "text/xml-external-parsed-entity"
+                    | "application/xml-dtd"
+            )
+        });
+    schema_matches || (identity.schema.is_none() && content_type_matches)
 }
 
 struct CsvAdapter;
@@ -1344,6 +1390,35 @@ mod tests {
             content_type: Some(content_type.to_owned()),
             ..EngineContext::default()
         }
+    }
+
+    #[test]
+    fn builtins_load_xml_content_type_as_internal_ast_stream() {
+        let loaded = LifecycleRegistry::with_builtin_adapters().load(
+            &input(
+                br#"<?xml version="1.0"?><root xmlns:meta="urn:meta"><meta:item id="a1"/></root>"#,
+            ),
+            &context(XML_CONTENT_TYPE),
+        );
+        assert_eq!(loaded.from_format, InputFormat::Xml);
+        assert_eq!(loaded.adapter_id, Some("xml"));
+        assert!(loaded.diagnostics.is_empty(), "{:?}", loaded.diagnostics);
+        let document = match loaded
+            .ast_stream
+            .expect("XML adapter emits internal AST stream")
+        {
+            LoadedInputAstStream::XmlDocument(document) => document,
+            other => panic!("XML adapter emitted unexpected AST stream: {other:?}"),
+        };
+        assert_eq!(document.source.content_type, XML_CONTENT_TYPE);
+        let item = document
+            .events
+            .iter()
+            .find(|event| event.qualified_name.as_deref() == Some("meta:item"))
+            .expect("namespaced item event");
+        assert_eq!(item.namespace_uri.as_deref(), Some("urn:meta"));
+        assert!(item.source_range.byte_length > 0);
+        assert!(!item.source_range.source_map().frames.is_empty());
     }
 
     #[test]

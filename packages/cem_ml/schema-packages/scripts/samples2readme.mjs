@@ -10,9 +10,7 @@ const scriptDir = dirname(fileURLToPath(import.meta.url));
 const workspaceRoot = resolve(scriptDir, '../../../..');
 
 if (!process.argv[2]) {
-    throw new Error(
-        'Usage: node packages/cem_ml/schema-packages/scripts/samples2readme.mjs <package-root>',
-    );
+    throw new Error('Usage: node packages/cem_ml/schema-packages/scripts/samples2readme.mjs <package-root>');
 }
 
 const packageRoot = resolve(workspaceRoot, process.argv[2]);
@@ -27,9 +25,7 @@ let inlinePreviews = null;
 if (isMarkdownPackageManifest(manifest)) {
     inlinePreviews = generateMarkdownHtmlReadmePreviews(manifest, packageLabel);
 } else {
-    const cases = manifest.examples.map((example) =>
-        previewCaseForExample(example, manifest, packageLabel),
-    );
+    const cases = manifest.examples.map((example) => previewCaseForExample(example, manifest, packageLabel));
 
     await verifyReadmePreviews({
         workspaceRoot,
@@ -68,9 +64,7 @@ function parseManifest(source, packageRoot) {
             contentType: attrs['content-type'],
             schema: attrs.schema,
             expectedResult: attrs['expected-result'],
-            expectedDiagnostics: (attrs['expected-diagnostics'] ?? '')
-                .split(/\s+/)
-                .filter(Boolean),
+            expectedDiagnostics: (attrs['expected-diagnostics'] ?? '').split(/\s+/).filter(Boolean),
         };
     });
     if (examples.length === 0) {
@@ -392,6 +386,38 @@ function previewPlanForExample(example, manifest) {
         };
     }
 
+    if (isGenericXmlTextExample(example, manifest, essence)) {
+        if (example.expectedResult !== 'pass') {
+            return {
+                label: 'xml validate',
+                renderer: 'json',
+                expectedStatus: 'success',
+                width: 1040,
+                minHeight: 520,
+                args: validatePreviewArgs(inputPath, {
+                    format: 'json',
+                    failLevel: 'parse',
+                    contentType: example.contentType,
+                    schema: example.schema,
+                }),
+            };
+        }
+        return {
+            label: 'xml',
+            renderer: 'html',
+            expectedStatus: 'success',
+            width: 980,
+            minHeight: 190,
+            args: convertPreviewArgs(inputSpec, {
+                fromFormat: 'xml',
+                toContentType: example.contentType,
+                toSchema: example.schema,
+                colorProfile: 'html',
+                outputColorType: null,
+            }),
+        };
+    }
+
     if (isXmlFamilyExample(essence)) {
         return {
             label: 'xml',
@@ -417,14 +443,7 @@ function inputSpecForExample(example, inputPath) {
 
 function convertPreviewArgs(
     inputSpec,
-    {
-        fromFormat = null,
-        toContentType,
-        toSchema,
-        colorProfile = 'terminal',
-        outputColorType = 'ansi-256',
-        extra = [],
-    },
+    { fromFormat = null, toContentType, toSchema, colorProfile = 'terminal', outputColorType = 'ansi-256', extra = [] },
 ) {
     const args = ['convert', '--input-spec', inputSpec];
     if (fromFormat) {
@@ -483,18 +502,13 @@ function isCemQlModuleExample(example, essence) {
 }
 
 function isJsonTextExample(_example, manifest, essence) {
-    return (
-        manifest.packageId === 'json' &&
-        (essence === 'application/json' || essence === 'text/json')
-    );
+    return manifest.packageId === 'json' && (essence === 'application/json' || essence === 'text/json');
 }
 
 function isJsonSchemaTextExample(_example, manifest, essence) {
     return (
         manifest.packageId === 'json-schema' &&
-        (essence === 'application/schema+json' ||
-            essence === 'application/json' ||
-            essence === 'text/json')
+        (essence === 'application/schema+json' || essence === 'application/json' || essence === 'text/json')
     );
 }
 
@@ -510,6 +524,10 @@ function isYamlTextExample(_example, manifest, essence) {
 
 function isMarkdownTextExample(_example, manifest, essence) {
     return manifest.packageId === 'markdown' && essence === 'text/markdown';
+}
+
+function isGenericXmlTextExample(_example, manifest, essence) {
+    return manifest.packageId === 'xml' && (essence === 'application/xml' || essence === 'text/xml');
 }
 
 function isMarkdownPackageManifest(manifest) {
@@ -583,9 +601,7 @@ function generatedExamplesSection(manifest, packageLabel, inlinePreviews = null)
         lines.push(`- Expected result: \`${example.expectedResult}\``);
         if (example.expectedDiagnostics.length > 0) {
             lines.push(
-                `- Expected diagnostics: ${example.expectedDiagnostics
-                    .map((code) => `\`${code}\``)
-                .join(', ')}`,
+                `- Expected diagnostics: ${example.expectedDiagnostics.map((code) => `\`${code}\``).join(', ')}`,
             );
         }
         lines.push(`- Preview renderer: \`${previewRendererLabel(plan)}\``);
@@ -602,12 +618,7 @@ function generatedExamplesSection(manifest, packageLabel, inlinePreviews = null)
 }
 
 function generateMarkdownHtmlReadmePreviews(manifest, packageLabel) {
-    const generatedRoot = join(
-        workspaceRoot,
-        'dist/cem_ml/schema-packages',
-        manifest.packageId,
-        'v1/examples',
-    );
+    const generatedRoot = join(workspaceRoot, 'dist/cem_ml/schema-packages', manifest.packageId, 'v1/examples');
     mkdirSync(generatedRoot, { recursive: true });
     removeMarkdownReadmePreviewArtifacts(generatedRoot);
     rmSync(join(packageRoot, 'examples/previews'), { recursive: true, force: true });
@@ -732,9 +743,7 @@ function generatedMarkdownExamplesSection(manifest, inlinePreviews) {
         lines.push(`- Expected result: \`${example.expectedResult}\``);
         if (example.expectedDiagnostics.length > 0) {
             lines.push(
-                `- Expected diagnostics: ${example.expectedDiagnostics
-                    .map((code) => `\`${code}\``)
-                    .join(', ')}`,
+                `- Expected diagnostics: ${example.expectedDiagnostics.map((code) => `\`${code}\``).join(', ')}`,
             );
         }
         lines.push(`- Preview renderer: \`${plan.rendererLabel}\``);
@@ -799,11 +808,7 @@ function relativeMarkdownLink(value) {
 }
 
 function escapeHtml(value) {
-    return value
-        .replaceAll('&', '&amp;')
-        .replaceAll('<', '&lt;')
-        .replaceAll('>', '&gt;')
-        .replaceAll('"', '&quot;');
+    return value.replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;').replaceAll('"', '&quot;');
 }
 
 function replaceExamplesSection(readme, replacement) {
@@ -817,9 +822,7 @@ function replaceExamplesSection(readme, replacement) {
     nextHeading.lastIndex = start + match[0].length;
     const next = nextHeading.exec(readme);
     const end = next ? next.index : readme.length;
-    return `${readme.slice(0, start).trimEnd()}\n\n${replacement}${readme
-        .slice(end)
-        .replace(/^\n+/, '\n')}`;
+    return `${readme.slice(0, start).trimEnd()}\n\n${replacement}${readme.slice(end).replace(/^\n+/, '\n')}`;
 }
 
 function safeFileStem(value) {

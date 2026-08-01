@@ -4635,13 +4635,15 @@ fn collect_xml_source_diagnostics(
     let mut diagnostics = Vec::new();
     for input in inputs {
         let content_type = input_source_content_type(input);
-        diagnostics.extend(cem_ml::validation::xml::validate_xml_source_bytes(
-            cem_ml::validation::xml::XmlSourceValidationRequest {
-                bytes: &input.bytes,
-                source_uri: &input.uri,
-                content_type: content_type.as_deref(),
-            },
-        ));
+        let (_, mut input_diagnostics) =
+            cem_ml::validation::xml::xml_document_ast_from_source_bytes(
+                cem_ml::validation::xml::XmlSourceValidationRequest {
+                    bytes: &input.bytes,
+                    source_uri: &input.uri,
+                    content_type: content_type.as_deref(),
+                },
+            );
+        diagnostics.append(&mut input_diagnostics);
     }
     diagnostics
 }
@@ -12880,6 +12882,38 @@ This document has **strong** text and a link.
             "{written}"
         );
         assert!(html_text_content(&written).starts_with("# Release Notes\n\n"));
+    }
+
+    #[test]
+    fn convert_xml_same_schema_uses_lifecycle_output_pipeline() {
+        let source = r#"<?xml version="1.0"?><root xmlns:meta="urn:meta"><meta:item id="a1"><![CDATA[Alpha]]></meta:item><!--done--><?ready yes?></root>"#;
+        let p = write_fixture("convert-xml-same-schema.xml", source);
+        let input_spec = format!(
+            "uri={},contentType=application/xml,schema={}",
+            p.display(),
+            cem_ml::schema::registry::XML_SCHEMA_URI
+        );
+
+        let (outcome, stdout, stderr) = run(
+            &RealCemMlEngine::new(),
+            &[
+                "convert",
+                "--input-spec",
+                &input_spec,
+                "--to-content-type",
+                "application/xml",
+                "--to-schema",
+                cem_ml::schema::registry::XML_SCHEMA_URI,
+                "--cemt-formatter-profile",
+                "tabular",
+            ],
+        );
+
+        assert_eq!(outcome.exit_code, EXIT_OK, "{stderr}");
+        assert!(stderr.trim().is_empty(), "{stderr}");
+        assert_eq!(stdout, format!("{source}\n"));
+        assert!(!stdout.contains("cem.schema."));
+        assert!(!stdout.contains("cem.lifecycle."));
     }
 
     #[test]

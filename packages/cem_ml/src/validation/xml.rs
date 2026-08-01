@@ -1,6 +1,14 @@
 use crate::diagnostics::{Diagnostic, Severity};
-use crate::schema::registry::content_type_essence;
+use crate::schema::document_model::compile_schema_document_model;
+use crate::schema::package_sources::builtin_schema_package_source;
+use crate::schema::registry::{content_type_essence, XML_CONTENT_TYPE, XML_SCHEMA_URI};
+use crate::source::line_index::LineIndex;
+use crate::source::{ByteRange, SourceId};
+use crate::source_map::{FrameSpan, SourceMapFrame, SourceMapStack, TransformKind};
+use serde_json::{json, Value};
 use std::collections::{BTreeMap, BTreeSet};
+
+const XML_PACKAGE_ID: &str = "xml";
 
 #[derive(Debug, Clone, Copy)]
 pub struct XmlSourceValidationRequest<'a> {
@@ -9,46 +17,402 @@ pub struct XmlSourceValidationRequest<'a> {
     pub content_type: Option<&'a str>,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct XmlDocumentAst {
+    pub source: XmlDocumentSource,
+    pub resource_kind: String,
+    pub encoding_report: XmlEncodingReportAst,
+    pub parse_facts: Vec<XmlParseFact>,
+    pub events: Vec<XmlEventAst>,
+    pub line_ending: Option<String>,
+}
+
+impl XmlDocumentAst {
+    pub fn to_cemt_subject(&self) -> Value {
+        json!({
+            "kind": "xml-document",
+            "contentType": XML_CONTENT_TYPE,
+            "schema": XML_SCHEMA_URI,
+            "source": self.source.to_cemt_subject(),
+            "resourceKind": self.resource_kind,
+            "encodingReport": self.encoding_report.to_cemt_subject(),
+            "parseFacts": self
+                .parse_facts
+                .iter()
+                .map(XmlParseFact::to_cemt_subject)
+                .collect::<Vec<_>>(),
+            "events": self
+                .events
+                .iter()
+                .map(XmlEventAst::to_cemt_subject)
+                .collect::<Vec<_>>(),
+            "lineEnding": self.line_ending,
+        })
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct XmlDocumentSource {
+    pub uri: String,
+    pub content_type: String,
+    pub media_type: String,
+    pub parameters: BTreeMap<String, String>,
+    pub byte_length: usize,
+}
+
+impl XmlDocumentSource {
+    fn from_request(
+        request: XmlSourceValidationRequest<'_>,
+        parameters: BTreeMap<String, String>,
+    ) -> Self {
+        let content_type = request.content_type.unwrap_or(XML_CONTENT_TYPE);
+        Self {
+            uri: request.source_uri.to_owned(),
+            content_type: content_type.to_owned(),
+            media_type: content_type_essence(content_type),
+            parameters,
+            byte_length: request.bytes.len(),
+        }
+    }
+
+    fn to_cemt_subject(&self) -> Value {
+        json!({
+            "uri": self.uri,
+            "contentType": self.content_type,
+            "mediaType": self.media_type,
+            "parameters": self.parameters,
+            "byteLength": self.byte_length,
+        })
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct XmlEncodingReportAst {
+    pub mime_charset: Option<String>,
+    pub declaration_encoding: Option<String>,
+    pub normalized_encoding: String,
+    pub decoder_status: String,
+}
+
+impl XmlEncodingReportAst {
+    fn to_cemt_subject(&self) -> Value {
+        json!({
+            "mimeCharset": self.mime_charset,
+            "declarationEncoding": self.declaration_encoding,
+            "normalizedEncoding": self.normalized_encoding,
+            "decoderStatus": self.decoder_status,
+        })
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct XmlEventAst {
+    pub index: usize,
+    pub kind: XmlEventKind,
+    pub depth: usize,
+    pub qualified_name: Option<String>,
+    pub local_name: Option<String>,
+    pub prefix: Option<String>,
+    pub namespace_uri: Option<String>,
+    pub attributes: Vec<XmlAttributeAst>,
+    pub value: Option<String>,
+    pub lexeme: String,
+    pub whitespace_only: bool,
+    pub source_range: XmlSourceRange,
+}
+
+impl XmlEventAst {
+    fn to_cemt_subject(&self) -> Value {
+        json!({
+            "index": self.index,
+            "kind": self.kind.as_str(),
+            "depth": self.depth,
+            "qualifiedName": self.qualified_name,
+            "localName": self.local_name,
+            "prefix": self.prefix,
+            "namespaceUri": self.namespace_uri,
+            "attributes": self
+                .attributes
+                .iter()
+                .map(XmlAttributeAst::to_cemt_subject)
+                .collect::<Vec<_>>(),
+            "value": self.value,
+            "lexeme": self.lexeme,
+            "whitespaceOnly": self.whitespace_only,
+            "sourceRange": self.source_range.to_cemt_subject(),
+            "sourceMap": serde_json::to_value(self.source_range.source_map())
+                .unwrap_or(Value::Null),
+        })
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum XmlEventKind {
+    Declaration,
+    StartElement,
+    EmptyElement,
+    EndElement,
+    Text,
+    Cdata,
+    Comment,
+    ProcessingInstruction,
+    Doctype,
+    EntityReference,
+}
+
+impl XmlEventKind {
+    fn as_str(self) -> &'static str {
+        match self {
+            Self::Declaration => "declaration",
+            Self::StartElement => "start-element",
+            Self::EmptyElement => "empty-element",
+            Self::EndElement => "end-element",
+            Self::Text => "text",
+            Self::Cdata => "cdata",
+            Self::Comment => "comment",
+            Self::ProcessingInstruction => "processing-instruction",
+            Self::Doctype => "doctype",
+            Self::EntityReference => "entity-reference",
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct XmlAttributeAst {
+    pub qualified_name: String,
+    pub local_name: String,
+    pub prefix: Option<String>,
+    pub namespace_uri: Option<String>,
+    pub value: String,
+}
+
+impl XmlAttributeAst {
+    fn to_cemt_subject(&self) -> Value {
+        json!({
+            "qualifiedName": self.qualified_name,
+            "localName": self.local_name,
+            "prefix": self.prefix,
+            "namespaceUri": self.namespace_uri,
+            "value": self.value,
+        })
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct XmlSourcePosition {
+    pub line: u32,
+    pub column: u32,
+    pub byte_offset: u64,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct XmlSourceRange {
+    pub start: XmlSourcePosition,
+    pub byte_length: u64,
+}
+
+impl XmlSourceRange {
+    fn from_offsets(line_index: &LineIndex, start: usize, end: usize) -> Self {
+        let coordinate = line_index.project(start as u64);
+        Self {
+            start: XmlSourcePosition {
+                line: coordinate.line,
+                column: coordinate.column,
+                byte_offset: start as u64,
+            },
+            byte_length: end.saturating_sub(start) as u64,
+        }
+    }
+
+    fn byte_range(self) -> ByteRange {
+        ByteRange::new(
+            self.start.byte_offset,
+            u32::try_from(self.byte_length).unwrap_or(u32::MAX),
+        )
+    }
+
+    pub fn source_map(self) -> SourceMapStack {
+        SourceMapStack {
+            frames: vec![SourceMapFrame {
+                source_id: SourceId(1),
+                span: FrameSpan::Single(self.byte_range()),
+                transform: TransformKind::ContentTypeTransform {
+                    content_type: XML_CONTENT_TYPE.to_owned(),
+                },
+            }],
+        }
+    }
+
+    fn to_cemt_subject(self) -> Value {
+        json!({
+            "byteOffset": self.start.byte_offset,
+            "byteLength": self.byte_length,
+            "line": self.start.line,
+            "column": self.start.column,
+        })
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct XmlParseFact {
+    pub kind: XmlParseFactKind,
+    pub line: Option<u32>,
+    pub column: Option<u32>,
+    pub byte_offset: Option<u64>,
+    pub byte_length: Option<u64>,
+    pub message: String,
+}
+
+impl XmlParseFact {
+    fn to_cemt_subject(&self) -> Value {
+        json!({
+            "kind": self.kind.as_str(),
+            "line": self.line,
+            "column": self.column,
+            "byteOffset": self.byte_offset,
+            "byteLength": self.byte_length,
+            "message": self.message,
+        })
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub enum XmlParseFactKind {
+    ParseError,
+    UnsupportedEncoding,
+    EncodingConflict,
+    UnboundNamespacePrefix,
+    DuplicateAttribute,
+    DtdRejected,
+    ExternalEntityRejected,
+    EntityExpansionLimit,
+    SourceMapUnavailable,
+}
+
+impl XmlParseFactKind {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::ParseError => "parse-error",
+            Self::UnsupportedEncoding => "unsupported-encoding",
+            Self::EncodingConflict => "encoding-conflict",
+            Self::UnboundNamespacePrefix => "unbound-namespace-prefix",
+            Self::DuplicateAttribute => "duplicate-attribute",
+            Self::DtdRejected => "dtd-rejected",
+            Self::ExternalEntityRejected => "external-entity-rejected",
+            Self::EntityExpansionLimit => "entity-expansion-limit",
+            Self::SourceMapUnavailable => "source-map-unavailable",
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct XmlParseReport {
+    pub source_uri: String,
+    pub content_type: Option<String>,
+    pub parameters: BTreeMap<String, String>,
+    pub resource_kind: String,
+    pub declaration_encoding: Option<String>,
+    pub facts: Vec<XmlParseFact>,
+    pub events: Vec<XmlEventAst>,
+    pub line_ending: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct XmlSchemaContractCatalog {
+    pub fact_bindings: BTreeMap<String, XmlDiagnosticBinding>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct XmlDiagnosticBinding {
+    pub fact_kind: String,
+    pub contract: String,
+    pub behavior: Option<String>,
+    pub diagnostic_code: String,
+    pub severity: Severity,
+    pub policy: Option<String>,
+}
+
+impl XmlSchemaContractCatalog {
+    pub fn from_builtin() -> Self {
+        let source = builtin_schema_package_source(XML_PACKAGE_ID)
+            .expect("built-in XML schema package source must be registered");
+        Self::from_schema_source(source.schema_source)
+    }
+
+    pub fn from_schema_source(schema_source: &str) -> Self {
+        let model = compile_schema_document_model(XML_SCHEMA_URI, schema_source);
+        let fact_bindings = model
+            .constraints
+            .values()
+            .filter_map(|constraint| {
+                if constraint.behavior.as_deref()?.trim() != "xml-parse-report-fact" {
+                    return None;
+                }
+                let fact_kind = constraint.fact_kind.as_deref()?.trim();
+                let diagnostic_code = constraint.diagnostic.as_deref()?.trim();
+                if fact_kind.is_empty() || diagnostic_code.is_empty() {
+                    return None;
+                }
+                let diagnostic = model.diagnostics.get(diagnostic_code)?;
+                Some((
+                    fact_kind.to_owned(),
+                    XmlDiagnosticBinding {
+                        fact_kind: fact_kind.to_owned(),
+                        contract: constraint.kind.clone(),
+                        behavior: constraint.behavior.clone(),
+                        diagnostic_code: diagnostic.code.clone(),
+                        severity: diagnostic.severity,
+                        policy: constraint.policy.clone(),
+                    },
+                ))
+            })
+            .collect();
+        Self { fact_bindings }
+    }
+
+    fn binding_for_fact(&self, kind: XmlParseFactKind) -> Option<&XmlDiagnosticBinding> {
+        self.fact_bindings.get(kind.as_str())
+    }
+}
+
 pub fn validate_xml_source_bytes(request: XmlSourceValidationRequest<'_>) -> Vec<Diagnostic> {
-    let source = match std::str::from_utf8(request.bytes) {
-        Ok(source) => source,
-        Err(error) => return vec![xml_unsupported_utf8_diagnostic(&request, &error)],
-    };
+    let report = extract_xml_parse_report(request);
+    validate_xml_parse_report(&report, &XmlSchemaContractCatalog::from_builtin())
+}
 
-    let mime_charset = request
-        .content_type
-        .and_then(|content_type| content_type_parameter(content_type, "charset"));
-    if let Some(charset) = mime_charset.as_deref() {
-        if !xml_encoding_is_supported(charset) {
-            return vec![xml_unsupported_encoding_diagnostic(
-                &request,
-                source,
-                None,
-                &format!("XML content-type charset `{charset}` is not supported"),
-            )];
-        }
-    }
-
-    match xml_source_kind(&request) {
-        XmlSourceKind::Dtd => {
-            if source.trim().is_empty() {
-                Vec::new()
+pub fn xml_document_ast_from_source_bytes(
+    request: XmlSourceValidationRequest<'_>,
+) -> (Option<XmlDocumentAst>, Vec<Diagnostic>) {
+    let report = extract_xml_parse_report(request);
+    let contracts = XmlSchemaContractCatalog::from_builtin();
+    let diagnostics = validate_xml_parse_report(&report, &contracts);
+    let document = XmlDocumentAst {
+        source: XmlDocumentSource::from_request(request, report.parameters.clone()),
+        resource_kind: report.resource_kind.clone(),
+        encoding_report: XmlEncodingReportAst {
+            mime_charset: report.parameters.get("charset").cloned(),
+            declaration_encoding: report.declaration_encoding.clone(),
+            normalized_encoding: report
+                .declaration_encoding
+                .as_deref()
+                .or_else(|| report.parameters.get("charset").map(String::as_str))
+                .map(xml_normalized_encoding)
+                .unwrap_or_else(|| "utf-8".to_owned()),
+            decoder_status: if report
+                .facts
+                .iter()
+                .any(|fact| fact.kind == XmlParseFactKind::UnsupportedEncoding)
+            {
+                "error".to_owned()
             } else {
-                vec![xml_diagnostic(
-                    &request,
-                    source,
-                    None,
-                    "cem.xml.dtd_rejected",
-                    Severity::Error,
-                    "XML DTD resources are rejected until an explicit DTD policy enables them"
-                        .to_owned(),
-                )]
-            }
-        }
-        XmlSourceKind::Document | XmlSourceKind::ExternalParsedEntity => {
-            validate_xml_source(&request, source, mime_charset.as_deref())
-        }
-    }
+                "decoded".to_owned()
+            },
+        },
+        parse_facts: report.facts.clone(),
+        events: report.events.clone(),
+        line_ending: report.line_ending.clone(),
+    };
+    (Some(document), diagnostics)
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -56,6 +420,16 @@ enum XmlSourceKind {
     Document,
     ExternalParsedEntity,
     Dtd,
+}
+
+impl XmlSourceKind {
+    fn as_str(self) -> &'static str {
+        match self {
+            Self::Document => "document",
+            Self::ExternalParsedEntity => "external-parsed-entity",
+            Self::Dtd => "dtd",
+        }
+    }
 }
 
 fn xml_source_kind(request: &XmlSourceValidationRequest<'_>) -> XmlSourceKind {
@@ -67,97 +441,200 @@ fn xml_source_kind(request: &XmlSourceValidationRequest<'_>) -> XmlSourceKind {
     }
 }
 
-fn validate_xml_source(
-    request: &XmlSourceValidationRequest<'_>,
-    source: &str,
-    mime_charset: Option<&str>,
-) -> Vec<Diagnostic> {
-    let kind = xml_source_kind(request);
-    let mut diagnostics = Vec::new();
+pub fn extract_xml_parse_report(request: XmlSourceValidationRequest<'_>) -> XmlParseReport {
+    let kind = xml_source_kind(&request);
+    let parameters = content_type_parameters(request.content_type);
+    let mut report = XmlParseReport {
+        source_uri: request.source_uri.to_owned(),
+        content_type: request.content_type.map(str::to_owned),
+        parameters,
+        resource_kind: kind.as_str().to_owned(),
+        declaration_encoding: None,
+        facts: Vec::new(),
+        events: Vec::new(),
+        line_ending: None,
+    };
+    let source = match std::str::from_utf8(request.bytes) {
+        Ok(source) => source,
+        Err(error) => {
+            report.facts.push(XmlParseFact {
+                kind: XmlParseFactKind::UnsupportedEncoding,
+                line: None,
+                column: None,
+                byte_offset: Some(error.valid_up_to() as u64),
+                byte_length: Some(error.error_len().unwrap_or(1) as u64),
+                message: format!("XML source must be valid UTF-8: {error}"),
+            });
+            return report;
+        }
+    };
+    report.line_ending = xml_detect_line_ending_style(source).map(str::to_owned);
+    let line_index = LineIndex::from_utf8(source);
+    let mime_charset = report.parameters.get("charset").map(String::as_str);
+    if let Some(charset) = mime_charset {
+        if !xml_encoding_is_supported(charset) {
+            report.facts.push(xml_fact(
+                source,
+                None,
+                XmlParseFactKind::UnsupportedEncoding,
+                format!("XML content-type charset `{charset}` is not supported"),
+            ));
+            return report;
+        }
+        if xml_normalized_encoding(charset) == "us-ascii" && !source.is_ascii() {
+            report.facts.push(xml_fact(
+                source,
+                xml_first_non_ascii_offset(source),
+                XmlParseFactKind::UnsupportedEncoding,
+                "XML content-type charset `us-ascii` cannot represent non-ASCII source text"
+                    .to_owned(),
+            ));
+            return report;
+        }
+    }
+    if kind == XmlSourceKind::Dtd {
+        if !source.trim().is_empty() {
+            report.facts.push(xml_fact(
+                source,
+                Some(0),
+                XmlParseFactKind::DtdRejected,
+                "XML DTD resources are rejected until an explicit DTD policy enables them"
+                    .to_owned(),
+            ));
+        }
+        return report;
+    }
+
     let mut reader = quick_xml::Reader::from_str(source);
     reader.config_mut().check_comments = true;
-
     let mut element_stack: Vec<String> = Vec::new();
     let mut namespace_stack = vec![xml_initial_namespaces()];
     let mut root_count = 0usize;
     let mut reported_multiple_roots = false;
 
     loop {
+        let event_start = usize::try_from(reader.buffer_position()).unwrap_or(source.len());
         match reader.read_event() {
             Ok(quick_xml::events::Event::Start(start)) => {
+                let event_end = usize::try_from(reader.buffer_position()).unwrap_or(source.len());
                 if element_stack.is_empty() {
                     root_count += 1;
                     if kind == XmlSourceKind::Document && root_count > 1 && !reported_multiple_roots
                     {
-                        diagnostics.push(xml_diagnostic(
-                            request,
+                        report.facts.push(xml_fact(
                             source,
                             xml_event_position(&reader, &start, false),
-                            "cem.xml.parse_error",
-                            Severity::Error,
+                            XmlParseFactKind::ParseError,
                             "XML document must have exactly one document element".to_owned(),
                         ));
                         reported_multiple_roots = true;
                     }
                 }
-
-                let (next_namespaces, mut start_diagnostics) =
-                    validate_xml_start_event(request, source, &start, &namespace_stack);
-                diagnostics.append(&mut start_diagnostics);
-                element_stack.push(xml_qname_display(start.name().as_ref()));
+                let (next_namespaces, attributes, mut facts) = project_xml_start_event(
+                    source,
+                    &start,
+                    &namespace_stack,
+                    Some(event_start as u64),
+                );
+                report.facts.append(&mut facts);
+                let qualified_name = xml_qname_display(start.name().as_ref());
+                report.events.push(xml_element_event(
+                    report.events.len(),
+                    XmlEventKind::StartElement,
+                    element_stack.len(),
+                    &qualified_name,
+                    &next_namespaces,
+                    attributes,
+                    xml_source_lexeme(source, event_start, event_end),
+                    XmlSourceRange::from_offsets(&line_index, event_start, event_end),
+                ));
+                element_stack.push(qualified_name);
                 namespace_stack.push(next_namespaces);
             }
             Ok(quick_xml::events::Event::Empty(start)) => {
+                let event_end = usize::try_from(reader.buffer_position()).unwrap_or(source.len());
                 if element_stack.is_empty() {
                     root_count += 1;
                     if kind == XmlSourceKind::Document && root_count > 1 && !reported_multiple_roots
                     {
-                        diagnostics.push(xml_diagnostic(
-                            request,
+                        report.facts.push(xml_fact(
                             source,
                             xml_event_position(&reader, &start, true),
-                            "cem.xml.parse_error",
-                            Severity::Error,
+                            XmlParseFactKind::ParseError,
                             "XML document must have exactly one document element".to_owned(),
                         ));
                         reported_multiple_roots = true;
                     }
                 }
-
-                let (_, mut start_diagnostics) =
-                    validate_xml_start_event(request, source, &start, &namespace_stack);
-                diagnostics.append(&mut start_diagnostics);
+                let (next_namespaces, attributes, mut facts) = project_xml_start_event(
+                    source,
+                    &start,
+                    &namespace_stack,
+                    Some(event_start as u64),
+                );
+                report.facts.append(&mut facts);
+                let qualified_name = xml_qname_display(start.name().as_ref());
+                report.events.push(xml_element_event(
+                    report.events.len(),
+                    XmlEventKind::EmptyElement,
+                    element_stack.len(),
+                    &qualified_name,
+                    &next_namespaces,
+                    attributes,
+                    xml_source_lexeme(source, event_start, event_end),
+                    XmlSourceRange::from_offsets(&line_index, event_start, event_end),
+                ));
             }
             Ok(quick_xml::events::Event::End(end)) => {
+                let event_end = usize::try_from(reader.buffer_position()).unwrap_or(source.len());
                 let found = xml_qname_display(end.name().as_ref());
+                let depth = element_stack.len().saturating_sub(1);
+                let namespaces = namespace_stack
+                    .last()
+                    .cloned()
+                    .unwrap_or_else(xml_initial_namespaces);
+                report.events.push(xml_element_event(
+                    report.events.len(),
+                    XmlEventKind::EndElement,
+                    depth,
+                    &found,
+                    &namespaces,
+                    Vec::new(),
+                    xml_source_lexeme(source, event_start, event_end),
+                    XmlSourceRange::from_offsets(&line_index, event_start, event_end),
+                ));
                 match element_stack.pop() {
                     Some(expected) if expected == found => {
                         if namespace_stack.len() > 1 {
                             namespace_stack.pop();
                         }
                     }
-                    Some(expected) => diagnostics.push(xml_diagnostic(
-                        request,
+                    Some(expected) => report.facts.push(xml_fact(
                         source,
                         Some(reader.error_position()),
-                        "cem.xml.parse_error",
-                        Severity::Error,
+                        XmlParseFactKind::ParseError,
                         format!("XML end tag `</{found}>` does not match `<{expected}>`"),
                     )),
-                    None => diagnostics.push(xml_diagnostic(
-                        request,
+                    None => report.facts.push(xml_fact(
                         source,
                         Some(reader.error_position()),
-                        "cem.xml.parse_error",
-                        Severity::Error,
+                        XmlParseFactKind::ParseError,
                         format!("XML end tag `</{found}>` has no matching start tag"),
                     )),
                 }
             }
             Ok(quick_xml::events::Event::Decl(decl)) => {
+                let event_end = usize::try_from(reader.buffer_position()).unwrap_or(source.len());
+                report.events.push(xml_value_event(
+                    report.events.len(),
+                    XmlEventKind::Declaration,
+                    element_stack.len(),
+                    None,
+                    xml_source_lexeme(source, event_start, event_end),
+                    XmlSourceRange::from_offsets(&line_index, event_start, event_end),
+                ));
                 if let Err(error) = decl.version() {
-                    diagnostics.push(xml_reader_error_diagnostic(
-                        request,
+                    report.facts.push(xml_reader_error_fact(
                         source,
                         Some(reader.error_position()),
                         &error,
@@ -167,14 +644,25 @@ fn validate_xml_source(
                     match encoding {
                         Ok(encoding) => {
                             let encoding = String::from_utf8_lossy(encoding.as_ref());
+                            report.declaration_encoding = Some(encoding.to_string());
                             if !xml_encoding_is_supported(&encoding) {
-                                diagnostics.push(xml_unsupported_encoding_diagnostic(
-                                    request,
+                                report.facts.push(xml_fact(
                                     source,
                                     Some(reader.error_position()),
-                                    &format!(
+                                    XmlParseFactKind::UnsupportedEncoding,
+                                    format!(
                                         "XML declaration encoding `{encoding}` is not supported"
                                     ),
+                                ));
+                            } else if xml_normalized_encoding(&encoding) == "us-ascii"
+                                && !source.is_ascii()
+                            {
+                                report.facts.push(xml_fact(
+                                    source,
+                                    xml_first_non_ascii_offset(source),
+                                    XmlParseFactKind::UnsupportedEncoding,
+                                    "XML declaration encoding `US-ASCII` cannot represent non-ASCII source text"
+                                        .to_owned(),
                                 ));
                             } else if let Some(charset) = mime_charset {
                                 let declared = xml_normalized_encoding(&encoding);
@@ -183,12 +671,10 @@ fn validate_xml_source(
                                     && !(declared == "utf-8" && charset == "us-ascii")
                                     && !(declared == "us-ascii" && charset == "utf-8")
                                 {
-                                    diagnostics.push(xml_diagnostic(
-                                        request,
+                                    report.facts.push(xml_fact(
                                         source,
                                         Some(reader.error_position()),
-                                        "cem.xml.encoding_conflict",
-                                        Severity::Warning,
+                                        XmlParseFactKind::EncodingConflict,
                                         format!(
                                             "XML declaration encoding `{encoding}` conflicts with content-type charset `{charset}`"
                                         ),
@@ -196,8 +682,7 @@ fn validate_xml_source(
                                 }
                             }
                         }
-                        Err(error) => diagnostics.push(xml_attribute_error_diagnostic(
-                            request,
+                        Err(error) => report.facts.push(xml_attribute_error_fact(
                             source,
                             &error,
                             Some(reader.error_position()),
@@ -205,63 +690,116 @@ fn validate_xml_source(
                     }
                 }
             }
-            Ok(quick_xml::events::Event::DocType(_)) => diagnostics.push(xml_diagnostic(
-                request,
-                source,
-                Some(reader.error_position()),
-                "cem.xml.dtd_rejected",
-                Severity::Error,
-                "XML DTD declarations are rejected until an explicit DTD policy enables them"
-                    .to_owned(),
-            )),
+            Ok(quick_xml::events::Event::DocType(value)) => {
+                let event_end = usize::try_from(reader.buffer_position()).unwrap_or(source.len());
+                let range = XmlSourceRange::from_offsets(&line_index, event_start, event_end);
+                report.events.push(xml_value_event(
+                    report.events.len(),
+                    XmlEventKind::Doctype,
+                    element_stack.len(),
+                    Some(String::from_utf8_lossy(value.as_ref()).into_owned()),
+                    xml_source_lexeme(source, event_start, event_end),
+                    range,
+                ));
+                report.facts.push(xml_fact(
+                    source,
+                    Some(range.start.byte_offset),
+                    XmlParseFactKind::DtdRejected,
+                    "XML DTD declarations are rejected until an explicit DTD policy enables them"
+                        .to_owned(),
+                ));
+            }
             Ok(quick_xml::events::Event::GeneralRef(reference)) => {
+                let event_end = usize::try_from(reader.buffer_position()).unwrap_or(source.len());
+                let range = XmlSourceRange::from_offsets(&line_index, event_start, event_end);
+                let name = String::from_utf8_lossy(reference.as_ref()).into_owned();
+                report.events.push(xml_value_event(
+                    report.events.len(),
+                    XmlEventKind::EntityReference,
+                    element_stack.len(),
+                    Some(name.clone()),
+                    xml_source_lexeme(source, event_start, event_end),
+                    range,
+                ));
                 if !xml_entity_reference_is_builtin(reference.as_ref()) {
-                    diagnostics.push(xml_diagnostic(
-                        request,
+                    report.facts.push(xml_fact(
                         source,
-                        Some(reader.error_position()),
-                        "cem.xml.external_entity_rejected",
-                        Severity::Error,
-                        format!(
-                            "XML entity reference `&{};` is rejected",
-                            String::from_utf8_lossy(reference.as_ref())
-                        ),
+                        Some(range.start.byte_offset),
+                        XmlParseFactKind::ExternalEntityRejected,
+                        format!("XML entity reference `&{name};` is rejected"),
                     ));
                 }
             }
             Ok(quick_xml::events::Event::Text(text)) => {
+                let event_end = usize::try_from(reader.buffer_position()).unwrap_or(source.len());
+                let range = XmlSourceRange::from_offsets(&line_index, event_start, event_end);
+                let value = String::from_utf8_lossy(text.as_ref()).into_owned();
+                report.events.push(xml_value_event(
+                    report.events.len(),
+                    XmlEventKind::Text,
+                    element_stack.len(),
+                    Some(value),
+                    xml_source_lexeme(source, event_start, event_end),
+                    range,
+                ));
                 if kind == XmlSourceKind::Document
                     && element_stack.is_empty()
                     && !xml_bytes_are_whitespace(text.as_ref())
                 {
-                    diagnostics.push(xml_diagnostic(
-                        request,
+                    report.facts.push(xml_fact(
                         source,
-                        Some(reader.error_position()),
-                        "cem.xml.parse_error",
-                        Severity::Error,
+                        Some(range.start.byte_offset),
+                        XmlParseFactKind::ParseError,
                         "XML document cannot contain character data outside the document element"
                             .to_owned(),
                     ));
                 }
             }
-            Ok(quick_xml::events::Event::CData(_)) if kind == XmlSourceKind::Document => {
-                if element_stack.is_empty() {
-                    diagnostics.push(xml_diagnostic(
-                        request,
+            Ok(quick_xml::events::Event::CData(value)) => {
+                let event_end = usize::try_from(reader.buffer_position()).unwrap_or(source.len());
+                let range = XmlSourceRange::from_offsets(&line_index, event_start, event_end);
+                report.events.push(xml_value_event(
+                    report.events.len(),
+                    XmlEventKind::Cdata,
+                    element_stack.len(),
+                    Some(String::from_utf8_lossy(value.as_ref()).into_owned()),
+                    xml_source_lexeme(source, event_start, event_end),
+                    range,
+                ));
+                if kind == XmlSourceKind::Document && element_stack.is_empty() {
+                    report.facts.push(xml_fact(
                         source,
-                        Some(reader.error_position()),
-                        "cem.xml.parse_error",
-                        Severity::Error,
+                        Some(range.start.byte_offset),
+                        XmlParseFactKind::ParseError,
                         "XML document cannot contain CDATA outside the document element".to_owned(),
                     ));
                 }
             }
+            Ok(quick_xml::events::Event::Comment(value)) => {
+                let event_end = usize::try_from(reader.buffer_position()).unwrap_or(source.len());
+                report.events.push(xml_value_event(
+                    report.events.len(),
+                    XmlEventKind::Comment,
+                    element_stack.len(),
+                    Some(String::from_utf8_lossy(value.as_ref()).into_owned()),
+                    xml_source_lexeme(source, event_start, event_end),
+                    XmlSourceRange::from_offsets(&line_index, event_start, event_end),
+                ));
+            }
+            Ok(quick_xml::events::Event::PI(value)) => {
+                let event_end = usize::try_from(reader.buffer_position()).unwrap_or(source.len());
+                report.events.push(xml_value_event(
+                    report.events.len(),
+                    XmlEventKind::ProcessingInstruction,
+                    element_stack.len(),
+                    Some(String::from_utf8_lossy(value.as_ref()).into_owned()),
+                    xml_source_lexeme(source, event_start, event_end),
+                    XmlSourceRange::from_offsets(&line_index, event_start, event_end),
+                ));
+            }
             Ok(quick_xml::events::Event::Eof) => break,
-            Ok(_) => {}
             Err(error) => {
-                diagnostics.push(xml_reader_error_diagnostic(
-                    request,
+                report.facts.push(xml_reader_error_fact(
                     source,
                     Some(reader.error_position()),
                     &error,
@@ -272,41 +810,90 @@ fn validate_xml_source(
     }
 
     if kind == XmlSourceKind::Document && root_count == 0 {
-        diagnostics.push(xml_diagnostic(
-            request,
+        report.facts.push(xml_fact(
             source,
             Some(0),
-            "cem.xml.parse_error",
-            Severity::Error,
+            XmlParseFactKind::ParseError,
             "XML document must contain a document element".to_owned(),
         ));
     }
     if let Some(unclosed) = element_stack.last() {
-        diagnostics.push(xml_diagnostic(
-            request,
+        report.facts.push(xml_fact(
             source,
             Some(reader.buffer_position()),
-            "cem.xml.parse_error",
-            Severity::Error,
+            XmlParseFactKind::ParseError,
             format!("XML start tag `<{unclosed}>` is missing a matching end tag"),
         ));
     }
-
-    diagnostics
+    report
 }
 
-#[derive(Clone, Debug)]
-struct XmlAttributeView {
-    qualified_name: String,
+pub fn validate_xml_parse_report(
+    report: &XmlParseReport,
+    contracts: &XmlSchemaContractCatalog,
+) -> Vec<Diagnostic> {
+    report
+        .facts
+        .iter()
+        .map(|fact| xml_diagnostic_from_fact(report, fact, contracts))
+        .collect()
 }
 
-fn validate_xml_start_event(
-    request: &XmlSourceValidationRequest<'_>,
+fn xml_diagnostic_from_fact(
+    report: &XmlParseReport,
+    fact: &XmlParseFact,
+    contracts: &XmlSchemaContractCatalog,
+) -> Diagnostic {
+    let binding = contracts.binding_for_fact(fact.kind);
+    let severity = binding
+        .map(|binding| binding.severity)
+        .unwrap_or_else(|| xml_fact_fallback_severity(fact.kind));
+    let code = binding
+        .map(|binding| binding.diagnostic_code.clone())
+        .unwrap_or_else(|| format!("cem.xml.unbound_fact.{}", fact.kind.as_str()));
+    Diagnostic {
+        uri: Some(report.source_uri.clone()),
+        line: fact.line,
+        column: fact.column,
+        byte_offset: fact.byte_offset,
+        code,
+        severity,
+        message: fact.message.clone(),
+        details: Some(json!({
+            "xml": {
+                "phase": "parse",
+                "factKind": fact.kind.as_str(),
+                "contract": binding.map(|binding| binding.contract.as_str()),
+                "behavior": binding.and_then(|binding| binding.behavior.as_deref()),
+                "policy": binding.and_then(|binding| binding.policy.as_deref()),
+                "contentType": report.content_type,
+                "resourceKind": report.resource_kind,
+                "byteLength": fact.byte_length,
+            }
+        })),
+        ..Diagnostic::default()
+    }
+}
+
+fn xml_fact_fallback_severity(kind: XmlParseFactKind) -> Severity {
+    match kind {
+        XmlParseFactKind::EncodingConflict => Severity::Warning,
+        XmlParseFactKind::SourceMapUnavailable => Severity::Info,
+        _ => Severity::Error,
+    }
+}
+
+fn project_xml_start_event(
     source: &str,
     start: &quick_xml::events::BytesStart<'_>,
     namespace_stack: &[BTreeMap<String, String>],
-) -> (BTreeMap<String, String>, Vec<Diagnostic>) {
-    let mut diagnostics = Vec::new();
+    byte_offset: Option<u64>,
+) -> (
+    BTreeMap<String, String>,
+    Vec<XmlAttributeAst>,
+    Vec<XmlParseFact>,
+) {
+    let mut facts = Vec::new();
     let mut attributes = Vec::new();
     let mut next_namespaces = namespace_stack
         .last()
@@ -323,26 +910,23 @@ fn validate_xml_start_event(
                 } else if let Some(prefix) = qualified_name.strip_prefix("xmlns:") {
                     next_namespaces.insert(prefix.to_owned(), value.clone());
                 }
-                diagnostics.extend(xml_entity_reference_diagnostics(
-                    request,
+                facts.extend(xml_entity_reference_facts(
                     source,
                     value.as_bytes(),
+                    byte_offset,
                 ));
-                attributes.push(XmlAttributeView { qualified_name });
+                attributes.push((qualified_name, value));
             }
-            Err(error) => diagnostics.push(xml_attribute_error_diagnostic(
-                request, source, &error, None,
-            )),
+            Err(error) => facts.push(xml_attribute_error_fact(source, &error, byte_offset)),
         }
     }
 
     let element_name = xml_qname_display(start.name().as_ref());
     if let Some(prefix) = xml_qname_prefix(&element_name) {
         if !xml_prefix_is_bound(&next_namespaces, prefix) {
-            diagnostics.push(xml_unbound_namespace_prefix_diagnostic(
-                request,
+            facts.push(xml_unbound_namespace_prefix_fact(
                 source,
-                None,
+                byte_offset,
                 prefix,
                 &element_name,
             ));
@@ -350,41 +934,120 @@ fn validate_xml_start_event(
     }
 
     let mut expanded_attributes = BTreeSet::new();
-    for attribute in attributes {
-        if xml_attribute_is_namespace_declaration(&attribute.qualified_name) {
-            continue;
-        }
-
-        let (namespace_uri, local_name) =
-            xml_attribute_expanded_name(&attribute.qualified_name, &next_namespaces);
-        if let Some(prefix) = xml_qname_prefix(&attribute.qualified_name) {
-            if !xml_prefix_is_bound(&next_namespaces, prefix) {
-                diagnostics.push(xml_unbound_namespace_prefix_diagnostic(
-                    request,
+    let attributes = attributes
+        .into_iter()
+        .map(|(qualified_name, value)| {
+            let namespace_declaration = xml_attribute_is_namespace_declaration(&qualified_name);
+            let (namespace_uri, local_name) =
+                xml_attribute_expanded_name(&qualified_name, &next_namespaces);
+            let prefix = qualified_name
+                .split_once(':')
+                .map(|(prefix, _)| prefix.to_owned());
+            if let Some(prefix) = xml_qname_prefix(&qualified_name) {
+                if !xml_prefix_is_bound(&next_namespaces, prefix) {
+                    facts.push(xml_unbound_namespace_prefix_fact(
+                        source,
+                        byte_offset,
+                        prefix,
+                        &qualified_name,
+                    ));
+                }
+            }
+            if !namespace_declaration
+                && !expanded_attributes.insert((namespace_uri.clone(), local_name.clone()))
+            {
+                facts.push(xml_fact(
                     source,
-                    None,
-                    prefix,
-                    &attribute.qualified_name,
+                    byte_offset,
+                    XmlParseFactKind::DuplicateAttribute,
+                    format!(
+                        "XML element `<{element_name}>` has a duplicate attribute `{qualified_name}`"
+                    ),
                 ));
             }
-        }
+            XmlAttributeAst {
+                qualified_name,
+                local_name,
+                prefix,
+                namespace_uri: (!namespace_uri.is_empty()).then_some(namespace_uri),
+                value,
+            }
+        })
+        .collect::<Vec<_>>();
 
-        if !expanded_attributes.insert((namespace_uri.clone(), local_name.clone())) {
-            diagnostics.push(xml_diagnostic(
-                request,
-                source,
-                None,
-                "cem.xml.duplicate_attribute",
-                Severity::Error,
-                format!(
-                    "XML element `<{element_name}>` has a duplicate attribute `{}`",
-                    attribute.qualified_name
-                ),
-            ));
-        }
+    (next_namespaces, attributes, facts)
+}
+
+fn xml_element_event(
+    index: usize,
+    kind: XmlEventKind,
+    depth: usize,
+    qualified_name: &str,
+    namespaces: &BTreeMap<String, String>,
+    attributes: Vec<XmlAttributeAst>,
+    lexeme: String,
+    source_range: XmlSourceRange,
+) -> XmlEventAst {
+    let (prefix, local_name) = xml_qname_parts(qualified_name);
+    let namespace_uri = namespaces
+        .get(prefix.as_deref().unwrap_or_default())
+        .filter(|value| !value.is_empty())
+        .cloned();
+    XmlEventAst {
+        index,
+        kind,
+        depth,
+        qualified_name: Some(qualified_name.to_owned()),
+        local_name: Some(local_name),
+        prefix,
+        namespace_uri,
+        attributes,
+        value: None,
+        whitespace_only: false,
+        lexeme,
+        source_range,
     }
+}
 
-    (next_namespaces, diagnostics)
+fn xml_value_event(
+    index: usize,
+    kind: XmlEventKind,
+    depth: usize,
+    value: Option<String>,
+    lexeme: String,
+    source_range: XmlSourceRange,
+) -> XmlEventAst {
+    let whitespace_only = value
+        .as_deref()
+        .is_some_and(|value| value.chars().all(char::is_whitespace));
+    XmlEventAst {
+        index,
+        kind,
+        depth,
+        qualified_name: None,
+        local_name: None,
+        prefix: None,
+        namespace_uri: None,
+        attributes: Vec::new(),
+        value,
+        lexeme,
+        whitespace_only,
+        source_range,
+    }
+}
+
+fn xml_qname_parts(qualified_name: &str) -> (Option<String>, String) {
+    match qualified_name.split_once(':') {
+        Some((prefix, local_name)) => (Some(prefix.to_owned()), local_name.to_owned()),
+        None => (None, qualified_name.to_owned()),
+    }
+}
+
+fn xml_source_lexeme(source: &str, start: usize, end: usize) -> String {
+    source
+        .get(start.min(source.len())..end.min(source.len()))
+        .unwrap_or_default()
+        .to_owned()
 }
 
 fn xml_initial_namespaces() -> BTreeMap<String, String> {
@@ -404,6 +1067,12 @@ fn xml_attribute_expanded_name(
     qualified_name: &str,
     namespaces: &BTreeMap<String, String>,
 ) -> (String, String) {
+    if qualified_name == "xmlns" {
+        return (
+            "http://www.w3.org/2000/xmlns/".to_owned(),
+            "xmlns".to_owned(),
+        );
+    }
     if let Some((prefix, local_name)) = qualified_name.split_once(':') {
         let namespace_uri = namespaces.get(prefix).cloned().unwrap_or_default();
         (namespace_uri, local_name.to_owned())
@@ -437,12 +1106,12 @@ fn xml_entity_reference_is_builtin(name: &[u8]) -> bool {
     name.starts_with(b"#") || matches!(name, b"amp" | b"lt" | b"gt" | b"apos" | b"quot")
 }
 
-fn xml_entity_reference_diagnostics(
-    request: &XmlSourceValidationRequest<'_>,
+fn xml_entity_reference_facts(
     source: &str,
     value: &[u8],
-) -> Vec<Diagnostic> {
-    let mut diagnostics = Vec::new();
+    byte_offset: Option<u64>,
+) -> Vec<XmlParseFact> {
+    let mut facts = Vec::new();
     let mut remaining = value;
     while let Some(start) = remaining.iter().position(|byte| *byte == b'&') {
         let after_amp = &remaining[start + 1..];
@@ -451,12 +1120,10 @@ fn xml_entity_reference_diagnostics(
         };
         let reference = &after_amp[..end];
         if !xml_entity_reference_is_builtin(reference) {
-            diagnostics.push(xml_diagnostic(
-                request,
+            facts.push(xml_fact(
                 source,
-                None,
-                "cem.xml.external_entity_rejected",
-                Severity::Error,
+                byte_offset,
+                XmlParseFactKind::ExternalEntityRejected,
                 format!(
                     "XML entity reference `&{};` is rejected",
                     String::from_utf8_lossy(reference)
@@ -465,13 +1132,19 @@ fn xml_entity_reference_diagnostics(
         }
         remaining = &after_amp[end + 1..];
     }
-    diagnostics
+    facts
 }
 
 fn xml_bytes_are_whitespace(bytes: &[u8]) -> bool {
     std::str::from_utf8(bytes)
         .map(|value| value.chars().all(char::is_whitespace))
         .unwrap_or(false)
+}
+
+fn xml_first_non_ascii_offset(source: &str) -> Option<u64> {
+    source
+        .find(|character: char| !character.is_ascii())
+        .and_then(|offset| u64::try_from(offset).ok())
 }
 
 fn xml_encoding_is_supported(encoding: &str) -> bool {
@@ -496,133 +1169,117 @@ fn xml_event_position(
         .checked_sub(start.as_ref().len() as u64 + markup_overhead)
 }
 
-fn xml_reader_error_diagnostic(
-    request: &XmlSourceValidationRequest<'_>,
+fn xml_reader_error_fact(
     source: &str,
     byte_offset: Option<u64>,
     error: &quick_xml::Error,
-) -> Diagnostic {
-    let code = match error {
-        quick_xml::Error::Encoding(_) => "cem.xml.unsupported_encoding",
+) -> XmlParseFact {
+    let kind = match error {
+        quick_xml::Error::Encoding(_) => XmlParseFactKind::UnsupportedEncoding,
         quick_xml::Error::InvalidAttr(quick_xml::events::attributes::AttrError::Duplicated(
             _,
             _,
-        )) => "cem.xml.duplicate_attribute",
-        quick_xml::Error::Namespace(_) => "cem.xml.unbound_namespace_prefix",
-        _ => "cem.xml.parse_error",
+        )) => XmlParseFactKind::DuplicateAttribute,
+        quick_xml::Error::Namespace(_) => XmlParseFactKind::UnboundNamespacePrefix,
+        _ => XmlParseFactKind::ParseError,
     };
-    xml_diagnostic(
-        request,
+    xml_fact(
         source,
         byte_offset,
-        code,
-        Severity::Error,
+        kind,
         format!("XML parse error: {error}"),
     )
 }
 
-fn xml_attribute_error_diagnostic(
-    request: &XmlSourceValidationRequest<'_>,
+fn xml_attribute_error_fact(
     source: &str,
     error: &quick_xml::events::attributes::AttrError,
-    base_offset: Option<u64>,
-) -> Diagnostic {
-    let code = match error {
-        quick_xml::events::attributes::AttrError::Duplicated(_, _) => "cem.xml.duplicate_attribute",
-        _ => "cem.xml.parse_error",
+    byte_offset: Option<u64>,
+) -> XmlParseFact {
+    let kind = match error {
+        quick_xml::events::attributes::AttrError::Duplicated(_, _) => {
+            XmlParseFactKind::DuplicateAttribute
+        }
+        _ => XmlParseFactKind::ParseError,
     };
-    xml_diagnostic(
-        request,
+    xml_fact(
         source,
-        base_offset,
-        code,
-        Severity::Error,
+        byte_offset,
+        kind,
         format!("XML attribute parse error: {error}"),
     )
 }
 
-fn xml_unbound_namespace_prefix_diagnostic(
-    request: &XmlSourceValidationRequest<'_>,
+fn xml_unbound_namespace_prefix_fact(
     source: &str,
     byte_offset: Option<u64>,
     prefix: &str,
     qualified_name: &str,
-) -> Diagnostic {
-    xml_diagnostic(
-        request,
+) -> XmlParseFact {
+    xml_fact(
         source,
         byte_offset,
-        "cem.xml.unbound_namespace_prefix",
-        Severity::Error,
+        XmlParseFactKind::UnboundNamespacePrefix,
         format!("XML namespace prefix `{prefix}` is not bound for `{qualified_name}`"),
     )
 }
 
-fn xml_unsupported_utf8_diagnostic(
-    request: &XmlSourceValidationRequest<'_>,
-    error: &std::str::Utf8Error,
-) -> Diagnostic {
-    Diagnostic {
-        uri: Some(request.source_uri.to_owned()),
-        byte_offset: u64::try_from(error.valid_up_to()).ok(),
-        code: "cem.xml.unsupported_encoding".to_owned(),
-        severity: Severity::Error,
-        message: format!("XML source must be valid UTF-8: {error}"),
-        ..Diagnostic::default()
-    }
-}
-
-fn xml_unsupported_encoding_diagnostic(
-    request: &XmlSourceValidationRequest<'_>,
+fn xml_fact(
     source: &str,
     byte_offset: Option<u64>,
-    message: &str,
-) -> Diagnostic {
-    xml_diagnostic(
-        request,
-        source,
-        byte_offset,
-        "cem.xml.unsupported_encoding",
-        Severity::Error,
-        message.to_owned(),
-    )
-}
-
-fn xml_diagnostic(
-    request: &XmlSourceValidationRequest<'_>,
-    source: &str,
-    byte_offset: Option<u64>,
-    code: &'static str,
-    severity: Severity,
+    kind: XmlParseFactKind,
     message: String,
-) -> Diagnostic {
+) -> XmlParseFact {
     let (line, column) = byte_offset
         .and_then(|offset| usize::try_from(offset).ok())
         .map(|offset| line_col(source, offset))
         .map(|(line, column)| (Some(line), Some(column)))
         .unwrap_or((None, None));
-    Diagnostic {
-        uri: Some(request.source_uri.to_owned()),
+    XmlParseFact {
+        kind,
         line,
         column,
         byte_offset,
-        code: code.to_owned(),
-        severity,
+        byte_length: byte_offset.map(|_| 1),
         message,
-        ..Diagnostic::default()
     }
 }
 
-fn content_type_parameter(content_type: &str, name: &str) -> Option<String> {
-    let needle = name.trim().to_ascii_lowercase();
-    content_type.split(';').skip(1).find_map(|part| {
-        let (key, value) = part.split_once('=')?;
-        if key.trim().eq_ignore_ascii_case(&needle) {
-            Some(value.trim().trim_matches('"').to_owned())
-        } else {
-            None
-        }
-    })
+fn content_type_parameters(content_type: Option<&str>) -> BTreeMap<String, String> {
+    let Some(content_type) = content_type else {
+        return BTreeMap::new();
+    };
+    content_type
+        .split(';')
+        .skip(1)
+        .filter_map(|part| {
+            let (key, value) = part.split_once('=')?;
+            Some((
+                key.trim().to_ascii_lowercase(),
+                value.trim().trim_matches('"').to_owned(),
+            ))
+        })
+        .collect()
+}
+
+fn xml_detect_line_ending_style(source: &str) -> Option<&'static str> {
+    let has_crlf = source.contains("\r\n");
+    let has_lone_cr = source
+        .as_bytes()
+        .windows(2)
+        .any(|pair| pair[0] == b'\r' && pair[1] != b'\n')
+        || source.ends_with('\r');
+    if has_crlf && has_lone_cr {
+        Some("mixed")
+    } else if has_crlf {
+        Some("crlf")
+    } else if has_lone_cr {
+        Some("cr")
+    } else if source.contains('\n') {
+        Some("lf")
+    } else {
+        None
+    }
 }
 
 fn line_col(source: &str, byte_offset: usize) -> (u32, u32) {
@@ -658,7 +1315,7 @@ mod tests {
 
     #[test]
     fn xml_source_validator_accepts_namespaced_document() {
-        let diagnostics = validate_xml_source_bytes(XmlSourceValidationRequest {
+        let request = XmlSourceValidationRequest {
             bytes: br#"<?xml version="1.0" encoding="UTF-8"?>
 <catalog xmlns:meta="https://example.test/meta" meta:version="1">
   <item id="a1">Alpha</item>
@@ -666,9 +1323,57 @@ mod tests {
 "#,
             source_uri: "fixture.xml",
             content_type: Some("text/xml; charset=utf-8"),
-        });
+        };
+        let (document, diagnostics) = xml_document_ast_from_source_bytes(request);
 
         assert!(diagnostics.is_empty(), "{diagnostics:?}");
+        let document = document.expect("typed XML document");
+        assert_eq!(document.resource_kind, "document");
+        assert_eq!(document.encoding_report.normalized_encoding, "utf-8");
+        assert!(document.events.iter().any(|event| {
+            event.kind == XmlEventKind::StartElement
+                && event.qualified_name.as_deref() == Some("catalog")
+                && event.attributes.iter().any(|attribute| {
+                    attribute.qualified_name == "meta:version"
+                        && attribute.namespace_uri.as_deref() == Some("https://example.test/meta")
+                })
+        }));
+        assert!(document
+            .events
+            .iter()
+            .all(|event| event.source_range.byte_length > 0));
+        assert!(document.to_cemt_subject()["events"]
+            .as_array()
+            .is_some_and(|events| !events.is_empty()));
+    }
+
+    #[test]
+    fn xml_parse_facts_resolve_diagnostics_from_schema_bindings() {
+        let catalog = XmlSchemaContractCatalog::from_builtin();
+        for (kind, code, severity) in [
+            (
+                XmlParseFactKind::ParseError,
+                "cem.xml.parse_error",
+                Severity::Error,
+            ),
+            (
+                XmlParseFactKind::EncodingConflict,
+                "cem.xml.encoding_conflict",
+                Severity::Warning,
+            ),
+            (
+                XmlParseFactKind::SourceMapUnavailable,
+                "cem.xml.source_map_unavailable",
+                Severity::Info,
+            ),
+        ] {
+            let binding = catalog
+                .binding_for_fact(kind)
+                .unwrap_or_else(|| panic!("{} binding", kind.as_str()));
+            assert_eq!(binding.diagnostic_code, code);
+            assert_eq!(binding.severity, severity);
+            assert_eq!(binding.behavior.as_deref(), Some("xml-parse-report-fact"));
+        }
     }
 
     #[test]
@@ -694,5 +1399,16 @@ mod tests {
         );
 
         assert!(has_code(&diagnostics, "cem.xml.dtd_rejected"));
+    }
+
+    #[test]
+    fn xml_source_validator_rejects_non_ascii_text_for_ascii_charset() {
+        let diagnostics = validate_xml_source_bytes(XmlSourceValidationRequest {
+            bytes: "<root>caf\u{00e9}</root>".as_bytes(),
+            source_uri: "fixture.xml",
+            content_type: Some("application/xml; charset=us-ascii"),
+        });
+
+        assert!(has_code(&diagnostics, "cem.xml.unsupported_encoding"));
     }
 }

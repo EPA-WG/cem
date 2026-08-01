@@ -17,6 +17,7 @@ use crate::conversion::{
     execute_json_document_output_pipeline_with_environment,
     execute_json_schema_document_output_pipeline_with_environment,
     execute_markdown_document_output_pipeline_with_environment,
+    execute_xml_document_output_pipeline_with_environment,
     execute_yaml_document_output_pipeline_with_environment, ConversionExecution,
     ConversionOutputPipeline, ConversionOutputPipelineEnvironment,
     ConversionPackageArtifactDescriptor, ConversionPackageArtifactRead,
@@ -110,6 +111,7 @@ use crate::validation::generic_data::GenericDataDocumentAst;
 use crate::validation::json::JsonDocumentAst;
 use crate::validation::json_schema::JsonSchemaDocumentAst;
 use crate::validation::markdown::MarkdownDocumentAst;
+use crate::validation::xml::XmlDocumentAst;
 use crate::validation::yaml::YamlDocumentAst;
 use crate::validation::{
     rules::validate_cem_native_template_source_semantics, RuleContext, RuleRegistry,
@@ -5467,6 +5469,74 @@ fn markdown_direct_output_primary_identity(
     )
 }
 
+fn convert_loaded_xml_ast_output(
+    context: &EngineContext,
+    request: &ConvertRequest,
+    document: XmlDocumentAst,
+    diagnostics: &mut Vec<Diagnostic>,
+) -> (Value, Option<PrimaryBytes>, ConvertExecutionMetadata) {
+    let metadata = convert_metadata_for_xml_lifecycle_output(&request.target_scope);
+    let environment = ConversionOutputPipelineEnvironment {
+        schema_registry: &context.schema_registry,
+        conversion_registry: &context.converter_registry,
+        package_artifact_reader: None,
+        artifact_cache: None,
+    };
+    let execution = execute_xml_document_output_pipeline_with_environment(
+        &environment,
+        document,
+        &request.target_scope,
+        Some(&request.input.uri),
+    );
+    diagnostics.extend(execution.diagnostics.clone());
+    if diagnostics
+        .iter()
+        .any(|diagnostic| diagnostic.severity.is_hard_violation())
+    {
+        return (Value::Null, None, metadata);
+    }
+
+    let content = execution
+        .output
+        .as_ref()
+        .and_then(Value::as_str)
+        .unwrap_or_default()
+        .to_owned();
+    let target = request
+        .target
+        .clone()
+        .or_else(|| request.target_scope.format_identity_option())
+        .unwrap_or_else(|| FormatIdentity {
+            content_type: Some(XML_CONTENT_TYPE.to_owned()),
+            schema: Some(XML_SCHEMA_URI.to_owned()),
+            ..FormatIdentity::default()
+        });
+    let content_type = target
+        .content_type
+        .unwrap_or_else(|| XML_CONTENT_TYPE.to_owned());
+    let schema = target.schema.unwrap_or_else(|| XML_SCHEMA_URI.to_owned());
+    let bytes = content.into_bytes();
+    let primary_bytes = PrimaryBytes {
+        content_type,
+        schema: Some(schema.clone()),
+        format_version: "xml/1".to_owned(),
+        hash_scheme: "cem-text/1+blake3".to_owned(),
+        hash: text_content_hash(&bytes),
+        bytes,
+    };
+    let hash = primary_bytes.hash.clone();
+    (
+        json!({
+            "kind": "document",
+            "contentType": primary_bytes.content_type,
+            "schema": schema,
+            "hash": hash,
+        }),
+        Some(primary_bytes),
+        metadata,
+    )
+}
+
 fn convert_loaded_markdown_ast_output(
     context: &EngineContext,
     request: &ConvertRequest,
@@ -6625,6 +6695,97 @@ fn convert_metadata_for_markdown_lifecycle_output(
     }
 }
 
+fn xml_direct_output_color_profile(target_scope: &ScopeConfig) -> Option<String> {
+    let explicit = target_scope
+        .cemt_color_profile
+        .as_deref()
+        .map(str::trim)
+        .filter(|profile| matches!(*profile, "terminal" | "html" | "md"))
+        .map(str::to_owned);
+    if explicit.is_some() {
+        return explicit;
+    }
+    target_scope
+        .output_color_type
+        .as_deref()
+        .and_then(|value| parse_transform_template_output_color_type(value).ok())
+        .filter(|selection| selection.output_color_type != "none")
+        .and_then(|selection| match selection.target.category.as_str() {
+            "terminal-color" => Some("terminal".to_owned()),
+            "html-color" => Some("html".to_owned()),
+            _ => None,
+        })
+}
+
+fn convert_metadata_for_xml_lifecycle_output(
+    target_scope: &ScopeConfig,
+) -> ConvertExecutionMetadata {
+    let formatter_profile = target_scope
+        .cemt_formatter_profile
+        .clone()
+        .unwrap_or_else(|| "compact".to_owned());
+    let color_profile = xml_direct_output_color_profile(target_scope);
+    let writer_profile = target_scope
+        .output_color_type
+        .clone()
+        .or_else(|| color_profile.clone());
+    ConvertExecutionMetadata {
+        converter_id: Some("xml-lifecycle-output".to_owned()),
+        implementation: Some("xml-ast-stream-to-xml-output-pipeline".to_owned()),
+        rust_fallback: None,
+        output_pipeline: Some(ConvertOutputPipelineMetadata {
+            stages: vec![
+                ConvertOutputPipelineStageMetadata {
+                    stage: "formatter".to_owned(),
+                    function: Some(
+                        target_scope
+                            .cemt_formatter
+                            .clone()
+                            .unwrap_or_else(|| "xml.format-document".to_owned()),
+                    ),
+                    profile: Some(formatter_profile),
+                    content_type: Some(XML_CONTENT_TYPE.to_owned()),
+                    schema: Some(XML_SCHEMA_URI.to_owned()),
+                    category: Some("xml-document".to_owned()),
+                    produces: Some(
+                        TransformTemplateOutputProducedKind::CemTree
+                            .as_str()
+                            .to_owned(),
+                    ),
+                },
+                ConvertOutputPipelineStageMetadata {
+                    stage: "colorizer".to_owned(),
+                    function: color_profile
+                        .as_ref()
+                        .map(|_| "xml.color-document".to_owned()),
+                    profile: color_profile,
+                    content_type: Some(XML_CONTENT_TYPE.to_owned()),
+                    schema: Some(XML_SCHEMA_URI.to_owned()),
+                    category: Some("xml-document".to_owned()),
+                    produces: Some(
+                        TransformTemplateOutputProducedKind::CemTree
+                            .as_str()
+                            .to_owned(),
+                    ),
+                },
+                ConvertOutputPipelineStageMetadata {
+                    stage: "writer".to_owned(),
+                    function: None,
+                    profile: writer_profile,
+                    content_type: Some(XML_CONTENT_TYPE.to_owned()),
+                    schema: Some(XML_SCHEMA_URI.to_owned()),
+                    category: Some("xml-document".to_owned()),
+                    produces: Some(
+                        TransformTemplateOutputProducedKind::Text
+                            .as_str()
+                            .to_owned(),
+                    ),
+                },
+            ],
+        }),
+    }
+}
+
 fn template_module_diagnostic(
     uri: Option<&str>,
     code: &str,
@@ -6909,6 +7070,7 @@ fn loaded_input_consumes_validation_without_cem_parse(loaded: &LoadedInput) -> b
                 | LoadedInputAstStream::JsonDocument(_)
                 | LoadedInputAstStream::JsonSchemaDocument(_)
                 | LoadedInputAstStream::MarkdownDocument(_)
+                | LoadedInputAstStream::XmlDocument(_)
         )
     ) || matches!(
         loaded.adapter_id,
@@ -8124,6 +8286,34 @@ impl CemMlEngine for RealCemMlEngine {
                         });
                         primary = Some(Value::Null);
                         return;
+                    }
+                    LoadedInputAstStream::XmlDocument(document_value) => {
+                        if to_format == LayerFormat::Xml {
+                            if diagnostics
+                                .iter()
+                                .any(|diagnostic| diagnostic.severity.is_hard_violation())
+                            {
+                                primary = Some(Value::Null);
+                                conversion = Some(convert_metadata_for_xml_lifecycle_output(
+                                    &request.target_scope,
+                                ));
+                                return;
+                            }
+
+                            let (xml_primary, xml_primary_bytes, xml_conversion) =
+                                convert_loaded_xml_ast_output(
+                                    &context,
+                                    &request,
+                                    document_value,
+                                    &mut diagnostics,
+                                );
+                            primary = Some(xml_primary);
+                            primary_bytes = xml_primary_bytes;
+                            conversion = Some(xml_conversion);
+                            return;
+                        }
+                        // Cross-schema XML exports still use the established XML tokenizer and
+                        // registered converter path below.
                     }
                 }
             }
@@ -13601,6 +13791,91 @@ mod tests {
     }
 
     #[test]
+    fn validate_xml_source_consumes_lifecycle_ast_without_cem_parse() {
+        let mut source = input(
+            br#"<?xml version="1.0"?><root xmlns:meta="urn:meta"><meta:item/></root>"#,
+            "document.xml",
+        );
+        source.identity = Some(FormatIdentity {
+            content_type: Some(XML_CONTENT_TYPE.to_owned()),
+            schema: Some(XML_SCHEMA_URI.to_owned()),
+            ..FormatIdentity::default()
+        });
+        let req = ValidateRequest {
+            inputs: vec![source],
+            projection: ValidateProjection::Json,
+            fail_level: FailLevel::Validate,
+            context: ctx(),
+        };
+
+        let resp = RealCemMlEngine::new().validate(req).unwrap();
+
+        assert_eq!(resp.report.summary.input_count, 1);
+        assert_eq!(resp.report.summary.hard_violation_count, 0);
+        assert!(
+            resp.report.diagnostics.is_empty(),
+            "XML validation should be completed by the lifecycle AST stream, not CEM parsing: {:?}",
+            resp.report.diagnostics
+        );
+    }
+
+    #[test]
+    fn convert_xml_same_schema_uses_lifecycle_output_pipeline() {
+        let xml = br#"<?xml version="1.0"?><root xmlns:meta="urn:meta"><meta:item id="a1"><![CDATA[Alpha]]></meta:item><!--done--><?ready yes?></root>"#;
+        let mut source = input(xml, "document.xml");
+        source.identity = Some(FormatIdentity {
+            content_type: Some(XML_CONTENT_TYPE.to_owned()),
+            schema: Some(XML_SCHEMA_URI.to_owned()),
+            ..FormatIdentity::default()
+        });
+        let target = FormatIdentity {
+            content_type: Some(XML_CONTENT_TYPE.to_owned()),
+            schema: Some(XML_SCHEMA_URI.to_owned()),
+            ..FormatIdentity::default()
+        };
+        let req = ConvertRequest {
+            input: source,
+            to_format: LayerFormat::DomJson,
+            preserve_source_offsets: false,
+            context: ctx(),
+            target: Some(target),
+            target_scope: ScopeConfig {
+                cemt_formatter_profile: Some("tabular".to_owned()),
+                ..ScopeConfig::default()
+            },
+            scheduler_scope_id: 0,
+        };
+
+        let resp = RealCemMlEngine::new().convert(req).unwrap();
+
+        assert!(
+            resp.diagnostics.is_empty(),
+            "XML same-schema conversion should stay on the lifecycle AST path: {:?}",
+            resp.diagnostics
+        );
+        assert_eq!(
+            resp.conversion
+                .as_ref()
+                .and_then(|conversion| conversion.converter_id.as_deref()),
+            Some("xml-lifecycle-output")
+        );
+        assert_eq!(
+            resp.conversion
+                .as_ref()
+                .and_then(|conversion| conversion.implementation.as_deref()),
+            Some("xml-ast-stream-to-xml-output-pipeline")
+        );
+        let primary_bytes = resp.primary_bytes.as_ref().expect("XML primary bytes");
+        assert_eq!(primary_bytes.content_type, XML_CONTENT_TYPE);
+        assert_eq!(primary_bytes.schema.as_deref(), Some(XML_SCHEMA_URI));
+        let mut expected = xml.to_vec();
+        expected.push(b'\n');
+        assert_eq!(primary_bytes.bytes, expected);
+        assert_eq!(resp.primary["kind"], "document");
+        assert_eq!(resp.primary["contentType"], XML_CONTENT_TYPE);
+    }
+
+    #[test]
     fn convert_yaml_same_schema_uses_lifecycle_output_pipeline() {
         let mut source = input(b"name: Ada\nactive: true\n", "document.yaml");
         source.identity = Some(FormatIdentity {
@@ -14687,7 +14962,11 @@ mod tests {
                 uri: "in.xml".to_owned(),
                 bytes: br#"<button cem:action="primary" type="submit">Save</button>"#.to_vec(),
                 from_format: Some(InputFormat::Xml),
-                identity: None,
+                identity: Some(FormatIdentity {
+                    content_type: Some(XML_CONTENT_TYPE.to_owned()),
+                    schema: Some(XML_SCHEMA_URI.to_owned()),
+                    ..FormatIdentity::default()
+                }),
                 root_scope: Default::default(),
             },
             to_format: LayerFormat::Cem,
@@ -15153,7 +15432,7 @@ mod tests {
         };
         let resp = RealCemMlEngine::new().convert(req).unwrap();
         assert_eq!(resp.primary["kind"], "xml");
-        assert_eq!(resp.primary["content"], "<p/>");
+        assert_eq!(resp.primary["content"], "<p/>\n");
         let conversion = resp.conversion.as_ref().expect("conversion metadata");
         assert_eq!(
             conversion.converter_id.as_deref(),

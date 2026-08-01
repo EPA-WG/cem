@@ -73,6 +73,7 @@ use crate::validation::generic_data::GenericDataDocumentAst;
 use crate::validation::json::{generic_data_ast_to_json_cemt_subject, JsonDocumentAst};
 use crate::validation::json_schema::JsonSchemaDocumentAst;
 use crate::validation::markdown::MarkdownDocumentAst;
+use crate::validation::xml::XmlDocumentAst;
 use crate::validation::yaml::{generic_data_ast_to_yaml_cemt_subject, YamlDocumentAst};
 use serde_json::Value;
 use std::cell::RefCell;
@@ -2351,6 +2352,24 @@ const MARKDOWN_COLOR_CEMT_STAGE_SPEC: CemTreeCemtOutputStageSpec = CemTreeCemtOu
     declaration_element: "{color-function",
     function_kind: TransformTemplateOutputFunctionKind::Color,
     function_name: "markdown.color-document",
+    role: "colorizer",
+};
+
+const XML_FORMAT_CEMT_STAGE_SPEC: CemTreeCemtOutputStageSpec = CemTreeCemtOutputStageSpec {
+    adapter_id: "xml-format-cemt",
+    artifact_kind: CEM_TREE_FORMATTER_ARTIFACT_KIND,
+    declaration_element: "{format-function",
+    function_kind: TransformTemplateOutputFunctionKind::Format,
+    function_name: "xml.format-document",
+    role: "formatter",
+};
+
+const XML_COLOR_CEMT_STAGE_SPEC: CemTreeCemtOutputStageSpec = CemTreeCemtOutputStageSpec {
+    adapter_id: "xml-color-cemt",
+    artifact_kind: CEM_TREE_COLORIZER_ARTIFACT_KIND,
+    declaration_element: "{color-function",
+    function_kind: TransformTemplateOutputFunctionKind::Color,
+    function_name: "xml.color-document",
     role: "colorizer",
 };
 
@@ -6605,6 +6624,290 @@ fn markdown_output_pipeline_failed_with_timings(
         format_elapsed_ns,
         color_elapsed_ns,
         writer_elapsed_ns,
+    )
+}
+
+pub trait XmlDocumentOutputSubject {
+    fn source_line_ending(&self) -> Option<&str>;
+    fn into_cemt_subject(self) -> Value;
+}
+
+impl XmlDocumentOutputSubject for XmlDocumentAst {
+    fn source_line_ending(&self) -> Option<&str> {
+        self.line_ending.as_deref()
+    }
+
+    fn into_cemt_subject(self) -> Value {
+        self.to_cemt_subject()
+    }
+}
+
+#[cfg(test)]
+impl XmlDocumentOutputSubject for Value {
+    fn source_line_ending(&self) -> Option<&str> {
+        self.get("lineEnding").and_then(Value::as_str)
+    }
+
+    fn into_cemt_subject(self) -> Value {
+        self
+    }
+}
+
+pub fn execute_xml_document_output_pipeline_with_environment(
+    environment: &ConversionOutputPipelineEnvironment<'_>,
+    document: impl XmlDocumentOutputSubject,
+    target_scope: &ScopeConfig,
+    diagnostic_uri: Option<&str>,
+) -> ConversionOutputPipelineExecution {
+    let formatter_name = target_scope
+        .cemt_formatter
+        .as_deref()
+        .map(str::trim)
+        .filter(|name| !name.is_empty())
+        .unwrap_or(XML_FORMAT_CEMT_STAGE_SPEC.function_name);
+    if formatter_name != XML_FORMAT_CEMT_STAGE_SPEC.function_name {
+        return xml_output_pipeline_failed(
+            diagnostic_uri,
+            format!(
+                "unsupported XML formatter `{formatter_name}`; first-class XML output supports `{}`",
+                XML_FORMAT_CEMT_STAGE_SPEC.function_name
+            ),
+        );
+    }
+    let formatter_profile = target_scope
+        .cemt_formatter_profile
+        .as_deref()
+        .map(str::trim)
+        .filter(|profile| !profile.is_empty())
+        .unwrap_or("compact");
+    if !matches!(formatter_profile, "compact" | "pretty" | "tabular") {
+        return xml_output_pipeline_failed(
+            diagnostic_uri,
+            format!(
+                "unsupported XML formatter profile `{formatter_profile}`; supported profiles are compact, pretty, and tabular"
+            ),
+        );
+    }
+    if let Some(name) = target_scope
+        .cemt_colorizer
+        .as_deref()
+        .map(str::trim)
+        .filter(|name| !name.is_empty())
+    {
+        if name != XML_COLOR_CEMT_STAGE_SPEC.function_name {
+            return xml_output_pipeline_failed(
+                diagnostic_uri,
+                format!(
+                    "unsupported XML colorizer `{name}`; first-class XML output supports `{}`",
+                    XML_COLOR_CEMT_STAGE_SPEC.function_name
+                ),
+            );
+        }
+    }
+    let output_color_selection = match target_scope
+        .output_color_type
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(parse_transform_template_output_color_type)
+        .transpose()
+    {
+        Ok(selection) => selection,
+        Err(message) => return xml_output_pipeline_failed(diagnostic_uri, message),
+    };
+    let inferred_color_profile = output_color_selection
+        .as_ref()
+        .filter(|selection| selection.output_color_type != "none")
+        .and_then(|selection| match selection.target.category.as_str() {
+            "terminal-color" => Some("terminal"),
+            "html-color" => Some("html"),
+            _ => None,
+        });
+    let explicit_color_profile = match target_scope
+        .cemt_color_profile
+        .as_deref()
+        .map(str::trim)
+        .filter(|profile| !profile.is_empty())
+    {
+        Some(profile @ ("terminal" | "html" | "md")) => Some(profile),
+        Some("none") | None => None,
+        Some(profile) => {
+            return xml_output_pipeline_failed(
+                diagnostic_uri,
+                format!(
+                    "unsupported XML color profile `{profile}`; supported profiles are terminal, html, md, and none"
+                ),
+            )
+        }
+    };
+    if let (Some(explicit), Some(inferred)) = (explicit_color_profile, inferred_color_profile) {
+        if explicit != inferred {
+            return xml_output_pipeline_failed(
+                diagnostic_uri,
+                format!(
+                    "XML color profile `{explicit}` conflicts with output color type `{}`; use `{inferred}` or omit `--cemt-color-profile`",
+                    output_color_selection
+                        .as_ref()
+                        .map(|selection| selection.output_color_type.as_str())
+                        .unwrap_or_default()
+                ),
+            );
+        }
+    }
+    let color_profile = explicit_color_profile.or(inferred_color_profile);
+    let line_ending_mode = match target_scope.cemt_formatter_options.get("lineEnding") {
+        Some(value) => match parse_formatter_line_ending_option("lineEnding", value) {
+            Ok(mode) => Some(mode),
+            Err(message) => return xml_output_pipeline_failed(diagnostic_uri, message),
+        },
+        None => None,
+    };
+    for key in target_scope.cemt_formatter_options.keys() {
+        if key.starts_with("xml.") {
+            return xml_output_pipeline_failed(
+                diagnostic_uri,
+                format!("unsupported XML formatter option `{key}`"),
+            );
+        }
+    }
+    let line_ending =
+        resolve_formatter_line_ending(document.source_line_ending(), line_ending_mode);
+    let document_subject = document.into_cemt_subject();
+    let mut pipeline = direct_xml_output_pipeline();
+    pipeline.cemt_target =
+        TransformTemplateEncodingTarget::new(XML_CONTENT_TYPE, XML_SCHEMA_URI, "xml-document");
+    pipeline.cemt_options.formatter = Some(formatter_name.to_owned());
+    pipeline.cemt_options.formatter_profile = Some(formatter_profile.to_owned());
+    pipeline.cemt_options.colorizer =
+        color_profile.map(|_| XML_COLOR_CEMT_STAGE_SPEC.function_name.to_owned());
+    pipeline.cemt_options.color_profile = Some(color_profile.unwrap_or("none").to_owned());
+    pipeline.cemt_options.formatter_options = target_scope.cemt_formatter_options.clone();
+    pipeline.cemt_options.line_ending = line_ending;
+    pipeline.cemt_options.canonical = formatter_profile == "compact";
+    pipeline.cemt_insertion_context =
+        TransformTemplateEncodedArtifactInsertionContext::from_encoding_target(
+            &pipeline.cemt_target,
+            Some(TransformTemplateOutputProducedKind::CemTree),
+        );
+    pipeline.cemt_insertion_context.formatter_profile = Some(formatter_profile.to_owned());
+    pipeline.cemt_insertion_context.color_profile = color_profile.map(str::to_owned);
+    pipeline.cemt_insertion_context.mode = Some(TransformTemplateEncodedArtifactMode::Document);
+    pipeline.cemt_insertion_context.canonical = Some(formatter_profile == "compact");
+    pipeline.cemt_insertion_context.source_map_policy =
+        Some(TransformTemplateSourceMapPolicy::Generated);
+    pipeline.writer_insertion_context.formatter_profile = Some(formatter_profile.to_owned());
+    pipeline.writer_insertion_context.color_profile = color_profile.map(str::to_owned);
+    pipeline.writer_insertion_context.output_color_type = output_color_selection
+        .as_ref()
+        .map(|selection| selection.output_color_type.clone());
+    if output_color_selection
+        .as_ref()
+        .is_some_and(|selection| selection.target.category == "terminal-color")
+    {
+        pipeline.writer_insertion_context.color_capability = output_color_selection
+            .as_ref()
+            .map(|selection| selection.output_color_type.clone());
+    }
+
+    let local_artifact_cache = ConversionOutputPipelineArtifactCache::default();
+    let cached_environment = if environment.artifact_cache.is_some() {
+        *environment
+    } else {
+        ConversionOutputPipelineEnvironment {
+            schema_registry: environment.schema_registry,
+            conversion_registry: environment.conversion_registry,
+            package_artifact_reader: environment.package_artifact_reader,
+            artifact_cache: Some(&local_artifact_cache),
+        }
+    };
+    let environment = &cached_environment;
+    let format_options = pipeline.cemt_options.clone();
+    let (format_stage, format_binding) = match resolve_cemt_output_stage_binding(
+        environment,
+        "XML",
+        XML_FORMAT_CEMT_STAGE_SPEC,
+        &pipeline.cemt_target,
+        Some(formatter_profile),
+        Some(formatter_name),
+        &document_subject,
+        "xml-document",
+        format_options,
+    ) {
+        Ok(resolved) => resolved,
+        Err(message) => return xml_output_pipeline_failed(diagnostic_uri, message),
+    };
+    let resolved_formatter_profile = format_binding
+        .identity
+        .formatter_profile
+        .clone()
+        .unwrap_or_else(|| formatter_profile.to_owned());
+    pipeline.cemt_options.formatter_profile = Some(resolved_formatter_profile.clone());
+    pipeline.cemt_insertion_context.formatter_profile = Some(resolved_formatter_profile.clone());
+    pipeline.writer_insertion_context.formatter_profile = Some(resolved_formatter_profile);
+    let format_started = Instant::now();
+    let format_result = execute_conversion_cem_tree_output_stage(
+        environment,
+        format_stage,
+        &format_binding,
+        &document_subject,
+    );
+    let format_elapsed_ns = Some(format_started.elapsed().as_nanos());
+    let (formatted_output, format_execution) = match format_result {
+        Ok(output) => output,
+        Err(message) => {
+            return xml_output_pipeline_failed_with_timings(
+                diagnostic_uri,
+                format!(
+                    "CEMT formatter `{}` failed: {message}",
+                    format_binding.function.name
+                ),
+                format_elapsed_ns,
+            )
+        }
+    };
+    let formatted_artifact = format_binding.artifact_from_value(formatted_output);
+    if let Err(error) = formatted_artifact
+        .validate_insertion(&conversion_cem_tree_format_insertion_context(&pipeline))
+    {
+        return xml_output_pipeline_failed_with_timings(
+            diagnostic_uri,
+            error.diagnostic(diagnostic_uri).message,
+            format_elapsed_ns,
+        );
+    }
+    execute_conversion_output_pipeline_from_formatted_artifact(
+        environment,
+        &pipeline,
+        formatted_artifact,
+        Some(format_execution),
+        format_elapsed_ns,
+        Vec::new(),
+        "xml-direct-output",
+        Some("xml"),
+        diagnostic_uri,
+    )
+}
+
+fn xml_output_pipeline_failed(
+    diagnostic_uri: Option<&str>,
+    message: String,
+) -> ConversionOutputPipelineExecution {
+    xml_output_pipeline_failed_with_timings(diagnostic_uri, message, None)
+}
+
+fn xml_output_pipeline_failed_with_timings(
+    diagnostic_uri: Option<&str>,
+    message: String,
+    format_elapsed_ns: Option<u128>,
+) -> ConversionOutputPipelineExecution {
+    failed_pipeline_execution(
+        "xml-direct-output",
+        Some("xml"),
+        diagnostic_uri,
+        message,
+        format_elapsed_ns,
+        None,
+        None,
     )
 }
 
@@ -17864,6 +18167,147 @@ mod tests {
             .is_some_and(|source| source.source.contains("{body |")),
             "JSON Schema colorizer asset must be embedded with an executable body"
         );
+    }
+
+    #[test]
+    fn builtin_xml_lifecycle_output_pipeline_executes_package_cemt_assets() {
+        let schema_registry = SchemaRegistry::with_builtin_schemas();
+        let conversion_registry = ConversionRegistry::with_builtin_converters();
+        let environment = ConversionOutputPipelineEnvironment {
+            schema_registry: &schema_registry,
+            conversion_registry: &conversion_registry,
+            package_artifact_reader: None,
+            artifact_cache: None,
+        };
+        let source = br#"<?xml version="1.0" encoding="UTF-8"?>
+<catalog xmlns:meta="urn:meta"><meta:item id="a1"><![CDATA[Alpha]]></meta:item><!-- done --></catalog>
+"#;
+        let (document, diagnostics) = crate::validation::xml::xml_document_ast_from_source_bytes(
+            crate::validation::xml::XmlSourceValidationRequest {
+                bytes: source,
+                source_uri: "builtin:xml-output",
+                content_type: Some(XML_CONTENT_TYPE),
+            },
+        );
+        assert!(diagnostics.is_empty(), "{diagnostics:?}");
+
+        for (profile, artifact_profile, layout) in [
+            ("compact", "compact", "lexical-lossless-compact"),
+            ("pretty", "xml.pretty", "lexical-lossless-pretty"),
+            ("tabular", "tabular", "lexical-lossless-tabular"),
+        ] {
+            let target_scope = ScopeConfig {
+                cemt_formatter_profile: Some(profile.to_owned()),
+                ..ScopeConfig::default()
+            };
+            let execution = execute_xml_document_output_pipeline_with_environment(
+                &environment,
+                document.clone().expect("XML document"),
+                &target_scope,
+                Some("builtin:xml-output"),
+            );
+
+            assert!(
+                execution.diagnostics.is_empty(),
+                "{profile}: {:?}",
+                execution.diagnostics
+            );
+            assert!(
+                matches!(
+                    execution.format_execution,
+                    Some(ConversionOutputPipelineStageExecution::CemtAdapter {
+                        ref adapter_id,
+                        ref function_name,
+                        ref body_function_name,
+                        ..
+                    }) if adapter_id == "xml-format-cemt"
+                        && function_name == "xml.format-document"
+                        && body_function_name.as_deref() == Some("xml.format-document")
+                ),
+                "{profile}: {:?}",
+                execution.format_execution
+            );
+            assert_eq!(
+                execution.output.as_ref().and_then(Value::as_str),
+                Some(std::str::from_utf8(source).unwrap()),
+                "{profile}"
+            );
+            let formatted = execution
+                .formatted_cem_tree
+                .as_ref()
+                .unwrap_or_else(|| panic!("{profile} formatted tree"));
+            assert_eq!(formatted.value["contentType"], XML_CONTENT_TYPE);
+            assert_eq!(formatted.value["schema"], XML_SCHEMA_URI);
+            assert_eq!(formatted.value["category"], "xml-document");
+            assert_eq!(formatted.value["formatterProfile"], artifact_profile);
+            assert_eq!(formatted.value["formatNodes"][1]["value"]["layout"], layout);
+            assert!(formatted.value["nodes"]
+                .as_array()
+                .is_some_and(|nodes| nodes.iter().any(|node| {
+                    node["kind"] == "xml.cdata" && node["sourceMap"] != Value::Null
+                })));
+        }
+    }
+
+    #[test]
+    fn builtin_xml_colorizer_profiles_execute_package_cemt_assets() {
+        let schema_registry = SchemaRegistry::with_builtin_schemas();
+        let conversion_registry = ConversionRegistry::with_builtin_converters();
+        let environment = ConversionOutputPipelineEnvironment {
+            schema_registry: &schema_registry,
+            conversion_registry: &conversion_registry,
+            package_artifact_reader: None,
+            artifact_cache: None,
+        };
+        let (document, diagnostics) = crate::validation::xml::xml_document_ast_from_source_bytes(
+            crate::validation::xml::XmlSourceValidationRequest {
+                bytes: b"<root>value</root>\n",
+                source_uri: "builtin:xml-color-output",
+                content_type: Some(XML_CONTENT_TYPE),
+            },
+        );
+        assert!(diagnostics.is_empty(), "{diagnostics:?}");
+
+        for (profile, style_key, style_value) in [
+            ("terminal", "terminalCapability", "auto"),
+            ("html", "htmlMode", "classes"),
+            ("md", "wrapper", "span"),
+        ] {
+            let target_scope = ScopeConfig {
+                cemt_color_profile: Some(profile.to_owned()),
+                ..ScopeConfig::default()
+            };
+            let execution = execute_xml_document_output_pipeline_with_environment(
+                &environment,
+                document.clone().expect("XML document"),
+                &target_scope,
+                Some("builtin:xml-color-output"),
+            );
+            assert!(
+                execution.diagnostics.is_empty(),
+                "{profile}: {:?}",
+                execution.diagnostics
+            );
+            assert!(
+                matches!(
+                    execution.color_execution,
+                    Some(ConversionOutputPipelineStageExecution::CemtAdapter {
+                        ref function_name,
+                        ref body_function_name,
+                        ..
+                    }) if function_name == "xml.color-document"
+                        && body_function_name.as_deref() == Some("xml.color-document")
+                ),
+                "{profile}: {:?}",
+                execution.color_execution
+            );
+            let colored = execution
+                .colored_cem_tree
+                .as_ref()
+                .unwrap_or_else(|| panic!("{profile} colored tree"));
+            assert_eq!(colored.value["colorProfile"], profile);
+            assert_eq!(colored.value["nodes"][2]["style"][style_key], style_value);
+        }
     }
 
     #[test]

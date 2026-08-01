@@ -595,7 +595,30 @@ Remaining dependency-ordered package checklist:
         `examples/previews/*.svg` for `markdown/v1`.
   - [x] Add regression coverage for GFM Markdown table and task-list
         conversion through the typed Markdown AST stream into HTML output.
-- [ ] `xml/v1`
+- [x] `xml/v1`
+  - [x] Move generic XML source validation into an engine-reachable typed XML
+        lifecycle AST stream with source ranges, neutral parser facts, and
+        schema-owned diagnostic bindings for parse, encoding, namespace,
+        duplicate-attribute, DTD, external-entity, and source-map conditions.
+  - [x] Move XML formatter/colorizer CEMT assets from placeholder
+        `json`/`tokens` contracts to package-owned XML document and
+        formatted/colored CEM-tree boundaries with compact, pretty, tabular,
+        terminal, HTML, and Markdown profile coverage.
+  - [x] Route same-schema XML conversion through the typed XML lifecycle AST
+        and package output pipeline without CEM/HTML parser fallthrough, while
+        preserving declarations, namespaces, comments, CDATA, processing
+        instructions, source maps, and the default final newline.
+  - [x] Expand `cem_ml_schema_package_xml_v1:verify` so it runs manifest
+        validation, manifest-index coverage, schema-owned CLI example
+        validation, lifecycle adapter/export tests, formatter/colorizer tests,
+        and README/SVG preview drift checks.
+  - [x] Route syntax-valid XML README previews through package formatter and
+        colorizer output, render expected-fail examples from schema-owned
+        validation diagnostics, and remove source-snapshot fallback.
+  - [x] Expand the XML README for standards/registry mapping, source identity,
+        parser facts and diagnostic ownership, formatter/colorizer profiles,
+        resolver and entity safety, verification gates, release behavior, and
+        tracked incomplete work.
 - [ ] `relax-ng/v1`
 - [ ] `xhtml/v1`
 - [ ] `svg/v1`
@@ -612,9 +635,9 @@ Remaining dependency-ordered package checklist:
 
 ### Deferred: Other Format Polish
 
-- [ ] Keep JSON, YAML, XML, HTML, CSS, Markdown, SVG, MathML, XSLT, Relax NG,
-      and projection-package formatter/colorizer work behind the
-      schema-package folder alignment gate.
+- [ ] Keep Relax NG, XHTML, SVG, MathML, XSLT, HTML, and CSS
+      formatter/colorizer work behind the schema-package folder alignment
+      gate.
 
 ### Deferred: Phase 3 Custom-Element Runtime
 
@@ -634,11 +657,29 @@ Remaining dependency-ordered package checklist:
 
 ### Next Work Item
 
-Move or prove the remaining CLI-owned source validation collectors for
-Markdown, CSS, HTML, XML, SVG, MathML, Relax NG, XSLT, CEM-QL, and
-native-template. Start with HTML/XML-family validators, because matching
-library validators already exist and can be routed behind lifecycle adapters
-before tackling Markdown, CSS, CEM-QL, and native-template.
+Align `relax-ng/v1` with the common schema-package acceptance criteria. The
+package owns both XML syntax (`.rng`) and compact syntax (`.rnc`), so begin by
+locking a typed `RelaxNgDocumentAst` contract with an explicit syntax kind and
+source ranges. Preserve the input syntax by default for same-schema output;
+use separate typed formatter boundaries for XML and compact syntax instead of
+coercing both through the existing placeholder `json`/`tokens` artifact.
+
+Move the current direct RELAX NG validators behind a dedicated lifecycle
+adapter. Reuse the generic typed XML event model for `.rng` parsing, add a
+typed compact-syntax parser/report for `.rnc`, emit neutral parse and semantic
+facts for namespace/root/start/pattern/include/external-reference/encoding
+conditions, and bind those facts to diagnostics in `schema/relax-ng.cem`.
+Validation and conversion must not fall through to CEM parsing or the generic
+XML output contract.
+
+Then add executable compact/pretty/tabular and terminal/HTML/Markdown CEMT
+profiles for both syntax kinds, retain the default final newline, route passing
+README examples through those package assets, render expected-fail examples
+from schema-owned diagnostics, and remove source-snapshot fallback. Finish by
+expanding `cem_ml_schema_package_relax_ng_v1:verify`, README safety/release
+documentation, manifest-index and CLI example coverage, same-schema lifecycle
+conversion tests, resolver rejection tests for include/external references,
+and package-local preview drift checks.
 
 ## Current Verification Commands
 
