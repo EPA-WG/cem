@@ -3,16 +3,197 @@
 @default transform
 
 {module @version="1.0.0" |
-    {format-function
-        @name="relax-ng.format-schema"
-        @category="relax-ng-schema"
-        @subject="json"
-        @produces="tokens"
-        @content-type="application/relax-ng+xml"
-        @schema="https://cem.dev/ns/data/relax-ng/1"
-        @canonical=true
-        @deterministic=true
-        @streamable=true |
-        {param @name="subject" @type="json" @required=true}
+    {function @name="relax-ng.format-xml-document.tree" @visibility="private" @returns="object" @deterministic=true |
+        {param @name="subject" @type="object" @required=true}
+        {param @name="profile" @type="string" @required=true}
+        {body |
+            {$ call("relax-ng.format-document.tree", {
+                subject: $subject,
+                profile: $profile,
+                syntaxKind: "xml",
+                contentType: "application/relax-ng+xml",
+                category: "relax-ng-xml-document",
+                events: match(typeOf($subject.xmlEvents), { array: $subject.xmlEvents, default: [] })
+            }) }
+        }
+    }
+
+    {function @name="relax-ng.format-compact-document.tree" @visibility="private" @returns="object" @deterministic=true |
+        {param @name="subject" @type="object" @required=true}
+        {param @name="profile" @type="string" @required=true}
+        {body |
+            {$ call("relax-ng.format-document.tree", {
+                subject: $subject,
+                profile: $profile,
+                syntaxKind: "compact",
+                contentType: "application/relax-ng-compact-syntax",
+                category: "relax-ng-compact-document",
+                events: match(typeOf($subject.compactTokens), { array: $subject.compactTokens, default: [] })
+            }) }
+        }
+    }
+
+    {function @name="relax-ng.format-document.tree" @visibility="private" @returns="object" @deterministic=true |
+        {param @name="subject" @type="object" @required=true}
+        {param @name="profile" @type="string" @required=true}
+        {param @name="syntaxKind" @type="string" @required=true}
+        {param @name="contentType" @type="string" @required=true}
+        {param @name="category" @type="string" @required=true}
+        {param @name="events" @type="array" @required=true}
+        {body |
+            {$ {
+                kind: "cem-tree",
+                contentType: $contentType,
+                schema: "https://cem.dev/ns/data/relax-ng/1",
+                category: $category,
+                syntaxKind: $syntaxKind,
+                formatterProfile: $profile,
+                formatNodes: [
+                    {
+                        kind: "format-marker",
+                        name: concat("relax-ng.format-", concat($syntaxKind, "-document")),
+                        formatterRole: "formatter.boundary",
+                        formatterProfile: $profile
+                    },
+                    {
+                        kind: "format-decision",
+                        name: "relax-ng.lexical-layout",
+                        formatterRole: "formatter.layout",
+                        formatterProfile: $profile,
+                        value: {
+                            layout: concat("lexical-lossless-", $profile),
+                            syntaxKind: $syntaxKind,
+                            lineEnding: $lineEnding,
+                            indent: $indent,
+                            tabSize: $tabSize,
+                            sourceBoundary: $category
+                        }
+                    }
+                ],
+                nodes: extend(
+                    [
+                        call("relax-ng.format-document.token", {
+                            kind: "relax-ng.format-marker",
+                            text: "",
+                            role: "formatter.boundary",
+                            sourceMap: null,
+                            value: { syntaxKind: $syntaxKind, formatterProfile: $profile }
+                        }),
+                        call("relax-ng.format-document.token", {
+                            kind: "relax-ng.format-decision",
+                            text: "",
+                            role: "formatter.layout",
+                            sourceMap: null,
+                            value: {
+                                syntaxKind: $syntaxKind,
+                                formatterProfile: $profile,
+                                layout: concat("lexical-lossless-", $profile),
+                                lineEnding: $lineEnding,
+                                indent: $indent,
+                                tabSize: $tabSize
+                            }
+                        })
+                    ],
+                    call("relax-ng.format-document.events", {
+                        events: $events,
+                        syntaxKind: $syntaxKind,
+                        profile: $profile
+                    })
+                )
+            } }
+        }
+    }
+
+    {function @name="relax-ng.format-document.events" @visibility="private" @returns="array" @deterministic=true |
+        {param @name="events" @type="array" @required=true}
+        {param @name="syntaxKind" @type="string" @required=true}
+        {param @name="profile" @type="string" @required=true}
+        {body |
+            {$ fold($events, [], extend(
+                $acc,
+                [call("relax-ng.format-document.event", {
+                    event: $item,
+                    syntaxKind: $syntaxKind,
+                    profile: $profile
+                })]
+            )) }
+        }
+    }
+
+    {function @name="relax-ng.format-document.event" @visibility="private" @returns="object" @deterministic=true |
+        {param @name="event" @type="object" @required=true}
+        {param @name="syntaxKind" @type="string" @required=true}
+        {param @name="profile" @type="string" @required=true}
+        {body |
+            {$ call("relax-ng.format-document.token", {
+                kind: concat("relax-ng.", concat($syntaxKind, concat(".", match(typeOf($event.kind), { string: $event.kind, default: "raw" })))),
+                text: match($syntaxKind, {
+                    compact: match(typeOf($event.lexeme), { string: $event.lexeme, default: "" }),
+                    default: match(typeOf($event.lexeme), { string: $event.lexeme, default: "" })
+                }),
+                role: call("relax-ng.format-document.role", { event: $event, syntaxKind: $syntaxKind }),
+                sourceMap: match(exists($event.sourceMap), { true: $event.sourceMap, false: null }),
+                value: {
+                    syntaxKind: $syntaxKind,
+                    formatterProfile: $profile,
+                    eventKind: match(typeOf($event.kind), { string: $event.kind, default: "raw" }),
+                    depth: match(typeOf($event.depth), { integer: $event.depth, default: 0 }),
+                    sourceRange: match(exists($event.sourceRange), { true: $event.sourceRange, false: null })
+                }
+            }) }
+        }
+    }
+
+    {function @name="relax-ng.format-document.role" @visibility="private" @returns="string" @deterministic=true |
+        {param @name="event" @type="object" @required=true}
+        {param @name="syntaxKind" @type="string" @required=true}
+        {body |
+            {$ match($syntaxKind, {
+                compact: match(typeOf($event.role), { string: $event.role, default: "syntax.raw" }),
+                default: match($event.kind, {
+                    declaration: "syntax.keyword",
+                    "start-element": "syntax.name",
+                    "empty-element": "syntax.name",
+                    "end-element": "syntax.name",
+                    text: "syntax.text",
+                    cdata: "syntax.string",
+                    comment: "syntax.comment",
+                    "processing-instruction": "syntax.keyword",
+                    doctype: "syntax.keyword",
+                    "entity-reference": "syntax.string",
+                    default: "syntax.raw"
+                })
+            }) }
+        }
+    }
+
+    {function @name="relax-ng.format-document.token" @visibility="private" @returns="object" @deterministic=true |
+        {param @name="kind" @type="string" @required=true}
+        {param @name="text" @type="string" @required=true}
+        {param @name="role" @type="string" @required=true}
+        {param @name="sourceMap" @type="any" @required=true @nullable=true}
+        {param @name="value" @type="object" @required=true}
+        {body |
+            {$ {
+                kind: $kind,
+                writerKind: "token",
+                text: $text,
+                role: $role,
+                style: { colorRole: $role },
+                sourceMap: $sourceMap,
+                outputSpan: call("relax-ng.format-document.output-span", { sourceMap: $sourceMap }),
+                value: $value
+            } }
+        }
+    }
+
+    {function @name="relax-ng.format-document.output-span" @visibility="private" @returns="any" @nullable=true @deterministic=true |
+        {param @name="sourceMap" @type="any" @required=true @nullable=true}
+        {body |
+            {$ match(typeOf($sourceMap), {
+                null: null,
+                default: { outputRange: { start: 0, len: 0 }, origin: $sourceMap }
+            }) }
+        }
     }
 }

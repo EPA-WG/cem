@@ -57,19 +57,27 @@
     }
 
     {constraints |
-        {constraint @kind="relax-ng-xml-syntax" @target="xml-syntax" @policy="application/relax-ng+xml resources parse as XML and use the RELAX NG structure namespace"}
-        {constraint @kind="relax-ng-compact-syntax" @target="compact-syntax" @policy="application/relax-ng-compact-syntax resources parse as RELAX NG compact syntax text"}
-        {constraint @kind="grammar-start-required" @target="xml-syntax" @policy="grammar resources should declare a start pattern"}
-        {constraint @kind="pattern-name-required" @target="pattern" @policy="element, attribute, define, ref, parentRef, include, and externalRef patterns require the corresponding name or href metadata"}
-        {constraint @kind="external-reference-policy" @target="external-ref" @policy="reject external schema references unless an explicit resolver policy enables them"}
-        {constraint @kind="include-policy" @target="include" @policy="reject schema includes unless an explicit resolver policy enables them"}
-        {constraint @kind="source-map-preferred" @target="schema-resource" @policy="required when parser exposes source ranges"}
+        {constraint @kind="relax-ng-xml-parse-report" @target="xml-syntax" @behavior="relax-ng-report-fact" @fact-kind="xml-parse-error" @diagnostic="cem.relax_ng.xml_parse_error" @policy="application/relax-ng+xml resources parse through the typed XML event model"}
+        {constraint @kind="relax-ng-compact-parse-report" @target="compact-syntax" @behavior="relax-ng-report-fact" @fact-kind="compact-parse-error" @diagnostic="cem.relax_ng.compact_parse_error" @policy="application/relax-ng-compact-syntax resources parse as typed RELAX NG compact tokens"}
+        {constraint @kind="relax-ng-encoding" @target="schema-resource" @behavior="relax-ng-report-fact" @fact-kind="unsupported-encoding" @diagnostic="cem.relax_ng.unsupported_encoding" @policy="the source adapter accepts UTF-8 and US-ASCII declarations only"}
+        {constraint @kind="relax-ng-encoding-conflict" @target="schema-resource" @behavior="relax-ng-report-fact" @fact-kind="encoding-conflict" @diagnostic="cem.relax_ng.encoding_conflict" @policy="MIME charset and XML declaration encoding must not conflict"}
+        {constraint @kind="relax-ng-xml-namespace" @target="xml-syntax" @behavior="relax-ng-report-fact" @fact-kind="invalid-namespace" @diagnostic="cem.relax_ng.invalid_namespace" @policy="XML syntax uses the RELAX NG structure namespace"}
+        {constraint @kind="relax-ng-xml-root" @target="xml-syntax" @behavior="relax-ng-report-fact" @fact-kind="invalid-root" @diagnostic="cem.relax_ng.invalid_root" @policy="XML syntax uses grammar as its document element"}
+        {constraint @kind="relax-ng-known-pattern" @target="pattern" @behavior="relax-ng-report-fact" @fact-kind="unknown-element" @diagnostic="cem.relax_ng.unknown_element" @policy="RELAX NG namespace elements must belong to the structure vocabulary"}
+        {constraint @kind="pattern-required-attribute" @target="pattern" @behavior="relax-ng-report-fact" @fact-kind="missing-required-attribute" @diagnostic="cem.relax_ng.missing_required_attribute" @policy="define, ref, parentRef, param, data, include, and externalRef patterns require their corresponding name, type, or href metadata"}
+        {constraint @kind="grammar-start-required" @target="schema-resource" @behavior="relax-ng-report-fact" @fact-kind="missing-start" @diagnostic="cem.relax_ng.missing_start" @policy="grammar resources declare a start pattern"}
+        {constraint @kind="external-reference-policy" @target="external-ref" @behavior="relax-ng-report-fact" @fact-kind="external-reference-rejected" @diagnostic="cem.relax_ng.external_ref_rejected" @policy="reject external schema references unless an explicit resolver policy enables them"}
+        {constraint @kind="include-policy" @target="include" @behavior="relax-ng-report-fact" @fact-kind="include-rejected" @diagnostic="cem.relax_ng.include_rejected" @policy="reject schema includes unless an explicit resolver policy enables them"}
+        {constraint @kind="source-map-required" @target="schema-resource" @behavior="relax-ng-report-fact" @fact-kind="source-map-unavailable" @diagnostic="cem.relax_ng.source_map_unavailable" @policy="typed syntax nodes expose source ranges and source-map stacks"}
     }
 
     {diagnostics |
         {diagnostic @code="cem.relax_ng.xml_parse_error" @severity="error"}
         {diagnostic @code="cem.relax_ng.compact_parse_error" @severity="error"}
         {diagnostic @code="cem.relax_ng.unsupported_encoding" @severity="error"}
+        {diagnostic @code="cem.relax_ng.encoding_conflict" @severity="warning"}
+        {diagnostic @code="cem.relax_ng.invalid_namespace" @severity="error"}
+        {diagnostic @code="cem.relax_ng.invalid_root" @severity="error"}
         {diagnostic @code="cem.relax_ng.unknown_element" @severity="error"}
         {diagnostic @code="cem.relax_ng.missing_required_attribute" @severity="error"}
         {diagnostic @code="cem.relax_ng.missing_start" @severity="error"}

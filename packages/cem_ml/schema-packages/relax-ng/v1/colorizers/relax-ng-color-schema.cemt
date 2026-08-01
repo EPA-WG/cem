@@ -3,16 +3,126 @@
 @default transform
 
 {module @version="1.0.0" |
-    {color-function
-        @name="relax-ng.color-schema"
-        @category="relax-ng-schema"
-        @subject="tokens"
-        @produces="tokens"
-        @content-type="application/relax-ng+xml"
-        @schema="https://cem.dev/ns/data/relax-ng/1"
-        @canonical=false
-        @deterministic=true
-        @streamable=true |
-        {param @name="subject" @type="array" @required=true}
+    {function @name="relax-ng.color-xml-document.tree" @visibility="private" @returns="object" @deterministic=true |
+        {param @name="subject" @type="object" @required=true}
+        {param @name="profile" @type="string" @required=true}
+        {param @name="output" @type="string" @required=true}
+        {body | {$ call("relax-ng.color-document.tree", { subject: $subject, profile: $profile, output: $output, syntaxKind: "xml" }) } }
+    }
+
+    {function @name="relax-ng.color-compact-document.tree" @visibility="private" @returns="object" @deterministic=true |
+        {param @name="subject" @type="object" @required=true}
+        {param @name="profile" @type="string" @required=true}
+        {param @name="output" @type="string" @required=true}
+        {body | {$ call("relax-ng.color-document.tree", { subject: $subject, profile: $profile, output: $output, syntaxKind: "compact" }) } }
+    }
+
+    {function @name="relax-ng.color-document.tree" @visibility="private" @returns="object" @deterministic=true |
+        {param @name="subject" @type="object" @required=true}
+        {param @name="profile" @type="string" @required=true}
+        {param @name="output" @type="string" @required=true}
+        {param @name="syntaxKind" @type="string" @required=true}
+        {body |
+            {$ merge($subject, {
+                syntaxKind: $syntaxKind,
+                colorProfile: $profile,
+                colorOutput: $output,
+                colored: true,
+                colorNodes: [
+                    {
+                        kind: "color-marker",
+                        name: concat("relax-ng.color-", concat($syntaxKind, "-document")),
+                        colorizerRole: "colorizer.boundary",
+                        colorProfile: $profile,
+                        colorOutput: $output
+                    },
+                    {
+                        kind: "color-decision",
+                        name: "relax-ng.role-palette",
+                        colorizerRole: "colorizer.role",
+                        colorProfile: $profile,
+                        colorOutput: $output
+                    }
+                ],
+                nodes: map(
+                    match(exists($subject.nodes), { true: $subject.nodes, false: [] }),
+                    call("relax-ng.color-document.token", {
+                        token: $item,
+                        profile: $profile,
+                        output: $output
+                    })
+                )
+            }) }
+        }
+    }
+
+    {function @name="relax-ng.color-document.token" @visibility="private" @returns="object" @deterministic=true |
+        {param @name="token" @type="object" @required=true}
+        {param @name="profile" @type="string" @required=true}
+        {param @name="output" @type="string" @required=true}
+        {body |
+            {$ merge(
+                set($token, "value", merge(
+                    match(typeOf($token.value), { object: $token.value, default: {} }),
+                    {
+                        colorProfile: $profile,
+                        colorRole: call("relax-ng.color-document.role", { token: $token }),
+                        colorOutput: $output
+                    }
+                )),
+                {
+                    style: call("relax-ng.color-document.style", {
+                        profile: $profile,
+                        role: call("relax-ng.color-document.role", { token: $token }),
+                        output: $output
+                    })
+                }
+            ) }
+        }
+    }
+
+    {function @name="relax-ng.color-document.role" @visibility="private" @returns="string" @deterministic=true |
+        {param @name="token" @type="object" @required=true}
+        {body |
+            {$ match(typeOf($token.role), {
+                string: $token.role,
+                default: match(typeOf($token.style.colorRole), {
+                    string: $token.style.colorRole,
+                    default: "syntax.raw"
+                })
+            }) }
+        }
+    }
+
+    {function @name="relax-ng.color-document.style" @visibility="private" @returns="object" @deterministic=true |
+        {param @name="profile" @type="string" @required=true}
+        {param @name="role" @type="string" @required=true}
+        {param @name="output" @type="string" @required=true}
+        {body |
+            {$ match($profile, {
+                html: {
+                    colorRole: $role,
+                    colorProfile: $profile,
+                    colorOutput: $output,
+                    htmlMode: "classes",
+                    class: concat("cem-color cem-color-", replace($role, ".", "-")),
+                    color: concat("var(--cem-color-", concat(replace($role, ".", "-"), ")"))
+                },
+                md: {
+                    colorRole: $role,
+                    colorProfile: $profile,
+                    colorOutput: $output,
+                    wrapper: "span",
+                    class: concat("cem-color cem-color-", replace($role, ".", "-"))
+                },
+                default: {
+                    colorRole: $role,
+                    colorProfile: $profile,
+                    colorOutput: $output,
+                    terminalCapability: "auto",
+                    color: concat("terminal.", $role)
+                }
+            }) }
+        }
     }
 }

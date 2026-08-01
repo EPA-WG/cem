@@ -33,7 +33,7 @@ use crate::schema::registry::{
     CEM_TRANSFORM_CONTENT_TYPE, CEM_TRANSFORM_SCHEMA_URI, CSV_CONTENT_TYPE, CSV_SCHEMA_URI,
     HTML_CONTENT_TYPE, HTML_SCHEMA_URI, JSON_CONTENT_TYPE, JSON_SCHEMA_CONTENT_TYPE,
     JSON_SCHEMA_SCHEMA_URI, JSON_VALUE_SCHEMA_URI, MARKDOWN_CONTENT_TYPE, MARKDOWN_SCHEMA_URI,
-    XML_CONTENT_TYPE, XML_SCHEMA_URI, YAML_CONTENT_TYPE, YAML_SCHEMA_URI,
+    RELAX_NG_SCHEMA_URI, XML_CONTENT_TYPE, XML_SCHEMA_URI, YAML_CONTENT_TYPE, YAML_SCHEMA_URI,
 };
 use crate::source::{BytesSource, SourceId};
 use crate::source_map::SourceMapStack;
@@ -73,6 +73,7 @@ use crate::validation::generic_data::GenericDataDocumentAst;
 use crate::validation::json::{generic_data_ast_to_json_cemt_subject, JsonDocumentAst};
 use crate::validation::json_schema::JsonSchemaDocumentAst;
 use crate::validation::markdown::MarkdownDocumentAst;
+use crate::validation::relax_ng::{RelaxNgDocumentAst, RelaxNgSyntaxKind};
 use crate::validation::xml::XmlDocumentAst;
 use crate::validation::yaml::{generic_data_ast_to_yaml_cemt_subject, YamlDocumentAst};
 use serde_json::Value;
@@ -2372,6 +2373,45 @@ const XML_COLOR_CEMT_STAGE_SPEC: CemTreeCemtOutputStageSpec = CemTreeCemtOutputS
     function_name: "xml.color-document",
     role: "colorizer",
 };
+
+const RELAX_NG_XML_FORMAT_CEMT_STAGE_SPEC: CemTreeCemtOutputStageSpec =
+    CemTreeCemtOutputStageSpec {
+        adapter_id: "relax-ng-xml-format-cemt",
+        artifact_kind: CEM_TREE_FORMATTER_ARTIFACT_KIND,
+        declaration_element: "{format-function",
+        function_kind: TransformTemplateOutputFunctionKind::Format,
+        function_name: "relax-ng.format-xml-document",
+        role: "formatter",
+    };
+
+const RELAX_NG_XML_COLOR_CEMT_STAGE_SPEC: CemTreeCemtOutputStageSpec = CemTreeCemtOutputStageSpec {
+    adapter_id: "relax-ng-xml-color-cemt",
+    artifact_kind: CEM_TREE_COLORIZER_ARTIFACT_KIND,
+    declaration_element: "{color-function",
+    function_kind: TransformTemplateOutputFunctionKind::Color,
+    function_name: "relax-ng.color-xml-document",
+    role: "colorizer",
+};
+
+const RELAX_NG_COMPACT_FORMAT_CEMT_STAGE_SPEC: CemTreeCemtOutputStageSpec =
+    CemTreeCemtOutputStageSpec {
+        adapter_id: "relax-ng-compact-format-cemt",
+        artifact_kind: CEM_TREE_FORMATTER_ARTIFACT_KIND,
+        declaration_element: "{format-function",
+        function_kind: TransformTemplateOutputFunctionKind::Format,
+        function_name: "relax-ng.format-compact-document",
+        role: "formatter",
+    };
+
+const RELAX_NG_COMPACT_COLOR_CEMT_STAGE_SPEC: CemTreeCemtOutputStageSpec =
+    CemTreeCemtOutputStageSpec {
+        adapter_id: "relax-ng-compact-color-cemt",
+        artifact_kind: CEM_TREE_COLORIZER_ARTIFACT_KIND,
+        declaration_element: "{color-function",
+        function_kind: TransformTemplateOutputFunctionKind::Color,
+        function_name: "relax-ng.color-compact-document",
+        role: "colorizer",
+    };
 
 #[cfg(test)]
 fn cem_tree_format_cemt_stage(
@@ -6911,6 +6951,277 @@ fn xml_output_pipeline_failed_with_timings(
     )
 }
 
+pub fn execute_relax_ng_document_output_pipeline_with_environment(
+    environment: &ConversionOutputPipelineEnvironment<'_>,
+    document: RelaxNgDocumentAst,
+    target_scope: &ScopeConfig,
+    diagnostic_uri: Option<&str>,
+) -> ConversionOutputPipelineExecution {
+    let syntax_kind = document.syntax_kind;
+    let (formatter_spec, color_spec) = match syntax_kind {
+        RelaxNgSyntaxKind::Xml => (
+            RELAX_NG_XML_FORMAT_CEMT_STAGE_SPEC,
+            RELAX_NG_XML_COLOR_CEMT_STAGE_SPEC,
+        ),
+        RelaxNgSyntaxKind::Compact => (
+            RELAX_NG_COMPACT_FORMAT_CEMT_STAGE_SPEC,
+            RELAX_NG_COMPACT_COLOR_CEMT_STAGE_SPEC,
+        ),
+    };
+    let content_type = syntax_kind.content_type();
+    let category = syntax_kind.category();
+    let syntax_label = syntax_kind.as_str();
+    let formatter_name = target_scope
+        .cemt_formatter
+        .as_deref()
+        .map(str::trim)
+        .filter(|name| !name.is_empty())
+        .unwrap_or(formatter_spec.function_name);
+    if formatter_name != formatter_spec.function_name {
+        return relax_ng_output_pipeline_failed(
+            diagnostic_uri,
+            format!(
+                "unsupported RELAX NG {syntax_label} formatter `{formatter_name}`; this syntax supports `{}`",
+                formatter_spec.function_name
+            ),
+        );
+    }
+    let formatter_profile = target_scope
+        .cemt_formatter_profile
+        .as_deref()
+        .map(str::trim)
+        .filter(|profile| !profile.is_empty())
+        .unwrap_or("compact");
+    if !matches!(formatter_profile, "compact" | "pretty" | "tabular") {
+        return relax_ng_output_pipeline_failed(
+            diagnostic_uri,
+            format!(
+                "unsupported RELAX NG formatter profile `{formatter_profile}`; supported profiles are compact, pretty, and tabular"
+            ),
+        );
+    }
+    if let Some(name) = target_scope
+        .cemt_colorizer
+        .as_deref()
+        .map(str::trim)
+        .filter(|name| !name.is_empty())
+    {
+        if name != color_spec.function_name {
+            return relax_ng_output_pipeline_failed(
+                diagnostic_uri,
+                format!(
+                    "unsupported RELAX NG {syntax_label} colorizer `{name}`; this syntax supports `{}`",
+                    color_spec.function_name
+                ),
+            );
+        }
+    }
+    let output_color_selection = match target_scope
+        .output_color_type
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(parse_transform_template_output_color_type)
+        .transpose()
+    {
+        Ok(selection) => selection,
+        Err(message) => return relax_ng_output_pipeline_failed(diagnostic_uri, message),
+    };
+    let inferred_color_profile = output_color_selection
+        .as_ref()
+        .filter(|selection| selection.output_color_type != "none")
+        .and_then(|selection| match selection.target.category.as_str() {
+            "terminal-color" => Some("terminal"),
+            "html-color" => Some("html"),
+            _ => None,
+        });
+    let explicit_color_profile = match target_scope
+        .cemt_color_profile
+        .as_deref()
+        .map(str::trim)
+        .filter(|profile| !profile.is_empty())
+    {
+        Some(profile @ ("terminal" | "html" | "md")) => Some(profile),
+        Some("none") | None => None,
+        Some(profile) => {
+            return relax_ng_output_pipeline_failed(
+                diagnostic_uri,
+                format!(
+                    "unsupported RELAX NG color profile `{profile}`; supported profiles are terminal, html, md, and none"
+                ),
+            )
+        }
+    };
+    if let (Some(explicit), Some(inferred)) = (explicit_color_profile, inferred_color_profile) {
+        if explicit != inferred {
+            return relax_ng_output_pipeline_failed(
+                diagnostic_uri,
+                format!(
+                    "RELAX NG color profile `{explicit}` conflicts with output color type `{}`; use `{inferred}` or omit `--cemt-color-profile`",
+                    output_color_selection
+                        .as_ref()
+                        .map(|selection| selection.output_color_type.as_str())
+                        .unwrap_or_default()
+                ),
+            );
+        }
+    }
+    let color_profile = explicit_color_profile.or(inferred_color_profile);
+    let line_ending_mode = match target_scope.cemt_formatter_options.get("lineEnding") {
+        Some(value) => match parse_formatter_line_ending_option("lineEnding", value) {
+            Ok(mode) => Some(mode),
+            Err(message) => return relax_ng_output_pipeline_failed(diagnostic_uri, message),
+        },
+        None => None,
+    };
+    for key in target_scope.cemt_formatter_options.keys() {
+        if key.starts_with("relax-ng.") {
+            return relax_ng_output_pipeline_failed(
+                diagnostic_uri,
+                format!("unsupported RELAX NG formatter option `{key}`"),
+            );
+        }
+    }
+    let line_ending =
+        resolve_formatter_line_ending(document.line_ending.as_deref(), line_ending_mode);
+    let document_subject = document.to_cemt_subject();
+    let mut pipeline = direct_xml_output_pipeline();
+    pipeline.cemt_target =
+        TransformTemplateEncodingTarget::new(content_type, RELAX_NG_SCHEMA_URI, category);
+    pipeline.cemt_options.formatter = Some(formatter_name.to_owned());
+    pipeline.cemt_options.formatter_profile = Some(formatter_profile.to_owned());
+    pipeline.cemt_options.colorizer = color_profile.map(|_| color_spec.function_name.to_owned());
+    pipeline.cemt_options.color_profile = Some(color_profile.unwrap_or("none").to_owned());
+    pipeline.cemt_options.formatter_options = target_scope.cemt_formatter_options.clone();
+    pipeline.cemt_options.line_ending = line_ending;
+    pipeline.cemt_options.canonical = formatter_profile == "compact";
+    pipeline.cemt_insertion_context =
+        TransformTemplateEncodedArtifactInsertionContext::from_encoding_target(
+            &pipeline.cemt_target,
+            Some(TransformTemplateOutputProducedKind::CemTree),
+        );
+    pipeline.cemt_insertion_context.formatter_profile = Some(formatter_profile.to_owned());
+    pipeline.cemt_insertion_context.color_profile = color_profile.map(str::to_owned);
+    pipeline.cemt_insertion_context.mode = Some(TransformTemplateEncodedArtifactMode::Document);
+    pipeline.cemt_insertion_context.canonical = Some(formatter_profile == "compact");
+    pipeline.cemt_insertion_context.source_map_policy =
+        Some(TransformTemplateSourceMapPolicy::Generated);
+    pipeline.writer_insertion_context.formatter_profile = Some(formatter_profile.to_owned());
+    pipeline.writer_insertion_context.color_profile = color_profile.map(str::to_owned);
+    pipeline.writer_insertion_context.output_color_type = output_color_selection
+        .as_ref()
+        .map(|selection| selection.output_color_type.clone());
+    if output_color_selection
+        .as_ref()
+        .is_some_and(|selection| selection.target.category == "terminal-color")
+    {
+        pipeline.writer_insertion_context.color_capability = output_color_selection
+            .as_ref()
+            .map(|selection| selection.output_color_type.clone());
+    }
+
+    let local_artifact_cache = ConversionOutputPipelineArtifactCache::default();
+    let cached_environment = if environment.artifact_cache.is_some() {
+        *environment
+    } else {
+        ConversionOutputPipelineEnvironment {
+            schema_registry: environment.schema_registry,
+            conversion_registry: environment.conversion_registry,
+            package_artifact_reader: environment.package_artifact_reader,
+            artifact_cache: Some(&local_artifact_cache),
+        }
+    };
+    let environment = &cached_environment;
+    let format_options = pipeline.cemt_options.clone();
+    let (format_stage, format_binding) = match resolve_cemt_output_stage_binding(
+        environment,
+        "RELAX NG",
+        formatter_spec,
+        &pipeline.cemt_target,
+        Some(formatter_profile),
+        Some(formatter_name),
+        &document_subject,
+        "relax-ng-document",
+        format_options,
+    ) {
+        Ok(resolved) => resolved,
+        Err(message) => return relax_ng_output_pipeline_failed(diagnostic_uri, message),
+    };
+    let resolved_formatter_profile = format_binding
+        .identity
+        .formatter_profile
+        .clone()
+        .unwrap_or_else(|| formatter_profile.to_owned());
+    pipeline.cemt_options.formatter_profile = Some(resolved_formatter_profile.clone());
+    pipeline.cemt_insertion_context.formatter_profile = Some(resolved_formatter_profile.clone());
+    pipeline.writer_insertion_context.formatter_profile = Some(resolved_formatter_profile);
+    let format_started = Instant::now();
+    let format_result = execute_conversion_cem_tree_output_stage(
+        environment,
+        format_stage,
+        &format_binding,
+        &document_subject,
+    );
+    let format_elapsed_ns = Some(format_started.elapsed().as_nanos());
+    let (formatted_output, format_execution) = match format_result {
+        Ok(output) => output,
+        Err(message) => {
+            return relax_ng_output_pipeline_failed_with_timings(
+                diagnostic_uri,
+                format!(
+                    "CEMT formatter `{}` failed: {message}",
+                    format_binding.function.name
+                ),
+                format_elapsed_ns,
+            )
+        }
+    };
+    let formatted_artifact = format_binding.artifact_from_value(formatted_output);
+    if let Err(error) = formatted_artifact
+        .validate_insertion(&conversion_cem_tree_format_insertion_context(&pipeline))
+    {
+        return relax_ng_output_pipeline_failed_with_timings(
+            diagnostic_uri,
+            error.diagnostic(diagnostic_uri).message,
+            format_elapsed_ns,
+        );
+    }
+    execute_conversion_output_pipeline_from_formatted_artifact(
+        environment,
+        &pipeline,
+        formatted_artifact,
+        Some(format_execution),
+        format_elapsed_ns,
+        Vec::new(),
+        "relax-ng-direct-output",
+        Some("relax-ng"),
+        diagnostic_uri,
+    )
+}
+
+fn relax_ng_output_pipeline_failed(
+    diagnostic_uri: Option<&str>,
+    message: String,
+) -> ConversionOutputPipelineExecution {
+    relax_ng_output_pipeline_failed_with_timings(diagnostic_uri, message, None)
+}
+
+fn relax_ng_output_pipeline_failed_with_timings(
+    diagnostic_uri: Option<&str>,
+    message: String,
+    format_elapsed_ns: Option<u128>,
+) -> ConversionOutputPipelineExecution {
+    failed_pipeline_execution(
+        "relax-ng-direct-output",
+        Some("relax-ng"),
+        diagnostic_uri,
+        message,
+        format_elapsed_ns,
+        None,
+        None,
+    )
+}
+
 fn conversion_output_pipeline_formatted_cem_tree_artifact(
     pipeline: &ConversionOutputPipeline,
     value: Value,
@@ -10829,6 +11140,7 @@ fn builtin_converter_package_schema_uris() -> &'static [&'static str] {
         CSV_SCHEMA_URI,
         YAML_SCHEMA_URI,
         MARKDOWN_SCHEMA_URI,
+        RELAX_NG_SCHEMA_URI,
     ]
 }
 
@@ -10881,8 +11193,8 @@ mod tests {
         CEM_TRANSFORM_CONTENT_TYPE, CEM_TRANSFORM_SCHEMA_URI, CSS_CONTENT_TYPE, CSS_SCHEMA_URI,
         CSV_CONTENT_TYPE, CSV_SCHEMA_URI, HTML_CONTENT_TYPE, JSON_CONTENT_TYPE,
         JSON_VALUE_SCHEMA_URI, MARKDOWN_CONTENT_TYPE, MARKDOWN_SCHEMA_URI,
-        RELAX_NG_COMPACT_CONTENT_TYPE, RELAX_NG_SCHEMA_URI, XML_CONTENT_TYPE, YAML_CONTENT_TYPE,
-        YAML_SCHEMA_URI,
+        RELAX_NG_COMPACT_CONTENT_TYPE, RELAX_NG_SCHEMA_URI, RELAX_NG_XML_CONTENT_TYPE,
+        XML_CONTENT_TYPE, YAML_CONTENT_TYPE, YAML_SCHEMA_URI,
     };
     use crate::transform_template::{
         TransformTemplateAdapter, TransformTemplateAdapterCapability,
@@ -18307,6 +18619,170 @@ mod tests {
                 .unwrap_or_else(|| panic!("{profile} colored tree"));
             assert_eq!(colored.value["colorProfile"], profile);
             assert_eq!(colored.value["nodes"][2]["style"][style_key], style_value);
+        }
+    }
+
+    #[test]
+    fn builtin_relax_ng_dual_syntax_output_pipeline_executes_package_cemt_assets() {
+        let schema_registry = SchemaRegistry::with_builtin_schemas();
+        let conversion_registry = ConversionRegistry::with_builtin_converters();
+        let environment = ConversionOutputPipelineEnvironment {
+            schema_registry: &schema_registry,
+            conversion_registry: &conversion_registry,
+            package_artifact_reader: None,
+            artifact_cache: None,
+        };
+
+        for (content_type, source, syntax_kind, formatter_name, adapter_id) in [
+            (
+                RELAX_NG_XML_CONTENT_TYPE,
+                br#"<grammar xmlns="http://relaxng.org/ns/structure/1.0"><start><empty/></start></grammar>"#.as_slice(),
+                "xml",
+                "relax-ng.format-xml-document",
+                "relax-ng-xml-format-cemt",
+            ),
+            (
+                RELAX_NG_COMPACT_CONTENT_TYPE,
+                b"start = element note { text }".as_slice(),
+                "compact",
+                "relax-ng.format-compact-document",
+                "relax-ng-compact-format-cemt",
+            ),
+        ] {
+            let (document, diagnostics) =
+                crate::validation::relax_ng::relax_ng_document_ast_from_source_bytes(
+                    crate::validation::relax_ng::RelaxNgSourceValidationRequest {
+                        bytes: source,
+                        source_uri: "builtin:relax-ng-output",
+                        content_type: Some(content_type),
+                    },
+                );
+            assert!(diagnostics.is_empty(), "{diagnostics:?}");
+
+            for profile in ["compact", "pretty", "tabular"] {
+                let target_scope = ScopeConfig {
+                    cemt_formatter_profile: Some(profile.to_owned()),
+                    ..ScopeConfig::default()
+                };
+                let execution = execute_relax_ng_document_output_pipeline_with_environment(
+                    &environment,
+                    document.clone().expect("RELAX NG document"),
+                    &target_scope,
+                    Some("builtin:relax-ng-output"),
+                );
+
+                assert!(
+                    execution.diagnostics.is_empty(),
+                    "{syntax_kind}/{profile}: {:?}",
+                    execution.diagnostics
+                );
+                assert!(
+                    matches!(
+                        execution.format_execution,
+                        Some(ConversionOutputPipelineStageExecution::CemtAdapter {
+                            adapter_id: ref actual_adapter_id,
+                            ref function_name,
+                            ref body_function_name,
+                            ..
+                        }) if actual_adapter_id == adapter_id
+                            && function_name == formatter_name
+                            && body_function_name.as_deref() == Some(formatter_name)
+                    ),
+                    "{syntax_kind}/{profile}: {:?}",
+                    execution.format_execution
+                );
+                let mut expected = std::str::from_utf8(source).unwrap().to_owned();
+                expected.push('\n');
+                assert_eq!(
+                    execution.output.as_ref().and_then(Value::as_str),
+                    Some(expected.as_str()),
+                    "{syntax_kind}/{profile}"
+                );
+                let formatted = execution
+                    .formatted_cem_tree
+                    .as_ref()
+                    .unwrap_or_else(|| panic!("{syntax_kind}/{profile} formatted tree"));
+                assert_eq!(formatted.value["contentType"], content_type);
+                assert_eq!(formatted.value["schema"], RELAX_NG_SCHEMA_URI);
+                assert_eq!(formatted.value["syntaxKind"], syntax_kind);
+                assert_eq!(formatted.value["formatterProfile"], profile);
+            }
+        }
+    }
+
+    #[test]
+    fn builtin_relax_ng_dual_syntax_colorizer_profiles_execute_package_cemt_assets() {
+        let schema_registry = SchemaRegistry::with_builtin_schemas();
+        let conversion_registry = ConversionRegistry::with_builtin_converters();
+        let environment = ConversionOutputPipelineEnvironment {
+            schema_registry: &schema_registry,
+            conversion_registry: &conversion_registry,
+            package_artifact_reader: None,
+            artifact_cache: None,
+        };
+
+        for (content_type, source, function_name) in [
+            (
+                RELAX_NG_XML_CONTENT_TYPE,
+                br#"<grammar xmlns="http://relaxng.org/ns/structure/1.0"><start><empty/></start></grammar>"#.as_slice(),
+                "relax-ng.color-xml-document",
+            ),
+            (
+                RELAX_NG_COMPACT_CONTENT_TYPE,
+                b"start = empty".as_slice(),
+                "relax-ng.color-compact-document",
+            ),
+        ] {
+            let (document, diagnostics) =
+                crate::validation::relax_ng::relax_ng_document_ast_from_source_bytes(
+                    crate::validation::relax_ng::RelaxNgSourceValidationRequest {
+                        bytes: source,
+                        source_uri: "builtin:relax-ng-color-output",
+                        content_type: Some(content_type),
+                    },
+                );
+            assert!(diagnostics.is_empty(), "{diagnostics:?}");
+
+            for (profile, style_key, style_value) in [
+                ("terminal", "terminalCapability", "auto"),
+                ("html", "htmlMode", "classes"),
+                ("md", "wrapper", "span"),
+            ] {
+                let target_scope = ScopeConfig {
+                    cemt_color_profile: Some(profile.to_owned()),
+                    ..ScopeConfig::default()
+                };
+                let execution = execute_relax_ng_document_output_pipeline_with_environment(
+                    &environment,
+                    document.clone().expect("RELAX NG document"),
+                    &target_scope,
+                    Some("builtin:relax-ng-color-output"),
+                );
+                assert!(
+                    execution.diagnostics.is_empty(),
+                    "{content_type}/{profile}: {:?}",
+                    execution.diagnostics
+                );
+                assert!(
+                    matches!(
+                        execution.color_execution,
+                        Some(ConversionOutputPipelineStageExecution::CemtAdapter {
+                            function_name: ref actual_function_name,
+                            ref body_function_name,
+                            ..
+                        }) if actual_function_name == function_name
+                            && body_function_name.as_deref() == Some(function_name)
+                    ),
+                    "{content_type}/{profile}: {:?}",
+                    execution.color_execution
+                );
+                let colored = execution
+                    .colored_cem_tree
+                    .as_ref()
+                    .unwrap_or_else(|| panic!("{content_type}/{profile} colored tree"));
+                assert_eq!(colored.value["colorProfile"], profile);
+                assert_eq!(colored.value["nodes"][2]["style"][style_key], style_value);
+            }
         }
     }
 

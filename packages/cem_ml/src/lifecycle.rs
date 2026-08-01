@@ -18,6 +18,7 @@ use crate::schema::registry::{
     HTML_CONTENT_TYPE, HTML_NAMESPACE_URI, HTML_SCHEMA_URI, JSON_CONTENT_TYPE,
     JSON_SCHEMA_CONTENT_TYPE, JSON_SCHEMA_SCHEMA_URI, JSON_VALUE_SCHEMA_URI, MARKDOWN_CONTENT_TYPE,
     MARKDOWN_SCHEMA_URI, MATHML_CONTENT_TYPE, MATHML_NAMESPACE_URI, MATHML_SCHEMA_URI,
+    RELAX_NG_COMPACT_CONTENT_TYPE, RELAX_NG_SCHEMA_URI, RELAX_NG_XML_CONTENT_TYPE,
     SVG_CONTENT_TYPE, SVG_NAMESPACE_URI, SVG_SCHEMA_URI, XHTML_CONTENT_TYPE, XHTML_SCHEMA_URI,
     XML_CONTENT_TYPE, XML_SCHEMA_URI, XSLT_NAMESPACE_URI, XSLT_SCHEMA_URI, YAML_CONTENT_TYPE,
     YAML_SCHEMA_URI,
@@ -35,6 +36,10 @@ use crate::validation::json_schema::{
 };
 use crate::validation::markdown::{
     markdown_document_ast_from_source_bytes, MarkdownDocumentAst, MarkdownSourceValidationRequest,
+};
+use crate::validation::relax_ng::{
+    relax_ng_document_ast_from_source_bytes, RelaxNgDocumentAst, RelaxNgSourceValidationRequest,
+    RelaxNgSyntaxKind,
 };
 use crate::validation::xml::{
     xml_document_ast_from_source_bytes, XmlDocumentAst, XmlSourceValidationRequest,
@@ -94,6 +99,7 @@ pub enum LoadedInputAstStream {
     JsonSchemaDocument(JsonSchemaDocumentAst),
     MarkdownDocument(MarkdownDocumentAst),
     XmlDocument(XmlDocumentAst),
+    RelaxNgDocument(RelaxNgDocumentAst),
 }
 
 #[derive(Debug, Clone)]
@@ -129,6 +135,7 @@ impl LifecycleRegistry {
         let mut registry = Self::new();
         registry.register(CemMlAdapter);
         registry.register(HtmlAdapter);
+        registry.register(RelaxNgAdapter);
         registry.register(XmlAdapter);
         registry.register(CsvAdapter);
         registry.register(YamlAdapter);
@@ -619,6 +626,69 @@ fn matches_generic_xml_identity(identity: &FormatIdentity) -> bool {
             )
         });
     schema_matches || (identity.schema.is_none() && content_type_matches)
+}
+
+struct RelaxNgAdapter;
+
+impl LifecycleAdapter for RelaxNgAdapter {
+    fn id(&self) -> &'static str {
+        "relax-ng"
+    }
+
+    fn matches_input(&self, identity: &FormatIdentity) -> bool {
+        matches_relax_ng_identity(identity)
+    }
+
+    fn load(&self, input: &EngineInput, identity: &FormatIdentity) -> LoadedInput {
+        let content_type = identity
+            .content_type
+            .as_deref()
+            .or(input.root_scope.default_content_type.as_deref())
+            .unwrap_or(RELAX_NG_XML_CONTENT_TYPE);
+        let (document, diagnostics) =
+            relax_ng_document_ast_from_source_bytes(RelaxNgSourceValidationRequest {
+                bytes: &input.bytes,
+                source_uri: &input.uri,
+                content_type: Some(content_type),
+            });
+        let from_format = document
+            .as_ref()
+            .map(|document| match document.syntax_kind {
+                RelaxNgSyntaxKind::Xml => InputFormat::Xml,
+                RelaxNgSyntaxKind::Compact => InputFormat::Cem,
+            })
+            .unwrap_or(InputFormat::Cem);
+        LoadedInput {
+            bytes: input.bytes.clone(),
+            from_format,
+            ast_stream: document.map(LoadedInputAstStream::RelaxNgDocument),
+            diagnostics,
+            adapter_id: Some(self.id()),
+        }
+    }
+
+    fn matches_target(&self, identity: &FormatIdentity) -> bool {
+        matches_relax_ng_identity(identity)
+    }
+
+    fn target_format(&self) -> Option<LayerFormat> {
+        Some(LayerFormat::Xml)
+    }
+}
+
+fn matches_relax_ng_identity(identity: &FormatIdentity) -> bool {
+    let explicit_schema_matches = identity
+        .schema
+        .as_deref()
+        .map(str::trim)
+        .is_some_and(|schema| schema == RELAX_NG_SCHEMA_URI);
+    if let Some(content_type) = identity.content_type.as_deref() {
+        return matches!(
+            content_type_essence(content_type).as_str(),
+            RELAX_NG_XML_CONTENT_TYPE | RELAX_NG_COMPACT_CONTENT_TYPE
+        ) && (identity.schema.is_none() || explicit_schema_matches);
+    }
+    explicit_schema_matches
 }
 
 struct CsvAdapter;
@@ -1419,6 +1489,47 @@ mod tests {
         assert_eq!(item.namespace_uri.as_deref(), Some("urn:meta"));
         assert!(item.source_range.byte_length > 0);
         assert!(!item.source_range.source_map().frames.is_empty());
+    }
+
+    #[test]
+    fn builtins_load_relax_ng_xml_as_dedicated_internal_ast_stream() {
+        let loaded = LifecycleRegistry::with_builtin_adapters().load(
+            &input(
+                br#"<grammar xmlns="http://relaxng.org/ns/structure/1.0"><start><empty/></start></grammar>"#,
+            ),
+            &context(RELAX_NG_XML_CONTENT_TYPE),
+        );
+        assert_eq!(loaded.from_format, InputFormat::Xml);
+        assert_eq!(loaded.adapter_id, Some("relax-ng"));
+        assert!(loaded.diagnostics.is_empty(), "{:?}", loaded.diagnostics);
+        let document = match loaded
+            .ast_stream
+            .expect("RELAX NG adapter emits internal AST stream")
+        {
+            LoadedInputAstStream::RelaxNgDocument(document) => document,
+            other => panic!("RELAX NG adapter emitted unexpected AST stream: {other:?}"),
+        };
+        assert_eq!(document.syntax_kind, RelaxNgSyntaxKind::Xml);
+        assert!(document.xml_document.is_some());
+    }
+
+    #[test]
+    fn builtins_load_relax_ng_compact_as_dedicated_internal_ast_stream() {
+        let loaded = LifecycleRegistry::with_builtin_adapters().load(
+            &input(b"start = element note { text }\n"),
+            &context(RELAX_NG_COMPACT_CONTENT_TYPE),
+        );
+        assert_eq!(loaded.adapter_id, Some("relax-ng"));
+        assert!(loaded.diagnostics.is_empty(), "{:?}", loaded.diagnostics);
+        let document = match loaded
+            .ast_stream
+            .expect("RELAX NG adapter emits internal AST stream")
+        {
+            LoadedInputAstStream::RelaxNgDocument(document) => document,
+            other => panic!("RELAX NG adapter emitted unexpected AST stream: {other:?}"),
+        };
+        assert_eq!(document.syntax_kind, RelaxNgSyntaxKind::Compact);
+        assert!(!document.compact_tokens.is_empty());
     }
 
     #[test]
@@ -2227,6 +2338,22 @@ mod tests {
         assert_eq!(selected.to_format, LayerFormat::Xml);
         assert_eq!(selected.adapter_id, Some("xml"));
         assert!(selected.diagnostics.is_empty());
+    }
+
+    #[test]
+    fn relax_ng_target_content_types_select_dedicated_export() {
+        for content_type in [RELAX_NG_XML_CONTENT_TYPE, RELAX_NG_COMPACT_CONTENT_TYPE] {
+            let target = FormatIdentity {
+                content_type: Some(content_type.to_owned()),
+                schema: Some(RELAX_NG_SCHEMA_URI.to_owned()),
+                ..FormatIdentity::default()
+            };
+            let selected = LifecycleRegistry::with_builtin_adapters()
+                .select_export(Some(&target), LayerFormat::DomJson);
+            assert_eq!(selected.to_format, LayerFormat::Xml);
+            assert_eq!(selected.adapter_id, Some("relax-ng"));
+            assert!(selected.diagnostics.is_empty());
+        }
     }
 
     #[test]

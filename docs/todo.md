@@ -619,7 +619,28 @@ Remaining dependency-ordered package checklist:
         parser facts and diagnostic ownership, formatter/colorizer profiles,
         resolver and entity safety, verification gates, release behavior, and
         tracked incomplete work.
-- [ ] `relax-ng/v1`
+- [x] `relax-ng/v1`
+  - [x] Add a typed dual-syntax `RelaxNgDocumentAst` with explicit XML/compact
+        syntax identity, lossless XML events or compact tokens, source ranges,
+        source-map stacks, media-type parameters, and line-ending metadata.
+  - [x] Move RELAX NG validation behind a dedicated lifecycle adapter and bind
+        neutral parse, encoding, namespace/root, pattern/start, required
+        attribute, include/external-reference, and source-map facts to
+        diagnostics declared in `schema/relax-ng.cem`.
+  - [x] Route same-schema XML and compact conversion through package-owned typed
+        lifecycle output without CEM or generic XML fallthrough, preserving the
+        input syntax and default final newline.
+  - [x] Replace placeholder `json`/`tokens` artifacts with executable XML and
+        compact CEMT boundaries for compact/pretty/tabular formatters and
+        terminal/HTML/Markdown colorizers.
+  - [x] Expand package verification for manifest/index coverage, embedded
+        artifacts, validator and reject-only resolver policy, lifecycle/export,
+        engine/CLI conversion, all formatter/colorizer profiles, schema-owned
+        example validation, and README/SVG preview drift.
+  - [x] Route passing README examples through package formatter/colorizer output,
+        render expected failures from schema-owned diagnostics, remove compact
+        source-snapshot fallback, and document safety/release behavior plus
+        tracked limitations.
 - [ ] `xhtml/v1`
 - [ ] `svg/v1`
 - [ ] `mathml/v1`
@@ -635,7 +656,7 @@ Remaining dependency-ordered package checklist:
 
 ### Deferred: Other Format Polish
 
-- [ ] Keep Relax NG, XHTML, SVG, MathML, XSLT, HTML, and CSS
+- [ ] Keep XHTML, SVG, MathML, XSLT, HTML, and CSS
       formatter/colorizer work behind the schema-package folder alignment
       gate.
 
@@ -657,29 +678,33 @@ Remaining dependency-ordered package checklist:
 
 ### Next Work Item
 
-Align `relax-ng/v1` with the common schema-package acceptance criteria. The
-package owns both XML syntax (`.rng`) and compact syntax (`.rnc`), so begin by
-locking a typed `RelaxNgDocumentAst` contract with an explicit syntax kind and
-source ranges. Preserve the input syntax by default for same-schema output;
-use separate typed formatter boundaries for XML and compact syntax instead of
-coercing both through the existing placeholder `json`/`tokens` artifact.
+Align `xhtml/v1` with the common schema-package acceptance criteria. Start by
+introducing a dedicated typed `XhtmlDocumentAst` lifecycle stream that reuses
+the generic XML event model while retaining XHTML content type/schema identity,
+the `http://www.w3.org/1999/xhtml` namespace, MIME parameters, XML declaration,
+doctype, qualified names, foreign-content boundaries, source ranges, and source
+maps. Replace the current HTML-adapter routing for `application/xhtml+xml` with
+an XHTML adapter and prove that validation and same-schema output do not fall
+through to HTML parsing, generic XML output, or CEM parsing.
 
-Move the current direct RELAX NG validators behind a dedicated lifecycle
-adapter. Reuse the generic typed XML event model for `.rng` parsing, add a
-typed compact-syntax parser/report for `.rnc`, emit neutral parse and semantic
-facts for namespace/root/start/pattern/include/external-reference/encoding
-conditions, and bind those facts to diagnostics in `schema/relax-ng.cem`.
-Validation and conversion must not fall through to CEM parsing or the generic
-XML output contract.
+Move the direct XHTML validator behind that adapter. Emit neutral XML parse,
+encoding, root/namespace, deprecated profile, `head`/`body` ordering, doctype,
+foreign-content, and source-map facts, then bind them to diagnostics declared in
+`schema/xhtml.cem`. Define explicitly which XML well-formedness/entity policies
+are inherited from `xml/v1` and which HTML vocabulary/structure constraints are
+owned by XHTML. Preserve XHTML's XML serialization rules; do not reuse HTML
+void-element or error-recovery behavior.
 
-Then add executable compact/pretty/tabular and terminal/HTML/Markdown CEMT
-profiles for both syntax kinds, retain the default final newline, route passing
-README examples through those package assets, render expected-fail examples
-from schema-owned diagnostics, and remove source-snapshot fallback. Finish by
-expanding `cem_ml_schema_package_relax_ng_v1:verify`, README safety/release
-documentation, manifest-index and CLI example coverage, same-schema lifecycle
-conversion tests, resolver rejection tests for include/external references,
-and package-local preview drift checks.
+Replace the placeholder `json`/`tokens` formatter and colorizer artifacts with
+package-owned XHTML document and CEM-tree contracts for compact, pretty,
+tabular, terminal, HTML, and Markdown profiles. Preserve lexical XML content and
+the default final newline until an XHTML-aware whitespace/reflow policy exists.
+Route passing README examples through those package assets, render expected-fail
+examples from schema-owned diagnostics, and remove source-snapshot fallback.
+Finish by expanding `cem_ml_schema_package_xhtml_v1:verify`, package README
+safety/release documentation, manifest-index and embedded-artifact coverage,
+same-schema engine/CLI tests, namespace/foreign-content/entity policy tests, and
+package-local preview drift checks.
 
 ## Current Verification Commands
 

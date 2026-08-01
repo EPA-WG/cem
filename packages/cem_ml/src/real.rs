@@ -17,6 +17,7 @@ use crate::conversion::{
     execute_json_document_output_pipeline_with_environment,
     execute_json_schema_document_output_pipeline_with_environment,
     execute_markdown_document_output_pipeline_with_environment,
+    execute_relax_ng_document_output_pipeline_with_environment,
     execute_xml_document_output_pipeline_with_environment,
     execute_yaml_document_output_pipeline_with_environment, ConversionExecution,
     ConversionOutputPipeline, ConversionOutputPipelineEnvironment,
@@ -61,8 +62,9 @@ use crate::schema::registry::{
     CEM_SCHEMA_CONTENT_TYPE, CEM_SCHEMA_PACKAGE_CONTENT_TYPE, CEM_SCHEMA_PACKAGE_URI,
     CSS_CONTENT_TYPE, CSS_SCHEMA_URI, CSV_CONTENT_TYPE, CSV_SCHEMA_URI, HTML_CONTENT_TYPE,
     HTML_SCHEMA_URI, JSON_CONTENT_TYPE, JSON_SCHEMA_CONTENT_TYPE, JSON_SCHEMA_SCHEMA_URI,
-    JSON_VALUE_SCHEMA_URI, MARKDOWN_CONTENT_TYPE, MARKDOWN_SCHEMA_URI, XHTML_CONTENT_TYPE,
-    XHTML_SCHEMA_URI, XML_CONTENT_TYPE, XML_SCHEMA_URI, YAML_CONTENT_TYPE, YAML_SCHEMA_URI,
+    JSON_VALUE_SCHEMA_URI, MARKDOWN_CONTENT_TYPE, MARKDOWN_SCHEMA_URI, RELAX_NG_SCHEMA_URI,
+    XHTML_CONTENT_TYPE, XHTML_SCHEMA_URI, XML_CONTENT_TYPE, XML_SCHEMA_URI, YAML_CONTENT_TYPE,
+    YAML_SCHEMA_URI,
 };
 use crate::schema::vocab::CompiledSchema;
 use crate::source::line_index::LineIndex;
@@ -111,6 +113,7 @@ use crate::validation::generic_data::GenericDataDocumentAst;
 use crate::validation::json::JsonDocumentAst;
 use crate::validation::json_schema::JsonSchemaDocumentAst;
 use crate::validation::markdown::MarkdownDocumentAst;
+use crate::validation::relax_ng::{RelaxNgDocumentAst, RelaxNgSyntaxKind};
 use crate::validation::xml::XmlDocumentAst;
 use crate::validation::yaml::YamlDocumentAst;
 use crate::validation::{
@@ -5537,6 +5540,79 @@ fn convert_loaded_xml_ast_output(
     )
 }
 
+fn convert_loaded_relax_ng_ast_output(
+    context: &EngineContext,
+    request: &ConvertRequest,
+    document: RelaxNgDocumentAst,
+    diagnostics: &mut Vec<Diagnostic>,
+) -> (Value, Option<PrimaryBytes>, ConvertExecutionMetadata) {
+    let syntax_kind = document.syntax_kind;
+    let metadata =
+        convert_metadata_for_relax_ng_lifecycle_output(&request.target_scope, syntax_kind);
+    let environment = ConversionOutputPipelineEnvironment {
+        schema_registry: &context.schema_registry,
+        conversion_registry: &context.converter_registry,
+        package_artifact_reader: None,
+        artifact_cache: None,
+    };
+    let execution = execute_relax_ng_document_output_pipeline_with_environment(
+        &environment,
+        document,
+        &request.target_scope,
+        Some(&request.input.uri),
+    );
+    diagnostics.extend(execution.diagnostics.clone());
+    if diagnostics
+        .iter()
+        .any(|diagnostic| diagnostic.severity.is_hard_violation())
+    {
+        return (Value::Null, None, metadata);
+    }
+
+    let content = execution
+        .output
+        .as_ref()
+        .and_then(Value::as_str)
+        .unwrap_or_default()
+        .to_owned();
+    let target = request
+        .target
+        .clone()
+        .or_else(|| request.target_scope.format_identity_option())
+        .unwrap_or_else(|| FormatIdentity {
+            content_type: Some(syntax_kind.content_type().to_owned()),
+            schema: Some(RELAX_NG_SCHEMA_URI.to_owned()),
+            ..FormatIdentity::default()
+        });
+    let content_type = target
+        .content_type
+        .unwrap_or_else(|| syntax_kind.content_type().to_owned());
+    let schema = target
+        .schema
+        .unwrap_or_else(|| RELAX_NG_SCHEMA_URI.to_owned());
+    let bytes = content.into_bytes();
+    let primary_bytes = PrimaryBytes {
+        content_type,
+        schema: Some(schema.clone()),
+        format_version: format!("relax-ng-{}/1", syntax_kind.as_str()),
+        hash_scheme: "cem-text/1+blake3".to_owned(),
+        hash: text_content_hash(&bytes),
+        bytes,
+    };
+    let hash = primary_bytes.hash.clone();
+    (
+        json!({
+            "kind": "document",
+            "contentType": primary_bytes.content_type,
+            "schema": schema,
+            "syntaxKind": syntax_kind.as_str(),
+            "hash": hash,
+        }),
+        Some(primary_bytes),
+        metadata,
+    )
+}
+
 fn convert_loaded_markdown_ast_output(
     context: &EngineContext,
     request: &ConvertRequest,
@@ -6786,6 +6862,81 @@ fn convert_metadata_for_xml_lifecycle_output(
     }
 }
 
+fn convert_metadata_for_relax_ng_lifecycle_output(
+    target_scope: &ScopeConfig,
+    syntax_kind: RelaxNgSyntaxKind,
+) -> ConvertExecutionMetadata {
+    let formatter_profile = target_scope
+        .cemt_formatter_profile
+        .clone()
+        .unwrap_or_else(|| "compact".to_owned());
+    let color_profile = xml_direct_output_color_profile(target_scope);
+    let writer_profile = target_scope
+        .output_color_type
+        .clone()
+        .or_else(|| color_profile.clone());
+    let content_type = syntax_kind.content_type().to_owned();
+    let category = syntax_kind.category().to_owned();
+    ConvertExecutionMetadata {
+        converter_id: Some("relax-ng-lifecycle-output".to_owned()),
+        implementation: Some(format!(
+            "relax-ng-{}-ast-stream-to-output-pipeline",
+            syntax_kind.as_str()
+        )),
+        rust_fallback: None,
+        output_pipeline: Some(ConvertOutputPipelineMetadata {
+            stages: vec![
+                ConvertOutputPipelineStageMetadata {
+                    stage: "formatter".to_owned(),
+                    function: Some(
+                        target_scope
+                            .cemt_formatter
+                            .clone()
+                            .unwrap_or_else(|| syntax_kind.formatter_function().to_owned()),
+                    ),
+                    profile: Some(formatter_profile),
+                    content_type: Some(content_type.clone()),
+                    schema: Some(RELAX_NG_SCHEMA_URI.to_owned()),
+                    category: Some(category.clone()),
+                    produces: Some(
+                        TransformTemplateOutputProducedKind::CemTree
+                            .as_str()
+                            .to_owned(),
+                    ),
+                },
+                ConvertOutputPipelineStageMetadata {
+                    stage: "colorizer".to_owned(),
+                    function: color_profile
+                        .as_ref()
+                        .map(|_| syntax_kind.colorizer_function().to_owned()),
+                    profile: color_profile,
+                    content_type: Some(content_type.clone()),
+                    schema: Some(RELAX_NG_SCHEMA_URI.to_owned()),
+                    category: Some(category.clone()),
+                    produces: Some(
+                        TransformTemplateOutputProducedKind::CemTree
+                            .as_str()
+                            .to_owned(),
+                    ),
+                },
+                ConvertOutputPipelineStageMetadata {
+                    stage: "writer".to_owned(),
+                    function: None,
+                    profile: writer_profile,
+                    content_type: Some(content_type),
+                    schema: Some(RELAX_NG_SCHEMA_URI.to_owned()),
+                    category: Some(category),
+                    produces: Some(
+                        TransformTemplateOutputProducedKind::Text
+                            .as_str()
+                            .to_owned(),
+                    ),
+                },
+            ],
+        }),
+    }
+}
+
 fn template_module_diagnostic(
     uri: Option<&str>,
     code: &str,
@@ -7071,6 +7222,7 @@ fn loaded_input_consumes_validation_without_cem_parse(loaded: &LoadedInput) -> b
                 | LoadedInputAstStream::JsonSchemaDocument(_)
                 | LoadedInputAstStream::MarkdownDocument(_)
                 | LoadedInputAstStream::XmlDocument(_)
+                | LoadedInputAstStream::RelaxNgDocument(_)
         )
     ) || matches!(
         loaded.adapter_id,
@@ -7850,6 +8002,7 @@ impl CemMlEngine for RealCemMlEngine {
             });
             diagnostics.append(&mut export.diagnostics);
             let to_format = export.to_format;
+            let export_adapter_id = export.adapter_id;
             if let Some(ast_stream) = loaded.ast_stream.take() {
                 match ast_stream {
                     LoadedInputAstStream::CsvDocument(table_value) => {
@@ -8288,7 +8441,7 @@ impl CemMlEngine for RealCemMlEngine {
                         return;
                     }
                     LoadedInputAstStream::XmlDocument(document_value) => {
-                        if to_format == LayerFormat::Xml {
+                        if to_format == LayerFormat::Xml && export_adapter_id == Some("xml") {
                             if diagnostics
                                 .iter()
                                 .any(|diagnostic| diagnostic.severity.is_hard_violation())
@@ -8314,6 +8467,38 @@ impl CemMlEngine for RealCemMlEngine {
                         }
                         // Cross-schema XML exports still use the established XML tokenizer and
                         // registered converter path below.
+                    }
+                    LoadedInputAstStream::RelaxNgDocument(document_value) => {
+                        if to_format == LayerFormat::Xml
+                            && export_adapter_id == Some("relax-ng")
+                        {
+                            if diagnostics
+                                .iter()
+                                .any(|diagnostic| diagnostic.severity.is_hard_violation())
+                            {
+                                primary = Some(Value::Null);
+                                conversion = Some(
+                                    convert_metadata_for_relax_ng_lifecycle_output(
+                                        &request.target_scope,
+                                        document_value.syntax_kind,
+                                    ),
+                                );
+                                return;
+                            }
+
+                            let (relax_ng_primary, relax_ng_primary_bytes, relax_ng_conversion) =
+                                convert_loaded_relax_ng_ast_output(
+                                    &context,
+                                    &request,
+                                    document_value,
+                                    &mut diagnostics,
+                                );
+                            primary = Some(relax_ng_primary);
+                            primary_bytes = relax_ng_primary_bytes;
+                            conversion = Some(relax_ng_conversion);
+                            return;
+                        }
+                        // Cross-schema RELAX NG exports require an explicit registered converter.
                     }
                 }
             }
@@ -9575,7 +9760,8 @@ mod tests {
     };
     use crate::schema::registry::{
         CEM_ML_CONTENT_TYPE, CEM_ML_SCHEMA_URI, CEM_SCHEMA_CONTENT_TYPE,
-        CEM_TRANSFORM_CONTENT_TYPE, CEM_TRANSFORM_SCHEMA_URI,
+        CEM_TRANSFORM_CONTENT_TYPE, CEM_TRANSFORM_SCHEMA_URI, RELAX_NG_COMPACT_CONTENT_TYPE,
+        RELAX_NG_XML_CONTENT_TYPE,
     };
     use crate::transform_template::{
         TransformTemplateAdapterCapability, TransformTemplateAdapterError,
@@ -13820,6 +14006,45 @@ mod tests {
     }
 
     #[test]
+    fn validate_relax_ng_sources_consume_typed_lifecycle_ast_without_cem_parse() {
+        for (bytes, uri, content_type) in [
+            (
+                br#"<grammar xmlns="http://relaxng.org/ns/structure/1.0"><start><element name="note"><text/></element></start></grammar>"#.as_slice(),
+                "schema.rng",
+                RELAX_NG_XML_CONTENT_TYPE,
+            ),
+            (
+                b"start = element note { text }\n".as_slice(),
+                "schema.rnc",
+                RELAX_NG_COMPACT_CONTENT_TYPE,
+            ),
+        ] {
+            let mut source = input(bytes, uri);
+            source.identity = Some(FormatIdentity {
+                content_type: Some(content_type.to_owned()),
+                schema: Some(RELAX_NG_SCHEMA_URI.to_owned()),
+                ..FormatIdentity::default()
+            });
+            let req = ValidateRequest {
+                inputs: vec![source],
+                projection: ValidateProjection::Json,
+                fail_level: FailLevel::Validate,
+                context: ctx(),
+            };
+
+            let resp = RealCemMlEngine::new().validate(req).unwrap();
+
+            assert_eq!(resp.report.summary.input_count, 1);
+            assert_eq!(resp.report.summary.hard_violation_count, 0);
+            assert!(
+                resp.report.diagnostics.is_empty(),
+                "RELAX NG validation must stay on the typed lifecycle AST path: {:?}",
+                resp.report.diagnostics
+            );
+        }
+    }
+
+    #[test]
     fn convert_xml_same_schema_uses_lifecycle_output_pipeline() {
         let xml = br#"<?xml version="1.0"?><root xmlns:meta="urn:meta"><meta:item id="a1"><![CDATA[Alpha]]></meta:item><!--done--><?ready yes?></root>"#;
         let mut source = input(xml, "document.xml");
@@ -13873,6 +14098,106 @@ mod tests {
         assert_eq!(primary_bytes.bytes, expected);
         assert_eq!(resp.primary["kind"], "document");
         assert_eq!(resp.primary["contentType"], XML_CONTENT_TYPE);
+    }
+
+    #[test]
+    fn convert_relax_ng_xml_same_schema_uses_typed_lifecycle_output_pipeline() {
+        let source = br#"<grammar xmlns="http://relaxng.org/ns/structure/1.0"><start><element name="note"><text/></element></start></grammar>"#;
+        let mut input = input(source, "schema.rng");
+        input.identity = Some(FormatIdentity {
+            content_type: Some(RELAX_NG_XML_CONTENT_TYPE.to_owned()),
+            schema: Some(RELAX_NG_SCHEMA_URI.to_owned()),
+            ..FormatIdentity::default()
+        });
+        let req = ConvertRequest {
+            input,
+            to_format: LayerFormat::DomJson,
+            preserve_source_offsets: false,
+            context: ctx(),
+            target: Some(FormatIdentity {
+                content_type: Some(RELAX_NG_XML_CONTENT_TYPE.to_owned()),
+                schema: Some(RELAX_NG_SCHEMA_URI.to_owned()),
+                ..FormatIdentity::default()
+            }),
+            target_scope: ScopeConfig {
+                cemt_formatter_profile: Some("tabular".to_owned()),
+                ..ScopeConfig::default()
+            },
+            scheduler_scope_id: 0,
+        };
+
+        let resp = RealCemMlEngine::new().convert(req).unwrap();
+
+        assert!(resp.diagnostics.is_empty(), "{:?}", resp.diagnostics);
+        assert_eq!(
+            resp.conversion
+                .as_ref()
+                .and_then(|conversion| conversion.converter_id.as_deref()),
+            Some("relax-ng-lifecycle-output")
+        );
+        assert_eq!(
+            resp.conversion
+                .as_ref()
+                .and_then(|conversion| conversion.implementation.as_deref()),
+            Some("relax-ng-xml-ast-stream-to-output-pipeline")
+        );
+        let primary_bytes = resp.primary_bytes.as_ref().expect("RELAX NG primary bytes");
+        assert_eq!(primary_bytes.content_type, RELAX_NG_XML_CONTENT_TYPE);
+        assert_eq!(primary_bytes.schema.as_deref(), Some(RELAX_NG_SCHEMA_URI));
+        let mut expected = source.to_vec();
+        expected.push(b'\n');
+        assert_eq!(primary_bytes.bytes, expected);
+        assert_eq!(resp.primary["syntaxKind"], "xml");
+    }
+
+    #[test]
+    fn convert_relax_ng_compact_same_schema_uses_typed_lifecycle_output_pipeline() {
+        let source = br#"start = element note { text }"#;
+        let mut input = input(source, "schema.rnc");
+        input.identity = Some(FormatIdentity {
+            content_type: Some(RELAX_NG_COMPACT_CONTENT_TYPE.to_owned()),
+            schema: Some(RELAX_NG_SCHEMA_URI.to_owned()),
+            ..FormatIdentity::default()
+        });
+        let req = ConvertRequest {
+            input,
+            to_format: LayerFormat::DomJson,
+            preserve_source_offsets: false,
+            context: ctx(),
+            target: Some(FormatIdentity {
+                content_type: Some(RELAX_NG_COMPACT_CONTENT_TYPE.to_owned()),
+                schema: Some(RELAX_NG_SCHEMA_URI.to_owned()),
+                ..FormatIdentity::default()
+            }),
+            target_scope: ScopeConfig {
+                cemt_formatter_profile: Some("tabular".to_owned()),
+                ..ScopeConfig::default()
+            },
+            scheduler_scope_id: 0,
+        };
+
+        let resp = RealCemMlEngine::new().convert(req).unwrap();
+
+        assert!(resp.diagnostics.is_empty(), "{:?}", resp.diagnostics);
+        assert_eq!(
+            resp.conversion
+                .as_ref()
+                .and_then(|conversion| conversion.converter_id.as_deref()),
+            Some("relax-ng-lifecycle-output")
+        );
+        assert_eq!(
+            resp.conversion
+                .as_ref()
+                .and_then(|conversion| conversion.implementation.as_deref()),
+            Some("relax-ng-compact-ast-stream-to-output-pipeline")
+        );
+        let primary_bytes = resp.primary_bytes.as_ref().expect("RELAX NG primary bytes");
+        assert_eq!(primary_bytes.content_type, RELAX_NG_COMPACT_CONTENT_TYPE);
+        assert_eq!(primary_bytes.schema.as_deref(), Some(RELAX_NG_SCHEMA_URI));
+        let mut expected = source.to_vec();
+        expected.push(b'\n');
+        assert_eq!(primary_bytes.bytes, expected);
+        assert_eq!(resp.primary["syntaxKind"], "compact");
     }
 
     #[test]

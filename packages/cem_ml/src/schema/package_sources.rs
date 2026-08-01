@@ -335,10 +335,70 @@ static BUILTIN_SCHEMA_PACKAGE_ARTIFACT_SOURCES: &[BuiltinSchemaPackageArtifactSo
     },
     BuiltinSchemaPackageArtifactSource {
         package_id: "relax-ng",
+        path: "schema-packages/relax-ng/v1/formatters/xml-compact.cemt",
+        source: include_str!("../../schema-packages/relax-ng/v1/formatters/xml-compact.cemt"),
+    },
+    BuiltinSchemaPackageArtifactSource {
+        package_id: "relax-ng",
+        path: "schema-packages/relax-ng/v1/formatters/xml-pretty.cemt",
+        source: include_str!("../../schema-packages/relax-ng/v1/formatters/xml-pretty.cemt"),
+    },
+    BuiltinSchemaPackageArtifactSource {
+        package_id: "relax-ng",
+        path: "schema-packages/relax-ng/v1/formatters/xml-tabular.cemt",
+        source: include_str!("../../schema-packages/relax-ng/v1/formatters/xml-tabular.cemt"),
+    },
+    BuiltinSchemaPackageArtifactSource {
+        package_id: "relax-ng",
+        path: "schema-packages/relax-ng/v1/formatters/compact-compact.cemt",
+        source: include_str!("../../schema-packages/relax-ng/v1/formatters/compact-compact.cemt"),
+    },
+    BuiltinSchemaPackageArtifactSource {
+        package_id: "relax-ng",
+        path: "schema-packages/relax-ng/v1/formatters/compact-pretty.cemt",
+        source: include_str!("../../schema-packages/relax-ng/v1/formatters/compact-pretty.cemt"),
+    },
+    BuiltinSchemaPackageArtifactSource {
+        package_id: "relax-ng",
+        path: "schema-packages/relax-ng/v1/formatters/compact-tabular.cemt",
+        source: include_str!("../../schema-packages/relax-ng/v1/formatters/compact-tabular.cemt"),
+    },
+    BuiltinSchemaPackageArtifactSource {
+        package_id: "relax-ng",
         path: "schema-packages/relax-ng/v1/formatters/relax-ng-format-schema.cemt",
         source: include_str!(
             "../../schema-packages/relax-ng/v1/formatters/relax-ng-format-schema.cemt"
         ),
+    },
+    BuiltinSchemaPackageArtifactSource {
+        package_id: "relax-ng",
+        path: "schema-packages/relax-ng/v1/colorizers/xml-terminal.cemt",
+        source: include_str!("../../schema-packages/relax-ng/v1/colorizers/xml-terminal.cemt"),
+    },
+    BuiltinSchemaPackageArtifactSource {
+        package_id: "relax-ng",
+        path: "schema-packages/relax-ng/v1/colorizers/xml-html.cemt",
+        source: include_str!("../../schema-packages/relax-ng/v1/colorizers/xml-html.cemt"),
+    },
+    BuiltinSchemaPackageArtifactSource {
+        package_id: "relax-ng",
+        path: "schema-packages/relax-ng/v1/colorizers/xml-md.cemt",
+        source: include_str!("../../schema-packages/relax-ng/v1/colorizers/xml-md.cemt"),
+    },
+    BuiltinSchemaPackageArtifactSource {
+        package_id: "relax-ng",
+        path: "schema-packages/relax-ng/v1/colorizers/compact-terminal.cemt",
+        source: include_str!("../../schema-packages/relax-ng/v1/colorizers/compact-terminal.cemt"),
+    },
+    BuiltinSchemaPackageArtifactSource {
+        package_id: "relax-ng",
+        path: "schema-packages/relax-ng/v1/colorizers/compact-html.cemt",
+        source: include_str!("../../schema-packages/relax-ng/v1/colorizers/compact-html.cemt"),
+    },
+    BuiltinSchemaPackageArtifactSource {
+        package_id: "relax-ng",
+        path: "schema-packages/relax-ng/v1/colorizers/compact-md.cemt",
+        source: include_str!("../../schema-packages/relax-ng/v1/colorizers/compact-md.cemt"),
     },
     BuiltinSchemaPackageArtifactSource {
         package_id: "relax-ng",
@@ -3579,27 +3639,85 @@ mod tests {
 
     #[test]
     fn catalog_exposes_relax_ng_output_artifact_sources() {
-        let formatter = builtin_schema_package_artifact_source(
-            "relax-ng",
+        for (path, function, profile) in [
+            (
+                "formatters/xml-compact.cemt",
+                "relax-ng.format-xml-document",
+                "compact",
+            ),
+            (
+                "formatters/xml-pretty.cemt",
+                "relax-ng.format-xml-document",
+                "pretty",
+            ),
+            (
+                "formatters/xml-tabular.cemt",
+                "relax-ng.format-xml-document",
+                "tabular",
+            ),
+            (
+                "formatters/compact-compact.cemt",
+                "relax-ng.format-compact-document",
+                "compact",
+            ),
+            (
+                "formatters/compact-pretty.cemt",
+                "relax-ng.format-compact-document",
+                "pretty",
+            ),
+            (
+                "formatters/compact-tabular.cemt",
+                "relax-ng.format-compact-document",
+                "tabular",
+            ),
+            (
+                "colorizers/xml-terminal.cemt",
+                "relax-ng.color-xml-document",
+                "terminal",
+            ),
+            (
+                "colorizers/xml-html.cemt",
+                "relax-ng.color-xml-document",
+                "html",
+            ),
+            (
+                "colorizers/xml-md.cemt",
+                "relax-ng.color-xml-document",
+                "md",
+            ),
+            (
+                "colorizers/compact-terminal.cemt",
+                "relax-ng.color-compact-document",
+                "terminal",
+            ),
+            (
+                "colorizers/compact-html.cemt",
+                "relax-ng.color-compact-document",
+                "html",
+            ),
+            (
+                "colorizers/compact-md.cemt",
+                "relax-ng.color-compact-document",
+                "md",
+            ),
+        ] {
+            let full_path = format!("schema-packages/relax-ng/v1/{path}");
+            let artifact = builtin_schema_package_artifact_source("relax-ng", &full_path)
+                .unwrap_or_else(|| panic!("RELAX NG artifact source `{full_path}`"));
+            assert!(artifact.source.contains(&format!(r#"@name="{function}""#)));
+            assert!(artifact
+                .source
+                .contains(&format!(r#"@profile="{profile}""#)));
+            assert!(artifact.source.contains("{body |"));
+        }
+        for path in [
             "schema-packages/relax-ng/v1/formatters/relax-ng-format-schema.cemt",
-        )
-        .expect("RELAX NG formatter source");
-        let colorizer = builtin_schema_package_artifact_source(
-            "relax-ng",
             "schema-packages/relax-ng/v1/colorizers/relax-ng-color-schema.cemt",
-        )
-        .expect("RELAX NG colorizer source");
-
-        assert!(formatter
-            .source
-            .contains(r#"@name="relax-ng.format-schema""#));
-        assert!(formatter.source.contains(r#"@category="relax-ng-schema""#));
-        assert!(colorizer
-            .source
-            .contains(r#"@name="relax-ng.color-schema""#));
-        assert!(colorizer
-            .source
-            .contains(r#"@content-type="application/relax-ng+xml""#));
+        ] {
+            let helper = builtin_schema_package_artifact_source("relax-ng", path)
+                .unwrap_or_else(|| panic!("RELAX NG helper source `{path}`"));
+            assert!(helper.source.contains("{body |"));
+        }
     }
 
     #[test]

@@ -14,77 +14,23 @@
     {namespace @prefix="cemrng" @uri="https://cem.dev/ns/data/relax-ng/1"}
     {namespace @prefix="rng" @uri="http://relaxng.org/ns/structure/1.0"}
 
-    {artifact
-        @kind="formatter"
-        @path="formatters/relax-ng-format-schema.cemt"
-        @content-type="application/vnd.cem.transform+cem"
-        @schema="https://cem.dev/ns/transform/cem/1"
-        @target-content-type="application/relax-ng+xml"
-        @target-schema="https://cem.dev/ns/data/relax-ng/1"
-        @target-category="relax-ng-schema"
-        @function-name="relax-ng.format-schema"
-        @formatter-profile="compact"
-    }
+    {artifact @kind="formatter" @path="formatters/xml-compact.cemt" @content-type="application/vnd.cem.transform+cem" @schema="https://cem.dev/ns/transform/cem/1" @target-content-type="application/relax-ng+xml" @target-schema="https://cem.dev/ns/data/relax-ng/1" @target-category="relax-ng-xml-document" @function-name="relax-ng.format-xml-document" @formatter-profile="compact"}
+    {artifact @kind="formatter" @path="formatters/xml-pretty.cemt" @content-type="application/vnd.cem.transform+cem" @schema="https://cem.dev/ns/transform/cem/1" @target-content-type="application/relax-ng+xml" @target-schema="https://cem.dev/ns/data/relax-ng/1" @target-category="relax-ng-xml-document" @function-name="relax-ng.format-xml-document" @formatter-profile="pretty"}
+    {artifact @kind="formatter" @path="formatters/xml-tabular.cemt" @content-type="application/vnd.cem.transform+cem" @schema="https://cem.dev/ns/transform/cem/1" @target-content-type="application/relax-ng+xml" @target-schema="https://cem.dev/ns/data/relax-ng/1" @target-category="relax-ng-xml-document" @function-name="relax-ng.format-xml-document" @formatter-profile="tabular"}
+    {artifact @kind="formatter" @path="formatters/compact-compact.cemt" @content-type="application/vnd.cem.transform+cem" @schema="https://cem.dev/ns/transform/cem/1" @target-content-type="application/relax-ng-compact-syntax" @target-schema="https://cem.dev/ns/data/relax-ng/1" @target-category="relax-ng-compact-document" @function-name="relax-ng.format-compact-document" @formatter-profile="compact"}
+    {artifact @kind="formatter" @path="formatters/compact-pretty.cemt" @content-type="application/vnd.cem.transform+cem" @schema="https://cem.dev/ns/transform/cem/1" @target-content-type="application/relax-ng-compact-syntax" @target-schema="https://cem.dev/ns/data/relax-ng/1" @target-category="relax-ng-compact-document" @function-name="relax-ng.format-compact-document" @formatter-profile="pretty"}
+    {artifact @kind="formatter" @path="formatters/compact-tabular.cemt" @content-type="application/vnd.cem.transform+cem" @schema="https://cem.dev/ns/transform/cem/1" @target-content-type="application/relax-ng-compact-syntax" @target-schema="https://cem.dev/ns/data/relax-ng/1" @target-category="relax-ng-compact-document" @function-name="relax-ng.format-compact-document" @formatter-profile="tabular"}
+    {artifact @kind="formatter-helper" @path="formatters/relax-ng-format-schema.cemt" @content-type="application/vnd.cem.transform+cem" @schema="https://cem.dev/ns/transform/cem/1" @target-content-type="application/relax-ng+xml" @target-schema="https://cem.dev/ns/data/relax-ng/1" @target-category="relax-ng-xml-document"}
+    {artifact @kind="formatter-helper" @path="formatters/relax-ng-format-schema.cemt" @content-type="application/vnd.cem.transform+cem" @schema="https://cem.dev/ns/transform/cem/1" @target-content-type="application/relax-ng-compact-syntax" @target-schema="https://cem.dev/ns/data/relax-ng/1" @target-category="relax-ng-compact-document"}
 
-    {artifact
-        @kind="formatter"
-        @path="formatters/relax-ng-format-schema.cemt"
-        @content-type="application/vnd.cem.transform+cem"
-        @schema="https://cem.dev/ns/transform/cem/1"
-        @target-content-type="application/relax-ng+xml"
-        @target-schema="https://cem.dev/ns/data/relax-ng/1"
-        @target-category="relax-ng-schema"
-        @function-name="relax-ng.format-schema"
-        @formatter-profile="pretty"
-    }
-
-    {artifact
-        @kind="formatter"
-        @path="formatters/relax-ng-format-schema.cemt"
-        @content-type="application/vnd.cem.transform+cem"
-        @schema="https://cem.dev/ns/transform/cem/1"
-        @target-content-type="application/relax-ng+xml"
-        @target-schema="https://cem.dev/ns/data/relax-ng/1"
-        @target-category="relax-ng-schema"
-        @function-name="relax-ng.format-schema"
-        @formatter-profile="tabular"
-    }
-
-    {artifact
-        @kind="colorizer"
-        @path="colorizers/relax-ng-color-schema.cemt"
-        @content-type="application/vnd.cem.transform+cem"
-        @schema="https://cem.dev/ns/transform/cem/1"
-        @target-content-type="application/relax-ng+xml"
-        @target-schema="https://cem.dev/ns/data/relax-ng/1"
-        @target-category="relax-ng-schema"
-        @function-name="relax-ng.color-schema"
-        @color-profile="terminal"
-    }
-
-    {artifact
-        @kind="colorizer"
-        @path="colorizers/relax-ng-color-schema.cemt"
-        @content-type="application/vnd.cem.transform+cem"
-        @schema="https://cem.dev/ns/transform/cem/1"
-        @target-content-type="application/relax-ng+xml"
-        @target-schema="https://cem.dev/ns/data/relax-ng/1"
-        @target-category="relax-ng-schema"
-        @function-name="relax-ng.color-schema"
-        @color-profile="html"
-    }
-
-    {artifact
-        @kind="colorizer"
-        @path="colorizers/relax-ng-color-schema.cemt"
-        @content-type="application/vnd.cem.transform+cem"
-        @schema="https://cem.dev/ns/transform/cem/1"
-        @target-content-type="application/relax-ng+xml"
-        @target-schema="https://cem.dev/ns/data/relax-ng/1"
-        @target-category="relax-ng-schema"
-        @function-name="relax-ng.color-schema"
-        @color-profile="md"
-    }
+    {artifact @kind="colorizer" @path="colorizers/xml-terminal.cemt" @content-type="application/vnd.cem.transform+cem" @schema="https://cem.dev/ns/transform/cem/1" @target-content-type="application/relax-ng+xml" @target-schema="https://cem.dev/ns/data/relax-ng/1" @target-category="relax-ng-xml-document" @function-name="relax-ng.color-xml-document" @color-profile="terminal"}
+    {artifact @kind="colorizer" @path="colorizers/xml-html.cemt" @content-type="application/vnd.cem.transform+cem" @schema="https://cem.dev/ns/transform/cem/1" @target-content-type="application/relax-ng+xml" @target-schema="https://cem.dev/ns/data/relax-ng/1" @target-category="relax-ng-xml-document" @function-name="relax-ng.color-xml-document" @color-profile="html"}
+    {artifact @kind="colorizer" @path="colorizers/xml-md.cemt" @content-type="application/vnd.cem.transform+cem" @schema="https://cem.dev/ns/transform/cem/1" @target-content-type="application/relax-ng+xml" @target-schema="https://cem.dev/ns/data/relax-ng/1" @target-category="relax-ng-xml-document" @function-name="relax-ng.color-xml-document" @color-profile="md"}
+    {artifact @kind="colorizer" @path="colorizers/compact-terminal.cemt" @content-type="application/vnd.cem.transform+cem" @schema="https://cem.dev/ns/transform/cem/1" @target-content-type="application/relax-ng-compact-syntax" @target-schema="https://cem.dev/ns/data/relax-ng/1" @target-category="relax-ng-compact-document" @function-name="relax-ng.color-compact-document" @color-profile="terminal"}
+    {artifact @kind="colorizer" @path="colorizers/compact-html.cemt" @content-type="application/vnd.cem.transform+cem" @schema="https://cem.dev/ns/transform/cem/1" @target-content-type="application/relax-ng-compact-syntax" @target-schema="https://cem.dev/ns/data/relax-ng/1" @target-category="relax-ng-compact-document" @function-name="relax-ng.color-compact-document" @color-profile="html"}
+    {artifact @kind="colorizer" @path="colorizers/compact-md.cemt" @content-type="application/vnd.cem.transform+cem" @schema="https://cem.dev/ns/transform/cem/1" @target-content-type="application/relax-ng-compact-syntax" @target-schema="https://cem.dev/ns/data/relax-ng/1" @target-category="relax-ng-compact-document" @function-name="relax-ng.color-compact-document" @color-profile="md"}
+    {artifact @kind="colorizer-helper" @path="colorizers/relax-ng-color-schema.cemt" @content-type="application/vnd.cem.transform+cem" @schema="https://cem.dev/ns/transform/cem/1" @target-content-type="application/relax-ng+xml" @target-schema="https://cem.dev/ns/data/relax-ng/1" @target-category="relax-ng-xml-document"}
+    {artifact @kind="colorizer-helper" @path="colorizers/relax-ng-color-schema.cemt" @content-type="application/vnd.cem.transform+cem" @schema="https://cem.dev/ns/transform/cem/1" @target-content-type="application/relax-ng-compact-syntax" @target-schema="https://cem.dev/ns/data/relax-ng/1" @target-category="relax-ng-compact-document"}
 
     {example
         @id="basic-schema-xml"

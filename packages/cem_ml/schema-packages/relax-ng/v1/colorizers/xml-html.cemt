@@ -1,0 +1,10 @@
+@doc cem-ml 1
+@ns transform = "https://cem.dev/ns/transform/cem/1"
+@default transform
+
+{module @version="1.0.0" |
+    {color-function @name="relax-ng.color-xml-document" @visibility="public" @category="relax-ng-xml-document" @subject="cem-tree" @produces="cem-tree" @content-type="application/relax-ng+xml" @schema="https://cem.dev/ns/data/relax-ng/1" @profile="html" @extends="cem.color-tree" @canonical=false @deterministic=true @streamable=true |
+        {param @name="subject" @type="object" @required=true}
+        {body | {$ merge(call("relax-ng.color-xml-document.tree", { subject: $subject, profile: "html", output: "html" }), {}) } }
+    }
+}

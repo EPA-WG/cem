@@ -1,0 +1,10 @@
+@doc cem-ml 1
+@ns transform = "https://cem.dev/ns/transform/cem/1"
+@default transform
+
+{module @version="1.0.0" |
+    {format-function @name="relax-ng.format-compact-document" @visibility="public" @category="relax-ng-compact-document" @subject="relax-ng-document" @produces="cem-tree" @content-type="application/relax-ng-compact-syntax" @schema="https://cem.dev/ns/data/relax-ng/1" @profile="compact" @canonical=true @deterministic=true @streamable=true |
+        {param @name="subject" @type="object" @required=true}
+        {body | {$ merge(call("relax-ng.format-compact-document.tree", { subject: $subject, profile: "compact" }), {}) } }
+    }
+}

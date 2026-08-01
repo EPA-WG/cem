@@ -386,6 +386,37 @@ function previewPlanForExample(example, manifest) {
         };
     }
 
+    if (isRelaxNgTextExample(example, manifest, essence)) {
+        if (example.expectedResult !== 'pass') {
+            return {
+                label: 'relax-ng validate',
+                renderer: 'json',
+                expectedStatus: 'success',
+                width: 1040,
+                minHeight: 520,
+                args: validatePreviewArgs(inputPath, {
+                    format: 'json',
+                    failLevel: 'parse',
+                    contentType: example.contentType,
+                    schema: example.schema,
+                }),
+            };
+        }
+        return {
+            label: 'relax-ng',
+            renderer: 'html',
+            expectedStatus: 'success',
+            width: 980,
+            minHeight: 190,
+            args: convertPreviewArgs(inputSpec, {
+                toContentType: example.contentType,
+                toSchema: example.schema,
+                colorProfile: 'html',
+                outputColorType: null,
+            }),
+        };
+    }
+
     if (isGenericXmlTextExample(example, manifest, essence)) {
         if (example.expectedResult !== 'pass') {
             return {
@@ -526,6 +557,13 @@ function isMarkdownTextExample(_example, manifest, essence) {
     return manifest.packageId === 'markdown' && essence === 'text/markdown';
 }
 
+function isRelaxNgTextExample(_example, manifest, essence) {
+    return (
+        manifest.packageId === 'relax-ng' &&
+        (essence === 'application/relax-ng+xml' || essence === 'application/relax-ng-compact-syntax')
+    );
+}
+
 function isGenericXmlTextExample(_example, manifest, essence) {
     return manifest.packageId === 'xml' && (essence === 'application/xml' || essence === 'text/xml');
 }
@@ -547,8 +585,7 @@ function isXmlFamilyExample(essence) {
         essence === 'application/mathml+xml' ||
         essence === 'application/mathml-content+xml' ||
         essence === 'application/xslt+xml' ||
-        essence === 'text/xsl' ||
-        essence === 'application/relax-ng+xml'
+        essence === 'text/xsl'
     );
 }
 

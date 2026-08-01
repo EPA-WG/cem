@@ -4565,15 +4565,15 @@ fn collect_relax_ng_source_diagnostics(
     let mut diagnostics = Vec::new();
     for input in inputs {
         let content_type = input_source_content_type(input);
-        diagnostics.extend(
-            cem_ml::validation::relax_ng::validate_relax_ng_source_bytes(
+        let (_, mut input_diagnostics) =
+            cem_ml::validation::relax_ng::relax_ng_document_ast_from_source_bytes(
                 cem_ml::validation::relax_ng::RelaxNgSourceValidationRequest {
                     bytes: &input.bytes,
                     source_uri: &input.uri,
                     content_type: content_type.as_deref(),
                 },
-            ),
-        );
+            );
+        diagnostics.append(&mut input_diagnostics);
     }
     diagnostics
 }
@@ -12913,6 +12913,72 @@ This document has **strong** text and a link.
         assert!(stderr.trim().is_empty(), "{stderr}");
         assert_eq!(stdout, format!("{source}\n"));
         assert!(!stdout.contains("cem.schema."));
+        assert!(!stdout.contains("cem.lifecycle."));
+    }
+
+    #[test]
+    fn convert_relax_ng_xml_same_schema_uses_typed_lifecycle_output_pipeline() {
+        let source = r#"<grammar xmlns="http://relaxng.org/ns/structure/1.0"><start><element name="note"><text/></element></start></grammar>"#;
+        let p = write_fixture("convert-relax-ng-same-schema.rng", source);
+        let input_spec = format!(
+            "uri={},contentType={},schema={}",
+            p.display(),
+            cem_ml::schema::registry::RELAX_NG_XML_CONTENT_TYPE,
+            cem_ml::schema::registry::RELAX_NG_SCHEMA_URI
+        );
+
+        let (outcome, stdout, stderr) = run(
+            &RealCemMlEngine::new(),
+            &[
+                "convert",
+                "--input-spec",
+                &input_spec,
+                "--to-content-type",
+                cem_ml::schema::registry::RELAX_NG_XML_CONTENT_TYPE,
+                "--to-schema",
+                cem_ml::schema::registry::RELAX_NG_SCHEMA_URI,
+                "--cemt-formatter-profile",
+                "tabular",
+            ],
+        );
+
+        assert_eq!(outcome.exit_code, EXIT_OK, "{stderr}");
+        assert!(stderr.trim().is_empty(), "{stderr}");
+        assert_eq!(stdout, format!("{source}\n"));
+        assert!(!stdout.contains("cem.schema."));
+        assert!(!stdout.contains("cem.lifecycle."));
+    }
+
+    #[test]
+    fn convert_relax_ng_compact_same_schema_uses_typed_lifecycle_output_pipeline() {
+        let source = "start = element note { text }";
+        let p = write_fixture("convert-relax-ng-same-schema.rnc", source);
+        let input_spec = format!(
+            "uri={},contentType={},schema={}",
+            p.display(),
+            cem_ml::schema::registry::RELAX_NG_COMPACT_CONTENT_TYPE,
+            cem_ml::schema::registry::RELAX_NG_SCHEMA_URI
+        );
+
+        let (outcome, stdout, stderr) = run(
+            &RealCemMlEngine::new(),
+            &[
+                "convert",
+                "--input-spec",
+                &input_spec,
+                "--to-content-type",
+                cem_ml::schema::registry::RELAX_NG_COMPACT_CONTENT_TYPE,
+                "--to-schema",
+                cem_ml::schema::registry::RELAX_NG_SCHEMA_URI,
+                "--cemt-formatter-profile",
+                "tabular",
+            ],
+        );
+
+        assert_eq!(outcome.exit_code, EXIT_OK, "{stderr}");
+        assert!(stderr.trim().is_empty(), "{stderr}");
+        assert_eq!(stdout, format!("{source}\n"));
+        assert!(!stdout.contains("cem.parser."));
         assert!(!stdout.contains("cem.lifecycle."));
     }
 
