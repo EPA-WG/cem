@@ -4584,13 +4584,15 @@ fn collect_xhtml_source_diagnostics(
     let mut diagnostics = Vec::new();
     for input in inputs {
         let content_type = input_source_content_type(input);
-        diagnostics.extend(cem_ml::validation::xhtml::validate_xhtml_source_bytes(
-            cem_ml::validation::xhtml::XhtmlSourceValidationRequest {
-                bytes: &input.bytes,
-                source_uri: &input.uri,
-                content_type: content_type.as_deref(),
-            },
-        ));
+        let (_, mut input_diagnostics) =
+            cem_ml::validation::xhtml::xhtml_document_ast_from_source_bytes(
+                cem_ml::validation::xhtml::XhtmlSourceValidationRequest {
+                    bytes: &input.bytes,
+                    source_uri: &input.uri,
+                    content_type: content_type.as_deref(),
+                },
+            );
+        diagnostics.append(&mut input_diagnostics);
     }
     diagnostics
 }
@@ -8140,6 +8142,7 @@ mod tests {
         "</svg>"
     );
     const FORMATTED_SVG_HI_XML: &str = "<svg><title>Hi</title></svg>";
+    const FORMATTED_P_HI_XML: &str = "<p>Hi</p>\n";
 
     fn yaml_documents_to_json_value(documents: Vec<yaml_rust2::Yaml>) -> serde_json::Value {
         let mut values = documents
@@ -12917,6 +12920,38 @@ This document has **strong** text and a link.
     }
 
     #[test]
+    fn convert_xhtml_same_schema_uses_dedicated_lifecycle_output_pipeline() {
+        let source = r#"<?xml version="1.0"?><html xmlns="http://www.w3.org/1999/xhtml" xmlns:svg="http://www.w3.org/2000/svg"><head/><body><br/><svg:svg><svg:path/></svg:svg></body></html>"#;
+        let p = write_fixture("convert-xhtml-same-schema.xhtml", source);
+        let input_spec = format!(
+            "uri={},contentType=application/xhtml+xml,schema={}",
+            p.display(),
+            cem_ml::schema::registry::XHTML_SCHEMA_URI
+        );
+
+        let (outcome, stdout, stderr) = run(
+            &RealCemMlEngine::new(),
+            &[
+                "convert",
+                "--input-spec",
+                &input_spec,
+                "--to-content-type",
+                "application/xhtml+xml",
+                "--to-schema",
+                cem_ml::schema::registry::XHTML_SCHEMA_URI,
+                "--cemt-formatter-profile",
+                "tabular",
+            ],
+        );
+
+        assert_eq!(outcome.exit_code, EXIT_OK, "{stderr}");
+        assert!(stderr.trim().is_empty(), "{stderr}");
+        assert_eq!(stdout, format!("{source}\n"));
+        assert!(!stdout.contains("cem.schema."));
+        assert!(!stdout.contains("cem.lifecycle."));
+    }
+
+    #[test]
     fn convert_relax_ng_xml_same_schema_uses_typed_lifecycle_output_pipeline() {
         let source = r#"<grammar xmlns="http://relaxng.org/ns/structure/1.0"><start><element name="note"><text/></element></start></grammar>"#;
         let p = write_fixture("convert-relax-ng-same-schema.rng", source);
@@ -17253,7 +17288,7 @@ start =
     }
 
     #[test]
-    fn validate_positional_xhtml_uses_inferred_html_input_adapter() {
+    fn validate_positional_xhtml_uses_inferred_dedicated_input_adapter() {
         let p = write_fixture(
             "validate-positional-xhtml.xhtml",
             r#"<html xmlns="http://www.w3.org/1999/xhtml"><head><title>Go</title></head><body><button>Go</button></body></html>"#,
@@ -19018,7 +19053,7 @@ start =
     }
 
     #[test]
-    fn output_spec_xhtml_destination_infers_html_export_adapter() {
+    fn output_spec_xhtml_destination_infers_xml_export_adapter() {
         let input = write_fixture("convert-output-xhtml-destination-input.cem", "{p | Hi}");
         let out_path =
             std::env::temp_dir().join("cem-ml-cli-tests/convert-output-xhtml-destination.xhtml");
@@ -19042,7 +19077,7 @@ start =
             "{stderr}"
         );
         let written = std::fs::read_to_string(&out_path).unwrap();
-        assert_eq!(written, COLORED_P_HI_HTML);
+        assert_eq!(written, FORMATTED_P_HI_XML);
     }
 
     #[test]
@@ -21718,7 +21753,7 @@ start =
     }
 
     #[test]
-    fn convert_to_content_type_xhtml_selects_html_export_adapter() {
+    fn convert_to_content_type_xhtml_selects_xml_export_adapter() {
         let p = write_fixture("convert-target-xhtml.cem", "@doc cem-ml 1\n{p | Hi}");
         let (outcome, stdout, stderr) = run(
             &RealCemMlEngine::new(),
@@ -21730,7 +21765,7 @@ start =
             ],
         );
         assert_eq!(outcome.exit_code, EXIT_OK, "{stderr}");
-        assert_eq!(stdout, COLORED_P_HI_HTML);
+        assert_eq!(stdout, FORMATTED_P_HI_XML);
     }
 
     #[test]

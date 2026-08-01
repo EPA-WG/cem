@@ -64,24 +64,36 @@
     }
 
     {constraints |
-        {constraint @kind="xhtml-source-parser" @target="document" @policy="delegate-to-xml-parser-with-xhtml-schema"}
+        {constraint @kind="xhtml-source-parser" @target="document" @diagnostic="cem.xhtml.not_well_formed_xml" @behavior="xhtml-report-fact" @fact-kind="not-well-formed-xml" @policy="delegate to the generic XML event parser while retaining XHTML schema identity"}
+        {constraint @kind="xhtml-source-encoding" @target="document" @diagnostic="cem.xhtml.unsupported_encoding" @behavior="xhtml-report-fact" @fact-kind="unsupported-encoding" @policy="inherit the XML package UTF-8 and US-ASCII decoder policy"}
+        {constraint @kind="xhtml-encoding-conflict" @target="document" @diagnostic="cem.xhtml.encoding_conflict" @behavior="xhtml-report-fact" @fact-kind="encoding-conflict" @policy="MIME charset and XML declaration encoding must not conflict"}
+        {constraint @kind="xhtml-namespace-prefix-binding" @target="document" @diagnostic="cem.xhtml.unbound_namespace_prefix" @behavior="xhtml-report-fact" @fact-kind="unbound-namespace-prefix" @policy="inherit XML namespace prefix binding rules"}
+        {constraint @kind="xhtml-attribute-namespace-uniqueness" @target="document" @diagnostic="cem.xhtml.duplicate_attribute" @behavior="xhtml-report-fact" @fact-kind="duplicate-attribute" @policy="inherit XML expanded-name attribute uniqueness rules"}
         {constraint @kind="application-xhtml-primary" @target="document" @policy="application/xhtml+xml is the canonical media type for XHTML resources"}
         {constraint @kind="text-html-not-claimed" @target="document" @policy="text/html is an HTML serialization identity, not the XHTML schema identity"}
         {constraint @kind="xml-base-schema-compatible" @target="document" @policy="required"}
-        {constraint @kind="xhtml-namespace-required" @target="html" @policy="root element must use http://www.w3.org/1999/xhtml"}
-        {constraint @kind="root-html-element" @target="document" @policy="required"}
-        {constraint @kind="single-head-before-body" @target="html" @policy="required"}
-        {constraint @kind="well-formed-xml" @target="document" @policy="required"}
+        {constraint @kind="xhtml-namespace-required" @target="html" @diagnostic="cem.xhtml.namespace_missing" @behavior="xhtml-report-fact" @fact-kind="namespace-missing" @policy="root element must use http://www.w3.org/1999/xhtml"}
+        {constraint @kind="root-html-element" @target="document" @diagnostic="cem.xhtml.root_not_html" @behavior="xhtml-report-fact" @fact-kind="root-not-html" @policy="required"}
+        {constraint @kind="single-head-before-body" @target="html" @diagnostic="cem.xhtml.head_body_order" @behavior="xhtml-report-fact" @fact-kind="head-body-order" @policy="required"}
         {constraint @kind="void-element-xml-serialization" @target="flow" @policy="void HTML elements must be represented as well-formed XML elements"}
         {constraint @kind="foreign-content-declared" @target="foreign-content" @policy="foreign namespaces require their own schema package or explicit converter profile"}
-        {constraint @kind="doctype-policy" @target="document" @policy="preserve doctype but do not fetch external subsets unless explicitly enabled by policy"}
-        {constraint @kind="profile-parameter-deprecated" @target="document" @policy="preserve but do not require application/xhtml+xml profile parameter"}
-        {constraint @kind="source-map-preferred" @target="flow" @policy="required when parser exposes source ranges"}
+        {constraint @kind="doctype-policy" @target="document" @diagnostic="cem.xhtml.dtd_rejected" @behavior="xhtml-report-fact" @fact-kind="dtd-rejected" @policy="preserve doctype lexemes but inherit XML rejection of DTD declarations until an explicit resolver policy enables them"}
+        {constraint @kind="external-entity-policy" @target="document" @diagnostic="cem.xhtml.external_entity_rejected" @behavior="xhtml-report-fact" @fact-kind="external-entity-rejected" @policy="inherit XML rejection of non-built-in entity references"}
+        {constraint @kind="entity-expansion-limit" @target="document" @diagnostic="cem.xhtml.entity_expansion_limit" @behavior="xhtml-report-fact" @fact-kind="entity-expansion-limit" @policy="inherit XML entity expansion safety limits"}
+        {constraint @kind="profile-parameter-deprecated" @target="document" @diagnostic="cem.xhtml.profile_deprecated" @behavior="xhtml-report-fact" @fact-kind="profile-deprecated" @policy="preserve but do not require application/xhtml+xml profile parameter"}
+        {constraint @kind="source-map-preferred" @target="flow" @diagnostic="cem.xhtml.source_map_unavailable" @behavior="xhtml-report-fact" @fact-kind="source-map-unavailable" @policy="required when parser exposes source ranges"}
     }
 
     {diagnostics |
         {diagnostic @code="cem.xhtml.parse_error" @severity="error"}
         {diagnostic @code="cem.xhtml.not_well_formed_xml" @severity="error"}
+        {diagnostic @code="cem.xhtml.unsupported_encoding" @severity="error"}
+        {diagnostic @code="cem.xhtml.encoding_conflict" @severity="error"}
+        {diagnostic @code="cem.xhtml.unbound_namespace_prefix" @severity="error"}
+        {diagnostic @code="cem.xhtml.duplicate_attribute" @severity="error"}
+        {diagnostic @code="cem.xhtml.dtd_rejected" @severity="error"}
+        {diagnostic @code="cem.xhtml.external_entity_rejected" @severity="error"}
+        {diagnostic @code="cem.xhtml.entity_expansion_limit" @severity="error"}
         {diagnostic @code="cem.xhtml.root_not_html" @severity="error"}
         {diagnostic @code="cem.xhtml.namespace_missing" @severity="error"}
         {diagnostic @code="cem.xhtml.head_body_order" @severity="error"}

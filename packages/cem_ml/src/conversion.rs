@@ -33,7 +33,8 @@ use crate::schema::registry::{
     CEM_TRANSFORM_CONTENT_TYPE, CEM_TRANSFORM_SCHEMA_URI, CSV_CONTENT_TYPE, CSV_SCHEMA_URI,
     HTML_CONTENT_TYPE, HTML_SCHEMA_URI, JSON_CONTENT_TYPE, JSON_SCHEMA_CONTENT_TYPE,
     JSON_SCHEMA_SCHEMA_URI, JSON_VALUE_SCHEMA_URI, MARKDOWN_CONTENT_TYPE, MARKDOWN_SCHEMA_URI,
-    RELAX_NG_SCHEMA_URI, XML_CONTENT_TYPE, XML_SCHEMA_URI, YAML_CONTENT_TYPE, YAML_SCHEMA_URI,
+    RELAX_NG_SCHEMA_URI, XHTML_CONTENT_TYPE, XHTML_SCHEMA_URI, XML_CONTENT_TYPE, XML_SCHEMA_URI,
+    YAML_CONTENT_TYPE, YAML_SCHEMA_URI,
 };
 use crate::source::{BytesSource, SourceId};
 use crate::source_map::SourceMapStack;
@@ -74,6 +75,7 @@ use crate::validation::json::{generic_data_ast_to_json_cemt_subject, JsonDocumen
 use crate::validation::json_schema::JsonSchemaDocumentAst;
 use crate::validation::markdown::MarkdownDocumentAst;
 use crate::validation::relax_ng::{RelaxNgDocumentAst, RelaxNgSyntaxKind};
+use crate::validation::xhtml::XhtmlDocumentAst;
 use crate::validation::xml::XmlDocumentAst;
 use crate::validation::yaml::{generic_data_ast_to_yaml_cemt_subject, YamlDocumentAst};
 use serde_json::Value;
@@ -2371,6 +2373,24 @@ const XML_COLOR_CEMT_STAGE_SPEC: CemTreeCemtOutputStageSpec = CemTreeCemtOutputS
     declaration_element: "{color-function",
     function_kind: TransformTemplateOutputFunctionKind::Color,
     function_name: "xml.color-document",
+    role: "colorizer",
+};
+
+const XHTML_FORMAT_CEMT_STAGE_SPEC: CemTreeCemtOutputStageSpec = CemTreeCemtOutputStageSpec {
+    adapter_id: "xhtml-format-cemt",
+    artifact_kind: CEM_TREE_FORMATTER_ARTIFACT_KIND,
+    declaration_element: "{format-function",
+    function_kind: TransformTemplateOutputFunctionKind::Format,
+    function_name: "xhtml.format-document",
+    role: "formatter",
+};
+
+const XHTML_COLOR_CEMT_STAGE_SPEC: CemTreeCemtOutputStageSpec = CemTreeCemtOutputStageSpec {
+    adapter_id: "xhtml-color-cemt",
+    artifact_kind: CEM_TREE_COLORIZER_ARTIFACT_KIND,
+    declaration_element: "{color-function",
+    function_kind: TransformTemplateOutputFunctionKind::Color,
+    function_name: "xhtml.color-document",
     role: "colorizer",
 };
 
@@ -6682,6 +6702,16 @@ impl XmlDocumentOutputSubject for XmlDocumentAst {
     }
 }
 
+impl XmlDocumentOutputSubject for XhtmlDocumentAst {
+    fn source_line_ending(&self) -> Option<&str> {
+        self.line_ending.as_deref()
+    }
+
+    fn into_cemt_subject(self) -> Value {
+        self.to_cemt_subject()
+    }
+}
+
 #[cfg(test)]
 impl XmlDocumentOutputSubject for Value {
     fn source_line_ending(&self) -> Option<&str> {
@@ -6699,19 +6729,97 @@ pub fn execute_xml_document_output_pipeline_with_environment(
     target_scope: &ScopeConfig,
     diagnostic_uri: Option<&str>,
 ) -> ConversionOutputPipelineExecution {
+    execute_xml_family_document_output_pipeline_with_environment(
+        environment,
+        document,
+        target_scope,
+        diagnostic_uri,
+        XmlFamilyOutputSpec::xml(),
+    )
+}
+
+pub fn execute_xhtml_document_output_pipeline_with_environment(
+    environment: &ConversionOutputPipelineEnvironment<'_>,
+    document: XhtmlDocumentAst,
+    target_scope: &ScopeConfig,
+    diagnostic_uri: Option<&str>,
+) -> ConversionOutputPipelineExecution {
+    execute_xml_family_document_output_pipeline_with_environment(
+        environment,
+        document,
+        target_scope,
+        diagnostic_uri,
+        XmlFamilyOutputSpec::xhtml(),
+    )
+}
+
+#[derive(Debug, Clone, Copy)]
+struct XmlFamilyOutputSpec {
+    label: &'static str,
+    formatter: CemTreeCemtOutputStageSpec,
+    colorizer: CemTreeCemtOutputStageSpec,
+    content_type: &'static str,
+    schema: &'static str,
+    category: &'static str,
+    subject_kind: &'static str,
+    formatter_option_prefix: &'static str,
+    converter_id: &'static str,
+    diagnostic_node: &'static str,
+}
+
+impl XmlFamilyOutputSpec {
+    const fn xml() -> Self {
+        Self {
+            label: "XML",
+            formatter: XML_FORMAT_CEMT_STAGE_SPEC,
+            colorizer: XML_COLOR_CEMT_STAGE_SPEC,
+            content_type: XML_CONTENT_TYPE,
+            schema: XML_SCHEMA_URI,
+            category: "xml-document",
+            subject_kind: "xml-document",
+            formatter_option_prefix: "xml.",
+            converter_id: "xml-direct-output",
+            diagnostic_node: "xml",
+        }
+    }
+
+    const fn xhtml() -> Self {
+        Self {
+            label: "XHTML",
+            formatter: XHTML_FORMAT_CEMT_STAGE_SPEC,
+            colorizer: XHTML_COLOR_CEMT_STAGE_SPEC,
+            content_type: XHTML_CONTENT_TYPE,
+            schema: XHTML_SCHEMA_URI,
+            category: "xhtml-document",
+            subject_kind: "xhtml-document",
+            formatter_option_prefix: "xhtml.",
+            converter_id: "xhtml-direct-output",
+            diagnostic_node: "xhtml",
+        }
+    }
+}
+
+fn execute_xml_family_document_output_pipeline_with_environment(
+    environment: &ConversionOutputPipelineEnvironment<'_>,
+    document: impl XmlDocumentOutputSubject,
+    target_scope: &ScopeConfig,
+    diagnostic_uri: Option<&str>,
+    spec: XmlFamilyOutputSpec,
+) -> ConversionOutputPipelineExecution {
     let formatter_name = target_scope
         .cemt_formatter
         .as_deref()
         .map(str::trim)
         .filter(|name| !name.is_empty())
-        .unwrap_or(XML_FORMAT_CEMT_STAGE_SPEC.function_name);
-    if formatter_name != XML_FORMAT_CEMT_STAGE_SPEC.function_name {
-        return xml_output_pipeline_failed(
+        .unwrap_or(spec.formatter.function_name);
+    if formatter_name != spec.formatter.function_name {
+        return xml_family_output_pipeline_failed(
             diagnostic_uri,
             format!(
-                "unsupported XML formatter `{formatter_name}`; first-class XML output supports `{}`",
-                XML_FORMAT_CEMT_STAGE_SPEC.function_name
+                "unsupported {} formatter `{formatter_name}`; first-class {} output supports `{}`",
+                spec.label, spec.label, spec.formatter.function_name
             ),
+            spec,
         );
     }
     let formatter_profile = target_scope
@@ -6721,11 +6829,13 @@ pub fn execute_xml_document_output_pipeline_with_environment(
         .filter(|profile| !profile.is_empty())
         .unwrap_or("compact");
     if !matches!(formatter_profile, "compact" | "pretty" | "tabular") {
-        return xml_output_pipeline_failed(
+        return xml_family_output_pipeline_failed(
             diagnostic_uri,
             format!(
-                "unsupported XML formatter profile `{formatter_profile}`; supported profiles are compact, pretty, and tabular"
+                "unsupported {} formatter profile `{formatter_profile}`; supported profiles are compact, pretty, and tabular",
+                spec.label
             ),
+            spec,
         );
     }
     if let Some(name) = target_scope
@@ -6734,13 +6844,14 @@ pub fn execute_xml_document_output_pipeline_with_environment(
         .map(str::trim)
         .filter(|name| !name.is_empty())
     {
-        if name != XML_COLOR_CEMT_STAGE_SPEC.function_name {
-            return xml_output_pipeline_failed(
+        if name != spec.colorizer.function_name {
+            return xml_family_output_pipeline_failed(
                 diagnostic_uri,
                 format!(
-                    "unsupported XML colorizer `{name}`; first-class XML output supports `{}`",
-                    XML_COLOR_CEMT_STAGE_SPEC.function_name
+                    "unsupported {} colorizer `{name}`; first-class {} output supports `{}`",
+                    spec.label, spec.label, spec.colorizer.function_name
                 ),
+                spec,
             );
         }
     }
@@ -6753,7 +6864,7 @@ pub fn execute_xml_document_output_pipeline_with_environment(
         .transpose()
     {
         Ok(selection) => selection,
-        Err(message) => return xml_output_pipeline_failed(diagnostic_uri, message),
+        Err(message) => return xml_family_output_pipeline_failed(diagnostic_uri, message, spec),
     };
     let inferred_color_profile = output_color_selection
         .as_ref()
@@ -6772,25 +6883,29 @@ pub fn execute_xml_document_output_pipeline_with_environment(
         Some(profile @ ("terminal" | "html" | "md")) => Some(profile),
         Some("none") | None => None,
         Some(profile) => {
-            return xml_output_pipeline_failed(
+            return xml_family_output_pipeline_failed(
                 diagnostic_uri,
                 format!(
-                    "unsupported XML color profile `{profile}`; supported profiles are terminal, html, md, and none"
+                    "unsupported {} color profile `{profile}`; supported profiles are terminal, html, md, and none",
+                    spec.label
                 ),
+                spec,
             )
         }
     };
     if let (Some(explicit), Some(inferred)) = (explicit_color_profile, inferred_color_profile) {
         if explicit != inferred {
-            return xml_output_pipeline_failed(
+            return xml_family_output_pipeline_failed(
                 diagnostic_uri,
                 format!(
-                    "XML color profile `{explicit}` conflicts with output color type `{}`; use `{inferred}` or omit `--cemt-color-profile`",
+                    "{} color profile `{explicit}` conflicts with output color type `{}`; use `{inferred}` or omit `--cemt-color-profile`",
+                    spec.label,
                     output_color_selection
                         .as_ref()
                         .map(|selection| selection.output_color_type.as_str())
                         .unwrap_or_default()
                 ),
+                spec,
             );
         }
     }
@@ -6798,15 +6913,18 @@ pub fn execute_xml_document_output_pipeline_with_environment(
     let line_ending_mode = match target_scope.cemt_formatter_options.get("lineEnding") {
         Some(value) => match parse_formatter_line_ending_option("lineEnding", value) {
             Ok(mode) => Some(mode),
-            Err(message) => return xml_output_pipeline_failed(diagnostic_uri, message),
+            Err(message) => {
+                return xml_family_output_pipeline_failed(diagnostic_uri, message, spec)
+            }
         },
         None => None,
     };
     for key in target_scope.cemt_formatter_options.keys() {
-        if key.starts_with("xml.") {
-            return xml_output_pipeline_failed(
+        if key.starts_with(spec.formatter_option_prefix) {
+            return xml_family_output_pipeline_failed(
                 diagnostic_uri,
-                format!("unsupported XML formatter option `{key}`"),
+                format!("unsupported {} formatter option `{key}`", spec.label),
+                spec,
             );
         }
     }
@@ -6815,11 +6933,11 @@ pub fn execute_xml_document_output_pipeline_with_environment(
     let document_subject = document.into_cemt_subject();
     let mut pipeline = direct_xml_output_pipeline();
     pipeline.cemt_target =
-        TransformTemplateEncodingTarget::new(XML_CONTENT_TYPE, XML_SCHEMA_URI, "xml-document");
+        TransformTemplateEncodingTarget::new(spec.content_type, spec.schema, spec.category);
     pipeline.cemt_options.formatter = Some(formatter_name.to_owned());
     pipeline.cemt_options.formatter_profile = Some(formatter_profile.to_owned());
     pipeline.cemt_options.colorizer =
-        color_profile.map(|_| XML_COLOR_CEMT_STAGE_SPEC.function_name.to_owned());
+        color_profile.map(|_| spec.colorizer.function_name.to_owned());
     pipeline.cemt_options.color_profile = Some(color_profile.unwrap_or("none").to_owned());
     pipeline.cemt_options.formatter_options = target_scope.cemt_formatter_options.clone();
     pipeline.cemt_options.line_ending = line_ending;
@@ -6864,17 +6982,17 @@ pub fn execute_xml_document_output_pipeline_with_environment(
     let format_options = pipeline.cemt_options.clone();
     let (format_stage, format_binding) = match resolve_cemt_output_stage_binding(
         environment,
-        "XML",
-        XML_FORMAT_CEMT_STAGE_SPEC,
+        spec.label,
+        spec.formatter,
         &pipeline.cemt_target,
         Some(formatter_profile),
         Some(formatter_name),
         &document_subject,
-        "xml-document",
+        spec.subject_kind,
         format_options,
     ) {
         Ok(resolved) => resolved,
-        Err(message) => return xml_output_pipeline_failed(diagnostic_uri, message),
+        Err(message) => return xml_family_output_pipeline_failed(diagnostic_uri, message, spec),
     };
     let resolved_formatter_profile = format_binding
         .identity
@@ -6895,13 +7013,14 @@ pub fn execute_xml_document_output_pipeline_with_environment(
     let (formatted_output, format_execution) = match format_result {
         Ok(output) => output,
         Err(message) => {
-            return xml_output_pipeline_failed_with_timings(
+            return xml_family_output_pipeline_failed_with_timings(
                 diagnostic_uri,
                 format!(
                     "CEMT formatter `{}` failed: {message}",
                     format_binding.function.name
                 ),
                 format_elapsed_ns,
+                spec,
             )
         }
     };
@@ -6909,10 +7028,11 @@ pub fn execute_xml_document_output_pipeline_with_environment(
     if let Err(error) = formatted_artifact
         .validate_insertion(&conversion_cem_tree_format_insertion_context(&pipeline))
     {
-        return xml_output_pipeline_failed_with_timings(
+        return xml_family_output_pipeline_failed_with_timings(
             diagnostic_uri,
             error.diagnostic(diagnostic_uri).message,
             format_elapsed_ns,
+            spec,
         );
     }
     execute_conversion_output_pipeline_from_formatted_artifact(
@@ -6922,27 +7042,29 @@ pub fn execute_xml_document_output_pipeline_with_environment(
         Some(format_execution),
         format_elapsed_ns,
         Vec::new(),
-        "xml-direct-output",
-        Some("xml"),
+        spec.converter_id,
+        Some(spec.diagnostic_node),
         diagnostic_uri,
     )
 }
 
-fn xml_output_pipeline_failed(
+fn xml_family_output_pipeline_failed(
     diagnostic_uri: Option<&str>,
     message: String,
+    spec: XmlFamilyOutputSpec,
 ) -> ConversionOutputPipelineExecution {
-    xml_output_pipeline_failed_with_timings(diagnostic_uri, message, None)
+    xml_family_output_pipeline_failed_with_timings(diagnostic_uri, message, None, spec)
 }
 
-fn xml_output_pipeline_failed_with_timings(
+fn xml_family_output_pipeline_failed_with_timings(
     diagnostic_uri: Option<&str>,
     message: String,
     format_elapsed_ns: Option<u128>,
+    spec: XmlFamilyOutputSpec,
 ) -> ConversionOutputPipelineExecution {
     failed_pipeline_execution(
-        "xml-direct-output",
-        Some("xml"),
+        spec.converter_id,
+        Some(spec.diagnostic_node),
         diagnostic_uri,
         message,
         format_elapsed_ns,
@@ -11141,6 +11263,7 @@ fn builtin_converter_package_schema_uris() -> &'static [&'static str] {
         YAML_SCHEMA_URI,
         MARKDOWN_SCHEMA_URI,
         RELAX_NG_SCHEMA_URI,
+        XHTML_SCHEMA_URI,
     ]
 }
 
@@ -15454,7 +15577,7 @@ mod tests {
             );
             assert_eq!(
                 execution.output.as_ref().and_then(Value::as_str),
-                Some("module \"https://example.test/q\"")
+                Some("module \"https://example.test/q\"\n")
             );
         }
     }
@@ -18617,6 +18740,161 @@ mod tests {
                 .colored_cem_tree
                 .as_ref()
                 .unwrap_or_else(|| panic!("{profile} colored tree"));
+            assert_eq!(colored.value["colorProfile"], profile);
+            assert_eq!(colored.value["nodes"][2]["style"][style_key], style_value);
+        }
+    }
+
+    #[test]
+    fn builtin_xhtml_lifecycle_output_pipeline_executes_package_cemt_assets() {
+        let schema_registry = SchemaRegistry::with_builtin_schemas();
+        let conversion_registry = ConversionRegistry::with_builtin_converters();
+        let environment = ConversionOutputPipelineEnvironment {
+            schema_registry: &schema_registry,
+            conversion_registry: &conversion_registry,
+            package_artifact_reader: None,
+            artifact_cache: None,
+        };
+        let source = br#"<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:svg="http://www.w3.org/2000/svg"><head><title>Typed XHTML</title></head><body><br/><svg:svg><svg:path/></svg:svg></body></html>
+"#;
+        let (document, diagnostics) =
+            crate::validation::xhtml::xhtml_document_ast_from_source_bytes(
+                crate::validation::xhtml::XhtmlSourceValidationRequest {
+                    bytes: source,
+                    source_uri: "builtin:xhtml-output",
+                    content_type: Some(XHTML_CONTENT_TYPE),
+                },
+            );
+        assert!(diagnostics.is_empty(), "{diagnostics:?}");
+
+        for (profile, artifact_profile) in [
+            ("compact", "compact"),
+            ("pretty", "xml.pretty"),
+            ("tabular", "tabular"),
+        ] {
+            let target_scope = ScopeConfig {
+                cemt_formatter_profile: Some(profile.to_owned()),
+                ..ScopeConfig::default()
+            };
+            let execution = execute_xhtml_document_output_pipeline_with_environment(
+                &environment,
+                document.clone().expect("XHTML document"),
+                &target_scope,
+                Some("builtin:xhtml-output"),
+            );
+
+            assert!(
+                execution.diagnostics.is_empty(),
+                "{profile}: {:?}",
+                execution.diagnostics
+            );
+            assert!(
+                matches!(
+                    execution.format_execution,
+                    Some(ConversionOutputPipelineStageExecution::CemtAdapter {
+                        ref adapter_id,
+                        ref function_name,
+                        ref body_function_name,
+                        ..
+                    }) if adapter_id == "xhtml-format-cemt"
+                        && function_name == "xhtml.format-document"
+                        && body_function_name.as_deref() == Some("xhtml.format-document")
+                ),
+                "{profile}: {:?}",
+                execution.format_execution
+            );
+            assert_eq!(
+                execution.output.as_ref().and_then(Value::as_str),
+                Some(std::str::from_utf8(source).unwrap()),
+                "{profile}"
+            );
+            let formatted = execution
+                .formatted_cem_tree
+                .as_ref()
+                .unwrap_or_else(|| panic!("{profile} formatted tree"));
+            assert_eq!(formatted.value["contentType"], XHTML_CONTENT_TYPE);
+            assert_eq!(formatted.value["schema"], XHTML_SCHEMA_URI);
+            assert_eq!(formatted.value["category"], "xhtml-document");
+            assert_eq!(formatted.value["formatterProfile"], artifact_profile);
+            assert_eq!(
+                formatted.value["formatNodes"][1]["value"]["layout"],
+                format!("lexical-lossless-{profile}")
+            );
+            assert!(formatted.value["nodes"]
+                .as_array()
+                .is_some_and(|nodes| nodes.iter().any(|node| {
+                    node["kind"] == "xhtml.empty-element"
+                        && node["value"]["qualifiedName"] == "svg:path"
+                        && node["sourceMap"] != Value::Null
+                })));
+        }
+    }
+
+    #[test]
+    fn builtin_xhtml_colorizer_profiles_execute_package_cemt_assets() {
+        let schema_registry = SchemaRegistry::with_builtin_schemas();
+        let conversion_registry = ConversionRegistry::with_builtin_converters();
+        let environment = ConversionOutputPipelineEnvironment {
+            schema_registry: &schema_registry,
+            conversion_registry: &conversion_registry,
+            package_artifact_reader: None,
+            artifact_cache: None,
+        };
+        let source =
+            b"<html xmlns=\"http://www.w3.org/1999/xhtml\"><head/><body><br/></body></html>\n";
+        let (document, diagnostics) =
+            crate::validation::xhtml::xhtml_document_ast_from_source_bytes(
+                crate::validation::xhtml::XhtmlSourceValidationRequest {
+                    bytes: source,
+                    source_uri: "builtin:xhtml-color-output",
+                    content_type: Some(XHTML_CONTENT_TYPE),
+                },
+            );
+        assert!(diagnostics.is_empty(), "{diagnostics:?}");
+
+        for (profile, style_key, style_value) in [
+            ("terminal", "terminalCapability", "auto"),
+            ("html", "htmlMode", "classes"),
+            ("md", "wrapper", "span"),
+        ] {
+            let target_scope = ScopeConfig {
+                cemt_color_profile: Some(profile.to_owned()),
+                ..ScopeConfig::default()
+            };
+            let execution = execute_xhtml_document_output_pipeline_with_environment(
+                &environment,
+                document.clone().expect("XHTML document"),
+                &target_scope,
+                Some("builtin:xhtml-color-output"),
+            );
+            assert!(
+                execution.diagnostics.is_empty(),
+                "{profile}: {:?}",
+                execution.diagnostics
+            );
+            assert!(
+                matches!(
+                    execution.color_execution,
+                    Some(ConversionOutputPipelineStageExecution::CemtAdapter {
+                        ref adapter_id,
+                        ref function_name,
+                        ref body_function_name,
+                        ..
+                    }) if adapter_id == "cem-tree-color-cemt"
+                        && function_name == "xhtml.color-document"
+                        && body_function_name.as_deref() == Some("xhtml.color-document")
+                ),
+                "{profile}: {:?}",
+                execution.color_execution
+            );
+            let colored = execution
+                .colored_cem_tree
+                .as_ref()
+                .unwrap_or_else(|| panic!("{profile} colored tree"));
+            assert_eq!(colored.value["contentType"], XHTML_CONTENT_TYPE);
+            assert_eq!(colored.value["schema"], XHTML_SCHEMA_URI);
+            assert_eq!(colored.value["category"], "xhtml-document");
             assert_eq!(colored.value["colorProfile"], profile);
             assert_eq!(colored.value["nodes"][2]["style"][style_key], style_value);
         }

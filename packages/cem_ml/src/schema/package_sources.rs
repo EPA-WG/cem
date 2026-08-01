@@ -409,10 +409,40 @@ static BUILTIN_SCHEMA_PACKAGE_ARTIFACT_SOURCES: &[BuiltinSchemaPackageArtifactSo
     },
     BuiltinSchemaPackageArtifactSource {
         package_id: "xhtml",
+        path: "schema-packages/xhtml/v1/formatters/compact.cemt",
+        source: include_str!("../../schema-packages/xhtml/v1/formatters/compact.cemt"),
+    },
+    BuiltinSchemaPackageArtifactSource {
+        package_id: "xhtml",
+        path: "schema-packages/xhtml/v1/formatters/pretty.cemt",
+        source: include_str!("../../schema-packages/xhtml/v1/formatters/pretty.cemt"),
+    },
+    BuiltinSchemaPackageArtifactSource {
+        package_id: "xhtml",
+        path: "schema-packages/xhtml/v1/formatters/tabular.cemt",
+        source: include_str!("../../schema-packages/xhtml/v1/formatters/tabular.cemt"),
+    },
+    BuiltinSchemaPackageArtifactSource {
+        package_id: "xhtml",
         path: "schema-packages/xhtml/v1/formatters/xhtml-format-document.cemt",
         source: include_str!(
             "../../schema-packages/xhtml/v1/formatters/xhtml-format-document.cemt"
         ),
+    },
+    BuiltinSchemaPackageArtifactSource {
+        package_id: "xhtml",
+        path: "schema-packages/xhtml/v1/colorizers/terminal.cemt",
+        source: include_str!("../../schema-packages/xhtml/v1/colorizers/terminal.cemt"),
+    },
+    BuiltinSchemaPackageArtifactSource {
+        package_id: "xhtml",
+        path: "schema-packages/xhtml/v1/colorizers/html.cemt",
+        source: include_str!("../../schema-packages/xhtml/v1/colorizers/html.cemt"),
+    },
+    BuiltinSchemaPackageArtifactSource {
+        package_id: "xhtml",
+        path: "schema-packages/xhtml/v1/colorizers/md.cemt",
+        source: include_str!("../../schema-packages/xhtml/v1/colorizers/md.cemt"),
     },
     BuiltinSchemaPackageArtifactSource {
         package_id: "xhtml",
@@ -3722,25 +3752,47 @@ mod tests {
 
     #[test]
     fn catalog_exposes_xhtml_output_artifact_sources() {
-        let formatter = builtin_schema_package_artifact_source(
-            "xhtml",
+        for (path, function, profile) in [
+            (
+                "formatters/compact.cemt",
+                "xhtml.format-document",
+                "compact",
+            ),
+            (
+                "formatters/pretty.cemt",
+                "xhtml.format-document",
+                "xml.pretty",
+            ),
+            (
+                "formatters/tabular.cemt",
+                "xhtml.format-document",
+                "tabular",
+            ),
+            (
+                "colorizers/terminal.cemt",
+                "xhtml.color-document",
+                "terminal",
+            ),
+            ("colorizers/html.cemt", "xhtml.color-document", "html"),
+            ("colorizers/md.cemt", "xhtml.color-document", "md"),
+        ] {
+            let full_path = format!("schema-packages/xhtml/v1/{path}");
+            let artifact = builtin_schema_package_artifact_source("xhtml", &full_path)
+                .unwrap_or_else(|| panic!("XHTML artifact source `{full_path}`"));
+            assert!(artifact.source.contains(&format!(r#"@name="{function}""#)));
+            assert!(artifact
+                .source
+                .contains(&format!(r#"@profile="{profile}""#)));
+            assert!(artifact.source.contains("{body |"));
+        }
+        for path in [
             "schema-packages/xhtml/v1/formatters/xhtml-format-document.cemt",
-        )
-        .expect("XHTML formatter source");
-        let colorizer = builtin_schema_package_artifact_source(
-            "xhtml",
             "schema-packages/xhtml/v1/colorizers/xhtml-color-document.cemt",
-        )
-        .expect("XHTML colorizer source");
-
-        assert!(formatter
-            .source
-            .contains(r#"@name="xhtml.format-document""#));
-        assert!(formatter.source.contains(r#"@category="xhtml-document""#));
-        assert!(colorizer.source.contains(r#"@name="xhtml.color-document""#));
-        assert!(colorizer
-            .source
-            .contains(r#"@content-type="application/xhtml+xml""#));
+        ] {
+            let helper = builtin_schema_package_artifact_source("xhtml", path)
+                .unwrap_or_else(|| panic!("XHTML helper source `{path}`"));
+            assert!(helper.source.contains("{body |"));
+        }
     }
 
     #[test]

@@ -15,7 +15,7 @@
 
     {artifact
         @kind="formatter"
-        @path="formatters/xhtml-format-document.cemt"
+        @path="formatters/compact.cemt"
         @content-type="application/vnd.cem.transform+cem"
         @schema="https://cem.dev/ns/transform/cem/1"
         @target-content-type="application/xhtml+xml"
@@ -27,7 +27,7 @@
 
     {artifact
         @kind="formatter"
-        @path="formatters/xhtml-format-document.cemt"
+        @path="formatters/pretty.cemt"
         @content-type="application/vnd.cem.transform+cem"
         @schema="https://cem.dev/ns/transform/cem/1"
         @target-content-type="application/xhtml+xml"
@@ -39,7 +39,7 @@
 
     {artifact
         @kind="formatter"
-        @path="formatters/xhtml-format-document.cemt"
+        @path="formatters/tabular.cemt"
         @content-type="application/vnd.cem.transform+cem"
         @schema="https://cem.dev/ns/transform/cem/1"
         @target-content-type="application/xhtml+xml"
@@ -50,8 +50,19 @@
     }
 
     {artifact
+        @kind="formatter-helper"
+        @path="formatters/xhtml-format-document.cemt"
+        @content-type="application/vnd.cem.transform+cem"
+        @schema="https://cem.dev/ns/transform/cem/1"
+        @target-content-type="application/xhtml+xml"
+        @target-schema="https://cem.dev/ns/data/xhtml/1"
+        @target-category="xhtml-document"
+        @function-name="xhtml.format-document.tree"
+    }
+
+    {artifact
         @kind="colorizer"
-        @path="colorizers/xhtml-color-document.cemt"
+        @path="colorizers/terminal.cemt"
         @content-type="application/vnd.cem.transform+cem"
         @schema="https://cem.dev/ns/transform/cem/1"
         @target-content-type="application/xhtml+xml"
@@ -63,7 +74,7 @@
 
     {artifact
         @kind="colorizer"
-        @path="colorizers/xhtml-color-document.cemt"
+        @path="colorizers/html.cemt"
         @content-type="application/vnd.cem.transform+cem"
         @schema="https://cem.dev/ns/transform/cem/1"
         @target-content-type="application/xhtml+xml"
@@ -75,7 +86,7 @@
 
     {artifact
         @kind="colorizer"
-        @path="colorizers/xhtml-color-document.cemt"
+        @path="colorizers/md.cemt"
         @content-type="application/vnd.cem.transform+cem"
         @schema="https://cem.dev/ns/transform/cem/1"
         @target-content-type="application/xhtml+xml"
@@ -83,6 +94,17 @@
         @target-category="xhtml-document"
         @function-name="xhtml.color-document"
         @color-profile="md"
+    }
+
+    {artifact
+        @kind="colorizer-helper"
+        @path="colorizers/xhtml-color-document.cemt"
+        @content-type="application/vnd.cem.transform+cem"
+        @schema="https://cem.dev/ns/transform/cem/1"
+        @target-content-type="application/xhtml+xml"
+        @target-schema="https://cem.dev/ns/data/xhtml/1"
+        @target-category="xhtml-document"
+        @function-name="xhtml.color-document.tree"
     }
 
     {example

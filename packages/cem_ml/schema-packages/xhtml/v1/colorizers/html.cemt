@@ -1,0 +1,22 @@
+@doc cem-ml 1
+@ns transform = "https://cem.dev/ns/transform/cem/1"
+@default transform
+
+{module @version="1.0.0" |
+    {color-function
+        @name="xhtml.color-document"
+        @visibility="public"
+        @category="xhtml-document"
+        @subject="cem-tree"
+        @produces="cem-tree"
+        @content-type="application/xhtml+xml"
+        @schema="https://cem.dev/ns/data/xhtml/1"
+        @profile="html"
+        @extends="cem.color-tree"
+        @canonical=false
+        @deterministic=true
+        @streamable=true |
+        {param @name="subject" @type="object" @required=true}
+        {body | {$ merge(call("xhtml.color-document.tree", { subject: $subject, profile: "html", output: "html" }), {}) } }
+    }
+}

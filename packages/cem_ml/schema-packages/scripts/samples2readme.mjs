@@ -449,6 +449,37 @@ function previewPlanForExample(example, manifest) {
         };
     }
 
+    if (isXhtmlTextExample(example, manifest, essence)) {
+        if (example.expectedResult !== 'pass') {
+            return {
+                label: 'xhtml validate',
+                renderer: 'json',
+                expectedStatus: 'success',
+                width: 1040,
+                minHeight: 520,
+                args: validatePreviewArgs(inputPath, {
+                    format: 'json',
+                    failLevel: 'parse',
+                    contentType: example.contentType,
+                    schema: example.schema,
+                }),
+            };
+        }
+        return {
+            label: 'xhtml',
+            renderer: 'html',
+            expectedStatus: 'success',
+            width: 980,
+            minHeight: 190,
+            args: convertPreviewArgs(inputSpec, {
+                toContentType: example.contentType,
+                toSchema: example.schema,
+                colorProfile: 'html',
+                outputColorType: null,
+            }),
+        };
+    }
+
     if (isXmlFamilyExample(essence)) {
         return {
             label: 'xml',
@@ -568,6 +599,10 @@ function isGenericXmlTextExample(_example, manifest, essence) {
     return manifest.packageId === 'xml' && (essence === 'application/xml' || essence === 'text/xml');
 }
 
+function isXhtmlTextExample(_example, manifest, essence) {
+    return manifest.packageId === 'xhtml' && essence === 'application/xhtml+xml';
+}
+
 function isMarkdownPackageManifest(manifest) {
     return manifest.packageId === 'markdown';
 }
@@ -580,7 +615,6 @@ function isXmlFamilyExample(essence) {
     return (
         essence === 'application/xml' ||
         essence === 'text/xml' ||
-        essence === 'application/xhtml+xml' ||
         essence === 'image/svg+xml' ||
         essence === 'application/mathml+xml' ||
         essence === 'application/mathml-content+xml' ||

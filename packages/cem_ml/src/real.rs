@@ -18,6 +18,7 @@ use crate::conversion::{
     execute_json_schema_document_output_pipeline_with_environment,
     execute_markdown_document_output_pipeline_with_environment,
     execute_relax_ng_document_output_pipeline_with_environment,
+    execute_xhtml_document_output_pipeline_with_environment,
     execute_xml_document_output_pipeline_with_environment,
     execute_yaml_document_output_pipeline_with_environment, ConversionExecution,
     ConversionOutputPipeline, ConversionOutputPipelineEnvironment,
@@ -114,6 +115,7 @@ use crate::validation::json::JsonDocumentAst;
 use crate::validation::json_schema::JsonSchemaDocumentAst;
 use crate::validation::markdown::MarkdownDocumentAst;
 use crate::validation::relax_ng::{RelaxNgDocumentAst, RelaxNgSyntaxKind};
+use crate::validation::xhtml::XhtmlDocumentAst;
 use crate::validation::xml::XmlDocumentAst;
 use crate::validation::yaml::YamlDocumentAst;
 use crate::validation::{
@@ -5540,6 +5542,74 @@ fn convert_loaded_xml_ast_output(
     )
 }
 
+fn convert_loaded_xhtml_ast_output(
+    context: &EngineContext,
+    request: &ConvertRequest,
+    document: XhtmlDocumentAst,
+    diagnostics: &mut Vec<Diagnostic>,
+) -> (Value, Option<PrimaryBytes>, ConvertExecutionMetadata) {
+    let metadata = convert_metadata_for_xhtml_lifecycle_output(&request.target_scope);
+    let environment = ConversionOutputPipelineEnvironment {
+        schema_registry: &context.schema_registry,
+        conversion_registry: &context.converter_registry,
+        package_artifact_reader: None,
+        artifact_cache: None,
+    };
+    let execution = execute_xhtml_document_output_pipeline_with_environment(
+        &environment,
+        document,
+        &request.target_scope,
+        Some(&request.input.uri),
+    );
+    diagnostics.extend(execution.diagnostics.clone());
+    if diagnostics
+        .iter()
+        .any(|diagnostic| diagnostic.severity.is_hard_violation())
+    {
+        return (Value::Null, None, metadata);
+    }
+
+    let content = execution
+        .output
+        .as_ref()
+        .and_then(Value::as_str)
+        .unwrap_or_default()
+        .to_owned();
+    let target = request
+        .target
+        .clone()
+        .or_else(|| request.target_scope.format_identity_option())
+        .unwrap_or_else(|| FormatIdentity {
+            content_type: Some(XHTML_CONTENT_TYPE.to_owned()),
+            schema: Some(XHTML_SCHEMA_URI.to_owned()),
+            ..FormatIdentity::default()
+        });
+    let content_type = target
+        .content_type
+        .unwrap_or_else(|| XHTML_CONTENT_TYPE.to_owned());
+    let schema = target.schema.unwrap_or_else(|| XHTML_SCHEMA_URI.to_owned());
+    let bytes = content.into_bytes();
+    let primary_bytes = PrimaryBytes {
+        content_type,
+        schema: Some(schema.clone()),
+        format_version: "xhtml/1".to_owned(),
+        hash_scheme: "cem-text/1+blake3".to_owned(),
+        hash: text_content_hash(&bytes),
+        bytes,
+    };
+    let hash = primary_bytes.hash.clone();
+    (
+        json!({
+            "kind": "document",
+            "contentType": primary_bytes.content_type,
+            "schema": schema,
+            "hash": hash,
+        }),
+        Some(primary_bytes),
+        metadata,
+    )
+}
+
 fn convert_loaded_relax_ng_ast_output(
     context: &EngineContext,
     request: &ConvertRequest,
@@ -6862,6 +6932,75 @@ fn convert_metadata_for_xml_lifecycle_output(
     }
 }
 
+fn convert_metadata_for_xhtml_lifecycle_output(
+    target_scope: &ScopeConfig,
+) -> ConvertExecutionMetadata {
+    let formatter_profile = target_scope
+        .cemt_formatter_profile
+        .clone()
+        .unwrap_or_else(|| "compact".to_owned());
+    let color_profile = xml_direct_output_color_profile(target_scope);
+    let writer_profile = target_scope
+        .output_color_type
+        .clone()
+        .or_else(|| color_profile.clone());
+    ConvertExecutionMetadata {
+        converter_id: Some("xhtml-lifecycle-output".to_owned()),
+        implementation: Some("xhtml-ast-stream-to-xhtml-output-pipeline".to_owned()),
+        rust_fallback: None,
+        output_pipeline: Some(ConvertOutputPipelineMetadata {
+            stages: vec![
+                ConvertOutputPipelineStageMetadata {
+                    stage: "formatter".to_owned(),
+                    function: Some(
+                        target_scope
+                            .cemt_formatter
+                            .clone()
+                            .unwrap_or_else(|| "xhtml.format-document".to_owned()),
+                    ),
+                    profile: Some(formatter_profile),
+                    content_type: Some(XHTML_CONTENT_TYPE.to_owned()),
+                    schema: Some(XHTML_SCHEMA_URI.to_owned()),
+                    category: Some("xhtml-document".to_owned()),
+                    produces: Some(
+                        TransformTemplateOutputProducedKind::CemTree
+                            .as_str()
+                            .to_owned(),
+                    ),
+                },
+                ConvertOutputPipelineStageMetadata {
+                    stage: "colorizer".to_owned(),
+                    function: color_profile
+                        .as_ref()
+                        .map(|_| "xhtml.color-document".to_owned()),
+                    profile: color_profile,
+                    content_type: Some(XHTML_CONTENT_TYPE.to_owned()),
+                    schema: Some(XHTML_SCHEMA_URI.to_owned()),
+                    category: Some("xhtml-document".to_owned()),
+                    produces: Some(
+                        TransformTemplateOutputProducedKind::CemTree
+                            .as_str()
+                            .to_owned(),
+                    ),
+                },
+                ConvertOutputPipelineStageMetadata {
+                    stage: "writer".to_owned(),
+                    function: None,
+                    profile: writer_profile,
+                    content_type: Some(XHTML_CONTENT_TYPE.to_owned()),
+                    schema: Some(XHTML_SCHEMA_URI.to_owned()),
+                    category: Some("xhtml-document".to_owned()),
+                    produces: Some(
+                        TransformTemplateOutputProducedKind::Text
+                            .as_str()
+                            .to_owned(),
+                    ),
+                },
+            ],
+        }),
+    }
+}
+
 fn convert_metadata_for_relax_ng_lifecycle_output(
     target_scope: &ScopeConfig,
     syntax_kind: RelaxNgSyntaxKind,
@@ -7222,6 +7361,7 @@ fn loaded_input_consumes_validation_without_cem_parse(loaded: &LoadedInput) -> b
                 | LoadedInputAstStream::JsonSchemaDocument(_)
                 | LoadedInputAstStream::MarkdownDocument(_)
                 | LoadedInputAstStream::XmlDocument(_)
+                | LoadedInputAstStream::XhtmlDocument(_)
                 | LoadedInputAstStream::RelaxNgDocument(_)
         )
     ) || matches!(
@@ -8467,6 +8607,35 @@ impl CemMlEngine for RealCemMlEngine {
                         }
                         // Cross-schema XML exports still use the established XML tokenizer and
                         // registered converter path below.
+                    }
+                    LoadedInputAstStream::XhtmlDocument(document_value) => {
+                        if to_format == LayerFormat::Xml
+                            && export_adapter_id == Some("xhtml")
+                        {
+                            if diagnostics
+                                .iter()
+                                .any(|diagnostic| diagnostic.severity.is_hard_violation())
+                            {
+                                primary = Some(Value::Null);
+                                conversion = Some(convert_metadata_for_xhtml_lifecycle_output(
+                                    &request.target_scope,
+                                ));
+                                return;
+                            }
+
+                            let (xhtml_primary, xhtml_primary_bytes, xhtml_conversion) =
+                                convert_loaded_xhtml_ast_output(
+                                    &context,
+                                    &request,
+                                    document_value,
+                                    &mut diagnostics,
+                                );
+                            primary = Some(xhtml_primary);
+                            primary_bytes = xhtml_primary_bytes;
+                            conversion = Some(xhtml_conversion);
+                            return;
+                        }
+                        // Cross-schema XHTML exports require an explicit registered converter.
                     }
                     LoadedInputAstStream::RelaxNgDocument(document_value) => {
                         if to_format == LayerFormat::Xml
@@ -14006,6 +14175,35 @@ mod tests {
     }
 
     #[test]
+    fn validate_xhtml_source_consumes_dedicated_lifecycle_ast_without_html_or_cem_parse() {
+        let mut source = input(
+            br#"<?xml version="1.0"?><html xmlns="http://www.w3.org/1999/xhtml"><head/><body><br/></body></html>"#,
+            "document.xhtml",
+        );
+        source.identity = Some(FormatIdentity {
+            content_type: Some(XHTML_CONTENT_TYPE.to_owned()),
+            schema: Some(XHTML_SCHEMA_URI.to_owned()),
+            ..FormatIdentity::default()
+        });
+        let req = ValidateRequest {
+            inputs: vec![source],
+            projection: ValidateProjection::Json,
+            fail_level: FailLevel::Validate,
+            context: ctx(),
+        };
+
+        let resp = RealCemMlEngine::new().validate(req).unwrap();
+
+        assert_eq!(resp.report.summary.input_count, 1);
+        assert_eq!(resp.report.summary.hard_violation_count, 0);
+        assert!(
+            resp.report.diagnostics.is_empty(),
+            "XHTML validation must stay on the dedicated XML lifecycle AST path: {:?}",
+            resp.report.diagnostics
+        );
+    }
+
+    #[test]
     fn validate_relax_ng_sources_consume_typed_lifecycle_ast_without_cem_parse() {
         for (bytes, uri, content_type) in [
             (
@@ -14098,6 +14296,62 @@ mod tests {
         assert_eq!(primary_bytes.bytes, expected);
         assert_eq!(resp.primary["kind"], "document");
         assert_eq!(resp.primary["contentType"], XML_CONTENT_TYPE);
+    }
+
+    #[test]
+    fn convert_xhtml_same_schema_uses_dedicated_lifecycle_output_pipeline() {
+        let xhtml = br#"<?xml version="1.0"?><html xmlns="http://www.w3.org/1999/xhtml" xmlns:svg="http://www.w3.org/2000/svg"><head/><body><br/><svg:svg><svg:path/></svg:svg></body></html>"#;
+        let mut source = input(xhtml, "document.xhtml");
+        source.identity = Some(FormatIdentity {
+            content_type: Some(XHTML_CONTENT_TYPE.to_owned()),
+            schema: Some(XHTML_SCHEMA_URI.to_owned()),
+            ..FormatIdentity::default()
+        });
+        let target = FormatIdentity {
+            content_type: Some(XHTML_CONTENT_TYPE.to_owned()),
+            schema: Some(XHTML_SCHEMA_URI.to_owned()),
+            ..FormatIdentity::default()
+        };
+        let req = ConvertRequest {
+            input: source,
+            to_format: LayerFormat::DomJson,
+            preserve_source_offsets: false,
+            context: ctx(),
+            target: Some(target),
+            target_scope: ScopeConfig {
+                cemt_formatter_profile: Some("tabular".to_owned()),
+                ..ScopeConfig::default()
+            },
+            scheduler_scope_id: 0,
+        };
+
+        let resp = RealCemMlEngine::new().convert(req).unwrap();
+
+        assert!(
+            resp.diagnostics.is_empty(),
+            "XHTML same-schema conversion must stay on the dedicated lifecycle AST path: {:?}",
+            resp.diagnostics
+        );
+        assert_eq!(
+            resp.conversion
+                .as_ref()
+                .and_then(|conversion| conversion.converter_id.as_deref()),
+            Some("xhtml-lifecycle-output")
+        );
+        assert_eq!(
+            resp.conversion
+                .as_ref()
+                .and_then(|conversion| conversion.implementation.as_deref()),
+            Some("xhtml-ast-stream-to-xhtml-output-pipeline")
+        );
+        let primary_bytes = resp.primary_bytes.as_ref().expect("XHTML primary bytes");
+        assert_eq!(primary_bytes.content_type, XHTML_CONTENT_TYPE);
+        assert_eq!(primary_bytes.schema.as_deref(), Some(XHTML_SCHEMA_URI));
+        let mut expected = xhtml.to_vec();
+        expected.push(b'\n');
+        assert_eq!(primary_bytes.bytes, expected);
+        assert_eq!(resp.primary["kind"], "document");
+        assert_eq!(resp.primary["contentType"], XHTML_CONTENT_TYPE);
     }
 
     #[test]
@@ -15658,7 +15912,7 @@ mod tests {
         assert_eq!(resp.primary["kind"], "html", "{:?}", resp.diagnostics);
         assert_eq!(
             resp.primary["content"],
-            "<p class=\"cem-color cem-color-syntax-name\" data-role=\"syntax.name\"><span class=\"cem-color cem-color-syntax-string\" data-role=\"syntax.string\">Hi</span></p>"
+            "<p class=\"cem-color cem-color-syntax-name\" data-role=\"syntax.name\"><span class=\"cem-color cem-color-syntax-string\" data-role=\"syntax.string\">Hi</span></p>\n"
         );
         assert!(!resp.primary["content"].as_str().unwrap().contains("@doc"));
         let conversion = resp.conversion.as_ref().expect("conversion metadata");
@@ -15799,7 +16053,7 @@ mod tests {
         assert_eq!(resp.primary["kind"], "html", "{:?}", resp.diagnostics);
         assert_eq!(
             resp.primary["content"],
-            "<cemt-ready class=\"cem-color cem-color-syntax-name\" data-role=\"syntax.name\"><span class=\"cem-color cem-color-syntax-string\" data-role=\"syntax.string\">element:application/vnd.cem.ast+cem-bin:application/cem</span></cemt-ready>"
+            "<cemt-ready class=\"cem-color cem-color-syntax-name\" data-role=\"syntax.name\"><span class=\"cem-color cem-color-syntax-string\" data-role=\"syntax.string\">element:application/vnd.cem.ast+cem-bin:application/cem</span></cemt-ready>\n"
         );
         assert_ne!(resp.primary["sourceMap"], Value::Null);
         assert_eq!(
@@ -15983,7 +16237,7 @@ mod tests {
         assert_eq!(resp.primary["kind"], "html");
         assert_eq!(
             resp.primary["content"],
-            "<p class=\"cem-color cem-color-syntax-name\" data-role=\"syntax.name\"><span class=\"cem-color cem-color-syntax-string\" data-role=\"syntax.string\">Hi</span></p>"
+            "<p class=\"cem-color cem-color-syntax-name\" data-role=\"syntax.name\"><span class=\"cem-color cem-color-syntax-string\" data-role=\"syntax.string\">Hi</span></p>\n"
         );
         assert!(
             resp.diagnostics.is_empty(),
@@ -16136,7 +16390,7 @@ mod tests {
         assert_eq!(resp.primary["kind"], "html");
         assert_eq!(
             resp.primary["content"],
-            "<main class=\"cem-color cem-color-syntax-name\" data-role=\"syntax.name\"><span class=\"cem-color cem-color-syntax-string\" data-role=\"syntax.string\">Ready</span></main>"
+            "<main class=\"cem-color cem-color-syntax-name\" data-role=\"syntax.name\"><span class=\"cem-color cem-color-syntax-string\" data-role=\"syntax.string\">Ready</span></main>\n"
         );
         assert!(
             resp.diagnostics.is_empty(),
@@ -16308,7 +16562,7 @@ mod tests {
         assert_eq!(resp.primary["kind"], "html");
         assert_eq!(
             resp.primary["content"],
-            "<main class=\"cem-color cem-color-syntax-name\" data-role=\"syntax.name\"><span class=\"cem-color cem-color-syntax-string\" data-role=\"syntax.string\">Ready</span></main>"
+            "<main class=\"cem-color cem-color-syntax-name\" data-role=\"syntax.name\"><span class=\"cem-color cem-color-syntax-string\" data-role=\"syntax.string\">Ready</span></main>\n"
         );
     }
 
@@ -16536,7 +16790,7 @@ mod tests {
         assert_eq!(resp.primary["kind"], "html");
         assert_eq!(
             resp.primary["content"],
-            r#"<external-widget class="external-package-color" data-package-stage="external-cemt"></external-widget>"#
+            "<external-widget class=\"external-package-color\" data-package-stage=\"external-cemt\"></external-widget>\n"
         );
     }
 

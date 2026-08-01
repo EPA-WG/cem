@@ -641,7 +641,20 @@ Remaining dependency-ordered package checklist:
         render expected failures from schema-owned diagnostics, remove compact
         source-snapshot fallback, and document safety/release behavior plus
         tracked limitations.
-- [ ] `xhtml/v1`
+- [x] `xhtml/v1`
+  - [x] Add a dedicated typed `XhtmlDocumentAst` lifecycle stream that
+        preserves XHTML identity, XML lexical events, foreign-content
+        boundaries, source ranges, and source maps.
+  - [x] Route XHTML loading, validation, and same-schema output through the
+        dedicated XHTML adapter without HTML, generic XML, or CEM fallthrough.
+  - [x] Bind neutral parser, namespace, structure, profile, doctype, entity,
+        foreign-content, and source-map facts to schema-owned diagnostics while
+        retaining XML well-formedness and entity safety policy.
+  - [x] Replace placeholder formatter/colorizer artifacts with executable
+        compact/pretty/tabular and terminal/HTML/Markdown CEMT profiles that
+        preserve lexical XHTML and the default final newline.
+  - [x] Expand manifest/index embedding, lifecycle, engine/CLI, profile,
+        schema-owned example, README/SVG preview, safety, and release gates.
 - [ ] `svg/v1`
 - [ ] `mathml/v1`
 - [ ] `xslt/v1`
@@ -656,7 +669,7 @@ Remaining dependency-ordered package checklist:
 
 ### Deferred: Other Format Polish
 
-- [ ] Keep XHTML, SVG, MathML, XSLT, HTML, and CSS
+- [ ] Keep SVG, MathML, XSLT, HTML, and CSS
       formatter/colorizer work behind the schema-package folder alignment
       gate.
 
@@ -678,33 +691,35 @@ Remaining dependency-ordered package checklist:
 
 ### Next Work Item
 
-Align `xhtml/v1` with the common schema-package acceptance criteria. Start by
-introducing a dedicated typed `XhtmlDocumentAst` lifecycle stream that reuses
-the generic XML event model while retaining XHTML content type/schema identity,
-the `http://www.w3.org/1999/xhtml` namespace, MIME parameters, XML declaration,
-doctype, qualified names, foreign-content boundaries, source ranges, and source
-maps. Replace the current HTML-adapter routing for `application/xhtml+xml` with
-an XHTML adapter and prove that validation and same-schema output do not fall
-through to HTML parsing, generic XML output, or CEM parsing.
+Align `svg/v1` with the common schema-package acceptance criteria. Start with a
+dedicated typed `SvgDocumentAst` lifecycle stream that reuses the generic XML
+event model while retaining `image/svg+xml`, the SVG package schema and
+namespace, MIME parameters, XML declaration and doctype, qualified names and
+XLink attributes, foreign-content boundaries, source ranges, and source maps.
+Replace generic XML passthrough for standalone SVG documents with an SVG adapter
+and prove that loading, validation, and same-schema output cannot fall through
+to the HTML, generic XML, or CEM adapters. Keep embedded `<svg>` handling inside
+HTML/XHTML documents separate from the standalone SVG document lifecycle.
 
-Move the direct XHTML validator behind that adapter. Emit neutral XML parse,
-encoding, root/namespace, deprecated profile, `head`/`body` ordering, doctype,
-foreign-content, and source-map facts, then bind them to diagnostics declared in
-`schema/xhtml.cem`. Define explicitly which XML well-formedness/entity policies
-are inherited from `xml/v1` and which HTML vocabulary/structure constraints are
-owned by XHTML. Preserve XHTML's XML serialization rules; do not reuse HTML
-void-element or error-recovery behavior.
+Move direct SVG validation behind the typed adapter. Emit neutral XML parse,
+encoding, root/namespace, `viewBox`, title/accessibility, external-resource,
+script/reference, foreign-content, and source-map facts, then bind them to
+diagnostics declared in `schema/svg.cem`. Document the XML doctype/entity rules
+inherited from `xml/v1` and define explicit URI, script, and external-resource
+safety policy owned by SVG. Preserve XML serialization and SVG attribute case;
+do not apply HTML parsing or serialization behavior.
 
-Replace the placeholder `json`/`tokens` formatter and colorizer artifacts with
-package-owned XHTML document and CEM-tree contracts for compact, pretty,
-tabular, terminal, HTML, and Markdown profiles. Preserve lexical XML content and
-the default final newline until an XHTML-aware whitespace/reflow policy exists.
-Route passing README examples through those package assets, render expected-fail
-examples from schema-owned diagnostics, and remove source-snapshot fallback.
-Finish by expanding `cem_ml_schema_package_xhtml_v1:verify`, package README
-safety/release documentation, manifest-index and embedded-artifact coverage,
-same-schema engine/CLI tests, namespace/foreign-content/entity policy tests, and
-package-local preview drift checks.
+Replace placeholder formatter/colorizer artifacts with package-owned SVG
+document and CEM-tree contracts for compact, pretty, tabular, terminal, HTML,
+and Markdown profiles. Preserve lexical XML content and the default final
+newline until an SVG-aware whitespace/reflow policy exists. Route passing README
+examples through those assets, render expected failures from schema-owned
+diagnostics, and remove source-snapshot fallback. Finish with package
+manifest/index embedding, lifecycle and same-schema engine/CLI tests, profile
+execution, namespace/XLink/resource/entity policy tests, README safety and
+release documentation, schema-owned examples, preview drift checks, and an
+expanded `cem_ml_schema_package_svg_v1:verify` target. Continue with
+`mathml/v1` only after that standalone SVG contract is green.
 
 ## Current Verification Commands
 

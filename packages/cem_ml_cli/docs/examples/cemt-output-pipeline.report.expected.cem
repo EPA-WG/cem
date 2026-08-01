@@ -1,34 +1,34 @@
 @doc cem-ml 1
 {report @generated-at="1970-01-01T00:00:00.000Z" |
-  {inputs @count=1 |
-    {input @uri="cem+repo://packages/cem_ml_cli/docs/examples/cemt-output-pipeline.input.cem"}
-  }
-  {summary @input-count=1 @info-count=0 @warning-count=0 @error-count=0 @fatal-count=0 @hard-violation-count=0}
-  {options @fail-level="validate"}
-  {diagnostics @count=0 |
-  }
-  {report-ast |
-    {scheduler-trace @event-count=9 |
-      {event @sequence=0 @scope-id=0 @kind="enqueue" @task="cem+repo://packages/cem_ml_cli/docs/examples/cemt-output-pipeline.input.cem:lifecycle-load"}
-      {event @sequence=1 @scope-id=0 @kind="enqueue" @task="cem+repo://packages/cem_ml_cli/docs/examples/cemt-output-pipeline.input.cem:select-export"}
-      {event @sequence=2 @scope-id=0 @kind="enqueue" @task="cem+repo://packages/cem_ml_cli/docs/examples/cemt-output-pipeline.input.cem:convert"}
-      {event @sequence=3 @scope-id=0 @kind="dispatch" @task="cem+repo://packages/cem_ml_cli/docs/examples/cemt-output-pipeline.input.cem:lifecycle-load"}
-      {event @sequence=4 @scope-id=0 @kind="finish" @task="cem+repo://packages/cem_ml_cli/docs/examples/cemt-output-pipeline.input.cem:lifecycle-load"}
-      {event @sequence=5 @scope-id=0 @kind="dispatch" @task="cem+repo://packages/cem_ml_cli/docs/examples/cemt-output-pipeline.input.cem:select-export"}
-      {event @sequence=6 @scope-id=0 @kind="finish" @task="cem+repo://packages/cem_ml_cli/docs/examples/cemt-output-pipeline.input.cem:select-export"}
-      {event @sequence=7 @scope-id=0 @kind="dispatch" @task="cem+repo://packages/cem_ml_cli/docs/examples/cemt-output-pipeline.input.cem:convert"}
-      {event @sequence=8 @scope-id=0 @kind="finish" @task="cem+repo://packages/cem_ml_cli/docs/examples/cemt-output-pipeline.input.cem:convert"}
+    {inputs @count=1 |
+        {input @uri="cem+repo://packages/cem_ml_cli/docs/examples/cemt-output-pipeline.input.cem"}
     }
-    {convert @output-count=1 |
-      {output @input="cem+repo://packages/cem_ml_cli/docs/examples/cemt-output-pipeline.input.cem" @destination="cem+repo://packages/cem_ml_cli/dist/cemt-output-pipeline.html" @content-type="text/html" @schema="https://cem.dev/ns/html/1" @output-kind="html" |
-        {conversion @converter-id="direct-html-output" @implementation="direct-cemt-output-pipeline" |
-          {output-pipeline |
-            {stage @stage="formatter" @function="acme.showcase.format-tree" @profile="acme.showcase.format-tree" @content-type="application/cem" @schema="https://cem.dev/ns/cem-ml/1" @category="cem-tree" @produces="cem-tree"}
-            {stage @stage="colorizer" @function="acme.showcase.color-tree" @profile="classes" @content-type="application/cem" @schema="https://cem.dev/ns/cem-ml/1" @category="cem-tree" @produces="cem-tree"}
-            {stage @stage="writer" @profile="classes" @content-type="text/html" @schema="https://cem.dev/ns/data/html/1" @category="html-document" @produces="text"}
-          }
+    {summary @input-count=1 @info-count=0 @warning-count=0 @error-count=0 @fatal-count=0 @hard-violation-count=0}
+    {options @fail-level="validate"}
+    {diagnostics @count=0 |
+    }
+    {report-ast |
+        {scheduler-trace @event-count=9 |
+            {event @sequence=0 @scope-id=0 @kind="enqueue" @task="cem+repo://packages/cem_ml_cli/docs/examples/cemt-output-pipeline.input.cem:lifecycle-load"}
+            {event @sequence=1 @scope-id=0 @kind="enqueue" @task="cem+repo://packages/cem_ml_cli/docs/examples/cemt-output-pipeline.input.cem:select-export"}
+            {event @sequence=2 @scope-id=0 @kind="enqueue" @task="cem+repo://packages/cem_ml_cli/docs/examples/cemt-output-pipeline.input.cem:convert"}
+            {event @sequence=3 @scope-id=0 @kind="dispatch" @task="cem+repo://packages/cem_ml_cli/docs/examples/cemt-output-pipeline.input.cem:lifecycle-load"}
+            {event @sequence=4 @scope-id=0 @kind="finish" @task="cem+repo://packages/cem_ml_cli/docs/examples/cemt-output-pipeline.input.cem:lifecycle-load"}
+            {event @sequence=5 @scope-id=0 @kind="dispatch" @task="cem+repo://packages/cem_ml_cli/docs/examples/cemt-output-pipeline.input.cem:select-export"}
+            {event @sequence=6 @scope-id=0 @kind="finish" @task="cem+repo://packages/cem_ml_cli/docs/examples/cemt-output-pipeline.input.cem:select-export"}
+            {event @sequence=7 @scope-id=0 @kind="dispatch" @task="cem+repo://packages/cem_ml_cli/docs/examples/cemt-output-pipeline.input.cem:convert"}
+            {event @sequence=8 @scope-id=0 @kind="finish" @task="cem+repo://packages/cem_ml_cli/docs/examples/cemt-output-pipeline.input.cem:convert"}
         }
-      }
+        {convert @output-count=1 |
+            {output @input="cem+repo://packages/cem_ml_cli/docs/examples/cemt-output-pipeline.input.cem" @destination="cem+repo://packages/cem_ml_cli/dist/cemt-output-pipeline.html" @content-type="text/html" @schema="https://cem.dev/ns/html/1" @output-kind="html" |
+                {conversion @converter-id="direct-html-output" @implementation="direct-cemt-output-pipeline" |
+                    {output-pipeline |
+                        {stage @stage="formatter" @function="acme.showcase.format-tree" @profile="acme.showcase.format-tree" @content-type="application/cem" @schema="https://cem.dev/ns/cem-ml/1" @category="cem-tree" @produces="cem-tree"}
+                        {stage @stage="colorizer" @function="acme.showcase.color-tree" @profile="classes" @content-type="application/cem" @schema="https://cem.dev/ns/cem-ml/1" @category="cem-tree" @produces="cem-tree"}
+                        {stage @stage="writer" @profile="classes" @content-type="text/html" @schema="https://cem.dev/ns/data/html/1" @category="html-document" @produces="text"}
+                    }
+                }
+            }
+        }
     }
-  }
 }

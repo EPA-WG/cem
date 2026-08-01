@@ -4,15 +4,131 @@
 
 {module @version="1.0.0" |
     {color-function
-        @name="xhtml.color-document"
+        @name="xhtml.color-document.tree"
+        @visibility="private"
         @category="xhtml-document"
-        @subject="tokens"
-        @produces="tokens"
+        @subject="cem-tree"
+        @produces="cem-tree"
         @content-type="application/xhtml+xml"
         @schema="https://cem.dev/ns/data/xhtml/1"
         @canonical=false
         @deterministic=true
         @streamable=true |
-        {param @name="subject" @type="array" @required=true}
+        {param @name="subject" @type="object" @required=true}
+        {param @name="profile" @type="string" @required=true}
+        {param @name="output" @type="string" @required=true}
+        {body |
+            {$ {
+                kind: "cem-tree",
+                contentType: "application/xhtml+xml",
+                schema: "https://cem.dev/ns/data/xhtml/1",
+                category: "xhtml-document",
+                formatterProfile: match(exists($subject.formatterProfile), {
+                    true: $subject.formatterProfile,
+                    false: "unknown"
+                }),
+                formatNodes: match(exists($subject.formatNodes), {
+                    true: $subject.formatNodes,
+                    false: []
+                }),
+                colorProfile: $profile,
+                colorOutput: $output,
+                colored: true,
+                colorNodes: [
+                    {
+                        kind: "color-marker",
+                        name: "xhtml.color-document",
+                        colorizerRole: "colorizer.boundary",
+                        colorProfile: $profile,
+                        colorOutput: $output
+                    },
+                    {
+                        kind: "color-decision",
+                        name: "xhtml.role-palette",
+                        colorizerRole: "colorizer.role",
+                        colorProfile: $profile,
+                        colorOutput: $output
+                    }
+                ],
+                nodes: map(
+                    match(exists($subject.nodes), { true: $subject.nodes, false: [] }),
+                    call("xhtml.color-document.token", {
+                        token: $item,
+                        profile: $profile,
+                        output: $output
+                    })
+                )
+            } }
+        }
+    }
+
+    {function @name="xhtml.color-document.token" @visibility="private" @returns="object" @deterministic=true |
+        {param @name="token" @type="object" @required=true}
+        {param @name="profile" @type="string" @required=true}
+        {param @name="output" @type="string" @required=true}
+        {body |
+            {$ merge(
+                set($token, "value", merge(
+                    match(typeOf($token.value), { object: $token.value, default: {} }),
+                    {
+                        colorProfile: $profile,
+                        colorRole: call("xhtml.color-document.role", { token: $token }),
+                        colorOutput: $output
+                    }
+                )),
+                {
+                    style: call("xhtml.color-document.style", {
+                        profile: $profile,
+                        role: call("xhtml.color-document.role", { token: $token }),
+                        output: $output
+                    })
+                }
+            ) }
+        }
+    }
+
+    {function @name="xhtml.color-document.role" @visibility="private" @returns="string" @deterministic=true |
+        {param @name="token" @type="object" @required=true}
+        {body |
+            {$ match(typeOf($token.role), {
+                string: $token.role,
+                default: match(typeOf($token.style.colorRole), {
+                    string: $token.style.colorRole,
+                    default: "syntax.raw"
+                })
+            }) }
+        }
+    }
+
+    {function @name="xhtml.color-document.style" @visibility="private" @returns="object" @deterministic=true |
+        {param @name="profile" @type="string" @required=true}
+        {param @name="role" @type="string" @required=true}
+        {param @name="output" @type="string" @required=true}
+        {body |
+            {$ match($profile, {
+                html: {
+                    colorRole: $role,
+                    colorProfile: $profile,
+                    colorOutput: $output,
+                    htmlMode: "classes",
+                    class: concat("cem-color cem-color-", replace($role, ".", "-")),
+                    color: concat("var(--cem-color-", concat(replace($role, ".", "-"), ")"))
+                },
+                md: {
+                    colorRole: $role,
+                    colorProfile: $profile,
+                    colorOutput: $output,
+                    wrapper: "span",
+                    class: concat("cem-color cem-color-", replace($role, ".", "-"))
+                },
+                default: {
+                    colorRole: $role,
+                    colorProfile: $profile,
+                    colorOutput: $output,
+                    terminalCapability: "auto",
+                    color: concat("terminal.", $role)
+                }
+            }) }
+        }
     }
 }

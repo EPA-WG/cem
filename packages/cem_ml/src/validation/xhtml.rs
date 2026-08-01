@@ -1,6 +1,19 @@
 use crate::diagnostics::{Diagnostic, Severity};
-use crate::schema::registry::XHTML_NAMESPACE_URI;
-use std::collections::BTreeMap;
+use crate::schema::document_model::compile_schema_document_model;
+use crate::schema::package_sources::builtin_schema_package_source;
+use crate::schema::registry::{XHTML_CONTENT_TYPE, XHTML_NAMESPACE_URI, XHTML_SCHEMA_URI};
+use crate::source::{ByteRange, SourceId};
+use crate::source_map::{FrameSpan, SourceMapFrame, SourceMapStack, TransformKind};
+use crate::validation::xml::{
+    xml_document_ast_from_source_bytes, XmlDocumentAst, XmlEventAst, XmlEventKind,
+    XmlParseFactKind, XmlSourceValidationRequest,
+};
+use serde_json::{json, Value};
+use std::collections::{BTreeMap, BTreeSet};
+use std::sync::OnceLock;
+
+const XHTML_PACKAGE_ID: &str = "xhtml";
+const XHTML_FACT_BEHAVIOR: &str = "xhtml-report-fact";
 
 #[derive(Debug, Clone, Copy)]
 pub struct XhtmlSourceValidationRequest<'a> {
@@ -9,475 +22,605 @@ pub struct XhtmlSourceValidationRequest<'a> {
     pub content_type: Option<&'a str>,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct XhtmlDocumentAst {
+    pub source: XhtmlDocumentSource,
+    pub xml_document: XmlDocumentAst,
+    pub facts: Vec<XhtmlFact>,
+    pub line_ending: Option<String>,
+}
+
+impl XhtmlDocumentAst {
+    pub fn to_cemt_subject(&self) -> Value {
+        json!({
+            "kind": "xhtml-document",
+            "contentType": XHTML_CONTENT_TYPE,
+            "schema": XHTML_SCHEMA_URI,
+            "category": "xhtml-document",
+            "source": self.source.to_cemt_subject(),
+            "resourceKind": self.xml_document.resource_kind,
+            "encodingReport": {
+                "mimeCharset": self.xml_document.encoding_report.mime_charset,
+                "declarationEncoding": self.xml_document.encoding_report.declaration_encoding,
+                "normalizedEncoding": self.xml_document.encoding_report.normalized_encoding,
+                "decoderStatus": self.xml_document.encoding_report.decoder_status,
+            },
+            "parseFacts": self
+                .facts
+                .iter()
+                .map(XhtmlFact::to_cemt_subject)
+                .collect::<Vec<_>>(),
+            "events": self
+                .xml_document
+                .events
+                .iter()
+                .map(xhtml_event_to_cemt_subject)
+                .collect::<Vec<_>>(),
+            "lineEnding": self.line_ending,
+        })
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct XhtmlDocumentSource {
+    pub uri: String,
+    pub content_type: String,
+    pub media_type: String,
+    pub parameters: BTreeMap<String, String>,
+    pub byte_length: usize,
+}
+
+impl XhtmlDocumentSource {
+    fn from_xml(document: &XmlDocumentAst) -> Self {
+        Self {
+            uri: document.source.uri.clone(),
+            content_type: document.source.content_type.clone(),
+            media_type: document.source.media_type.clone(),
+            parameters: document.source.parameters.clone(),
+            byte_length: document.source.byte_length,
+        }
+    }
+
+    fn to_cemt_subject(&self) -> Value {
+        json!({
+            "uri": self.uri,
+            "contentType": self.content_type,
+            "mediaType": self.media_type,
+            "parameters": self.parameters,
+            "byteLength": self.byte_length,
+        })
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct XhtmlSourcePosition {
+    pub line: u32,
+    pub column: u32,
+    pub byte_offset: u64,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct XhtmlSourceRange {
+    pub start: XhtmlSourcePosition,
+    pub byte_length: u64,
+}
+
+impl XhtmlSourceRange {
+    fn from_event(event: &XmlEventAst) -> Self {
+        Self {
+            start: XhtmlSourcePosition {
+                line: event.source_range.start.line,
+                column: event.source_range.start.column,
+                byte_offset: event.source_range.start.byte_offset,
+            },
+            byte_length: event.source_range.byte_length,
+        }
+    }
+
+    fn from_xml_fact(
+        line: Option<u32>,
+        column: Option<u32>,
+        byte_offset: Option<u64>,
+        byte_length: Option<u64>,
+    ) -> Option<Self> {
+        Some(Self {
+            start: XhtmlSourcePosition {
+                line: line.unwrap_or(1),
+                column: column.unwrap_or(1),
+                byte_offset: byte_offset?,
+            },
+            byte_length: byte_length.unwrap_or(1),
+        })
+    }
+
+    fn to_cemt_subject(self) -> Value {
+        json!({
+            "byteOffset": self.start.byte_offset,
+            "byteLength": self.byte_length,
+            "line": self.start.line,
+            "column": self.start.column,
+        })
+    }
+
+    fn source_map(self) -> SourceMapStack {
+        SourceMapStack {
+            frames: vec![SourceMapFrame {
+                source_id: SourceId(1),
+                span: FrameSpan::Single(ByteRange::new(
+                    self.start.byte_offset,
+                    u32::try_from(self.byte_length).unwrap_or(u32::MAX),
+                )),
+                transform: TransformKind::ContentTypeTransform {
+                    content_type: XHTML_CONTENT_TYPE.to_owned(),
+                },
+            }],
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub enum XhtmlFactKind {
+    NotWellFormedXml,
+    UnsupportedEncoding,
+    EncodingConflict,
+    UnboundNamespacePrefix,
+    DuplicateAttribute,
+    DtdRejected,
+    ExternalEntityRejected,
+    EntityExpansionLimit,
+    SourceMapUnavailable,
+    RootNotHtml,
+    NamespaceMissing,
+    HeadBodyOrder,
+    ProfileDeprecated,
+    RootObserved,
+    NamespaceObserved,
+    HeadObserved,
+    BodyObserved,
+    DoctypeObserved,
+    ForeignContentObserved,
+}
+
+impl XhtmlFactKind {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::NotWellFormedXml => "not-well-formed-xml",
+            Self::UnsupportedEncoding => "unsupported-encoding",
+            Self::EncodingConflict => "encoding-conflict",
+            Self::UnboundNamespacePrefix => "unbound-namespace-prefix",
+            Self::DuplicateAttribute => "duplicate-attribute",
+            Self::DtdRejected => "dtd-rejected",
+            Self::ExternalEntityRejected => "external-entity-rejected",
+            Self::EntityExpansionLimit => "entity-expansion-limit",
+            Self::SourceMapUnavailable => "source-map-unavailable",
+            Self::RootNotHtml => "root-not-html",
+            Self::NamespaceMissing => "namespace-missing",
+            Self::HeadBodyOrder => "head-body-order",
+            Self::ProfileDeprecated => "profile-deprecated",
+            Self::RootObserved => "root-observed",
+            Self::NamespaceObserved => "namespace-observed",
+            Self::HeadObserved => "head-observed",
+            Self::BodyObserved => "body-observed",
+            Self::DoctypeObserved => "doctype-observed",
+            Self::ForeignContentObserved => "foreign-content-observed",
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct XhtmlFact {
+    pub kind: XhtmlFactKind,
+    pub source_range: Option<XhtmlSourceRange>,
+    pub message: String,
+    pub value: Option<String>,
+}
+
+impl XhtmlFact {
+    fn to_cemt_subject(&self) -> Value {
+        json!({
+            "kind": self.kind.as_str(),
+            "sourceRange": self.source_range.map(XhtmlSourceRange::to_cemt_subject),
+            "message": self.message,
+            "value": self.value,
+        })
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct XhtmlDiagnosticBinding {
+    contract: String,
+    behavior: Option<String>,
+    diagnostic_code: String,
+    severity: Severity,
+    policy: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct XhtmlSchemaContractCatalog {
+    fact_bindings: BTreeMap<String, XhtmlDiagnosticBinding>,
+}
+
+impl XhtmlSchemaContractCatalog {
+    pub fn from_builtin() -> &'static Self {
+        static CATALOG: OnceLock<XhtmlSchemaContractCatalog> = OnceLock::new();
+        CATALOG.get_or_init(|| {
+            let source = builtin_schema_package_source(XHTML_PACKAGE_ID)
+                .expect("built-in XHTML schema package source must be registered");
+            Self::from_schema_source(source.schema_source)
+        })
+    }
+
+    pub fn from_schema_source(schema_source: &str) -> Self {
+        let model = compile_schema_document_model(XHTML_SCHEMA_URI, schema_source);
+        let fact_bindings = model
+            .constraints
+            .values()
+            .filter_map(|constraint| {
+                if constraint.behavior.as_deref()?.trim() != XHTML_FACT_BEHAVIOR {
+                    return None;
+                }
+                let fact_kind = constraint.fact_kind.as_deref()?.trim();
+                let diagnostic_code = constraint.diagnostic.as_deref()?.trim();
+                if fact_kind.is_empty() || diagnostic_code.is_empty() {
+                    return None;
+                }
+                let diagnostic = model.diagnostics.get(diagnostic_code)?;
+                Some((
+                    fact_kind.to_owned(),
+                    XhtmlDiagnosticBinding {
+                        contract: constraint.kind.clone(),
+                        behavior: constraint.behavior.clone(),
+                        diagnostic_code: diagnostic.code.clone(),
+                        severity: diagnostic.severity,
+                        policy: constraint.policy.clone(),
+                    },
+                ))
+            })
+            .collect();
+        Self { fact_bindings }
+    }
+
+    fn binding_for_fact(&self, kind: XhtmlFactKind) -> Option<&XhtmlDiagnosticBinding> {
+        self.fact_bindings.get(kind.as_str())
+    }
+}
+
 pub fn validate_xhtml_source_bytes(request: XhtmlSourceValidationRequest<'_>) -> Vec<Diagnostic> {
-    let mut diagnostics = Vec::new();
-    if request
-        .content_type
-        .and_then(|content_type| content_type_parameter(content_type, "profile"))
-        .is_some()
-    {
-        diagnostics.push(xhtml_diagnostic(
-            &request,
-            "",
-            None,
-            "cem.xhtml.profile_deprecated",
-            Severity::Info,
-            "application/xhtml+xml profile parameter is deprecated".to_owned(),
-        ));
-    }
+    let (_, diagnostics) = xhtml_document_ast_from_source_bytes(request);
+    diagnostics
+}
 
-    let source = match std::str::from_utf8(request.bytes) {
-        Ok(source) => source,
-        Err(error) => {
-            diagnostics.push(xhtml_not_well_formed_diagnostic(
-                &request,
-                "",
-                u64::try_from(error.valid_up_to()).ok(),
-                format!("XHTML source must be valid UTF-8: {error}"),
-            ));
-            return diagnostics;
-        }
+pub fn xhtml_document_ast_from_source_bytes(
+    request: XhtmlSourceValidationRequest<'_>,
+) -> (Option<XhtmlDocumentAst>, Vec<Diagnostic>) {
+    let (xml_document, _) = xml_document_ast_from_source_bytes(XmlSourceValidationRequest {
+        bytes: request.bytes,
+        source_uri: request.source_uri,
+        content_type: request.content_type.or(Some(XHTML_CONTENT_TYPE)),
+    });
+    let Some(xml_document) = xml_document else {
+        return (None, Vec::new());
     };
-
-    diagnostics.extend(validate_xhtml_source(&request, source));
-    diagnostics
-}
-
-#[derive(Clone, Debug)]
-struct XhtmlElementFrame {
-    local_name: String,
-    namespace_uri: String,
-}
-
-#[derive(Clone, Debug, Default)]
-struct XhtmlRootState {
-    root_is_html: bool,
-    saw_head: bool,
-    saw_body: bool,
-    reported_order: bool,
-}
-
-fn validate_xhtml_source(
-    request: &XhtmlSourceValidationRequest<'_>,
-    source: &str,
-) -> Vec<Diagnostic> {
-    let mut diagnostics = Vec::new();
-    let mut reader = quick_xml::Reader::from_str(source);
-    reader.config_mut().check_comments = true;
-
-    let mut element_stack: Vec<XhtmlElementFrame> = Vec::new();
-    let mut namespace_stack = vec![xml_initial_namespaces()];
-    let mut root_count = 0usize;
-    let mut root_state = XhtmlRootState::default();
-
-    loop {
-        match reader.read_event() {
-            Ok(quick_xml::events::Event::Start(start)) => {
-                let start_offset = xml_event_position(&reader, &start, false);
-                let (frame, namespaces, mut event_diagnostics) =
-                    xhtml_start_frame(request, source, &start, &namespace_stack, start_offset);
-                diagnostics.append(&mut event_diagnostics);
-                xhtml_validate_element_position(
-                    request,
-                    source,
-                    start_offset,
-                    &frame,
-                    &element_stack,
-                    &mut root_state,
-                    &mut root_count,
-                    &mut diagnostics,
-                );
-                element_stack.push(frame);
-                namespace_stack.push(namespaces);
-            }
-            Ok(quick_xml::events::Event::Empty(start)) => {
-                let start_offset = xml_event_position(&reader, &start, true);
-                let (frame, _, mut event_diagnostics) =
-                    xhtml_start_frame(request, source, &start, &namespace_stack, start_offset);
-                diagnostics.append(&mut event_diagnostics);
-                xhtml_validate_element_position(
-                    request,
-                    source,
-                    start_offset,
-                    &frame,
-                    &element_stack,
-                    &mut root_state,
-                    &mut root_count,
-                    &mut diagnostics,
-                );
-            }
-            Ok(quick_xml::events::Event::End(end)) => {
-                let found = qname_display(end.name().as_ref());
-                match element_stack.pop() {
-                    Some(expected) if expected.local_name == found => {
-                        if namespace_stack.len() > 1 {
-                            namespace_stack.pop();
-                        }
-                    }
-                    Some(expected) => {
-                        if namespace_stack.len() > 1 {
-                            namespace_stack.pop();
-                        }
-                        diagnostics.push(xhtml_not_well_formed_diagnostic(
-                            request,
-                            source,
-                            Some(reader.error_position()),
-                            format!(
-                                "XHTML end tag `</{found}>` does not match `<{}>`",
-                                expected.local_name
-                            ),
-                        ));
-                    }
-                    None => diagnostics.push(xhtml_not_well_formed_diagnostic(
-                        request,
-                        source,
-                        Some(reader.error_position()),
-                        format!("XHTML end tag `</{found}>` has no matching start tag"),
-                    )),
-                }
-            }
-            Ok(quick_xml::events::Event::Text(text)) => {
-                if element_stack.is_empty() && !xml_bytes_are_whitespace(text.as_ref()) {
-                    diagnostics.push(xhtml_not_well_formed_diagnostic(
-                        request,
-                        source,
-                        Some(reader.error_position()),
-                        "XHTML document cannot contain character data outside the document element"
-                            .to_owned(),
-                    ));
-                } else if element_stack.len() == 1 && !xml_bytes_are_whitespace(text.as_ref()) {
-                    xhtml_report_head_body_order(
-                        request,
-                        source,
-                        Some(reader.error_position()),
-                        &mut root_state,
-                        &mut diagnostics,
-                        "XHTML html element may only contain head and body child elements",
-                    );
-                }
-            }
-            Ok(quick_xml::events::Event::DocType(_)) => {}
-            Ok(quick_xml::events::Event::Eof) => break,
-            Ok(_) => {}
-            Err(error) => {
-                diagnostics.push(xhtml_not_well_formed_diagnostic(
-                    request,
-                    source,
-                    Some(reader.error_position()),
-                    format!("XHTML XML parse error: {error}"),
-                ));
-                break;
-            }
-        }
-    }
-
-    if root_count == 0 {
-        diagnostics.push(xhtml_not_well_formed_diagnostic(
-            request,
-            source,
-            Some(0),
-            "XHTML document must contain a document element".to_owned(),
-        ));
-    }
-    if root_state.root_is_html && (!root_state.saw_head || !root_state.saw_body) {
-        xhtml_report_head_body_order(
-            request,
-            source,
-            Some(0),
-            &mut root_state,
-            &mut diagnostics,
-            "XHTML html element must contain a head element followed by a body element",
-        );
-    }
-
-    diagnostics
-}
-
-fn xhtml_start_frame(
-    request: &XhtmlSourceValidationRequest<'_>,
-    source: &str,
-    start: &quick_xml::events::BytesStart<'_>,
-    namespace_stack: &[BTreeMap<String, String>],
-    byte_offset: Option<u64>,
-) -> (XhtmlElementFrame, BTreeMap<String, String>, Vec<Diagnostic>) {
-    let mut diagnostics = Vec::new();
-    let mut namespaces = namespace_stack
-        .last()
-        .cloned()
-        .unwrap_or_else(xml_initial_namespaces);
-
-    for attribute in start.attributes().with_checks(false) {
-        match attribute {
-            Ok(attribute) => {
-                let name = qname_display(attribute.key.as_ref());
-                let value = String::from_utf8_lossy(attribute.value.as_ref()).into_owned();
-                if name == "xmlns" {
-                    namespaces.insert(String::new(), value);
-                } else if let Some(prefix) = name.strip_prefix("xmlns:") {
-                    namespaces.insert(prefix.to_owned(), value);
-                }
-            }
-            Err(error) => diagnostics.push(xhtml_not_well_formed_diagnostic(
-                request,
-                source,
-                byte_offset,
-                format!("XHTML XML attribute parse error: {error}"),
-            )),
-        }
-    }
-
-    let qualified_name = qname_display(start.name().as_ref());
-    let (namespace_uri, local_name) = xhtml_expanded_name(&qualified_name, &namespaces);
+    let source = XhtmlDocumentSource::from_xml(&xml_document);
+    let facts = xhtml_facts(&xml_document, &source);
+    let diagnostics = xhtml_diagnostics(
+        request.source_uri,
+        &source.media_type,
+        &facts,
+        XhtmlSchemaContractCatalog::from_builtin(),
+    );
+    let line_ending = xml_document.line_ending.clone();
     (
-        XhtmlElementFrame {
-            local_name,
-            namespace_uri,
-        },
-        namespaces,
+        Some(XhtmlDocumentAst {
+            source,
+            xml_document,
+            facts,
+            line_ending,
+        }),
         diagnostics,
     )
 }
 
-fn xhtml_validate_element_position(
-    request: &XhtmlSourceValidationRequest<'_>,
-    source: &str,
-    byte_offset: Option<u64>,
-    frame: &XhtmlElementFrame,
-    element_stack: &[XhtmlElementFrame],
-    root_state: &mut XhtmlRootState,
-    root_count: &mut usize,
-    diagnostics: &mut Vec<Diagnostic>,
-) {
-    if element_stack.is_empty() {
-        *root_count += 1;
-        if *root_count > 1 {
-            diagnostics.push(xhtml_not_well_formed_diagnostic(
-                request,
-                source,
-                byte_offset,
-                "XHTML document must have exactly one document element".to_owned(),
-            ));
-            return;
-        }
-        if frame.local_name != "html" {
-            diagnostics.push(xhtml_diagnostic(
-                request,
-                source,
-                byte_offset,
-                "cem.xhtml.root_not_html",
-                Severity::Error,
-                format!(
-                    "XHTML root element must be `html`, found `{}`",
-                    frame.local_name
-                ),
-            ));
-            return;
-        }
-        if frame.namespace_uri != XHTML_NAMESPACE_URI {
-            diagnostics.push(xhtml_diagnostic(
-                request,
-                source,
-                byte_offset,
-                "cem.xhtml.namespace_missing",
-                Severity::Error,
-                "XHTML root `html` element must use the http://www.w3.org/1999/xhtml namespace"
-                    .to_owned(),
-            ));
-            return;
-        }
-        root_state.root_is_html = true;
-        return;
+fn xhtml_facts(document: &XmlDocumentAst, source: &XhtmlDocumentSource) -> Vec<XhtmlFact> {
+    let mut facts = document
+        .parse_facts
+        .iter()
+        .map(|fact| XhtmlFact {
+            kind: match fact.kind {
+                XmlParseFactKind::ParseError => XhtmlFactKind::NotWellFormedXml,
+                XmlParseFactKind::UnsupportedEncoding => XhtmlFactKind::UnsupportedEncoding,
+                XmlParseFactKind::EncodingConflict => XhtmlFactKind::EncodingConflict,
+                XmlParseFactKind::UnboundNamespacePrefix => XhtmlFactKind::UnboundNamespacePrefix,
+                XmlParseFactKind::DuplicateAttribute => XhtmlFactKind::DuplicateAttribute,
+                XmlParseFactKind::DtdRejected => XhtmlFactKind::DtdRejected,
+                XmlParseFactKind::ExternalEntityRejected => XhtmlFactKind::ExternalEntityRejected,
+                XmlParseFactKind::EntityExpansionLimit => XhtmlFactKind::EntityExpansionLimit,
+                XmlParseFactKind::SourceMapUnavailable => XhtmlFactKind::SourceMapUnavailable,
+            },
+            source_range: XhtmlSourceRange::from_xml_fact(
+                fact.line,
+                fact.column,
+                fact.byte_offset,
+                fact.byte_length,
+            ),
+            message: fact.message.clone(),
+            value: Some(fact.kind.as_str().to_owned()),
+        })
+        .collect::<Vec<_>>();
+
+    if let Some(profile) = source.parameters.get("profile") {
+        facts.push(XhtmlFact {
+            kind: XhtmlFactKind::ProfileDeprecated,
+            source_range: None,
+            message: "application/xhtml+xml profile parameter is deprecated".to_owned(),
+            value: Some(profile.clone()),
+        });
     }
 
-    if !root_state.root_is_html || element_stack.len() != 1 {
-        return;
+    let mut root_seen = false;
+    let mut root_is_xhtml = false;
+    let mut head_seen = false;
+    let mut body_seen = false;
+    let mut order_reported = false;
+    let mut foreign_namespaces = BTreeSet::new();
+
+    for event in &document.events {
+        let range = Some(XhtmlSourceRange::from_event(event));
+        if event.source_range.byte_length == 0 {
+            facts.push(XhtmlFact {
+                kind: XhtmlFactKind::SourceMapUnavailable,
+                source_range: range,
+                message: "XHTML event does not expose a non-empty source range".to_owned(),
+                value: Some(event.index.to_string()),
+            });
+        }
+        if event.kind == XmlEventKind::Doctype {
+            facts.push(XhtmlFact {
+                kind: XhtmlFactKind::DoctypeObserved,
+                source_range: range,
+                message: "XHTML doctype declaration was parsed and preserved".to_owned(),
+                value: event.value.clone(),
+            });
+        }
+        if !matches!(
+            event.kind,
+            XmlEventKind::StartElement | XmlEventKind::EmptyElement
+        ) {
+            if root_is_xhtml
+                && event.depth == 1
+                && matches!(event.kind, XmlEventKind::Text | XmlEventKind::Cdata)
+                && !event.whitespace_only
+            {
+                push_head_body_order_fact(&mut facts, range, &mut order_reported);
+            }
+            continue;
+        }
+
+        let local_name = event.local_name.as_deref().unwrap_or_default();
+        let namespace_uri = event.namespace_uri.as_deref().unwrap_or_default();
+        if !root_seen && event.depth == 0 {
+            root_seen = true;
+            facts.push(XhtmlFact {
+                kind: XhtmlFactKind::RootObserved,
+                source_range: range,
+                message: format!("XHTML root element `{local_name}` was parsed"),
+                value: event.qualified_name.clone(),
+            });
+            if local_name != "html" {
+                facts.push(XhtmlFact {
+                    kind: XhtmlFactKind::RootNotHtml,
+                    source_range: range,
+                    message: format!(
+                        "XHTML root element must be `html`, found `{}`",
+                        event.qualified_name.as_deref().unwrap_or(local_name)
+                    ),
+                    value: event.qualified_name.clone(),
+                });
+            } else if namespace_uri != XHTML_NAMESPACE_URI {
+                facts.push(XhtmlFact {
+                    kind: XhtmlFactKind::NamespaceMissing,
+                    source_range: range,
+                    message: format!(
+                        "XHTML root `html` element must use the `{XHTML_NAMESPACE_URI}` namespace"
+                    ),
+                    value: Some(namespace_uri.to_owned()),
+                });
+            } else {
+                root_is_xhtml = true;
+                facts.push(XhtmlFact {
+                    kind: XhtmlFactKind::NamespaceObserved,
+                    source_range: range,
+                    message: "XHTML document namespace was parsed".to_owned(),
+                    value: Some(XHTML_NAMESPACE_URI.to_owned()),
+                });
+            }
+        } else if root_is_xhtml && event.depth == 1 {
+            match (namespace_uri, local_name) {
+                (XHTML_NAMESPACE_URI, "head") if !head_seen && !body_seen => {
+                    head_seen = true;
+                    facts.push(XhtmlFact {
+                        kind: XhtmlFactKind::HeadObserved,
+                        source_range: range,
+                        message: "XHTML head element was parsed".to_owned(),
+                        value: event.qualified_name.clone(),
+                    });
+                }
+                (XHTML_NAMESPACE_URI, "body") if head_seen && !body_seen => {
+                    body_seen = true;
+                    facts.push(XhtmlFact {
+                        kind: XhtmlFactKind::BodyObserved,
+                        source_range: range,
+                        message: "XHTML body element was parsed".to_owned(),
+                        value: event.qualified_name.clone(),
+                    });
+                }
+                _ => push_head_body_order_fact(&mut facts, range, &mut order_reported),
+            }
+        }
+
+        if !namespace_uri.is_empty()
+            && namespace_uri != XHTML_NAMESPACE_URI
+            && foreign_namespaces.insert(namespace_uri.to_owned())
+        {
+            facts.push(XhtmlFact {
+                kind: XhtmlFactKind::ForeignContentObserved,
+                source_range: range,
+                message: format!("XHTML foreign-content namespace `{namespace_uri}` was parsed"),
+                value: Some(namespace_uri.to_owned()),
+            });
+        }
     }
 
-    if frame.namespace_uri != XHTML_NAMESPACE_URI {
-        xhtml_report_head_body_order(
-            request,
-            source,
-            byte_offset,
-            root_state,
-            diagnostics,
-            "XHTML html element direct children must be XHTML head and body elements",
+    if root_is_xhtml && (!head_seen || !body_seen) {
+        push_head_body_order_fact(
+            &mut facts,
+            document.events.first().map(XhtmlSourceRange::from_event),
+            &mut order_reported,
         );
-        return;
     }
-
-    match frame.local_name.as_str() {
-        "head" if !root_state.saw_head && !root_state.saw_body => {
-            root_state.saw_head = true;
-        }
-        "body" if root_state.saw_head && !root_state.saw_body => {
-            root_state.saw_body = true;
-        }
-        _ => xhtml_report_head_body_order(
-            request,
-            source,
-            byte_offset,
-            root_state,
-            diagnostics,
-            "XHTML html element must contain exactly one head element followed by one body element",
-        ),
-    }
+    facts
 }
 
-fn xhtml_report_head_body_order(
-    request: &XhtmlSourceValidationRequest<'_>,
-    source: &str,
-    byte_offset: Option<u64>,
-    root_state: &mut XhtmlRootState,
-    diagnostics: &mut Vec<Diagnostic>,
-    message: &str,
+fn push_head_body_order_fact(
+    facts: &mut Vec<XhtmlFact>,
+    source_range: Option<XhtmlSourceRange>,
+    reported: &mut bool,
 ) {
-    if root_state.reported_order {
+    if *reported {
         return;
     }
-    root_state.reported_order = true;
-    diagnostics.push(xhtml_diagnostic(
-        request,
-        source,
-        byte_offset,
-        "cem.xhtml.head_body_order",
-        Severity::Error,
-        message.to_owned(),
-    ));
+    *reported = true;
+    facts.push(XhtmlFact {
+        kind: XhtmlFactKind::HeadBodyOrder,
+        source_range,
+        message:
+            "XHTML html element must contain exactly one head element followed by one body element"
+                .to_owned(),
+        value: None,
+    });
 }
 
-fn xhtml_expanded_name(
-    qualified_name: &str,
-    namespaces: &BTreeMap<String, String>,
-) -> (String, String) {
-    if let Some((prefix, local_name)) = qualified_name.split_once(':') {
-        (
-            namespaces.get(prefix).cloned().unwrap_or_default(),
-            local_name.to_owned(),
-        )
-    } else {
-        (
-            namespaces.get("").cloned().unwrap_or_default(),
-            qualified_name.to_owned(),
-        )
-    }
+fn xhtml_diagnostics(
+    source_uri: &str,
+    content_type: &str,
+    facts: &[XhtmlFact],
+    contracts: &XhtmlSchemaContractCatalog,
+) -> Vec<Diagnostic> {
+    facts
+        .iter()
+        .filter_map(|fact| {
+            let binding = contracts.binding_for_fact(fact.kind)?;
+            Some(Diagnostic {
+                uri: Some(source_uri.to_owned()),
+                line: fact.source_range.map(|range| range.start.line),
+                column: fact.source_range.map(|range| range.start.column),
+                byte_offset: fact.source_range.map(|range| range.start.byte_offset),
+                code: binding.diagnostic_code.clone(),
+                severity: binding.severity,
+                message: fact.message.clone(),
+                details: Some(json!({
+                    "xhtml": {
+                        "phase": "xml-parse-and-xhtml-semantics",
+                        "factKind": fact.kind.as_str(),
+                        "contract": binding.contract,
+                        "behavior": binding.behavior,
+                        "policy": binding.policy,
+                        "contentType": content_type,
+                        "value": fact.value,
+                        "sourceRange": fact.source_range.map(XhtmlSourceRange::to_cemt_subject),
+                    }
+                })),
+                source_map: fact.source_range.map(XhtmlSourceRange::source_map),
+                ..Diagnostic::default()
+            })
+        })
+        .collect()
 }
 
-fn xhtml_not_well_formed_diagnostic(
-    request: &XhtmlSourceValidationRequest<'_>,
-    source: &str,
-    byte_offset: Option<u64>,
-    message: String,
-) -> Diagnostic {
-    xhtml_diagnostic(
-        request,
-        source,
-        byte_offset,
-        "cem.xhtml.not_well_formed_xml",
-        Severity::Error,
-        message,
-    )
-}
-
-fn xhtml_diagnostic(
-    request: &XhtmlSourceValidationRequest<'_>,
-    source: &str,
-    byte_offset: Option<u64>,
-    code: &'static str,
-    severity: Severity,
-    message: String,
-) -> Diagnostic {
-    let (line, column) = byte_offset
-        .and_then(|offset| usize::try_from(offset).ok())
-        .map(|offset| line_col(source, offset))
-        .map(|(line, column)| (Some(line), Some(column)))
-        .unwrap_or((None, None));
-    Diagnostic {
-        uri: Some(request.source_uri.to_owned()),
-        line,
-        column,
-        byte_offset,
-        code: code.to_owned(),
-        severity,
-        message,
-        ..Diagnostic::default()
-    }
-}
-
-fn xml_initial_namespaces() -> BTreeMap<String, String> {
-    let mut namespaces = BTreeMap::new();
-    namespaces.insert(
-        "xml".to_owned(),
-        "http://www.w3.org/XML/1998/namespace".to_owned(),
-    );
-    namespaces.insert(
-        "xmlns".to_owned(),
-        "http://www.w3.org/2000/xmlns/".to_owned(),
-    );
-    namespaces
-}
-
-fn xml_event_position(
-    reader: &quick_xml::Reader<&[u8]>,
-    start: &quick_xml::events::BytesStart<'_>,
-    empty: bool,
-) -> Option<u64> {
-    let markup_overhead = if empty { 3 } else { 2 };
-    reader
-        .buffer_position()
-        .checked_sub(start.as_ref().len() as u64 + markup_overhead)
-}
-
-fn xml_bytes_are_whitespace(bytes: &[u8]) -> bool {
-    std::str::from_utf8(bytes)
-        .map(|value| value.chars().all(char::is_whitespace))
-        .unwrap_or(false)
-}
-
-fn qname_display(bytes: &[u8]) -> String {
-    String::from_utf8_lossy(bytes).into_owned()
-}
-
-fn content_type_parameter(content_type: &str, name: &str) -> Option<String> {
-    let needle = name.trim().to_ascii_lowercase();
-    content_type.split(';').skip(1).find_map(|part| {
-        let (key, value) = part.split_once('=')?;
-        if key.trim().eq_ignore_ascii_case(&needle) {
-            Some(value.trim().trim_matches('"').to_owned())
-        } else {
-            None
-        }
+fn xhtml_event_to_cemt_subject(event: &XmlEventAst) -> Value {
+    let range = XhtmlSourceRange::from_event(event);
+    json!({
+        "index": event.index,
+        "kind": event.kind.as_str(),
+        "depth": event.depth,
+        "qualifiedName": event.qualified_name,
+        "localName": event.local_name,
+        "prefix": event.prefix,
+        "namespaceUri": event.namespace_uri,
+        "attributes": event.attributes.iter().map(|attribute| json!({
+            "qualifiedName": attribute.qualified_name,
+            "localName": attribute.local_name,
+            "prefix": attribute.prefix,
+            "namespaceUri": attribute.namespace_uri,
+            "value": attribute.value,
+        })).collect::<Vec<_>>(),
+        "value": event.value,
+        "lexeme": event.lexeme,
+        "whitespaceOnly": event.whitespace_only,
+        "sourceRange": range.to_cemt_subject(),
+        "sourceMap": range.source_map(),
     })
-}
-
-fn line_col(source: &str, byte_offset: usize) -> (u32, u32) {
-    let mut line = 1u32;
-    let mut column = 1u32;
-    let limit = byte_offset.min(source.len());
-    for byte in source[..limit].bytes() {
-        if byte == b'\n' {
-            line = line.saturating_add(1);
-            column = 1;
-        } else {
-            column = column.saturating_add(1);
-        }
-    }
-    (line, column)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
 
+    fn parse(source: &str) -> (XhtmlDocumentAst, Vec<Diagnostic>) {
+        let (document, diagnostics) =
+            xhtml_document_ast_from_source_bytes(XhtmlSourceValidationRequest {
+                bytes: source.as_bytes(),
+                source_uri: "fixture.xhtml",
+                content_type: Some(XHTML_CONTENT_TYPE),
+            });
+        (document.expect("typed XHTML document"), diagnostics)
+    }
+
     fn validate(source: &str) -> Vec<Diagnostic> {
-        validate_xhtml_source_bytes(XhtmlSourceValidationRequest {
-            bytes: source.as_bytes(),
-            source_uri: "fixture.xhtml",
-            content_type: Some("application/xhtml+xml"),
-        })
+        parse(source).1
     }
 
     fn has_code(diagnostics: &[Diagnostic], code: &str) -> bool {
         diagnostics.iter().any(|diagnostic| diagnostic.code == code)
+    }
+
+    #[test]
+    fn xhtml_ast_reuses_xml_events_with_xhtml_identity_and_source_maps() {
+        let source = r#"<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:svg="http://www.w3.org/2000/svg">
+  <head><title>Basic</title></head>
+  <body><svg:svg viewBox="0 0 1 1"><svg:path/></svg:svg></body>
+</html>
+"#;
+        let (document, diagnostics) = parse(source);
+
+        assert!(diagnostics.is_empty(), "{diagnostics:?}");
+        assert_eq!(document.source.media_type, XHTML_CONTENT_TYPE);
+        assert_eq!(document.source.content_type, XHTML_CONTENT_TYPE);
+        assert!(document
+            .xml_document
+            .events
+            .iter()
+            .all(|event| event.source_range.byte_length > 0));
+        assert!(document.xml_document.events.iter().any(|event| {
+            event.kind == XmlEventKind::Declaration && event.lexeme.starts_with("<?xml")
+        }));
+        assert!(document.xml_document.events.iter().any(|event| {
+            event.qualified_name.as_deref() == Some("svg:path")
+                && event.namespace_uri.as_deref() == Some("http://www.w3.org/2000/svg")
+        }));
+        assert!(document
+            .facts
+            .iter()
+            .any(|fact| fact.kind == XhtmlFactKind::ForeignContentObserved));
+
+        let subject = document.to_cemt_subject();
+        assert_eq!(subject["kind"], json!("xhtml-document"));
+        assert_eq!(subject["schema"], json!(XHTML_SCHEMA_URI));
+        assert_eq!(
+            subject["events"][0]["sourceMap"]["frames"][0]["transform"]["content_type"],
+            json!(XHTML_CONTENT_TYPE)
+        );
     }
 
     #[test]
@@ -495,42 +638,29 @@ mod tests {
     }
 
     #[test]
-    fn xhtml_source_validator_reports_missing_namespace() {
-        let diagnostics = validate(
-            r#"<html>
-  <head><title>Missing namespace</title></head>
-  <body><p>Not XHTML.</p></body>
-</html>
-"#,
-        );
-
-        assert!(has_code(&diagnostics, "cem.xhtml.namespace_missing"));
-    }
-
-    #[test]
-    fn xhtml_source_validator_reports_root_not_html() {
-        let diagnostics = validate(
-            r#"<section xmlns="http://www.w3.org/1999/xhtml">
-  <head><title>Wrong root</title></head>
-  <body><p>Bad root.</p></body>
-</section>
-"#,
-        );
-
-        assert!(has_code(&diagnostics, "cem.xhtml.root_not_html"));
-    }
-
-    #[test]
-    fn xhtml_source_validator_reports_head_body_order() {
-        let diagnostics = validate(
-            r#"<html xmlns="http://www.w3.org/1999/xhtml">
-  <body><p>Body first.</p></body>
-  <head><title>Late head</title></head>
-</html>
-"#,
-        );
-
-        assert!(has_code(&diagnostics, "cem.xhtml.head_body_order"));
+    fn xhtml_source_validator_reports_schema_bound_structure_facts() {
+        for (source, code) in [
+            ("<html><head/><body/></html>", "cem.xhtml.namespace_missing"),
+            (
+                r#"<section xmlns="http://www.w3.org/1999/xhtml"><head/><body/></section>"#,
+                "cem.xhtml.root_not_html",
+            ),
+            (
+                r#"<html xmlns="http://www.w3.org/1999/xhtml"><body/><head/></html>"#,
+                "cem.xhtml.head_body_order",
+            ),
+        ] {
+            let diagnostics = validate(source);
+            assert!(has_code(&diagnostics, code), "{diagnostics:?}");
+            assert!(diagnostics.iter().all(|diagnostic| {
+                diagnostic
+                    .details
+                    .as_ref()
+                    .and_then(|details| details.get("xhtml"))
+                    .and_then(|details| details.get("behavior"))
+                    == Some(&json!(XHTML_FACT_BEHAVIOR))
+            }));
+        }
     }
 
     #[test]
@@ -548,15 +678,38 @@ mod tests {
 
     #[test]
     fn xhtml_source_validator_reports_profile_deprecated() {
-        let diagnostics = validate_xhtml_source_bytes(XhtmlSourceValidationRequest {
-            bytes: br#"<html xmlns="http://www.w3.org/1999/xhtml"><head><title>Profile</title></head><body><p>Profile.</p></body></html>"#,
-            source_uri: "fixture.xhtml",
-            content_type: Some("application/xhtml+xml; profile=https://example.test/profile"),
-        });
+        let (document, diagnostics) =
+            xhtml_document_ast_from_source_bytes(XhtmlSourceValidationRequest {
+                bytes: br#"<html xmlns="http://www.w3.org/1999/xhtml"><head/><body/></html>"#,
+                source_uri: "fixture.xhtml",
+                content_type: Some(
+                    "application/xhtml+xml; profile=https://example.test/profile; charset=UTF-8",
+                ),
+            });
 
         assert!(has_code(&diagnostics, "cem.xhtml.profile_deprecated"));
         assert!(diagnostics
             .iter()
             .all(|diagnostic| !diagnostic.severity.is_hard_violation()));
+        let document = document.expect("typed XHTML document");
+        assert_eq!(
+            document
+                .source
+                .parameters
+                .get("profile")
+                .map(String::as_str),
+            Some("https://example.test/profile")
+        );
+    }
+
+    #[test]
+    fn xhtml_inherits_xml_doctype_and_entity_safety_policy() {
+        let diagnostics = validate(
+            r#"<!DOCTYPE html [<!ENTITY remote SYSTEM "https://example.test/entity">]>
+<html xmlns="http://www.w3.org/1999/xhtml"><head/><body>&remote;</body></html>"#,
+        );
+
+        assert!(has_code(&diagnostics, "cem.xhtml.dtd_rejected"));
+        assert!(has_code(&diagnostics, "cem.xhtml.external_entity_rejected"));
     }
 }

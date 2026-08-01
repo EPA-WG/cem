@@ -41,6 +41,9 @@ use crate::validation::relax_ng::{
     relax_ng_document_ast_from_source_bytes, RelaxNgDocumentAst, RelaxNgSourceValidationRequest,
     RelaxNgSyntaxKind,
 };
+use crate::validation::xhtml::{
+    xhtml_document_ast_from_source_bytes, XhtmlDocumentAst, XhtmlSourceValidationRequest,
+};
 use crate::validation::xml::{
     xml_document_ast_from_source_bytes, XmlDocumentAst, XmlSourceValidationRequest,
 };
@@ -67,7 +70,6 @@ const XSLT_NAMESPACE: &str = XSLT_NAMESPACE_URI;
 const HTML_ADAPTER_SCHEMA_IDENTITIES: &[&str] = &[
     HTML_SCHEMA_URI,
     HTML_NAMESPACE,
-    XHTML_SCHEMA_URI,
     SVG_NAMESPACE,
     MATHML_NAMESPACE,
 ];
@@ -99,6 +101,7 @@ pub enum LoadedInputAstStream {
     JsonSchemaDocument(JsonSchemaDocumentAst),
     MarkdownDocument(MarkdownDocumentAst),
     XmlDocument(XmlDocumentAst),
+    XhtmlDocument(XhtmlDocumentAst),
     RelaxNgDocument(RelaxNgDocumentAst),
 }
 
@@ -134,6 +137,7 @@ impl LifecycleRegistry {
     pub fn with_builtin_adapters() -> Self {
         let mut registry = Self::new();
         registry.register(CemMlAdapter);
+        registry.register(XhtmlAdapter);
         registry.register(HtmlAdapter);
         registry.register(RelaxNgAdapter);
         registry.register(XmlAdapter);
@@ -531,7 +535,7 @@ impl LifecycleAdapter for HtmlAdapter {
     }
 
     fn matches_input(&self, identity: &FormatIdentity) -> bool {
-        matches_content_type(identity, &[HTML_CONTENT_TYPE, XHTML_CONTENT_TYPE])
+        matches_content_type(identity, &[HTML_CONTENT_TYPE])
             || matches_schema_without_content_type(identity, HTML_ADAPTER_SCHEMA_IDENTITIES)
             || matches_namespace_without_content_type_or_schema(
                 identity,
@@ -550,6 +554,60 @@ impl LifecycleAdapter for HtmlAdapter {
     fn target_format(&self) -> Option<LayerFormat> {
         Some(LayerFormat::Html)
     }
+}
+
+struct XhtmlAdapter;
+
+impl LifecycleAdapter for XhtmlAdapter {
+    fn id(&self) -> &'static str {
+        "xhtml"
+    }
+
+    fn matches_input(&self, identity: &FormatIdentity) -> bool {
+        matches_xhtml_identity(identity)
+    }
+
+    fn load(&self, input: &EngineInput, identity: &FormatIdentity) -> LoadedInput {
+        let content_type = identity
+            .content_type
+            .as_deref()
+            .or(input.root_scope.default_content_type.as_deref())
+            .unwrap_or(XHTML_CONTENT_TYPE);
+        let (document, diagnostics) =
+            xhtml_document_ast_from_source_bytes(XhtmlSourceValidationRequest {
+                bytes: &input.bytes,
+                source_uri: &input.uri,
+                content_type: Some(content_type),
+            });
+        LoadedInput {
+            bytes: input.bytes.clone(),
+            from_format: InputFormat::Xml,
+            ast_stream: document.map(LoadedInputAstStream::XhtmlDocument),
+            diagnostics,
+            adapter_id: Some(self.id()),
+        }
+    }
+
+    fn matches_target(&self, identity: &FormatIdentity) -> bool {
+        matches_xhtml_identity(identity)
+    }
+
+    fn target_format(&self) -> Option<LayerFormat> {
+        Some(LayerFormat::Xml)
+    }
+}
+
+fn matches_xhtml_identity(identity: &FormatIdentity) -> bool {
+    let explicit_schema_matches = identity
+        .schema
+        .as_deref()
+        .map(str::trim)
+        .is_some_and(|schema| schema == XHTML_SCHEMA_URI);
+    if let Some(content_type) = identity.content_type.as_deref() {
+        return content_type_essence(content_type) == XHTML_CONTENT_TYPE
+            && (identity.schema.is_none() || explicit_schema_matches);
+    }
+    explicit_schema_matches
 }
 
 struct XmlAdapter;
@@ -1541,6 +1599,33 @@ mod tests {
     }
 
     #[test]
+    fn builtins_load_xhtml_content_type_as_dedicated_internal_ast_stream() {
+        let loaded = LifecycleRegistry::with_builtin_adapters().load(
+            &input(
+                br#"<?xml version="1.0"?><html xmlns="http://www.w3.org/1999/xhtml"><head/><body><br/></body></html>"#,
+            ),
+            &context(XHTML_CONTENT_TYPE),
+        );
+        assert_eq!(loaded.from_format, InputFormat::Xml);
+        assert_eq!(loaded.adapter_id, Some("xhtml"));
+        assert!(loaded.diagnostics.is_empty(), "{:?}", loaded.diagnostics);
+        let document = match loaded
+            .ast_stream
+            .expect("XHTML adapter emits internal AST stream")
+        {
+            LoadedInputAstStream::XhtmlDocument(document) => document,
+            other => panic!("XHTML adapter emitted unexpected AST stream: {other:?}"),
+        };
+        assert_eq!(document.source.media_type, XHTML_CONTENT_TYPE);
+        assert!(document
+            .xml_document
+            .events
+            .iter()
+            .any(|event| event.qualified_name.as_deref() == Some("br")
+                && event.kind == crate::validation::xml::XmlEventKind::EmptyElement));
+    }
+
+    #[test]
     fn builtins_load_svg_content_type_as_xml() {
         let loaded = LifecycleRegistry::with_builtin_adapters().load(
             &input(b"<svg><title>Hi</title></svg>"),
@@ -2062,17 +2147,21 @@ mod tests {
     }
 
     #[test]
-    fn xhtml_schema_selects_html_input_when_content_type_absent() {
+    fn xhtml_schema_selects_dedicated_xml_input_when_content_type_absent() {
         let loaded = LifecycleRegistry::with_builtin_adapters().load(
-            &input(b"<html xmlns=\"http://www.w3.org/1999/xhtml\"><body>Hi</body></html>"),
+            &input(b"<html xmlns=\"http://www.w3.org/1999/xhtml\"><head/><body>Hi</body></html>"),
             &EngineContext {
                 schema: Some(XHTML_SCHEMA_URI.to_owned()),
                 ..EngineContext::default()
             },
         );
-        assert_eq!(loaded.from_format, InputFormat::Html);
-        assert_eq!(loaded.adapter_id, Some("html"));
+        assert_eq!(loaded.from_format, InputFormat::Xml);
+        assert_eq!(loaded.adapter_id, Some("xhtml"));
         assert!(loaded.diagnostics.is_empty());
+        assert!(matches!(
+            loaded.ast_stream,
+            Some(LoadedInputAstStream::XhtmlDocument(_))
+        ));
     }
 
     #[test]
@@ -2301,15 +2390,15 @@ mod tests {
     }
 
     #[test]
-    fn xhtml_target_content_type_selects_html_export() {
+    fn xhtml_target_content_type_selects_xml_export() {
         let target = FormatIdentity {
             content_type: Some(XHTML_CONTENT_TYPE.to_owned()),
             ..FormatIdentity::default()
         };
         let selected = LifecycleRegistry::with_builtin_adapters()
             .select_export(Some(&target), LayerFormat::DomJson);
-        assert_eq!(selected.to_format, LayerFormat::Html);
-        assert_eq!(selected.adapter_id, Some("html"));
+        assert_eq!(selected.to_format, LayerFormat::Xml);
+        assert_eq!(selected.adapter_id, Some("xhtml"));
         assert!(selected.diagnostics.is_empty());
     }
 
@@ -2500,15 +2589,15 @@ mod tests {
     }
 
     #[test]
-    fn xhtml_schema_selects_html_export_when_content_type_absent() {
+    fn xhtml_schema_selects_xml_export_when_content_type_absent() {
         let target = FormatIdentity {
             schema: Some(XHTML_SCHEMA_URI.to_owned()),
             ..FormatIdentity::default()
         };
         let selected = LifecycleRegistry::with_builtin_adapters()
             .select_export(Some(&target), LayerFormat::DomJson);
-        assert_eq!(selected.to_format, LayerFormat::Html);
-        assert_eq!(selected.adapter_id, Some("html"));
+        assert_eq!(selected.to_format, LayerFormat::Xml);
+        assert_eq!(selected.adapter_id, Some("xhtml"));
         assert!(selected.diagnostics.is_empty());
     }
 

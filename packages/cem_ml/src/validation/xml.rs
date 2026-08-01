@@ -161,7 +161,7 @@ pub enum XmlEventKind {
 }
 
 impl XmlEventKind {
-    fn as_str(self) -> &'static str {
+    pub fn as_str(self) -> &'static str {
         match self {
             Self::Declaration => "declaration",
             Self::StartElement => "start-element",
