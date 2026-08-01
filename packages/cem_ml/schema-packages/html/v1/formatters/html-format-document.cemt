@@ -4,15 +4,165 @@
 
 {module @version="1.0.0" |
     {format-function
-        @name="html.format-document"
+        @name="html.format-document.tree"
+        @visibility="private"
         @category="html-document"
-        @subject="json"
-        @produces="tokens"
+        @subject="html-document"
+        @produces="cem-tree"
         @content-type="text/html"
         @schema="https://cem.dev/ns/data/html/1"
-        @canonical=false
+        @canonical=true
         @deterministic=true
         @streamable=true |
-        {param @name="subject" @type="json" @required=true}
+        {param @name="subject" @type="object" @required=true}
+        {param @name="profile" @type="string" @required=true}
+        {body |
+            {$ {
+                kind: "cem-tree",
+                contentType: "text/html",
+                schema: "https://cem.dev/ns/data/html/1",
+                category: "html-document",
+                formatterProfile: $profile,
+                formatNodes: [
+                    {
+                        kind: "format-marker",
+                        name: "html.format-document",
+                        formatterRole: "formatter.boundary",
+                        formatterProfile: $profile
+                    },
+                    {
+                        kind: "format-decision",
+                        name: "html.safe-lexical-layout",
+                        formatterRole: "formatter.layout",
+                        formatterProfile: $profile,
+                        value: {
+                            layout: call("html.format-document.layout", { profile: $profile }),
+                            lineEnding: $lineEnding,
+                            indent: $indent,
+                            tabSize: $tabSize,
+                            sourceBoundary: "html-document",
+                            documentMode: match(exists($subject.documentMode), { true: $subject.documentMode, false: "fragment" })
+                        }
+                    }
+                ],
+                nodes: extend(
+                    [
+                        call("html.format-document.token", {
+                            kind: "html.format-marker",
+                            text: "",
+                            role: "formatter.boundary",
+                            sourceMap: null,
+                            value: { name: "html.format-document", formatterProfile: $profile }
+                        }),
+                        call("html.format-document.token", {
+                            kind: "html.format-decision",
+                            text: "",
+                            role: "formatter.layout",
+                            sourceMap: null,
+                            value: {
+                                layout: call("html.format-document.layout", { profile: $profile }),
+                                formatterProfile: $profile,
+                                lineEnding: $lineEnding,
+                                indent: $indent,
+                                tabSize: $tabSize
+                            }
+                        })
+                    ],
+                    call("html.format-document.events", {
+                        events: match(typeOf($subject.events), { array: $subject.events, default: [] }),
+                        profile: $profile
+                    })
+                )
+            } }
+        }
+    }
+
+    {function @name="html.format-document.layout" @visibility="private" @returns="string" @deterministic=true |
+        {param @name="profile" @type="string" @required=true}
+        {body |
+            {$ match($profile, {
+                compact: "lexical-lossless-compact",
+                pretty: "safe-token-boundaries-pretty",
+                tabular: "safe-token-boundaries-tabular",
+                default: "lexical-lossless"
+            }) }
+        }
+    }
+
+    {function @name="html.format-document.events" @visibility="private" @returns="array" @deterministic=true |
+        {param @name="events" @type="array" @required=true}
+        {param @name="profile" @type="string" @required=true}
+        {body |
+            {$ fold($events, [], extend(
+                $acc,
+                [call("html.format-document.event", { event: $item, profile: $profile })]
+            )) }
+        }
+    }
+
+    {function @name="html.format-document.event" @visibility="private" @returns="object" @deterministic=true |
+        {param @name="event" @type="object" @required=true}
+        {param @name="profile" @type="string" @required=true}
+        {body |
+            {$ call("html.format-document.token", {
+                kind: concat("html.", match(typeOf($event.kind), { string: $event.kind, default: "raw" })),
+                text: match(typeOf($event.lexeme), { string: $event.lexeme, default: "" }),
+                role: call("html.format-document.role", { event: $event }),
+                sourceMap: match(exists($event.sourceMap), { true: $event.sourceMap, false: null }),
+                value: {
+                    formatterProfile: $profile,
+                    eventKind: match(typeOf($event.kind), { string: $event.kind, default: "raw" }),
+                    depth: match(typeOf($event.depth), { integer: $event.depth, default: 0 }),
+                    lexicalName: match(exists($event.lexicalName), { true: $event.lexicalName, false: null }),
+                    localName: match(exists($event.localName), { true: $event.localName, false: null }),
+                    namespaceUri: match(exists($event.namespaceUri), { true: $event.namespaceUri, false: null }),
+                    documentSafeBoundary: match($event.kind, {
+                        "raw-text": false,
+                        rcdata: false,
+                        default: true
+                    }),
+                    sourceRange: match(exists($event.sourceRange), { true: $event.sourceRange, false: null })
+                }
+            }) }
+        }
+    }
+
+    {function @name="html.format-document.role" @visibility="private" @returns="string" @deterministic=true |
+        {param @name="event" @type="object" @required=true}
+        {body |
+            {$ match($event.kind, {
+                doctype: "syntax.keyword",
+                "start-element": "syntax.name",
+                "end-element": "syntax.name",
+                text: "syntax.text",
+                "raw-text": "syntax.string",
+                rcdata: "syntax.string",
+                comment: "syntax.comment",
+                default: "syntax.raw"
+            }) }
+        }
+    }
+
+    {function @name="html.format-document.token" @visibility="private" @returns="object" @deterministic=true |
+        {param @name="kind" @type="string" @required=true}
+        {param @name="text" @type="string" @required=true}
+        {param @name="role" @type="string" @required=true}
+        {param @name="sourceMap" @type="any" @required=true @nullable=true}
+        {param @name="value" @type="object" @required=true}
+        {body |
+            {$ {
+                kind: $kind,
+                writerKind: "token",
+                text: $text,
+                role: $role,
+                style: { colorRole: $role },
+                sourceMap: $sourceMap,
+                outputSpan: match(typeOf($sourceMap), {
+                    null: null,
+                    default: { outputRange: { start: 0, len: 0 }, origin: $sourceMap }
+                }),
+                value: $value
+            } }
+        }
     }
 }

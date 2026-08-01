@@ -1,0 +1,10 @@
+@doc cem-ml 1
+@ns transform = "https://cem.dev/ns/transform/cem/1"
+@default transform
+
+{module @version="1.0.0" |
+    {format-function @name="html.format-document" @visibility="public" @category="html-document" @subject="html-document" @produces="cem-tree" @content-type="text/html" @schema="https://cem.dev/ns/data/html/1" @profile="compact" @canonical=true @deterministic=true @streamable=true |
+        {param @name="subject" @type="object" @required=true}
+        {body | {$ merge(call("html.format-document.tree", { subject: $subject, profile: "compact" }), {}) } }
+    }
+}

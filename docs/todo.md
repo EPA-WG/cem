@@ -703,8 +703,48 @@ Remaining dependency-ordered package checklist:
   - [x] Expand manifest/index embedding, lifecycle, engine/CLI, standard and
         compatibility identity, parity, README/SVG preview, safety, and release
         gates without source-snapshot previews.
-- [ ] `html/v1`
+- [x] `html/v1`
+  - [x] Add a dedicated typed `HtmlDocumentAst` lifecycle stream over the
+        native HTML tokenizer, preserving media parameters, document/fragment
+        mode, lexical events, semantic names, raw text/RCDATA, foreign-content
+        namespace transitions, recovery evidence, ranges, and source maps.
+  - [x] Route HTML loading, validation, and same-schema output through the
+        dedicated adapter without CEM, XML, or legacy HTML-token fallthrough,
+        while keeping XHTML separate and SVG/MathML islands document-owned.
+  - [x] Bind neutral parser, encoding, doctype/quirks, recovery, duplicate
+        attribute, script/event-handler, external-resource, custom-element,
+        foreign-content, and source-map facts to `schema/html.cem`.
+  - [x] Replace placeholder output artifacts with executable
+        compact/pretty/tabular and terminal/HTML/Markdown CEMT wrappers and
+        helpers that preserve lexical HTML and the default final newline.
+  - [x] Expand manifest/index embedding, lifecycle, engine/CLI, formatter and
+        colorizer profile, schema-owned example, safety, release documentation,
+        and README/SVG preview-drift gates without source-snapshot fallback.
 - [ ] `css/v1`
+  - [ ] Add a typed, lossless `CssDocumentAst` lifecycle stream for stylesheet,
+        declaration-list/style-attribute, and scoped style-block entry modes.
+        Use a standards CSS tokenizer/parser for component-value recovery and a
+        presentation/trivia layer for comments, original lexemes, byte ranges,
+        source maps, MIME parameters, encoding evidence, and line endings.
+  - [ ] Move CSS validation behind the lifecycle adapter and replace Rust-owned
+        diagnostic dispatch with neutral facts bound through executable
+        contracts in `schema/css.cem`, including syntax/recovery, charset,
+        selector/declaration, unknown at-rule, import, URL, scope, and source-map
+        facts.
+  - [ ] Route content type and package-schema loading plus same-schema output
+        through the typed CSS stream without CEM or opaque-handoff fallthrough;
+        preserve custom properties, vendor syntax, and unknown at-rules.
+  - [ ] Replace bodyless `json`/`tokens` artifacts with executable
+        compact/pretty/tabular and terminal/HTML/Markdown CEMT wrappers and
+        CEM-tree helpers, preserving compact lexical source and the default
+        final newline.
+  - [ ] Define resolver/sanitizer capability boundaries for `@import`, `url()`,
+        fonts, and other external references; validation and formatting must not
+        fetch resources or interpret host-document cascade semantics.
+  - [ ] Route passing previews through package output profiles and expected
+        failures through schema diagnostics, then expand manifest/index,
+        lifecycle, engine/CLI, profile, schema-owned example, safety, release,
+        and README/SVG drift verification.
 - [ ] Run the final registry/package validation gate after the dependency
       checklist is green:
       `yarn nx run cem_ml:test:cli-schema-artifacts`,
@@ -736,43 +776,40 @@ Remaining dependency-ordered package checklist:
 
 ### Next Work Item
 
-Align `html/v1` with the common schema-package acceptance criteria. Replace the
-current passthrough `HtmlAdapter` and ad hoc validation scanner with a dedicated
-typed `HtmlDocumentAst` lifecycle stream over the existing native HTML
-tokenizer and recovery pipeline. Preserve `text/html` parameters, document
-versus fragment mode, doctype and comments, original tag and attribute lexemes,
-HTML ASCII case-folded semantic names, void/raw-text/RCDATA boundaries,
-duplicate attributes, source ranges, source maps, line endings, and parser
-recovery decisions. Keep XHTML on its XML-backed adapter. Preserve SVG and
-MathML islands as foreign-content events owned by the containing HTML document,
-including namespace transitions and integration points; do not dispatch those
-embedded islands as standalone resources.
+Align `css/v1` with the common schema-package acceptance criteria. The current
+state has no `CssAdapter` or `CssDocumentAst`: CLI/package validation delegates
+to an ad hoc source scanner, `text/css` remains an opaque lifecycle handoff, and
+the formatter/colorizer artifacts are bodyless `json`/`tokens` declarations.
 
-Move direct HTML validation behind the typed adapter. Emit neutral encoding,
-tokenizer/recovery, document/fragment structure, nesting, duplicate attribute,
-custom-element name, script/event-handler, external resource, SVG/MathML
-foreign-content, raw-text, and source-map facts. Bind reportable facts to
-diagnostics declared by `schema/html.cem` through executable
-`kind`/`target`/`diagnostic`/`behavior`/`fact-kind` contracts. Define resolver
-policy for URL-bearing elements and attributes, retain script and inline event
-handler rejection unless an explicit capability is registered, and preserve
-the existing UTF-8/meta/MIME charset conflict behavior without using XML
-well-formedness rules. Prove content type, package schema, and HTML namespace
-identity loading and same-schema output cannot fall through to generic HTML
-token/CEM parsing outside the typed lifecycle.
+Start by introducing a standards-based CSS token/component parser boundary and
+a lossless presentation layer. The recommended implementation is to use the
+Rust `cssparser` crate for CSS Syntax tokenization, nested blocks, functions,
+and recovery, while retaining comments and exact source slices in a small
+sidecar trivia/event pass where the parser does not expose them. Model explicit
+stylesheet, declaration-list/style-attribute, and scoped style-block entry
+modes. Preserve MIME parameters, BOM/MIME/`@charset` evidence, comments,
+whitespace, selectors, at-rule preludes, declarations, custom-property token
+streams, nested component values, original lexemes, ranges, source maps, line
+endings, and recovery facts. Do not use Lightning CSS as the ownership boundary:
+its transformation/minification model is useful downstream but is not the
+lossless source AST required here.
 
-Replace placeholder output assets with package-owned compact, pretty, tabular,
-terminal, HTML, and Markdown CEMT wrappers plus HTML document/CEM-tree helpers.
-Preserve lexical source in compact mode and the default final newline; define
-pretty/tabular behavior only for safe HTML token boundaries so raw text,
-preformatted content, optional end tags, and foreign-content case are not
-changed semantically. Route passing previews through package profiles and
-expected failures through schema diagnostics without source snapshots. Finish
-with manifest/index embedding, lifecycle and same-schema engine/CLI tests,
-document/fragment and foreign-island coverage, formatter/colorizer execution,
-encoding/resource/script safety tests, release docs, preview drift checks, and
-an expanded `cem_ml_schema_package_html_v1:verify` target. Continue with
-`css/v1` only after the typed HTML contract is green.
+Move validation and same-schema conversion behind that typed adapter. Rust
+should emit neutral parse, encoding, selector/declaration, at-rule, import/URL,
+scope, and source-map facts; `schema/css.cem` should own diagnostic codes,
+severities, behavior, and policy. Keep all fetching disabled unless an explicit
+resolver/sanitizer capability is supplied, preserve unknown and vendor syntax,
+and avoid evaluating cascade or host-document semantics.
+
+Replace the two placeholder CEMT files with separate public compact, pretty,
+tabular, terminal, HTML, and Markdown wrappers plus private CSS document/CEM-tree
+helpers. Compact must remain lexically lossless with the default final newline;
+pretty/tabular may only rewrite boundaries proven safe for strings, comments,
+custom properties, calc-like functions, and nested rules. Finish with typed
+lifecycle and output tests, schema-bound diagnostic details, package artifact
+embedding, all eight manifest examples, resolver safety, README generation,
+SVG drift verification, release/limitations documentation, and an expanded
+`cem_ml_schema_package_css_v1:verify` target.
 
 ## Current Verification Commands
 

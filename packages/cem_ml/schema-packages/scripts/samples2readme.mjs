@@ -371,17 +371,32 @@ function previewPlanForExample(example, manifest) {
     }
 
     if (isHtmlExample(essence)) {
+        if (example.expectedResult !== 'pass') {
+            return {
+                label: 'html validate',
+                renderer: 'json',
+                expectedStatus: 'success',
+                width: 1040,
+                minHeight: 520,
+                args: validatePreviewArgs(inputPath, {
+                    format: 'json',
+                    failLevel: 'parse',
+                    contentType: example.contentType,
+                    schema: example.schema,
+                }),
+            };
+        }
         return {
             label: 'html',
-            renderer: 'ansi',
-            expectedStatus,
-            fallbackSourcePath: inputPath,
+            renderer: 'html',
+            expectedStatus: 'success',
             width: 980,
             minHeight: 190,
             args: convertPreviewArgs(inputSpec, {
-                fromFormat: 'html',
                 toContentType: 'text/html',
                 toSchema: 'https://cem.dev/ns/data/html/1',
+                colorProfile: 'html',
+                outputColorType: null,
             }),
         };
     }

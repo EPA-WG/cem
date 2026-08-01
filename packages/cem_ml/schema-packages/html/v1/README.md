@@ -1,6 +1,6 @@
 # HTML schema package v1
 
-Status: schema, examples, formatter, colorizer, and converter package frame
+Status: typed lifecycle, schema-bound validation, and executable output profiles
 
 This package defines the CEM schema identity for HTML resources.
 
@@ -12,18 +12,38 @@ This package defines the CEM schema identity for HTML resources.
     - MathML: `http://www.w3.org/1998/Math/MathML`
 - Source schema: `schema/html.cem`
 
-HTML is not XML. The package models `text/html` as an HTML-parser-backed source format that can recover incomplete or non-normalized markup into a normalized DOM, preserving source identity where parser offsets are available.
+HTML is not XML. The package loads `text/html` into a dedicated typed event AST.
+It preserves lexical tag and attribute spelling, comments, doctype evidence,
+raw-text and RCDATA bodies, MIME parameters, source ranges, source maps, and
+document-versus-fragment mode. Recoverable mismatched nesting remains HTML
+recovery evidence instead of becoming an XML well-formedness error.
 
 XHTML remains a separate XML-backed package for `application/xhtml+xml`. In
 `text/html`, HTML, SVG, and MathML are all parser-default DOM namespaces: SVG
 and MathML tags switch into their own namespaces while remaining associated with
 their registered schema packages.
 
+## Lifecycle
+
+The native HTML tokenizer feeds `HtmlDocumentAst` directly. Validation and
+same-schema conversion consume that typed stream without reparsing the source as
+CEM-ML or XML. HTML namespace semantics are tracked separately from lexical
+spelling, including SVG and MathML islands and HTML integration points.
+
+XHTML remains owned by the XML-backed `application/xhtml+xml` package. It does
+not enter this lifecycle.
+
 ## Output Artifacts
 
 The package declares CEMT formatter and colorizer artifacts in `package.cem`.
 The public formatter profile names are `compact`, `pretty`, and `tabular`.
 The public colorizer profile names are `terminal`, `html`, and `md`.
+
+All six public wrappers and their private helpers execute through the package
+CEMT pipeline. Current formatter profiles are lexically lossless: they retain
+the event lexemes and source maps while recording profile-specific layout
+decisions. The text writer adds one final newline. Colorizers attach syntax
+roles for terminal, HTML-class, and Markdown-span consumers.
 
 ## Validation
 
@@ -36,22 +56,34 @@ cem-ml validate --format json \
   packages/cem_ml/schema-packages/html/v1/examples/basic-document.html
 ```
 
-The direct validator treats incomplete and non-normalized HTML as parser-backed
-input, accepts SVG and MathML namespace islands, rejects executable script and
-external resource access without explicit policy, reports invalid custom-element
-names, and preserves parser recovery as diagnostics instead of requiring XML
-well-formedness.
+Schema constraints bind native facts through `html-report-fact`. Reports include
+the owning schema/package, constraint and policy, fact kind/value, source range,
+and source map. The package reports malformed tokens, invalid doctypes and
+quirks mode, encoding conflicts, duplicate attributes, recovered nesting,
+scripts, event-handler attributes, external references, invalid custom-element
+names, and unregistered foreign content.
+
+## Safety and Limitations
+
+Validation never fetches external resources or executes scripts. Script,
+event-handler, and external-resource facts are rejected by the built-in package
+policy.
+
+The typed decoder currently accepts UTF-8 source bytes. MIME and `<meta charset>`
+evidence is preserved and conflicts are reported, but legacy byte encodings are
+not transcoded. Recovery covers the native tokenizer/event model rather than a
+complete browser tree-construction implementation. Formatter profiles therefore
+preserve source lexemes instead of claiming canonical browser DOM serialization.
 
 ## Examples
 
 This section is generated from `package.cem` `{example}` metadata by the
-`samples2readme` Nx target. Each SVG previews the example content, not
-the validation report. The target writes a preformatted HTML preview to
+`samples2readme` Nx target. Each SVG previews the rendered example
+content or validation diagnostics for expected-fail examples. The target writes a
+preformatted HTML preview to
 `dist/cem_ml/schema-packages/<package>/v1/examples/<example-file>.html`,
 then renders the `<pre>` spans through headless Chromium into
 `examples/previews/<example-file>.svg`.
-Source snapshots are used only where the current CLI cannot yet render
-the package formatter/colorizer path for that content identity.
 
 <details>
 <summary>basic-document</summary>
@@ -66,9 +98,8 @@ the package formatter/colorizer path for that content identity.
 ```bash
 dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
   uri=packages/cem_ml/schema-packages/html/v1/examples/basic-document.html,contentType=text/html,schema=https://cem.dev/ns/data/html/1 \
-  --from-format html --to-content-type text/html --to-schema \
-  https://cem.dev/ns/data/html/1 --cemt-formatter-profile tabular --cemt-color-profile \
-  terminal --output-color-type ansi-256
+  --to-content-type text/html --to-schema https://cem.dev/ns/data/html/1 \
+  --cemt-formatter-profile tabular --cemt-color-profile html
 ```
 
 </details>
@@ -88,9 +119,8 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
 ```bash
 dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
   uri=packages/cem_ml/schema-packages/html/v1/examples/fragment.html,contentType=text/html,schema=https://cem.dev/ns/data/html/1 \
-  --from-format html --to-content-type text/html --to-schema \
-  https://cem.dev/ns/data/html/1 --cemt-formatter-profile tabular --cemt-color-profile \
-  terminal --output-color-type ansi-256
+  --to-content-type text/html --to-schema https://cem.dev/ns/data/html/1 \
+  --cemt-formatter-profile tabular --cemt-color-profile html
 ```
 
 </details>
@@ -110,9 +140,8 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
 ```bash
 dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
   uri=packages/cem_ml/schema-packages/html/v1/examples/svg-mathml-islands.html,contentType=text/html,schema=https://cem.dev/ns/data/html/1 \
-  --from-format html --to-content-type text/html --to-schema \
-  https://cem.dev/ns/data/html/1 --cemt-formatter-profile tabular --cemt-color-profile \
-  terminal --output-color-type ansi-256
+  --to-content-type text/html --to-schema https://cem.dev/ns/data/html/1 \
+  --cemt-formatter-profile tabular --cemt-color-profile html
 ```
 
 </details>
@@ -127,15 +156,13 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
 - Schema: `https://cem.dev/ns/data/html/1`
 - Expected result: `fail`
 - Expected diagnostics: `cem.html.script_rejected`
-- Preview renderer: `CLI convert, tabular formatter, preview HTML + html2svg`
+- Preview renderer: `CLI validate, JSON report, preview HTML + html2svg`
 - Preview HTML: `dist/cem_ml/schema-packages/html/v1/examples/invalid-script.html.html`
 
 ```bash
-dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
-  uri=packages/cem_ml/schema-packages/html/v1/examples/invalid-script.html,contentType=text/html,schema=https://cem.dev/ns/data/html/1 \
-  --from-format html --to-content-type text/html --to-schema \
-  https://cem.dev/ns/data/html/1 --cemt-formatter-profile tabular --cemt-color-profile \
-  terminal --output-color-type ansi-256
+dist/target/cem_ml_cli/debug/cem-ml validate --format json --fail-level parse \
+  --content-type text/html --schema https://cem.dev/ns/data/html/1 \
+  packages/cem_ml/schema-packages/html/v1/examples/invalid-script.html
 ```
 
 </details>
@@ -150,15 +177,13 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
 - Schema: `https://cem.dev/ns/data/html/1`
 - Expected result: `fail`
 - Expected diagnostics: `cem.html.external_resource_rejected`
-- Preview renderer: `CLI convert, tabular formatter, preview HTML + html2svg`
+- Preview renderer: `CLI validate, JSON report, preview HTML + html2svg`
 - Preview HTML: `dist/cem_ml/schema-packages/html/v1/examples/invalid-external-resource.html.html`
 
 ```bash
-dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
-  uri=packages/cem_ml/schema-packages/html/v1/examples/invalid-external-resource.html,contentType=text/html,schema=https://cem.dev/ns/data/html/1 \
-  --from-format html --to-content-type text/html --to-schema \
-  https://cem.dev/ns/data/html/1 --cemt-formatter-profile tabular --cemt-color-profile \
-  terminal --output-color-type ansi-256
+dist/target/cem_ml_cli/debug/cem-ml validate --format json --fail-level parse \
+  --content-type text/html --schema https://cem.dev/ns/data/html/1 \
+  packages/cem_ml/schema-packages/html/v1/examples/invalid-external-resource.html
 ```
 
 </details>
@@ -173,15 +198,13 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
 - Schema: `https://cem.dev/ns/data/html/1`
 - Expected result: `fail`
 - Expected diagnostics: `cem.html.custom_element_name_invalid`
-- Preview renderer: `CLI convert, tabular formatter, preview HTML + html2svg`
+- Preview renderer: `CLI validate, JSON report, preview HTML + html2svg`
 - Preview HTML: `dist/cem_ml/schema-packages/html/v1/examples/invalid-custom-element.html.html`
 
 ```bash
-dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
-  uri=packages/cem_ml/schema-packages/html/v1/examples/invalid-custom-element.html,contentType=text/html,schema=https://cem.dev/ns/data/html/1 \
-  --from-format html --to-content-type text/html --to-schema \
-  https://cem.dev/ns/data/html/1 --cemt-formatter-profile tabular --cemt-color-profile \
-  terminal --output-color-type ansi-256
+dist/target/cem_ml_cli/debug/cem-ml validate --format json --fail-level parse \
+  --content-type text/html --schema https://cem.dev/ns/data/html/1 \
+  packages/cem_ml/schema-packages/html/v1/examples/invalid-custom-element.html
 ```
 
 </details>
@@ -202,9 +225,8 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
 ```bash
 dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
   'uri=packages/cem_ml/schema-packages/html/v1/examples/encoding-conflict.html,contentType=text/html; charset=windows-1252,schema=https://cem.dev/ns/data/html/1' \
-  --from-format html --to-content-type text/html --to-schema \
-  https://cem.dev/ns/data/html/1 --cemt-formatter-profile tabular --cemt-color-profile \
-  terminal --output-color-type ansi-256
+  --to-content-type text/html --to-schema https://cem.dev/ns/data/html/1 \
+  --cemt-formatter-profile tabular --cemt-color-profile html
 ```
 
 </details>

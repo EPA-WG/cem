@@ -8133,7 +8133,8 @@ mod tests {
 
     const COLORED_P_HI_HTML: &str = concat!(
         r#"<p class="cem-color cem-color-syntax-name" data-role="syntax.name">"#,
-        r#"<span class="cem-color cem-color-syntax-string" data-role="syntax.string">Hi</span></p>"#
+        r#"<span class="cem-color cem-color-syntax-string" data-role="syntax.string">Hi</span></p>"#,
+        "\n"
     );
     const FORMATTED_SVG_HI_XML: &str = "<svg><title>Hi</title></svg>\n";
     const FORMATTED_P_HI_XML: &str = "<p>Hi</p>\n";
@@ -8602,6 +8603,26 @@ mod tests {
         assert_eq!(xslt["behavior"], "xslt-report-fact");
         assert_eq!(xslt["phase"], "xml-parse-and-xslt-semantics");
         assert!(xslt["sourceRange"].is_object());
+    }
+
+    fn assert_report_has_schema_bound_html_diagnostic(
+        report: &serde_json::Value,
+        code: &str,
+        fact_kind: &str,
+    ) {
+        let diagnostic = report_diagnostics(report)
+            .iter()
+            .find(|diag| diag["code"] == code)
+            .unwrap_or_else(|| panic!("missing diagnostic `{code}` in {report:#}"));
+        assert_eq!(
+            diagnostic["details"]["schema"],
+            cem_ml::schema::registry::HTML_SCHEMA_URI
+        );
+        assert_eq!(diagnostic["details"]["schemaPackage"], "html");
+        assert_eq!(diagnostic["details"]["schemaBehavior"], "html-report-fact");
+        assert_eq!(diagnostic["details"]["factKind"], fact_kind);
+        assert!(diagnostic["details"]["sourceRange"].is_object());
+        assert!(diagnostic["sourceMap"]["frames"].is_array());
     }
 
     fn assert_remote_resolver_boundary(stderr: &str, uri: &str) {
@@ -12908,6 +12929,38 @@ This document has **strong** text and a link.
     }
 
     #[test]
+    fn convert_html_same_schema_uses_dedicated_lifecycle_output_pipeline() {
+        let source = r#"<!doctype html><html><head><title>A &amp; B</title><style>.a::before { content: "<"; }</style></head><body><svg viewBox="0 0 1 1"><path d="M0 0h1"></path></svg></body></html>"#;
+        let p = write_fixture("convert-html-same-schema.html", source);
+        let input_spec = format!(
+            "uri={},contentType=text/html,schema={}",
+            p.display(),
+            cem_ml::schema::registry::HTML_SCHEMA_URI
+        );
+
+        let (outcome, stdout, stderr) = run(
+            &RealCemMlEngine::new(),
+            &[
+                "convert",
+                "--input-spec",
+                &input_spec,
+                "--to-content-type",
+                "text/html",
+                "--to-schema",
+                cem_ml::schema::registry::HTML_SCHEMA_URI,
+                "--cemt-formatter-profile",
+                "tabular",
+            ],
+        );
+
+        assert_eq!(outcome.exit_code, EXIT_OK, "{stderr}");
+        assert!(stderr.trim().is_empty(), "{stderr}");
+        assert_eq!(stdout, format!("{source}\n"));
+        assert!(!stdout.contains("cem.schema."));
+        assert!(!stdout.contains("cem.lifecycle."));
+    }
+
+    #[test]
     fn convert_xhtml_same_schema_uses_dedicated_lifecycle_output_pipeline() {
         let source = r#"<?xml version="1.0"?><html xmlns="http://www.w3.org/1999/xhtml" xmlns:svg="http://www.w3.org/2000/svg"><head/><body><br/><svg:svg><svg:path/></svg:svg></body></html>"#;
         let p = write_fixture("convert-xhtml-same-schema.xhtml", source);
@@ -13293,7 +13346,7 @@ Markdown can produce browser HTML.
     }
 
     #[test]
-    fn convert_output_color_type_accepts_html_profiles_without_changing_json_target() {
+    fn convert_output_color_type_renders_json_with_html_backend() {
         let p = write_fixture("convert-html-color-accepted.yml", "enabled: true\n");
         let (outcome, stdout, stderr) = run(
             &RealCemMlEngine::new(),
@@ -13316,7 +13369,12 @@ Markdown can produce browser HTML.
         assert_eq!(outcome.exit_code, EXIT_OK, "{stderr}");
         assert!(stderr.trim().is_empty());
         assert!(!stdout.contains("\x1b["));
-        let v: serde_json::Value = serde_json::from_str(&stdout).unwrap();
+        assert!(
+            stdout.starts_with(r#"<pre class="cem-output cem-output-json""#),
+            "{stdout}"
+        );
+        let visible = html_text_content(&stdout);
+        let v: serde_json::Value = serde_json::from_str(visible.trim()).unwrap();
         assert_eq!(v["enabled"], true);
     }
 
@@ -14378,10 +14436,11 @@ start =
 
         assert_eq!(outcome.exit_code, EXIT_HARD_FAILURE, "{stderr}");
         let v: serde_json::Value = serde_json::from_str(stdout.trim()).unwrap();
-        let diagnostics = v["diagnostics"].as_array().unwrap();
-        assert!(diagnostics
-            .iter()
-            .any(|diag| diag["code"] == "cem.html.script_rejected"));
+        assert_report_has_schema_bound_html_diagnostic(
+            &v,
+            "cem.html.script_rejected",
+            "script-rejected",
+        );
     }
 
     #[test]
@@ -22132,15 +22191,15 @@ declare let broken = 1 +
             ),
             "{written}"
         );
-        assert!(written.ends_with("</pre>"), "{written}");
+        assert!(written.ends_with("</pre>\n"), "{written}");
         assert!(written.contains(r#"data-role="data.field.1""#), "{written}");
         assert!(
             written.contains(r#"style="color: var(--cem-color-data-field-1, "#),
             "{written}"
         );
         assert_eq!(
-            html_text_content(&written),
-            strip_ansi_codes(&terminal_stdout)
+            html_text_content(&written).trim_end_matches('\n'),
+            strip_ansi_codes(&terminal_stdout).trim_end_matches('\n')
         );
     }
 

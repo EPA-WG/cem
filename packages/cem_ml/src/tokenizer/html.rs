@@ -22,10 +22,10 @@
 //! - `MarkupDeclarationOpen` → `Comment` (`<!-- -->`) or
 //!   `DOCTYPE` (`<!DOCTYPE ...>`).
 //!
-//! Deferred to Phase 11 follow-up: RAWTEXT / RCDATA / ScriptData state
-//! machines for `<style>`, `<script>`, `<textarea>`, `<title>` raw-text
-//! bodies; CDATA sections; numeric / named character references
-//! (decoded text passes through verbatim in Tier A).
+//! RAWTEXT / RCDATA bodies for `<style>`, `<script>`, `<textarea>`, and
+//! `<title>` are preserved as a single text token up to the matching end tag.
+//! CDATA sections and numeric / named character references remain lexical in
+//! this profile.
 //!
 //! Void elements per the HTML5 spec emit `NodeStart` immediately
 //! followed by a synthetic `NodeEnd` so the event stream balances
@@ -46,6 +46,7 @@ pub struct HtmlTokenizer {
     diagnostics: Vec<Diagnostic>,
     base_source_map: SourceMapStack,
     end_offset: u64,
+    document_mode: bool,
 }
 
 const VOID_ELEMENTS: &[&str] = &[
@@ -59,6 +60,14 @@ fn is_void(name: &str) -> bool {
 
 impl HtmlTokenizer {
     pub fn from_source<S: ByteSource>(source: S) -> Self {
+        Self::from_source_with_mode(source, false)
+    }
+
+    pub fn from_document_source<S: ByteSource>(source: S) -> Self {
+        Self::from_source_with_mode(source, true)
+    }
+
+    fn from_source_with_mode<S: ByteSource>(source: S, document_mode: bool) -> Self {
         let mut decoder = Utf8Decoder::with_config(
             source,
             DecodeConfig {
@@ -88,6 +97,7 @@ impl HtmlTokenizer {
             diagnostics,
             base_source_map,
             end_offset,
+            document_mode,
         };
         t.scan_document();
         t
@@ -188,7 +198,12 @@ impl HtmlTokenizer {
             .map(|(c, _)| c.to_ascii_lowercase())
             .collect();
         let head_range = self.range_from(open_start, self.cursor);
-        self.emit(parity_start_kind(&name), head_range);
+        let start_kind = if self.document_mode {
+            SchemaTokenKind::NodeStart { name: name.clone() }
+        } else {
+            parity_start_kind(&name)
+        };
+        self.emit(start_kind, head_range);
 
         let mut self_closing = false;
         loop {
@@ -208,12 +223,10 @@ impl HtmlTokenizer {
                     self.advance();
                     if self_closing || is_void(&name) {
                         let close_range = self.range_from(close_start, self.cursor);
-                        self.emit(
-                            SchemaTokenKind::NodeEnd {
-                                name: parity_end_name(&name),
-                            },
-                            close_range,
-                        );
+                        let end_name = self.end_name(&name);
+                        self.emit(SchemaTokenKind::NodeEnd { name: end_name }, close_range);
+                    } else if is_raw_text_or_rcdata(&name) {
+                        self.scan_raw_text_or_rcdata(&name);
                     }
                     return;
                 }
@@ -227,6 +240,61 @@ impl HtmlTokenizer {
                 Some(_) => self.scan_attribute(),
             }
         }
+    }
+
+    fn scan_raw_text_or_rcdata(&mut self, name: &str) {
+        let body_start = self.cursor;
+        let Some(end_tag_start) = self.find_matching_raw_text_end_tag(name) else {
+            if body_start < self.scalars.len() {
+                let range = self.range_from(body_start, self.scalars.len());
+                let data = self.scalars[body_start..].iter().map(|(c, _)| *c).collect();
+                self.emit(SchemaTokenKind::Text(data), range);
+            }
+            self.cursor = self.scalars.len();
+            return;
+        };
+
+        if end_tag_start > body_start {
+            let range = self.range_from(body_start, end_tag_start);
+            let data = self.scalars[body_start..end_tag_start]
+                .iter()
+                .map(|(c, _)| *c)
+                .collect();
+            self.emit(SchemaTokenKind::Text(data), range);
+        }
+        self.cursor = end_tag_start;
+        self.scan_tag_open();
+    }
+
+    fn find_matching_raw_text_end_tag(&self, name: &str) -> Option<usize> {
+        let name_chars = name.chars().collect::<Vec<_>>();
+        let mut cursor = self.cursor;
+        while cursor + name_chars.len() + 2 <= self.scalars.len() {
+            if self.scalars[cursor].0 != '<' || self.scalars[cursor + 1].0 != '/' {
+                cursor += 1;
+                continue;
+            }
+            let matches_name = name_chars.iter().enumerate().all(|(index, expected)| {
+                self.scalars[cursor + index + 2]
+                    .0
+                    .eq_ignore_ascii_case(expected)
+            });
+            if !matches_name {
+                cursor += 1;
+                continue;
+            }
+            let boundary = cursor + name_chars.len() + 2;
+            if boundary == self.scalars.len()
+                || matches!(
+                    self.scalars[boundary].0,
+                    ' ' | '\t' | '\n' | '\r' | '\x0C' | '/' | '>'
+                )
+            {
+                return Some(cursor);
+            }
+            cursor += 1;
+        }
+        None
     }
 
     fn scan_attribute(&mut self) {
@@ -353,12 +421,16 @@ impl HtmlTokenizer {
             self.advance();
         }
         let range = self.range_from(open_start, self.cursor);
-        self.emit(
-            SchemaTokenKind::NodeEnd {
-                name: parity_end_name(&name),
-            },
-            range,
-        );
+        let end_name = self.end_name(&name);
+        self.emit(SchemaTokenKind::NodeEnd { name: end_name }, range);
+    }
+
+    fn end_name(&self, name: &str) -> Option<String> {
+        if self.document_mode {
+            Some(name.to_owned())
+        } else {
+            parity_end_name(name)
+        }
     }
 
     fn scan_markup_declaration(&mut self, open_start: usize) {
@@ -535,6 +607,10 @@ impl HtmlTokenizer {
 
 fn is_tag_name_char(c: char) -> bool {
     c.is_ascii_alphanumeric() || matches!(c, '-' | '_' | ':')
+}
+
+fn is_raw_text_or_rcdata(name: &str) -> bool {
+    matches!(name, "script" | "style" | "textarea" | "title")
 }
 
 fn parity_start_kind(name: &str) -> SchemaTokenKind {
@@ -715,6 +791,46 @@ mod tests {
         if let SchemaTokenKind::Comment(d) = &c.kind {
             assert_eq!(d, "hi");
         }
+    }
+
+    #[test]
+    fn raw_text_markup_is_preserved_as_text_until_matching_end_tag() {
+        let source = r#"<script>if (a < b) { value = "<div>"; }</script><p>after</p>"#;
+        let (tokens, diagnostics) = tokenize(source);
+
+        assert!(diagnostics.is_empty(), "{diagnostics:?}");
+        let text = tokens
+            .iter()
+            .find_map(|token| match &token.kind {
+                SchemaTokenKind::Text(value) if value.contains("value") => Some(value),
+                _ => None,
+            })
+            .expect("script body text token");
+        assert_eq!(text, r#"if (a < b) { value = "<div>"; }"#);
+        let names = tokens
+            .iter()
+            .filter_map(|token| match &token.kind {
+                SchemaTokenKind::NodeStart { name } => Some(name.as_str()),
+                _ => None,
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(names, vec!["script", "p"]);
+    }
+
+    #[test]
+    fn rcdata_end_tag_matching_is_ascii_case_insensitive_and_name_bounded() {
+        let source = "<title>before </titlex> after</TITLE><p>x</p>";
+        let (tokens, diagnostics) = tokenize(source);
+
+        assert!(diagnostics.is_empty(), "{diagnostics:?}");
+        let text = tokens
+            .iter()
+            .find_map(|token| match &token.kind {
+                SchemaTokenKind::Text(value) if value.contains("titlex") => Some(value),
+                _ => None,
+            })
+            .expect("title body text token");
+        assert_eq!(text, "before </titlex> after");
     }
 
     #[test]

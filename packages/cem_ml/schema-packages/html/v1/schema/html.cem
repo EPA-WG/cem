@@ -110,30 +110,37 @@
     }
 
     {constraints |
-        {constraint @kind="html-source-parser" @target="document" @policy="delegate-to-html-parser"}
+        {constraint @kind="html-source-parser" @target="document" @diagnostic="cem.html.parse_error" @behavior="html-report-fact" @fact-kind="parse-error" @policy="delegate to the native HTML tokenizer and recovery pipeline without applying XML well-formedness rules"}
+        {constraint @kind="html-source-encoding" @target="document" @diagnostic="cem.html.unsupported_encoding" @behavior="html-report-fact" @fact-kind="unsupported-encoding" @policy="the native typed lifecycle currently requires UTF-8-compatible source bytes while preserving MIME and meta charset evidence"}
         {constraint @kind="text-html-primary" @target="document" @policy="text/html is the canonical media type for HTML resources"}
         {constraint @kind="application-xhtml-separate" @target="document" @policy="application/xhtml+xml is XML-backed XHTML and belongs to the xhtml package"}
-        {constraint @kind="html-error-recovery" @target="document" @policy="HTML parser recovery is part of source interpretation; normalized DOM may include implied html head body tbody and closed p elements"}
+        {constraint @kind="html-error-recovery" @target="document" @diagnostic="cem.html.invalid_nesting_recovered" @behavior="html-report-fact" @fact-kind="invalid-nesting-recovered" @policy="HTML parser recovery is part of source interpretation; normalized structure may include implied and implicitly closed elements"}
         {constraint @kind="dom-namespace" @target="html" @policy="HTML parser output has three default DOM namespaces: HTML elements use http://www.w3.org/1999/xhtml, SVG islands use http://www.w3.org/2000/svg, and MathML islands use http://www.w3.org/1998/Math/MathML"}
-        {constraint @kind="doctype-quirks" @target="doctype" @policy="doctype controls no-quirks limited-quirks or quirks mode metadata"}
-        {constraint @kind="encoding-source-priority" @target="document" @policy="preserve BOM MIME charset and meta charset evidence; report conflicts"}
+        {constraint @kind="doctype-validity" @target="doctype" @diagnostic="cem.html.invalid_doctype" @behavior="html-report-fact" @fact-kind="invalid-doctype" @policy="the no-quirks HTML doctype is the ASCII case-insensitive html doctype"}
+        {constraint @kind="doctype-quirks" @target="doctype" @diagnostic="cem.html.quirks_mode" @behavior="html-report-fact" @fact-kind="quirks-mode" @policy="a document without a valid HTML doctype records quirks mode metadata"}
+        {constraint @kind="encoding-source-priority" @target="document" @diagnostic="cem.html.encoding_conflict" @behavior="html-report-fact" @fact-kind="encoding-conflict" @policy="preserve MIME charset and meta charset evidence and report conflicts"}
+        {constraint @kind="duplicate-attribute-recovery" @target="flow" @diagnostic="cem.html.duplicate_attribute" @behavior="html-report-fact" @fact-kind="duplicate-attribute" @policy="preserve duplicate attribute lexemes while recording the parser recovery decision for ASCII case-folded names"}
         {constraint @kind="void-elements" @target="flow" @policy="void elements do not have child nodes in the HTML serialization"}
         {constraint @kind="raw-text-elements" @target="script-supporting" @policy="script style textarea and title text handling must preserve parser state"}
         {constraint @kind="template-inert-fragment" @target="template" @policy="template children live in an inert document fragment"}
-        {constraint @kind="script-policy" @target="script-supporting" @policy="reject or preserve executable script according to host policy; do not execute while parsing"}
-        {constraint @kind="external-resource-policy" @target="embedded" @policy="external URI fetches require explicit resolver policy"}
-        {constraint @kind="custom-element-name" @target="custom-element" @policy="custom element local names must remain source-stable and validate before upgrade"}
-        {constraint @kind="foreign-content-dispatch" @target="foreign-content" @policy="SVG and MathML tags are native HTML-parser namespace transitions and remain associated with their registered schema packages"}
-        {constraint @kind="source-map-preferred" @target="flow" @policy="required when parser exposes source ranges"}
+        {constraint @kind="script-policy" @target="script-supporting" @diagnostic="cem.html.script_rejected" @behavior="html-report-fact" @fact-kind="script-rejected" @policy="reject executable script unless an explicit host capability enables it; never execute while parsing"}
+        {constraint @kind="event-handler-policy" @target="flow" @diagnostic="cem.html.event_handler_rejected" @behavior="html-report-fact" @fact-kind="event-handler-rejected" @policy="reject inline event-handler attributes unless an explicit host capability enables them"}
+        {constraint @kind="external-resource-policy" @target="embedded" @diagnostic="cem.html.external_resource_rejected" @behavior="html-report-fact" @fact-kind="external-resource-rejected" @policy="URL-bearing HTML, SVG, and MathML attributes require explicit resolver policy; local fragments and data URIs remain lexical references"}
+        {constraint @kind="custom-element-name" @target="custom-element" @diagnostic="cem.html.custom_element_name_invalid" @behavior="html-report-fact" @fact-kind="custom-element-name-invalid" @policy="custom element local names must remain source-stable lowercase names and validate before upgrade"}
+        {constraint @kind="foreign-content-dispatch" @target="foreign-content" @diagnostic="cem.html.foreign_content_unregistered" @behavior="html-report-fact" @fact-kind="foreign-content-unregistered" @policy="SVG and MathML tags are native HTML-parser namespace transitions owned by the containing HTML resource; other prefixed tag names require explicit namespace registration"}
+        {constraint @kind="source-map-preferred" @target="flow" @diagnostic="cem.html.source_map_unavailable" @behavior="html-report-fact" @fact-kind="source-map-unavailable" @policy="source ranges and source maps are required when the tokenizer exposes source identity"}
     }
 
     {diagnostics |
         {diagnostic @code="cem.html.parse_error" @severity="error"}
+        {diagnostic @code="cem.html.unsupported_encoding" @severity="error"}
         {diagnostic @code="cem.html.encoding_conflict" @severity="warning"}
         {diagnostic @code="cem.html.quirks_mode" @severity="info"}
         {diagnostic @code="cem.html.invalid_doctype" @severity="warning"}
         {diagnostic @code="cem.html.invalid_nesting_recovered" @severity="warning"}
+        {diagnostic @code="cem.html.duplicate_attribute" @severity="warning"}
         {diagnostic @code="cem.html.script_rejected" @severity="error"}
+        {diagnostic @code="cem.html.event_handler_rejected" @severity="error"}
         {diagnostic @code="cem.html.external_resource_rejected" @severity="error"}
         {diagnostic @code="cem.html.custom_element_name_invalid" @severity="error"}
         {diagnostic @code="cem.html.foreign_content_unregistered" @severity="warning"}

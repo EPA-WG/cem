@@ -27,6 +27,9 @@ use crate::transform_config::TRANSFORM_CONFIG_SCHEMA_URI;
 use crate::validation::csv::{
     csv_document_ast_from_source_bytes, CsvDocumentAst, CsvSourceValidationRequest,
 };
+use crate::validation::html::{
+    html_document_ast_from_source_bytes, HtmlDocumentAst, HtmlSourceValidationRequest,
+};
 use crate::validation::json::{
     json_document_ast_from_source_bytes, JsonDocumentAst, JsonSourceValidationRequest,
 };
@@ -100,6 +103,7 @@ pub struct LoadedInput {
 
 #[derive(Debug, Clone)]
 pub enum LoadedInputAstStream {
+    HtmlDocument(HtmlDocumentAst),
     CsvDocument(CsvDocumentAst),
     YamlDocument(YamlDocumentAst),
     JsonDocument(JsonDocumentAst),
@@ -551,8 +555,25 @@ impl LifecycleAdapter for HtmlAdapter {
             || matches_namespace_without_content_type_or_schema(identity, &[HTML_NAMESPACE])
     }
 
-    fn load(&self, input: &EngineInput, _: &FormatIdentity) -> LoadedInput {
-        passthrough_load(input, InputFormat::Html, Some(self.id()))
+    fn load(&self, input: &EngineInput, identity: &FormatIdentity) -> LoadedInput {
+        let content_type = identity
+            .content_type
+            .as_deref()
+            .or(input.root_scope.default_content_type.as_deref())
+            .unwrap_or(HTML_CONTENT_TYPE);
+        let (document, diagnostics) =
+            html_document_ast_from_source_bytes(HtmlSourceValidationRequest {
+                bytes: &input.bytes,
+                source_uri: &input.uri,
+                content_type: Some(content_type),
+            });
+        LoadedInput {
+            bytes: input.bytes.clone(),
+            from_format: InputFormat::Html,
+            ast_stream: document.map(LoadedInputAstStream::HtmlDocument),
+            diagnostics,
+            adapter_id: Some(self.id()),
+        }
     }
 
     fn matches_target(&self, identity: &FormatIdentity) -> bool {
@@ -1757,11 +1778,21 @@ mod tests {
     }
 
     #[test]
-    fn builtins_load_html_content_type_as_html() {
+    fn builtins_load_html_content_type_as_dedicated_internal_ast_stream() {
         let loaded = LifecycleRegistry::with_builtin_adapters()
             .load(&input(b"<p>Hi</p>"), &context("text/html; charset=utf-8"));
         assert_eq!(loaded.from_format, InputFormat::Html);
         assert_eq!(loaded.adapter_id, Some("html"));
+        assert!(loaded.diagnostics.is_empty(), "{:?}", loaded.diagnostics);
+        let document = match loaded
+            .ast_stream
+            .expect("HTML adapter emits internal AST stream")
+        {
+            LoadedInputAstStream::HtmlDocument(document) => document,
+            other => panic!("HTML adapter emitted unexpected AST stream: {other:?}"),
+        };
+        assert_eq!(document.source.media_type, HTML_CONTENT_TYPE);
+        assert_eq!(document.source.parameters["charset"], "utf-8");
     }
 
     #[test]
@@ -2338,6 +2369,10 @@ mod tests {
         assert_eq!(loaded.from_format, InputFormat::Html);
         assert_eq!(loaded.adapter_id, Some("html"));
         assert!(loaded.diagnostics.is_empty());
+        assert!(matches!(
+            loaded.ast_stream,
+            Some(LoadedInputAstStream::HtmlDocument(_))
+        ));
     }
 
     #[test]
@@ -2352,6 +2387,10 @@ mod tests {
         assert_eq!(loaded.from_format, InputFormat::Html);
         assert_eq!(loaded.adapter_id, Some("html"));
         assert!(loaded.diagnostics.is_empty());
+        assert!(matches!(
+            loaded.ast_stream,
+            Some(LoadedInputAstStream::HtmlDocument(_))
+        ));
     }
 
     #[test]

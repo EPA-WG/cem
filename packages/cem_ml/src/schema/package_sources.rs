@@ -285,8 +285,38 @@ static BUILTIN_SCHEMA_PACKAGE_ARTIFACT_SOURCES: &[BuiltinSchemaPackageArtifactSo
     },
     BuiltinSchemaPackageArtifactSource {
         package_id: "html",
+        path: "schema-packages/html/v1/formatters/compact.cemt",
+        source: include_str!("../../schema-packages/html/v1/formatters/compact.cemt"),
+    },
+    BuiltinSchemaPackageArtifactSource {
+        package_id: "html",
+        path: "schema-packages/html/v1/formatters/pretty.cemt",
+        source: include_str!("../../schema-packages/html/v1/formatters/pretty.cemt"),
+    },
+    BuiltinSchemaPackageArtifactSource {
+        package_id: "html",
+        path: "schema-packages/html/v1/formatters/tabular.cemt",
+        source: include_str!("../../schema-packages/html/v1/formatters/tabular.cemt"),
+    },
+    BuiltinSchemaPackageArtifactSource {
+        package_id: "html",
         path: "schema-packages/html/v1/formatters/html-format-document.cemt",
         source: include_str!("../../schema-packages/html/v1/formatters/html-format-document.cemt"),
+    },
+    BuiltinSchemaPackageArtifactSource {
+        package_id: "html",
+        path: "schema-packages/html/v1/colorizers/terminal.cemt",
+        source: include_str!("../../schema-packages/html/v1/colorizers/terminal.cemt"),
+    },
+    BuiltinSchemaPackageArtifactSource {
+        package_id: "html",
+        path: "schema-packages/html/v1/colorizers/html.cemt",
+        source: include_str!("../../schema-packages/html/v1/colorizers/html.cemt"),
+    },
+    BuiltinSchemaPackageArtifactSource {
+        package_id: "html",
+        path: "schema-packages/html/v1/colorizers/md.cemt",
+        source: include_str!("../../schema-packages/html/v1/colorizers/md.cemt"),
     },
     BuiltinSchemaPackageArtifactSource {
         package_id: "html",
@@ -3691,21 +3721,35 @@ mod tests {
 
     #[test]
     fn catalog_exposes_html_output_artifact_sources() {
-        let formatter = builtin_schema_package_artifact_source(
-            "html",
+        for (path, function, profile) in [
+            ("formatters/compact.cemt", "html.format-document", "compact"),
+            ("formatters/pretty.cemt", "html.format-document", "pretty"),
+            ("formatters/tabular.cemt", "html.format-document", "tabular"),
+            (
+                "colorizers/terminal.cemt",
+                "html.color-document",
+                "terminal",
+            ),
+            ("colorizers/html.cemt", "html.color-document", "html"),
+            ("colorizers/md.cemt", "html.color-document", "md"),
+        ] {
+            let full_path = format!("schema-packages/html/v1/{path}");
+            let artifact = builtin_schema_package_artifact_source("html", &full_path)
+                .unwrap_or_else(|| panic!("HTML artifact source `{full_path}`"));
+            assert!(artifact.source.contains(&format!(r#"@name="{function}""#)));
+            assert!(artifact
+                .source
+                .contains(&format!(r#"@profile="{profile}""#)));
+            assert!(artifact.source.contains("{body |"));
+        }
+        for path in [
             "schema-packages/html/v1/formatters/html-format-document.cemt",
-        )
-        .expect("HTML formatter source");
-        let colorizer = builtin_schema_package_artifact_source(
-            "html",
             "schema-packages/html/v1/colorizers/html-color-document.cemt",
-        )
-        .expect("HTML colorizer source");
-
-        assert!(formatter.source.contains(r#"@name="html.format-document""#));
-        assert!(formatter.source.contains(r#"@category="html-document""#));
-        assert!(colorizer.source.contains(r#"@name="html.color-document""#));
-        assert!(colorizer.source.contains(r#"@content-type="text/html""#));
+        ] {
+            let helper = builtin_schema_package_artifact_source("html", path)
+                .unwrap_or_else(|| panic!("HTML helper source `{path}`"));
+            assert!(helper.source.contains("{body |"));
+        }
     }
 
     #[test]

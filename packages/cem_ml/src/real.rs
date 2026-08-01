@@ -14,6 +14,7 @@ use crate::conversion::{
     execute_conversion_output_pipeline_from_formatted_cem_tree_with_environment,
     execute_conversion_output_pipeline_with_environment,
     execute_csv_document_output_pipeline_with_environment,
+    execute_html_document_output_pipeline_with_environment,
     execute_json_document_output_pipeline_with_environment,
     execute_json_schema_document_output_pipeline_with_environment,
     execute_markdown_document_output_pipeline_with_environment,
@@ -115,6 +116,7 @@ use crate::transform_template::{
 };
 use crate::validation::csv::CsvDocumentAst;
 use crate::validation::generic_data::GenericDataDocumentAst;
+use crate::validation::html::HtmlDocumentAst;
 use crate::validation::json::JsonDocumentAst;
 use crate::validation::json_schema::JsonSchemaDocumentAst;
 use crate::validation::markdown::MarkdownDocumentAst;
@@ -5481,6 +5483,74 @@ fn markdown_direct_output_primary_identity(
     )
 }
 
+fn convert_loaded_html_ast_output(
+    context: &EngineContext,
+    request: &ConvertRequest,
+    document: HtmlDocumentAst,
+    diagnostics: &mut Vec<Diagnostic>,
+) -> (Value, Option<PrimaryBytes>, ConvertExecutionMetadata) {
+    let metadata = convert_metadata_for_html_lifecycle_output(&request.target_scope);
+    let environment = ConversionOutputPipelineEnvironment {
+        schema_registry: &context.schema_registry,
+        conversion_registry: &context.converter_registry,
+        package_artifact_reader: None,
+        artifact_cache: None,
+    };
+    let execution = execute_html_document_output_pipeline_with_environment(
+        &environment,
+        document,
+        &request.target_scope,
+        Some(&request.input.uri),
+    );
+    diagnostics.extend(execution.diagnostics.clone());
+    if diagnostics
+        .iter()
+        .any(|diagnostic| diagnostic.severity.is_hard_violation())
+    {
+        return (Value::Null, None, metadata);
+    }
+
+    let content = execution
+        .output
+        .as_ref()
+        .and_then(Value::as_str)
+        .unwrap_or_default()
+        .to_owned();
+    let target = request
+        .target
+        .clone()
+        .or_else(|| request.target_scope.format_identity_option())
+        .unwrap_or_else(|| FormatIdentity {
+            content_type: Some(HTML_CONTENT_TYPE.to_owned()),
+            schema: Some(HTML_SCHEMA_URI.to_owned()),
+            ..FormatIdentity::default()
+        });
+    let content_type = target
+        .content_type
+        .unwrap_or_else(|| HTML_CONTENT_TYPE.to_owned());
+    let schema = target.schema.unwrap_or_else(|| HTML_SCHEMA_URI.to_owned());
+    let bytes = content.into_bytes();
+    let primary_bytes = PrimaryBytes {
+        content_type,
+        schema: Some(schema.clone()),
+        format_version: "html/1".to_owned(),
+        hash_scheme: "cem-text/1+blake3".to_owned(),
+        hash: text_content_hash(&bytes),
+        bytes,
+    };
+    let hash = primary_bytes.hash.clone();
+    (
+        json!({
+            "kind": "document",
+            "contentType": primary_bytes.content_type,
+            "schema": schema,
+            "hash": hash,
+        }),
+        Some(primary_bytes),
+        metadata,
+    )
+}
+
 fn convert_loaded_xml_ast_output(
     context: &EngineContext,
     request: &ConvertRequest,
@@ -7076,6 +7146,75 @@ fn xml_direct_output_color_profile(target_scope: &ScopeConfig) -> Option<String>
         })
 }
 
+fn convert_metadata_for_html_lifecycle_output(
+    target_scope: &ScopeConfig,
+) -> ConvertExecutionMetadata {
+    let formatter_profile = target_scope
+        .cemt_formatter_profile
+        .clone()
+        .unwrap_or_else(|| "compact".to_owned());
+    let color_profile = xml_direct_output_color_profile(target_scope);
+    let writer_profile = target_scope
+        .output_color_type
+        .clone()
+        .or_else(|| color_profile.clone());
+    ConvertExecutionMetadata {
+        converter_id: Some("html-lifecycle-output".to_owned()),
+        implementation: Some("html-ast-stream-to-html-output-pipeline".to_owned()),
+        rust_fallback: None,
+        output_pipeline: Some(ConvertOutputPipelineMetadata {
+            stages: vec![
+                ConvertOutputPipelineStageMetadata {
+                    stage: "formatter".to_owned(),
+                    function: Some(
+                        target_scope
+                            .cemt_formatter
+                            .clone()
+                            .unwrap_or_else(|| "html.format-document".to_owned()),
+                    ),
+                    profile: Some(formatter_profile),
+                    content_type: Some(HTML_CONTENT_TYPE.to_owned()),
+                    schema: Some(HTML_SCHEMA_URI.to_owned()),
+                    category: Some("html-document".to_owned()),
+                    produces: Some(
+                        TransformTemplateOutputProducedKind::CemTree
+                            .as_str()
+                            .to_owned(),
+                    ),
+                },
+                ConvertOutputPipelineStageMetadata {
+                    stage: "colorizer".to_owned(),
+                    function: color_profile
+                        .as_ref()
+                        .map(|_| "html.color-document".to_owned()),
+                    profile: color_profile,
+                    content_type: Some(HTML_CONTENT_TYPE.to_owned()),
+                    schema: Some(HTML_SCHEMA_URI.to_owned()),
+                    category: Some("html-document".to_owned()),
+                    produces: Some(
+                        TransformTemplateOutputProducedKind::CemTree
+                            .as_str()
+                            .to_owned(),
+                    ),
+                },
+                ConvertOutputPipelineStageMetadata {
+                    stage: "writer".to_owned(),
+                    function: None,
+                    profile: writer_profile,
+                    content_type: Some(HTML_CONTENT_TYPE.to_owned()),
+                    schema: Some(HTML_SCHEMA_URI.to_owned()),
+                    category: Some("html-document".to_owned()),
+                    produces: Some(
+                        TransformTemplateOutputProducedKind::Text
+                            .as_str()
+                            .to_owned(),
+                    ),
+                },
+            ],
+        }),
+    }
+}
+
 fn convert_metadata_for_xml_lifecycle_output(
     target_scope: &ScopeConfig,
 ) -> ConvertExecutionMetadata {
@@ -7775,7 +7914,8 @@ fn loaded_input_consumes_validation_without_cem_parse(loaded: &LoadedInput) -> b
     matches!(
         loaded.ast_stream.as_ref(),
         Some(
-            LoadedInputAstStream::CsvDocument(_)
+            LoadedInputAstStream::HtmlDocument(_)
+                | LoadedInputAstStream::CsvDocument(_)
                 | LoadedInputAstStream::YamlDocument(_)
                 | LoadedInputAstStream::JsonDocument(_)
                 | LoadedInputAstStream::JsonSchemaDocument(_)
@@ -8925,6 +9065,33 @@ impl CemMlEngine for RealCemMlEngine {
                         });
                         primary = Some(Value::Null);
                         return;
+                    }
+                    LoadedInputAstStream::HtmlDocument(document_value) => {
+                        if to_format == LayerFormat::Html && export_adapter_id == Some("html") {
+                            if diagnostics
+                                .iter()
+                                .any(|diagnostic| diagnostic.severity.is_hard_violation())
+                            {
+                                primary = Some(Value::Null);
+                                conversion = Some(convert_metadata_for_html_lifecycle_output(
+                                    &request.target_scope,
+                                ));
+                                return;
+                            }
+
+                            let (html_primary, html_primary_bytes, html_conversion) =
+                                convert_loaded_html_ast_output(
+                                    &context,
+                                    &request,
+                                    document_value,
+                                    &mut diagnostics,
+                                );
+                            primary = Some(html_primary);
+                            primary_bytes = html_primary_bytes;
+                            conversion = Some(html_conversion);
+                            return;
+                        }
+                        // Cross-schema HTML exports require an explicit registered converter.
                     }
                     LoadedInputAstStream::MarkdownDocument(document_value) => {
                         if to_format == LayerFormat::Html {
@@ -14650,6 +14817,35 @@ mod tests {
     }
 
     #[test]
+    fn validate_html_source_consumes_dedicated_lifecycle_ast_without_cem_parse() {
+        let mut source = input(
+            b"<article><h2>Card</h2><p>Recovered fragment</article>",
+            "fragment.html",
+        );
+        source.identity = Some(FormatIdentity {
+            content_type: Some(HTML_CONTENT_TYPE.to_owned()),
+            schema: Some(HTML_SCHEMA_URI.to_owned()),
+            ..FormatIdentity::default()
+        });
+        let req = ValidateRequest {
+            inputs: vec![source],
+            projection: ValidateProjection::Json,
+            fail_level: FailLevel::Validate,
+            context: ctx(),
+        };
+
+        let resp = RealCemMlEngine::new().validate(req).unwrap();
+
+        assert_eq!(resp.report.summary.input_count, 1);
+        assert_eq!(resp.report.summary.hard_violation_count, 0);
+        assert!(
+            resp.report.diagnostics.is_empty(),
+            "HTML validation should be completed by the lifecycle AST stream, not generic HTML or CEM parsing: {:?}",
+            resp.report.diagnostics
+        );
+    }
+
+    #[test]
     fn validate_xml_source_consumes_lifecycle_ast_without_cem_parse() {
         let mut source = input(
             br#"<?xml version="1.0"?><root xmlns:meta="urn:meta"><meta:item/></root>"#,
@@ -14831,6 +15027,61 @@ mod tests {
                 resp.report.diagnostics
             );
         }
+    }
+
+    #[test]
+    fn convert_html_same_schema_uses_dedicated_lifecycle_output_pipeline_and_final_newline() {
+        let html = br#"<!doctype html><HTML lang=en><head><title>a < b</title></head><body><svg viewBox="0 0 1 1"><path></path></svg><br></body></HTML>"#;
+        let mut source = input(html, "document.html");
+        source.identity = Some(FormatIdentity {
+            content_type: Some(HTML_CONTENT_TYPE.to_owned()),
+            schema: Some(HTML_SCHEMA_URI.to_owned()),
+            ..FormatIdentity::default()
+        });
+        let req = ConvertRequest {
+            input: source,
+            to_format: LayerFormat::DomJson,
+            preserve_source_offsets: false,
+            context: ctx(),
+            target: Some(FormatIdentity {
+                content_type: Some(HTML_CONTENT_TYPE.to_owned()),
+                schema: Some(HTML_SCHEMA_URI.to_owned()),
+                ..FormatIdentity::default()
+            }),
+            target_scope: ScopeConfig {
+                cemt_formatter_profile: Some("tabular".to_owned()),
+                ..ScopeConfig::default()
+            },
+            scheduler_scope_id: 0,
+        };
+
+        let resp = RealCemMlEngine::new().convert(req).unwrap();
+
+        assert!(
+            resp.diagnostics.is_empty(),
+            "HTML same-schema conversion must stay on the dedicated lifecycle AST path: {:?}",
+            resp.diagnostics
+        );
+        assert_eq!(
+            resp.conversion
+                .as_ref()
+                .and_then(|conversion| conversion.converter_id.as_deref()),
+            Some("html-lifecycle-output")
+        );
+        assert_eq!(
+            resp.conversion
+                .as_ref()
+                .and_then(|conversion| conversion.implementation.as_deref()),
+            Some("html-ast-stream-to-html-output-pipeline")
+        );
+        let primary_bytes = resp.primary_bytes.as_ref().expect("HTML primary bytes");
+        assert_eq!(primary_bytes.content_type, HTML_CONTENT_TYPE);
+        assert_eq!(primary_bytes.schema.as_deref(), Some(HTML_SCHEMA_URI));
+        let mut expected = html.to_vec();
+        expected.push(b'\n');
+        assert_eq!(primary_bytes.bytes, expected);
+        assert_eq!(resp.primary["kind"], "document");
+        assert_eq!(resp.primary["contentType"], HTML_CONTENT_TYPE);
     }
 
     #[test]

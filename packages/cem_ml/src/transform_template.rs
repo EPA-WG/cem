@@ -3299,10 +3299,33 @@ impl TransformTemplateEncodeBindingRequest {
         &self,
     ) -> Result<TransformTemplateColorOutputProfile, TransformTemplateOutputFunctionResolutionError>
     {
-        transform_template_color_output_profile_for_target(
-            &self.target,
-            self.color_profile_selector().as_deref(),
-        )
+        let selector = self.color_profile_selector();
+        if self
+            .options
+            .colorizer
+            .as_deref()
+            .map(str::trim)
+            .is_some_and(|colorizer| !colorizer.is_empty())
+            && transform_template_target_uses_named_color_stage_profiles(&self.target)
+        {
+            match selector.as_deref() {
+                Some("terminal") => {
+                    return Ok(TransformTemplateColorOutputProfile::terminal(
+                        TransformTemplateTerminalColorCapability::Auto,
+                    ));
+                }
+                Some("html") => {
+                    return Ok(TransformTemplateColorOutputProfile::html(
+                        TransformTemplateHtmlColorMode::Classes,
+                    ));
+                }
+                Some("md" | "markdown") => {
+                    return Ok(TransformTemplateColorOutputProfile::plain());
+                }
+                _ => {}
+            }
+        }
+        transform_template_color_output_profile_for_target(&self.target, selector.as_deref())
     }
 
     pub fn requires_color_binding(&self) -> bool {
@@ -3875,7 +3898,7 @@ fn transform_template_target_uses_named_color_stage_profiles(
     target: &TransformTemplateEncodingTarget,
 ) -> bool {
     transform_template_target_is_explicit_format_output(target)
-        || transform_template_color_output_kind_for_target(target).is_none()
+        || !transform_template_target_is_explicit_color_output(target)
 }
 
 fn transform_template_canonical_color_profile_selector(
@@ -32078,6 +32101,42 @@ mod tests {
             Some("css-custom-properties")
         );
         assert_eq!(binding.identity.color_capability, None);
+    }
+
+    #[test]
+    fn color_binding_treats_html_documents_as_named_color_stage_targets() {
+        let mut registry = TransformTemplateOutputFunctionRegistry::new();
+        let mut descriptor = color_output_function_descriptor(
+            "html.color-document",
+            "html-document",
+            HTML_CONTENT_TYPE,
+            HTML_SCHEMA_URI,
+            Some("terminal"),
+        );
+        descriptor.subject = "cem-tree".to_owned();
+        descriptor.produces = TransformTemplateOutputProducedKind::CemTree;
+        registry.register(descriptor);
+        let request = TransformTemplateEncodeBindingRequest::new(
+            json!({"kind": "cem-tree", "nodes": []}),
+            TransformTemplateEncodingTarget::new(
+                HTML_CONTENT_TYPE,
+                HTML_SCHEMA_URI,
+                "html-document",
+            ),
+        )
+        .with_subject_type("cem-tree")
+        .with_options(TransformTemplateEncodeOptions {
+            colorizer: Some("html.color-document".to_owned()),
+            color_profile: Some("terminal".to_owned()),
+            ..TransformTemplateEncodeOptions::default()
+        });
+
+        let binding = registry
+            .resolve_color_binding(&request, &BTreeSet::new())
+            .expect("HTML document colorizer resolves");
+
+        assert_eq!(binding.function.name, "html.color-document");
+        assert_eq!(binding.identity.color_profile.as_deref(), Some("terminal"));
     }
 
     #[test]
