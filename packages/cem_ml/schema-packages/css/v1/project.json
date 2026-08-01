@@ -12,6 +12,11 @@
             ],
             "inputs": [
                 "{projectRoot}/package.cem",
+                "{projectRoot}/schema/**/*.cem",
+                "{projectRoot}/formatters/**/*.cemt",
+                "{projectRoot}/colorizers/**/*.cemt",
+                "{projectRoot}/converters/**/*.cemt",
+                "{projectRoot}/scripts/**/*.mjs",
                 "{projectRoot}/examples/**/*",
                 "!{projectRoot}/examples/previews/**/*",
                 "{workspaceRoot}/packages/cem_ml/schema-packages/scripts/**/*.mjs",
@@ -48,6 +53,11 @@
             "inputs": [
                 "{projectRoot}/package.cem",
                 "{projectRoot}/README.md",
+                "{projectRoot}/schema/**/*.cem",
+                "{projectRoot}/formatters/**/*.cemt",
+                "{projectRoot}/colorizers/**/*.cemt",
+                "{projectRoot}/converters/**/*.cemt",
+                "{projectRoot}/scripts/**/*.mjs",
                 "{projectRoot}/examples/**/*",
                 "!{projectRoot}/examples/previews/**/*",
                 "{workspaceRoot}/packages/cem_ml/schema-packages/scripts/**/*.mjs",
@@ -78,7 +88,19 @@
             "options": {
                 "commands": [
                     "mkdir -p packages/cem_ml/schema-packages/css/v1/dist",
-                    "./dist/target/cem_ml_cli/debug/cem-ml --quiet validate --fail-level parse --format json --content-type application/vnd.cem.schema-package+cem --schema https://cem.dev/ns/schema-package/1 --report-json packages/cem_ml/schema-packages/css/v1/dist packages/cem_ml/schema-packages/css/v1/package.cem"
+                    "./dist/target/cem_ml_cli/debug/cem-ml --quiet validate --fail-level parse --format json --content-type application/vnd.cem.schema-package+cem --schema https://cem.dev/ns/schema-package/1 --report-json packages/cem_ml/schema-packages/css/v1/dist packages/cem_ml/schema-packages/css/v1/package.cem",
+                    "cargo test -p cem-ml css_package_examples_are_manifest_indexed -- --nocapture",
+                    "cargo test -p cem-ml catalog_exposes_css_output_artifact_sources -- --nocapture",
+                    "cargo test -p cem-ml 'validation::css::tests' -- --nocapture",
+                    "cargo test -p cem-ml builtins_load_css_content_type_as_lossless_internal_ast_stream -- --nocapture",
+                    "cargo test -p cem-ml css_package_schema_selects_css_export_when_content_type_absent -- --nocapture",
+                    "cargo test -p cem-ml validate_css_source_consumes_typed_lifecycle_ast_without_cem_parse -- --nocapture",
+                    "cargo test -p cem-ml convert_css_same_schema_uses_dedicated_lifecycle_output_pipeline_and_final_newline -- --nocapture",
+                    "cargo test -p cem-ml builtin_css_lifecycle_output_pipeline_executes_package_cemt_assets_losslessly -- --nocapture",
+                    "cargo test -p cem-ml builtin_css_colorizer_profiles_execute_package_cemt_assets -- --nocapture",
+                    "cargo test -p cem-ml-cli css -- --nocapture",
+                    "cargo test -p cem-ml-cli --test schema_validation_examples schema_owned_css_examples_validate_through_cli -- --nocapture",
+                    "node packages/cem_ml/schema-packages/css/v1/scripts/verify-previews.mjs"
                 ],
                 "parallel": false,
                 "cwd": "{workspaceRoot}"

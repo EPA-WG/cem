@@ -720,28 +720,28 @@ Remaining dependency-ordered package checklist:
   - [x] Expand manifest/index embedding, lifecycle, engine/CLI, formatter and
         colorizer profile, schema-owned example, safety, release documentation,
         and README/SVG preview-drift gates without source-snapshot fallback.
-- [ ] `css/v1`
-  - [ ] Add a typed, lossless `CssDocumentAst` lifecycle stream for stylesheet,
+- [x] `css/v1`
+  - [x] Add a typed, lossless `CssDocumentAst` lifecycle stream for stylesheet,
         declaration-list/style-attribute, and scoped style-block entry modes.
         Use a standards CSS tokenizer/parser for component-value recovery and a
         presentation/trivia layer for comments, original lexemes, byte ranges,
         source maps, MIME parameters, encoding evidence, and line endings.
-  - [ ] Move CSS validation behind the lifecycle adapter and replace Rust-owned
+  - [x] Move CSS validation behind the lifecycle adapter and replace Rust-owned
         diagnostic dispatch with neutral facts bound through executable
         contracts in `schema/css.cem`, including syntax/recovery, charset,
         selector/declaration, unknown at-rule, import, URL, scope, and source-map
         facts.
-  - [ ] Route content type and package-schema loading plus same-schema output
+  - [x] Route content type and package-schema loading plus same-schema output
         through the typed CSS stream without CEM or opaque-handoff fallthrough;
         preserve custom properties, vendor syntax, and unknown at-rules.
-  - [ ] Replace bodyless `json`/`tokens` artifacts with executable
+  - [x] Replace bodyless `json`/`tokens` artifacts with executable
         compact/pretty/tabular and terminal/HTML/Markdown CEMT wrappers and
         CEM-tree helpers, preserving compact lexical source and the default
         final newline.
-  - [ ] Define resolver/sanitizer capability boundaries for `@import`, `url()`,
+  - [x] Define resolver/sanitizer capability boundaries for `@import`, `url()`,
         fonts, and other external references; validation and formatting must not
         fetch resources or interpret host-document cascade semantics.
-  - [ ] Route passing previews through package output profiles and expected
+  - [x] Route passing previews through package output profiles and expected
         failures through schema diagnostics, then expand manifest/index,
         lifecycle, engine/CLI, profile, schema-owned example, safety, release,
         and README/SVG drift verification.
@@ -776,40 +776,19 @@ Remaining dependency-ordered package checklist:
 
 ### Next Work Item
 
-Align `css/v1` with the common schema-package acceptance criteria. The current
-state has no `CssAdapter` or `CssDocumentAst`: CLI/package validation delegates
-to an ad hoc source scanner, `text/css` remains an opaque lifecycle handoff, and
-the formatter/colorizer artifacts are bodyless `json`/`tokens` declarations.
+Run the final registry/package validation gate now that the dependency checklist
+is green. Start with `yarn nx run cem_ml:test:cli-schema-artifacts`, then run
+`cem_ml_cli:validate-cemt-pipeline-fixture`,
+`cem_ml_cli:validate-converter-parity`, `cem_ml_cli:e2e`, and finally
+`cem_ml:test`.
 
-Start by introducing a standards-based CSS token/component parser boundary and
-a lossless presentation layer. The recommended implementation is to use the
-Rust `cssparser` crate for CSS Syntax tokenization, nested blocks, functions,
-and recovery, while retaining comments and exact source slices in a small
-sidecar trivia/event pass where the parser does not expose them. Model explicit
-stylesheet, declaration-list/style-attribute, and scoped style-block entry
-modes. Preserve MIME parameters, BOM/MIME/`@charset` evidence, comments,
-whitespace, selectors, at-rule preludes, declarations, custom-property token
-streams, nested component values, original lexemes, ranges, source maps, line
-endings, and recovery facts. Do not use Lightning CSS as the ownership boundary:
-its transformation/minification model is useful downstream but is not the
-lossless source AST required here.
-
-Move validation and same-schema conversion behind that typed adapter. Rust
-should emit neutral parse, encoding, selector/declaration, at-rule, import/URL,
-scope, and source-map facts; `schema/css.cem` should own diagnostic codes,
-severities, behavior, and policy. Keep all fetching disabled unless an explicit
-resolver/sanitizer capability is supplied, preserve unknown and vendor syntax,
-and avoid evaluating cascade or host-document semantics.
-
-Replace the two placeholder CEMT files with separate public compact, pretty,
-tabular, terminal, HTML, and Markdown wrappers plus private CSS document/CEM-tree
-helpers. Compact must remain lexically lossless with the default final newline;
-pretty/tabular may only rewrite boundaries proven safe for strings, comments,
-custom properties, calc-like functions, and nested rules. Finish with typed
-lifecycle and output tests, schema-bound diagnostic details, package artifact
-embedding, all eight manifest examples, resolver safety, README generation,
-SVG drift verification, release/limitations documentation, and an expanded
-`cem_ml_schema_package_css_v1:verify` target.
+Treat any failure as a cross-package registry or output-contract regression,
+not as a CSS-only issue. Confirm that package registries enumerate every public
+formatter and colorizer profile, converter selection does not fall back to an
+opaque or CEM path for typed formats, and fixtures exercise the default final
+newline. Do not weaken package output contracts merely to silence stale
+fixtures; update a fixture only when the intended contract is independently
+covered by focused runtime tests.
 
 ## Current Verification Commands
 

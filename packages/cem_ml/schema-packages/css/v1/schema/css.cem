@@ -86,18 +86,22 @@
     }
 
     {constraints |
-        {constraint @kind="css-source-parser" @target="stylesheet" @policy="delegate-to-css-parser"}
+        {constraint @kind="css-source-parser" @target="stylesheet" @diagnostic="cem.css.parse_error" @behavior="css-report-fact" @fact-kind="parse-error" @policy="delegate to the native cssparser token and component-value recovery boundary"}
         {constraint @kind="text-css-primary" @target="stylesheet" @policy="text/css is the canonical media type for CSS stylesheets"}
-        {constraint @kind="style-attribute-fragment" @target="style-attribute" @policy="HTML style attributes parse as declaration lists, not full stylesheets"}
-        {constraint @kind="scoped-style-host" @target="style-scope" @policy="scope metadata must identify the host schema, host selector, or component root when available"}
+        {constraint @kind="style-attribute-fragment" @target="style-attribute" @fact-kind="declaration-list-observed" @policy="HTML style attributes parse as declaration lists, not full stylesheets"}
+        {constraint @kind="scoped-style-host" @target="style-scope" @fact-kind="scoped-style-block-observed" @policy="scope metadata must identify the host schema, host selector, or component root when available"}
         {constraint @kind="cascade-scope-preserved" @target="style-scope" @policy="layer media container shadow-root and component boundaries are semantic style identity"}
-        {constraint @kind="css-parser-error-recovery" @target="stylesheet" @policy="CSS parse errors recover according to CSS syntax rules unless host validation selects fail-fast mode"}
-        {constraint @kind="charset-source-priority" @target="stylesheet" @policy="preserve BOM MIME charset and @charset evidence; report conflicts"}
-        {constraint @kind="import-policy" @target="import" @policy="@import access requires explicit resolver policy"}
-        {constraint @kind="url-policy" @target="component-value" @policy="url() references require explicit resolver or sanitizer policy"}
-        {constraint @kind="custom-properties-preserved" @target="declaration" @policy="custom property names and token streams are preserved without semantic value normalization"}
-        {constraint @kind="unknown-rule-policy" @target="rule" @policy="unknown at-rules and vendor-prefixed syntax are preserved unless validation policy rejects them"}
-        {constraint @kind="source-map-preferred" @target="declaration" @policy="required when parser exposes source ranges"}
+        {constraint @kind="css-parser-error-recovery" @target="stylesheet" @diagnostic="cem.css.invalid_token" @behavior="css-report-fact" @fact-kind="invalid-token" @policy="CSS parse errors recover according to CSS syntax rules unless host validation selects fail-fast mode"}
+        {constraint @kind="bad-string-recovery" @target="component-value" @diagnostic="cem.css.bad_string" @behavior="css-report-fact" @fact-kind="bad-string" @policy="preserve the exact invalid string lexeme and the cssparser recovery boundary"}
+        {constraint @kind="bad-url-recovery" @target="component-value" @diagnostic="cem.css.bad_url" @behavior="css-report-fact" @fact-kind="bad-url" @policy="preserve the exact invalid URL lexeme and the cssparser recovery boundary"}
+        {constraint @kind="charset-source-priority" @target="stylesheet" @diagnostic="cem.css.encoding_conflict" @behavior="css-report-fact" @fact-kind="encoding-conflict" @policy="preserve BOM MIME charset and @charset evidence; report conflicts"}
+        {constraint @kind="selector-recovery" @target="selector" @diagnostic="cem.css.invalid_selector" @behavior="css-report-fact" @fact-kind="invalid-selector" @policy="preserve invalid selector preludes while recording recovery"}
+        {constraint @kind="declaration-recovery" @target="declaration" @diagnostic="cem.css.invalid_declaration" @behavior="css-report-fact" @fact-kind="invalid-declaration" @policy="preserve malformed declaration token streams while recording recovery"}
+        {constraint @kind="import-policy" @target="import" @diagnostic="cem.css.import_rejected" @behavior="css-report-fact" @fact-kind="import-rejected" @policy="@import access requires explicit resolver policy; parsing and formatting never fetch resources"}
+        {constraint @kind="url-policy" @target="component-value" @diagnostic="cem.css.url_rejected" @behavior="css-report-fact" @fact-kind="url-rejected" @policy="url() references require explicit resolver or sanitizer policy; parsing and formatting never fetch resources"}
+        {constraint @kind="custom-properties-preserved" @target="declaration" @fact-kind="custom-property-observed" @policy="custom property names and token streams are preserved without semantic value normalization"}
+        {constraint @kind="unknown-rule-policy" @target="rule" @diagnostic="cem.css.unknown_at_rule" @behavior="css-report-fact" @fact-kind="unknown-at-rule" @policy="unknown at-rules and vendor-prefixed syntax are preserved unless validation policy rejects them"}
+        {constraint @kind="source-map-preferred" @target="declaration" @diagnostic="cem.css.source_map_unavailable" @behavior="css-report-fact" @fact-kind="source-map-unavailable" @policy="required when parser exposes source ranges"}
     }
 
     {diagnostics |

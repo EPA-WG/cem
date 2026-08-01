@@ -370,6 +370,37 @@ function previewPlanForExample(example, manifest) {
         };
     }
 
+    if (isCssTextExample(example, manifest, essence)) {
+        if (example.expectedResult !== 'pass') {
+            return {
+                label: 'css validate',
+                renderer: 'json',
+                expectedStatus: 'success',
+                width: 1040,
+                minHeight: 520,
+                args: validatePreviewArgs(inputPath, {
+                    format: 'json',
+                    failLevel: 'parse',
+                    contentType: example.contentType,
+                    schema: example.schema,
+                }),
+            };
+        }
+        return {
+            label: 'css',
+            renderer: 'html',
+            expectedStatus: 'success',
+            width: 980,
+            minHeight: 190,
+            args: convertPreviewArgs(inputSpec, {
+                toContentType: 'text/css',
+                toSchema: 'https://cem.dev/ns/data/css/1',
+                colorProfile: 'html',
+                outputColorType: null,
+            }),
+        };
+    }
+
     if (isHtmlExample(essence)) {
         if (example.expectedResult !== 'pass') {
             return {
@@ -707,6 +738,10 @@ function isYamlTextExample(_example, manifest, essence) {
 
 function isMarkdownTextExample(_example, manifest, essence) {
     return manifest.packageId === 'markdown' && essence === 'text/markdown';
+}
+
+function isCssTextExample(_example, manifest, essence) {
+    return manifest.packageId === 'css' && essence === 'text/css';
 }
 
 function isRelaxNgTextExample(_example, manifest, essence) {

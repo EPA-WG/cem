@@ -30,12 +30,12 @@ use crate::schema::registry::{
     content_type_essence, SchemaContentTypeRole, SchemaDescriptor, SchemaRegistry,
     CEM_AST_PROJECTION_SCHEMA_URI, CEM_DOM_PROJECTION_CONTENT_TYPE, CEM_DOM_PROJECTION_SCHEMA_URI,
     CEM_EVENTS_PROJECTION_SCHEMA_URI, CEM_ML_CONTENT_TYPE, CEM_ML_SCHEMA_URI, CEM_QL_SCHEMA_URI,
-    CEM_TRANSFORM_CONTENT_TYPE, CEM_TRANSFORM_SCHEMA_URI, CSV_CONTENT_TYPE, CSV_SCHEMA_URI,
-    HTML_CONTENT_TYPE, HTML_SCHEMA_URI, JSON_CONTENT_TYPE, JSON_SCHEMA_CONTENT_TYPE,
-    JSON_SCHEMA_SCHEMA_URI, JSON_VALUE_SCHEMA_URI, MARKDOWN_CONTENT_TYPE, MARKDOWN_SCHEMA_URI,
-    MATHML_CONTENT_TYPE, MATHML_SCHEMA_URI, RELAX_NG_SCHEMA_URI, SVG_CONTENT_TYPE, SVG_SCHEMA_URI,
-    XHTML_CONTENT_TYPE, XHTML_SCHEMA_URI, XML_CONTENT_TYPE, XML_SCHEMA_URI, XSLT_CONTENT_TYPE,
-    XSLT_SCHEMA_URI, YAML_CONTENT_TYPE, YAML_SCHEMA_URI,
+    CEM_TRANSFORM_CONTENT_TYPE, CEM_TRANSFORM_SCHEMA_URI, CSS_CONTENT_TYPE, CSS_SCHEMA_URI,
+    CSV_CONTENT_TYPE, CSV_SCHEMA_URI, HTML_CONTENT_TYPE, HTML_SCHEMA_URI, JSON_CONTENT_TYPE,
+    JSON_SCHEMA_CONTENT_TYPE, JSON_SCHEMA_SCHEMA_URI, JSON_VALUE_SCHEMA_URI, MARKDOWN_CONTENT_TYPE,
+    MARKDOWN_SCHEMA_URI, MATHML_CONTENT_TYPE, MATHML_SCHEMA_URI, RELAX_NG_SCHEMA_URI,
+    SVG_CONTENT_TYPE, SVG_SCHEMA_URI, XHTML_CONTENT_TYPE, XHTML_SCHEMA_URI, XML_CONTENT_TYPE,
+    XML_SCHEMA_URI, XSLT_CONTENT_TYPE, XSLT_SCHEMA_URI, YAML_CONTENT_TYPE, YAML_SCHEMA_URI,
 };
 use crate::source::{BytesSource, SourceId};
 use crate::source_map::SourceMapStack;
@@ -70,6 +70,7 @@ use crate::transform_template::{
     TransformTemplateTargetSyntaxKind, TransformTemplateTargetSyntaxRules,
     TransformTemplateTerminalColorCapability,
 };
+use crate::validation::css::CssDocumentAst;
 use crate::validation::csv::{generic_data_ast_to_csv_cemt_subject, CsvDocumentAst};
 use crate::validation::generic_data::GenericDataDocumentAst;
 use crate::validation::html::HtmlDocumentAst;
@@ -2396,6 +2397,24 @@ const HTML_COLOR_CEMT_STAGE_SPEC: CemTreeCemtOutputStageSpec = CemTreeCemtOutput
     declaration_element: "{color-function",
     function_kind: TransformTemplateOutputFunctionKind::Color,
     function_name: "html.color-document",
+    role: "colorizer",
+};
+
+const CSS_FORMAT_CEMT_STAGE_SPEC: CemTreeCemtOutputStageSpec = CemTreeCemtOutputStageSpec {
+    adapter_id: "css-format-cemt",
+    artifact_kind: CEM_TREE_FORMATTER_ARTIFACT_KIND,
+    declaration_element: "{format-function",
+    function_kind: TransformTemplateOutputFunctionKind::Format,
+    function_name: "css.format-document",
+    role: "formatter",
+};
+
+const CSS_COLOR_CEMT_STAGE_SPEC: CemTreeCemtOutputStageSpec = CemTreeCemtOutputStageSpec {
+    adapter_id: "css-color-cemt",
+    artifact_kind: CEM_TREE_COLORIZER_ARTIFACT_KIND,
+    declaration_element: "{color-function",
+    function_kind: TransformTemplateOutputFunctionKind::Color,
+    function_name: "css.color-document",
     role: "colorizer",
 };
 
@@ -6789,6 +6808,16 @@ impl XmlDocumentOutputSubject for HtmlDocumentAst {
     }
 }
 
+impl XmlDocumentOutputSubject for CssDocumentAst {
+    fn source_line_ending(&self) -> Option<&str> {
+        self.line_ending.as_deref()
+    }
+
+    fn into_cemt_subject(self) -> Value {
+        self.to_cemt_subject()
+    }
+}
+
 impl XmlDocumentOutputSubject for XhtmlDocumentAst {
     fn source_line_ending(&self) -> Option<&str> {
         self.line_ending.as_deref()
@@ -6870,6 +6899,21 @@ pub fn execute_html_document_output_pipeline_with_environment(
     )
 }
 
+pub fn execute_css_document_output_pipeline_with_environment(
+    environment: &ConversionOutputPipelineEnvironment<'_>,
+    document: CssDocumentAst,
+    target_scope: &ScopeConfig,
+    diagnostic_uri: Option<&str>,
+) -> ConversionOutputPipelineExecution {
+    execute_xml_family_document_output_pipeline_with_environment(
+        environment,
+        document,
+        target_scope,
+        diagnostic_uri,
+        XmlFamilyOutputSpec::css(),
+    )
+}
+
 pub fn execute_xhtml_document_output_pipeline_with_environment(
     environment: &ConversionOutputPipelineEnvironment<'_>,
     document: XhtmlDocumentAst,
@@ -6945,6 +6989,21 @@ struct XmlFamilyOutputSpec {
 }
 
 impl XmlFamilyOutputSpec {
+    const fn css() -> Self {
+        Self {
+            label: "CSS",
+            formatter: CSS_FORMAT_CEMT_STAGE_SPEC,
+            colorizer: CSS_COLOR_CEMT_STAGE_SPEC,
+            content_type: CSS_CONTENT_TYPE,
+            schema: CSS_SCHEMA_URI,
+            category: "css-document",
+            subject_kind: "css-document",
+            formatter_option_prefix: "css.",
+            converter_id: "css-direct-output",
+            diagnostic_node: "css",
+        }
+    }
+
     const fn html() -> Self {
         Self {
             label: "HTML",
@@ -11499,6 +11558,7 @@ fn builtin_converter_package_schema_uris() -> &'static [&'static str] {
         CSV_SCHEMA_URI,
         YAML_SCHEMA_URI,
         MARKDOWN_SCHEMA_URI,
+        CSS_SCHEMA_URI,
         RELAX_NG_SCHEMA_URI,
         XHTML_SCHEMA_URI,
         SVG_SCHEMA_URI,
@@ -19574,6 +19634,135 @@ mod tests {
             assert_eq!(colored.value["contentType"], HTML_CONTENT_TYPE);
             assert_eq!(colored.value["schema"], HTML_SCHEMA_URI);
             assert_eq!(colored.value["category"], "html-document");
+            assert_eq!(colored.value["colorProfile"], profile);
+            assert_eq!(colored.value["nodes"][2]["style"][style_key], style_value);
+        }
+    }
+
+    #[test]
+    fn builtin_css_lifecycle_output_pipeline_executes_package_cemt_assets_losslessly() {
+        let schema_registry = SchemaRegistry::with_builtin_schemas();
+        let conversion_registry = ConversionRegistry::with_builtin_converters();
+        let environment = ConversionOutputPipelineEnvironment {
+            schema_registry: &schema_registry,
+            conversion_registry: &conversion_registry,
+            package_artifact_reader: None,
+            artifact_cache: None,
+        };
+        let source = b"/* exact */\n:host { --gap: calc(1rem + 2px); color: currentColor; }";
+        let (document, diagnostics) = crate::validation::css::css_document_ast_from_source_bytes(
+            crate::validation::css::CssSourceValidationRequest {
+                bytes: source,
+                source_uri: "builtin:css-output",
+                content_type: Some("text/css; mode=scoped-style-block"),
+            },
+        );
+        assert!(diagnostics.is_empty(), "{diagnostics:?}");
+
+        for (profile, layout) in [
+            ("compact", "lexical-lossless-compact"),
+            ("pretty", "safe-component-boundaries-pretty"),
+            ("tabular", "safe-component-boundaries-tabular"),
+        ] {
+            let target_scope = ScopeConfig {
+                cemt_formatter_profile: Some(profile.to_owned()),
+                ..ScopeConfig::default()
+            };
+            let execution = execute_css_document_output_pipeline_with_environment(
+                &environment,
+                document.clone().expect("CSS document"),
+                &target_scope,
+                Some("builtin:css-output"),
+            );
+            assert!(
+                execution.diagnostics.is_empty(),
+                "{profile}: {:?}",
+                execution.diagnostics
+            );
+            assert!(matches!(
+                execution.format_execution,
+                Some(ConversionOutputPipelineStageExecution::CemtAdapter {
+                    ref adapter_id,
+                    ref function_name,
+                    ref body_function_name,
+                    ..
+                }) if adapter_id == "css-format-cemt"
+                    && function_name == "css.format-document"
+                    && body_function_name.as_deref() == Some("css.format-document")
+            ));
+            assert_eq!(
+                execution.output.as_ref().and_then(Value::as_str),
+                Some(concat!(
+                    "/* exact */\n",
+                    ":host { --gap: calc(1rem + 2px); color: currentColor; }\n"
+                )),
+                "{profile}"
+            );
+            let formatted = execution
+                .formatted_cem_tree
+                .as_ref()
+                .unwrap_or_else(|| panic!("{profile} formatted tree"));
+            assert_eq!(formatted.value["contentType"], CSS_CONTENT_TYPE);
+            assert_eq!(formatted.value["schema"], CSS_SCHEMA_URI);
+            assert_eq!(formatted.value["category"], "css-document");
+            assert_eq!(formatted.value["formatterProfile"], profile);
+            assert_eq!(formatted.value["formatNodes"][1]["value"]["layout"], layout);
+            assert!(formatted.value["nodes"]
+                .as_array()
+                .is_some_and(|nodes| nodes.iter().any(|node| {
+                    node["kind"] == "css.function-open"
+                        && node["text"] == "calc("
+                        && node["sourceMap"] != Value::Null
+                })));
+        }
+    }
+
+    #[test]
+    fn builtin_css_colorizer_profiles_execute_package_cemt_assets() {
+        let schema_registry = SchemaRegistry::with_builtin_schemas();
+        let conversion_registry = ConversionRegistry::with_builtin_converters();
+        let environment = ConversionOutputPipelineEnvironment {
+            schema_registry: &schema_registry,
+            conversion_registry: &conversion_registry,
+            package_artifact_reader: None,
+            artifact_cache: None,
+        };
+        let (document, diagnostics) = crate::validation::css::css_document_ast_from_source_bytes(
+            crate::validation::css::CssSourceValidationRequest {
+                bytes: b".card { color: currentColor; }\n",
+                source_uri: "builtin:css-color-output",
+                content_type: Some(CSS_CONTENT_TYPE),
+            },
+        );
+        assert!(diagnostics.is_empty(), "{diagnostics:?}");
+
+        for (profile, style_key, style_value) in [
+            ("terminal", "terminalCapability", "auto"),
+            ("html", "htmlMode", "classes"),
+            ("md", "wrapper", "span"),
+        ] {
+            let target_scope = ScopeConfig {
+                cemt_color_profile: Some(profile.to_owned()),
+                ..ScopeConfig::default()
+            };
+            let execution = execute_css_document_output_pipeline_with_environment(
+                &environment,
+                document.clone().expect("CSS document"),
+                &target_scope,
+                Some("builtin:css-color-output"),
+            );
+            assert!(
+                execution.diagnostics.is_empty(),
+                "{profile}: {:?}",
+                execution.diagnostics
+            );
+            let colored = execution
+                .colored_cem_tree
+                .as_ref()
+                .unwrap_or_else(|| panic!("{profile} colored tree"));
+            assert_eq!(colored.value["contentType"], CSS_CONTENT_TYPE);
+            assert_eq!(colored.value["schema"], CSS_SCHEMA_URI);
+            assert_eq!(colored.value["category"], "css-document");
             assert_eq!(colored.value["colorProfile"], profile);
             assert_eq!(colored.value["nodes"][2]["style"][style_key], style_value);
         }

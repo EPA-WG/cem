@@ -14,16 +14,19 @@ use crate::schema::registry::{
     CEM_EVENTS_PROJECTION_SCHEMA_URI, CEM_ML_CONTENT_TYPE, CEM_ML_SCHEMA_URI,
     CEM_NATIVE_TEMPLATE_CONTENT_TYPE, CEM_NATIVE_TEMPLATE_SCHEMA_URI, CEM_SCHEMA_CONTENT_TYPE,
     CEM_SCHEMA_PACKAGE_CONTENT_TYPE, CEM_SCHEMA_PACKAGE_URI, CEM_SCHEMA_URI,
-    CEM_TRANSFORM_CONTENT_TYPE, CEM_TRANSFORM_SCHEMA_URI, CSV_CONTENT_TYPE, CSV_SCHEMA_URI,
-    HTML_CONTENT_TYPE, HTML_NAMESPACE_URI, HTML_SCHEMA_URI, JSON_CONTENT_TYPE,
-    JSON_SCHEMA_CONTENT_TYPE, JSON_SCHEMA_SCHEMA_URI, JSON_VALUE_SCHEMA_URI, MARKDOWN_CONTENT_TYPE,
-    MARKDOWN_SCHEMA_URI, MATHML_CONTENT_TYPE, MATHML_NAMESPACE_URI, MATHML_SCHEMA_URI,
-    RELAX_NG_COMPACT_CONTENT_TYPE, RELAX_NG_SCHEMA_URI, RELAX_NG_XML_CONTENT_TYPE,
-    SVG_CONTENT_TYPE, SVG_NAMESPACE_URI, SVG_SCHEMA_URI, XHTML_CONTENT_TYPE, XHTML_SCHEMA_URI,
-    XML_CONTENT_TYPE, XML_SCHEMA_URI, XSLT_CONTENT_TYPE, XSLT_NAMESPACE_URI, XSLT_SCHEMA_URI,
-    YAML_CONTENT_TYPE, YAML_SCHEMA_URI,
+    CEM_TRANSFORM_CONTENT_TYPE, CEM_TRANSFORM_SCHEMA_URI, CSS_CONTENT_TYPE, CSS_SCHEMA_URI,
+    CSV_CONTENT_TYPE, CSV_SCHEMA_URI, HTML_CONTENT_TYPE, HTML_NAMESPACE_URI, HTML_SCHEMA_URI,
+    JSON_CONTENT_TYPE, JSON_SCHEMA_CONTENT_TYPE, JSON_SCHEMA_SCHEMA_URI, JSON_VALUE_SCHEMA_URI,
+    MARKDOWN_CONTENT_TYPE, MARKDOWN_SCHEMA_URI, MATHML_CONTENT_TYPE, MATHML_NAMESPACE_URI,
+    MATHML_SCHEMA_URI, RELAX_NG_COMPACT_CONTENT_TYPE, RELAX_NG_SCHEMA_URI,
+    RELAX_NG_XML_CONTENT_TYPE, SVG_CONTENT_TYPE, SVG_NAMESPACE_URI, SVG_SCHEMA_URI,
+    XHTML_CONTENT_TYPE, XHTML_SCHEMA_URI, XML_CONTENT_TYPE, XML_SCHEMA_URI, XSLT_CONTENT_TYPE,
+    XSLT_NAMESPACE_URI, XSLT_SCHEMA_URI, YAML_CONTENT_TYPE, YAML_SCHEMA_URI,
 };
 use crate::transform_config::TRANSFORM_CONFIG_SCHEMA_URI;
+use crate::validation::css::{
+    css_document_ast_from_source_bytes, CssDocumentAst, CssSourceValidationRequest,
+};
 use crate::validation::csv::{
     csv_document_ast_from_source_bytes, CsvDocumentAst, CsvSourceValidationRequest,
 };
@@ -104,6 +107,7 @@ pub struct LoadedInput {
 #[derive(Debug, Clone)]
 pub enum LoadedInputAstStream {
     HtmlDocument(HtmlDocumentAst),
+    CssDocument(CssDocumentAst),
     CsvDocument(CsvDocumentAst),
     YamlDocument(YamlDocumentAst),
     JsonDocument(JsonDocumentAst),
@@ -154,6 +158,7 @@ impl LifecycleRegistry {
         registry.register(MathMlAdapter);
         registry.register(XsltAdapter);
         registry.register(HtmlAdapter);
+        registry.register(CssAdapter);
         registry.register(RelaxNgAdapter);
         registry.register(XmlAdapter);
         registry.register(CsvAdapter);
@@ -583,6 +588,60 @@ impl LifecycleAdapter for HtmlAdapter {
     fn target_format(&self) -> Option<LayerFormat> {
         Some(LayerFormat::Html)
     }
+}
+
+struct CssAdapter;
+
+impl LifecycleAdapter for CssAdapter {
+    fn id(&self) -> &'static str {
+        "css"
+    }
+
+    fn matches_input(&self, identity: &FormatIdentity) -> bool {
+        matches_css_identity(identity)
+    }
+
+    fn load(&self, input: &EngineInput, identity: &FormatIdentity) -> LoadedInput {
+        let content_type = identity
+            .content_type
+            .as_deref()
+            .or(input.root_scope.default_content_type.as_deref())
+            .unwrap_or(CSS_CONTENT_TYPE);
+        let (document, diagnostics) =
+            css_document_ast_from_source_bytes(CssSourceValidationRequest {
+                bytes: &input.bytes,
+                source_uri: &input.uri,
+                content_type: Some(content_type),
+            });
+        LoadedInput {
+            bytes: input.bytes.clone(),
+            from_format: input.from_format.unwrap_or(InputFormat::Cem),
+            ast_stream: document.map(LoadedInputAstStream::CssDocument),
+            diagnostics,
+            adapter_id: Some(self.id()),
+        }
+    }
+
+    fn matches_target(&self, identity: &FormatIdentity) -> bool {
+        matches_css_identity(identity)
+    }
+
+    fn target_format(&self) -> Option<LayerFormat> {
+        Some(LayerFormat::Css)
+    }
+}
+
+fn matches_css_identity(identity: &FormatIdentity) -> bool {
+    let explicit_schema_matches = identity
+        .schema
+        .as_deref()
+        .map(str::trim)
+        .is_some_and(|schema| schema == CSS_SCHEMA_URI);
+    if let Some(content_type) = identity.content_type.as_deref() {
+        return content_type_essence(content_type) == CSS_CONTENT_TYPE
+            && (identity.schema.is_none() || explicit_schema_matches);
+    }
+    explicit_schema_matches
 }
 
 struct XhtmlAdapter;
@@ -1737,6 +1796,38 @@ mod tests {
     }
 
     #[test]
+    fn builtins_load_css_content_type_as_lossless_internal_ast_stream() {
+        let source = b"/* card */\n:host { --gap: calc(1rem + 2px); color: currentColor; }";
+        let loaded = LifecycleRegistry::with_builtin_adapters().load(
+            &input(source),
+            &context("text/css; mode=scoped-style-block; scope=card"),
+        );
+
+        assert_eq!(loaded.adapter_id, Some("css"));
+        assert!(loaded.diagnostics.is_empty(), "{:?}", loaded.diagnostics);
+        let document = match loaded
+            .ast_stream
+            .expect("CSS adapter emits internal AST stream")
+        {
+            LoadedInputAstStream::CssDocument(document) => document,
+            other => panic!("CSS adapter emitted unexpected AST stream: {other:?}"),
+        };
+        assert_eq!(
+            document.entry_mode,
+            crate::validation::css::CssEntryMode::ScopedStyleBlock
+        );
+        assert_eq!(
+            document
+                .events
+                .iter()
+                .map(|event| event.lexeme.as_str())
+                .collect::<String>()
+                .as_bytes(),
+            source
+        );
+    }
+
+    #[test]
     fn builtins_load_relax_ng_xml_as_dedicated_internal_ast_stream() {
         let loaded = LifecycleRegistry::with_builtin_adapters().load(
             &input(
@@ -2358,6 +2449,23 @@ mod tests {
     }
 
     #[test]
+    fn css_package_schema_selects_css_input_when_content_type_absent() {
+        let loaded = LifecycleRegistry::with_builtin_adapters().load(
+            &input(b".card { color: currentColor; }"),
+            &EngineContext {
+                schema: Some(CSS_SCHEMA_URI.to_owned()),
+                ..EngineContext::default()
+            },
+        );
+        assert_eq!(loaded.adapter_id, Some("css"));
+        assert!(loaded.diagnostics.is_empty());
+        assert!(matches!(
+            loaded.ast_stream,
+            Some(LoadedInputAstStream::CssDocument(_))
+        ));
+    }
+
+    #[test]
     fn html_schema_selects_html_input_when_content_type_absent() {
         let loaded = LifecycleRegistry::with_builtin_adapters().load(
             &input(b"<p>Hi</p>"),
@@ -2856,6 +2964,19 @@ mod tests {
             .select_export(Some(&target), LayerFormat::DomJson);
         assert_eq!(selected.to_format, LayerFormat::Cem);
         assert_eq!(selected.adapter_id, Some("cem-ml"));
+        assert!(selected.diagnostics.is_empty());
+    }
+
+    #[test]
+    fn css_package_schema_selects_css_export_when_content_type_absent() {
+        let target = FormatIdentity {
+            schema: Some(CSS_SCHEMA_URI.to_owned()),
+            ..FormatIdentity::default()
+        };
+        let selected = LifecycleRegistry::with_builtin_adapters()
+            .select_export(Some(&target), LayerFormat::DomJson);
+        assert_eq!(selected.to_format, LayerFormat::Css);
+        assert_eq!(selected.adapter_id, Some("css"));
         assert!(selected.diagnostics.is_empty());
     }
 

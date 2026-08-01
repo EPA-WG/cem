@@ -275,8 +275,38 @@ static BUILTIN_SCHEMA_PACKAGE_ARTIFACT_SOURCES: &[BuiltinSchemaPackageArtifactSo
     },
     BuiltinSchemaPackageArtifactSource {
         package_id: "css",
+        path: "schema-packages/css/v1/formatters/compact.cemt",
+        source: include_str!("../../schema-packages/css/v1/formatters/compact.cemt"),
+    },
+    BuiltinSchemaPackageArtifactSource {
+        package_id: "css",
+        path: "schema-packages/css/v1/formatters/pretty.cemt",
+        source: include_str!("../../schema-packages/css/v1/formatters/pretty.cemt"),
+    },
+    BuiltinSchemaPackageArtifactSource {
+        package_id: "css",
+        path: "schema-packages/css/v1/formatters/tabular.cemt",
+        source: include_str!("../../schema-packages/css/v1/formatters/tabular.cemt"),
+    },
+    BuiltinSchemaPackageArtifactSource {
+        package_id: "css",
         path: "schema-packages/css/v1/formatters/css-format-document.cemt",
         source: include_str!("../../schema-packages/css/v1/formatters/css-format-document.cemt"),
+    },
+    BuiltinSchemaPackageArtifactSource {
+        package_id: "css",
+        path: "schema-packages/css/v1/colorizers/terminal.cemt",
+        source: include_str!("../../schema-packages/css/v1/colorizers/terminal.cemt"),
+    },
+    BuiltinSchemaPackageArtifactSource {
+        package_id: "css",
+        path: "schema-packages/css/v1/colorizers/html.cemt",
+        source: include_str!("../../schema-packages/css/v1/colorizers/html.cemt"),
+    },
+    BuiltinSchemaPackageArtifactSource {
+        package_id: "css",
+        path: "schema-packages/css/v1/colorizers/md.cemt",
+        source: include_str!("../../schema-packages/css/v1/colorizers/md.cemt"),
     },
     BuiltinSchemaPackageArtifactSource {
         package_id: "css",
@@ -3702,21 +3732,32 @@ mod tests {
 
     #[test]
     fn catalog_exposes_css_output_artifact_sources() {
-        let formatter = builtin_schema_package_artifact_source(
-            "css",
+        for (path, function, profile) in [
+            ("formatters/compact.cemt", "css.format-document", "compact"),
+            ("formatters/pretty.cemt", "css.format-document", "pretty"),
+            ("formatters/tabular.cemt", "css.format-document", "tabular"),
+            ("colorizers/terminal.cemt", "css.color-document", "terminal"),
+            ("colorizers/html.cemt", "css.color-document", "html"),
+            ("colorizers/md.cemt", "css.color-document", "md"),
+        ] {
+            let full_path = format!("schema-packages/css/v1/{path}");
+            let artifact = builtin_schema_package_artifact_source("css", &full_path)
+                .unwrap_or_else(|| panic!("CSS artifact source `{full_path}`"));
+            assert!(artifact.source.contains(&format!(r#"@name="{function}""#)));
+            assert!(artifact
+                .source
+                .contains(&format!(r#"@profile="{profile}""#)));
+            assert!(artifact.source.contains("{body |"));
+            assert!(artifact.source.contains(r#"@produces="cem-tree""#));
+        }
+        for path in [
             "schema-packages/css/v1/formatters/css-format-document.cemt",
-        )
-        .expect("CSS formatter source");
-        let colorizer = builtin_schema_package_artifact_source(
-            "css",
             "schema-packages/css/v1/colorizers/css-color-document.cemt",
-        )
-        .expect("CSS colorizer source");
-
-        assert!(formatter.source.contains(r#"@name="css.format-document""#));
-        assert!(formatter.source.contains(r#"@category="css-document""#));
-        assert!(colorizer.source.contains(r#"@name="css.color-document""#));
-        assert!(colorizer.source.contains(r#"@content-type="text/css""#));
+        ] {
+            let helper = builtin_schema_package_artifact_source("css", path)
+                .unwrap_or_else(|| panic!("CSS helper source `{path}`"));
+            assert!(helper.source.contains("{body |"));
+        }
     }
 
     #[test]

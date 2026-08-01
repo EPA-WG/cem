@@ -4,15 +4,166 @@
 
 {module @version="1.0.0" |
     {format-function
-        @name="css.format-document"
+        @name="css.format-document.tree"
+        @visibility="private"
         @category="css-document"
-        @subject="json"
-        @produces="tokens"
+        @subject="css-document"
+        @produces="cem-tree"
         @content-type="text/css"
         @schema="https://cem.dev/ns/data/css/1"
         @canonical=true
         @deterministic=true
         @streamable=true |
-        {param @name="subject" @type="json" @required=true}
+        {param @name="subject" @type="object" @required=true}
+        {param @name="profile" @type="string" @required=true}
+        {body |
+            {$ {
+                kind: "cem-tree",
+                contentType: "text/css",
+                schema: "https://cem.dev/ns/data/css/1",
+                category: "css-document",
+                formatterProfile: $profile,
+                formatNodes: [
+                    {
+                        kind: "format-marker",
+                        name: "css.format-document",
+                        formatterRole: "formatter.boundary",
+                        formatterProfile: $profile
+                    },
+                    {
+                        kind: "format-decision",
+                        name: "css.safe-lexical-layout",
+                        formatterRole: "formatter.layout",
+                        formatterProfile: $profile,
+                        value: {
+                            layout: call("css.format-document.layout", { profile: $profile }),
+                            lineEnding: $lineEnding,
+                            indent: $indent,
+                            tabSize: $tabSize,
+                            sourceBoundary: "css-document",
+                            entryMode: match(exists($subject.entryMode), { true: $subject.entryMode, false: "stylesheet" })
+                        }
+                    }
+                ],
+                nodes: extend(
+                    [
+                        call("css.format-document.token", {
+                            kind: "css.format-marker",
+                            text: "",
+                            role: "formatter.boundary",
+                            sourceMap: null,
+                            value: { name: "css.format-document", formatterProfile: $profile }
+                        }),
+                        call("css.format-document.token", {
+                            kind: "css.format-decision",
+                            text: "",
+                            role: "formatter.layout",
+                            sourceMap: null,
+                            value: {
+                                layout: call("css.format-document.layout", { profile: $profile }),
+                                formatterProfile: $profile,
+                                lineEnding: $lineEnding,
+                                indent: $indent,
+                                tabSize: $tabSize
+                            }
+                        })
+                    ],
+                    call("css.format-document.events", {
+                        events: match(typeOf($subject.events), { array: $subject.events, default: [] }),
+                        profile: $profile
+                    })
+                )
+            } }
+        }
+    }
+
+    {function @name="css.format-document.layout" @visibility="private" @returns="string" @deterministic=true |
+        {param @name="profile" @type="string" @required=true}
+        {body |
+            {$ match($profile, {
+                compact: "lexical-lossless-compact",
+                pretty: "safe-component-boundaries-pretty",
+                tabular: "safe-component-boundaries-tabular",
+                default: "lexical-lossless"
+            }) }
+        }
+    }
+
+    {function @name="css.format-document.events" @visibility="private" @returns="array" @deterministic=true |
+        {param @name="events" @type="array" @required=true}
+        {param @name="profile" @type="string" @required=true}
+        {body |
+            {$ fold($events, [], extend(
+                $acc,
+                [call("css.format-document.event", { event: $item, profile: $profile })]
+            )) }
+        }
+    }
+
+    {function @name="css.format-document.event" @visibility="private" @returns="object" @deterministic=true |
+        {param @name="event" @type="object" @required=true}
+        {param @name="profile" @type="string" @required=true}
+        {body |
+            {$ call("css.format-document.token", {
+                kind: concat("css.", match(typeOf($event.tokenKind), { string: $event.tokenKind, default: "raw" })),
+                text: match(typeOf($event.lexeme), { string: $event.lexeme, default: "" }),
+                role: call("css.format-document.role", { event: $event }),
+                sourceMap: match(exists($event.sourceMap), { true: $event.sourceMap, false: null }),
+                value: {
+                    formatterProfile: $profile,
+                    eventKind: match(typeOf($event.kind), { string: $event.kind, default: "token" }),
+                    tokenKind: match(typeOf($event.tokenKind), { string: $event.tokenKind, default: "raw" }),
+                    depth: match(typeOf($event.depth), { integer: $event.depth, default: 0 }),
+                    lexicalSafeBoundary: true,
+                    sourceRange: match(exists($event.sourceRange), { true: $event.sourceRange, false: null })
+                }
+            }) }
+        }
+    }
+
+    {function @name="css.format-document.role" @visibility="private" @returns="string" @deterministic=true |
+        {param @name="event" @type="object" @required=true}
+        {body |
+            {$ match($event.tokenKind, {
+                "at-keyword": "syntax.keyword",
+                ident: "syntax.name",
+                "id-hash": "syntax.name",
+                hash: "syntax.name",
+                string: "syntax.string",
+                url: "syntax.string",
+                "bad-string": "syntax.string",
+                "bad-url": "syntax.string",
+                comment: "syntax.comment",
+                number: "syntax.number",
+                percentage: "syntax.number",
+                dimension: "syntax.number",
+                whitespace: "syntax.text",
+                "presentation-gap": "syntax.text",
+                default: "syntax.punctuation"
+            }) }
+        }
+    }
+
+    {function @name="css.format-document.token" @visibility="private" @returns="object" @deterministic=true |
+        {param @name="kind" @type="string" @required=true}
+        {param @name="text" @type="string" @required=true}
+        {param @name="role" @type="string" @required=true}
+        {param @name="sourceMap" @type="any" @required=true @nullable=true}
+        {param @name="value" @type="object" @required=true}
+        {body |
+            {$ {
+                kind: $kind,
+                writerKind: "token",
+                text: $text,
+                role: $role,
+                style: { colorRole: $role },
+                sourceMap: $sourceMap,
+                outputSpan: match(typeOf($sourceMap), {
+                    null: null,
+                    default: { outputRange: { start: 0, len: 0 }, origin: $sourceMap }
+                }),
+                value: $value
+            } }
+        }
     }
 }

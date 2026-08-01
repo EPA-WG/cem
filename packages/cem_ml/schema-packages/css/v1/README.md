@@ -1,6 +1,6 @@
 # CSS schema package v1
 
-Status: schema, examples, formatter, and colorizer package frame
+Status: typed lifecycle, schema validation, and executable output profiles
 
 This package defines the CEM schema identity for CSS stylesheets and scoped style content.
 
@@ -8,7 +8,11 @@ This package defines the CEM schema identity for CSS stylesheets and scoped styl
 - Primary content type: `text/css`
 - Source schema: `schema/css.cem`
 
-CSS source is not CEM-ML syntax. The package models stylesheet, style block, style attribute, rule, selector, declaration, and component-value structure for future parser and converter work.
+CSS source is not CEM-ML syntax. The `CssAdapter` loads it into a lossless
+`CssDocumentAst` backed by `cssparser` token and nested component-value
+recovery. Exact comments, whitespace, lexemes, byte ranges, source maps, MIME
+parameters, encoding evidence, and line endings remain available to validators
+and output profiles.
 
 Scoped style content is represented as metadata on style blocks and style attributes. The scope can point at an HTML, SVG, MathML, custom-element, or shadow-root host without changing the `text/css` content identity.
 
@@ -17,6 +21,11 @@ Scoped style content is represented as metadata on style blocks and style attrib
 The package declares CEMT formatter and colorizer artifacts in `package.cem`.
 The public formatter profile names are `compact`, `pretty`, and `tabular`.
 The public colorizer profile names are `terminal`, `html`, and `md`.
+Each public profile is an executable wrapper over a private CSS CEM-tree helper.
+Compact is lexically lossless; pretty and tabular currently retain the same
+conservative lexical boundaries rather than rewriting strings, comments,
+custom properties, functions, or nested rules. Text output receives the common
+default final newline.
 
 ## Validation
 
@@ -29,22 +38,28 @@ cem-ml validate --format json \
   packages/cem_ml/schema-packages/css/v1/examples/basic-stylesheet.css
 ```
 
-The direct validator scans CSS syntax without fetching or executing anything.
-It accepts stylesheet and declaration-list shaped scoped style content, reports
-charset conflicts as warnings, rejects `@import` and external `url()` references
-without an explicit resolver/sanitizer policy, and surfaces token/declaration
-recovery diagnostics.
+Validation runs through the typed lifecycle and emits neutral parser and policy
+facts. Executable contracts in `schema/css.cem` own diagnostic codes,
+severities, and policy metadata. Entry modes cover full stylesheets,
+declaration lists/style attributes, and scoped style blocks; callers can select
+the latter modes with `mode=style-attribute` or `mode=scoped-style-block` MIME
+parameters.
+
+Parsing, validation, and formatting do not fetch `@import` resources, URLs,
+fonts, or other external references and do not evaluate cascade or host-document
+semantics. `@import` and external `url()` references require a future explicit
+resolver or sanitizer capability; unknown at-rules, vendor syntax, and custom
+property token streams are preserved verbatim.
 
 ## Examples
 
 This section is generated from `package.cem` `{example}` metadata by the
-`samples2readme` Nx target. Each SVG previews the example content, not
-the validation report. The target writes a preformatted HTML preview to
+`samples2readme` Nx target. Each SVG previews the rendered example
+content or validation diagnostics for expected-fail examples. The target writes a
+preformatted HTML preview to
 `dist/cem_ml/schema-packages/<package>/v1/examples/<example-file>.html`,
 then renders the `<pre>` spans through headless Chromium into
 `examples/previews/<example-file>.svg`.
-Source snapshots are used only where the current CLI cannot yet render
-the package formatter/colorizer path for that content identity.
 
 <details>
 <summary>basic-stylesheet</summary>
@@ -53,8 +68,15 @@ the package formatter/colorizer path for that content identity.
 - Content type: `text/css`
 - Schema: `https://cem.dev/ns/data/css/1`
 - Expected result: `pass`
-- Preview renderer: `source snapshot HTML + html2svg`
+- Preview renderer: `CLI convert, tabular formatter, preview HTML + html2svg`
 - Preview HTML: `dist/cem_ml/schema-packages/css/v1/examples/basic-stylesheet.css.html`
+
+```bash
+dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
+  uri=packages/cem_ml/schema-packages/css/v1/examples/basic-stylesheet.css,contentType=text/css,schema=https://cem.dev/ns/data/css/1 \
+  --to-content-type text/css --to-schema https://cem.dev/ns/data/css/1 \
+  --cemt-formatter-profile tabular --cemt-color-profile html
+```
 
 </details>
 
@@ -67,8 +89,15 @@ the package formatter/colorizer path for that content identity.
 - Content type: `text/css`
 - Schema: `https://cem.dev/ns/data/css/1`
 - Expected result: `pass`
-- Preview renderer: `source snapshot HTML + html2svg`
+- Preview renderer: `CLI convert, tabular formatter, preview HTML + html2svg`
 - Preview HTML: `dist/cem_ml/schema-packages/css/v1/examples/scoped-component.css.html`
+
+```bash
+dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
+  uri=packages/cem_ml/schema-packages/css/v1/examples/scoped-component.css,contentType=text/css,schema=https://cem.dev/ns/data/css/1 \
+  --to-content-type text/css --to-schema https://cem.dev/ns/data/css/1 \
+  --cemt-formatter-profile tabular --cemt-color-profile html
+```
 
 </details>
 
@@ -81,8 +110,15 @@ the package formatter/colorizer path for that content identity.
 - Content type: `text/css`
 - Schema: `https://cem.dev/ns/data/css/1`
 - Expected result: `pass`
-- Preview renderer: `source snapshot HTML + html2svg`
+- Preview renderer: `CLI convert, tabular formatter, preview HTML + html2svg`
 - Preview HTML: `dist/cem_ml/schema-packages/css/v1/examples/style-attribute.css.html`
+
+```bash
+dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
+  uri=packages/cem_ml/schema-packages/css/v1/examples/style-attribute.css,contentType=text/css,schema=https://cem.dev/ns/data/css/1 \
+  --to-content-type text/css --to-schema https://cem.dev/ns/data/css/1 \
+  --cemt-formatter-profile tabular --cemt-color-profile html
+```
 
 </details>
 
@@ -96,8 +132,14 @@ the package formatter/colorizer path for that content identity.
 - Schema: `https://cem.dev/ns/data/css/1`
 - Expected result: `fail`
 - Expected diagnostics: `cem.css.import_rejected`
-- Preview renderer: `source snapshot HTML + html2svg`
+- Preview renderer: `CLI validate, JSON report, preview HTML + html2svg`
 - Preview HTML: `dist/cem_ml/schema-packages/css/v1/examples/invalid-import.css.html`
+
+```bash
+dist/target/cem_ml_cli/debug/cem-ml validate --format json --fail-level parse \
+  --content-type text/css --schema https://cem.dev/ns/data/css/1 \
+  packages/cem_ml/schema-packages/css/v1/examples/invalid-import.css
+```
 
 </details>
 
@@ -111,8 +153,14 @@ the package formatter/colorizer path for that content identity.
 - Schema: `https://cem.dev/ns/data/css/1`
 - Expected result: `fail`
 - Expected diagnostics: `cem.css.url_rejected`
-- Preview renderer: `source snapshot HTML + html2svg`
+- Preview renderer: `CLI validate, JSON report, preview HTML + html2svg`
 - Preview HTML: `dist/cem_ml/schema-packages/css/v1/examples/invalid-url.css.html`
+
+```bash
+dist/target/cem_ml_cli/debug/cem-ml validate --format json --fail-level parse \
+  --content-type text/css --schema https://cem.dev/ns/data/css/1 \
+  packages/cem_ml/schema-packages/css/v1/examples/invalid-url.css
+```
 
 </details>
 
@@ -126,8 +174,14 @@ the package formatter/colorizer path for that content identity.
 - Schema: `https://cem.dev/ns/data/css/1`
 - Expected result: `fail`
 - Expected diagnostics: `cem.css.invalid_token`
-- Preview renderer: `source snapshot HTML + html2svg`
+- Preview renderer: `CLI validate, JSON report, preview HTML + html2svg`
 - Preview HTML: `dist/cem_ml/schema-packages/css/v1/examples/invalid-token.css.html`
+
+```bash
+dist/target/cem_ml_cli/debug/cem-ml validate --format json --fail-level parse \
+  --content-type text/css --schema https://cem.dev/ns/data/css/1 \
+  packages/cem_ml/schema-packages/css/v1/examples/invalid-token.css
+```
 
 </details>
 
@@ -141,8 +195,15 @@ the package formatter/colorizer path for that content identity.
 - Schema: `https://cem.dev/ns/data/css/1`
 - Expected result: `pass`
 - Expected diagnostics: `cem.css.invalid_declaration`
-- Preview renderer: `source snapshot HTML + html2svg`
+- Preview renderer: `CLI convert, tabular formatter, preview HTML + html2svg`
 - Preview HTML: `dist/cem_ml/schema-packages/css/v1/examples/invalid-declaration.css.html`
+
+```bash
+dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
+  uri=packages/cem_ml/schema-packages/css/v1/examples/invalid-declaration.css,contentType=text/css,schema=https://cem.dev/ns/data/css/1 \
+  --to-content-type text/css --to-schema https://cem.dev/ns/data/css/1 \
+  --cemt-formatter-profile tabular --cemt-color-profile html
+```
 
 </details>
 
@@ -156,8 +217,15 @@ the package formatter/colorizer path for that content identity.
 - Schema: `https://cem.dev/ns/data/css/1`
 - Expected result: `pass`
 - Expected diagnostics: `cem.css.encoding_conflict`
-- Preview renderer: `source snapshot HTML + html2svg`
+- Preview renderer: `CLI convert, tabular formatter, preview HTML + html2svg`
 - Preview HTML: `dist/cem_ml/schema-packages/css/v1/examples/encoding-conflict.css.html`
+
+```bash
+dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
+  'uri=packages/cem_ml/schema-packages/css/v1/examples/encoding-conflict.css,contentType=text/css; charset=iso-8859-1,schema=https://cem.dev/ns/data/css/1' \
+  --to-content-type text/css --to-schema https://cem.dev/ns/data/css/1 \
+  --cemt-formatter-profile tabular --cemt-color-profile html
+```
 
 </details>
 

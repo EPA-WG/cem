@@ -887,6 +887,7 @@ fn to_engine_layer_format(f: cli::LayerFormat) -> eng::LayerFormat {
         cli::LayerFormat::Cem => eng::LayerFormat::Cem,
         cli::LayerFormat::Html => eng::LayerFormat::Html,
         cli::LayerFormat::Xml => eng::LayerFormat::Xml,
+        cli::LayerFormat::Css => eng::LayerFormat::Css,
         cli::LayerFormat::Csv => eng::LayerFormat::Csv,
         cli::LayerFormat::Yaml => eng::LayerFormat::Yaml,
         cli::LayerFormat::Json => eng::LayerFormat::Json,
@@ -905,6 +906,7 @@ fn layer_format_alias_id(f: cli::LayerFormat) -> &'static str {
         cli::LayerFormat::Cem => "cem",
         cli::LayerFormat::Html => "html",
         cli::LayerFormat::Xml => "xml",
+        cli::LayerFormat::Css => "css",
         cli::LayerFormat::Csv => "csv",
         cli::LayerFormat::Yaml => "yaml",
         cli::LayerFormat::Json => "json",
@@ -4531,13 +4533,15 @@ fn collect_css_source_diagnostics(
     let mut diagnostics = Vec::new();
     for input in inputs {
         let content_type = input_source_content_type(input);
-        diagnostics.extend(cem_ml::validation::css::validate_css_source_bytes(
-            cem_ml::validation::css::CssSourceValidationRequest {
-                bytes: &input.bytes,
-                source_uri: &input.uri,
-                content_type: content_type.as_deref(),
-            },
-        ));
+        let (_, mut input_diagnostics) =
+            cem_ml::validation::css::css_document_ast_from_source_bytes(
+                cem_ml::validation::css::CssSourceValidationRequest {
+                    bytes: &input.bytes,
+                    source_uri: &input.uri,
+                    content_type: content_type.as_deref(),
+                },
+            );
+        diagnostics.append(&mut input_diagnostics);
     }
     diagnostics
 }
