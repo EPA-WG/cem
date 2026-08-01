@@ -773,23 +773,37 @@ Remaining dependency-ordered package checklist:
 
 - [x] Keep SVG, MathML, XSLT, HTML, and CSS formatter/colorizer work behind
       the schema-package folder alignment gate.
-- [ ] Polish SVG formatter and colorizer profile semantics on the dedicated
+- [x] Polish SVG formatter and colorizer profile semantics on the dedicated
       `SvgDocumentAst` path.
-  - [ ] Add focused Rust fixtures covering declarations, nested graphics,
+  - [x] Add focused Rust fixtures covering declarations, nested graphics,
         wrapped attributes, comments, CDATA, namespace-qualified attributes,
         foreign-content islands, and text-sensitive SVG elements.
-  - [ ] Make `compact`, `pretty`, and `tabular` produce distinct deterministic
+  - [x] Make `compact`, `pretty`, and `tabular` produce distinct deterministic
         structural layouts without rewriting meaningful text, `style`,
         `script`, `foreignObject`, or namespace lexemes.
-  - [ ] Split start/end tags into delimiter, element-name, attribute-name,
+  - [x] Split start/end tags into delimiter, element-name, attribute-name,
         equals, and attribute-value tokens so terminal, HTML, and Markdown
         color profiles do not color an entire tag as one syntax name.
-  - [ ] Preserve source maps and output spans through inserted layout tokens,
+  - [x] Preserve source maps and output spans through inserted layout tokens,
         retain the configured line ending and indentation controls, and append
         exactly one final newline for text output.
-  - [ ] Refresh SVG package previews and run
+  - [x] Refresh SVG package previews and run
         `yarn nx run cem_ml_schema_package_svg_v1:verify`, converter parity,
         CLI e2e, and `cem_ml:test`.
+- [ ] Polish MathML formatter and colorizer profile semantics on the dedicated
+      `MathMlDocumentAst` path.
+  - [ ] Extract the SVG markup-token projection into a shared typed XML-family
+        helper without moving MathML layout policy out of its schema package.
+  - [ ] Add focused presentation, content, semantics/annotation, namespace,
+        CDATA, comment, and mixed-text fixtures before changing output.
+  - [ ] Define distinct deterministic `compact`, `pretty`, and `tabular`
+        layouts while preserving token-sensitive math text and annotation
+        payloads byte-for-byte.
+  - [ ] Apply delimiter, element-name, attribute-name, equals, and value roles
+        consistently across terminal, HTML, and Markdown color profiles.
+  - [ ] Preserve lexical source maps, leave generated layout unmapped, honor
+        indentation and line-ending controls, refresh previews, and run the
+        MathML package, parity, CLI e2e, and core gates.
 
 ### Deferred: Phase 3 Custom-Element Runtime
 
@@ -809,20 +823,19 @@ Remaining dependency-ordered package checklist:
 
 ### Next Work Item
 
-Start SVG format polish with a focused nested-document fixture at the CEMT
-output-pipeline layer. First characterize the current lexical output and source
-maps, then define exact compact, pretty, and tabular expectations. Structural
-whitespace may be changed only where the typed SVG event context proves it is
-not text content; `text`, `tspan`, `textPath`, `style`, `script`,
-`foreignObject`, CDATA, and foreign namespaces remain byte-preserving until a
-separate content-aware contract exists.
+Start MathML format polish by extracting the now-proven SVG lexical markup
+tokenizer into a shared typed XML-family projection helper. Keep only lexical
+splitting and token-range construction shared; MathML decides structural
+whitespace from its own `MathMlDocumentAst` context so SVG text/foreign-content
+policy does not leak into mathematical semantics.
 
-After formatter behavior is covered, tokenize XML markup boundaries inside the
-SVG formatter tree so the colorizer can assign separate roles to delimiters,
-element names, attribute names, equals signs, and values. Keep qualified names
-and original attribute case intact, rebase source maps for emitted tokens, and
-verify terminal text parity against HTML and Markdown output before refreshing
-the package previews.
+Characterize presentation MathML, content MathML, and mixed `semantics` /
+`annotation-xml` documents before reflow. Treat `mi`, `mn`, `mo`, `mtext`,
+`ms`, `annotation`, `annotation-xml`, CDATA, and foreign namespaces as lexical
+islands until package-owned tests prove a narrower safe boundary. Then define
+exact compact, pretty, and attribute-tabular output, preserve qualified names
+and token-level maps, and verify visible terminal/HTML/Markdown parity before
+refreshing MathML previews.
 
 ## Current Verification Commands
 
@@ -833,6 +846,7 @@ the package previews.
 - `yarn nx run cem_ml_cli:e2e`
 - `yarn nx run cem_ml:test`
 - `yarn nx run cem_ml_schema_package_svg_v1:verify`
+- `yarn nx run cem_ml_schema_package_mathml_v1:verify`
 
 ## Externally Gated
 

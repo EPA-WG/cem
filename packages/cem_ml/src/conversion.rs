@@ -19222,10 +19222,25 @@ mod tests {
         );
         assert!(diagnostics.is_empty(), "{diagnostics:?}");
 
-        for (profile, artifact_profile) in [
-            ("compact", "compact"),
-            ("pretty", "xml.pretty"),
-            ("tabular", "tabular"),
+        for (profile, artifact_profile, layout, expected) in [
+            (
+                "compact",
+                "compact",
+                "structural-compact",
+                "<?xml version=\"1.0\" encoding=\"UTF-8\"?><svg xmlns=\"http://www.w3.org/2000/svg\" xmlns:xlink=\"http://www.w3.org/1999/xlink\" viewBox=\"0 0 24 24\"><title>Typed SVG</title><defs><path id=\"mark\"/></defs><use xlink:href=\"#mark\"/></svg>\n",
+            ),
+            (
+                "pretty",
+                "xml.pretty",
+                "structural-pretty",
+                "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<svg xmlns=\"http://www.w3.org/2000/svg\" xmlns:xlink=\"http://www.w3.org/1999/xlink\" viewBox=\"0 0 24 24\">\n    <title>Typed SVG</title>\n    <defs>\n        <path id=\"mark\"/>\n    </defs>\n    <use xlink:href=\"#mark\"/>\n</svg>\n",
+            ),
+            (
+                "tabular",
+                "tabular",
+                "attribute-tabular",
+                "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<svg\n    xmlns=\"http://www.w3.org/2000/svg\"\n    xmlns:xlink=\"http://www.w3.org/1999/xlink\"\n    viewBox=\"0 0 24 24\">\n    <title>Typed SVG</title>\n    <defs>\n        <path\n            id=\"mark\"/>\n    </defs>\n    <use\n        xlink:href=\"#mark\"/>\n</svg>\n",
+            ),
         ] {
             let target_scope = ScopeConfig {
                 cemt_formatter_profile: Some(profile.to_owned()),
@@ -19260,7 +19275,7 @@ mod tests {
             );
             assert_eq!(
                 execution.output.as_ref().and_then(Value::as_str),
-                Some(std::str::from_utf8(source).unwrap()),
+                Some(expected),
                 "{profile}"
             );
             let formatted = execution
@@ -19273,16 +19288,142 @@ mod tests {
             assert_eq!(formatted.value["formatterProfile"], artifact_profile);
             assert_eq!(
                 formatted.value["formatNodes"][1]["value"]["layout"],
-                format!("lexical-lossless-{profile}")
+                layout
             );
             assert!(formatted.value["nodes"]
                 .as_array()
                 .is_some_and(|nodes| nodes.iter().any(|node| {
-                    node["kind"] == "svg.empty-element"
+                    node["kind"] == "svg.markup-delimiter"
+                        && node["value"]["eventKind"] == "empty-element"
                         && node["value"]["qualifiedName"] == "use"
                         && node["sourceMap"] != Value::Null
                 })));
         }
+    }
+
+    #[test]
+    fn builtin_svg_formatter_profiles_apply_safe_structural_layout() {
+        let schema_registry = SchemaRegistry::with_builtin_schemas();
+        let conversion_registry = ConversionRegistry::with_builtin_converters();
+        let environment = ConversionOutputPipelineEnvironment {
+            schema_registry: &schema_registry,
+            conversion_registry: &conversion_registry,
+            package_artifact_reader: None,
+            artifact_cache: None,
+        };
+        let source = br##"<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 24 24">
+  <title>Chart</title>
+  <!-- chart -->
+  <style><![CDATA[.label > tspan { fill: red; }]]></style>
+  <g id="plot" aria-label="Plot">
+    <path xlink:href="#mark" d="M0 0h1"/>
+    <text class="label">A <tspan data-kind='unit'>kg</tspan></text>
+  </g>
+</svg>
+"##;
+        let (document, diagnostics) = crate::validation::svg::svg_document_ast_from_source_bytes(
+            crate::validation::svg::SvgSourceValidationRequest {
+                bytes: source,
+                source_uri: "builtin:svg-layout-output",
+                content_type: Some(SVG_CONTENT_TYPE),
+            },
+        );
+        assert!(diagnostics.is_empty(), "{diagnostics:?}");
+        let document = document.expect("SVG document");
+
+        for (profile, expected) in [
+            (
+                "compact",
+                "<?xml version=\"1.0\" encoding=\"UTF-8\"?><svg xmlns=\"http://www.w3.org/2000/svg\" xmlns:xlink=\"http://www.w3.org/1999/xlink\" viewBox=\"0 0 24 24\"><title>Chart</title><!-- chart --><style><![CDATA[.label > tspan { fill: red; }]]></style><g id=\"plot\" aria-label=\"Plot\"><path xlink:href=\"#mark\" d=\"M0 0h1\"/><text class=\"label\">A <tspan data-kind='unit'>kg</tspan></text></g></svg>\n",
+            ),
+            (
+                "pretty",
+                "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<svg xmlns=\"http://www.w3.org/2000/svg\" xmlns:xlink=\"http://www.w3.org/1999/xlink\" viewBox=\"0 0 24 24\">\n    <title>Chart</title>\n    <!-- chart -->\n    <style><![CDATA[.label > tspan { fill: red; }]]></style>\n    <g id=\"plot\" aria-label=\"Plot\">\n        <path xlink:href=\"#mark\" d=\"M0 0h1\"/>\n        <text class=\"label\">A <tspan data-kind='unit'>kg</tspan></text>\n    </g>\n</svg>\n",
+            ),
+            (
+                "tabular",
+                "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<svg\n    xmlns=\"http://www.w3.org/2000/svg\"\n    xmlns:xlink=\"http://www.w3.org/1999/xlink\"\n    viewBox=\"0 0 24 24\">\n    <title>Chart</title>\n    <!-- chart -->\n    <style><![CDATA[.label > tspan { fill: red; }]]></style>\n    <g\n        id=\"plot\"\n        aria-label=\"Plot\">\n        <path\n            xlink:href=\"#mark\"\n            d=\"M0 0h1\"/>\n        <text class=\"label\">A <tspan data-kind='unit'>kg</tspan></text>\n    </g>\n</svg>\n",
+            ),
+        ] {
+            let target_scope = ScopeConfig {
+                cemt_formatter_profile: Some(profile.to_owned()),
+                ..ScopeConfig::default()
+            };
+            let execution = execute_svg_document_output_pipeline_with_environment(
+                &environment,
+                document.clone(),
+                &target_scope,
+                Some("builtin:svg-layout-output"),
+            );
+
+            assert!(
+                execution.diagnostics.is_empty(),
+                "{profile}: {:?}",
+                execution.diagnostics
+            );
+            assert_eq!(
+                execution.output.as_ref().and_then(Value::as_str),
+                Some(expected),
+                "{profile}"
+            );
+            let formatted = execution
+                .formatted_cem_tree
+                .as_ref()
+                .unwrap_or_else(|| panic!("{profile} formatted tree"));
+            for role in [
+                "syntax.punctuation",
+                "syntax.name",
+                "syntax.attribute",
+                "syntax.string",
+            ] {
+                assert!(formatted.value["nodes"]
+                    .as_array()
+                    .is_some_and(|nodes| nodes.iter().any(|node| node["role"] == role)),
+                    "{profile}: missing {role}"
+                );
+            }
+            assert!(formatted.value["nodes"]
+                .as_array()
+                .is_some_and(|nodes| nodes.iter().filter(|node| node["kind"] == "svg.layout").all(
+                    |node| node["role"] == "formatter.layout"
+                        && node["sourceMap"] == Value::Null
+                        && node["outputSpan"] == Value::Null
+                )), "{profile}: generated layout tokens must remain unmapped");
+            assert!(execution.output_spans.iter().any(|span| {
+                matches!(span.origin.frames.first().map(|frame| &frame.span), Some(crate::source_map::FrameSpan::Single(range)) if range.start == 40 && range.len == 3)
+            }), "{profile}: SVG element-name source span");
+        }
+
+        let target_scope = ScopeConfig {
+            cemt_formatter_profile: Some("pretty".to_owned()),
+            cemt_formatter_options: BTreeMap::from([
+                ("indent".to_owned(), "\t".to_owned()),
+                ("lineEnding".to_owned(), "crlf".to_owned()),
+                ("tabSize".to_owned(), "4".to_owned()),
+            ]),
+            ..ScopeConfig::default()
+        };
+        let execution = execute_svg_document_output_pipeline_with_environment(
+            &environment,
+            document,
+            &target_scope,
+            Some("builtin:svg-layout-output-crlf"),
+        );
+        assert!(
+            execution.diagnostics.is_empty(),
+            "{:?}",
+            execution.diagnostics
+        );
+        let output = execution.output.as_ref().and_then(Value::as_str).unwrap();
+        assert!(output.contains("\r\n\t<g"), "{output:?}");
+        assert!(output.ends_with("\r\n"), "{output:?}");
+        assert!(!output.replace("\r\n", "").contains('\n'), "{output:?}");
+        assert_eq!(
+            execution.formatted_cem_tree.as_ref().unwrap().value["formatNodes"][1]["value"]
+                ["tabSize"],
+            4
+        );
     }
 
     #[test]
@@ -19305,6 +19446,14 @@ mod tests {
             },
         );
         assert!(diagnostics.is_empty(), "{diagnostics:?}");
+        let plain = execute_svg_document_output_pipeline_with_environment(
+            &environment,
+            document.clone().expect("SVG document"),
+            &ScopeConfig::default(),
+            Some("builtin:svg-plain-output"),
+        );
+        assert!(plain.diagnostics.is_empty(), "{:?}", plain.diagnostics);
+        let plain_output = plain.output.as_ref().and_then(Value::as_str).unwrap();
 
         for (profile, style_key, style_value) in [
             ("terminal", "terminalCapability", "auto"),
@@ -19350,6 +19499,38 @@ mod tests {
             assert_eq!(colored.value["category"], "svg-document");
             assert_eq!(colored.value["colorProfile"], profile);
             assert_eq!(colored.value["nodes"][2]["style"][style_key], style_value);
+            for role in [
+                "syntax.punctuation",
+                "syntax.name",
+                "syntax.attribute",
+                "syntax.string",
+            ] {
+                assert!(
+                    colored.value["nodes"]
+                        .as_array()
+                        .is_some_and(|nodes| nodes.iter().any(|node| {
+                            node["value"]["colorRole"] == role && node["style"]["colorRole"] == role
+                        })),
+                    "{profile}: missing {role}"
+                );
+            }
+            assert_eq!(
+                writer_node_text(&colored.value),
+                plain_output.strip_suffix('\n').unwrap_or(plain_output)
+            );
+            let output = execution.output.as_ref().and_then(Value::as_str).unwrap();
+            let visible = match profile {
+                "terminal" => strip_ansi_codes(output),
+                "html" | "md" => {
+                    colored_markup_text_content(output.strip_suffix('\n').unwrap_or(output))
+                }
+                _ => unreachable!(),
+            };
+            assert_eq!(
+                visible.trim_end_matches(['\r', '\n']),
+                plain_output.trim_end_matches(['\r', '\n']),
+                "{profile}"
+            );
         }
     }
 
@@ -20525,6 +20706,31 @@ mod tests {
         }
         text.replace("&lt;", "<")
             .replace("&gt;", ">")
+            .replace("&amp;", "&")
+    }
+
+    fn colored_markup_text_content(input: &str) -> String {
+        let mut output = String::new();
+        let mut remaining = input;
+        while !remaining.is_empty() {
+            if remaining.starts_with("<span") || remaining.starts_with("<pre") {
+                let end = remaining.find('>').expect("color wrapper close") + 1;
+                remaining = &remaining[end..];
+            } else if remaining.starts_with("</span>") {
+                remaining = &remaining[7..];
+            } else if remaining.starts_with("</pre>") {
+                remaining = &remaining[6..];
+            } else {
+                let ch = remaining.chars().next().unwrap();
+                output.push(ch);
+                remaining = &remaining[ch.len_utf8()..];
+            }
+        }
+        output
+            .replace("&lt;", "<")
+            .replace("&gt;", ">")
+            .replace("&quot;", "\"")
+            .replace("&#39;", "'")
             .replace("&amp;", "&")
     }
 

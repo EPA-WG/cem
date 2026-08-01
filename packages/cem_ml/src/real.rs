@@ -15538,9 +15538,18 @@ mod tests {
         let primary_bytes = resp.primary_bytes.as_ref().expect("SVG primary bytes");
         assert_eq!(primary_bytes.content_type, SVG_CONTENT_TYPE);
         assert_eq!(primary_bytes.schema.as_deref(), Some(SVG_SCHEMA_URI));
-        let mut expected = svg.to_vec();
-        expected.push(b'\n');
-        assert_eq!(primary_bytes.bytes, expected);
+        assert_eq!(
+            primary_bytes.bytes,
+            br#"<?xml version="1.0"?>
+<svg
+    xmlns="http://www.w3.org/2000/svg"
+    viewBox="0 0 24 24">
+    <title>Download</title>
+    <path
+        d="M12 3v18"/>
+</svg>
+"#
+        );
         assert_eq!(resp.primary["kind"], "document");
         assert_eq!(resp.primary["contentType"], SVG_CONTENT_TYPE);
     }

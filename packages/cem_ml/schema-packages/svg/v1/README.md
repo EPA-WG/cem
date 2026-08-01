@@ -67,12 +67,20 @@ The package owns `compact`, `pretty`, and `tabular` formatter wrappers plus
 `svg-document` and emits a package-owned CEM tree; the colorizer consumes that
 tree before the shared text writer.
 
-All profiles currently preserve source lexemes and SVG attribute case. Their
-metadata records a `lexical-lossless-*` layout decision while whitespace reflow
-remains deferred. Same-schema output retains XML declarations, doctype and
-entity lexemes, empty-element spelling, qualified names, XLink attributes,
-foreign content, detected line endings, and appends one final newline when
-absent.
+The `compact` profile removes typed structural whitespace, `pretty` emits one
+structural event per indented line, and `tabular` additionally aligns attributes
+on lines one level below their element. Layout remains lexical inside mixed-text
+elements, SVG text/style/script content, `foreignObject`, `xml:space="preserve"`
+scopes, CDATA, and foreign namespaces. Same-schema output retains XML
+declarations, doctype and entity lexemes, empty-element spelling, qualified
+names, attribute case and quote style, XLink attributes, detected line endings,
+and appends one final newline when absent.
+
+Start and end markup is projected as delimiter, element-name, attribute-name,
+equals, and attribute-value writer tokens. Generated indentation and line
+endings remain unmapped; lexical tokens retain token-level source maps and are
+rebased to output spans by the writer. Terminal, HTML, and Markdown color
+profiles consume the same token roles and preserve identical visible SVG text.
 
 ## Resolver And Script Safety
 
@@ -123,8 +131,6 @@ explicit registered converter path.
 
 - Add complete SVG vocabulary, geometry, path-data, CSS, animation, filter, and
   paint validation independently of XML well-formedness.
-- Define SVG-aware whitespace/reflow semantics before formatter profiles alter
-  lexical content.
 - Add explicit bounded DTD/entity, URI resolver, script, and external-resource
   policies before permitting resource access or execution.
 - Compose foreign HTML, XHTML, MathML, and other namespace validation through

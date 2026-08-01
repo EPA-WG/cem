@@ -50,12 +50,7 @@ impl SvgDocumentAst {
                 .iter()
                 .map(SvgFact::to_cemt_subject)
                 .collect::<Vec<_>>(),
-            "events": self
-                .xml_document
-                .events
-                .iter()
-                .map(svg_event_to_cemt_subject)
-                .collect::<Vec<_>>(),
+            "events": svg_events_to_cemt_subject(&self.xml_document.events),
             "lineEnding": self.line_ending,
         })
     }
@@ -673,7 +668,129 @@ fn svg_diagnostics(
         .collect()
 }
 
-fn svg_event_to_cemt_subject(event: &XmlEventAst) -> Value {
+#[derive(Debug, Clone, Copy, Default)]
+struct SvgEventLayout {
+    layout_sensitive: bool,
+    structural_whitespace: bool,
+    line_break_before: bool,
+}
+
+#[derive(Debug)]
+struct SvgSensitiveFrame {
+    start: usize,
+    sensitive: bool,
+}
+
+fn svg_events_to_cemt_subject(events: &[XmlEventAst]) -> Vec<Value> {
+    let layout = svg_event_layout(events);
+    events
+        .iter()
+        .zip(layout)
+        .map(|(event, layout)| svg_event_to_cemt_subject(event, layout))
+        .collect()
+}
+
+fn svg_event_layout(events: &[XmlEventAst]) -> Vec<SvgEventLayout> {
+    let mut sensitive_scopes = vec![None; events.len()];
+    let mut stack = Vec::<SvgSensitiveFrame>::new();
+    let mut ranges = Vec::<(usize, usize, usize)>::new();
+    let mut next_scope = 0usize;
+
+    for (index, event) in events.iter().enumerate() {
+        match event.kind {
+            XmlEventKind::StartElement => {
+                let inherited = stack.last().is_some_and(|frame| frame.sensitive);
+                stack.push(SvgSensitiveFrame {
+                    start: index,
+                    sensitive: inherited || svg_element_requires_lexical_layout(event),
+                });
+            }
+            XmlEventKind::EmptyElement => {
+                if stack.last().is_some_and(|frame| frame.sensitive)
+                    || svg_element_requires_lexical_layout(event)
+                {
+                    ranges.push((index, index, next_scope));
+                    next_scope += 1;
+                }
+            }
+            XmlEventKind::EndElement => {
+                if let Some(frame) = stack.pop().filter(|frame| frame.sensitive) {
+                    ranges.push((frame.start, index, next_scope));
+                    next_scope += 1;
+                }
+            }
+            XmlEventKind::Text => {
+                if !event.whitespace_only {
+                    if let Some(frame) = stack.last_mut() {
+                        frame.sensitive = true;
+                    } else {
+                        ranges.push((index, index, next_scope));
+                        next_scope += 1;
+                    }
+                }
+            }
+            XmlEventKind::Cdata | XmlEventKind::EntityReference => {
+                if let Some(frame) = stack.last_mut() {
+                    frame.sensitive = true;
+                } else {
+                    ranges.push((index, index, next_scope));
+                    next_scope += 1;
+                }
+            }
+            XmlEventKind::Declaration
+            | XmlEventKind::Comment
+            | XmlEventKind::ProcessingInstruction
+            | XmlEventKind::Doctype => {}
+        }
+    }
+
+    for (start, end, scope) in ranges {
+        for event_scope in &mut sensitive_scopes[start..=end] {
+            *event_scope = Some(scope);
+        }
+    }
+
+    let mut previous_scope = None;
+    let mut has_previous = false;
+    events
+        .iter()
+        .enumerate()
+        .map(|(index, event)| {
+            let scope = sensitive_scopes[index];
+            let structural_whitespace = matches!(event.kind, XmlEventKind::Text)
+                && event.whitespace_only
+                && scope.is_none();
+            let line_break_before = !structural_whitespace
+                && has_previous
+                && !(scope.is_some() && scope == previous_scope);
+            if !structural_whitespace {
+                has_previous = true;
+                previous_scope = scope;
+            }
+            SvgEventLayout {
+                layout_sensitive: scope.is_some(),
+                structural_whitespace,
+                line_break_before,
+            }
+        })
+        .collect()
+}
+
+fn svg_element_requires_lexical_layout(event: &XmlEventAst) -> bool {
+    let local_name = event.local_name.as_deref().unwrap_or_default();
+    matches!(
+        local_name,
+        "text" | "tspan" | "textPath" | "title" | "desc" | "style" | "script" | "foreignObject"
+    ) || event
+        .namespace_uri
+        .as_deref()
+        .is_some_and(|namespace| namespace != SVG_NAMESPACE_URI)
+        || event.attributes.iter().any(|attribute| {
+            attribute.qualified_name == "xml:space" && attribute.value == "preserve"
+        })
+}
+
+fn svg_event_to_cemt_subject(event: &XmlEventAst, layout: SvgEventLayout) -> Value {
     let range = SvgSourceRange::from_event(event);
     json!({
         "index": event.index,
@@ -693,9 +810,201 @@ fn svg_event_to_cemt_subject(event: &XmlEventAst) -> Value {
         "value": event.value,
         "lexeme": event.lexeme,
         "whitespaceOnly": event.whitespace_only,
+        "layoutSensitive": layout.layout_sensitive,
+        "structuralWhitespace": layout.structural_whitespace,
+        "lineBreakBefore": layout.line_break_before,
+        "markupTokens": svg_markup_tokens(event),
         "sourceRange": range.to_cemt_subject(),
         "sourceMap": range.source_map(),
     })
+}
+
+fn svg_markup_tokens(event: &XmlEventAst) -> Vec<Value> {
+    if !matches!(
+        event.kind,
+        XmlEventKind::StartElement | XmlEventKind::EmptyElement | XmlEventKind::EndElement
+    ) {
+        return Vec::new();
+    }
+
+    let lexeme = event.lexeme.as_str();
+    let bytes = lexeme.as_bytes();
+    let mut tokens = Vec::new();
+    let mut offset = 0usize;
+    if bytes.starts_with(b"</") {
+        svg_push_markup_token(event, &mut tokens, "delimiter", "syntax.punctuation", 0, 2);
+        offset = 2;
+    } else if bytes.starts_with(b"<") {
+        svg_push_markup_token(event, &mut tokens, "delimiter", "syntax.punctuation", 0, 1);
+        offset = 1;
+    }
+
+    let name_start = offset;
+    while offset < bytes.len()
+        && !bytes[offset].is_ascii_whitespace()
+        && !matches!(bytes[offset], b'/' | b'>')
+    {
+        offset += 1;
+    }
+    if offset > name_start {
+        svg_push_markup_token(
+            event,
+            &mut tokens,
+            "element-name",
+            "syntax.name",
+            name_start,
+            offset,
+        );
+    }
+
+    while offset < bytes.len() {
+        if bytes[offset].is_ascii_whitespace() {
+            let start = offset;
+            while offset < bytes.len() && bytes[offset].is_ascii_whitespace() {
+                offset += 1;
+            }
+            svg_push_markup_token(
+                event,
+                &mut tokens,
+                "whitespace",
+                "syntax.raw",
+                start,
+                offset,
+            );
+            continue;
+        }
+        if bytes[offset..].starts_with(b"/>") {
+            svg_push_markup_token(
+                event,
+                &mut tokens,
+                "delimiter",
+                "syntax.punctuation",
+                offset,
+                offset + 2,
+            );
+            offset += 2;
+            continue;
+        }
+        if bytes[offset] == b'>' {
+            svg_push_markup_token(
+                event,
+                &mut tokens,
+                "delimiter",
+                "syntax.punctuation",
+                offset,
+                offset + 1,
+            );
+            offset += 1;
+            continue;
+        }
+        if bytes[offset] == b'=' {
+            svg_push_markup_token(
+                event,
+                &mut tokens,
+                "equals",
+                "syntax.punctuation",
+                offset,
+                offset + 1,
+            );
+            offset += 1;
+            continue;
+        }
+        if matches!(bytes[offset], b'\'' | b'\"') {
+            let quote = bytes[offset];
+            let start = offset;
+            offset += 1;
+            while offset < bytes.len() && bytes[offset] != quote {
+                offset += 1;
+            }
+            if offset < bytes.len() {
+                offset += 1;
+            }
+            svg_push_markup_token(
+                event,
+                &mut tokens,
+                "attribute-value",
+                "syntax.string",
+                start,
+                offset,
+            );
+            continue;
+        }
+
+        let start = offset;
+        while offset < bytes.len()
+            && !bytes[offset].is_ascii_whitespace()
+            && !matches!(bytes[offset], b'=' | b'/' | b'>')
+        {
+            offset += 1;
+        }
+        if offset == start {
+            offset += 1;
+            svg_push_markup_token(event, &mut tokens, "raw", "syntax.raw", start, offset);
+        } else {
+            svg_push_markup_token(
+                event,
+                &mut tokens,
+                "attribute-name",
+                "syntax.attribute",
+                start,
+                offset,
+            );
+        }
+    }
+
+    tokens
+}
+
+fn svg_push_markup_token(
+    event: &XmlEventAst,
+    tokens: &mut Vec<Value>,
+    kind: &str,
+    role: &str,
+    start: usize,
+    end: usize,
+) {
+    if start >= end || end > event.lexeme.len() {
+        return;
+    }
+    let range = svg_lexeme_range(event, start, end);
+    tokens.push(json!({
+        "kind": kind,
+        "text": &event.lexeme[start..end],
+        "role": role,
+        "sourceRange": range.to_cemt_subject(),
+        "sourceMap": range.source_map(),
+    }));
+}
+
+fn svg_lexeme_range(event: &XmlEventAst, start: usize, end: usize) -> SvgSourceRange {
+    let prefix = &event.lexeme[..start];
+    let mut line = event.source_range.start.line;
+    let mut column = event.source_range.start.column;
+    let mut chars = prefix.chars().peekable();
+    while let Some(ch) = chars.next() {
+        match ch {
+            '\r' => {
+                if chars.peek() == Some(&'\n') {
+                    chars.next();
+                }
+                line = line.saturating_add(1);
+                column = 1;
+            }
+            '\n' => {
+                line = line.saturating_add(1);
+                column = 1;
+            }
+            _ => column = column.saturating_add(1),
+        }
+    }
+    SvgSourceRange {
+        start: SvgSourcePosition {
+            line,
+            column,
+            byte_offset: event.source_range.start.byte_offset + start as u64,
+        },
+        byte_length: (end - start) as u64,
+    }
 }
 
 #[cfg(test)]
@@ -750,6 +1059,90 @@ mod tests {
             subject["events"][0]["sourceMap"]["frames"][0]["transform"]["content_type"],
             json!(SVG_CONTENT_TYPE)
         );
+    }
+
+    #[test]
+    fn svg_cemt_subject_marks_safe_layout_boundaries_and_tokenizes_markup() {
+        let source = r##"<?xml version="1.0"?>
+<svg xmlns="http://www.w3.org/2000/svg">
+  <text data-kind='label'>Keep <tspan> this </tspan></text>
+  <script><![CDATA[const marker = "<g/>";]]></script>
+  <foreignObject><html:div xmlns:html="http://www.w3.org/1999/xhtml">Keep <html:span> this </html:span></html:div></foreignObject>
+</svg>
+"##;
+        let (document, diagnostics) = parse(source);
+
+        assert!(has_code(&diagnostics, "cem.svg.script_rejected"));
+        assert!(has_code(&diagnostics, "cem.svg.foreign_content_rejected"));
+        let subject = document.to_cemt_subject();
+        let events = subject["events"].as_array().expect("SVG CEMT events");
+        let root = events
+            .iter()
+            .find(|event| event["kind"] == "start-element" && event["qualifiedName"] == "svg")
+            .expect("SVG root event");
+        assert_eq!(root["lineBreakBefore"], true);
+        assert_eq!(root["layoutSensitive"], false);
+        assert_eq!(
+            root["markupTokens"]
+                .as_array()
+                .expect("root markup tokens")
+                .iter()
+                .map(|token| (
+                    token["kind"].as_str().unwrap(),
+                    token["text"].as_str().unwrap()
+                ))
+                .collect::<Vec<_>>(),
+            vec![
+                ("delimiter", "<"),
+                ("element-name", "svg"),
+                ("whitespace", " "),
+                ("attribute-name", "xmlns"),
+                ("equals", "="),
+                ("attribute-value", "\"http://www.w3.org/2000/svg\""),
+                ("delimiter", ">"),
+            ]
+        );
+        assert!(root["markupTokens"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .filter(|token| token["kind"] != "whitespace")
+            .all(|token| token["sourceMap"] != Value::Null));
+
+        let text = events
+            .iter()
+            .find(|event| event["kind"] == "start-element" && event["qualifiedName"] == "text")
+            .expect("text event");
+        assert_eq!(text["layoutSensitive"], true);
+        assert_eq!(text["lineBreakBefore"], true);
+        assert_eq!(
+            text["markupTokens"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .find(|token| token["kind"] == "attribute-value")
+                .unwrap()["text"],
+            "'label'"
+        );
+        assert!(events.iter().any(|event| {
+            event["kind"] == "text"
+                && event["lexeme"] == " this "
+                && event["layoutSensitive"] == true
+                && event["structuralWhitespace"] == false
+        }));
+        assert!(events.iter().any(|event| {
+            event["kind"] == "cdata"
+                && event["layoutSensitive"] == true
+                && event["lineBreakBefore"] == false
+        }));
+        assert!(events.iter().any(|event| {
+            event["qualifiedName"] == "html:div" && event["layoutSensitive"] == true
+        }));
+        assert!(events.iter().any(|event| {
+            event["kind"] == "text"
+                && event["whitespaceOnly"] == true
+                && event["structuralWhitespace"] == true
+        }));
     }
 
     #[test]
