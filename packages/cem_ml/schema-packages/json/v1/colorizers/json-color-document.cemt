@@ -3,7 +3,17 @@
 @default transform
 
 {module @version="1.0.0" |
-    {function @name="json.color-document.tree" @visibility="private" @returns="object" @deterministic=true |
+    {color-function
+        @name="json.color-document.tree"
+        @visibility="private"
+        @category="json-document"
+        @subject="cem-tree"
+        @produces="cem-tree"
+        @content-type="application/json"
+        @schema="https://cem.dev/ns/data/json/1"
+        @canonical=false
+        @deterministic=true
+        @streamable=true |
         {param @name="subject" @type="object" @required=true}
         {param @name="profile" @type="string" @required=true}
         {param @name="output" @type="string" @required=true}

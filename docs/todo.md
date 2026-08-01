@@ -745,18 +745,51 @@ Remaining dependency-ordered package checklist:
         failures through schema diagnostics, then expand manifest/index,
         lifecycle, engine/CLI, profile, schema-owned example, safety, release,
         and README/SVG drift verification.
-- [ ] Run the final registry/package validation gate after the dependency
-      checklist is green:
-      `yarn nx run cem_ml:test:cli-schema-artifacts`,
-      `yarn nx run cem_ml_cli:validate-cemt-pipeline-fixture`,
-      `yarn nx run cem_ml_cli:validate-converter-parity`,
-      `yarn nx run cem_ml_cli:e2e`, then `yarn nx run cem_ml:test`.
+- [x] Run the final registry/package validation gate after the dependency
+      checklist is green.
+  - [x] Run `yarn nx run cem_ml:test:cli-schema-artifacts`.
+  - [x] Cover the current default YAML package indent and final newline in the
+        focused generic-data runtime test, then refresh the stale native-output
+        fixture expectation.
+  - [x] Cover both scheduler scopes and typed YAML conversion metadata in the
+        focused mixed-output report test, then refresh the stale report
+        expectations.
+  - [x] Allow typed package output-pipeline implementation identifiers in the
+        CLI report schema.
+  - [x] Run `yarn nx run cem_ml_cli:validate-cemt-pipeline-fixture`.
+  - [x] Run `yarn nx run cem_ml_cli:validate-converter-parity`.
+  - [x] Run `yarn nx run cem_ml_cli:e2e`.
+    - [x] Cover same-document fragment form actions as resolver-free HTML
+          resources.
+    - [x] Keep paired CEM/HTML semantic fixtures within the zero-hard resource
+          policy by using local fragment form actions.
+  - [x] Run `yarn nx run cem_ml:test`.
+    - [x] Keep context package output-artifact tests isolated from unrelated
+          built-in CEM-ML schema diagnostics.
+    - [x] Declare JSON, XML, and RELAX NG helper function names in their package
+          manifests.
 
-### Deferred: Other Format Polish
+### Other Format Polish
 
-- [ ] Keep SVG, MathML, XSLT, HTML, and CSS
-      formatter/colorizer work behind the schema-package folder alignment
-      gate.
+- [x] Keep SVG, MathML, XSLT, HTML, and CSS formatter/colorizer work behind
+      the schema-package folder alignment gate.
+- [ ] Polish SVG formatter and colorizer profile semantics on the dedicated
+      `SvgDocumentAst` path.
+  - [ ] Add focused Rust fixtures covering declarations, nested graphics,
+        wrapped attributes, comments, CDATA, namespace-qualified attributes,
+        foreign-content islands, and text-sensitive SVG elements.
+  - [ ] Make `compact`, `pretty`, and `tabular` produce distinct deterministic
+        structural layouts without rewriting meaningful text, `style`,
+        `script`, `foreignObject`, or namespace lexemes.
+  - [ ] Split start/end tags into delimiter, element-name, attribute-name,
+        equals, and attribute-value tokens so terminal, HTML, and Markdown
+        color profiles do not color an entire tag as one syntax name.
+  - [ ] Preserve source maps and output spans through inserted layout tokens,
+        retain the configured line ending and indentation controls, and append
+        exactly one final newline for text output.
+  - [ ] Refresh SVG package previews and run
+        `yarn nx run cem_ml_schema_package_svg_v1:verify`, converter parity,
+        CLI e2e, and `cem_ml:test`.
 
 ### Deferred: Phase 3 Custom-Element Runtime
 
@@ -776,19 +809,20 @@ Remaining dependency-ordered package checklist:
 
 ### Next Work Item
 
-Run the final registry/package validation gate now that the dependency checklist
-is green. Start with `yarn nx run cem_ml:test:cli-schema-artifacts`, then run
-`cem_ml_cli:validate-cemt-pipeline-fixture`,
-`cem_ml_cli:validate-converter-parity`, `cem_ml_cli:e2e`, and finally
-`cem_ml:test`.
+Start SVG format polish with a focused nested-document fixture at the CEMT
+output-pipeline layer. First characterize the current lexical output and source
+maps, then define exact compact, pretty, and tabular expectations. Structural
+whitespace may be changed only where the typed SVG event context proves it is
+not text content; `text`, `tspan`, `textPath`, `style`, `script`,
+`foreignObject`, CDATA, and foreign namespaces remain byte-preserving until a
+separate content-aware contract exists.
 
-Treat any failure as a cross-package registry or output-contract regression,
-not as a CSS-only issue. Confirm that package registries enumerate every public
-formatter and colorizer profile, converter selection does not fall back to an
-opaque or CEM path for typed formats, and fixtures exercise the default final
-newline. Do not weaken package output contracts merely to silence stale
-fixtures; update a fixture only when the intended contract is independently
-covered by focused runtime tests.
+After formatter behavior is covered, tokenize XML markup boundaries inside the
+SVG formatter tree so the colorizer can assign separate roles to delimiters,
+element names, attribute names, equals signs, and values. Keep qualified names
+and original attribute case intact, rebase source maps for emitted tokens, and
+verify terminal text parity against HTML and Markdown output before refreshing
+the package previews.
 
 ## Current Verification Commands
 
@@ -798,6 +832,7 @@ covered by focused runtime tests.
 - `yarn nx run cem_ml_cli:validate-converter-parity`
 - `yarn nx run cem_ml_cli:e2e`
 - `yarn nx run cem_ml:test`
+- `yarn nx run cem_ml_schema_package_svg_v1:verify`
 
 ## Externally Gated
 

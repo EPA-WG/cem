@@ -3,7 +3,17 @@
 @default transform
 
 {module @version="1.0.0" |
-    {function @name="xml.format-document.tree" @visibility="private" @returns="object" @deterministic=true |
+    {format-function
+        @name="xml.format-document.tree"
+        @visibility="private"
+        @category="xml-document"
+        @subject="xml-document"
+        @produces="cem-tree"
+        @content-type="application/xml"
+        @schema="https://cem.dev/ns/data/xml/1"
+        @canonical=true
+        @deterministic=true
+        @streamable=true |
         {param @name="subject" @type="object" @required=true}
         {param @name="profile" @type="string" @required=true}
         {body |

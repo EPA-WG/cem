@@ -12826,13 +12826,16 @@ active: true
             ),
             "{written}"
         );
-        assert!(written.ends_with("</pre>"), "{written}");
+        assert!(written.ends_with("</pre>\n"), "{written}");
         assert!(written.contains(r#"data-role="syntax.name""#), "{written}");
         assert!(
             written.contains(r#"data-role="syntax.string""#),
             "{written}"
         );
-        assert_eq!(html_text_content(&written), "name: Ada\nactive: true\n");
+        assert_eq!(
+            html_text_content(written.strip_suffix('\n').unwrap_or(&written)),
+            "name: Ada\nactive: true\n"
+        );
     }
 
     #[test]
@@ -12892,12 +12895,15 @@ This document has **strong** text and a link.
             ),
             "{written}"
         );
-        assert!(written.ends_with("</pre>"), "{written}");
+        assert!(written.ends_with("</pre>\n"), "{written}");
         assert!(
             written.contains(r#"data-role="syntax.punctuation""#),
             "{written}"
         );
-        assert!(html_text_content(&written).starts_with("# Release Notes\n\n"));
+        assert!(
+            html_text_content(written.strip_suffix('\n').unwrap_or(&written))
+                .starts_with("# Release Notes\n\n")
+        );
     }
 
     #[test]
@@ -18833,6 +18839,7 @@ start =
         assert!(yaml_out.is_file());
         let report: serde_json::Value =
             serde_json::from_str(&std::fs::read_to_string(&report_path).unwrap()).unwrap();
+        assert_eq!(report["reportAst"]["schedulerTrace"]["eventCount"], 18);
         let convert = &report["reportAst"]["convert"];
         assert_eq!(convert["outputCount"], 2);
         let outputs = convert["outputs"].as_array().unwrap();
@@ -18858,6 +18865,25 @@ start =
             cem_ml::schema::registry::YAML_SCHEMA_URI
         );
         assert_eq!(outputs[1]["outputKind"], "document");
+        assert_eq!(
+            outputs[1]["conversion"]["converterId"],
+            "generic-data-ast-to-yaml-output"
+        );
+        assert_eq!(
+            outputs[1]["conversion"]["implementation"],
+            "generic-data-ast-stream-to-yaml-output-pipeline"
+        );
+        let yaml_stages = outputs[1]["conversion"]["outputPipeline"]["stages"]
+            .as_array()
+            .expect("YAML conversion output pipeline stages");
+        assert!(yaml_stages.iter().any(|stage| {
+            stage["stage"] == "formatter"
+                && stage["function"] == "yaml.format-document"
+                && stage["profile"] == "compact"
+        }));
+        assert!(yaml_stages.iter().any(|stage| {
+            stage["stage"] == "writer" && stage["contentType"] == "application/yaml"
+        }));
     }
 
     #[test]

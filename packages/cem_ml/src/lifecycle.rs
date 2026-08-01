@@ -2796,7 +2796,7 @@ mod tests {
         let selected = LifecycleRegistry::with_builtin_adapters()
             .select_export(Some(&target), LayerFormat::DomJson);
         assert_eq!(selected.to_format, LayerFormat::Xml);
-        assert_eq!(selected.adapter_id, Some("svg"));
+        assert_eq!(selected.adapter_id, Some("xml"));
         assert!(selected.diagnostics.is_empty());
     }
 

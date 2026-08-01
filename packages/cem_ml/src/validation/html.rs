@@ -1440,6 +1440,20 @@ mod tests {
     }
 
     #[test]
+    fn html_source_validator_accepts_local_fragment_form_action() {
+        let diagnostics = validate(
+            r##"<!doctype html><html><body><form method="post" action="#session"><button type="submit">Sign in</button></form></body></html>"##,
+        );
+
+        assert!(
+            diagnostics
+                .iter()
+                .all(|diagnostic| !diagnostic.severity.is_hard_violation()),
+            "{diagnostics:?}"
+        );
+    }
+
+    #[test]
     fn html_source_validator_reports_invalid_custom_element_name() {
         let diagnostics =
             validate(r#"<!doctype html><html><body><X-Card>Broken</X-Card></body></html>"#);

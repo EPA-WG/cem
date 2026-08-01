@@ -15,7 +15,7 @@
       {p | I will compare it with the Figma token page.}
     }
   }
-  {form @cem:form="message-reply" @method=post @action="/thread/reply" |
+  {form @cem:form="message-reply" @method=post @action="#thread-reply" |
     {label @for=reply | Reply}
     {textarea @id=reply @name=reply @rows=4 @required}
     {button @type=submit @cem:action=primary | Send}

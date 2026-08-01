@@ -1,5 +1,5 @@
 {
-  "content": "---\nservice:\n  enabled: true\n  name: catalog\n  ports:\n    - 80\n    - 443",
+  "content": "service:\n    name: catalog\n    enabled: true\n    ports:\n        - 80\n        - 443\n",
   "contentType": "application/yaml",
   "schema": "https://cem.dev/ns/data/yaml/1"
 }

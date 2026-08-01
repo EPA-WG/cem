@@ -21,7 +21,7 @@
   "diagnostics": [],
   "reportAst": {
     "schedulerTrace": {
-      "eventCount": 9,
+      "eventCount": 18,
       "events": [
         {
           "sequence": 0,
@@ -76,6 +76,60 @@
           "scopeId": 0,
           "kind": "finish",
           "task": "cem+repo://packages/cem_ml_cli/docs/examples/native-output-cem.input.cem:convert"
+        },
+        {
+          "sequence": 9,
+          "scopeId": 1,
+          "kind": "enqueue",
+          "task": "cem+repo://packages/cem_ml_cli/docs/examples/native-output-yaml.input.json:lifecycle-load"
+        },
+        {
+          "sequence": 10,
+          "scopeId": 1,
+          "kind": "enqueue",
+          "task": "cem+repo://packages/cem_ml_cli/docs/examples/native-output-yaml.input.json:select-export"
+        },
+        {
+          "sequence": 11,
+          "scopeId": 1,
+          "kind": "enqueue",
+          "task": "cem+repo://packages/cem_ml_cli/docs/examples/native-output-yaml.input.json:convert"
+        },
+        {
+          "sequence": 12,
+          "scopeId": 1,
+          "kind": "dispatch",
+          "task": "cem+repo://packages/cem_ml_cli/docs/examples/native-output-yaml.input.json:lifecycle-load"
+        },
+        {
+          "sequence": 13,
+          "scopeId": 1,
+          "kind": "finish",
+          "task": "cem+repo://packages/cem_ml_cli/docs/examples/native-output-yaml.input.json:lifecycle-load"
+        },
+        {
+          "sequence": 14,
+          "scopeId": 1,
+          "kind": "dispatch",
+          "task": "cem+repo://packages/cem_ml_cli/docs/examples/native-output-yaml.input.json:select-export"
+        },
+        {
+          "sequence": 15,
+          "scopeId": 1,
+          "kind": "finish",
+          "task": "cem+repo://packages/cem_ml_cli/docs/examples/native-output-yaml.input.json:select-export"
+        },
+        {
+          "sequence": 16,
+          "scopeId": 1,
+          "kind": "dispatch",
+          "task": "cem+repo://packages/cem_ml_cli/docs/examples/native-output-yaml.input.json:convert"
+        },
+        {
+          "sequence": 17,
+          "scopeId": 1,
+          "kind": "finish",
+          "task": "cem+repo://packages/cem_ml_cli/docs/examples/native-output-yaml.input.json:convert"
         }
       ]
     },
@@ -128,7 +182,38 @@
           "destination": "cem+repo://packages/cem_ml_cli/dist/multi-output-mixed-native.yml",
           "contentType": "application/yaml",
           "schema": "https://cem.dev/ns/data/yaml/1",
-          "outputKind": "document"
+          "outputKind": "document",
+          "conversion": {
+            "converterId": "generic-data-ast-to-yaml-output",
+            "implementation": "generic-data-ast-stream-to-yaml-output-pipeline",
+            "outputPipeline": {
+              "stages": [
+                {
+                  "stage": "formatter",
+                  "function": "yaml.format-document",
+                  "profile": "compact",
+                  "contentType": "application/yaml",
+                  "schema": "https://cem.dev/ns/data/yaml/1",
+                  "category": "yaml-document",
+                  "produces": "cem-tree"
+                },
+                {
+                  "stage": "colorizer",
+                  "contentType": "application/yaml",
+                  "schema": "https://cem.dev/ns/data/yaml/1",
+                  "category": "yaml-document",
+                  "produces": "cem-tree"
+                },
+                {
+                  "stage": "writer",
+                  "contentType": "application/yaml",
+                  "schema": "https://cem.dev/ns/data/yaml/1",
+                  "category": "yaml-document",
+                  "produces": "text"
+                }
+              ]
+            }
+          }
         }
       ]
     }

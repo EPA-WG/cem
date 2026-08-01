@@ -10909,6 +10909,13 @@ mod tests {
         EngineContext::default()
     }
 
+    const OUTPUT_ARTIFACT_TEST_SCHEMA_SOURCE: &[u8] = br#"@doc cem-ml 1
+@ns schema = "https://cem.dev/ns/schema/1"
+@default schema
+
+{schema @name="cem-ml-output-artifact-test" @namespace="https://cem.dev/ns/cem-ml/1" @version="1.0.0"}
+"#;
+
     fn test_source_map_stack(start: u64, len: u32) -> SourceMapStack {
         SourceMapStack {
             frames: vec![crate::source_map::SourceMapFrame {
@@ -15925,7 +15932,10 @@ mod tests {
 
     #[test]
     fn convert_json_to_yaml_uses_generic_data_ast_stream() {
-        let mut source = input(br#"{"name":"Ada","active":true}"#, "document.json");
+        let mut source = input(
+            br#"{"service":{"name":"catalog","enabled":true,"ports":[80,443]}}"#,
+            "document.json",
+        );
         source.identity = Some(FormatIdentity {
             content_type: Some(JSON_CONTENT_TYPE.to_owned()),
             schema: Some(JSON_VALUE_SCHEMA_URI.to_owned()),
@@ -15942,10 +15952,7 @@ mod tests {
             preserve_source_offsets: false,
             context: ctx(),
             target: Some(target),
-            target_scope: ScopeConfig {
-                cemt_formatter_profile: Some("compact".to_owned()),
-                ..ScopeConfig::default()
-            },
+            target_scope: ScopeConfig::default(),
             scheduler_scope_id: 0,
         };
 
@@ -15972,8 +15979,10 @@ mod tests {
         assert_eq!(primary_bytes.content_type, YAML_CONTENT_TYPE);
         assert_eq!(primary_bytes.schema.as_deref(), Some(YAML_SCHEMA_URI));
         let output = std::str::from_utf8(&primary_bytes.bytes).unwrap();
-        assert!(output.contains("name: Ada"), "{output}");
-        assert!(output.contains("active: true"), "{output}");
+        assert_eq!(
+            output,
+            "service:\n    name: catalog\n    enabled: true\n    ports:\n        - 80\n        - 443\n"
+        );
     }
 
     #[test]
@@ -17774,8 +17783,6 @@ mod tests {
     }
 }
 "#;
-        let schema_source = crate::schema::package_sources::builtin_schema_package_source("cem-ml")
-            .expect("embedded schema source");
         let formatter_source =
             crate::schema::package_sources::builtin_schema_package_artifact_source(
                 "cem-ml",
@@ -17809,7 +17816,7 @@ mod tests {
                 entries: vec![
                     (
                         SCHEMA_URI,
-                        schema_source.schema_source.as_bytes(),
+                        OUTPUT_ARTIFACT_TEST_SCHEMA_SOURCE,
                         Some(CEM_SCHEMA_CONTENT_TYPE),
                     ),
                     (
@@ -17914,8 +17921,6 @@ mod tests {
     }
 }
 "#;
-        let schema_source = crate::schema::package_sources::builtin_schema_package_source("cem-ml")
-            .expect("embedded schema source");
         const FORMATTER_SOURCE: &[u8] = br#"@doc cem-ml 1
 @ns transform = "https://cem.dev/ns/transform/cem/1"
 @default transform
@@ -18048,7 +18053,7 @@ mod tests {
                 entries: vec![
                     (
                         SCHEMA_URI,
-                        schema_source.schema_source.as_bytes(),
+                        OUTPUT_ARTIFACT_TEST_SCHEMA_SOURCE,
                         Some(CEM_SCHEMA_CONTENT_TYPE),
                     ),
                     (

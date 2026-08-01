@@ -3,14 +3,14 @@
 @default transform
 
 {module @version="1.0.0" |
-    {function @name="relax-ng.color-xml-document.tree" @visibility="private" @returns="object" @deterministic=true |
+    {color-function @name="relax-ng.color-xml-document.tree" @visibility="private" @category="relax-ng-xml-document" @subject="cem-tree" @produces="cem-tree" @content-type="application/relax-ng+xml" @schema="https://cem.dev/ns/data/relax-ng/1" @canonical=false @deterministic=true @streamable=true |
         {param @name="subject" @type="object" @required=true}
         {param @name="profile" @type="string" @required=true}
         {param @name="output" @type="string" @required=true}
         {body | {$ call("relax-ng.color-document.tree", { subject: $subject, profile: $profile, output: $output, syntaxKind: "xml" }) } }
     }
 
-    {function @name="relax-ng.color-compact-document.tree" @visibility="private" @returns="object" @deterministic=true |
+    {color-function @name="relax-ng.color-compact-document.tree" @visibility="private" @category="relax-ng-compact-document" @subject="cem-tree" @produces="cem-tree" @content-type="application/relax-ng-compact-syntax" @schema="https://cem.dev/ns/data/relax-ng/1" @canonical=false @deterministic=true @streamable=true |
         {param @name="subject" @type="object" @required=true}
         {param @name="profile" @type="string" @required=true}
         {param @name="output" @type="string" @required=true}

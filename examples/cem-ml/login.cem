@@ -5,7 +5,7 @@
 
 {main @cem:screen="login" @aria-labelledby="login-title" |
   {h1 @id="login-title" | Sign in}
-  {form @cem:form="sign-in" @method=post @action="/session" |
+  {form @cem:form="sign-in" @method=post @action="#session" |
     {label @for=email | Email}
     {input @id=email @name=email @type=email @autocomplete=email @required}
 

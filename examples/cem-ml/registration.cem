@@ -5,7 +5,7 @@
 
 {main @cem:screen="registration" @aria-labelledby="registration-title" |
   {h1 @id="registration-title" | Create account}
-  {form @cem:form="registration" @method=post @action="/account" |
+  {form @cem:form="registration" @method=post @action="#account" |
     {label @for=name | Full name}
     {input @id=name @name=name @autocomplete=name @required}
 

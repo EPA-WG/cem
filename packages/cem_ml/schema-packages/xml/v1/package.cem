@@ -60,6 +60,7 @@
         @target-content-type="application/xml"
         @target-schema="https://cem.dev/ns/data/xml/1"
         @target-category="xml-document"
+        @function-name="xml.format-document.tree"
     }
 
     {artifact
@@ -106,6 +107,7 @@
         @target-content-type="application/xml"
         @target-schema="https://cem.dev/ns/data/xml/1"
         @target-category="xml-document"
+        @function-name="xml.color-document.tree"
     }
 
     {example

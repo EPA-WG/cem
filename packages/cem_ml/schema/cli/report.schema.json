@@ -436,8 +436,8 @@
         },
         "implementation": {
           "type": "string",
-          "enum": ["cemt", "rust-fallback", "direct-cemt-output-pipeline"],
-          "description": "`cemt` means the converter template executed; `direct-cemt-output-pipeline` means the selected converter or built-in route supplied the formatter/colorizer/writer output pipeline directly; `rust-fallback` means the selected CEMT converter could not execute and a declared Rust fallback rendered the output."
+          "minLength": 1,
+          "description": "Implementation strategy identifier. Reserved values include `cemt`, `rust-fallback`, and `direct-cemt-output-pipeline`; typed lifecycle and AST-stream routes use package-owned output-pipeline identifiers."
         },
         "rustFallback": {
           "type": "string",
