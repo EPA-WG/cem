@@ -24,6 +24,7 @@ use crate::tokenizer::cem::CemTokenizer;
 use crate::tokenizer::html::HtmlTokenizer;
 use crate::tokenizer::xml::XmlTokenizer;
 use crate::tokenizer::SchemaTokenizer;
+use serde::Deserialize;
 use serde_json::{json, Value};
 use std::collections::BTreeMap;
 use std::sync::Arc;
@@ -1105,12 +1106,47 @@ impl CemTreeAstStream {
                 .collect(),
         )
     }
+
+    pub fn try_from_cemt_subject(value: Value) -> Result<Self, serde_json::Error> {
+        fn collect_nodes(
+            value: Value,
+            nodes: &mut Vec<CemTreeAstNode>,
+        ) -> Result<(), serde_json::Error> {
+            match value {
+                Value::Array(values) => {
+                    for value in values {
+                        collect_nodes(value, nodes)?;
+                    }
+                    Ok(())
+                }
+                Value::Object(mut object)
+                    if object.get("kind").and_then(Value::as_str) == Some("cem-tree") =>
+                {
+                    let subject = object
+                        .remove("nodes")
+                        .or_else(|| object.remove("node"))
+                        .or_else(|| object.remove("root"))
+                        .unwrap_or(Value::Null);
+                    collect_nodes(subject, nodes)
+                }
+                value => {
+                    nodes.push(serde_json::from_value(value)?);
+                    Ok(())
+                }
+            }
+        }
+
+        let mut nodes = Vec::new();
+        collect_nodes(value, &mut nodes)?;
+        Ok(Self::new(nodes))
+    }
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Deserialize)]
 pub struct CemTreeAstAttribute {
     pub name: String,
     pub value: Option<String>,
+    #[serde(rename = "sourceMap", default)]
     pub source: SourceMapStack,
 }
 
@@ -1125,46 +1161,56 @@ impl CemTreeAstAttribute {
     }
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Deserialize)]
+#[serde(tag = "kind", rename_all = "kebab-case")]
 pub enum CemTreeAstNode {
     Document {
         children: Vec<CemTreeAstNode>,
+        #[serde(rename = "sourceMap", default)]
         source: SourceMapStack,
     },
     Element {
         name: String,
         attributes: Vec<CemTreeAstAttribute>,
         children: Vec<CemTreeAstNode>,
+        #[serde(rename = "sourceMap", default)]
         source: SourceMapStack,
     },
     Text {
         value: String,
+        #[serde(rename = "sourceMap", default)]
         source: SourceMapStack,
     },
     Whitespace {
         data: String,
+        #[serde(rename = "sourceMap", default)]
         source: SourceMapStack,
     },
     Comment {
         data: String,
+        #[serde(rename = "sourceMap", default)]
         source: SourceMapStack,
     },
     ProcessingInstruction {
         name: String,
         target: String,
         data: String,
+        #[serde(rename = "sourceMap", default)]
         source: SourceMapStack,
     },
     Cdata {
         data: String,
+        #[serde(rename = "sourceMap", default)]
         source: SourceMapStack,
     },
     RawText {
         data: String,
+        #[serde(rename = "sourceMap", default)]
         source: SourceMapStack,
     },
     Error {
         code: String,
+        #[serde(rename = "sourceMap", default)]
         source: SourceMapStack,
     },
 }

@@ -11,6 +11,7 @@ use crate::schema::registry::{
 };
 use crate::schema::SchemaRegistry;
 use crate::source_map::SourceMapStack;
+use crate::transform_artifact::TransformArtifactExporterRegistry;
 use crate::transform_template::{
     TransformTemplateAdapterRegistry, TransformTemplateAdapterResolution,
     TransformTemplateEncodeImplementationRegistry,
@@ -135,6 +136,7 @@ pub struct EngineContext {
     pub resolver_registry: ResolverRegistry,
     pub template_adapter_registry: TransformTemplateAdapterRegistry,
     pub transform_template_encode_registry: TransformTemplateEncodeImplementationRegistry,
+    pub transform_artifact_exporter_registry: TransformArtifactExporterRegistry,
     pub schema_behavior_evaluator: Option<Arc<dyn SchemaBehaviorEvaluator>>,
     pub convert_request_handlers: Vec<Arc<dyn ConvertRequestHandler>>,
 }
@@ -159,6 +161,7 @@ impl Default for EngineContext {
             template_adapter_registry,
             transform_template_encode_registry:
                 TransformTemplateEncodeImplementationRegistry::with_builtin_encoders(),
+            transform_artifact_exporter_registry: TransformArtifactExporterRegistry::default(),
             schema_behavior_evaluator: None,
             convert_request_handlers: Vec::new(),
         }

@@ -28,6 +28,7 @@ use cem_ml::legacy_custom_element::{
 use cem_ml::lifecycle::LoadedInputAstStream;
 use cem_ml::parser::document::CemDocument;
 use cem_ml::parser::{AstNodeId, CemAstNode};
+use cem_ml::projection::{CemTreeAstAttribute, CemTreeAstNode, CemTreeAstStream};
 use cem_ml::run_config::ScopeConfig;
 use cem_ml::scheduler::ScopePolicy;
 use cem_ml::schema::document_model::{
@@ -46,7 +47,8 @@ use cem_ml::tokenizer::cem::CemTokenizer;
 use cem_ml::tokenizer::{SchemaToken, SchemaTokenizer};
 use cem_ml::transform_artifact::{
     TransformArtifactBody, TransformArtifactCollection, TransformArtifactCollectionMode,
-    TransformEncodedArtifact, TransformEncoding,
+    TransformArtifactExporter, TransformEncodedArtifact, TransformEncoding,
+    TransformNativeArtifact,
 };
 use cem_ml::transform_template::{
     parse_cem_native_template_module_options, parse_transform_template_output_color_type,
@@ -94,6 +96,7 @@ pub const CEM_QL_TEMPLATE_ADAPTER_ID: &str = "cem-ql-cem-native-template";
 pub const CEM_QL_EXPRESSION_TEMPLATE_ADAPTER_ID: &str = "cem-ql-expression-template";
 pub const XSLT_PARITY_TEMPLATE_ADAPTER_ID: &str = "cem-ql-xslt-parity-template";
 const TRANSFORM_CALL_NODE: &str = "__cem_transform_call";
+const CEM_QL_RESULT_REPRESENTATION_ID: &str = "cem-ql.result-sequence";
 
 #[derive(Debug, Clone, Copy)]
 pub struct CemQlSourceValidationRequest<'a> {
@@ -145,6 +148,62 @@ pub struct XsltParityTransformTemplateAdapter;
 
 #[derive(Debug, Clone, Default)]
 pub struct CemQlSchemaBehaviorEvaluator;
+
+#[derive(Debug, Clone)]
+struct CemQlResultArtifact {
+    stream: ItemStream,
+}
+
+impl TransformNativeArtifact for CemQlResultArtifact {
+    fn representation_id(&self) -> &'static str {
+        CEM_QL_RESULT_REPRESENTATION_ID
+    }
+
+    fn source_map(&self) -> Option<&SourceMapStack> {
+        None
+    }
+
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+}
+
+#[derive(Debug, Clone, Default)]
+struct CemQlJsonResultExporter;
+
+impl TransformArtifactExporter for CemQlJsonResultExporter {
+    fn id(&self) -> &'static str {
+        "cem-ql.result-json"
+    }
+
+    fn representation_id(&self) -> &'static str {
+        CEM_QL_RESULT_REPRESENTATION_ID
+    }
+
+    fn export(
+        &self,
+        body: &TransformArtifactBody,
+        target: &FormatIdentity,
+    ) -> Result<Arc<TransformEncodedArtifact>, String> {
+        let TransformArtifactBody::Extension(native) = body else {
+            return Err(format!(
+                "expected native `{CEM_QL_RESULT_REPRESENTATION_ID}` body, got `{}`",
+                body.representation_id()
+            ));
+        };
+        let result = native
+            .as_any()
+            .downcast_ref::<CemQlResultArtifact>()
+            .ok_or_else(|| {
+                "CEM-QL result body type does not match its representation".to_owned()
+            })?;
+        let bytes = serde_json::to_vec(&item_stream_json(&result.stream))
+            .map_err(|error| format!("CEM-QL result JSON encoding failed: {error}"))?;
+        TransformEncodedArtifact::new(target.clone(), TransformEncoding::Json, bytes)
+            .map(Arc::new)
+            .map_err(|error| error.to_string())
+    }
+}
 
 #[derive(Debug, Clone)]
 struct SchemaBehaviorCandidate {
@@ -1949,10 +2008,17 @@ pub fn register_cem_ql_source_output_converter(context: &mut EngineContext) {
         .push(Arc::new(CemQlSourceOutputConvertHandler));
 }
 
+pub fn register_cem_ql_artifact_exporters(context: &mut EngineContext) {
+    context
+        .transform_artifact_exporter_registry
+        .register(CemQlJsonResultExporter);
+}
+
 pub fn register_cem_ql_runtime_adapters(context: &mut EngineContext) {
     register_cem_ql_template_adapter(&mut context.template_adapter_registry);
     register_cem_ql_schema_behavior_evaluator(context);
     register_cem_ql_source_output_converter(context);
+    register_cem_ql_artifact_exporters(context);
 }
 
 pub fn engine_context_with_cem_ql_template_adapter() -> EngineContext {
@@ -3236,7 +3302,9 @@ fn render_cem_ql_payload(
             output: TransformTemplateOutputArtifact {
                 uri: None,
                 identity: request.target.cloned(),
-                value: render_plan_to_cem_tree_nodes(&plan),
+                body: TransformArtifactBody::CemTree(Arc::new(render_plan_to_cem_tree_nodes(
+                    &plan,
+                ))),
                 source_map: None,
                 output_spans: Vec::new(),
             },
@@ -3248,21 +3316,22 @@ fn render_cem_ql_payload(
     } else {
         render_plan_to_html_with_source_map(&plan)
     };
-    let identity = request.target.cloned().or_else(|| {
-        Some(FormatIdentity {
-            content_type: Some("text/html".to_owned()),
-            ..FormatIdentity::default()
-        })
+    let identity = request.target.cloned().unwrap_or_else(|| FormatIdentity {
+        content_type: Some("text/html".to_owned()),
+        ..FormatIdentity::default()
     });
 
+    let output = TransformTemplateOutputArtifact::encoded_text(None, identity, rendered.rendered)
+        .map_err(|error| {
+            TransformTemplateAdapterError::failed(
+                adapter_id,
+                TransformTemplateAdapterExecutionPhase::Render,
+                error.to_string(),
+            )
+        })?
+        .with_metadata(Some(rendered.source_map), rendered.output_spans);
     Ok(TransformTemplateRenderResponse {
-        output: TransformTemplateOutputArtifact {
-            uri: None,
-            identity,
-            value: Value::String(rendered.rendered),
-            source_map: Some(rendered.source_map),
-            output_spans: rendered.output_spans,
-        },
+        output,
         diagnostics: rendered.diagnostics,
     })
 }
@@ -3309,7 +3378,9 @@ fn render_cem_ql_expression_payload(
                 schema: Some(cem_ml::schema::registry::JSON_VALUE_SCHEMA_URI.to_owned()),
                 ..FormatIdentity::default()
             }),
-            value: item_stream_json(&result),
+            body: TransformArtifactBody::Extension(Arc::new(CemQlResultArtifact {
+                stream: result,
+            })),
             source_map: None,
             output_spans: Vec::new(),
         },
@@ -3345,8 +3416,8 @@ fn content_type_essence(content_type: &str) -> String {
         .to_ascii_lowercase()
 }
 
-fn render_plan_to_cem_tree_nodes(plan: &RenderPlan) -> Value {
-    Value::Array(
+fn render_plan_to_cem_tree_nodes(plan: &RenderPlan) -> CemTreeAstStream {
+    CemTreeAstStream::new(
         plan.nodes
             .iter()
             .filter_map(render_plan_node_to_cem_tree)
@@ -3354,7 +3425,7 @@ fn render_plan_to_cem_tree_nodes(plan: &RenderPlan) -> Value {
     )
 }
 
-fn render_plan_node_to_cem_tree(node: &RenderPlanNode) -> Option<Value> {
+fn render_plan_node_to_cem_tree(node: &RenderPlanNode) -> Option<CemTreeAstNode> {
     match node {
         RenderPlanNode::Element { tag, .. } if tag.trim().is_empty() => None,
         RenderPlanNode::Element {
@@ -3363,60 +3434,55 @@ fn render_plan_node_to_cem_tree(node: &RenderPlanNode) -> Option<Value> {
             attributes,
             children,
             source_map,
-        } => Some(json!({
-            "kind": "element",
-            "name": render_plan_cem_tree_name(tag, namespace.as_deref()),
-            "attributes": attributes
+        } => Some(CemTreeAstNode::Element {
+            name: render_plan_cem_tree_name(tag, namespace.as_deref()),
+            attributes: attributes
                 .iter()
                 .map(render_plan_attribute_to_cem_tree)
                 .collect::<Vec<_>>(),
-            "children": children
+            children: children
                 .iter()
                 .filter_map(render_plan_node_to_cem_tree)
                 .collect::<Vec<_>>(),
-            "sourceMap": render_plan_source_map_value(source_map),
-        })),
-        RenderPlanNode::Text { text, source_map } if text.trim().is_empty() => Some(json!({
-            "kind": "whitespace",
-            "data": text,
-            "sourceMap": render_plan_source_map_value(source_map),
-        })),
-        RenderPlanNode::Text { text, source_map } => Some(json!({
-            "kind": "text",
-            "value": text,
-            "sourceMap": render_plan_source_map_value(source_map),
-        })),
-        RenderPlanNode::Comment { text, source_map } => Some(json!({
-            "kind": "comment",
-            "data": text,
-            "sourceMap": render_plan_source_map_value(source_map),
-        })),
-        RenderPlanNode::Cdata { text, source_map } => Some(json!({
-            "kind": "cdata",
-            "data": text,
-            "sourceMap": render_plan_source_map_value(source_map),
-        })),
+            source: source_map.clone(),
+        }),
+        RenderPlanNode::Text { text, source_map } if text.trim().is_empty() => {
+            Some(CemTreeAstNode::Whitespace {
+                data: text.clone(),
+                source: source_map.clone(),
+            })
+        }
+        RenderPlanNode::Text { text, source_map } => Some(CemTreeAstNode::Text {
+            value: text.clone(),
+            source: source_map.clone(),
+        }),
+        RenderPlanNode::Comment { text, source_map } => Some(CemTreeAstNode::Comment {
+            data: text.clone(),
+            source: source_map.clone(),
+        }),
+        RenderPlanNode::Cdata { text, source_map } => Some(CemTreeAstNode::Cdata {
+            data: text.clone(),
+            source: source_map.clone(),
+        }),
         RenderPlanNode::ProcessingInstruction {
             target,
             data,
             source_map,
-        } => Some(json!({
-            "kind": "processing-instruction",
-            "name": target,
-            "target": target,
-            "data": data,
-            "sourceMap": render_plan_source_map_value(source_map),
-        })),
+        } => Some(CemTreeAstNode::ProcessingInstruction {
+            name: target.clone(),
+            target: target.clone(),
+            data: data.clone(),
+            source: source_map.clone(),
+        }),
     }
 }
 
-fn render_plan_attribute_to_cem_tree(attribute: &RenderPlanAttribute) -> Value {
-    json!({
-        "kind": "attribute",
-        "name": render_plan_cem_tree_name(&attribute.name, attribute.namespace.as_deref()),
-        "value": attribute.value,
-        "sourceMap": render_plan_source_map_value(&attribute.source_map),
-    })
+fn render_plan_attribute_to_cem_tree(attribute: &RenderPlanAttribute) -> CemTreeAstAttribute {
+    CemTreeAstAttribute {
+        name: render_plan_cem_tree_name(&attribute.name, attribute.namespace.as_deref()),
+        value: Some(attribute.value.clone()),
+        source: attribute.source_map.clone(),
+    }
 }
 
 fn render_plan_cem_tree_name(local_name: &str, namespace: Option<&str>) -> String {
@@ -3425,10 +3491,6 @@ fn render_plan_cem_tree_name(local_name: &str, namespace: Option<&str>) -> Strin
         .filter(|namespace| !namespace.is_empty())
         .map(|namespace| format!("{namespace}:{local_name}"))
         .unwrap_or_else(|| local_name.to_owned())
-}
-
-fn render_plan_source_map_value(source_map: &cem_ml::source_map::SourceMapStack) -> Value {
-    serde_json::to_value(source_map).unwrap_or(Value::Null)
 }
 
 fn host_binding_names(
@@ -4951,6 +5013,17 @@ fn artifact_query_stream(artifact: &TransformTemplateDataArtifact) -> Result<Ite
                 encoded: Arc::clone(encoded),
             })))
         }
+        TransformArtifactBody::Extension(native)
+            if native.representation_id() == CEM_QL_RESULT_REPRESENTATION_ID =>
+        {
+            native
+                .as_any()
+                .downcast_ref::<CemQlResultArtifact>()
+                .map(|result| result.stream.clone())
+                .ok_or_else(|| {
+                    "CEM-QL result body type does not match its representation".to_owned()
+                })
+        }
         body => Err(format!(
             "transform artifact representation `{}` has no CEM-QL native query view",
             body.representation_id()
@@ -5306,6 +5379,38 @@ mod tests {
         diagnostics.iter().any(|diagnostic| diagnostic.code == code)
     }
 
+    fn test_output_value(output: &TransformTemplateOutputArtifact) -> Value {
+        match &output.body {
+            TransformArtifactBody::Encoded(encoded)
+                if encoded.encoding == TransformEncoding::Text =>
+            {
+                Value::String(
+                    output
+                        .encoded_text_value()
+                        .expect("encoded text output")
+                        .to_owned(),
+                )
+            }
+            TransformArtifactBody::Encoded(encoded)
+                if encoded.encoding == TransformEncoding::Json =>
+            {
+                output.explicit_json_value().expect("explicit JSON output")
+            }
+            TransformArtifactBody::CemTree(_) => {
+                output.cemt_subject().expect("typed CEM-tree output")
+            }
+            TransformArtifactBody::Extension(native) => native
+                .as_any()
+                .downcast_ref::<CemQlResultArtifact>()
+                .map(|result| item_stream_json(&result.stream))
+                .expect("CEM-QL native result output"),
+            body => panic!(
+                "test output helper does not support `{}`",
+                body.representation_id()
+            ),
+        }
+    }
+
     #[test]
     fn cem_ql_source_validator_accepts_module_source() {
         let diagnostics = validate_cem_ql_source_bytes(CemQlSourceValidationRequest {
@@ -5530,6 +5635,109 @@ count + 1"#,
             &value,
         )
         .expect("test data has explicit JSON identity")
+    }
+
+    #[test]
+    fn cql_expression_output_stays_native_until_registered_json_export() {
+        let adapter = CemQlExpressionTransformTemplateAdapter;
+        let template = TemplateInput {
+            uri: "result.cem-ql".to_owned(),
+            bytes: b"input.title".to_vec(),
+            identity: Some(FormatIdentity {
+                content_type: Some(
+                    cem_ml::schema::registry::CEM_QL_EXPRESSION_CONTENT_TYPE.to_owned(),
+                ),
+                schema: Some(cem_ml::schema::registry::CEM_QL_EXPRESSION_SCHEMA_URI.to_owned()),
+                ..FormatIdentity::default()
+            }),
+            root_scope: ScopeConfig::default(),
+        };
+        let params = BTreeMap::new();
+        let data_bindings = vec!["input".to_owned()];
+        let compiled = adapter
+            .compile(TransformTemplateCompileRequest {
+                template: &template,
+                entrypoint: &TransformTemplateEntrypoint::implicit(),
+                params: &params,
+                data_bindings: &data_bindings,
+                module_options: Default::default(),
+                module_preflight: Default::default(),
+                execution_policy: TransformExecutionPolicy {
+                    runtime_phase: TransformRuntimePhase::CemQlExpression,
+                    ..TransformExecutionPolicy::default()
+                },
+            })
+            .expect("expression compiles")
+            .artifact;
+        let primary = explicit_json_test_artifact(
+            "input",
+            Some("input.json"),
+            json!({"title": "Native result"}),
+        );
+        let secondary = BTreeMap::new();
+        let target = FormatIdentity {
+            content_type: Some(cem_ml::schema::registry::JSON_CONTENT_TYPE.to_owned()),
+            schema: Some(cem_ml::schema::registry::JSON_VALUE_SCHEMA_URI.to_owned()),
+            ..FormatIdentity::default()
+        };
+
+        let rendered = adapter
+            .render(TransformTemplateRenderRequest {
+                compiled: &compiled,
+                primary_input: &primary,
+                secondary_inputs: &secondary,
+                target: Some(&target),
+                target_scope: &ScopeConfig::default(),
+                execution_policy: TransformExecutionPolicy {
+                    runtime_phase: TransformRuntimePhase::CemQlExpression,
+                    ..TransformExecutionPolicy::default()
+                },
+            })
+            .expect("expression renders");
+        let TransformArtifactBody::Extension(native) = &rendered.output.body else {
+            panic!("CEM-QL expression output must remain native before export");
+        };
+        let result = native
+            .as_any()
+            .downcast_ref::<CemQlResultArtifact>()
+            .expect("native CEM-QL result body");
+        assert_eq!(result.stream.items.len(), 1);
+
+        let context = engine_context_with_cem_ql_template_adapter();
+        let encoded = context
+            .transform_artifact_exporter_registry
+            .export(&rendered.output.body, &target)
+            .expect("registered explicit JSON exporter");
+        assert_eq!(encoded.encoding, TransformEncoding::Json);
+        assert_eq!(
+            serde_json::from_slice::<Value>(encoded.bytes.as_ref()).expect("exported JSON"),
+            item_stream_json(&result.stream)
+        );
+        let non_json_target = FormatIdentity {
+            content_type: Some("text/plain".to_owned()),
+            ..FormatIdentity::default()
+        };
+        let error = context
+            .transform_artifact_exporter_registry
+            .export(&rendered.output.body, &non_json_target)
+            .expect_err("CEM-QL result exporter requires an explicit JSON target");
+        assert!(error.contains("JSON encoding requires"), "{error}");
+    }
+
+    #[test]
+    fn cql_expression_render_source_has_no_json_materialization() {
+        let source = include_str!("lib.rs");
+        let render = source
+            .split("fn render_cem_ql_expression_payload")
+            .nth(1)
+            .and_then(|source| source.split("fn target_is_cem_tree").next())
+            .expect("CEM-QL expression render source");
+        for forbidden in ["item_stream_json", "serde_json", "to_value"] {
+            assert!(
+                !render.contains(forbidden),
+                "CEM-QL expression rendering must not materialize `{forbidden}`"
+            );
+        }
     }
 
     fn assert_missing_native_query_view_diagnostic(
@@ -6558,9 +6766,8 @@ count + 1"#,
         );
         rendered
             .output
-            .value
-            .as_str()
-            .expect("converter output should be string content")
+            .encoded_text_value()
+            .expect("converter output should be encoded text content")
             .to_owned()
     }
 
@@ -6613,7 +6820,7 @@ count + 1"#,
             .expect("template should render");
 
         assert_eq!(
-            rendered.output.value,
+            test_output_value(&rendered.output),
             Value::String(r#"<span class="primary">Save</span>"#.to_owned())
         );
         assert_eq!(
@@ -6675,7 +6882,7 @@ count + 1"#,
             .expect("XSLT parity template should render");
 
         assert_eq!(
-            rendered.output.value,
+            test_output_value(&rendered.output),
             Value::String("<main><h1>Sign in</h1></main>".to_owned())
         );
         assert!(
@@ -6735,7 +6942,7 @@ count + 1"#,
             .expect("XSLT parity template should render");
 
         assert_eq!(
-            rendered.output.value,
+            test_output_value(&rendered.output),
             Value::String("<article>Intro</article>".to_owned())
         );
         assert!(
@@ -7033,7 +7240,7 @@ count + 1"#,
             .expect("template should render");
 
         assert_eq!(
-            rendered.output.value,
+            test_output_value(&rendered.output),
             Value::String("<span>orders:3</span>".to_owned())
         );
         assert!(
@@ -7147,7 +7354,7 @@ count + 1"#,
             .expect("module template should render");
 
         assert_eq!(
-            rendered.output.value,
+            test_output_value(&rendered.output),
             Value::String("<div><span>Help</span></div>".to_owned())
         );
         assert!(
@@ -7217,7 +7424,7 @@ count + 1"#,
             .expect("module template should render");
 
         assert_eq!(
-            rendered.output.value,
+            test_output_value(&rendered.output),
             Value::String("<div><span>Hello</span></div>".to_owned())
         );
         assert!(
@@ -7287,7 +7494,7 @@ count + 1"#,
             .expect("module template should render with required-param diagnostic");
 
         assert_eq!(
-            rendered.output.value,
+            test_output_value(&rendered.output),
             Value::String("<div></div>".to_owned())
         );
         assert!(rendered.diagnostics.iter().any(|diagnostic| {
@@ -7360,7 +7567,7 @@ count + 1"#,
             .expect("module template should render");
 
         assert_eq!(
-            rendered.output.value,
+            test_output_value(&rendered.output),
             Value::String("<div><span>Done</span></div>".to_owned())
         );
         assert!(
@@ -7430,7 +7637,7 @@ count + 1"#,
             .expect("module template should render with type diagnostic");
 
         assert_eq!(
-            rendered.output.value,
+            test_output_value(&rendered.output),
             Value::String("<div></div>".to_owned())
         );
         assert!(rendered.diagnostics.iter().any(|diagnostic| {
@@ -7500,7 +7707,7 @@ count + 1"#,
             .expect("module template should render");
 
         assert_eq!(
-            rendered.output.value,
+            test_output_value(&rendered.output),
             Value::String("<div><span>AB</span></div>".to_owned())
         );
         assert!(
@@ -7570,7 +7777,7 @@ count + 1"#,
             .expect("module template should render with required-param diagnostic");
 
         assert_eq!(
-            rendered.output.value,
+            test_output_value(&rendered.output),
             Value::String("<div></div>".to_owned())
         );
         assert!(rendered.diagnostics.iter().any(|diagnostic| {
@@ -7646,7 +7853,7 @@ count + 1"#,
             .expect("module template should render");
 
         assert_eq!(
-            rendered.output.value,
+            test_output_value(&rendered.output),
             Value::String("<div><span>Enabled</span></div>".to_owned())
         );
         assert!(
@@ -7730,7 +7937,7 @@ count + 1"#,
             .expect("module template should render");
 
         assert_eq!(
-            rendered.output.value,
+            test_output_value(&rendered.output),
             Value::String("<p>en-US:Untitled</p>".to_owned())
         );
         assert!(
@@ -7814,7 +8021,7 @@ count + 1"#,
             .expect("module template should render");
 
         assert_eq!(
-            rendered.output.value,
+            test_output_value(&rendered.output),
             Value::String("<p>Enabled:3</p>".to_owned())
         );
         assert!(
@@ -7886,7 +8093,10 @@ count + 1"#,
             })
             .expect("module template should render");
 
-        assert_eq!(rendered.output.value, Value::String("<p>AB</p>".to_owned()));
+        assert_eq!(
+            test_output_value(&rendered.output),
+            Value::String("<p>AB</p>".to_owned())
+        );
         assert!(
             rendered.diagnostics.is_empty(),
             "{:?}",
@@ -7971,7 +8181,7 @@ count + 1"#,
             .expect("module template should render");
 
         assert_eq!(
-            rendered.output.value,
+            test_output_value(&rendered.output),
             Value::String("<p>fr-FR:Intro</p>".to_owned())
         );
         assert!(
@@ -8058,7 +8268,7 @@ count + 1"#,
             .expect("module template should render");
 
         assert_eq!(
-            rendered.output.value,
+            test_output_value(&rendered.output),
             Value::String("<p>fr-FR:Intro</p>".to_owned())
         );
         assert!(
@@ -8142,7 +8352,7 @@ count + 1"#,
             .expect("module template should render");
 
         assert_eq!(
-            rendered.output.value,
+            test_output_value(&rendered.output),
             Value::String("<p>en-US:</p>".to_owned())
         );
         assert!(
@@ -8205,7 +8415,7 @@ count + 1"#,
             .expect("module template should render with recursion diagnostic");
 
         assert_eq!(
-            rendered.output.value,
+            test_output_value(&rendered.output),
             Value::String("<div><span>Loop <span>Loop </span></span></div>".to_owned())
         );
         assert!(rendered
@@ -8282,7 +8492,7 @@ count + 1"#,
             .expect("module template should render");
 
         assert_eq!(
-            rendered.output.value,
+            test_output_value(&rendered.output),
             Value::String("<div><span>Icon</span></div>".to_owned())
         );
         assert!(
@@ -8360,7 +8570,7 @@ count + 1"#,
             .expect("module template should render");
 
         assert_eq!(
-            rendered.output.value,
+            test_output_value(&rendered.output),
             Value::String("<div><span>Icon <i>Imported</i></span></div>".to_owned())
         );
         assert!(
@@ -8455,7 +8665,7 @@ count + 1"#,
             .expect("module template should render");
 
         assert_eq!(
-            rendered.output.value,
+            test_output_value(&rendered.output),
             Value::String("<div><section>Card <span>Check</span></section></div>".to_owned())
         );
         assert!(
@@ -8537,7 +8747,7 @@ count + 1"#,
             .expect("module template should render with recursion diagnostic");
 
         assert_eq!(
-            rendered.output.value,
+            test_output_value(&rendered.output),
             Value::String("<div><span>Loop <span>Loop </span></span></div>".to_owned())
         );
         assert!(rendered
@@ -8621,7 +8831,7 @@ count + 1"#,
             .expect("module template should render");
 
         assert_eq!(
-            rendered.output.value,
+            test_output_value(&rendered.output),
             Value::String("<div><span>Imported</span></div>".to_owned())
         );
         assert!(
@@ -8699,7 +8909,7 @@ count + 1"#,
             .expect("module template should render");
 
         assert_eq!(
-            rendered.output.value,
+            test_output_value(&rendered.output),
             Value::String("<div><span class=\"primary\">Imported</span></div>".to_owned())
         );
         assert!(
@@ -8777,7 +8987,7 @@ count + 1"#,
             .expect("module template should render");
 
         assert_eq!(
-            rendered.output.value,
+            test_output_value(&rendered.output),
             Value::String("<div><span>AB</span></div>".to_owned())
         );
         assert!(
@@ -8854,7 +9064,7 @@ count + 1"#,
             .expect("module template should render with required-param diagnostic");
 
         assert_eq!(
-            rendered.output.value,
+            test_output_value(&rendered.output),
             Value::String("<div></div>".to_owned())
         );
         assert!(rendered.diagnostics.iter().any(|diagnostic| {
@@ -8941,7 +9151,7 @@ count + 1"#,
             .expect("module template should render");
 
         assert_eq!(
-            rendered.output.value,
+            test_output_value(&rendered.output),
             Value::String("<div><span>Enabled</span></div>".to_owned())
         );
         assert!(
@@ -9022,7 +9232,7 @@ count + 1"#,
             .expect("module template should render");
 
         assert_eq!(
-            rendered.output.value,
+            test_output_value(&rendered.output),
             Value::String("<div><span>7</span></div>".to_owned())
         );
         assert!(
@@ -9099,7 +9309,7 @@ count + 1"#,
             .expect("module template should render with required-param diagnostic");
 
         assert_eq!(
-            rendered.output.value,
+            test_output_value(&rendered.output),
             Value::String("<div></div>".to_owned())
         );
         assert!(rendered.diagnostics.iter().any(|diagnostic| {
@@ -9179,7 +9389,7 @@ count + 1"#,
             .expect("module template should render with type diagnostic");
 
         assert_eq!(
-            rendered.output.value,
+            test_output_value(&rendered.output),
             Value::String("<div></div>".to_owned())
         );
         assert!(rendered.diagnostics.iter().any(|diagnostic| {
@@ -9436,7 +9646,7 @@ count + 1"#,
 
             if uri.ends_with("dom-to-xml.cemt") {
                 assert_eq!(
-                    rendered.output.value,
+            test_output_value(&rendered.output),
                     Value::String(
                         r#"<?xml-stylesheet href="main.css"?><p class="lead"><![CDATA[Hi <all>]]></p>"#
                             .to_owned()
@@ -9444,7 +9654,7 @@ count + 1"#,
                 );
             } else {
                 assert_eq!(
-                    rendered.output.value,
+                    test_output_value(&rendered.output),
                     Value::String(r#"<p class="lead">Hi</p>"#.to_owned())
                 );
             }
@@ -10114,6 +10324,100 @@ if greeting == "Hello" {
         );
         assert!(response.source_map.is_none());
         assert!(response.output_spans.is_empty());
+    }
+
+    #[test]
+    fn real_engine_transform_graph_exports_native_cem_ql_expression_as_explicit_json() {
+        let json_target = FormatIdentity {
+            content_type: Some(cem_ml::schema::registry::JSON_CONTENT_TYPE.to_owned()),
+            schema: Some(cem_ml::schema::registry::JSON_VALUE_SCHEMA_URI.to_owned()),
+            ..FormatIdentity::default()
+        };
+        let request = TransformGraphRequest {
+            imports: vec![TransformGraphImport {
+                id: "data".to_owned(),
+                input: EngineInput {
+                    uri: "data.cem".to_owned(),
+                    bytes: b"{p @id=\"guide\"}".to_vec(),
+                    from_format: None,
+                    identity: Some(FormatIdentity {
+                        content_type: Some("text/cem-ml".to_owned()),
+                        ..FormatIdentity::default()
+                    }),
+                    root_scope: ScopeConfig::default(),
+                },
+                scheduler_scope_id: 18,
+            }],
+            joins: Vec::new(),
+            stages: vec![TransformGraphStage {
+                id: "result".to_owned(),
+                template: TemplateInput {
+                    uri: "result.cem-ql".to_owned(),
+                    bytes: b"input.kind".to_vec(),
+                    identity: Some(FormatIdentity {
+                        content_type: Some(
+                            cem_ml::schema::registry::CEM_QL_EXPRESSION_CONTENT_TYPE.to_owned(),
+                        ),
+                        schema: Some(
+                            cem_ml::schema::registry::CEM_QL_EXPRESSION_SCHEMA_URI.to_owned(),
+                        ),
+                        ..FormatIdentity::default()
+                    }),
+                    root_scope: ScopeConfig::default(),
+                },
+                template_kind: TransformTemplateKind::CemQlExpression,
+                template_entrypoint: TransformTemplateEntrypoint::implicit(),
+                params: BTreeMap::new(),
+                execution_policy: TransformExecutionPolicy {
+                    runtime_phase: TransformRuntimePhase::CemQlExpression,
+                    ..TransformExecutionPolicy::default()
+                },
+                target: Some(json_target.clone()),
+                primary_input: "data".to_owned(),
+                secondary_inputs: BTreeMap::new(),
+                scheduler_scope_ids: TransformStageSchedulerScopeIds {
+                    template_load: 19,
+                    execution: 20,
+                },
+            }],
+            importmap_rewrites: Vec::new(),
+            exports: vec![TransformGraphExport {
+                id: "result-json".to_owned(),
+                input: "result".to_owned(),
+                destination: Some("dist/result.json".to_owned()),
+                target: Some(json_target),
+                target_scope: ScopeConfig::default(),
+                style_policy: Default::default(),
+                scheduler_scope_id: 21,
+            }],
+            edges: Vec::new(),
+            preserve_source_offsets: false,
+            context: engine_context_with_cem_ql_template_adapter(),
+            execution_policy: TransformExecutionPolicy::default(),
+        };
+
+        let response = RealCemMlEngine::new()
+            .transform_graph(request)
+            .expect("native expression graph should export explicit JSON");
+
+        assert!(
+            response.diagnostics.is_empty(),
+            "{:?}",
+            response.diagnostics
+        );
+        assert_eq!(response.artifacts.len(), 1);
+        assert_eq!(
+            response.artifacts[0].primary,
+            json!({
+                "diagnostics": [],
+                "error": null,
+                "items": [{
+                    "kind": "atomic",
+                    "type": "string",
+                    "value": "document",
+                }],
+            })
+        );
     }
 
     #[test]

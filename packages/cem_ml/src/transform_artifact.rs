@@ -153,6 +153,59 @@ pub trait TransformNativeArtifact: Any + Send + Sync {
     fn as_any(&self) -> &dyn Any;
 }
 
+pub trait TransformArtifactExporter: Send + Sync {
+    fn id(&self) -> &'static str;
+    fn representation_id(&self) -> &'static str;
+    fn export(
+        &self,
+        body: &TransformArtifactBody,
+        target: &FormatIdentity,
+    ) -> Result<Arc<TransformEncodedArtifact>, String>;
+}
+
+#[derive(Clone, Default)]
+pub struct TransformArtifactExporterRegistry {
+    exporters: BTreeMap<&'static str, Arc<dyn TransformArtifactExporter>>,
+}
+
+impl TransformArtifactExporterRegistry {
+    pub fn register(&mut self, exporter: impl TransformArtifactExporter + 'static) {
+        self.exporters
+            .insert(exporter.representation_id(), Arc::new(exporter));
+    }
+
+    pub fn export(
+        &self,
+        body: &TransformArtifactBody,
+        target: &FormatIdentity,
+    ) -> Result<Arc<TransformEncodedArtifact>, String> {
+        let representation_id = body.representation_id();
+        let exporter = self.exporters.get(representation_id).ok_or_else(|| {
+            format!(
+                "no transform artifact exporter is registered for native representation `{representation_id}`"
+            )
+        })?;
+        exporter.export(body, target).map_err(|message| {
+            format!(
+                "transform artifact exporter `{}` failed for `{representation_id}`: {message}",
+                exporter.id()
+            )
+        })
+    }
+}
+
+impl fmt::Debug for TransformArtifactExporterRegistry {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter
+            .debug_struct("TransformArtifactExporterRegistry")
+            .field(
+                "representations",
+                &self.exporters.keys().collect::<Vec<_>>(),
+            )
+            .finish()
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TransformArtifactCollectionMode {
     Collect,
@@ -204,6 +257,11 @@ impl TransformEncodedArtifact {
                 content_type: identity.content_type.clone(),
             });
         }
+        if encoding == TransformEncoding::Text && identity_has_json_content_type(&identity) {
+            return Err(TransformEncodedArtifactError::JsonEncodingRequired {
+                content_type: identity.content_type.clone(),
+            });
+        }
         Ok(Self {
             identity,
             encoding,
@@ -215,6 +273,7 @@ impl TransformEncodedArtifact {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum TransformEncodedArtifactError {
     JsonIdentityRequired { content_type: Option<String> },
+    JsonEncodingRequired { content_type: Option<String> },
     JsonEncodingFailed { message: String },
 }
 
@@ -224,6 +283,11 @@ impl fmt::Display for TransformEncodedArtifactError {
             Self::JsonIdentityRequired { content_type } => write!(
                 f,
                 "JSON encoding requires an explicit JSON or +json content type, got {}",
+                content_type.as_deref().unwrap_or("no content type")
+            ),
+            Self::JsonEncodingRequired { content_type } => write!(
+                f,
+                "explicit JSON or +json content type {} requires JSON encoding",
                 content_type.as_deref().unwrap_or("no content type")
             ),
             Self::JsonEncodingFailed { message } => {
@@ -309,5 +373,19 @@ mod tests {
             Vec::<u8>::new(),
         )
         .is_ok());
+
+        let error = TransformEncodedArtifact::new(
+            FormatIdentity {
+                content_type: Some(JSON_CONTENT_TYPE.to_owned()),
+                ..FormatIdentity::default()
+            },
+            TransformEncoding::Text,
+            b"{}".to_vec(),
+        )
+        .expect_err("JSON identity must not be labeled as generic text");
+        assert!(matches!(
+            error,
+            TransformEncodedArtifactError::JsonEncodingRequired { .. }
+        ));
     }
 }

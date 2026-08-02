@@ -21,6 +21,7 @@ use crate::interpreter::OutputSpan;
 use crate::parser::builder::CemAstBuilder;
 use crate::parser::document::CemDocument;
 use crate::parser::{AstNodeId, CemAstNode};
+use crate::projection::{CemTreeAstAttribute, CemTreeAstNode, CemTreeAstStream};
 use crate::run_config::ScopeConfig;
 use crate::schema::package_loader::{load_builtin_schema_package, BuiltinSchemaPackage};
 use crate::schema::package_sources::{
@@ -45,6 +46,7 @@ use crate::tokenizer::cem::CemTokenizer;
 use crate::tokenizer::html::HtmlTokenizer;
 use crate::tokenizer::xml::XmlTokenizer;
 use crate::tokenizer::{SchemaTokenKind, SchemaTokenizer};
+use crate::transform_artifact::{TransformArtifactBody, TransformNativeArtifact};
 use crate::transform_template::{
     compose_transform_template_encoded_text_artifacts,
     evaluate_transform_template_encode_expressions, execute_transform_template_encode_binding,
@@ -87,10 +89,12 @@ use crate::validation::xml::XmlDocumentAst;
 use crate::validation::xslt::XsltStylesheetAst;
 use crate::validation::yaml::{generic_data_ast_to_yaml_cemt_subject, YamlDocumentAst};
 use serde_json::Value;
+use std::any::Any;
 use std::cell::RefCell;
 use std::collections::{BTreeMap, BTreeSet};
 use std::fmt;
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
 use std::time::Instant;
 
 pub const CONVERSION_PARITY_NATIVE_PAIR_MISSING_CODE: &str =
@@ -107,6 +111,51 @@ pub const CONVERSION_OUTPUT_UNSUPPORTED_CATEGORY_CODE: &str =
 pub const CONVERSION_OUTPUT_CONTEXT_MISMATCH_CODE: &str = "cem.converter.output_context_mismatch";
 pub const CONVERSION_OUTPUT_COLOR_PROFILE_UNSAFE_CODE: &str =
     "cem.converter.output_color_profile_unsafe";
+const CEMT_OUTPUT_REPRESENTATION_ID: &str = "cem.cemt-output";
+
+#[derive(Debug, Clone)]
+struct CemtOutputArtifact {
+    value: Value,
+}
+
+impl TransformNativeArtifact for CemtOutputArtifact {
+    fn representation_id(&self) -> &'static str {
+        CEMT_OUTPUT_REPRESENTATION_ID
+    }
+
+    fn source_map(&self) -> Option<&SourceMapStack> {
+        None
+    }
+
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+}
+
+fn cemt_output_body(value: Value) -> TransformArtifactBody {
+    TransformArtifactBody::Extension(Arc::new(CemtOutputArtifact { value }))
+}
+
+pub(crate) fn transform_template_output_cemt_subject(
+    output: &TransformTemplateOutputArtifact,
+) -> Result<Value, String> {
+    match &output.body {
+        TransformArtifactBody::CemTree(stream) => Ok(stream.as_ref().clone().into_cemt_subject()),
+        TransformArtifactBody::Extension(native)
+            if native.representation_id() == CEMT_OUTPUT_REPRESENTATION_ID =>
+        {
+            native
+                .as_any()
+                .downcast_ref::<CemtOutputArtifact>()
+                .map(|artifact| artifact.value.clone())
+                .ok_or_else(|| "CEMT output body type does not match its representation".to_owned())
+        }
+        body => Err(format!(
+            "transform output representation `{}` is not a CEMT tree body",
+            body.representation_id()
+        )),
+    }
+}
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum ConversionImplementation {
     Cemt,
@@ -718,6 +767,62 @@ impl TransformTemplateAdapter for DomProjectionParityCemtAdapter {
         &self,
         request: TransformTemplateRenderRequest<'_>,
     ) -> TransformTemplateAdapterResult<TransformTemplateRenderResponse> {
+        if let TransformArtifactBody::CemTree(primary) = &request.primary_input.body {
+            if conversion_dom_projection_parity_target_is_cem_tree(&request) {
+                let tree = conversion_dom_projection_parity_cem_tree_document(
+                    &primary.as_ref().clone().into_cemt_subject(),
+                    request.target_scope,
+                )
+                .map_err(|message| {
+                    TransformTemplateAdapterError::failed(
+                        self.id(),
+                        TransformTemplateAdapterExecutionPhase::Render,
+                        message,
+                    )
+                })?;
+                return Ok(TransformTemplateRenderResponse {
+                    output: TransformTemplateOutputArtifact {
+                        uri: None,
+                        identity: request.target.cloned(),
+                        body: cemt_output_body(tree),
+                        source_map: None,
+                        output_spans: Vec::new(),
+                    },
+                    diagnostics: Vec::new(),
+                });
+            }
+
+            let output = conversion_dom_projection_parity_output(&request).map_err(|message| {
+                TransformTemplateAdapterError::failed(
+                    self.id(),
+                    TransformTemplateAdapterExecutionPhase::Render,
+                    message,
+                )
+            })?;
+            let rendered =
+                conversion_render_dom_projection_parity_cem_tree(primary.as_ref(), output)
+                    .map_err(|message| {
+                        TransformTemplateAdapterError::failed(
+                            self.id(),
+                            TransformTemplateAdapterExecutionPhase::Render,
+                            message,
+                        )
+                    })?;
+            let identity = request.target.cloned().unwrap_or_default();
+            let output = TransformTemplateOutputArtifact::encoded_text(None, identity, rendered)
+                .map_err(|error| {
+                    TransformTemplateAdapterError::failed(
+                        self.id(),
+                        TransformTemplateAdapterExecutionPhase::Render,
+                        error.to_string(),
+                    )
+                })?;
+            return Ok(TransformTemplateRenderResponse {
+                output,
+                diagnostics: Vec::new(),
+            });
+        }
+
         let primary = request
             .primary_input
             .explicit_json_value()
@@ -742,7 +847,7 @@ impl TransformTemplateAdapter for DomProjectionParityCemtAdapter {
                 output: TransformTemplateOutputArtifact {
                     uri: None,
                     identity: request.target.cloned(),
-                    value: tree,
+                    body: cemt_output_body(tree),
                     source_map: None,
                     output_spans: Vec::new(),
                 },
@@ -767,14 +872,17 @@ impl TransformTemplateAdapter for DomProjectionParityCemtAdapter {
             },
         )?;
 
+        let identity = request.target.cloned().unwrap_or_default();
+        let output = TransformTemplateOutputArtifact::encoded_text(None, identity, rendered)
+            .map_err(|error| {
+                TransformTemplateAdapterError::failed(
+                    self.id(),
+                    TransformTemplateAdapterExecutionPhase::Render,
+                    error.to_string(),
+                )
+            })?;
         Ok(TransformTemplateRenderResponse {
-            output: TransformTemplateOutputArtifact {
-                uri: None,
-                identity: request.target.cloned(),
-                value: Value::String(rendered),
-                source_map: None,
-                output_spans: Vec::new(),
-            },
+            output,
             diagnostics: Vec::new(),
         })
     }
@@ -833,6 +941,122 @@ fn conversion_render_dom_projection_parity_document(
         conversion_render_dom_projection_parity_node(child, output, &mut rendered)?;
     }
     Ok(rendered)
+}
+
+fn conversion_render_dom_projection_parity_cem_tree(
+    input: &CemTreeAstStream,
+    output: ConversionDomProjectionParityOutput,
+) -> Result<String, String> {
+    let mut rendered = String::new();
+    for node in input.as_nodes() {
+        conversion_render_dom_projection_parity_cem_tree_node(node, output, &mut rendered)?;
+    }
+    Ok(rendered)
+}
+
+fn conversion_render_dom_projection_parity_cem_tree_node(
+    node: &CemTreeAstNode,
+    output: ConversionDomProjectionParityOutput,
+    rendered: &mut String,
+) -> Result<(), String> {
+    match node {
+        CemTreeAstNode::Document { children, .. } => {
+            for child in children {
+                conversion_render_dom_projection_parity_cem_tree_node(child, output, rendered)?;
+            }
+            Ok(())
+        }
+        CemTreeAstNode::Element {
+            name,
+            attributes,
+            children,
+            ..
+        } => {
+            if name.starts_with('@') {
+                return Ok(());
+            }
+            rendered.push('<');
+            rendered.push_str(name);
+            for attribute in attributes {
+                conversion_render_dom_projection_parity_cem_tree_attribute(
+                    attribute, output, rendered,
+                );
+            }
+            rendered.push('>');
+            for child in children {
+                conversion_render_dom_projection_parity_cem_tree_node(child, output, rendered)?;
+            }
+            rendered.push_str("</");
+            rendered.push_str(name);
+            rendered.push('>');
+            Ok(())
+        }
+        CemTreeAstNode::Text { value, .. } => {
+            conversion_escape_text_into(rendered, value);
+            Ok(())
+        }
+        CemTreeAstNode::Whitespace { data, .. } => {
+            rendered.push_str(data);
+            Ok(())
+        }
+        CemTreeAstNode::Comment { data, .. } => {
+            rendered.push_str("<!--");
+            rendered.push_str(data);
+            rendered.push_str("-->");
+            Ok(())
+        }
+        CemTreeAstNode::Cdata { data, .. }
+            if output == ConversionDomProjectionParityOutput::Xml =>
+        {
+            rendered.push_str("<![CDATA[");
+            rendered.push_str(data);
+            rendered.push_str("]]>");
+            Ok(())
+        }
+        CemTreeAstNode::ProcessingInstruction { target, data, .. }
+            if output == ConversionDomProjectionParityOutput::Xml =>
+        {
+            rendered.push_str("<?");
+            rendered.push_str(target);
+            if !data.is_empty() {
+                rendered.push(' ');
+                rendered.push_str(data);
+            }
+            rendered.push_str("?>");
+            Ok(())
+        }
+        CemTreeAstNode::RawText { data, .. }
+            if output == ConversionDomProjectionParityOutput::Html =>
+        {
+            rendered.push_str(data);
+            Ok(())
+        }
+        _ => Ok(()),
+    }
+}
+
+fn conversion_render_dom_projection_parity_cem_tree_attribute(
+    attribute: &CemTreeAstAttribute,
+    output: ConversionDomProjectionParityOutput,
+    rendered: &mut String,
+) {
+    rendered.push(' ');
+    rendered.push_str(&attribute.name);
+    if output == ConversionDomProjectionParityOutput::Html && attribute.value.is_none() {
+        return;
+    }
+    rendered.push_str("=\"");
+    if let Some(value) = attribute.value.as_deref() {
+        match output {
+            ConversionDomProjectionParityOutput::Html => {
+                conversion_escape_html_attribute_into(rendered, value);
+            }
+            ConversionDomProjectionParityOutput::Xml => {
+                conversion_escape_xml_attribute_into(rendered, value);
+            }
+        }
+    }
+    rendered.push('"');
 }
 
 fn conversion_render_dom_projection_parity_node(
@@ -2179,9 +2403,15 @@ fn execute_cemt_template_parity_fixture(
     {
         None
     } else if let Some(contract) = contract.as_ref() {
+        let cemt_subject = match transform_template_output_cemt_subject(&render_response.output) {
+            Ok(subject) => subject,
+            Err(message) => {
+                return conversion_parity_fixture_execution_error(descriptor, fixture, message);
+            }
+        };
         let pipeline_execution = execute_conversion_output_pipeline(
             &contract.pipeline,
-            render_response.output.value,
+            cemt_subject,
             render_response.output.source_map,
             render_response.output.output_spans,
             &descriptor.id,
@@ -2198,12 +2428,46 @@ fn execute_cemt_template_parity_fixture(
             pipeline_execution.output
         }
     } else {
-        Some(render_response.output.value)
+        match conversion_output_boundary_value(&render_response.output) {
+            Ok(value) => Some(value),
+            Err(message) => {
+                return conversion_parity_fixture_execution_error(descriptor, fixture, message);
+            }
+        }
     };
 
     ConversionParityFixtureExecution {
         output,
         diagnostics,
+    }
+}
+
+fn conversion_output_boundary_value(
+    output: &TransformTemplateOutputArtifact,
+) -> Result<Value, String> {
+    match &output.body {
+        TransformArtifactBody::Encoded(encoded)
+            if encoded.encoding == crate::transform_artifact::TransformEncoding::Text =>
+        {
+            output
+                .encoded_text_value()
+                .map(|value| Value::String(value.to_owned()))
+                .map_err(|error| error.to_string())
+        }
+        TransformArtifactBody::Encoded(encoded)
+            if encoded.encoding == crate::transform_artifact::TransformEncoding::Json =>
+        {
+            output
+                .explicit_json_value()
+                .map_err(|error| error.to_string())
+        }
+        TransformArtifactBody::CemTree(_) | TransformArtifactBody::Extension(_) => {
+            transform_template_output_cemt_subject(output)
+        }
+        body => Err(format!(
+            "conversion output boundary does not support native representation `{}`",
+            body.representation_id()
+        )),
     }
 }
 
@@ -3129,7 +3393,7 @@ impl TransformTemplateAdapter for CemTreeCemtOutputAdapter {
             output: TransformTemplateOutputArtifact {
                 uri: None,
                 identity: request.target.cloned(),
-                value,
+                body: cemt_output_body(value),
                 source_map: None,
                 output_spans: Vec::new(),
             },
@@ -3411,8 +3675,9 @@ fn execute_conversion_cem_tree_output_stage(
         return Err(diagnostic.message.clone());
     }
 
+    let output = transform_template_output_cemt_subject(&render_response.output)?;
     Ok((
-        render_response.output.value,
+        output,
         ConversionOutputPipelineStageExecution::CemtAdapter {
             adapter_id: compiled.adapter_id,
             function_name: execution_binding.function.name.clone(),

@@ -33,6 +33,9 @@ use crate::source::{ByteRange, BytesSource, SourceId};
 use crate::source_map::{FrameSpan, SourceMapFrame, SourceMapStack, TransformKind};
 use crate::tokenizer::cem::CemTokenizer;
 pub use crate::transform_artifact::TransformDataArtifact as TransformTemplateDataArtifact;
+use crate::transform_artifact::{
+    TransformArtifactBody, TransformEncodedArtifact, TransformEncoding,
+};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::any::Any;
@@ -19178,14 +19181,42 @@ impl TransformTemplateEncodedArtifact {
         }
     }
 
-    pub fn into_output_artifact(self, uri: Option<String>) -> TransformTemplateOutputArtifact {
-        TransformTemplateOutputArtifact {
+    pub fn into_output_artifact(
+        self,
+        uri: Option<String>,
+    ) -> Result<TransformTemplateOutputArtifact, TransformTemplateEncodedArtifactError> {
+        let Some(text) = self.value.as_str() else {
+            return Err(TransformTemplateEncodedArtifactError::ValueShapeMismatch {
+                expected: "encoded text".to_owned(),
+                actual: json_value_type_name(&self.value).to_owned(),
+            });
+        };
+        let identity = self.identity.format_identity();
+        let encoding = identity
+            .content_type
+            .as_deref()
+            .map(content_type_essence)
+            .is_some_and(|content_type| {
+                content_type == JSON_CONTENT_TYPE || content_type.ends_with("+json")
+            })
+            .then_some(TransformEncoding::Json)
+            .unwrap_or(TransformEncoding::Text);
+        let encoded =
+            TransformEncodedArtifact::new(identity.clone(), encoding, text.as_bytes().to_vec())
+                .map_err(
+                    |error| TransformTemplateEncodedArtifactError::ValueShapeMismatch {
+                        expected: "encoded output matching its content identity".to_owned(),
+                        actual: error.to_string(),
+                    },
+                )?;
+
+        Ok(TransformTemplateOutputArtifact {
             uri,
-            identity: Some(self.identity.format_identity()),
-            value: self.value,
+            identity: Some(identity),
+            body: TransformArtifactBody::Encoded(Arc::new(encoded)),
             source_map: self.source_map,
             output_spans: self.output_spans,
-        }
+        })
     }
 }
 
@@ -21531,16 +21562,163 @@ pub struct TransformTemplateRenderRequest<'a> {
     pub execution_policy: TransformExecutionPolicy,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
+#[derive(Debug, Clone)]
 pub struct TransformTemplateOutputArtifact {
     pub uri: Option<String>,
     pub identity: Option<FormatIdentity>,
-    pub value: Value,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub body: TransformArtifactBody,
     pub source_map: Option<SourceMapStack>,
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub output_spans: Vec<OutputSpan>,
+}
+
+impl TransformTemplateOutputArtifact {
+    pub fn new(
+        uri: Option<String>,
+        identity: Option<FormatIdentity>,
+        body: TransformArtifactBody,
+    ) -> Self {
+        Self {
+            uri,
+            identity,
+            body,
+            source_map: None,
+            output_spans: Vec::new(),
+        }
+    }
+
+    pub fn encoded_text(
+        uri: Option<String>,
+        identity: FormatIdentity,
+        text: impl Into<String>,
+    ) -> Result<Self, crate::transform_artifact::TransformEncodedArtifactError> {
+        let encoded = TransformEncodedArtifact::new(
+            identity.clone(),
+            TransformEncoding::Text,
+            text.into().into_bytes(),
+        )?;
+        Ok(Self::new(
+            uri,
+            Some(identity),
+            TransformArtifactBody::Encoded(Arc::new(encoded)),
+        ))
+    }
+
+    pub fn explicit_json(
+        uri: Option<String>,
+        identity: FormatIdentity,
+        value: &Value,
+    ) -> Result<Self, crate::transform_artifact::TransformEncodedArtifactError> {
+        let bytes = serde_json::to_vec(value).map_err(|error| {
+            crate::transform_artifact::TransformEncodedArtifactError::JsonEncodingFailed {
+                message: error.to_string(),
+            }
+        })?;
+        let encoded =
+            TransformEncodedArtifact::new(identity.clone(), TransformEncoding::Json, bytes)?;
+        Ok(Self::new(
+            uri,
+            Some(identity),
+            TransformArtifactBody::Encoded(Arc::new(encoded)),
+        ))
+    }
+
+    pub fn with_metadata(
+        mut self,
+        source_map: Option<SourceMapStack>,
+        output_spans: Vec<OutputSpan>,
+    ) -> Self {
+        self.source_map = source_map;
+        self.output_spans = output_spans;
+        self
+    }
+
+    pub fn encoded_text_value(
+        &self,
+    ) -> Result<&str, crate::transform_artifact::TransformArtifactAccessError> {
+        let TransformArtifactBody::Encoded(encoded) = &self.body else {
+            return Err(
+                crate::transform_artifact::TransformArtifactAccessError::UnsupportedRepresentation {
+                    expected: "encoded UTF-8 text",
+                    actual: self.body.representation_id(),
+                },
+            );
+        };
+        if encoded.encoding != TransformEncoding::Text {
+            return Err(
+                crate::transform_artifact::TransformArtifactAccessError::UnsupportedRepresentation {
+                    expected: "encoded UTF-8 text",
+                    actual: self.body.representation_id(),
+                },
+            );
+        }
+        std::str::from_utf8(encoded.bytes.as_ref()).map_err(|error| {
+            crate::transform_artifact::TransformArtifactAccessError::InvalidUtf8 {
+                message: error.to_string(),
+            }
+        })
+    }
+
+    pub fn encoded_utf8_value(
+        &self,
+    ) -> Result<&str, crate::transform_artifact::TransformArtifactAccessError> {
+        let TransformArtifactBody::Encoded(encoded) = &self.body else {
+            return Err(
+                crate::transform_artifact::TransformArtifactAccessError::UnsupportedRepresentation {
+                    expected: "encoded UTF-8 text or JSON",
+                    actual: self.body.representation_id(),
+                },
+            );
+        };
+        if encoded.encoding == TransformEncoding::Binary {
+            return Err(
+                crate::transform_artifact::TransformArtifactAccessError::UnsupportedRepresentation {
+                    expected: "encoded UTF-8 text or JSON",
+                    actual: self.body.representation_id(),
+                },
+            );
+        }
+        std::str::from_utf8(encoded.bytes.as_ref()).map_err(|error| {
+            crate::transform_artifact::TransformArtifactAccessError::InvalidUtf8 {
+                message: error.to_string(),
+            }
+        })
+    }
+
+    pub fn explicit_json_value(
+        &self,
+    ) -> Result<Value, crate::transform_artifact::TransformArtifactAccessError> {
+        let TransformArtifactBody::Encoded(encoded) = &self.body else {
+            return Err(
+                crate::transform_artifact::TransformArtifactAccessError::UnsupportedRepresentation {
+                    expected: "explicit encoded JSON",
+                    actual: self.body.representation_id(),
+                },
+            );
+        };
+        if encoded.encoding != TransformEncoding::Json {
+            return Err(
+                crate::transform_artifact::TransformArtifactAccessError::UnsupportedRepresentation {
+                    expected: "explicit encoded JSON",
+                    actual: self.body.representation_id(),
+                },
+            );
+        }
+        serde_json::from_slice(encoded.bytes.as_ref()).map_err(|error| {
+            crate::transform_artifact::TransformArtifactAccessError::InvalidJson {
+                message: error.to_string(),
+            }
+        })
+    }
+
+    pub fn cemt_subject(&self) -> Result<Value, String> {
+        let TransformArtifactBody::CemTree(stream) = &self.body else {
+            return Err(format!(
+                "transform output representation `{}` is not a typed CEM tree",
+                self.body.representation_id()
+            ));
+        };
+        Ok(stream.as_ref().clone().into_cemt_subject())
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -35495,7 +35673,9 @@ mod tests {
             .validate_insertion(&context)
             .expect("matching insertion context");
 
-        let output = artifact.into_output_artifact(Some("out/page.html".to_owned()));
+        let output = artifact
+            .into_output_artifact(Some("out/page.html".to_owned()))
+            .expect("encoded text output artifact");
         assert_eq!(output.uri.as_deref(), Some("out/page.html"));
         assert_eq!(
             output
@@ -35511,7 +35691,10 @@ mod tests {
                 .and_then(|identity| identity.schema.as_deref()),
             Some("https://cem.dev/ns/data/html/1")
         );
-        assert_eq!(output.value, Value::String("Hello &amp; CEM".to_owned()));
+        assert_eq!(
+            output.encoded_text_value().expect("encoded text output"),
+            "Hello &amp; CEM"
+        );
     }
 
     #[test]
@@ -36033,18 +36216,29 @@ mod tests {
                         error.to_string(),
                     )
                 })?;
-            Ok(TransformTemplateRenderResponse {
-                output: TransformTemplateOutputArtifact {
-                    uri: None,
-                    identity: request.target.cloned(),
-                    value: json!({
-                        "adapter": request.compiled.adapter_id,
-                        "primary": primary,
-                        "secondaryInputs": request.secondary_inputs.len(),
-                    }),
-                    source_map: None,
-                    output_spans: Vec::new(),
+            let value = json!({
+                "adapter": request.compiled.adapter_id,
+                "primary": primary,
+                "secondaryInputs": request.secondary_inputs.len(),
+            });
+            let output = TransformTemplateOutputArtifact::explicit_json(
+                None,
+                FormatIdentity {
+                    content_type: Some(JSON_CONTENT_TYPE.to_owned()),
+                    schema: Some(JSON_VALUE_SCHEMA_URI.to_owned()),
+                    ..FormatIdentity::default()
                 },
+                &value,
+            )
+            .map_err(|error| {
+                TransformTemplateAdapterError::failed(
+                    self.id(),
+                    TransformTemplateAdapterExecutionPhase::Render,
+                    error.to_string(),
+                )
+            })?;
+            Ok(TransformTemplateRenderResponse {
+                output,
                 diagnostics: Vec::new(),
             })
         }
@@ -36098,7 +36292,10 @@ mod tests {
 
         assert_eq!(compiled.adapter_id, "runtime-cem-native-template");
         assert_eq!(
-            rendered.output.value,
+            rendered
+                .output
+                .explicit_json_value()
+                .expect("explicit JSON output"),
             json!({
                 "adapter": "runtime-cem-native-template",
                 "primary": {"title": "Example"},

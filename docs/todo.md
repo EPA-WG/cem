@@ -909,10 +909,10 @@ Remaining dependency-ordered package checklist:
     - [x] Route lifecycle load and collect joins through typed bodies, reject
           unmigrated adapter representations explicitly, and add a source audit.
     - [x] Pass focused transform tests, lint, native build/test, and WASM gates.
-  - [ ] Introduce a typed `TransformArtifactBody` with explicit native,
+  - [x] Introduce a typed `TransformArtifactBody` with explicit native,
         collection, extension, and encoded variants; remove
         `serde_json::Value` from transform data and output artifact contracts.
-  - [ ] Retain `LoadedInputAstStream` or another package-owned native artifact
+  - [x] Retain `LoadedInputAstStream` or another package-owned native artifact
         through `load_transform_data_artifact`, graph routing, joins, and
         adapter dispatch instead of calling `projection::dom_json` or an
         equivalent serializer.
@@ -932,9 +932,19 @@ Remaining dependency-ordered package checklist:
   - [ ] Represent JSON input internally with a lossless `JsonDocumentAst` and
         `JsonValueAst`, not `serde_json::Value`, preserving duplicate members,
         number lexemes, source ranges, diagnostics, and source maps.
-  - [ ] Make transform outputs typed native artifacts or explicit encoded
+  - [x] Make transform outputs typed native artifacts or explicit encoded
         artifacts, enforce encoding/content-type agreement, and require encoded
         input to pass through a lifecycle parser edge before AST consumption.
+    - [x] Add red output-routing tests for native and encoded `Arc` identity,
+          CEM-tree bodies, and rejection of value-shape classification.
+    - [x] Replace `TransformTemplateOutputArtifact.value` with the shared typed
+          body contract and transfer that body directly into graph artifacts.
+    - [x] Return CEM-QL result sequences as adapter-owned native artifacts and
+          register JSON encoding only for explicit JSON or `+json` exports.
+    - [x] Migrate text, CEM-tree, conversion, and CEMT compatibility paths to
+          typed output bodies without a generic JSON graph round trip.
+    - [x] Add output-boundary source audits and pass focused, core, CLI, lint,
+          native build/test, and WASM gates.
   - [ ] Add source audits and native/WASM behavior gates proving that only
         registered JSON or `+json` conversion edges can serialize JSON and that
         graph collections preserve typed child order and identity.
@@ -970,44 +980,24 @@ Remaining dependency-ordered package checklist:
 
 ### Next Work Item
 
-Remove `serde_json::Value` from the transform output data plane. Start with a
-red graph-routing test proving that an adapter-produced native or encoded body
-is transferred directly into `TransformDataArtifact`, without
-`transform_data_artifact_from_output` classifying a JSON value as text or
-serializing it back into bytes.
+Replace the transitional `CemtOutputArtifact { value: serde_json::Value }`
+extension with a package-owned typed CEMT tree/result model. Start with red tests
+that preserve `Arc` identity, formatter/colorizer metadata, source maps, writer
+tokens and chunks, and stage-specific node order through format, color, writer,
+graph routing, and secondary-input dispatch.
 
-Replace `TransformTemplateOutputArtifact.value` with a dependency-neutral typed
-body contract. CEM-native markup should leave the adapter as an explicitly
-identified UTF-8 encoded artifact; CEM-QL expression sequences should leave as
-an adapter-owned extension/native artifact until an explicit output target
-requests encoding. Graph stages, joins, and secondary inputs must preserve the
-same `Arc` body and source identity. JSON serialization is permitted only in a
-registered exporter selected by an explicit JSON or `+json` target, where it
-must preserve the CEM-QL item protocol and route JSON input through
-`JsonDocumentAst` before any later AST consumption.
+Define typed raw, formatted, and colored CEMT envelope variants plus typed node
+and token payloads. Make CEMT evaluator bindings consume lazy views over
+`CemTreeAstStream` or the typed CEMT envelope instead of `explicit_json_value`;
+remove `CemtOutputArtifact`, `transform_template_output_cemt_subject`, and
+adapter DTO `Value` conversion. Keep JSON solely in explicit JSON exporters and
+public response serialization. Then migrate CEMT graph ingress and query
+dispatch, add source audits, and run package formatter/colorizer parity,
+core/CLI, lint, and WASM gates.
 
-Add source audits around render response construction, graph routing, and
-export dispatch that reject `serde_json::to_value`, `Value::String` type
-classification, and generic JSON round trips. Keep request params/defaults as
-an explicitly named DTO boundary for this slice, then schedule their typed
-replacement separately. Finish with native CEM-QL and CEMT adapter parity,
-collection-to-explicit-JSON export coverage, core/CLI tests, lint, and both WASM
-builds.
-
-Treat encoded input as an encoding boundary, not an AST. Text or binary bytes
-must pass through a registered lifecycle parser before CEM-QL can consume them.
-Only an explicit JSON or `+json` content identity may select the JSON lifecycle
-parser; even then the query source is `JsonDocumentAst`, never a decoded generic
-`Value`. Unsupported native bodies continue to return representation-specific
-diagnostics rather than falling back to serialization.
-
-After the lazy views restore the native CEM-QL transform, secondary-input, and
-graph tests, replace `TransformTemplateOutputArtifact.value` with typed native
-or explicit encoded output bodies. Keep JSON encoding confined to registered
-JSON output edges and validate encoding/content-type agreement at construction.
-Finish with CEM-QL lint/tests, core lint/tests, source audits, graph identity
-tests, and the WASM build. The following item can then migrate CEMT's typed tree
-view without depending on a temporary JSON output contract.
+After typed CEMT is complete, apply the same native output/input contract to
+XSLT result trees and XPath result association, then replace the params/defaults
+DTO separately.
 
 ## Current Verification Commands
 
