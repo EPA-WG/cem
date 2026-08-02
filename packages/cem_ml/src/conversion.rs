@@ -47,9 +47,11 @@ use crate::tokenizer::html::HtmlTokenizer;
 use crate::tokenizer::xml::XmlTokenizer;
 use crate::tokenizer::{SchemaTokenKind, SchemaTokenizer};
 use crate::transform_artifact::{
-    CemtFormatOperation, CemtFormatOperationKind, CemtFormattedTreeOverlay,
-    CemtOverlayProducer, CemtOverlayProvenance, CemtTreeArtifact, CemtTreeArtifactStage,
-    TransformArtifactBody, TransformNativeArtifact, CEMT_TREE_REPRESENTATION_ID,
+    CemtFormatFragment, CemtFormatLayout, CemtFormatOperation, CemtFormatOperationKind,
+    CemtFormattedTreeOverlay, CemtNodeFormatOperation, CemtNodeFormatOperationKind,
+    CemtNodeFormatTarget, CemtOverlayProducer, CemtOverlayProvenance, CemtOwnerPath,
+    CemtTreeArtifact, CemtTreeArtifactStage, TransformArtifactBody, TransformNativeArtifact,
+    CEMT_TREE_REPRESENTATION_ID,
 };
 use crate::transform_template::{
     compose_transform_template_encoded_text_artifacts,
@@ -3588,6 +3590,18 @@ fn lower_formatted_cemt_tree_artifact(
         .enumerate()
         .map(|(index, value)| lower_cemt_format_operation(value, index, function_name))
         .collect::<Result<Vec<_>, _>>()?;
+    let formatted_nodes = tree
+        .get("nodes")
+        .and_then(Value::as_array)
+        .ok_or_else(|| "formatted CEMT tree requires an array `nodes` field".to_owned())?;
+    let mut node_operations = Vec::new();
+    lower_cemt_formatted_node_sequence(
+        raw.subject().nodes(),
+        formatted_nodes,
+        None,
+        function_name,
+        &mut node_operations,
+    )?;
 
     Ok(Arc::new(CemtTreeArtifact::formatted(
         raw.owner().clone(),
@@ -3598,8 +3612,476 @@ fn lower_formatted_cemt_tree_artifact(
                 formatter_profile,
             },
             operations,
+            node_operations,
         },
     )))
+}
+
+fn lower_cemt_formatted_node_sequence(
+    owner_nodes: &[CemTreeAstNode],
+    formatted_nodes: &[Value],
+    parent_path: Option<&CemtOwnerPath>,
+    function_name: &str,
+    operations: &mut Vec<CemtNodeFormatOperation>,
+) -> Result<(), String> {
+    let mut owner_cursor = 0usize;
+    let mut current_gap = None;
+    let mut gap_ordinal = 0usize;
+
+    for (formatted_index, formatted_node) in formatted_nodes.iter().enumerate() {
+        let fields = formatted_node.as_object().ok_or_else(|| {
+            format!("formatted CEMT tree node {formatted_index} must be an object")
+        })?;
+        if is_cemt_formatter_owned_fragment(fields) {
+            let before_owner = next_cemt_renderable_owner_index(owner_nodes, owner_cursor)
+                .unwrap_or(owner_nodes.len());
+            if current_gap == Some(before_owner) {
+                gap_ordinal = gap_ordinal.saturating_add(1);
+            } else {
+                current_gap = Some(before_owner);
+                gap_ordinal = 0;
+            }
+            let target = match parent_path {
+                Some(parent) => CemtNodeFormatTarget::ChildGap {
+                    parent: parent.clone(),
+                    before_child: before_owner,
+                    ordinal: gap_ordinal,
+                },
+                None => CemtNodeFormatTarget::RootGap {
+                    before_root: before_owner,
+                    ordinal: gap_ordinal,
+                },
+            };
+            let fragment = lower_cemt_format_fragment(
+                formatted_node,
+                &format!("inserted node {formatted_index}"),
+                function_name,
+            )?;
+            operations.push(CemtNodeFormatOperation {
+                target,
+                producer_function: function_name.to_owned(),
+                formatter_role: fragment.formatter_role,
+                color_role: fragment.color_role,
+                kind: CemtNodeFormatOperationKind::InsertChild {
+                    fragment: fragment.fragment,
+                },
+                provenance: fragment.provenance,
+            });
+            continue;
+        }
+
+        let formatted_kind = fields
+            .get("kind")
+            .and_then(Value::as_str)
+            .ok_or_else(|| format!("formatted CEMT tree node {formatted_index} requires `kind`"))?;
+        let owner_index = next_cemt_source_owner_index(owner_nodes, owner_cursor, formatted_kind)
+            .ok_or_else(|| {
+            format!("formatted CEMT tree node {formatted_index} has no remaining source owner")
+        })?;
+        let owner = &owner_nodes[owner_index];
+        owner_cursor = owner_index.saturating_add(1);
+        current_gap = None;
+        gap_ordinal = 0;
+        let path = match parent_path {
+            Some(parent) => parent.child(owner_index),
+            None => CemtOwnerPath::root(owner_index),
+        };
+        lower_cemt_formatted_source_node(
+            owner,
+            fields,
+            &path,
+            formatted_index,
+            function_name,
+            operations,
+        )?;
+    }
+
+    if let Some(owner_index) = next_cemt_renderable_owner_index(owner_nodes, owner_cursor) {
+        return Err(format!(
+            "formatted CEMT tree omitted source owner {} at structural index {owner_index}",
+            owner_nodes[owner_index].kind()
+        ));
+    }
+    Ok(())
+}
+
+fn next_cemt_renderable_owner_index(owner_nodes: &[CemTreeAstNode], start: usize) -> Option<usize> {
+    owner_nodes
+        .iter()
+        .enumerate()
+        .skip(start)
+        .find_map(|(index, node)| (node.kind() != "whitespace").then_some(index))
+}
+
+fn next_cemt_source_owner_index(
+    owner_nodes: &[CemTreeAstNode],
+    start: usize,
+    formatted_kind: &str,
+) -> Option<usize> {
+    match owner_nodes.get(start) {
+        Some(owner) if owner.kind() == formatted_kind => Some(start),
+        _ => next_cemt_renderable_owner_index(owner_nodes, start),
+    }
+}
+
+fn is_cemt_formatter_owned_fragment(fields: &serde_json::Map<String, Value>) -> bool {
+    fields.get("formatterOwned").and_then(Value::as_bool) == Some(true)
+        || (matches!(
+            fields.get("kind").and_then(Value::as_str),
+            Some("whitespace" | "raw")
+        ) && fields
+            .get("formatterRole")
+            .and_then(Value::as_str)
+            .is_some())
+}
+
+fn lower_cemt_formatted_source_node(
+    owner: &CemTreeAstNode,
+    fields: &serde_json::Map<String, Value>,
+    path: &CemtOwnerPath,
+    formatted_index: usize,
+    function_name: &str,
+    operations: &mut Vec<CemtNodeFormatOperation>,
+) -> Result<(), String> {
+    let formatted_kind = fields
+        .get("kind")
+        .and_then(Value::as_str)
+        .ok_or_else(|| format!("formatted CEMT tree node {formatted_index} requires `kind`"))?;
+    if formatted_kind != owner.kind() {
+        return Err(format!(
+            "formatted CEMT tree node {formatted_index} kind `{formatted_kind}` does not match owner kind `{}`",
+            owner.kind()
+        ));
+    }
+    if fields.get("name").and_then(Value::as_str) != owner.name() {
+        return Err(format!(
+            "formatted CEMT tree node {formatted_index} name does not match its source owner"
+        ));
+    }
+
+    if let Some(layout) = fields.get("formatLayout") {
+        let lowered = lower_cemt_layout_operation(layout, formatted_index, function_name)?;
+        operations.push(CemtNodeFormatOperation {
+            target: CemtNodeFormatTarget::Owner(path.clone()),
+            producer_function: function_name.to_owned(),
+            formatter_role: lowered.formatter_role,
+            color_role: lowered.color_role,
+            kind: CemtNodeFormatOperationKind::Layout(lowered.layout),
+            provenance: lowered.provenance,
+        });
+    }
+    lower_cemt_single_fragment_field(
+        fields,
+        "formatBeforeAttributes",
+        path,
+        formatted_index,
+        function_name,
+        operations,
+        |fragment| CemtNodeFormatOperationKind::BeforeAttributes { fragment },
+    )?;
+    lower_cemt_single_fragment_field(
+        fields,
+        "formatBetweenAttributes",
+        path,
+        formatted_index,
+        function_name,
+        operations,
+        |fragment| CemtNodeFormatOperationKind::BetweenAttributes { fragment },
+    )?;
+    lower_cemt_formatted_attributes(
+        owner,
+        fields,
+        path,
+        formatted_index,
+        function_name,
+        operations,
+    )?;
+    lower_cemt_content_boundary(fields, path, formatted_index, function_name, operations)?;
+
+    let formatted_children = match fields.get("children") {
+        Some(Value::Array(children)) => children.as_slice(),
+        Some(_) => {
+            return Err(format!(
+                "formatted CEMT tree node {formatted_index} `children` must be an array"
+            ))
+        }
+        None => &[],
+    };
+    lower_cemt_formatted_node_sequence(
+        owner.children(),
+        formatted_children,
+        Some(path),
+        function_name,
+        operations,
+    )?;
+
+    lower_cemt_single_fragment_field(
+        fields,
+        "formatBeforeClose",
+        path,
+        formatted_index,
+        function_name,
+        operations,
+        |fragment| CemtNodeFormatOperationKind::BeforeClose { fragment },
+    )?;
+    Ok(())
+}
+
+fn lower_cemt_single_fragment_field(
+    fields: &serde_json::Map<String, Value>,
+    field: &str,
+    path: &CemtOwnerPath,
+    formatted_index: usize,
+    function_name: &str,
+    operations: &mut Vec<CemtNodeFormatOperation>,
+    operation_kind: fn(CemtFormatFragment) -> CemtNodeFormatOperationKind,
+) -> Result<(), String> {
+    let Some(value) = fields.get(field) else {
+        return Ok(());
+    };
+    let fragment = lower_cemt_format_fragment(
+        value,
+        &format!("node {formatted_index} field `{field}`"),
+        function_name,
+    )?;
+    operations.push(CemtNodeFormatOperation {
+        target: CemtNodeFormatTarget::Owner(path.clone()),
+        producer_function: function_name.to_owned(),
+        formatter_role: fragment.formatter_role,
+        color_role: fragment.color_role,
+        kind: operation_kind(fragment.fragment),
+        provenance: fragment.provenance,
+    });
+    Ok(())
+}
+
+fn lower_cemt_formatted_attributes(
+    owner: &CemTreeAstNode,
+    fields: &serde_json::Map<String, Value>,
+    path: &CemtOwnerPath,
+    formatted_index: usize,
+    function_name: &str,
+    operations: &mut Vec<CemtNodeFormatOperation>,
+) -> Result<(), String> {
+    let formatted_attributes = match fields.get("attributes") {
+        Some(Value::Array(attributes)) => attributes.as_slice(),
+        Some(_) => {
+            return Err(format!(
+                "formatted CEMT tree node {formatted_index} `attributes` must be an array"
+            ))
+        }
+        None => &[],
+    };
+    if formatted_attributes.len() != owner.attributes().len() {
+        return Err(format!(
+            "formatted CEMT tree node {formatted_index} has {} attributes but its source owner has {}",
+            formatted_attributes.len(),
+            owner.attributes().len()
+        ));
+    }
+    for (attribute_index, (owner_attribute, formatted_attribute)) in owner
+        .attributes()
+        .iter()
+        .zip(formatted_attributes)
+        .enumerate()
+    {
+        let attribute_fields = formatted_attribute.as_object().ok_or_else(|| {
+            format!(
+                "formatted CEMT tree node {formatted_index} attribute {attribute_index} must be an object"
+            )
+        })?;
+        if attribute_fields.get("name").and_then(Value::as_str)
+            != Some(owner_attribute.name.as_str())
+        {
+            return Err(format!(
+                "formatted CEMT tree node {formatted_index} attribute {attribute_index} does not match its source owner"
+            ));
+        }
+        let Some(format_before) = attribute_fields.get("formatBefore") else {
+            continue;
+        };
+        let values = match format_before {
+            Value::Array(values) => values.as_slice(),
+            value => std::slice::from_ref(value),
+        };
+        for (index, value) in values.iter().enumerate() {
+            let fragment = lower_cemt_format_fragment(
+                value,
+                &format!(
+                    "node {formatted_index} attribute {attribute_index} `formatBefore` item {index}"
+                ),
+                function_name,
+            )?;
+            operations.push(CemtNodeFormatOperation {
+                target: CemtNodeFormatTarget::Owner(path.attribute(attribute_index)),
+                producer_function: function_name.to_owned(),
+                formatter_role: fragment.formatter_role,
+                color_role: fragment.color_role,
+                kind: CemtNodeFormatOperationKind::BeforeAttribute {
+                    index,
+                    fragment: fragment.fragment,
+                },
+                provenance: fragment.provenance,
+            });
+        }
+    }
+    Ok(())
+}
+
+fn lower_cemt_content_boundary(
+    fields: &serde_json::Map<String, Value>,
+    path: &CemtOwnerPath,
+    formatted_index: usize,
+    function_name: &str,
+    operations: &mut Vec<CemtNodeFormatOperation>,
+) -> Result<(), String> {
+    let Some(value) = fields.get("formatContentBoundary") else {
+        return Ok(());
+    };
+    let values = value.as_array().ok_or_else(|| {
+        format!(
+            "formatted CEMT tree node {formatted_index} `formatContentBoundary` must be an array"
+        )
+    })?;
+    for (index, value) in values.iter().enumerate() {
+        let fragment = lower_cemt_format_fragment(
+            value,
+            &format!("node {formatted_index} content boundary item {index}"),
+            function_name,
+        )?;
+        operations.push(CemtNodeFormatOperation {
+            target: CemtNodeFormatTarget::Owner(path.clone()),
+            producer_function: function_name.to_owned(),
+            formatter_role: fragment.formatter_role,
+            color_role: fragment.color_role,
+            kind: CemtNodeFormatOperationKind::ContentBoundary {
+                index,
+                fragment: fragment.fragment,
+            },
+            provenance: fragment.provenance,
+        });
+    }
+    Ok(())
+}
+
+struct LoweredCemtLayoutOperation {
+    layout: CemtFormatLayout,
+    formatter_role: String,
+    color_role: Option<String>,
+    provenance: CemtOverlayProvenance,
+}
+
+fn lower_cemt_layout_operation(
+    value: &Value,
+    formatted_index: usize,
+    function_name: &str,
+) -> Result<LoweredCemtLayoutOperation, String> {
+    let operation = value.as_object().ok_or_else(|| {
+        format!("formatted CEMT tree node {formatted_index} layout must be an object")
+    })?;
+    if operation.get("kind").and_then(Value::as_str) != Some("format-decision")
+        || matches!(
+            operation.get("name").and_then(Value::as_str),
+            Some(name) if name != "layout"
+        )
+    {
+        return Err(format!(
+            "formatted CEMT tree node {formatted_index} layout must be a `layout` format decision"
+        ));
+    }
+    let layout = match operation.get("value").and_then(Value::as_str) {
+        Some("inline") => CemtFormatLayout::Inline,
+        Some("inline-emphasis") => CemtFormatLayout::InlineEmphasis,
+        Some("block") => CemtFormatLayout::Block,
+        Some(value) => {
+            return Err(format!(
+                "formatted CEMT tree node {formatted_index} has unsupported layout `{value}`"
+            ))
+        }
+        None => {
+            return Err(format!(
+                "formatted CEMT tree node {formatted_index} layout requires a string `value`"
+            ))
+        }
+    };
+    Ok(LoweredCemtLayoutOperation {
+        layout,
+        formatter_role: required_cemt_overlay_string(operation, "formatterRole", formatted_index)?,
+        color_role: optional_cemt_overlay_string(operation, "colorRole")?,
+        provenance: lower_generated_cemt_provenance(operation, function_name, formatted_index)?,
+    })
+}
+
+struct LoweredCemtFormatFragment {
+    fragment: CemtFormatFragment,
+    formatter_role: String,
+    color_role: Option<String>,
+    provenance: CemtOverlayProvenance,
+}
+
+fn lower_cemt_format_fragment(
+    value: &Value,
+    context: &str,
+    function_name: &str,
+) -> Result<LoweredCemtFormatFragment, String> {
+    let fragment = value
+        .as_object()
+        .ok_or_else(|| format!("formatted CEMT tree {context} must be an object"))?;
+    if !is_cemt_formatter_owned_fragment(fragment) {
+        return Err(format!(
+            "formatted CEMT tree {context} must be formatter-owned"
+        ));
+    }
+    let data = fragment
+        .get("value")
+        .and_then(Value::as_str)
+        .ok_or_else(|| format!("formatted CEMT tree {context} requires a string `value`"))?;
+    let fragment_kind = match fragment.get("kind").and_then(Value::as_str) {
+        Some("whitespace") => CemtFormatFragment::Whitespace {
+            value: data.to_owned(),
+        },
+        Some("raw") => CemtFormatFragment::Raw {
+            value: data.to_owned(),
+        },
+        Some(kind) => {
+            return Err(format!(
+                "formatted CEMT tree {context} has unsupported formatter node kind `{kind}`"
+            ))
+        }
+        None => return Err(format!("formatted CEMT tree {context} requires `kind`")),
+    };
+    Ok(LoweredCemtFormatFragment {
+        fragment: fragment_kind,
+        formatter_role: fragment
+            .get("formatterRole")
+            .and_then(Value::as_str)
+            .map(str::to_owned)
+            .ok_or_else(|| {
+                format!("formatted CEMT tree {context} requires a string `formatterRole`")
+            })?,
+        color_role: optional_cemt_overlay_string(fragment, "colorRole")?,
+        provenance: lower_generated_cemt_provenance(fragment, function_name, 0)?,
+    })
+}
+
+fn lower_generated_cemt_provenance(
+    operation: &serde_json::Map<String, Value>,
+    function_name: &str,
+    index: usize,
+) -> Result<CemtOverlayProvenance, String> {
+    let source_map = operation
+        .get("sourceMap")
+        .filter(|value| !value.is_null())
+        .map(|source_map| {
+            serde_json::from_value(source_map.clone()).map_err(|error| {
+                format!("formatted CEMT tree operation {index} has an invalid `sourceMap`: {error}")
+            })
+        })
+        .transpose()?;
+    Ok(CemtOverlayProvenance::Generated {
+        function_name: function_name.to_owned(),
+        source_map,
+    })
 }
 
 fn lower_cemt_format_operation(
@@ -3635,13 +4117,12 @@ fn lower_cemt_format_operation(
     let provenance = match operation.get("sourceMap").filter(|value| !value.is_null()) {
         Some(source_map) => CemtOverlayProvenance::SourceMapped(
             serde_json::from_value(source_map.clone()).map_err(|error| {
-                format!(
-                    "formatted CEMT tree operation {index} has an invalid `sourceMap`: {error}"
-                )
+                format!("formatted CEMT tree operation {index} has an invalid `sourceMap`: {error}")
             })?,
         ),
         None => CemtOverlayProvenance::Generated {
             function_name: function_name.to_owned(),
+            source_map: None,
         },
     };
 
@@ -3664,9 +4145,7 @@ fn required_cemt_overlay_string(
         .get(field)
         .and_then(Value::as_str)
         .map(str::to_owned)
-        .ok_or_else(|| {
-            format!("formatted CEMT tree operation {index} requires a string `{field}`")
-        })
+        .ok_or_else(|| format!("formatted CEMT tree operation {index} requires a string `{field}`"))
 }
 
 fn optional_cemt_overlay_string(
@@ -15038,7 +15517,10 @@ mod tests {
             .formatted_overlay()
             .expect("formatted artifact has an overlay");
         assert_eq!(overlay.producer.function_name, "cem.format-tree");
-        assert_eq!(overlay.producer.formatter_profile.as_deref(), Some("compact"));
+        assert_eq!(
+            overlay.producer.formatter_profile.as_deref(),
+            Some("compact")
+        );
         assert_eq!(
             overlay
                 .operations
@@ -15059,12 +15541,352 @@ mod tests {
             overlay.operations[0].kind,
             CemtFormatOperationKind::Marker
         ));
-        assert!(overlay.operations.iter().all(|operation| match &operation.provenance {
-            CemtOverlayProvenance::SourceMapped(_) => true,
-            CemtOverlayProvenance::Generated { function_name } => {
-                function_name == "cem.format-tree"
-            }
+        assert!(overlay
+            .operations
+            .iter()
+            .all(|operation| match &operation.provenance {
+                CemtOverlayProvenance::SourceMapped(_) => true,
+                CemtOverlayProvenance::Generated { function_name, .. } => {
+                    function_name == "cem.format-tree"
+                }
+            }));
+    }
+
+    #[test]
+    fn native_cem_tree_pipeline_lowers_typed_per_node_operations() {
+        use crate::transform_artifact::{
+            CemtFormatLayout, CemtNodeFormatOperationKind, CemtNodeFormatTarget, CemtOwnerPath,
+            CemtTreeOwnerRef,
+        };
+
+        let owner = Arc::new(CemTreeAstStream::new(vec![CemTreeAstNode::Element {
+            name: "card".to_owned(),
+            attributes: vec![
+                CemTreeAstAttribute {
+                    name: "tone".to_owned(),
+                    value: Some("info".to_owned()),
+                    source: SourceMapStack::default(),
+                },
+                CemTreeAstAttribute {
+                    name: "size".to_owned(),
+                    value: Some("large".to_owned()),
+                    source: SourceMapStack::default(),
+                },
+            ],
+            children: vec![
+                CemTreeAstNode::Element {
+                    name: "title".to_owned(),
+                    attributes: Vec::new(),
+                    children: vec![CemTreeAstNode::Text {
+                        value: "Ready".to_owned(),
+                        source: SourceMapStack::default(),
+                    }],
+                    source: SourceMapStack::default(),
+                },
+                CemTreeAstNode::Whitespace {
+                    data: "\n".to_owned(),
+                    source: SourceMapStack::default(),
+                },
+                CemTreeAstNode::Element {
+                    name: "body".to_owned(),
+                    attributes: Vec::new(),
+                    children: vec![CemTreeAstNode::Text {
+                        value: "Now".to_owned(),
+                        source: SourceMapStack::default(),
+                    }],
+                    source: SourceMapStack::default(),
+                },
+            ],
+            source: SourceMapStack::default(),
+        }]));
+        let schema_registry = SchemaRegistry::with_builtin_schemas();
+        let conversion_registry = ConversionRegistry::with_builtin_converters();
+        let environment = ConversionOutputPipelineEnvironment {
+            schema_registry: &schema_registry,
+            conversion_registry: &conversion_registry,
+            package_artifact_reader: None,
+            artifact_cache: None,
+        };
+        let mut pipeline = direct_cem_output_pipeline();
+        pipeline.cemt_options.formatter_profile = Some("tabular".to_owned());
+        pipeline.cemt_options.wrap_column = Some("16".to_owned());
+        pipeline.cemt_insertion_context.formatter_profile = Some("tabular".to_owned());
+        pipeline.writer_insertion_context.formatter_profile = Some("tabular".to_owned());
+
+        let execution = execute_conversion_output_pipeline_from_cem_tree_with_environment(
+            &environment,
+            &pipeline,
+            owner.clone(),
+            None,
+            Vec::new(),
+            "typed-per-node-cem-tree",
+            Some("output"),
+            Some("fixture.cem"),
+        );
+
+        assert!(
+            execution.diagnostics.is_empty(),
+            "{:?}",
+            execution.diagnostics
+        );
+        let formatted = execution
+            .formatted_cemt_tree
+            .as_ref()
+            .expect("typed formatted CEMT tree artifact is retained");
+        let root_path = CemtOwnerPath::root(0);
+        let title_path = root_path.child(0);
+        let skipped_whitespace_path = root_path.child(1);
+        let body_path = root_path.child(2);
+        let title_text_path = title_path.child(0);
+        let second_attribute_path = root_path.attribute(1);
+        let root = &owner.as_nodes()[0];
+        let title = &root.children()[0];
+        let skipped_whitespace = &root.children()[1];
+        let title_text = &title.children()[0];
+        let second_attribute = &root.attributes()[1];
+
+        assert!(matches!(
+            formatted.subject().resolve_owner(&root_path),
+            Some(CemtTreeOwnerRef::Node(node)) if std::ptr::eq(node, root)
+        ));
+        assert!(matches!(
+            formatted.subject().resolve_owner(&title_path),
+            Some(CemtTreeOwnerRef::Node(node)) if std::ptr::eq(node, title)
+        ));
+        assert!(matches!(
+            formatted.subject().resolve_owner(&skipped_whitespace_path),
+            Some(CemtTreeOwnerRef::Node(node)) if std::ptr::eq(node, skipped_whitespace)
+        ));
+        assert!(matches!(
+            formatted.subject().resolve_owner(&title_text_path),
+            Some(CemtTreeOwnerRef::Node(node)) if std::ptr::eq(node, title_text)
+        ));
+        assert!(matches!(
+            formatted.subject().resolve_owner(&second_attribute_path),
+            Some(CemtTreeOwnerRef::Attribute(attribute))
+                if std::ptr::eq(attribute, second_attribute)
+        ));
+
+        let overlay = formatted
+            .formatted_overlay()
+            .expect("formatted artifact has an overlay");
+        assert_eq!(
+            overlay
+                .node_operations
+                .iter()
+                .map(|operation| operation.formatter_role.as_str())
+                .collect::<Vec<_>>(),
+            vec![
+                "formatter.layout",
+                "formatter.attribute-prefix",
+                "formatter.attribute-spacing",
+                "formatter.attribute-spacing",
+                "formatter.attribute-indent",
+                "formatter.boundary-spacing",
+                "formatter.content-boundary",
+                "formatter.line-ending",
+                "formatter.indent",
+                "formatter.layout",
+                "formatter.boundary-spacing",
+                "formatter.content-boundary",
+                "formatter.boundary-spacing",
+                "formatter.line-ending",
+                "formatter.indent",
+                "formatter.layout",
+                "formatter.boundary-spacing",
+                "formatter.content-boundary",
+                "formatter.boundary-spacing",
+                "formatter.line-ending",
+                "formatter.close-indent",
+            ]
+        );
+        assert!(matches!(
+            &overlay.node_operations[0].kind,
+            CemtNodeFormatOperationKind::Layout(CemtFormatLayout::Block)
+        ));
+        assert!(matches!(
+            &overlay.node_operations[3].target,
+            CemtNodeFormatTarget::Owner(path) if path == &second_attribute_path
+        ));
+        assert!(matches!(
+            &overlay.node_operations[3].kind,
+            CemtNodeFormatOperationKind::BeforeAttribute { index: 0, .. }
+        ));
+        assert!(matches!(
+            &overlay.node_operations[4].kind,
+            CemtNodeFormatOperationKind::BeforeAttribute { index: 1, .. }
+        ));
+        assert!(matches!(
+            &overlay.node_operations[8].target,
+            CemtNodeFormatTarget::ChildGap {
+                parent,
+                before_child: 0,
+                ordinal: 0,
+            } if parent == &root_path
+        ));
+        assert!(matches!(
+            &overlay.node_operations[13].target,
+            CemtNodeFormatTarget::ChildGap {
+                parent,
+                before_child: 2,
+                ordinal: 0,
+            } if parent == &root_path
+        ));
+        assert!(matches!(
+            &overlay.node_operations[14].target,
+            CemtNodeFormatTarget::ChildGap {
+                parent,
+                before_child: 2,
+                ordinal: 1,
+            } if parent == &root_path
+        ));
+        assert!(matches!(
+            &overlay.node_operations[19].target,
+            CemtNodeFormatTarget::ChildGap {
+                parent,
+                before_child: 3,
+                ordinal: 0,
+            } if parent == &root_path
+        ));
+        assert!(overlay.node_operations.iter().all(|operation| {
+            operation.producer_function == "cem.format-tree"
+                && matches!(
+                    &operation.provenance,
+                    CemtOverlayProvenance::Generated { function_name, .. }
+                        if function_name == "cem.format-tree"
+                )
         }));
+
+        let root_view = formatted
+            .formatted_view()
+            .expect("formatted artifact exposes a lazy merged view")
+            .resolve_owner(&root_path)
+            .expect("root owner resolves through the formatted view");
+        assert!(matches!(
+            root_view.owner(),
+            CemtTreeOwnerRef::Node(node) if std::ptr::eq(node, root)
+        ));
+        assert_eq!(root_view.operations().count(), 11);
+        assert!(root_view.operations().any(|operation| matches!(
+            operation.kind,
+            CemtNodeFormatOperationKind::BeforeClose { .. }
+        )));
+        assert!(formatted
+            .formatted_view()
+            .expect("formatted view")
+            .resolve_owner(&body_path)
+            .is_some());
+    }
+
+    #[test]
+    fn formatted_cemt_node_overlay_rejects_source_owner_mismatch() {
+        let raw = Arc::new(CemtTreeArtifact::raw(
+            Arc::new(CemTreeAstStream::new(vec![CemTreeAstNode::Text {
+                value: "Ready".to_owned(),
+                source: SourceMapStack::default(),
+            }])),
+            None,
+        ));
+        let error = lower_formatted_cemt_tree_artifact(
+            &raw,
+            &serde_json::json!({
+                "formatterProfile": "compact",
+                "formatNodes": [],
+                "nodes": [{"kind": "element", "name": "wrong"}]
+            }),
+            "cem.format-tree",
+        )
+        .expect_err("formatted source nodes must map to the owning AST");
+
+        assert!(error.contains("owner kind `text`"), "{error}");
+    }
+
+    #[test]
+    fn formatted_cemt_node_overlay_accepts_preserved_source_whitespace() {
+        let owner = Arc::new(CemTreeAstStream::new(vec![
+            CemTreeAstNode::Whitespace {
+                data: "\n".to_owned(),
+                source: SourceMapStack::default(),
+            },
+            CemTreeAstNode::Text {
+                value: "Ready".to_owned(),
+                source: SourceMapStack::default(),
+            },
+        ]));
+        let raw = Arc::new(CemtTreeArtifact::raw(owner.clone(), None));
+        let formatted = lower_formatted_cemt_tree_artifact(
+            &raw,
+            &serde_json::json!({
+                "formatterProfile": "compact",
+                "formatNodes": [],
+                "nodes": [
+                    {"kind": "whitespace", "data": "\n", "sourceMap": {"frames": []}},
+                    {"kind": "text", "value": "Ready", "sourceMap": {"frames": []}}
+                ]
+            }),
+            "cem.format-tree",
+        )
+        .expect("source whitespace may remain in package formatter output");
+
+        assert!(Arc::ptr_eq(formatted.owner(), &owner));
+        assert!(matches!(
+            formatted
+                .subject()
+                .resolve_owner(&crate::transform_artifact::CemtOwnerPath::root(0)),
+            Some(crate::transform_artifact::CemtTreeOwnerRef::Node(
+                CemTreeAstNode::Whitespace { .. }
+            ))
+        ));
+        assert!(formatted
+            .formatted_overlay()
+            .expect("formatted overlay")
+            .node_operations
+            .is_empty());
+    }
+
+    #[test]
+    fn formatted_cemt_node_overlay_accepts_package_inline_emphasis_layout() {
+        use crate::transform_artifact::{CemtFormatLayout, CemtNodeFormatOperationKind};
+
+        let raw = Arc::new(CemtTreeArtifact::raw(
+            Arc::new(CemTreeAstStream::new(vec![CemTreeAstNode::Element {
+                name: "strong".to_owned(),
+                attributes: Vec::new(),
+                children: Vec::new(),
+                source: SourceMapStack::default(),
+            }])),
+            None,
+        ));
+        let formatted = lower_formatted_cemt_tree_artifact(
+            &raw,
+            &serde_json::json!({
+                "formatterProfile": "acme.showcase.format-tree",
+                "formatNodes": [],
+                "nodes": [{
+                    "kind": "element",
+                    "name": "strong",
+                    "attributes": [],
+                    "children": [],
+                    "formatLayout": {
+                        "kind": "format-decision",
+                        "formatterRole": "formatter.inline-emphasis",
+                        "value": "inline-emphasis"
+                    }
+                }]
+            }),
+            "acme.showcase.format-tree",
+        )
+        .expect("package formatLayout field supplies the layout decision identity");
+
+        let operation = &formatted
+            .formatted_overlay()
+            .expect("formatted overlay")
+            .node_operations[0];
+        assert_eq!(operation.formatter_role, "formatter.inline-emphasis");
+        assert!(matches!(
+            operation.kind,
+            CemtNodeFormatOperationKind::Layout(CemtFormatLayout::InlineEmphasis)
+        ));
     }
 
     #[test]

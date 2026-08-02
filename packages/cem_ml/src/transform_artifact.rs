@@ -2,7 +2,7 @@ use crate::engine::FormatIdentity;
 use crate::interpreter::OutputSpan;
 use crate::lifecycle::LoadedInputAstStream;
 use crate::parser::document::CemDocument;
-use crate::projection::CemTreeAstStream;
+use crate::projection::{CemTreeAstAttribute, CemTreeAstNode, CemTreeAstStream};
 use crate::schema::registry::{content_type_essence, JSON_CONTENT_TYPE};
 use crate::source_map::SourceMapStack;
 use crate::validation::generic_data::GenericDataDocumentAst;
@@ -30,7 +30,10 @@ pub struct CemtOverlayProducer {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum CemtOverlayProvenance {
     SourceMapped(SourceMapStack),
-    Generated { function_name: String },
+    Generated {
+        function_name: String,
+        source_map: Option<SourceMapStack>,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -49,10 +52,129 @@ pub struct CemtFormatOperation {
     pub provenance: CemtOverlayProvenance,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct CemtOwnerPath {
+    root: usize,
+    steps: Vec<CemtOwnerStep>,
+}
+
+impl CemtOwnerPath {
+    pub fn root(root: usize) -> Self {
+        Self {
+            root,
+            steps: Vec::new(),
+        }
+    }
+
+    pub fn child(&self, index: usize) -> Self {
+        let mut path = self.clone();
+        path.steps.push(CemtOwnerStep::Child(index));
+        path
+    }
+
+    pub fn attribute(&self, index: usize) -> Self {
+        let mut path = self.clone();
+        path.steps.push(CemtOwnerStep::Attribute(index));
+        path
+    }
+
+    pub fn root_index(&self) -> usize {
+        self.root
+    }
+
+    pub fn steps(&self) -> &[CemtOwnerStep] {
+        &self.steps
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum CemtOwnerStep {
+    Child(usize),
+    Attribute(usize),
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum CemtTreeOwnerRef<'a> {
+    Node(&'a CemTreeAstNode),
+    Attribute(&'a CemTreeAstAttribute),
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CemtFormatLayout {
+    Inline,
+    InlineEmphasis,
+    Block,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum CemtFormatFragment {
+    Whitespace { value: String },
+    Raw { value: String },
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum CemtNodeFormatTarget {
+    Owner(CemtOwnerPath),
+    RootGap {
+        before_root: usize,
+        ordinal: usize,
+    },
+    ChildGap {
+        parent: CemtOwnerPath,
+        before_child: usize,
+        ordinal: usize,
+    },
+}
+
+impl CemtNodeFormatTarget {
+    fn belongs_to(&self, path: &CemtOwnerPath) -> bool {
+        match self {
+            Self::Owner(owner) | Self::ChildGap { parent: owner, .. } => owner == path,
+            Self::RootGap { .. } => false,
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum CemtNodeFormatOperationKind {
+    Layout(CemtFormatLayout),
+    BeforeAttributes {
+        fragment: CemtFormatFragment,
+    },
+    BetweenAttributes {
+        fragment: CemtFormatFragment,
+    },
+    BeforeAttribute {
+        index: usize,
+        fragment: CemtFormatFragment,
+    },
+    ContentBoundary {
+        index: usize,
+        fragment: CemtFormatFragment,
+    },
+    InsertChild {
+        fragment: CemtFormatFragment,
+    },
+    BeforeClose {
+        fragment: CemtFormatFragment,
+    },
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CemtNodeFormatOperation {
+    pub target: CemtNodeFormatTarget,
+    pub producer_function: String,
+    pub formatter_role: String,
+    pub color_role: Option<String>,
+    pub kind: CemtNodeFormatOperationKind,
+    pub provenance: CemtOverlayProvenance,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CemtFormattedTreeOverlay {
     pub producer: CemtOverlayProducer,
     pub operations: Vec<CemtFormatOperation>,
+    pub node_operations: Vec<CemtNodeFormatOperation>,
 }
 
 #[derive(Debug, Clone)]
@@ -103,6 +225,15 @@ impl CemtTreeArtifact {
     pub fn formatted_overlay(&self) -> Option<&CemtFormattedTreeOverlay> {
         self.formatted_overlay.as_ref()
     }
+
+    pub fn formatted_view(&self) -> Option<CemtFormattedTreeView<'_>> {
+        self.formatted_overlay
+            .as_ref()
+            .map(|overlay| CemtFormattedTreeView {
+                subject: self.subject(),
+                overlay,
+            })
+    }
 }
 
 impl TransformNativeArtifact for CemtTreeArtifact {
@@ -131,6 +262,64 @@ impl<'a> CemtTreeSubjectRef<'a> {
 
     pub fn nodes(self) -> &'a [crate::projection::CemTreeAstNode] {
         self.owner.as_nodes()
+    }
+
+    pub fn resolve_owner(self, path: &CemtOwnerPath) -> Option<CemtTreeOwnerRef<'a>> {
+        let mut owner = CemtTreeOwnerRef::Node(self.owner.as_nodes().get(path.root)?);
+        for step in &path.steps {
+            owner = match (owner, step) {
+                (CemtTreeOwnerRef::Node(node), CemtOwnerStep::Child(index)) => {
+                    CemtTreeOwnerRef::Node(node.children().get(*index)?)
+                }
+                (CemtTreeOwnerRef::Node(node), CemtOwnerStep::Attribute(index)) => {
+                    CemtTreeOwnerRef::Attribute(node.attributes().get(*index)?)
+                }
+                (CemtTreeOwnerRef::Attribute(_), _) => return None,
+            };
+        }
+        Some(owner)
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct CemtFormattedTreeView<'a> {
+    subject: CemtTreeSubjectRef<'a>,
+    overlay: &'a CemtFormattedTreeOverlay,
+}
+
+impl<'a> CemtFormattedTreeView<'a> {
+    pub fn resolve_owner(self, path: &CemtOwnerPath) -> Option<CemtFormattedOwnerRef<'a>> {
+        Some(CemtFormattedOwnerRef {
+            owner: self.subject.resolve_owner(path)?,
+            path: path.clone(),
+            operations: &self.overlay.node_operations,
+        })
+    }
+
+    pub fn root_gap_operations(self) -> impl Iterator<Item = &'a CemtNodeFormatOperation> + 'a {
+        self.overlay
+            .node_operations
+            .iter()
+            .filter(|operation| matches!(operation.target, CemtNodeFormatTarget::RootGap { .. }))
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct CemtFormattedOwnerRef<'a> {
+    owner: CemtTreeOwnerRef<'a>,
+    path: CemtOwnerPath,
+    operations: &'a [CemtNodeFormatOperation],
+}
+
+impl<'a> CemtFormattedOwnerRef<'a> {
+    pub fn owner(&self) -> CemtTreeOwnerRef<'a> {
+        self.owner
+    }
+
+    pub fn operations(&self) -> impl Iterator<Item = &'a CemtNodeFormatOperation> + '_ {
+        self.operations
+            .iter()
+            .filter(|operation| operation.target.belongs_to(&self.path))
     }
 }
 
