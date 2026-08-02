@@ -40,6 +40,14 @@ fn validate_xpath_schema_package_source(
     request: SchemaPackageSourceValidationRequest<'_>,
     descriptor: &SchemaDescriptor,
 ) -> Option<SchemaPackageSourceValidationReport> {
+    if request.content_type.is_some_and(|content_type| {
+        !matches!(
+            crate::schema::registry::content_type_essence(content_type).as_str(),
+            xpath::XPATH_CONTENT_TYPE | "text/xpath"
+        )
+    }) {
+        return None;
+    }
     let package = load_builtin_schema_package(&descriptor.schema_uri).ok()?;
     let contracts = xpath::XPathSchemaContractCatalog::from_schema_source(package.schema_source);
     let ast = xpath::xpath_expression_ast_from_source_bytes(
@@ -102,7 +110,8 @@ fn resolve_schema_package_source_descriptor<'a>(
 mod tests {
     use super::*;
     use crate::schema::registry::{
-        SchemaRegistry, CSV_SCHEMA_URI, JSON_VALUE_SCHEMA_URI, XPATH_SCHEMA_URI,
+        SchemaRegistry, CSV_SCHEMA_URI, JSON_VALUE_SCHEMA_URI, XPATH_RESULT_CONTENT_TYPE,
+        XPATH_SCHEMA_URI,
     };
 
     #[test]
@@ -194,6 +203,25 @@ mod tests {
                 "xpath-report-fact"
             );
         }
+    }
+
+    #[test]
+    fn xpath_source_validation_skips_result_content_type() {
+        let registry = SchemaRegistry::with_builtin_schemas();
+        let descriptor = registry
+            .resolve_content_type(XPATH_RESULT_CONTENT_TYPE)
+            .expect("XPath result content type is package-owned");
+        assert_eq!(descriptor.package_id, "xpath");
+        assert_eq!(descriptor.schema_uri, XPATH_SCHEMA_URI);
+        let report = validate_schema_package_source(SchemaPackageSourceValidationRequest {
+            bytes: br#"{"contentType":"application/vnd.cem.xpath-result+json"}"#,
+            source_uri: "memory://result.xpath.json",
+            content_type: Some(XPATH_RESULT_CONTENT_TYPE),
+            schema_uri: Some(XPATH_SCHEMA_URI),
+            schema_registry: &registry,
+        });
+
+        assert!(report.is_none());
     }
 
     #[test]

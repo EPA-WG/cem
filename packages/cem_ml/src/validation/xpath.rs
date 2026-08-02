@@ -1,13 +1,17 @@
 use crate::diagnostics::{Diagnostic, Severity};
+use crate::resolver::{ResolverPolicy, ResolverRegistry};
 use crate::schema::document_model::compile_schema_document_model;
 use crate::schema::package_sources::builtin_schema_package_source;
 use crate::schema::registry::content_type_essence;
-pub use crate::schema::registry::{XPATH_CONTENT_TYPE, XPATH_SCHEMA_URI};
+pub use crate::schema::registry::{
+    XPATH_CONTENT_TYPE, XPATH_RESULT_CONTENT_TYPE, XPATH_SCHEMA_URI,
+};
 use crate::source::line_index::LineIndex;
 use crate::source::{ByteRange, SourceId};
 use crate::source_map::{FrameSpan, SourceMapFrame, SourceMapStack, TransformKind};
+use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::sync::OnceLock;
 use xee_xpath_ast::ast::XPath;
 use xee_xpath_ast::{Namespaces, ParserError, VariableNames, XPathParserContext};
@@ -15,6 +19,7 @@ use xee_xpath_lexer::Token as XeeToken;
 
 const XPATH_PACKAGE_ID: &str = "xpath";
 const XPATH_FACT_BEHAVIOR: &str = "xpath-report-fact";
+pub const XPATH_GRAMMAR_VERSION: &str = "xpath-3.1/xee-0.1.4";
 
 #[derive(Debug, Clone, Copy)]
 pub struct XPathSourceRequest<'a> {
@@ -32,14 +37,16 @@ pub struct XPathExpressionSource {
     pub byte_length: usize,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct XPathSourcePosition {
     pub line: u32,
     pub column: u32,
     pub byte_offset: u64,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct XPathSourceRange {
     pub start: XPathSourcePosition,
     pub byte_length: u64,
@@ -223,7 +230,8 @@ pub struct XPathHostOwner {
     pub source_range: XPathSourceRange,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct XPathStaticContext {
     pub namespaces: BTreeMap<String, String>,
     pub default_element_namespace: Option<String>,
@@ -253,11 +261,492 @@ impl XPathEvaluationPhase {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct XPathExpectedResult {
     pub sequence_type: String,
     pub min_items: Option<usize>,
     pub max_items: Option<usize>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum XPathResultItemKind {
+    Node,
+    Atomic,
+    Map,
+    Array,
+    Function,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum XPathEvaluatorAstInput {
+    PackageAst,
+    SourceText,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum XPathEvaluatorResourceAccess {
+    CemResolver,
+    Direct,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum XPathEvaluatorSourceMapMode {
+    ItemOrigins,
+    None,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct XPathEvaluatorCapabilities {
+    pub evaluator_id: String,
+    pub evaluator_version: String,
+    pub xpath_version: String,
+    pub grammar_version: String,
+    pub ast_input: XPathEvaluatorAstInput,
+    pub resource_access: XPathEvaluatorResourceAccess,
+    pub source_map_mode: XPathEvaluatorSourceMapMode,
+    pub deterministic: bool,
+    pub targets: BTreeSet<String>,
+    pub result_item_kinds: BTreeSet<XPathResultItemKind>,
+}
+
+impl XPathEvaluatorCapabilities {
+    pub fn required(evaluator_id: impl Into<String>, evaluator_version: impl Into<String>) -> Self {
+        Self {
+            evaluator_id: evaluator_id.into(),
+            evaluator_version: evaluator_version.into(),
+            xpath_version: "3.1".to_owned(),
+            grammar_version: XPATH_GRAMMAR_VERSION.to_owned(),
+            ast_input: XPathEvaluatorAstInput::PackageAst,
+            resource_access: XPathEvaluatorResourceAccess::CemResolver,
+            source_map_mode: XPathEvaluatorSourceMapMode::ItemOrigins,
+            deterministic: true,
+            targets: BTreeSet::from(["native".to_owned(), "wasm32-unknown-unknown".to_owned()]),
+            result_item_kinds: BTreeSet::from([
+                XPathResultItemKind::Node,
+                XPathResultItemKind::Atomic,
+                XPathResultItemKind::Map,
+                XPathResultItemKind::Array,
+                XPathResultItemKind::Function,
+            ]),
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct XPathEvaluatorIdentity {
+    pub evaluator_id: String,
+    pub evaluator_version: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct XPathAtomicValue {
+    pub type_name: String,
+    pub lexical_value: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub namespace_uri: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub local_name: Option<String>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum XPathResultNodeKind {
+    Document,
+    Element,
+    Attribute,
+    Text,
+    Comment,
+    ProcessingInstruction,
+    Namespace,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct XPathMapEntry {
+    pub key: XPathAtomicValue,
+    pub value: XPathResultSequence,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct XPathResultSequence {
+    pub sequence_type: String,
+    pub items: Vec<XPathResultItem>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(
+    tag = "kind",
+    rename_all = "kebab-case",
+    rename_all_fields = "camelCase"
+)]
+pub enum XPathResultItem {
+    Node {
+        node_kind: XPathResultNodeKind,
+        source_id: u32,
+        source_uri: String,
+        node_id: String,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        expanded_name: Option<String>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        source_range: Option<XPathSourceRange>,
+        source_map: SourceMapStack,
+    },
+    Atomic {
+        value: XPathAtomicValue,
+        source_map: SourceMapStack,
+    },
+    Map {
+        entries: Vec<XPathMapEntry>,
+        source_map: SourceMapStack,
+    },
+    Array {
+        members: Vec<XPathResultSequence>,
+        source_map: SourceMapStack,
+    },
+    Function {
+        evaluator_id: String,
+        function_id: String,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        name: Option<String>,
+        arity: usize,
+        signature: String,
+        source_map: SourceMapStack,
+    },
+}
+
+impl XPathResultItem {
+    pub fn kind(&self) -> XPathResultItemKind {
+        match self {
+            Self::Node { .. } => XPathResultItemKind::Node,
+            Self::Atomic { .. } => XPathResultItemKind::Atomic,
+            Self::Map { .. } => XPathResultItemKind::Map,
+            Self::Array { .. } => XPathResultItemKind::Array,
+            Self::Function { .. } => XPathResultItemKind::Function,
+        }
+    }
+
+    fn source_map(&self) -> &SourceMapStack {
+        match self {
+            Self::Node { source_map, .. }
+            | Self::Atomic { source_map, .. }
+            | Self::Map { source_map, .. }
+            | Self::Array { source_map, .. }
+            | Self::Function { source_map, .. } => source_map,
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct XPathResultArtifact {
+    pub content_type: String,
+    pub schema_uri: String,
+    pub xpath_version: String,
+    pub grammar_version: String,
+    pub evaluator: XPathEvaluatorIdentity,
+    pub expression_uri: String,
+    pub static_context: XPathStaticContext,
+    pub resolver_policy_stamp: String,
+    pub safety_policy_stamp: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub expected_result: Option<XPathExpectedResult>,
+    pub sequence: XPathResultSequence,
+    pub source_map: SourceMapStack,
+}
+
+pub struct XPathEvaluationRequest<'a> {
+    pub expression: &'a XPathExpressionAst,
+    pub context_item: Option<XPathResultItem>,
+    pub variable_bindings: BTreeMap<String, XPathResultSequence>,
+    pub static_context: XPathStaticContext,
+    pub expected_result: Option<XPathExpectedResult>,
+    pub resolver_registry: &'a ResolverRegistry,
+    pub resolver_policy: &'a ResolverPolicy,
+    pub safety_policy_stamp: &'a str,
+}
+
+pub trait XPathEvaluatorAdapter: Send + Sync {
+    fn capabilities(&self) -> &XPathEvaluatorCapabilities;
+
+    fn evaluate(
+        &self,
+        request: XPathEvaluationRequest<'_>,
+    ) -> Result<XPathResultArtifact, Vec<Diagnostic>>;
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct XPathEvaluationContractViolation {
+    pub code: &'static str,
+    pub message: String,
+}
+
+pub fn validate_xpath_evaluator_capabilities(
+    capabilities: &XPathEvaluatorCapabilities,
+) -> Vec<XPathEvaluationContractViolation> {
+    let mut violations = Vec::new();
+    if capabilities.xpath_version != "3.1" {
+        push_xpath_contract_violation(
+            &mut violations,
+            "xpath-evaluator-version-unsupported",
+            "XPath evaluator must implement XPath 3.1",
+        );
+    }
+    if capabilities.grammar_version != XPATH_GRAMMAR_VERSION {
+        push_xpath_contract_violation(
+            &mut violations,
+            "xpath-evaluator-grammar-mismatch",
+            "XPath evaluator grammar must match the package-owned syntax AST",
+        );
+    }
+    if capabilities.ast_input != XPathEvaluatorAstInput::PackageAst {
+        push_xpath_contract_violation(
+            &mut violations,
+            "xpath-evaluator-ast-reparse-forbidden",
+            "XPath evaluator must consume XPathExpressionAst without reparsing source text",
+        );
+    }
+    if capabilities.resource_access != XPathEvaluatorResourceAccess::CemResolver {
+        push_xpath_contract_violation(
+            &mut violations,
+            "xpath-evaluator-resolver-bypass",
+            "XPath evaluator resource reads must use the CEM resolver boundary",
+        );
+    }
+    if capabilities.source_map_mode != XPathEvaluatorSourceMapMode::ItemOrigins {
+        push_xpath_contract_violation(
+            &mut violations,
+            "xpath-evaluator-source-map-missing",
+            "XPath evaluator must retain item-level source-map origins",
+        );
+    }
+    if !capabilities.deterministic {
+        push_xpath_contract_violation(
+            &mut violations,
+            "xpath-evaluator-nondeterministic",
+            "XPath evaluator must materialize deterministic result artifacts",
+        );
+    }
+    for target in ["native", "wasm32-unknown-unknown"] {
+        if !capabilities.targets.contains(target) {
+            push_xpath_contract_violation(
+                &mut violations,
+                "xpath-evaluator-target-missing",
+                format!("XPath evaluator does not support required target `{target}`"),
+            );
+        }
+    }
+    for kind in [
+        XPathResultItemKind::Node,
+        XPathResultItemKind::Atomic,
+        XPathResultItemKind::Map,
+        XPathResultItemKind::Array,
+        XPathResultItemKind::Function,
+    ] {
+        if !capabilities.result_item_kinds.contains(&kind) {
+            push_xpath_contract_violation(
+                &mut violations,
+                "xpath-evaluator-result-kind-missing",
+                format!("XPath evaluator does not support `{kind:?}` result items"),
+            );
+        }
+    }
+    violations
+}
+
+pub fn validate_xpath_result_artifact(
+    artifact: &XPathResultArtifact,
+    capabilities: &XPathEvaluatorCapabilities,
+) -> Vec<XPathEvaluationContractViolation> {
+    let mut violations = validate_xpath_evaluator_capabilities(capabilities);
+    if artifact.content_type != XPATH_RESULT_CONTENT_TYPE
+        || artifact.schema_uri != XPATH_SCHEMA_URI
+        || artifact.xpath_version != "3.1"
+        || artifact.grammar_version != XPATH_GRAMMAR_VERSION
+    {
+        push_xpath_contract_violation(
+            &mut violations,
+            "xpath-result-identity-invalid",
+            "XPath result artifact identity does not match the package contract",
+        );
+    }
+    if artifact.evaluator.evaluator_id != capabilities.evaluator_id
+        || artifact.evaluator.evaluator_version != capabilities.evaluator_version
+    {
+        push_xpath_contract_violation(
+            &mut violations,
+            "xpath-result-evaluator-mismatch",
+            "XPath result artifact evaluator identity does not match the selected adapter",
+        );
+    }
+    if artifact.resolver_policy_stamp.trim().is_empty()
+        || artifact.safety_policy_stamp.trim().is_empty()
+    {
+        push_xpath_contract_violation(
+            &mut violations,
+            "xpath-result-policy-stamp-missing",
+            "XPath result artifact must retain resolver and safety policy stamps",
+        );
+    }
+    if artifact.source_map.frames.is_empty() {
+        push_xpath_contract_violation(
+            &mut violations,
+            "xpath-result-source-map-required",
+            "XPath result artifact must retain its expression source-map origin",
+        );
+    }
+    if let Some(expected) = &artifact.expected_result {
+        let item_count = artifact.sequence.items.len();
+        if expected
+            .min_items
+            .is_some_and(|minimum| item_count < minimum)
+            || expected
+                .max_items
+                .is_some_and(|maximum| item_count > maximum)
+        {
+            push_xpath_contract_violation(
+                &mut violations,
+                "xpath-result-cardinality-mismatch",
+                "XPath result sequence does not satisfy the expected result contract",
+            );
+        }
+    }
+    validate_xpath_result_sequence(
+        &artifact.sequence,
+        &artifact.evaluator.evaluator_id,
+        capabilities,
+        &mut violations,
+    );
+    violations
+}
+
+fn validate_xpath_result_sequence(
+    sequence: &XPathResultSequence,
+    evaluator_id: &str,
+    capabilities: &XPathEvaluatorCapabilities,
+    violations: &mut Vec<XPathEvaluationContractViolation>,
+) {
+    if sequence.sequence_type.trim().is_empty() {
+        push_xpath_contract_violation(
+            violations,
+            "xpath-result-sequence-type-missing",
+            "XPath result sequence must retain its sequence type",
+        );
+    }
+    for item in &sequence.items {
+        if !capabilities.result_item_kinds.contains(&item.kind()) {
+            push_xpath_contract_violation(
+                violations,
+                "xpath-result-item-kind-unsupported",
+                format!(
+                    "XPath result item kind `{:?}` is not supported",
+                    item.kind()
+                ),
+            );
+        }
+        if item.source_map().frames.is_empty() {
+            push_xpath_contract_violation(
+                violations,
+                "xpath-result-source-map-required",
+                format!(
+                    "XPath `{:?}` result item has no source-map origin",
+                    item.kind()
+                ),
+            );
+        }
+        match item {
+            XPathResultItem::Node {
+                source_uri,
+                node_id,
+                ..
+            } => {
+                if source_uri.trim().is_empty() || node_id.trim().is_empty() {
+                    push_xpath_contract_violation(
+                        violations,
+                        "xpath-result-node-identity-missing",
+                        "XPath node result must retain source and node identity",
+                    );
+                }
+            }
+            XPathResultItem::Atomic { value, .. } => {
+                validate_xpath_atomic_value(value, violations);
+            }
+            XPathResultItem::Map { entries, .. } => {
+                for entry in entries {
+                    validate_xpath_atomic_value(&entry.key, violations);
+                    validate_xpath_result_sequence(
+                        &entry.value,
+                        evaluator_id,
+                        capabilities,
+                        violations,
+                    );
+                }
+            }
+            XPathResultItem::Array { members, .. } => {
+                for member in members {
+                    validate_xpath_result_sequence(member, evaluator_id, capabilities, violations);
+                }
+            }
+            XPathResultItem::Function {
+                evaluator_id: function_evaluator_id,
+                function_id,
+                signature,
+                ..
+            } => {
+                if function_evaluator_id != evaluator_id
+                    || function_id.trim().is_empty()
+                    || signature.trim().is_empty()
+                {
+                    push_xpath_contract_violation(
+                        violations,
+                        "xpath-result-function-scope-invalid",
+                        "XPath function result must be an evaluator-scoped typed handle",
+                    );
+                }
+            }
+        }
+    }
+}
+
+fn validate_xpath_atomic_value(
+    value: &XPathAtomicValue,
+    violations: &mut Vec<XPathEvaluationContractViolation>,
+) {
+    if value.type_name.trim().is_empty() {
+        push_xpath_contract_violation(
+            violations,
+            "xpath-result-atomic-type-missing",
+            "XPath atomic result must retain its type name",
+        );
+    }
+    if value.type_name == "xs:QName"
+        && (value.namespace_uri.is_none() || value.local_name.as_deref().is_none_or(str::is_empty))
+    {
+        push_xpath_contract_violation(
+            violations,
+            "xpath-result-qname-identity-missing",
+            "XPath QName result must retain expanded-name identity",
+        );
+    }
+}
+
+fn push_xpath_contract_violation(
+    violations: &mut Vec<XPathEvaluationContractViolation>,
+    code: &'static str,
+    message: impl Into<String>,
+) {
+    violations.push(XPathEvaluationContractViolation {
+        code,
+        message: message.into(),
+    });
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -1210,6 +1699,16 @@ fn detect_line_ending_style_bytes(source: &[u8]) -> Option<&'static str> {
 mod tests {
     use super::*;
 
+    fn result_source_map(source_id: u32, byte_offset: u64) -> SourceMapStack {
+        SourceMapStack {
+            frames: vec![SourceMapFrame {
+                source_id: SourceId(source_id),
+                span: FrameSpan::Single(ByteRange::new(byte_offset, 1)),
+                transform: TransformKind::Query,
+            }],
+        }
+    }
+
     fn parse(source: &str) -> XPathExpressionAst {
         xpath_expression_ast_from_source_bytes(
             XPathSourceRequest {
@@ -1219,6 +1718,230 @@ mod tests {
             },
             XPathAttachment::Standalone { source_id: 7 },
         )
+    }
+
+    #[test]
+    fn xpath_result_artifact_preserves_ordered_mixed_sequences_and_item_origins() {
+        let capabilities = XPathEvaluatorCapabilities::required("test.xpath", "1.0.0");
+        let sequence = XPathResultSequence {
+            sequence_type: "item()*".to_owned(),
+            items: vec![
+                XPathResultItem::Node {
+                    node_kind: XPathResultNodeKind::Element,
+                    source_id: 9,
+                    source_uri: "memory://catalog.xml".to_owned(),
+                    node_id: "node:12".to_owned(),
+                    expanded_name: Some("{urn:catalog}book".to_owned()),
+                    source_range: Some(XPathSourceRange::new(2, 3, 18, 24)),
+                    source_map: result_source_map(9, 18),
+                },
+                XPathResultItem::Atomic {
+                    value: XPathAtomicValue {
+                        type_name: "xs:decimal".to_owned(),
+                        lexical_value: "42.50".to_owned(),
+                        namespace_uri: None,
+                        local_name: None,
+                    },
+                    source_map: result_source_map(7, 4),
+                },
+                XPathResultItem::Map {
+                    entries: vec![XPathMapEntry {
+                        key: XPathAtomicValue {
+                            type_name: "xs:string".to_owned(),
+                            lexical_value: "title".to_owned(),
+                            namespace_uri: None,
+                            local_name: None,
+                        },
+                        value: XPathResultSequence {
+                            sequence_type: "xs:string".to_owned(),
+                            items: vec![XPathResultItem::Atomic {
+                                value: XPathAtomicValue {
+                                    type_name: "xs:string".to_owned(),
+                                    lexical_value: "CEM".to_owned(),
+                                    namespace_uri: None,
+                                    local_name: None,
+                                },
+                                source_map: result_source_map(7, 8),
+                            }],
+                        },
+                    }],
+                    source_map: result_source_map(7, 6),
+                },
+                XPathResultItem::Array {
+                    members: vec![XPathResultSequence {
+                        sequence_type: "xs:boolean".to_owned(),
+                        items: vec![XPathResultItem::Atomic {
+                            value: XPathAtomicValue {
+                                type_name: "xs:boolean".to_owned(),
+                                lexical_value: "true".to_owned(),
+                                namespace_uri: None,
+                                local_name: None,
+                            },
+                            source_map: result_source_map(7, 10),
+                        }],
+                    }],
+                    source_map: result_source_map(7, 9),
+                },
+                XPathResultItem::Function {
+                    evaluator_id: "test.xpath".to_owned(),
+                    function_id: "function:5".to_owned(),
+                    name: Some("fn:string".to_owned()),
+                    arity: 1,
+                    signature: "function(item()?) as xs:string".to_owned(),
+                    source_map: result_source_map(7, 12),
+                },
+            ],
+        };
+        let artifact = XPathResultArtifact {
+            content_type: XPATH_RESULT_CONTENT_TYPE.to_owned(),
+            schema_uri: XPATH_SCHEMA_URI.to_owned(),
+            xpath_version: "3.1".to_owned(),
+            grammar_version: XPATH_GRAMMAR_VERSION.to_owned(),
+            evaluator: XPathEvaluatorIdentity {
+                evaluator_id: "test.xpath".to_owned(),
+                evaluator_version: "1.0.0".to_owned(),
+            },
+            expression_uri: "memory://query.xpath".to_owned(),
+            static_context: XPathStaticContext::default(),
+            resolver_policy_stamp: "resolver-policy/1;test".to_owned(),
+            safety_policy_stamp: "xpath-safety/1;pure".to_owned(),
+            expected_result: Some(XPathExpectedResult {
+                sequence_type: "item()*".to_owned(),
+                min_items: Some(0),
+                max_items: None,
+            }),
+            sequence,
+            source_map: result_source_map(7, 0),
+        };
+
+        assert!(
+            validate_xpath_result_artifact(&artifact, &capabilities).is_empty(),
+            "valid mixed sequence must satisfy the package contract"
+        );
+        let value = serde_json::to_value(&artifact).expect("result artifact serializes");
+        assert_eq!(value["contentType"], XPATH_RESULT_CONTENT_TYPE);
+        assert_eq!(value["evaluator"]["evaluatorId"], "test.xpath");
+        assert_eq!(value["evaluator"]["evaluatorVersion"], "1.0.0");
+        assert_eq!(value["sequence"]["items"][0]["kind"], "node");
+        assert_eq!(value["sequence"]["items"][1]["kind"], "atomic");
+        assert_eq!(value["sequence"]["items"][2]["kind"], "map");
+        assert_eq!(value["sequence"]["items"][3]["kind"], "array");
+        assert_eq!(value["sequence"]["items"][4]["kind"], "function");
+        assert_eq!(
+            value["sequence"]["items"][0]["sourceMap"]["frames"][0]["source_id"],
+            9
+        );
+        assert_eq!(value["sequence"]["items"][4]["functionId"], "function:5");
+        assert!(value["sequence"]["items"][4].get("closure").is_none());
+
+        let mut invalid = artifact.clone();
+        if let XPathResultItem::Atomic { source_map, .. } = &mut invalid.sequence.items[1] {
+            source_map.frames.clear();
+        }
+        if let XPathResultItem::Function { evaluator_id, .. } = &mut invalid.sequence.items[4] {
+            *evaluator_id = "other.xpath".to_owned();
+        }
+        let violations = validate_xpath_result_artifact(&invalid, &capabilities);
+        assert!(violations
+            .iter()
+            .any(|violation| violation.code == "xpath-result-source-map-required"));
+        assert!(violations
+            .iter()
+            .any(|violation| violation.code == "xpath-result-function-scope-invalid"));
+    }
+
+    #[test]
+    fn xpath_evaluator_capabilities_forbid_reparse_resolver_bypass_and_missing_wasm() {
+        let required = XPathEvaluatorCapabilities::required("test.xpath", "1.0.0");
+        assert!(validate_xpath_evaluator_capabilities(&required).is_empty());
+
+        let mut incompatible = required;
+        incompatible.ast_input = XPathEvaluatorAstInput::SourceText;
+        incompatible.resource_access = XPathEvaluatorResourceAccess::Direct;
+        incompatible.targets.remove("wasm32-unknown-unknown");
+        let violations = validate_xpath_evaluator_capabilities(&incompatible);
+
+        for code in [
+            "xpath-evaluator-ast-reparse-forbidden",
+            "xpath-evaluator-resolver-bypass",
+            "xpath-evaluator-target-missing",
+        ] {
+            assert!(
+                violations.iter().any(|violation| violation.code == code),
+                "missing capability violation {code}: {violations:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn xpath_evaluation_request_carries_package_ast_and_cem_resolver_boundary() {
+        let expression = parse("/catalog/book");
+        let resolver_registry = ResolverRegistry::new();
+        let resolver_policy = ResolverPolicy::new();
+        let request = XPathEvaluationRequest {
+            expression: &expression,
+            context_item: None,
+            variable_bindings: BTreeMap::new(),
+            static_context: XPathStaticContext::default(),
+            expected_result: None,
+            resolver_registry: &resolver_registry,
+            resolver_policy: &resolver_policy,
+            safety_policy_stamp: "xpath-safety/1;pure",
+        };
+
+        assert!(request.expression.syntax_ast.is_some());
+        assert_eq!(
+            request.resolver_policy.cache_stamp(),
+            resolver_policy.cache_stamp()
+        );
+        assert!(std::ptr::eq(request.resolver_registry, &resolver_registry));
+    }
+
+    #[test]
+    fn xpath_schema_declares_evaluation_result_and_capability_contracts() {
+        let source = builtin_schema_package_source(XPATH_PACKAGE_ID)
+            .expect("XPath package source")
+            .schema_source;
+        let model = compile_schema_document_model(XPATH_SCHEMA_URI, source);
+
+        for element in [
+            "evaluation-request",
+            "evaluator-capabilities",
+            "result-artifact",
+            "sequence",
+            "node-item",
+            "atomic-item",
+            "map-item",
+            "array-item",
+            "function-item",
+            "source-map-frame",
+            "source-range",
+        ] {
+            assert!(
+                model.elements.contains_key(element),
+                "XPath schema must own `{element}`"
+            );
+        }
+        let result = model.elements.get("result-artifact").unwrap();
+        assert!(result.required_attributes.contains("content-type"));
+        assert!(result.required_attributes.contains("evaluator-id"));
+        assert!(result.required_attributes.contains("resolver-policy-stamp"));
+        assert!(result.required_attributes.contains("safety-policy-stamp"));
+        assert!(result.child_elements.contains("sequence"));
+        for contract in [
+            "xpath-evaluator-package-ast",
+            "xpath-evaluator-resource-access",
+            "xpath-evaluator-runtime-targets",
+            "xpath-result-item-order",
+            "xpath-result-node-identity",
+            "xpath-result-function-scope",
+            "xpath-result-policy-stamps",
+        ] {
+            assert!(
+                model.constraints.contains_key(contract),
+                "XPath schema must own `{contract}`"
+            );
+        }
     }
 
     #[test]

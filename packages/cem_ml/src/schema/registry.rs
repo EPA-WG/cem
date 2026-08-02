@@ -68,6 +68,7 @@ pub const XHTML_CONTENT_TYPE: &str = "application/xhtml+xml";
 pub const SVG_CONTENT_TYPE: &str = "image/svg+xml";
 pub const MATHML_CONTENT_TYPE: &str = "application/mathml+xml";
 pub const XPATH_CONTENT_TYPE: &str = "application/vnd.cem.xpath";
+pub const XPATH_RESULT_CONTENT_TYPE: &str = "application/vnd.cem.xpath-result+json";
 pub const XSLT_CONTENT_TYPE: &str = "application/xslt+xml";
 pub const CEM_DOM_PROJECTION_CONTENT_TYPE: &str = "application/vnd.cem.dom+cem-bin";
 pub const CEM_DOM_JSON_PROJECTION_CONTENT_TYPE: &str = "application/vnd.cem.dom+json";

@@ -1,6 +1,6 @@
 # XPath Schema Package
 
-Status: package, lossless XPath 3.1 syntax, schema-owned diagnostics, and lifecycle loading
+Status: package, lossless XPath 3.1 syntax, lifecycle loading, and typed evaluation contracts
 
 This package owns standalone and embedded XPath expression syntax. Host
 languages declare expression slots and static context, then associate the
@@ -13,6 +13,7 @@ an XSLT, XML, CEMT, or CEM-QL transformation stream.
 - Schema URI: `https://cem.dev/ns/query/xpath/1`
 - Primary content type: `application/vnd.cem.xpath`
 - Interoperability alias: `text/xpath`
+- Result artifact content type: `application/vnd.cem.xpath-result+json`
 - Preferred extension: `.xpath`
 - Syntax baseline: [XPath 3.1](https://www.w3.org/TR/xpath-31/)
 
@@ -72,10 +73,18 @@ owns parsing and static syntax; the CEM-ML `transform` path will own execution
 planning. Hosts may supply context items and bindings, but must not implement a
 private parser, evaluator, or external-resource resolver.
 
-The current slice parses, models, validates, and lifecycle-loads standalone
-expressions as `LoadedInputAstStream::XPathExpression`. Evaluation, result
-artifact projection, XSLT attribute fusion, CEM-QL/CEMT adapters, and external
-resource capabilities remain explicitly tracked work.
+The current slice also defines `XPathEvaluationRequest`,
+`XPathEvaluatorCapabilities`, and `XPathResultArtifact`. Result sequences retain
+XPath order across node, atomic, map, array, function, and mixed items. Node
+items retain source/node identity, atomic values retain type plus lexical value,
+and function items are evaluator-scoped handles rather than serialized closures.
+Every artifact and item carries an origin-first source map, and the result keeps
+the static context plus resolver and safety policy stamps.
+
+The result media type is intentionally distinct from expression source and does
+not enter the XPath source parser. XML, JSON, CEM, and text serialization remain
+explicit downstream conversion edges. No evaluator or executable transform
+adapter is registered yet.
 
 ## Formatter And Colorizer Profiles
 
@@ -87,25 +96,26 @@ the lifecycle output pipeline.
 
 ## Safety
 
-Parsing performs no I/O and does not evaluate expressions. Functions that can
-read resources, including `doc()`, `collection()`, and `unparsed-text()`, require
-an explicit resolver capability during future evaluation. Static context and
-policy stamps are part of the attachment identity so a parsed tree cannot be
-silently reused under a broader policy.
+Parsing performs no I/O and does not evaluate expressions. Evaluator capability
+validation requires the package-owned AST, deterministic native and WASM
+results, item-origin source maps, all XPath 3.1 item kinds, and CEM resolver-only
+resource access. Functions such as `doc()`, `collection()`, and
+`unparsed-text()` cannot receive a direct filesystem or network boundary.
 
 ## Verification
 
 `yarn nx run cem_ml_schema_package_xpath_v1:verify` validates the schema-package
 manifest and fixture expectations, runs lossless lexer/parser, schema-diagnostic
 handoff, lifecycle loading, no-fallback validation, and host-attachment tests,
-verifies embedded catalog identity, and checks that README examples use fenced
-XPath source with no SVG fallback.
+verifies mixed result artifacts and evaluator capability rejection, verifies
+embedded catalog identity, and checks that README examples use fenced XPath
+source with no SVG fallback.
 `yarn nx run cem_ml:build:wasm` verifies that the pinned parser dependency stack
 remains compatible with the browser WASM target.
 
 ## Tracked Incomplete Work
 
-- Define the transformation result artifact and evaluator capability contract.
+- Select a compatible XPath 3.1 evaluator and prove native/WASM AST consumption.
 - Segment XSLT XPath attributes and AVTs, then associate their ASTs with exact
   XML attribute-value ranges.
 - Add standalone transformation execution and CEM-QL/CEMT/XSLT adapters.

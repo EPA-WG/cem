@@ -16,6 +16,7 @@
     {content-types |
         {content-type @value="application/vnd.cem.xpath" @primary=true}
         {content-type @value="text/xpath" @alias=true}
+        {content-type @value="application/vnd.cem.xpath-result+json" @alias=true}
     }
 
     {namespaces |
@@ -40,6 +41,25 @@
         {element @name="function-binding" @required-attributes="name signature"}
         {element @name="expected-result" @required-attributes="sequence-type" @optional-attributes="min-items max-items"}
         {element @name="expression-slot" @required-attributes="host-package owner-kind evaluation-phase" @optional-attributes="node-id sequence-type resolver-policy-stamp safety-policy-stamp"}
+        {element @name="evaluation-request" @required-attributes="expression-uri xpath-version grammar-version resolver-policy-stamp safety-policy-stamp" @children="static-context context-item? variable-value* expected-result?"}
+        {element @name="context-item" @required-attributes="item-kind" @children="node-item? atomic-item? map-item? array-item? function-item?"}
+        {element @name="variable-value" @required-attributes="name" @children="sequence"}
+        {element @name="evaluator-capabilities" @required-attributes="evaluator-id evaluator-version xpath-version grammar-version ast-input resource-access source-map-mode deterministic" @children="execution-target* result-item-kind*"}
+        {element @name="execution-target" @required-attributes="target"}
+        {element @name="result-item-kind" @required-attributes="item-kind"}
+        {element @name="result-artifact" @required-attributes="content-type schema-uri xpath-version grammar-version evaluator-id evaluator-version expression-uri resolver-policy-stamp safety-policy-stamp" @children="static-context expected-result? sequence source-map"}
+        {element @name="sequence" @required-attributes="sequence-type" @children="node-item* atomic-item* map-item* array-item* function-item*"}
+        {element @name="node-item" @required-attributes="item-kind node-kind source-id source-uri node-id" @optional-attributes="expanded-name byte-offset byte-length line column" @children="source-map"}
+        {element @name="atomic-item" @required-attributes="item-kind type lexical-value" @optional-attributes="namespace-uri local-name" @children="source-map"}
+        {element @name="map-item" @required-attributes="item-kind" @children="map-entry* source-map"}
+        {element @name="map-entry" @children="map-key sequence"}
+        {element @name="map-key" @required-attributes="type lexical-value" @optional-attributes="namespace-uri local-name"}
+        {element @name="array-item" @required-attributes="item-kind" @children="array-member* source-map"}
+        {element @name="array-member" @children="sequence"}
+        {element @name="function-item" @required-attributes="item-kind evaluator-id function-id arity signature" @optional-attributes="name" @children="source-map"}
+        {element @name="source-map" @children="source-map-frame*"}
+        {element @name="source-map-frame" @required-attributes="source-id transform" @optional-attributes="transform-detail" @children="source-range*"}
+        {element @name="source-range" @required-attributes="byte-offset byte-length"}
     }
 
     {attributes |
@@ -87,6 +107,24 @@
         {attribute @name="min-items" @type="cemml:integer"}
         {attribute @name="max-items" @type="cemml:integer"}
         {attribute @name="host-package" @type="schema:string"}
+        {attribute @name="expression-uri" @type="schema:uri"}
+        {attribute @name="xpath-version" @type="schema:string"}
+        {attribute @name="evaluator-id" @type="schema:identifier"}
+        {attribute @name="evaluator-version" @type="schema:semver"}
+        {attribute @name="ast-input" @type="schema:identifier" @values="package-ast source-text"}
+        {attribute @name="resource-access" @type="schema:identifier" @values="cem-resolver direct"}
+        {attribute @name="source-map-mode" @type="schema:identifier" @values="item-origins none"}
+        {attribute @name="deterministic" @type="schema:boolean"}
+        {attribute @name="target" @type="schema:identifier" @values="native wasm32-unknown-unknown"}
+        {attribute @name="item-kind" @type="schema:identifier" @values="node atomic map array function"}
+        {attribute @name="node-kind" @type="schema:identifier" @values="document element attribute text comment processing-instruction namespace"}
+        {attribute @name="expanded-name" @type="schema:string"}
+        {attribute @name="lexical-value" @type="schema:string"}
+        {attribute @name="local-name" @type="schema:string"}
+        {attribute @name="function-id" @type="schema:string"}
+        {attribute @name="arity" @type="cemml:integer"}
+        {attribute @name="transform" @type="schema:identifier"}
+        {attribute @name="transform-detail" @type="schema:string"}
     }
 
     {constraints |
@@ -100,6 +138,17 @@
         {constraint @kind="xpath-external-resource-policy" @target="static-context" @diagnostic="cem.xpath.external_resource_denied" @behavior="xpath-report-fact" @fact-kind="external-resource-denied" @policy="doc collection unparsed-text and URI collection access require explicit resolver capability"}
         {constraint @kind="xpath-source-map" @target="token" @diagnostic="cem.xpath.source_map_unavailable" @behavior="xpath-report-fact" @fact-kind="source-map-unavailable" @policy="every lexical token exposes an exact source-map frame"}
         {constraint @kind="xpath-event-lifecycle" @target="event-stream" @diagnostic="cem.xpath.event_lifecycle_invalid" @behavior="xpath-report-fact" @fact-kind="event-lifecycle-invalid" @policy="one start-expression event precedes token events and one end-expression event closes the stream"}
+        {constraint @kind="xpath-evaluator-package-ast" @target="evaluator-capabilities" @diagnostic="cem.xpath.evaluator_capability_mismatch" @behavior="xpath-evaluation-report-fact" @fact-kind="evaluator-capability-mismatch" @policy="evaluator consumes the package-owned XPath syntax AST without reparsing source text"}
+        {constraint @kind="xpath-evaluator-resource-access" @target="evaluator-capabilities" @diagnostic="cem.xpath.evaluator_capability_mismatch" @behavior="xpath-evaluation-report-fact" @fact-kind="evaluator-capability-mismatch" @policy="doc collection unparsed-text and URI collection reads flow exclusively through the CEM resolver registry and policy"}
+        {constraint @kind="xpath-evaluator-runtime-targets" @target="execution-target" @diagnostic="cem.xpath.evaluator_capability_mismatch" @behavior="xpath-evaluation-report-fact" @fact-kind="evaluator-capability-mismatch" @policy="native and wasm32-unknown-unknown targets are required before registration"}
+        {constraint @kind="xpath-evaluator-result-items" @target="result-item-kind" @diagnostic="cem.xpath.evaluator_capability_mismatch" @behavior="xpath-evaluation-report-fact" @fact-kind="evaluator-capability-mismatch" @policy="node atomic map array and function result items are supported"}
+        {constraint @kind="xpath-result-item-order" @target="sequence" @diagnostic="cem.xpath.result_artifact_invalid" @behavior="xpath-evaluation-report-fact" @fact-kind="result-artifact-invalid" @policy="sequence and array member child order is the XPath data model order; map entry order is deterministic artifact order without changing unordered map semantics"}
+        {constraint @kind="xpath-result-node-identity" @target="node-item" @diagnostic="cem.xpath.result_artifact_invalid" @behavior="xpath-evaluation-report-fact" @fact-kind="result-artifact-invalid" @policy="node items retain source and node identity instead of serializing through XML text"}
+        {constraint @kind="xpath-result-atomic-type" @target="atomic-item" @diagnostic="cem.xpath.result_artifact_invalid" @behavior="xpath-evaluation-report-fact" @fact-kind="result-artifact-invalid" @policy="atomic items retain the XPath type and lexical value without JSON numeric coercion"}
+        {constraint @kind="xpath-result-function-scope" @target="function-item" @diagnostic="cem.xpath.result_artifact_invalid" @behavior="xpath-evaluation-report-fact" @fact-kind="result-artifact-invalid" @policy="function items are evaluator-scoped handles and are not portable closures or implicit serialized output"}
+        {constraint @kind="xpath-result-source-map" @target="source-map" @diagnostic="cem.xpath.result_artifact_invalid" @behavior="xpath-evaluation-report-fact" @fact-kind="result-artifact-invalid" @policy="the artifact and every result item retain an origin-first source-map stack"}
+        {constraint @kind="xpath-result-policy-stamps" @target="result-artifact" @diagnostic="cem.xpath.policy_mismatch" @behavior="xpath-evaluation-report-fact" @fact-kind="policy-mismatch" @policy="resolver and safety policy stamps match the evaluation request"}
+        {constraint @kind="xpath-result-sequence-type" @target="sequence" @diagnostic="cem.xpath.result_type_mismatch" @behavior="xpath-evaluation-report-fact" @fact-kind="result-type-mismatch" @policy="the typed sequence and cardinality satisfy the expected result contract"}
     }
 
     {diagnostics |
@@ -113,6 +162,10 @@
         {diagnostic @code="cem.xpath.external_resource_denied" @severity="error"}
         {diagnostic @code="cem.xpath.source_map_unavailable" @severity="info"}
         {diagnostic @code="cem.xpath.event_lifecycle_invalid" @severity="error"}
+        {diagnostic @code="cem.xpath.evaluator_capability_mismatch" @severity="fatal"}
+        {diagnostic @code="cem.xpath.result_artifact_invalid" @severity="fatal"}
+        {diagnostic @code="cem.xpath.result_type_mismatch" @severity="error"}
+        {diagnostic @code="cem.xpath.policy_mismatch" @severity="fatal"}
     }
 
     {open-content |

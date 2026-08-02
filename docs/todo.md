@@ -835,10 +835,16 @@ Remaining dependency-ordered package checklist:
         `LoadedInputAstStream::XPathExpression`; validate primary, alias, and
         schema identities without CEM/XML fallback, and reject conversion until
         a typed XPath AST export adapter is registered.
-  - [ ] Define the XPath result artifact and evaluator capability contract, wire
-        it through the `transform` command, then expose explicit adapters so
-        CEM-QL, CEMT, and XSLT can invoke XPath without embedding a private
-        lexer, parser, evaluator, or resource resolver.
+  - [x] Define the schema-owned XPath evaluation request, evaluator capability,
+        and ordered result-sequence artifact contracts for node, atomic, map,
+        array, function, and mixed results. Preserve static context, node/source
+        identity, typed lexical atomic values, evaluator-scoped function handles,
+        resolver/safety policy stamps, and item-level source maps; keep the
+        result media type out of the XPath source parser.
+  - [ ] Select and verify an XPath 3.1 evaluator that consumes the package AST,
+        targets native and WASM, and uses only the CEM resolver boundary; then
+        wire it through the `transform` command and expose explicit CEM-QL,
+        CEMT, and XSLT invocation adapters.
   - [ ] Fuse parsed XPath streams into XSLT XPath-bearing attributes and AVT
         expression segments while retaining an independently addressable XPath
         AST associated with the owning XML event or subtree node.
@@ -876,21 +882,22 @@ Remaining dependency-ordered package checklist:
 
 ### Next Work Item
 
-Define the XPath transformation result and evaluator capability contracts before
-registering an executable template adapter. The current schema models an
-expected sequence type but does not define the runtime representation for node,
-atomic, map, array, function, or mixed-sequence results. Add schema-owned request
-and result elements that preserve item order, node/source identity, atomic type,
-cardinality, static-context bindings, resolver/safety policy stamps, and source
-maps. Use that typed sequence artifact as the transform-stage output; conversions
-to XML, JSON, CEM, or text must remain explicit downstream edges.
+Run an evaluator compatibility spike before registering XPath execution. Compare
+maintained XPath 3.1 evaluator options against the pinned Xee 0.1.4 syntax stack
+and reject candidates that require reparsing source text, omit maps/arrays or
+function items, cannot target `wasm32-unknown-unknown`, bypass the CEM resolver,
+or cannot populate item-origin source maps. Treat a coordinated Xee dependency
+upgrade as a separate migration with parser/fixture parity gates rather than
+silently mixing AST versions.
 
-Then choose and verify a maintained XPath 3.1 evaluator whose parser/AST version
-is compatible with the pinned Xee crates and the browser WASM target. Register
-`TransformTemplateKind::XPathExpression` only after the evaluator accepts the
-package-owned `XPathExpressionAst` without reparsing and external resource reads
-flow exclusively through CEM-ML resolver capabilities. Keep CEM-QL, CEMT, and
-XSLT invocation adapters out until this common execution boundary is green.
+Once one adapter satisfies `XPathEvaluatorCapabilities`, add a red native
+transform test for an XML context item and a mixed typed sequence result. Then
+register `TransformTemplateKind::XPathExpression`, materialize
+`XPathResultArtifact` as the transform-stage output, and add explicit downstream
+conversion edges instead of serializing node, map, array, or function values
+inside the evaluator. Keep CEM-QL, CEMT, and XSLT invocation adapters out until
+the standalone transform boundary passes native, CLI, resolver-policy, source-map,
+and WASM gates.
 
 ## Current Verification Commands
 
