@@ -1,0 +1,2 @@
+for $book in /catalog/book
+return normalize-space($book/title)

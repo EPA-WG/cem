@@ -95,15 +95,19 @@ external syntax such as JSON, HTML, or XML:
    colorizing, and preview generation must not perform policy-sensitive
    resource reads unless that package explicitly documents a resolving mode.
 9. **Embedded expression schemas are language-owned.** Parent packages declare
-   expression slots, expected bindings, result type/nullability, evaluation
-   phase, source ranges, and safety policy; they do not own a private
-   expression grammar. The shared CEM expression contract is the CEM-QL
-   expression schema owned by `cem-ql/v1`. Template, transform, schema
-   behavior, and component packages consume that contract by declaring slots
-   that delegate to CEM-QL parse, type, diagnostic, and evaluator semantics.
-   Standalone expression execution must be exposed through the shared CEM-QL
-   API and the CEM-ML `transform` CLI path so an expression can run against
-   data without being wrapped in a query module or template module.
+   expression language identity, slots, expected bindings and sequence types,
+   evaluation phase, source ranges, namespace/static context, and safety policy;
+   they do not own a private expression grammar. CEM-QL expressions use the
+   schema owned by `cem-ql/v1`; XPath expressions use the independent schema
+   owned by `xpath/v1`. Template, transform, schema behavior, XML, and XSLT
+   packages consume those contracts by declaring slots that delegate parse,
+   type, diagnostic, and evaluator semantics to the selected language package.
+   An embedded XPath AST remains independently addressable while an attachment
+   envelope associates it with an XML document, AST subtree, element, or
+   attribute and permits its events to be fused into the host transform stream.
+   Standalone expression execution must be exposed through the language-owned
+   API and the CEM-ML `transform` CLI path so an expression can run against data
+   without being wrapped in a query module or template module.
 
 These principles are the base contract for each package described below.
 
@@ -945,5 +949,6 @@ implementation backlog and worked examples remain in
 - `svg`
 - `xhtml`
 - `xml`
+- `xpath`
 - `xslt`
 - `yaml`

@@ -57,6 +57,7 @@
                         "cem_ml_schema_package_svg_v1",
                         "cem_ml_schema_package_xhtml_v1",
                         "cem_ml_schema_package_xml_v1",
+                        "cem_ml_schema_package_xpath_v1",
                         "cem_ml_schema_package_xslt_v1",
                         "cem_ml_schema_package_yaml_v1"
                     ],
@@ -161,6 +162,7 @@
                         "cem_ml_schema_package_svg_v1",
                         "cem_ml_schema_package_xhtml_v1",
                         "cem_ml_schema_package_xml_v1",
+                        "cem_ml_schema_package_xpath_v1",
                         "cem_ml_schema_package_xslt_v1",
                         "cem_ml_schema_package_yaml_v1"
                     ],
@@ -316,6 +318,7 @@
                         "cem_ml_schema_package_svg_v1",
                         "cem_ml_schema_package_xhtml_v1",
                         "cem_ml_schema_package_xml_v1",
+                        "cem_ml_schema_package_xpath_v1",
                         "cem_ml_schema_package_xslt_v1",
                         "cem_ml_schema_package_yaml_v1"
                     ],

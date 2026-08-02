@@ -1,0 +1,5 @@
+(: Preserve nested comments (: including inner trivia :). :)
+map {
+    "titles": array { /catalog/book/title/string() },
+    "count": count(/catalog/book)
+}

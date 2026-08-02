@@ -1,0 +1,122 @@
+{
+    "name": "cem_ml_schema_package_xpath_v1",
+    "$schema": "../../../../../node_modules/nx/schemas/project-schema.json",
+    "projectType": "library",
+    "sourceRoot": "packages/cem_ml/schema-packages/xpath/v1",
+    "targets": {
+        "build": {
+            "cache": true,
+            "executor": "nx:noop",
+            "dependsOn": [
+                "samples2readme"
+            ],
+            "inputs": [
+                "{projectRoot}/package.cem",
+                "{projectRoot}/README.md",
+                "{projectRoot}/schema/**/*.cem",
+                "{projectRoot}/formatters/**/*.cemt",
+                "{projectRoot}/colorizers/**/*.cemt",
+                "{projectRoot}/converters/**/*.cemt",
+                "{projectRoot}/scripts/**/*.mjs",
+                "{projectRoot}/examples/**/*",
+                "{workspaceRoot}/packages/cem_ml/schema-packages/scripts/**/*.mjs",
+                "{workspaceRoot}/Cargo.toml",
+                "{workspaceRoot}/Cargo.lock",
+                "{workspaceRoot}/packages/cem_ml/src/**/*.rs",
+                "{workspaceRoot}/packages/cem_ml/Cargo.toml",
+                "{workspaceRoot}/packages/cem_ml_cli/src/**/*.rs",
+                "{workspaceRoot}/packages/cem_ml_cli/Cargo.toml"
+            ],
+            "outputs": [
+                "{projectRoot}/README.md"
+            ]
+        },
+        "samples2readme": {
+            "cache": true,
+            "executor": "nx:run-commands",
+            "dependsOn": [
+                {
+                    "projects": [
+                        "cem_ml_cli"
+                    ],
+                    "target": "build"
+                }
+            ],
+            "options": {
+                "commands": [
+                    "node packages/cem_ml/schema-packages/scripts/samples2readme.mjs {projectRoot}"
+                ],
+                "parallel": false,
+                "cwd": "{workspaceRoot}"
+            },
+            "inputs": [
+                "{projectRoot}/package.cem",
+                "{projectRoot}/README.md",
+                "{projectRoot}/schema/**/*.cem",
+                "{projectRoot}/formatters/**/*.cemt",
+                "{projectRoot}/colorizers/**/*.cemt",
+                "{projectRoot}/converters/**/*.cemt",
+                "{projectRoot}/scripts/**/*.mjs",
+                "{projectRoot}/examples/**/*",
+                "{workspaceRoot}/packages/cem_ml/schema-packages/scripts/**/*.mjs",
+                "{workspaceRoot}/Cargo.toml",
+                "{workspaceRoot}/Cargo.lock",
+                "{workspaceRoot}/packages/cem_ml/src/**/*.rs",
+                "{workspaceRoot}/packages/cem_ml/Cargo.toml",
+                "{workspaceRoot}/packages/cem_ml_cli/src/**/*.rs",
+                "{workspaceRoot}/packages/cem_ml_cli/Cargo.toml"
+            ],
+            "outputs": [
+                "{projectRoot}/README.md"
+            ]
+        },
+        "verify": {
+            "cache": true,
+            "executor": "nx:run-commands",
+            "dependsOn": [
+                {
+                    "projects": [
+                        "cem_ml_cli"
+                    ],
+                    "target": "build"
+                }
+            ],
+            "options": {
+                "commands": [
+                    "mkdir -p packages/cem_ml/schema-packages/xpath/v1/dist",
+                    "./dist/target/cem_ml_cli/debug/cem-ml --quiet validate --fail-level parse --format json --content-type application/vnd.cem.schema-package+cem --schema https://cem.dev/ns/schema-package/1 --report-json packages/cem_ml/schema-packages/xpath/v1/dist packages/cem_ml/schema-packages/xpath/v1/package.cem",
+                    "cargo test -p cem-ml 'validation::xpath::tests' -- --nocapture",
+                    "cargo test -p cem-ml xpath_package -- --nocapture",
+                    "cargo test -p cem-ml catalog_exposes_xpath_output_artifact_sources -- --nocapture",
+                    "cargo test -p cem-ml --test schema_package_structure -- --nocapture",
+                    "node packages/cem_ml/schema-packages/xpath/v1/scripts/verify-previews.mjs"
+                ],
+                "parallel": false,
+                "cwd": "{workspaceRoot}"
+            },
+            "inputs": [
+                "{projectRoot}/package.cem",
+                "{projectRoot}/README.md",
+                "{projectRoot}/schema/**/*.cem",
+                "{projectRoot}/formatters/**/*.cemt",
+                "{projectRoot}/colorizers/**/*.cemt",
+                "{projectRoot}/converters/**/*.cemt",
+                "{projectRoot}/scripts/**/*.mjs",
+                "{projectRoot}/examples/**/*",
+                "{workspaceRoot}/packages/cem_ml/src/**/*.rs",
+                "{workspaceRoot}/packages/cem_ml/tests/schema_package_structure.rs",
+                "{workspaceRoot}/packages/cem_ml/Cargo.toml",
+                "{workspaceRoot}/packages/cem_ml_cli/src/**/*.rs",
+                "{workspaceRoot}/packages/cem_ml_cli/Cargo.toml"
+            ],
+            "outputs": [
+                "{projectRoot}/dist/cem-ml.report.json"
+            ]
+        }
+    },
+    "tags": [
+        "scope:cem-ml",
+        "type:schema-package",
+        "lang:cem"
+    ]
+}

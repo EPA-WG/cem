@@ -394,6 +394,7 @@ fn source_fence_language(path: &str) -> Option<&'static str> {
         "mathml" | "mml" | "rng" | "xml" | "xsl" | "xslt" => Some("xml"),
         "rnc" => Some("rnc"),
         "svg" => Some("svg"),
+        "xpath" => Some("xpath"),
         "yaml" | "yml" => Some("yaml"),
         _ => None,
     }

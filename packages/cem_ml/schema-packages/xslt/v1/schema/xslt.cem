@@ -2,6 +2,7 @@
 @ns schema = "https://cem.dev/ns/schema/1"
 @ns cemml = "https://cem.dev/ns/cem-ml/1"
 @ns xml = "https://cem.dev/ns/data/xml/1"
+@ns xpath = "https://cem.dev/ns/query/xpath/1"
 @default schema
 
 {schema @name="xslt" @namespace="https://cem.dev/ns/transform/xslt/1" @version="1.0.0" |
@@ -13,6 +14,7 @@
         {use @schema="https://cem.dev/ns/schema/1" @as="schema"}
         {use @schema="https://cem.dev/ns/cem-ml/1" @as="cemml"}
         {use @schema="https://cem.dev/ns/data/xml/1" @as="xml"}
+        {use @schema="https://cem.dev/ns/query/xpath/1" @as="xpath"}
     }
 
     {content-types |
@@ -28,6 +30,7 @@
         {namespace @prefix="cemxslt" @uri="https://cem.dev/ns/transform/xslt/1" @role="schema"}
         {namespace @prefix="xsl" @uri="http://www.w3.org/1999/XSL/Transform" @role="document-namespace"}
         {namespace @prefix="xml" @uri="https://cem.dev/ns/data/xml/1" @role="base-format"}
+        {namespace @prefix="xpath" @uri="https://cem.dev/ns/query/xpath/1" @role="expression-language"}
     }
 
     {elements |
@@ -144,6 +147,6 @@
     {open-content |
         {accept @kind="literal-result-element" @policy="delegate-to-target-schema"}
         {accept @kind="extension-instruction" @policy="reject-unless-capability-registered"}
-        {accept @kind="xpath-expression" @policy="delegate-to-xslt-adapter-capability"}
+        {accept @kind="xpath-expression" @policy="delegate-to-https://cem.dev/ns/query/xpath/1 with an XSLT host attachment and static namespace context"}
     }
 }

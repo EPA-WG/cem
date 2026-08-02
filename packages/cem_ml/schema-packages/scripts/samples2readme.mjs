@@ -857,6 +857,8 @@ function sourceFenceLanguage(path) {
         case '.xsl':
         case '.xslt':
             return 'xml';
+        case '.xpath':
+            return 'xpath';
         case '.rnc':
             return 'rnc';
         case '.svg':

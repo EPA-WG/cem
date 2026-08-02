@@ -1,0 +1,89 @@
+@doc cem-ml 1
+@ns transform = "https://cem.dev/ns/transform/cem/1"
+@default transform
+
+{module @version="1.0.0" |
+    {format-function
+        @name="xpath.format-expression.tree"
+        @visibility="private"
+        @category="xpath-expression"
+        @subject="xpath-expression"
+        @produces="cem-tree"
+        @content-type="application/vnd.cem.xpath"
+        @schema="https://cem.dev/ns/query/xpath/1"
+        @canonical=true
+        @deterministic=true
+        @streamable=true |
+        {param @name="subject" @type="object" @required=true}
+        {param @name="profile" @type="string" @required=true}
+        {body |
+            {$ {
+                kind: "cem-tree",
+                contentType: "application/vnd.cem.xpath",
+                schema: "https://cem.dev/ns/query/xpath/1",
+                category: "xpath-expression",
+                formatterProfile: $profile,
+                formatNodes: [
+                    {
+                        kind: "format-marker",
+                        name: "xpath.format-expression",
+                        formatterRole: "formatter.boundary",
+                        formatterProfile: $profile
+                    },
+                    {
+                        kind: "format-decision",
+                        name: "xpath.lexical-lossless",
+                        formatterRole: "formatter.layout",
+                        formatterProfile: $profile,
+                        value: {
+                            layout: concat("lexical-lossless-", $profile),
+                            lineEnding: $lineEnding,
+                            sourceBoundary: "xpath-expression"
+                        }
+                    }
+                ],
+                nodes: extend(
+                    [
+                        call("xpath.format-expression.token", {
+                            token: {
+                                kind: "xpath.format-marker",
+                                lexeme: "",
+                                role: "formatter.boundary",
+                                value: { formatterProfile: $profile }
+                            },
+                            profile: $profile
+                        })
+                    ],
+                    map(
+                        match(typeOf($subject.tokens), { array: $subject.tokens, default: [] }),
+                        call("xpath.format-expression.token", { token: $item, profile: $profile })
+                    )
+                )
+            } }
+        }
+    }
+
+    {function @name="xpath.format-expression.token" @visibility="private" @returns="object" @deterministic=true |
+        {param @name="token" @type="object" @required=true}
+        {param @name="profile" @type="string" @required=true}
+        {body |
+            {$ {
+                kind: concat("xpath.", match(typeOf($token.kind), { string: $token.kind, default: "raw" })),
+                writerKind: "token",
+                text: match(typeOf($token.lexeme), { string: $token.lexeme, default: "" }),
+                role: match(typeOf($token.role), { string: $token.role, default: "syntax.raw" }),
+                sourceMap: match(exists($token.sourceMap), { true: $token.sourceMap, false: null }),
+                outputSpan: match(exists($token.sourceMap), {
+                    true: { outputRange: { start: 0, len: 0 }, origin: $token.sourceMap },
+                    false: null
+                }),
+                value: {
+                    formatterProfile: $profile,
+                    tokenIndex: match(exists($token.index), { true: $token.index, false: null }),
+                    depth: match(exists($token.depth), { true: $token.depth, false: 0 }),
+                    sourceRange: match(exists($token.sourceRange), { true: $token.sourceRange, false: null })
+                }
+            } }
+        }
+    }
+}

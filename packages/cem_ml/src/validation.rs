@@ -51,6 +51,7 @@ pub mod schema_package_source;
 pub mod svg;
 pub mod xhtml;
 pub mod xml;
+pub mod xpath;
 pub mod xslt;
 pub mod yaml;
 

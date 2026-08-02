@@ -28,7 +28,10 @@ qualified element and attribute names, namespace bindings, stylesheet version,
 top-level declarations and templates, literal result elements, XPath-bearing
 attribute text, source ranges, source maps, and source line ending.
 
-XPath and attribute value templates remain lexical source values. The source
+XPath and attribute value templates remain lexical source values in the current
+XSLT stream. XPath grammar and AST ownership belongs to the independent
+[`xpath/v1`](../../xpath/v1/README.md) package; the next integration slice will
+associate parsed XPath ASTs with exact XSLT attribute-value ranges. The source
 lifecycle does not parse or execute them. Explicit transform-template execution
 continues through the existing bounded XSLT parity capability.
 

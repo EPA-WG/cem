@@ -594,6 +594,50 @@ static BUILTIN_SCHEMA_PACKAGE_ARTIFACT_SOURCES: &[BuiltinSchemaPackageArtifactSo
         ),
     },
     BuiltinSchemaPackageArtifactSource {
+        package_id: "xpath",
+        path: "schema-packages/xpath/v1/formatters/compact.cemt",
+        source: include_str!("../../schema-packages/xpath/v1/formatters/compact.cemt"),
+    },
+    BuiltinSchemaPackageArtifactSource {
+        package_id: "xpath",
+        path: "schema-packages/xpath/v1/formatters/pretty.cemt",
+        source: include_str!("../../schema-packages/xpath/v1/formatters/pretty.cemt"),
+    },
+    BuiltinSchemaPackageArtifactSource {
+        package_id: "xpath",
+        path: "schema-packages/xpath/v1/formatters/tabular.cemt",
+        source: include_str!("../../schema-packages/xpath/v1/formatters/tabular.cemt"),
+    },
+    BuiltinSchemaPackageArtifactSource {
+        package_id: "xpath",
+        path: "schema-packages/xpath/v1/formatters/xpath-format-expression.cemt",
+        source: include_str!(
+            "../../schema-packages/xpath/v1/formatters/xpath-format-expression.cemt"
+        ),
+    },
+    BuiltinSchemaPackageArtifactSource {
+        package_id: "xpath",
+        path: "schema-packages/xpath/v1/colorizers/terminal.cemt",
+        source: include_str!("../../schema-packages/xpath/v1/colorizers/terminal.cemt"),
+    },
+    BuiltinSchemaPackageArtifactSource {
+        package_id: "xpath",
+        path: "schema-packages/xpath/v1/colorizers/html.cemt",
+        source: include_str!("../../schema-packages/xpath/v1/colorizers/html.cemt"),
+    },
+    BuiltinSchemaPackageArtifactSource {
+        package_id: "xpath",
+        path: "schema-packages/xpath/v1/colorizers/md.cemt",
+        source: include_str!("../../schema-packages/xpath/v1/colorizers/md.cemt"),
+    },
+    BuiltinSchemaPackageArtifactSource {
+        package_id: "xpath",
+        path: "schema-packages/xpath/v1/colorizers/xpath-color-expression.cemt",
+        source: include_str!(
+            "../../schema-packages/xpath/v1/colorizers/xpath-color-expression.cemt"
+        ),
+    },
+    BuiltinSchemaPackageArtifactSource {
         package_id: "xslt",
         path: "schema-packages/xslt/v1/formatters/compact.cemt",
         source: include_str!("../../schema-packages/xslt/v1/formatters/compact.cemt"),
@@ -735,6 +779,12 @@ static BUILTIN_SCHEMA_PACKAGE_SOURCES: &[BuiltinSchemaPackageSource] = &[
         schema_source: include_str!("../../schema-packages/mathml/v1/schema/mathml.cem"),
     },
     BuiltinSchemaPackageSource {
+        package_id: "xpath",
+        schema_path: "schema-packages/xpath/v1/schema/xpath.cem",
+        manifest_source: include_str!("../../schema-packages/xpath/v1/package.cem"),
+        schema_source: include_str!("../../schema-packages/xpath/v1/schema/xpath.cem"),
+    },
+    BuiltinSchemaPackageSource {
         package_id: "xslt",
         schema_path: "schema-packages/xslt/v1/schema/xslt.cem",
         manifest_source: include_str!("../../schema-packages/xslt/v1/package.cem"),
@@ -806,8 +856,8 @@ mod tests {
         JSON_CONTENT_TYPE, JSON_SCHEMA_CONTENT_TYPE, JSON_SCHEMA_SCHEMA_URI, JSON_VALUE_SCHEMA_URI,
         MARKDOWN_SCHEMA_URI, MATHML_CONTENT_TYPE, MATHML_SCHEMA_URI, RELAX_NG_COMPACT_CONTENT_TYPE,
         RELAX_NG_SCHEMA_URI, RELAX_NG_XML_CONTENT_TYPE, SVG_CONTENT_TYPE, SVG_SCHEMA_URI,
-        XHTML_CONTENT_TYPE, XHTML_SCHEMA_URI, XML_CONTENT_TYPE, XML_SCHEMA_URI, XSLT_CONTENT_TYPE,
-        XSLT_SCHEMA_URI, YAML_CONTENT_TYPE, YAML_SCHEMA_URI,
+        XHTML_CONTENT_TYPE, XHTML_SCHEMA_URI, XML_CONTENT_TYPE, XML_SCHEMA_URI, XPATH_CONTENT_TYPE,
+        XPATH_SCHEMA_URI, XSLT_CONTENT_TYPE, XSLT_SCHEMA_URI, YAML_CONTENT_TYPE, YAML_SCHEMA_URI,
     };
     use crate::source::{BytesSource, SourceId};
     use crate::tokenizer::cem::CemTokenizer;
@@ -2731,6 +2781,52 @@ mod tests {
     }
 
     #[test]
+    fn xpath_package_examples_are_manifest_indexed() {
+        let package = builtin_schema_package_source("xpath").expect("package source");
+        let examples =
+            schema_package_examples_from_package_sources(package).expect("package examples");
+        let declared_paths = examples
+            .iter()
+            .map(|example| example.path.clone())
+            .collect::<BTreeSet<_>>();
+
+        assert_eq!(
+            declared_paths,
+            top_level_example_paths("xpath"),
+            "XPath top-level examples must be discoverable from package.cem"
+        );
+        assert_eq!(examples.len(), 5);
+        assert!(examples
+            .iter()
+            .all(|example| example.schema == XPATH_SCHEMA_URI));
+        assert!(examples.iter().any(|example| {
+            example.id == "basic-path"
+                && example.content_type == XPATH_CONTENT_TYPE
+                && example.expected_result == SchemaPackageExampleExpectedResult::Pass
+        }));
+        assert!(examples.iter().any(|example| {
+            example.id == "functions-and-variables"
+                && example.content_type == "text/xpath"
+                && example.expected_result == SchemaPackageExampleExpectedResult::Pass
+        }));
+        let invalid = examples
+            .iter()
+            .find(|example| example.id == "invalid-unclosed-predicate")
+            .expect("invalid XPath example");
+        assert_eq!(
+            invalid.expected_result,
+            SchemaPackageExampleExpectedResult::Fail
+        );
+        assert_eq!(
+            invalid.expected_diagnostic_codes,
+            [
+                "cem.xpath.parse_error".to_owned(),
+                "cem.xpath.unclosed_delimiter".to_owned(),
+            ]
+        );
+    }
+
+    #[test]
     fn xslt_package_examples_are_manifest_indexed() {
         let package = builtin_schema_package_source("xslt").expect("package source");
         let examples =
@@ -4044,6 +4140,51 @@ mod tests {
         ] {
             let helper = builtin_schema_package_artifact_source("mathml", path)
                 .unwrap_or_else(|| panic!("MathML helper source `{path}`"));
+            assert!(helper.source.contains("{body |"));
+        }
+    }
+
+    #[test]
+    fn catalog_exposes_xpath_output_artifact_sources() {
+        for (path, function, profile) in [
+            (
+                "formatters/compact.cemt",
+                "xpath.format-expression",
+                "compact",
+            ),
+            (
+                "formatters/pretty.cemt",
+                "xpath.format-expression",
+                "pretty",
+            ),
+            (
+                "formatters/tabular.cemt",
+                "xpath.format-expression",
+                "tabular",
+            ),
+            (
+                "colorizers/terminal.cemt",
+                "xpath.color-expression",
+                "terminal",
+            ),
+            ("colorizers/html.cemt", "xpath.color-expression", "html"),
+            ("colorizers/md.cemt", "xpath.color-expression", "md"),
+        ] {
+            let full_path = format!("schema-packages/xpath/v1/{path}");
+            let artifact = builtin_schema_package_artifact_source("xpath", &full_path)
+                .unwrap_or_else(|| panic!("XPath artifact source `{path}`"));
+            assert!(artifact.source.contains(&format!(r#"@name="{function}""#)));
+            assert!(artifact
+                .source
+                .contains(&format!(r#"@profile="{profile}""#)));
+            assert!(artifact.source.contains("{body |"));
+        }
+        for path in [
+            "schema-packages/xpath/v1/formatters/xpath-format-expression.cemt",
+            "schema-packages/xpath/v1/colorizers/xpath-color-expression.cemt",
+        ] {
+            let helper = builtin_schema_package_artifact_source("xpath", path)
+                .unwrap_or_else(|| panic!("XPath helper source `{path}`"));
             assert!(helper.source.contains("{body |"));
         }
     }

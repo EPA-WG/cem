@@ -1,0 +1,122 @@
+@doc cem-ml 1
+@ns schema = "https://cem.dev/ns/schema/1"
+@ns cemml = "https://cem.dev/ns/cem-ml/1"
+@default schema
+
+{schema @name="xpath" @namespace="https://cem.dev/ns/query/xpath/1" @version="1.0.0" |
+    {summary |
+        {text | XPath 3.1 expression source schema. XPath owns its lexer, grammar AST, static context, diagnostics, and host attachment contract. XML, XSLT, CEMT, and CEM-QL declare expression slots and attach this independent AST rather than implementing private XPath syntax.}
+    }
+
+    {uses |
+        {use @schema="https://cem.dev/ns/schema/1" @as="schema"}
+        {use @schema="https://cem.dev/ns/cem-ml/1" @as="cemml"}
+    }
+
+    {content-types |
+        {content-type @value="application/vnd.cem.xpath" @primary=true}
+        {content-type @value="text/xpath" @alias=true}
+    }
+
+    {namespaces |
+        {namespace @prefix="xpath" @uri="https://cem.dev/ns/query/xpath/1"}
+    }
+
+    {elements |
+        {element @name="expression-resource" @required-attributes="content-type schema-uri" @optional-attributes="uri media-type byte-length line-ending grammar-version parse-state" @children="source? token-stream? event-stream? syntax-ast? parse-facts? attachment?"}
+        {element @name="source" @optional-attributes="uri content-type media-type byte-length line-ending"}
+        {element @name="token-stream" @children="token*"}
+        {element @name="token" @required-attributes="index token-kind role lexeme depth byte-offset byte-length line column" @optional-attributes="source-id"}
+        {element @name="event-stream" @children="event*"}
+        {element @name="event" @required-attributes="index event-kind depth byte-offset byte-length line column" @optional-attributes="token-index source-id"}
+        {element @name="syntax-ast" @required-attributes="grammar-version parse-state"}
+        {element @name="parse-facts" @children="parse-fact*"}
+        {element @name="parse-fact" @required-attributes="kind" @optional-attributes="message value byte-offset byte-length line column"}
+        {element @name="attachment" @required-attributes="attachment-kind evaluation-phase" @optional-attributes="resolver-policy-stamp safety-policy-stamp" @children="owner? static-context? expected-result?"}
+        {element @name="owner" @required-attributes="source-id source-uri owner-kind" @optional-attributes="content-type schema-uri node-id byte-offset byte-length line column expression-byte-offset expression-byte-length expression-line expression-column"}
+        {element @name="static-context" @optional-attributes="default-element-namespace default-function-namespace" @children="namespace-binding* variable-binding* function-binding*"}
+        {element @name="namespace-binding" @required-attributes="prefix namespace-uri"}
+        {element @name="variable-binding" @required-attributes="name type"}
+        {element @name="function-binding" @required-attributes="name signature"}
+        {element @name="expected-result" @required-attributes="sequence-type" @optional-attributes="min-items max-items"}
+        {element @name="expression-slot" @required-attributes="host-package owner-kind evaluation-phase" @optional-attributes="node-id sequence-type resolver-policy-stamp safety-policy-stamp"}
+    }
+
+    {attributes |
+        {attribute @name="uri" @type="schema:uri"}
+        {attribute @name="source-uri" @type="schema:uri"}
+        {attribute @name="schema-uri" @type="schema:uri"}
+        {attribute @name="content-type" @type="schema:media-type"}
+        {attribute @name="media-type" @type="schema:media-type"}
+        {attribute @name="byte-length" @type="cemml:integer"}
+        {attribute @name="line-ending" @type="schema:identifier" @values="crlf lf cr mixed none"}
+        {attribute @name="grammar-version" @type="schema:string"}
+        {attribute @name="parse-state" @type="schema:identifier" @values="parsed lexical-error parse-error decode-error"}
+        {attribute @name="index" @type="cemml:integer"}
+        {attribute @name="event-kind" @type="schema:identifier" @values="start-expression token end-expression"}
+        {attribute @name="token-index" @type="cemml:integer"}
+        {attribute @name="token-kind" @type="schema:identifier"}
+        {attribute @name="role" @type="schema:string"}
+        {attribute @name="lexeme" @type="schema:string"}
+        {attribute @name="depth" @type="cemml:integer"}
+        {attribute @name="source-id" @type="cemml:integer"}
+        {attribute @name="byte-offset" @type="cemml:integer"}
+        {attribute @name="line" @type="cemml:integer"}
+        {attribute @name="column" @type="cemml:integer"}
+        {attribute @name="kind" @type="schema:identifier"}
+        {attribute @name="message" @type="schema:string"}
+        {attribute @name="value" @type="schema:string"}
+        {attribute @name="attachment-kind" @type="schema:identifier" @values="standalone host"}
+        {attribute @name="evaluation-phase" @type="schema:identifier" @values="validate compile transform render runtime"}
+        {attribute @name="resolver-policy-stamp" @type="schema:string"}
+        {attribute @name="safety-policy-stamp" @type="schema:string"}
+        {attribute @name="owner-kind" @type="schema:identifier" @values="xml-document xml-subtree xml-element xml-attribute xslt-attribute cemt-expression-slot cem-ql-expression-slot"}
+        {attribute @name="node-id" @type="schema:string"}
+        {attribute @name="expression-byte-offset" @type="cemml:integer"}
+        {attribute @name="expression-byte-length" @type="cemml:integer"}
+        {attribute @name="expression-line" @type="cemml:integer"}
+        {attribute @name="expression-column" @type="cemml:integer"}
+        {attribute @name="default-element-namespace" @type="schema:uri"}
+        {attribute @name="default-function-namespace" @type="schema:uri"}
+        {attribute @name="prefix" @type="schema:string"}
+        {attribute @name="namespace-uri" @type="schema:uri"}
+        {attribute @name="name" @type="schema:string"}
+        {attribute @name="type" @type="schema:string"}
+        {attribute @name="signature" @type="schema:string"}
+        {attribute @name="sequence-type" @type="schema:string"}
+        {attribute @name="min-items" @type="cemml:integer"}
+        {attribute @name="max-items" @type="cemml:integer"}
+        {attribute @name="host-package" @type="schema:string"}
+    }
+
+    {constraints |
+        {constraint @kind="utf-8-decode" @target="expression-resource" @diagnostic="cem.xpath.invalid_utf8" @behavior="xpath-report-fact" @fact-kind="invalid-utf8" @policy="XPath source bytes must decode as UTF-8 before lexing"}
+        {constraint @kind="xpath-lexical-grammar" @target="token" @diagnostic="cem.xpath.lexical_error" @behavior="xpath-report-fact" @fact-kind="lexical-error" @policy="XPath 3.1 longest-match lexical rules"}
+        {constraint @kind="xpath-grammar" @target="syntax-ast" @diagnostic="cem.xpath.parse_error" @behavior="xpath-report-fact" @fact-kind="parse-error" @policy="XPath 3.1 grammar"}
+        {constraint @kind="xpath-static-namespace" @target="static-context" @diagnostic="cem.xpath.unknown_namespace_prefix" @behavior="xpath-report-fact" @fact-kind="unknown-namespace-prefix" @policy="prefixed names resolve through the declared static context"}
+        {constraint @kind="xpath-delimiter-balance" @target="token-stream" @diagnostic="cem.xpath.unclosed_delimiter" @behavior="xpath-report-fact" @fact-kind="unclosed-delimiter" @policy="all grouping delimiters close in source order"}
+        {constraint @kind="xpath-delimiter-match" @target="token-stream" @diagnostic="cem.xpath.mismatched_delimiter" @behavior="xpath-report-fact" @fact-kind="mismatched-delimiter" @policy="closing delimiters match the active grouping delimiter"}
+        {constraint @kind="xpath-host-association" @target="attachment" @diagnostic="cem.xpath.host_association_invalid" @behavior="xpath-report-fact" @fact-kind="host-association-invalid" @policy="embedded XPath retains owner and expression source ranges"}
+        {constraint @kind="xpath-external-resource-policy" @target="static-context" @diagnostic="cem.xpath.external_resource_denied" @behavior="xpath-report-fact" @fact-kind="external-resource-denied" @policy="doc collection unparsed-text and URI collection access require explicit resolver capability"}
+        {constraint @kind="xpath-source-map" @target="token" @diagnostic="cem.xpath.source_map_unavailable" @behavior="xpath-report-fact" @fact-kind="source-map-unavailable" @policy="every lexical token exposes an exact source-map frame"}
+        {constraint @kind="xpath-event-lifecycle" @target="event-stream" @diagnostic="cem.xpath.event_lifecycle_invalid" @behavior="xpath-report-fact" @fact-kind="event-lifecycle-invalid" @policy="one start-expression event precedes token events and one end-expression event closes the stream"}
+    }
+
+    {diagnostics |
+        {diagnostic @code="cem.xpath.invalid_utf8" @severity="error"}
+        {diagnostic @code="cem.xpath.lexical_error" @severity="error"}
+        {diagnostic @code="cem.xpath.parse_error" @severity="error"}
+        {diagnostic @code="cem.xpath.unknown_namespace_prefix" @severity="error"}
+        {diagnostic @code="cem.xpath.unclosed_delimiter" @severity="error"}
+        {diagnostic @code="cem.xpath.mismatched_delimiter" @severity="error"}
+        {diagnostic @code="cem.xpath.host_association_invalid" @severity="error"}
+        {diagnostic @code="cem.xpath.external_resource_denied" @severity="error"}
+        {diagnostic @code="cem.xpath.source_map_unavailable" @severity="info"}
+        {diagnostic @code="cem.xpath.event_lifecycle_invalid" @severity="error"}
+    }
+
+    {open-content |
+        {accept @kind="xpath-expression" @policy="delegate-to-xpath-parser"}
+        {accept @kind="host-expression-slot" @policy="host-declares-context-xpath-owns-grammar"}
+    }
+}

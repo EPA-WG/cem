@@ -1,0 +1,150 @@
+@doc cem-ml 1
+@ns pkg = "https://cem.dev/ns/schema-package/1"
+@default pkg
+
+{package @id="xpath" @version="1.0.0" |
+    {schema
+        @uri="https://cem.dev/ns/query/xpath/1"
+        @source="schema/xpath.cem"
+    }
+
+    {content-type @value="application/vnd.cem.xpath" @primary=true}
+    {content-type @value="text/xpath" @alias=true}
+
+    {namespace @prefix="xpath" @uri="https://cem.dev/ns/query/xpath/1"}
+
+    {artifact
+        @kind="formatter"
+        @path="formatters/compact.cemt"
+        @content-type="application/vnd.cem.transform+cem"
+        @schema="https://cem.dev/ns/transform/cem/1"
+        @target-content-type="application/vnd.cem.xpath"
+        @target-schema="https://cem.dev/ns/query/xpath/1"
+        @target-category="xpath-expression"
+        @function-name="xpath.format-expression"
+        @formatter-profile="compact"
+    }
+
+    {artifact
+        @kind="formatter"
+        @path="formatters/pretty.cemt"
+        @content-type="application/vnd.cem.transform+cem"
+        @schema="https://cem.dev/ns/transform/cem/1"
+        @target-content-type="application/vnd.cem.xpath"
+        @target-schema="https://cem.dev/ns/query/xpath/1"
+        @target-category="xpath-expression"
+        @function-name="xpath.format-expression"
+        @formatter-profile="pretty"
+    }
+
+    {artifact
+        @kind="formatter"
+        @path="formatters/tabular.cemt"
+        @content-type="application/vnd.cem.transform+cem"
+        @schema="https://cem.dev/ns/transform/cem/1"
+        @target-content-type="application/vnd.cem.xpath"
+        @target-schema="https://cem.dev/ns/query/xpath/1"
+        @target-category="xpath-expression"
+        @function-name="xpath.format-expression"
+        @formatter-profile="tabular"
+    }
+
+    {artifact
+        @kind="formatter-helper"
+        @path="formatters/xpath-format-expression.cemt"
+        @content-type="application/vnd.cem.transform+cem"
+        @schema="https://cem.dev/ns/transform/cem/1"
+        @target-content-type="application/vnd.cem.xpath"
+        @target-schema="https://cem.dev/ns/query/xpath/1"
+        @target-category="xpath-expression"
+        @function-name="xpath.format-expression.tree"
+    }
+
+    {artifact
+        @kind="colorizer"
+        @path="colorizers/terminal.cemt"
+        @content-type="application/vnd.cem.transform+cem"
+        @schema="https://cem.dev/ns/transform/cem/1"
+        @target-content-type="application/vnd.cem.xpath"
+        @target-schema="https://cem.dev/ns/query/xpath/1"
+        @target-category="xpath-expression"
+        @function-name="xpath.color-expression"
+        @color-profile="terminal"
+    }
+
+    {artifact
+        @kind="colorizer"
+        @path="colorizers/html.cemt"
+        @content-type="application/vnd.cem.transform+cem"
+        @schema="https://cem.dev/ns/transform/cem/1"
+        @target-content-type="application/vnd.cem.xpath"
+        @target-schema="https://cem.dev/ns/query/xpath/1"
+        @target-category="xpath-expression"
+        @function-name="xpath.color-expression"
+        @color-profile="html"
+    }
+
+    {artifact
+        @kind="colorizer"
+        @path="colorizers/md.cemt"
+        @content-type="application/vnd.cem.transform+cem"
+        @schema="https://cem.dev/ns/transform/cem/1"
+        @target-content-type="application/vnd.cem.xpath"
+        @target-schema="https://cem.dev/ns/query/xpath/1"
+        @target-category="xpath-expression"
+        @function-name="xpath.color-expression"
+        @color-profile="md"
+    }
+
+    {artifact
+        @kind="colorizer-helper"
+        @path="colorizers/xpath-color-expression.cemt"
+        @content-type="application/vnd.cem.transform+cem"
+        @schema="https://cem.dev/ns/transform/cem/1"
+        @target-content-type="application/vnd.cem.xpath"
+        @target-schema="https://cem.dev/ns/query/xpath/1"
+        @target-category="xpath-expression"
+        @function-name="xpath.color-expression.tree"
+    }
+
+    {example
+        @id="basic-path"
+        @path="examples/basic-path.xpath"
+        @content-type="application/vnd.cem.xpath"
+        @schema="https://cem.dev/ns/query/xpath/1"
+        @expected-result="pass"
+    }
+
+    {example
+        @id="functions-and-variables"
+        @path="examples/functions-and-variables.xpath"
+        @content-type="text/xpath"
+        @schema="https://cem.dev/ns/query/xpath/1"
+        @expected-result="pass"
+    }
+
+    {example
+        @id="maps-arrays-and-comments"
+        @path="examples/maps-arrays-and-comments.xpath"
+        @content-type="application/vnd.cem.xpath"
+        @schema="https://cem.dev/ns/query/xpath/1"
+        @expected-result="pass"
+    }
+
+    {example
+        @id="unicode-qname"
+        @path="examples/unicode-qname.xpath"
+        @content-type="application/vnd.cem.xpath"
+        @schema="https://cem.dev/ns/query/xpath/1"
+        @expected-result="pass"
+    }
+
+    {example
+        @id="invalid-unclosed-predicate"
+        @path="examples/invalid-unclosed-predicate.xpath"
+        @content-type="application/vnd.cem.xpath"
+        @schema="https://cem.dev/ns/query/xpath/1"
+        @expected-result="fail"
+        @expected-diagnostics="cem.xpath.parse_error cem.xpath.unclosed_delimiter"
+    }
+}

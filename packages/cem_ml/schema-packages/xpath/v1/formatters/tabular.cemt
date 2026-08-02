@@ -1,0 +1,10 @@
+@doc cem-ml 1
+@ns transform = "https://cem.dev/ns/transform/cem/1"
+@default transform
+
+{module @version="1.0.0" |
+    {format-function @name="xpath.format-expression" @visibility="public" @category="xpath-expression" @subject="xpath-expression" @produces="cem-tree" @content-type="application/vnd.cem.xpath" @schema="https://cem.dev/ns/query/xpath/1" @profile="tabular" @canonical=false @deterministic=true @streamable=true |
+        {param @name="subject" @type="object" @required=true}
+        {body | {$ merge(call("xpath.format-expression.tree", { subject: $subject, profile: "tabular" }), {}) } }
+    }
+}

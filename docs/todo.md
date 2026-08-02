@@ -807,6 +807,40 @@ Remaining dependency-ordered package checklist:
   - [x] Prefer language-tagged fenced source in generated schema-package README
         examples; use an SVG preview only when the source is binary, invalid
         UTF-8, or has no supported Markdown fence language.
+- [ ] Establish XPath 3.1 as an independent schema package and typed expression
+      AST stream before expanding XSLT expression-aware formatting.
+  - [x] Add `xpath/v1` to the schema-package catalog with a conventional
+        `package.cem`, `schema/xpath.cem`, manifest-owned fixtures, README,
+        formatter/colorizer assets, preview verifier, and cacheable Nx project
+        targets.
+  - [x] Base XPath token boundaries on a maintained XPath 3.1 lexer while
+        retaining whitespace, nested comments, exact lexemes, UTF-8 byte ranges,
+        line/column coordinates, lexical errors, and source-map frames in a
+        package-owned lossless token stream.
+  - [x] Define a deterministic XPath AST event stream whose start/end lifecycle,
+        token roles, delimiter nesting, and error facts can be consumed
+        independently or fused into an owning transform stream without changing
+        XPath grammar ownership.
+  - [x] Define the host attachment envelope for standalone expressions, XML
+        documents, and XML AST subtrees/attributes, preserving host schema,
+        source identity, owner-node identity/range, expression range, namespace
+        context, variable/function bindings, expected result contract,
+        evaluation phase, and resolver/safety policy stamps.
+  - [ ] Bind decode, lexical, parse, static-context, unresolved namespace,
+        external-resource, source-map, and host-association facts to
+        `schema/xpath.cem` diagnostics; add fixtures for paths/axes, predicates,
+        functions, variables, maps/arrays, Unicode QNames, strings, nested
+        comments, malformed tokens, and incomplete delimiters.
+  - [ ] Route standalone XPath through the generic CEM-ML lifecycle and
+        `transform` command, then expose explicit adapters so CEM-QL, CEMT, and
+        XSLT can invoke XPath as a transformation without embedding a private
+        lexer, parser, evaluator, or resource resolver.
+  - [ ] Fuse parsed XPath streams into XSLT XPath-bearing attributes and AVT
+        expression segments while retaining an independently addressable XPath
+        AST associated with the owning XML event or subtree node.
+  - [ ] Add deterministic compact/pretty/tabular and terminal/HTML/Markdown
+        profiles that preserve lexical islands and source maps, then run package,
+        converter-parity, CLI e2e, WASM, and core release gates.
 - [ ] Polish XSLT formatter and colorizer profile semantics on the dedicated
       `XsltDocumentAst` path.
   - [ ] Reuse the shared typed XML-family markup-token helper while keeping
@@ -838,19 +872,19 @@ Remaining dependency-ordered package checklist:
 
 ### Next Work Item
 
-Start XSLT format polish by reusing the shared XML-family lexical tokenizer but
-keeping whitespace sensitivity and role selection in the XSLT package. First
-characterize stylesheet and transform roots, imports/includes, namespace
-bindings, XPath-bearing attributes, attribute value templates, `xsl:text`,
-literal result elements, comments, CDATA, extension namespaces, and the legacy
-custom-element media type.
+Bind native XPath facts to the `schema/xpath.cem` diagnostic contract and finish
+the syntax fixture matrix. Start with validation tests that drive standalone
+`application/vnd.cem.xpath` and `text/xpath` sources through schema-owned loading,
+then assert diagnostic codes, exact ranges, and source maps for decode errors,
+malformed tokens, unknown prefixes, mismatched/unclosed delimiters, and host
+association failures. Add manifest fixtures for explicit axes, escaped strings,
+unknown namespace prefixes, malformed lexical input, and mismatched delimiters.
 
-Treat XPath, AVT, explicit text, mixed literal-result content, CDATA, and
-foreign extension content as lexical islands until focused tests prove a safe
-reflow boundary. Then define exact compact, pretty, and attribute-tabular
-output, preserve qualified names and token-level maps, leave generated layout
-unmapped, and verify terminal/HTML/Markdown parity plus formatter options before
-refreshing any fallback artifacts and running the full release gates.
+Keep evaluation out of this slice. Once package validation consumes the typed
+`XPathExpressionAst` and its facts directly, route the same AST through the
+generic CEM-ML lifecycle and `transform` command. That lifecycle boundary should
+precede CEM-QL, CEMT, and XSLT invocation adapters or AVT fusion so every host
+shares one parser, diagnostic path, resolver policy, and source identity.
 
 ## Current Verification Commands
 
@@ -860,6 +894,8 @@ refreshing any fallback artifacts and running the full release gates.
 - `yarn nx run cem_ml_cli:validate-converter-parity`
 - `yarn nx run cem_ml_cli:e2e`
 - `yarn nx run cem_ml:test`
+- `yarn nx run cem_ml:build:wasm`
+- `yarn nx run cem_ml_schema_package_xpath_v1:verify`
 - `yarn nx run cem_ml_schema_package_svg_v1:verify`
 - `yarn nx run cem_ml_schema_package_mathml_v1:verify`
 
