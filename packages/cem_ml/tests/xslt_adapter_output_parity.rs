@@ -18,7 +18,7 @@ fn cem_input(uri: &str, source: &str) -> EngineInput {
     }
 }
 
-fn render_cem_html(uri: &str, source: &str) -> String {
+fn assert_cem_html_rejects_unmigrated_native_tree(uri: &str, source: &str) {
     let response = RealCemMlEngine::new()
         .convert(ConvertRequest {
             input: cem_input(uri, source),
@@ -31,17 +31,23 @@ fn render_cem_html(uri: &str, source: &str) -> String {
         })
         .expect("render CEM as HTML");
     assert!(
-        response.diagnostics.is_empty(),
-        "unexpected diagnostics rendering {uri}: {:?}",
+        response.diagnostics.iter().any(|diagnostic| {
+            diagnostic.code == "cem.transform_template.adapter_failed"
+                && diagnostic.message.contains("cem.tree-ast")
+                && diagnostic
+                    .message
+                    .contains("expected explicit encoded JSON")
+        }),
+        "expected explicit unmigrated native-tree diagnostic rendering {uri}: {:?}",
         response.diagnostics
     );
-    response.primary["content"]
-        .as_str()
-        .expect("HTML content string")
-        .to_owned()
 }
 
-fn assert_xslt_output_parity(name: &str, xslt: &str, equivalent_cem: &str) {
+fn assert_xslt_lowering_parity_at_unmigrated_output_boundary(
+    name: &str,
+    xslt: &str,
+    equivalent_cem: &str,
+) {
     let lowered = convert_template_source(xslt);
     assert!(
         lowered.diagnostics.is_empty(),
@@ -50,14 +56,16 @@ fn assert_xslt_output_parity(name: &str, xslt: &str, equivalent_cem: &str) {
     );
     assert_eq!(lowered.source, equivalent_cem);
 
-    let lowered_html = render_cem_html(&format!("{name}.lowered.cem"), &lowered.source);
-    let equivalent_html = render_cem_html(&format!("{name}.equivalent.cem"), equivalent_cem);
-    assert_eq!(lowered_html, equivalent_html);
+    assert_cem_html_rejects_unmigrated_native_tree(&format!("{name}.lowered.cem"), &lowered.source);
+    assert_cem_html_rejects_unmigrated_native_tree(
+        &format!("{name}.equivalent.cem"),
+        equivalent_cem,
+    );
 }
 
 #[test]
-fn xslt_adapter_output_matches_cem_for_login_shell() {
-    assert_xslt_output_parity(
+fn xslt_adapter_lowering_matches_cem_for_login_shell() {
+    assert_xslt_lowering_parity_at_unmigrated_output_boundary(
         "login-shell",
         r#"<xsl:stylesheet version="1.0"><xsl:template match="/"><main class="login"><h1>Sign in</h1><form><button type="submit">Continue</button></form></main></xsl:template></xsl:stylesheet>"#,
         r#"{main @class="login" | {h1 | Sign in}{form | {button @type="submit" | Continue}}}"#,
@@ -65,8 +73,8 @@ fn xslt_adapter_output_matches_cem_for_login_shell() {
 }
 
 #[test]
-fn xslt_adapter_output_matches_cem_for_profile_named_template() {
-    assert_xslt_output_parity(
+fn xslt_adapter_lowering_matches_cem_for_profile_named_template() {
+    assert_xslt_lowering_parity_at_unmigrated_output_boundary(
         "profile-named-template",
         r#"<xsl:stylesheet version="1.0"><xsl:template match="/"><section class="profile"><xsl:call-template name="row"><xsl:with-param name="label" select="'Display name'"/></xsl:call-template></section></xsl:template><xsl:template name="row"><p><xsl:value-of select="$label"/></p></xsl:template></xsl:stylesheet>"#,
         r#"{section @class="profile" | {p | Display name}}"#,
@@ -74,8 +82,8 @@ fn xslt_adapter_output_matches_cem_for_profile_named_template() {
 }
 
 #[test]
-fn xslt_adapter_output_matches_cem_for_asset_list_apply_templates() {
-    assert_xslt_output_parity(
+fn xslt_adapter_lowering_matches_cem_for_asset_list_apply_templates() {
+    assert_xslt_lowering_parity_at_unmigrated_output_boundary(
         "asset-list-apply-templates",
         r#"<xsl:stylesheet version="1.0"><xsl:variable name="assets"><asset>Logo</asset><asset>Hero</asset></xsl:variable><xsl:template match="/"><ul><xsl:apply-templates select="exsl:node-set($assets)/*"/></ul></xsl:template><xsl:template match="asset"><li><xsl:value-of select="."/></li></xsl:template></xsl:stylesheet>"#,
         "{ul | {li | Logo}{li | Hero}}",

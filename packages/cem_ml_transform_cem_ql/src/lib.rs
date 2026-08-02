@@ -3209,7 +3209,14 @@ fn render_cem_ql_payload(
                 "compiled template artifact was not produced by the CEM-QL adapter",
             )
         })?;
-    let data = template_data_from_artifacts(request.primary_input, request.secondary_inputs);
+    let data = template_data_from_artifacts(request.primary_input, request.secondary_inputs)
+        .map_err(|message| {
+            TransformTemplateAdapterError::failed(
+                adapter_id,
+                TransformTemplateAdapterExecutionPhase::Render,
+                message,
+            )
+        })?;
     let plan = render_payload_template(payload, &data);
     if target_is_cem_tree(request.target) {
         return Ok(TransformTemplateRenderResponse {
@@ -3261,13 +3268,21 @@ fn render_cem_ql_expression_payload(
                 "compiled expression artifact was not produced by the CEM-QL expression adapter",
             )
         })?;
+    let policy_bindings = expression_policy_bindings(request.primary_input, &payload.params)
+        .map_err(|message| {
+            TransformTemplateAdapterError::failed(
+                adapter_id,
+                TransformTemplateAdapterExecutionPhase::Render,
+                message,
+            )
+        })?;
     let result = evaluate(
         &payload.compiled.query,
         &EvaluationContext {
             scope: QueryContextScope(0),
             scope_policy: ScopePolicy::host_root(),
             diagnostics: Vec::new(),
-            policy_bindings: expression_policy_bindings(request.primary_input, &payload.params),
+            policy_bindings,
             current_item: None,
         },
     );
@@ -4176,23 +4191,29 @@ fn module_render_diagnostic(
 
 fn template_data_from_artifacts(
     primary: &TransformTemplateDataArtifact,
-    secondary: &BTreeMap<String, TransformTemplateDataArtifact>,
-) -> TemplateData {
-    let mut data = TemplateData::default().with_binding("input", value_to_stream(&primary.value));
-    match &primary.value {
+    secondary: &BTreeMap<String, Arc<TransformTemplateDataArtifact>>,
+) -> Result<TemplateData, String> {
+    let primary_value = primary
+        .explicit_json_value()
+        .map_err(|error| error.to_string())?;
+    let mut data = TemplateData::default().with_binding("input", value_to_stream(&primary_value));
+    match &primary_value {
         Value::Object(fields) => {
             for (name, value) in fields {
                 data = data.with_binding(name.clone(), value_to_stream(value));
             }
         }
         _ => {
-            data = data.with_binding("value", value_to_stream(&primary.value));
+            data = data.with_binding("value", value_to_stream(&primary_value));
         }
     }
     for (name, artifact) in secondary {
-        data = data.with_binding(name.clone(), value_to_stream(&artifact.value));
+        let value = artifact
+            .explicit_json_value()
+            .map_err(|error| error.to_string())?;
+        data = data.with_binding(name.clone(), value_to_stream(&value));
     }
-    data
+    Ok(data)
 }
 
 fn expression_compile_context(
@@ -4225,13 +4246,16 @@ fn expression_compile_context(
 fn expression_policy_bindings(
     primary: &TransformTemplateDataArtifact,
     params: &BTreeMap<String, Value>,
-) -> BTreeMap<String, ItemStream> {
+) -> Result<BTreeMap<String, ItemStream>, String> {
     let mut bindings = BTreeMap::new();
-    bindings.insert("input".to_owned(), value_to_stream(&primary.value));
+    let primary = primary
+        .explicit_json_value()
+        .map_err(|error| error.to_string())?;
+    bindings.insert("input".to_owned(), value_to_stream(&primary));
     for (name, value) in params {
         bindings.insert(name.clone(), value_to_stream(value));
     }
-    bindings
+    Ok(bindings)
 }
 
 fn value_to_stream(value: &Value) -> ItemStream {
@@ -4419,6 +4443,7 @@ mod tests {
     };
     use cem_ml::source::{BytesSource, SourceId};
     use cem_ml::tokenizer::{cem::CemTokenizer, xml::XmlTokenizer};
+    use cem_ml::transform_artifact::TransformArtifactBody;
     use cem_ml::transform_template::{
         TransformTemplateAdapterLookup, TransformTemplateModuleParamType,
         TransformTemplateModulePreflight, TransformTemplateResolvedModule,
@@ -4632,18 +4657,76 @@ count + 1"#,
     }
 
     fn packaged_dom_projection_artifact(value: Value) -> TransformTemplateDataArtifact {
-        TransformTemplateDataArtifact {
-            artifact_id: "dom".to_owned(),
-            uri: Some("dom.json".to_owned()),
-            identity: Some(FormatIdentity {
+        TransformTemplateDataArtifact::explicit_json(
+            "dom",
+            Some("dom.json".to_owned()),
+            FormatIdentity {
                 content_type: Some(
                     cem_ml::schema::registry::CEM_DOM_JSON_PROJECTION_CONTENT_TYPE.to_owned(),
                 ),
                 schema: Some(cem_ml::schema::registry::CEM_DOM_PROJECTION_SCHEMA_URI.to_owned()),
                 ..FormatIdentity::default()
+            },
+            &value,
+        )
+        .expect("packaged DOM projection has explicit JSON identity")
+    }
+
+    fn explicit_json_test_artifact(
+        artifact_id: &str,
+        uri: Option<&str>,
+        value: Value,
+    ) -> TransformTemplateDataArtifact {
+        TransformTemplateDataArtifact::explicit_json(
+            artifact_id,
+            uri.map(str::to_owned),
+            FormatIdentity {
+                content_type: Some(cem_ml::schema::registry::JSON_CONTENT_TYPE.to_owned()),
+                schema: Some(cem_ml::schema::registry::JSON_VALUE_SCHEMA_URI.to_owned()),
+                ..FormatIdentity::default()
+            },
+            &value,
+        )
+        .expect("test data has explicit JSON identity")
+    }
+
+    fn assert_unmigrated_native_ingress_diagnostic(
+        diagnostics: &[Diagnostic],
+        representation: &str,
+        node: Option<&str>,
+    ) {
+        assert!(
+            diagnostics.iter().any(|diagnostic| {
+                diagnostic.code == TransformTemplateAdapterError::FAILED_CODE
+                    && diagnostic.severity == Severity::Fatal
+                    && diagnostic.message.contains(representation)
+                    && diagnostic
+                        .message
+                        .contains("expected explicit encoded JSON")
+                    && node.is_none_or(|node| diagnostic.node.as_deref() == Some(node))
             }),
-            value,
-        }
+            "{diagnostics:?}"
+        );
+    }
+
+    #[test]
+    fn cql_data_ingress_rejects_unmigrated_native_representation() {
+        let artifact = TransformTemplateDataArtifact::new(
+            "native",
+            Some("data.cem".to_owned()),
+            Some(FormatIdentity {
+                content_type: Some(CEM_ML_CONTENT_TYPE.to_owned()),
+                schema: Some(CEM_ML_SCHEMA_URI.to_owned()),
+                ..FormatIdentity::default()
+            }),
+            TransformArtifactBody::CemDocument(Arc::new(CemDocument::default())),
+        );
+
+        let error = template_data_from_artifacts(&artifact, &BTreeMap::new())
+            .expect_err("unmigrated native CEM-QL ingress must fail explicitly");
+
+        assert!(error.contains("cem.document-ast"), "{error}");
+        assert!(error.contains("explicit encoded JSON"), "{error}");
     }
 
     fn packaged_dom_projection_input(children: Vec<Value>) -> TransformTemplateDataArtifact {
@@ -5446,15 +5529,14 @@ count + 1"#,
             })
             .expect("template should compile")
             .artifact;
-        let primary_input = TransformTemplateDataArtifact {
-            artifact_id: "data".to_owned(),
-            uri: Some("data.json".to_owned()),
-            identity: None,
-            value: json_object([
+        let primary_input = explicit_json_test_artifact(
+            "data",
+            Some("data.json"),
+            json_object([
                 ("label", Value::String("Save".to_owned())),
                 ("tone", Value::String("primary".to_owned())),
             ]),
-        };
+        );
         let secondary_inputs = BTreeMap::new();
         let rendered = adapter
             .render(TransformTemplateRenderRequest {
@@ -5510,12 +5592,11 @@ count + 1"#,
             })
             .expect("XSLT parity template should compile")
             .artifact;
-        let primary_input = TransformTemplateDataArtifact {
-            artifact_id: "data".to_owned(),
-            uri: Some("data.cem".to_owned()),
-            identity: None,
-            value: json_object([("kind", Value::String("document".to_owned()))]),
-        };
+        let primary_input = explicit_json_test_artifact(
+            "data",
+            Some("data.cem"),
+            json_object([("kind", Value::String("document".to_owned()))]),
+        );
         let rendered = adapter
             .render(TransformTemplateRenderRequest {
                 compiled: &compiled,
@@ -5571,12 +5652,11 @@ count + 1"#,
             })
             .expect("XSLT parity template should compile")
             .artifact;
-        let primary_input = TransformTemplateDataArtifact {
-            artifact_id: "data".to_owned(),
-            uri: Some("data.cem".to_owned()),
-            identity: None,
-            value: json_object([("kind", Value::String("document".to_owned()))]),
-        };
+        let primary_input = explicit_json_test_artifact(
+            "data",
+            Some("data.cem"),
+            json_object([("kind", Value::String("document".to_owned()))]),
+        );
         let rendered = adapter
             .render(TransformTemplateRenderRequest {
                 compiled: &compiled,
@@ -5716,12 +5796,7 @@ count + 1"#,
         let rendered = adapter
             .render(TransformTemplateRenderRequest {
                 compiled: &compiled.artifact,
-                primary_input: &TransformTemplateDataArtifact {
-                    artifact_id: "data".to_owned(),
-                    uri: None,
-                    identity: None,
-                    value: Value::Null,
-                },
+                primary_input: &explicit_json_test_artifact("data", None, Value::Null),
                 secondary_inputs: &BTreeMap::new(),
                 target: None,
                 target_scope: &ScopeConfig::default(),
@@ -5869,20 +5944,18 @@ count + 1"#,
             })
             .expect("template should compile")
             .artifact;
-        let primary_input = TransformTemplateDataArtifact {
-            artifact_id: "data".to_owned(),
-            uri: Some("data.json".to_owned()),
-            identity: None,
-            value: json_object([("label", Value::String("orders".to_owned()))]),
-        };
+        let primary_input = explicit_json_test_artifact(
+            "data",
+            Some("data.json"),
+            json_object([("label", Value::String("orders".to_owned()))]),
+        );
         let secondary_inputs = BTreeMap::from([(
             "meta".to_owned(),
-            TransformTemplateDataArtifact {
-                artifact_id: "meta".to_owned(),
-                uri: Some("meta.json".to_owned()),
-                identity: None,
-                value: json_object([("count", Value::Number(3.into()))]),
-            },
+            Arc::new(explicit_json_test_artifact(
+                "meta",
+                Some("meta.json"),
+                json_object([("count", Value::Number(3.into()))]),
+            )),
         )]);
 
         let rendered = adapter
@@ -5996,12 +6069,7 @@ count + 1"#,
             })
             .expect("module template should compile")
             .artifact;
-        let primary_input = TransformTemplateDataArtifact {
-            artifact_id: "data".to_owned(),
-            uri: None,
-            identity: None,
-            value: Value::Null,
-        };
+        let primary_input = explicit_json_test_artifact("data", None, Value::Null);
         let secondary_inputs = BTreeMap::new();
 
         let rendered = adapter
@@ -6071,12 +6139,7 @@ count + 1"#,
             })
             .expect("module template should compile")
             .artifact;
-        let primary_input = TransformTemplateDataArtifact {
-            artifact_id: "data".to_owned(),
-            uri: None,
-            identity: None,
-            value: Value::Null,
-        };
+        let primary_input = explicit_json_test_artifact("data", None, Value::Null);
         let secondary_inputs = BTreeMap::new();
 
         let rendered = adapter
@@ -6146,12 +6209,7 @@ count + 1"#,
             })
             .expect("module template should compile")
             .artifact;
-        let primary_input = TransformTemplateDataArtifact {
-            artifact_id: "data".to_owned(),
-            uri: None,
-            identity: None,
-            value: Value::Null,
-        };
+        let primary_input = explicit_json_test_artifact("data", None, Value::Null);
         let secondary_inputs = BTreeMap::new();
 
         let rendered = adapter
@@ -6220,12 +6278,11 @@ count + 1"#,
             })
             .expect("module template should compile")
             .artifact;
-        let primary_input = TransformTemplateDataArtifact {
-            artifact_id: "data".to_owned(),
-            uri: None,
-            identity: None,
-            value: json_object([("enabled", Value::Bool(false))]),
-        };
+        let primary_input = explicit_json_test_artifact(
+            "data",
+            None,
+            json_object([("enabled", Value::Bool(false))]),
+        );
         let secondary_inputs = BTreeMap::new();
 
         let rendered = adapter
@@ -6295,12 +6352,7 @@ count + 1"#,
             })
             .expect("module template should compile")
             .artifact;
-        let primary_input = TransformTemplateDataArtifact {
-            artifact_id: "data".to_owned(),
-            uri: None,
-            identity: None,
-            value: Value::Null,
-        };
+        let primary_input = explicit_json_test_artifact("data", None, Value::Null);
         let secondary_inputs = BTreeMap::new();
 
         let rendered = adapter
@@ -6369,12 +6421,8 @@ count + 1"#,
             })
             .expect("module template should compile")
             .artifact;
-        let primary_input = TransformTemplateDataArtifact {
-            artifact_id: "data".to_owned(),
-            uri: None,
-            identity: None,
-            value: json_object([("title", Value::Null)]),
-        };
+        let primary_input =
+            explicit_json_test_artifact("data", None, json_object([("title", Value::Null)]));
         let secondary_inputs = BTreeMap::new();
 
         let rendered = adapter
@@ -6444,12 +6492,7 @@ count + 1"#,
             })
             .expect("module template should compile")
             .artifact;
-        let primary_input = TransformTemplateDataArtifact {
-            artifact_id: "data".to_owned(),
-            uri: None,
-            identity: None,
-            value: Value::Null,
-        };
+        let primary_input = explicit_json_test_artifact("data", None, Value::Null);
         let secondary_inputs = BTreeMap::new();
 
         let rendered = adapter
@@ -6518,15 +6561,14 @@ count + 1"#,
             })
             .expect("module template should compile")
             .artifact;
-        let primary_input = TransformTemplateDataArtifact {
-            artifact_id: "data".to_owned(),
-            uri: None,
-            identity: None,
-            value: json_object([(
+        let primary_input = explicit_json_test_artifact(
+            "data",
+            None,
+            json_object([(
                 "sourceSettings",
                 json_object([("enabled", Value::Bool(true))]),
             )]),
-        };
+        );
         let secondary_inputs = BTreeMap::new();
 
         let rendered = adapter
@@ -6610,12 +6652,7 @@ count + 1"#,
             })
             .expect("module template should compile")
             .artifact;
-        let primary_input = TransformTemplateDataArtifact {
-            artifact_id: "data".to_owned(),
-            uri: None,
-            identity: None,
-            value: Value::Null,
-        };
+        let primary_input = explicit_json_test_artifact("data", None, Value::Null);
         let secondary_inputs = BTreeMap::new();
 
         let rendered = adapter
@@ -6699,12 +6736,7 @@ count + 1"#,
             })
             .expect("module template should compile")
             .artifact;
-        let primary_input = TransformTemplateDataArtifact {
-            artifact_id: "data".to_owned(),
-            uri: None,
-            identity: None,
-            value: Value::Null,
-        };
+        let primary_input = explicit_json_test_artifact("data", None, Value::Null);
         let secondary_inputs = BTreeMap::new();
 
         let rendered = adapter
@@ -6777,12 +6809,7 @@ count + 1"#,
             })
             .expect("module template should compile")
             .artifact;
-        let primary_input = TransformTemplateDataArtifact {
-            artifact_id: "data".to_owned(),
-            uri: None,
-            identity: None,
-            value: Value::Null,
-        };
+        let primary_input = explicit_json_test_artifact("data", None, Value::Null);
         let secondary_inputs = BTreeMap::new();
 
         let rendered = adapter
@@ -6866,12 +6893,7 @@ count + 1"#,
             })
             .expect("module template should compile")
             .artifact;
-        let primary_input = TransformTemplateDataArtifact {
-            artifact_id: "data".to_owned(),
-            uri: None,
-            identity: None,
-            value: Value::Null,
-        };
+        let primary_input = explicit_json_test_artifact("data", None, Value::Null);
         let secondary_inputs = BTreeMap::new();
 
         let rendered = adapter
@@ -6958,12 +6980,7 @@ count + 1"#,
             })
             .expect("module template should compile")
             .artifact;
-        let primary_input = TransformTemplateDataArtifact {
-            artifact_id: "data".to_owned(),
-            uri: None,
-            identity: None,
-            value: Value::Null,
-        };
+        let primary_input = explicit_json_test_artifact("data", None, Value::Null);
         let secondary_inputs = BTreeMap::new();
 
         let rendered = adapter
@@ -7047,12 +7064,7 @@ count + 1"#,
             })
             .expect("module template should compile")
             .artifact;
-        let primary_input = TransformTemplateDataArtifact {
-            artifact_id: "data".to_owned(),
-            uri: None,
-            identity: None,
-            value: Value::Null,
-        };
+        let primary_input = explicit_json_test_artifact("data", None, Value::Null);
         let secondary_inputs = BTreeMap::new();
 
         let rendered = adapter
@@ -7115,12 +7127,7 @@ count + 1"#,
             })
             .expect("module template should compile")
             .artifact;
-        let primary_input = TransformTemplateDataArtifact {
-            artifact_id: "data".to_owned(),
-            uri: None,
-            identity: None,
-            value: Value::Null,
-        };
+        let primary_input = explicit_json_test_artifact("data", None, Value::Null);
         let secondary_inputs = BTreeMap::new();
 
         let rendered = adapter
@@ -7197,12 +7204,7 @@ count + 1"#,
             })
             .expect("module template should compile")
             .artifact;
-        let primary_input = TransformTemplateDataArtifact {
-            artifact_id: "data".to_owned(),
-            uri: None,
-            identity: None,
-            value: Value::Null,
-        };
+        let primary_input = explicit_json_test_artifact("data", None, Value::Null);
         let secondary_inputs = BTreeMap::new();
 
         let rendered = adapter
@@ -7280,12 +7282,7 @@ count + 1"#,
             })
             .expect("module template should compile")
             .artifact;
-        let primary_input = TransformTemplateDataArtifact {
-            artifact_id: "data".to_owned(),
-            uri: None,
-            identity: None,
-            value: Value::Null,
-        };
+        let primary_input = explicit_json_test_artifact("data", None, Value::Null);
         let secondary_inputs = BTreeMap::new();
 
         let rendered = adapter
@@ -7380,12 +7377,7 @@ count + 1"#,
             })
             .expect("module template should compile")
             .artifact;
-        let primary_input = TransformTemplateDataArtifact {
-            artifact_id: "data".to_owned(),
-            uri: None,
-            identity: None,
-            value: Value::Null,
-        };
+        let primary_input = explicit_json_test_artifact("data", None, Value::Null);
         let secondary_inputs = BTreeMap::new();
 
         let rendered = adapter
@@ -7467,12 +7459,7 @@ count + 1"#,
             })
             .expect("module template should compile")
             .artifact;
-        let primary_input = TransformTemplateDataArtifact {
-            artifact_id: "data".to_owned(),
-            uri: None,
-            identity: None,
-            value: Value::Null,
-        };
+        let primary_input = explicit_json_test_artifact("data", None, Value::Null);
         let secondary_inputs = BTreeMap::new();
 
         let rendered = adapter
@@ -7556,12 +7543,7 @@ count + 1"#,
             })
             .expect("module template should compile")
             .artifact;
-        let primary_input = TransformTemplateDataArtifact {
-            artifact_id: "data".to_owned(),
-            uri: None,
-            identity: None,
-            value: Value::Null,
-        };
+        let primary_input = explicit_json_test_artifact("data", None, Value::Null);
         let secondary_inputs = BTreeMap::new();
 
         let rendered = adapter
@@ -7639,12 +7621,7 @@ count + 1"#,
             })
             .expect("module template should compile")
             .artifact;
-        let primary_input = TransformTemplateDataArtifact {
-            artifact_id: "data".to_owned(),
-            uri: None,
-            identity: None,
-            value: Value::Null,
-        };
+        let primary_input = explicit_json_test_artifact("data", None, Value::Null);
         let secondary_inputs = BTreeMap::new();
 
         let rendered = adapter
@@ -7721,12 +7698,8 @@ count + 1"#,
             })
             .expect("module template should compile")
             .artifact;
-        let primary_input = TransformTemplateDataArtifact {
-            artifact_id: "data".to_owned(),
-            uri: None,
-            identity: None,
-            value: json_object([("title", Value::Null)]),
-        };
+        let primary_input =
+            explicit_json_test_artifact("data", None, json_object([("title", Value::Null)]));
         let secondary_inputs = BTreeMap::new();
 
         let rendered = adapter
@@ -7803,12 +7776,7 @@ count + 1"#,
             })
             .expect("module template should compile")
             .artifact;
-        let primary_input = TransformTemplateDataArtifact {
-            artifact_id: "data".to_owned(),
-            uri: None,
-            identity: None,
-            value: Value::Null,
-        };
+        let primary_input = explicit_json_test_artifact("data", None, Value::Null);
         let secondary_inputs = BTreeMap::new();
 
         let rendered = adapter
@@ -7888,15 +7856,14 @@ count + 1"#,
             })
             .expect("module template should compile")
             .artifact;
-        let primary_input = TransformTemplateDataArtifact {
-            artifact_id: "data".to_owned(),
-            uri: None,
-            identity: None,
-            value: json_object([(
+        let primary_input = explicit_json_test_artifact(
+            "data",
+            None,
+            json_object([(
                 "sourceSettings",
                 json_object([("enabled", Value::Bool(true))]),
             )]),
-        };
+        );
         let secondary_inputs = BTreeMap::new();
 
         let rendered = adapter
@@ -7973,12 +7940,11 @@ count + 1"#,
             })
             .expect("module template should compile")
             .artifact;
-        let primary_input = TransformTemplateDataArtifact {
-            artifact_id: "data".to_owned(),
-            uri: None,
-            identity: None,
-            value: json_object([("sourceCount", Value::Number(7.into()))]),
-        };
+        let primary_input = explicit_json_test_artifact(
+            "data",
+            None,
+            json_object([("sourceCount", Value::Number(7.into()))]),
+        );
         let secondary_inputs = BTreeMap::new();
 
         let rendered = adapter
@@ -8055,12 +8021,7 @@ count + 1"#,
             })
             .expect("module template should compile")
             .artifact;
-        let primary_input = TransformTemplateDataArtifact {
-            artifact_id: "data".to_owned(),
-            uri: None,
-            identity: None,
-            value: Value::Null,
-        };
+        let primary_input = explicit_json_test_artifact("data", None, Value::Null);
         let secondary_inputs = BTreeMap::new();
 
         let rendered = adapter
@@ -8140,12 +8101,7 @@ count + 1"#,
             })
             .expect("module template should compile")
             .artifact;
-        let primary_input = TransformTemplateDataArtifact {
-            artifact_id: "data".to_owned(),
-            uri: None,
-            identity: None,
-            value: Value::Null,
-        };
+        let primary_input = explicit_json_test_artifact("data", None, Value::Null);
         let secondary_inputs = BTreeMap::new();
 
         let rendered = adapter
@@ -8472,8 +8428,8 @@ count + 1"#,
     }
 
     #[test]
-    fn real_engine_convert_uses_ready_packaged_dom_projection_cemt_converters() {
-        for (uri, source, input_format, target_format, expected_kind, expected_content) in [
+    fn real_engine_convert_rejects_unmigrated_packaged_cemt_native_tree_ingress() {
+        for (uri, source, input_format, target_format, _, _) in [
             {
                 let source = include_str!("../../../examples/cem-ml/login.cem");
                 (
@@ -8516,27 +8472,11 @@ count + 1"#,
                 })
                 .expect("convert request should execute");
 
-            assert_eq!(
-                response.primary["kind"], expected_kind,
-                "{uri}: {:?}",
-                response.diagnostics
-            );
-            assert_eq!(response.primary["content"], expected_content, "{uri}");
-            assert!(
-                response
-                    .diagnostics
-                    .iter()
-                    .all(|diagnostic| !diagnostic.severity.is_hard_violation()),
-                "{uri}: {:?}",
-                response.diagnostics
-            );
-            assert!(
-                !response
-                    .diagnostics
-                    .iter()
-                    .any(|diagnostic| diagnostic.code == "cem.converter.output_pipeline_execution"),
-                "{uri}: {:?}",
-                response.diagnostics
+            assert_eq!(response.primary, Value::Null, "{uri}");
+            assert_unmigrated_native_ingress_diagnostic(
+                &response.diagnostics,
+                "cem.tree-ast",
+                None,
             );
             assert!(
                 !response
@@ -8971,7 +8911,7 @@ if greeting == "Hello" {
     }
 
     #[test]
-    fn real_engine_transform_uses_registered_cem_ql_adapter() {
+    fn real_engine_transform_cem_ql_rejects_unmigrated_native_cem_ingress() {
         let context = engine_context_with_cem_ql_template_adapter();
         let template_identity = FormatIdentity {
             content_type: Some("text/cem-ml".to_owned()),
@@ -9017,18 +8957,13 @@ if greeting == "Hello" {
             .transform(request)
             .expect("transform should run through registered adapter");
 
-        assert_eq!(
-            response.primary,
-            Value::String("<p>document</p>".to_owned())
+        assert_eq!(response.primary, Value::Null);
+        assert_unmigrated_native_ingress_diagnostic(
+            &response.diagnostics,
+            "cem.document-ast",
+            None,
         );
-        assert!(
-            response.diagnostics.is_empty(),
-            "{:?}",
-            response.diagnostics
-        );
-        assert!(response.source_map.is_some());
-        assert!(!response.output_spans.is_empty());
-        assert_eq!(response.scheduler_trace.event_count, 12);
+        assert_eq!(response.scheduler_trace.event_count, 10);
         let scopes = response
             .scheduler_trace
             .events
@@ -9042,7 +8977,7 @@ if greeting == "Hello" {
     }
 
     #[test]
-    fn real_engine_transform_uses_registered_cem_ql_expression_adapter() {
+    fn real_engine_transform_cem_ql_expression_rejects_unmigrated_native_cem_ingress() {
         let context = engine_context_with_cem_ql_template_adapter();
         let request = TransformRequest {
             data: EngineInput {
@@ -9094,27 +9029,18 @@ if greeting == "Hello" {
             .transform(request)
             .expect("CEM-QL expression transform should execute");
 
-        assert!(
-            response.diagnostics.is_empty(),
-            "{:?}",
-            response.diagnostics
+        assert_eq!(response.primary, Value::Null);
+        assert_unmigrated_native_ingress_diagnostic(
+            &response.diagnostics,
+            "cem.document-ast",
+            None,
         );
-        assert_eq!(
-            response.primary["items"],
-            json!([{
-                "kind": "atomic",
-                "type": "string",
-                "value": "document"
-            }])
-        );
-        assert_eq!(response.primary["diagnostics"], json!([]));
-        assert_eq!(response.primary["error"], Value::Null);
         assert!(response.source_map.is_none());
         assert!(response.output_spans.is_empty());
     }
 
     #[test]
-    fn real_engine_transform_uses_registered_xslt_parity_adapter() {
+    fn real_engine_transform_xslt_remains_explicitly_unimplemented() {
         let context = engine_context_with_cem_ql_template_adapter();
         let request = TransformRequest {
             data: EngineInput {
@@ -9162,19 +9088,17 @@ if greeting == "Hello" {
             .transform(request)
             .expect("XSLT parity transform should execute");
 
-        assert_eq!(
-            response.primary,
-            Value::String("<main><h1>Sign in</h1></main>".to_owned())
-        );
-        assert!(
-            response.diagnostics.is_empty(),
-            "{:?}",
-            response.diagnostics
-        );
+        assert_eq!(response.primary, Value::Null);
+        assert!(response.diagnostics.iter().any(|diagnostic| {
+            diagnostic.code == TransformTemplateAdapterError::NOT_IMPLEMENTED_CODE
+                && diagnostic.severity == Severity::Fatal
+                && diagnostic.message.contains("xslt-template")
+                && diagnostic.message.contains("does not implement compile")
+        }));
     }
 
     #[test]
-    fn real_engine_transform_binds_cem_native_template_params() {
+    fn real_engine_transform_params_do_not_bypass_native_cem_ingress_boundary() {
         let context = engine_context_with_cem_ql_template_adapter();
         let request = TransformRequest {
             data: EngineInput {
@@ -9235,21 +9159,16 @@ if greeting == "Hello" {
             .transform(request)
             .expect("transform should bind CEM-native params");
 
-        assert_eq!(
-            response.primary,
-            Value::String("<p>fr-FR:Intro</p>".to_owned()),
-            "{:?}",
-            response.diagnostics
-        );
-        assert!(
-            response.diagnostics.is_empty(),
-            "{:?}",
-            response.diagnostics
+        assert_eq!(response.primary, Value::Null);
+        assert_unmigrated_native_ingress_diagnostic(
+            &response.diagnostics,
+            "cem.document-ast",
+            None,
         );
     }
 
     #[test]
-    fn real_engine_transform_graph_executes_branched_cem_native_outputs() {
+    fn real_engine_transform_graph_rejects_unmigrated_branched_native_ingress() {
         let context = engine_context_with_cem_ql_template_adapter();
         let data_identity = FormatIdentity {
             content_type: Some("text/cem-ml".to_owned()),
@@ -9348,38 +9267,16 @@ if greeting == "Hello" {
             .transform_graph(request)
             .expect("transform graph should execute through registered adapter");
 
-        assert!(
-            response.diagnostics.is_empty(),
-            "{:?}",
-            response.diagnostics
+        assert!(response.artifacts.is_empty());
+        assert_unmigrated_native_ingress_diagnostic(
+            &response.diagnostics,
+            "cem.document-ast",
+            Some("transform:html"),
         );
-        assert_eq!(response.artifacts.len(), 2);
-        assert_eq!(response.artifacts[0].input, "html");
-        assert_eq!(
-            response.artifacts[0].primary,
-            Value::String("<article>document</article>".to_owned())
-        );
-        assert_eq!(response.artifacts[1].input, "chart");
-        assert_eq!(
-            response.artifacts[1].primary,
-            Value::String("<svg>document</svg>".to_owned())
-        );
-        assert_eq!(
-            response.artifacts[1]
-                .identity
-                .as_ref()
-                .and_then(|identity| identity.content_type.as_deref()),
-            Some("image/svg+xml")
-        );
-        assert!(response
-            .scheduler_trace
-            .events
-            .iter()
-            .any(|event| event.scope_id == 26 && event.task == "chart-svg:export"));
     }
 
     #[test]
-    fn real_engine_transform_graph_join_export_preserves_render_metadata() {
+    fn real_engine_transform_graph_join_waits_for_typed_cem_ql_ingress() {
         let context = engine_context_with_cem_ql_template_adapter();
         let identity = FormatIdentity {
             content_type: Some("text/cem-ml".to_owned()),
@@ -9454,22 +9351,16 @@ if greeting == "Hello" {
             .transform_graph(request)
             .expect("transform graph should execute join export");
 
-        assert!(
-            response.diagnostics.is_empty(),
-            "{:?}",
-            response.diagnostics
+        assert!(response.artifacts.is_empty());
+        assert_unmigrated_native_ingress_diagnostic(
+            &response.diagnostics,
+            "cem.document-ast",
+            Some("transform:html"),
         );
-        assert_eq!(response.artifacts.len(), 1);
-        let artifact = &response.artifacts[0];
-        assert_eq!(artifact.input, "collection");
-        assert!(artifact.source_map.is_some());
-        assert!(!artifact.output_spans.is_empty());
-        assert_eq!(artifact.primary["kind"], "collection");
-        assert_eq!(artifact.primary["count"], 1);
     }
 
     #[test]
-    fn real_engine_transform_graph_multi_input_join_preserves_per_item_metadata() {
+    fn real_engine_transform_graph_multi_input_join_waits_for_typed_cem_ql_ingress() {
         let context = engine_context_with_cem_ql_template_adapter();
         let identity = FormatIdentity {
             content_type: Some("text/cem-ml".to_owned()),
@@ -9575,26 +9466,16 @@ if greeting == "Hello" {
             .transform_graph(request)
             .expect("transform graph should execute multi-input join export");
 
-        assert!(
-            response.diagnostics.is_empty(),
-            "{:?}",
-            response.diagnostics
+        assert!(response.artifacts.is_empty());
+        assert_unmigrated_native_ingress_diagnostic(
+            &response.diagnostics,
+            "cem.document-ast",
+            Some("transform:html"),
         );
-        assert_eq!(response.artifacts.len(), 1);
-        let artifact = &response.artifacts[0];
-        assert_eq!(artifact.input, "collection");
-        assert!(artifact.source_map.is_none());
-        assert!(!artifact.output_spans.is_empty());
-        let items = artifact.primary["items"].as_array().unwrap();
-        assert_eq!(items.len(), 2);
-        assert!(items.iter().all(|item| !item["sourceMap"].is_null()
-            && item["outputSpans"]
-                .as_array()
-                .is_some_and(|spans| !spans.is_empty())));
     }
 
     #[test]
-    fn real_engine_transform_graph_attributes_stage_render_diagnostics() {
+    fn real_engine_transform_graph_attributes_native_ingress_diagnostic_to_stage() {
         let context = engine_context_with_cem_ql_template_adapter();
         let identity = FormatIdentity {
             content_type: Some("text/cem-ml".to_owned()),
@@ -9668,15 +9549,15 @@ if greeting == "Hello" {
             .expect("transform graph should return render diagnostics");
 
         assert!(response.artifacts.is_empty());
-        assert!(response.diagnostics.iter().any(|diagnostic| {
-            diagnostic.code == TRANSFORM_TEMPLATE_RECURSION_LIMIT_CODE
-                && diagnostic.uri.as_deref() == Some("chart.cem")
-                && diagnostic.node.as_deref() == Some("transform:chart")
-        }));
+        assert_unmigrated_native_ingress_diagnostic(
+            &response.diagnostics,
+            "cem.document-ast",
+            Some("transform:chart"),
+        );
     }
 
     #[test]
-    fn real_engine_transform_graph_passes_secondary_inputs_to_stage() {
+    fn real_engine_transform_graph_secondary_inputs_wait_for_typed_cem_ql_ingress() {
         let context = engine_context_with_cem_ql_template_adapter();
         let data_identity = FormatIdentity {
             content_type: Some("text/cem-ml".to_owned()),
@@ -9761,18 +9642,11 @@ if greeting == "Hello" {
             .transform_graph(request)
             .expect("transform graph should execute secondary input join");
 
-        assert!(
-            response.diagnostics.is_empty(),
-            "{:?}",
-            response.diagnostics
-        );
-        assert_eq!(response.artifacts.len(), 1);
-        assert_eq!(response.artifacts[0].input, "report");
-        assert_eq!(
-            response.artifacts[0].primary,
-            Value::String(
-                "<section>document:&lt;span&gt;document&lt;/span&gt;</section>".to_owned()
-            )
+        assert!(response.artifacts.is_empty());
+        assert_unmigrated_native_ingress_diagnostic(
+            &response.diagnostics,
+            "cem.document-ast",
+            Some("transform:stats"),
         );
     }
 }

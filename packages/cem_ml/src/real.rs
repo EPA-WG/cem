@@ -81,6 +81,10 @@ use crate::tokenizer::cem::CemTokenizer;
 use crate::tokenizer::html::HtmlTokenizer;
 use crate::tokenizer::xml::XmlTokenizer;
 use crate::tokenizer::SchemaTokenizer;
+use crate::transform_artifact::{
+    TransformArtifactBody, TransformArtifactCollection, TransformArtifactCollectionItem,
+    TransformArtifactCollectionMode, TransformEncodedArtifact, TransformEncoding,
+};
 use crate::transform_config::{
     parse_transform_graph_config, TransformGraphParseRequest, TRANSFORM_CONFIG_SCHEMA_URI,
 };
@@ -470,8 +474,10 @@ fn render_export_conversion_template(
             schema: Some(CEM_AST_PROJECTION_SCHEMA_URI.to_owned()),
             ..FormatIdentity::default()
         }),
-        value: projection::ast_stream(document, Some(input_format_content_type(from_format)))
-            .into_cemt_subject(),
+        body: TransformArtifactBody::CemTree(Arc::new(projection::ast_stream(
+            document,
+            Some(input_format_content_type(from_format)),
+        ))),
     };
     let secondary_inputs = BTreeMap::new();
     let render_target = conversion
@@ -2368,15 +2374,34 @@ fn load_transform_data_artifact(
     diagnostics.append(&mut scope_diagnostics);
     let mut loaded = load_input_through_lifecycle(input, context);
     diagnostics.append(&mut loaded.diagnostics);
-    let run = run_pipeline_as_scoped_with_context_and_source_uri(
-        &loaded.bytes,
-        loaded.from_format,
-        &input.root_scope,
-        context,
-        &input_uri(input, context),
-    );
-    let value = projection::dom_json(&run.document);
-    diagnostics.extend(run.diagnostics);
+    let body = if let Some(ast_stream) = loaded.ast_stream.take() {
+        TransformArtifactBody::Lifecycle(Arc::new(ast_stream))
+    } else if loaded.adapter_id == Some("cem-ml") {
+        let run = run_pipeline_as_scoped_with_context_and_source_uri(
+            &loaded.bytes,
+            loaded.from_format,
+            &input.root_scope,
+            context,
+            &input_uri(input, context),
+        );
+        diagnostics.extend(run.diagnostics);
+        TransformArtifactBody::CemDocument(Arc::new(run.document))
+    } else {
+        let identity = input.identity.clone().unwrap_or_default();
+        let encoding = identity
+            .content_type
+            .as_deref()
+            .map(content_type_essence)
+            .filter(|content_type| {
+                content_type == "application/octet-stream" || content_type.ends_with("+cem-bin")
+            })
+            .map(|_| TransformEncoding::Binary)
+            .unwrap_or(TransformEncoding::Text);
+        TransformArtifactBody::Encoded(Arc::new(
+            TransformEncodedArtifact::new(identity, encoding, loaded.bytes.clone())
+                .expect("non-JSON lifecycle fallback encoding must be valid"),
+        ))
+    };
     project_diagnostics_for_source(&mut diagnostics, &loaded.bytes);
     project_diagnostic_uris(&mut diagnostics, input, context);
 
@@ -2385,7 +2410,7 @@ fn load_transform_data_artifact(
             artifact_id: artifact_id.into(),
             uri: Some(input_uri(input, context)),
             identity: input.identity.clone(),
-            value,
+            body,
         },
         diagnostics,
     )
@@ -2393,57 +2418,37 @@ fn load_transform_data_artifact(
 
 fn collect_transform_graph_join(
     join: &TransformGraphJoin,
-    artifacts: &BTreeMap<String, TransformTemplateDataArtifact>,
+    artifacts: &BTreeMap<String, Arc<TransformTemplateDataArtifact>>,
     artifact_metadata: &BTreeMap<String, TransformOutputMetadata>,
 ) -> TransformTemplateDataArtifact {
     let mode = match join.mode {
-        TransformGraphJoinMode::Collect => "collect",
-        TransformGraphJoinMode::GroupBy => "group-by",
-        TransformGraphJoinMode::MatchBy => "match-by",
-        TransformGraphJoinMode::Zip => "zip",
+        TransformGraphJoinMode::Collect => TransformArtifactCollectionMode::Collect,
+        TransformGraphJoinMode::GroupBy => TransformArtifactCollectionMode::GroupBy,
+        TransformGraphJoinMode::MatchBy => TransformArtifactCollectionMode::MatchBy,
+        TransformGraphJoinMode::Zip => TransformArtifactCollectionMode::Zip,
     };
     match join.mode {
         TransformGraphJoinMode::Collect
         | TransformGraphJoinMode::GroupBy
         | TransformGraphJoinMode::MatchBy
         | TransformGraphJoinMode::Zip => {
-            let mut by_input = join
-                .input_names
-                .iter()
-                .map(|name| (name.clone(), Vec::new()))
-                .collect::<BTreeMap<_, _>>();
             let items = join
                 .inputs
                 .iter()
                 .filter_map(|input| {
                     artifacts.get(&input.artifact_id).map(|artifact| {
                         let metadata = artifact_metadata.get(&input.artifact_id);
-                        let source_map = metadata
-                            .and_then(|metadata| metadata.source_map.as_ref())
-                            .and_then(|source_map| serde_json::to_value(source_map).ok())
-                            .unwrap_or(Value::Null);
-                        let output_spans = metadata
-                            .map(|metadata| {
-                                serde_json::to_value(&metadata.output_spans)
-                                    .unwrap_or_else(|_| json!([]))
-                            })
-                            .unwrap_or_else(|| json!([]));
-                        let item = json!({
-                            "input": input.input_name.clone(),
-                            "artifactId": artifact.artifact_id.clone(),
-                            "uri": artifact.uri.clone(),
-                            "destination": input.destination.clone(),
-                            "identity": input.target.clone().or_else(|| artifact.identity.clone()),
-                            "primary": artifact.value.clone(),
-                            "bindings": input.bindings.clone(),
-                            "sourceMap": source_map,
-                            "outputSpans": output_spans,
-                        });
-                        by_input
-                            .entry(input.input_name.clone())
-                            .or_default()
-                            .push(item.clone());
-                        item
+                        TransformArtifactCollectionItem {
+                            input_name: input.input_name.clone(),
+                            destination: input.destination.clone(),
+                            target: input.target.clone(),
+                            bindings: input.bindings.clone(),
+                            artifact: Arc::clone(artifact),
+                            source_map: metadata.and_then(|metadata| metadata.source_map.clone()),
+                            output_spans: metadata
+                                .map(|metadata| metadata.output_spans.clone())
+                                .unwrap_or_default(),
+                        }
                     })
                 })
                 .collect::<Vec<_>>();
@@ -2451,14 +2456,11 @@ fn collect_transform_graph_join(
                 artifact_id: join.id.clone(),
                 uri: None,
                 identity: None,
-                value: json!({
-                    "kind": "collection",
-                    "mode": mode,
-                    "count": items.len(),
-                    "bindings": join.bindings.clone(),
-                    "inputs": by_input,
-                    "items": items,
-                }),
+                body: TransformArtifactBody::Collection(Arc::new(TransformArtifactCollection {
+                    mode,
+                    bindings: join.bindings.clone(),
+                    items,
+                })),
             }
         }
     }
@@ -2498,14 +2500,36 @@ fn transform_graph_artifact_raw_content(
 ) -> Option<String> {
     metadata
         .and_then(|metadata| metadata.raw_content.clone())
-        .or_else(|| match &artifact.value {
-            Value::String(value) => Some(value.clone()),
-            Value::Object(fields) => fields
-                .get("content")
-                .and_then(Value::as_str)
-                .map(str::to_owned),
-            _ => None,
-        })
+        .or_else(|| artifact.encoded_text().ok().map(str::to_owned))
+}
+
+fn transform_data_artifact_from_output(
+    artifact_id: impl Into<String>,
+    output: &TransformTemplateOutputArtifact,
+) -> Result<TransformTemplateDataArtifact, String> {
+    let artifact_id = artifact_id.into();
+    let identity = output.identity.clone().unwrap_or_default();
+    match &output.value {
+        Value::String(value) => TransformTemplateDataArtifact::encoded(
+            artifact_id,
+            output.uri.clone(),
+            identity,
+            TransformEncoding::Text,
+            value.as_bytes().to_vec(),
+        )
+        .map_err(|error| error.to_string()),
+        value => TransformTemplateDataArtifact::explicit_json(
+            artifact_id,
+            output.uri.clone(),
+            identity,
+            value,
+        )
+        .map_err(|error| {
+            format!(
+                "transform output must be typed or explicitly JSON-identified before graph routing: {error}"
+            )
+        }),
+    }
 }
 
 fn transform_graph_export_primary(
@@ -2513,7 +2537,7 @@ fn transform_graph_export_primary(
     metadata: &TransformOutputMetadata,
     target: Option<&FormatIdentity>,
     style_projection: TransformGraphHtmlStyleProjection,
-) -> (Value, Option<SourceMapStack>, Vec<OutputSpan>) {
+) -> Result<(Value, Option<SourceMapStack>, Vec<OutputSpan>), String> {
     if transform_graph_target_is_css(target) {
         if let Some(raw_content) = transform_graph_artifact_raw_content(artifact, Some(metadata)) {
             if let Some(css) =
@@ -2523,14 +2547,14 @@ fn transform_graph_export_primary(
                     .source_map
                     .clone()
                     .filter(|_| !css.output_spans.is_empty());
-                return (
+                return Ok((
                     json!({
                         "kind": "document",
                         "content": css.content,
                     }),
                     source_map,
                     css.output_spans,
-                );
+                ));
             }
         }
     }
@@ -2556,23 +2580,44 @@ fn transform_graph_export_primary(
                     .source_map
                     .clone()
                     .filter(|_| !html.output_spans.is_empty());
-                return (
+                return Ok((
                     json!({
                         "kind": "html",
                         "content": html.content,
                     }),
                     source_map,
                     html.output_spans,
-                );
+                ));
             }
         }
     }
 
-    (
-        artifact.value.clone(),
+    let primary = match &artifact.body {
+        TransformArtifactBody::Encoded(encoded) if encoded.encoding == TransformEncoding::Text => {
+            Value::String(
+                artifact
+                    .encoded_text()
+                    .map_err(|error| error.to_string())?
+                    .to_owned(),
+            )
+        }
+        TransformArtifactBody::Encoded(encoded) if encoded.encoding == TransformEncoding::Json => {
+            artifact
+                .explicit_json_value()
+                .map_err(|error| error.to_string())?
+        }
+        _ => {
+            return Err(format!(
+                "transform graph export does not support native representation `{}` yet",
+                artifact.body.representation_id()
+            ));
+        }
+    };
+    Ok((
+        primary,
         metadata.source_map.clone(),
         metadata.output_spans.clone(),
-    )
+    ))
 }
 
 fn transform_graph_target_is_css(target: Option<&FormatIdentity>) -> bool {
@@ -7794,7 +7839,7 @@ struct TransformStageRenderSpec<'a> {
     adapter: &'a Arc<dyn TransformTemplateAdapter>,
     compiled: &'a TransformTemplateCompiledArtifact,
     primary_input: &'a TransformTemplateDataArtifact,
-    secondary_inputs: &'a BTreeMap<String, TransformTemplateDataArtifact>,
+    secondary_inputs: &'a BTreeMap<String, Arc<TransformTemplateDataArtifact>>,
     target: Option<&'a FormatIdentity>,
     target_scope: &'a ScopeConfig,
     execution_policy: TransformExecutionPolicy,
@@ -7898,17 +7943,19 @@ fn transform_template_render_value_bindings(
     spec: &TransformStageRenderSpec<'_>,
 ) -> Result<BTreeMap<String, Value>, String> {
     let mut value_bindings = BTreeMap::new();
-    value_bindings.insert(
-        spec.primary_input.artifact_id.clone(),
-        spec.primary_input.value.clone(),
-    );
-    value_bindings
-        .entry("input".to_owned())
-        .or_insert_with(|| spec.primary_input.value.clone());
+    let primary = spec
+        .primary_input
+        .explicit_json_value()
+        .map_err(|error| error.to_string())?;
+    value_bindings.insert(spec.primary_input.artifact_id.clone(), primary.clone());
+    value_bindings.entry("input".to_owned()).or_insert(primary);
 
     for (name, artifact) in spec.secondary_inputs {
-        value_bindings.insert(name.clone(), artifact.value.clone());
-        value_bindings.insert(artifact.artifact_id.clone(), artifact.value.clone());
+        let value = artifact
+            .explicit_json_value()
+            .map_err(|error| error.to_string())?;
+        value_bindings.insert(name.clone(), value.clone());
+        value_bindings.insert(artifact.artifact_id.clone(), value);
     }
 
     try_apply_transform_template_let_bindings(
@@ -10175,7 +10222,7 @@ impl CemMlEngine for RealCemMlEngine {
         let trace = crate::scheduler::SchedulerTrace::new();
         let abort = crate::scheduler::AbortSignal::new();
         let mut diagnostics = validate_transform_graph_runtime_contract(&request);
-        let mut artifacts: BTreeMap<String, TransformTemplateDataArtifact> = BTreeMap::new();
+        let mut artifacts: BTreeMap<String, Arc<TransformTemplateDataArtifact>> = BTreeMap::new();
         let mut artifact_metadata: BTreeMap<String, TransformOutputMetadata> = BTreeMap::new();
         let mut exported = Vec::new();
         let raw_imports = request
@@ -10205,21 +10252,21 @@ impl CemMlEngine for RealCemMlEngine {
                         &import.input.root_scope,
                         "input",
                     ));
-                    TransformTemplateDataArtifact {
-                        artifact_id: import.id.clone(),
-                        uri: Some(input_uri(&import.input, &request.context)),
-                        identity: import.input.identity.clone(),
-                        value: Value::String(
-                            String::from_utf8(import.input.bytes.clone()).unwrap_or_default(),
-                        ),
-                    }
+                    TransformTemplateDataArtifact::encoded(
+                        import.id.clone(),
+                        Some(input_uri(&import.input, &request.context)),
+                        import.input.identity.clone().unwrap_or_default(),
+                        TransformEncoding::Text,
+                        import.input.bytes.clone(),
+                    )
+                    .expect("raw graph import text encoding must be valid")
                 } else {
                     let (artifact, mut import_diagnostics) =
                         load_transform_data_artifact(&import.input, &request.context, &import.id);
                     diagnostics.append(&mut import_diagnostics);
                     artifact
                 };
-                artifacts.insert(import.id.clone(), artifact);
+                artifacts.insert(import.id.clone(), Arc::new(artifact));
                 artifact_metadata.insert(
                     import.id.clone(),
                     TransformOutputMetadata {
@@ -10273,7 +10320,7 @@ impl CemMlEngine for RealCemMlEngine {
                     let artifact =
                         collect_transform_graph_join(join, &artifacts, &artifact_metadata);
                     let metadata = collect_transform_graph_join_metadata(join, &artifact_metadata);
-                    artifacts.insert(join.id.clone(), artifact);
+                    artifacts.insert(join.id.clone(), Arc::new(artifact));
                     artifact_metadata.insert(join.id.clone(), metadata);
                 });
                 completed_joins.insert(join.id.clone());
@@ -10319,12 +10366,16 @@ impl CemMlEngine for RealCemMlEngine {
                     if let Some(rewritten) = rewritten {
                         artifacts.insert(
                             rewrite.id.clone(),
-                            TransformTemplateDataArtifact {
-                                artifact_id: rewrite.id.clone(),
-                                uri: primary_input.uri.clone(),
-                                identity: primary_input.identity.clone(),
-                                value: Value::String(rewritten.clone()),
-                            },
+                            Arc::new(
+                                TransformTemplateDataArtifact::encoded(
+                                    rewrite.id.clone(),
+                                    primary_input.uri.clone(),
+                                    primary_input.identity.clone().unwrap_or_default(),
+                                    TransformEncoding::Text,
+                                    rewritten.as_bytes().to_vec(),
+                                )
+                                .expect("rewritten graph import text encoding must be valid"),
+                            ),
                         );
                         artifact_metadata.insert(
                             rewrite.id.clone(),
@@ -10484,15 +10535,28 @@ impl CemMlEngine for RealCemMlEngine {
                         stage.id
                     )));
                 };
-                artifacts.insert(
-                    stage.id.clone(),
-                    TransformTemplateDataArtifact {
-                        artifact_id: stage.id.clone(),
-                        uri: output.uri.clone(),
-                        identity: output.identity.clone(),
-                        value: output.value.clone(),
-                    },
-                );
+                let stage_artifact = match transform_data_artifact_from_output(&stage.id, &output) {
+                    Ok(artifact) => Arc::new(artifact),
+                    Err(message) => {
+                        diagnostics.push(Diagnostic {
+                            uri: Some(stage.template.uri.clone()),
+                            code: "cem.transform_runtime.output_representation_unsupported"
+                                .to_owned(),
+                            severity: Severity::Fatal,
+                            message,
+                            node: Some(diagnostic_node),
+                            ..Diagnostic::default()
+                        });
+                        return Ok(TransformGraphResponse {
+                            artifacts: exported,
+                            diagnostics,
+                            scheduler_trace: crate::report::SchedulerTraceReport::from_trace(
+                                &trace,
+                            ),
+                        });
+                    }
+                };
+                artifacts.insert(stage.id.clone(), stage_artifact);
                 artifact_metadata.insert(
                     stage.id.clone(),
                     TransformOutputMetadata {
@@ -10548,12 +10612,26 @@ impl CemMlEngine for RealCemMlEngine {
                     let identity = export.target.clone().or_else(|| artifact.identity.clone());
                     let style_projection =
                         transform_graph_html_style_projection_for_export(export, &request.exports);
-                    let (primary, source_map, output_spans) = transform_graph_export_primary(
+                    let Ok((primary, source_map, output_spans)) = transform_graph_export_primary(
                         artifact,
                         &metadata,
                         identity.as_ref(),
                         style_projection,
-                    );
+                    ) else {
+                        diagnostics.push(Diagnostic {
+                            uri: artifact.uri.clone(),
+                            code: "cem.transform_runtime.export_representation_unsupported"
+                                .to_owned(),
+                            severity: Severity::Fatal,
+                            message: format!(
+                                "transform graph export `{}` cannot encode native representation `{}`",
+                                export.id,
+                                artifact.body.representation_id()
+                            ),
+                            ..Diagnostic::default()
+                        });
+                        return;
+                    };
                     exported.push(TransformGraphArtifact {
                         export_id: export.id.clone(),
                         input: export.input.clone(),
@@ -10828,6 +10906,7 @@ mod tests {
         CEM_TRANSFORM_CONTENT_TYPE, CEM_TRANSFORM_SCHEMA_URI, RELAX_NG_COMPACT_CONTENT_TYPE,
         RELAX_NG_XML_CONTENT_TYPE,
     };
+    use crate::transform_artifact::TransformArtifactBody;
     use crate::transform_template::{
         TransformTemplateAdapterCapability, TransformTemplateAdapterError,
         TransformTemplateAdapterExecutionPhase, TransformTemplateAdapterRegistry,
@@ -10932,6 +11011,254 @@ mod tests {
         EngineContext::default()
     }
 
+    fn identified_input(bytes: &[u8], uri: &str, content_type: &str, schema: &str) -> EngineInput {
+        EngineInput {
+            uri: uri.to_owned(),
+            bytes: bytes.to_vec(),
+            from_format: None,
+            identity: Some(FormatIdentity {
+                content_type: Some(content_type.to_owned()),
+                schema: Some(schema.to_owned()),
+                ..FormatIdentity::default()
+            }),
+            root_scope: Default::default(),
+        }
+    }
+
+    fn explicit_json_test_artifact(
+        artifact_id: &str,
+        uri: Option<&str>,
+        value: Value,
+    ) -> TransformTemplateDataArtifact {
+        TransformTemplateDataArtifact::explicit_json(
+            artifact_id,
+            uri.map(str::to_owned),
+            FormatIdentity {
+                content_type: Some(JSON_CONTENT_TYPE.to_owned()),
+                schema: Some(crate::schema::registry::JSON_VALUE_SCHEMA_URI.to_owned()),
+                ..FormatIdentity::default()
+            },
+            &value,
+        )
+        .expect("test data has explicit JSON identity")
+    }
+
+    fn encoded_text_test_artifact(
+        artifact_id: &str,
+        uri: Option<&str>,
+        identity: FormatIdentity,
+        value: &str,
+    ) -> TransformTemplateDataArtifact {
+        TransformTemplateDataArtifact::encoded(
+            artifact_id,
+            uri.map(str::to_owned),
+            identity,
+            TransformEncoding::Text,
+            value.as_bytes().to_vec(),
+        )
+        .expect("test text artifact encoding")
+    }
+
+    fn assert_unmigrated_cemt_rejects_native_tree(response: &ConvertResponse) {
+        assert_eq!(response.primary, Value::Null);
+        assert!(response.diagnostics.iter().any(|diagnostic| {
+            diagnostic.code == TransformTemplateAdapterError::FAILED_CODE
+                && diagnostic.severity == Severity::Fatal
+                && diagnostic.message.contains("cem.tree-ast")
+                && diagnostic
+                    .message
+                    .contains("expected explicit encoded JSON")
+        }));
+        assert!(response
+            .diagnostics
+            .iter()
+            .all(|diagnostic| diagnostic.code != "cem.converter.cemt_fallback"));
+    }
+
+    #[test]
+    fn transform_data_load_retains_lossless_json_lifecycle_body() {
+        let source = br#"{"n": 1.00e+2, "n": 2}"#;
+        let input = identified_input(
+            source,
+            "memory://duplicate.json",
+            JSON_CONTENT_TYPE,
+            crate::schema::registry::JSON_VALUE_SCHEMA_URI,
+        );
+
+        let (artifact, diagnostics) = load_transform_data_artifact(&input, &ctx(), "data");
+
+        assert!(!diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.severity.is_hard_violation()));
+        let TransformArtifactBody::Lifecycle(stream) = &artifact.body else {
+            panic!("expected native lifecycle artifact body");
+        };
+        let LoadedInputAstStream::JsonDocument(document) = stream.as_ref() else {
+            panic!("expected lossless JSON document AST");
+        };
+        let Some(crate::validation::json::JsonValueAst::Object { members, .. }) = &document.root
+        else {
+            panic!("expected JSON object root");
+        };
+        assert_eq!(
+            members
+                .iter()
+                .map(|member| member.name.as_str())
+                .collect::<Vec<_>>(),
+            vec!["n", "n"]
+        );
+        assert!(matches!(
+            &members[0].value,
+            crate::validation::json::JsonValueAst::Number { lexeme, .. }
+                if lexeme == "1.00e+2"
+        ));
+        assert_eq!(
+            members[0].range.source_map().frames[0].source_id,
+            members[1].range.source_map().frames[0].source_id
+        );
+        assert_ne!(
+            members[0].range.start.byte_offset,
+            members[1].range.start.byte_offset
+        );
+    }
+
+    #[test]
+    fn transform_data_load_retains_xml_events_namespaces_and_source_identity() {
+        let source = br#"<root xmlns:p="urn:p"><!--keep--><?go now?><p:item/></root>"#;
+        let input = identified_input(
+            source,
+            "memory://identity.xml",
+            XML_CONTENT_TYPE,
+            XML_SCHEMA_URI,
+        );
+
+        let (artifact, diagnostics) = load_transform_data_artifact(&input, &ctx(), "data");
+
+        assert!(!diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.severity.is_hard_violation()));
+        let TransformArtifactBody::Lifecycle(stream) = &artifact.body else {
+            panic!("expected native lifecycle artifact body");
+        };
+        let LoadedInputAstStream::XmlDocument(document) = stream.as_ref() else {
+            panic!("expected XML document AST");
+        };
+        assert_eq!(document.source.uri, "memory://identity.xml");
+        assert!(document.events.iter().any(|event| {
+            event.kind == crate::validation::xml::XmlEventKind::Comment
+                && event.value.as_deref() == Some("keep")
+                && event.source_range.byte_length > 0
+        }));
+        assert!(document.events.iter().any(|event| {
+            event.kind == crate::validation::xml::XmlEventKind::ProcessingInstruction
+                && event.value.as_deref() == Some("go now")
+                && event.lexeme == "<?go now?>"
+                && event.source_range.byte_length > 0
+        }));
+        assert!(document.events.iter().any(|event| {
+            event.local_name.as_deref() == Some("item")
+                && event.prefix.as_deref() == Some("p")
+                && event.namespace_uri.as_deref() == Some("urn:p")
+        }));
+    }
+
+    #[test]
+    fn transform_collect_join_retains_ordered_typed_child_bodies() {
+        let first_input = identified_input(
+            br#"{"value": 1}"#,
+            "memory://first.json",
+            JSON_CONTENT_TYPE,
+            crate::schema::registry::JSON_VALUE_SCHEMA_URI,
+        );
+        let second_input = identified_input(
+            br#"<second/>"#,
+            "memory://second.xml",
+            XML_CONTENT_TYPE,
+            XML_SCHEMA_URI,
+        );
+        let (first, first_diagnostics) =
+            load_transform_data_artifact(&first_input, &ctx(), "first");
+        let (second, second_diagnostics) =
+            load_transform_data_artifact(&second_input, &ctx(), "second");
+        assert!(first_diagnostics
+            .iter()
+            .chain(&second_diagnostics)
+            .all(|diagnostic| !diagnostic.severity.is_hard_violation()));
+        let TransformArtifactBody::Lifecycle(first_stream) = &first.body else {
+            panic!("expected first lifecycle body");
+        };
+        let first_stream = Arc::clone(first_stream);
+        let TransformArtifactBody::Lifecycle(second_stream) = &second.body else {
+            panic!("expected second lifecycle body");
+        };
+        let second_stream = Arc::clone(second_stream);
+        let mut artifacts = BTreeMap::new();
+        artifacts.insert("first".to_owned(), Arc::new(first));
+        artifacts.insert("second".to_owned(), Arc::new(second));
+        let join = TransformGraphJoin {
+            id: "joined".to_owned(),
+            mode: TransformGraphJoinMode::Collect,
+            input_names: vec!["items".to_owned()],
+            inputs: vec![
+                TransformGraphJoinInput {
+                    input_name: "items".to_owned(),
+                    artifact_id: "first".to_owned(),
+                    bindings: BTreeMap::new(),
+                    destination: None,
+                    target: None,
+                },
+                TransformGraphJoinInput {
+                    input_name: "items".to_owned(),
+                    artifact_id: "second".to_owned(),
+                    bindings: BTreeMap::new(),
+                    destination: None,
+                    target: None,
+                },
+            ],
+            bindings: BTreeMap::new(),
+            scheduler_scope_id: 1,
+        };
+
+        let joined = collect_transform_graph_join(&join, &artifacts, &BTreeMap::new());
+
+        let TransformArtifactBody::Collection(collection) = &joined.body else {
+            panic!("expected typed collection body");
+        };
+        assert_eq!(collection.items.len(), 2);
+        assert_eq!(collection.items[0].artifact.artifact_id, "first");
+        assert_eq!(collection.items[1].artifact.artifact_id, "second");
+        let TransformArtifactBody::Lifecycle(joined_first) = &collection.items[0].artifact.body
+        else {
+            panic!("expected retained first lifecycle body");
+        };
+        let TransformArtifactBody::Lifecycle(joined_second) = &collection.items[1].artifact.body
+        else {
+            panic!("expected retained second lifecycle body");
+        };
+        assert!(Arc::ptr_eq(&first_stream, joined_first));
+        assert!(Arc::ptr_eq(&second_stream, joined_second));
+    }
+
+    #[test]
+    fn transform_data_loader_source_has_no_implicit_json_projection() {
+        let source = include_str!("real.rs");
+        let loader = source
+            .split("fn load_transform_data_artifact")
+            .nth(1)
+            .and_then(|source| source.split("fn collect_transform_graph_join").next())
+            .expect("transform data loader source");
+        for forbidden in [
+            "projection::dom_json",
+            "to_cemt_subject",
+            "serde_json::to_value",
+        ] {
+            assert!(
+                !loader.contains(forbidden),
+                "transform data loader must not call `{forbidden}`"
+            );
+        }
+    }
+
     const OUTPUT_ARTIFACT_TEST_SCHEMA_SOURCE: &[u8] = br#"@doc cem-ml 1
 @ns schema = "https://cem.dev/ns/schema/1"
 @default schema
@@ -10974,19 +11301,16 @@ mod tests {
         let raw = "<HTML><head><STYLE>.card { color: red; }</STYLE><style media=\"screen\">
 .grid { display: grid; }
 </style></head><body>Hi</body></HTML>";
-        let artifact = TransformTemplateDataArtifact {
-            artifact_id: "page".to_owned(),
-            uri: Some("page.html".to_owned()),
-            identity: Some(FormatIdentity {
+        let artifact = encoded_text_test_artifact(
+            "page",
+            Some("page.html"),
+            FormatIdentity {
                 content_type: Some(HTML_CONTENT_TYPE.to_owned()),
                 schema: Some(HTML_SCHEMA_URI.to_owned()),
                 ..FormatIdentity::default()
-            }),
-            value: json!({
-                "kind": "html",
-                "content": raw,
-            }),
-        };
+            },
+            raw,
+        );
         let metadata = TransformOutputMetadata {
             source_map: None,
             output_spans: Vec::new(),
@@ -11003,7 +11327,8 @@ mod tests {
             &metadata,
             Some(&target),
             TransformGraphHtmlStyleProjection::Inline,
-        );
+        )
+        .expect("CSS export projection");
 
         assert_eq!(primary["kind"], "document");
         assert_eq!(
@@ -11024,19 +11349,16 @@ mod tests {
         let first_start = raw.find(first_css).unwrap();
         let second_start = raw.find(second_css).unwrap();
         let source_map = test_source_map_stack(0, raw.len() as u32);
-        let artifact = TransformTemplateDataArtifact {
-            artifact_id: "page".to_owned(),
-            uri: Some("page.html".to_owned()),
-            identity: Some(FormatIdentity {
+        let artifact = encoded_text_test_artifact(
+            "page",
+            Some("page.html"),
+            FormatIdentity {
                 content_type: Some(HTML_CONTENT_TYPE.to_owned()),
                 schema: Some(HTML_SCHEMA_URI.to_owned()),
                 ..FormatIdentity::default()
-            }),
-            value: json!({
-                "kind": "html",
-                "content": raw,
-            }),
-        };
+            },
+            raw,
+        );
         let first_span = test_output_span(first_start, first_css.len(), 100);
         let second_span = test_output_span(second_start, second_css.len(), 200);
         let metadata = TransformOutputMetadata {
@@ -11055,7 +11377,8 @@ mod tests {
             &metadata,
             Some(&target),
             TransformGraphHtmlStyleProjection::Inline,
-        );
+        )
+        .expect("CSS export projection");
 
         assert_eq!(primary["kind"], "document");
         assert_eq!(
@@ -11079,19 +11402,16 @@ mod tests {
     #[test]
     fn transform_graph_export_replaces_inline_styles_with_stylesheet_link() {
         let raw = r#"<html><head><style>.card { color: red; }</style><style>.grid { display: grid; }</style></head><body>Hi</body></html>"#;
-        let artifact = TransformTemplateDataArtifact {
-            artifact_id: "page".to_owned(),
-            uri: Some("page.html".to_owned()),
-            identity: Some(FormatIdentity {
+        let artifact = encoded_text_test_artifact(
+            "page",
+            Some("page.html"),
+            FormatIdentity {
                 content_type: Some(HTML_CONTENT_TYPE.to_owned()),
                 schema: Some(HTML_SCHEMA_URI.to_owned()),
                 ..FormatIdentity::default()
-            }),
-            value: json!({
-                "kind": "html",
-                "content": raw,
-            }),
-        };
+            },
+            raw,
+        );
         let metadata = TransformOutputMetadata {
             source_map: None,
             output_spans: Vec::new(),
@@ -11110,7 +11430,8 @@ mod tests {
             TransformGraphHtmlStyleProjection::Link(
                 "assets/page.css?mode=screen&theme=\"dark\"".to_owned(),
             ),
-        );
+        )
+        .expect("HTML link export projection");
 
         assert_eq!(primary["kind"], "html");
         assert_eq!(
@@ -11129,19 +11450,16 @@ mod tests {
         let replacement = r#"<link rel="stylesheet" href="page.css">"#;
         let after_start = raw.find(after).unwrap();
         let source_map = test_source_map_stack(0, raw.len() as u32);
-        let artifact = TransformTemplateDataArtifact {
-            artifact_id: "page".to_owned(),
-            uri: Some("page.html".to_owned()),
-            identity: Some(FormatIdentity {
+        let artifact = encoded_text_test_artifact(
+            "page",
+            Some("page.html"),
+            FormatIdentity {
                 content_type: Some(HTML_CONTENT_TYPE.to_owned()),
                 schema: Some(HTML_SCHEMA_URI.to_owned()),
                 ..FormatIdentity::default()
-            }),
-            value: json!({
-                "kind": "html",
-                "content": raw,
-            }),
-        };
+            },
+            raw,
+        );
         let before_span = test_output_span(0, before.len(), 100);
         let style_span =
             test_output_span(before.len(), raw.len() - before.len() - after.len(), 200);
@@ -11162,7 +11480,8 @@ mod tests {
             &metadata,
             Some(&target),
             TransformGraphHtmlStyleProjection::Link("page.css".to_owned()),
-        );
+        )
+        .expect("HTML link export projection");
 
         assert_eq!(primary["kind"], "html");
         assert_eq!(primary["content"], format!("{before}{replacement}{after}"));
@@ -11190,19 +11509,16 @@ mod tests {
         let after = "</head><body>Hi</body></html>";
         let after_start = raw.find(after).unwrap();
         let source_map = test_source_map_stack(0, raw.len() as u32);
-        let artifact = TransformTemplateDataArtifact {
-            artifact_id: "page".to_owned(),
-            uri: Some("page.html".to_owned()),
-            identity: Some(FormatIdentity {
+        let artifact = encoded_text_test_artifact(
+            "page",
+            Some("page.html"),
+            FormatIdentity {
                 content_type: Some(HTML_CONTENT_TYPE.to_owned()),
                 schema: Some(HTML_SCHEMA_URI.to_owned()),
                 ..FormatIdentity::default()
-            }),
-            value: json!({
-                "kind": "html",
-                "content": raw,
-            }),
-        };
+            },
+            raw,
+        );
         let before_span = test_output_span(0, before.len(), 100);
         let style_span =
             test_output_span(before.len(), raw.len() - before.len() - after.len(), 200);
@@ -11223,7 +11539,8 @@ mod tests {
             &metadata,
             Some(&target),
             TransformGraphHtmlStyleProjection::Omit,
-        );
+        )
+        .expect("HTML omit export projection");
 
         assert_eq!(primary["kind"], "html");
         assert_eq!(primary["content"], format!("{before}{after}"));
@@ -11245,19 +11562,16 @@ mod tests {
     fn transform_graph_export_omits_inline_styles_without_link() {
         let raw =
             r#"<html><head><style>.card { color: red; }</style></head><body>Hi</body></html>"#;
-        let artifact = TransformTemplateDataArtifact {
-            artifact_id: "page".to_owned(),
-            uri: Some("page.html".to_owned()),
-            identity: Some(FormatIdentity {
+        let artifact = encoded_text_test_artifact(
+            "page",
+            Some("page.html"),
+            FormatIdentity {
                 content_type: Some(HTML_CONTENT_TYPE.to_owned()),
                 schema: Some(HTML_SCHEMA_URI.to_owned()),
                 ..FormatIdentity::default()
-            }),
-            value: json!({
-                "kind": "html",
-                "content": raw,
-            }),
-        };
+            },
+            raw,
+        );
         let metadata = TransformOutputMetadata {
             source_map: None,
             output_spans: Vec::new(),
@@ -11274,7 +11588,8 @@ mod tests {
             &metadata,
             Some(&target),
             TransformGraphHtmlStyleProjection::Omit,
-        );
+        )
+        .expect("HTML omit export projection");
 
         assert_eq!(primary["kind"], "html");
         assert_eq!(
@@ -11433,6 +11748,17 @@ mod tests {
                 ));
             }
 
+            let primary = request
+                .primary_input
+                .explicit_json_value()
+                .map_err(|error| {
+                    TransformTemplateAdapterError::failed(
+                        self.id(),
+                        TransformTemplateAdapterExecutionPhase::Render,
+                        error.to_string(),
+                    )
+                })?;
+
             if request.target.is_some_and(|target| {
                 target.content_type.as_deref().is_some_and(|content_type| {
                     content_type_essence(content_type)
@@ -11452,7 +11778,7 @@ mod tests {
                     });
                 }
 
-                let input_nodes = request.primary_input.value.as_array().ok_or_else(|| {
+                let input_nodes = primary.as_array().ok_or_else(|| {
                     TransformTemplateAdapterError::failed(
                         self.id(),
                         TransformTemplateAdapterExecutionPhase::Render,
@@ -11516,7 +11842,7 @@ mod tests {
                         "kind": "html",
                         "content": format!(
                             "<direct-ready>{}</direct-ready>",
-                            request.primary_input.value["kind"].as_str().unwrap_or("unknown")
+                            primary["kind"].as_str().unwrap_or("unknown")
                         ),
                     }),
                     source_map: None,
@@ -11943,12 +12269,8 @@ mod tests {
         )
         .expect("template compiles");
         assert_eq!(compiled.module_options.let_bindings.len(), 1);
-        let primary_input = TransformTemplateDataArtifact {
-            artifact_id: "input".to_owned(),
-            uri: None,
-            identity: None,
-            value: json!({"title": "Hello <CEM> & friends"}),
-        };
+        let primary_input =
+            explicit_json_test_artifact("input", None, json!({"title": "Hello <CEM> & friends"}));
         let secondary_inputs = BTreeMap::new();
         let target = FormatIdentity {
             content_type: Some("text/html".to_owned()),
@@ -12048,12 +12370,8 @@ mod tests {
         )
         .expect("template compiles");
         assert!(diagnostics.is_empty(), "{diagnostics:?}");
-        let primary_input = TransformTemplateDataArtifact {
-            artifact_id: "input".to_owned(),
-            uri: None,
-            identity: None,
-            value: json!({"title": "Hello CEM"}),
-        };
+        let primary_input =
+            explicit_json_test_artifact("input", None, json!({"title": "Hello CEM"}));
         let secondary_inputs = BTreeMap::new();
         let target = FormatIdentity {
             content_type: Some("text/html".to_owned()),
@@ -12152,12 +12470,8 @@ mod tests {
             &mut diagnostics,
         )
         .expect("template compiles");
-        let primary_input = TransformTemplateDataArtifact {
-            artifact_id: "input".to_owned(),
-            uri: None,
-            identity: None,
-            value: json!({"title": "Hello CEM"}),
-        };
+        let primary_input =
+            explicit_json_test_artifact("input", None, json!({"title": "Hello CEM"}));
         let secondary_inputs = BTreeMap::new();
         let target = FormatIdentity {
             content_type: Some("text/html".to_owned()),
@@ -12261,12 +12575,8 @@ mod tests {
             &mut diagnostics,
         )
         .expect("template compiles");
-        let primary_input = TransformTemplateDataArtifact {
-            artifact_id: "input".to_owned(),
-            uri: None,
-            identity: None,
-            value: json!({"title": "Hello & CEM"}),
-        };
+        let primary_input =
+            explicit_json_test_artifact("input", None, json!({"title": "Hello & CEM"}));
         let secondary_inputs = BTreeMap::new();
         let target = FormatIdentity {
             content_type: Some("text/html".to_owned()),
@@ -12349,12 +12659,8 @@ mod tests {
             &mut diagnostics,
         )
         .expect("template compiles");
-        let primary_input = TransformTemplateDataArtifact {
-            artifact_id: "input".to_owned(),
-            uri: None,
-            identity: None,
-            value: json!({"items": ["Hello", 2, true]}),
-        };
+        let primary_input =
+            explicit_json_test_artifact("input", None, json!({"items": ["Hello", 2, true]}));
         let secondary_inputs = BTreeMap::new();
         let target = FormatIdentity {
             content_type: Some(crate::schema::registry::JSON_CONTENT_TYPE.to_owned()),
@@ -12461,12 +12767,8 @@ mod tests {
             &mut diagnostics,
         )
         .expect("template compiles");
-        let primary_input = TransformTemplateDataArtifact {
-            artifact_id: "input".to_owned(),
-            uri: None,
-            identity: None,
-            value: json!({"items": ["Hello"], "name": "CEM"}),
-        };
+        let primary_input =
+            explicit_json_test_artifact("input", None, json!({"items": ["Hello"], "name": "CEM"}));
         let secondary_inputs = BTreeMap::new();
         let target = FormatIdentity {
             content_type: Some(crate::schema::registry::JSON_CONTENT_TYPE.to_owned()),
@@ -12549,12 +12851,8 @@ mod tests {
             &mut diagnostics,
         )
         .expect("template compiles");
-        let primary_input = TransformTemplateDataArtifact {
-            artifact_id: "input".to_owned(),
-            uri: None,
-            identity: None,
-            value: json!({"items": ["Hello", 2, true]}),
-        };
+        let primary_input =
+            explicit_json_test_artifact("input", None, json!({"items": ["Hello", 2, true]}));
         let secondary_inputs = BTreeMap::new();
         let target = FormatIdentity {
             content_type: Some(crate::schema::registry::JSON_CONTENT_TYPE.to_owned()),
@@ -12637,12 +12935,8 @@ mod tests {
             &mut diagnostics,
         )
         .expect("template compiles");
-        let primary_input = TransformTemplateDataArtifact {
-            artifact_id: "input".to_owned(),
-            uri: None,
-            identity: None,
-            value: json!({"first": "a", "second": "b"}),
-        };
+        let primary_input =
+            explicit_json_test_artifact("input", None, json!({"first": "a", "second": "b"}));
         let secondary_inputs = BTreeMap::new();
         let target = FormatIdentity {
             content_type: Some(crate::schema::registry::JSON_CONTENT_TYPE.to_owned()),
@@ -12725,12 +13019,11 @@ mod tests {
             &mut diagnostics,
         )
         .expect("template compiles");
-        let primary_input = TransformTemplateDataArtifact {
-            artifact_id: "input".to_owned(),
-            uri: None,
-            identity: None,
-            value: json!({"title": "Hello <CEM> & \"friends\""}),
-        };
+        let primary_input = explicit_json_test_artifact(
+            "input",
+            None,
+            json!({"title": "Hello <CEM> & \"friends\""}),
+        );
         let secondary_inputs = BTreeMap::new();
         let target = FormatIdentity {
             content_type: Some(crate::schema::registry::XML_CONTENT_TYPE.to_owned()),
@@ -12826,12 +13119,11 @@ mod tests {
             &mut diagnostics,
         )
         .expect("template compiles");
-        let primary_input = TransformTemplateDataArtifact {
-            artifact_id: "input".to_owned(),
-            uri: None,
-            identity: None,
-            value: json!({"title": "Line 1\nLine 2 <CEM> & friends"}),
-        };
+        let primary_input = explicit_json_test_artifact(
+            "input",
+            None,
+            json!({"title": "Line 1\nLine 2 <CEM> & friends"}),
+        );
         let secondary_inputs = BTreeMap::new();
         let target = FormatIdentity {
             content_type: Some(crate::schema::registry::XML_CONTENT_TYPE.to_owned()),
@@ -12914,12 +13206,8 @@ mod tests {
             &mut diagnostics,
         )
         .expect("template compiles");
-        let primary_input = TransformTemplateDataArtifact {
-            artifact_id: "input".to_owned(),
-            uri: None,
-            identity: None,
-            value: json!({"first": "a", "second": "b"}),
-        };
+        let primary_input =
+            explicit_json_test_artifact("input", None, json!({"first": "a", "second": "b"}));
         let secondary_inputs = BTreeMap::new();
         let target = FormatIdentity {
             content_type: Some(crate::schema::registry::XML_CONTENT_TYPE.to_owned()),
@@ -13013,12 +13301,8 @@ mod tests {
             &mut diagnostics,
         )
         .expect("template compiles");
-        let primary_input = TransformTemplateDataArtifact {
-            artifact_id: "input".to_owned(),
-            uri: None,
-            identity: None,
-            value: json!({"title": "Hello & CEM"}),
-        };
+        let primary_input =
+            explicit_json_test_artifact("input", None, json!({"title": "Hello & CEM"}));
         let secondary_inputs = BTreeMap::new();
         let target = FormatIdentity {
             content_type: Some(crate::schema::registry::XML_CONTENT_TYPE.to_owned()),
@@ -17373,7 +17657,7 @@ mod tests {
     }
 
     #[test]
-    fn convert_html_layer_executes_packaged_cemt_dom_converter_pipeline() {
+    fn convert_html_layer_rejects_unmigrated_cemt_native_tree_ingress() {
         let req = ConvertRequest {
             input: input(b"@doc cem-ml 1\n{p | Hi}", "in.cem"),
             to_format: LayerFormat::Html,
@@ -17384,43 +17668,11 @@ mod tests {
             scheduler_scope_id: 0,
         };
         let resp = RealCemMlEngine::new().convert(req).unwrap();
-        assert_eq!(resp.primary["kind"], "html", "{:?}", resp.diagnostics);
-        assert_eq!(
-            resp.primary["content"],
-            "<p class=\"cem-color cem-color-syntax-name\" data-role=\"syntax.name\"><span class=\"cem-color cem-color-syntax-string\" data-role=\"syntax.string\">Hi</span></p>\n"
-        );
-        assert!(!resp.primary["content"].as_str().unwrap().contains("@doc"));
-        let conversion = resp.conversion.as_ref().expect("conversion metadata");
-        assert_eq!(
-            conversion.converter_id.as_deref(),
-            Some("cem-dom-projection-to-html-cemt")
-        );
-        assert_eq!(conversion.implementation.as_deref(), Some("cemt"));
-        let stages = &conversion
-            .output_pipeline
-            .as_ref()
-            .expect("conversion output pipeline")
-            .stages;
-        assert!(stages.iter().any(|stage| {
-            stage.stage == "formatter" && stage.function.as_deref() == Some("cem.format-tree")
-        }));
-        assert!(stages.iter().any(|stage| {
-            stage.stage == "colorizer"
-                && stage.function.as_deref() == Some("cem.color-tree")
-                && stage.profile.as_deref() == Some("classes")
-        }));
-        assert!(stages.iter().any(|stage| {
-            stage.stage == "writer" && stage.content_type.as_deref() == Some(HTML_CONTENT_TYPE)
-        }));
-        assert!(
-            resp.diagnostics.is_empty(),
-            "unexpected diagnostics: {:?}",
-            resp.diagnostics
-        );
+        assert_unmigrated_cemt_rejects_native_tree(&resp);
     }
 
     #[test]
-    fn convert_html_layer_with_cemt_output_selectors_keeps_packaged_converter_pipeline() {
+    fn convert_html_layer_with_selectors_rejects_unmigrated_cemt_native_tree_ingress() {
         let req = ConvertRequest {
             input: input(
                 b"@doc cem-ml 1\n{article | Ready {strong | now}.}",
@@ -17442,39 +17694,11 @@ mod tests {
 
         let resp = RealCemMlEngine::new().convert(req).unwrap();
 
-        assert_eq!(resp.primary["kind"], "html", "{:?}", resp.diagnostics);
-        let content = resp.primary["content"].as_str().expect("HTML content");
-        assert!(content.contains(r#"<article class="cem-color cem-color-syntax-name""#));
-        assert!(content.contains(r#"<strong class="cem-color cem-color-syntax-keyword""#));
-        let conversion = resp.conversion.as_ref().expect("conversion metadata");
-        assert_eq!(
-            conversion.converter_id.as_deref(),
-            Some("cem-dom-projection-to-html-cemt")
-        );
-        assert_eq!(conversion.implementation.as_deref(), Some("cemt"));
-        let stages = &conversion
-            .output_pipeline
-            .as_ref()
-            .expect("conversion output pipeline")
-            .stages;
-        assert!(stages.iter().any(|stage| {
-            stage.stage == "formatter"
-                && stage.function.as_deref() == Some("acme.showcase.format-tree")
-        }));
-        assert!(stages.iter().any(|stage| {
-            stage.stage == "colorizer"
-                && stage.function.as_deref() == Some("acme.showcase.color-tree")
-                && stage.profile.as_deref() == Some("classes")
-        }));
-        assert!(
-            resp.diagnostics.is_empty(),
-            "unexpected diagnostics: {:?}",
-            resp.diagnostics
-        );
+        assert_unmigrated_cemt_rejects_native_tree(&resp);
     }
 
     #[test]
-    fn convert_xml_layer_executes_packaged_cemt_dom_converter_pipeline() {
+    fn convert_xml_layer_rejects_unmigrated_cemt_native_tree_ingress() {
         let req = ConvertRequest {
             input: input(b"@doc cem-ml 1\n{p}", "in.cem"),
             to_format: LayerFormat::Xml,
@@ -17485,31 +17709,11 @@ mod tests {
             scheduler_scope_id: 0,
         };
         let resp = RealCemMlEngine::new().convert(req).unwrap();
-        assert_eq!(resp.primary["kind"], "xml");
-        assert_eq!(resp.primary["content"], "<p/>\n");
-        let conversion = resp.conversion.as_ref().expect("conversion metadata");
-        assert_eq!(
-            conversion.converter_id.as_deref(),
-            Some("cem-dom-projection-to-xml-cemt")
-        );
-        assert_eq!(conversion.implementation.as_deref(), Some("cemt"));
-        let stages = &conversion
-            .output_pipeline
-            .as_ref()
-            .expect("conversion output pipeline")
-            .stages;
-        assert!(stages.iter().any(|stage| {
-            stage.stage == "writer" && stage.content_type.as_deref() == Some(XML_CONTENT_TYPE)
-        }));
-        assert!(
-            resp.diagnostics.is_empty(),
-            "unexpected diagnostics: {:?}",
-            resp.diagnostics
-        );
+        assert_unmigrated_cemt_rejects_native_tree(&resp);
     }
 
     #[test]
-    fn convert_html_executes_ready_cemt_converter_template() {
+    fn convert_html_ready_cemt_rejects_unmigrated_native_tree_ingress() {
         let req = ConvertRequest {
             input: input(b"@doc cem-ml 1\n{p | Hi}", "in.cem"),
             to_format: LayerFormat::Html,
@@ -17525,45 +17729,7 @@ mod tests {
 
         let resp = RealCemMlEngine::new().convert(req).unwrap();
 
-        assert_eq!(resp.primary["kind"], "html", "{:?}", resp.diagnostics);
-        assert_eq!(
-            resp.primary["content"],
-            "<cemt-ready class=\"cem-color cem-color-syntax-name\" data-role=\"syntax.name\"><span class=\"cem-color cem-color-syntax-string\" data-role=\"syntax.string\">element:application/vnd.cem.ast+cem-bin:application/cem</span></cemt-ready>\n"
-        );
-        assert_ne!(resp.primary["sourceMap"], Value::Null);
-        assert_eq!(
-            resp.primary["outputSpans"]
-                .as_array()
-                .expect("output spans array")
-                .len(),
-            1
-        );
-        let conversion = resp.conversion.as_ref().expect("conversion metadata");
-        assert_eq!(
-            conversion.converter_id.as_deref(),
-            Some("test-dom-to-html-cemt-ready")
-        );
-        assert_eq!(conversion.implementation.as_deref(), Some("cemt"));
-        let stages = &conversion
-            .output_pipeline
-            .as_ref()
-            .expect("conversion output pipeline")
-            .stages;
-        assert!(stages.iter().any(|stage| {
-            stage.stage == "formatter" && stage.function.as_deref() == Some("cem.format-tree")
-        }));
-        assert!(stages.iter().any(|stage| {
-            stage.stage == "colorizer"
-                && stage.function.as_deref() == Some("cem.color-tree")
-                && stage.profile.as_deref() == Some("classes")
-        }));
-        assert!(stages.iter().any(|stage| {
-            stage.stage == "writer" && stage.content_type.as_deref() == Some(HTML_CONTENT_TYPE)
-        }));
-        assert!(!resp
-            .diagnostics
-            .iter()
-            .any(|diag| diag.code == "cem.converter.cemt_fallback"));
+        assert_unmigrated_cemt_rejects_native_tree(&resp);
     }
 
     #[test]
@@ -17631,7 +17797,7 @@ mod tests {
     }
 
     #[test]
-    fn convert_html_publishes_ready_cemt_output_pipeline_failure_without_rust_fallback() {
+    fn convert_html_reports_native_tree_boundary_before_output_pipeline() {
         let req = ConvertRequest {
             input: input(b"@doc cem-ml 1\n{p | Hi}", "in.cem"),
             to_format: LayerFormat::Html,
@@ -17647,27 +17813,7 @@ mod tests {
 
         let resp = RealCemMlEngine::new().convert(req).unwrap();
 
-        assert_eq!(resp.primary, Value::Null);
-        assert!(
-            resp.diagnostics.iter().any(|diag| {
-                diag.code
-                    == crate::transform_template::TRANSFORM_TEMPLATE_ENCODED_ARTIFACT_VALUE_TYPE_CODE
-                    && diag.severity.is_hard_violation()
-                    && diag
-                        .message
-                        .contains("expected object with `kind: \"cem-tree\"`")
-                    && diag.message.contains("got `root` string")
-            }),
-            "{:?}",
-            resp.diagnostics
-        );
-        assert!(
-            resp.diagnostics
-                .iter()
-                .all(|diag| diag.code != "cem.converter.cemt_fallback"),
-            "ready CEMT output pipeline failure must not use Rust fallback: {:?}",
-            resp.diagnostics
-        );
+        assert_unmigrated_cemt_rejects_native_tree(&resp);
     }
 
     #[test]
@@ -17695,7 +17841,7 @@ mod tests {
     }
 
     #[test]
-    fn convert_target_html_content_type_selects_html_export() {
+    fn convert_target_html_reports_unmigrated_native_tree_ingress() {
         let req = ConvertRequest {
             input: input(b"@doc cem-ml 1\n{p | Hi}", "in.cem"),
             to_format: LayerFormat::DomJson,
@@ -17709,16 +17855,7 @@ mod tests {
             scheduler_scope_id: 0,
         };
         let resp = RealCemMlEngine::new().convert(req).unwrap();
-        assert_eq!(resp.primary["kind"], "html");
-        assert_eq!(
-            resp.primary["content"],
-            "<p class=\"cem-color cem-color-syntax-name\" data-role=\"syntax.name\"><span class=\"cem-color cem-color-syntax-string\" data-role=\"syntax.string\">Hi</span></p>\n"
-        );
-        assert!(
-            resp.diagnostics.is_empty(),
-            "unexpected diagnostics: {:?}",
-            resp.diagnostics
-        );
+        assert_unmigrated_cemt_rejects_native_tree(&resp);
     }
 
     #[test]
@@ -18040,7 +18177,7 @@ mod tests {
     }
 
     #[test]
-    fn convert_prefers_context_schema_package_output_artifacts_over_builtins() {
+    fn convert_context_schema_package_rejects_unmigrated_native_tree_ingress() {
         const PACKAGE_URI: &str = "cem+test://packages/cem-ml/v1/package.cem";
         const SCHEMA_URI: &str = "cem+test://packages/cem-ml/v1/schema/cem-ml-generic.cem";
         const FORMATTER_URI: &str = "cem+test://packages/cem-ml/v1/formatters/cem-format-tree.cemt";
@@ -18253,16 +18390,7 @@ mod tests {
 
         let resp = RealCemMlEngine::new().convert(req).unwrap();
 
-        assert!(
-            resp.diagnostics.is_empty(),
-            "unexpected diagnostics: {:?}",
-            resp.diagnostics
-        );
-        assert_eq!(resp.primary["kind"], "html");
-        assert_eq!(
-            resp.primary["content"],
-            "<external-widget class=\"external-package-color\" data-package-stage=\"external-cemt\"></external-widget>\n"
-        );
+        assert_unmigrated_cemt_rejects_native_tree(&resp);
     }
 
     #[test]

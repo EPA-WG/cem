@@ -28,14 +28,16 @@ use crate::schema::package_sources::{
 };
 use crate::schema::registry::{
     content_type_essence, SchemaContentTypeRole, SchemaDescriptor, SchemaRegistry,
-    CEM_AST_PROJECTION_SCHEMA_URI, CEM_DOM_PROJECTION_CONTENT_TYPE, CEM_DOM_PROJECTION_SCHEMA_URI,
-    CEM_EVENTS_PROJECTION_SCHEMA_URI, CEM_ML_CONTENT_TYPE, CEM_ML_SCHEMA_URI, CEM_QL_SCHEMA_URI,
-    CEM_TRANSFORM_CONTENT_TYPE, CEM_TRANSFORM_SCHEMA_URI, CSS_CONTENT_TYPE, CSS_SCHEMA_URI,
-    CSV_CONTENT_TYPE, CSV_SCHEMA_URI, HTML_CONTENT_TYPE, HTML_SCHEMA_URI, JSON_CONTENT_TYPE,
-    JSON_SCHEMA_CONTENT_TYPE, JSON_SCHEMA_SCHEMA_URI, JSON_VALUE_SCHEMA_URI, MARKDOWN_CONTENT_TYPE,
-    MARKDOWN_SCHEMA_URI, MATHML_CONTENT_TYPE, MATHML_SCHEMA_URI, RELAX_NG_SCHEMA_URI,
-    SVG_CONTENT_TYPE, SVG_SCHEMA_URI, XHTML_CONTENT_TYPE, XHTML_SCHEMA_URI, XML_CONTENT_TYPE,
-    XML_SCHEMA_URI, XSLT_CONTENT_TYPE, XSLT_SCHEMA_URI, YAML_CONTENT_TYPE, YAML_SCHEMA_URI,
+    CEM_AST_JSON_PROJECTION_CONTENT_TYPE, CEM_AST_PROJECTION_SCHEMA_URI,
+    CEM_DOM_JSON_PROJECTION_CONTENT_TYPE, CEM_DOM_PROJECTION_CONTENT_TYPE,
+    CEM_DOM_PROJECTION_SCHEMA_URI, CEM_EVENTS_PROJECTION_SCHEMA_URI, CEM_ML_CONTENT_TYPE,
+    CEM_ML_SCHEMA_URI, CEM_QL_SCHEMA_URI, CEM_TRANSFORM_CONTENT_TYPE, CEM_TRANSFORM_SCHEMA_URI,
+    CSS_CONTENT_TYPE, CSS_SCHEMA_URI, CSV_CONTENT_TYPE, CSV_SCHEMA_URI, HTML_CONTENT_TYPE,
+    HTML_SCHEMA_URI, JSON_CONTENT_TYPE, JSON_SCHEMA_CONTENT_TYPE, JSON_SCHEMA_SCHEMA_URI,
+    JSON_VALUE_SCHEMA_URI, MARKDOWN_CONTENT_TYPE, MARKDOWN_SCHEMA_URI, MATHML_CONTENT_TYPE,
+    MATHML_SCHEMA_URI, RELAX_NG_SCHEMA_URI, SVG_CONTENT_TYPE, SVG_SCHEMA_URI, XHTML_CONTENT_TYPE,
+    XHTML_SCHEMA_URI, XML_CONTENT_TYPE, XML_SCHEMA_URI, XSLT_CONTENT_TYPE, XSLT_SCHEMA_URI,
+    YAML_CONTENT_TYPE, YAML_SCHEMA_URI,
 };
 use crate::source::{BytesSource, SourceId};
 use crate::source_map::SourceMapStack;
@@ -716,18 +718,26 @@ impl TransformTemplateAdapter for DomProjectionParityCemtAdapter {
         &self,
         request: TransformTemplateRenderRequest<'_>,
     ) -> TransformTemplateAdapterResult<TransformTemplateRenderResponse> {
-        if conversion_dom_projection_parity_target_is_cem_tree(&request) {
-            let tree = conversion_dom_projection_parity_cem_tree_document(
-                &request.primary_input.value,
-                request.target_scope,
-            )
-            .map_err(|message| {
+        let primary = request
+            .primary_input
+            .explicit_json_value()
+            .map_err(|error| {
                 TransformTemplateAdapterError::failed(
                     self.id(),
                     TransformTemplateAdapterExecutionPhase::Render,
-                    message,
+                    error.to_string(),
                 )
             })?;
+        if conversion_dom_projection_parity_target_is_cem_tree(&request) {
+            let tree =
+                conversion_dom_projection_parity_cem_tree_document(&primary, request.target_scope)
+                    .map_err(|message| {
+                        TransformTemplateAdapterError::failed(
+                            self.id(),
+                            TransformTemplateAdapterExecutionPhase::Render,
+                            message,
+                        )
+                    })?;
             return Ok(TransformTemplateRenderResponse {
                 output: TransformTemplateOutputArtifact {
                     uri: None,
@@ -747,15 +757,15 @@ impl TransformTemplateAdapter for DomProjectionParityCemtAdapter {
                 message,
             )
         })?;
-        let rendered =
-            conversion_render_dom_projection_parity_document(&request.primary_input.value, output)
-                .map_err(|message| {
-                    TransformTemplateAdapterError::failed(
-                        self.id(),
-                        TransformTemplateAdapterExecutionPhase::Render,
-                        message,
-                    )
-                })?;
+        let rendered = conversion_render_dom_projection_parity_document(&primary, output).map_err(
+            |message| {
+                TransformTemplateAdapterError::failed(
+                    self.id(),
+                    TransformTemplateAdapterExecutionPhase::Render,
+                    message,
+                )
+            },
+        )?;
 
         Ok(TransformTemplateRenderResponse {
             output: TransformTemplateOutputArtifact {
@@ -2112,16 +2122,17 @@ fn execute_cemt_template_parity_fixture(
             return conversion_parity_fixture_execution_error(descriptor, fixture, message);
         }
     };
-    let primary_input = TransformTemplateDataArtifact {
-        artifact_id: "input".to_owned(),
-        uri: None,
-        identity: Some(FormatIdentity {
-            content_type: Some(descriptor.from.content_type.clone()),
-            schema: descriptor.from.schema.clone(),
+    let primary_input = TransformTemplateDataArtifact::explicit_json(
+        "input",
+        None,
+        FormatIdentity {
+            content_type: Some(CEM_DOM_JSON_PROJECTION_CONTENT_TYPE.to_owned()),
+            schema: Some(CEM_DOM_PROJECTION_SCHEMA_URI.to_owned()),
             ..FormatIdentity::default()
-        }),
-        value: input,
-    };
+        },
+        &input,
+    )
+    .expect("DOM parity fixture has explicit JSON projection identity");
     let secondary_inputs = BTreeMap::new();
     let final_target = FormatIdentity {
         content_type: Some(descriptor.to.content_type.clone()),
@@ -3132,6 +3143,16 @@ fn execute_conversion_cem_tree_output_stage_body(
     request: &TransformTemplateRenderRequest<'_>,
     binding: &TransformTemplateEncodeBinding,
 ) -> TransformTemplateAdapterResult<Option<Value>> {
+    let primary = request
+        .primary_input
+        .explicit_json_value()
+        .map_err(|error| {
+            TransformTemplateAdapterError::failed(
+                stage.adapter_id,
+                TransformTemplateAdapterExecutionPhase::Render,
+                error.to_string(),
+            )
+        })?;
     let expressions = request
         .compiled
         .module_options
@@ -3145,7 +3166,7 @@ fn execute_conversion_cem_tree_output_stage_body(
     );
     let host_capabilities = BTreeSet::new();
     let mut value_bindings = BTreeMap::new();
-    value_bindings.insert("subject".to_owned(), request.primary_input.value.clone());
+    value_bindings.insert("subject".to_owned(), primary.clone());
     let mut reject_encode_facade = |body_binding: &TransformTemplateEncodeBinding,
                                     _subject: &Value| {
         Err(format!(
@@ -3169,7 +3190,7 @@ fn execute_conversion_cem_tree_output_stage_body(
     {
         let value = execute_transform_template_encode_binding(
             binding,
-            &request.primary_input.value,
+            &primary,
             &context,
             &mut reject_encode_facade,
         )
@@ -3189,7 +3210,7 @@ fn execute_conversion_cem_tree_output_stage_body(
         }
         let value = execute_transform_template_encode_binding(
             binding,
-            &request.primary_input.value,
+            &primary,
             &context,
             &mut reject_encode_facade,
         )
@@ -3359,16 +3380,17 @@ fn execute_conversion_cem_tree_output_stage(
     let compiled = compile_response
         .artifact
         .with_native_payload(execution_binding.clone());
-    let primary_input = TransformTemplateDataArtifact {
-        artifact_id: "subject".to_owned(),
-        uri: None,
-        identity: Some(FormatIdentity {
-            content_type: Some(binding.function.content_type.clone()),
-            schema: Some(binding.function.schema.clone()),
+    let primary_input = TransformTemplateDataArtifact::explicit_json(
+        "subject",
+        None,
+        FormatIdentity {
+            content_type: Some(CEM_AST_JSON_PROJECTION_CONTENT_TYPE.to_owned()),
+            schema: Some(CEM_AST_PROJECTION_SCHEMA_URI.to_owned()),
             ..FormatIdentity::default()
-        }),
-        value: subject.clone(),
-    };
+        },
+        subject,
+    )
+    .map_err(|error| error.to_string())?;
     let secondary_inputs = BTreeMap::new();
     let target = binding.identity.target.format_identity();
     let render_response = adapter

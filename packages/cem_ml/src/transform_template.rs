@@ -32,6 +32,7 @@ use crate::schema::registry::{
 use crate::source::{ByteRange, BytesSource, SourceId};
 use crate::source_map::{FrameSpan, SourceMapFrame, SourceMapStack, TransformKind};
 use crate::tokenizer::cem::CemTokenizer;
+pub use crate::transform_artifact::TransformDataArtifact as TransformTemplateDataArtifact;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::any::Any;
@@ -21520,20 +21521,11 @@ pub struct TransformTemplateCompileResponse {
     pub diagnostics: Vec<Diagnostic>,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct TransformTemplateDataArtifact {
-    pub artifact_id: String,
-    pub uri: Option<String>,
-    pub identity: Option<FormatIdentity>,
-    pub value: Value,
-}
-
 #[derive(Debug, Clone)]
 pub struct TransformTemplateRenderRequest<'a> {
     pub compiled: &'a TransformTemplateCompiledArtifact,
     pub primary_input: &'a TransformTemplateDataArtifact,
-    pub secondary_inputs: &'a BTreeMap<String, TransformTemplateDataArtifact>,
+    pub secondary_inputs: &'a BTreeMap<String, Arc<TransformTemplateDataArtifact>>,
     pub target: Option<&'a FormatIdentity>,
     pub target_scope: &'a ScopeConfig,
     pub execution_policy: TransformExecutionPolicy,
@@ -22481,6 +22473,24 @@ mod tests {
             identity,
             root_scope: ScopeConfig::default(),
         }
+    }
+
+    fn explicit_json_test_artifact(
+        artifact_id: &str,
+        uri: Option<&str>,
+        value: Value,
+    ) -> TransformTemplateDataArtifact {
+        TransformTemplateDataArtifact::explicit_json(
+            artifact_id,
+            uri.map(str::to_owned),
+            FormatIdentity {
+                content_type: Some(JSON_CONTENT_TYPE.to_owned()),
+                schema: Some(JSON_VALUE_SCHEMA_URI.to_owned()),
+                ..FormatIdentity::default()
+            },
+            &value,
+        )
+        .expect("test data has explicit JSON identity")
     }
 
     fn cemt_required_param(
@@ -35945,12 +35955,8 @@ mod tests {
             TransformTemplateEntrypoint::implicit(),
             Value::Null,
         );
-        let primary_input = TransformTemplateDataArtifact {
-            artifact_id: "data".to_owned(),
-            uri: Some("data.xml".to_owned()),
-            identity: None,
-            value: json!({"title": "Example"}),
-        };
+        let primary_input =
+            explicit_json_test_artifact("data", Some("data.json"), json!({"title": "Example"}));
         let secondary_inputs = BTreeMap::new();
         let render_error = adapter
             .render(TransformTemplateRenderRequest {
@@ -36017,13 +36023,23 @@ mod tests {
             &self,
             request: TransformTemplateRenderRequest<'_>,
         ) -> TransformTemplateAdapterResult<TransformTemplateRenderResponse> {
+            let primary = request
+                .primary_input
+                .explicit_json_value()
+                .map_err(|error| {
+                    TransformTemplateAdapterError::failed(
+                        self.id(),
+                        TransformTemplateAdapterExecutionPhase::Render,
+                        error.to_string(),
+                    )
+                })?;
             Ok(TransformTemplateRenderResponse {
                 output: TransformTemplateOutputArtifact {
                     uri: None,
                     identity: request.target.cloned(),
                     value: json!({
                         "adapter": request.compiled.adapter_id,
-                        "primary": request.primary_input.value,
+                        "primary": primary,
                         "secondaryInputs": request.secondary_inputs.len(),
                     }),
                     source_map: None,
@@ -36066,12 +36082,8 @@ mod tests {
             })
             .expect("runtime adapter should compile")
             .artifact;
-        let primary_input = TransformTemplateDataArtifact {
-            artifact_id: "data".to_owned(),
-            uri: Some("data.xml".to_owned()),
-            identity: None,
-            value: json!({"title": "Example"}),
-        };
+        let primary_input =
+            explicit_json_test_artifact("data", Some("data.json"), json!({"title": "Example"}));
         let secondary_inputs = BTreeMap::new();
         let rendered = adapter
             .render(TransformTemplateRenderRequest {

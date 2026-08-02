@@ -899,9 +899,16 @@ Remaining dependency-ordered package checklist:
       `docs/transform-boundary-native-ast-decision.tmp.md`; this item is listed
       after XPath for roadmap grouping but must complete before XPath execution
       is registered.
-  - [ ] Add red tests for AST identity across lifecycle load and graph routing,
+  - [x] Add red tests for AST identity across lifecycle load and graph routing,
         duplicate JSON members, XML node/source identity, typed collection
         children, and rejection of implicit JSON projection.
+    - [x] Prove JSON lexical/member identity and XML event/source identity are
+          retained by `load_transform_data_artifact` as native lifecycle bodies.
+    - [x] Add the dependency-neutral native, collection, extension, and encoded
+          data-artifact contract without a generic JSON value variant.
+    - [x] Route lifecycle load and collect joins through typed bodies, reject
+          unmigrated adapter representations explicitly, and add a source audit.
+    - [x] Pass focused transform tests, lint, native build/test, and WASM gates.
   - [ ] Introduce a typed `TransformArtifactBody` with explicit native,
         collection, extension, and encoded variants; remove
         `serde_json::Value` from transform data and output artifact contracts.
@@ -955,40 +962,37 @@ Remaining dependency-ordered package checklist:
 
 ### Next Work Item
 
-Start the Option C transform-boundary migration with native input artifact
-identity. Add red tests around the private `load_transform_data_artifact` entry
-in `real.rs` before changing its implementation. The tests must prove that a
-lifecycle-loaded JSON document retains duplicate object members and number
-lexemes, an XML document retains event/node/source identity, and both arrive as
-their exact `LoadedInputAstStream` variants rather than as
-`projection::dom_json` values. Add a narrow source audit for that entry as a
-regression tripwire, but treat Rust types as the primary enforcement.
+Migrate CEM-QL ingress from `value_to_stream` to lazy views over
+`TransformArtifactBody`. Start with red adapter and engine tests for native CEM,
+lossless lifecycle JSON and XML, secondary inputs, and typed graph collections.
+The tests must assert retained `Arc`/node/source identity and must make any
+serialization, `serde_json::Value`, or generic property-bag bridge fail the
+source audit.
 
-Introduce the dependency-neutral artifact contract in a dedicated CEM-ML
-module, not in an adapter crate: `TransformDataArtifact` plus a non-serializable
-`TransformArtifactBody`. The first core variants should retain a native
-lifecycle stream, native CEM document, typed collection, and encoded bytes via
-`Arc`; representation and content identity remain separate fields. Re-export
-the public contract where existing adapter imports require a staged source
-migration. Do not add a parallel `serde_json::Value`, `LegacyValue`, or generic
-property-bag variant: that would preserve the boundary Option C is intended to
-remove.
+Define the query-view adapter in the CEM-QL integration crate so the core
+artifact remains dependency-neutral. A view must borrow or retain the native
+artifact and produce query items on demand: `CemDocument` from native nodes,
+`Lifecycle` from each package-owned AST, and `Collection` from ordered child
+artifact references. JSON objects remain ordered member nodes; name selection
+returns every matching member in source order, including duplicate names, and
+numbers retain their lexical form and source range. XML views retain event/node,
+namespace, owner, and source-map identity. No view may materialize an entire
+artifact as JSON.
 
-Change `load_transform_data_artifact` to consume `loaded.ast_stream` directly.
-Only CEM inputs that do not yet have a lifecycle stream may enter through the
-native `CemDocument` body; they must not use DOM JSON as an intermediate. Add
-typed collection records that retain ordered child artifacts and graph input
-metadata by reference, then migrate the `collect` join first. Constructors must
-reject encoded JSON unless the artifact has an explicit registered JSON or
-`+json` identity. Keep report/config JSON DTOs outside this data-plane type.
+Treat encoded input as an encoding boundary, not an AST. Text or binary bytes
+must pass through a registered lifecycle parser before CEM-QL can consume them.
+Only an explicit JSON or `+json` content identity may select the JSON lifecycle
+parser; even then the query source is `JsonDocumentAst`, never a decoded generic
+`Value`. Unsupported native bodies continue to return representation-specific
+diagnostics rather than falling back to serialization.
 
-This is the first structural slice, not an adapter projection exercise. CEM-QL,
-CEMT, and XSLT consumers should initially fail with explicit unsupported
-representation diagnostics until their typed views are migrated; they must not
-restore compatibility by projecting native bodies to `Value`. Finish the slice
-with focused load/join tests, the source audit, native tests, and WASM build.
-The following work item will replace CEM-QL `value_to_stream` ingress with lazy
-typed views and then migrate output artifacts.
+After the lazy views restore the native CEM-QL transform, secondary-input, and
+graph tests, replace `TransformTemplateOutputArtifact.value` with typed native
+or explicit encoded output bodies. Keep JSON encoding confined to registered
+JSON output edges and validate encoding/content-type agreement at construction.
+Finish with CEM-QL lint/tests, core lint/tests, source audits, graph identity
+tests, and the WASM build. The following item can then migrate CEMT's typed tree
+view without depending on a temporary JSON output contract.
 
 ## Current Verification Commands
 
