@@ -95,10 +95,10 @@ reference pinned by commit. Every adapted algorithm must record the source file
 and commit; copied substantial portions additionally require MIT attribution.
 
 No Xee compiler, interpreter, high-level XPath, Xot, or loader crate may become
-a runtime dependency. The currently pinned `xee-xpath-lexer` and
-`xee-xpath-ast` crates are transitional foundation dependencies and must be
-replaced by CEM-owned token and syntax AST types before executable XPath is
-registered. During replacement they may serve only as a parity oracle in tests.
+a runtime dependency. CEM-owned token and syntax AST implementations now own
+production scanning and parsing. The pinned `xee-xpath-lexer` and
+`xee-xpath-ast` crates remain development-only parity oracles and provenance
+references until broader XPath 3.1/QT3 coverage permits their removal.
 
 ### Accepted XPath Conformance Scope
 
@@ -303,9 +303,10 @@ out by tests.
    `GenericDataDocumentAst`.
 7. Change transform outputs to typed AST or encoded artifacts and enforce
    identity/encoding agreement.
-8. Replace the transitional Xee lexer/parser dependencies with CEM-owned XPath
-   token and syntax AST types, using pinned Xee source only as a parity oracle
-   and non-normative implementation reference.
+8. Completed prerequisite: replace the transitional Xee lexer/parser runtime
+   dependencies with CEM-owned XPath token and syntax AST implementations,
+   retaining pinned Xee source and dev dependencies only as parity oracles and
+   non-normative implementation references.
 9. Only then implement the CEM-owned XPath compiler/evaluator and register
    `TransformTemplateKind::XPathExpression`.
 10. Add explicit JSON AST/result exporters as conversion graph edges.

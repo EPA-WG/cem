@@ -1,4 +1,5 @@
 mod lexer;
+mod parser;
 mod syntax;
 
 pub use syntax::*;
@@ -18,8 +19,10 @@ use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use std::collections::{BTreeMap, BTreeSet};
 use std::sync::OnceLock;
+#[cfg(test)]
 use xee_xpath_ast::ast as xee_ast;
-use xee_xpath_ast::{Namespaces, ParserError, VariableNames, XPathParserContext};
+#[cfg(test)]
+use xee_xpath_ast::{Namespaces, VariableNames, XPathParserContext};
 #[cfg(test)]
 use xee_xpath_lexer::Token as XeeToken;
 
@@ -1065,7 +1068,8 @@ pub fn xpath_expression_ast_from_source_bytes(
     };
 
     let line_index = LineIndex::from_utf8(source_text);
-    let mut tokens = xpath_lossless_tokens(source_text, &line_index, origin);
+    let lexical_tokens = lexer::xpath_lexical_tokens(source_text);
+    let mut tokens = xpath_lossless_tokens(source_text, &lexical_tokens, &line_index, origin);
     let mut facts = xpath_delimiter_facts(&mut tokens);
     if let XPathAttachment::Host(host) = &attachment {
         facts.push(XPathFact {
@@ -1098,12 +1102,17 @@ pub fn xpath_expression_ast_from_source_bytes(
         });
     }
 
-    let parser = xpath_parser_context(&attachment);
     let syntax_ast = if has_lexical_error {
         None
     } else {
-        match parser.parse_xpath(source_text) {
-            Ok(root) => {
+        match parser::parse_xpath(
+            source_text,
+            &lexical_tokens,
+            &line_index,
+            origin,
+            &attachment,
+        ) {
+            Ok(syntax_ast) => {
                 facts.push(XPathFact {
                     kind: XPathFactKind::Parsed,
                     source_range: Some(XPathSourceRange::from_offsets(
@@ -1115,19 +1124,16 @@ pub fn xpath_expression_ast_from_source_bytes(
                     message: "XPath 3.1 expression parsed successfully".to_owned(),
                     value: Some("xpath-3.1".to_owned()),
                 });
-                Some(
-                    XPathSyntaxLowerer::new(source_text, &line_index, origin, &attachment)
-                        .lower(&root),
-                )
+                Some(syntax_ast)
             }
             Err(error) => {
-                let span = error.span();
-                let start = span.start.min(source_text.len());
-                let end = span.end.min(source_text.len()).max(start);
-                let kind = if matches!(error, ParserError::UnknownPrefix { .. }) {
-                    XPathFactKind::UnknownNamespacePrefix
-                } else {
-                    XPathFactKind::ParseError
+                let start = error.start.min(source_text.len());
+                let end = error.end.min(source_text.len()).max(start);
+                let kind = match error.kind {
+                    parser::XPathParseErrorKind::UnknownNamespacePrefix => {
+                        XPathFactKind::UnknownNamespacePrefix
+                    }
+                    parser::XPathParseErrorKind::Syntax => XPathFactKind::ParseError,
                 };
                 facts.push(XPathFact {
                     kind,
@@ -1137,7 +1143,7 @@ pub fn xpath_expression_ast_from_source_bytes(
                         start,
                         end,
                     )),
-                    message: xpath_parser_error_message(&error),
+                    message: error.message(),
                     value: Some(format!("{error:?}")),
                 });
                 None
@@ -1323,11 +1329,12 @@ fn xpath_ast_events(
 
 fn xpath_lossless_tokens(
     source: &str,
+    lexical_tokens: &[lexer::XPathLexicalToken<'_>],
     line_index: &LineIndex,
     origin: XPathSourcePosition,
 ) -> Vec<XPathTokenAst> {
     let mut tokens = Vec::new();
-    for token in lexer::xpath_lexical_tokens(source) {
+    for token in lexical_tokens {
         xpath_push_token(
             source,
             line_index,
@@ -1484,6 +1491,7 @@ fn matching_open_delimiter(close: char) -> char {
     }
 }
 
+#[cfg(test)]
 #[derive(Debug, Clone, Copy)]
 enum XPathNameUse {
     Element,
@@ -1492,6 +1500,7 @@ enum XPathNameUse {
     Variable,
 }
 
+#[cfg(test)]
 struct XPathSyntaxLowerer<'a> {
     source: &'a str,
     line_index: &'a LineIndex,
@@ -1499,6 +1508,7 @@ struct XPathSyntaxLowerer<'a> {
     attachment: &'a XPathAttachment,
 }
 
+#[cfg(test)]
 impl<'a> XPathSyntaxLowerer<'a> {
     fn new(
         source: &'a str,
@@ -2007,6 +2017,7 @@ impl<'a> XPathSyntaxLowerer<'a> {
     }
 }
 
+#[cfg(test)]
 fn synthetic_wrapped_expression(path: &xee_ast::PathExpr) -> Option<&xee_ast::ExprSingleS> {
     let [step] = path.steps.as_slice() else {
         return None;
@@ -2025,6 +2036,7 @@ fn synthetic_wrapped_expression(path: &xee_ast::PathExpr) -> Option<&xee_ast::Ex
         .then_some(inner)
 }
 
+#[cfg(test)]
 fn xpath_parser_context(attachment: &XPathAttachment) -> XPathParserContext {
     let mut namespaces = Namespaces::default();
     if let XPathAttachment::Host(host) = attachment {
@@ -2043,29 +2055,6 @@ fn xpath_parser_context(attachment: &XPathAttachment) -> XPathParserContext {
         namespaces.add(&pairs);
     }
     XPathParserContext::new(namespaces, VariableNames::default())
-}
-
-fn xpath_parser_error_message(error: &ParserError) -> String {
-    match error {
-        ParserError::UnknownPrefix { prefix, .. } => {
-            format!("XPath namespace prefix `{prefix}` is not declared in the static context")
-        }
-        ParserError::Reserved { name, .. } => {
-            format!("XPath name `{name}` is reserved in this grammar position")
-        }
-        ParserError::ArityOverflow { .. } => {
-            "XPath function arity exceeds the supported representation".to_owned()
-        }
-        ParserError::UnknownType { name, .. } => {
-            format!("XPath sequence type `{name:?}` is unknown")
-        }
-        ParserError::IllegalFunctionInPattern { name, .. } => {
-            format!("XPath function `{name:?}` is not legal in this pattern")
-        }
-        ParserError::ExpectedFound { .. } => {
-            "XPath 3.1 expression did not match the grammar".to_owned()
-        }
-    }
 }
 
 fn xpath_syntax_to_cemt_subject(
@@ -2260,6 +2249,42 @@ mod tests {
             .collect()
     }
 
+    fn cem_parser_syntax(source: &str) -> Result<XPathSyntaxAst, parser::XPathParseError> {
+        let line_index = LineIndex::from_utf8(source);
+        let attachment = XPathAttachment::Standalone { source_id: 7 };
+        let tokens = lexer::xpath_lexical_tokens(source);
+        parser::parse_xpath(
+            source,
+            &tokens,
+            &line_index,
+            XPathSourcePosition {
+                line: 1,
+                column: 1,
+                byte_offset: 0,
+            },
+            &attachment,
+        )
+    }
+
+    fn xee_parser_syntax(source: &str) -> XPathSyntaxAst {
+        let line_index = LineIndex::from_utf8(source);
+        let attachment = XPathAttachment::Standalone { source_id: 7 };
+        let parsed = xpath_parser_context(&attachment)
+            .parse_xpath(source)
+            .unwrap_or_else(|error| panic!("Xee oracle failed for `{source}`: {error:?}"));
+        XPathSyntaxLowerer::new(
+            source,
+            &line_index,
+            XPathSourcePosition {
+                line: 1,
+                column: 1,
+                byte_offset: 0,
+            },
+            &attachment,
+        )
+        .lower(&parsed)
+    }
+
     #[test]
     fn xpath_syntax_ast_lowers_paths_predicates_names_and_ranges_to_cem_types() {
         let source = "/catalog/book[@lang = \"en\"]/title";
@@ -2296,6 +2321,211 @@ mod tests {
                 ..
             }
         ));
+    }
+
+    #[test]
+    fn xpath_cem_parser_matches_xee_lowered_ast_for_passing_package_examples() {
+        for source in [
+            include_str!("../../schema-packages/xpath/v1/examples/basic-path.xpath"),
+            include_str!("../../schema-packages/xpath/v1/examples/functions-and-variables.xpath"),
+            include_str!("../../schema-packages/xpath/v1/examples/maps-arrays-and-comments.xpath"),
+            include_str!("../../schema-packages/xpath/v1/examples/unicode-qname.xpath"),
+            include_str!(
+                "../../schema-packages/xpath/v1/examples/explicit-axes-and-escaped-string.xpath"
+            ),
+            include_str!("../../schema-packages/xpath/v1/examples/external-resource-denied.xpath"),
+        ] {
+            assert_eq!(
+                cem_parser_syntax(source).expect("CEM parser must accept package example"),
+                xee_parser_syntax(source),
+                "CEM parser AST diverged from the pinned parser oracle for `{source}`"
+            );
+        }
+    }
+
+    #[test]
+    fn xpath_cem_parser_applies_precedence_and_preserves_real_parentheses() {
+        let syntax = cem_parser_syntax("1 + 2 * 3").expect("precedence expression");
+        let XPathExpression::Binary {
+            operator: XPathBinaryOperator::Add,
+            right,
+            ..
+        } = &syntax.root.expressions[0].expression
+        else {
+            panic!("expected additive root");
+        };
+        assert!(matches!(
+            right.expression,
+            XPathExpression::Binary {
+                operator: XPathBinaryOperator::Multiply,
+                ..
+            }
+        ));
+
+        let parenthesized = cem_parser_syntax("(1 + 2) * 3").expect("parenthesized precedence");
+        let XPathExpression::Binary {
+            operator: XPathBinaryOperator::Multiply,
+            left,
+            ..
+        } = &parenthesized.root.expressions[0].expression
+        else {
+            panic!("expected multiplicative root");
+        };
+        let XPathExpression::Path(path) = &left.expression else {
+            panic!("expected parenthesized primary path");
+        };
+        assert!(matches!(
+            path.steps[0].step,
+            XPathStep::Primary(XPathPrimaryExpression::Parenthesized(Some(_)))
+        ));
+
+        let associative = cem_parser_syntax("10 - 3 - 2").expect("left-associative expression");
+        let XPathExpression::Binary {
+            operator: XPathBinaryOperator::Subtract,
+            left,
+            ..
+        } = &associative.root.expressions[0].expression
+        else {
+            panic!("expected subtractive root");
+        };
+        assert!(matches!(
+            left.expression,
+            XPathExpression::Binary {
+                operator: XPathBinaryOperator::Subtract,
+                ..
+            }
+        ));
+    }
+
+    #[test]
+    fn xpath_cem_parser_lowers_eqname_and_wildcard_name_tests() {
+        let source = "/Q{urn:catalog}catalog/*:book/Q{urn:app}*";
+        let syntax = cem_parser_syntax(source).expect("EQName and wildcard path");
+        assert_eq!(syntax, xee_parser_syntax(source));
+
+        let XPathExpression::Path(path) = &syntax.root.expressions[0].expression else {
+            panic!("expected path");
+        };
+        assert!(matches!(
+            path.steps[0].step,
+            XPathStep::Axis {
+                node_test: XPathNodeTest::Name(XPathNameTest::Name(XPathName {
+                    ref namespace_uri,
+                    ref local_name,
+                    ..
+                })),
+                ..
+            } if namespace_uri.as_deref() == Some("urn:catalog") && local_name == "catalog"
+        ));
+        assert!(matches!(
+            path.steps[1].step,
+            XPathStep::Axis {
+                node_test: XPathNodeTest::Name(XPathNameTest::AnyNamespace {
+                    ref local_name,
+                }),
+                ..
+            } if local_name == "book"
+        ));
+        assert!(matches!(
+            path.steps[2].step,
+            XPathStep::Axis {
+                node_test: XPathNodeTest::Name(XPathNameTest::Namespace {
+                    ref namespace_uri,
+                }),
+                ..
+            } if namespace_uri == "urn:app"
+        ));
+    }
+
+    #[test]
+    fn xpath_cem_parser_distinguishes_roots_sequences_and_argument_lists() {
+        for (source, expected_root) in [
+            ("a/b", XPathPathRoot::Relative),
+            ("/a", XPathPathRoot::Rooted),
+            ("//a", XPathPathRoot::RootedDescendant),
+        ] {
+            let syntax = cem_parser_syntax(source).expect("path expression");
+            let XPathExpression::Path(path) = &syntax.root.expressions[0].expression else {
+                panic!("expected path for `{source}`");
+            };
+            assert_eq!(path.root, expected_root);
+        }
+
+        let syntax = cem_parser_syntax("concat((1, 2), 3)").expect("function arguments");
+        assert_eq!(syntax.root.expressions.len(), 1);
+        let XPathExpression::Path(path) = &syntax.root.expressions[0].expression else {
+            panic!("expected function path");
+        };
+        let XPathStep::Primary(XPathPrimaryExpression::FunctionCall { arguments, .. }) =
+            &path.steps[0].step
+        else {
+            panic!("expected function call");
+        };
+        assert_eq!(arguments.len(), 2);
+        let XPathExpression::Path(first_argument) = &arguments[0].expression else {
+            panic!("expected parenthesized first argument");
+        };
+        let XPathStep::Primary(XPathPrimaryExpression::Parenthesized(Some(sequence))) =
+            &first_argument.steps[0].step
+        else {
+            panic!("expected parenthesized sequence");
+        };
+        assert_eq!(sequence.expressions.len(), 2);
+    }
+
+    #[test]
+    fn xpath_cem_parser_returns_typed_expected_found_and_namespace_errors() {
+        let unclosed = cem_parser_syntax("/book[").expect_err("unclosed predicate must fail");
+        assert_eq!(unclosed.kind, parser::XPathParseErrorKind::Syntax);
+        assert!(unclosed.expected.iter().any(|expected| expected == "]"));
+        assert_eq!(unclosed.found, None);
+        assert_eq!(unclosed.start, 6);
+        assert_eq!(unclosed.end, 6);
+
+        let mismatched = cem_parser_syntax("/book[1)").expect_err("mismatched predicate must fail");
+        assert_eq!(mismatched.kind, parser::XPathParseErrorKind::Syntax);
+        assert!(mismatched.expected.iter().any(|expected| expected == "]"));
+        assert_eq!(mismatched.found.as_deref(), Some(")"));
+        assert_eq!((mismatched.start, mismatched.end), (7, 8));
+
+        let unknown = cem_parser_syntax("/catalog/ns:book").expect_err("unknown prefix must fail");
+        assert_eq!(
+            unknown.kind,
+            parser::XPathParseErrorKind::UnknownNamespacePrefix
+        );
+        assert_eq!(unknown.namespace_prefix.as_deref(), Some("ns"));
+        assert_eq!((unknown.start, unknown.end), (9, 16));
+    }
+
+    #[test]
+    fn xpath_cem_parser_retains_unmodeled_xpath_as_typed_ranged_nodes() {
+        let source = "let $x := 1 return $x";
+        let syntax = cem_parser_syntax(source).expect("recognized unsupported production");
+        assert!(matches!(
+            syntax.root.expressions[0].expression,
+            XPathExpression::Unsupported { ref production }
+                if production == "let-expression"
+        ));
+        assert_eq!(
+            syntax.root.expressions[0].source_range,
+            XPathSourceRange::new(1, 1, 0, source.len() as u64)
+        );
+
+        let inline = "function($x) { $x }";
+        let syntax = cem_parser_syntax(inline).expect("recognized inline-function production");
+        assert_eq!(syntax, xee_parser_syntax(inline));
+        let XPathExpression::Path(path) = &syntax.root.expressions[0].expression else {
+            panic!("expected inline function primary path");
+        };
+        assert!(matches!(
+            path.steps[0].step,
+            XPathStep::Primary(XPathPrimaryExpression::Unsupported { ref production })
+                if production == "inline-function-expression"
+        ));
+        assert_eq!(
+            path.source_range,
+            XPathSourceRange::new(1, 1, 0, inline.len() as u64)
+        );
     }
 
     #[test]
@@ -3350,5 +3580,40 @@ mod tests {
                 "public XPath syntax contract must not contain `{forbidden}`"
             );
         }
+    }
+
+    #[test]
+    fn xpath_runtime_scanner_and_parser_have_no_xee_dependency() {
+        let manifest = include_str!("../../Cargo.toml");
+        let runtime_manifest = manifest
+            .split("[dev-dependencies]")
+            .next()
+            .expect("Cargo manifest runtime sections");
+        assert!(
+            !runtime_manifest.contains("xee-xpath"),
+            "Xee crates must remain outside runtime dependencies"
+        );
+
+        for (label, source) in [
+            ("scanner", include_str!("xpath/lexer.rs")),
+            ("parser", include_str!("xpath/parser.rs")),
+            ("syntax AST", include_str!("xpath/syntax.rs")),
+        ] {
+            assert!(
+                !source.contains("xee_"),
+                "runtime XPath {label} must not reference Xee"
+            );
+        }
+
+        let module = include_str!("xpath.rs");
+        let lifecycle_entry = module
+            .split("pub fn xpath_expression_ast_from_source_bytes")
+            .nth(1)
+            .and_then(|source| source.split("fn xpath_host_attachment_facts").next())
+            .expect("XPath lifecycle production entry");
+        assert!(
+            !lifecycle_entry.contains("xee_"),
+            "XPath lifecycle production entry must not reference Xee"
+        );
     }
 }

@@ -862,7 +862,7 @@ Remaining dependency-ordered package checklist:
         function calls, maps/arrays, source ranges, and host offsets. Permit the
         pinned Xee parser only as a temporary parser-local parity oracle; no Xee
         type or JSON projection may cross the syntax AST boundary.
-  - [ ] Replace the transitional `xee-xpath-lexer` and `xee-xpath-ast` runtime
+  - [x] Replace the transitional `xee-xpath-lexer` and `xee-xpath-ast` runtime
         dependencies with CEM-owned XPath token and syntax AST types. Use the
         MIT-licensed Xee source pinned at commit `200b1e3356ea9d6dd2901d67bd941b779df7e5b7`
         only as a non-normative implementation reference, retain lexical/parser
@@ -871,9 +871,13 @@ Remaining dependency-ordered package checklist:
     - [x] Replace production lossless tokenization with a CEM-owned
           longest-match scanner, retain exact trivia and UTF-8 byte ranges, and
           verify lexical parity against the pinned Xee implementation.
-    - [ ] Replace the transitional Xee parser with a CEM-owned recursive-descent
+    - [x] Replace the transitional Xee parser with a CEM-owned recursive-descent
           parser over CEM lexical tokens, then remove the remaining Xee runtime
           dependency after native, lint, and WASM gates pass.
+      - [x] Add a package-owned token cursor, typed parse errors, and direct
+            recursive-descent lowering with shadow AST parity coverage.
+      - [x] Switch production parsing to the CEM parser, remove Xee parser
+            runtime code/dependencies, and pass native, lint, and WASM gates.
   - [ ] After the strict native-AST transform boundary below is complete,
         implement a CEM-owned XPath 3.1 compiler and evaluator over the package
         AST. Treat the W3C XPath 3.1, XDM 3.1, and Functions and Operators 3.1
@@ -951,46 +955,40 @@ Remaining dependency-ordered package checklist:
 
 ### Next Work Item
 
-Replace the transitional Xee parser without changing the CEM-owned lexical or
-syntax AST contracts. Start with `validation/xpath/parser.rs`: a token cursor
-over `XPathLexicalToken` that skips trivia only at grammar boundaries, retains
-the original token index and byte range, and returns a typed package parse error
-containing expected terminals, the found token, and the narrowest source range.
-The parser must never re-tokenize source text.
+Start the Option C transform-boundary migration with native input artifact
+identity. Add red tests around the private `load_transform_data_artifact` entry
+in `real.rs` before changing its implementation. The tests must prove that a
+lifecycle-loaded JSON document retains duplicate object members and number
+lexemes, an XML document retains event/node/source identity, and both arrive as
+their exact `LoadedInputAstStream` variants rather than as
+`projection::dom_json` values. Add a narrow source audit for that entry as a
+regression tripwire, but treat Rust types as the primary enforcement.
 
-Implement the currently represented grammar as recursive-descent productions:
-expression sequences and `for`, an explicit precedence-climbing table for every
-`XPathBinaryOperator`, rooted and relative paths, abbreviated and explicit axes,
-node tests, predicates, literals, variable references, context items, real
-parenthesized expressions, function calls, map/array constructors, and postfix
-argument/lookup forms. Resolve EQNames from the attachment static context while
-building `XPathName`; report unknown prefixes through the existing schema-owned
-fact instead of through a foreign parser error. Preserve host-adjusted ranges
-and derive syntax events only from the resulting CEM AST.
+Introduce the dependency-neutral artifact contract in a dedicated CEM-ML
+module, not in an adapter crate: `TransformDataArtifact` plus a non-serializable
+`TransformArtifactBody`. The first core variants should retain a native
+lifecycle stream, native CEM document, typed collection, and encoded bytes via
+`Arc`; representation and content identity remain separate fields. Re-export
+the public contract where existing adapter imports require a staged source
+migration. Do not add a parallel `serde_json::Value`, `LegacyValue`, or generic
+property-bag variant: that would preserve the boundary Option C is intended to
+remove.
 
-Add red AST-parity tests first for every passing package example, operator
-precedence and associativity, commas inside sequences versus argument lists,
-absolute path roots, parentheses that change precedence, wildcard/EQName name
-tests, and malformed expected/found ranges. Run the CEM parser in test shadow
-mode against the pinned Xee result until these cases normalize to the same CEM
-AST. Then switch production parsing to the CEM parser and add a source audit
-proving non-test XPath code has no `xee_xpath_*` reference. Productions not yet
-modeled by `XPathSyntaxAst` must remain explicit typed, range-bearing gaps; they
-must not trigger source reparsing, JSON projection, or generic property bags.
+Change `load_transform_data_artifact` to consume `loaded.ast_stream` directly.
+Only CEM inputs that do not yet have a lifecycle stream may enter through the
+native `CemDocument` body; they must not use DOM JSON as an intermediate. Add
+typed collection records that retain ordered child artifacts and graph input
+metadata by reference, then migrate the `collect` join first. Constructors must
+reject encoded JSON unless the artifact has an explicit registered JSON or
+`+json` identity. Keep report/config JSON DTOs outside this data-plane type.
 
-After all existing XPath lifecycle and schema-package fixtures pass through the
-CEM parser, remove `xee-xpath-ast` from runtime dependencies and retain both Xee
-crates only as test or provenance references until broader XPath 3.1/QT3 parity
-allows the oracle to be removed. Run package verification, lint, native build,
-and WASM build before closing the parser subitem. Do not add Xot or an
-evaluator/compiler/interpreter dependency in this slice.
-
-Before registering XPath execution, complete the Option C transform-boundary
-migration listed immediately after XPath. The first implementation slice is a
-red test proving `load_transform_data_artifact` retains the exact native
-`LoadedInputAstStream` body and never calls `projection::dom_json`. The XPath
-compiler/evaluator can begin only after typed graph routing and adapter dispatch
-make that invariant structural rather than conventional.
+This is the first structural slice, not an adapter projection exercise. CEM-QL,
+CEMT, and XSLT consumers should initially fail with explicit unsupported
+representation diagnostics until their typed views are migrated; they must not
+restore compatibility by projecting native bodies to `Value`. Finish the slice
+with focused load/join tests, the source audit, native tests, and WASM build.
+The following work item will replace CEM-QL `value_to_stream` ingress with lazy
+typed views and then migrate output artifacts.
 
 ## Current Verification Commands
 

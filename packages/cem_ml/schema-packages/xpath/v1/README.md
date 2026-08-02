@@ -33,13 +33,16 @@ scanner follows the normative XPath 3.1 lexical grammar and does not call Xee.
 The pinned `xee-xpath-lexer` crate is a development-only differential oracle
 for package examples and ambiguous lexical boundaries.
 
-The pinned `xee-xpath-ast` parser remains transitional. Before executable XPath
-is registered, the package will own its parser, compiler, and evaluator. The
+The CEM-owned recursive-descent parser consumes the scanner token stream
+directly, resolves names from the attachment static context, and constructs the
+typed package AST without reparsing or an intermediate representation. The
+`xee-xpath-ast` and `xee-xpath-lexer` crates are development-only differential
+oracles for the completed grammar slices. The
 [Xee source pinned at commit `200b1e3356ea9d6dd2901d67bd941b779df7e5b7`](https://github.com/Paligo/xee/tree/200b1e3356ea9d6dd2901d67bd941b779df7e5b7)
-is an MIT-licensed, non-normative implementation reference. The parser crate is
-a temporary implementation detail, never an AST or execution boundary. XPath
-3.1, XDM 3.1, and Functions and Operators 3.1 remain normative, and adapted
-implementation ideas require recorded source provenance and license review.
+is an MIT-licensed, non-normative implementation reference, never an AST or
+execution boundary. XPath 3.1, XDM 3.1, and Functions and Operators 3.1 remain
+normative, and adapted implementation ideas require recorded source provenance
+and license review.
 
 Full XPath 3.1 is the accepted destination. Delivery is staged through explicit
 conformance slices and the schema-owned
@@ -53,13 +56,11 @@ typed names, literals, operators, sequence types, paths, steps, node tests,
 maps, arrays, and function items. The lossless token stream remains a separate
 source-fidelity artifact. XSLT, CEMT, and CEM-QL fusion consumes a derived
 start/end syntax event stream rather than weakening the primary AST into a
-generic property bag. During migration, Xee parser output is parser-local and
-must be lowered immediately; no Xee type crosses the package AST boundary.
-The first lowering slice now represents rooted and relative paths, axes, node
-tests, predicates, variables, binary operators, function calls, maps, arrays,
-typed names/literals, and host-adjusted ranges directly. Its balanced syntax
-events are derived from that tree. The public syntax module has no Xee, serde,
-Xot, or JSON representation dependency.
+generic property bag. The current parser slice represents rooted and relative
+paths, axes, node tests, predicates, variables, binary operators, function
+calls, maps, arrays, typed names/literals, and host-adjusted ranges directly.
+Its balanced syntax events are derived from that tree. The runtime parser and
+public syntax module have no Xee, serde, Xot, or JSON representation dependency.
 
 The lifecycle stream emits one zero-width `start-expression` event, one event
 for each lossless token, and one zero-width `end-expression` event. Token events
@@ -150,14 +151,11 @@ handoff, lifecycle loading, no-fallback validation, and host-attachment tests,
 verifies the full-destination conformance matrix, mixed result artifacts and
 evaluator capability rejection, verifies embedded catalog identity, and checks
 that README examples use fenced XPath source with no SVG fallback.
-`yarn nx run cem_ml:build:wasm` verifies that the transitional parser dependency
-stack remains compatible with the browser WASM target.
+`yarn nx run cem_ml:build:wasm` verifies that the CEM-owned scanner and parser
+remain compatible with the browser WASM target.
 
 ## Tracked Incomplete Work
 
-- Replace the transitional Xee parser with a CEM-owned parser over the existing
-  CEM token and syntax AST types, using pinned Xee source only as a reference
-  and parity oracle.
 - Remove the implicit JSON transform boundary before executable XPath work.
 - Implement a CEM-owned XPath 3.1 compiler/evaluator and prove native/WASM AST
   consumption through CEM-only resolver and safety capabilities.
