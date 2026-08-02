@@ -19,7 +19,7 @@ impl Severity {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Diagnostic {
     pub uri: Option<String>,
     pub line: Option<u32>,

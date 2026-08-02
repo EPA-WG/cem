@@ -8901,7 +8901,7 @@ pub fn compose_transform_template_encoded_text_artifacts(
 
     let mut artifact = TransformTemplateEncodedArtifact {
         identity,
-        value: Value::String(output),
+        value: TransformTemplateEncodedArtifactPayload::Text(output),
         source_map,
         output_spans,
         encoded: true,
@@ -9002,7 +9002,7 @@ pub(crate) fn transform_template_apply_output_final_newline_policy(
     if rules.writer_boundaries.final_newline != TransformTemplateFinalNewlinePolicy::Required {
         return;
     }
-    let Value::String(output) = &mut artifact.value else {
+    let TransformTemplateEncodedArtifactPayload::Text(output) = &mut artifact.value else {
         return;
     };
     transform_template_ensure_text_ends_with_newline(output);
@@ -9113,9 +9113,9 @@ fn transform_template_writer_token_artifact_to_text(
     artifact: &TransformTemplateEncodedArtifact,
     writer_boundary_context: &TransformTemplateEncodedArtifactInsertionContext,
 ) -> Result<TransformTemplateEncodedArtifact, String> {
-    let token_stream: TransformTemplateWriterTokenStream =
-        serde_json::from_value(artifact.value.clone())
-            .map_err(|error| format!("token stream envelope is invalid: {error}"))?;
+    let tokens = artifact
+        .writer_tokens()
+        .ok_or_else(|| "token stream envelope is not a typed token payload".to_owned())?;
     let mut color_identity = artifact.identity.clone();
     if writer_boundary_context.color_profile.is_some() {
         color_identity.color_profile = writer_boundary_context.color_profile.clone();
@@ -9124,14 +9124,14 @@ fn transform_template_writer_token_artifact_to_text(
         color_identity.color_capability = writer_boundary_context.color_capability.clone();
     }
     let color_profile = transform_template_writer_token_color_profile(
-        &artifact.value,
+        artifact.value.as_runtime_value(),
         &color_identity,
         writer_boundary_context.output_color_type.as_deref(),
     );
     let mut text = String::new();
     let mut token_output_spans = Vec::new();
     let mut has_token_output_spans = false;
-    for (index, token) in token_stream.tokens.iter().enumerate() {
+    for (index, token) in tokens.iter().enumerate() {
         let Some(token_text) = token.text.as_deref() else {
             return Err(format!(
                 "`tokens[{index}]` has no text for the default token-to-text writer adapter"
@@ -9169,7 +9169,7 @@ fn transform_template_writer_token_artifact_to_text(
 
     Ok(TransformTemplateEncodedArtifact {
         identity,
-        value: Value::String(text),
+        value: TransformTemplateEncodedArtifactPayload::Text(text),
         source_map,
         output_spans,
         encoded: true,
@@ -9183,7 +9183,7 @@ enum TransformTemplateWriterTokenColorProfile {
 }
 
 fn transform_template_writer_token_color_profile(
-    value: &Value,
+    value: Option<&Value>,
     identity: &TransformTemplateEncodedArtifactIdentity,
     output_color_type: Option<&str>,
 ) -> Option<TransformTemplateWriterTokenColorProfile> {
@@ -9210,10 +9210,12 @@ fn transform_template_writer_token_color_profile(
         return None;
     }
 
-    match trimmed_value_string_field(value, "colorOutput") {
+    match value.and_then(|value| trimmed_value_string_field(value, "colorOutput")) {
         Some("html") => {
             let selector = trimmed_optional_str(identity.color_profile.as_deref())
-                .or_else(|| trimmed_value_string_field(value, "colorProfile"))
+                .or_else(|| {
+                    value.and_then(|value| trimmed_value_string_field(value, "colorProfile"))
+                })
                 .unwrap_or("html");
             let profile = TransformTemplateColorOutputProfile::html_from_selector(selector).ok()?;
             (!profile.no_color && profile.output == TransformTemplateColorOutputKind::Html)
@@ -9221,9 +9223,13 @@ fn transform_template_writer_token_color_profile(
         }
         Some("terminal") | None => {
             let selector = trimmed_optional_str(identity.color_capability.as_deref())
-                .or_else(|| trimmed_value_string_field(value, "colorCapability"))
+                .or_else(|| {
+                    value.and_then(|value| trimmed_value_string_field(value, "colorCapability"))
+                })
                 .or_else(|| trimmed_optional_str(identity.color_profile.as_deref()))
-                .or_else(|| trimmed_value_string_field(value, "colorProfile"))?;
+                .or_else(|| {
+                    value.and_then(|value| trimmed_value_string_field(value, "colorProfile"))
+                })?;
             let profile =
                 TransformTemplateColorOutputProfile::terminal_from_selector(selector).ok()?;
             (!profile.no_color
@@ -9300,11 +9306,11 @@ fn transform_template_writer_token_color_role(
 fn transform_template_writer_chunk_artifact_to_text(
     artifact: &TransformTemplateEncodedArtifact,
 ) -> Result<TransformTemplateEncodedArtifact, String> {
-    let chunk_stream: TransformTemplateWriterChunkStream =
-        serde_json::from_value(artifact.value.clone())
-            .map_err(|error| format!("chunk stream envelope is invalid: {error}"))?;
+    let chunks = artifact
+        .writer_chunks()
+        .ok_or_else(|| "chunk stream envelope is not a typed chunk payload".to_owned())?;
     let mut text = String::new();
-    for (index, chunk) in chunk_stream.chunks.iter().enumerate() {
+    for (index, chunk) in chunks.iter().enumerate() {
         if !chunk.bytes.is_empty() {
             return Err(format!(
                 "`chunks[{index}]` contains bytes and cannot use the default chunk-to-text writer adapter"
@@ -9330,7 +9336,7 @@ fn transform_template_writer_chunk_artifact_to_text(
 
     Ok(TransformTemplateEncodedArtifact {
         identity,
-        value: Value::String(text),
+        value: TransformTemplateEncodedArtifactPayload::Text(text),
         source_map,
         output_spans,
         encoded: true,
@@ -9341,13 +9347,15 @@ fn transform_template_writer_cem_tree_artifact_to_text(
     artifact: &TransformTemplateEncodedArtifact,
     writer_boundary_context: &TransformTemplateEncodedArtifactInsertionContext,
 ) -> Result<TransformTemplateEncodedArtifact, String> {
-    validate_cem_tree_value(&artifact.value)
+    let value = artifact
+        .value
+        .as_runtime_value()
+        .ok_or_else(|| "CEM tree envelope is not a runtime tree payload".to_owned())?;
+    validate_cem_tree_value(value)
         .map_err(|message| format!("CEM tree envelope is invalid: {message}"))?;
     validate_cem_tree_writer_boundary(artifact, writer_boundary_context)?;
-    let rendered = transform_template_cem_tree_value_to_rendered_text(
-        &artifact.value,
-        writer_boundary_context,
-    )?;
+    let rendered =
+        transform_template_cem_tree_value_to_rendered_text(value, writer_boundary_context)?;
 
     let mut identity =
         transform_template_writer_text_identity_from_context(artifact, writer_boundary_context);
@@ -9371,7 +9379,7 @@ fn transform_template_writer_cem_tree_artifact_to_text(
 
     Ok(TransformTemplateEncodedArtifact {
         identity,
-        value: Value::String(rendered.text),
+        value: TransformTemplateEncodedArtifactPayload::Text(rendered.text),
         source_map,
         output_spans,
         encoded: true,
@@ -9382,9 +9390,13 @@ fn validate_cem_tree_writer_boundary(
     artifact: &TransformTemplateEncodedArtifact,
     writer_boundary_context: &TransformTemplateEncodedArtifactInsertionContext,
 ) -> Result<(), String> {
+    let value = artifact
+        .value
+        .as_runtime_value()
+        .ok_or_else(|| "CEM tree envelope is not a runtime tree payload".to_owned())?;
     let identity_formatter_profile =
         trimmed_optional_str(artifact.identity.formatter_profile.as_deref());
-    let value_formatter_profile = trimmed_value_string_field(&artifact.value, "formatterProfile");
+    let value_formatter_profile = trimmed_value_string_field(value, "formatterProfile");
     let formatter_profile = identity_formatter_profile
         .or(value_formatter_profile)
         .ok_or_else(|| {
@@ -9407,11 +9419,11 @@ fn validate_cem_tree_writer_boundary(
             ));
         }
     }
-    validate_cem_tree_formatter_metadata(&artifact.value, formatter_profile)?;
+    validate_cem_tree_formatter_metadata(value, formatter_profile)?;
 
     let identity_color_profile = trimmed_optional_str(artifact.identity.color_profile.as_deref());
-    let value_color_profile = trimmed_value_string_field(&artifact.value, "colorProfile");
-    let colored = artifact.value.get("colored").and_then(Value::as_bool) == Some(true);
+    let value_color_profile = trimmed_value_string_field(value, "colorProfile");
+    let colored = value.get("colored").and_then(Value::as_bool) == Some(true);
     let writer_color_profile =
         trimmed_optional_str(writer_boundary_context.color_profile.as_deref());
     let color_requested = colored
@@ -9449,7 +9461,7 @@ fn validate_cem_tree_writer_boundary(
     }
     if let (Some(identity), Some(value)) = (
         trimmed_optional_str(artifact.identity.color_capability.as_deref()),
-        trimmed_value_string_field(&artifact.value, "colorCapability"),
+        trimmed_value_string_field(value, "colorCapability"),
     ) {
         if identity != value {
             return Err(format!(
@@ -9457,7 +9469,7 @@ fn validate_cem_tree_writer_boundary(
             ));
         }
     }
-    validate_cem_tree_color_metadata(&artifact.value, color_profile)?;
+    validate_cem_tree_color_metadata(value, color_profile)?;
 
     Ok(())
 }
@@ -11562,7 +11574,7 @@ fn transform_template_cem_tree_writer_token_color_profile(
     identity.color_profile = writer_boundary_context.color_profile.clone();
     identity.color_capability = writer_boundary_context.color_capability.clone();
     transform_template_writer_token_color_profile(
-        value,
+        Some(value),
         &identity,
         writer_boundary_context.output_color_type.as_deref(),
     )
@@ -11873,7 +11885,7 @@ fn diagnostic_for_evaluated_encode_value_type(
         severity: Severity::Error,
         message: format!(
             "encoded text artifact expected string value, got {}",
-            json_value_type_name(&evaluated.artifact.value)
+            evaluated.artifact.value.value_type_name()
         ),
         details: None,
         ..Diagnostic::default()
@@ -12042,8 +12054,9 @@ where
             if request.requires_color_binding()
                 || transform_template_encode_options_request_color(&request.options)
             {
+                let formatted_value = artifact.value.to_runtime_value();
                 let color_request = TransformTemplateEncodeBindingRequest {
-                    subject: artifact.value.clone(),
+                    subject: formatted_value.clone(),
                     owner: request.owner.clone(),
                     subject_type: Some("cem-tree".to_owned()),
                     target: request.target.clone(),
@@ -12086,7 +12099,7 @@ where
                 };
                 let colored_output = match execute_transform_template_encode_binding(
                     &color_binding,
-                    &artifact.value,
+                    &formatted_value,
                     &context,
                     &mut encode_impl,
                 ) {
@@ -13241,7 +13254,7 @@ pub struct TransformTemplateWriterChunkStream {
     pub chunks: Vec<TransformTemplateWriterChunk>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct TransformTemplateWriterDiagnostics {
     pub diagnostics: Vec<Diagnostic>,
@@ -18998,7 +19011,7 @@ impl TransformTemplateEncodedArtifactIdentity {
 #[serde(rename_all = "camelCase")]
 pub struct TransformTemplateEncodedArtifact {
     pub identity: TransformTemplateEncodedArtifactIdentity,
-    pub value: Value,
+    pub value: TransformTemplateEncodedArtifactPayload,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub source_map: Option<SourceMapStack>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
@@ -19007,8 +19020,156 @@ pub struct TransformTemplateEncodedArtifact {
     pub encoded: bool,
 }
 
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum TransformTemplateEncodedArtifactPayload {
+    Text(String),
+    Bytes(TransformTemplateWriterByteStream),
+    Tokens(TransformTemplateWriterTokenStream),
+    Chunks(TransformTemplateWriterChunkStream),
+    Diagnostics(TransformTemplateWriterDiagnostics),
+    Runtime(Value),
+}
+
+impl TransformTemplateEncodedArtifactPayload {
+    fn from_runtime_value(produces: TransformTemplateOutputProducedKind, value: Value) -> Self {
+        match produces {
+            TransformTemplateOutputProducedKind::Text => match value {
+                Value::String(text) => Self::Text(text),
+                value => Self::Runtime(value),
+            },
+            TransformTemplateOutputProducedKind::Bytes
+                if validate_writer_byte_stream_value(&value).is_ok() =>
+            {
+                serde_json::from_value(value.clone())
+                    .map(Self::Bytes)
+                    .unwrap_or(Self::Runtime(value))
+            }
+            TransformTemplateOutputProducedKind::Tokens
+                if validate_writer_token_stream_value(&value).is_ok() =>
+            {
+                serde_json::from_value(value.clone())
+                    .map(Self::Tokens)
+                    .unwrap_or(Self::Runtime(value))
+            }
+            TransformTemplateOutputProducedKind::Chunks
+                if validate_writer_chunk_stream_value(&value).is_ok() =>
+            {
+                serde_json::from_value(value.clone())
+                    .map(Self::Chunks)
+                    .unwrap_or(Self::Runtime(value))
+            }
+            TransformTemplateOutputProducedKind::Diagnostics => {
+                if validate_writer_diagnostics_value(&value).is_ok() {
+                    serde_json::from_value(value.clone())
+                        .map(Self::Diagnostics)
+                        .unwrap_or(Self::Runtime(value))
+                } else {
+                    Self::Runtime(value)
+                }
+            }
+            TransformTemplateOutputProducedKind::Bytes
+            | TransformTemplateOutputProducedKind::Tokens
+            | TransformTemplateOutputProducedKind::Chunks
+            | TransformTemplateOutputProducedKind::CemTree => Self::Runtime(value),
+        }
+    }
+
+    pub fn as_str(&self) -> Option<&str> {
+        match self {
+            Self::Text(text) => Some(text),
+            Self::Runtime(value) => value.as_str(),
+            _ => None,
+        }
+    }
+
+    pub fn as_runtime_value(&self) -> Option<&Value> {
+        match self {
+            Self::Runtime(value) => Some(value),
+            _ => None,
+        }
+    }
+
+    pub fn into_runtime_value(self) -> Value {
+        match self {
+            Self::Text(text) => Value::String(text),
+            Self::Bytes(stream) => {
+                serde_json::to_value(stream).expect("writer byte stream serializes")
+            }
+            Self::Tokens(stream) => {
+                serde_json::to_value(stream).expect("writer token stream serializes")
+            }
+            Self::Chunks(stream) => {
+                serde_json::to_value(stream).expect("writer chunk stream serializes")
+            }
+            Self::Diagnostics(stream) => {
+                serde_json::to_value(stream).expect("writer diagnostics serialize")
+            }
+            Self::Runtime(value) => value,
+        }
+    }
+
+    pub fn to_runtime_value(&self) -> Value {
+        self.clone().into_runtime_value()
+    }
+
+    pub fn as_object_mut(&mut self) -> Option<&mut serde_json::Map<String, Value>> {
+        match self {
+            Self::Runtime(value) => value.as_object_mut(),
+            _ => None,
+        }
+    }
+
+    pub fn get(&self, key: &str) -> Option<&Value> {
+        self.as_runtime_value().and_then(|value| value.get(key))
+    }
+
+    pub fn get_mut(&mut self, key: &str) -> Option<&mut Value> {
+        match self {
+            Self::Runtime(value) => value.get_mut(key),
+            _ => None,
+        }
+    }
+
+    fn value_type_name(&self) -> &'static str {
+        match self {
+            Self::Text(_) => "string",
+            Self::Bytes(_) | Self::Tokens(_) | Self::Chunks(_) | Self::Diagnostics(_) => "object",
+            Self::Runtime(value) => json_value_type_name(value),
+        }
+    }
+}
+
+impl From<Value> for TransformTemplateEncodedArtifactPayload {
+    fn from(value: Value) -> Self {
+        Self::Runtime(value)
+    }
+}
+
+impl PartialEq<Value> for TransformTemplateEncodedArtifactPayload {
+    fn eq(&self, other: &Value) -> bool {
+        match self {
+            Self::Text(text) => other.as_str() == Some(text.as_str()),
+            Self::Runtime(value) => value == other,
+            _ => false,
+        }
+    }
+}
+
+impl std::ops::Index<&str> for TransformTemplateEncodedArtifactPayload {
+    type Output = Value;
+
+    fn index(&self, index: &str) -> &Self::Output {
+        &self
+            .as_runtime_value()
+            .expect("typed writer payload does not support JSON indexing")[index]
+    }
+}
+
 impl TransformTemplateEncodedArtifact {
     pub fn new(identity: TransformTemplateEncodedArtifactIdentity, value: Value) -> Self {
+        let value =
+            TransformTemplateEncodedArtifactPayload::from_runtime_value(identity.produces, value);
         Self {
             identity,
             value,
@@ -19023,11 +19184,15 @@ impl TransformTemplateEncodedArtifact {
         tokens: Vec<TransformTemplateWriterToken>,
     ) -> Self {
         identity.produces = TransformTemplateOutputProducedKind::Tokens;
-        Self::new(
+        Self {
             identity,
-            serde_json::to_value(TransformTemplateWriterTokenStream { tokens })
-                .expect("writer token stream serializes"),
-        )
+            value: TransformTemplateEncodedArtifactPayload::Tokens(
+                TransformTemplateWriterTokenStream { tokens },
+            ),
+            source_map: None,
+            output_spans: Vec::new(),
+            encoded: true,
+        }
     }
 
     pub fn from_writer_bytes(
@@ -19035,11 +19200,15 @@ impl TransformTemplateEncodedArtifact {
         bytes: Vec<u8>,
     ) -> Self {
         identity.produces = TransformTemplateOutputProducedKind::Bytes;
-        Self::new(
+        Self {
             identity,
-            serde_json::to_value(TransformTemplateWriterByteStream::new(bytes))
-                .expect("writer byte stream serializes"),
-        )
+            value: TransformTemplateEncodedArtifactPayload::Bytes(
+                TransformTemplateWriterByteStream::new(bytes),
+            ),
+            source_map: None,
+            output_spans: Vec::new(),
+            encoded: true,
+        }
     }
 
     pub fn from_writer_chunks(
@@ -19047,11 +19216,15 @@ impl TransformTemplateEncodedArtifact {
         chunks: Vec<TransformTemplateWriterChunk>,
     ) -> Self {
         identity.produces = TransformTemplateOutputProducedKind::Chunks;
-        Self::new(
+        Self {
             identity,
-            serde_json::to_value(TransformTemplateWriterChunkStream { chunks })
-                .expect("writer chunk stream serializes"),
-        )
+            value: TransformTemplateEncodedArtifactPayload::Chunks(
+                TransformTemplateWriterChunkStream { chunks },
+            ),
+            source_map: None,
+            output_spans: Vec::new(),
+            encoded: true,
+        }
     }
 
     pub fn from_writer_diagnostics(
@@ -19059,11 +19232,45 @@ impl TransformTemplateEncodedArtifact {
         diagnostics: Vec<Diagnostic>,
     ) -> Self {
         identity.produces = TransformTemplateOutputProducedKind::Diagnostics;
-        Self::new(
+        Self {
             identity,
-            serde_json::to_value(TransformTemplateWriterDiagnostics { diagnostics })
-                .expect("writer diagnostics serialize"),
-        )
+            value: TransformTemplateEncodedArtifactPayload::Diagnostics(
+                TransformTemplateWriterDiagnostics { diagnostics },
+            ),
+            source_map: None,
+            output_spans: Vec::new(),
+            encoded: true,
+        }
+    }
+
+    pub fn writer_tokens(&self) -> Option<&[TransformTemplateWriterToken]> {
+        match &self.value {
+            TransformTemplateEncodedArtifactPayload::Tokens(stream) => Some(&stream.tokens),
+            _ => None,
+        }
+    }
+
+    pub fn writer_chunks(&self) -> Option<&[TransformTemplateWriterChunk]> {
+        match &self.value {
+            TransformTemplateEncodedArtifactPayload::Chunks(stream) => Some(&stream.chunks),
+            _ => None,
+        }
+    }
+
+    pub fn writer_bytes(&self) -> Option<&TransformTemplateWriterByteStream> {
+        match &self.value {
+            TransformTemplateEncodedArtifactPayload::Bytes(stream) => Some(stream),
+            _ => None,
+        }
+    }
+
+    pub fn writer_diagnostics(&self) -> Option<&[Diagnostic]> {
+        match &self.value {
+            TransformTemplateEncodedArtifactPayload::Diagnostics(stream) => {
+                Some(&stream.diagnostics)
+            }
+            _ => None,
+        }
     }
 
     pub fn validate_insertion(
@@ -19188,7 +19395,7 @@ impl TransformTemplateEncodedArtifact {
         let Some(text) = self.value.as_str() else {
             return Err(TransformTemplateEncodedArtifactError::ValueShapeMismatch {
                 expected: "encoded text".to_owned(),
-                actual: json_value_type_name(&self.value).to_owned(),
+                actual: self.value.value_type_name().to_owned(),
             });
         };
         let identity = self.identity.format_identity();
@@ -19437,23 +19644,57 @@ impl TransformTemplateEncodedArtifactError {
 
 fn validate_encoded_artifact_value_shape(
     produces: TransformTemplateOutputProducedKind,
-    value: &Value,
+    value: &TransformTemplateEncodedArtifactPayload,
 ) -> Result<(), TransformTemplateEncodedArtifactError> {
-    let result = match produces {
-        TransformTemplateOutputProducedKind::Text => {
-            if value.is_string() {
-                Ok(())
-            } else {
-                Err(format!("{}", json_value_type_name(value)))
-            }
-        }
-        TransformTemplateOutputProducedKind::Bytes => validate_writer_byte_stream_value(value),
-        TransformTemplateOutputProducedKind::CemTree => validate_cem_tree_value(value),
-        TransformTemplateOutputProducedKind::Tokens => validate_writer_token_stream_value(value),
-        TransformTemplateOutputProducedKind::Chunks => validate_writer_chunk_stream_value(value),
-        TransformTemplateOutputProducedKind::Diagnostics => {
-            validate_writer_diagnostics_value(value)
-        }
+    let result = match (produces, value) {
+        (
+            TransformTemplateOutputProducedKind::Text,
+            TransformTemplateEncodedArtifactPayload::Text(_),
+        ) => Ok(()),
+        (
+            TransformTemplateOutputProducedKind::Bytes,
+            TransformTemplateEncodedArtifactPayload::Bytes(stream),
+        ) => validate_typed_writer_byte_stream(stream),
+        (
+            TransformTemplateOutputProducedKind::Tokens,
+            TransformTemplateEncodedArtifactPayload::Tokens(stream),
+        ) => validate_typed_writer_token_stream(stream),
+        (
+            TransformTemplateOutputProducedKind::Chunks,
+            TransformTemplateEncodedArtifactPayload::Chunks(stream),
+        ) => validate_typed_writer_chunk_stream(stream),
+        (
+            TransformTemplateOutputProducedKind::Diagnostics,
+            TransformTemplateEncodedArtifactPayload::Diagnostics(stream),
+        ) => validate_typed_writer_diagnostics(stream),
+        (
+            TransformTemplateOutputProducedKind::Text,
+            TransformTemplateEncodedArtifactPayload::Runtime(value),
+        ) => value
+            .is_string()
+            .then_some(())
+            .ok_or_else(|| json_value_type_name(value).to_owned()),
+        (
+            TransformTemplateOutputProducedKind::Bytes,
+            TransformTemplateEncodedArtifactPayload::Runtime(value),
+        ) => validate_writer_byte_stream_value(value),
+        (
+            TransformTemplateOutputProducedKind::CemTree,
+            TransformTemplateEncodedArtifactPayload::Runtime(value),
+        ) => validate_cem_tree_value(value),
+        (
+            TransformTemplateOutputProducedKind::Tokens,
+            TransformTemplateEncodedArtifactPayload::Runtime(value),
+        ) => validate_writer_token_stream_value(value),
+        (
+            TransformTemplateOutputProducedKind::Chunks,
+            TransformTemplateEncodedArtifactPayload::Runtime(value),
+        ) => validate_writer_chunk_stream_value(value),
+        (
+            TransformTemplateOutputProducedKind::Diagnostics,
+            TransformTemplateEncodedArtifactPayload::Runtime(value),
+        ) => validate_writer_diagnostics_value(value),
+        _ => Err(value.value_type_name().to_owned()),
     };
 
     result.map_err(
@@ -19462,6 +19703,83 @@ fn validate_encoded_artifact_value_shape(
             actual,
         },
     )
+}
+
+fn validate_typed_writer_token_stream(
+    stream: &TransformTemplateWriterTokenStream,
+) -> Result<(), String> {
+    for (index, token) in stream.tokens.iter().enumerate() {
+        if token.kind.trim().is_empty() {
+            return Err(format!(
+                "`tokens[{index}].kind` missing or not a non-empty string"
+            ));
+        }
+        for (name, value) in &token.style {
+            if name.trim().is_empty() {
+                return Err(format!(
+                    "`tokens[{index}].style` contains an empty style property name"
+                ));
+            }
+            if !(value.is_string() || value.is_boolean() || value.is_number()) {
+                return Err(format!(
+                    "`tokens[{index}].style.{name}` must be a string, boolean, or number"
+                ));
+            }
+        }
+        if token.text.is_none() && token.value.is_none() {
+            return Err(format!("`tokens[{index}]` missing `text` or `value`"));
+        }
+    }
+    Ok(())
+}
+
+fn validate_typed_writer_byte_stream(
+    stream: &TransformTemplateWriterByteStream,
+) -> Result<(), String> {
+    if stream.encoding != "u8-array" {
+        return Err(format!(
+            "unsupported byte stream encoding `{}`",
+            stream.encoding
+        ));
+    }
+    if stream.byte_length != stream.bytes.len() {
+        return Err(format!(
+            "`byteLength` does not match byte count `{}`",
+            stream.bytes.len()
+        ));
+    }
+    Ok(())
+}
+
+fn validate_typed_writer_chunk_stream(
+    stream: &TransformTemplateWriterChunkStream,
+) -> Result<(), String> {
+    for (index, chunk) in stream.chunks.iter().enumerate() {
+        if chunk.kind.trim().is_empty() {
+            return Err(format!(
+                "`chunks[{index}].kind` missing or not a non-empty string"
+            ));
+        }
+    }
+    Ok(())
+}
+
+fn validate_typed_writer_diagnostics(
+    stream: &TransformTemplateWriterDiagnostics,
+) -> Result<(), String> {
+    for (index, diagnostic) in stream.diagnostics.iter().enumerate() {
+        for (field, value) in [
+            ("code", diagnostic.code.as_str()),
+            ("message", diagnostic.message.as_str()),
+        ] {
+            if value.trim().is_empty() {
+                return Err(format!(
+                    "`diagnostics[{index}].{field}` missing or not a non-empty string"
+                ));
+            }
+        }
+    }
+    Ok(())
 }
 
 fn transform_template_produced_value_shape(
@@ -23169,7 +23487,7 @@ mod tests {
 
     fn evaluated_html_text(owner: &str, value: &str) -> TransformTemplateEvaluatedEncodeExpression {
         let mut artifact = encoded_html_text_artifact();
-        artifact.value = Value::String(value.to_owned());
+        artifact.value = TransformTemplateEncodedArtifactPayload::Text(value.to_owned());
         artifact.source_map = Some(source_map_stack(20, 4));
         artifact.output_spans = vec![output_span(0, value.len() as u32)];
 
@@ -23255,7 +23573,7 @@ mod tests {
 
         TransformTemplateEvaluatedEncodeExpression {
             expression,
-            subject: artifact.value.clone(),
+            subject: artifact.value.to_runtime_value(),
             binding,
             artifact,
         }
@@ -33405,7 +33723,14 @@ mod tests {
             "cem.color-tree"
         );
         assert_eq!(
-            cem_tree_color_decision(&evaluated.artifact.value, "profile")["value"],
+            cem_tree_color_decision(
+                evaluated
+                    .artifact
+                    .value
+                    .as_runtime_value()
+                    .expect("colored CEM tree has a runtime payload"),
+                "profile",
+            )["value"],
             "css-custom-properties"
         );
         assert_eq!(evaluated.artifact.value["nodes"][0]["name"], "card");
@@ -34170,7 +34495,8 @@ mod tests {
             }],
         };
         let mut native = cemt.clone();
-        native.encoded[0].artifact.value = Value::String("Hello & CEM".to_owned());
+        native.encoded[0].artifact.value =
+            TransformTemplateEncodedArtifactPayload::Text("Hello & CEM".to_owned());
         native.diagnostics[0].code = "cem.transform_template.native_warning".to_owned();
 
         let diagnostics = validate_transform_template_cemt_native_encode_parity(
@@ -34317,7 +34643,7 @@ mod tests {
     #[test]
     fn encoded_text_artifact_composition_rejects_non_string_text_value() {
         let mut evaluated = evaluated_html_text("body", "CEM");
-        evaluated.artifact.value = json!({"text": "CEM"});
+        evaluated.artifact.value = json!({"text": "CEM"}).into();
         let context = TransformTemplateEncodedArtifactInsertionContext::from_encoding_target(
             &evaluated.expression.target,
             Some(TransformTemplateOutputProducedKind::Text),
@@ -34755,8 +35081,9 @@ mod tests {
     #[test]
     fn encoded_text_artifact_composition_rebases_colored_cem_tree_writer_spans() {
         let mut evaluated = evaluated_colored_cem_tree("body");
-        evaluated.artifact.value = encode_colored_cem_tree_with_profile("css-custom-properties");
-        evaluated.subject = evaluated.artifact.value.clone();
+        evaluated.artifact.value =
+            encode_colored_cem_tree_with_profile("css-custom-properties").into();
+        evaluated.subject = evaluated.artifact.value.to_runtime_value();
         let mut context = TransformTemplateEncodedArtifactInsertionContext::new(
             HTML_CONTENT_TYPE,
             HTML_SCHEMA_URI,
@@ -34964,7 +35291,7 @@ mod tests {
             .and_then(Value::as_object_mut)
             .expect("colored element object")
             .remove("writerAttributeNodes");
-        evaluated.subject = evaluated.artifact.value.clone();
+        evaluated.subject = evaluated.artifact.value.to_runtime_value();
         let mut context = TransformTemplateEncodedArtifactInsertionContext::new(
             HTML_CONTENT_TYPE,
             HTML_SCHEMA_URI,
@@ -35003,7 +35330,7 @@ mod tests {
             .expect("colored wrapper object");
         wrapper.remove("colorWrapperNodes");
         wrapper.insert("colorWrapper".to_owned(), Value::Bool(true));
-        evaluated.subject = evaluated.artifact.value.clone();
+        evaluated.subject = evaluated.artifact.value.to_runtime_value();
         let mut context = TransformTemplateEncodedArtifactInsertionContext::new(
             HTML_CONTENT_TYPE,
             HTML_SCHEMA_URI,
@@ -35044,11 +35371,12 @@ mod tests {
         );
         second.artifact.source_map = Some(source_map_stack(40, 3));
         second.artifact.output_spans = vec![output_span(0, 10)];
-        assert_eq!(
-            second.artifact.value["tokens"][0]["style"]["color"],
-            "accent"
-        );
-        assert_eq!(second.artifact.value["tokens"][0]["style"]["strong"], true);
+        let second_tokens = second
+            .artifact
+            .writer_tokens()
+            .expect("typed token payload");
+        assert_eq!(second_tokens[0].style["color"], "accent");
+        assert_eq!(second_tokens[0].style["strong"], true);
         let context = TransformTemplateEncodedArtifactInsertionContext::from_encoding_target(
             &first.expression.target,
             Some(TransformTemplateOutputProducedKind::Text),
@@ -35299,12 +35627,10 @@ mod tests {
             token_artifact.identity.produces,
             TransformTemplateOutputProducedKind::Tokens
         );
-        assert_eq!(token_artifact.value["tokens"][0]["kind"], "syntax.name");
-        assert_eq!(
-            token_artifact.value["tokens"][0]["style"]["color"],
-            "syntax.element"
-        );
-        assert_eq!(token_artifact.value["tokens"][0]["style"]["emphasis"], true);
+        let token_payload = token_artifact.writer_tokens().expect("typed token payload");
+        assert_eq!(token_payload[0].kind, "syntax.name");
+        assert_eq!(token_payload[0].style["color"], "syntax.element");
+        assert_eq!(token_payload[0].style["emphasis"], true);
         token_artifact
             .validate_insertion(
                 &TransformTemplateEncodedArtifactInsertionContext::from_encoded_artifact_identity(
@@ -35324,8 +35650,9 @@ mod tests {
             byte_artifact.identity.produces,
             TransformTemplateOutputProducedKind::Bytes
         );
-        assert_eq!(byte_artifact.value["encoding"], "u8-array");
-        assert_eq!(byte_artifact.value["byteLength"], 3);
+        let byte_payload = byte_artifact.writer_bytes().expect("typed byte payload");
+        assert_eq!(byte_payload.encoding, "u8-array");
+        assert_eq!(byte_payload.byte_length, 3);
         byte_artifact
             .validate_insertion(
                 &TransformTemplateEncodedArtifactInsertionContext::from_encoded_artifact_identity(
@@ -35348,7 +35675,7 @@ mod tests {
             chunk_artifact.identity.produces,
             TransformTemplateOutputProducedKind::Chunks
         );
-        assert_eq!(chunk_artifact.value["chunks"][1]["sealed"], true);
+        assert!(chunk_artifact.writer_chunks().expect("typed chunk payload")[1].sealed);
         chunk_artifact
             .validate_insertion(
                 &TransformTemplateEncodedArtifactInsertionContext::from_encoded_artifact_identity(
@@ -35375,7 +35702,10 @@ mod tests {
             TransformTemplateOutputProducedKind::Diagnostics
         );
         assert_eq!(
-            diagnostic_artifact.value["diagnostics"][0]["code"],
+            diagnostic_artifact
+                .writer_diagnostics()
+                .expect("typed diagnostic payload")[0]
+                .code,
             "cem.writer.example"
         );
         diagnostic_artifact
@@ -35385,6 +35715,73 @@ mod tests {
                 ),
             )
             .expect("diagnostic stream value shape is valid");
+    }
+
+    #[test]
+    fn writer_artifacts_retain_ordered_typed_payloads_without_json_round_trips() {
+        let token_identity = TransformTemplateEncodedArtifactIdentity::new(
+            TransformTemplateOutputProducedKind::Tokens,
+            TransformTemplateEncodingTarget::new("text/plain", "urn:cem:test", "test"),
+        );
+        let tokens = vec![
+            TransformTemplateWriterToken::new("syntax.name").with_text("first"),
+            TransformTemplateWriterToken::new("syntax.space").with_text(" "),
+            TransformTemplateWriterToken::new("syntax.name").with_text("second"),
+        ];
+        let token_artifact =
+            TransformTemplateEncodedArtifact::from_writer_tokens(token_identity, tokens.clone());
+
+        assert_eq!(token_artifact.writer_tokens(), Some(tokens.as_slice()));
+        assert!(token_artifact.writer_chunks().is_none());
+
+        let chunk_identity = TransformTemplateEncodedArtifactIdentity::new(
+            TransformTemplateOutputProducedKind::Chunks,
+            TransformTemplateEncodingTarget::new("text/plain", "urn:cem:test", "test"),
+        );
+        let chunks = vec![
+            TransformTemplateWriterChunk::text("header", "first").with_id("c1"),
+            TransformTemplateWriterChunk::text("body", "second").with_id("c2"),
+        ];
+        let chunk_artifact =
+            TransformTemplateEncodedArtifact::from_writer_chunks(chunk_identity, chunks.clone());
+
+        assert_eq!(chunk_artifact.writer_chunks(), Some(chunks.as_slice()));
+        assert!(chunk_artifact.writer_tokens().is_none());
+    }
+
+    #[test]
+    fn writer_payload_pipeline_source_has_no_json_round_trip() {
+        let source = include_str!("transform_template.rs");
+        let writer_adapters = source
+            .split_once("fn transform_template_writer_token_artifact_to_text(")
+            .and_then(|(_, suffix)| {
+                suffix.split_once("fn transform_template_writer_cem_tree_artifact_to_text(")
+            })
+            .map(|(body, _)| body)
+            .expect("writer adapter source boundaries");
+        let decode_round_trip = ["serde_json::from_value(", "artifact.value.clone()"].concat();
+        assert!(
+            !writer_adapters.contains(&decode_round_trip),
+            "writer composition must consume typed payloads directly"
+        );
+
+        let writer_constructors = source
+            .split_once("impl TransformTemplateEncodedArtifact {")
+            .and_then(|(_, suffix)| suffix.split_once("    pub fn validate_insertion("))
+            .map(|(body, _)| body)
+            .expect("writer constructor source boundaries");
+        for payload_type in [
+            "TransformTemplateWriterTokenStream",
+            "TransformTemplateWriterByteStream",
+            "TransformTemplateWriterChunkStream",
+            "TransformTemplateWriterDiagnostics",
+        ] {
+            let encode_round_trip = format!("serde_json::to_value({payload_type}");
+            assert!(
+                !writer_constructors.contains(&encode_round_trip),
+                "writer constructor must retain typed {payload_type} payloads"
+            );
+        }
     }
 
     #[test]

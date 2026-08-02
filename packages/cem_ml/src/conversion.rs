@@ -3516,7 +3516,7 @@ fn execute_conversion_cem_tree_output_stage_body(
         ));
     };
 
-    Ok(Some(evaluated.artifact.value.clone()))
+    Ok(Some(evaluated.artifact.value.clone().into_runtime_value()))
 }
 
 fn execute_conversion_cem_tree_format_stage(
@@ -3836,8 +3836,14 @@ pub fn cemt_formatter_coloring_pipeline_package_fixture_source() -> Result<Strin
     crate::transform_template::render_cemt_formatter_coloring_pipeline_fixture(
         CEMT_FORMATTER_COLORING_PIPELINE_PACKAGE_SOURCE_URI,
         &source_ast,
-        &formatted.value,
-        &colored.value,
+        formatted
+            .value
+            .as_runtime_value()
+            .expect("formatted CEM tree has a runtime payload"),
+        colored
+            .value
+            .as_runtime_value()
+            .expect("colored CEM tree has a runtime payload"),
         colorizer,
     )
 }
@@ -4219,7 +4225,10 @@ pub fn execute_csv_document_output_pipeline_with_environment(
             &target,
             Some(color_profile),
             Some(colorizer_name),
-            &formatted_artifact.value,
+            formatted_artifact
+                .value
+                .as_runtime_value()
+                .expect("formatted CEM tree has a runtime payload"),
             "cem-tree",
             color_options,
         ) {
@@ -4233,7 +4242,10 @@ pub fn execute_csv_document_output_pipeline_with_environment(
             environment,
             color_stage,
             &color_binding,
-            &formatted_artifact.value,
+            formatted_artifact
+                .value
+                .as_runtime_value()
+                .expect("formatted CEM tree has a runtime payload"),
         );
         color_elapsed_ns = Some(color_started.elapsed().as_nanos());
         let (colored_output, color_execution) = match color_result {
@@ -4307,7 +4319,7 @@ pub fn execute_csv_document_output_pipeline_with_environment(
             target,
             options: TransformTemplateEncodeOptions::default(),
         },
-        subject: writer_artifact.value.clone(),
+        subject: writer_artifact.value.to_runtime_value(),
         binding: TransformTemplateEncodeBinding {
             function: if wants_color {
                 csv_output_function_descriptor(
@@ -4364,7 +4376,7 @@ pub fn execute_csv_document_output_pipeline_with_environment(
                 csv_wrap_html_preview_artifact(&mut artifact, presentation_options.tab_size);
             }
             ConversionOutputPipelineExecution {
-                output: Some(artifact.value),
+                output: Some(artifact.value.into_runtime_value()),
                 source_map: artifact.source_map,
                 output_spans: artifact.output_spans,
                 format_execution,
@@ -4880,7 +4892,10 @@ pub fn execute_yaml_document_output_pipeline_with_environment(
             &target,
             Some(color_profile),
             Some(colorizer_name),
-            &formatted_artifact.value,
+            formatted_artifact
+                .value
+                .as_runtime_value()
+                .expect("formatted CEM tree has a runtime payload"),
             "cem-tree",
             color_options,
         ) {
@@ -4892,7 +4907,10 @@ pub fn execute_yaml_document_output_pipeline_with_environment(
             environment,
             color_stage,
             &color_binding,
-            &formatted_artifact.value,
+            formatted_artifact
+                .value
+                .as_runtime_value()
+                .expect("formatted CEM tree has a runtime payload"),
         );
         color_elapsed_ns = Some(color_started.elapsed().as_nanos());
         let (colored_output, color_execution) = match color_result {
@@ -4978,7 +4996,7 @@ pub fn execute_yaml_document_output_pipeline_with_environment(
             target,
             options: TransformTemplateEncodeOptions::default(),
         },
-        subject: writer_artifact.value.clone(),
+        subject: writer_artifact.value.to_runtime_value(),
         binding: TransformTemplateEncodeBinding {
             function: yaml_output_function_descriptor(
                 if color_execution.is_some() {
@@ -5038,7 +5056,7 @@ pub fn execute_yaml_document_output_pipeline_with_environment(
                 yaml_wrap_html_preview_artifact(&mut artifact, presentation_options.tab_size);
             }
             ConversionOutputPipelineExecution {
-                output: Some(artifact.value),
+                output: Some(artifact.value.into_runtime_value()),
                 source_map: artifact.source_map,
                 output_spans: artifact.output_spans,
                 format_execution,
@@ -5525,7 +5543,10 @@ pub fn execute_json_document_output_pipeline_with_environment(
             &target,
             Some(color_profile),
             Some(colorizer_name),
-            &formatted_artifact.value,
+            formatted_artifact
+                .value
+                .as_runtime_value()
+                .expect("formatted CEM tree has a runtime payload"),
             "cem-tree",
             color_options,
         ) {
@@ -5537,7 +5558,10 @@ pub fn execute_json_document_output_pipeline_with_environment(
             environment,
             color_stage,
             &color_binding,
-            &formatted_artifact.value,
+            formatted_artifact
+                .value
+                .as_runtime_value()
+                .expect("formatted CEM tree has a runtime payload"),
         );
         color_elapsed_ns = Some(color_started.elapsed().as_nanos());
         let (colored_output, color_execution) = match color_result {
@@ -5623,7 +5647,7 @@ pub fn execute_json_document_output_pipeline_with_environment(
             target,
             options: TransformTemplateEncodeOptions::default(),
         },
-        subject: writer_artifact.value.clone(),
+        subject: writer_artifact.value.to_runtime_value(),
         binding: TransformTemplateEncodeBinding {
             function: json_output_function_descriptor(
                 if color_execution.is_some() {
@@ -5683,7 +5707,7 @@ pub fn execute_json_document_output_pipeline_with_environment(
                 json_wrap_html_preview_artifact(&mut artifact, presentation_options.tab_size);
             }
             ConversionOutputPipelineExecution {
-                output: Some(artifact.value),
+                output: Some(artifact.value.into_runtime_value()),
                 source_map: artifact.source_map,
                 output_spans: artifact.output_spans,
                 format_execution,
@@ -5873,7 +5897,10 @@ pub fn execute_json_schema_document_output_pipeline_with_environment(
             &target,
             Some(color_profile),
             Some(colorizer_name),
-            &formatted_artifact.value,
+            formatted_artifact
+                .value
+                .as_runtime_value()
+                .expect("formatted CEM tree has a runtime payload"),
             "cem-tree",
             color_options,
         ) {
@@ -5885,7 +5912,10 @@ pub fn execute_json_schema_document_output_pipeline_with_environment(
             environment,
             color_stage,
             &color_binding,
-            &formatted_artifact.value,
+            formatted_artifact
+                .value
+                .as_runtime_value()
+                .expect("formatted CEM tree has a runtime payload"),
         );
         color_elapsed_ns = Some(color_started.elapsed().as_nanos());
         let (colored_output, color_execution) = match color_result {
@@ -5971,7 +6001,7 @@ pub fn execute_json_schema_document_output_pipeline_with_environment(
             target,
             options: TransformTemplateEncodeOptions::default(),
         },
-        subject: writer_artifact.value.clone(),
+        subject: writer_artifact.value.to_runtime_value(),
         binding: TransformTemplateEncodeBinding {
             function: json_schema_output_function_descriptor(
                 if color_execution.is_some() {
@@ -6034,7 +6064,7 @@ pub fn execute_json_schema_document_output_pipeline_with_environment(
                 );
             }
             ConversionOutputPipelineExecution {
-                output: Some(artifact.value),
+                output: Some(artifact.value.into_runtime_value()),
                 source_map: artifact.source_map,
                 output_spans: artifact.output_spans,
                 format_execution,
@@ -6660,7 +6690,10 @@ pub fn execute_markdown_document_output_pipeline_with_environment(
             &target,
             Some(color_profile),
             Some(colorizer_name),
-            &formatted_artifact.value,
+            formatted_artifact
+                .value
+                .as_runtime_value()
+                .expect("formatted CEM tree has a runtime payload"),
             "cem-tree",
             color_options,
         ) {
@@ -6672,7 +6705,10 @@ pub fn execute_markdown_document_output_pipeline_with_environment(
             environment,
             color_stage,
             &color_binding,
-            &formatted_artifact.value,
+            formatted_artifact
+                .value
+                .as_runtime_value()
+                .expect("formatted CEM tree has a runtime payload"),
         );
         color_elapsed_ns = Some(color_started.elapsed().as_nanos());
         let (colored_output, color_execution) = match color_result {
@@ -6758,7 +6794,7 @@ pub fn execute_markdown_document_output_pipeline_with_environment(
             target,
             options: TransformTemplateEncodeOptions::default(),
         },
-        subject: writer_artifact.value.clone(),
+        subject: writer_artifact.value.to_runtime_value(),
         binding: TransformTemplateEncodeBinding {
             function: markdown_output_function_descriptor(
                 if color_execution.is_some() {
@@ -6818,7 +6854,7 @@ pub fn execute_markdown_document_output_pipeline_with_environment(
                 markdown_wrap_html_preview_artifact(&mut artifact, presentation_options.tab_size);
             }
             ConversionOutputPipelineExecution {
-                output: Some(artifact.value),
+                output: Some(artifact.value.into_runtime_value()),
                 source_map: artifact.source_map,
                 output_spans: artifact.output_spans,
                 format_execution,
@@ -7939,7 +7975,7 @@ fn conversion_output_pipeline_formatted_cem_tree_artifact(
             pipeline.cemt_target.clone(),
             &pipeline.cemt_options,
         ),
-        value: conversion_output_pipeline_formatted_cem_tree_value(pipeline, value),
+        value: conversion_output_pipeline_formatted_cem_tree_value(pipeline, value).into(),
         source_map,
         output_spans,
         encoded: true,
@@ -8192,7 +8228,7 @@ fn execute_conversion_output_pipeline_from_formatted_artifact(
             (formatted_artifact.clone(), writer_binding, None, None, None)
         } else {
             let color_request = TransformTemplateEncodeBindingRequest::new(
-                formatted_artifact.value.clone(),
+                formatted_artifact.value.to_runtime_value(),
                 pipeline.cemt_target.clone(),
             )
             .with_subject_type(conversion_output_pipeline_color_subject_type(
@@ -8221,7 +8257,10 @@ fn execute_conversion_output_pipeline_from_formatted_artifact(
             let color_result = execute_conversion_cem_tree_color_stage(
                 environment,
                 &color_binding,
-                &formatted_artifact.value,
+                formatted_artifact
+                    .value
+                    .as_runtime_value()
+                    .expect("formatted CEM tree has a runtime payload"),
             );
             let color_elapsed_ns = Some(color_started.elapsed().as_nanos());
             let (colored_output, color_execution) = match color_result {
@@ -8288,7 +8327,7 @@ fn execute_conversion_output_pipeline_from_formatted_artifact(
             target: pipeline.cemt_target.clone(),
             options: pipeline.cemt_options.clone(),
         },
-        subject: writer_artifact.value.clone(),
+        subject: writer_artifact.value.to_runtime_value(),
         binding: writer_binding,
         artifact: writer_artifact,
     };
@@ -8302,7 +8341,7 @@ fn execute_conversion_output_pipeline_from_formatted_artifact(
     diagnostics.extend(composition.diagnostics);
     match composition.artifact {
         Some(artifact) => ConversionOutputPipelineExecution {
-            output: Some(artifact.value),
+            output: Some(artifact.value.into_runtime_value()),
             source_map: artifact.source_map,
             output_spans: artifact.output_spans,
             format_execution,
@@ -19802,7 +19841,12 @@ mod tests {
                 );
             }
             assert_eq!(
-                writer_node_text(&colored.value),
+                writer_node_text(
+                    colored
+                        .value
+                        .as_runtime_value()
+                        .expect("colored CEM tree has a runtime payload"),
+                ),
                 plain_output.strip_suffix('\n').unwrap_or(plain_output)
             );
             let output = execution.output.as_ref().and_then(Value::as_str).unwrap();
@@ -20072,7 +20116,12 @@ mod tests {
                 );
             }
             assert_eq!(
-                writer_node_text(&colored.value),
+                writer_node_text(
+                    colored
+                        .value
+                        .as_runtime_value()
+                        .expect("colored CEM tree has a runtime payload"),
+                ),
                 plain_output.strip_suffix('\n').unwrap_or(plain_output)
             );
             let output = execution.output.as_ref().and_then(Value::as_str).unwrap();

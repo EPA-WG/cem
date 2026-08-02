@@ -929,6 +929,25 @@ Remaining dependency-ordered package checklist:
           add a source audit against generic JSON conversion.
     - [x] Restore native CEM-QL transform, expression, secondary-input, and
           graph behavior, then pass CEM-QL/core lint, test, and WASM gates.
+    - [ ] Replace the transitional CEMT value boundary with package-owned typed
+          tree-envelope and writer-payload contracts.
+      - [ ] Add red tests for CEM tree `Arc` identity, formatter/colorizer
+            metadata and source maps, ordered writer tokens/chunks, and explicit
+            rejection of generic JSON-value ingress.
+      - [x] Store text, byte, token, chunk, and diagnostic writer payloads as
+            typed artifact variants; validate and compose them directly without
+            constructor or writer-adapter JSON round trips.
+      - [ ] Make CEMT/native output-function implementations return typed
+            payloads directly; remove runtime-value classification and the
+            remaining byte-encoder serialization at the evaluator boundary.
+      - [ ] Define typed raw, formatted, and colored CEM tree envelopes with
+            ordered native nodes and lazy evaluator views over the owning AST.
+      - [ ] Route formatter, colorizer, writer, graph, and secondary-input
+            boundaries through typed CEMT artifacts; remove
+            `CemtOutputArtifact`, `transform_template_output_cemt_subject`, and
+            adapter DTO value conversion.
+      - [ ] Add CEMT source audits and pass focused package, core, converter
+            parity, CLI e2e, lint, native build/test, and WASM gates.
   - [ ] Represent JSON input internally with a lossless `JsonDocumentAst` and
         `JsonValueAst`, not `serde_json::Value`, preserving duplicate members,
         number lexemes, source ranges, diagnostics, and source maps.
@@ -981,19 +1000,38 @@ Remaining dependency-ordered package checklist:
 ### Next Work Item
 
 Replace the transitional `CemtOutputArtifact { value: serde_json::Value }`
-extension with a package-owned typed CEMT tree/result model. Start with red tests
-that preserve `Arc` identity, formatter/colorizer metadata, source maps, writer
-tokens and chunks, and stage-specific node order through format, color, writer,
+extension and `TransformTemplateEncodedArtifactPayload::Runtime(Value)` with a
+package-owned typed CEMT tree/result model. The writer artifact now stores text,
+bytes, tokens, chunks, and diagnostics as typed variants; retain that contract
+while removing the remaining evaluator-side runtime-value classification.
+
+Start with red tests that prove the raw envelope owns the same
+`Arc<CemTreeAstStream>` received from lifecycle/graph routing. Add formatted and
+colored tests that retain that owner identity while preserving source maps,
+formatter/colorizer identity and profile metadata, writer attributes/color
+wrappers, and exact stage-specific node order through format, color, writer,
 graph routing, and secondary-input dispatch.
 
-Define typed raw, formatted, and colored CEMT envelope variants plus typed node
-and token payloads. Make CEMT evaluator bindings consume lazy views over
-`CemTreeAstStream` or the typed CEMT envelope instead of `explicit_json_value`;
-remove `CemtOutputArtifact`, `transform_template_output_cemt_subject`, and
-adapter DTO `Value` conversion. Keep JSON solely in explicit JSON exporters and
-public response serialization. Then migrate CEMT graph ingress and query
-dispatch, add source audits, and run package formatter/colorizer parity,
-core/CLI, lint, and WASM gates.
+Model raw, formatted, and colored envelopes as explicit variants. Raw nodes are
+stable references into the owning AST stream; formatter and colorizer results
+are typed ordered overlays/deltas, including generated nodes with explicit
+generated provenance, rather than copied generic maps. Expose a lazy
+`CemtSubjectRef`/node-view API to evaluator bindings. Evaluator-local scalar,
+sequence, and record values may support expression evaluation, but they must
+not implement `TransformNativeArtifact` or cross an adapter/output boundary;
+stage builders must lower a result into the declared typed envelope or reject
+it. This prevents an evaluator record from becoming another implicit JSON AST.
+
+Change native and CEMT output-function execution to return a typed result enum,
+including direct byte/token/chunk variants, so
+`builtin_cem_bin_bytes_encoder`, `artifact_from_value`, and color-stage chaining
+do not serialize or classify `Value`. Remove `CemtOutputArtifact`,
+`transform_template_output_cemt_subject`, `explicit_json_value` CEMT ingress,
+and adapter DTO conversion. JSON serialization remains available only through
+registered JSON/`+json` exporters and public response serialization.
+
+Finish with graph/secondary-input routing tests, source audits, package
+formatter/colorizer parity, core/CLI tests, lint, native build, and WASM gates.
 
 After typed CEMT is complete, apply the same native output/input contract to
 XSLT result trees and XPath result association, then replace the params/defaults

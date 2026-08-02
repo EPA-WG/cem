@@ -14,10 +14,12 @@ use crate::source::ByteRange;
 use crate::source_map::SourceMapStack;
 use crate::transform_template::{
     transform_template_ensure_text_ends_with_newline, TransformTemplateEncodedArtifact,
-    TransformTemplateModuleVisibility, TransformTemplateOutputFunctionDescriptor,
-    TransformTemplateOutputFunctionImplementation, TransformTemplateOutputFunctionKind,
-    TransformTemplateOutputProducedKind, DEFAULT_FORMATTER_TAB_SIZE,
+    TransformTemplateEncodedArtifactPayload, TransformTemplateModuleVisibility,
+    TransformTemplateOutputFunctionDescriptor, TransformTemplateOutputFunctionImplementation,
+    TransformTemplateOutputFunctionKind, TransformTemplateOutputProducedKind,
+    DEFAULT_FORMATTER_TAB_SIZE,
 };
+#[cfg(test)]
 use serde_json::Value;
 
 pub const CONVERSION_OUTPUT_PIPELINE_EXECUTION_CODE: &str =
@@ -105,7 +107,7 @@ pub(crate) fn wrap_html_pre_container_artifact(
     }
     let mut wrapped = format!("{prefix}{text}</pre>");
     transform_template_ensure_text_ends_with_newline(&mut wrapped);
-    artifact.value = Value::String(wrapped);
+    artifact.value = TransformTemplateEncodedArtifactPayload::Text(wrapped);
 }
 
 #[cfg(test)]
