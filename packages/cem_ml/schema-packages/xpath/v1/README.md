@@ -46,6 +46,19 @@ matrix. Behavior outside a completed slice remains visible through stable typed
 diagnostics rather than silently inheriting omissions from the reference
 implementation.
 
+The primary syntax contract is a strongly typed W3C expression model with
+typed names, literals, operators, sequence types, paths, steps, node tests,
+maps, arrays, and function items. The lossless token stream remains a separate
+source-fidelity artifact. XSLT, CEMT, and CEM-QL fusion consumes a derived
+start/end syntax event stream rather than weakening the primary AST into a
+generic property bag. During migration, Xee parser output is parser-local and
+must be lowered immediately; no Xee type crosses the package AST boundary.
+The first lowering slice now represents rooted and relative paths, axes, node
+tests, predicates, variables, binary operators, function calls, maps, arrays,
+typed names/literals, and host-adjusted ranges directly. Its balanced syntax
+events are derived from that tree. The public syntax module has no Xee, serde,
+Xot, or JSON representation dependency.
+
 The lifecycle stream emits one zero-width `start-expression` event, one event
 for each lossless token, and one zero-width `end-expression` event. Token events
 retain their token index, delimiter depth, absolute host-adjusted range, and

@@ -1,3 +1,7 @@
+mod syntax;
+
+pub use syntax::*;
+
 use crate::diagnostics::{Diagnostic, Severity};
 use crate::resolver::{ResolverPolicy, ResolverRegistry};
 use crate::schema::document_model::compile_schema_document_model;
@@ -13,13 +17,13 @@ use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use std::collections::{BTreeMap, BTreeSet};
 use std::sync::OnceLock;
-use xee_xpath_ast::ast::XPath;
+use xee_xpath_ast::ast as xee_ast;
 use xee_xpath_ast::{Namespaces, ParserError, VariableNames, XPathParserContext};
 use xee_xpath_lexer::Token as XeeToken;
 
 const XPATH_PACKAGE_ID: &str = "xpath";
 const XPATH_FACT_BEHAVIOR: &str = "xpath-report-fact";
-pub const XPATH_GRAMMAR_VERSION: &str = "xpath-3.1/xee-0.1.4";
+pub const XPATH_GRAMMAR_VERSION: &str = "xpath-3.1/cem-ast-1";
 
 #[derive(Debug, Clone, Copy)]
 pub struct XPathSourceRequest<'a> {
@@ -891,17 +895,6 @@ impl XPathSchemaContractCatalog {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct XPathSyntaxAst {
-    root: XPath,
-}
-
-impl XPathSyntaxAst {
-    pub fn to_json(&self) -> Value {
-        serde_json::to_value(&self.root).expect("XPath AST must serialize")
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct XPathExpressionAst {
     pub source: XPathExpressionSource,
     pub source_text: Option<String>,
@@ -921,7 +914,7 @@ impl XPathExpressionAst {
             "contentType": self.source.media_type,
             "schema": XPATH_SCHEMA_URI,
             "category": "xpath-expression",
-            "grammarVersion": "xpath-3.1/xee-0.1.4",
+            "grammarVersion": XPATH_GRAMMAR_VERSION,
             "source": {
                 "uri": self.source.uri,
                 "contentType": self.source.content_type,
@@ -947,7 +940,11 @@ impl XPathExpressionAst {
                 "sourceRange": event.source_range.to_cemt_subject(),
                 "sourceMap": event.source_range.source_map(source_id, &self.source.media_type),
             })).collect::<Vec<_>>(),
-            "syntaxAst": self.syntax_ast.as_ref().map(XPathSyntaxAst::to_json),
+            "syntaxAst": self.syntax_ast.as_ref().map(|syntax| xpath_syntax_to_cemt_subject(
+                syntax,
+                source_id,
+                &self.source.media_type,
+            )),
             "parseFacts": self.facts.iter().map(|fact| json!({
                 "kind": fact.kind.as_str(),
                 "sourceRange": fact.source_range.map(XPathSourceRange::to_cemt_subject),
@@ -1116,7 +1113,10 @@ pub fn xpath_expression_ast_from_source_bytes(
                     message: "XPath 3.1 expression parsed successfully".to_owned(),
                     value: Some("xpath-3.1".to_owned()),
                 });
-                Some(XPathSyntaxAst { root })
+                Some(
+                    XPathSyntaxLowerer::new(source_text, &line_index, origin, &attachment)
+                        .lower(&root),
+                )
             }
             Err(error) => {
                 let span = error.span();
@@ -1577,6 +1577,547 @@ fn matching_open_delimiter(close: char) -> char {
     }
 }
 
+#[derive(Debug, Clone, Copy)]
+enum XPathNameUse {
+    Element,
+    Attribute,
+    Function,
+    Variable,
+}
+
+struct XPathSyntaxLowerer<'a> {
+    source: &'a str,
+    line_index: &'a LineIndex,
+    origin: XPathSourcePosition,
+    attachment: &'a XPathAttachment,
+}
+
+impl<'a> XPathSyntaxLowerer<'a> {
+    fn new(
+        source: &'a str,
+        line_index: &'a LineIndex,
+        origin: XPathSourcePosition,
+        attachment: &'a XPathAttachment,
+    ) -> Self {
+        Self {
+            source,
+            line_index,
+            origin,
+            attachment,
+        }
+    }
+
+    fn lower(&self, xpath: &xee_ast::XPath) -> XPathSyntaxAst {
+        XPathSyntaxAst::new(self.lower_expr_s(&xpath.0))
+    }
+
+    fn lower_expr_s(&self, expression: &xee_ast::ExprS) -> XPathExpressionSequence {
+        self.lower_expr(
+            &expression.value,
+            expression.span.start,
+            expression.span.end,
+        )
+    }
+
+    fn lower_expr(
+        &self,
+        expression: &xee_ast::Expr,
+        start: usize,
+        end: usize,
+    ) -> XPathExpressionSequence {
+        XPathExpressionSequence {
+            expressions: expression
+                .0
+                .iter()
+                .map(|expression| self.lower_expr_single(expression))
+                .collect(),
+            source_range: self.range(start, end),
+        }
+    }
+
+    fn lower_expr_single(&self, expression: &xee_ast::ExprSingleS) -> XPathExpressionNode {
+        let source_range = self.range(expression.span.start, expression.span.end);
+        if let xee_ast::ExprSingle::Path(path) = &expression.value {
+            if let Some(inner) = synthetic_wrapped_expression(path) {
+                let mut lowered = self.lower_expr_single(inner);
+                lowered.source_range = source_range;
+                return lowered;
+            }
+        }
+        let expression = match &expression.value {
+            xee_ast::ExprSingle::Path(path) => XPathExpression::Path(self.lower_path(
+                path,
+                expression.span.start,
+                expression.span.end,
+            )),
+            xee_ast::ExprSingle::Binary(binary) => XPathExpression::Binary {
+                operator: self.lower_binary_operator(binary.operator),
+                left: Box::new(self.lower_path_node(
+                    &binary.left,
+                    expression.span.start,
+                    expression.span.end,
+                )),
+                right: Box::new(self.lower_path_node(
+                    &binary.right,
+                    expression.span.start,
+                    expression.span.end,
+                )),
+            },
+            xee_ast::ExprSingle::For(for_expression) => XPathExpression::For {
+                binding: self.lower_name_s(&for_expression.var_name, XPathNameUse::Variable),
+                binding_expression: Box::new(self.lower_expr_single(&for_expression.var_expr)),
+                return_expression: Box::new(self.lower_expr_single(&for_expression.return_expr)),
+            },
+            xee_ast::ExprSingle::Apply(_) => XPathExpression::Unsupported {
+                production: "apply-expression".to_owned(),
+            },
+            xee_ast::ExprSingle::Let(_) => XPathExpression::Unsupported {
+                production: "let-expression".to_owned(),
+            },
+            xee_ast::ExprSingle::If(_) => XPathExpression::Unsupported {
+                production: "if-expression".to_owned(),
+            },
+            xee_ast::ExprSingle::Quantified(_) => XPathExpression::Unsupported {
+                production: "quantified-expression".to_owned(),
+            },
+        };
+        XPathExpressionNode {
+            expression,
+            source_range,
+        }
+    }
+
+    fn lower_path_node(
+        &self,
+        path: &xee_ast::PathExpr,
+        fallback_start: usize,
+        fallback_end: usize,
+    ) -> XPathExpressionNode {
+        if let Some(inner) = synthetic_wrapped_expression(path) {
+            return self.lower_expr_single(inner);
+        }
+        let path = self.lower_path(path, fallback_start, fallback_end);
+        XPathExpressionNode {
+            source_range: path.source_range,
+            expression: XPathExpression::Path(path),
+        }
+    }
+
+    fn lower_path(
+        &self,
+        path: &xee_ast::PathExpr,
+        fallback_start: usize,
+        fallback_end: usize,
+    ) -> XPathPathExpression {
+        let (start, end) = self.path_bounds(path, fallback_start, fallback_end);
+        let lexical = self.slice(start, end).trim_start();
+        let root = if lexical.starts_with("//") {
+            XPathPathRoot::RootedDescendant
+        } else if lexical.starts_with('/') {
+            XPathPathRoot::Rooted
+        } else {
+            XPathPathRoot::Relative
+        };
+        let synthetic_steps = match root {
+            XPathPathRoot::Relative => 0,
+            XPathPathRoot::Rooted => 1,
+            XPathPathRoot::RootedDescendant => 2,
+        };
+        XPathPathExpression {
+            root,
+            steps: path
+                .steps
+                .iter()
+                .skip(synthetic_steps)
+                .map(|step| self.lower_step(step))
+                .collect(),
+            source_range: self.range(start, end),
+        }
+    }
+
+    fn path_bounds(
+        &self,
+        path: &xee_ast::PathExpr,
+        fallback_start: usize,
+        fallback_end: usize,
+    ) -> (usize, usize) {
+        let mut spans = path
+            .steps
+            .iter()
+            .filter(|step| step.span.end > step.span.start);
+        let Some(first) = spans.next() else {
+            return (fallback_start, fallback_end);
+        };
+        let mut end = first.span.end;
+        for step in spans {
+            end = end.max(step.span.end);
+        }
+        (first.span.start, end)
+    }
+
+    fn lower_step(&self, step: &xee_ast::StepExprS) -> XPathStepNode {
+        let source_range = self.range(step.span.start, step.span.end);
+        let step = match &step.value {
+            xee_ast::StepExpr::AxisStep(axis_step) => XPathStep::Axis {
+                axis: self.lower_axis(&axis_step.axis),
+                node_test: self.lower_node_test(
+                    &axis_step.node_test,
+                    &axis_step.axis,
+                    step.span.start,
+                    step.span.end,
+                ),
+                predicates: axis_step
+                    .predicates
+                    .iter()
+                    .map(|predicate| self.lower_expr_s(predicate))
+                    .collect(),
+            },
+            xee_ast::StepExpr::PrimaryExpr(primary) => {
+                XPathStep::Primary(self.lower_primary(primary))
+            }
+            xee_ast::StepExpr::PostfixExpr { primary, postfixes } => XPathStep::Postfix {
+                primary: self.lower_primary(primary),
+                postfixes: postfixes
+                    .iter()
+                    .map(|postfix| self.lower_postfix(postfix))
+                    .collect(),
+            },
+        };
+        XPathStepNode { step, source_range }
+    }
+
+    fn lower_primary(&self, primary: &xee_ast::PrimaryExprS) -> XPathPrimaryExpression {
+        match &primary.value {
+            xee_ast::PrimaryExpr::Literal(literal) => XPathPrimaryExpression::Literal(
+                self.lower_literal(literal, primary.span.start, primary.span.end),
+            ),
+            xee_ast::PrimaryExpr::VarRef(_) => {
+                let lexical = self.slice(primary.span.start, primary.span.end);
+                let name_start = primary
+                    .span
+                    .start
+                    .saturating_add(lexical.find('$').map_or(0, |index| index + 1));
+                XPathPrimaryExpression::VariableReference(self.lower_name_range(
+                    name_start,
+                    primary.span.end,
+                    XPathNameUse::Variable,
+                ))
+            }
+            xee_ast::PrimaryExpr::Expr(expression) => {
+                XPathPrimaryExpression::Parenthesized(expression.value.as_ref().map(|expression| {
+                    Box::new(
+                        self.lower_expr(
+                            expression,
+                            expression
+                                .0
+                                .first()
+                                .map_or(primary.span.start, |item| item.span.start),
+                            expression
+                                .0
+                                .last()
+                                .map_or(primary.span.end, |item| item.span.end),
+                        ),
+                    )
+                }))
+            }
+            xee_ast::PrimaryExpr::ContextItem => XPathPrimaryExpression::ContextItem,
+            xee_ast::PrimaryExpr::FunctionCall(function) => XPathPrimaryExpression::FunctionCall {
+                name: self.lower_name_s(&function.name, XPathNameUse::Function),
+                arguments: function
+                    .arguments
+                    .iter()
+                    .map(|argument| self.lower_expr_single(argument))
+                    .collect(),
+            },
+            xee_ast::PrimaryExpr::MapConstructor(map) => XPathPrimaryExpression::MapConstructor {
+                entries: map
+                    .entries
+                    .iter()
+                    .map(|entry| XPathMapConstructorEntry {
+                        source_range: self.range(entry.key.span.start, entry.value.span.end),
+                        key: self.lower_expr_single(&entry.key),
+                        value: self.lower_expr_single(&entry.value),
+                    })
+                    .collect(),
+            },
+            xee_ast::PrimaryExpr::ArrayConstructor(array) => {
+                XPathPrimaryExpression::ArrayConstructor(match array {
+                    xee_ast::ArrayConstructor::Square(expression) => {
+                        XPathArrayConstructor::Square(self.lower_expr_s(expression))
+                    }
+                    xee_ast::ArrayConstructor::Curly(expression) => {
+                        XPathArrayConstructor::Curly(expression.value.as_ref().map(|expression| {
+                            Box::new(
+                                self.lower_expr(
+                                    expression,
+                                    expression
+                                        .0
+                                        .first()
+                                        .map_or(primary.span.start, |item| item.span.start),
+                                    expression
+                                        .0
+                                        .last()
+                                        .map_or(primary.span.end, |item| item.span.end),
+                                ),
+                            )
+                        }))
+                    }
+                })
+            }
+            xee_ast::PrimaryExpr::NamedFunctionRef(_) => XPathPrimaryExpression::Unsupported {
+                production: "named-function-reference".to_owned(),
+            },
+            xee_ast::PrimaryExpr::InlineFunction(_) => XPathPrimaryExpression::Unsupported {
+                production: "inline-function-expression".to_owned(),
+            },
+            xee_ast::PrimaryExpr::UnaryLookup(_) => XPathPrimaryExpression::Unsupported {
+                production: "unary-lookup".to_owned(),
+            },
+        }
+    }
+
+    fn lower_postfix(&self, postfix: &xee_ast::Postfix) -> XPathPostfixExpression {
+        match postfix {
+            xee_ast::Postfix::Predicate(expression) => {
+                XPathPostfixExpression::Predicate(self.lower_expr_s(expression))
+            }
+            xee_ast::Postfix::ArgumentList(arguments) => XPathPostfixExpression::ArgumentList(
+                arguments
+                    .iter()
+                    .map(|argument| self.lower_expr_single(argument))
+                    .collect(),
+            ),
+            xee_ast::Postfix::Lookup(key) => XPathPostfixExpression::Lookup {
+                lexical: self.key_specifier_lexical(key),
+            },
+        }
+    }
+
+    fn key_specifier_lexical(&self, key: &xee_ast::KeySpecifier) -> String {
+        match key {
+            xee_ast::KeySpecifier::NcName(name) => name.clone(),
+            xee_ast::KeySpecifier::Integer(integer) => integer.to_string(),
+            xee_ast::KeySpecifier::Expr(expression) => self
+                .slice(expression.span.start, expression.span.end)
+                .to_owned(),
+            xee_ast::KeySpecifier::Star => "*".to_owned(),
+        }
+    }
+
+    fn lower_literal(&self, literal: &xee_ast::Literal, start: usize, end: usize) -> XPathLiteral {
+        let (kind, value) = match literal {
+            xee_ast::Literal::Integer(value) => (XPathLiteralKind::Integer, value.to_string()),
+            xee_ast::Literal::Decimal(value) => (XPathLiteralKind::Decimal, value.to_string()),
+            xee_ast::Literal::Double(value) => (XPathLiteralKind::Double, value.to_string()),
+            xee_ast::Literal::String(value) => (XPathLiteralKind::String, value.clone()),
+        };
+        XPathLiteral {
+            kind,
+            lexical: self.slice(start, end).to_owned(),
+            value,
+        }
+    }
+
+    fn lower_axis(&self, axis: &xee_ast::Axis) -> XPathAxis {
+        match axis {
+            xee_ast::Axis::Ancestor => XPathAxis::Ancestor,
+            xee_ast::Axis::AncestorOrSelf => XPathAxis::AncestorOrSelf,
+            xee_ast::Axis::Attribute => XPathAxis::Attribute,
+            xee_ast::Axis::Child => XPathAxis::Child,
+            xee_ast::Axis::Descendant => XPathAxis::Descendant,
+            xee_ast::Axis::DescendantOrSelf => XPathAxis::DescendantOrSelf,
+            xee_ast::Axis::Following => XPathAxis::Following,
+            xee_ast::Axis::FollowingSibling => XPathAxis::FollowingSibling,
+            xee_ast::Axis::Namespace => XPathAxis::Namespace,
+            xee_ast::Axis::Parent => XPathAxis::Parent,
+            xee_ast::Axis::Preceding => XPathAxis::Preceding,
+            xee_ast::Axis::PrecedingSibling => XPathAxis::PrecedingSibling,
+            xee_ast::Axis::Self_ => XPathAxis::SelfAxis,
+        }
+    }
+
+    fn lower_node_test(
+        &self,
+        node_test: &xee_ast::NodeTest,
+        axis: &xee_ast::Axis,
+        start: usize,
+        end: usize,
+    ) -> XPathNodeTest {
+        match node_test {
+            xee_ast::NodeTest::NameTest(name_test) => XPathNodeTest::Name(match name_test {
+                xee_ast::NameTest::Name(name) => XPathNameTest::Name(self.lower_name_s(
+                    name,
+                    if matches!(axis, xee_ast::Axis::Attribute) {
+                        XPathNameUse::Attribute
+                    } else {
+                        XPathNameUse::Element
+                    },
+                )),
+                xee_ast::NameTest::Star => XPathNameTest::Any,
+                xee_ast::NameTest::LocalName(local_name) => XPathNameTest::AnyNamespace {
+                    local_name: local_name.clone(),
+                },
+                xee_ast::NameTest::Namespace(namespace_uri) => XPathNameTest::Namespace {
+                    namespace_uri: namespace_uri.clone(),
+                },
+            }),
+            xee_ast::NodeTest::KindTest(kind_test) => XPathNodeTest::Kind {
+                kind: self.lower_kind_test(kind_test),
+                lexical: self.node_test_lexical(start, end),
+            },
+        }
+    }
+
+    fn node_test_lexical(&self, start: usize, end: usize) -> String {
+        let step = self.slice(start, end);
+        let test = step.rsplit_once("::").map_or(step, |(_, test)| test);
+        test.split('[').next().unwrap_or(test).trim().to_owned()
+    }
+
+    fn lower_kind_test(&self, test: &xee_ast::KindTest) -> XPathKindTest {
+        match test {
+            xee_ast::KindTest::Document(_) => XPathKindTest::Document,
+            xee_ast::KindTest::Element(_) => XPathKindTest::Element,
+            xee_ast::KindTest::Attribute(_) => XPathKindTest::Attribute,
+            xee_ast::KindTest::SchemaElement(_) => XPathKindTest::SchemaElement,
+            xee_ast::KindTest::SchemaAttribute(_) => XPathKindTest::SchemaAttribute,
+            xee_ast::KindTest::PI(_) => XPathKindTest::ProcessingInstruction,
+            xee_ast::KindTest::Comment => XPathKindTest::Comment,
+            xee_ast::KindTest::Text => XPathKindTest::Text,
+            xee_ast::KindTest::NamespaceNode => XPathKindTest::NamespaceNode,
+            xee_ast::KindTest::Any => XPathKindTest::AnyNode,
+        }
+    }
+
+    fn lower_binary_operator(&self, operator: xee_ast::BinaryOperator) -> XPathBinaryOperator {
+        match operator {
+            xee_ast::BinaryOperator::Or => XPathBinaryOperator::Or,
+            xee_ast::BinaryOperator::And => XPathBinaryOperator::And,
+            xee_ast::BinaryOperator::ValueEq => XPathBinaryOperator::ValueEqual,
+            xee_ast::BinaryOperator::ValueNe => XPathBinaryOperator::ValueNotEqual,
+            xee_ast::BinaryOperator::ValueLt => XPathBinaryOperator::ValueLessThan,
+            xee_ast::BinaryOperator::ValueLe => XPathBinaryOperator::ValueLessThanOrEqual,
+            xee_ast::BinaryOperator::ValueGt => XPathBinaryOperator::ValueGreaterThan,
+            xee_ast::BinaryOperator::ValueGe => XPathBinaryOperator::ValueGreaterThanOrEqual,
+            xee_ast::BinaryOperator::GenEq => XPathBinaryOperator::GeneralEqual,
+            xee_ast::BinaryOperator::GenNe => XPathBinaryOperator::GeneralNotEqual,
+            xee_ast::BinaryOperator::GenLt => XPathBinaryOperator::GeneralLessThan,
+            xee_ast::BinaryOperator::GenLe => XPathBinaryOperator::GeneralLessThanOrEqual,
+            xee_ast::BinaryOperator::GenGt => XPathBinaryOperator::GeneralGreaterThan,
+            xee_ast::BinaryOperator::GenGe => XPathBinaryOperator::GeneralGreaterThanOrEqual,
+            xee_ast::BinaryOperator::Is => XPathBinaryOperator::NodeIs,
+            xee_ast::BinaryOperator::Precedes => XPathBinaryOperator::NodePrecedes,
+            xee_ast::BinaryOperator::Follows => XPathBinaryOperator::NodeFollows,
+            xee_ast::BinaryOperator::Concat => XPathBinaryOperator::Concatenate,
+            xee_ast::BinaryOperator::Range => XPathBinaryOperator::Range,
+            xee_ast::BinaryOperator::Add => XPathBinaryOperator::Add,
+            xee_ast::BinaryOperator::Sub => XPathBinaryOperator::Subtract,
+            xee_ast::BinaryOperator::Mul => XPathBinaryOperator::Multiply,
+            xee_ast::BinaryOperator::Div => XPathBinaryOperator::Divide,
+            xee_ast::BinaryOperator::IntDiv => XPathBinaryOperator::IntegerDivide,
+            xee_ast::BinaryOperator::Mod => XPathBinaryOperator::Modulo,
+            xee_ast::BinaryOperator::Union => XPathBinaryOperator::Union,
+            xee_ast::BinaryOperator::Intersect => XPathBinaryOperator::Intersect,
+            xee_ast::BinaryOperator::Except => XPathBinaryOperator::Except,
+            xee_ast::BinaryOperator::Comma => XPathBinaryOperator::Sequence,
+        }
+    }
+
+    fn lower_name_s(&self, name: &xee_ast::NameS, name_use: XPathNameUse) -> XPathName {
+        self.lower_name_range(name.span.start, name.span.end, name_use)
+    }
+
+    fn lower_name_range(&self, start: usize, end: usize, name_use: XPathNameUse) -> XPathName {
+        let lexical = self.slice(start, end).trim().trim_start_matches('$');
+        let (prefix, local_name, explicit_namespace) =
+            if let Some(rest) = lexical.strip_prefix("Q{") {
+                if let Some((namespace, local_name)) = rest.split_once('}') {
+                    (None, local_name.to_owned(), Some(namespace.to_owned()))
+                } else {
+                    (None, lexical.to_owned(), None)
+                }
+            } else if let Some((prefix, local_name)) = lexical.split_once(':') {
+                (Some(prefix.to_owned()), local_name.to_owned(), None)
+            } else {
+                (None, lexical.to_owned(), None)
+            };
+        let namespace_uri = explicit_namespace.or_else(|| match prefix.as_deref() {
+            Some(prefix) => self.namespace_for_prefix(prefix),
+            None => self.default_namespace(name_use),
+        });
+        XPathName {
+            lexical: lexical.to_owned(),
+            prefix,
+            local_name,
+            namespace_uri,
+            source_range: self.range(start, end),
+        }
+    }
+
+    fn namespace_for_prefix(&self, prefix: &str) -> Option<String> {
+        let host_namespace = match self.attachment {
+            XPathAttachment::Host(host) => host.static_context.namespaces.get(prefix).cloned(),
+            XPathAttachment::Standalone { .. } => None,
+        };
+        host_namespace.or_else(|| {
+            match prefix {
+                "xml" => Some("http://www.w3.org/XML/1998/namespace"),
+                "xs" => Some("http://www.w3.org/2001/XMLSchema"),
+                "fn" => Some("http://www.w3.org/2005/xpath-functions"),
+                "math" => Some("http://www.w3.org/2005/xpath-functions/math"),
+                "map" => Some("http://www.w3.org/2005/xpath-functions/map"),
+                "array" => Some("http://www.w3.org/2005/xpath-functions/array"),
+                "err" => Some("http://www.w3.org/2005/xqt-errors"),
+                "output" => Some("http://www.w3.org/2010/xslt-xquery-serialization"),
+                _ => None,
+            }
+            .map(str::to_owned)
+        })
+    }
+
+    fn default_namespace(&self, name_use: XPathNameUse) -> Option<String> {
+        let static_context = match self.attachment {
+            XPathAttachment::Host(host) => Some(&host.static_context),
+            XPathAttachment::Standalone { .. } => None,
+        };
+        match name_use {
+            XPathNameUse::Element => {
+                static_context.and_then(|context| context.default_element_namespace.clone())
+            }
+            XPathNameUse::Function => static_context
+                .and_then(|context| context.default_function_namespace.clone())
+                .or_else(|| Some("http://www.w3.org/2005/xpath-functions".to_owned())),
+            XPathNameUse::Attribute | XPathNameUse::Variable => None,
+        }
+    }
+
+    fn range(&self, start: usize, end: usize) -> XPathSourceRange {
+        XPathSourceRange::from_offsets(self.line_index, self.origin, start, end)
+    }
+
+    fn slice(&self, start: usize, end: usize) -> &str {
+        self.source.get(start..end).unwrap_or_default()
+    }
+}
+
+fn synthetic_wrapped_expression(path: &xee_ast::PathExpr) -> Option<&xee_ast::ExprSingleS> {
+    let [step] = path.steps.as_slice() else {
+        return None;
+    };
+    let xee_ast::StepExpr::PrimaryExpr(primary) = &step.value else {
+        return None;
+    };
+    let xee_ast::PrimaryExpr::Expr(wrapped) = &primary.value else {
+        return None;
+    };
+    let expression = wrapped.value.as_ref()?;
+    let [inner] = expression.0.as_slice() else {
+        return None;
+    };
+    (step.span == primary.span && primary.span == wrapped.span && inner.span == step.span)
+        .then_some(inner)
+}
+
 fn xpath_parser_context(attachment: &XPathAttachment) -> XPathParserContext {
     let mut namespaces = Namespaces::default();
     if let XPathAttachment::Host(host) = attachment {
@@ -1618,6 +2159,28 @@ fn xpath_parser_error_message(error: &ParserError) -> String {
             "XPath 3.1 expression did not match the grammar".to_owned()
         }
     }
+}
+
+fn xpath_syntax_to_cemt_subject(
+    syntax: &XPathSyntaxAst,
+    source_id: u32,
+    content_type: &str,
+) -> Value {
+    json!({
+        "kind": "xpath-syntax-ast",
+        "grammarVersion": XPATH_GRAMMAR_VERSION,
+        "rootKind": XPathSyntaxNodeKind::ExpressionSequence.as_str(),
+        "sourceRange": syntax.root.source_range.to_cemt_subject(),
+        "sourceMap": syntax.root.source_range.source_map(source_id, content_type),
+        "events": syntax.events.iter().map(|event| json!({
+            "index": event.index,
+            "kind": event.kind.as_str(),
+            "nodeKind": event.node_kind.as_str(),
+            "depth": event.depth,
+            "sourceRange": event.source_range.to_cemt_subject(),
+            "sourceMap": event.source_range.source_map(source_id, content_type),
+        })).collect::<Vec<_>>(),
+    })
 }
 
 fn xpath_attachment_to_cemt_subject(attachment: &XPathAttachment) -> Value {
@@ -1765,6 +2328,149 @@ mod tests {
             },
             XPathAttachment::Standalone { source_id: 7 },
         )
+    }
+
+    fn parsed_syntax(source: &str) -> XPathSyntaxAst {
+        parse(source)
+            .syntax_ast
+            .unwrap_or_else(|| panic!("expected parsed XPath syntax for `{source}`"))
+    }
+
+    #[test]
+    fn xpath_syntax_ast_lowers_paths_predicates_names_and_ranges_to_cem_types() {
+        let source = "/catalog/book[@lang = \"en\"]/title";
+        let syntax = parsed_syntax(source);
+
+        assert_eq!(syntax.root.expressions.len(), 1);
+        assert_eq!(
+            syntax.root.source_range,
+            XPathSourceRange::new(1, 1, 0, source.len() as u64)
+        );
+        let XPathExpression::Path(path) = &syntax.root.expressions[0].expression else {
+            panic!("expected a typed path expression");
+        };
+        assert_eq!(path.root, XPathPathRoot::Rooted);
+        let book_step = path
+            .steps
+            .iter()
+            .find_map(|step| match &step.step {
+                XPathStep::Axis {
+                    node_test: XPathNodeTest::Name(XPathNameTest::Name(name)),
+                    predicates,
+                    ..
+                } if name.local_name == "book" => Some((name, predicates)),
+                _ => None,
+            })
+            .expect("book axis step");
+        assert_eq!(book_step.0.lexical, "book");
+        assert_eq!(book_step.0.namespace_uri, None);
+        assert_eq!(book_step.1.len(), 1);
+        assert!(matches!(
+            book_step.1[0].expressions[0].expression,
+            XPathExpression::Binary {
+                operator: XPathBinaryOperator::GeneralEqual,
+                ..
+            }
+        ));
+    }
+
+    #[test]
+    fn xpath_syntax_ast_lowers_for_variables_and_function_calls() {
+        let source = "for $book in /catalog/book return normalize-space($book/title)";
+        let syntax = parsed_syntax(source);
+        let XPathExpression::For {
+            binding,
+            binding_expression,
+            return_expression,
+        } = &syntax.root.expressions[0].expression
+        else {
+            panic!("expected a typed for expression");
+        };
+
+        assert_eq!(binding.lexical, "book");
+        assert_eq!(binding.local_name, "book");
+        assert!(matches!(
+            binding_expression.expression,
+            XPathExpression::Path(_)
+        ));
+        let XPathExpression::Path(return_path) = &return_expression.expression else {
+            panic!("expected for return path");
+        };
+        let function = return_path.steps.iter().find_map(|step| match &step.step {
+            XPathStep::Primary(XPathPrimaryExpression::FunctionCall { name, arguments })
+            | XPathStep::Postfix {
+                primary: XPathPrimaryExpression::FunctionCall { name, arguments },
+                ..
+            } => Some((name, arguments)),
+            _ => None,
+        });
+        let (name, arguments) = function.expect("normalize-space function call");
+        assert_eq!(name.lexical, "normalize-space");
+        assert_eq!(
+            name.namespace_uri.as_deref(),
+            Some("http://www.w3.org/2005/xpath-functions")
+        );
+        assert_eq!(arguments.len(), 1);
+    }
+
+    #[test]
+    fn xpath_syntax_ast_lowers_map_and_array_constructors() {
+        let source = "map { \"titles\": array { /catalog/book/title/string() }, \"count\": count(/catalog/book) }";
+        let syntax = parsed_syntax(source);
+        let XPathExpression::Path(path) = &syntax.root.expressions[0].expression else {
+            panic!("expected constructor path wrapper");
+        };
+        let entries = path.steps.iter().find_map(|step| match &step.step {
+            XPathStep::Primary(XPathPrimaryExpression::MapConstructor { entries })
+            | XPathStep::Postfix {
+                primary: XPathPrimaryExpression::MapConstructor { entries },
+                ..
+            } => Some(entries),
+            _ => None,
+        });
+        let entries = entries.expect("map constructor");
+        assert_eq!(entries.len(), 2);
+        let XPathExpression::Path(value_path) = &entries[0].value.expression else {
+            panic!("expected array value path");
+        };
+        assert!(value_path.steps.iter().any(|step| matches!(
+            step.step,
+            XPathStep::Primary(XPathPrimaryExpression::ArrayConstructor(_))
+                | XPathStep::Postfix {
+                    primary: XPathPrimaryExpression::ArrayConstructor(_),
+                    ..
+                }
+        )));
+    }
+
+    #[test]
+    fn xpath_syntax_events_are_balanced_and_cemt_projection_is_explicit() {
+        let ast = parse("/catalog/book[@lang = \"en\"]/title");
+        let syntax = ast.syntax_ast.as_ref().expect("typed syntax AST");
+        let mut stack = Vec::new();
+        for event in &syntax.events {
+            match event.kind {
+                XPathSyntaxEventKind::StartNode => stack.push(event.node_kind),
+                XPathSyntaxEventKind::EndNode => {
+                    assert_eq!(stack.pop(), Some(event.node_kind));
+                }
+            }
+        }
+        assert!(stack.is_empty());
+        assert_eq!(
+            syntax.events.first().map(|event| event.node_kind),
+            Some(XPathSyntaxNodeKind::ExpressionSequence)
+        );
+        assert_eq!(
+            syntax.events.last().map(|event| event.node_kind),
+            Some(XPathSyntaxNodeKind::ExpressionSequence)
+        );
+
+        let subject = ast.to_cemt_subject();
+        assert_eq!(subject["grammarVersion"], XPATH_GRAMMAR_VERSION);
+        assert_eq!(subject["syntaxAst"]["kind"], "xpath-syntax-ast");
+        assert_eq!(subject["syntaxAst"]["events"][0]["kind"], "start-node");
+        assert!(subject["syntaxAst"].get("root").is_none());
     }
 
     #[test]
@@ -2242,6 +2948,37 @@ mod tests {
         );
 
         assert_eq!(ast.tokens[0].source_range.start, expression_range.start);
+        assert_eq!(
+            ast.syntax_ast
+                .as_ref()
+                .expect("typed host XPath syntax")
+                .root
+                .source_range
+                .start,
+            expression_range.start
+        );
+        let syntax = ast.syntax_ast.as_ref().expect("typed host XPath syntax");
+        let XPathExpression::Path(path) = &syntax.root.expressions[0].expression else {
+            panic!("expected host path expression");
+        };
+        let names = path
+            .steps
+            .iter()
+            .filter_map(|step| match &step.step {
+                XPathStep::Axis {
+                    node_test: XPathNodeTest::Name(XPathNameTest::Name(name)),
+                    ..
+                } => Some(name),
+                _ => None,
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(names[0].local_name, "item");
+        assert_eq!(
+            names[0].namespace_uri.as_deref(),
+            Some("https://example.test/app")
+        );
+        assert_eq!(names[1].local_name, "id");
+        assert_eq!(names[1].namespace_uri, None);
         assert!(ast
             .facts
             .iter()
@@ -2309,6 +3046,16 @@ mod tests {
                 ast.syntax_ast.is_some(),
                 "{name} must parse: {:?}",
                 ast.facts
+            );
+            assert!(
+                ast.syntax_ast
+                    .as_ref()
+                    .is_some_and(|syntax| syntax.events.iter().all(|event| !matches!(
+                        event.node_kind,
+                        XPathSyntaxNodeKind::UnsupportedExpression
+                            | XPathSyntaxNodeKind::UnsupportedPrimary
+                    ))),
+                "{name} must lower completely into the current CEM AST slice"
             );
             assert!(
                 ast.facts
@@ -2560,5 +3307,16 @@ mod tests {
             .facts
             .iter()
             .any(|fact| fact.kind == XPathFactKind::InvalidUtf8));
+    }
+
+    #[test]
+    fn xpath_public_syntax_contract_has_no_foreign_or_json_representation_dependency() {
+        let source = include_str!("xpath/syntax.rs");
+        for forbidden in ["xee_", "serde_json", "serde::", "use serde"] {
+            assert!(
+                !source.contains(forbidden),
+                "public XPath syntax contract must not contain `{forbidden}`"
+            );
+        }
     }
 }

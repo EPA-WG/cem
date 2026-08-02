@@ -853,6 +853,15 @@ Remaining dependency-ordered package checklist:
         the normative XPath/XDM/F&O/QT3 references, inventories every staged
         implementation slice, and requires an actionable gap for each slice not
         yet complete.
+  - [x] Select a strongly typed W3C expression model as the primary CEM-owned
+        XPath AST, retain the lossless token stream separately, and derive a
+        start/end syntax event stream for XSLT, CEMT, and CEM-QL fusion rather
+        than using a generic property-bag grammar tree.
+  - [x] Replace the foreign `XPathSyntaxAst` payload with the first complete
+        CEM-owned typed AST lowering slice for paths, predicates, variables,
+        function calls, maps/arrays, source ranges, and host offsets. Permit the
+        pinned Xee parser only as a temporary parser-local parity oracle; no Xee
+        type or JSON projection may cross the syntax AST boundary.
   - [ ] Replace the transitional `xee-xpath-lexer` and `xee-xpath-ast` runtime
         dependencies with CEM-owned XPath token and syntax AST types. Use the
         MIT-licensed Xee source pinned at commit `200b1e3356ea9d6dd2901d67bd941b779df7e5b7`
@@ -936,22 +945,28 @@ Remaining dependency-ordered package checklist:
 
 ### Next Work Item
 
-Resolve the CEM-owned XPath AST shape before porting parser code. The decision
-is between a generic grammar-node tree optimized for fusion and a strongly
-typed W3C expression model optimized for compiler correctness. The recommended
-contract is a strongly typed expression enum with typed names, literals,
-operators, sequence types, paths, steps, node tests, maps, arrays, and function
-items, paired with the existing lossless token stream. Derive a separate
-start/end syntax event stream for XSLT/CEMT/CEM-QL fusion instead of weakening
-the primary AST into a generic property bag.
+Replace the transitional Xee lexer/parser runtime dependencies without changing
+the new CEM-owned AST contract. Start with a package-private lexical token enum
+and longest-match scanner that retains exact trivia, nested comments, EQNames,
+numeric and string literal forms, delimiter depth, UTF-8 byte ranges, and stable
+lexical facts. Route `xpath_lossless_tokens` through that scanner while retaining
+the pinned Xee parser only as a temporary parity oracle. Add differential tests
+for every existing package example plus ambiguous operator/name boundaries,
+escaped quotes, URI-qualified names, nested comments, malformed UTF-8, and
+incomplete delimiters before switching production parsing.
 
-Once accepted, add red structural tests for basic paths, predicates, variables,
-function calls, maps/arrays, source ranges, and host-offset preservation. Lower
-the current parser result into that CEM-owned AST without JSON so no Xee type
-crosses the `XPathSyntaxAst` boundary. Keep the Xee parser only as a temporary
-parity oracle, record source-file/commit provenance for adapted algorithms, and
-remove the syntax crate dependencies only after native and WASM fixture parity
-passes. Do not add an Xee evaluator/compiler/interpreter or Xot dependency.
+The parser slice should then consume only CEM lexical tokens and lower directly
+into `XPathSyntaxAst`. Use recursive descent for grammar productions and an
+explicit precedence table for binary operators; model absolute path roots and
+real parentheses directly so no reference-parser desugaring enters the AST.
+Preserve current schema-owned diagnostics and host-adjusted ranges. Unsupported
+XPath 3.1 productions must remain typed, range-bearing gaps in the conformance
+matrix rather than source reparsing or generic property bags.
+
+Remove `xee-xpath-lexer` and `xee-xpath-ast` from runtime dependencies only after
+native fixture parity, package verification, lint, and WASM build pass with the
+CEM parser. Keep the verified Xee commit as a source reference and provenance
+record only; do not add Xot or an evaluator/compiler/interpreter dependency.
 
 Before registering XPath execution, complete the Option C transform-boundary
 migration listed immediately after XPath. The first implementation slice is a

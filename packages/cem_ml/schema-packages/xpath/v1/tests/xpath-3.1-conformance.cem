@@ -46,8 +46,8 @@
         @status="transitional"
         @qt3-status="unmapped"
         @spec-sections="XPath 3.1 sections 2, 3.1"
-        @gap="Lossless tokens are package-owned, but syntax parsing still depends on Xee crate types"
-        @todo="xpath-native-syntax-ast"
+        @gap="Lossless tokens and the public syntax AST are package-owned, but the parser implementation still has a transitional Xee runtime dependency"
+        @todo="xpath-native-parser"
     }
     {conformance-slice
         @id="expressions-and-control-flow"
