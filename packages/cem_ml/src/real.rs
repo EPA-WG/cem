@@ -70,8 +70,8 @@ use crate::schema::registry::{
     HTML_SCHEMA_URI, JSON_CONTENT_TYPE, JSON_SCHEMA_CONTENT_TYPE, JSON_SCHEMA_SCHEMA_URI,
     JSON_VALUE_SCHEMA_URI, MARKDOWN_CONTENT_TYPE, MARKDOWN_SCHEMA_URI, MATHML_CONTENT_TYPE,
     MATHML_SCHEMA_URI, RELAX_NG_SCHEMA_URI, SVG_CONTENT_TYPE, SVG_SCHEMA_URI, XHTML_CONTENT_TYPE,
-    XHTML_SCHEMA_URI, XML_CONTENT_TYPE, XML_SCHEMA_URI, XSLT_CONTENT_TYPE, XSLT_SCHEMA_URI,
-    YAML_CONTENT_TYPE, YAML_SCHEMA_URI,
+    XHTML_SCHEMA_URI, XML_CONTENT_TYPE, XML_SCHEMA_URI, XPATH_CONTENT_TYPE, XPATH_SCHEMA_URI,
+    XSLT_CONTENT_TYPE, XSLT_SCHEMA_URI, YAML_CONTENT_TYPE, YAML_SCHEMA_URI,
 };
 use crate::schema::vocab::CompiledSchema;
 use crate::source::line_index::LineIndex;
@@ -8064,6 +8064,7 @@ fn loaded_input_consumes_validation_without_cem_parse(loaded: &LoadedInput) -> b
                 | LoadedInputAstStream::XhtmlDocument(_)
                 | LoadedInputAstStream::SvgDocument(_)
                 | LoadedInputAstStream::MathMlDocument(_)
+                | LoadedInputAstStream::XPathExpression(_)
                 | LoadedInputAstStream::XsltStylesheet(_)
                 | LoadedInputAstStream::RelaxNgDocument(_)
         )
@@ -9467,6 +9468,28 @@ impl CemMlEngine for RealCemMlEngine {
                             return;
                         }
                         // Cross-schema MathML exports require an explicit registered converter.
+                    }
+                    LoadedInputAstStream::XPathExpression(_) => {
+                        diagnostics.push(Diagnostic {
+                            uri: Some(request.input.uri.clone()),
+                            code: "cem.lifecycle.internal_ast_target_unsupported".to_owned(),
+                            severity: Severity::Fatal,
+                            message: format!(
+                                "XPath lifecycle input cannot be exported through `{to_format:?}` without a registered XPath AST export adapter"
+                            ),
+                            details: Some(json!({
+                                "lifecycle": {
+                                    "adapterId": loaded.adapter_id,
+                                    "operation": "export",
+                                    "internalContentType": XPATH_CONTENT_TYPE,
+                                    "internalSchema": XPATH_SCHEMA_URI,
+                                    "targetFormat": format!("{to_format:?}"),
+                                }
+                            })),
+                            ..Diagnostic::default()
+                        });
+                        primary = Some(Value::Null);
+                        return;
                     }
                     LoadedInputAstStream::XsltStylesheet(stylesheet_value) => {
                         if to_format == LayerFormat::Xml && export_adapter_id == Some("xslt") {
@@ -14997,6 +15020,111 @@ mod tests {
             "JSON Schema validation must not fall through to CEM token/parser diagnostics: {:?}",
             resp.report.diagnostics
         );
+    }
+
+    #[test]
+    fn validate_xpath_source_consumes_typed_lifecycle_ast_without_cem_parse() {
+        for (content_type, schema) in [
+            (Some("text/xpath; charset=utf-8"), None),
+            (None, Some(XPATH_SCHEMA_URI)),
+        ] {
+            let mut source = input(b"/catalog/book[@lang = \"en\"]", "query.xpath");
+            source.identity = Some(FormatIdentity {
+                content_type: content_type.map(str::to_owned),
+                schema: schema.map(str::to_owned),
+                ..FormatIdentity::default()
+            });
+            let req = ValidateRequest {
+                inputs: vec![source],
+                projection: ValidateProjection::Json,
+                fail_level: FailLevel::Validate,
+                context: ctx(),
+            };
+
+            let resp = RealCemMlEngine::new().validate(req).unwrap();
+
+            assert_eq!(resp.report.summary.input_count, 1);
+            assert_eq!(resp.report.summary.hard_violation_count, 0);
+            assert!(
+                resp.report.diagnostics.is_empty(),
+                "XPath validation should be completed by the typed lifecycle AST stream: {:?}",
+                resp.report.diagnostics
+            );
+        }
+    }
+
+    #[test]
+    fn validate_xpath_source_reports_schema_owned_lifecycle_diagnostics() {
+        let mut source = input(b"/catalog/ns:book", "query.xpath");
+        source.identity = Some(FormatIdentity {
+            content_type: Some(XPATH_CONTENT_TYPE.to_owned()),
+            schema: Some(XPATH_SCHEMA_URI.to_owned()),
+            ..FormatIdentity::default()
+        });
+        let req = ValidateRequest {
+            inputs: vec![source],
+            projection: ValidateProjection::Json,
+            fail_level: FailLevel::Validate,
+            context: ctx(),
+        };
+
+        let resp = RealCemMlEngine::new().validate(req).unwrap();
+
+        let diagnostic = resp
+            .report
+            .diagnostics
+            .iter()
+            .find(|diagnostic| diagnostic.code == "cem.xpath.unknown_namespace_prefix")
+            .expect("schema-owned XPath namespace diagnostic");
+        assert_eq!(diagnostic.byte_offset, Some(9));
+        assert_eq!(
+            diagnostic.details.as_ref().unwrap()["lifecycle"]["adapterId"],
+            "xpath"
+        );
+        assert!(diagnostic.source_map.is_some());
+        assert!(
+            resp.report.diagnostics.iter().all(|diagnostic| {
+                !diagnostic.code.starts_with("cem.token")
+                    && !diagnostic.code.starts_with("cem.parser")
+            }),
+            "XPath validation must not fall through to CEM token/parser diagnostics: {:?}",
+            resp.report.diagnostics
+        );
+    }
+
+    #[test]
+    fn convert_xpath_requires_registered_ast_export_adapter_without_cem_fallback() {
+        let mut source = input(b"/catalog/book/title", "query.xpath");
+        source.identity = Some(FormatIdentity {
+            content_type: Some(XPATH_CONTENT_TYPE.to_owned()),
+            schema: Some(XPATH_SCHEMA_URI.to_owned()),
+            ..FormatIdentity::default()
+        });
+        let request = ConvertRequest {
+            input: source,
+            to_format: LayerFormat::Cem,
+            preserve_source_offsets: true,
+            context: ctx(),
+            target: None,
+            target_scope: ScopeConfig::default(),
+            scheduler_scope_id: 0,
+        };
+
+        let response = RealCemMlEngine::new().convert(request).unwrap();
+
+        assert_eq!(response.primary, Value::Null);
+        let diagnostic = response
+            .diagnostics
+            .iter()
+            .find(|diagnostic| diagnostic.code == "cem.lifecycle.internal_ast_target_unsupported")
+            .expect("typed XPath export boundary diagnostic");
+        assert_eq!(
+            diagnostic.details.as_ref().unwrap()["lifecycle"]["adapterId"],
+            "xpath"
+        );
+        assert!(response.diagnostics.iter().all(|diagnostic| {
+            !diagnostic.code.starts_with("cem.token") && !diagnostic.code.starts_with("cem.parser")
+        }));
     }
 
     #[test]

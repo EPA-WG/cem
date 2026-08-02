@@ -1,6 +1,6 @@
 # XPath Schema Package
 
-Status: package, lossless XPath 3.1 syntax, and schema-owned diagnostics
+Status: package, lossless XPath 3.1 syntax, schema-owned diagnostics, and lifecycle loading
 
 This package owns standalone and embedded XPath expression syntax. Host
 languages declare expression slots and static context, then associate the
@@ -72,9 +72,10 @@ owns parsing and static syntax; the CEM-ML `transform` path will own execution
 planning. Hosts may supply context items and bindings, but must not implement a
 private parser, evaluator, or external-resource resolver.
 
-The current slice parses, models, and validates expressions. Standalone
-lifecycle loading, evaluation, XSLT attribute fusion, CEM-QL/CEMT adapters, and
-external resource capabilities remain explicitly tracked work.
+The current slice parses, models, validates, and lifecycle-loads standalone
+expressions as `LoadedInputAstStream::XPathExpression`. Evaluation, result
+artifact projection, XSLT attribute fusion, CEM-QL/CEMT adapters, and external
+resource capabilities remain explicitly tracked work.
 
 ## Formatter And Colorizer Profiles
 
@@ -96,14 +97,15 @@ silently reused under a broader policy.
 
 `yarn nx run cem_ml_schema_package_xpath_v1:verify` validates the schema-package
 manifest and fixture expectations, runs lossless lexer/parser, schema-diagnostic
-handoff, and host-attachment tests, verifies embedded catalog identity, and
-checks that README examples use fenced XPath source with no SVG fallback.
+handoff, lifecycle loading, no-fallback validation, and host-attachment tests,
+verifies embedded catalog identity, and checks that README examples use fenced
+XPath source with no SVG fallback.
 `yarn nx run cem_ml:build:wasm` verifies that the pinned parser dependency stack
 remains compatible with the browser WASM target.
 
 ## Tracked Incomplete Work
 
-- Add dedicated standalone lifecycle loading and transformation planning.
+- Define the transformation result artifact and evaluator capability contract.
 - Segment XSLT XPath attributes and AVTs, then associate their ASTs with exact
   XML attribute-value ranges.
 - Add standalone transformation execution and CEM-QL/CEMT/XSLT adapters.

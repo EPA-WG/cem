@@ -20,8 +20,9 @@ use crate::schema::registry::{
     MARKDOWN_CONTENT_TYPE, MARKDOWN_SCHEMA_URI, MATHML_CONTENT_TYPE, MATHML_NAMESPACE_URI,
     MATHML_SCHEMA_URI, RELAX_NG_COMPACT_CONTENT_TYPE, RELAX_NG_SCHEMA_URI,
     RELAX_NG_XML_CONTENT_TYPE, SVG_CONTENT_TYPE, SVG_NAMESPACE_URI, SVG_SCHEMA_URI,
-    XHTML_CONTENT_TYPE, XHTML_SCHEMA_URI, XML_CONTENT_TYPE, XML_SCHEMA_URI, XSLT_CONTENT_TYPE,
-    XSLT_NAMESPACE_URI, XSLT_SCHEMA_URI, YAML_CONTENT_TYPE, YAML_SCHEMA_URI,
+    XHTML_CONTENT_TYPE, XHTML_SCHEMA_URI, XML_CONTENT_TYPE, XML_SCHEMA_URI, XPATH_CONTENT_TYPE,
+    XPATH_SCHEMA_URI, XSLT_CONTENT_TYPE, XSLT_NAMESPACE_URI, XSLT_SCHEMA_URI, YAML_CONTENT_TYPE,
+    YAML_SCHEMA_URI,
 };
 use crate::transform_config::TRANSFORM_CONFIG_SCHEMA_URI;
 use crate::validation::css::{
@@ -59,6 +60,10 @@ use crate::validation::xhtml::{
 };
 use crate::validation::xml::{
     xml_document_ast_from_source_bytes, XmlDocumentAst, XmlSourceValidationRequest,
+};
+use crate::validation::xpath::{
+    validate_xpath_expression_ast, xpath_expression_ast_from_source_bytes, XPathAttachment,
+    XPathExpressionAst, XPathSchemaContractCatalog, XPathSourceRequest,
 };
 use crate::validation::xslt::{
     validate_xslt_compat_source_bytes, xslt_stylesheet_ast_from_source_bytes,
@@ -117,6 +122,7 @@ pub enum LoadedInputAstStream {
     XhtmlDocument(XhtmlDocumentAst),
     SvgDocument(SvgDocumentAst),
     MathMlDocument(MathMlDocumentAst),
+    XPathExpression(XPathExpressionAst),
     XsltStylesheet(XsltStylesheetAst),
     RelaxNgDocument(RelaxNgDocumentAst),
 }
@@ -156,6 +162,7 @@ impl LifecycleRegistry {
         registry.register(XhtmlAdapter);
         registry.register(SvgAdapter);
         registry.register(MathMlAdapter);
+        registry.register(XPathAdapter);
         registry.register(XsltAdapter);
         registry.register(HtmlAdapter);
         registry.register(CssAdapter);
@@ -810,6 +817,58 @@ fn matches_mathml_identity(identity: &FormatIdentity) -> bool {
         || matches_namespace_without_content_type_or_schema(identity, &[MATHML_NAMESPACE])
 }
 
+struct XPathAdapter;
+
+impl LifecycleAdapter for XPathAdapter {
+    fn id(&self) -> &'static str {
+        "xpath"
+    }
+
+    fn matches_input(&self, identity: &FormatIdentity) -> bool {
+        matches_xpath_identity(identity)
+    }
+
+    fn load(&self, input: &EngineInput, identity: &FormatIdentity) -> LoadedInput {
+        let content_type = identity
+            .content_type
+            .as_deref()
+            .or(input.root_scope.default_content_type.as_deref())
+            .unwrap_or(XPATH_CONTENT_TYPE);
+        let expression = xpath_expression_ast_from_source_bytes(
+            XPathSourceRequest {
+                bytes: &input.bytes,
+                source_uri: &input.uri,
+                content_type: Some(content_type),
+            },
+            XPathAttachment::Standalone { source_id: 1 },
+        );
+        let diagnostics =
+            validate_xpath_expression_ast(&expression, XPathSchemaContractCatalog::from_builtin());
+        LoadedInput {
+            bytes: input.bytes.clone(),
+            from_format: input.from_format.unwrap_or(InputFormat::Cem),
+            ast_stream: Some(LoadedInputAstStream::XPathExpression(expression)),
+            diagnostics: xpath_lifecycle_adapter_diagnostics(self.id(), diagnostics),
+            adapter_id: Some(self.id()),
+        }
+    }
+}
+
+fn matches_xpath_identity(identity: &FormatIdentity) -> bool {
+    let explicit_schema_matches = identity
+        .schema
+        .as_deref()
+        .map(str::trim)
+        .is_some_and(|schema| schema == XPATH_SCHEMA_URI);
+    if let Some(content_type) = identity.content_type.as_deref() {
+        return matches!(
+            content_type_essence(content_type).as_str(),
+            XPATH_CONTENT_TYPE | "text/xpath"
+        ) && (identity.schema.is_none() || explicit_schema_matches);
+    }
+    explicit_schema_matches
+}
+
 struct XsltAdapter;
 
 impl LifecycleAdapter for XsltAdapter {
@@ -1418,6 +1477,41 @@ fn markdown_lifecycle_adapter_diagnostics(
         .collect()
 }
 
+fn xpath_lifecycle_adapter_diagnostics(
+    adapter_id: &'static str,
+    diagnostics: Vec<Diagnostic>,
+) -> Vec<Diagnostic> {
+    diagnostics
+        .into_iter()
+        .map(|mut diagnostic| {
+            let lifecycle_details = json!({
+                "adapterId": adapter_id,
+                "operation": "load",
+                "profile": "xpath-3.1-source-import",
+                "sourceMapContract": "exact-token-ranges",
+                "internalContentType": XPATH_CONTENT_TYPE,
+                "internalSchema": XPATH_SCHEMA_URI,
+            });
+            diagnostic.details = match diagnostic.details.take() {
+                Some(mut details) if details.is_object() => {
+                    if let Some(object) = details.as_object_mut() {
+                        object.insert("lifecycle".to_owned(), lifecycle_details);
+                    }
+                    Some(details)
+                }
+                Some(details) => Some(json!({
+                    "lifecycle": lifecycle_details,
+                    "upstream": details,
+                })),
+                None => Some(json!({
+                    "lifecycle": lifecycle_details,
+                })),
+            };
+            diagnostic
+        })
+        .collect()
+}
+
 fn csv_lifecycle_adapter_diagnostics(
     adapter_id: &'static str,
     diagnostics: Vec<Diagnostic>,
@@ -1793,6 +1887,64 @@ mod tests {
         assert_eq!(item.namespace_uri.as_deref(), Some("urn:meta"));
         assert!(item.source_range.byte_length > 0);
         assert!(!item.source_range.source_map().frames.is_empty());
+    }
+
+    #[test]
+    fn builtins_load_xpath_content_types_as_typed_expression_ast_stream() {
+        for content_type in [XPATH_CONTENT_TYPE, "text/xpath; charset=utf-8"] {
+            let loaded = LifecycleRegistry::with_builtin_adapters().load(
+                &input(b"/catalog/book[@lang = \"en\"]"),
+                &context(content_type),
+            );
+
+            assert_eq!(loaded.adapter_id, Some("xpath"), "{content_type}");
+            assert!(
+                loaded.diagnostics.is_empty(),
+                "{content_type}: {:?}",
+                loaded.diagnostics
+            );
+            let expression = match loaded
+                .ast_stream
+                .expect("XPath adapter emits typed expression AST stream")
+            {
+                LoadedInputAstStream::XPathExpression(expression) => expression,
+                other => panic!("XPath adapter emitted unexpected AST stream: {other:?}"),
+            };
+            assert_eq!(
+                expression.source.media_type,
+                content_type_essence(content_type)
+            );
+            assert!(expression.syntax_ast.is_some());
+            assert_eq!(expression.events.len(), expression.tokens.len() + 2);
+        }
+    }
+
+    #[test]
+    fn xpath_schema_selects_typed_expression_ast_and_schema_diagnostics() {
+        let loaded = LifecycleRegistry::with_builtin_adapters().load(
+            &input(b"/catalog/ns:book"),
+            &EngineContext {
+                schema: Some(XPATH_SCHEMA_URI.to_owned()),
+                ..EngineContext::default()
+            },
+        );
+
+        assert_eq!(loaded.adapter_id, Some("xpath"));
+        assert!(matches!(
+            loaded.ast_stream,
+            Some(LoadedInputAstStream::XPathExpression(_))
+        ));
+        let diagnostic = loaded
+            .diagnostics
+            .iter()
+            .find(|diagnostic| diagnostic.code == "cem.xpath.unknown_namespace_prefix")
+            .expect("schema-owned unknown-prefix diagnostic");
+        assert_eq!(diagnostic.byte_offset, Some(9));
+        assert_eq!(
+            diagnostic.details.as_ref().unwrap()["lifecycle"]["adapterId"],
+            "xpath"
+        );
+        assert!(diagnostic.source_map.is_some());
     }
 
     #[test]

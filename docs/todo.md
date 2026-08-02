@@ -831,9 +831,13 @@ Remaining dependency-ordered package checklist:
         `schema/xpath.cem` diagnostics; add fixtures for paths/axes, predicates,
         functions, variables, maps/arrays, Unicode QNames, strings, nested
         comments, malformed tokens, and incomplete delimiters.
-  - [ ] Route standalone XPath through the generic CEM-ML lifecycle and
-        `transform` command, then expose explicit adapters so CEM-QL, CEMT, and
-        XSLT can invoke XPath as a transformation without embedding a private
+  - [x] Route standalone XPath through the generic CEM-ML lifecycle as a typed
+        `LoadedInputAstStream::XPathExpression`; validate primary, alias, and
+        schema identities without CEM/XML fallback, and reject conversion until
+        a typed XPath AST export adapter is registered.
+  - [ ] Define the XPath result artifact and evaluator capability contract, wire
+        it through the `transform` command, then expose explicit adapters so
+        CEM-QL, CEMT, and XSLT can invoke XPath without embedding a private
         lexer, parser, evaluator, or resource resolver.
   - [ ] Fuse parsed XPath streams into XSLT XPath-bearing attributes and AVT
         expression segments while retaining an independently addressable XPath
@@ -872,20 +876,21 @@ Remaining dependency-ordered package checklist:
 
 ### Next Work Item
 
-Route standalone XPath through the generic CEM-ML lifecycle without adding an
-evaluator yet. Start with red lifecycle and validation tests for the primary
-`application/vnd.cem.xpath` identity, the parameterized `text/xpath` alias, and
-the package schema URI. Add a dedicated `xpath` adapter and
-`LoadedInputAstStream::XPathExpression` variant, then assert that validation
-consumes the typed stream and its schema-owned diagnostics without CEM, XML, or
-legacy custom-element fallback.
+Define the XPath transformation result and evaluator capability contracts before
+registering an executable template adapter. The current schema models an
+expected sequence type but does not define the runtime representation for node,
+atomic, map, array, function, or mixed-sequence results. Add schema-owned request
+and result elements that preserve item order, node/source identity, atomic type,
+cardinality, static-context bindings, resolver/safety policy stamps, and source
+maps. Use that typed sequence artifact as the transform-stage output; conversions
+to XML, JSON, CEM, or text must remain explicit downstream edges.
 
-After lifecycle loading is stable, define the smallest `transform` command
-contract for applying an XPath expression to an XML context item. Preserve the
-expression AST, context source identity, resolver policy, result sequence type,
-and source maps across planning. Stop before implementation if choosing the
-result artifact model or evaluator capability boundary would commit CEM-QL,
-CEMT, or XSLT adapters to semantics that are not already schema-declared.
+Then choose and verify a maintained XPath 3.1 evaluator whose parser/AST version
+is compatible with the pinned Xee crates and the browser WASM target. Register
+`TransformTemplateKind::XPathExpression` only after the evaluator accepts the
+package-owned `XPathExpressionAst` without reparsing and external resource reads
+flow exclusively through CEM-ML resolver capabilities. Keep CEM-QL, CEMT, and
+XSLT invocation adapters out until this common execution boundary is green.
 
 ## Current Verification Commands
 
