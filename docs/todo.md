@@ -841,16 +841,70 @@ Remaining dependency-ordered package checklist:
         identity, typed lexical atomic values, evaluator-scoped function handles,
         resolver/safety policy stamps, and item-level source maps; keep the
         result media type out of the XPath source parser.
-  - [ ] Select and verify an XPath 3.1 evaluator that consumes the package AST,
-        targets native and WASM, and uses only the CEM resolver boundary; then
-        wire it through the `transform` command and expose explicit CEM-QL,
-        CEMT, and XSLT invocation adapters.
+  - [x] Verify the official Xee GitHub source, license, architecture,
+        conformance claims, XML ownership, and ambient resource behavior at a
+        pinned commit; confirm it is suitable as a non-normative implementation
+        reference but not as CEM's AST, evaluator, or security boundary.
+  - [x] Accept full XPath 3.1 as the destination, delivered through staged
+        conformance slices with a specification/QT3 gap matrix, stable
+        unsupported-feature diagnostics, and per-file provenance for algorithms
+        adapted from the pinned Xee source.
+  - [x] Add a schema-owned, machine-readable CEM conformance matrix that pins
+        the normative XPath/XDM/F&O/QT3 references, inventories every staged
+        implementation slice, and requires an actionable gap for each slice not
+        yet complete.
+  - [ ] Replace the transitional `xee-xpath-lexer` and `xee-xpath-ast` runtime
+        dependencies with CEM-owned XPath token and syntax AST types. Use the
+        MIT-licensed Xee source pinned at commit `200b1e3356ea9d6dd2901d67bd941b779df7e5b7`
+        only as a non-normative implementation reference, retain lexical/parser
+        parity fixtures during migration, and record provenance for any adapted
+        algorithm or copied substantial portion.
+  - [ ] After the strict native-AST transform boundary below is complete,
+        implement a CEM-owned XPath 3.1 compiler and evaluator over the package
+        AST. Treat the W3C XPath 3.1, XDM 3.1, and Functions and Operators 3.1
+        specifications as normative; use Xee architecture and algorithms only
+        as reference; target native and WASM; and route documents, collections,
+        unparsed text, environment, time, randomness, recursion, cancellation,
+        and work budgets through explicit CEM resolver/safety capabilities.
+  - [ ] Wire the native evaluator through the `transform` command and expose
+        explicit CEM-QL, CEMT, and XSLT invocation adapters without reparsing
+        source text, constructing an evaluator-owned replacement XML tree, or
+        projecting AST or result values through JSON.
   - [ ] Fuse parsed XPath streams into XSLT XPath-bearing attributes and AVT
         expression segments while retaining an independently addressable XPath
         AST associated with the owning XML event or subtree node.
   - [ ] Add deterministic compact/pretty/tabular and terminal/HTML/Markdown
         profiles that preserve lexical islands and source maps, then run package,
         converter-parity, CLI e2e, WASM, and core release gates.
+- [ ] Eliminate the implicit JSON transform data plane using Option C from
+      `docs/transform-boundary-native-ast-decision.tmp.md`; this item is listed
+      after XPath for roadmap grouping but must complete before XPath execution
+      is registered.
+  - [ ] Add red tests for AST identity across lifecycle load and graph routing,
+        duplicate JSON members, XML node/source identity, typed collection
+        children, and rejection of implicit JSON projection.
+  - [ ] Introduce a typed `TransformArtifactBody` with explicit native,
+        collection, extension, and encoded variants; remove
+        `serde_json::Value` from transform data and output artifact contracts.
+  - [ ] Retain `LoadedInputAstStream` or another package-owned native artifact
+        through `load_transform_data_artifact`, graph routing, joins, and
+        adapter dispatch instead of calling `projection::dom_json` or an
+        equivalent serializer.
+  - [ ] Migrate CEM-QL, CEMT, and XSLT adapters to typed or lazy native AST
+        views; remove generic `value_to_stream`, `to_cemt_subject`, and
+        `to_json` tier ingress and keep JSON-to-query conversion only for
+        explicitly identified JSON AST input.
+  - [ ] Represent JSON input internally with a lossless `JsonDocumentAst` and
+        `JsonValueAst`, not `serde_json::Value`, preserving duplicate members,
+        number lexemes, source ranges, diagnostics, and source maps.
+  - [ ] Make transform outputs typed native artifacts or explicit encoded
+        artifacts, enforce encoding/content-type agreement, and require encoded
+        input to pass through a lifecycle parser edge before AST consumption.
+  - [ ] Add source audits and native/WASM behavior gates proving that only
+        registered JSON or `+json` conversion edges can serialize JSON and that
+        graph collections preserve typed child order and identity.
+  - [ ] Register explicit DOM, event-stream, and XPath-result JSON exporters
+        only after the native data-plane migration passes all gates.
 - [ ] Polish XSLT formatter and colorizer profile semantics on the dedicated
       `XsltDocumentAst` path.
   - [ ] Reuse the shared typed XML-family markup-token helper while keeping
@@ -882,22 +936,29 @@ Remaining dependency-ordered package checklist:
 
 ### Next Work Item
 
-Run an evaluator compatibility spike before registering XPath execution. Compare
-maintained XPath 3.1 evaluator options against the pinned Xee 0.1.4 syntax stack
-and reject candidates that require reparsing source text, omit maps/arrays or
-function items, cannot target `wasm32-unknown-unknown`, bypass the CEM resolver,
-or cannot populate item-origin source maps. Treat a coordinated Xee dependency
-upgrade as a separate migration with parser/fixture parity gates rather than
-silently mixing AST versions.
+Resolve the CEM-owned XPath AST shape before porting parser code. The decision
+is between a generic grammar-node tree optimized for fusion and a strongly
+typed W3C expression model optimized for compiler correctness. The recommended
+contract is a strongly typed expression enum with typed names, literals,
+operators, sequence types, paths, steps, node tests, maps, arrays, and function
+items, paired with the existing lossless token stream. Derive a separate
+start/end syntax event stream for XSLT/CEMT/CEM-QL fusion instead of weakening
+the primary AST into a generic property bag.
 
-Once one adapter satisfies `XPathEvaluatorCapabilities`, add a red native
-transform test for an XML context item and a mixed typed sequence result. Then
-register `TransformTemplateKind::XPathExpression`, materialize
-`XPathResultArtifact` as the transform-stage output, and add explicit downstream
-conversion edges instead of serializing node, map, array, or function values
-inside the evaluator. Keep CEM-QL, CEMT, and XSLT invocation adapters out until
-the standalone transform boundary passes native, CLI, resolver-policy, source-map,
-and WASM gates.
+Once accepted, add red structural tests for basic paths, predicates, variables,
+function calls, maps/arrays, source ranges, and host-offset preservation. Lower
+the current parser result into that CEM-owned AST without JSON so no Xee type
+crosses the `XPathSyntaxAst` boundary. Keep the Xee parser only as a temporary
+parity oracle, record source-file/commit provenance for adapted algorithms, and
+remove the syntax crate dependencies only after native and WASM fixture parity
+passes. Do not add an Xee evaluator/compiler/interpreter or Xot dependency.
+
+Before registering XPath execution, complete the Option C transform-boundary
+migration listed immediately after XPath. The first implementation slice is a
+red test proving `load_transform_data_artifact` retains the exact native
+`LoadedInputAstStream` body and never calls `projection::dom_json`. The XPath
+compiler/evaluator can begin only after typed graph routing and adapter dispatch
+make that invariant structural rather than conventional.
 
 ## Current Verification Commands
 

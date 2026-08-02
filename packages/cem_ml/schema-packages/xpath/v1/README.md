@@ -24,11 +24,27 @@ not present `text/xpath` as a registered standard.
 
 ## Syntax And AST Model
 
-The native adapter uses a pinned XPath 3.1-aware lexer and parser. It preserves
-exact token lexemes, UTF-8 byte ranges, line/column positions, nested comments,
-whitespace, delimiter depth, parser facts, and source-map frames. The parsed
-grammar AST is carried beside the lossless token stream: semantic consumers use
-the tree, while formatters and diagnostics retain the original source.
+The current foundation uses pinned `xee-xpath-lexer` and `xee-xpath-ast` crates
+to establish XPath 3.1 fixture coverage. It preserves exact token lexemes,
+UTF-8 byte ranges, line/column positions, nested comments, whitespace,
+delimiter depth, parser facts, and source-map frames. The parsed grammar AST is
+carried beside the lossless token stream: semantic consumers use the tree,
+while formatters and diagnostics retain the original source.
+
+Those dependencies are transitional. Before executable XPath is registered,
+the package will own its token, syntax AST, compiler, and evaluator types. The
+[Xee source pinned at commit `200b1e3356ea9d6dd2901d67bd941b779df7e5b7`](https://github.com/Paligo/xee/tree/200b1e3356ea9d6dd2901d67bd941b779df7e5b7)
+is an MIT-licensed, non-normative implementation reference, not a runtime
+dependency or execution boundary. XPath 3.1, XDM 3.1, and Functions and
+Operators 3.1 remain normative, and adapted implementation ideas require
+recorded source provenance and license review.
+
+Full XPath 3.1 is the accepted destination. Delivery is staged through explicit
+conformance slices and the schema-owned
+[`tests/xpath-3.1-conformance.cem`](./tests/xpath-3.1-conformance.cem) gap
+matrix. Behavior outside a completed slice remains visible through stable typed
+diagnostics rather than silently inheriting omissions from the reference
+implementation.
 
 The lifecycle stream emits one zero-width `start-expression` event, one event
 for each lossless token, and one zero-width `end-expression` event. Token events
@@ -73,6 +89,12 @@ owns parsing and static syntax; the CEM-ML `transform` path will own execution
 planning. Hosts may supply context items and bindings, but must not implement a
 private parser, evaluator, or external-resource resolver.
 
+Execution will consume the package-owned AST and existing CEM XML AST/event
+streams directly. It must not reparse source text, copy XML into Xot or another
+evaluator-owned replacement tree, or project input/results through JSON. The
+strict native-AST transform data-plane migration tracked in `docs/todo.md` is a
+prerequisite for registering XPath execution.
+
 The current slice also defines `XPathEvaluationRequest`,
 `XPathEvaluatorCapabilities`, and `XPathResultArtifact`. Result sequences retain
 XPath order across node, atomic, map, array, function, and mixed items. Node
@@ -101,21 +123,29 @@ validation requires the package-owned AST, deterministic native and WASM
 results, item-origin source maps, all XPath 3.1 item kinds, and CEM resolver-only
 resource access. Functions such as `doc()`, `collection()`, and
 `unparsed-text()` cannot receive a direct filesystem or network boundary.
+Current time, timezone, environment variables, randomness, recursion,
+cancellation, and work budgets must also be explicit request capabilities; the
+evaluator cannot read ambient process or host state.
 
 ## Verification
 
 `yarn nx run cem_ml_schema_package_xpath_v1:verify` validates the schema-package
 manifest and fixture expectations, runs lossless lexer/parser, schema-diagnostic
 handoff, lifecycle loading, no-fallback validation, and host-attachment tests,
-verifies mixed result artifacts and evaluator capability rejection, verifies
-embedded catalog identity, and checks that README examples use fenced XPath
-source with no SVG fallback.
+verifies the full-destination conformance matrix, mixed result artifacts and
+evaluator capability rejection, verifies embedded catalog identity, and checks
+that README examples use fenced XPath source with no SVG fallback.
 `yarn nx run cem_ml:build:wasm` verifies that the pinned parser dependency stack
 remains compatible with the browser WASM target.
 
 ## Tracked Incomplete Work
 
-- Select a compatible XPath 3.1 evaluator and prove native/WASM AST consumption.
+- Replace the transitional Xee lexer/parser dependencies with CEM-owned token
+  and syntax AST types, using pinned Xee source only as a reference and parity
+  oracle.
+- Remove the implicit JSON transform boundary before executable XPath work.
+- Implement a CEM-owned XPath 3.1 compiler/evaluator and prove native/WASM AST
+  consumption through CEM-only resolver and safety capabilities.
 - Segment XSLT XPath attributes and AVTs, then associate their ASTs with exact
   XML attribute-value ranges.
 - Add standalone transformation execution and CEM-QL/CEMT/XSLT adapters.

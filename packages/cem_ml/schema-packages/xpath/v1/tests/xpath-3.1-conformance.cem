@@ -1,0 +1,132 @@
+@doc cem-ml 1
+@ns xpath = "https://cem.dev/ns/query/xpath/1"
+@default xpath
+
+{conformance-profile
+    @xpath-version="3.1"
+    @destination="full"
+    @delivery="staged"
+    @qt3-version="3.1"
+|
+    {normative-reference
+        @id="xpath31"
+        @role="language"
+        @version="3.1"
+        @uri="https://www.w3.org/TR/xpath-31/"
+    }
+    {normative-reference
+        @id="xdm31"
+        @role="data-model"
+        @version="3.1"
+        @uri="https://www.w3.org/TR/xpath-datamodel-31/"
+    }
+    {normative-reference
+        @id="fo31"
+        @role="functions-and-operators"
+        @version="3.1"
+        @uri="https://www.w3.org/TR/xpath-functions-31/"
+    }
+    {normative-reference
+        @id="qt3-31"
+        @role="conformance-suite"
+        @version="3.1"
+        @uri="https://www.w3.org/2011/QT3-test-suite/"
+    }
+
+    {implementation-reference
+        @name="Xee"
+        @uri="https://github.com/Paligo/xee"
+        @commit="200b1e3356ea9d6dd2901d67bd941b779df7e5b7"
+        @license="MIT"
+        @usage="reference-only"
+    }
+
+    {conformance-slice
+        @id="syntax-and-static-context"
+        @status="transitional"
+        @qt3-status="unmapped"
+        @spec-sections="XPath 3.1 sections 2, 3.1"
+        @gap="Lossless tokens are package-owned, but syntax parsing still depends on Xee crate types"
+        @todo="xpath-native-syntax-ast"
+    }
+    {conformance-slice
+        @id="expressions-and-control-flow"
+        @status="planned"
+        @qt3-status="unmapped"
+        @spec-sections="XPath 3.1 sections 3.8 through 3.14"
+        @gap="No CEM-owned compiler or evaluator for conditional, quantified, for, or let expressions"
+        @todo="xpath-control-flow"
+    }
+    {conformance-slice
+        @id="paths-and-node-tests"
+        @status="planned"
+        @qt3-status="unmapped"
+        @spec-sections="XPath 3.1 sections 3.2, 3.3"
+        @gap="No evaluator over native XML AST node identities, axes, predicates, or node tests"
+        @todo="xpath-native-path-evaluator"
+    }
+    {conformance-slice
+        @id="operators"
+        @status="planned"
+        @qt3-status="unmapped"
+        @spec-sections="XPath 3.1 sections 3.4 through 3.7"
+        @gap="No CEM-owned value, general, node, arithmetic, range, or set operator evaluation"
+        @todo="xpath-operators"
+    }
+    {conformance-slice
+        @id="type-system"
+        @status="contract-only"
+        @qt3-status="unmapped"
+        @spec-sections="XPath 3.1 sections 2.5, 2.6, 3.16 through 3.18"
+        @gap="Result type contracts exist, but sequence types, casting, promotion, and matching are not executable"
+        @todo="xpath-type-system"
+    }
+    {conformance-slice
+        @id="function-items"
+        @status="contract-only"
+        @qt3-status="unmapped"
+        @spec-sections="XPath 3.1 sections 3.1.5, 3.1.6"
+        @gap="Function result handles exist, but named references, inline functions, partial application, and dynamic calls are not executable"
+        @todo="xpath-function-items"
+    }
+    {conformance-slice
+        @id="maps-and-arrays"
+        @status="contract-only"
+        @qt3-status="unmapped"
+        @spec-sections="XPath 3.1 sections 3.11, 3.12"
+        @gap="Typed result artifacts exist, but constructors, lookup, and map or array function semantics are not executable"
+        @todo="xpath-maps-arrays"
+    }
+    {conformance-slice
+        @id="functions-and-operators"
+        @status="planned"
+        @qt3-status="unmapped"
+        @spec-sections="Functions and Operators 3.1"
+        @gap="The standard function library and operator semantics have not been implemented or mapped to QT3"
+        @todo="xpath-functions-operators"
+    }
+    {conformance-slice
+        @id="dynamic-context-and-resources"
+        @status="contract-only"
+        @qt3-status="unmapped"
+        @spec-sections="XPath 3.1 section 2.1.2 and Functions and Operators resource functions"
+        @gap="Resolver and safety contracts exist, but deterministic context injection and resource functions are not executable"
+        @todo="xpath-dynamic-context"
+    }
+    {conformance-slice
+        @id="schema-aware-evaluation"
+        @status="planned"
+        @qt3-status="unmapped"
+        @spec-sections="XPath 3.1 schema-aware feature and XDM 3.1 typed values"
+        @gap="Schema-aware node typing, type derivation, and schema element or attribute tests are not implemented"
+        @todo="xpath-schema-aware"
+    }
+    {conformance-slice
+        @id="xdm-results-and-serialization"
+        @status="contract-only"
+        @qt3-status="unmapped"
+        @spec-sections="XDM 3.1 and explicit serialization edges"
+        @gap="Typed ordered result contracts exist, but evaluation and explicit XML, JSON, CEM, and text exporters are not registered"
+        @todo="xpath-xdm-results"
+    }
+}

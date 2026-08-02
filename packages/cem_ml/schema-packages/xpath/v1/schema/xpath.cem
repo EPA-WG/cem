@@ -31,6 +31,10 @@
         {element @name="event-stream" @children="event*"}
         {element @name="event" @required-attributes="index event-kind depth byte-offset byte-length line column" @optional-attributes="token-index source-id"}
         {element @name="syntax-ast" @required-attributes="grammar-version parse-state"}
+        {element @name="conformance-profile" @required-attributes="xpath-version destination delivery qt3-version" @children="normative-reference* implementation-reference conformance-slice+"}
+        {element @name="normative-reference" @required-attributes="id role version uri"}
+        {element @name="implementation-reference" @required-attributes="name uri commit license usage"}
+        {element @name="conformance-slice" @required-attributes="id status qt3-status gap todo" @optional-attributes="spec-sections"}
         {element @name="parse-facts" @children="parse-fact*"}
         {element @name="parse-fact" @required-attributes="kind" @optional-attributes="message value byte-offset byte-length line column"}
         {element @name="attachment" @required-attributes="attachment-kind evaluation-phase" @optional-attributes="resolver-policy-stamp safety-policy-stamp" @children="owner? static-context? expected-result?"}
@@ -71,6 +75,19 @@
         {attribute @name="byte-length" @type="cemml:integer"}
         {attribute @name="line-ending" @type="schema:identifier" @values="crlf lf cr mixed none"}
         {attribute @name="grammar-version" @type="schema:string"}
+        {attribute @name="id" @type="schema:identifier"}
+        {attribute @name="version" @type="schema:string"}
+        {attribute @name="destination" @type="schema:identifier" @values="full"}
+        {attribute @name="delivery" @type="schema:identifier" @values="staged"}
+        {attribute @name="qt3-version" @type="schema:string"}
+        {attribute @name="status" @type="schema:identifier" @values="complete transitional partial contract-only planned"}
+        {attribute @name="qt3-status" @type="schema:identifier" @values="mapped partial unmapped"}
+        {attribute @name="gap" @type="schema:string"}
+        {attribute @name="todo" @type="schema:identifier"}
+        {attribute @name="spec-sections" @type="schema:string"}
+        {attribute @name="commit" @type="schema:string"}
+        {attribute @name="license" @type="schema:string"}
+        {attribute @name="usage" @type="schema:identifier" @values="reference-only"}
         {attribute @name="parse-state" @type="schema:identifier" @values="parsed lexical-error parse-error decode-error"}
         {attribute @name="index" @type="cemml:integer"}
         {attribute @name="event-kind" @type="schema:identifier" @values="start-expression token end-expression"}

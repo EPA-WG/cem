@@ -1699,6 +1699,53 @@ fn detect_line_ending_style_bytes(source: &[u8]) -> Option<&'static str> {
 mod tests {
     use super::*;
 
+    fn parse_cem_contract(source: &str) -> crate::parser::document::CemDocument {
+        let source = crate::source::BytesSource::new(SourceId(91), source.as_bytes().to_vec());
+        let tokenizer = crate::tokenizer::cem::CemTokenizer::from_source(source);
+        let events = crate::events::cem::CemEventNormalizer::new(tokenizer);
+        crate::parser::builder::CemAstBuilder::new(events).build()
+    }
+
+    fn contract_element_ids(
+        document: &crate::parser::document::CemDocument,
+        local_name: &str,
+    ) -> Vec<crate::parser::AstNodeId> {
+        document
+            .iter()
+            .filter_map(|node| match node {
+                crate::parser::CemAstNode::Element {
+                    node_id,
+                    expanded_name,
+                    ..
+                } if expanded_name.local_name == local_name => Some(*node_id),
+                _ => None,
+            })
+            .collect()
+    }
+
+    fn contract_attributes(
+        document: &crate::parser::document::CemDocument,
+        node_id: crate::parser::AstNodeId,
+    ) -> BTreeMap<String, String> {
+        let Some(crate::parser::CemAstNode::Element { attributes, .. }) = document.get(node_id)
+        else {
+            return BTreeMap::new();
+        };
+        attributes
+            .iter()
+            .filter_map(|attribute_id| match document.get(*attribute_id) {
+                Some(crate::parser::CemAstNode::Attribute {
+                    expanded_name,
+                    value,
+                    ..
+                }) => value
+                    .as_ref()
+                    .map(|value| (expanded_name.local_name.clone(), value.clone())),
+                _ => None,
+            })
+            .collect()
+    }
+
     fn result_source_map(source_id: u32, byte_offset: u64) -> SourceMapStack {
         SourceMapStack {
             frames: vec![SourceMapFrame {
@@ -1940,6 +1987,139 @@ mod tests {
             assert!(
                 model.constraints.contains_key(contract),
                 "XPath schema must own `{contract}`"
+            );
+        }
+    }
+
+    #[test]
+    fn xpath_full_conformance_matrix_is_schema_owned_and_actionable() {
+        let source = include_str!("../../schema-packages/xpath/v1/tests/xpath-3.1-conformance.cem");
+        let document = parse_cem_contract(source);
+        assert!(
+            document.diagnostics.is_empty(),
+            "conformance matrix must parse as CEM: {:?}",
+            document.diagnostics
+        );
+
+        let model = compile_schema_document_model(
+            XPATH_SCHEMA_URI,
+            builtin_schema_package_source(XPATH_PACKAGE_ID)
+                .expect("XPath package source")
+                .schema_source,
+        );
+        let diagnostics = crate::schema::document_model::validate_document_model(&document, &model);
+        assert!(
+            diagnostics.is_empty(),
+            "conformance matrix must satisfy the XPath schema: {diagnostics:?}"
+        );
+
+        let profiles = contract_element_ids(&document, "conformance-profile");
+        assert_eq!(
+            profiles.len(),
+            1,
+            "one XPath conformance profile is required"
+        );
+        let profile = contract_attributes(&document, profiles[0]);
+        assert_eq!(
+            profile.get("xpath-version").map(String::as_str),
+            Some("3.1")
+        );
+        assert_eq!(profile.get("destination").map(String::as_str), Some("full"));
+        assert_eq!(profile.get("delivery").map(String::as_str), Some("staged"));
+        assert_eq!(profile.get("qt3-version").map(String::as_str), Some("3.1"));
+
+        let references = contract_element_ids(&document, "normative-reference")
+            .into_iter()
+            .map(|node_id| contract_attributes(&document, node_id))
+            .collect::<Vec<_>>();
+        let reference_ids = references
+            .iter()
+            .filter_map(|reference| reference.get("id").cloned())
+            .collect::<BTreeSet<_>>();
+        assert_eq!(
+            reference_ids,
+            BTreeSet::from([
+                "fo31".to_owned(),
+                "qt3-31".to_owned(),
+                "xdm31".to_owned(),
+                "xpath31".to_owned(),
+            ])
+        );
+        assert!(references.iter().all(|reference| {
+            reference
+                .get("uri")
+                .is_some_and(|uri| uri.starts_with("https://www.w3.org/"))
+        }));
+
+        let implementation_reference_ids =
+            contract_element_ids(&document, "implementation-reference");
+        assert_eq!(implementation_reference_ids.len(), 1);
+        let implementation_reference =
+            contract_attributes(&document, implementation_reference_ids[0]);
+        assert_eq!(
+            implementation_reference.get("usage").map(String::as_str),
+            Some("reference-only")
+        );
+        assert_eq!(
+            implementation_reference.get("commit").map(String::as_str),
+            Some("200b1e3356ea9d6dd2901d67bd941b779df7e5b7")
+        );
+
+        let slices = contract_element_ids(&document, "conformance-slice")
+            .into_iter()
+            .map(|node_id| contract_attributes(&document, node_id))
+            .collect::<Vec<_>>();
+        assert!(
+            slices.len() >= 10,
+            "full XPath requires a complete slice inventory"
+        );
+        let slice_ids = slices
+            .iter()
+            .map(|slice| slice.get("id").expect("slice id").clone())
+            .collect::<BTreeSet<_>>();
+        assert_eq!(slice_ids.len(), slices.len(), "slice ids must be unique");
+        for required in [
+            "syntax-and-static-context",
+            "expressions-and-control-flow",
+            "paths-and-node-tests",
+            "operators",
+            "type-system",
+            "function-items",
+            "maps-and-arrays",
+            "functions-and-operators",
+            "dynamic-context-and-resources",
+            "schema-aware-evaluation",
+            "xdm-results-and-serialization",
+        ] {
+            assert!(
+                slice_ids.contains(required),
+                "missing conformance slice `{required}`"
+            );
+        }
+        for slice in &slices {
+            let status = slice.get("status").expect("slice status");
+            assert!(
+                matches!(
+                    status.as_str(),
+                    "complete" | "transitional" | "partial" | "contract-only" | "planned"
+                ),
+                "unsupported slice status `{status}`"
+            );
+            if status != "complete" {
+                assert!(
+                    slice.get("gap").is_some_and(|gap| !gap.trim().is_empty()),
+                    "non-complete slice requires a gap: {slice:?}"
+                );
+                assert!(
+                    slice
+                        .get("todo")
+                        .is_some_and(|todo| !todo.trim().is_empty()),
+                    "non-complete slice requires a todo reference: {slice:?}"
+                );
+            }
+            assert!(
+                slice.get("qt3-status").is_some(),
+                "slice must declare QT3 mapping state: {slice:?}"
             );
         }
     }
