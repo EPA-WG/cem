@@ -307,6 +307,36 @@ fn item_json(item: &Item) -> Value {
             "kind": "array",
             "items": items.iter().map(item_json).collect::<Vec<_>>()
         }),
+        Item::Native(view) => {
+            if let Some(atom) = view.atom() {
+                atom_json(&atom)
+            } else if let Some(items) = view.members() {
+                json!({
+                    "kind": "array",
+                    "items": items.iter().map(item_json).collect::<Vec<_>>()
+                })
+            } else if let Some(fields) = view.fields() {
+                let fields = fields
+                    .into_iter()
+                    .map(|(key, values)| {
+                        (
+                            key,
+                            Value::Array(values.iter().map(item_json).collect::<Vec<_>>()),
+                        )
+                    })
+                    .collect::<Map<_, _>>();
+                json!({
+                    "kind": "record",
+                    "fields": fields
+                })
+            } else {
+                json!({
+                    "kind": "native",
+                    "representation": view.representation_id(),
+                    "identity": view.identity(),
+                })
+            }
+        }
         Item::Lambda(id) => json!({
             "kind": "lambda",
             "id": id.0

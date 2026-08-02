@@ -476,9 +476,20 @@ fn repository_compile_audit_runs_parsable_expressions_and_keeps_dom_converter_mi
         "expected repository-wide compile audit coverage, got {}",
         reports.len()
     );
-    assert!(reports.iter().all(|report| {
-        !report.parse_succeeded || (report.resolve_ran && report.type_check_ran)
-    }));
+    let waivers = embedded_functional_waivers();
+    let incomplete_reports = reports
+        .iter()
+        .filter(|report| report.parse_succeeded && (!report.resolve_ran || !report.type_check_ran))
+        .filter(|report| {
+            !waivers
+                .iter()
+                .any(|waiver| waiver.matches_expression(&report.expression))
+        })
+        .collect::<Vec<_>>();
+    assert!(
+        incomplete_reports.is_empty(),
+        "parsable expressions that did not reach resolve/type-check: {incomplete_reports:#?}"
+    );
 
     let dom_predicate_report = reports
         .iter()
@@ -595,6 +606,8 @@ fn explicit_functional_waivers_are_well_scoped_and_owned() {
     assert!(ids.contains("schema-package-csv-v1-cemt-helper-dsl"));
     assert!(ids.contains("schema-package-schema-v1-behavior-runtime"));
     assert!(ids.contains("custom-element-material-importmap-external-resources"));
+    assert!(ids.contains("cem-native-template-invalid-data-binding-example"));
+    assert!(ids.contains("cem-native-template-invalid-boolean-syntax-example"));
     assert!(waivers.iter().all(|waiver| {
         !waiver.owner.trim().is_empty()
             && !waiver.reason.trim().is_empty()
@@ -625,10 +638,15 @@ fn embedded_expression_audit_gate_runs_compile_fixtures_and_waivers() {
 
     let compile_reports = compile_embedded_expressions(&expressions);
     assert_eq!(compile_reports.len(), expressions.len());
+    let waivers = embedded_functional_waivers();
     assert!(
-        compile_reports
-            .iter()
-            .all(|report| !report.parse_succeeded || (report.resolve_ran && report.type_check_ran)),
+        compile_reports.iter().all(|report| {
+            !report.parse_succeeded
+                || (report.resolve_ran && report.type_check_ran)
+                || waivers
+                    .iter()
+                    .any(|waiver| waiver.matches_expression(&report.expression))
+        }),
         "all parsable expressions must reach resolver and type checker"
     );
     assert!(
@@ -636,6 +654,9 @@ fn embedded_expression_audit_gate_runs_compile_fixtures_and_waivers() {
             !report
                 .diagnostics_for_stage(EmbeddedCompileStage::Parse)
                 .any(|diagnostic| diagnostic.diagnostic.code == "cem.ql.use_rust_boolean_ops")
+                || waivers
+                    .iter()
+                    .any(|waiver| waiver.matches_expression(&report.expression))
         }),
         "checked-in embedded expressions must stay on Rust-first boolean syntax"
     );

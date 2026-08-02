@@ -14,7 +14,9 @@ use cem_ml::tokenizer::cem::CemTokenizer;
 use crate::diagnostics::{
     POLICY_ACCESSOR_FAILED, READ_DENIED, READ_UNSATISFIABLE, UNRESOLVED_REFERENCE,
 };
-use crate::eval::{effective_boolean, first_integer, AtomValue, EvalCtx, Item, ItemStream};
+use crate::eval::{
+    effective_boolean, first_integer, AtomValue, EvalCtx, Item, ItemStream, QueryItemViewKind,
+};
 use crate::ir::{IrId, IrStep};
 use crate::resolve::ModuleUri;
 use crate::stdlib;
@@ -347,29 +349,38 @@ fn nth(mut input: ItemStream, n: Option<&ItemStream>) -> ItemStream {
 }
 
 fn record_field(input: ItemStream, field: &str) -> Option<ItemStream> {
-    // Flatten one array level so navigating a data-document collection (a slice delivered through
-    // the JSON boundary as a single `Item::Array` of row records) projects the field across its
-    // rows — i.e. `datadom.slices.hue.td1` yields the sequence of every row's `td1`, parity with a
-    // bare record sequence. A non-array item passes through unchanged.
+    // Flatten one array level so navigating a data-document collection projects the field across
+    // its rows, i.e. `datadom.slices.hue.td1` yields every row's `td1`. A non-array item passes
+    // through unchanged.
     let items: Vec<Item> = input
         .items
         .iter()
-        .flat_map(|item| match item {
-            Item::Array(members) => members.clone(),
-            other => vec![other.clone()],
-        })
+        .flat_map(|item| item.members().unwrap_or_else(|| vec![item.clone()]))
         .collect();
-    if !items.iter().any(|item| matches!(item, Item::Record(_))) {
+    if !items.iter().any(|item| {
+        matches!(item, Item::Record(_))
+            || item
+                .view()
+                .is_some_and(|view| view.kind() == QueryItemViewKind::Record)
+    }) {
         return None;
     }
     let mut out = ItemStream::empty();
     out.diagnostics.extend(input.diagnostics);
     out.error = input.error;
     for item in items {
-        if let Item::Record(record) = item {
-            if let Some(values) = record.get(field) {
-                out.items.extend(values.clone());
+        match item {
+            Item::Record(record) => {
+                if let Some(values) = record.get(field) {
+                    out.items.extend(values.clone());
+                }
             }
+            Item::Native(view) => {
+                if let Some(values) = view.field(field) {
+                    out.items.extend(values);
+                }
+            }
+            _ => {}
         }
     }
     Some(out)
@@ -709,15 +720,17 @@ fn binary_set_call(
 }
 
 fn item_string(item: &Item) -> Option<String> {
+    if let Some(atom) = item.atom() {
+        return match atom {
+            AtomValue::String(value) | AtomValue::AnyUri(value) => Some(value),
+            AtomValue::Integer(value) => Some(value.to_string()),
+            AtomValue::Decimal(value) => Some(value),
+            AtomValue::Double(value) => Some(value.to_string()),
+            AtomValue::Boolean(value) => Some(value.to_string()),
+            AtomValue::Null => Some("null".to_owned()),
+        };
+    }
     match item {
-        Item::Atomic(AtomValue::String(value)) | Item::Atomic(AtomValue::AnyUri(value)) => {
-            Some(value.clone())
-        }
-        Item::Atomic(AtomValue::Integer(value)) => Some(value.to_string()),
-        Item::Atomic(AtomValue::Decimal(value)) => Some(value.clone()),
-        Item::Atomic(AtomValue::Double(value)) => Some(value.to_string()),
-        Item::Atomic(AtomValue::Boolean(value)) => Some(value.to_string()),
-        Item::Atomic(AtomValue::Null) => Some("null".to_owned()),
         Item::Node(value) => Some(value.clone()),
         _ => None,
     }
@@ -830,11 +843,11 @@ fn first_number(streams: &[ItemStream]) -> f64 {
 }
 
 fn item_number(item: &Item) -> Option<f64> {
-    match item {
-        Item::Atomic(AtomValue::Integer(value)) => Some(*value as f64),
-        Item::Atomic(AtomValue::Decimal(value)) => value.parse().ok(),
-        Item::Atomic(AtomValue::Double(value)) => Some(*value),
-        Item::Atomic(AtomValue::String(value)) => value.parse().ok(),
+    match item.atom()? {
+        AtomValue::Integer(value) => Some(value as f64),
+        AtomValue::Decimal(value) => value.parse().ok(),
+        AtomValue::Double(value) => Some(value),
+        AtomValue::String(value) => value.parse().ok(),
         _ => None,
     }
 }

@@ -5,6 +5,7 @@
 //! CEM-native fragment renderer. Keeping the bridge here avoids a dependency
 //! cycle from `cem_ml` back into `cem_ql`.
 
+use std::any::Any;
 use std::collections::{BTreeMap, BTreeSet};
 use std::sync::Arc;
 
@@ -24,6 +25,7 @@ use cem_ml::legacy_custom_element::{
     convert_template_source, LegacyConversionDiagnostic, TEMPLATE_CONTENT_TYPES,
     UNSUPPORTED_CONSTRUCT_CODE, UNSUPPORTED_FUNCTION_CODE,
 };
+use cem_ml::lifecycle::LoadedInputAstStream;
 use cem_ml::parser::document::CemDocument;
 use cem_ml::parser::{AstNodeId, CemAstNode};
 use cem_ml::run_config::ScopeConfig;
@@ -42,6 +44,10 @@ use cem_ml::source::{ByteRange, BytesSource, SourceId};
 use cem_ml::source_map::{FrameSpan, SourceMapFrame, SourceMapStack, TransformKind};
 use cem_ml::tokenizer::cem::CemTokenizer;
 use cem_ml::tokenizer::{SchemaToken, SchemaTokenizer};
+use cem_ml::transform_artifact::{
+    TransformArtifactBody, TransformArtifactCollection, TransformArtifactCollectionMode,
+    TransformEncodedArtifact, TransformEncoding,
+};
 use cem_ml::transform_template::{
     parse_cem_native_template_module_options, parse_transform_template_output_color_type,
     TransformTemplateAdapter, TransformTemplateAdapterCapability, TransformTemplateAdapterError,
@@ -59,11 +65,18 @@ use cem_ml::transform_template::{
     TRANSFORM_TEMPLATE_CALL_UNKNOWN_CODE, TRANSFORM_TEMPLATE_PARAM_REQUIRED_CODE,
     TRANSFORM_TEMPLATE_PARAM_TYPE_CODE, TRANSFORM_TEMPLATE_RECURSION_LIMIT_CODE,
 };
+use cem_ml::validation::json::{
+    json_document_ast_from_source_bytes, JsonNumberKind, JsonSourceValidationRequest, JsonValueAst,
+};
+use cem_ml::validation::xml::{XmlAttributeAst, XmlDocumentAst, XmlEventAst};
 use cem_ql::api::{
     compile, compile_expression, evaluate, CompileContext, CompiledExpression, EvaluationContext,
     ParseResult, StandaloneExpressionBinding, StandaloneExpressionContext,
 };
-use cem_ql::eval::{AtomValue, BudgetAxis, EvalError, Item, ItemStream, QueryContextScope};
+use cem_ql::eval::{
+    AtomValue, BudgetAxis, EvalError, Item, ItemStream, QueryContextScope, QueryItemView,
+    QueryItemViewKind,
+};
 use cem_ql::lexer::{CookedTokenPayload, Lexer, Token, TokenKind};
 use cem_ql::parser::SurfaceNode;
 use cem_ql::render::{
@@ -3929,7 +3942,7 @@ fn bind_param_value(
     name: &str,
     value: &Value,
 ) {
-    let stream = value_to_stream(value);
+    let stream = explicit_param_value_to_stream(value);
     data.bindings.insert(name.to_owned(), stream.clone());
     if let Some((qualified, local)) = entrypoint_param_aliases(name, selected_entrypoint) {
         data.bindings
@@ -3951,7 +3964,7 @@ fn apply_param_declarations(
             normalize_param_aliases(data, qualified.as_str(), local.as_str());
             if !data.bindings.contains_key(&qualified) && !data.bindings.contains_key(&local) {
                 if let Some(default_value) = &declaration.default_value {
-                    let stream = value_to_stream(default_value);
+                    let stream = explicit_param_value_to_stream(default_value);
                     data.bindings.insert(qualified, stream.clone());
                     data.bindings.insert(local, stream);
                 }
@@ -3964,8 +3977,10 @@ fn apply_param_declarations(
         }
         if !data.bindings.contains_key(&declaration.name) {
             if let Some(default_value) = &declaration.default_value {
-                data.bindings
-                    .insert(declaration.name.clone(), value_to_stream(default_value));
+                data.bindings.insert(
+                    declaration.name.clone(),
+                    explicit_param_value_to_stream(default_value),
+                );
             }
         }
     }
@@ -4069,27 +4084,44 @@ fn item_accepts_param_type(
 ) -> bool {
     use cem_ml::transform_template::TransformTemplateModuleParamType as ParamType;
 
-    if matches!(item, Item::Atomic(AtomValue::Null)) {
+    if matches!(item.atom(), Some(AtomValue::Null)) {
         return declaration.nullable;
     }
 
     match declaration.value_type {
         ParamType::Any => true,
         ParamType::String => matches!(
-            item,
-            Item::Atomic(AtomValue::String(_)) | Item::Atomic(AtomValue::AnyUri(_))
+            item.atom(),
+            Some(AtomValue::String(_) | AtomValue::AnyUri(_))
         ),
-        ParamType::Boolean => matches!(item, Item::Atomic(AtomValue::Boolean(_))),
+        ParamType::Boolean => matches!(item.atom(), Some(AtomValue::Boolean(_))),
         ParamType::Number => matches!(
-            item,
-            Item::Atomic(AtomValue::Integer(_))
-                | Item::Atomic(AtomValue::Decimal(_))
-                | Item::Atomic(AtomValue::Double(_))
+            item.atom(),
+            Some(AtomValue::Integer(_) | AtomValue::Decimal(_) | AtomValue::Double(_))
         ),
-        ParamType::Integer => matches!(item, Item::Atomic(AtomValue::Integer(_))),
-        ParamType::Array => matches!(item, Item::Array(_)),
-        ParamType::Object => matches!(item, Item::Record(_)),
-        ParamType::Json => matches!(item, Item::Atomic(_) | Item::Array(_) | Item::Record(_)),
+        ParamType::Integer => matches!(item.atom(), Some(AtomValue::Integer(_))),
+        ParamType::Array => {
+            matches!(item, Item::Array(_))
+                || item
+                    .view()
+                    .is_some_and(|view| view.kind() == QueryItemViewKind::Array)
+        }
+        ParamType::Object => {
+            matches!(item, Item::Record(_))
+                || item
+                    .view()
+                    .is_some_and(|view| view.kind() == QueryItemViewKind::Record)
+        }
+        ParamType::Json => {
+            item.atom().is_some()
+                || matches!(item, Item::Array(_) | Item::Record(_))
+                || item.view().is_some_and(|view| {
+                    matches!(
+                        view.kind(),
+                        QueryItemViewKind::Record | QueryItemViewKind::Array
+                    )
+                })
+        }
     }
 }
 
@@ -4189,29 +4221,807 @@ fn module_render_diagnostic(
     }
 }
 
+#[derive(Debug, Clone)]
+struct CemDocumentQueryView {
+    document: Arc<CemDocument>,
+    node_id: AstNodeId,
+}
+
+impl CemDocumentQueryView {
+    fn item(document: Arc<CemDocument>, node_id: AstNodeId) -> Item {
+        Item::native(Self { document, node_id })
+    }
+
+    fn node(&self) -> Option<&CemAstNode> {
+        self.document.get(self.node_id)
+    }
+
+    fn field_names(&self) -> &'static [&'static str] {
+        match self.node() {
+            Some(CemAstNode::Document { .. }) => &["kind", "children"],
+            Some(CemAstNode::Element { .. }) => {
+                &["kind", "name", "namespace", "attributes", "children"]
+            }
+            Some(CemAstNode::Attribute { .. }) => &["kind", "name", "namespace", "value"],
+            Some(CemAstNode::Text { .. })
+            | Some(CemAstNode::Whitespace { .. })
+            | Some(CemAstNode::Comment { .. })
+            | Some(CemAstNode::Cdata { .. })
+            | Some(CemAstNode::RawText { .. }) => &["kind", "data", "value"],
+            Some(CemAstNode::ProcessingInstruction { .. }) => {
+                &["kind", "name", "target", "data", "value"]
+            }
+            Some(CemAstNode::Error { .. }) => &["kind", "code"],
+            None => &[],
+        }
+    }
+
+    fn child_items(&self, ids: &[AstNodeId]) -> Vec<Item> {
+        ids.iter()
+            .filter(|id| self.document.get(**id).is_some())
+            .map(|id| Self::item(Arc::clone(&self.document), *id))
+            .collect()
+    }
+}
+
+impl QueryItemView for CemDocumentQueryView {
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+
+    fn representation_id(&self) -> &'static str {
+        "cem.ql.cem-document-view"
+    }
+
+    fn identity(&self) -> String {
+        format!("{:p}:{}", Arc::as_ptr(&self.document), self.node_id)
+    }
+
+    fn kind(&self) -> QueryItemViewKind {
+        QueryItemViewKind::Record
+    }
+
+    fn fields(&self) -> Option<Vec<(String, Vec<Item>)>> {
+        Some(
+            self.field_names()
+                .iter()
+                .map(|name| ((*name).to_owned(), self.field(name).unwrap_or_default()))
+                .collect(),
+        )
+    }
+
+    fn field(&self, name: &str) -> Option<Vec<Item>> {
+        let node = self.node()?;
+        let values = match (node, name) {
+            (CemAstNode::Document { .. }, "kind") => atom_items("document"),
+            (CemAstNode::Document { root_children, .. }, "children") => {
+                self.child_items(root_children)
+            }
+            (CemAstNode::Element { .. }, "kind") => atom_items("element"),
+            (CemAstNode::Element { expanded_name, .. }, "name") => {
+                atom_items(expanded_name.local_name.clone())
+            }
+            (CemAstNode::Element { expanded_name, .. }, "namespace") => {
+                atom_items(expanded_name.namespace_uri.clone())
+            }
+            (CemAstNode::Element { attributes, .. }, "attributes") => {
+                vec![Item::Array(self.child_items(attributes))]
+            }
+            (CemAstNode::Element { children, .. }, "children") => {
+                vec![Item::Array(self.child_items(children))]
+            }
+            (CemAstNode::Attribute { .. }, "kind") => atom_items("attribute"),
+            (CemAstNode::Attribute { expanded_name, .. }, "name") => {
+                atom_items(expanded_name.local_name.clone())
+            }
+            (CemAstNode::Attribute { expanded_name, .. }, "namespace") => {
+                atom_items(expanded_name.namespace_uri.clone())
+            }
+            (CemAstNode::Attribute { value, .. }, "value") => vec![value
+                .as_ref()
+                .map(|value| Item::Atomic(AtomValue::String(value.clone())))
+                .unwrap_or(Item::Atomic(AtomValue::Null))],
+            (CemAstNode::Text { .. }, "kind") => atom_items("text"),
+            (CemAstNode::Whitespace { .. }, "kind") => atom_items("whitespace"),
+            (CemAstNode::Comment { .. }, "kind") => atom_items("comment"),
+            (CemAstNode::Cdata { .. }, "kind") => atom_items("cdata"),
+            (CemAstNode::RawText { .. }, "kind") => atom_items("raw-text"),
+            (CemAstNode::Text { data, .. }, "data" | "value")
+            | (CemAstNode::Whitespace { data, .. }, "data" | "value")
+            | (CemAstNode::Comment { data, .. }, "data" | "value")
+            | (CemAstNode::Cdata { data, .. }, "data" | "value")
+            | (CemAstNode::RawText { data, .. }, "data" | "value") => atom_items(data.clone()),
+            (CemAstNode::ProcessingInstruction { .. }, "kind") => {
+                atom_items("processing-instruction")
+            }
+            (CemAstNode::ProcessingInstruction { target, .. }, "name" | "target") => {
+                atom_items(target.clone())
+            }
+            (CemAstNode::ProcessingInstruction { data, .. }, "data" | "value") => {
+                atom_items(data.clone())
+            }
+            (CemAstNode::Error { .. }, "kind") => atom_items("error"),
+            (CemAstNode::Error { code, .. }, "code") => atom_items(code.clone()),
+            _ => Vec::new(),
+        };
+        Some(values)
+    }
+
+    fn source_map(&self) -> Option<SourceMapStack> {
+        match self.node()? {
+            CemAstNode::Document { source, .. }
+            | CemAstNode::Element { source, .. }
+            | CemAstNode::Attribute { source, .. }
+            | CemAstNode::Text { source, .. }
+            | CemAstNode::Whitespace { source, .. }
+            | CemAstNode::Comment { source, .. }
+            | CemAstNode::ProcessingInstruction { source, .. }
+            | CemAstNode::Cdata { source, .. }
+            | CemAstNode::RawText { source, .. }
+            | CemAstNode::Error { source, .. } => Some(source.clone()),
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum JsonQueryPathSegment {
+    Member(usize),
+    Index(usize),
+}
+
+#[derive(Debug, Clone)]
+struct JsonValueQueryView {
+    owner: Arc<LoadedInputAstStream>,
+    path: Vec<JsonQueryPathSegment>,
+}
+
+impl JsonValueQueryView {
+    fn root(owner: Arc<LoadedInputAstStream>) -> Option<Item> {
+        let LoadedInputAstStream::JsonDocument(document) = owner.as_ref() else {
+            return None;
+        };
+        document.root.as_ref()?;
+        Some(Item::native(Self {
+            owner,
+            path: Vec::new(),
+        }))
+    }
+
+    fn value(&self) -> Option<&JsonValueAst> {
+        let LoadedInputAstStream::JsonDocument(document) = self.owner.as_ref() else {
+            return None;
+        };
+        let mut value = document.root.as_ref()?;
+        for segment in &self.path {
+            value = match (value, segment) {
+                (JsonValueAst::Object { members, .. }, JsonQueryPathSegment::Member(index)) => {
+                    &members.get(*index)?.value
+                }
+                (JsonValueAst::Array { items, .. }, JsonQueryPathSegment::Index(index)) => {
+                    items.get(*index)?
+                }
+                _ => return None,
+            };
+        }
+        Some(value)
+    }
+
+    fn child(&self, segment: JsonQueryPathSegment) -> Item {
+        let mut path = self.path.clone();
+        path.push(segment);
+        Item::native(Self {
+            owner: Arc::clone(&self.owner),
+            path,
+        })
+    }
+}
+
+impl QueryItemView for JsonValueQueryView {
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+
+    fn representation_id(&self) -> &'static str {
+        "cem.ql.json-ast-view"
+    }
+
+    fn identity(&self) -> String {
+        let range = self.value().map(JsonValueAst::range);
+        format!(
+            "{:p}:{}:{}",
+            Arc::as_ptr(&self.owner),
+            range.map(|range| range.start.byte_offset).unwrap_or(0),
+            range.map(|range| range.byte_length).unwrap_or(0)
+        )
+    }
+
+    fn kind(&self) -> QueryItemViewKind {
+        match self.value() {
+            Some(JsonValueAst::Object { .. }) => QueryItemViewKind::Record,
+            Some(JsonValueAst::Array { .. }) => QueryItemViewKind::Array,
+            _ => QueryItemViewKind::Atomic,
+        }
+    }
+
+    fn fields(&self) -> Option<Vec<(String, Vec<Item>)>> {
+        let JsonValueAst::Object { members, .. } = self.value()? else {
+            return None;
+        };
+        let mut names = Vec::new();
+        let mut seen = BTreeSet::new();
+        for member in members {
+            if seen.insert(member.name.clone()) {
+                names.push(member.name.clone());
+            }
+        }
+        Some(
+            names
+                .into_iter()
+                .map(|name| {
+                    let items = self.field(&name).unwrap_or_default();
+                    (name, items)
+                })
+                .collect(),
+        )
+    }
+
+    fn field(&self, name: &str) -> Option<Vec<Item>> {
+        let JsonValueAst::Object { members, .. } = self.value()? else {
+            return None;
+        };
+        Some(
+            members
+                .iter()
+                .enumerate()
+                .filter(|(_, member)| member.name == name)
+                .map(|(index, _)| self.child(JsonQueryPathSegment::Member(index)))
+                .collect(),
+        )
+    }
+
+    fn members(&self) -> Option<Vec<Item>> {
+        let JsonValueAst::Array { items, .. } = self.value()? else {
+            return None;
+        };
+        Some(
+            items
+                .iter()
+                .enumerate()
+                .map(|(index, _)| self.child(JsonQueryPathSegment::Index(index)))
+                .collect(),
+        )
+    }
+
+    fn atom(&self) -> Option<AtomValue> {
+        match self.value()? {
+            JsonValueAst::String { value, .. } => Some(AtomValue::String(value.clone())),
+            JsonValueAst::Number {
+                lexeme,
+                number_kind,
+                ..
+            } => match number_kind {
+                JsonNumberKind::Integer => lexeme
+                    .parse::<i64>()
+                    .map(AtomValue::Integer)
+                    .ok()
+                    .or_else(|| Some(AtomValue::Decimal(lexeme.clone()))),
+                JsonNumberKind::Decimal => Some(AtomValue::Decimal(lexeme.clone())),
+                JsonNumberKind::Exponent => lexeme
+                    .parse::<f64>()
+                    .map(AtomValue::Double)
+                    .ok()
+                    .or_else(|| Some(AtomValue::Decimal(lexeme.clone()))),
+            },
+            JsonValueAst::Boolean { value, .. } => Some(AtomValue::Boolean(*value)),
+            JsonValueAst::Null { .. } => Some(AtomValue::Null),
+            JsonValueAst::Object { .. } | JsonValueAst::Array { .. } => None,
+        }
+    }
+
+    fn source_map(&self) -> Option<SourceMapStack> {
+        self.value().map(|value| value.range().source_map())
+    }
+}
+
+#[derive(Debug, Clone)]
+struct XmlDocumentQueryView {
+    owner: Arc<LoadedInputAstStream>,
+}
+
+impl XmlDocumentQueryView {
+    fn document(&self) -> Option<&XmlDocumentAst> {
+        match self.owner.as_ref() {
+            LoadedInputAstStream::XmlDocument(document) => Some(document),
+            _ => None,
+        }
+    }
+}
+
+impl QueryItemView for XmlDocumentQueryView {
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+
+    fn representation_id(&self) -> &'static str {
+        "cem.ql.xml-document-view"
+    }
+
+    fn identity(&self) -> String {
+        format!("{:p}:document", Arc::as_ptr(&self.owner))
+    }
+
+    fn kind(&self) -> QueryItemViewKind {
+        QueryItemViewKind::Record
+    }
+
+    fn fields(&self) -> Option<Vec<(String, Vec<Item>)>> {
+        Some(
+            ["kind", "resourceKind", "events"]
+                .into_iter()
+                .map(|name| (name.to_owned(), self.field(name).unwrap_or_default()))
+                .collect(),
+        )
+    }
+
+    fn field(&self, name: &str) -> Option<Vec<Item>> {
+        let document = self.document()?;
+        Some(match name {
+            "kind" => atom_items("xml-document"),
+            "resourceKind" => atom_items(document.resource_kind.clone()),
+            "events" => vec![Item::Array(
+                document
+                    .events
+                    .iter()
+                    .enumerate()
+                    .map(|(index, _)| {
+                        Item::native(XmlEventQueryView {
+                            owner: Arc::clone(&self.owner),
+                            index,
+                        })
+                    })
+                    .collect(),
+            )],
+            _ => Vec::new(),
+        })
+    }
+}
+
+#[derive(Debug, Clone)]
+struct XmlEventQueryView {
+    owner: Arc<LoadedInputAstStream>,
+    index: usize,
+}
+
+impl XmlEventQueryView {
+    fn event(&self) -> Option<&XmlEventAst> {
+        let LoadedInputAstStream::XmlDocument(document) = self.owner.as_ref() else {
+            return None;
+        };
+        document.events.get(self.index)
+    }
+}
+
+impl QueryItemView for XmlEventQueryView {
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+
+    fn representation_id(&self) -> &'static str {
+        "cem.ql.xml-event-view"
+    }
+
+    fn identity(&self) -> String {
+        format!("{:p}:event:{}", Arc::as_ptr(&self.owner), self.index)
+    }
+
+    fn kind(&self) -> QueryItemViewKind {
+        QueryItemViewKind::Record
+    }
+
+    fn fields(&self) -> Option<Vec<(String, Vec<Item>)>> {
+        Some(
+            [
+                "kind",
+                "depth",
+                "qualifiedName",
+                "localName",
+                "prefix",
+                "namespaceUri",
+                "attributes",
+                "value",
+                "lexeme",
+                "whitespaceOnly",
+            ]
+            .into_iter()
+            .map(|name| (name.to_owned(), self.field(name).unwrap_or_default()))
+            .collect(),
+        )
+    }
+
+    fn field(&self, name: &str) -> Option<Vec<Item>> {
+        let event = self.event()?;
+        Some(match name {
+            "kind" => atom_items(event.kind.as_str()),
+            "depth" => vec![Item::Atomic(AtomValue::Integer(
+                i64::try_from(event.depth).unwrap_or(i64::MAX),
+            ))],
+            "qualifiedName" => optional_atom_items(event.qualified_name.as_deref()),
+            "localName" => optional_atom_items(event.local_name.as_deref()),
+            "prefix" => optional_atom_items(event.prefix.as_deref()),
+            "namespaceUri" => optional_atom_items(event.namespace_uri.as_deref()),
+            "attributes" => vec![Item::Array(
+                event
+                    .attributes
+                    .iter()
+                    .enumerate()
+                    .map(|(attribute_index, _)| {
+                        Item::native(XmlAttributeQueryView {
+                            owner: Arc::clone(&self.owner),
+                            event_index: self.index,
+                            attribute_index,
+                        })
+                    })
+                    .collect(),
+            )],
+            "value" => optional_atom_items(event.value.as_deref()),
+            "lexeme" => atom_items(event.lexeme.clone()),
+            "whitespaceOnly" => vec![Item::Atomic(AtomValue::Boolean(event.whitespace_only))],
+            _ => Vec::new(),
+        })
+    }
+
+    fn source_map(&self) -> Option<SourceMapStack> {
+        self.event().map(|event| event.source_range.source_map())
+    }
+}
+
+#[derive(Debug, Clone)]
+struct XmlAttributeQueryView {
+    owner: Arc<LoadedInputAstStream>,
+    event_index: usize,
+    attribute_index: usize,
+}
+
+impl XmlAttributeQueryView {
+    fn attribute(&self) -> Option<&XmlAttributeAst> {
+        let LoadedInputAstStream::XmlDocument(document) = self.owner.as_ref() else {
+            return None;
+        };
+        document
+            .events
+            .get(self.event_index)?
+            .attributes
+            .get(self.attribute_index)
+    }
+}
+
+impl QueryItemView for XmlAttributeQueryView {
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+
+    fn representation_id(&self) -> &'static str {
+        "cem.ql.xml-attribute-view"
+    }
+
+    fn identity(&self) -> String {
+        format!(
+            "{:p}:event:{}:attribute:{}",
+            Arc::as_ptr(&self.owner),
+            self.event_index,
+            self.attribute_index
+        )
+    }
+
+    fn kind(&self) -> QueryItemViewKind {
+        QueryItemViewKind::Record
+    }
+
+    fn fields(&self) -> Option<Vec<(String, Vec<Item>)>> {
+        Some(
+            [
+                "qualifiedName",
+                "localName",
+                "prefix",
+                "namespaceUri",
+                "value",
+            ]
+            .into_iter()
+            .map(|name| (name.to_owned(), self.field(name).unwrap_or_default()))
+            .collect(),
+        )
+    }
+
+    fn field(&self, name: &str) -> Option<Vec<Item>> {
+        let attribute = self.attribute()?;
+        Some(match name {
+            "qualifiedName" => atom_items(attribute.qualified_name.clone()),
+            "localName" => atom_items(attribute.local_name.clone()),
+            "prefix" => optional_atom_items(attribute.prefix.as_deref()),
+            "namespaceUri" => optional_atom_items(attribute.namespace_uri.as_deref()),
+            "value" => atom_items(attribute.value.clone()),
+            _ => Vec::new(),
+        })
+    }
+
+    fn source_map(&self) -> Option<SourceMapStack> {
+        let LoadedInputAstStream::XmlDocument(document) = self.owner.as_ref() else {
+            return None;
+        };
+        document
+            .events
+            .get(self.event_index)
+            .map(|event| event.source_range.source_map())
+    }
+}
+
+#[derive(Debug, Clone)]
+struct TransformCollectionQueryView {
+    collection: Arc<TransformArtifactCollection>,
+}
+
+impl QueryItemView for TransformCollectionQueryView {
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+
+    fn representation_id(&self) -> &'static str {
+        "cem.ql.transform-collection-view"
+    }
+
+    fn identity(&self) -> String {
+        format!("{:p}:collection", Arc::as_ptr(&self.collection))
+    }
+
+    fn kind(&self) -> QueryItemViewKind {
+        QueryItemViewKind::Record
+    }
+
+    fn fields(&self) -> Option<Vec<(String, Vec<Item>)>> {
+        Some(
+            ["kind", "mode", "count", "items"]
+                .into_iter()
+                .map(|name| (name.to_owned(), self.field(name).unwrap_or_default()))
+                .collect(),
+        )
+    }
+
+    fn field(&self, name: &str) -> Option<Vec<Item>> {
+        Some(match name {
+            "kind" => atom_items("collection"),
+            "mode" => atom_items(collection_mode_name(self.collection.mode)),
+            "count" => vec![Item::Atomic(AtomValue::Integer(
+                i64::try_from(self.collection.items.len()).unwrap_or(i64::MAX),
+            ))],
+            "items" => vec![Item::Array(
+                self.collection
+                    .items
+                    .iter()
+                    .enumerate()
+                    .map(|(index, _)| {
+                        Item::native(TransformCollectionItemQueryView {
+                            collection: Arc::clone(&self.collection),
+                            index,
+                        })
+                    })
+                    .collect(),
+            )],
+            _ => Vec::new(),
+        })
+    }
+}
+
+#[derive(Debug, Clone)]
+struct TransformCollectionItemQueryView {
+    collection: Arc<TransformArtifactCollection>,
+    index: usize,
+}
+
+impl QueryItemView for TransformCollectionItemQueryView {
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+
+    fn representation_id(&self) -> &'static str {
+        "cem.ql.transform-collection-item-view"
+    }
+
+    fn identity(&self) -> String {
+        format!("{:p}:item:{}", Arc::as_ptr(&self.collection), self.index)
+    }
+
+    fn kind(&self) -> QueryItemViewKind {
+        QueryItemViewKind::Record
+    }
+
+    fn fields(&self) -> Option<Vec<(String, Vec<Item>)>> {
+        Some(
+            ["input", "artifactId", "uri", "destination", "primary"]
+                .into_iter()
+                .map(|name| (name.to_owned(), self.field(name).unwrap_or_default()))
+                .collect(),
+        )
+    }
+
+    fn field(&self, name: &str) -> Option<Vec<Item>> {
+        let item = self.collection.items.get(self.index)?;
+        Some(match name {
+            "input" => atom_items(item.input_name.clone()),
+            "artifactId" => atom_items(item.artifact.artifact_id.clone()),
+            "uri" => optional_atom_items(item.artifact.uri.as_deref()),
+            "destination" => optional_atom_items(item.destination.as_deref()),
+            "primary" => artifact_query_stream(&item.artifact)
+                .map(|stream| stream.items)
+                .unwrap_or_default(),
+            _ => Vec::new(),
+        })
+    }
+}
+
+fn collection_mode_name(mode: TransformArtifactCollectionMode) -> &'static str {
+    match mode {
+        TransformArtifactCollectionMode::Collect => "collect",
+        TransformArtifactCollectionMode::GroupBy => "group-by",
+        TransformArtifactCollectionMode::MatchBy => "match-by",
+        TransformArtifactCollectionMode::Zip => "zip",
+    }
+}
+
+fn atom_items(value: impl Into<String>) -> Vec<Item> {
+    vec![Item::Atomic(AtomValue::String(value.into()))]
+}
+
+fn optional_atom_items(value: Option<&str>) -> Vec<Item> {
+    vec![value
+        .map(|value| Item::Atomic(AtomValue::String(value.to_owned())))
+        .unwrap_or(Item::Atomic(AtomValue::Null))]
+}
+
+#[derive(Debug, Clone)]
+struct EncodedTextQueryView {
+    encoded: Arc<TransformEncodedArtifact>,
+}
+
+impl QueryItemView for EncodedTextQueryView {
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+
+    fn representation_id(&self) -> &'static str {
+        "cem.ql.encoded-text-view"
+    }
+
+    fn identity(&self) -> String {
+        format!("{:p}:text", Arc::as_ptr(&self.encoded))
+    }
+
+    fn kind(&self) -> QueryItemViewKind {
+        QueryItemViewKind::Atomic
+    }
+
+    fn atom(&self) -> Option<AtomValue> {
+        std::str::from_utf8(self.encoded.bytes.as_ref())
+            .ok()
+            .map(|value| AtomValue::String(value.to_owned()))
+    }
+}
+
+fn artifact_query_stream(artifact: &TransformTemplateDataArtifact) -> Result<ItemStream, String> {
+    match &artifact.body {
+        TransformArtifactBody::CemDocument(document) => document
+            .root()
+            .map(|_| ItemStream::once(CemDocumentQueryView::item(Arc::clone(document), 0)))
+            .ok_or_else(|| "native CEM transform artifact has no document root".to_owned()),
+        TransformArtifactBody::Lifecycle(owner) => lifecycle_query_stream(Arc::clone(owner)),
+        TransformArtifactBody::Collection(collection) => Ok(ItemStream::once(Item::native(
+            TransformCollectionQueryView {
+                collection: Arc::clone(collection),
+            },
+        ))),
+        TransformArtifactBody::Encoded(encoded) if encoded.encoding == TransformEncoding::Json => {
+            let content_type =
+                encoded.identity.content_type.as_deref().ok_or_else(|| {
+                    "explicit JSON transform artifact has no content type".to_owned()
+                })?;
+            let source_uri = artifact
+                .uri
+                .as_deref()
+                .unwrap_or("memory:transform-input.json");
+            let (document, diagnostics) =
+                json_document_ast_from_source_bytes(JsonSourceValidationRequest {
+                    bytes: encoded.bytes.as_ref(),
+                    source_uri,
+                    content_type: Some(content_type),
+                });
+            let document = document.ok_or_else(|| {
+                let messages = diagnostics
+                    .iter()
+                    .map(|diagnostic| diagnostic.message.as_str())
+                    .collect::<Vec<_>>()
+                    .join("; ");
+                format!("explicit JSON transform artifact could not enter its lifecycle AST: {messages}")
+            })?;
+            lifecycle_query_stream(Arc::new(LoadedInputAstStream::JsonDocument(document)))
+        }
+        TransformArtifactBody::Encoded(encoded) if encoded.encoding == TransformEncoding::Text => {
+            std::str::from_utf8(encoded.bytes.as_ref()).map_err(|error| {
+                format!("encoded text transform artifact is not valid UTF-8: {error}")
+            })?;
+            Ok(ItemStream::once(Item::native(EncodedTextQueryView {
+                encoded: Arc::clone(encoded),
+            })))
+        }
+        body => Err(format!(
+            "transform artifact representation `{}` has no CEM-QL native query view",
+            body.representation_id()
+        )),
+    }
+}
+
+fn lifecycle_query_stream(owner: Arc<LoadedInputAstStream>) -> Result<ItemStream, String> {
+    match owner.as_ref() {
+        LoadedInputAstStream::JsonDocument(_) => {
+            let item = JsonValueQueryView::root(owner)
+                .ok_or_else(|| "JSON lifecycle AST has no root value".to_owned())?;
+            Ok(item
+                .members()
+                .map(ItemStream::from_items)
+                .unwrap_or_else(|| ItemStream::once(item)))
+        }
+        LoadedInputAstStream::XmlDocument(_) => {
+            Ok(ItemStream::once(Item::native(XmlDocumentQueryView {
+                owner,
+            })))
+        }
+        stream => Err(format!(
+            "lifecycle representation `{}` has no CEM-QL native query view",
+            lifecycle_representation_name(stream)
+        )),
+    }
+}
+
+fn lifecycle_representation_name(stream: &LoadedInputAstStream) -> &'static str {
+    match stream {
+        LoadedInputAstStream::HtmlDocument(_) => "html-document",
+        LoadedInputAstStream::CssDocument(_) => "css-document",
+        LoadedInputAstStream::CsvDocument(_) => "csv-document",
+        LoadedInputAstStream::YamlDocument(_) => "yaml-document",
+        LoadedInputAstStream::JsonDocument(_) => "json-document",
+        LoadedInputAstStream::JsonSchemaDocument(_) => "json-schema-document",
+        LoadedInputAstStream::MarkdownDocument(_) => "markdown-document",
+        LoadedInputAstStream::XmlDocument(_) => "xml-document",
+        LoadedInputAstStream::XhtmlDocument(_) => "xhtml-document",
+        LoadedInputAstStream::SvgDocument(_) => "svg-document",
+        LoadedInputAstStream::MathMlDocument(_) => "mathml-document",
+        LoadedInputAstStream::XPathExpression(_) => "xpath-expression",
+        LoadedInputAstStream::XsltStylesheet(_) => "xslt-stylesheet",
+        LoadedInputAstStream::RelaxNgDocument(_) => "relax-ng-document",
+    }
+}
+
 fn template_data_from_artifacts(
     primary: &TransformTemplateDataArtifact,
     secondary: &BTreeMap<String, Arc<TransformTemplateDataArtifact>>,
 ) -> Result<TemplateData, String> {
-    let primary_value = primary
-        .explicit_json_value()
-        .map_err(|error| error.to_string())?;
-    let mut data = TemplateData::default().with_binding("input", value_to_stream(&primary_value));
-    match &primary_value {
-        Value::Object(fields) => {
-            for (name, value) in fields {
-                data = data.with_binding(name.clone(), value_to_stream(value));
+    let primary_stream = artifact_query_stream(primary)?;
+    let mut data = TemplateData::default().with_binding("input", primary_stream.clone());
+    if let [item] = primary_stream.items.as_slice() {
+        if let Some(fields) = item.view().and_then(|view| view.fields()) {
+            for (name, items) in fields {
+                data = data.with_binding(name, ItemStream::from_items(items));
             }
+        } else if let Item::Record(fields) = item {
+            for (name, items) in fields {
+                data = data.with_binding(name.clone(), ItemStream::from_items(items.clone()));
+            }
+        } else {
+            data = data.with_binding("value", primary_stream.clone());
         }
-        _ => {
-            data = data.with_binding("value", value_to_stream(&primary_value));
-        }
+    } else {
+        data = data.with_binding("value", primary_stream.clone());
     }
     for (name, artifact) in secondary {
-        let value = artifact
-            .explicit_json_value()
-            .map_err(|error| error.to_string())?;
-        data = data.with_binding(name.clone(), value_to_stream(&value));
+        data = data.with_binding(name.clone(), artifact_query_stream(artifact)?);
     }
     Ok(data)
 }
@@ -4248,40 +5058,41 @@ fn expression_policy_bindings(
     params: &BTreeMap<String, Value>,
 ) -> Result<BTreeMap<String, ItemStream>, String> {
     let mut bindings = BTreeMap::new();
-    let primary = primary
-        .explicit_json_value()
-        .map_err(|error| error.to_string())?;
-    bindings.insert("input".to_owned(), value_to_stream(&primary));
+    bindings.insert("input".to_owned(), artifact_query_stream(primary)?);
     for (name, value) in params {
-        bindings.insert(name.clone(), value_to_stream(value));
+        bindings.insert(name.clone(), explicit_param_value_to_stream(value));
     }
     Ok(bindings)
 }
 
-fn value_to_stream(value: &Value) -> ItemStream {
+fn explicit_param_value_to_stream(value: &Value) -> ItemStream {
     match value {
-        Value::Array(items) => ItemStream::from_items(items.iter().map(value_to_item).collect()),
-        _ => ItemStream::once(value_to_item(value)),
+        Value::Array(items) => {
+            ItemStream::from_items(items.iter().map(explicit_param_value_to_item).collect())
+        }
+        _ => ItemStream::once(explicit_param_value_to_item(value)),
     }
 }
 
-fn value_to_item(value: &Value) -> Item {
+fn explicit_param_value_to_item(value: &Value) -> Item {
     match value {
         Value::Null => Item::Atomic(AtomValue::Null),
         Value::Bool(value) => Item::Atomic(AtomValue::Boolean(*value)),
-        Value::Number(value) => number_to_item(value),
+        Value::Number(value) => explicit_param_number_to_item(value),
         Value::String(value) => Item::Atomic(AtomValue::String(value.clone())),
-        Value::Array(items) => Item::Array(items.iter().map(value_to_item).collect()),
+        Value::Array(items) => {
+            Item::Array(items.iter().map(explicit_param_value_to_item).collect())
+        }
         Value::Object(fields) => Item::Record(
             fields
                 .iter()
-                .map(|(name, value)| (name.clone(), vec![value_to_item(value)]))
+                .map(|(name, value)| (name.clone(), vec![explicit_param_value_to_item(value)]))
                 .collect(),
         ),
     }
 }
 
-fn number_to_item(value: &Number) -> Item {
+fn explicit_param_number_to_item(value: &Number) -> Item {
     if let Some(value) = value.as_i64() {
         Item::Atomic(AtomValue::Integer(value))
     } else if let Some(value) = value.as_u64().and_then(|value| i64::try_from(value).ok()) {
@@ -4327,6 +5138,36 @@ fn item_json(item: &Item) -> Value {
             "kind": "array",
             "items": items.iter().map(item_json).collect::<Vec<_>>(),
         }),
+        Item::Native(view) => {
+            if let Some(atom) = view.atom() {
+                atom_json(&atom)
+            } else if let Some(items) = view.members() {
+                json!({
+                    "kind": "array",
+                    "items": items.iter().map(item_json).collect::<Vec<_>>(),
+                })
+            } else if let Some(fields) = view.fields() {
+                let fields = fields
+                    .into_iter()
+                    .map(|(name, items)| {
+                        (
+                            name,
+                            Value::Array(items.iter().map(item_json).collect::<Vec<_>>()),
+                        )
+                    })
+                    .collect::<Map<_, _>>();
+                json!({
+                    "kind": "record",
+                    "fields": fields,
+                })
+            } else {
+                json!({
+                    "kind": "native",
+                    "representation": view.representation_id(),
+                    "identity": view.identity(),
+                })
+            }
+        }
         Item::Lambda(id) => json!({
             "kind": "lambda",
             "id": id.0,
@@ -4443,11 +5284,12 @@ mod tests {
     };
     use cem_ml::source::{BytesSource, SourceId};
     use cem_ml::tokenizer::{cem::CemTokenizer, xml::XmlTokenizer};
-    use cem_ml::transform_artifact::TransformArtifactBody;
+    use cem_ml::transform_artifact::TransformArtifactCollectionItem;
     use cem_ml::transform_template::{
         TransformTemplateAdapterLookup, TransformTemplateModuleParamType,
         TransformTemplateModulePreflight, TransformTemplateResolvedModule,
     };
+    use cem_ml::validation::xml::{xml_document_ast_from_source_bytes, XmlSourceValidationRequest};
 
     const CUSTOM_BEHAVIOR_SCHEMA_URI: &str = "https://example.test/ns/custom-behavior/1";
     const CUSTOM_BEHAVIOR_SCHEMA: &str =
@@ -4690,7 +5532,7 @@ count + 1"#,
         .expect("test data has explicit JSON identity")
     }
 
-    fn assert_unmigrated_native_ingress_diagnostic(
+    fn assert_missing_native_query_view_diagnostic(
         diagnostics: &[Diagnostic],
         representation: &str,
         node: Option<&str>,
@@ -4702,7 +5544,7 @@ count + 1"#,
                     && diagnostic.message.contains(representation)
                     && diagnostic
                         .message
-                        .contains("expected explicit encoded JSON")
+                        .contains("has no CEM-QL native query view")
                     && node.is_none_or(|node| diagnostic.node.as_deref() == Some(node))
             }),
             "{diagnostics:?}"
@@ -4710,7 +5552,8 @@ count + 1"#,
     }
 
     #[test]
-    fn cql_data_ingress_rejects_unmigrated_native_representation() {
+    fn cql_native_cem_ingress_retains_document_identity_and_projects_fields() {
+        let document = Arc::new(document_from_cem("{main @id=demo | Hello}"));
         let artifact = TransformTemplateDataArtifact::new(
             "native",
             Some("data.cem".to_owned()),
@@ -4719,14 +5562,234 @@ count + 1"#,
                 schema: Some(CEM_ML_SCHEMA_URI.to_owned()),
                 ..FormatIdentity::default()
             }),
-            TransformArtifactBody::CemDocument(Arc::new(CemDocument::default())),
+            TransformArtifactBody::CemDocument(Arc::clone(&document)),
         );
 
-        let error = template_data_from_artifacts(&artifact, &BTreeMap::new())
-            .expect_err("unmigrated native CEM-QL ingress must fail explicitly");
+        let stream = artifact_query_stream(&artifact).expect("native CEM is queryable");
+        let root = stream.items.first().expect("native CEM root item");
+        let view = root
+            .view()
+            .and_then(|view| view.downcast_ref::<CemDocumentQueryView>())
+            .expect("CEM root remains a native document view");
+        assert!(Arc::ptr_eq(&view.document, &document));
+        assert_eq!(view.node_id, 0);
 
-        assert!(error.contains("cem.document-ast"), "{error}");
-        assert!(error.contains("explicit encoded JSON"), "{error}");
+        let children = root
+            .view()
+            .and_then(|view| view.field("children"))
+            .expect("document children field");
+        assert_eq!(children.len(), 1);
+        assert_eq!(
+            children[0]
+                .view()
+                .and_then(|view| view.field("name"))
+                .and_then(|items| items.first().and_then(Item::atom)),
+            Some(AtomValue::String("main".to_owned()))
+        );
+        assert!(children[0].source_map().is_some());
+    }
+
+    #[test]
+    fn cql_explicit_json_ingress_uses_lossless_ast_with_duplicate_members() {
+        let artifact = TransformTemplateDataArtifact::encoded(
+            "json",
+            Some("data.json".to_owned()),
+            FormatIdentity {
+                content_type: Some(cem_ml::schema::registry::JSON_CONTENT_TYPE.to_owned()),
+                schema: Some(cem_ml::schema::registry::JSON_VALUE_SCHEMA_URI.to_owned()),
+                ..FormatIdentity::default()
+            },
+            TransformEncoding::Json,
+            br#"{"name":"first","name":"second","ratio":1.2300}"#.to_vec(),
+        )
+        .expect("explicit JSON artifact");
+
+        let stream = artifact_query_stream(&artifact).expect("explicit JSON is lifecycle parsed");
+        let root = stream.items.first().expect("JSON root item");
+        let view = root
+            .view()
+            .and_then(|view| view.downcast_ref::<JsonValueQueryView>())
+            .expect("JSON object remains a native AST view");
+        assert!(matches!(
+            view.owner.as_ref(),
+            LoadedInputAstStream::JsonDocument(_)
+        ));
+
+        let names = root
+            .view()
+            .and_then(|view| view.field("name"))
+            .expect("duplicate name field");
+        assert_eq!(names.len(), 2);
+        assert_eq!(names[0].atom(), Some(AtomValue::String("first".to_owned())));
+        assert_eq!(
+            names[1].atom(),
+            Some(AtomValue::String("second".to_owned()))
+        );
+        assert_ne!(names[0].identity(), names[1].identity());
+        assert!(names.iter().all(|item| item.source_map().is_some()));
+
+        let ratio = root
+            .view()
+            .and_then(|view| view.field("ratio"))
+            .and_then(|items| items.first().and_then(Item::atom));
+        assert_eq!(ratio, Some(AtomValue::Decimal("1.2300".to_owned())));
+    }
+
+    #[test]
+    fn cql_xml_ingress_retains_lifecycle_event_and_attribute_identity() {
+        let (document, diagnostics) =
+            xml_document_ast_from_source_bytes(XmlSourceValidationRequest {
+                bytes: br#"<root xmlns:ex="urn:example" ex:id="one">text</root>"#,
+                source_uri: "data.xml",
+                content_type: Some(cem_ml::schema::registry::XML_CONTENT_TYPE),
+            });
+        assert!(diagnostics.is_empty(), "{diagnostics:?}");
+        let owner = Arc::new(LoadedInputAstStream::XmlDocument(
+            document.expect("XML lifecycle document"),
+        ));
+        let artifact = TransformTemplateDataArtifact::new(
+            "xml",
+            Some("data.xml".to_owned()),
+            Some(FormatIdentity {
+                content_type: Some(cem_ml::schema::registry::XML_CONTENT_TYPE.to_owned()),
+                schema: Some(cem_ml::schema::registry::XML_SCHEMA_URI.to_owned()),
+                ..FormatIdentity::default()
+            }),
+            TransformArtifactBody::Lifecycle(Arc::clone(&owner)),
+        );
+
+        let stream = artifact_query_stream(&artifact).expect("XML lifecycle AST is queryable");
+        let root = stream.items.first().expect("XML document view");
+        let document_view = root
+            .view()
+            .and_then(|view| view.downcast_ref::<XmlDocumentQueryView>())
+            .expect("XML document remains a native view");
+        assert!(Arc::ptr_eq(&document_view.owner, &owner));
+
+        let events = root
+            .view()
+            .and_then(|view| view.field("events"))
+            .and_then(|items| items.first().and_then(Item::members))
+            .expect("XML event sequence");
+        let start = events
+            .iter()
+            .find(|item| {
+                item.view()
+                    .and_then(|view| view.field("kind"))
+                    .and_then(|items| items.first().and_then(Item::atom))
+                    == Some(AtomValue::String("start-element".to_owned()))
+            })
+            .expect("start element event");
+        let event_view = start
+            .view()
+            .and_then(|view| view.downcast_ref::<XmlEventQueryView>())
+            .expect("XML event remains a native view");
+        assert!(Arc::ptr_eq(&event_view.owner, &owner));
+        assert!(start.source_map().is_some());
+
+        let attributes = start
+            .view()
+            .and_then(|view| view.field("attributes"))
+            .and_then(|items| items.first().and_then(Item::members))
+            .expect("XML attribute sequence");
+        let attribute_view = attributes
+            .iter()
+            .find_map(|item| {
+                item.view()
+                    .and_then(|view| view.downcast_ref::<XmlAttributeQueryView>())
+                    .filter(|view| {
+                        view.attribute()
+                            .is_some_and(|attribute| attribute.local_name == "id")
+                    })
+            })
+            .expect("namespaced id attribute view");
+        assert!(Arc::ptr_eq(&attribute_view.owner, &owner));
+        assert_eq!(
+            attribute_view.field("namespaceUri"),
+            Some(atom_items("urn:example"))
+        );
+    }
+
+    #[test]
+    fn cql_collection_ingress_retains_collection_and_child_artifact_identity() {
+        let document = Arc::new(document_from_cem("{main}"));
+        let child = Arc::new(TransformTemplateDataArtifact::new(
+            "child",
+            Some("child.cem".to_owned()),
+            Some(FormatIdentity {
+                content_type: Some(CEM_ML_CONTENT_TYPE.to_owned()),
+                schema: Some(CEM_ML_SCHEMA_URI.to_owned()),
+                ..FormatIdentity::default()
+            }),
+            TransformArtifactBody::CemDocument(Arc::clone(&document)),
+        ));
+        let collection = Arc::new(TransformArtifactCollection {
+            mode: TransformArtifactCollectionMode::Collect,
+            bindings: BTreeMap::new(),
+            items: vec![TransformArtifactCollectionItem {
+                input_name: "primary".to_owned(),
+                destination: None,
+                target: None,
+                bindings: BTreeMap::new(),
+                artifact: Arc::clone(&child),
+                source_map: None,
+                output_spans: Vec::new(),
+            }],
+        });
+        let artifact = TransformTemplateDataArtifact::new(
+            "collection",
+            None,
+            None,
+            TransformArtifactBody::Collection(Arc::clone(&collection)),
+        );
+
+        let stream = artifact_query_stream(&artifact).expect("collection is queryable");
+        let root = stream.items.first().expect("collection view");
+        let collection_view = root
+            .view()
+            .and_then(|view| view.downcast_ref::<TransformCollectionQueryView>())
+            .expect("collection remains a native view");
+        assert!(Arc::ptr_eq(&collection_view.collection, &collection));
+
+        let items = root
+            .view()
+            .and_then(|view| view.field("items"))
+            .and_then(|items| items.first().and_then(Item::members))
+            .expect("collection item sequence");
+        let item_view = items[0]
+            .view()
+            .and_then(|view| view.downcast_ref::<TransformCollectionItemQueryView>())
+            .expect("collection item remains a native view");
+        assert!(Arc::ptr_eq(&item_view.collection, &collection));
+
+        let primary = item_view.field("primary").expect("typed child artifact");
+        let child_view = primary[0]
+            .view()
+            .and_then(|view| view.downcast_ref::<CemDocumentQueryView>())
+            .expect("child remains a native CEM view");
+        assert!(Arc::ptr_eq(&child_view.document, &document));
+        assert!(Arc::ptr_eq(&collection.items[0].artifact, &child));
+    }
+
+    #[test]
+    fn cql_artifact_ingress_source_has_no_generic_json_bridge() {
+        let source = include_str!("lib.rs");
+        let ingress = source
+            .split("fn artifact_query_stream")
+            .nth(1)
+            .and_then(|source| source.split("fn expression_compile_context").next())
+            .expect("CEM-QL artifact ingress source");
+        for forbidden in [
+            "explicit_json_value",
+            "serde_json::",
+            "to_cemt_subject",
+            "value_to_stream",
+        ] {
+            assert!(
+                !ingress.contains(forbidden),
+                "CEM-QL artifact ingress must not call `{forbidden}`"
+            );
+        }
     }
 
     fn packaged_dom_projection_input(children: Vec<Value>) -> TransformTemplateDataArtifact {
@@ -8473,7 +9536,7 @@ count + 1"#,
                 .expect("convert request should execute");
 
             assert_eq!(response.primary, Value::Null, "{uri}");
-            assert_unmigrated_native_ingress_diagnostic(
+            assert_missing_native_query_view_diagnostic(
                 &response.diagnostics,
                 "cem.tree-ast",
                 None,
@@ -8911,7 +9974,7 @@ if greeting == "Hello" {
     }
 
     #[test]
-    fn real_engine_transform_cem_ql_rejects_unmigrated_native_cem_ingress() {
+    fn real_engine_transform_cem_ql_queries_native_cem_ingress() {
         let context = engine_context_with_cem_ql_template_adapter();
         let template_identity = FormatIdentity {
             content_type: Some("text/cem-ml".to_owned()),
@@ -8957,13 +10020,16 @@ if greeting == "Hello" {
             .transform(request)
             .expect("transform should run through registered adapter");
 
-        assert_eq!(response.primary, Value::Null);
-        assert_unmigrated_native_ingress_diagnostic(
-            &response.diagnostics,
-            "cem.document-ast",
-            None,
+        assert_eq!(
+            response.primary,
+            Value::String("<p>document</p>".to_owned())
         );
-        assert_eq!(response.scheduler_trace.event_count, 10);
+        assert!(
+            response.diagnostics.is_empty(),
+            "{:?}",
+            response.diagnostics
+        );
+        assert_eq!(response.scheduler_trace.event_count, 12);
         let scopes = response
             .scheduler_trace
             .events
@@ -8977,7 +10043,7 @@ if greeting == "Hello" {
     }
 
     #[test]
-    fn real_engine_transform_cem_ql_expression_rejects_unmigrated_native_cem_ingress() {
+    fn real_engine_transform_cem_ql_expression_queries_native_cem_ingress() {
         let context = engine_context_with_cem_ql_template_adapter();
         let request = TransformRequest {
             data: EngineInput {
@@ -9029,11 +10095,22 @@ if greeting == "Hello" {
             .transform(request)
             .expect("CEM-QL expression transform should execute");
 
-        assert_eq!(response.primary, Value::Null);
-        assert_unmigrated_native_ingress_diagnostic(
-            &response.diagnostics,
-            "cem.document-ast",
-            None,
+        assert_eq!(
+            response.primary,
+            json!({
+                "diagnostics": [],
+                "error": null,
+                "items": [{
+                    "kind": "atomic",
+                    "type": "string",
+                    "value": "document",
+                }],
+            })
+        );
+        assert!(
+            response.diagnostics.is_empty(),
+            "{:?}",
+            response.diagnostics
         );
         assert!(response.source_map.is_none());
         assert!(response.output_spans.is_empty());
@@ -9098,7 +10175,7 @@ if greeting == "Hello" {
     }
 
     #[test]
-    fn real_engine_transform_params_do_not_bypass_native_cem_ingress_boundary() {
+    fn real_engine_transform_params_coexist_with_native_cem_ingress() {
         let context = engine_context_with_cem_ql_template_adapter();
         let request = TransformRequest {
             data: EngineInput {
@@ -9159,16 +10236,19 @@ if greeting == "Hello" {
             .transform(request)
             .expect("transform should bind CEM-native params");
 
-        assert_eq!(response.primary, Value::Null);
-        assert_unmigrated_native_ingress_diagnostic(
-            &response.diagnostics,
-            "cem.document-ast",
-            None,
+        assert_eq!(
+            response.primary,
+            Value::String("<p>fr-FR:Intro</p>".to_owned())
+        );
+        assert!(
+            response.diagnostics.is_empty(),
+            "{:?}",
+            response.diagnostics
         );
     }
 
     #[test]
-    fn real_engine_transform_graph_rejects_unmigrated_branched_native_ingress() {
+    fn real_engine_transform_graph_routes_native_cem_to_branched_stages() {
         let context = engine_context_with_cem_ql_template_adapter();
         let data_identity = FormatIdentity {
             content_type: Some("text/cem-ml".to_owned()),
@@ -9267,16 +10347,26 @@ if greeting == "Hello" {
             .transform_graph(request)
             .expect("transform graph should execute through registered adapter");
 
-        assert!(response.artifacts.is_empty());
-        assert_unmigrated_native_ingress_diagnostic(
-            &response.diagnostics,
-            "cem.document-ast",
-            Some("transform:html"),
+        assert!(
+            response.diagnostics.is_empty(),
+            "{:?}",
+            response.diagnostics
+        );
+        assert_eq!(response.artifacts.len(), 2);
+        assert_eq!(response.artifacts[0].export_id, "main");
+        assert_eq!(
+            response.artifacts[0].primary,
+            Value::String("<article>document</article>".to_owned())
+        );
+        assert_eq!(response.artifacts[1].export_id, "chart-svg");
+        assert_eq!(
+            response.artifacts[1].primary,
+            Value::String("<svg>document</svg>".to_owned())
         );
     }
 
     #[test]
-    fn real_engine_transform_graph_join_waits_for_typed_cem_ql_ingress() {
+    fn real_engine_transform_graph_queries_typed_collection_ingress() {
         let context = engine_context_with_cem_ql_template_adapter();
         let identity = FormatIdentity {
             content_type: Some("text/cem-ml".to_owned()),
@@ -9308,38 +10398,60 @@ if greeting == "Hello" {
                 bindings: BTreeMap::new(),
                 scheduler_scope_id: 33,
             }],
-            stages: vec![TransformGraphStage {
-                id: "html".to_owned(),
-                template: TemplateInput {
-                    uri: "html.cem".to_owned(),
-                    bytes: br#"{article | {$datadom.attributes.kind}}"#.to_vec(),
-                    identity: Some(identity),
-                    root_scope: ScopeConfig::default(),
+            stages: vec![
+                TransformGraphStage {
+                    id: "html".to_owned(),
+                    template: TemplateInput {
+                        uri: "html.cem".to_owned(),
+                        bytes: br#"{article | {$datadom.attributes.kind}}"#.to_vec(),
+                        identity: Some(identity.clone()),
+                        root_scope: ScopeConfig::default(),
+                    },
+                    template_kind: TransformTemplateKind::CemNative,
+                    template_entrypoint: TransformTemplateEntrypoint::implicit(),
+                    params: BTreeMap::new(),
+                    execution_policy: TransformExecutionPolicy::default(),
+                    target: None,
+                    primary_input: "book".to_owned(),
+                    secondary_inputs: BTreeMap::new(),
+                    scheduler_scope_ids: TransformStageSchedulerScopeIds {
+                        template_load: 31,
+                        execution: 32,
+                    },
                 },
-                template_kind: TransformTemplateKind::CemNative,
-                template_entrypoint: TransformTemplateEntrypoint::implicit(),
-                params: BTreeMap::new(),
-                execution_policy: TransformExecutionPolicy::default(),
-                target: None,
-                primary_input: "book".to_owned(),
-                secondary_inputs: BTreeMap::new(),
-                scheduler_scope_ids: TransformStageSchedulerScopeIds {
-                    template_load: 31,
-                    execution: 32,
+                TransformGraphStage {
+                    id: "summary".to_owned(),
+                    template: TemplateInput {
+                        uri: "summary.cem".to_owned(),
+                        bytes: br#"{section | {$input.kind}:{$input.count}}"#.to_vec(),
+                        identity: Some(identity.clone()),
+                        root_scope: ScopeConfig::default(),
+                    },
+                    template_kind: TransformTemplateKind::CemNative,
+                    template_entrypoint: TransformTemplateEntrypoint::implicit(),
+                    params: BTreeMap::new(),
+                    execution_policy: TransformExecutionPolicy::default(),
+                    target: None,
+                    primary_input: "collection".to_owned(),
+                    secondary_inputs: BTreeMap::new(),
+                    scheduler_scope_ids: TransformStageSchedulerScopeIds {
+                        template_load: 34,
+                        execution: 35,
+                    },
                 },
-            }],
+            ],
             importmap_rewrites: Vec::new(),
             exports: vec![TransformGraphExport {
                 id: "joined".to_owned(),
-                input: "collection".to_owned(),
-                destination: Some("dist/collection.json".to_owned()),
+                input: "summary".to_owned(),
+                destination: Some("dist/collection.html".to_owned()),
                 target: Some(FormatIdentity {
-                    content_type: Some("application/json".to_owned()),
+                    content_type: Some("text/html".to_owned()),
                     ..FormatIdentity::default()
                 }),
                 target_scope: ScopeConfig::default(),
                 style_policy: Default::default(),
-                scheduler_scope_id: 34,
+                scheduler_scope_id: 36,
             }],
             edges: Vec::new(),
             preserve_source_offsets: false,
@@ -9351,16 +10463,21 @@ if greeting == "Hello" {
             .transform_graph(request)
             .expect("transform graph should execute join export");
 
-        assert!(response.artifacts.is_empty());
-        assert_unmigrated_native_ingress_diagnostic(
-            &response.diagnostics,
-            "cem.document-ast",
-            Some("transform:html"),
+        assert!(
+            response.diagnostics.is_empty(),
+            "{:?}",
+            response.diagnostics
+        );
+        assert_eq!(response.artifacts.len(), 1);
+        assert_eq!(response.artifacts[0].export_id, "joined");
+        assert_eq!(
+            response.artifacts[0].primary,
+            Value::String("<section>collection:1</section>".to_owned())
         );
     }
 
     #[test]
-    fn real_engine_transform_graph_multi_input_join_waits_for_typed_cem_ql_ingress() {
+    fn real_engine_transform_graph_queries_multi_input_typed_collection() {
         let context = engine_context_with_cem_ql_template_adapter();
         let identity = FormatIdentity {
             content_type: Some("text/cem-ml".to_owned()),
@@ -9427,7 +10544,7 @@ if greeting == "Hello" {
                     template: TemplateInput {
                         uri: "summary.cem".to_owned(),
                         bytes: br#"{section | {$datadom.attributes.kind}}"#.to_vec(),
-                        identity: Some(identity),
+                        identity: Some(identity.clone()),
                         root_scope: ScopeConfig::default(),
                     },
                     template_kind: TransformTemplateKind::CemNative,
@@ -9442,19 +10559,39 @@ if greeting == "Hello" {
                         execution: 44,
                     },
                 },
+                TransformGraphStage {
+                    id: "collection-summary".to_owned(),
+                    template: TemplateInput {
+                        uri: "collection-summary.cem".to_owned(),
+                        bytes: br#"{section | {$input.kind}:{$input.count}}"#.to_vec(),
+                        identity: Some(identity),
+                        root_scope: ScopeConfig::default(),
+                    },
+                    template_kind: TransformTemplateKind::CemNative,
+                    template_entrypoint: TransformTemplateEntrypoint::implicit(),
+                    params: BTreeMap::new(),
+                    execution_policy: TransformExecutionPolicy::default(),
+                    target: None,
+                    primary_input: "collection".to_owned(),
+                    secondary_inputs: BTreeMap::new(),
+                    scheduler_scope_ids: TransformStageSchedulerScopeIds {
+                        template_load: 46,
+                        execution: 47,
+                    },
+                },
             ],
             importmap_rewrites: Vec::new(),
             exports: vec![TransformGraphExport {
                 id: "joined".to_owned(),
-                input: "collection".to_owned(),
-                destination: Some("dist/collection.json".to_owned()),
+                input: "collection-summary".to_owned(),
+                destination: Some("dist/collection.html".to_owned()),
                 target: Some(FormatIdentity {
-                    content_type: Some("application/json".to_owned()),
+                    content_type: Some("text/html".to_owned()),
                     ..FormatIdentity::default()
                 }),
                 target_scope: ScopeConfig::default(),
                 style_policy: Default::default(),
-                scheduler_scope_id: 46,
+                scheduler_scope_id: 48,
             }],
             edges: Vec::new(),
             preserve_source_offsets: false,
@@ -9466,16 +10603,20 @@ if greeting == "Hello" {
             .transform_graph(request)
             .expect("transform graph should execute multi-input join export");
 
-        assert!(response.artifacts.is_empty());
-        assert_unmigrated_native_ingress_diagnostic(
-            &response.diagnostics,
-            "cem.document-ast",
-            Some("transform:html"),
+        assert!(
+            response.diagnostics.is_empty(),
+            "{:?}",
+            response.diagnostics
+        );
+        assert_eq!(response.artifacts.len(), 1);
+        assert_eq!(
+            response.artifacts[0].primary,
+            Value::String("<section>collection:2</section>".to_owned())
         );
     }
 
     #[test]
-    fn real_engine_transform_graph_attributes_native_ingress_diagnostic_to_stage() {
+    fn real_engine_transform_graph_attributes_render_diagnostics_to_stage() {
         let context = engine_context_with_cem_ql_template_adapter();
         let identity = FormatIdentity {
             content_type: Some("text/cem-ml".to_owned()),
@@ -9549,15 +10690,15 @@ if greeting == "Hello" {
             .expect("transform graph should return render diagnostics");
 
         assert!(response.artifacts.is_empty());
-        assert_unmigrated_native_ingress_diagnostic(
-            &response.diagnostics,
-            "cem.document-ast",
-            Some("transform:chart"),
-        );
+        assert!(response.diagnostics.iter().any(|diagnostic| {
+            diagnostic.code == TRANSFORM_TEMPLATE_RECURSION_LIMIT_CODE
+                && diagnostic.severity == Severity::Fatal
+                && diagnostic.node.as_deref() == Some("transform:chart")
+        }));
     }
 
     #[test]
-    fn real_engine_transform_graph_secondary_inputs_wait_for_typed_cem_ql_ingress() {
+    fn real_engine_transform_graph_queries_encoded_text_secondary_inputs() {
         let context = engine_context_with_cem_ql_template_adapter();
         let data_identity = FormatIdentity {
             content_type: Some("text/cem-ml".to_owned()),
@@ -9642,11 +10783,18 @@ if greeting == "Hello" {
             .transform_graph(request)
             .expect("transform graph should execute secondary input join");
 
-        assert!(response.artifacts.is_empty());
-        assert_unmigrated_native_ingress_diagnostic(
-            &response.diagnostics,
-            "cem.document-ast",
-            Some("transform:stats"),
+        assert!(
+            response.diagnostics.is_empty(),
+            "{:?}",
+            response.diagnostics
+        );
+        assert_eq!(response.artifacts.len(), 1);
+        assert_eq!(response.artifacts[0].export_id, "main");
+        assert_eq!(
+            response.artifacts[0].primary,
+            Value::String(
+                "<section>document:&lt;span&gt;document&lt;/span&gt;</section>".to_owned()
+            )
         );
     }
 }

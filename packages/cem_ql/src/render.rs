@@ -1378,8 +1378,8 @@ impl PlanRenderer {
     ///
     /// A selected `Item::Array` is flattened one level into its members, so iterating a
     /// data-document collection (e.g. `datadom.slices.geometry` — the token rows the host
-    /// bridge shapes from a `<table>`, delivered through the JSON boundary as a single array
-    /// item) yields one iteration per row, matching legacy XSLT `for-each` node-set iteration.
+    /// bridge shapes from a `<table>`, delivered as a single array item) yields one iteration
+    /// per row, matching legacy XSLT `for-each` node-set iteration.
     /// A bare sequence already iterates per item, so only array items are expanded.
     fn evaluate_select(&mut self, select: Option<&CompiledTemplateExpression>) -> Vec<Item> {
         let Some(select) = select else {
@@ -1405,10 +1405,7 @@ impl PlanRenderer {
         stream
             .items
             .into_iter()
-            .flat_map(|item| match item {
-                Item::Array(members) => members,
-                other => vec![other],
-            })
+            .flat_map(|item| item.members().unwrap_or_else(|| vec![item]))
             .collect()
     }
 
@@ -1755,16 +1752,25 @@ fn stream_to_string(stream: &ItemStream) -> String {
 }
 
 fn item_to_string(item: &Item) -> String {
+    if let Some(atom) = item.atom() {
+        return match atom {
+            AtomValue::String(value) => value,
+            AtomValue::Integer(value) => value.to_string(),
+            AtomValue::Decimal(value) => value,
+            AtomValue::Double(value) => value.to_string(),
+            AtomValue::Boolean(value) => value.to_string(),
+            AtomValue::AnyUri(value) => value,
+            AtomValue::Null => String::new(),
+        };
+    }
     match item {
-        Item::Atomic(AtomValue::String(value)) => value.clone(),
-        Item::Atomic(AtomValue::Integer(value)) => value.to_string(),
-        Item::Atomic(AtomValue::Decimal(value)) => value.clone(),
-        Item::Atomic(AtomValue::Double(value)) => value.to_string(),
-        Item::Atomic(AtomValue::Boolean(value)) => value.to_string(),
-        Item::Atomic(AtomValue::AnyUri(value)) => value.clone(),
-        Item::Atomic(AtomValue::Null) => String::new(),
         Item::Node(value) => value.clone(),
-        Item::Record(_) | Item::Array(_) | Item::Lambda(_) | Item::Resource(_) => String::new(),
+        Item::Record(_)
+        | Item::Array(_)
+        | Item::Native(_)
+        | Item::Lambda(_)
+        | Item::Resource(_) => String::new(),
+        Item::Atomic(_) => unreachable!("atomic items return above"),
     }
 }
 

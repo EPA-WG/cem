@@ -1,6 +1,9 @@
 //! Layer 6: pull-based evaluator.
 
+use std::any::Any;
 use std::collections::{BTreeMap, HashMap};
+use std::fmt;
+use std::sync::Arc;
 
 use cem_ml::diagnostics::{Diagnostic, Severity};
 use cem_ml::scheduler::ScopePolicy;
@@ -22,14 +25,153 @@ pub mod types_runtime;
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct QueryContextScope(pub u32);
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum QueryItemViewKind {
+    Atomic,
+    Record,
+    Array,
+    Node,
+}
+
+pub trait QueryItemView: fmt::Debug + Send + Sync {
+    fn as_any(&self) -> &dyn Any;
+    fn representation_id(&self) -> &'static str;
+    fn identity(&self) -> String;
+    fn kind(&self) -> QueryItemViewKind;
+    fn fields(&self) -> Option<Vec<(String, Vec<Item>)>> {
+        None
+    }
+    fn field(&self, _name: &str) -> Option<Vec<Item>> {
+        None
+    }
+    fn members(&self) -> Option<Vec<Item>> {
+        None
+    }
+    fn atom(&self) -> Option<AtomValue> {
+        None
+    }
+    fn source_map(&self) -> Option<SourceMapStack> {
+        None
+    }
+}
+
+#[derive(Clone)]
+pub struct NativeItemView {
+    view: Arc<dyn QueryItemView>,
+}
+
+impl NativeItemView {
+    pub fn new(view: impl QueryItemView + 'static) -> Self {
+        Self {
+            view: Arc::new(view),
+        }
+    }
+
+    pub fn representation_id(&self) -> &'static str {
+        self.view.representation_id()
+    }
+
+    pub fn downcast_ref<T: Any>(&self) -> Option<&T> {
+        self.view.as_any().downcast_ref::<T>()
+    }
+
+    pub fn identity(&self) -> String {
+        self.view.identity()
+    }
+
+    pub fn kind(&self) -> QueryItemViewKind {
+        self.view.kind()
+    }
+
+    pub fn field(&self, name: &str) -> Option<Vec<Item>> {
+        self.view.field(name)
+    }
+
+    pub fn fields(&self) -> Option<Vec<(String, Vec<Item>)>> {
+        self.view.fields()
+    }
+
+    pub fn members(&self) -> Option<Vec<Item>> {
+        self.view.members()
+    }
+
+    pub fn atom(&self) -> Option<AtomValue> {
+        self.view.atom()
+    }
+
+    pub fn source_map(&self) -> Option<SourceMapStack> {
+        self.view.source_map()
+    }
+}
+
+impl fmt::Debug for NativeItemView {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("NativeItemView")
+            .field("representation_id", &self.representation_id())
+            .field("identity", &self.identity())
+            .field("kind", &self.kind())
+            .finish_non_exhaustive()
+    }
+}
+
+impl PartialEq for NativeItemView {
+    fn eq(&self, other: &Self) -> bool {
+        self.representation_id() == other.representation_id() && self.identity() == other.identity()
+    }
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub enum Item {
     Node(String),
     Atomic(AtomValue),
     Record(BTreeMap<String, Vec<Item>>),
     Array(Vec<Item>),
+    Native(NativeItemView),
     Lambda(IrId),
     Resource(ResourceHandle),
+}
+
+impl Item {
+    pub fn native(view: impl QueryItemView + 'static) -> Self {
+        Self::Native(NativeItemView::new(view))
+    }
+
+    pub fn view(&self) -> Option<&NativeItemView> {
+        match self {
+            Self::Native(view) => Some(view),
+            _ => None,
+        }
+    }
+
+    pub fn atom(&self) -> Option<AtomValue> {
+        match self {
+            Self::Atomic(atom) => Some(atom.clone()),
+            Self::Native(view) => view.atom(),
+            _ => None,
+        }
+    }
+
+    pub fn identity(&self) -> Option<String> {
+        match self {
+            Self::Native(view) => Some(view.identity()),
+            _ => None,
+        }
+    }
+
+    pub fn source_map(&self) -> Option<SourceMapStack> {
+        match self {
+            Self::Native(view) => view.source_map(),
+            _ => None,
+        }
+    }
+
+    pub fn members(&self) -> Option<Vec<Item>> {
+        match self {
+            Self::Array(items) => Some(items.clone()),
+            Self::Native(view) => view.members(),
+            _ => None,
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -534,6 +676,12 @@ impl<'a> EvalCtx<'a> {
                 self.merge_stream_status(&stream);
                 match stream.items.as_slice() {
                     [Item::Atomic(AtomValue::String(value))] => Ok(value.clone()),
+                    [item] if matches!(item.atom(), Some(AtomValue::String(_))) => {
+                        let Some(AtomValue::String(value)) = item.atom() else {
+                            unreachable!();
+                        };
+                        Ok(value)
+                    }
                     _ => Err(self.type_error(
                         record_source,
                         "computed record key must evaluate to exactly one string",
@@ -555,7 +703,7 @@ impl<'a> EvalCtx<'a> {
             let present = lhs
                 .items
                 .first()
-                .is_some_and(|item| !matches!(item, Item::Atomic(AtomValue::Null)));
+                .is_some_and(|item| !matches!(item.atom(), Some(AtomValue::Null)));
             if present {
                 return lhs;
             }
@@ -845,6 +993,7 @@ pub(crate) fn item_identity(item: &Item) -> String {
         Item::Atomic(atom) => format!("atom:{}", atom_identity(atom)),
         Item::Record(entries) => format!("record:{entries:?}"),
         Item::Array(items) => format!("array:{items:?}"),
+        Item::Native(view) => format!("native:{}:{}", view.representation_id(), view.identity()),
         Item::Lambda(id) => format!("lambda:{}", id.0),
         Item::Resource(handle) => format!("resource:{}:{}", handle.content_type, handle.id),
     }
@@ -854,15 +1003,13 @@ pub(crate) fn effective_boolean(items: &[Item]) -> bool {
     let Some(first) = items.first() else {
         return false;
     };
-    match first {
-        Item::Atomic(AtomValue::Boolean(value)) => *value,
-        Item::Atomic(AtomValue::Integer(value)) => *value != 0,
-        Item::Atomic(AtomValue::Decimal(value)) => value != "0" && value != "0.0",
-        Item::Atomic(AtomValue::Double(value)) => *value != 0.0 && !value.is_nan(),
-        Item::Atomic(AtomValue::String(value)) | Item::Atomic(AtomValue::AnyUri(value)) => {
-            !value.is_empty()
-        }
-        Item::Atomic(AtomValue::Null) => false,
+    match first.atom() {
+        Some(AtomValue::Boolean(value)) => value,
+        Some(AtomValue::Integer(value)) => value != 0,
+        Some(AtomValue::Decimal(value)) => value != "0" && value != "0.0",
+        Some(AtomValue::Double(value)) => value != 0.0 && !value.is_nan(),
+        Some(AtomValue::String(value)) | Some(AtomValue::AnyUri(value)) => !value.is_empty(),
+        Some(AtomValue::Null) => false,
         _ => true,
     }
 }
@@ -904,51 +1051,53 @@ fn atom_identity(atom: &AtomValue) -> String {
 }
 
 fn item_to_f64(item: &Item) -> Option<f64> {
-    match item {
-        Item::Atomic(AtomValue::Integer(value)) => Some(*value as f64),
-        Item::Atomic(AtomValue::Decimal(value)) => value.parse().ok(),
-        Item::Atomic(AtomValue::Double(value)) => Some(*value),
-        Item::Atomic(AtomValue::String(value)) => value.parse().ok(),
+    match item.atom()? {
+        AtomValue::Integer(value) => Some(value as f64),
+        AtomValue::Decimal(value) => value.parse().ok(),
+        AtomValue::Double(value) => Some(value),
+        AtomValue::String(value) => value.parse().ok(),
         _ => None,
     }
 }
 
 fn item_to_i64(item: &Item) -> Option<i64> {
-    match item {
-        Item::Atomic(AtomValue::Integer(value)) => Some(*value),
-        Item::Atomic(AtomValue::Decimal(value)) => value.parse().ok(),
-        Item::Atomic(AtomValue::Double(value)) => Some(*value as i64),
-        Item::Atomic(AtomValue::String(value)) => value.parse().ok(),
+    match item.atom()? {
+        AtomValue::Integer(value) => Some(value),
+        AtomValue::Decimal(value) => value.parse().ok(),
+        AtomValue::Double(value) => Some(value as i64),
+        AtomValue::String(value) => value.parse().ok(),
         _ => None,
     }
 }
 
 fn item_to_string(item: &Item) -> Option<String> {
+    if let Some(atom) = item.atom() {
+        return match atom {
+            AtomValue::String(value) | AtomValue::AnyUri(value) => Some(value),
+            AtomValue::Integer(value) => Some(value.to_string()),
+            AtomValue::Decimal(value) => Some(value),
+            AtomValue::Double(value) => Some(value.to_string()),
+            AtomValue::Boolean(value) => Some(value.to_string()),
+            AtomValue::Null => Some("null".to_owned()),
+        };
+    }
     match item {
-        Item::Atomic(AtomValue::String(value)) | Item::Atomic(AtomValue::AnyUri(value)) => {
-            Some(value.clone())
-        }
-        Item::Atomic(AtomValue::Integer(value)) => Some(value.to_string()),
-        Item::Atomic(AtomValue::Decimal(value)) => Some(value.clone()),
-        Item::Atomic(AtomValue::Double(value)) => Some(value.to_string()),
-        Item::Atomic(AtomValue::Boolean(value)) => Some(value.to_string()),
-        Item::Atomic(AtomValue::Null) => Some("null".to_owned()),
         Item::Node(id) => Some(id.clone()),
         _ => None,
     }
 }
 
 fn numeric_binary(op: BinaryOp, lhs: &Item, rhs: &Item) -> Result<Item, &'static str> {
-    match (lhs, rhs) {
-        (Item::Atomic(AtomValue::Integer(lhs)), Item::Atomic(AtomValue::Integer(rhs))) => {
-            integer_binary(op, *lhs, *rhs).map(|value| Item::Atomic(AtomValue::Integer(value)))
+    match (lhs.atom(), rhs.atom()) {
+        (Some(AtomValue::Integer(lhs)), Some(AtomValue::Integer(rhs))) => {
+            integer_binary(op, lhs, rhs).map(|value| Item::Atomic(AtomValue::Integer(value)))
         }
-        (Item::Atomic(AtomValue::Decimal(lhs)), Item::Atomic(AtomValue::Decimal(rhs))) => {
-            decimal_binary(op, lhs, rhs).map(|value| Item::Atomic(AtomValue::Decimal(value)))
+        (Some(AtomValue::Decimal(lhs)), Some(AtomValue::Decimal(rhs))) => {
+            decimal_binary(op, &lhs, &rhs).map(|value| Item::Atomic(AtomValue::Decimal(value)))
         }
-        (Item::Atomic(AtomValue::Double(lhs)), Item::Atomic(AtomValue::Double(rhs))) => Ok(
-            Item::Atomic(AtomValue::Double(double_binary(op, *lhs, *rhs))),
-        ),
+        (Some(AtomValue::Double(lhs)), Some(AtomValue::Double(rhs))) => {
+            Ok(Item::Atomic(AtomValue::Double(double_binary(op, lhs, rhs))))
+        }
         _ if is_numeric_item(lhs) && is_numeric_item(rhs) => Err(runtime_mixed_numeric_message(op)),
         _ => Err(runtime_binary_operand_message(op)),
     }
@@ -1010,8 +1159,8 @@ fn double_binary(op: BinaryOp, lhs: f64, rhs: f64) -> f64 {
 
 fn is_numeric_item(item: &Item) -> bool {
     matches!(
-        item,
-        Item::Atomic(AtomValue::Integer(_) | AtomValue::Decimal(_) | AtomValue::Double(_))
+        item.atom(),
+        Some(AtomValue::Integer(_) | AtomValue::Decimal(_) | AtomValue::Double(_))
     )
 }
 
@@ -1049,9 +1198,7 @@ fn decimal_operand_message(op: BinaryOp) -> &'static str {
 
 fn single_numeric_item(items: &[Item]) -> Option<&Item> {
     match items {
-        [item @ Item::Atomic(AtomValue::Integer(_))]
-        | [item @ Item::Atomic(AtomValue::Decimal(_))]
-        | [item @ Item::Atomic(AtomValue::Double(_))] => Some(item),
+        [item] if is_numeric_item(item) => Some(item),
         _ => None,
     }
 }
@@ -1077,20 +1224,20 @@ fn runtime_binary_operand_message(op: BinaryOp) -> &'static str {
 }
 
 fn numeric_unary(item: &Item) -> Result<Item, &'static str> {
-    match item {
-        Item::Atomic(AtomValue::Integer(value)) => value
+    match item.atom() {
+        Some(AtomValue::Integer(value)) => value
             .checked_neg()
             .map(|value| Item::Atomic(AtomValue::Integer(value)))
             .ok_or("unary minus overflowed integer"),
-        Item::Atomic(AtomValue::Decimal(value)) => {
-            let decimal = DecimalParts::parse(value)
+        Some(AtomValue::Decimal(value)) => {
+            let decimal = DecimalParts::parse(&value)
                 .ok_or("unary minus requires a finite decimal operand")?;
             decimal
                 .checked_neg()
                 .map(|value| Item::Atomic(AtomValue::Decimal(value.format())))
                 .ok_or("unary minus overflowed decimal")
         }
-        Item::Atomic(AtomValue::Double(value)) => Ok(Item::Atomic(AtomValue::Double(-value))),
+        Some(AtomValue::Double(value)) => Ok(Item::Atomic(AtomValue::Double(-value))),
         _ => Err("unary minus requires a numeric item"),
     }
 }
@@ -1308,10 +1455,12 @@ fn gcd_u128(mut lhs: u128, mut rhs: u128) -> u128 {
 }
 
 fn atom_cmp(lhs: &Item, rhs: &Item) -> Option<std::cmp::Ordering> {
-    match (lhs, rhs) {
-        (Item::Atomic(lhs), Item::Atomic(rhs)) => atom_value_cmp(lhs, rhs),
-        (Item::Node(lhs), Item::Node(rhs)) => lhs.partial_cmp(rhs),
-        _ => None,
+    match (lhs.atom(), rhs.atom()) {
+        (Some(lhs), Some(rhs)) => atom_value_cmp(&lhs, &rhs),
+        _ => match (lhs, rhs) {
+            (Item::Node(lhs), Item::Node(rhs)) => lhs.partial_cmp(rhs),
+            _ => None,
+        },
     }
 }
 

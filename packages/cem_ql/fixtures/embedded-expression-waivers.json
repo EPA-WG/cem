@@ -59,6 +59,28 @@
         "sourcePathPrefix": "examples/cem-elements/",
         "normalizedSourceContains": "datadom"
       }
+    },
+    {
+      "id": "cem-native-template-invalid-data-binding-example",
+      "owner": "schema-package:cem-native-template/v1",
+      "reason": "The negative validation example intentionally references an undeclared namespaced data binding so schema validation can assert cem.ql.data_binding_missing.",
+      "removalCondition": "Remove after the embedded compile audit reads schema-package expected diagnostics and classifies negative examples without a manual waiver.",
+      "scope": {
+        "sourcePath": "packages/cem_ml/schema-packages/cem-native-template/v1/examples/invalid-expression-data-binding.cem",
+        "hostKind": "call-with-attribute",
+        "normalizedSource": "external:title"
+      }
+    },
+    {
+      "id": "cem-native-template-invalid-boolean-syntax-example",
+      "owner": "schema-package:cem-native-template/v1",
+      "reason": "The negative validation example intentionally uses XPath-style boolean syntax so schema validation can assert cem.ql.use_rust_boolean_ops.",
+      "removalCondition": "Remove after the embedded compile audit reads schema-package expected diagnostics and classifies negative examples without a manual waiver.",
+      "scope": {
+        "sourcePath": "packages/cem_ml/schema-packages/cem-native-template/v1/examples/invalid-expression-parse.cem",
+        "hostKind": "test-attribute",
+        "normalizedSource": "input.kind = \"element\" and visible"
+      }
     }
   ]
 }

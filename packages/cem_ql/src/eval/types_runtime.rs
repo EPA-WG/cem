@@ -1,6 +1,6 @@
 //! Runtime type checks for `instance of`, `cast as`, and `treat as`.
 
-use crate::eval::{cast_item, AtomValue, EvalCtx, Item, ItemStream};
+use crate::eval::{cast_item, AtomValue, EvalCtx, Item, ItemStream, QueryItemViewKind};
 use crate::ir::IrId;
 use crate::types::{AtomType, NodeKind, Type};
 
@@ -8,42 +8,33 @@ use crate::types::{AtomType, NodeKind, Type};
 pub struct RuntimeTypeChecker;
 
 pub fn item_matches_type(item: &Item, ty: &Type) -> bool {
-    matches!(
-        (item, ty),
-        (_, Type::Any)
-            | (Item::Atomic(AtomValue::Null), Type::Empty)
-            | (
-                Item::Node(_),
-                Type::Node(NodeKind::Node | NodeKind::Element(_))
-            )
-            | (
-                Item::Atomic(AtomValue::String(_)),
-                Type::Atom(AtomType::String)
-            )
-            | (
-                Item::Atomic(AtomValue::Integer(_)),
-                Type::Atom(AtomType::Integer)
-            )
-            | (
-                Item::Atomic(AtomValue::Decimal(_)),
-                Type::Atom(AtomType::Decimal)
-            )
-            | (
-                Item::Atomic(AtomValue::Double(_)),
-                Type::Atom(AtomType::Double)
-            )
-            | (
-                Item::Atomic(AtomValue::Boolean(_)),
-                Type::Atom(AtomType::Boolean)
-            )
-            | (
-                Item::Atomic(AtomValue::AnyUri(_)),
-                Type::Atom(AtomType::AnyUri)
-            )
-            | (Item::Record(_), Type::Record(_))
-            | (Item::Array(_), Type::Array(_))
-            | (Item::Lambda(_), Type::Lambda { .. })
-    )
+    if matches!(ty, Type::Any) {
+        return true;
+    }
+    if let Some(atom) = item.atom() {
+        return matches!(
+            (atom, ty),
+            (AtomValue::Null, Type::Empty)
+                | (AtomValue::String(_), Type::Atom(AtomType::String))
+                | (AtomValue::Integer(_), Type::Atom(AtomType::Integer))
+                | (AtomValue::Decimal(_), Type::Atom(AtomType::Decimal))
+                | (AtomValue::Double(_), Type::Atom(AtomType::Double))
+                | (AtomValue::Boolean(_), Type::Atom(AtomType::Boolean))
+                | (AtomValue::AnyUri(_), Type::Atom(AtomType::AnyUri))
+        );
+    }
+    match (item, ty) {
+        (Item::Node(_), Type::Node(NodeKind::Node | NodeKind::Element(_)))
+        | (Item::Record(_), Type::Record(_))
+        | (Item::Array(_), Type::Array(_))
+        | (Item::Lambda(_), Type::Lambda { .. }) => true,
+        (Item::Native(view), Type::Record(_)) => view.kind() == QueryItemViewKind::Record,
+        (Item::Native(view), Type::Array(_)) => view.kind() == QueryItemViewKind::Array,
+        (Item::Native(view), Type::Node(NodeKind::Node | NodeKind::Element(_))) => {
+            view.kind() == QueryItemViewKind::Node
+        }
+        _ => false,
+    }
 }
 
 pub(crate) fn cast_stream(

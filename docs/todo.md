@@ -920,6 +920,15 @@ Remaining dependency-ordered package checklist:
         views; remove generic `value_to_stream`, `to_cemt_subject`, and
         `to_json` tier ingress and keep JSON-to-query conversion only for
         explicitly identified JSON AST input.
+    - [x] Add a CEM-QL native item-view contract whose field, member, atom,
+          identity, and source-map accessors do not depend on JSON.
+    - [x] Adapt native CEM documents, lifecycle JSON/XML ASTs, and typed graph
+          collections to lazy CEM-QL items that retain owning `Arc` identity.
+    - [x] Parse explicitly JSON-identified encoded artifacts through the JSON
+          lifecycle AST before querying; remove `value_to_stream` ingress and
+          add a source audit against generic JSON conversion.
+    - [x] Restore native CEM-QL transform, expression, secondary-input, and
+          graph behavior, then pass CEM-QL/core lint, test, and WASM gates.
   - [ ] Represent JSON input internally with a lossless `JsonDocumentAst` and
         `JsonValueAst`, not `serde_json::Value`, preserving duplicate members,
         number lexemes, source ranges, diagnostics, and source maps.
@@ -943,7 +952,6 @@ Remaining dependency-ordered package checklist:
   - [ ] Preserve token-level source maps, leave generated layout unmapped,
         honor formatter options, and verify terminal/HTML/Markdown parity.
   - [ ] Run the XSLT package, converter parity, CLI e2e, and core gates.
-
 ### Deferred: Phase 3 Custom-Element Runtime
 
 - [ ] Resume Phase 3 custom-element runtime substrate expansion after the
@@ -962,22 +970,29 @@ Remaining dependency-ordered package checklist:
 
 ### Next Work Item
 
-Migrate CEM-QL ingress from `value_to_stream` to lazy views over
-`TransformArtifactBody`. Start with red adapter and engine tests for native CEM,
-lossless lifecycle JSON and XML, secondary inputs, and typed graph collections.
-The tests must assert retained `Arc`/node/source identity and must make any
-serialization, `serde_json::Value`, or generic property-bag bridge fail the
-source audit.
+Remove `serde_json::Value` from the transform output data plane. Start with a
+red graph-routing test proving that an adapter-produced native or encoded body
+is transferred directly into `TransformDataArtifact`, without
+`transform_data_artifact_from_output` classifying a JSON value as text or
+serializing it back into bytes.
 
-Define the query-view adapter in the CEM-QL integration crate so the core
-artifact remains dependency-neutral. A view must borrow or retain the native
-artifact and produce query items on demand: `CemDocument` from native nodes,
-`Lifecycle` from each package-owned AST, and `Collection` from ordered child
-artifact references. JSON objects remain ordered member nodes; name selection
-returns every matching member in source order, including duplicate names, and
-numbers retain their lexical form and source range. XML views retain event/node,
-namespace, owner, and source-map identity. No view may materialize an entire
-artifact as JSON.
+Replace `TransformTemplateOutputArtifact.value` with a dependency-neutral typed
+body contract. CEM-native markup should leave the adapter as an explicitly
+identified UTF-8 encoded artifact; CEM-QL expression sequences should leave as
+an adapter-owned extension/native artifact until an explicit output target
+requests encoding. Graph stages, joins, and secondary inputs must preserve the
+same `Arc` body and source identity. JSON serialization is permitted only in a
+registered exporter selected by an explicit JSON or `+json` target, where it
+must preserve the CEM-QL item protocol and route JSON input through
+`JsonDocumentAst` before any later AST consumption.
+
+Add source audits around render response construction, graph routing, and
+export dispatch that reject `serde_json::to_value`, `Value::String` type
+classification, and generic JSON round trips. Keep request params/defaults as
+an explicitly named DTO boundary for this slice, then schedule their typed
+replacement separately. Finish with native CEM-QL and CEMT adapter parity,
+collection-to-explicit-JSON export coverage, core/CLI tests, lint, and both WASM
+builds.
 
 Treat encoded input as an encoding boundary, not an AST. Text or binary bytes
 must pass through a registered lifecycle parser before CEM-QL can consume them.
