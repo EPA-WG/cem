@@ -24,20 +24,22 @@ not present `text/xpath` as a registered standard.
 
 ## Syntax And AST Model
 
-The current foundation uses pinned `xee-xpath-lexer` and `xee-xpath-ast` crates
-to establish XPath 3.1 fixture coverage. It preserves exact token lexemes,
-UTF-8 byte ranges, line/column positions, nested comments, whitespace,
-delimiter depth, parser facts, and source-map frames. The parsed grammar AST is
-carried beside the lossless token stream: semantic consumers use the tree,
-while formatters and diagnostics retain the original source.
+The current foundation uses a CEM-owned longest-match scanner that preserves
+exact token lexemes, UTF-8 byte ranges, line/column positions, nested comments,
+whitespace, delimiter depth, lexical errors, and source-map frames. Its
+package-private token categories distinguish numeric forms, strings, EQNames,
+keywords, word and symbol operators, punctuation, trivia, and errors. The
+scanner follows the normative XPath 3.1 lexical grammar and does not call Xee.
+The pinned `xee-xpath-lexer` crate is a development-only differential oracle
+for package examples and ambiguous lexical boundaries.
 
-Those dependencies are transitional. Before executable XPath is registered,
-the package will own its token, syntax AST, compiler, and evaluator types. The
+The pinned `xee-xpath-ast` parser remains transitional. Before executable XPath
+is registered, the package will own its parser, compiler, and evaluator. The
 [Xee source pinned at commit `200b1e3356ea9d6dd2901d67bd941b779df7e5b7`](https://github.com/Paligo/xee/tree/200b1e3356ea9d6dd2901d67bd941b779df7e5b7)
-is an MIT-licensed, non-normative implementation reference, not a runtime
-dependency or execution boundary. XPath 3.1, XDM 3.1, and Functions and
-Operators 3.1 remain normative, and adapted implementation ideas require
-recorded source provenance and license review.
+is an MIT-licensed, non-normative implementation reference. The parser crate is
+a temporary implementation detail, never an AST or execution boundary. XPath
+3.1, XDM 3.1, and Functions and Operators 3.1 remain normative, and adapted
+implementation ideas require recorded source provenance and license review.
 
 Full XPath 3.1 is the accepted destination. Delivery is staged through explicit
 conformance slices and the schema-owned
@@ -148,14 +150,14 @@ handoff, lifecycle loading, no-fallback validation, and host-attachment tests,
 verifies the full-destination conformance matrix, mixed result artifacts and
 evaluator capability rejection, verifies embedded catalog identity, and checks
 that README examples use fenced XPath source with no SVG fallback.
-`yarn nx run cem_ml:build:wasm` verifies that the pinned parser dependency stack
-remains compatible with the browser WASM target.
+`yarn nx run cem_ml:build:wasm` verifies that the transitional parser dependency
+stack remains compatible with the browser WASM target.
 
 ## Tracked Incomplete Work
 
-- Replace the transitional Xee lexer/parser dependencies with CEM-owned token
-  and syntax AST types, using pinned Xee source only as a reference and parity
-  oracle.
+- Replace the transitional Xee parser with a CEM-owned parser over the existing
+  CEM token and syntax AST types, using pinned Xee source only as a reference
+  and parity oracle.
 - Remove the implicit JSON transform boundary before executable XPath work.
 - Implement a CEM-owned XPath 3.1 compiler/evaluator and prove native/WASM AST
   consumption through CEM-only resolver and safety capabilities.

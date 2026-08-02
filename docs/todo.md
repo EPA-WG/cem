@@ -868,6 +868,12 @@ Remaining dependency-ordered package checklist:
         only as a non-normative implementation reference, retain lexical/parser
         parity fixtures during migration, and record provenance for any adapted
         algorithm or copied substantial portion.
+    - [x] Replace production lossless tokenization with a CEM-owned
+          longest-match scanner, retain exact trivia and UTF-8 byte ranges, and
+          verify lexical parity against the pinned Xee implementation.
+    - [ ] Replace the transitional Xee parser with a CEM-owned recursive-descent
+          parser over CEM lexical tokens, then remove the remaining Xee runtime
+          dependency after native, lint, and WASM gates pass.
   - [ ] After the strict native-AST transform boundary below is complete,
         implement a CEM-owned XPath 3.1 compiler and evaluator over the package
         AST. Treat the W3C XPath 3.1, XDM 3.1, and Functions and Operators 3.1
@@ -945,28 +951,39 @@ Remaining dependency-ordered package checklist:
 
 ### Next Work Item
 
-Replace the transitional Xee lexer/parser runtime dependencies without changing
-the new CEM-owned AST contract. Start with a package-private lexical token enum
-and longest-match scanner that retains exact trivia, nested comments, EQNames,
-numeric and string literal forms, delimiter depth, UTF-8 byte ranges, and stable
-lexical facts. Route `xpath_lossless_tokens` through that scanner while retaining
-the pinned Xee parser only as a temporary parity oracle. Add differential tests
-for every existing package example plus ambiguous operator/name boundaries,
-escaped quotes, URI-qualified names, nested comments, malformed UTF-8, and
-incomplete delimiters before switching production parsing.
+Replace the transitional Xee parser without changing the CEM-owned lexical or
+syntax AST contracts. Start with `validation/xpath/parser.rs`: a token cursor
+over `XPathLexicalToken` that skips trivia only at grammar boundaries, retains
+the original token index and byte range, and returns a typed package parse error
+containing expected terminals, the found token, and the narrowest source range.
+The parser must never re-tokenize source text.
 
-The parser slice should then consume only CEM lexical tokens and lower directly
-into `XPathSyntaxAst`. Use recursive descent for grammar productions and an
-explicit precedence table for binary operators; model absolute path roots and
-real parentheses directly so no reference-parser desugaring enters the AST.
-Preserve current schema-owned diagnostics and host-adjusted ranges. Unsupported
-XPath 3.1 productions must remain typed, range-bearing gaps in the conformance
-matrix rather than source reparsing or generic property bags.
+Implement the currently represented grammar as recursive-descent productions:
+expression sequences and `for`, an explicit precedence-climbing table for every
+`XPathBinaryOperator`, rooted and relative paths, abbreviated and explicit axes,
+node tests, predicates, literals, variable references, context items, real
+parenthesized expressions, function calls, map/array constructors, and postfix
+argument/lookup forms. Resolve EQNames from the attachment static context while
+building `XPathName`; report unknown prefixes through the existing schema-owned
+fact instead of through a foreign parser error. Preserve host-adjusted ranges
+and derive syntax events only from the resulting CEM AST.
 
-Remove `xee-xpath-lexer` and `xee-xpath-ast` from runtime dependencies only after
-native fixture parity, package verification, lint, and WASM build pass with the
-CEM parser. Keep the verified Xee commit as a source reference and provenance
-record only; do not add Xot or an evaluator/compiler/interpreter dependency.
+Add red AST-parity tests first for every passing package example, operator
+precedence and associativity, commas inside sequences versus argument lists,
+absolute path roots, parentheses that change precedence, wildcard/EQName name
+tests, and malformed expected/found ranges. Run the CEM parser in test shadow
+mode against the pinned Xee result until these cases normalize to the same CEM
+AST. Then switch production parsing to the CEM parser and add a source audit
+proving non-test XPath code has no `xee_xpath_*` reference. Productions not yet
+modeled by `XPathSyntaxAst` must remain explicit typed, range-bearing gaps; they
+must not trigger source reparsing, JSON projection, or generic property bags.
+
+After all existing XPath lifecycle and schema-package fixtures pass through the
+CEM parser, remove `xee-xpath-ast` from runtime dependencies and retain both Xee
+crates only as test or provenance references until broader XPath 3.1/QT3 parity
+allows the oracle to be removed. Run package verification, lint, native build,
+and WASM build before closing the parser subitem. Do not add Xot or an
+evaluator/compiler/interpreter dependency in this slice.
 
 Before registering XPath execution, complete the Option C transform-boundary
 migration listed immediately after XPath. The first implementation slice is a

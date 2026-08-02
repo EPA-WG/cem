@@ -1,3 +1,4 @@
+mod lexer;
 mod syntax;
 
 pub use syntax::*;
@@ -19,6 +20,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::sync::OnceLock;
 use xee_xpath_ast::ast as xee_ast;
 use xee_xpath_ast::{Namespaces, ParserError, VariableNames, XPathParserContext};
+#[cfg(test)]
 use xee_xpath_lexer::Token as XeeToken;
 
 const XPATH_PACKAGE_ID: &str = "xpath";
@@ -1325,114 +1327,18 @@ fn xpath_lossless_tokens(
     origin: XPathSourcePosition,
 ) -> Vec<XPathTokenAst> {
     let mut tokens = Vec::new();
-    let mut cursor = 0usize;
-    for (token, span) in xee_xpath_lexer::lexer(source) {
-        if cursor < span.start {
-            xpath_push_trivia_tokens(source, line_index, origin, cursor, span.start, &mut tokens);
-        }
+    for token in lexer::xpath_lexical_tokens(source) {
         xpath_push_token(
             source,
             line_index,
             origin,
-            span.start,
-            span.end,
-            xpath_token_kind(&token),
-            &mut tokens,
-        );
-        cursor = span.end;
-    }
-    if cursor < source.len() {
-        xpath_push_trivia_tokens(
-            source,
-            line_index,
-            origin,
-            cursor,
-            source.len(),
+            token.start,
+            token.end,
+            token.kind.presentation_kind(),
             &mut tokens,
         );
     }
     tokens
-}
-
-fn xpath_push_trivia_tokens(
-    source: &str,
-    line_index: &LineIndex,
-    origin: XPathSourcePosition,
-    start: usize,
-    end: usize,
-    tokens: &mut Vec<XPathTokenAst>,
-) {
-    let mut cursor = start;
-    while cursor < end {
-        let rest = &source[cursor..end];
-        if rest.starts_with("(:") {
-            let comment_end = xpath_nested_comment_end(source, cursor, end).unwrap_or(end);
-            xpath_push_token(
-                source,
-                line_index,
-                origin,
-                cursor,
-                comment_end,
-                XPathTokenKind::Comment,
-                tokens,
-            );
-            cursor = comment_end;
-            continue;
-        }
-        if rest.as_bytes()[0].is_ascii_whitespace() {
-            let whitespace_end = cursor
-                + rest
-                    .as_bytes()
-                    .iter()
-                    .take_while(|byte| byte.is_ascii_whitespace())
-                    .count();
-            xpath_push_token(
-                source,
-                line_index,
-                origin,
-                cursor,
-                whitespace_end,
-                XPathTokenKind::Whitespace,
-                tokens,
-            );
-            cursor = whitespace_end;
-            continue;
-        }
-        let raw_end = cursor + rest.chars().next().map(char::len_utf8).unwrap_or(1);
-        xpath_push_token(
-            source,
-            line_index,
-            origin,
-            cursor,
-            raw_end,
-            XPathTokenKind::Error,
-            tokens,
-        );
-        cursor = raw_end;
-    }
-}
-
-fn xpath_nested_comment_end(source: &str, start: usize, limit: usize) -> Option<usize> {
-    let bytes = source.as_bytes();
-    let mut cursor = start + 2;
-    let mut depth = 1usize;
-    while cursor + 1 < limit {
-        match &bytes[cursor..cursor + 2] {
-            b"(:" => {
-                depth += 1;
-                cursor += 2;
-            }
-            b":)" => {
-                depth -= 1;
-                cursor += 2;
-                if depth == 0 {
-                    return Some(cursor);
-                }
-            }
-            _ => cursor += 1,
-        }
-    }
-    None
 }
 
 fn xpath_push_token(
@@ -1456,6 +1362,7 @@ fn xpath_push_token(
     });
 }
 
+#[cfg(test)]
 fn xpath_token_kind(token: &XeeToken<'_>) -> XPathTokenKind {
     use XeeToken::*;
     match token {
@@ -2336,6 +2243,23 @@ mod tests {
             .unwrap_or_else(|| panic!("expected parsed XPath syntax for `{source}`"))
     }
 
+    fn xee_lexical_projection(source: &str) -> Vec<(XPathTokenKind, String)> {
+        xee_xpath_lexer::lexer(source)
+            .map(|(token, span)| (xpath_token_kind(&token), source[span].to_owned()))
+            .collect()
+    }
+
+    fn cem_lexical_projection(source: &str) -> Vec<(XPathTokenKind, String)> {
+        lexer::xpath_lexical_tokens(source)
+            .into_iter()
+            .filter_map(|token| {
+                let kind = token.kind.presentation_kind();
+                (!matches!(kind, XPathTokenKind::Comment | XPathTokenKind::Whitespace))
+                    .then(|| (kind, token.lexeme.to_owned()))
+            })
+            .collect()
+    }
+
     #[test]
     fn xpath_syntax_ast_lowers_paths_predicates_names_and_ranges_to_cem_types() {
         let source = "/catalog/book[@lang = \"en\"]/title";
@@ -2880,6 +2804,114 @@ mod tests {
                     && event.depth == token.depth
                     && event.source_range == token.source_range
             }));
+    }
+
+    #[test]
+    fn xpath_cem_scanner_matches_xee_reference_boundaries_and_presentation_kinds() {
+        let sources = [
+            include_str!("../../schema-packages/xpath/v1/examples/basic-path.xpath"),
+            include_str!("../../schema-packages/xpath/v1/examples/functions-and-variables.xpath"),
+            include_str!("../../schema-packages/xpath/v1/examples/maps-arrays-and-comments.xpath"),
+            include_str!("../../schema-packages/xpath/v1/examples/unicode-qname.xpath"),
+            include_str!(
+                "../../schema-packages/xpath/v1/examples/explicit-axes-and-escaped-string.xpath"
+            ),
+            include_str!("../../schema-packages/xpath/v1/examples/external-resource-denied.xpath"),
+            include_str!("../../schema-packages/xpath/v1/examples/invalid-token.xpath"),
+            include_str!(
+                "../../schema-packages/xpath/v1/examples/invalid-unclosed-predicate.xpath"
+            ),
+            include_str!("../../schema-packages/xpath/v1/examples/mismatched-delimiter.xpath"),
+            include_str!("../../schema-packages/xpath/v1/examples/unknown-prefix.xpath"),
+            "1eq 1 and 1.25e+2 ge .5",
+            "1.2.3 + .1.1",
+            r#""a""b" = 'c''d'"#,
+            "Q{urn:test}element | app:book | app:* | *:book",
+            "for$pi in/child::book return$pi",
+            "(: outer (: nested :) :) /book",
+            "/book[",
+        ];
+
+        for source in sources {
+            assert_eq!(
+                cem_lexical_projection(source),
+                xee_lexical_projection(source),
+                "CEM scanner diverged from the pinned Xee lexical oracle for `{source}`"
+            );
+        }
+    }
+
+    #[test]
+    fn xpath_cem_scanner_retains_trivia_nested_comments_and_utf8_byte_ranges() {
+        let source =
+            "for $\u{03c0}\n(: outer (: nested :) :) return Q{urn:test}\u{00e9}l\u{00e9}ment";
+        let tokens = lexer::xpath_lexical_tokens(source);
+
+        assert_eq!(
+            tokens.iter().map(|token| token.lexeme).collect::<String>(),
+            source
+        );
+        assert_eq!(tokens.first().map(|token| token.start), Some(0));
+        assert_eq!(tokens.last().map(|token| token.end), Some(source.len()));
+        assert!(tokens.windows(2).all(|pair| pair[0].end == pair[1].start));
+        assert!(tokens.iter().any(|token| {
+            token.kind.presentation_kind() == XPathTokenKind::Comment
+                && token.lexeme == "(: outer (: nested :) :)"
+        }));
+        assert!(tokens.iter().any(|token| {
+            token.kind.presentation_kind() == XPathTokenKind::Name
+                && token.lexeme == "Q{urn:test}\u{00e9}l\u{00e9}ment"
+                && token.end - token.start == token.lexeme.len()
+        }));
+    }
+
+    #[test]
+    fn xpath_cem_scanner_retains_parser_ready_lexical_categories() {
+        use lexer::XPathLexicalTokenKind as Kind;
+
+        let tokens = lexer::xpath_lexical_tokens(
+            "1 1. .5 1e2 \"s\" name Q{urn:test}name *:name for and + ( $",
+        )
+        .into_iter()
+        .filter(|token| token.kind != Kind::Whitespace)
+        .map(|token| token.kind)
+        .collect::<Vec<_>>();
+
+        assert_eq!(
+            tokens,
+            vec![
+                Kind::IntegerLiteral,
+                Kind::DecimalLiteral,
+                Kind::DecimalLiteral,
+                Kind::DoubleLiteral,
+                Kind::StringLiteral,
+                Kind::Name,
+                Kind::Name,
+                Kind::DelimitingName,
+                Kind::Keyword,
+                Kind::WordOperator,
+                Kind::SymbolOperator,
+                Kind::Punctuation,
+                Kind::VariableSigil,
+            ]
+        );
+    }
+
+    #[test]
+    fn xpath_cem_scanner_preserves_malformed_lexemes_as_errors() {
+        for source in ["(: unclosed", "'unclosed", "\"unclosed", "\u{00a7}"] {
+            let tokens = lexer::xpath_lexical_tokens(source);
+            assert_eq!(
+                tokens.iter().map(|token| token.lexeme).collect::<String>(),
+                source
+            );
+            assert!(
+                tokens
+                    .iter()
+                    .any(|token| token.kind.presentation_kind() == XPathTokenKind::Error),
+                "malformed lexical input must retain an error token: `{source}`"
+            );
+        }
     }
 
     #[test]
