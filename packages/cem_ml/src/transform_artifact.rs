@@ -18,6 +18,41 @@ pub const CEMT_TREE_REPRESENTATION_ID: &str = "cem.cemt-tree";
 #[non_exhaustive]
 pub enum CemtTreeArtifactStage {
     Raw,
+    Formatted,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CemtOverlayProducer {
+    pub function_name: String,
+    pub formatter_profile: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum CemtOverlayProvenance {
+    SourceMapped(SourceMapStack),
+    Generated { function_name: String },
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum CemtFormatOperationKind {
+    Marker,
+    Decision { value: String },
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CemtFormatOperation {
+    pub name: String,
+    pub formatter_role: String,
+    pub formatter_profile: Option<String>,
+    pub color_role: Option<String>,
+    pub kind: CemtFormatOperationKind,
+    pub provenance: CemtOverlayProvenance,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CemtFormattedTreeOverlay {
+    pub producer: CemtOverlayProducer,
+    pub operations: Vec<CemtFormatOperation>,
 }
 
 #[derive(Debug, Clone)]
@@ -25,6 +60,7 @@ pub struct CemtTreeArtifact {
     stage: CemtTreeArtifactStage,
     owner: Arc<CemTreeAstStream>,
     source_map: Option<SourceMapStack>,
+    formatted_overlay: Option<CemtFormattedTreeOverlay>,
 }
 
 impl CemtTreeArtifact {
@@ -33,6 +69,20 @@ impl CemtTreeArtifact {
             stage: CemtTreeArtifactStage::Raw,
             owner,
             source_map,
+            formatted_overlay: None,
+        }
+    }
+
+    pub fn formatted(
+        owner: Arc<CemTreeAstStream>,
+        source_map: Option<SourceMapStack>,
+        overlay: CemtFormattedTreeOverlay,
+    ) -> Self {
+        Self {
+            stage: CemtTreeArtifactStage::Formatted,
+            owner,
+            source_map,
+            formatted_overlay: Some(overlay),
         }
     }
 
@@ -48,6 +98,10 @@ impl CemtTreeArtifact {
         CemtTreeSubjectRef {
             owner: self.owner.as_ref(),
         }
+    }
+
+    pub fn formatted_overlay(&self) -> Option<&CemtFormattedTreeOverlay> {
+        self.formatted_overlay.as_ref()
     }
 }
 

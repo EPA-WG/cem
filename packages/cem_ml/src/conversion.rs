@@ -47,8 +47,9 @@ use crate::tokenizer::html::HtmlTokenizer;
 use crate::tokenizer::xml::XmlTokenizer;
 use crate::tokenizer::{SchemaTokenKind, SchemaTokenizer};
 use crate::transform_artifact::{
-    CemtTreeArtifact, CemtTreeArtifactStage, TransformArtifactBody, TransformNativeArtifact,
-    CEMT_TREE_REPRESENTATION_ID,
+    CemtFormatOperation, CemtFormatOperationKind, CemtFormattedTreeOverlay,
+    CemtOverlayProducer, CemtOverlayProvenance, CemtTreeArtifact, CemtTreeArtifactStage,
+    TransformArtifactBody, TransformNativeArtifact, CEMT_TREE_REPRESENTATION_ID,
 };
 use crate::transform_template::{
     compose_transform_template_encoded_text_artifacts,
@@ -2478,6 +2479,7 @@ fn conversion_output_boundary_value(
 pub struct ConversionOutputPipelineExecution {
     pub output: Option<Value>,
     pub raw_cem_tree: Option<Arc<CemtTreeArtifact>>,
+    pub formatted_cemt_tree: Option<Arc<CemtTreeArtifact>>,
     pub source_map: Option<SourceMapStack>,
     pub output_spans: Vec<OutputSpan>,
     pub format_execution: Option<ConversionOutputPipelineStageExecution>,
@@ -3568,6 +3570,118 @@ fn execute_conversion_cem_tree_format_stage(
     )
 }
 
+fn lower_formatted_cemt_tree_artifact(
+    raw: &Arc<CemtTreeArtifact>,
+    formatted: &Value,
+    function_name: &str,
+) -> Result<Arc<CemtTreeArtifact>, String> {
+    let tree = formatted
+        .as_object()
+        .ok_or_else(|| "formatted CEMT tree must be an object".to_owned())?;
+    let formatter_profile = optional_cemt_overlay_string(tree, "formatterProfile")?;
+    let format_nodes = tree
+        .get("formatNodes")
+        .and_then(Value::as_array)
+        .ok_or_else(|| "formatted CEMT tree requires an array `formatNodes` field".to_owned())?;
+    let operations = format_nodes
+        .iter()
+        .enumerate()
+        .map(|(index, value)| lower_cemt_format_operation(value, index, function_name))
+        .collect::<Result<Vec<_>, _>>()?;
+
+    Ok(Arc::new(CemtTreeArtifact::formatted(
+        raw.owner().clone(),
+        raw.source_map().cloned(),
+        CemtFormattedTreeOverlay {
+            producer: CemtOverlayProducer {
+                function_name: function_name.to_owned(),
+                formatter_profile,
+            },
+            operations,
+        },
+    )))
+}
+
+fn lower_cemt_format_operation(
+    value: &Value,
+    index: usize,
+    function_name: &str,
+) -> Result<CemtFormatOperation, String> {
+    let operation = value
+        .as_object()
+        .ok_or_else(|| format!("formatted CEMT tree operation {index} must be an object"))?;
+    let kind = required_cemt_overlay_string(operation, "kind", index)?;
+    let kind = match kind.as_str() {
+        "format-marker" => CemtFormatOperationKind::Marker,
+        "format-decision" => {
+            let value = operation
+                .get("value")
+                .and_then(Value::as_str)
+                .ok_or_else(|| {
+                    format!(
+                        "formatted CEMT tree decision operation {index} requires a string `value`"
+                    )
+                })?;
+            CemtFormatOperationKind::Decision {
+                value: value.to_owned(),
+            }
+        }
+        _ => {
+            return Err(format!(
+                "formatted CEMT tree operation {index} has unsupported kind `{kind}`"
+            ))
+        }
+    };
+    let provenance = match operation.get("sourceMap").filter(|value| !value.is_null()) {
+        Some(source_map) => CemtOverlayProvenance::SourceMapped(
+            serde_json::from_value(source_map.clone()).map_err(|error| {
+                format!(
+                    "formatted CEMT tree operation {index} has an invalid `sourceMap`: {error}"
+                )
+            })?,
+        ),
+        None => CemtOverlayProvenance::Generated {
+            function_name: function_name.to_owned(),
+        },
+    };
+
+    Ok(CemtFormatOperation {
+        name: required_cemt_overlay_string(operation, "name", index)?,
+        formatter_role: required_cemt_overlay_string(operation, "formatterRole", index)?,
+        formatter_profile: optional_cemt_overlay_string(operation, "formatterProfile")?,
+        color_role: optional_cemt_overlay_string(operation, "colorRole")?,
+        kind,
+        provenance,
+    })
+}
+
+fn required_cemt_overlay_string(
+    operation: &serde_json::Map<String, Value>,
+    field: &str,
+    index: usize,
+) -> Result<String, String> {
+    operation
+        .get(field)
+        .and_then(Value::as_str)
+        .map(str::to_owned)
+        .ok_or_else(|| {
+            format!("formatted CEMT tree operation {index} requires a string `{field}`")
+        })
+}
+
+fn optional_cemt_overlay_string(
+    object: &serde_json::Map<String, Value>,
+    field: &str,
+) -> Result<Option<String>, String> {
+    match object.get(field) {
+        Some(Value::String(value)) => Ok(Some(value.clone())),
+        Some(Value::Null) | None => Ok(None),
+        Some(_) => Err(format!(
+            "formatted CEMT tree field `{field}` must be a string when present"
+        )),
+    }
+}
+
 fn execute_conversion_cem_tree_color_stage(
     environment: &ConversionOutputPipelineEnvironment<'_>,
     binding: &TransformTemplateEncodeBinding,
@@ -4056,6 +4170,34 @@ fn execute_conversion_output_pipeline_with_environment_subject(
         }
     };
     let format_execution = Some(format_execution);
+    let formatted_cemt_tree = match native_subject {
+        Some(raw) => match lower_formatted_cemt_tree_artifact(
+            raw,
+            &formatted_output,
+            &format_binding.function.name,
+        ) {
+            Ok(artifact) => Some(artifact),
+            Err(message) => {
+                diagnostics.push(output_pipeline_diagnostic(
+                    converter_id,
+                    diagnostic_node,
+                    diagnostic_uri,
+                    format!(
+                        "CEMT formatter `{}` produced an invalid typed overlay: {message}",
+                        format_binding.function.name
+                    ),
+                ));
+                return ConversionOutputPipelineExecution {
+                    output: None,
+                    diagnostics,
+                    format_execution,
+                    format_elapsed_ns,
+                    ..ConversionOutputPipelineExecution::default()
+                };
+            }
+        },
+        None => None,
+    };
     let formatted_artifact = format_binding.artifact_with_metadata(
         formatted_output,
         rendered_source_map,
@@ -4075,7 +4217,7 @@ fn execute_conversion_output_pipeline_with_environment_subject(
             ..ConversionOutputPipelineExecution::default()
         };
     }
-    execute_conversion_output_pipeline_from_formatted_artifact(
+    let mut execution = execute_conversion_output_pipeline_from_formatted_artifact(
         environment,
         pipeline,
         formatted_artifact,
@@ -4085,7 +4227,9 @@ fn execute_conversion_output_pipeline_with_environment_subject(
         converter_id,
         diagnostic_node,
         diagnostic_uri,
-    )
+    );
+    execution.formatted_cemt_tree = formatted_cemt_tree;
+    execution
 }
 
 pub fn execute_conversion_output_pipeline_from_formatted_cem_tree_with_environment(
@@ -4514,6 +4658,7 @@ pub fn execute_csv_document_output_pipeline_with_environment(
             ConversionOutputPipelineExecution {
                 output: Some(artifact.value.into_runtime_value()),
                 raw_cem_tree: None,
+                formatted_cemt_tree: None,
                 source_map: artifact.source_map,
                 output_spans: artifact.output_spans,
                 format_execution,
@@ -5195,6 +5340,7 @@ pub fn execute_yaml_document_output_pipeline_with_environment(
             ConversionOutputPipelineExecution {
                 output: Some(artifact.value.into_runtime_value()),
                 raw_cem_tree: None,
+                formatted_cemt_tree: None,
                 source_map: artifact.source_map,
                 output_spans: artifact.output_spans,
                 format_execution,
@@ -5847,6 +5993,7 @@ pub fn execute_json_document_output_pipeline_with_environment(
             ConversionOutputPipelineExecution {
                 output: Some(artifact.value.into_runtime_value()),
                 raw_cem_tree: None,
+                formatted_cemt_tree: None,
                 source_map: artifact.source_map,
                 output_spans: artifact.output_spans,
                 format_execution,
@@ -6205,6 +6352,7 @@ pub fn execute_json_schema_document_output_pipeline_with_environment(
             ConversionOutputPipelineExecution {
                 output: Some(artifact.value.into_runtime_value()),
                 raw_cem_tree: None,
+                formatted_cemt_tree: None,
                 source_map: artifact.source_map,
                 output_spans: artifact.output_spans,
                 format_execution,
@@ -6996,6 +7144,7 @@ pub fn execute_markdown_document_output_pipeline_with_environment(
             ConversionOutputPipelineExecution {
                 output: Some(artifact.value.into_runtime_value()),
                 raw_cem_tree: None,
+                formatted_cemt_tree: None,
                 source_map: artifact.source_map,
                 output_spans: artifact.output_spans,
                 format_execution,
@@ -8484,6 +8633,7 @@ fn execute_conversion_output_pipeline_from_formatted_artifact(
         Some(artifact) => ConversionOutputPipelineExecution {
             output: Some(artifact.value.into_runtime_value()),
             raw_cem_tree: None,
+            formatted_cemt_tree: None,
             source_map: artifact.source_map,
             output_spans: artifact.output_spans,
             format_execution,
@@ -14843,6 +14993,102 @@ mod tests {
             .expect("raw CEMT tree artifact is retained");
         assert!(Arc::ptr_eq(raw.owner(), &owner));
         assert!(std::ptr::eq(raw.subject().nodes(), owner.as_nodes()));
+    }
+
+    #[test]
+    fn native_cem_tree_pipeline_retains_typed_formatted_overlay_order() {
+        let owner = Arc::new(CemTreeAstStream::new(vec![CemTreeAstNode::Text {
+            value: "Ready".to_owned(),
+            source: SourceMapStack::default(),
+        }]));
+        let schema_registry = SchemaRegistry::with_builtin_schemas();
+        let conversion_registry = ConversionRegistry::with_builtin_converters();
+        let environment = ConversionOutputPipelineEnvironment {
+            schema_registry: &schema_registry,
+            conversion_registry: &conversion_registry,
+            package_artifact_reader: None,
+            artifact_cache: None,
+        };
+        let source_map = SourceMapStack::default();
+
+        let execution = execute_conversion_output_pipeline_from_cem_tree_with_environment(
+            &environment,
+            &direct_cem_output_pipeline(),
+            owner.clone(),
+            Some(source_map.clone()),
+            Vec::new(),
+            "typed-formatted-cem-tree",
+            Some("output"),
+            Some("fixture.cem"),
+        );
+
+        assert!(
+            execution.diagnostics.is_empty(),
+            "{:?}",
+            execution.diagnostics
+        );
+        let formatted = execution
+            .formatted_cemt_tree
+            .as_ref()
+            .expect("typed formatted CEMT tree artifact is retained");
+        assert_eq!(formatted.stage(), CemtTreeArtifactStage::Formatted);
+        assert!(Arc::ptr_eq(formatted.owner(), &owner));
+        assert_eq!(formatted.source_map(), Some(&source_map));
+        let overlay = formatted
+            .formatted_overlay()
+            .expect("formatted artifact has an overlay");
+        assert_eq!(overlay.producer.function_name, "cem.format-tree");
+        assert_eq!(overlay.producer.formatter_profile.as_deref(), Some("compact"));
+        assert_eq!(
+            overlay
+                .operations
+                .iter()
+                .map(|operation| operation.name.as_str())
+                .collect::<Vec<_>>(),
+            vec![
+                "cem.format-tree",
+                "line-ending",
+                "indent",
+                "ordering",
+                "wrapping",
+                "whitespace",
+                "cemt-tree-patches",
+            ]
+        );
+        assert!(matches!(
+            overlay.operations[0].kind,
+            CemtFormatOperationKind::Marker
+        ));
+        assert!(overlay.operations.iter().all(|operation| match &operation.provenance {
+            CemtOverlayProvenance::SourceMapped(_) => true,
+            CemtOverlayProvenance::Generated { function_name } => {
+                function_name == "cem.format-tree"
+            }
+        }));
+    }
+
+    #[test]
+    fn formatted_cemt_overlay_lowering_rejects_untyped_decision_values() {
+        let raw = Arc::new(CemtTreeArtifact::raw(
+            Arc::new(CemTreeAstStream::new(Vec::new())),
+            None,
+        ));
+        let error = lower_formatted_cemt_tree_artifact(
+            &raw,
+            &serde_json::json!({
+                "formatterProfile": "compact",
+                "formatNodes": [{
+                    "kind": "format-decision",
+                    "name": "layout",
+                    "formatterRole": "formatter.layout",
+                    "value": {"layout": "compact"}
+                }]
+            }),
+            "cem.format-tree",
+        )
+        .expect_err("open object-valued formatter decisions must remain evaluator-local");
+
+        assert!(error.contains("requires a string `value`"), "{error}");
     }
 
     #[test]

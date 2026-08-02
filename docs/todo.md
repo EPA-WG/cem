@@ -937,8 +937,11 @@ Remaining dependency-ordered package checklist:
         - [x] Prove raw CEMT tree owner identity, lazy node access, source-map
               retention, and native formatter ingress without an encoded JSON
               artifact boundary.
-        - [ ] Prove formatted/colored owner identity, ordered overlays,
-              generated-node provenance, stage metadata, and writer parity.
+        - [x] Prove formatted-envelope owner identity, ordered marker/decision
+              operations, producer/profile metadata, source-map retention, and
+              source-mapped-or-generated operation provenance.
+        - [ ] Prove per-node formatted overlays, colored owner identity,
+              generated-node provenance, and writer parity.
       - [x] Store text, byte, token, chunk, and diagnostic writer payloads as
             typed artifact variants; validate and compose them directly without
             constructor or writer-adapter JSON round trips.
@@ -946,6 +949,9 @@ Remaining dependency-ordered package checklist:
             owning `Arc<CemTreeAstStream>` and exposes lazy node views; route
             native formatter ingress through it without an encoded JSON
             artifact boundary.
+      - [x] Define and retain a typed formatted-envelope overlay over the raw
+            owner, lower ordered scalar marker/decision records at adapter
+            completion, and reject open object-valued decisions.
       - [ ] Make CEMT/native output-function implementations return typed
             payloads directly; remove runtime-value classification and the
             remaining byte-encoder serialization at the evaluator boundary.
@@ -1008,26 +1014,33 @@ Remaining dependency-ordered package checklist:
 
 ### Next Work Item
 
-Define typed formatted and colored CEMT overlays on the completed raw
-`CemtTreeArtifact`. Start with red tests proving that both stages retain the
-same `Arc<CemTreeAstStream>` as the raw artifact while preserving source maps,
-formatter/colorizer function and profile metadata, exact overlay order, writer
-attributes, color wrappers, and generated-node provenance.
+Complete the per-owner-node formatter overlay over the now-typed formatted
+envelope. The completed envelope slice retains the raw
+`Arc<CemTreeAstStream>`, producer/profile metadata, source maps, and exact
+ordered scalar marker/decision operations. It intentionally rejects open
+object-valued decisions and still keeps the evaluator runtime tree only as a
+local compatibility input for the colorizer and writer.
 
-Use stable owner-node paths/references for source nodes. Represent formatter
-layout markers, decisions, boundaries, and inserted whitespace as explicit
-typed overlay operations. Represent color markers, decisions, wrappers, and
-writer attributes as explicit typed color operations. Every inserted operation
-must identify its producing stage/function and carry either a retained source
-map or explicit generated provenance; do not add an open property bag or a
-generic recursive value enum to the artifact contract.
+Start with red tests for stable owner paths across nested elements, attributes,
+and source text, plus exact ordering for `formatLayout`, content/open/close
+boundaries, attribute spacing, and inserted whitespace. Define a compact typed
+owner path from structural child/attribute slots rather than JSON Pointer or a
+copied node value. Model each known formatter operation as an explicit enum
+variant. For format-specific structured decisions, add a schema-owned payload
+type or normalized common layout type; do not add an open property bag or a
+generic recursive value enum.
 
-At CEMT adapter completion, lower evaluator-local records into the declared
-formatted or colored overlay and reject unknown/malformed stage output. Return
-that artifact through `TransformArtifactBody::Extension` while preserving the
-raw owner. Update colorizer ingress and writer composition to consume lazy
-merged views over the owner plus overlays. Once both stages are typed, remove
-the formatter/colorizer use of `CemtOutputArtifact` and
+Lower those operations at CEMT adapter completion and require every operation
+to carry the producer function plus either a retained source map or explicit
+generated provenance. Add a lazy merged formatter view over the raw owner and
+the ordered operations, return the formatted artifact through
+`TransformArtifactBody::Extension`, and remove the parallel formatted runtime
+artifact once colorizer ingress can consume that view.
+
+Then define the colored overlay with the same owner paths for color markers,
+decisions, wrappers, and writer attributes. Update writer composition to
+consume the raw owner plus formatted and colored overlays. Once both stages are
+typed, remove the formatter/colorizer use of `CemtOutputArtifact` and
 `TransformTemplateEncodedArtifactPayload::Runtime(Value)`.
 
 The following slice should then change native/CEMT output-function execution to
