@@ -13029,28 +13029,62 @@ This document has **strong** text and a link.
 
         assert_eq!(outcome.exit_code, EXIT_OK, "{stderr}");
         assert!(stderr.trim().is_empty(), "{stderr}");
-        assert_eq!(stdout, format!("{source}\n"));
+        assert_eq!(
+            stdout,
+            r#"<?xml version="1.0"?>
+<svg
+    xmlns="http://www.w3.org/2000/svg"
+    viewBox="0 0 24 24">
+    <title>Download</title>
+    <path
+        d="M12 3v18"/>
+</svg>
+"#
+        );
         assert!(!stdout.contains("cem.schema."));
         assert!(!stdout.contains("cem.lifecycle."));
     }
 
     #[test]
     fn convert_mathml_same_schema_uses_dedicated_lifecycle_output_pipeline_for_all_media_types() {
-        for (name, content_type, source) in [
+        for (name, content_type, source, expected) in [
             (
                 "generic",
                 cem_ml::schema::registry::MATHML_CONTENT_TYPE,
                 r#"<?xml version="1.0"?><math xmlns="http://www.w3.org/1998/Math/MathML"><mi>x</mi></math>"#,
+                r#"<?xml version="1.0"?>
+<math
+    xmlns="http://www.w3.org/1998/Math/MathML">
+    <mi>x</mi>
+</math>
+"#,
             ),
             (
                 "presentation",
                 cem_ml::validation::mathml::MATHML_PRESENTATION_CONTENT_TYPE,
                 r#"<?xml version="1.0"?><math xmlns="http://www.w3.org/1998/Math/MathML"><mrow><mi>x</mi></mrow></math>"#,
+                r#"<?xml version="1.0"?>
+<math
+    xmlns="http://www.w3.org/1998/Math/MathML">
+    <mrow>
+        <mi>x</mi>
+    </mrow>
+</math>
+"#,
             ),
             (
                 "content",
                 cem_ml::validation::mathml::MATHML_CONTENT_CONTENT_TYPE,
                 r#"<?xml version="1.0"?><math xmlns="http://www.w3.org/1998/Math/MathML"><apply><plus/><ci>x</ci></apply></math>"#,
+                r#"<?xml version="1.0"?>
+<math
+    xmlns="http://www.w3.org/1998/Math/MathML">
+    <apply>
+        <plus/>
+        <ci>x</ci>
+    </apply>
+</math>
+"#,
             ),
         ] {
             let p = write_fixture(&format!("convert-mathml-{name}-same-schema.mml"), source);
@@ -13077,7 +13111,7 @@ This document has **strong** text and a link.
 
             assert_eq!(outcome.exit_code, EXIT_OK, "{name}: {stderr}");
             assert!(stderr.trim().is_empty(), "{name}: {stderr}");
-            assert_eq!(stdout, format!("{source}\n"), "{name}");
+            assert_eq!(stdout, expected, "{name}");
             assert!(!stdout.contains("cem.schema."));
             assert!(!stdout.contains("cem.lifecycle."));
         }

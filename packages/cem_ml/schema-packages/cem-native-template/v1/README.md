@@ -173,13 +173,12 @@ is not substitution: the result is considered substituted only when
 ## Formatter And Preview SDLC
 
 When a command example, fixture, formatter, colorizer, CLI report shape, or
-visible presentation output changes, update the SVG previews in
-`examples/previews/` in the same change by running
-`node packages/cem_ml/schema-packages/cem-native-template/v1/scripts/verify-previews.mjs --update`.
+visible presentation output changes, regenerate the README examples with the
+package `samples2readme` target. Valid UTF-8 CEM sources remain exact fenced
+source; an SVG preview is allowed only for an unfenceable fallback.
 
-The package `verify` target writes generated preview HTML/SVG artifacts into
-`dist/cem_ml/schema-packages/cem-native-template/v1/examples/` and fails on
-drift.
+The package `verify` target checks generated README source and any referenced
+fallback preview artifacts for drift.
 
 ## Verification
 
@@ -208,19 +207,16 @@ document behavior.
 Tracked but not complete:
 
 - schema-owned fact bindings for all template parser and semantic diagnostics;
-- HTML and Markdown preview drift checks once their template presentation
-  profiles become stable enough for README demos.
+- HTML and Markdown output-parity checks once their template presentation
+  profiles become stable enough for executable examples.
 
 ## Examples
 
 This section is generated from `package.cem` `{example}` metadata by the
-`samples2readme` Nx target. Each SVG previews the example content, not
-the validation report. The target writes a preformatted HTML preview to
-`dist/cem_ml/schema-packages/<package>/v1/examples/<example-file>.html`,
-then renders the `<pre>` spans through headless Chromium into
-`examples/previews/<example-file>.svg`.
-Source snapshots are used only where the current CLI cannot yet render
-the package formatter/colorizer path for that content identity.
+`samples2readme` Nx target. Text examples with a recognized language and
+valid UTF-8 are embedded directly as language-tagged fenced source.
+All declared examples in this package support source fences, so README SVG
+previews are not used.
 
 <details>
 <summary>basic-template</summary>
@@ -229,8 +225,7 @@ the package formatter/colorizer path for that content identity.
 - Content type: `application/vnd.cem.template+cem`
 - Schema: `https://cem.dev/ns/template/cem-native/1`
 - Expected result: `pass`
-- Preview renderer: `CLI convert, tabular formatter, preview HTML + html2svg`
-- Preview HTML: `dist/cem_ml/schema-packages/cem-native-template/v1/examples/basic-template.cem.html`
+- README rendering: fenced `cem` source
 
 ```bash
 dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
@@ -242,7 +237,17 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
 
 </details>
 
-![Preview of CEM-Native Template Schema Package basic-template example](examples/previews/basic-template.cem.svg)
+```cem
+@doc cem-ml 1
+@ns template = "https://cem.dev/ns/template/cem-native/1"
+@default template
+
+{module |
+    {template @name="greeting" |
+        {body | Hello, world.}
+    }
+}
+```
 
 <details>
 <summary>module-template</summary>
@@ -251,8 +256,7 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
 - Content type: `application/vnd.cem.template+cem`
 - Schema: `https://cem.dev/ns/template/cem-native/1`
 - Expected result: `pass`
-- Preview renderer: `CLI convert, tabular formatter, preview HTML + html2svg`
-- Preview HTML: `dist/cem_ml/schema-packages/cem-native-template/v1/examples/module-template.cem.html`
+- README rendering: fenced `cem` source
 
 ```bash
 dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
@@ -264,7 +268,40 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
 
 </details>
 
-![Preview of CEM-Native Template Schema Package module-template example](examples/previews/module-template.cem.svg)
+```cem
+@doc cem-ml 1
+@ns template = "https://cem.dev/ns/template/cem-native/1"
+@default template
+
+{module @version="1.0.0" |
+    {import
+        @as="layout"
+        @src="layout.cem"
+        @content-type="application/vnd.cem.template+cem"
+    }
+
+    {param @name="siteTitle" @type="string" @default="CEM Demo"}
+
+    {template @name="page" @visibility="public" |
+        {param @name="heading" @type="string" @required=true}
+        {body |
+            {call @template="hero" @with:title="heading"}
+            {main @class="content" |
+                {slot @name="default"}
+            }
+        }
+    }
+
+    {template @name="hero" |
+        {param @name="title" @type="string"}
+        {body |
+            {section @class="hero" |
+                {h1 | Template heading}
+            }
+        }
+    }
+}
+```
 
 <details>
 <summary>invalid-missing-required-attribute</summary>
@@ -274,8 +311,7 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
 - Schema: `https://cem.dev/ns/template/cem-native/1`
 - Expected result: `fail`
 - Expected diagnostics: `cem.schema_model.missing_required_attribute`
-- Preview renderer: `CLI convert, tabular formatter, preview HTML + html2svg`
-- Preview HTML: `dist/cem_ml/schema-packages/cem-native-template/v1/examples/invalid-missing-required-attribute.cem.html`
+- README rendering: fenced `cem` source
 
 ```bash
 dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
@@ -287,7 +323,17 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
 
 </details>
 
-![Preview of CEM-Native Template Schema Package invalid-missing-required-attribute example](examples/previews/invalid-missing-required-attribute.cem.svg)
+```cem
+@doc cem-ml 1
+@ns template = "https://cem.dev/ns/template/cem-native/1"
+@default template
+
+{module |
+    {template |
+        {body | Missing the required template name.}
+    }
+}
+```
 
 <details>
 <summary>invalid-duplicate-import-alias</summary>
@@ -297,8 +343,7 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
 - Schema: `https://cem.dev/ns/template/cem-native/1`
 - Expected result: `fail`
 - Expected diagnostics: `cem.template.import_alias_duplicate`
-- Preview renderer: `CLI convert, tabular formatter, preview HTML + html2svg`
-- Preview HTML: `dist/cem_ml/schema-packages/cem-native-template/v1/examples/invalid-duplicate-import-alias.cem.html`
+- README rendering: fenced `cem` source
 
 ```bash
 dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
@@ -310,7 +355,20 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
 
 </details>
 
-![Preview of CEM-Native Template Schema Package invalid-duplicate-import-alias example](examples/previews/invalid-duplicate-import-alias.cem.svg)
+```cem
+@doc cem-ml 1
+@ns template = "https://cem.dev/ns/template/cem-native/1"
+@default template
+
+{module |
+    {import @as="ui" @src="ui.cem"}
+    {import @as="ui" @src="ui-copy.cem"}
+
+    {template @name="page" |
+        {body | Duplicate import alias.}
+    }
+}
+```
 
 <details>
 <summary>invalid-duplicate-template-entrypoint</summary>
@@ -320,8 +378,7 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
 - Schema: `https://cem.dev/ns/template/cem-native/1`
 - Expected result: `fail`
 - Expected diagnostics: `cem.template.entrypoint_duplicate`
-- Preview renderer: `CLI convert, tabular formatter, preview HTML + html2svg`
-- Preview HTML: `dist/cem_ml/schema-packages/cem-native-template/v1/examples/invalid-duplicate-template-entrypoint.cem.html`
+- README rendering: fenced `cem` source
 
 ```bash
 dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
@@ -333,7 +390,21 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
 
 </details>
 
-![Preview of CEM-Native Template Schema Package invalid-duplicate-template-entrypoint example](examples/previews/invalid-duplicate-template-entrypoint.cem.svg)
+```cem
+@doc cem-ml 1
+@ns template = "https://cem.dev/ns/template/cem-native/1"
+@default template
+
+{module |
+    {template @name="card" |
+        {body | First card.}
+    }
+
+    {template @name="card" |
+        {body | Duplicate card.}
+    }
+}
+```
 
 <details>
 <summary>invalid-duplicate-param</summary>
@@ -343,8 +414,7 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
 - Schema: `https://cem.dev/ns/template/cem-native/1`
 - Expected result: `fail`
 - Expected diagnostics: `cem.template.param_duplicate`
-- Preview renderer: `CLI convert, tabular formatter, preview HTML + html2svg`
-- Preview HTML: `dist/cem_ml/schema-packages/cem-native-template/v1/examples/invalid-duplicate-param.cem.html`
+- README rendering: fenced `cem` source
 
 ```bash
 dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
@@ -356,7 +426,19 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
 
 </details>
 
-![Preview of CEM-Native Template Schema Package invalid-duplicate-param example](examples/previews/invalid-duplicate-param.cem.svg)
+```cem
+@doc cem-ml 1
+@ns template = "https://cem.dev/ns/template/cem-native/1"
+@default template
+
+{module |
+    {template @name="card" |
+        {param @name="title" @type="string"}
+        {param @name="title" @type="string"}
+        {body | Duplicate param.}
+    }
+}
+```
 
 <details>
 <summary>invalid-duplicate-let</summary>
@@ -366,8 +448,7 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
 - Schema: `https://cem.dev/ns/template/cem-native/1`
 - Expected result: `fail`
 - Expected diagnostics: `cem.template.let_duplicate`
-- Preview renderer: `CLI convert, tabular formatter, preview HTML + html2svg`
-- Preview HTML: `dist/cem_ml/schema-packages/cem-native-template/v1/examples/invalid-duplicate-let.cem.html`
+- README rendering: fenced `cem` source
 
 ```bash
 dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
@@ -379,7 +460,21 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
 
 </details>
 
-![Preview of CEM-Native Template Schema Package invalid-duplicate-let example](examples/previews/invalid-duplicate-let.cem.svg)
+```cem
+@doc cem-ml 1
+@ns template = "https://cem.dev/ns/template/cem-native/1"
+@default template
+
+{module |
+    {template @name="card" |
+        {body |
+            {let @name="layout" @value="compact"}
+            {let @name="layout" @value="expanded"}
+            Duplicate let binding.
+        }
+    }
+}
+```
 
 <details>
 <summary>invalid-unknown-call</summary>
@@ -389,8 +484,7 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
 - Schema: `https://cem.dev/ns/template/cem-native/1`
 - Expected result: `fail`
 - Expected diagnostics: `cem.template.call_unknown`
-- Preview renderer: `CLI convert, tabular formatter, preview HTML + html2svg`
-- Preview HTML: `dist/cem_ml/schema-packages/cem-native-template/v1/examples/invalid-unknown-call.cem.html`
+- README rendering: fenced `cem` source
 
 ```bash
 dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
@@ -402,7 +496,19 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
 
 </details>
 
-![Preview of CEM-Native Template Schema Package invalid-unknown-call example](examples/previews/invalid-unknown-call.cem.svg)
+```cem
+@doc cem-ml 1
+@ns template = "https://cem.dev/ns/template/cem-native/1"
+@default template
+
+{module |
+    {template @name="page" |
+        {body |
+            {call @template="missing"}
+        }
+    }
+}
+```
 
 <details>
 <summary>invalid-default-expr-reserved</summary>
@@ -412,8 +518,7 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
 - Schema: `https://cem.dev/ns/template/cem-native/1`
 - Expected result: `fail`
 - Expected diagnostics: `cem.template.param_default_expr_reserved`
-- Preview renderer: `CLI convert, tabular formatter, preview HTML + html2svg`
-- Preview HTML: `dist/cem_ml/schema-packages/cem-native-template/v1/examples/invalid-default-expr-reserved.cem.html`
+- README rendering: fenced `cem` source
 
 ```bash
 dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
@@ -425,7 +530,19 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
 
 </details>
 
-![Preview of CEM-Native Template Schema Package invalid-default-expr-reserved example](examples/previews/invalid-default-expr-reserved.cem.svg)
+```cem
+@doc cem-ml 1
+@ns template = "https://cem.dev/ns/template/cem-native/1"
+@default template
+
+{module |
+    {param @name="title" @type="string" @default-expr="input.title"}
+
+    {template @name="page" |
+        {body | Reserved default expression.}
+    }
+}
+```
 
 <details>
 <summary>invalid-expression-parse</summary>
@@ -435,8 +552,7 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
 - Schema: `https://cem.dev/ns/template/cem-native/1`
 - Expected result: `fail`
 - Expected diagnostics: `cem.ql.use_rust_boolean_ops`
-- Preview renderer: `CLI convert, tabular formatter, preview HTML + html2svg`
-- Preview HTML: `dist/cem_ml/schema-packages/cem-native-template/v1/examples/invalid-expression-parse.cem.html`
+- README rendering: fenced `cem` source
 
 ```bash
 dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
@@ -448,7 +564,22 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
 
 </details>
 
-![Preview of CEM-Native Template Schema Package invalid-expression-parse example](examples/previews/invalid-expression-parse.cem.svg)
+```cem
+@doc cem-ml 1
+@ns template = "https://cem.dev/ns/template/cem-native/1"
+@ns cem = "https://cem.dev/ns/core/1"
+@default template
+
+{module |
+    {template @name="page" |
+        {body |
+            {cem:if @test='input.kind = "element" and visible' |
+                Legacy boolean syntax.
+            }
+        }
+    }
+}
+```
 
 <details>
 <summary>invalid-expression-type-error</summary>
@@ -458,8 +589,7 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
 - Schema: `https://cem.dev/ns/template/cem-native/1`
 - Expected result: `fail`
 - Expected diagnostics: `cem.ql.type_error`
-- Preview renderer: `CLI convert, tabular formatter, preview HTML + html2svg`
-- Preview HTML: `dist/cem_ml/schema-packages/cem-native-template/v1/examples/invalid-expression-type-error.cem.html`
+- README rendering: fenced `cem` source
 
 ```bash
 dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
@@ -471,7 +601,22 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
 
 </details>
 
-![Preview of CEM-Native Template Schema Package invalid-expression-type-error example](examples/previews/invalid-expression-type-error.cem.svg)
+```cem
+@doc cem-ml 1
+@ns template = "https://cem.dev/ns/template/cem-native/1"
+@ns cem = "https://cem.dev/ns/core/1"
+@default template
+
+{module |
+    {template @name="page" |
+        {body |
+            {cem:if @test="1" |
+                Non-boolean condition.
+            }
+        }
+    }
+}
+```
 
 <details>
 <summary>invalid-expression-data-binding</summary>
@@ -481,8 +626,7 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
 - Schema: `https://cem.dev/ns/template/cem-native/1`
 - Expected result: `fail`
 - Expected diagnostics: `cem.ql.data_binding_missing`
-- Preview renderer: `CLI convert, tabular formatter, preview HTML + html2svg`
-- Preview HTML: `dist/cem_ml/schema-packages/cem-native-template/v1/examples/invalid-expression-data-binding.cem.html`
+- README rendering: fenced `cem` source
 
 ```bash
 dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
@@ -494,4 +638,21 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
 
 </details>
 
-![Preview of CEM-Native Template Schema Package invalid-expression-data-binding example](examples/previews/invalid-expression-data-binding.cem.svg)
+```cem
+@doc cem-ml 1
+@ns template = "https://cem.dev/ns/template/cem-native/1"
+@default template
+
+{module |
+    {template @name="page" |
+        {body |
+            {call @template="hero" @with:title="external:title"}
+        }
+    }
+
+    {template @name="hero" |
+        {param @name="title" @type="string"}
+        {body | Hero.}
+    }
+}
+```

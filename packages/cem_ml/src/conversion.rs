@@ -19545,7 +19545,14 @@ mod tests {
             artifact_cache: None,
         };
         let source = br#"<?xml version="1.0" encoding="UTF-8"?>
-<math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>x</mi><mo>+</mo><mn>1</mn></mrow><annotation encoding="application/json"/></semantics></math>
+<math xmlns="http://www.w3.org/1998/Math/MathML" display="block">
+  <!-- equation -->
+  <semantics>
+    <mrow data-kind="sum"><mi>x</mi><mo>+</mo><mn>1</mn></mrow>
+    <annotation encoding="application/x-tex"><![CDATA[x + 1]]></annotation>
+  </semantics>
+  <apply><plus/><ci>x</ci><cn>1</cn></apply>
+</math>
 "#;
         let (document, diagnostics) =
             crate::validation::mathml::mathml_document_ast_from_source_bytes(
@@ -19557,10 +19564,25 @@ mod tests {
             );
         assert!(diagnostics.is_empty(), "{diagnostics:?}");
 
-        for (profile, artifact_profile) in [
-            ("compact", "compact"),
-            ("pretty", "xml.pretty"),
-            ("tabular", "tabular"),
+        for (profile, artifact_profile, layout, expected) in [
+            (
+                "compact",
+                "compact",
+                "structural-compact",
+                "<?xml version=\"1.0\" encoding=\"UTF-8\"?><math xmlns=\"http://www.w3.org/1998/Math/MathML\" display=\"block\"><!-- equation --><semantics><mrow data-kind=\"sum\"><mi>x</mi><mo>+</mo><mn>1</mn></mrow><annotation encoding=\"application/x-tex\"><![CDATA[x + 1]]></annotation></semantics><apply><plus/><ci>x</ci><cn>1</cn></apply></math>\n",
+            ),
+            (
+                "pretty",
+                "xml.pretty",
+                "structural-pretty",
+                "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<math xmlns=\"http://www.w3.org/1998/Math/MathML\" display=\"block\">\n    <!-- equation -->\n    <semantics>\n        <mrow data-kind=\"sum\">\n            <mi>x</mi>\n            <mo>+</mo>\n            <mn>1</mn>\n        </mrow>\n        <annotation encoding=\"application/x-tex\"><![CDATA[x + 1]]></annotation>\n    </semantics>\n    <apply>\n        <plus/>\n        <ci>x</ci>\n        <cn>1</cn>\n    </apply>\n</math>\n",
+            ),
+            (
+                "tabular",
+                "tabular",
+                "attribute-tabular",
+                "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<math\n    xmlns=\"http://www.w3.org/1998/Math/MathML\"\n    display=\"block\">\n    <!-- equation -->\n    <semantics>\n        <mrow\n            data-kind=\"sum\">\n            <mi>x</mi>\n            <mo>+</mo>\n            <mn>1</mn>\n        </mrow>\n        <annotation encoding=\"application/x-tex\"><![CDATA[x + 1]]></annotation>\n    </semantics>\n    <apply>\n        <plus/>\n        <ci>x</ci>\n        <cn>1</cn>\n    </apply>\n</math>\n",
+            ),
         ] {
             let target_scope = ScopeConfig {
                 cemt_formatter_profile: Some(profile.to_owned()),
@@ -19595,7 +19617,7 @@ mod tests {
             );
             assert_eq!(
                 execution.output.as_ref().and_then(Value::as_str),
-                Some(std::str::from_utf8(source).unwrap()),
+                Some(expected),
                 "{profile}"
             );
             let formatted = execution
@@ -19608,16 +19630,69 @@ mod tests {
             assert_eq!(formatted.value["formatterProfile"], artifact_profile);
             assert_eq!(
                 formatted.value["formatNodes"][1]["value"]["layout"],
-                format!("lexical-lossless-{profile}")
+                layout
             );
             assert!(formatted.value["nodes"]
                 .as_array()
                 .is_some_and(|nodes| nodes.iter().any(|node| {
-                    node["kind"] == "mathml.empty-element"
-                        && node["value"]["qualifiedName"] == "annotation"
+                    node["kind"] == "mathml.markup-delimiter"
+                        && node["value"]["eventKind"] == "empty-element"
+                        && node["value"]["qualifiedName"] == "plus"
                         && node["sourceMap"] != Value::Null
                 })));
+            for role in [
+                "syntax.punctuation",
+                "syntax.name",
+                "syntax.attribute",
+                "syntax.string",
+            ] {
+                assert!(formatted.value["nodes"]
+                    .as_array()
+                    .is_some_and(|nodes| nodes.iter().any(|node| node["role"] == role)),
+                    "{profile}: missing {role}"
+                );
+            }
+            assert!(formatted.value["nodes"]
+                .as_array()
+                .is_some_and(|nodes| nodes.iter().filter(|node| node["kind"] == "mathml.layout").all(
+                    |node| node["role"] == "formatter.layout"
+                        && node["sourceMap"] == Value::Null
+                        && node["outputSpan"] == Value::Null
+                )), "{profile}: generated layout tokens must remain unmapped");
+            assert!(execution.output_spans.iter().any(|span| {
+                matches!(span.origin.frames.first().map(|frame| &frame.span), Some(crate::source_map::FrameSpan::Single(range)) if range.start == 40 && range.len == 4)
+            }), "{profile}: MathML element-name source span");
         }
+
+        let target_scope = ScopeConfig {
+            cemt_formatter_profile: Some("pretty".to_owned()),
+            cemt_formatter_options: BTreeMap::from([
+                ("indent".to_owned(), "\t".to_owned()),
+                ("lineEnding".to_owned(), "crlf".to_owned()),
+                ("tabSize".to_owned(), "4".to_owned()),
+            ]),
+            ..ScopeConfig::default()
+        };
+        let execution = execute_mathml_document_output_pipeline_with_environment(
+            &environment,
+            document.expect("MathML document"),
+            &target_scope,
+            Some("builtin:mathml-output-crlf"),
+        );
+        assert!(
+            execution.diagnostics.is_empty(),
+            "{:?}",
+            execution.diagnostics
+        );
+        let output = execution.output.as_ref().and_then(Value::as_str).unwrap();
+        assert!(output.contains("\r\n\t<semantics"), "{output:?}");
+        assert!(output.ends_with("\r\n"), "{output:?}");
+        assert!(!output.replace("\r\n", "").contains('\n'), "{output:?}");
+        assert_eq!(
+            execution.formatted_cem_tree.as_ref().unwrap().value["formatNodes"][1]["value"]
+                ["tabSize"],
+            4
+        );
     }
 
     #[test]
@@ -19641,6 +19716,14 @@ mod tests {
                 },
             );
         assert!(diagnostics.is_empty(), "{diagnostics:?}");
+        let plain = execute_mathml_document_output_pipeline_with_environment(
+            &environment,
+            document.clone().expect("MathML document"),
+            &ScopeConfig::default(),
+            Some("builtin:mathml-plain-output"),
+        );
+        assert!(plain.diagnostics.is_empty(), "{:?}", plain.diagnostics);
+        let plain_output = plain.output.as_ref().and_then(Value::as_str).unwrap();
 
         for (profile, style_key, style_value) in [
             ("terminal", "terminalCapability", "auto"),
@@ -19686,6 +19769,38 @@ mod tests {
             assert_eq!(colored.value["category"], "mathml-document");
             assert_eq!(colored.value["colorProfile"], profile);
             assert_eq!(colored.value["nodes"][2]["style"][style_key], style_value);
+            for role in [
+                "syntax.punctuation",
+                "syntax.name",
+                "syntax.attribute",
+                "syntax.string",
+            ] {
+                assert!(
+                    colored.value["nodes"]
+                        .as_array()
+                        .is_some_and(|nodes| nodes.iter().any(|node| {
+                            node["value"]["colorRole"] == role && node["style"]["colorRole"] == role
+                        })),
+                    "{profile}: missing {role}"
+                );
+            }
+            assert_eq!(
+                writer_node_text(&colored.value),
+                plain_output.strip_suffix('\n').unwrap_or(plain_output)
+            );
+            let output = execution.output.as_ref().and_then(Value::as_str).unwrap();
+            let visible = match profile {
+                "terminal" => strip_ansi_codes(output),
+                "html" | "md" => {
+                    colored_markup_text_content(output.strip_suffix('\n').unwrap_or(output))
+                }
+                _ => unreachable!(),
+            };
+            assert_eq!(
+                visible.trim_end_matches(['\r', '\n']),
+                plain_output.trim_end_matches(['\r', '\n']),
+                "{profile}"
+            );
         }
     }
 

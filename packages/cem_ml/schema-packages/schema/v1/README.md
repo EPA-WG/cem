@@ -423,13 +423,10 @@ to candidate input remains a runtime contract step.
 ## Examples
 
 This section is generated from `package.cem` `{example}` metadata by the
-`samples2readme` Nx target. Each SVG previews the example content, not
-the validation report. The target writes a preformatted HTML preview to
-`dist/cem_ml/schema-packages/<package>/v1/examples/<example-file>.html`,
-then renders the `<pre>` spans through headless Chromium into
-`examples/previews/<example-file>.svg`.
-Source snapshots are used only where the current CLI cannot yet render
-the package formatter/colorizer path for that content identity.
+`samples2readme` Nx target. Text examples with a recognized language and
+valid UTF-8 are embedded directly as language-tagged fenced source.
+All declared examples in this package support source fences, so README SVG
+previews are not used.
 
 <details>
 <summary>basic-schema</summary>
@@ -438,8 +435,7 @@ the package formatter/colorizer path for that content identity.
 - Content type: `application/vnd.cem.schema+cem`
 - Schema: `https://cem.dev/ns/schema/1`
 - Expected result: `pass`
-- Preview renderer: `CLI convert, tabular formatter, preview HTML + html2svg`
-- Preview HTML: `dist/cem_ml/schema-packages/schema/v1/examples/basic-schema.cem.html`
+- README rendering: fenced `cem` source
 
 ```bash
 dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
@@ -451,7 +447,30 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
 
 </details>
 
-![Preview of CEM Schema Definition Language Package basic-schema example](examples/previews/basic-schema.cem.svg)
+```cem
+@doc cem-ml 1
+@ns schema = "https://cem.dev/ns/schema/1"
+@default schema
+
+{schema @name="note" @namespace="https://example.test/ns/note/1" @version="1.0.0" |
+    {summary |
+        {text | Minimal note schema used as a schema-definition validation example.}
+    }
+
+    {content-types |
+        {content-type @value="application/vnd.example.note+cem" @primary=true}
+    }
+
+    {elements |
+        {element @name="note" @optional-attributes="id" @children="text"}
+        {element @name="text"}
+    }
+
+    {attributes |
+        {attribute @name="id" @type="schema:identifier"}
+    }
+}
+```
 
 <details>
 <summary>typed-resource-schema</summary>
@@ -460,8 +479,7 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
 - Content type: `application/vnd.cem.schema+cem`
 - Schema: `https://cem.dev/ns/schema/1`
 - Expected result: `pass`
-- Preview renderer: `CLI convert, tabular formatter, preview HTML + html2svg`
-- Preview HTML: `dist/cem_ml/schema-packages/schema/v1/examples/typed-resource-schema.cem.html`
+- README rendering: fenced `cem` source
 
 ```bash
 dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
@@ -473,7 +491,491 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
 
 </details>
 
-![Preview of CEM Schema Definition Language Package typed-resource-schema example](examples/previews/typed-resource-schema.cem.svg)
+```cem
+@doc cem-ml 1
+@ns schema = "https://cem.dev/ns/schema/1"
+@ns cemml = "https://cem.dev/ns/cem-ml/1"
+@default schema
+
+{schema @name="typed-resource" @namespace="https://example.test/ns/resource/1" @version="1.0.0" |
+    {summary |
+        {text | Resource schema with imports, namespace claims, attributes, diagnostics, and open-content policy.}
+    }
+
+    {uses |
+        {use @schema="https://cem.dev/ns/cem-ml/1" @as="cemml"}
+        {use @schema="https://cem.dev/ns/schema/1" @as="schema"}
+    }
+
+    {content-types |
+        {content-type @value="application/vnd.example.resource+cem" @primary=true}
+    }
+
+    {namespaces |
+        {namespace @prefix="resource" @uri="https://example.test/ns/resource/1" @role="schema"}
+    }
+
+    {elements |
+        {element @name="resource" @required-attributes="id kind" @optional-attributes="label priority rank weight serial ratio slug tags aliases code href format payload metadata asset inline qualified version" @children="field*"}
+        {element @name="single-resource" @required-attributes="id kind" @children="field"}
+        {element @name="linked-resource" @required-attributes="id kind" @optional-attributes="label" @children="field reference"}
+        {element @name="conditional-resource" @required-attributes="id kind" @optional-attributes="label inline format" @children="field reference fallback"}
+        {element @name="field" @required-attributes="name type"}
+        {element @name="reference" @required-attributes="href"}
+        {element @name="fallback"}
+    }
+
+    {attributes |
+        {attribute @name="id" @type="cemml:identifier"}
+        {attribute
+            @name="priority"
+            @type="schema:integer"
+            @minInclusive=1
+            @maxInclusive=10
+            @datatype-param-diagnostic="example.resource.invalid_priority"
+        }
+        {attribute
+            @name="rank"
+            @type="schema:integer"
+            @minExclusive=0
+            @maxExclusive=100
+            @datatype-param-diagnostic="example.resource.invalid_rank"
+        }
+        {attribute
+            @name="weight"
+            @type="schema:number"
+            @minInclusive=0.0
+            @maxInclusive=1.0
+            @type-diagnostic="example.resource.invalid_weight"
+            @datatype-param-diagnostic="example.resource.invalid_weight_range"
+        }
+        {attribute
+            @name="serial"
+            @type="schema:integer"
+            @totalDigits=6
+            @datatype-param-diagnostic="example.resource.invalid_serial_digits"
+        }
+        {attribute
+            @name="ratio"
+            @type="schema:number"
+            @totalDigits=4
+            @fractionDigits=2
+            @datatype-param-diagnostic="example.resource.invalid_ratio_digits"
+        }
+        {attribute
+            @name="slug"
+            @type="schema:string"
+            @stringPrefixes="page- component-"
+            @stringSuffixes="-slug -id"
+            @stringForbiddenPrefixes="draft- private-"
+            @stringForbiddenSuffixes="-tmp -bak"
+            @pattern="[a-z][a-z0-9-]*"
+            @datatype-param-diagnostic="example.resource.invalid_slug"
+        }
+        {attribute
+            @name="tags"
+            @type="schema:name-list"
+            @minItems=1
+            @maxItems=4
+            @datatype-param-diagnostic="example.resource.invalid_tags"
+        }
+        {attribute
+            @name="aliases"
+            @type="schema:wildcard-name-list"
+            @itemCount=2
+            @datatype-param-diagnostic="example.resource.invalid_aliases"
+        }
+        {attribute
+            @name="code"
+            @type="schema:string"
+            @length=4
+            @datatype-param-diagnostic="example.resource.invalid_code"
+        }
+        {attribute
+            @name="kind"
+            @type="schema:identifier"
+            @values="page component token"
+            @values-diagnostic="example.resource.invalid_kind"
+        }
+        {attribute
+            @name="href"
+            @type="schema:uri"
+            @type-diagnostic="example.resource.invalid_href"
+            @uriSchemes="https"
+            @uriForbiddenSchemes="ftp file"
+            @uriHosts="api.example.test assets.example.test"
+            @uriForbiddenHosts="legacy.example.test"
+            @uriPorts="443 8443"
+            @uriForbiddenPorts="80 8080"
+            @uriRequiresAuthority=true
+            @uriPathPrefixes="/resources/ /assets/"
+            @uriForbiddenPathPrefixes="/assets/private/"
+            @uriPathExtensions="cem json"
+            @uriForbiddenPathExtensions="bak tmp"
+            @uriPathBasenames="resource.cem asset.json"
+            @uriForbiddenPathBasenames="private.json secret.cem"
+            @uriQueries="view=resource view=asset"
+            @uriForbiddenQueries="debug=true trace=true"
+            @uriQueryParameters="view"
+            @uriQueryParameterValues="view=resource view=asset"
+            @uriQueryForbiddenParameters="debug"
+            @uriQueryRequiredParameters="view"
+            @uriFragments="resource asset"
+            @uriForbiddenFragments="debug trace"
+            @datatype-param-diagnostic="example.resource.invalid_href_scheme"
+        }
+        {attribute
+            @name="format"
+            @type="schema:media-type"
+            @type-diagnostic="example.resource.invalid_format"
+            @mediaTypes="application/json text/html"
+            @mediaTypeForbiddenEssences="application/xml image/png"
+            @mediaTypeTypes="application text"
+            @mediaTypeSubtypes="json html"
+            @mediaTypeForbiddenTypes="image"
+            @mediaTypeForbiddenSubtypes="xml"
+            @mediaTypeParameters="charset profile"
+            @mediaTypeParameterValues="charset=utf-8 profile=default"
+            @mediaTypeRequiredParameters="charset"
+            @datatype-param-diagnostic="example.resource.invalid_format_type"
+        }
+        {attribute
+            @name="payload"
+            @type="schema:media-type"
+            @mediaTypeSuffixes="json xml"
+            @mediaTypeForbiddenSuffixes="zip"
+            @datatype-param-diagnostic="example.resource.invalid_payload_suffix"
+        }
+        {attribute
+            @name="metadata"
+            @type="schema:media-type"
+            @mediaTypeForbiddenParameters="profile"
+            @datatype-param-diagnostic="example.resource.invalid_metadata_parameter"
+        }
+        {attribute
+            @name="asset"
+            @type="schema:path"
+            @type-diagnostic="example.resource.invalid_asset"
+            @pathPrefixes="./assets/ @assets/"
+            @pathForbiddenPrefixes="./assets/private/ @assets/private/"
+            @pathDirectoryNames="@assets assets"
+            @pathForbiddenDirectoryNames="private tmp"
+            @pathExtensions="cem cemt"
+            @pathForbiddenExtensions="bak tmp"
+            @pathBasenames="resource.cem theme.cemt"
+            @pathForbiddenBasenames="secret.cem private.cemt"
+            @datatype-param-diagnostic="example.resource.invalid_asset_path"
+        }
+        {attribute
+            @name="inline"
+            @type="schema:string"
+            @minLength=3
+            @maxLength=80
+            @stringIncludes="ref: label:"
+            @stringExcludes="TODO FIXME"
+            @datatype-param-diagnostic="example.resource.invalid_inline"
+        }
+        {attribute
+            @name="qualified"
+            @type="schema:qualified-name"
+            @type-diagnostic="example.resource.invalid_qualified_name"
+        }
+        {attribute
+            @name="version"
+            @type="schema:semver"
+            @type-diagnostic="example.resource.invalid_version"
+        }
+        {attribute @name="label" @type="schema:string" @default="untitled"}
+        {attribute @name="name" @type="cemml:identifier"}
+        {attribute @name="type" @type="schema:type-reference"}
+    }
+
+    {field-contracts |
+        {field-contract
+            @name="page-resource-label"
+            @target="resource"
+            @when-attribute="kind"
+            @when-values="page"
+            @required-attributes="label"
+            @diagnostic="example.resource.missing_label"
+            @check-kind="required-fields"
+        }
+        {field-contract
+            @name="resource-link-choice"
+            @target="resource"
+            @diagnostic="example.resource.link_choice"
+            @behavior="schema:choice-case"
+            @check-kind="choice-case" |
+            {choice @name="resource-link-source" @mode="exactly-one" |
+                {case @name="href-link" @attributes="href"}
+                {case @name="inline-link" @attributes="inline"}
+            }
+        }
+        {field-contract
+            @name="resource-field-range"
+            @target="resource"
+            @min-children="field=1"
+            @max-children="field=8"
+            @min-total-children=1
+            @max-total-children=8
+            @exact-distinct-children=1
+            @selected-children="field"
+            @min-selected-children=1
+            @max-selected-children=8
+            @exact-selected-distinct-children=1
+            @first-child="field"
+            @last-child="field"
+            @required-child-sequence="field"
+            @prefix-child-sequence="field"
+            @suffix-child-sequence="field"
+            @diagnostic="example.resource.field_range"
+            @behavior="schema:child-occurrence"
+            @check-kind="child-occurrence-range"
+        }
+        {field-contract
+            @name="single-resource-exact-sequence"
+            @target="single-resource"
+            @exact-child-sequence="field"
+            @diagnostic="example.resource.field_range"
+            @behavior="schema:child-occurrence"
+            @check-kind="exact-child-sequence"
+        }
+        {field-contract
+            @name="linked-resource-child-choice"
+            @target="linked-resource"
+            @required-one-child="field reference"
+            @max-one-child="field reference"
+            @ordered-children="field reference"
+            @forbidden-ordered-children="reference field"
+            @forbidden-child-sequence="reference field"
+            @forbidden-prefix-child-sequence="reference field"
+            @forbidden-suffix-child-sequence="field reference"
+            @diagnostic="example.resource.child_choice"
+            @behavior="schema:child-occurrence"
+            @check-kind="exactly-one-child"
+        }
+        {field-contract
+            @name="conditional-resource-reference-field"
+            @target="conditional-resource"
+            @when-present-children="reference"
+            @when-absent-children="fallback"
+            @required-children="field"
+            @diagnostic="example.resource.child_choice"
+            @behavior="schema:child-occurrence"
+            @check-kind="conditional-required-children"
+        }
+        {field-contract
+            @name="conditional-resource-reference-label"
+            @target="conditional-resource"
+            @when-present-children="reference"
+            @when-absent-children="fallback"
+            @required-attributes="label"
+            @diagnostic="example.resource.reference_dependency"
+            @behavior="schema:field-dependency"
+            @check-kind="child-gated-dependent-required-fields"
+        }
+        {field-contract
+            @name="conditional-resource-reference-format-forbidden"
+            @target="conditional-resource"
+            @when-present-children="reference"
+            @when-absent-children="fallback"
+            @forbidden-attributes="format"
+            @diagnostic="example.resource.reference_dependency"
+            @behavior="schema:field-dependency"
+            @check-kind="child-gated-dependent-forbidden-fields"
+        }
+        {field-contract
+            @name="conditional-resource-reference-inline-legacy"
+            @target="conditional-resource"
+            @when-present-children="reference"
+            @when-absent-children="fallback"
+            @forbidden-attribute-values="inline=legacy"
+            @diagnostic="example.resource.reference_dependency"
+            @behavior="schema:field-dependency"
+            @check-kind="child-gated-dependent-forbidden-values"
+        }
+        {field-contract
+            @name="conditional-resource-forbidden-boundaries"
+            @target="conditional-resource"
+            @forbidden-first-child="fallback"
+            @forbidden-last-child="reference"
+            @diagnostic="example.resource.child_choice"
+            @behavior="schema:child-occurrence"
+            @check-kind="forbidden-boundary-children"
+        }
+    }
+
+    {diagnostics |
+        {diagnostic @code="example.resource.missing_field" @severity="error"}
+        {diagnostic
+            @code="example.resource.missing_label"
+            @severity="warning"
+            @behavior="schema:required-fields"
+            @message="Page resources should declare a label"
+        }
+        {diagnostic
+            @code="example.resource.reference_dependency"
+            @severity="warning"
+            @behavior="schema:field-dependency"
+            @message="Referenced resources must use compatible field metadata"
+        }
+        {diagnostic
+            @code="example.resource.invalid_kind"
+            @severity="error"
+            @behavior="schema:value-vocabulary"
+            @message="Resource kind must use the declared vocabulary"
+        }
+        {diagnostic
+            @code="example.resource.invalid_href"
+            @severity="error"
+            @behavior="schema:scalar-type"
+            @message="Resource href must be an absolute URI"
+        }
+        {diagnostic
+            @code="example.resource.invalid_format"
+            @severity="error"
+            @behavior="schema:scalar-type"
+            @message="Resource format must be a media type"
+        }
+        {diagnostic
+            @code="example.resource.invalid_href_scheme"
+            @severity="error"
+            @behavior="schema:datatype-param"
+            @message="Resource href must use the declared URI constraints"
+        }
+        {diagnostic
+            @code="example.resource.invalid_format_type"
+            @severity="error"
+            @behavior="schema:datatype-param"
+            @message="Resource format must use the declared media-type constraints"
+        }
+        {diagnostic
+            @code="example.resource.invalid_payload_suffix"
+            @severity="error"
+            @behavior="schema:datatype-param"
+            @message="Resource payload must use the declared structured media-type suffix"
+        }
+        {diagnostic
+            @code="example.resource.invalid_metadata_parameter"
+            @severity="error"
+            @behavior="schema:datatype-param"
+            @message="Resource metadata must not use forbidden media-type parameters"
+        }
+        {diagnostic
+            @code="example.resource.invalid_asset"
+            @severity="error"
+            @behavior="schema:scalar-type"
+            @message="Resource asset must be a scoped path"
+        }
+        {diagnostic
+            @code="example.resource.invalid_asset_path"
+            @severity="error"
+            @behavior="schema:datatype-param"
+            @message="Resource asset must use the declared path constraints"
+        }
+        {diagnostic
+            @code="example.resource.invalid_priority"
+            @severity="error"
+            @behavior="schema:datatype-param"
+            @message="Resource priority must stay within the declared bounds"
+        }
+        {diagnostic
+            @code="example.resource.invalid_rank"
+            @severity="error"
+            @behavior="schema:datatype-param"
+            @message="Resource rank must stay within the declared exclusive bounds"
+        }
+        {diagnostic
+            @code="example.resource.invalid_weight"
+            @severity="error"
+            @behavior="schema:scalar-type"
+            @message="Resource weight must be numeric"
+        }
+        {diagnostic
+            @code="example.resource.invalid_weight_range"
+            @severity="error"
+            @behavior="schema:datatype-param"
+            @message="Resource weight must stay within the declared decimal bounds"
+        }
+        {diagnostic
+            @code="example.resource.invalid_serial_digits"
+            @severity="error"
+            @behavior="schema:datatype-param"
+            @message="Resource serial must satisfy the declared total digit limit"
+        }
+        {diagnostic
+            @code="example.resource.invalid_ratio_digits"
+            @severity="error"
+            @behavior="schema:datatype-param"
+            @message="Resource ratio must satisfy the declared digit limits"
+        }
+        {diagnostic
+            @code="example.resource.invalid_slug"
+            @severity="error"
+            @behavior="schema:datatype-param"
+            @message="Resource slug must match the declared prefix, suffix, and pattern constraints"
+        }
+        {diagnostic
+            @code="example.resource.invalid_tags"
+            @severity="error"
+            @behavior="schema:datatype-param"
+            @message="Resource tags must use the declared list item bounds"
+        }
+        {diagnostic
+            @code="example.resource.invalid_aliases"
+            @severity="error"
+            @behavior="schema:datatype-param"
+            @message="Resource aliases must use the declared list item count"
+        }
+        {diagnostic
+            @code="example.resource.invalid_code"
+            @severity="error"
+            @behavior="schema:datatype-param"
+            @message="Resource code must have the declared length"
+        }
+        {diagnostic
+            @code="example.resource.invalid_inline"
+            @severity="error"
+            @behavior="schema:datatype-param"
+            @message="Inline resource text must stay within the declared length bounds"
+        }
+        {diagnostic
+            @code="example.resource.invalid_qualified_name"
+            @severity="error"
+            @behavior="schema:scalar-type"
+            @message="Resource qualified name must use CEM qualified-name syntax"
+        }
+        {diagnostic
+            @code="example.resource.invalid_version"
+            @severity="error"
+            @behavior="schema:scalar-type"
+            @message="Resource version must use semantic version syntax"
+        }
+        {diagnostic
+            @code="example.resource.link_choice"
+            @severity="error"
+            @behavior="schema:field-contract"
+            @message="Resource must choose one link source"
+        }
+        {diagnostic
+            @code="example.resource.field_range"
+            @severity="error"
+            @behavior="schema:field-contract"
+            @message="Resource field children must stay within the declared range"
+        }
+        {diagnostic
+            @code="example.resource.child_choice"
+            @severity="error"
+            @behavior="schema:field-contract"
+            @message="Linked resources must choose one child source"
+        }
+    }
+
+    {open-content |
+        {accept @kind="extension-element" @policy="reject-unless-declared"}
+    }
+}
+```
 
 <details>
 <summary>custom-behavior-schema</summary>
@@ -482,8 +984,7 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
 - Content type: `application/vnd.cem.schema+cem`
 - Schema: `https://cem.dev/ns/schema/1`
 - Expected result: `pass`
-- Preview renderer: `CLI convert, tabular formatter, preview HTML + html2svg`
-- Preview HTML: `dist/cem_ml/schema-packages/schema/v1/examples/custom-behavior-schema.cem.html`
+- README rendering: fenced `cem` source
 
 ```bash
 dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
@@ -495,7 +996,64 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
 
 </details>
 
-![Preview of CEM Schema Definition Language Package custom-behavior-schema example](examples/previews/custom-behavior-schema.cem.svg)
+```cem
+@doc cem-ml 1
+@ns schema = "https://cem.dev/ns/schema/1"
+@default schema
+
+{schema @name="custom-behavior" @namespace="https://example.test/ns/custom-behavior/1" @version="1.0.0" |
+    {summary |
+        {text | Custom schema example that defines a diagnostic algorithm with CEM-QL candidate matching and a CEM-ML behavior function.}
+    }
+
+    {content-types |
+        {content-type @value="application/vnd.example.custom-behavior+cem" @primary=true}
+    }
+
+    {elements |
+        {element @name="resource" @optional-attributes="kind label"}
+    }
+
+    {attributes |
+        {attribute @name="kind" @type="schema:identifier"}
+        {attribute @name="label" @type="schema:string"}
+    }
+
+    {behaviors |
+        {behavior
+            @name="page-label"
+            @implementation="function"
+            @execution="ast-validation"
+            @function="page-label-result"
+            @select="resource"
+            @match='kind == "page" && label == null' |
+            {inputs |
+                {input-binding @name="candidate" @type="schema:node" @source="candidate" @required=true @source-range="candidate"}
+            }
+            {parameters |
+                {parameter @name="expected" @type="schema:string" @required=true @default="label"}
+            }
+            {result @type="schema:diagnostic-result" @source-range="candidate" |
+                {detail @name="checkKind" @type="schema:identifier" @required=true}
+                {detail @name="element" @type="schema:identifier" @required=true}
+                {detail @name="kind" @type="schema:identifier" @required=true}
+                {detail @name="expected" @type="schema:string" @required=true}
+                {detail @name="expectedFields" @type="schema:array" @required=true}
+                {detail @name="sample" @type="schema:object" @required=true}
+            }
+            {function @name="page-label-result" @returns="object" @deterministic=true |
+                {param @name="candidate" @type="object" @required=true}
+                {param @name="expected" @type="string" @required=true}
+                {body | {$ { message: "Page resource needs a label", details: { checkKind: "page-label", element: $candidate.name, kind: $candidate.attributes.kind, expected: $expected, expectedFields: [$expected], sample: { enabled: true, count: 1, nothing: null } } } }}
+            }
+        }
+    }
+
+    {diagnostics |
+        {diagnostic @code="example.page_label" @severity="warning" @behavior="page-label"}
+    }
+}
+```
 
 <details>
 <summary>custom-behavior-schema-strict</summary>
@@ -504,8 +1062,7 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
 - Content type: `application/vnd.cem.schema+cem`
 - Schema: `https://cem.dev/ns/schema/1`
 - Expected result: `pass`
-- Preview renderer: `CLI convert, tabular formatter, preview HTML + html2svg`
-- Preview HTML: `dist/cem_ml/schema-packages/schema/v1/examples/custom-behavior-schema-strict.cem.html`
+- README rendering: fenced `cem` source
 
 ```bash
 dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
@@ -517,7 +1074,63 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
 
 </details>
 
-![Preview of CEM Schema Definition Language Package custom-behavior-schema-strict example](examples/previews/custom-behavior-schema-strict.cem.svg)
+```cem
+@doc cem-ml 1
+@ns schema = "https://cem.dev/ns/schema/1"
+@default schema
+
+{schema @name="custom-behavior-strict" @namespace="https://example.test/ns/custom-behavior-strict/1" @version="1.0.0" |
+    {summary |
+        {text | Variant custom schema example that changes the declarative match and behavior result without engine code.}
+    }
+
+    {content-types |
+        {content-type @value="application/vnd.example.custom-behavior-strict+cem" @primary=true}
+    }
+
+    {elements |
+        {element @name="resource" @optional-attributes="kind status title"}
+    }
+
+    {attributes |
+        {attribute @name="kind" @type="schema:identifier"}
+        {attribute @name="status" @type="schema:identifier"}
+        {attribute @name="title" @type="schema:string"}
+    }
+
+    {behaviors |
+        {behavior
+            @name="published-page-title"
+            @implementation="function"
+            @execution="ast-validation"
+            @function="published-page-title-result"
+            @select="resource"
+            @match='kind == "page" && status == "published" && title == null' |
+            {inputs |
+                {input-binding @name="candidate" @type="schema:node" @source="candidate" @required=true @source-range="candidate"}
+            }
+            {parameters |
+                {parameter @name="expected" @type="schema:string" @required=true @default="title"}
+            }
+            {result @type="schema:diagnostic-result" @source-range="candidate" |
+                {detail @name="checkKind" @type="schema:identifier" @required=true}
+                {detail @name="element" @type="schema:identifier" @required=true}
+                {detail @name="status" @type="schema:identifier" @required=true}
+                {detail @name="expected" @type="schema:string" @required=true}
+            }
+            {function @name="published-page-title-result" @returns="object" @deterministic=true |
+                {param @name="candidate" @type="object" @required=true}
+                {param @name="expected" @type="string" @required=true}
+                {body | {$ { message: "Published page resource needs a title", details: { checkKind: "published-page-title", element: $candidate.name, status: $candidate.attributes.status, expected: $expected } } }}
+            }
+        }
+    }
+
+    {diagnostics |
+        {diagnostic @code="example.published_page_title" @severity="error" @behavior="published-page-title"}
+    }
+}
+```
 
 <details>
 <summary>invalid-missing-required-attribute</summary>
@@ -527,8 +1140,7 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
 - Schema: `https://cem.dev/ns/schema/1`
 - Expected result: `fail`
 - Expected diagnostics: `cem.schema_model.missing_required_attribute`
-- Preview renderer: `CLI convert, tabular formatter, preview HTML + html2svg`
-- Preview HTML: `dist/cem_ml/schema-packages/schema/v1/examples/invalid-missing-required-attribute.cem.html`
+- README rendering: fenced `cem` source
 
 ```bash
 dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
@@ -540,7 +1152,17 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
 
 </details>
 
-![Preview of CEM Schema Definition Language Package invalid-missing-required-attribute example](examples/previews/invalid-missing-required-attribute.cem.svg)
+```cem
+@doc cem-ml 1
+@ns schema = "https://cem.dev/ns/schema/1"
+@default schema
+
+{schema @name="broken" @version="1.0.0" |
+    {summary |
+        {text | Missing the required schema namespace attribute.}
+    }
+}
+```
 
 <details>
 <summary>invalid-diagnostic-behavior</summary>
@@ -550,8 +1172,7 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
 - Schema: `https://cem.dev/ns/schema/1`
 - Expected result: `fail`
 - Expected diagnostics: `cem.schema_definition.unknown_diagnostic_behavior`
-- Preview renderer: `CLI convert, tabular formatter, preview HTML + html2svg`
-- Preview HTML: `dist/cem_ml/schema-packages/schema/v1/examples/invalid-diagnostic-behavior.cem.html`
+- README rendering: fenced `cem` source
 
 ```bash
 dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
@@ -563,7 +1184,29 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
 
 </details>
 
-![Preview of CEM Schema Definition Language Package invalid-diagnostic-behavior example](examples/previews/invalid-diagnostic-behavior.cem.svg)
+```cem
+@doc cem-ml 1
+@ns schema = "https://cem.dev/ns/schema/1"
+@default schema
+
+{schema @name="invalid-diagnostic-behavior" @namespace="https://example.test/ns/invalid-diagnostic-behavior/1" @version="1.0.0" |
+    {uses |
+        {use @schema="https://cem.dev/ns/schema/1" @as="schema"}
+    }
+
+    {elements |
+        {element @name="item"}
+    }
+
+    {diagnostics |
+        {diagnostic
+            @code="example.invalid_behavior"
+            @severity="error"
+            @behavior="schema:not-an-engine-behavior"
+        }
+    }
+}
+```
 
 <details>
 <summary>invalid-custom-behavior-unresolved-function</summary>
@@ -573,8 +1216,7 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
 - Schema: `https://cem.dev/ns/schema/1`
 - Expected result: `fail`
 - Expected diagnostics: `cem.schema_definition.unresolved_behavior_function`
-- Preview renderer: `CLI convert, tabular formatter, preview HTML + html2svg`
-- Preview HTML: `dist/cem_ml/schema-packages/schema/v1/examples/invalid-custom-behavior-unresolved-function.cem.html`
+- README rendering: fenced `cem` source
 
 ```bash
 dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
@@ -586,7 +1228,37 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
 
 </details>
 
-![Preview of CEM Schema Definition Language Package invalid-custom-behavior-unresolved-function example](examples/previews/invalid-custom-behavior-unresolved-function.cem.svg)
+```cem
+@doc cem-ml 1
+@ns schema = "https://cem.dev/ns/schema/1"
+@default schema
+
+{schema @name="invalid-custom-behavior-unresolved-function" @namespace="https://example.test/ns/invalid-custom-behavior-unresolved-function/1" @version="1.0.0" |
+    {elements |
+        {element @name="resource" @optional-attributes="kind"}
+    }
+
+    {attributes |
+        {attribute @name="kind" @type="schema:identifier"}
+    }
+
+    {behaviors |
+        {behavior
+            @name="page-kind"
+            @implementation="function"
+            @execution="ast-validation"
+            @function="missing-page-kind-result"
+            @select="resource"
+            @match='kind = "page"' |
+            {result @type="schema:diagnostic-result" @source-range="candidate"}
+        }
+    }
+
+    {diagnostics |
+        {diagnostic @code="example.page_kind" @severity="error" @behavior="page-kind"}
+    }
+}
+```
 
 <details>
 <summary>invalid-custom-behavior-select-query</summary>
@@ -596,8 +1268,7 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
 - Schema: `https://cem.dev/ns/schema/1`
 - Expected result: `fail`
 - Expected diagnostics: `cem.schema_behavior.query_invalid`
-- Preview renderer: `CLI convert, tabular formatter, preview HTML + html2svg`
-- Preview HTML: `dist/cem_ml/schema-packages/schema/v1/examples/invalid-custom-behavior-select-query.cem.html`
+- README rendering: fenced `cem` source
 
 ```bash
 dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
@@ -609,7 +1280,44 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
 
 </details>
 
-![Preview of CEM Schema Definition Language Package invalid-custom-behavior-select-query example](examples/previews/invalid-custom-behavior-select-query.cem.svg)
+```cem
+@doc cem-ml 1
+@ns schema = "https://cem.dev/ns/schema/1"
+@default schema
+
+{schema @name="invalid-custom-behavior-select-query" @namespace="https://example.test/ns/invalid-custom-behavior-select-query/1" @version="1.0.0" |
+    {elements |
+        {element @name="resource" @optional-attributes="kind"}
+    }
+
+    {attributes |
+        {attribute @name="kind" @type="schema:identifier"}
+    }
+
+    {behaviors |
+        {behavior
+            @name="page-kind"
+            @implementation="function"
+            @execution="ast-validation"
+            @function="page-kind-result"
+            @select="missing_resource"
+            @match='kind = "page"' |
+            {inputs |
+                {input-binding @name="candidate" @type="schema:node" @source="candidate" @required=true @source-range="candidate"}
+            }
+            {result @type="schema:diagnostic-result" @source-range="candidate"}
+            {function @name="page-kind-result" @returns="object" @deterministic=true |
+                {param @name="candidate" @type="object" @required=true}
+                {body | {$ { message: "Page kind failed", details: { element: $candidate.name } } }}
+            }
+        }
+    }
+
+    {diagnostics |
+        {diagnostic @code="example.page_kind" @severity="error" @behavior="page-kind"}
+    }
+}
+```
 
 <details>
 <summary>invalid-custom-behavior-match-query</summary>
@@ -619,8 +1327,7 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
 - Schema: `https://cem.dev/ns/schema/1`
 - Expected result: `fail`
 - Expected diagnostics: `cem.schema_behavior.query_invalid`
-- Preview renderer: `CLI convert, tabular formatter, preview HTML + html2svg`
-- Preview HTML: `dist/cem_ml/schema-packages/schema/v1/examples/invalid-custom-behavior-match-query.cem.html`
+- README rendering: fenced `cem` source
 
 ```bash
 dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
@@ -632,7 +1339,44 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
 
 </details>
 
-![Preview of CEM Schema Definition Language Package invalid-custom-behavior-match-query example](examples/previews/invalid-custom-behavior-match-query.cem.svg)
+```cem
+@doc cem-ml 1
+@ns schema = "https://cem.dev/ns/schema/1"
+@default schema
+
+{schema @name="invalid-custom-behavior-match-query" @namespace="https://example.test/ns/invalid-custom-behavior-match-query/1" @version="1.0.0" |
+    {elements |
+        {element @name="resource" @optional-attributes="kind"}
+    }
+
+    {attributes |
+        {attribute @name="kind" @type="schema:identifier"}
+    }
+
+    {behaviors |
+        {behavior
+            @name="page-kind"
+            @implementation="function"
+            @execution="ast-validation"
+            @function="page-kind-result"
+            @select="resource"
+            @match='missing_kind = "page"' |
+            {inputs |
+                {input-binding @name="candidate" @type="schema:node" @source="candidate" @required=true @source-range="candidate"}
+            }
+            {result @type="schema:diagnostic-result" @source-range="candidate"}
+            {function @name="page-kind-result" @returns="object" @deterministic=true |
+                {param @name="candidate" @type="object" @required=true}
+                {body | {$ { message: "Page kind failed", details: { element: $candidate.name } } }}
+            }
+        }
+    }
+
+    {diagnostics |
+        {diagnostic @code="example.page_kind" @severity="error" @behavior="page-kind"}
+    }
+}
+```
 
 <details>
 <summary>invalid-custom-behavior-argument-type</summary>
@@ -642,8 +1386,7 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
 - Schema: `https://cem.dev/ns/schema/1`
 - Expected result: `fail`
 - Expected diagnostics: `cem.schema_definition.invalid_diagnostic_behavior_contract`
-- Preview renderer: `CLI convert, tabular formatter, preview HTML + html2svg`
-- Preview HTML: `dist/cem_ml/schema-packages/schema/v1/examples/invalid-custom-behavior-argument-type.cem.html`
+- README rendering: fenced `cem` source
 
 ```bash
 dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
@@ -655,7 +1398,48 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
 
 </details>
 
-![Preview of CEM Schema Definition Language Package invalid-custom-behavior-argument-type example](examples/previews/invalid-custom-behavior-argument-type.cem.svg)
+```cem
+@doc cem-ml 1
+@ns schema = "https://cem.dev/ns/schema/1"
+@default schema
+
+{schema @name="invalid-custom-behavior-argument-type" @namespace="https://example.test/ns/invalid-custom-behavior-argument-type/1" @version="1.0.0" |
+    {elements |
+        {element @name="resource" @optional-attributes="kind"}
+    }
+
+    {attributes |
+        {attribute @name="kind" @type="schema:identifier"}
+    }
+
+    {behaviors |
+        {behavior
+            @name="page-limit"
+            @implementation="function"
+            @execution="ast-validation"
+            @function="page-limit-result"
+            @select="resource"
+            @match='kind = "page"' |
+            {parameters |
+                {parameter @name="minimum" @type="schema:integer" @required=true}
+            }
+            {result @type="schema:diagnostic-result" @source-range="candidate"}
+            {function @name="page-limit-result" @returns="object" @deterministic=true |
+                {param @name="minimum" @type="integer" @required=true}
+                {body | {$ { message: "Page limit failed", details: { minimum: $minimum } } }}
+            }
+        }
+    }
+
+    {diagnostics |
+        {diagnostic @code="example.page_limit" @severity="error" @behavior="page-limit" |
+            {arguments |
+                {argument @name="minimum" @value="many"}
+            }
+        }
+    }
+}
+```
 
 <details>
 <summary>invalid-custom-behavior-signature</summary>
@@ -665,8 +1449,7 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
 - Schema: `https://cem.dev/ns/schema/1`
 - Expected result: `fail`
 - Expected diagnostics: `cem.schema_definition.invalid_diagnostic_behavior_contract`
-- Preview renderer: `CLI convert, tabular formatter, preview HTML + html2svg`
-- Preview HTML: `dist/cem_ml/schema-packages/schema/v1/examples/invalid-custom-behavior-signature.cem.html`
+- README rendering: fenced `cem` source
 
 ```bash
 dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
@@ -678,7 +1461,45 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
 
 </details>
 
-![Preview of CEM Schema Definition Language Package invalid-custom-behavior-signature example](examples/previews/invalid-custom-behavior-signature.cem.svg)
+```cem
+@doc cem-ml 1
+@ns schema = "https://cem.dev/ns/schema/1"
+@default schema
+
+{schema @name="invalid-custom-behavior-signature" @namespace="https://example.test/ns/invalid-custom-behavior-signature/1" @version="1.0.0" |
+    {elements |
+        {element @name="resource" @optional-attributes="kind"}
+    }
+
+    {attributes |
+        {attribute @name="kind" @type="schema:identifier"}
+    }
+
+    {behaviors |
+        {behavior
+            @name="page-label"
+            @implementation="function"
+            @execution="ast-validation"
+            @function="page-label-result"
+            @select="resource"
+            @match='kind = "page"' |
+            {inputs |
+                {input-binding @name="candidate" @type="schema:node" @source="candidate" @required=true @source-range="candidate"}
+            }
+            {result @type="schema:diagnostic-result" @source-range="candidate"}
+            {function @name="page-label-result" @returns="object" @deterministic=true |
+                {param @name="candidate" @type="object" @required=true}
+                {param @name="expected" @type="string" @required=true}
+                {body | {$ { message: "Page label failed", details: { expected: $expected } } }}
+            }
+        }
+    }
+
+    {diagnostics |
+        {diagnostic @code="example.page_label" @severity="error" @behavior="page-label"}
+    }
+}
+```
 
 <details>
 <summary>invalid-custom-behavior-unsafe-call</summary>
@@ -688,8 +1509,7 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
 - Schema: `https://cem.dev/ns/schema/1`
 - Expected result: `fail`
 - Expected diagnostics: `cem.schema_behavior.function_failed`
-- Preview renderer: `CLI convert, tabular formatter, preview HTML + html2svg`
-- Preview HTML: `dist/cem_ml/schema-packages/schema/v1/examples/invalid-custom-behavior-unsafe-call.cem.html`
+- README rendering: fenced `cem` source
 
 ```bash
 dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
@@ -701,7 +1521,44 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
 
 </details>
 
-![Preview of CEM Schema Definition Language Package invalid-custom-behavior-unsafe-call example](examples/previews/invalid-custom-behavior-unsafe-call.cem.svg)
+```cem
+@doc cem-ml 1
+@ns schema = "https://cem.dev/ns/schema/1"
+@default schema
+
+{schema @name="invalid-custom-behavior-unsafe-call" @namespace="https://example.test/ns/invalid-custom-behavior-unsafe-call/1" @version="1.0.0" |
+    {elements |
+        {element @name="resource" @optional-attributes="kind"}
+    }
+
+    {attributes |
+        {attribute @name="kind" @type="schema:identifier"}
+    }
+
+    {behaviors |
+        {behavior
+            @name="page-kind"
+            @implementation="function"
+            @execution="ast-validation"
+            @function="page-kind-result"
+            @select="resource"
+            @match='kind = "page"' |
+            {inputs |
+                {input-binding @name="candidate" @type="schema:node" @source="candidate" @required=true @source-range="candidate"}
+            }
+            {result @type="schema:diagnostic-result" @source-range="candidate"}
+            {function @name="page-kind-result" @returns="object" @deterministic=true |
+                {param @name="candidate" @type="object" @required=true}
+                {body | {$ call("page-kind-result", { candidate: $candidate }) }}
+            }
+        }
+    }
+
+    {diagnostics |
+        {diagnostic @code="example.page_kind" @severity="error" @behavior="page-kind"}
+    }
+}
+```
 
 <details>
 <summary>invalid-custom-behavior-contracts</summary>
@@ -711,8 +1568,7 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
 - Schema: `https://cem.dev/ns/schema/1`
 - Expected result: `fail`
 - Expected diagnostics: `cem.schema_definition.invalid_diagnostic_behavior_contract`
-- Preview renderer: `CLI convert, tabular formatter, preview HTML + html2svg`
-- Preview HTML: `dist/cem_ml/schema-packages/schema/v1/examples/invalid-custom-behavior-contracts.cem.html`
+- README rendering: fenced `cem` source
 
 ```bash
 dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
@@ -724,7 +1580,148 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
 
 </details>
 
-![Preview of CEM Schema Definition Language Package invalid-custom-behavior-contracts example](examples/previews/invalid-custom-behavior-contracts.cem.svg)
+```cem
+@doc cem-ml 1
+@ns schema = "https://cem.dev/ns/schema/1"
+@default schema
+
+{schema @name="invalid-custom-behavior-contracts" @namespace="https://example.test/ns/invalid-custom-behavior-contracts/1" @version="1.0.0" |
+    {elements |
+        {element @name="resource" @optional-attributes="kind"}
+    }
+
+    {attributes |
+        {attribute @name="kind" @type="schema:identifier"}
+    }
+
+    {behaviors |
+        {behavior
+            @name="macro-behavior"
+            @implementation="macro"
+            @execution="ast-validation"
+        }
+
+        {behavior
+            @name="render-behavior"
+            @implementation="function"
+            @execution="render"
+            @function="render-result"
+            @select="resource"
+            @match='kind = "page"' |
+            {result @type="schema:diagnostic-result" @source-range="candidate"}
+            {function @name="render-result" @returns="object" @deterministic=true |
+                {body | {$ { message: "Render behavior failed" } }}
+            }
+        }
+
+        {behavior
+            @name="missing-select"
+            @implementation="function"
+            @execution="ast-validation"
+            @function="missing-select-result"
+            @match='kind = "page"' |
+            {result @type="schema:diagnostic-result" @source-range="candidate"}
+            {function @name="missing-select-result" @returns="object" @deterministic=true |
+                {body | {$ { message: "Missing select failed" } }}
+            }
+        }
+
+        {behavior
+            @name="missing-match"
+            @implementation="function"
+            @execution="ast-validation"
+            @function="missing-match-result"
+            @select="resource" |
+            {result @type="schema:diagnostic-result" @source-range="candidate"}
+            {function @name="missing-match-result" @returns="object" @deterministic=true |
+                {body | {$ { message: "Missing match failed" } }}
+            }
+        }
+
+        {behavior
+            @name="missing-function-binding"
+            @implementation="function"
+            @execution="ast-validation"
+            @select="resource"
+            @match='kind = "page"' |
+            {result @type="schema:diagnostic-result" @source-range="candidate"}
+        }
+
+        {behavior
+            @name="missing-result"
+            @implementation="function"
+            @execution="ast-validation"
+            @function="missing-result-function"
+            @select="resource"
+            @match='kind = "page"' |
+            {function @name="missing-result-function" @returns="object" @deterministic=true |
+                {body | {$ { message: "Missing result failed" } }}
+            }
+        }
+
+        {behavior
+            @name="wrong-result-type"
+            @implementation="function"
+            @execution="ast-validation"
+            @function="wrong-result-type-result"
+            @select="resource"
+            @match='kind = "page"' |
+            {result @type="schema:string" @source-range="candidate"}
+            {function @name="wrong-result-type-result" @returns="object" @deterministic=true |
+                {body | {$ { message: "Wrong result type failed" } }}
+            }
+        }
+
+        {behavior
+            @name="wrong-return-type"
+            @implementation="function"
+            @execution="ast-validation"
+            @function="wrong-return-type-result"
+            @select="resource"
+            @match='kind = "page"' |
+            {result @type="schema:diagnostic-result" @source-range="candidate"}
+            {function @name="wrong-return-type-result" @returns="string" @deterministic=true |
+                {body | {$ "not a diagnostic result" }}
+            }
+        }
+
+        {behavior
+            @name="missing-body"
+            @implementation="function"
+            @execution="ast-validation"
+            @function="missing-body-result"
+            @select="resource"
+            @match='kind = "page"' |
+            {result @type="schema:diagnostic-result" @source-range="candidate"}
+            {function @name="missing-body-result" @returns="object" @deterministic=true}
+        }
+
+        {behavior
+            @name="engine-with-argument"
+            @implementation="engine"
+            @execution="ast-validation"
+            @primitive="schema:field-contract"
+        }
+    }
+
+    {diagnostics |
+        {diagnostic @code="example.unsupported_implementation" @severity="error" @behavior="macro-behavior"}
+        {diagnostic @code="example.unsupported_execution" @severity="error" @behavior="render-behavior"}
+        {diagnostic @code="example.missing_select" @severity="error" @behavior="missing-select"}
+        {diagnostic @code="example.missing_match" @severity="error" @behavior="missing-match"}
+        {diagnostic @code="example.missing_function_binding" @severity="error" @behavior="missing-function-binding"}
+        {diagnostic @code="example.missing_result" @severity="error" @behavior="missing-result"}
+        {diagnostic @code="example.wrong_result_type" @severity="error" @behavior="wrong-result-type"}
+        {diagnostic @code="example.wrong_return_type" @severity="error" @behavior="wrong-return-type"}
+        {diagnostic @code="example.missing_body" @severity="error" @behavior="missing-body"}
+        {diagnostic @code="example.engine_argument" @severity="error" @behavior="engine-with-argument" |
+            {arguments |
+                {argument @name="field" @value="kind"}
+            }
+        }
+    }
+}
+```
 
 <details>
 <summary>invalid-datatype-param-length</summary>
@@ -734,8 +1731,7 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
 - Schema: `https://cem.dev/ns/schema/1`
 - Expected result: `fail`
 - Expected diagnostics: `cem.schema_definition.invalid_datatype_param`
-- Preview renderer: `CLI convert, tabular formatter, preview HTML + html2svg`
-- Preview HTML: `dist/cem_ml/schema-packages/schema/v1/examples/invalid-datatype-param-length.cem.html`
+- README rendering: fenced `cem` source
 
 ```bash
 dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
@@ -747,7 +1743,38 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
 
 </details>
 
-![Preview of CEM Schema Definition Language Package invalid-datatype-param-length example](examples/previews/invalid-datatype-param-length.cem.svg)
+```cem
+@doc cem-ml 1
+@ns schema = "https://cem.dev/ns/schema/1"
+@default schema
+
+{schema @name="invalid-datatype-param-length" @namespace="https://example.test/ns/invalid-datatype-param-length/1" @version="1.0.0" |
+    {elements |
+        {element @name="resource" @optional-attributes="label code count score rank blockedScore blockedRank status body tags aliases title titleRange shortCode longCode tagRange shortTags longAliases"}
+    }
+
+    {attributes |
+        {attribute @name="label" @type="schema:string" @minLength=-1}
+        {attribute @name="code" @type="schema:string" @length=-1}
+        {attribute @name="count" @type="schema:integer" @maxLength=3}
+        {attribute @name="score" @type="schema:number" @stringPrefixes="score-"}
+        {attribute @name="rank" @type="schema:integer" @stringSuffixes="-rank"}
+        {attribute @name="blockedScore" @type="schema:number" @stringForbiddenPrefixes="draft-"}
+        {attribute @name="blockedRank" @type="schema:integer" @stringForbiddenSuffixes="-tmp"}
+        {attribute @name="status" @type="schema:integer" @stringIncludes="open"}
+        {attribute @name="body" @type="schema:boolean" @stringExcludes="TODO"}
+        {attribute @name="tags" @type="schema:name-list" @minItems=-1}
+        {attribute @name="aliases" @type="schema:wildcard-name-list" @itemCount=-1}
+        {attribute @name="title" @type="schema:string" @maxItems=2}
+        {attribute @name="titleRange" @type="schema:string" @minLength=5 @maxLength=3}
+        {attribute @name="shortCode" @type="schema:string" @minLength=3 @length=2}
+        {attribute @name="longCode" @type="schema:string" @length=5 @maxLength=4}
+        {attribute @name="tagRange" @type="schema:name-list" @minItems=4 @maxItems=2}
+        {attribute @name="shortTags" @type="schema:name-list" @minItems=3 @itemCount=2}
+        {attribute @name="longAliases" @type="schema:wildcard-name-list" @itemCount=5 @maxItems=4}
+    }
+}
+```
 
 <details>
 <summary>invalid-datatype-param-bound</summary>
@@ -757,8 +1784,7 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
 - Schema: `https://cem.dev/ns/schema/1`
 - Expected result: `fail`
 - Expected diagnostics: `cem.schema_definition.invalid_datatype_param`
-- Preview renderer: `CLI convert, tabular formatter, preview HTML + html2svg`
-- Preview HTML: `dist/cem_ml/schema-packages/schema/v1/examples/invalid-datatype-param-bound.cem.html`
+- README rendering: fenced `cem` source
 
 ```bash
 dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
@@ -770,7 +1796,27 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
 
 </details>
 
-![Preview of CEM Schema Definition Language Package invalid-datatype-param-bound example](examples/previews/invalid-datatype-param-bound.cem.svg)
+```cem
+@doc cem-ml 1
+@ns schema = "https://cem.dev/ns/schema/1"
+@default schema
+
+{schema @name="invalid-datatype-param-bound" @namespace="https://example.test/ns/invalid-datatype-param-bound/1" @version="1.0.0" |
+    {elements |
+        {element @name="resource" @optional-attributes="priority title untyped closed openUpper openLower openBoth"}
+    }
+
+    {attributes |
+        {attribute @name="priority" @type="schema:integer" @minInclusive=0.5}
+        {attribute @name="title" @type="schema:string" @minInclusive=1}
+        {attribute @name="untyped" @maxInclusive=10}
+        {attribute @name="closed" @type="schema:integer" @minInclusive=5 @maxInclusive=4}
+        {attribute @name="openUpper" @type="schema:integer" @minInclusive=5 @maxExclusive=5}
+        {attribute @name="openLower" @type="schema:number" @minExclusive=3.5 @maxInclusive=3.5}
+        {attribute @name="openBoth" @type="schema:number" @minExclusive=1.0 @maxExclusive=1.0}
+    }
+}
+```
 
 <details>
 <summary>invalid-datatype-param-pattern</summary>
@@ -780,8 +1826,7 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
 - Schema: `https://cem.dev/ns/schema/1`
 - Expected result: `fail`
 - Expected diagnostics: `cem.schema_definition.invalid_datatype_param`
-- Preview renderer: `CLI convert, tabular formatter, preview HTML + html2svg`
-- Preview HTML: `dist/cem_ml/schema-packages/schema/v1/examples/invalid-datatype-param-pattern.cem.html`
+- README rendering: fenced `cem` source
 
 ```bash
 dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
@@ -793,7 +1838,22 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
 
 </details>
 
-![Preview of CEM Schema Definition Language Package invalid-datatype-param-pattern example](examples/previews/invalid-datatype-param-pattern.cem.svg)
+```cem
+@doc cem-ml 1
+@ns schema = "https://cem.dev/ns/schema/1"
+@default schema
+
+{schema @name="invalid-datatype-param-pattern" @namespace="https://example.test/ns/invalid-datatype-param-pattern/1" @version="1.0.0" |
+    {elements |
+        {element @name="resource" @optional-attributes="code count"}
+    }
+
+    {attributes |
+        {attribute @name="code" @type="schema:string" @pattern="["}
+        {attribute @name="count" @type="schema:integer" @pattern="[0-9]+"}
+    }
+}
+```
 
 <details>
 <summary>invalid-datatype-param-digits</summary>
@@ -803,8 +1863,7 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
 - Schema: `https://cem.dev/ns/schema/1`
 - Expected result: `fail`
 - Expected diagnostics: `cem.schema_definition.invalid_datatype_param`
-- Preview renderer: `CLI convert, tabular formatter, preview HTML + html2svg`
-- Preview HTML: `dist/cem_ml/schema-packages/schema/v1/examples/invalid-datatype-param-digits.cem.html`
+- README rendering: fenced `cem` source
 
 ```bash
 dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
@@ -816,7 +1875,23 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
 
 </details>
 
-![Preview of CEM Schema Definition Language Package invalid-datatype-param-digits example](examples/previews/invalid-datatype-param-digits.cem.svg)
+```cem
+@doc cem-ml 1
+@ns schema = "https://cem.dev/ns/schema/1"
+@default schema
+
+{schema @name="invalid-datatype-param-digits" @namespace="https://example.test/ns/invalid-datatype-param-digits/1" @version="1.0.0" |
+    {elements |
+        {element @name="resource" @optional-attributes="serial ratio code"}
+    }
+
+    {attributes |
+        {attribute @name="serial" @type="schema:integer" @totalDigits=0}
+        {attribute @name="ratio" @type="schema:number" @fractionDigits=-1}
+        {attribute @name="code" @type="schema:string" @fractionDigits=2}
+    }
+}
+```
 
 <details>
 <summary>invalid-datatype-param-uri-media</summary>
@@ -826,8 +1901,7 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
 - Schema: `https://cem.dev/ns/schema/1`
 - Expected result: `fail`
 - Expected diagnostics: `cem.schema_definition.invalid_datatype_param`
-- Preview renderer: `CLI convert, tabular formatter, preview HTML + html2svg`
-- Preview HTML: `dist/cem_ml/schema-packages/schema/v1/examples/invalid-datatype-param-uri-media.cem.html`
+- README rendering: fenced `cem` source
 
 ```bash
 dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
@@ -839,7 +1913,96 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
 
 </details>
 
-![Preview of CEM Schema Definition Language Package invalid-datatype-param-uri-media example](examples/previews/invalid-datatype-param-uri-media.cem.svg)
+```cem
+@doc cem-ml 1
+@ns schema = "https://cem.dev/ns/schema/1"
+@default schema
+
+{schema @name="invalid-datatype-param-uri-media" @namespace="https://example.test/ns/invalid-datatype-param-uri-media/1" @version="1.0.0" |
+    {uses |
+        {use @schema="https://cem.dev/ns/schema/1" @as="schema"}
+    }
+
+    {attributes |
+        {attribute @name="template" @type="schema:path" @pathPrefixes="/absolute ./../bad"}
+        {attribute @name="blockedTemplate" @type="schema:path" @pathForbiddenPrefixes="/private ./../secret"}
+        {attribute @name="directory" @type="schema:path" @pathDirectoryNames="templates bad/name"}
+        {attribute @name="blockedDirectory" @type="schema:path" @pathForbiddenDirectoryNames="private bad/name"}
+        {attribute @name="script" @type="schema:path" @pathExtensions="cem .cem"}
+        {attribute @name="blockedScript" @type="schema:path" @pathForbiddenExtensions="tmp .bak"}
+        {attribute @name="image" @type="schema:path" @pathBasenames="card.cem bad/name"}
+        {attribute @name="blockedImage" @type="schema:path" @pathForbiddenBasenames="secret.cem bad/name"}
+        {attribute @name="href" @type="schema:uri" @uriSchemes="https ftp" @uriForbiddenSchemes="ftp 1bad"}
+        {attribute @name="cdn" @type="schema:uri" @uriHosts="api.example.test blocked.example.test bad/host" @uriForbiddenHosts="blocked.example.test bad/host"}
+        {attribute @name="portal" @type="schema:uri" @uriPorts="443 8080 0443 65536" @uriForbiddenPorts="8080 0443 65536"}
+        {attribute @name="remote" @type="schema:uri" @uriRequiresAuthority=maybe}
+        {attribute @name="asset" @type="schema:uri" @uriPathPrefixes="assets"}
+        {attribute @name="blockedAsset" @type="schema:uri" @uriForbiddenPathPrefixes="private"}
+        {attribute @name="download" @type="schema:uri" @uriPathExtensions="cem .json"}
+        {attribute @name="blockedDownload" @type="schema:uri" @uriForbiddenPathExtensions="tmp .bak"}
+        {attribute @name="uriFile" @type="schema:uri" @uriPathBasenames="schema.cem bad/name"}
+        {attribute @name="blockedUriFile" @type="schema:uri" @uriForbiddenPathBasenames="secret.cem bad/name"}
+        {attribute @name="query" @type="schema:uri" @uriQueries="view=resource ?bad"}
+        {attribute @name="queryBlocked" @type="schema:uri" @uriQueries="view=resource debug=true" @uriForbiddenQueries="debug=true ?bad"}
+        {attribute @name="queryParams" @type="schema:uri" @uriQueryParameters="view bad=name"}
+        {attribute @name="queryValue" @type="schema:uri" @uriQueryParameterValues="view=resource bad bad&name=value"}
+        {attribute @name="queryForbidden" @type="schema:uri" @uriQueryForbiddenParameters="debug bad=name"}
+        {attribute @name="queryRequired" @type="schema:uri" @uriQueryRequiredParameters="view bad=name"}
+        {attribute @name="queryPresenceConflict" @type="schema:uri" @uriQueryForbiddenParameters="debug" @uriQueryRequiredParameters="debug"}
+        {attribute @name="queryValueConflict" @type="schema:uri" @uriQueryForbiddenParameters="debug" @uriQueryParameterValues="debug=true"}
+        {attribute @name="anchor" @type="schema:uri" @uriFragments="overview #bad"}
+        {attribute @name="anchorBlocked" @type="schema:uri" @uriFragments="overview debug" @uriForbiddenFragments="debug #bad"}
+        {attribute @name="format" @type="schema:media-type" @mediaTypes="text/html application/json text" @mediaTypeForbiddenEssences="application/json text"}
+        {attribute @name="typed" @type="schema:media-type" @mediaTypeTypes="application bad/type"}
+        {attribute @name="subtyped" @type="schema:media-type" @mediaTypeSubtypes="json bad/subtype"}
+        {attribute @name="structured" @type="schema:media-type" @mediaTypeSuffixes="json bad=suffix"}
+        {attribute @name="blockedTyped" @type="schema:media-type" @mediaTypeForbiddenTypes="image bad/type"}
+        {attribute @name="blockedSubtyped" @type="schema:media-type" @mediaTypeForbiddenSubtypes="html bad/subtype"}
+        {attribute @name="blockedStructured" @type="schema:media-type" @mediaTypeForbiddenSuffixes="json bad=suffix"}
+        {attribute @name="payload" @type="schema:media-type" @mediaTypeParameters="charset bad=name"}
+        {attribute @name="encoding" @type="schema:media-type" @mediaTypeParameterValues="charset=utf-8 bad bad/name=value"}
+        {attribute @name="legacy" @type="schema:media-type" @mediaTypeForbiddenParameters="profile bad=name"}
+        {attribute @name="profiled" @type="schema:media-type" @mediaTypeRequiredParameters="charset bad=name"}
+        {attribute @name="mediaPresenceConflict" @type="schema:media-type" @mediaTypeForbiddenParameters="profile" @mediaTypeRequiredParameters="profile"}
+        {attribute @name="mediaValueConflict" @type="schema:media-type" @mediaTypeForbiddenParameters="profile" @mediaTypeParameterValues="profile=default"}
+        {attribute @name="label" @type="schema:string" @mediaTypeSuffixes="json"}
+        {attribute @name="title" @type="schema:string" @mediaTypeForbiddenParameters="profile"}
+        {attribute @name="description" @type="schema:string" @mediaTypeParameterValues="charset=utf-8"}
+        {attribute @name="formatLabel" @type="schema:string" @mediaTypeForbiddenEssences="text/html"}
+        {attribute @name="schemeBlockedLabel" @type="schema:string" @uriForbiddenSchemes="ftp"}
+        {attribute @name="typeLabel" @type="schema:string" @mediaTypeTypes="application"}
+        {attribute @name="subtitle" @type="schema:string" @mediaTypeSubtypes="json"}
+        {attribute @name="typeBlockedLabel" @type="schema:string" @mediaTypeForbiddenTypes="image"}
+        {attribute @name="subtitleBlocked" @type="schema:string" @mediaTypeForbiddenSubtypes="html"}
+        {attribute @name="structuredBlockedLabel" @type="schema:string" @mediaTypeForbiddenSuffixes="json"}
+        {attribute @name="linkLabel" @type="schema:string" @uriHosts="api.example.test"}
+        {attribute @name="linkBlockedLabel" @type="schema:string" @uriForbiddenHosts="api.example.test"}
+        {attribute @name="portLabel" @type="schema:string" @uriPorts="443"}
+        {attribute @name="portBlockedLabel" @type="schema:string" @uriForbiddenPorts="443"}
+        {attribute @name="assetBlockedLabel" @type="schema:string" @uriForbiddenPathPrefixes="/private/"}
+        {attribute @name="downloadLabel" @type="schema:string" @uriPathExtensions="cem"}
+        {attribute @name="downloadBlockedLabel" @type="schema:string" @uriForbiddenPathExtensions="tmp"}
+        {attribute @name="uriFileLabel" @type="schema:string" @uriPathBasenames="schema.cem"}
+        {attribute @name="uriFileBlockedLabel" @type="schema:string" @uriForbiddenPathBasenames="secret.cem"}
+        {attribute @name="queryLabel" @type="schema:string" @uriQueries="view=resource"}
+        {attribute @name="queryBlockedLabel" @type="schema:string" @uriForbiddenQueries="debug=true"}
+        {attribute @name="queryParamsLabel" @type="schema:string" @uriQueryParameters="view"}
+        {attribute @name="queryValueLabel" @type="schema:string" @uriQueryParameterValues="view=resource"}
+        {attribute @name="queryForbiddenLabel" @type="schema:string" @uriQueryForbiddenParameters="debug"}
+        {attribute @name="queryRequiredLabel" @type="schema:string" @uriQueryRequiredParameters="view"}
+        {attribute @name="anchorLabel" @type="schema:string" @uriFragments="overview"}
+        {attribute @name="anchorBlockedLabel" @type="schema:string" @uriForbiddenFragments="debug"}
+        {attribute @name="caption" @type="schema:string" @pathPrefixes="./templates/"}
+        {attribute @name="blockedCaption" @type="schema:string" @pathForbiddenPrefixes="./private/"}
+        {attribute @name="directoryLabel" @type="schema:string" @pathDirectoryNames="templates"}
+        {attribute @name="directoryBlockedLabel" @type="schema:string" @pathForbiddenDirectoryNames="private"}
+        {attribute @name="summary" @type="schema:string" @pathExtensions="cem"}
+        {attribute @name="blockedSummary" @type="schema:string" @pathForbiddenExtensions="tmp"}
+        {attribute @name="basenameLabel" @type="schema:string" @pathBasenames="card.cem"}
+        {attribute @name="blockedBasenameLabel" @type="schema:string" @pathForbiddenBasenames="secret.cem"}
+    }
+}
+```
 
 <details>
 <summary>invalid-field-contract-presence</summary>
@@ -849,8 +2012,7 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
 - Schema: `https://cem.dev/ns/schema/1`
 - Expected result: `fail`
 - Expected diagnostics: `cem.schema_definition.invalid_field_contract`
-- Preview renderer: `CLI convert, tabular formatter, preview HTML + html2svg`
-- Preview HTML: `dist/cem_ml/schema-packages/schema/v1/examples/invalid-field-contract-presence.cem.html`
+- README rendering: fenced `cem` source
 
 ```bash
 dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
@@ -862,7 +2024,85 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
 
 </details>
 
-![Preview of CEM Schema Definition Language Package invalid-field-contract-presence example](examples/previews/invalid-field-contract-presence.cem.svg)
+```cem
+@doc cem-ml 1
+@ns schema = "https://cem.dev/ns/schema/1"
+@default schema
+
+{schema @name="invalid-field-contract-presence" @namespace="https://example.test/ns/invalid-field-contract-presence/1" @version="1.0.0" |
+    {uses |
+        {use @schema="https://cem.dev/ns/schema/1" @as="schema"}
+    }
+
+    {elements |
+        {element @name="group" @optional-attributes="id title label" @children="header main footer aside"}
+        {element @name="header"}
+        {element @name="main"}
+        {element @name="footer"}
+        {element @name="aside"}
+    }
+
+    {field-contracts |
+        {field-contract
+            @name="bad-required-forbidden-attribute"
+            @target="group"
+            @required-attributes="id"
+            @forbidden-attributes="id"
+            @diagnostic="example.group_presence"
+            @behavior="schema:field-contract"
+        }
+        {field-contract
+            @name="bad-required-one-forbidden-attributes"
+            @target="group"
+            @required-one-attributes="title label"
+            @forbidden-attributes="title label"
+            @diagnostic="example.group_presence"
+            @behavior="schema:choice-case"
+        }
+        {field-contract
+            @name="bad-required-forbidden-child"
+            @target="group"
+            @required-children="header"
+            @forbidden-children="header"
+            @diagnostic="example.group_presence"
+            @behavior="schema:child-occurrence"
+        }
+        {field-contract
+            @name="bad-required-unaccepted-child"
+            @target="group"
+            @accepted-children="header"
+            @required-children="main"
+            @diagnostic="example.group_presence"
+            @behavior="schema:accepted-children"
+        }
+        {field-contract
+            @name="bad-required-one-forbidden-child"
+            @target="group"
+            @required-one-child="header main"
+            @forbidden-children="header main"
+            @diagnostic="example.group_presence"
+            @behavior="schema:child-occurrence"
+        }
+        {field-contract
+            @name="bad-required-one-unaccepted-child"
+            @target="group"
+            @accepted-children="header"
+            @required-one-child="main footer"
+            @diagnostic="example.group_presence"
+            @behavior="schema:accepted-children"
+        }
+    }
+
+    {diagnostics |
+        {diagnostic
+            @code="example.group_presence"
+            @severity="error"
+            @behavior="schema:field-contract"
+            @message="Group fields and children must satisfy consistent presence contracts"
+        }
+    }
+}
+```
 
 <details>
 <summary>invalid-field-contract-condition</summary>
@@ -872,8 +2112,7 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
 - Schema: `https://cem.dev/ns/schema/1`
 - Expected result: `fail`
 - Expected diagnostics: `cem.schema_definition.invalid_field_contract`
-- Preview renderer: `CLI convert, tabular formatter, preview HTML + html2svg`
-- Preview HTML: `dist/cem_ml/schema-packages/schema/v1/examples/invalid-field-contract-condition.cem.html`
+- README rendering: fenced `cem` source
 
 ```bash
 dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
@@ -885,7 +2124,108 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
 
 </details>
 
-![Preview of CEM Schema Definition Language Package invalid-field-contract-condition example](examples/previews/invalid-field-contract-condition.cem.svg)
+```cem
+@doc cem-ml 1
+@ns schema = "https://cem.dev/ns/schema/1"
+@default schema
+
+{schema @name="invalid-field-contract-condition" @namespace="https://example.test/ns/invalid-field-contract-condition/1" @version="1.0.0" |
+    {uses |
+        {use @schema="https://cem.dev/ns/schema/1" @as="schema"}
+    }
+
+    {elements |
+        {element @name="asset" @optional-attributes="kind source token format" @children="reference fallback thumbnail"}
+        {element @name="reference"}
+        {element @name="fallback"}
+        {element @name="thumbnail"}
+    }
+
+    {field-contracts |
+        {field-contract
+            @name="bad-values-without-attribute"
+            @target="asset"
+            @when-values="remote"
+            @required-attributes="format"
+            @diagnostic="example.asset_condition"
+            @behavior="schema:field-dependency"
+        }
+        {field-contract
+            @name="bad-attribute-present-absent"
+            @target="asset"
+            @when-attribute="kind"
+            @when-values="remote"
+            @when-absent-attributes="kind"
+            @required-attributes="format"
+            @diagnostic="example.asset_condition"
+            @behavior="schema:field-dependency"
+        }
+        {field-contract
+            @name="bad-all-present-absent-attributes"
+            @target="asset"
+            @when-present-attributes="source token"
+            @when-absent-attributes="token"
+            @required-attributes="format"
+            @diagnostic="example.asset_condition"
+            @behavior="schema:field-dependency"
+        }
+        {field-contract
+            @name="bad-any-present-all-absent-attributes"
+            @target="asset"
+            @when-any-present-attributes="source token"
+            @when-absent-attributes="source token"
+            @required-attributes="format"
+            @diagnostic="example.asset_condition"
+            @behavior="schema:field-dependency"
+        }
+        {field-contract
+            @name="bad-any-absent-all-present-attributes"
+            @target="asset"
+            @when-present-attributes="source token"
+            @when-any-absent-attributes="source token"
+            @required-attributes="format"
+            @diagnostic="example.asset_condition"
+            @behavior="schema:field-dependency"
+        }
+        {field-contract
+            @name="bad-all-present-absent-children"
+            @target="asset"
+            @when-present-children="reference fallback"
+            @when-absent-children="fallback"
+            @required-attributes="format"
+            @diagnostic="example.asset_condition"
+            @behavior="schema:field-dependency"
+        }
+        {field-contract
+            @name="bad-any-present-all-absent-children"
+            @target="asset"
+            @when-any-present-children="reference fallback"
+            @when-absent-children="reference fallback"
+            @required-attributes="format"
+            @diagnostic="example.asset_condition"
+            @behavior="schema:field-dependency"
+        }
+        {field-contract
+            @name="bad-any-absent-all-present-children"
+            @target="asset"
+            @when-present-children="reference fallback"
+            @when-any-absent-children="reference fallback"
+            @required-attributes="format"
+            @diagnostic="example.asset_condition"
+            @behavior="schema:field-dependency"
+        }
+    }
+
+    {diagnostics |
+        {diagnostic
+            @code="example.asset_condition"
+            @severity="error"
+            @behavior="schema:field-dependency"
+            @message="Asset condition selectors must be satisfiable"
+        }
+    }
+}
+```
 
 <details>
 <summary>invalid-field-contract-child-sequence</summary>
@@ -895,8 +2235,7 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
 - Schema: `https://cem.dev/ns/schema/1`
 - Expected result: `fail`
 - Expected diagnostics: `cem.schema_definition.invalid_field_contract`
-- Preview renderer: `CLI convert, tabular formatter, preview HTML + html2svg`
-- Preview HTML: `dist/cem_ml/schema-packages/schema/v1/examples/invalid-field-contract-child-sequence.cem.html`
+- README rendering: fenced `cem` source
 
 ```bash
 dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
@@ -908,7 +2247,109 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
 
 </details>
 
-![Preview of CEM Schema Definition Language Package invalid-field-contract-child-sequence example](examples/previews/invalid-field-contract-child-sequence.cem.svg)
+```cem
+@doc cem-ml 1
+@ns schema = "https://cem.dev/ns/schema/1"
+@default schema
+
+{schema @name="invalid-field-contract-child-sequence" @namespace="https://example.test/ns/invalid-field-contract-child-sequence/1" @version="1.0.0" |
+    {uses |
+        {use @schema="https://cem.dev/ns/schema/1" @as="schema"}
+    }
+
+    {elements |
+        {element @name="group" @children="header main footer aside"}
+        {element @name="header"}
+        {element @name="main"}
+        {element @name="footer"}
+        {element @name="aside"}
+    }
+
+    {field-contracts |
+        {field-contract
+            @name="bad-first-boundary"
+            @target="group"
+            @first-child="header"
+            @forbidden-first-child="header"
+            @diagnostic="example.group_child_sequence"
+            @behavior="schema:child-occurrence"
+            @check-kind="boundary-children"
+        }
+        {field-contract
+            @name="bad-last-boundary"
+            @target="group"
+            @last-child="footer"
+            @forbidden-last-child="footer"
+            @diagnostic="example.group_child_sequence"
+            @behavior="schema:child-occurrence"
+            @check-kind="boundary-children"
+        }
+        {field-contract
+            @name="bad-required-forbidden-sequence"
+            @target="group"
+            @required-child-sequence="header main"
+            @forbidden-child-sequence="header main"
+            @diagnostic="example.group_child_sequence"
+            @behavior="schema:child-occurrence"
+            @check-kind="required-child-sequence"
+        }
+        {field-contract
+            @name="bad-prefix-forbidden-prefix"
+            @target="group"
+            @prefix-child-sequence="header main"
+            @forbidden-prefix-child-sequence="header main"
+            @diagnostic="example.group_child_sequence"
+            @behavior="schema:child-occurrence"
+            @check-kind="prefix-child-sequence"
+        }
+        {field-contract
+            @name="bad-suffix-forbidden-suffix"
+            @target="group"
+            @suffix-child-sequence="main footer"
+            @forbidden-suffix-child-sequence="main footer"
+            @diagnostic="example.group_child_sequence"
+            @behavior="schema:child-occurrence"
+            @check-kind="suffix-child-sequence"
+        }
+        {field-contract
+            @name="bad-exact-prefix"
+            @target="group"
+            @exact-child-sequence="header footer"
+            @prefix-child-sequence="header main"
+            @diagnostic="example.group_child_sequence"
+            @behavior="schema:child-occurrence"
+            @check-kind="exact-child-sequence"
+        }
+        {field-contract
+            @name="bad-exact-required"
+            @target="group"
+            @exact-child-sequence="header footer"
+            @required-child-sequence="main footer"
+            @diagnostic="example.group_child_sequence"
+            @behavior="schema:child-occurrence"
+            @check-kind="exact-child-sequence"
+        }
+        {field-contract
+            @name="bad-exact-forbidden"
+            @target="group"
+            @exact-child-sequence="header main footer"
+            @forbidden-child-sequence="main footer"
+            @diagnostic="example.group_child_sequence"
+            @behavior="schema:child-occurrence"
+            @check-kind="exact-child-sequence"
+        }
+    }
+
+    {diagnostics |
+        {diagnostic
+            @code="example.group_child_sequence"
+            @severity="error"
+            @behavior="schema:field-contract"
+            @message="Group children must satisfy consistent sequence contracts"
+        }
+    }
+}
+```
 
 <details>
 <summary>invalid-attribute-default</summary>
@@ -918,8 +2359,7 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
 - Schema: `https://cem.dev/ns/schema/1`
 - Expected result: `fail`
 - Expected diagnostics: `cem.schema_definition.invalid_default_value`
-- Preview renderer: `CLI convert, tabular formatter, preview HTML + html2svg`
-- Preview HTML: `dist/cem_ml/schema-packages/schema/v1/examples/invalid-attribute-default.cem.html`
+- README rendering: fenced `cem` source
 
 ```bash
 dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
@@ -931,7 +2371,23 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
 
 </details>
 
-![Preview of CEM Schema Definition Language Package invalid-attribute-default example](examples/previews/invalid-attribute-default.cem.svg)
+```cem
+@doc cem-ml 1
+@ns schema = "https://cem.dev/ns/schema/1"
+@default schema
+
+{schema @name="invalid-attribute-default" @namespace="https://example.test/ns/invalid-attribute-default/1" @version="1.0.0" |
+    {elements |
+        {element @name="item" @optional-attributes="count mode code"}
+    }
+
+    {attributes |
+        {attribute @name="count" @type="schema:integer" @default="many"}
+        {attribute @name="mode" @type="schema:identifier" @values="compact pretty" @default="tabular"}
+        {attribute @name="code" @type="schema:string" @minLength=2 @default="x"}
+    }
+}
+```
 
 <details>
 <summary>invalid-unclosed-schema</summary>
@@ -941,8 +2397,7 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
 - Schema: `https://cem.dev/ns/schema/1`
 - Expected result: `fail`
 - Expected diagnostics: `cem.ast.unclosed_scope`
-- Preview renderer: `CLI convert, tabular formatter, preview HTML + html2svg`
-- Preview HTML: `dist/cem_ml/schema-packages/schema/v1/examples/invalid-unclosed-schema.cem.html`
+- README rendering: fenced `cem` source
 
 ```bash
 dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
@@ -954,4 +2409,12 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
 
 </details>
 
-![Preview of CEM Schema Definition Language Package invalid-unclosed-schema example](examples/previews/invalid-unclosed-schema.cem.svg)
+```cem
+@doc cem-ml 1
+@ns schema = "https://cem.dev/ns/schema/1"
+@default schema
+
+{schema @name="broken" @namespace="https://example.test/ns/broken/1" @version="1.0.0" |
+    {summary |
+        {text | Missing schema close}
+```

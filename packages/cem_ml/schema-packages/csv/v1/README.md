@@ -119,9 +119,8 @@ The intended generic CLI surface for formatter options is repeatable
   source line endings when source preservation metadata is available. CR-only
   and mixed source line endings currently normalize to LF because the formatter
   exposes one record-ending choice per output document.
-- `tabSize=N`: positive integer tab-stop width used by readable formatters and
-  SVG previews when interpreting literal horizontal tab characters. The default
-  is `8`.
+- `tabSize=N`: positive integer tab-stop width used by readable formatters when
+  interpreting literal horizontal tab characters. The default is `8`.
 
 CSV-specific formatter options use the `csv.` namespace:
 
@@ -170,12 +169,11 @@ schema-package output support:
 2. Declare the fixture in `package.cem` with expected result and diagnostics.
 3. Add focused Rust or CLI tests for parse facts, formatter output bytes, and
    output-stage metadata.
-4. Update README command examples and their SVG previews in
-   `examples/previews/` when visible output changes.
+4. Regenerate README command examples and fenced CSV source when visible output
+   or fixtures change.
 5. Run the CSV package verify target, which validates the package and checks
    manifest/example coverage, formatter/colorizer output contracts, writer
-   parity, output spans, and README SVG preview drift from the documented
-   command output.
+   parity, output spans, and README source-fence drift.
 
 ## Verification
 
@@ -446,13 +444,10 @@ tracked in the release notes above.
 ## Examples
 
 This section is generated from `package.cem` `{example}` metadata by the
-`samples2readme` Nx target. Each SVG previews the example content, not
-the validation report. The target writes a preformatted HTML preview to
-`dist/cem_ml/schema-packages/<package>/v1/examples/<example-file>.html`,
-then renders the `<pre>` spans through headless Chromium into
-`examples/previews/<example-file>.svg`.
-Source snapshots are used only where the current CLI cannot yet render
-the package formatter/colorizer path for that content identity.
+`samples2readme` Nx target. Text examples with a recognized language and
+valid UTF-8 are embedded directly as language-tagged fenced source.
+All declared examples in this package support source fences, so README SVG
+previews are not used.
 
 <details>
 <summary>basic-table</summary>
@@ -461,8 +456,7 @@ the package formatter/colorizer path for that content identity.
 - Content type: `text/csv`
 - Schema: `https://cem.dev/ns/data/csv/1`
 - Expected result: `pass`
-- Preview renderer: `CLI convert, tabular formatter, preview HTML + html2svg`
-- Preview HTML: `dist/cem_ml/schema-packages/csv/v1/examples/basic-table.csv.html`
+- README rendering: fenced `csv` source
 
 ```bash
 dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
@@ -474,7 +468,11 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
 
 </details>
 
-![Preview of CSV Resource Schema Package basic-table example](examples/previews/basic-table.csv.svg)
+```csv
+id,name,active
+1,Ada,true
+2,Lin,false
+```
 
 <details>
 <summary>quoted-fields</summary>
@@ -483,8 +481,7 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
 - Content type: `text/csv`
 - Schema: `https://cem.dev/ns/data/csv/1`
 - Expected result: `pass`
-- Preview renderer: `CLI convert, tabular formatter, preview HTML + html2svg`
-- Preview HTML: `dist/cem_ml/schema-packages/csv/v1/examples/quoted-fields.csv.html`
+- README rendering: fenced `csv` source
 
 ```bash
 dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
@@ -496,7 +493,12 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
 
 </details>
 
-![Preview of CSV Resource Schema Package quoted-fields example](examples/previews/quoted-fields.csv.svg)
+```csv
+id,name,notes
+1,Ada,"line one
+line two"
+2,Lin,"quoted ""value"""
+```
 
 <details>
 <summary>header-absent</summary>
@@ -505,8 +507,7 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
 - Content type: `text/csv; header=absent`
 - Schema: `https://cem.dev/ns/data/csv/1`
 - Expected result: `pass`
-- Preview renderer: `CLI convert, tabular formatter, preview HTML + html2svg`
-- Preview HTML: `dist/cem_ml/schema-packages/csv/v1/examples/header-absent.csv.html`
+- README rendering: fenced `csv` source
 
 ```bash
 dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
@@ -518,7 +519,10 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
 
 </details>
 
-![Preview of CSV Resource Schema Package header-absent example](examples/previews/header-absent.csv.svg)
+```csv
+1,Ada,true
+2,Lin,false
+```
 
 <details>
 <summary>line-ending-lf</summary>
@@ -527,8 +531,7 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
 - Content type: `text/csv`
 - Schema: `https://cem.dev/ns/data/csv/1`
 - Expected result: `pass`
-- Preview renderer: `CLI convert, tabular formatter, preview HTML + html2svg`
-- Preview HTML: `dist/cem_ml/schema-packages/csv/v1/examples/line-ending-lf.csv.html`
+- README rendering: fenced `csv` source
 
 ```bash
 dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
@@ -540,7 +543,11 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
 
 </details>
 
-![Preview of CSV Resource Schema Package line-ending-lf example](examples/previews/line-ending-lf.csv.svg)
+```csv
+id,name,active
+1,Ada,true
+2,Lin,false
+```
 
 <details>
 <summary>line-ending-crlf</summary>
@@ -549,8 +556,7 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
 - Content type: `text/csv`
 - Schema: `https://cem.dev/ns/data/csv/1`
 - Expected result: `pass`
-- Preview renderer: `CLI convert, tabular formatter, preview HTML + html2svg`
-- Preview HTML: `dist/cem_ml/schema-packages/csv/v1/examples/line-ending-crlf.csv.html`
+- README rendering: fenced `csv` source
 
 ```bash
 dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
@@ -562,7 +568,11 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
 
 </details>
 
-![Preview of CSV Resource Schema Package line-ending-crlf example](examples/previews/line-ending-crlf.csv.svg)
+```csv
+id,name,active
+1,Ada,true
+2,Lin,false
+```
 
 <details>
 <summary>utf8-bom</summary>
@@ -571,8 +581,7 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
 - Content type: `text/csv; charset=utf-8`
 - Schema: `https://cem.dev/ns/data/csv/1`
 - Expected result: `pass`
-- Preview renderer: `CLI convert, tabular formatter, preview HTML + html2svg`
-- Preview HTML: `dist/cem_ml/schema-packages/csv/v1/examples/utf8-bom.csv.html`
+- README rendering: fenced `csv` source
 
 ```bash
 dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
@@ -584,7 +593,11 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
 
 </details>
 
-![Preview of CSV Resource Schema Package utf8-bom example](examples/previews/utf8-bom.csv.svg)
+```csv
+id,name,active
+1,Ada,true
+2,Lin,false
+```
 
 <details>
 <summary>spaced-fields</summary>
@@ -593,8 +606,7 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
 - Content type: `text/csv`
 - Schema: `https://cem.dev/ns/data/csv/1`
 - Expected result: `pass`
-- Preview renderer: `CLI convert, tabular formatter, preview HTML + html2svg`
-- Preview HTML: `dist/cem_ml/schema-packages/csv/v1/examples/spaced-fields.csv.html`
+- README rendering: fenced `csv` source
 
 ```bash
 dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
@@ -606,7 +618,11 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
 
 </details>
 
-![Preview of CSV Resource Schema Package spaced-fields example](examples/previews/spaced-fields.csv.svg)
+```csv
+id,name,note
+1, Ada ,"trailing space "
+2,Lin," leading space"
+```
 
 <details>
 <summary>tabs-and-empty-fields</summary>
@@ -615,8 +631,7 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
 - Content type: `text/csv`
 - Schema: `https://cem.dev/ns/data/csv/1`
 - Expected result: `pass`
-- Preview renderer: `CLI convert, tabular formatter, preview HTML + html2svg`
-- Preview HTML: `dist/cem_ml/schema-packages/csv/v1/examples/tabs-and-empty-fields.csv.html`
+- README rendering: fenced `csv` source
 
 ```bash
 dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
@@ -628,7 +643,11 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
 
 </details>
 
-![Preview of CSV Resource Schema Package tabs-and-empty-fields example](examples/previews/tabs-and-empty-fields.csv.svg)
+```csv
+id,label,notes
+1,	Tabbed,
+2,,empty-middle
+```
 
 <details>
 <summary>formula-looking-values</summary>
@@ -637,8 +656,7 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
 - Content type: `text/csv`
 - Schema: `https://cem.dev/ns/data/csv/1`
 - Expected result: `pass`
-- Preview renderer: `CLI convert, tabular formatter, preview HTML + html2svg`
-- Preview HTML: `dist/cem_ml/schema-packages/csv/v1/examples/formula-looking-values.csv.html`
+- README rendering: fenced `csv` source
 
 ```bash
 dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
@@ -650,7 +668,13 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
 
 </details>
 
-![Preview of CSV Resource Schema Package formula-looking-values example](examples/previews/formula-looking-values.csv.svg)
+```csv
+id,formula_like
+1,=1+2
+2,+SUM(A1:A2)
+3,-10
+4,@cmd
+```
 
 <details>
 <summary>wide-unicode</summary>
@@ -659,8 +683,7 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
 - Content type: `text/csv; charset=utf-8`
 - Schema: `https://cem.dev/ns/data/csv/1`
 - Expected result: `pass`
-- Preview renderer: `CLI convert, tabular formatter, preview HTML + html2svg`
-- Preview HTML: `dist/cem_ml/schema-packages/csv/v1/examples/wide-unicode.csv.html`
+- README rendering: fenced `csv` source
 
 ```bash
 dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
@@ -672,7 +695,11 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
 
 </details>
 
-![Preview of CSV Resource Schema Package wide-unicode example](examples/previews/wide-unicode.csv.svg)
+```csv
+id,name,total
+1,東京,123.45
+2,😀-wide,9.5
+```
 
 <details>
 <summary>invalid-unclosed-quote</summary>
@@ -682,8 +709,7 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
 - Schema: `https://cem.dev/ns/data/csv/1`
 - Expected result: `fail`
 - Expected diagnostics: `cem.csv.unclosed_quote`
-- Preview renderer: `CLI convert, tabular formatter, preview HTML + html2svg`
-- Preview HTML: `dist/cem_ml/schema-packages/csv/v1/examples/invalid-unclosed-quote.csv.html`
+- README rendering: fenced `csv` source
 
 ```bash
 dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
@@ -695,7 +721,10 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
 
 </details>
 
-![Preview of CSV Resource Schema Package invalid-unclosed-quote example](examples/previews/invalid-unclosed-quote.csv.svg)
+```csv
+id,name
+1,"Ada
+```
 
 <details>
 <summary>invalid-quote-escape</summary>
@@ -705,8 +734,7 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
 - Schema: `https://cem.dev/ns/data/csv/1`
 - Expected result: `fail`
 - Expected diagnostics: `cem.csv.invalid_quote_escape`
-- Preview renderer: `CLI convert, tabular formatter, preview HTML + html2svg`
-- Preview HTML: `dist/cem_ml/schema-packages/csv/v1/examples/invalid-quote-escape.csv.html`
+- README rendering: fenced `csv` source
 
 ```bash
 dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
@@ -718,7 +746,10 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
 
 </details>
 
-![Preview of CSV Resource Schema Package invalid-quote-escape example](examples/previews/invalid-quote-escape.csv.svg)
+```csv
+id,name
+1,A"da
+```
 
 <details>
 <summary>ragged-row</summary>
@@ -728,8 +759,7 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
 - Schema: `https://cem.dev/ns/data/csv/1`
 - Expected result: `pass`
 - Expected diagnostics: `cem.csv.inconsistent_field_count`
-- Preview renderer: `CLI convert, tabular formatter, preview HTML + html2svg`
-- Preview HTML: `dist/cem_ml/schema-packages/csv/v1/examples/ragged-row.csv.html`
+- README rendering: fenced `csv` source
 
 ```bash
 dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
@@ -741,7 +771,11 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
 
 </details>
 
-![Preview of CSV Resource Schema Package ragged-row example](examples/previews/ragged-row.csv.svg)
+```csv
+id,name,email
+1,Ada,ada@example.test
+2,Lin
+```
 
 <details>
 <summary>unsupported-charset</summary>
@@ -751,8 +785,7 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
 - Schema: `https://cem.dev/ns/data/csv/1`
 - Expected result: `fail`
 - Expected diagnostics: `cem.csv.unsupported_encoding`
-- Preview renderer: `CLI convert, tabular formatter, preview HTML + html2svg`
-- Preview HTML: `dist/cem_ml/schema-packages/csv/v1/examples/unsupported-charset.csv.html`
+- README rendering: fenced `csv` source
 
 ```bash
 dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
@@ -764,7 +797,10 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
 
 </details>
 
-![Preview of CSV Resource Schema Package unsupported-charset example](examples/previews/unsupported-charset.csv.svg)
+```csv
+id,name
+1,Ada
+```
 
 <details>
 <summary>us-ascii-non-ascii-byte</summary>
@@ -774,8 +810,7 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
 - Schema: `https://cem.dev/ns/data/csv/1`
 - Expected result: `fail`
 - Expected diagnostics: `cem.csv.unsupported_encoding`
-- Preview renderer: `CLI convert, tabular formatter, preview HTML + html2svg`
-- Preview HTML: `dist/cem_ml/schema-packages/csv/v1/examples/us-ascii-non-ascii-byte.csv.html`
+- README rendering: fenced `csv` source
 
 ```bash
 dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
@@ -787,7 +822,10 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
 
 </details>
 
-![Preview of CSV Resource Schema Package us-ascii-non-ascii-byte example](examples/previews/us-ascii-non-ascii-byte.csv.svg)
+```csv
+id,name
+1,Adé
+```
 
 <details>
 <summary>invalid-header-parameter</summary>
@@ -797,8 +835,7 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
 - Schema: `https://cem.dev/ns/data/csv/1`
 - Expected result: `pass`
 - Expected diagnostics: `cem.csv.invalid_header_parameter`
-- Preview renderer: `CLI convert, tabular formatter, preview HTML + html2svg`
-- Preview HTML: `dist/cem_ml/schema-packages/csv/v1/examples/invalid-header-parameter.csv.html`
+- README rendering: fenced `csv` source
 
 ```bash
 dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
@@ -810,4 +847,7 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
 
 </details>
 
-![Preview of CSV Resource Schema Package invalid-header-parameter example](examples/previews/invalid-header-parameter.csv.svg)
+```csv
+id,name
+1,Ada
+```

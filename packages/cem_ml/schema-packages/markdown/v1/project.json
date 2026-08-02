@@ -27,9 +27,7 @@
                 "{workspaceRoot}/packages/cem_ml_cli/src/**/*.rs",
                 "{workspaceRoot}/packages/cem_ml_cli/Cargo.toml"
             ],
-            "outputs": [
-                "{workspaceRoot}/dist/cem_ml/schema-packages/markdown/v1/examples/*.html"
-            ]
+            "outputs": []
         },
         "samples2readme": {
             "cache": true,
@@ -68,8 +66,7 @@
                 "{workspaceRoot}/packages/cem_ml_cli/Cargo.toml"
             ],
             "outputs": [
-                "{projectRoot}/README.md",
-                "{workspaceRoot}/dist/cem_ml/schema-packages/markdown/v1/examples/*.html"
+                "{projectRoot}/README.md"
             ]
         },
         "verify": {
@@ -121,8 +118,7 @@
                 "{workspaceRoot}/packages/cem_ml_cli/Cargo.toml"
             ],
             "outputs": [
-                "{projectRoot}/dist/cem-ml.report.json",
-                "{workspaceRoot}/dist/cem_ml/schema-packages/markdown/v1/examples/*.html"
+                "{projectRoot}/dist/cem-ml.report.json"
             ]
         }
     },

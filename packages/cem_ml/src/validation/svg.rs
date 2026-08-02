@@ -5,8 +5,9 @@ use crate::schema::registry::{SVG_CONTENT_TYPE, SVG_NAMESPACE_URI, SVG_SCHEMA_UR
 use crate::source::{ByteRange, SourceId};
 use crate::source_map::{FrameSpan, SourceMapFrame, SourceMapStack, TransformKind};
 use crate::validation::xml::{
-    xml_document_ast_from_source_bytes, XmlAttributeAst, XmlDocumentAst, XmlEventAst, XmlEventKind,
-    XmlParseFactKind, XmlSourceValidationRequest,
+    xml_document_ast_from_source_bytes, xml_event_markup_tokens, XmlAttributeAst, XmlDocumentAst,
+    XmlEventAst, XmlEventKind, XmlMarkupTokenKind, XmlParseFactKind, XmlSourceRange,
+    XmlSourceValidationRequest,
 };
 use serde_json::{json, Value};
 use std::collections::{BTreeMap, BTreeSet};
@@ -102,13 +103,17 @@ pub struct SvgSourceRange {
 
 impl SvgSourceRange {
     fn from_event(event: &XmlEventAst) -> Self {
+        Self::from_xml_range(event.source_range)
+    }
+
+    fn from_xml_range(range: XmlSourceRange) -> Self {
         Self {
             start: SvgSourcePosition {
-                line: event.source_range.start.line,
-                column: event.source_range.start.column,
-                byte_offset: event.source_range.start.byte_offset,
+                line: range.start.line,
+                column: range.start.column,
+                byte_offset: range.start.byte_offset,
             },
-            byte_length: event.source_range.byte_length,
+            byte_length: range.byte_length,
         }
     }
 
@@ -820,190 +825,28 @@ fn svg_event_to_cemt_subject(event: &XmlEventAst, layout: SvgEventLayout) -> Val
 }
 
 fn svg_markup_tokens(event: &XmlEventAst) -> Vec<Value> {
-    if !matches!(
-        event.kind,
-        XmlEventKind::StartElement | XmlEventKind::EmptyElement | XmlEventKind::EndElement
-    ) {
-        return Vec::new();
-    }
-
-    let lexeme = event.lexeme.as_str();
-    let bytes = lexeme.as_bytes();
-    let mut tokens = Vec::new();
-    let mut offset = 0usize;
-    if bytes.starts_with(b"</") {
-        svg_push_markup_token(event, &mut tokens, "delimiter", "syntax.punctuation", 0, 2);
-        offset = 2;
-    } else if bytes.starts_with(b"<") {
-        svg_push_markup_token(event, &mut tokens, "delimiter", "syntax.punctuation", 0, 1);
-        offset = 1;
-    }
-
-    let name_start = offset;
-    while offset < bytes.len()
-        && !bytes[offset].is_ascii_whitespace()
-        && !matches!(bytes[offset], b'/' | b'>')
-    {
-        offset += 1;
-    }
-    if offset > name_start {
-        svg_push_markup_token(
-            event,
-            &mut tokens,
-            "element-name",
-            "syntax.name",
-            name_start,
-            offset,
-        );
-    }
-
-    while offset < bytes.len() {
-        if bytes[offset].is_ascii_whitespace() {
-            let start = offset;
-            while offset < bytes.len() && bytes[offset].is_ascii_whitespace() {
-                offset += 1;
-            }
-            svg_push_markup_token(
-                event,
-                &mut tokens,
-                "whitespace",
-                "syntax.raw",
-                start,
-                offset,
-            );
-            continue;
-        }
-        if bytes[offset..].starts_with(b"/>") {
-            svg_push_markup_token(
-                event,
-                &mut tokens,
-                "delimiter",
-                "syntax.punctuation",
-                offset,
-                offset + 2,
-            );
-            offset += 2;
-            continue;
-        }
-        if bytes[offset] == b'>' {
-            svg_push_markup_token(
-                event,
-                &mut tokens,
-                "delimiter",
-                "syntax.punctuation",
-                offset,
-                offset + 1,
-            );
-            offset += 1;
-            continue;
-        }
-        if bytes[offset] == b'=' {
-            svg_push_markup_token(
-                event,
-                &mut tokens,
-                "equals",
-                "syntax.punctuation",
-                offset,
-                offset + 1,
-            );
-            offset += 1;
-            continue;
-        }
-        if matches!(bytes[offset], b'\'' | b'\"') {
-            let quote = bytes[offset];
-            let start = offset;
-            offset += 1;
-            while offset < bytes.len() && bytes[offset] != quote {
-                offset += 1;
-            }
-            if offset < bytes.len() {
-                offset += 1;
-            }
-            svg_push_markup_token(
-                event,
-                &mut tokens,
-                "attribute-value",
-                "syntax.string",
-                start,
-                offset,
-            );
-            continue;
-        }
-
-        let start = offset;
-        while offset < bytes.len()
-            && !bytes[offset].is_ascii_whitespace()
-            && !matches!(bytes[offset], b'=' | b'/' | b'>')
-        {
-            offset += 1;
-        }
-        if offset == start {
-            offset += 1;
-            svg_push_markup_token(event, &mut tokens, "raw", "syntax.raw", start, offset);
-        } else {
-            svg_push_markup_token(
-                event,
-                &mut tokens,
-                "attribute-name",
-                "syntax.attribute",
-                start,
-                offset,
-            );
-        }
-    }
-
-    tokens
+    xml_event_markup_tokens(event)
+        .into_iter()
+        .map(|token| {
+            let range = SvgSourceRange::from_xml_range(token.source_range);
+            json!({
+                "kind": token.kind.as_str(),
+                "text": token.text,
+                "role": svg_markup_token_role(token.kind),
+                "sourceRange": range.to_cemt_subject(),
+                "sourceMap": range.source_map(),
+            })
+        })
+        .collect()
 }
 
-fn svg_push_markup_token(
-    event: &XmlEventAst,
-    tokens: &mut Vec<Value>,
-    kind: &str,
-    role: &str,
-    start: usize,
-    end: usize,
-) {
-    if start >= end || end > event.lexeme.len() {
-        return;
-    }
-    let range = svg_lexeme_range(event, start, end);
-    tokens.push(json!({
-        "kind": kind,
-        "text": &event.lexeme[start..end],
-        "role": role,
-        "sourceRange": range.to_cemt_subject(),
-        "sourceMap": range.source_map(),
-    }));
-}
-
-fn svg_lexeme_range(event: &XmlEventAst, start: usize, end: usize) -> SvgSourceRange {
-    let prefix = &event.lexeme[..start];
-    let mut line = event.source_range.start.line;
-    let mut column = event.source_range.start.column;
-    let mut chars = prefix.chars().peekable();
-    while let Some(ch) = chars.next() {
-        match ch {
-            '\r' => {
-                if chars.peek() == Some(&'\n') {
-                    chars.next();
-                }
-                line = line.saturating_add(1);
-                column = 1;
-            }
-            '\n' => {
-                line = line.saturating_add(1);
-                column = 1;
-            }
-            _ => column = column.saturating_add(1),
-        }
-    }
-    SvgSourceRange {
-        start: SvgSourcePosition {
-            line,
-            column,
-            byte_offset: event.source_range.start.byte_offset + start as u64,
-        },
-        byte_length: (end - start) as u64,
+fn svg_markup_token_role(kind: XmlMarkupTokenKind) -> &'static str {
+    match kind {
+        XmlMarkupTokenKind::Delimiter | XmlMarkupTokenKind::Equals => "syntax.punctuation",
+        XmlMarkupTokenKind::ElementName => "syntax.name",
+        XmlMarkupTokenKind::AttributeName => "syntax.attribute",
+        XmlMarkupTokenKind::AttributeValue => "syntax.string",
+        XmlMarkupTokenKind::Whitespace | XmlMarkupTokenKind::Raw => "syntax.raw",
     }
 }
 

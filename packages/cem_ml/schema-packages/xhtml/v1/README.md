@@ -91,7 +91,7 @@ validation contract.
 complete example indexing, schema-derived fact tests, dedicated lifecycle
 load/export coverage, exact same-schema engine and CLI conversion, executable
 formatter/colorizer profile tests, schema-owned CLI example validation, and
-README/SVG preview drift checks with no source fallback.
+README source-fence generation checks with no SVG fallback.
 
 ## Release Behavior
 
@@ -116,12 +116,10 @@ an explicit registered converter path.
 ## Examples
 
 This section is generated from `package.cem` `{example}` metadata by the
-`samples2readme` Nx target. Each SVG previews the rendered example
-content or validation diagnostics for expected-fail examples. The target writes a
-preformatted HTML preview to
-`dist/cem_ml/schema-packages/<package>/v1/examples/<example-file>.html`,
-then renders the `<pre>` spans through headless Chromium into
-`examples/previews/<example-file>.svg`.
+`samples2readme` Nx target. Text examples with a recognized language and
+valid UTF-8 are embedded directly as language-tagged fenced source.
+All declared examples in this package support source fences, so README SVG
+previews are not used.
 
 <details>
 <summary>basic-document</summary>
@@ -130,8 +128,7 @@ then renders the `<pre>` spans through headless Chromium into
 - Content type: `application/xhtml+xml`
 - Schema: `https://cem.dev/ns/data/xhtml/1`
 - Expected result: `pass`
-- Preview renderer: `CLI convert, tabular formatter, preview HTML + html2svg`
-- Preview HTML: `dist/cem_ml/schema-packages/xhtml/v1/examples/basic-document.xhtml.html`
+- README rendering: fenced `html` source
 
 ```bash
 dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
@@ -142,7 +139,17 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
 
 </details>
 
-![Preview of XHTML Resource Schema Package basic-document example](examples/previews/basic-document.xhtml.svg)
+```html
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="en">
+  <head>
+    <title>Basic XHTML Document</title>
+  </head>
+  <body>
+    <p>Hello from XHTML.</p>
+  </body>
+</html>
+```
 
 <details>
 <summary>form-page</summary>
@@ -151,8 +158,7 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
 - Content type: `application/xhtml+xml`
 - Schema: `https://cem.dev/ns/data/xhtml/1`
 - Expected result: `pass`
-- Preview renderer: `CLI convert, tabular formatter, preview HTML + html2svg`
-- Preview HTML: `dist/cem_ml/schema-packages/xhtml/v1/examples/form-page.xhtml.html`
+- README rendering: fenced `html` source
 
 ```bash
 dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
@@ -163,7 +169,25 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
 
 </details>
 
-![Preview of XHTML Resource Schema Package form-page example](examples/previews/form-page.xhtml.svg)
+```html
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="en">
+  <head>
+    <title>Contact</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  </head>
+  <body>
+    <main>
+      <h1>Contact</h1>
+      <form action="/contact" method="post">
+        <label for="email">Email</label>
+        <input id="email" name="email" type="email"/>
+        <button type="submit">Send</button>
+      </form>
+    </main>
+  </body>
+</html>
+```
 
 <details>
 <summary>invalid-missing-namespace</summary>
@@ -173,8 +197,7 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
 - Schema: `https://cem.dev/ns/data/xhtml/1`
 - Expected result: `fail`
 - Expected diagnostics: `cem.xhtml.namespace_missing`
-- Preview renderer: `CLI validate, JSON report, preview HTML + html2svg`
-- Preview HTML: `dist/cem_ml/schema-packages/xhtml/v1/examples/invalid-missing-namespace.xhtml.html`
+- README rendering: fenced `html` source
 
 ```bash
 dist/target/cem_ml_cli/debug/cem-ml validate --format json --fail-level parse \
@@ -184,7 +207,17 @@ dist/target/cem_ml_cli/debug/cem-ml validate --format json --fail-level parse \
 
 </details>
 
-![Preview of XHTML Resource Schema Package invalid-missing-namespace example](examples/previews/invalid-missing-namespace.xhtml.svg)
+```html
+<?xml version="1.0" encoding="UTF-8"?>
+<html>
+  <head>
+    <title>Missing namespace</title>
+  </head>
+  <body>
+    <p>This is XML, but not XHTML.</p>
+  </body>
+</html>
+```
 
 <details>
 <summary>invalid-body-before-head</summary>
@@ -194,8 +227,7 @@ dist/target/cem_ml_cli/debug/cem-ml validate --format json --fail-level parse \
 - Schema: `https://cem.dev/ns/data/xhtml/1`
 - Expected result: `fail`
 - Expected diagnostics: `cem.xhtml.head_body_order`
-- Preview renderer: `CLI validate, JSON report, preview HTML + html2svg`
-- Preview HTML: `dist/cem_ml/schema-packages/xhtml/v1/examples/invalid-body-before-head.xhtml.html`
+- README rendering: fenced `html` source
 
 ```bash
 dist/target/cem_ml_cli/debug/cem-ml validate --format json --fail-level parse \
@@ -205,7 +237,17 @@ dist/target/cem_ml_cli/debug/cem-ml validate --format json --fail-level parse \
 
 </details>
 
-![Preview of XHTML Resource Schema Package invalid-body-before-head example](examples/previews/invalid-body-before-head.xhtml.svg)
+```html
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <body>
+    <p>Body comes first.</p>
+  </body>
+  <head>
+    <title>Late head</title>
+  </head>
+</html>
+```
 
 <details>
 <summary>invalid-not-well-formed</summary>
@@ -215,8 +257,7 @@ dist/target/cem_ml_cli/debug/cem-ml validate --format json --fail-level parse \
 - Schema: `https://cem.dev/ns/data/xhtml/1`
 - Expected result: `fail`
 - Expected diagnostics: `cem.xhtml.not_well_formed_xml`
-- Preview renderer: `CLI validate, JSON report, preview HTML + html2svg`
-- Preview HTML: `dist/cem_ml/schema-packages/xhtml/v1/examples/invalid-not-well-formed.xhtml.html`
+- README rendering: fenced `html` source
 
 ```bash
 dist/target/cem_ml_cli/debug/cem-ml validate --format json --fail-level parse \
@@ -226,4 +267,12 @@ dist/target/cem_ml_cli/debug/cem-ml validate --format json --fail-level parse \
 
 </details>
 
-![Preview of XHTML Resource Schema Package invalid-not-well-formed example](examples/previews/invalid-not-well-formed.xhtml.svg)
+```html
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head><title>Broken</title></head>
+  <body>
+    <p>Unclosed paragraph
+  </body>
+</html>
+```

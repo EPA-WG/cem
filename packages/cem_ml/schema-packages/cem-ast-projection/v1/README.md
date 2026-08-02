@@ -87,14 +87,13 @@ projection.
 
 ## Formatter And Preview SDLC
 
-When a command example, fixture, converter, CLI report shape, or visible
-presentation output changes, update the SVG previews in `examples/previews/`
-in the same change by running
+When an example or command changes, regenerate fenceable README source with
+`samples2readme`. Refresh only the binary fallback SVG previews in
+`examples/previews/` by running
 `node packages/cem_ml/schema-packages/cem-ast-projection/v1/scripts/verify-previews.mjs --update`.
 
-The package `verify` target writes generated preview HTML/SVG artifacts into
-`dist/cem_ml/schema-packages/cem-ast-projection/v1/examples/` and fails on
-drift.
+The package `verify` target checks fenced source and referenced fallback
+preview HTML/SVG artifacts for drift.
 
 ## Verification
 
@@ -131,8 +130,10 @@ Tracked but not complete:
 ## Examples
 
 This section is generated from `package.cem` `{example}` metadata by the
-`samples2readme` Nx target. Each SVG previews the example content, not
-the validation report. The target writes a preformatted HTML preview to
+`samples2readme` Nx target. Text examples with a recognized language and
+valid UTF-8 are embedded directly as language-tagged fenced source.
+An SVG preview is used only when fenced source is unavailable. The target
+writes fallback preview HTML to
 `dist/cem_ml/schema-packages/<package>/v1/examples/<example-file>.html`,
 then renders the `<pre>` spans through headless Chromium into
 `examples/previews/<example-file>.svg`.
@@ -160,12 +161,37 @@ the package formatter/colorizer path for that content identity.
 - Content type: `application/vnd.cem.ast+json`
 - Schema: `https://cem.dev/ns/projection/ast/1`
 - Expected result: `pass`
-- Preview renderer: `source snapshot HTML + html2svg`
-- Preview HTML: `dist/cem_ml/schema-packages/cem-ast-projection/v1/examples/basic-ast.ast.json.html`
+- README rendering: fenced `json` source
 
 </details>
 
-![Preview of CEM AST Projection Schema Package basic-ast-json example](examples/previews/basic-ast.ast.json.svg)
+```json
+{
+  "kind": "document",
+  "children": [
+    {
+      "kind": "element",
+      "name": "p",
+      "namespace": "",
+      "attributes": [],
+      "children": [
+        {
+          "kind": "text",
+          "data": "Hi",
+          "byteRange": {
+            "start": 5,
+            "len": 2
+          }
+        }
+      ],
+      "byteRange": {
+        "start": 0,
+        "len": 8
+      }
+    }
+  ]
+}
+```
 
 <details>
 <summary>nested-ast-json</summary>
@@ -174,12 +200,83 @@ the package formatter/colorizer path for that content identity.
 - Content type: `application/vnd.cem.ast+json`
 - Schema: `https://cem.dev/ns/projection/ast/1`
 - Expected result: `pass`
-- Preview renderer: `source snapshot HTML + html2svg`
-- Preview HTML: `dist/cem_ml/schema-packages/cem-ast-projection/v1/examples/nested-ast.ast.json.html`
+- README rendering: fenced `json` source
 
 </details>
 
-![Preview of CEM AST Projection Schema Package nested-ast-json example](examples/previews/nested-ast.ast.json.svg)
+```json
+{
+  "kind": "document",
+  "children": [
+    {
+      "kind": "element",
+      "name": "form",
+      "namespace": "",
+      "attributes": [
+        {
+          "name": "id",
+          "namespace": "",
+          "value": "login"
+        }
+      ],
+      "children": [
+        {
+          "kind": "element",
+          "name": "label",
+          "namespace": "",
+          "attributes": [
+            {
+              "name": "for",
+              "namespace": "",
+              "value": "email"
+            }
+          ],
+          "children": [
+            {
+              "kind": "text",
+              "data": "Email",
+              "byteRange": {
+                "start": 31,
+                "len": 5
+              }
+            }
+          ],
+          "byteRange": {
+            "start": 18,
+            "len": 21
+          }
+        },
+        {
+          "kind": "element",
+          "name": "input",
+          "namespace": "",
+          "attributes": [
+            {
+              "name": "id",
+              "namespace": "",
+              "value": "email"
+            },
+            {
+              "name": "required",
+              "namespace": "",
+              "value": null
+            }
+          ],
+          "children": [],
+          "byteRange": {
+            "start": 40,
+            "len": 27
+          }
+        }
+      ],
+      "byteRange": {
+        "start": 0,
+        "len": 69
+      }
+    }
+  ]
+}
+```
 
 <details>
 <summary>invalid-kind-json</summary>
@@ -189,12 +286,24 @@ the package formatter/colorizer path for that content identity.
 - Schema: `https://cem.dev/ns/projection/ast/1`
 - Expected result: `fail`
 - Expected diagnostics: `cem.projection.ast.json_shape`
-- Preview renderer: `source snapshot HTML + html2svg`
-- Preview HTML: `dist/cem_ml/schema-packages/cem-ast-projection/v1/examples/invalid-kind.ast.json.html`
+- README rendering: fenced `json` source
 
 </details>
 
-![Preview of CEM AST Projection Schema Package invalid-kind-json example](examples/previews/invalid-kind.ast.json.svg)
+```json
+{
+  "kind": "document",
+  "children": [
+    {
+      "kind": "widget",
+      "name": "p",
+      "namespace": "",
+      "attributes": [],
+      "children": []
+    }
+  ]
+}
+```
 
 <details>
 <summary>invalid-binary</summary>

@@ -265,10 +265,11 @@ schema-package output support:
 2. Declare the fixture in `package.cem` with expected result and diagnostics.
 3. Add focused Rust or CLI tests for parser/token facts, formatter output
    bytes, HTML/terminal output, and output-stage metadata.
-4. Update README command examples and SVG previews under `examples/previews/`
-   when visible output changes.
+4. Update README command examples and fenced source when visible output
+   changes; refresh SVG previews only for unfenceable fallback examples.
 5. Run the CEM-QL package verify target, which validates the package,
-   validates manifest-declared examples, and checks README SVG preview drift.
+   validates manifest-declared examples, and checks README source plus fallback
+   preview drift.
 
 Tracked but not complete:
 
@@ -369,14 +370,16 @@ The CEM-QL package is not complete until these gates pass:
   formatted HTML output;
 - CEMT formatter/colorizer assets consume the schema-facing CEM-QL token/report
   model rather than reparsing source bytes;
-- `yarn nx run cem_ml_schema_package_cem_ql_v1:verify` fails on README/SVG
-  drift, formatter/colorizer drift, and schema example drift.
+- `yarn nx run cem_ml_schema_package_cem_ql_v1:verify` fails on README source or
+  fallback-preview drift, formatter/colorizer drift, and schema example drift.
 
 ## Examples
 
 This section is generated from `package.cem` `{example}` metadata by the
-`samples2readme` Nx target. Each SVG previews the example content, not
-the validation report. The target writes a preformatted HTML preview to
+`samples2readme` Nx target. Text examples with a recognized language and
+valid UTF-8 are embedded directly as language-tagged fenced source.
+An SVG preview is used only when fenced source is unavailable. The target
+writes fallback preview HTML to
 `dist/cem_ml/schema-packages/<package>/v1/examples/<example-file>.html`,
 then renders the `<pre>` spans through headless Chromium into
 `examples/previews/<example-file>.svg`.
@@ -390,8 +393,7 @@ the package formatter/colorizer path for that content identity.
 - Content type: `application/vnd.cem.query+cem-ql`
 - Schema: `https://cem.dev/ns/query/cem-ql/1`
 - Expected result: `pass`
-- Preview renderer: `CLI convert, tabular formatter, preview HTML + html2svg`
-- Preview HTML: `dist/cem_ml/schema-packages/cem-ql/v1/examples/basic-query.cemql.html`
+- README rendering: fenced `cemql` source
 
 ```bash
 dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
@@ -403,7 +405,13 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
 
 </details>
 
-![Preview of CEM-QL Query Resource Schema Package basic-query example](examples/previews/basic-query.cemql.svg)
+```cemql
+module "https://example.test/queries/basic"
+
+declare let greeting = "Hello"
+
+greeting
+```
 
 <details>
 <summary>basic-expression</summary>
@@ -412,12 +420,13 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
 - Content type: `application/vnd.cem.query-expression+cem-ql`
 - Schema: `https://cem.dev/ns/query/cem-ql/1#expression`
 - Expected result: `pass`
-- Preview renderer: `source snapshot HTML + html2svg`
-- Preview HTML: `dist/cem_ml/schema-packages/cem-ql/v1/examples/basic-expression.cem-ql.html`
+- README rendering: fenced `cemql` source
 
 </details>
 
-![Preview of CEM-QL Query Resource Schema Package basic-expression example](examples/previews/basic-expression.cem-ql.svg)
+```cemql
+input.kind
+```
 
 <details>
 <summary>invalid-expression-parse</summary>
@@ -427,12 +436,14 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
 - Schema: `https://cem.dev/ns/query/cem-ql/1#expression`
 - Expected result: `fail`
 - Expected diagnostics: `cem.ql.parse_error`
-- Preview renderer: `source snapshot HTML + html2svg`
-- Preview HTML: `dist/cem_ml/schema-packages/cem-ql/v1/examples/invalid-expression-parse.cem-ql.html`
+- README rendering: fenced `cemql` source
 
 </details>
 
-![Preview of CEM-QL Query Resource Schema Package invalid-expression-parse example](examples/previews/invalid-expression-parse.cem-ql.svg)
+```cemql
+input.kind
+  +
+```
 
 <details>
 <summary>invalid-expression-type-error</summary>
@@ -442,12 +453,13 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
 - Schema: `https://cem.dev/ns/query/cem-ql/1#expression`
 - Expected result: `fail`
 - Expected diagnostics: `cem.ql.type_error`
-- Preview renderer: `source snapshot HTML + html2svg`
-- Preview HTML: `dist/cem_ml/schema-packages/cem-ql/v1/examples/invalid-expression-type-error.cem-ql.html`
+- README rendering: fenced `cemql` source
 
 </details>
 
-![Preview of CEM-QL Query Resource Schema Package invalid-expression-type-error example](examples/previews/invalid-expression-type-error.cem-ql.svg)
+```cemql
+if 1 { "bad" } else { "ok" }
+```
 
 <details>
 <summary>invalid-expression-data-binding</summary>
@@ -457,12 +469,13 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
 - Schema: `https://cem.dev/ns/query/cem-ql/1#expression`
 - Expected result: `fail`
 - Expected diagnostics: `cem.ql.data_binding_missing`
-- Preview renderer: `source snapshot HTML + html2svg`
-- Preview HTML: `dist/cem_ml/schema-packages/cem-ql/v1/examples/invalid-expression-data-binding.cem-ql.html`
+- README rendering: fenced `cemql` source
 
 </details>
 
-![Preview of CEM-QL Query Resource Schema Package invalid-expression-data-binding example](examples/previews/invalid-expression-data-binding.cem-ql.svg)
+```cemql
+missingBinding
+```
 
 <details>
 <summary>module-query</summary>
@@ -471,8 +484,7 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
 - Content type: `application/vnd.cem.query+cem-ql`
 - Schema: `https://cem.dev/ns/query/cem-ql/1`
 - Expected result: `pass`
-- Preview renderer: `CLI convert, tabular formatter, preview HTML + html2svg`
-- Preview HTML: `dist/cem_ml/schema-packages/cem-ql/v1/examples/module-query.cemql.html`
+- README rendering: fenced `cemql` source
 
 ```bash
 dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
@@ -484,7 +496,19 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
 
 </details>
 
-![Preview of CEM-QL Query Resource Schema Package module-query example](examples/previews/module-query.cemql.svg)
+```cemql
+module "https://example.test/queries/catalog"
+
+import "https://example.test/queries/shared" as shared
+
+declare let limit = 10
+
+declare function local:label(title as string) {
+    title
+}
+
+if true { local:label("ready") } else { "empty" }
+```
 
 <details>
 <summary>operators-and-control</summary>
@@ -493,8 +517,7 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
 - Content type: `application/vnd.cem.query+cem-ql`
 - Schema: `https://cem.dev/ns/query/cem-ql/1`
 - Expected result: `pass`
-- Preview renderer: `CLI convert, tabular formatter, preview HTML + html2svg`
-- Preview HTML: `dist/cem_ml/schema-packages/cem-ql/v1/examples/operators-and-control.cemql.html`
+- README rendering: fenced `cemql` source
 
 ```bash
 dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
@@ -506,7 +529,33 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
 
 </details>
 
-![Preview of CEM-QL Query Resource Schema Package operators-and-control example](examples/previews/operators-and-control.cemql.svg)
+```cemql
+module "https://example.test/queries/rust-first/operators-and-control"
+
+import "cem:stdlib/sequence" as seq
+import "cem:stdlib/numbers" as num
+
+declare let lhs = 8
+declare let rhs = 3
+
+{
+    let arithmetic = (lhs + rhs, lhs - rhs, lhs * rhs, lhs / rhs, lhs % rhs, -rhs);
+    let comparisons = (lhs == rhs, lhs != rhs, lhs > rhs, lhs >= rhs, rhs < lhs, rhs <= lhs);
+    let booleans = ((lhs > rhs) && true, false || (rhs == 3), !(lhs == rhs));
+    let type_checks = (lhs is integer, num:double(lhs) as double, treat_as("https://example.test" as anyURI, anyURI));
+    let sets = (
+        (1, 2) | (2, 3),
+        (1, 2, 3) & (2, 4),
+        (1, 2, 3) - (2, 4),
+        (1, 2, 3) ^ (2, 4)
+    );
+    if seq:count(sets) > 0 {
+        (arithmetic, comparisons, booleans, type_checks, sets)
+    } else {
+        ()
+    }
+}
+```
 
 <details>
 <summary>collections-and-pipelines</summary>
@@ -515,8 +564,7 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
 - Content type: `application/vnd.cem.query+cem-ql`
 - Schema: `https://cem.dev/ns/query/cem-ql/1`
 - Expected result: `pass`
-- Preview renderer: `CLI convert, tabular formatter, preview HTML + html2svg`
-- Preview HTML: `dist/cem_ml/schema-packages/cem-ql/v1/examples/collections-and-pipelines.cemql.html`
+- README rendering: fenced `cemql` source
 
 ```bash
 dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
@@ -528,7 +576,32 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
 
 </details>
 
-![Preview of CEM-QL Query Resource Schema Package collections-and-pipelines example](examples/previews/collections-and-pipelines.cemql.svg)
+```cemql
+module "https://example.test/queries/rust-first/collections-and-pipelines"
+
+declare let rows = (
+    { name: "Ada", tier: "required", score: 3 },
+    { name: "Lin", tier: "recommended", score: 2 },
+    { name: "Max", tier: "deprecated", score: 1 }
+)
+
+{
+    let active_rows = rows.where(fn(row) => row.tier != "deprecated");
+    let labels = active_rows.name;
+    let current_projection = (1, 2, 3).{. + 1};
+    let adjusted_scores = for row in active_rows { row.score + 1 };
+    let required_present = any(active_rows, fn(row) => row.tier == "required");
+    let scores_positive = all(active_rows, fn(row) => row.score > 0);
+    {
+        labels: labels,
+        current_projection: current_projection,
+        adjusted_scores: adjusted_scores,
+        required_present: required_present,
+        scores_positive: scores_positive,
+        first_label: labels.first()
+    }
+}
+```
 
 <details>
 <summary>stdlib-data-helpers</summary>
@@ -537,8 +610,7 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
 - Content type: `application/vnd.cem.query+cem-ql`
 - Schema: `https://cem.dev/ns/query/cem-ql/1`
 - Expected result: `pass`
-- Preview renderer: `CLI convert, tabular formatter, preview HTML + html2svg`
-- Preview HTML: `dist/cem_ml/schema-packages/cem-ql/v1/examples/stdlib-data-helpers.cemql.html`
+- README rendering: fenced `cemql` source
 
 ```bash
 dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
@@ -550,7 +622,67 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
 
 </details>
 
-![Preview of CEM-QL Query Resource Schema Package stdlib-data-helpers example](examples/previews/stdlib-data-helpers.cemql.svg)
+```cemql
+module "https://example.test/queries/rust-first/stdlib-data-helpers"
+
+import "cem:stdlib/sequence" as seq
+import "cem:stdlib/strings" as str
+import "cem:stdlib/numbers" as num
+import "cem:stdlib/datetime" as dt
+import "cem:stdlib/report" as report
+
+{
+    let sequence = (
+        seq:first((1, 2, 3)),
+        seq:last((1, 2, 3)),
+        seq:nth((1, 2, 3), 1),
+        seq:take((1, 2, 3), 2),
+        seq:drop((1, 2, 3), 1),
+        seq:count(seq:map((1, 2), fn(item) => item + 1)),
+        seq:count(seq:where((1, 2, 3), fn(item) => item > 1)),
+        seq:count(seq:flat_map((1, 2), fn(item) => (item, item + 10))),
+        seq:count(seq:peek((1, 2, 3), fn(item) => report:emit("cem.ql.peek", num:string(item), "info"))),
+        seq:count(seq:union((1, 2), (2, 3))),
+        seq:count(seq:intersect((1, 2, 3), (2, 4))),
+        seq:count(seq:difference((1, 2, 3), (2, 4))),
+        seq:count(seq:symmetric_difference((1, 2, 3), (2, 4)))
+    );
+    let strings = (
+        str:length("CEM"),
+        str:codepoints("AZ"),
+        str:lower("CEM"),
+        str:upper("cem"),
+        str:slice("semantic", 2, 3),
+        str:concat(("cem", "ql"), "-"),
+        str:contains("semantic", "man"),
+        str:starts_with("semantic", "sem"),
+        str:ends_with("semantic", "tic"),
+        str:normalize_space("  rust   first  "),
+        str:replace("token-[state]", "[state]", "hover"),
+        str:translate("Cem", "ABCDEFGHIJKLMNOPQRSTUVWXYZ", "abcdefghijklmnopqrstuvwxyz"),
+        str:substring("semantic", 3, 4),
+        str:substring_before("fa-github", "-"),
+        str:substring_after("fa-github", "-")
+    );
+    let numbers = (
+        num:double(1),
+        num:decimal(1),
+        num:integer(1.0e0),
+        num:string(12),
+        num:abs(-3),
+        num:floor(3.8),
+        num:ceil(3.2),
+        num:round(3.6),
+        num:format(12, "value={}")
+    );
+    let datetime = (
+        dt:to_utc("2026-05-23T01:02:03Z"),
+        dt:components("2026-05-23T01:02:03Z"),
+        dt:format("2026-05-23T01:02:03Z", "iso")
+    );
+    (sequence, strings, numbers, datetime, report:emit("cem.ql.example", "stdlib helpers parsed", "info"))
+}
+```
 
 <details>
 <summary>host-resource-helpers</summary>
@@ -559,8 +691,7 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
 - Content type: `application/vnd.cem.query+cem-ql`
 - Schema: `https://cem.dev/ns/query/cem-ql/1`
 - Expected result: `pass`
-- Preview renderer: `CLI convert, tabular formatter, preview HTML + html2svg`
-- Preview HTML: `dist/cem_ml/schema-packages/cem-ql/v1/examples/host-resource-helpers.cemql.html`
+- README rendering: fenced `cemql` source
 
 ```bash
 dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
@@ -572,7 +703,38 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
 
 </details>
 
-![Preview of CEM-QL Query Resource Schema Package host-resource-helpers example](examples/previews/host-resource-helpers.cemql.svg)
+```cemql
+module "https://example.test/queries/rust-first/host-resource-helpers"
+
+import "cem:stdlib/state" as state
+import "cem:stdlib/template" as tpl
+import "cem:stdlib/content-types" as ct
+import "cem:stdlib/cemml" as cemml
+
+{
+    let state_helpers = (state:keys(), state:read("theme"));
+    let template_helpers = (tpl:names(), tpl:lookup("button"));
+    let content_type_helpers = (
+        ct:html(),
+        ct:xml(),
+        ct:svg(),
+        ct:mathml(),
+        ct:css(),
+        ct:scss(),
+        ct:json(),
+        ct:yaml(),
+        ct:csv(),
+        ct:js(),
+        ct:ts(),
+        ct:cemml(),
+        ct:floor(),
+        ct:default_accepts()
+    );
+    let resource_read = read("file:///tmp/cem-ql-example.json", (ct:json()));
+    let cem_model = cemml:format(cemml:parse("{p | Example}"));
+    (state_helpers, template_helpers, content_type_helpers, resource_read, cem_model)
+}
+```
 
 <details>
 <summary>alias-content-type</summary>
@@ -581,8 +743,7 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
 - Content type: `text/cem-ql`
 - Schema: `https://cem.dev/ns/query/cem-ql/1`
 - Expected result: `pass`
-- Preview renderer: `CLI convert, tabular formatter, preview HTML + html2svg`
-- Preview HTML: `dist/cem_ml/schema-packages/cem-ql/v1/examples/alias-content-type.cemql.html`
+- README rendering: fenced `cemql` source
 
 ```bash
 dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
@@ -594,7 +755,13 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
 
 </details>
 
-![Preview of CEM-QL Query Resource Schema Package alias-content-type example](examples/previews/alias-content-type.cemql.svg)
+```cemql
+module "https://example.test/queries/alias-content-type"
+
+declare let label = "alias"
+
+label
+```
 
 <details>
 <summary>line-ending-lf</summary>
@@ -603,8 +770,7 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
 - Content type: `application/vnd.cem.query+cem-ql`
 - Schema: `https://cem.dev/ns/query/cem-ql/1`
 - Expected result: `pass`
-- Preview renderer: `CLI convert, tabular formatter, preview HTML + html2svg`
-- Preview HTML: `dist/cem_ml/schema-packages/cem-ql/v1/examples/line-ending-lf.cemql.html`
+- README rendering: fenced `cemql` source
 
 ```bash
 dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
@@ -616,7 +782,13 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
 
 </details>
 
-![Preview of CEM-QL Query Resource Schema Package line-ending-lf example](examples/previews/line-ending-lf.cemql.svg)
+```cemql
+module "https://example.test/queries/line-ending-lf"
+
+declare let label = "lf"
+
+label
+```
 
 <details>
 <summary>line-ending-crlf</summary>
@@ -625,8 +797,7 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
 - Content type: `application/vnd.cem.query+cem-ql`
 - Schema: `https://cem.dev/ns/query/cem-ql/1`
 - Expected result: `pass`
-- Preview renderer: `CLI convert, tabular formatter, preview HTML + html2svg`
-- Preview HTML: `dist/cem_ml/schema-packages/cem-ql/v1/examples/line-ending-crlf.cemql.html`
+- README rendering: fenced `cemql` source
 
 ```bash
 dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
@@ -638,7 +809,13 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
 
 </details>
 
-![Preview of CEM-QL Query Resource Schema Package line-ending-crlf example](examples/previews/line-ending-crlf.cemql.svg)
+```cemql
+module "https://example.test/queries/line-ending-crlf"
+
+declare let label = "crlf"
+
+label
+```
 
 <details>
 <summary>comments-and-whitespace</summary>
@@ -647,8 +824,7 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
 - Content type: `application/vnd.cem.query+cem-ql`
 - Schema: `https://cem.dev/ns/query/cem-ql/1`
 - Expected result: `pass`
-- Preview renderer: `CLI convert, tabular formatter, preview HTML + html2svg`
-- Preview HTML: `dist/cem_ml/schema-packages/cem-ql/v1/examples/comments-and-whitespace.cemql.html`
+- README rendering: fenced `cemql` source
 
 ```bash
 dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
@@ -660,7 +836,19 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
 
 </details>
 
-![Preview of CEM-QL Query Resource Schema Package comments-and-whitespace example](examples/previews/comments-and-whitespace.cemql.svg)
+```cemql
+module "https://example.test/queries/comments-and-whitespace"
+
+// Leading comment retained as a token.
+declare let greeting = "Hello"
+
+/* Block comment retained as a token. */
+if greeting == "Hello" {
+  greeting
+} else {
+  "fallback"
+}
+```
 
 <details>
 <summary>source-token-ranges</summary>
@@ -669,8 +857,7 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
 - Content type: `application/vnd.cem.query+cem-ql`
 - Schema: `https://cem.dev/ns/query/cem-ql/1`
 - Expected result: `pass`
-- Preview renderer: `CLI convert, tabular formatter, preview HTML + html2svg`
-- Preview HTML: `dist/cem_ml/schema-packages/cem-ql/v1/examples/source-token-ranges.cemql.html`
+- README rendering: fenced `cemql` source
 
 ```bash
 dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
@@ -682,7 +869,13 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
 
 </details>
 
-![Preview of CEM-QL Query Resource Schema Package source-token-ranges example](examples/previews/source-token-ranges.cemql.svg)
+```cemql
+module "https://example.test/queries/source-token-ranges"
+
+declare let label = "héllo"
+
+label
+```
 
 <details>
 <summary>compiled-artifact-identity</summary>
@@ -691,8 +884,7 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
 - Content type: `application/vnd.cem.query+cem-ql`
 - Schema: `https://cem.dev/ns/query/cem-ql/1`
 - Expected result: `pass`
-- Preview renderer: `CLI convert, tabular formatter, preview HTML + html2svg`
-- Preview HTML: `dist/cem_ml/schema-packages/cem-ql/v1/examples/compiled-artifact-identity.cemql.html`
+- README rendering: fenced `cemql` source
 
 ```bash
 dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
@@ -704,7 +896,16 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
 
 </details>
 
-![Preview of CEM-QL Query Resource Schema Package compiled-artifact-identity example](examples/previews/compiled-artifact-identity.cemql.svg)
+```cemql
+module "https://example.test/queries/compiled-artifact-identity"
+
+declare let label = "artifact identity"
+
+{
+    let parts = ("compiled", label);
+    str:concat(parts, "/")
+}
+```
 
 <details>
 <summary>invalid-parse</summary>
@@ -714,8 +915,7 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
 - Schema: `https://cem.dev/ns/query/cem-ql/1`
 - Expected result: `fail`
 - Expected diagnostics: `cem.ql.parse_error`
-- Preview renderer: `CLI convert, tabular formatter, preview HTML + html2svg`
-- Preview HTML: `dist/cem_ml/schema-packages/cem-ql/v1/examples/invalid-parse.cemql.html`
+- README rendering: fenced `cemql` source
 
 ```bash
 dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
@@ -727,7 +927,11 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
 
 </details>
 
-![Preview of CEM-QL Query Resource Schema Package invalid-parse example](examples/previews/invalid-parse.cemql.svg)
+```cemql
+module "https://example.test/queries/broken"
+
+declare let broken = 1 +
+```
 
 <details>
 <summary>invalid-missing-module</summary>
@@ -737,8 +941,7 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
 - Schema: `https://cem.dev/ns/query/cem-ql/1`
 - Expected result: `fail`
 - Expected diagnostics: `cem.ql.module_uri_missing`
-- Preview renderer: `CLI convert, tabular formatter, preview HTML + html2svg`
-- Preview HTML: `dist/cem_ml/schema-packages/cem-ql/v1/examples/invalid-missing-module.cemql.html`
+- README rendering: fenced `cemql` source
 
 ```bash
 dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
@@ -750,7 +953,11 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
 
 </details>
 
-![Preview of CEM-QL Query Resource Schema Package invalid-missing-module example](examples/previews/invalid-missing-module.cemql.svg)
+```cemql
+declare let greeting = "Hello"
+
+greeting
+```
 
 <details>
 <summary>invalid-old-syntax</summary>
@@ -760,8 +967,7 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
 - Schema: `https://cem.dev/ns/query/cem-ql/1`
 - Expected result: `fail`
 - Expected diagnostics: `cem.ql.use_rust_boolean_ops`
-- Preview renderer: `CLI convert, tabular formatter, preview HTML + html2svg`
-- Preview HTML: `dist/cem_ml/schema-packages/cem-ql/v1/examples/invalid-old-syntax.cemql.html`
+- README rendering: fenced `cemql` source
 
 ```bash
 dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
@@ -773,7 +979,11 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
 
 </details>
 
-![Preview of CEM-QL Query Resource Schema Package invalid-old-syntax example](examples/previews/invalid-old-syntax.cemql.svg)
+```cemql
+module "https://example.test/queries/rust-first/invalid-old-syntax"
+
+ready and enabled
+```
 
 <details>
 <summary>invalid-utf8</summary>
@@ -806,8 +1016,7 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
 - Schema: `https://cem.dev/ns/query/cem-ql/1`
 - Expected result: `fail`
 - Expected diagnostics: `cem.ql.import_alias_duplicate`
-- Preview renderer: `CLI convert, tabular formatter, preview HTML + html2svg`
-- Preview HTML: `dist/cem_ml/schema-packages/cem-ql/v1/examples/invalid-duplicate-import-alias.cemql.html`
+- README rendering: fenced `cemql` source
 
 ```bash
 dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
@@ -819,7 +1028,14 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
 
 </details>
 
-![Preview of CEM-QL Query Resource Schema Package invalid-duplicate-import-alias example](examples/previews/invalid-duplicate-import-alias.cemql.svg)
+```cemql
+module "https://example.test/queries/invalid-duplicate-import-alias"
+
+import "https://example.test/modules/ui-a" as ui
+import "https://example.test/modules/ui-b" as ui
+
+ui
+```
 
 <details>
 <summary>invalid-unresolved-import</summary>
@@ -829,8 +1045,7 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
 - Schema: `https://cem.dev/ns/query/cem-ql/1`
 - Expected result: `fail`
 - Expected diagnostics: `cem.ql.import_unresolved`
-- Preview renderer: `CLI convert, tabular formatter, preview HTML + html2svg`
-- Preview HTML: `dist/cem_ml/schema-packages/cem-ql/v1/examples/invalid-unresolved-import.cemql.html`
+- README rendering: fenced `cemql` source
 
 ```bash
 dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
@@ -842,7 +1057,13 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
 
 </details>
 
-![Preview of CEM-QL Query Resource Schema Package invalid-unresolved-import example](examples/previews/invalid-unresolved-import.cemql.svg)
+```cemql
+module "https://example.test/queries/invalid-unresolved-import"
+
+import "urn:cem:acme/missing" as missing
+
+"unreachable"
+```
 
 <details>
 <summary>invalid-type-error</summary>
@@ -852,8 +1073,7 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
 - Schema: `https://cem.dev/ns/query/cem-ql/1`
 - Expected result: `fail`
 - Expected diagnostics: `cem.ql.type_error`
-- Preview renderer: `CLI convert, tabular formatter, preview HTML + html2svg`
-- Preview HTML: `dist/cem_ml/schema-packages/cem-ql/v1/examples/invalid-type-error.cemql.html`
+- README rendering: fenced `cemql` source
 
 ```bash
 dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
@@ -865,7 +1085,13 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
 
 </details>
 
-![Preview of CEM-QL Query Resource Schema Package invalid-type-error example](examples/previews/invalid-type-error.cemql.svg)
+```cemql
+module "https://example.test/queries/invalid-type-error"
+
+declare let count = 1
+
+if count { "bad" } else { "ok" }
+```
 
 <details>
 <summary>invalid-duplicate-declaration</summary>
@@ -875,8 +1101,7 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
 - Schema: `https://cem.dev/ns/query/cem-ql/1`
 - Expected result: `fail`
 - Expected diagnostics: `cem.ql.declaration_duplicate`
-- Preview renderer: `CLI convert, tabular formatter, preview HTML + html2svg`
-- Preview HTML: `dist/cem_ml/schema-packages/cem-ql/v1/examples/invalid-duplicate-declaration.cemql.html`
+- README rendering: fenced `cemql` source
 
 ```bash
 dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
@@ -888,4 +1113,11 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
 
 </details>
 
-![Preview of CEM-QL Query Resource Schema Package invalid-duplicate-declaration example](examples/previews/invalid-duplicate-declaration.cemql.svg)
+```cemql
+module "https://example.test/queries/invalid-duplicate-declaration"
+
+declare let value = "first"
+declare function value() { "second" }
+
+value
+```

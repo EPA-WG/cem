@@ -99,7 +99,7 @@ attributes must be unique by expanded namespace URI plus local name.
   regressions that prove XML does not fall through to the CEM or HTML parser;
 - executable formatter/colorizer catalog and profile coverage across compact,
   pretty, tabular, terminal, HTML, and Markdown profiles;
-- package-local README/SVG generation drift checks with no source fallback.
+- package-local README source-fence generation checks with no SVG fallback.
 
 ## Release Behavior
 
@@ -125,12 +125,10 @@ the explicit route from generic XML to the CEM DOM projection schema.
 ## Examples
 
 This section is generated from `package.cem` `{example}` metadata by the
-`samples2readme` Nx target. Each SVG previews the rendered example
-content or validation diagnostics for expected-fail examples. The target writes a
-preformatted HTML preview to
-`dist/cem_ml/schema-packages/<package>/v1/examples/<example-file>.html`,
-then renders the `<pre>` spans through headless Chromium into
-`examples/previews/<example-file>.svg`.
+`samples2readme` Nx target. Text examples with a recognized language and
+valid UTF-8 are embedded directly as language-tagged fenced source.
+All declared examples in this package support source fences, so README SVG
+previews are not used.
 
 <details>
 <summary>basic-document</summary>
@@ -139,8 +137,7 @@ then renders the `<pre>` spans through headless Chromium into
 - Content type: `application/xml`
 - Schema: `https://cem.dev/ns/data/xml/1`
 - Expected result: `pass`
-- Preview renderer: `CLI convert, tabular formatter, preview HTML + html2svg`
-- Preview HTML: `dist/cem_ml/schema-packages/xml/v1/examples/basic-document.xml.html`
+- README rendering: fenced `xml` source
 
 ```bash
 dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
@@ -152,7 +149,13 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
 
 </details>
 
-![Preview of XML Resource Schema Package basic-document example](examples/previews/basic-document.xml.svg)
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<catalog>
+  <item id="a1">Alpha</item>
+  <item id="b2">Beta</item>
+</catalog>
+```
 
 <details>
 <summary>namespaced-document</summary>
@@ -161,8 +164,7 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
 - Content type: `text/xml; charset=utf-8`
 - Schema: `https://cem.dev/ns/data/xml/1`
 - Expected result: `pass`
-- Preview renderer: `CLI convert, tabular formatter, preview HTML + html2svg`
-- Preview HTML: `dist/cem_ml/schema-packages/xml/v1/examples/namespaced-document.xml.html`
+- README rendering: fenced `xml` source
 
 ```bash
 dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
@@ -174,7 +176,14 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
 
 </details>
 
-![Preview of XML Resource Schema Package namespaced-document example](examples/previews/namespaced-document.xml.svg)
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<doc xmlns="https://example.test/doc"
+     xmlns:meta="https://example.test/meta"
+     meta:version="1">
+  <section meta:id="intro">Hello</section>
+</doc>
+```
 
 <details>
 <summary>invalid-mismatched-tag</summary>
@@ -184,8 +193,7 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
 - Schema: `https://cem.dev/ns/data/xml/1`
 - Expected result: `fail`
 - Expected diagnostics: `cem.xml.parse_error`
-- Preview renderer: `CLI validate, JSON report, preview HTML + html2svg`
-- Preview HTML: `dist/cem_ml/schema-packages/xml/v1/examples/invalid-mismatched-tag.xml.html`
+- README rendering: fenced `xml` source
 
 ```bash
 dist/target/cem_ml_cli/debug/cem-ml validate --format json --fail-level parse \
@@ -195,7 +203,10 @@ dist/target/cem_ml_cli/debug/cem-ml validate --format json --fail-level parse \
 
 </details>
 
-![Preview of XML Resource Schema Package invalid-mismatched-tag example](examples/previews/invalid-mismatched-tag.xml.svg)
+```xml
+<root>
+  <item>Broken</root>
+```
 
 <details>
 <summary>invalid-unbound-prefix</summary>
@@ -205,8 +216,7 @@ dist/target/cem_ml_cli/debug/cem-ml validate --format json --fail-level parse \
 - Schema: `https://cem.dev/ns/data/xml/1`
 - Expected result: `fail`
 - Expected diagnostics: `cem.xml.unbound_namespace_prefix`
-- Preview renderer: `CLI validate, JSON report, preview HTML + html2svg`
-- Preview HTML: `dist/cem_ml/schema-packages/xml/v1/examples/invalid-unbound-prefix.xml.html`
+- README rendering: fenced `xml` source
 
 ```bash
 dist/target/cem_ml_cli/debug/cem-ml validate --format json --fail-level parse \
@@ -216,7 +226,11 @@ dist/target/cem_ml_cli/debug/cem-ml validate --format json --fail-level parse \
 
 </details>
 
-![Preview of XML Resource Schema Package invalid-unbound-prefix example](examples/previews/invalid-unbound-prefix.xml.svg)
+```xml
+<root>
+  <meta:item/>
+</root>
+```
 
 <details>
 <summary>invalid-doctype</summary>
@@ -226,8 +240,7 @@ dist/target/cem_ml_cli/debug/cem-ml validate --format json --fail-level parse \
 - Schema: `https://cem.dev/ns/data/xml/1`
 - Expected result: `fail`
 - Expected diagnostics: `cem.xml.dtd_rejected`
-- Preview renderer: `CLI validate, JSON report, preview HTML + html2svg`
-- Preview HTML: `dist/cem_ml/schema-packages/xml/v1/examples/invalid-doctype.xml.html`
+- README rendering: fenced `xml` source
 
 ```bash
 dist/target/cem_ml_cli/debug/cem-ml validate --format json --fail-level parse \
@@ -237,4 +250,7 @@ dist/target/cem_ml_cli/debug/cem-ml validate --format json --fail-level parse \
 
 </details>
 
-![Preview of XML Resource Schema Package invalid-doctype example](examples/previews/invalid-doctype.xml.svg)
+```xml
+<!DOCTYPE root SYSTEM "file:///etc/passwd">
+<root/>
+```

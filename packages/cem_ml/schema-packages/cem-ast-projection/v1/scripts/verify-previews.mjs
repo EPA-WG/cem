@@ -10,42 +10,11 @@ const packageRoot = join(workspaceRoot, 'packages/cem_ml/schema-packages/cem-ast
 const cli = join(workspaceRoot, 'dist/target/cem_ml_cli/debug/cem-ml');
 const update = process.argv.includes('--update');
 
-const commonArgs = ['validate', '--format', 'json'];
-const schemaArgs = ['--schema', 'https://cem.dev/ns/projection/ast/1'];
+const packageLabel = 'CEM AST Projection Schema Package';
 
 const cases = [
-    {
-        id: 'basic-ast-binary-validate',
-        preview: 'basic-ast-binary-validate.svg',
-        title: 'CEM AST binary validation command preview',
-        description:
-            'Terminal-style preview of the JSON validation report for the basic binary CEM AST projection example.',
-        terminalTitle: 'validate basic-ast.cem-bin',
-        renderer: 'json',
-        args: [
-            ...commonArgs,
-            '--content-type',
-            'application/vnd.cem.ast+cem-bin',
-            ...schemaArgs,
-            'packages/cem_ml/schema-packages/cem-ast-projection/v1/examples/basic-ast.cem-bin',
-        ],
-    },
-    {
-        id: 'basic-ast-json-validate',
-        preview: 'basic-ast-json-validate.svg',
-        title: 'CEM AST JSON validation command preview',
-        description:
-            'Terminal-style preview of the JSON validation report for the basic CEM AST JSON debug view example.',
-        terminalTitle: 'validate basic-ast.ast.json',
-        renderer: 'json',
-        args: [
-            ...commonArgs,
-            '--content-type',
-            'application/vnd.cem.ast+json',
-            ...schemaArgs,
-            'packages/cem_ml/schema-packages/cem-ast-projection/v1/examples/basic-ast.ast.json',
-        ],
-    },
+    sourceFallbackCase('basic-ast', 'basic-ast.cem-bin'),
+    sourceFallbackCase('invalid-binary', 'invalid-binary.cem-bin'),
 ];
 
 await verifyReadmePreviews({
@@ -54,7 +23,22 @@ await verifyReadmePreviews({
     cli,
     update,
     cases,
-    packageLabel: 'CEM AST projection',
+    packageLabel,
     refreshCommand:
         'node packages/cem_ml/schema-packages/cem-ast-projection/v1/scripts/verify-previews.mjs --update',
 });
+
+function sourceFallbackCase(id, file) {
+    return {
+        id: `${id}-preview`,
+        preview: `${file}.svg`,
+        html: `${file}.html`,
+        title: `${packageLabel} ${id} example preview`,
+        description: `Preview of examples/${file} from package.cem example metadata.`,
+        terminalTitle: `source ${file}`,
+        renderer: 'text',
+        sourcePath: `packages/cem_ml/schema-packages/cem-ast-projection/v1/examples/${file}`,
+        width: 920,
+        minHeight: 190,
+    };
+}

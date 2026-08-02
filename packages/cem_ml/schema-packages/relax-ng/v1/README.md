@@ -91,8 +91,8 @@ encodings are diagnosed rather than transcoded.
 - typed lifecycle load/export and exact same-schema engine/CLI conversion tests;
 - executable package artifact and formatter/colorizer profile coverage across
   both syntax kinds;
-- schema-owned CLI validation for every declared example and README/SVG preview
-  drift checks with no source fallback.
+- schema-owned CLI validation for every declared example and exact README
+  source-fence drift checks with no SVG fallback.
 
 ## Release Behavior
 
@@ -117,12 +117,10 @@ cross-schema conversion requires an explicit registered converter.
 ## Examples
 
 This section is generated from `package.cem` `{example}` metadata by the
-`samples2readme` Nx target. Each SVG previews the rendered example
-content or validation diagnostics for expected-fail examples. The target writes a
-preformatted HTML preview to
-`dist/cem_ml/schema-packages/<package>/v1/examples/<example-file>.html`,
-then renders the `<pre>` spans through headless Chromium into
-`examples/previews/<example-file>.svg`.
+`samples2readme` Nx target. Text examples with a recognized language and
+valid UTF-8 are embedded directly as language-tagged fenced source.
+All declared examples in this package support source fences, so README SVG
+previews are not used.
 
 <details>
 <summary>basic-schema-xml</summary>
@@ -131,8 +129,7 @@ then renders the `<pre>` spans through headless Chromium into
 - Content type: `application/relax-ng+xml`
 - Schema: `https://cem.dev/ns/data/relax-ng/1`
 - Expected result: `pass`
-- Preview renderer: `CLI convert, tabular formatter, preview HTML + html2svg`
-- Preview HTML: `dist/cem_ml/schema-packages/relax-ng/v1/examples/basic-schema.rng.html`
+- README rendering: fenced `xml` source
 
 ```bash
 dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
@@ -144,7 +141,21 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
 
 </details>
 
-![Preview of RELAX NG Schema Package basic-schema-xml example](examples/previews/basic-schema.rng.svg)
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<grammar xmlns="http://relaxng.org/ns/structure/1.0">
+  <start>
+    <element name="note">
+      <element name="title">
+        <text/>
+      </element>
+      <element name="body">
+        <text/>
+      </element>
+    </element>
+  </start>
+</grammar>
+```
 
 <details>
 <summary>datatype-schema</summary>
@@ -153,8 +164,7 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
 - Content type: `application/relax-ng+xml`
 - Schema: `https://cem.dev/ns/data/relax-ng/1`
 - Expected result: `pass`
-- Preview renderer: `CLI convert, tabular formatter, preview HTML + html2svg`
-- Preview HTML: `dist/cem_ml/schema-packages/relax-ng/v1/examples/datatype-schema.rng.html`
+- README rendering: fenced `xml` source
 
 ```bash
 dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
@@ -166,7 +176,22 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
 
 </details>
 
-![Preview of RELAX NG Schema Package datatype-schema example](examples/previews/datatype-schema.rng.svg)
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<grammar xmlns="http://relaxng.org/ns/structure/1.0"
+         datatypeLibrary="http://www.w3.org/2001/XMLSchema-datatypes">
+  <start>
+    <element name="invoice">
+      <attribute name="id">
+        <data type="NCName"/>
+      </attribute>
+      <element name="total">
+        <data type="decimal"/>
+      </element>
+    </element>
+  </start>
+</grammar>
+```
 
 <details>
 <summary>basic-schema-compact</summary>
@@ -175,8 +200,7 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
 - Content type: `application/relax-ng-compact-syntax`
 - Schema: `https://cem.dev/ns/data/relax-ng/1`
 - Expected result: `pass`
-- Preview renderer: `CLI convert, tabular formatter, preview HTML + html2svg`
-- Preview HTML: `dist/cem_ml/schema-packages/relax-ng/v1/examples/basic-schema.rnc.html`
+- README rendering: fenced `rnc` source
 
 ```bash
 dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
@@ -188,7 +212,15 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
 
 </details>
 
-![Preview of RELAX NG Schema Package basic-schema-compact example](examples/previews/basic-schema.rnc.svg)
+```rnc
+default namespace = ""
+
+start =
+  element note {
+    element title { text },
+    element body { text }
+  }
+```
 
 <details>
 <summary>invalid-missing-start</summary>
@@ -198,8 +230,7 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
 - Schema: `https://cem.dev/ns/data/relax-ng/1`
 - Expected result: `fail`
 - Expected diagnostics: `cem.relax_ng.missing_start`
-- Preview renderer: `CLI validate, JSON report, preview HTML + html2svg`
-- Preview HTML: `dist/cem_ml/schema-packages/relax-ng/v1/examples/invalid-missing-start.rng.html`
+- README rendering: fenced `xml` source
 
 ```bash
 dist/target/cem_ml_cli/debug/cem-ml validate --format json --fail-level parse \
@@ -209,7 +240,16 @@ dist/target/cem_ml_cli/debug/cem-ml validate --format json --fail-level parse \
 
 </details>
 
-![Preview of RELAX NG Schema Package invalid-missing-start example](examples/previews/invalid-missing-start.rng.svg)
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<grammar xmlns="http://relaxng.org/ns/structure/1.0">
+  <define name="note">
+    <element name="note">
+      <text/>
+    </element>
+  </define>
+</grammar>
+```
 
 <details>
 <summary>invalid-unknown-element</summary>
@@ -219,8 +259,7 @@ dist/target/cem_ml_cli/debug/cem-ml validate --format json --fail-level parse \
 - Schema: `https://cem.dev/ns/data/relax-ng/1`
 - Expected result: `fail`
 - Expected diagnostics: `cem.relax_ng.unknown_element`
-- Preview renderer: `CLI validate, JSON report, preview HTML + html2svg`
-- Preview HTML: `dist/cem_ml/schema-packages/relax-ng/v1/examples/invalid-unknown-element.rng.html`
+- README rendering: fenced `xml` source
 
 ```bash
 dist/target/cem_ml_cli/debug/cem-ml validate --format json --fail-level parse \
@@ -230,7 +269,16 @@ dist/target/cem_ml_cli/debug/cem-ml validate --format json --fail-level parse \
 
 </details>
 
-![Preview of RELAX NG Schema Package invalid-unknown-element example](examples/previews/invalid-unknown-element.rng.svg)
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<grammar xmlns="http://relaxng.org/ns/structure/1.0">
+  <start>
+    <element name="note">
+      <unknown/>
+    </element>
+  </start>
+</grammar>
+```
 
 <details>
 <summary>invalid-unclosed-compact</summary>
@@ -240,8 +288,7 @@ dist/target/cem_ml_cli/debug/cem-ml validate --format json --fail-level parse \
 - Schema: `https://cem.dev/ns/data/relax-ng/1`
 - Expected result: `fail`
 - Expected diagnostics: `cem.relax_ng.compact_parse_error`
-- Preview renderer: `CLI validate, JSON report, preview HTML + html2svg`
-- Preview HTML: `dist/cem_ml/schema-packages/relax-ng/v1/examples/invalid-unclosed-compact.rnc.html`
+- README rendering: fenced `rnc` source
 
 ```bash
 dist/target/cem_ml_cli/debug/cem-ml validate --format json --fail-level parse \
@@ -252,4 +299,9 @@ dist/target/cem_ml_cli/debug/cem-ml validate --format json --fail-level parse \
 
 </details>
 
-![Preview of RELAX NG Schema Package invalid-unclosed-compact example](examples/previews/invalid-unclosed-compact.rnc.svg)
+```rnc
+start =
+  element note {
+    element title { text },
+    element body { text }
+```

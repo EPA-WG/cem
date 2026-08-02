@@ -15555,19 +15555,45 @@ mod tests {
     }
 
     #[test]
-    fn convert_mathml_same_schema_preserves_all_media_profiles_and_final_newline() {
-        for (content_type, mathml) in [
+    fn convert_mathml_same_schema_formats_all_media_profiles_and_final_newline() {
+        for (content_type, mathml, expected) in [
             (
                 MATHML_CONTENT_TYPE,
                 br#"<?xml version="1.0"?><math xmlns="http://www.w3.org/1998/Math/MathML"><mi>x</mi></math>"#.as_slice(),
+                br#"<?xml version="1.0"?>
+<math
+    xmlns="http://www.w3.org/1998/Math/MathML">
+    <mi>x</mi>
+</math>
+"#
+                .as_slice(),
             ),
             (
                 crate::validation::mathml::MATHML_PRESENTATION_CONTENT_TYPE,
                 br#"<?xml version="1.0"?><math xmlns="http://www.w3.org/1998/Math/MathML"><mrow><mi>x</mi></mrow></math>"#.as_slice(),
+                br#"<?xml version="1.0"?>
+<math
+    xmlns="http://www.w3.org/1998/Math/MathML">
+    <mrow>
+        <mi>x</mi>
+    </mrow>
+</math>
+"#
+                .as_slice(),
             ),
             (
                 crate::validation::mathml::MATHML_CONTENT_CONTENT_TYPE,
                 br#"<?xml version="1.0"?><math xmlns="http://www.w3.org/1998/Math/MathML"><apply><plus/><ci>x</ci></apply></math>"#.as_slice(),
+                br#"<?xml version="1.0"?>
+<math
+    xmlns="http://www.w3.org/1998/Math/MathML">
+    <apply>
+        <plus/>
+        <ci>x</ci>
+    </apply>
+</math>
+"#
+                .as_slice(),
             ),
         ] {
             let mut source = input(mathml, "document.mml");
@@ -15611,8 +15637,6 @@ mod tests {
             let primary_bytes = resp.primary_bytes.as_ref().expect("MathML primary bytes");
             assert_eq!(primary_bytes.content_type, content_type);
             assert_eq!(primary_bytes.schema.as_deref(), Some(MATHML_SCHEMA_URI));
-            let mut expected = mathml.to_vec();
-            expected.push(b'\n');
             assert_eq!(primary_bytes.bytes, expected);
             assert_eq!(resp.primary["kind"], "document");
             assert_eq!(resp.primary["contentType"], content_type);

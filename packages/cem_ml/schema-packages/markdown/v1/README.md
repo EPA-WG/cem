@@ -52,7 +52,7 @@ The package-local `cem_ml_schema_package_markdown_v1:verify` target checks:
 - Markdown source validation behavior for valid CommonMark, missing charset,
   unknown variant, embedded HTML rejection, and unsupported UTF-8;
 - CLI validation behavior for the same Markdown source cases;
-- README embedded HTML snippet drift for rendered Markdown examples, plus
+- exact language-tagged Markdown source-fence drift for every example, plus
   absence of Markdown README preview SVG artifacts.
 
 ## Release Behavior
@@ -73,16 +73,16 @@ Markdown documents can also export to `text/html` through the typed Markdown
 AST stream. The current HTML export covers common block and inline Markdown and
 supports fenced `cem-ml svg` blocks as trusted package examples: the fenced
 CEM-ML is parsed and rendered as inline SVG markup before the generated HTML is
-written as the README preview snippet.
+written as conversion output. The package README still quotes the original
+Markdown source rather than substituting rendered HTML or an SVG snapshot.
 
 ## Examples
 
 This section is generated from `package.cem` `{example}` metadata by the
-`samples2readme` Nx target. Passing Markdown examples are converted by the
-CLI to browser HTML and written to
-`dist/cem_ml/schema-packages/markdown/v1/examples/<example-name>.md.html`.
-The README embeds that generated file content directly as a fenced `html`
-snippet. README preview SVGs are not generated for this package.
+`samples2readme` Nx target. Text examples with a recognized language and
+valid UTF-8 are embedded directly as language-tagged fenced source.
+All declared examples in this package support source fences, so README SVG
+previews are not used.
 
 <details>
 <summary>basic-document</summary>
@@ -91,27 +91,25 @@ snippet. README preview SVGs are not generated for this package.
 - Content type: `text/markdown; charset=utf-8; variant=CommonMark`
 - Schema: `https://cem.dev/ns/data/markdown/1`
 - Expected result: `pass`
-- Preview renderer: `CLI convert, Markdown AST to HTML, README html snippet`
-- HTML output: `dist/cem_ml/schema-packages/markdown/v1/examples/basic-document.md.html`
+- README rendering: fenced `markdown` source
 
 ```bash
 dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
   'uri=packages/cem_ml/schema-packages/markdown/v1/examples/basic-document.md,contentType=text/markdown; charset=utf-8; variant=CommonMark,schema=https://cem.dev/ns/data/markdown/1' \
-  --to-content-type text/html --to-schema https://cem.dev/ns/data/html/1 \
-  --cemt-formatter-profile tabular --cemt-color-profile none --out \
-  dist/cem_ml/schema-packages/markdown/v1/examples/basic-document.md.html
+  --to-content-type text/markdown --to-schema https://cem.dev/ns/data/markdown/1 \
+  --cemt-formatter-profile tabular --cemt-color-profile html
 ```
 
 </details>
 
-```html
-<h1>CEM Markdown Example</h1>
-<p>This document has <strong>strong</strong> text, <em>emphasis</em>, and a link to
-<a href="https://cem.dev/">cem.dev</a>.</p>
-<ul>
-<li>Preserve source identity.</li>
-<li>Keep parser diagnostics schema-owned.</li>
-</ul>
+```markdown
+# CEM Markdown Example
+
+This document has **strong** text, _emphasis_, and a link to
+[cem.dev](https://cem.dev/).
+
+- Preserve source identity.
+- Keep parser diagnostics schema-owned.
 ```
 
 <details>
@@ -121,46 +119,29 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
 - Content type: `text/markdown; charset=utf-8; variant=GFM`
 - Schema: `https://cem.dev/ns/data/markdown/1`
 - Expected result: `pass`
-- Preview renderer: `CLI convert, Markdown AST to HTML, README html snippet`
-- HTML output: `dist/cem_ml/schema-packages/markdown/v1/examples/gfm-worklog.md.html`
+- README rendering: fenced `markdown` source
 
 ```bash
 dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
   'uri=packages/cem_ml/schema-packages/markdown/v1/examples/gfm-worklog.md,contentType=text/markdown; charset=utf-8; variant=GFM,schema=https://cem.dev/ns/data/markdown/1' \
-  --to-content-type text/html --to-schema https://cem.dev/ns/data/html/1 \
-  --cemt-formatter-profile tabular --cemt-color-profile none --out \
-  dist/cem_ml/schema-packages/markdown/v1/examples/gfm-worklog.md.html
+  --to-content-type text/markdown --to-schema https://cem.dev/ns/data/markdown/1 \
+  --cemt-formatter-profile tabular --cemt-color-profile html
 ```
 
 </details>
 
-```html
-<h1>Worklog</h1>
-<table>
-<thead>
-<tr>
-<th>Task</th>
-<th>Status</th>
-</tr>
-</thead>
-<tr>
-<td>Schema validation</td>
-<td>Done</td>
-</tr>
-<tr>
-<td>Markdown examples</td>
-<td>In review</td>
-</tr>
-</table>
-<ul>
-<li>
-<input type="checkbox" disabled checked> Add parser-backed validation.</li>
-<li>
-<input type="checkbox" disabled> Connect converter profiles.</li>
-</ul>
-<blockquote>
-<p>Keep embedded HTML behind an explicit policy.</p>
-</blockquote>
+```markdown
+# Worklog
+
+| Task | Status |
+| --- | --- |
+| Schema validation | Done |
+| Markdown examples | In review |
+
+- [x] Add parser-backed validation.
+- [ ] Connect converter profiles.
+
+> Keep embedded HTML behind an explicit policy.
 ```
 
 <details>
@@ -170,32 +151,36 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
 - Content type: `text/markdown; charset=utf-8; variant=CommonMark`
 - Schema: `https://cem.dev/ns/data/markdown/1`
 - Expected result: `pass`
-- Preview renderer: `CLI convert, Markdown AST to HTML, README html snippet`
-- HTML output: `dist/cem_ml/schema-packages/markdown/v1/examples/markdown1.md.html`
+- README rendering: fenced `markdown` source
 
 ```bash
 dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
   'uri=packages/cem_ml/schema-packages/markdown/v1/examples/markdown1.md,contentType=text/markdown; charset=utf-8; variant=CommonMark,schema=https://cem.dev/ns/data/markdown/1' \
-  --to-content-type text/html --to-schema https://cem.dev/ns/data/html/1 \
-  --cemt-formatter-profile tabular --cemt-color-profile none --out \
-  dist/cem_ml/schema-packages/markdown/v1/examples/markdown1.md.html
+  --to-content-type text/markdown --to-schema https://cem.dev/ns/data/markdown/1 \
+  --cemt-formatter-profile tabular --cemt-color-profile html
 ```
 
 </details>
 
-```html
-<h1>Browser Markdown</h1>
-<p>Markdown defines content that is normally expressed in the browser as HTML.</p>
-<p>The next block embeds an SVG authored as CEM-ML and exports it as inline HTML
-SVG markup.</p>
-<svg viewBox="0 0 160 80" xmlns="http://www.w3.org/2000/svg">
-<title>CEM-ML inline SVG</title>
-<path d="M20 40h120M80 14v52M48 24l32 16-32 16">
-</path>
-</svg>
-<p>The generated HTML keeps the SVG inline, so a browser can render it without a
-separate image file.</p>
+````markdown
+# Browser Markdown
+
+Markdown defines content that is normally expressed in the browser as HTML.
+
+The next block embeds an SVG authored as CEM-ML and exports it as inline HTML
+SVG markup.
+
+```cem-ml svg
+@doc cem-ml 1
+{svg @xmlns="http://www.w3.org/2000/svg" @viewBox="0 0 160 80" |
+    {title | CEM-ML inline SVG}
+    {path @d="M20 40h120M80 14v52M48 24l32 16-32 16"}
+}
 ```
+
+The generated HTML keeps the SVG inline, so a browser can render it without a
+separate image file.
+````
 
 <details>
 <summary>invalid-embedded-html</summary>
@@ -205,8 +190,7 @@ separate image file.</p>
 - Schema: `https://cem.dev/ns/data/markdown/1`
 - Expected result: `fail`
 - Expected diagnostics: `cem.markdown.embedded_html_rejected`
-- Preview renderer: `CLI validate; no HTML preview for expected-fail example`
-- HTML output: not generated for expected-fail examples
+- README rendering: fenced `markdown` source
 
 ```bash
 dist/target/cem_ml_cli/debug/cem-ml validate --format json --fail-level parse \
@@ -217,6 +201,12 @@ dist/target/cem_ml_cli/debug/cem-ml validate --format json --fail-level parse \
 
 </details>
 
+```markdown
+# Unsafe Markdown
+
+<script>alert('x')</script>
+```
+
 <details>
 <summary>unknown-variant</summary>
 
@@ -225,21 +215,20 @@ dist/target/cem_ml_cli/debug/cem-ml validate --format json --fail-level parse \
 - Schema: `https://cem.dev/ns/data/markdown/1`
 - Expected result: `pass`
 - Expected diagnostics: `cem.markdown.unknown_variant`
-- Preview renderer: `CLI convert, Markdown AST to HTML, README html snippet`
-- HTML output: `dist/cem_ml/schema-packages/markdown/v1/examples/unknown-variant.md.html`
+- README rendering: fenced `markdown` source
 
 ```bash
 dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
   'uri=packages/cem_ml/schema-packages/markdown/v1/examples/unknown-variant.md,contentType=text/markdown; charset=utf-8; variant=CustomWiki,schema=https://cem.dev/ns/data/markdown/1' \
-  --to-content-type text/html --to-schema https://cem.dev/ns/data/html/1 \
-  --cemt-formatter-profile tabular --cemt-color-profile none --out \
-  dist/cem_ml/schema-packages/markdown/v1/examples/unknown-variant.md.html
+  --to-content-type text/markdown --to-schema https://cem.dev/ns/data/markdown/1 \
+  --cemt-formatter-profile tabular --cemt-color-profile html
 ```
 
 </details>
 
-```html
-<h1>Custom Variant</h1>
-<p>This content is valid Markdown, but its content type declares an unregistered
-variant parameter in the validation example.</p>
+```markdown
+# Custom Variant
+
+This content is valid Markdown, but its content type declares an unregistered
+variant parameter in the validation example.
 ```

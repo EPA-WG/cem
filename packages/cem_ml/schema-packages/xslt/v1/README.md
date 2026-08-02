@@ -86,7 +86,7 @@ yarn nx run cem_ml:test:cli-schema-artifacts
 The package verify target covers typed parsing and schema facts, standard and
 legacy lifecycle ownership, both standard media types, same-schema output,
 formatter/colorizer execution, CLI behavior, parity compatibility, schema-owned
-examples, and preview drift.
+examples, and README source-fence generation drift.
 
 ## Release Behavior
 
@@ -107,12 +107,10 @@ execution is intentionally excluded rather than deferred.
 ## Examples
 
 This section is generated from `package.cem` `{example}` metadata by the
-`samples2readme` Nx target. Each SVG previews the rendered example
-content or validation diagnostics for expected-fail examples. The target writes a
-preformatted HTML preview to
-`dist/cem_ml/schema-packages/<package>/v1/examples/<example-file>.html`,
-then renders the `<pre>` spans through headless Chromium into
-`examples/previews/<example-file>.svg`.
+`samples2readme` Nx target. Text examples with a recognized language and
+valid UTF-8 are embedded directly as language-tagged fenced source.
+All declared examples in this package support source fences, so README SVG
+previews are not used.
 
 <details>
 <summary>basic-stylesheet</summary>
@@ -121,8 +119,7 @@ then renders the `<pre>` spans through headless Chromium into
 - Content type: `application/xslt+xml`
 - Schema: `https://cem.dev/ns/transform/xslt/1`
 - Expected result: `pass`
-- Preview renderer: `CLI convert, tabular formatter, preview HTML + html2svg`
-- Preview HTML: `dist/cem_ml/schema-packages/xslt/v1/examples/basic-stylesheet.xsl.html`
+- README rendering: fenced `xml` source
 
 ```bash
 dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
@@ -133,7 +130,16 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
 
 </details>
 
-![Preview of XSLT Schema Package v1 basic-stylesheet example](examples/previews/basic-stylesheet.xsl.svg)
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<xsl:stylesheet xmlns:xsl="http://www.w3.org/1999/XSL/Transform" version="1.0">
+  <xsl:template match="/">
+    <main>
+      <h1>Sign in</h1>
+    </main>
+  </xsl:template>
+</xsl:stylesheet>
+```
 
 <details>
 <summary>named-template</summary>
@@ -142,8 +148,7 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
 - Content type: `text/xsl`
 - Schema: `https://cem.dev/ns/transform/xslt/1`
 - Expected result: `pass`
-- Preview renderer: `CLI convert, tabular formatter, preview HTML + html2svg`
-- Preview HTML: `dist/cem_ml/schema-packages/xslt/v1/examples/named-template.xslt.html`
+- README rendering: fenced `xml` source
 
 ```bash
 dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
@@ -154,7 +159,19 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
 
 </details>
 
-![Preview of XSLT Schema Package v1 named-template example](examples/previews/named-template.xslt.svg)
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<xsl:stylesheet xmlns:xsl="http://www.w3.org/1999/XSL/Transform" version="1.0">
+  <xsl:template match="/">
+    <section>default</section>
+  </xsl:template>
+  <xsl:template name="profile">
+    <section class="profile">
+      <p><xsl:value-of select="$label"/></p>
+    </section>
+  </xsl:template>
+</xsl:stylesheet>
+```
 
 <details>
 <summary>legacy-custom-element-stylesheet</summary>
@@ -163,8 +180,7 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
 - Content type: `custom-element-xslt`
 - Schema: `https://cem.dev/ns/transform/xslt/1`
 - Expected result: `pass`
-- Preview renderer: `CLI convert, tabular formatter, preview HTML + html2svg`
-- Preview HTML: `dist/cem_ml/schema-packages/xslt/v1/examples/legacy-custom-element-stylesheet.xsl.html`
+- README rendering: fenced `xml` source
 
 ```bash
 dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
@@ -176,7 +192,18 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
 
 </details>
 
-![Preview of XSLT Schema Package v1 legacy-custom-element-stylesheet example](examples/previews/legacy-custom-element-stylesheet.xsl.svg)
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<xsl:stylesheet xmlns:xsl="http://www.w3.org/1999/XSL/Transform" version="1.0">
+  <xsl:template match="/">
+    <article>
+      <xsl:if test="$ready">
+        <button>Continue</button>
+      </xsl:if>
+    </article>
+  </xsl:template>
+</xsl:stylesheet>
+```
 
 <details>
 <summary>legacy-custom-element-fragment</summary>
@@ -185,8 +212,7 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
 - Content type: `custom-element-xslt`
 - Schema: `https://cem.dev/ns/transform/xslt/1`
 - Expected result: `pass`
-- Preview renderer: `CLI convert, tabular formatter, preview HTML + html2svg`
-- Preview HTML: `dist/cem_ml/schema-packages/xslt/v1/examples/legacy-custom-element-fragment.html.html`
+- README rendering: fenced `html` source
 
 ```bash
 dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
@@ -198,7 +224,11 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
 
 </details>
 
-![Preview of XSLT Schema Package v1 legacy-custom-element-fragment example](examples/previews/legacy-custom-element-fragment.html.svg)
+```html
+<article>
+  <button>Continue</button>
+</article>
+```
 
 <details>
 <summary>unsupported-extension-warning</summary>
@@ -208,8 +238,7 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
 - Schema: `https://cem.dev/ns/transform/xslt/1`
 - Expected result: `pass`
 - Expected diagnostics: `legacy_xslt.unsupported_construct`
-- Preview renderer: `CLI convert, tabular formatter, preview HTML + html2svg`
-- Preview HTML: `dist/cem_ml/schema-packages/xslt/v1/examples/unsupported-extension-warning.xsl.html`
+- README rendering: fenced `xml` source
 
 ```bash
 dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
@@ -220,7 +249,17 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
 
 </details>
 
-![Preview of XSLT Schema Package v1 unsupported-extension-warning example](examples/previews/unsupported-extension-warning.xsl.svg)
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<xsl:stylesheet
+  xmlns:xsl="http://www.w3.org/1999/XSL/Transform"
+  xmlns:msxsl="urn:schemas-microsoft-com:xslt"
+  version="1.0">
+  <xsl:template match="/">
+    <msxsl:script language="JScript">function run(){return 1;}</msxsl:script>
+  </xsl:template>
+</xsl:stylesheet>
+```
 
 <details>
 <summary>invalid-missing-namespace</summary>
@@ -230,8 +269,7 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
 - Schema: `https://cem.dev/ns/transform/xslt/1`
 - Expected result: `fail`
 - Expected diagnostics: `cem.xslt.namespace_missing`
-- Preview renderer: `CLI validate, JSON report, preview HTML + html2svg`
-- Preview HTML: `dist/cem_ml/schema-packages/xslt/v1/examples/invalid-missing-namespace.xsl.html`
+- README rendering: fenced `xml` source
 
 ```bash
 dist/target/cem_ml_cli/debug/cem-ml validate --format json --fail-level parse \
@@ -241,7 +279,14 @@ dist/target/cem_ml_cli/debug/cem-ml validate --format json --fail-level parse \
 
 </details>
 
-![Preview of XSLT Schema Package v1 invalid-missing-namespace example](examples/previews/invalid-missing-namespace.xsl.svg)
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<stylesheet version="1.0">
+  <template match="/">
+    <main/>
+  </template>
+</stylesheet>
+```
 
 <details>
 <summary>invalid-missing-version</summary>
@@ -251,8 +296,7 @@ dist/target/cem_ml_cli/debug/cem-ml validate --format json --fail-level parse \
 - Schema: `https://cem.dev/ns/transform/xslt/1`
 - Expected result: `fail`
 - Expected diagnostics: `cem.xslt.version_missing`
-- Preview renderer: `CLI validate, JSON report, preview HTML + html2svg`
-- Preview HTML: `dist/cem_ml/schema-packages/xslt/v1/examples/invalid-missing-version.xsl.html`
+- README rendering: fenced `xml` source
 
 ```bash
 dist/target/cem_ml_cli/debug/cem-ml validate --format json --fail-level parse \
@@ -262,7 +306,14 @@ dist/target/cem_ml_cli/debug/cem-ml validate --format json --fail-level parse \
 
 </details>
 
-![Preview of XSLT Schema Package v1 invalid-missing-version example](examples/previews/invalid-missing-version.xsl.svg)
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<xsl:stylesheet xmlns:xsl="http://www.w3.org/1999/XSL/Transform">
+  <xsl:template match="/">
+    <main/>
+  </xsl:template>
+</xsl:stylesheet>
+```
 
 <details>
 <summary>invalid-external-include</summary>
@@ -272,8 +323,7 @@ dist/target/cem_ml_cli/debug/cem-ml validate --format json --fail-level parse \
 - Schema: `https://cem.dev/ns/transform/xslt/1`
 - Expected result: `fail`
 - Expected diagnostics: `cem.xslt.external_uri_rejected`
-- Preview renderer: `CLI validate, JSON report, preview HTML + html2svg`
-- Preview HTML: `dist/cem_ml/schema-packages/xslt/v1/examples/invalid-external-include.xsl.html`
+- README rendering: fenced `xml` source
 
 ```bash
 dist/target/cem_ml_cli/debug/cem-ml validate --format json --fail-level parse \
@@ -283,7 +333,15 @@ dist/target/cem_ml_cli/debug/cem-ml validate --format json --fail-level parse \
 
 </details>
 
-![Preview of XSLT Schema Package v1 invalid-external-include example](examples/previews/invalid-external-include.xsl.svg)
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<xsl:stylesheet xmlns:xsl="http://www.w3.org/1999/XSL/Transform" version="1.0">
+  <xsl:include href="shared/base.xsl"/>
+  <xsl:template match="/">
+    <main/>
+  </xsl:template>
+</xsl:stylesheet>
+```
 
 <details>
 <summary>invalid-missing-entrypoint</summary>
@@ -293,8 +351,7 @@ dist/target/cem_ml_cli/debug/cem-ml validate --format json --fail-level parse \
 - Schema: `https://cem.dev/ns/transform/xslt/1`
 - Expected result: `fail`
 - Expected diagnostics: `cem.xslt.entrypoint_missing`
-- Preview renderer: `CLI validate, JSON report, preview HTML + html2svg`
-- Preview HTML: `dist/cem_ml/schema-packages/xslt/v1/examples/invalid-missing-entrypoint.xsl.html`
+- README rendering: fenced `xml` source
 
 ```bash
 dist/target/cem_ml_cli/debug/cem-ml validate --format json --fail-level parse \
@@ -304,7 +361,12 @@ dist/target/cem_ml_cli/debug/cem-ml validate --format json --fail-level parse \
 
 </details>
 
-![Preview of XSLT Schema Package v1 invalid-missing-entrypoint example](examples/previews/invalid-missing-entrypoint.xsl.svg)
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<xsl:stylesheet xmlns:xsl="http://www.w3.org/1999/XSL/Transform" version="1.0">
+  <xsl:output method="html"/>
+</xsl:stylesheet>
+```
 
 <details>
 <summary>invalid-not-well-formed</summary>
@@ -314,8 +376,7 @@ dist/target/cem_ml_cli/debug/cem-ml validate --format json --fail-level parse \
 - Schema: `https://cem.dev/ns/transform/xslt/1`
 - Expected result: `fail`
 - Expected diagnostics: `cem.xslt.not_well_formed_xml`
-- Preview renderer: `CLI validate, JSON report, preview HTML + html2svg`
-- Preview HTML: `dist/cem_ml/schema-packages/xslt/v1/examples/invalid-not-well-formed.xsl.html`
+- README rendering: fenced `xml` source
 
 ```bash
 dist/target/cem_ml_cli/debug/cem-ml validate --format json --fail-level parse \
@@ -325,4 +386,11 @@ dist/target/cem_ml_cli/debug/cem-ml validate --format json --fail-level parse \
 
 </details>
 
-![Preview of XSLT Schema Package v1 invalid-not-well-formed example](examples/previews/invalid-not-well-formed.xsl.svg)
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<xsl:stylesheet xmlns:xsl="http://www.w3.org/1999/XSL/Transform" version="1.0">
+  <xsl:template match="/">
+    <main>
+  </xsl:template>
+</xsl:stylesheet>
+```

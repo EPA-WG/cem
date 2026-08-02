@@ -58,11 +58,18 @@ The package owns `compact`, `pretty`, and `tabular` formatter wrappers plus
 `mathml-document` and emits a package-owned CEM tree; the colorizer consumes
 that tree before the shared XML text writer.
 
-All profiles currently preserve source lexemes and MathML element/attribute
-case. Their metadata records a `lexical-lossless-*` layout decision while mixed
-presentation/content whitespace reflow is deferred. Same-schema output
-preserves XML declaration, empty-element spelling, qualified names,
-annotations, foreign content, detected line endings, and appends one final
+The profiles preserve MathML element and attribute case while applying distinct
+deterministic structural layouts. `compact` removes structural whitespace,
+`pretty` places structural events on depth-indented lines, and `tabular` also
+places each attribute on its own continuation line. Mathematical token elements
+(`mi`, `mn`, `mo`, `mtext`, and `ms`), annotation payloads, CDATA, direct mixed
+text, `xml:space="preserve"`, and foreign namespaces remain lexical islands.
+
+Start and end tags are projected into mapped delimiter, element-name,
+attribute-name, equals, and attribute-value tokens. Generated indentation and
+line endings remain unmapped. Same-schema output preserves XML declaration,
+empty-element spelling, qualified names, sensitive annotations and foreign
+content, honors configured indentation and line endings, and appends one final
 newline when absent.
 
 ## Resolver And Entity Safety
@@ -98,7 +105,7 @@ reports external annotation references as policy warnings.
 complete example indexing, schema-derived fact tests, dedicated lifecycle
 load/export coverage, exact same-schema engine and CLI conversion for all three
 media types, executable formatter/colorizer profiles, schema-owned CLI example
-validation, and README/SVG preview drift checks without source fallback.
+validation, and README source-fence generation checks without SVG fallback.
 
 ## Release Behavior
 
@@ -113,8 +120,6 @@ an explicit registered converter path.
 
 - Add complete MathML Core and Content MathML vocabulary, expression arity,
   operator, type, and profile conformance.
-- Define mixed presentation/content whitespace and reflow semantics before
-  formatter profiles alter lexical content.
 - Add an explicit resolver capability model before external annotation or
   `definitionURL` resources can be loaded.
 - Compose foreign HTML, SVG, OpenMath, and other annotation vocabularies through
@@ -123,12 +128,10 @@ an explicit registered converter path.
 ## Examples
 
 This section is generated from `package.cem` `{example}` metadata by the
-`samples2readme` Nx target. Each SVG previews the rendered example
-content or validation diagnostics for expected-fail examples. The target writes a
-preformatted HTML preview to
-`dist/cem_ml/schema-packages/<package>/v1/examples/<example-file>.html`,
-then renders the `<pre>` spans through headless Chromium into
-`examples/previews/<example-file>.svg`.
+`samples2readme` Nx target. Text examples with a recognized language and
+valid UTF-8 are embedded directly as language-tagged fenced source.
+All declared examples in this package support source fences, so README SVG
+previews are not used.
 
 <details>
 <summary>basic-presentation</summary>
@@ -137,8 +140,7 @@ then renders the `<pre>` spans through headless Chromium into
 - Content type: `application/mathml+xml`
 - Schema: `https://cem.dev/ns/data/mathml/1`
 - Expected result: `pass`
-- Preview renderer: `CLI convert, tabular formatter, preview HTML + html2svg`
-- Preview HTML: `dist/cem_ml/schema-packages/mathml/v1/examples/basic-presentation.mml.html`
+- README rendering: fenced `xml` source
 
 ```bash
 dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
@@ -149,7 +151,16 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
 
 </details>
 
-![Preview of MathML Schema Package basic-presentation example](examples/previews/basic-presentation.mml.svg)
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<math xmlns="http://www.w3.org/1998/Math/MathML" display="inline" alttext="x plus one">
+  <mrow>
+    <mi>x</mi>
+    <mo>+</mo>
+    <mn>1</mn>
+  </mrow>
+</math>
+```
 
 <details>
 <summary>content-expression</summary>
@@ -158,8 +169,7 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
 - Content type: `application/mathml-content+xml`
 - Schema: `https://cem.dev/ns/data/mathml/1`
 - Expected result: `pass`
-- Preview renderer: `CLI convert, tabular formatter, preview HTML + html2svg`
-- Preview HTML: `dist/cem_ml/schema-packages/mathml/v1/examples/content-expression.mathml.html`
+- README rendering: fenced `xml` source
 
 ```bash
 dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
@@ -171,7 +181,16 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
 
 </details>
 
-![Preview of MathML Schema Package content-expression example](examples/previews/content-expression.mathml.svg)
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<math xmlns="http://www.w3.org/1998/Math/MathML" display="block">
+  <apply>
+    <plus/>
+    <ci>x</ci>
+    <cn>1</cn>
+  </apply>
+</math>
+```
 
 <details>
 <summary>semantics-external-annotation</summary>
@@ -181,8 +200,7 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
 - Schema: `https://cem.dev/ns/data/mathml/1`
 - Expected result: `pass`
 - Expected diagnostics: `cem.mathml.external_annotation_rejected`
-- Preview renderer: `CLI convert, tabular formatter, preview HTML + html2svg`
-- Preview HTML: `dist/cem_ml/schema-packages/mathml/v1/examples/semantics-external-annotation.mml.html`
+- README rendering: fenced `xml` source
 
 ```bash
 dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
@@ -193,7 +211,18 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
 
 </details>
 
-![Preview of MathML Schema Package semantics-external-annotation example](examples/previews/semantics-external-annotation.mml.svg)
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<math xmlns="http://www.w3.org/1998/Math/MathML" alttext="x squared">
+  <semantics>
+    <msup>
+      <mi>x</mi>
+      <mn>2</mn>
+    </msup>
+    <annotation encoding="application/json" src="formula.json"/>
+  </semantics>
+</math>
+```
 
 <details>
 <summary>invalid-missing-namespace</summary>
@@ -203,8 +232,7 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
 - Schema: `https://cem.dev/ns/data/mathml/1`
 - Expected result: `fail`
 - Expected diagnostics: `cem.mathml.namespace_missing`
-- Preview renderer: `CLI validate, JSON report, preview HTML + html2svg`
-- Preview HTML: `dist/cem_ml/schema-packages/mathml/v1/examples/invalid-missing-namespace.mml.html`
+- README rendering: fenced `xml` source
 
 ```bash
 dist/target/cem_ml_cli/debug/cem-ml validate --format json --fail-level parse \
@@ -214,7 +242,12 @@ dist/target/cem_ml_cli/debug/cem-ml validate --format json --fail-level parse \
 
 </details>
 
-![Preview of MathML Schema Package invalid-missing-namespace example](examples/previews/invalid-missing-namespace.mml.svg)
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<math display="inline">
+  <mi>x</mi>
+</math>
+```
 
 <details>
 <summary>invalid-root-not-math</summary>
@@ -224,8 +257,7 @@ dist/target/cem_ml_cli/debug/cem-ml validate --format json --fail-level parse \
 - Schema: `https://cem.dev/ns/data/mathml/1`
 - Expected result: `fail`
 - Expected diagnostics: `cem.mathml.root_not_math`
-- Preview renderer: `CLI validate, JSON report, preview HTML + html2svg`
-- Preview HTML: `dist/cem_ml/schema-packages/mathml/v1/examples/invalid-root-not-math.mml.html`
+- README rendering: fenced `xml` source
 
 ```bash
 dist/target/cem_ml_cli/debug/cem-ml validate --format json --fail-level parse \
@@ -235,7 +267,12 @@ dist/target/cem_ml_cli/debug/cem-ml validate --format json --fail-level parse \
 
 </details>
 
-![Preview of MathML Schema Package invalid-root-not-math example](examples/previews/invalid-root-not-math.mml.svg)
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<mrow xmlns="http://www.w3.org/1998/Math/MathML">
+  <mi>x</mi>
+</mrow>
+```
 
 <details>
 <summary>invalid-content-profile-presentation-only</summary>
@@ -245,8 +282,7 @@ dist/target/cem_ml_cli/debug/cem-ml validate --format json --fail-level parse \
 - Schema: `https://cem.dev/ns/data/mathml/1`
 - Expected result: `fail`
 - Expected diagnostics: `cem.mathml.malformed_expression`
-- Preview renderer: `CLI validate, JSON report, preview HTML + html2svg`
-- Preview HTML: `dist/cem_ml/schema-packages/mathml/v1/examples/invalid-content-profile-presentation-only.mml.html`
+- README rendering: fenced `xml` source
 
 ```bash
 dist/target/cem_ml_cli/debug/cem-ml validate --format json --fail-level parse \
@@ -257,7 +293,16 @@ dist/target/cem_ml_cli/debug/cem-ml validate --format json --fail-level parse \
 
 </details>
 
-![Preview of MathML Schema Package invalid-content-profile-presentation-only example](examples/previews/invalid-content-profile-presentation-only.mml.svg)
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<math xmlns="http://www.w3.org/1998/Math/MathML">
+  <mrow>
+    <mi>x</mi>
+    <mo>+</mo>
+    <mn>1</mn>
+  </mrow>
+</math>
+```
 
 <details>
 <summary>invalid-not-well-formed</summary>
@@ -267,8 +312,7 @@ dist/target/cem_ml_cli/debug/cem-ml validate --format json --fail-level parse \
 - Schema: `https://cem.dev/ns/data/mathml/1`
 - Expected result: `fail`
 - Expected diagnostics: `cem.mathml.not_well_formed_xml`
-- Preview renderer: `CLI validate, JSON report, preview HTML + html2svg`
-- Preview HTML: `dist/cem_ml/schema-packages/mathml/v1/examples/invalid-not-well-formed.mml.html`
+- README rendering: fenced `xml` source
 
 ```bash
 dist/target/cem_ml_cli/debug/cem-ml validate --format json --fail-level parse \
@@ -278,4 +322,10 @@ dist/target/cem_ml_cli/debug/cem-ml validate --format json --fail-level parse \
 
 </details>
 
-![Preview of MathML Schema Package invalid-not-well-formed example](examples/previews/invalid-not-well-formed.mml.svg)
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<math xmlns="http://www.w3.org/1998/Math/MathML">
+  <mrow>
+    <mi>x</mrow>
+</math>
+```

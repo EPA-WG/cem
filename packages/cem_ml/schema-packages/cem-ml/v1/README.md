@@ -230,12 +230,12 @@ reads.
 ## Formatter And Preview SDLC
 
 When a command example, fixture, formatter, colorizer, converter, CLI report
-shape, or visible presentation output changes, update the SVG previews in
-`examples/previews/` in the same change by running
-`node packages/cem_ml/schema-packages/cem-ml/v1/scripts/verify-previews.mjs --update`.
+shape, or visible presentation output changes, regenerate the README examples
+with the package `samples2readme` target. Valid UTF-8 CEM sources remain exact
+fenced source; an SVG preview is allowed only for an unfenceable fallback.
 
-The package `verify` target writes generated preview HTML/SVG artifacts into
-`dist/cem_ml/schema-packages/cem-ml/v1/examples/` and fails on drift.
+The package `verify` target checks generated README source and any referenced
+fallback preview artifacts for drift.
 
 ## Verification
 
@@ -297,13 +297,10 @@ behavior.
 ## Examples
 
 This section is generated from `package.cem` `{example}` metadata by the
-`samples2readme` Nx target. Each SVG previews the example content, not
-the validation report. The target writes a preformatted HTML preview to
-`dist/cem_ml/schema-packages/<package>/v1/examples/<example-file>.html`,
-then renders the `<pre>` spans through headless Chromium into
-`examples/previews/<example-file>.svg`.
-Source snapshots are used only where the current CLI cannot yet render
-the package formatter/colorizer path for that content identity.
+`samples2readme` Nx target. Text examples with a recognized language and
+valid UTF-8 are embedded directly as language-tagged fenced source.
+All declared examples in this package support source fences, so README SVG
+previews are not used.
 
 <details>
 <summary>basic</summary>
@@ -312,8 +309,7 @@ the package formatter/colorizer path for that content identity.
 - Content type: `application/cem`
 - Schema: `https://cem.dev/ns/cem-ml/1`
 - Expected result: `pass`
-- Preview renderer: `CLI convert, tabular formatter, preview HTML + html2svg`
-- Preview HTML: `dist/cem_ml/schema-packages/cem-ml/v1/examples/basic.cem.html`
+- README rendering: fenced `cem` source
 
 ```bash
 dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
@@ -325,7 +321,15 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
 
 </details>
 
-![Preview of CEM-ML Generic Schema Package basic example](examples/previews/basic.cem.svg)
+```cem
+@doc cem-ml 1
+
+{article @id="welcome" @attr1="abc"  @attr2="long attr value"  @attr3="abc"  @attr4="abc"  @attr5="abc"
+    @attr6="abc"  @attr7="abc" |
+    {h1 | Welcome}
+    {p | This is a minimal CEM-ML document.}
+}
+```
 
 <details>
 <summary>nested-handoff</summary>
@@ -334,8 +338,7 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
 - Content type: `application/cem`
 - Schema: `https://cem.dev/ns/cem-ml/1`
 - Expected result: `pass`
-- Preview renderer: `CLI convert, tabular formatter, preview HTML + html2svg`
-- Preview HTML: `dist/cem_ml/schema-packages/cem-ml/v1/examples/nested-handoff.cem.html`
+- README rendering: fenced `cem` source
 
 ```bash
 dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
@@ -347,7 +350,20 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
 
 </details>
 
-![Preview of CEM-ML Generic Schema Package nested-handoff example](examples/previews/nested-handoff.cem.svg)
+```cem
+@doc cem-ml 1
+@ns html = "http://www.w3.org/1999/xhtml"
+@default html
+
+{main @id="profile" |
+    {section @class="summary" |
+        {h1 | Ada Lovelace}
+        {@type="text/html" |
+            <p><strong>Known for:</strong> analytical engine notes.</p>
+        }
+    }
+}
+```
 
 <details>
 <summary>embedded-handoffs</summary>
@@ -357,8 +373,7 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
 - Schema: `https://cem.dev/ns/cem-ml/1`
 - Expected result: `pass`
 - Expected diagnostics: `cem.handoff.child_parser_deferred`
-- Preview renderer: `CLI convert, tabular formatter, preview HTML + html2svg`
-- Preview HTML: `dist/cem_ml/schema-packages/cem-ml/v1/examples/embedded-handoffs.cem.html`
+- README rendering: fenced `cem` source
 
 ```bash
 dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
@@ -370,7 +385,31 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
 
 </details>
 
-![Preview of CEM-ML Generic Schema Package embedded-handoffs example](examples/previews/embedded-handoffs.cem.svg)
+````cem
+@doc cem-ml 1
+@ns html = "http://www.w3.org/1999/xhtml"
+@default html
+
+{main @id="embedded-handoffs" |
+    {section @class="style-script-payloads" |
+        {h1 | Embedded handoff coverage}
+        {@type="text/css; charset=utf-8" |
+            ```.card { color: var(--accent); }```
+        }
+        {@type="application/javascript" |
+            ```export default { title: "Atoms/Button", args: { label: "Save" } };```
+        }
+    }
+    {section @class="xml-json-payloads" |
+        {@type="application/xml" |
+            ```<resource><body><![CDATA[{token-name}]]></body></resource>```
+        }
+        {@type="application/json" |
+            ```{"query":"{ viewer { id name } }","variables":{"id":"42"}}```
+        }
+    }
+}
+````
 
 <details>
 <summary>formatter-coloring-pipeline-package-artifacts</summary>
@@ -380,8 +419,7 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
 - Schema: `https://cem.dev/ns/cem-ml/1`
 - Expected result: `fail`
 - Expected diagnostics: `cem.schema.unresolved_namespace`
-- Preview renderer: `CLI convert, tabular formatter, preview HTML + html2svg`
-- Preview HTML: `dist/cem_ml/schema-packages/cem-ml/v1/examples/formatter-coloring-pipeline.package-artifacts.fixture.cem.html`
+- README rendering: fenced `cem` source
 
 ```bash
 dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
@@ -393,7 +431,115 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
 
 </details>
 
-![Preview of CEM-ML Generic Schema Package formatter-coloring-pipeline-package-artifacts example](examples/previews/formatter-coloring-pipeline.package-artifacts.fixture.cem.svg)
+````cem
+@doc cem-ml 1
+@ns showcase = "https://cem.dev/ns/showcase/1"
+@default showcase
+
+{cemt-output-pipeline-fixture
+    @source="schema-packages/cem-ml/v1/package.cem"
+    @formatter="acme.showcase.format-tree"
+    @colorizer="acme.showcase.color-tree"
+    @color-profile="classes" |
+    {stage
+        @name="source-ast"
+        @content-type="application/cem"
+        @schema="https://cem.dev/ns/cem-ml/1"
+        @category="cem-fragment" |
+```cem
+{article |
+    {text | Ready }
+    {strong |
+        {text | now}
+    }
+    {text | .}
+}
+```
+    }
+
+    {stage
+        @name="formatted-cem-tree"
+        @content-type="application/cem"
+        @schema="https://cem.dev/ns/cem-ml/1"
+        @category="cem-tree" |
+```cem
+{cem-tree @content-type="application/cem" @schema="https://cem.dev/ns/cem-ml/1" @category="cem-tree" @mode="fragment" @canonical=true @formatter-profile="acme.showcase.format-tree" |
+    {format-nodes |
+        {format-marker @name="cem.format-tree" @formatter-role="formatter.boundary" @formatter-profile="acme.showcase.format-tree"}
+        {format-decision @name="showcase" @value="formatted tree before writer" @formatter-role="formatter.showcase"}
+    }
+    {nodes |
+        {article |
+            {format-layout @kind="format-decision" @value="inline" @formatter-role="formatter.layout"}
+            {text | Ready }
+            {strong |
+                {format-layout @kind="format-decision" @value="inline-emphasis" @formatter-role="formatter.inline-emphasis"}
+                {text | now}
+            }
+            {text | .}
+        }
+    }
+}
+```
+    }
+
+    {stage
+        @name="colored-cem-tree"
+        @content-type="application/cem"
+        @schema="https://cem.dev/ns/cem-ml/1"
+        @category="cem-tree" |
+```cem
+{cem-tree @content-type="application/cem" @schema="https://cem.dev/ns/cem-ml/1" @category="cem-tree" @mode="fragment" @canonical=true @formatter-profile="acme.showcase.format-tree" @colored=true @color-profile="classes" |
+    {format-nodes |
+        {format-marker @name="cem.format-tree" @formatter-role="formatter.boundary" @formatter-profile="acme.showcase.format-tree"}
+        {format-decision @name="showcase" @value="formatted tree before writer" @formatter-role="formatter.showcase"}
+    }
+    {color-nodes |
+        {color-marker @name="cem.color-tree" @color-profile="classes" @colorizer-role="colorizer.boundary"}
+        {color-decision @name="showcase" @value="colored tree before writer" @colorizer-role="colorizer.showcase"}
+    }
+    {writer-boundaries |
+        {writer-boundary @stage="after-color" @value="writer consumes colored CEM tree"}
+    }
+    {nodes |
+        {article @color-role="syntax.name" |
+            {format-layout @kind="format-decision" @value="inline" @formatter-role="formatter.layout"}
+            {style @color-role="syntax.name" @color-profile="classes"}
+            {writer-attribute @name="class" @value="cem-color cem-color-syntax-name" @color-profile="classes" @colorizer-owned=true @colorizer-role="colorizer.writer-attribute"}
+            {span @color-role="syntax.string" |
+                {style @color-role="syntax.string" @color-profile="classes"}
+                {writer-attribute @name="class" @value="cem-color cem-color-syntax-string" @color-profile="classes" @colorizer-owned=true @colorizer-role="colorizer.writer-attribute"}
+                {color-wrapper @name="span" @color-profile="classes" @colorizer-owned=true @colorizer-role="colorizer.text-wrapper"}
+                {color-decision @name="wrapped-role" @value="syntax.string" @color-profile="classes" @colorizer-owned=true @colorizer-role="colorizer.wrapped-role"}
+                {text | Ready }
+            }
+            {strong @color-role="syntax.keyword" |
+                {format-layout @kind="format-decision" @value="inline-emphasis" @formatter-role="formatter.inline-emphasis"}
+                {style @color-role="syntax.keyword" @color-profile="classes"}
+                {writer-attribute @name="class" @value="cem-color cem-color-syntax-keyword" @color-profile="classes" @colorizer-owned=true @colorizer-role="colorizer.writer-attribute"}
+                {span @color-role="syntax.keyword" |
+                    {style @color-role="syntax.keyword" @color-profile="classes"}
+                    {writer-attribute @name="class" @value="cem-color cem-color-syntax-keyword" @color-profile="classes" @colorizer-owned=true @colorizer-role="colorizer.writer-attribute"}
+                    {color-wrapper @name="span" @color-profile="classes" @colorizer-owned=true @colorizer-role="colorizer.text-wrapper"}
+                    {color-decision @name="wrapped-role" @value="syntax.keyword" @color-profile="classes" @colorizer-owned=true @colorizer-role="colorizer.wrapped-role"}
+                    {color-decision @name="queued-edit" @value="queued edit replay before writer" @color-profile="classes" @colorizer-owned=true @colorizer-role="colorizer.queued-edit"}
+                    {text | now}
+                }
+            }
+            {span @color-role="syntax.string" |
+                {style @color-role="syntax.string" @color-profile="classes"}
+                {writer-attribute @name="class" @value="cem-color cem-color-syntax-string" @color-profile="classes" @colorizer-owned=true @colorizer-role="colorizer.writer-attribute"}
+                {color-wrapper @name="span" @color-profile="classes" @colorizer-owned=true @colorizer-role="colorizer.text-wrapper"}
+                {color-decision @name="wrapped-role" @value="syntax.string" @color-profile="classes" @colorizer-owned=true @colorizer-role="colorizer.wrapped-role"}
+                {text | .}
+            }
+        }
+    }
+}
+```
+    }
+}
+````
 
 <details>
 <summary>invalid-unclosed-scope</summary>
@@ -403,8 +549,7 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
 - Schema: `https://cem.dev/ns/cem-ml/1`
 - Expected result: `fail`
 - Expected diagnostics: `cem.ast.unclosed_scope`
-- Preview renderer: `CLI convert, tabular formatter, preview HTML + html2svg`
-- Preview HTML: `dist/cem_ml/schema-packages/cem-ml/v1/examples/invalid-unclosed-scope.cem.html`
+- README rendering: fenced `cem` source
 
 ```bash
 dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
@@ -416,7 +561,12 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
 
 </details>
 
-![Preview of CEM-ML Generic Schema Package invalid-unclosed-scope example](examples/previews/invalid-unclosed-scope.cem.svg)
+```cem
+@doc cem-ml 1
+
+{article @id="broken" |
+    {h1 | Missing article close}
+```
 
 <details>
 <summary>invalid-unsupported-handoffs</summary>
@@ -426,8 +576,7 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
 - Schema: `https://cem.dev/ns/cem-ml/1`
 - Expected result: `fail`
 - Expected diagnostics: `cem.handoff.unsupported_content_type`
-- Preview renderer: `CLI convert, tabular formatter, preview HTML + html2svg`
-- Preview HTML: `dist/cem_ml/schema-packages/cem-ml/v1/examples/invalid-unsupported-handoffs.cem.html`
+- README rendering: fenced `cem` source
 
 ```bash
 dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
@@ -439,4 +588,17 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
 
 </details>
 
-![Preview of CEM-ML Generic Schema Package invalid-unsupported-handoffs example](examples/previews/invalid-unsupported-handoffs.cem.svg)
+````cem
+@doc cem-ml 1
+@ns html = "http://www.w3.org/1999/xhtml"
+@default html
+
+{main @id="unsupported-handoffs" |
+    {@type="application/vnd.storybook.csf+json" |
+        ```{"default":{"title":"Atoms/Button"},"stories":{"Primary":{"args":{"label":"Save"}}}}```
+    }
+    {@type="application/vnd.example.future+json" |
+        ```{"future":true}```
+    }
+}
+````

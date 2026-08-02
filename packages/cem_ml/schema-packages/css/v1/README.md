@@ -54,12 +54,10 @@ property token streams are preserved verbatim.
 ## Examples
 
 This section is generated from `package.cem` `{example}` metadata by the
-`samples2readme` Nx target. Each SVG previews the rendered example
-content or validation diagnostics for expected-fail examples. The target writes a
-preformatted HTML preview to
-`dist/cem_ml/schema-packages/<package>/v1/examples/<example-file>.html`,
-then renders the `<pre>` spans through headless Chromium into
-`examples/previews/<example-file>.svg`.
+`samples2readme` Nx target. Text examples with a recognized language and
+valid UTF-8 are embedded directly as language-tagged fenced source.
+All declared examples in this package support source fences, so README SVG
+previews are not used.
 
 <details>
 <summary>basic-stylesheet</summary>
@@ -68,8 +66,7 @@ then renders the `<pre>` spans through headless Chromium into
 - Content type: `text/css`
 - Schema: `https://cem.dev/ns/data/css/1`
 - Expected result: `pass`
-- Preview renderer: `CLI convert, tabular formatter, preview HTML + html2svg`
-- Preview HTML: `dist/cem_ml/schema-packages/css/v1/examples/basic-stylesheet.css.html`
+- README rendering: fenced `css` source
 
 ```bash
 dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
@@ -80,7 +77,24 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
 
 </details>
 
-![Preview of CSS schema package v1 basic-stylesheet example](examples/previews/basic-stylesheet.css.svg)
+```css
+@charset "utf-8";
+
+:root {
+  --space-2: 0.5rem;
+  color-scheme: light dark;
+}
+
+body {
+  margin: 0;
+  font-family: system-ui, sans-serif;
+}
+
+.card {
+  padding: var(--space-2);
+  border: 1px solid currentColor;
+}
+```
 
 <details>
 <summary>scoped-component</summary>
@@ -89,8 +103,7 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
 - Content type: `text/css`
 - Schema: `https://cem.dev/ns/data/css/1`
 - Expected result: `pass`
-- Preview renderer: `CLI convert, tabular formatter, preview HTML + html2svg`
-- Preview HTML: `dist/cem_ml/schema-packages/css/v1/examples/scoped-component.css.html`
+- README rendering: fenced `css` source
 
 ```bash
 dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
@@ -101,7 +114,19 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
 
 </details>
 
-![Preview of CSS schema package v1 scoped-component example](examples/previews/scoped-component.css.svg)
+```css
+@layer components {
+  :host {
+    display: block;
+  }
+
+  @scope (.profile-card) {
+    .profile-card__title {
+      font-weight: 700;
+    }
+  }
+}
+```
 
 <details>
 <summary>style-attribute</summary>
@@ -110,8 +135,7 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
 - Content type: `text/css`
 - Schema: `https://cem.dev/ns/data/css/1`
 - Expected result: `pass`
-- Preview renderer: `CLI convert, tabular formatter, preview HTML + html2svg`
-- Preview HTML: `dist/cem_ml/schema-packages/css/v1/examples/style-attribute.css.html`
+- README rendering: fenced `css` source
 
 ```bash
 dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
@@ -122,7 +146,11 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
 
 </details>
 
-![Preview of CSS schema package v1 style-attribute example](examples/previews/style-attribute.css.svg)
+```css
+color: currentColor;
+margin-inline: 0;
+--card-gap: 0.75rem;
+```
 
 <details>
 <summary>invalid-import</summary>
@@ -132,8 +160,7 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
 - Schema: `https://cem.dev/ns/data/css/1`
 - Expected result: `fail`
 - Expected diagnostics: `cem.css.import_rejected`
-- Preview renderer: `CLI validate, JSON report, preview HTML + html2svg`
-- Preview HTML: `dist/cem_ml/schema-packages/css/v1/examples/invalid-import.css.html`
+- README rendering: fenced `css` source
 
 ```bash
 dist/target/cem_ml_cli/debug/cem-ml validate --format json --fail-level parse \
@@ -143,7 +170,13 @@ dist/target/cem_ml_cli/debug/cem-ml validate --format json --fail-level parse \
 
 </details>
 
-![Preview of CSS schema package v1 invalid-import example](examples/previews/invalid-import.css.svg)
+```css
+@import "shared/theme.css";
+
+.card {
+  color: currentColor;
+}
+```
 
 <details>
 <summary>invalid-url</summary>
@@ -153,8 +186,7 @@ dist/target/cem_ml_cli/debug/cem-ml validate --format json --fail-level parse \
 - Schema: `https://cem.dev/ns/data/css/1`
 - Expected result: `fail`
 - Expected diagnostics: `cem.css.url_rejected`
-- Preview renderer: `CLI validate, JSON report, preview HTML + html2svg`
-- Preview HTML: `dist/cem_ml/schema-packages/css/v1/examples/invalid-url.css.html`
+- README rendering: fenced `css` source
 
 ```bash
 dist/target/cem_ml_cli/debug/cem-ml validate --format json --fail-level parse \
@@ -164,7 +196,12 @@ dist/target/cem_ml_cli/debug/cem-ml validate --format json --fail-level parse \
 
 </details>
 
-![Preview of CSS schema package v1 invalid-url example](examples/previews/invalid-url.css.svg)
+```css
+.hero {
+  background-image: url("images/hero.png");
+  min-height: 20rem;
+}
+```
 
 <details>
 <summary>invalid-token</summary>
@@ -174,8 +211,7 @@ dist/target/cem_ml_cli/debug/cem-ml validate --format json --fail-level parse \
 - Schema: `https://cem.dev/ns/data/css/1`
 - Expected result: `fail`
 - Expected diagnostics: `cem.css.invalid_token`
-- Preview renderer: `CLI validate, JSON report, preview HTML + html2svg`
-- Preview HTML: `dist/cem_ml/schema-packages/css/v1/examples/invalid-token.css.html`
+- README rendering: fenced `css` source
 
 ```bash
 dist/target/cem_ml_cli/debug/cem-ml validate --format json --fail-level parse \
@@ -185,7 +221,10 @@ dist/target/cem_ml_cli/debug/cem-ml validate --format json --fail-level parse \
 
 </details>
 
-![Preview of CSS schema package v1 invalid-token example](examples/previews/invalid-token.css.svg)
+```css
+.card {
+  color: currentColor;
+```
 
 <details>
 <summary>invalid-declaration</summary>
@@ -195,8 +234,7 @@ dist/target/cem_ml_cli/debug/cem-ml validate --format json --fail-level parse \
 - Schema: `https://cem.dev/ns/data/css/1`
 - Expected result: `pass`
 - Expected diagnostics: `cem.css.invalid_declaration`
-- Preview renderer: `CLI convert, tabular formatter, preview HTML + html2svg`
-- Preview HTML: `dist/cem_ml/schema-packages/css/v1/examples/invalid-declaration.css.html`
+- README rendering: fenced `css` source
 
 ```bash
 dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
@@ -207,7 +245,12 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
 
 </details>
 
-![Preview of CSS schema package v1 invalid-declaration example](examples/previews/invalid-declaration.css.svg)
+```css
+.card {
+  color currentColor;
+  padding: 1rem;
+}
+```
 
 <details>
 <summary>encoding-conflict</summary>
@@ -217,8 +260,7 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
 - Schema: `https://cem.dev/ns/data/css/1`
 - Expected result: `pass`
 - Expected diagnostics: `cem.css.encoding_conflict`
-- Preview renderer: `CLI convert, tabular formatter, preview HTML + html2svg`
-- Preview HTML: `dist/cem_ml/schema-packages/css/v1/examples/encoding-conflict.css.html`
+- README rendering: fenced `css` source
 
 ```bash
 dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
@@ -229,4 +271,10 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
 
 </details>
 
-![Preview of CSS schema package v1 encoding-conflict example](examples/previews/encoding-conflict.css.svg)
+```css
+@charset "utf-8";
+
+.card {
+  color: currentColor;
+}
+```

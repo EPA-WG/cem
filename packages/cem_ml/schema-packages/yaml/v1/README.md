@@ -66,11 +66,10 @@ pattern.
 
 `cem_ml_schema_package_yaml_v1:verify` validates `package.cem`, checks example
 and artifact manifest drift, runs the YAML CEMT formatter/colorizer execution
-tests, runs the CLI lifecycle smoke test, and verifies README SVG preview drift.
+tests, runs the CLI lifecycle smoke test, and verifies README source-fence drift.
 
-`cem_ml_schema_package_yaml_v1:build` depends on `samples2readme`, which renders
-example previews into `examples/previews/*.svg` and writes the generated HTML
-under `dist/cem_ml/schema-packages/yaml/v1/examples/*.html`.
+`cem_ml_schema_package_yaml_v1:build` depends on `samples2readme`, which embeds
+the package's valid UTF-8 YAML examples directly as fenced `yaml` source.
 
 ## Release Behavior
 
@@ -91,13 +90,10 @@ not part of the release contract.
 ## Examples
 
 This section is generated from `package.cem` `{example}` metadata by the
-`samples2readme` Nx target. Each SVG previews the example content, not
-the validation report. The target writes a preformatted HTML preview to
-`dist/cem_ml/schema-packages/<package>/v1/examples/<example-file>.html`,
-then renders the `<pre>` spans through headless Chromium into
-`examples/previews/<example-file>.svg`.
-Source snapshots are used only where the current CLI cannot yet render
-the package formatter/colorizer path for that content identity.
+`samples2readme` Nx target. Text examples with a recognized language and
+valid UTF-8 are embedded directly as language-tagged fenced source.
+All declared examples in this package support source fences, so README SVG
+previews are not used.
 
 <details>
 <summary>basic-document</summary>
@@ -106,8 +102,7 @@ the package formatter/colorizer path for that content identity.
 - Content type: `application/yaml`
 - Schema: `https://cem.dev/ns/data/yaml/1`
 - Expected result: `pass`
-- Preview renderer: `CLI convert, tabular formatter, preview HTML + html2svg`
-- Preview HTML: `dist/cem_ml/schema-packages/yaml/v1/examples/basic-document.yaml.html`
+- README rendering: fenced `yaml` source
 
 ```bash
 dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
@@ -119,7 +114,14 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
 
 </details>
 
-![Preview of YAML Resource Schema Package basic-document example](examples/previews/basic-document.yaml.svg)
+```yaml
+message: Hello from CEM
+enabled: true
+retries: 3
+tags:
+  - schema
+  - validation
+```
 
 <details>
 <summary>nested-stream</summary>
@@ -128,8 +130,7 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
 - Content type: `text/yaml`
 - Schema: `https://cem.dev/ns/data/yaml/1`
 - Expected result: `pass`
-- Preview renderer: `CLI convert, tabular formatter, preview HTML + html2svg`
-- Preview HTML: `dist/cem_ml/schema-packages/yaml/v1/examples/nested-stream.yml.html`
+- README rendering: fenced `yaml` source
 
 ```bash
 dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
@@ -141,7 +142,27 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
 
 </details>
 
-![Preview of YAML Resource Schema Package nested-stream example](examples/previews/nested-stream.yml.svg)
+```yaml
+---
+service:
+  name: catalog
+  enabled: true
+  ports:
+    - 8080
+    - 8443
+  limits:
+    memory: 256Mi
+    retries: 3
+---
+users:
+  - name: Ada
+    roles:
+      - admin
+      - editor
+  - name: Lin
+    roles:
+      - viewer
+```
 
 <details>
 <summary>invalid-parse</summary>
@@ -151,8 +172,7 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
 - Schema: `https://cem.dev/ns/data/yaml/1`
 - Expected result: `fail`
 - Expected diagnostics: `cem.yaml.parse_error`
-- Preview renderer: `CLI convert, tabular formatter, preview HTML + html2svg`
-- Preview HTML: `dist/cem_ml/schema-packages/yaml/v1/examples/invalid-parse.yaml.html`
+- README rendering: fenced `yaml` source
 
 ```bash
 dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
@@ -164,7 +184,11 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
 
 </details>
 
-![Preview of YAML Resource Schema Package invalid-parse example](examples/previews/invalid-parse.yaml.svg)
+```yaml
+items:
+  - one
+  - [unterminated
+```
 
 <details>
 <summary>invalid-unsafe-tag</summary>
@@ -174,8 +198,7 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
 - Schema: `https://cem.dev/ns/data/yaml/1`
 - Expected result: `fail`
 - Expected diagnostics: `cem.yaml.unsafe_tag`
-- Preview renderer: `CLI convert, tabular formatter, preview HTML + html2svg`
-- Preview HTML: `dist/cem_ml/schema-packages/yaml/v1/examples/invalid-unsafe-tag.yaml.html`
+- README rendering: fenced `yaml` source
 
 ```bash
 dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
@@ -187,4 +210,6 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
 
 </details>
 
-![Preview of YAML Resource Schema Package invalid-unsafe-tag example](examples/previews/invalid-unsafe-tag.yaml.svg)
+```yaml
+payload: !include secret.yaml
+```

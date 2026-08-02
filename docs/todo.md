@@ -790,20 +790,35 @@ Remaining dependency-ordered package checklist:
   - [x] Refresh SVG package previews and run
         `yarn nx run cem_ml_schema_package_svg_v1:verify`, converter parity,
         CLI e2e, and `cem_ml:test`.
-- [ ] Polish MathML formatter and colorizer profile semantics on the dedicated
+- [x] Polish MathML formatter and colorizer profile semantics on the dedicated
       `MathMlDocumentAst` path.
-  - [ ] Extract the SVG markup-token projection into a shared typed XML-family
+  - [x] Extract the SVG markup-token projection into a shared typed XML-family
         helper without moving MathML layout policy out of its schema package.
-  - [ ] Add focused presentation, content, semantics/annotation, namespace,
+  - [x] Add focused presentation, content, semantics/annotation, namespace,
         CDATA, comment, and mixed-text fixtures before changing output.
-  - [ ] Define distinct deterministic `compact`, `pretty`, and `tabular`
+  - [x] Define distinct deterministic `compact`, `pretty`, and `tabular`
         layouts while preserving token-sensitive math text and annotation
         payloads byte-for-byte.
-  - [ ] Apply delimiter, element-name, attribute-name, equals, and value roles
+  - [x] Apply delimiter, element-name, attribute-name, equals, and value roles
         consistently across terminal, HTML, and Markdown color profiles.
-  - [ ] Preserve lexical source maps, leave generated layout unmapped, honor
+  - [x] Preserve lexical source maps, leave generated layout unmapped, honor
         indentation and line-ending controls, refresh previews, and run the
         MathML package, parity, CLI e2e, and core gates.
+  - [x] Prefer language-tagged fenced source in generated schema-package README
+        examples; use an SVG preview only when the source is binary, invalid
+        UTF-8, or has no supported Markdown fence language.
+- [ ] Polish XSLT formatter and colorizer profile semantics on the dedicated
+      `XsltDocumentAst` path.
+  - [ ] Reuse the shared typed XML-family markup-token helper while keeping
+        XSLT layout and role policy package-local.
+  - [ ] Characterize stylesheet/module namespaces, XPath attributes, attribute
+        value templates, `xsl:text`, literal result elements, comments, CDATA,
+        extension namespaces, and legacy custom-element syntax.
+  - [ ] Define distinct deterministic `compact`, `pretty`, and `tabular`
+        layouts without rewriting XPath, AVT, text, or foreign lexical islands.
+  - [ ] Preserve token-level source maps, leave generated layout unmapped,
+        honor formatter options, and verify terminal/HTML/Markdown parity.
+  - [ ] Run the XSLT package, converter parity, CLI e2e, and core gates.
 
 ### Deferred: Phase 3 Custom-Element Runtime
 
@@ -823,19 +838,19 @@ Remaining dependency-ordered package checklist:
 
 ### Next Work Item
 
-Start MathML format polish by extracting the now-proven SVG lexical markup
-tokenizer into a shared typed XML-family projection helper. Keep only lexical
-splitting and token-range construction shared; MathML decides structural
-whitespace from its own `MathMlDocumentAst` context so SVG text/foreign-content
-policy does not leak into mathematical semantics.
+Start XSLT format polish by reusing the shared XML-family lexical tokenizer but
+keeping whitespace sensitivity and role selection in the XSLT package. First
+characterize stylesheet and transform roots, imports/includes, namespace
+bindings, XPath-bearing attributes, attribute value templates, `xsl:text`,
+literal result elements, comments, CDATA, extension namespaces, and the legacy
+custom-element media type.
 
-Characterize presentation MathML, content MathML, and mixed `semantics` /
-`annotation-xml` documents before reflow. Treat `mi`, `mn`, `mo`, `mtext`,
-`ms`, `annotation`, `annotation-xml`, CDATA, and foreign namespaces as lexical
-islands until package-owned tests prove a narrower safe boundary. Then define
-exact compact, pretty, and attribute-tabular output, preserve qualified names
-and token-level maps, and verify visible terminal/HTML/Markdown parity before
-refreshing MathML previews.
+Treat XPath, AVT, explicit text, mixed literal-result content, CDATA, and
+foreign extension content as lexical islands until focused tests prove a safe
+reflow boundary. Then define exact compact, pretty, and attribute-tabular
+output, preserve qualified names and token-level maps, leave generated layout
+unmapped, and verify terminal/HTML/Markdown parity plus formatter options before
+refreshing any fallback artifacts and running the full release gates.
 
 ## Current Verification Commands
 

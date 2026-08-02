@@ -5,8 +5,9 @@ use crate::schema::registry::{MATHML_CONTENT_TYPE, MATHML_NAMESPACE_URI, MATHML_
 use crate::source::{ByteRange, SourceId};
 use crate::source_map::{FrameSpan, SourceMapFrame, SourceMapStack, TransformKind};
 use crate::validation::xml::{
-    xml_document_ast_from_source_bytes, XmlAttributeAst, XmlDocumentAst, XmlEventAst, XmlEventKind,
-    XmlParseFactKind, XmlSourceRange, XmlSourceValidationRequest,
+    xml_document_ast_from_source_bytes, xml_event_markup_tokens, XmlAttributeAst, XmlDocumentAst,
+    XmlEventAst, XmlEventKind, XmlMarkupTokenKind, XmlParseFactKind, XmlSourceRange,
+    XmlSourceValidationRequest,
 };
 use serde_json::{json, Value};
 use std::collections::{BTreeMap, BTreeSet};
@@ -78,12 +79,10 @@ impl MathMlDocumentAst {
                 .iter()
                 .map(|fact| fact.to_cemt_subject())
                 .collect::<Vec<_>>(),
-            "events": self
-                .xml_document
-                .events
-                .iter()
-                .map(|event| mathml_event_to_cemt_subject(event, &source.media_type))
-                .collect::<Vec<_>>(),
+            "events": mathml_events_to_cemt_subject(
+                &self.xml_document.events,
+                &source.media_type,
+            ),
             "lineEnding": self.line_ending,
         })
     }
@@ -678,7 +677,133 @@ fn mathml_source_map(range: XmlSourceRange, content_type: &str) -> SourceMapStac
     }
 }
 
-fn mathml_event_to_cemt_subject(event: &XmlEventAst, content_type: &str) -> Value {
+#[derive(Debug, Clone, Copy, Default)]
+struct MathMlEventLayout {
+    layout_sensitive: bool,
+    structural_whitespace: bool,
+    line_break_before: bool,
+}
+
+#[derive(Debug)]
+struct MathMlSensitiveFrame {
+    start: usize,
+    sensitive: bool,
+}
+
+fn mathml_events_to_cemt_subject(events: &[XmlEventAst], content_type: &str) -> Vec<Value> {
+    let layout = mathml_event_layout(events);
+    events
+        .iter()
+        .zip(layout)
+        .map(|(event, layout)| mathml_event_to_cemt_subject(event, layout, content_type))
+        .collect()
+}
+
+fn mathml_event_layout(events: &[XmlEventAst]) -> Vec<MathMlEventLayout> {
+    let mut sensitive_scopes = vec![None; events.len()];
+    let mut stack = Vec::<MathMlSensitiveFrame>::new();
+    let mut ranges = Vec::<(usize, usize, usize)>::new();
+    let mut next_scope = 0usize;
+
+    for (index, event) in events.iter().enumerate() {
+        match event.kind {
+            XmlEventKind::StartElement => {
+                let inherited = stack.last().is_some_and(|frame| frame.sensitive);
+                stack.push(MathMlSensitiveFrame {
+                    start: index,
+                    sensitive: inherited || mathml_element_requires_lexical_layout(event),
+                });
+            }
+            XmlEventKind::EmptyElement => {
+                if stack.last().is_some_and(|frame| frame.sensitive)
+                    || mathml_element_requires_lexical_layout(event)
+                {
+                    ranges.push((index, index, next_scope));
+                    next_scope += 1;
+                }
+            }
+            XmlEventKind::EndElement => {
+                if let Some(frame) = stack.pop().filter(|frame| frame.sensitive) {
+                    ranges.push((frame.start, index, next_scope));
+                    next_scope += 1;
+                }
+            }
+            XmlEventKind::Text => {
+                if !event.whitespace_only {
+                    if let Some(frame) = stack.last_mut() {
+                        frame.sensitive = true;
+                    } else {
+                        ranges.push((index, index, next_scope));
+                        next_scope += 1;
+                    }
+                }
+            }
+            XmlEventKind::Cdata | XmlEventKind::EntityReference => {
+                if let Some(frame) = stack.last_mut() {
+                    frame.sensitive = true;
+                } else {
+                    ranges.push((index, index, next_scope));
+                    next_scope += 1;
+                }
+            }
+            XmlEventKind::Declaration
+            | XmlEventKind::Comment
+            | XmlEventKind::ProcessingInstruction
+            | XmlEventKind::Doctype => {}
+        }
+    }
+
+    for (start, end, scope) in ranges {
+        for event_scope in &mut sensitive_scopes[start..=end] {
+            *event_scope = Some(scope);
+        }
+    }
+
+    let mut previous_scope = None;
+    let mut has_previous = false;
+    events
+        .iter()
+        .enumerate()
+        .map(|(index, event)| {
+            let scope = sensitive_scopes[index];
+            let structural_whitespace = matches!(event.kind, XmlEventKind::Text)
+                && event.whitespace_only
+                && scope.is_none();
+            let line_break_before = !structural_whitespace
+                && has_previous
+                && !(scope.is_some() && scope == previous_scope);
+            if !structural_whitespace {
+                has_previous = true;
+                previous_scope = scope;
+            }
+            MathMlEventLayout {
+                layout_sensitive: scope.is_some(),
+                structural_whitespace,
+                line_break_before,
+            }
+        })
+        .collect()
+}
+
+fn mathml_element_requires_lexical_layout(event: &XmlEventAst) -> bool {
+    let local_name = event.local_name.as_deref().unwrap_or_default();
+    matches!(
+        local_name,
+        "mi" | "mn" | "mo" | "mtext" | "ms" | "annotation" | "annotation-xml"
+    ) || event
+        .namespace_uri
+        .as_deref()
+        .is_some_and(|namespace| namespace != MATHML_NAMESPACE_URI)
+        || event.attributes.iter().any(|attribute| {
+            attribute.qualified_name == "xml:space" && attribute.value == "preserve"
+        })
+}
+
+fn mathml_event_to_cemt_subject(
+    event: &XmlEventAst,
+    layout: MathMlEventLayout,
+    content_type: &str,
+) -> Value {
     json!({
         "index": event.index,
         "kind": event.kind.as_str(),
@@ -697,9 +822,38 @@ fn mathml_event_to_cemt_subject(event: &XmlEventAst, content_type: &str) -> Valu
         "value": event.value,
         "lexeme": event.lexeme,
         "whitespaceOnly": event.whitespace_only,
+        "layoutSensitive": layout.layout_sensitive,
+        "structuralWhitespace": layout.structural_whitespace,
+        "lineBreakBefore": layout.line_break_before,
+        "markupTokens": mathml_markup_tokens(event, content_type),
         "sourceRange": mathml_source_range_to_value(event.source_range),
         "sourceMap": mathml_source_map(event.source_range, content_type),
     })
+}
+
+fn mathml_markup_tokens(event: &XmlEventAst, content_type: &str) -> Vec<Value> {
+    xml_event_markup_tokens(event)
+        .into_iter()
+        .map(|token| {
+            json!({
+                "kind": token.kind.as_str(),
+                "text": token.text,
+                "role": mathml_markup_token_role(token.kind),
+                "sourceRange": mathml_source_range_to_value(token.source_range),
+                "sourceMap": mathml_source_map(token.source_range, content_type),
+            })
+        })
+        .collect()
+}
+
+fn mathml_markup_token_role(kind: XmlMarkupTokenKind) -> &'static str {
+    match kind {
+        XmlMarkupTokenKind::Delimiter | XmlMarkupTokenKind::Equals => "syntax.punctuation",
+        XmlMarkupTokenKind::ElementName => "syntax.name",
+        XmlMarkupTokenKind::AttributeName => "syntax.attribute",
+        XmlMarkupTokenKind::AttributeValue => "syntax.string",
+        XmlMarkupTokenKind::Whitespace | XmlMarkupTokenKind::Raw => "syntax.raw",
+    }
 }
 
 #[cfg(test)]
@@ -759,6 +913,101 @@ mod tests {
             subject["events"][0]["sourceMap"]["frames"][0]["transform"]["content_type"],
             json!(MATHML_CONTENT_CONTENT_TYPE)
         );
+    }
+
+    #[test]
+    fn mathml_cemt_subject_marks_package_layout_boundaries_and_tokenizes_markup() {
+        let source = r#"<?xml version="1.0"?>
+<math xmlns="http://www.w3.org/1998/Math/MathML">
+  <!-- equation -->
+  <semantics>
+    <mrow><mi data-kind='identifier'>x</mi><mo> + </mo><mn>1</mn></mrow>
+    <annotation encoding="application/x-tex"><![CDATA[x + 1]]></annotation>
+    <annotation-xml encoding="application/xhtml+xml"><html:span xmlns:html="http://www.w3.org/1999/xhtml">x + 1</html:span></annotation-xml>
+  </semantics>
+  <apply><plus/><ci>x</ci><cn>1</cn></apply>
+</math>
+"#;
+        let (document, diagnostics) = parse(source, MATHML_CONTENT_TYPE);
+
+        assert!(has_code(
+            &diagnostics,
+            "cem.mathml.foreign_content_rejected"
+        ));
+        let subject = document.to_cemt_subject();
+        let events = subject["events"].as_array().expect("MathML CEMT events");
+        let root = events
+            .iter()
+            .find(|event| event["kind"] == "start-element" && event["qualifiedName"] == "math")
+            .expect("MathML root event");
+        assert_eq!(root["lineBreakBefore"], true);
+        assert_eq!(root["layoutSensitive"], false);
+        assert_eq!(
+            root["markupTokens"]
+                .as_array()
+                .expect("root markup tokens")
+                .iter()
+                .map(|token| (
+                    token["kind"].as_str().unwrap(),
+                    token["text"].as_str().unwrap()
+                ))
+                .collect::<Vec<_>>(),
+            vec![
+                ("delimiter", "<"),
+                ("element-name", "math"),
+                ("whitespace", " "),
+                ("attribute-name", "xmlns"),
+                ("equals", "="),
+                ("attribute-value", "\"http://www.w3.org/1998/Math/MathML\""),
+                ("delimiter", ">"),
+            ]
+        );
+        assert!(root["markupTokens"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .filter(|token| token["kind"] != "whitespace")
+            .all(|token| token["sourceMap"] != Value::Null));
+
+        let identifier = events
+            .iter()
+            .find(|event| event["kind"] == "start-element" && event["qualifiedName"] == "mi")
+            .expect("identifier event");
+        assert_eq!(identifier["layoutSensitive"], true);
+        assert_eq!(identifier["lineBreakBefore"], true);
+        assert_eq!(
+            identifier["markupTokens"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .find(|token| token["kind"] == "attribute-value")
+                .unwrap()["text"],
+            "'identifier'"
+        );
+        assert!(events.iter().any(|event| {
+            event["kind"] == "text"
+                && event["lexeme"] == " + "
+                && event["layoutSensitive"] == true
+                && event["structuralWhitespace"] == false
+        }));
+        assert!(events.iter().any(|event| {
+            event["kind"] == "cdata"
+                && event["layoutSensitive"] == true
+                && event["lineBreakBefore"] == false
+        }));
+        assert!(events.iter().any(|event| {
+            event["qualifiedName"] == "html:span" && event["layoutSensitive"] == true
+        }));
+        assert!(events.iter().any(|event| {
+            event["kind"] == "comment"
+                && event["layoutSensitive"] == false
+                && event["lineBreakBefore"] == true
+        }));
+        assert!(events.iter().any(|event| {
+            event["kind"] == "text"
+                && event["whitespaceOnly"] == true
+                && event["structuralWhitespace"] == true
+        }));
     }
 
     #[test]

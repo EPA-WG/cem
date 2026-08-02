@@ -45,7 +45,7 @@ The schema describes JSON values as a lossless resource model:
 
 `cem_ml_schema_package_json_v1:verify` validates the package manifest, checks
 that package examples are manifest-indexed, and runs focused lifecycle adapter,
-engine conversion, CLI same-schema JSON regressions, and README/SVG preview
+engine conversion, CLI same-schema JSON regressions, and README source-fence
 drift checks.
 
 ## Release Behavior
@@ -74,13 +74,10 @@ pattern.
 ## Examples
 
 This section is generated from `package.cem` `{example}` metadata by the
-`samples2readme` Nx target. Each SVG previews the example content, not
-the validation report. The target writes a preformatted HTML preview to
-`dist/cem_ml/schema-packages/<package>/v1/examples/<example-file>.html`,
-then renders the `<pre>` spans through headless Chromium into
-`examples/previews/<example-file>.svg`.
-Source snapshots are used only where the current CLI cannot yet render
-the package formatter/colorizer path for that content identity.
+`samples2readme` Nx target. Text examples with a recognized language and
+valid UTF-8 are embedded directly as language-tagged fenced source.
+All declared examples in this package support source fences, so README SVG
+previews are not used.
 
 <details>
 <summary>basic-object</summary>
@@ -89,8 +86,7 @@ the package formatter/colorizer path for that content identity.
 - Content type: `application/json`
 - Schema: `https://cem.dev/ns/data/json/1`
 - Expected result: `pass`
-- Preview renderer: `CLI convert, tabular formatter, preview HTML + html2svg`
-- Preview HTML: `dist/cem_ml/schema-packages/json/v1/examples/basic-object.json.html`
+- README rendering: fenced `json` source
 
 ```bash
 dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
@@ -102,7 +98,13 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
 
 </details>
 
-![Preview of JSON Resource Schema Package basic-object example](examples/previews/basic-object.json.svg)
+```json
+{
+  "message": "Hello JSON",
+  "enabled": true,
+  "count": 3
+}
+```
 
 <details>
 <summary>nested-data</summary>
@@ -111,8 +113,7 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
 - Content type: `application/json`
 - Schema: `https://cem.dev/ns/data/json/1`
 - Expected result: `pass`
-- Preview renderer: `CLI convert, tabular formatter, preview HTML + html2svg`
-- Preview HTML: `dist/cem_ml/schema-packages/json/v1/examples/nested-data.json.html`
+- README rendering: fenced `json` source
 
 ```bash
 dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
@@ -124,7 +125,29 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
 
 </details>
 
-![Preview of JSON Resource Schema Package nested-data example](examples/previews/nested-data.json.svg)
+```json
+{
+  "site": {
+    "title": "CEM Demo",
+    "tags": ["schema", "json"],
+    "metrics": {
+      "views": 42,
+      "ratio": 0.75
+    }
+  },
+  "items": [
+    {
+      "id": "alpha",
+      "active": true
+    },
+    {
+      "id": "beta",
+      "active": false
+    }
+  ],
+  "metadata": null
+}
+```
 
 <details>
 <summary>invalid-trailing-comma</summary>
@@ -134,8 +157,7 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
 - Schema: `https://cem.dev/ns/data/json/1`
 - Expected result: `fail`
 - Expected diagnostics: `cem.json.parse_error`
-- Preview renderer: `CLI convert, tabular formatter, preview HTML + html2svg`
-- Preview HTML: `dist/cem_ml/schema-packages/json/v1/examples/invalid-trailing-comma.json.html`
+- README rendering: fenced `json` source
 
 ```bash
 dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
@@ -147,4 +169,8 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
 
 </details>
 
-![Preview of JSON Resource Schema Package invalid-trailing-comma example](examples/previews/invalid-trailing-comma.json.svg)
+```json
+{
+  "message": "broken",
+}
+```

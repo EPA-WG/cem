@@ -10,77 +10,41 @@ const packageRoot = join(workspaceRoot, 'packages/cem_ml/schema-packages/cem-ql/
 const cli = join(workspaceRoot, 'dist/target/cem_ml_cli/debug/cem-ml');
 const update = process.argv.includes('--update');
 
-const commonInputArgs = [
-    'packages/cem_ml/schema-packages/cem-ql/v1/examples/basic-query.cemql',
-    '--content-type',
-    'application/vnd.cem.query+cem-ql',
-    '--schema',
-    'https://cem.dev/ns/query/cem-ql/1',
-];
+const packageLabel = 'CEM-QL Query Resource Schema Package';
+const invalidUtf8Path =
+    'packages/cem_ml/schema-packages/cem-ql/v1/examples/invalid-utf8.cemql';
+const contentType = 'application/vnd.cem.query+cem-ql';
+const schema = 'https://cem.dev/ns/query/cem-ql/1';
 
 const cases = [
     {
-        id: 'basic-query-validate',
-        preview: 'basic-query-validate.svg',
-        title: 'CEM-QL validation command preview',
+        id: 'invalid-utf8-preview',
+        preview: 'invalid-utf8.cemql.svg',
+        html: 'invalid-utf8.cemql.html',
+        title: `${packageLabel} invalid-utf8 example preview`,
         description:
-            'Terminal-style preview of the JSON validation report for the basic CEM-QL query example.',
-        terminalTitle: 'validate basic-query.cemql',
-        renderer: 'json',
-        args: ['validate', '--format', 'json', ...commonInputArgs],
-    },
-    {
-        id: 'basic-query-tabular-terminal',
-        preview: 'basic-query-tabular-terminal.svg',
-        title: 'CEM-QL tabular formatter terminal preview',
-        description:
-            'Terminal-style preview of colored tabular CEM-QL output for the basic query example.',
-        terminalTitle: 'tabular + terminal color',
+            'Preview of examples/invalid-utf8.cemql from package.cem example metadata.',
+        terminalTitle: 'tabular invalid-utf8.cemql',
         renderer: 'ansi',
+        expectedStatus: 'any',
         args: [
             'convert',
-            ...commonInputArgs,
+            '--input-spec',
+            `uri=${invalidUtf8Path},contentType=${contentType},schema=${schema}`,
             '--to-content-type',
-            'application/vnd.cem.query+cem-ql',
+            contentType,
             '--to-schema',
-            'https://cem.dev/ns/query/cem-ql/1',
-            '--cemt-formatter',
-            'cem-ql.format-tree',
+            schema,
             '--cemt-formatter-profile',
             'tabular',
-            '--cemt-colorizer',
-            'cem-ql.color-tree',
             '--cemt-color-profile',
             'terminal',
             '--output-color-type',
             'ansi-256',
         ],
-    },
-    {
-        id: 'basic-query-tabular-html',
-        preview: 'basic-query-tabular-html.svg',
-        title: 'CEM-QL tabular formatter HTML preview',
-        description: 'Rendered preview of HTML color output for the basic CEM-QL query example.',
-        terminalTitle: 'tabular + HTML color',
-        renderer: 'html',
-        args: [
-            'convert',
-            ...commonInputArgs,
-            '--to-content-type',
-            'text/html',
-            '--to-schema',
-            'https://cem.dev/ns/data/html/1',
-            '--cemt-formatter',
-            'cem-ql.format-tree',
-            '--cemt-formatter-profile',
-            'tabular',
-            '--cemt-colorizer',
-            'cem-ql.color-tree',
-            '--cemt-color-profile',
-            'html',
-            '--output-color-type',
-            'html-css-vars',
-        ],
+        fallbackSourcePath: invalidUtf8Path,
+        width: 980,
+        minHeight: 190,
     },
 ];
 
@@ -90,6 +54,6 @@ await verifyReadmePreviews({
     cli,
     update,
     cases,
-    packageLabel: 'CEM-QL',
+    packageLabel,
     refreshCommand: 'node packages/cem_ml/schema-packages/cem-ql/v1/scripts/verify-previews.mjs --update',
 });

@@ -1,8 +1,7 @@
 #!/usr/bin/env node
 
-import { spawnSync } from 'node:child_process';
-import { mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
-import { basename, dirname, join, relative, resolve } from 'node:path';
+import { readFileSync, writeFileSync } from 'node:fs';
+import { basename, dirname, extname, join, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { verifyReadmePreviews } from './readme-preview.mjs';
 
@@ -20,13 +19,17 @@ const readmePath = join(packageRoot, 'README.md');
 const manifest = parseManifest(readFileSync(manifestPath, 'utf8'), packageRoot);
 const readme = readFileSync(readmePath, 'utf8');
 const packageLabel = readme.match(/^#\s+(.+)$/m)?.[1]?.trim() ?? manifest.packageId;
+const sourceFences = new Map(
+    manifest.examples
+        .map((example) => [example.id, sourceFenceForExample(example)])
+        .filter(([, sourceFence]) => sourceFence !== null),
+);
 
-let inlinePreviews = null;
-if (isMarkdownPackageManifest(manifest)) {
-    inlinePreviews = generateMarkdownHtmlReadmePreviews(manifest, packageLabel);
-} else {
-    const cases = manifest.examples.map((example) => previewCaseForExample(example, manifest, packageLabel));
+const cases = manifest.examples
+    .filter((example) => !sourceFences.has(example.id))
+    .map((example) => previewCaseForExample(example, manifest, packageLabel));
 
+if (cases.length > 0) {
     await verifyReadmePreviews({
         workspaceRoot,
         packageRoot,
@@ -36,11 +39,13 @@ if (isMarkdownPackageManifest(manifest)) {
         packageLabel,
         refreshCommand: `yarn nx run ${projectNameForPackageRoot(packageRoot)}:samples2readme`,
     });
+} else {
+    console.log(`Skipped ${packageLabel} SVG previews because every example uses fenced source.`);
 }
 
 writeFileSync(
     readmePath,
-    replaceExamplesSection(readme, generatedExamplesSection(manifest, packageLabel, inlinePreviews)),
+    replaceExamplesSection(readme, generatedExamplesSection(manifest, packageLabel, sourceFences)),
     'utf8',
 );
 console.log(`Updated ${relative(workspaceRoot, readmePath)} from package.cem examples.`);
@@ -790,10 +795,6 @@ function isLegacyXsltEssence(essence) {
     );
 }
 
-function isMarkdownPackageManifest(manifest) {
-    return manifest.packageId === 'markdown';
-}
-
 function isHtmlExample(essence) {
     return essence === 'text/html';
 }
@@ -811,15 +812,86 @@ function isXmlFamilyExample(essence) {
     );
 }
 
-function generatedExamplesSection(manifest, packageLabel, inlinePreviews = null) {
-    if (isMarkdownPackageManifest(manifest) && inlinePreviews) {
-        return generatedMarkdownExamplesSection(manifest, inlinePreviews);
+function sourceFenceForExample(example) {
+    const language = sourceFenceLanguage(example.path);
+    if (language === null) {
+        return null;
     }
+    const bytes = readFileSync(join(packageRoot, example.path));
+    const source = utf8SourceText(bytes);
+    if (source === null) {
+        return null;
+    }
+    return {
+        language,
+        source: source.replace(/\r\n/g, '\n').replace(/\r/g, '\n').trimEnd(),
+    };
+}
 
-    const hasValidationPreviews = manifest.examples.some(
+function sourceFenceLanguage(path) {
+    switch (extname(path).toLowerCase()) {
+        case '.cem':
+        case '.cemt':
+            return 'cem';
+        case '.cemql':
+        case '.cem-ql':
+            return 'cemql';
+        case '.css':
+            return 'css';
+        case '.csv':
+            return 'csv';
+        case '.html':
+        case '.htm':
+            return 'html';
+        case '.xhtml':
+            return 'html';
+        case '.json':
+            return 'json';
+        case '.md':
+        case '.markdown':
+            return 'markdown';
+        case '.mathml':
+        case '.mml':
+        case '.rng':
+        case '.xml':
+        case '.xsl':
+        case '.xslt':
+            return 'xml';
+        case '.rnc':
+            return 'rnc';
+        case '.svg':
+            return 'svg';
+        case '.yaml':
+        case '.yml':
+            return 'yaml';
+        default:
+            return null;
+    }
+}
+
+function utf8SourceText(bytes) {
+    try {
+        const text = new TextDecoder('utf-8', { fatal: true }).decode(bytes);
+        if (/[\u0000-\u0008\u000b\u000c\u000e-\u001f]/.test(text)) {
+            return null;
+        }
+        return text;
+    } catch {
+        return null;
+    }
+}
+
+function markdownFenceDelimiter(source) {
+    const longestRun = Math.max(0, ...[...source.matchAll(/`+/g)].map((match) => match[0].length));
+    return '`'.repeat(Math.max(3, longestRun + 1));
+}
+
+function generatedExamplesSection(manifest, packageLabel, sourceFences = new Map()) {
+    const fallbackExamples = manifest.examples.filter((example) => !sourceFences.has(example.id));
+    const hasValidationPreviews = fallbackExamples.some(
         (example) => previewPlanForExample(example, manifest).args?.[0] === 'validate',
     );
-    const hasSourceSnapshotFallback = manifest.examples.some((example) => {
+    const hasSourceSnapshotFallback = fallbackExamples.some((example) => {
         const plan = previewPlanForExample(example, manifest);
         return Boolean(plan.sourcePath || plan.fallbackSourcePath);
     });
@@ -827,19 +899,30 @@ function generatedExamplesSection(manifest, packageLabel, inlinePreviews = null)
         '## Examples',
         '',
         'This section is generated from `package.cem` `{example}` metadata by the',
-        ...(hasValidationPreviews
-            ? [
-                  '`samples2readme` Nx target. Each SVG previews the rendered example',
-                  'content or validation diagnostics for expected-fail examples. The target writes a',
-                  'preformatted HTML preview to',
-              ]
+        '`samples2readme` Nx target. Text examples with a recognized language and',
+        'valid UTF-8 are embedded directly as language-tagged fenced source.',
+        ...(fallbackExamples.length > 0
+            ? hasValidationPreviews
+                ? [
+                      'An SVG preview is used only when fenced source is unavailable; it shows',
+                      'the rendered example or validation diagnostics for expected-fail examples.',
+                      'The target writes fallback preview HTML to',
+                  ]
+                : [
+                      'An SVG preview is used only when fenced source is unavailable. The target',
+                      'writes fallback preview HTML to',
+                  ]
             : [
-                  '`samples2readme` Nx target. Each SVG previews the example content, not',
-                  'the validation report. The target writes a preformatted HTML preview to',
+                  'All declared examples in this package support source fences, so README SVG',
+                  'previews are not used.',
               ]),
-        '`dist/cem_ml/schema-packages/<package>/v1/examples/<example-file>.html`,',
-        'then renders the `<pre>` spans through headless Chromium into',
-        '`examples/previews/<example-file>.svg`.',
+        ...(fallbackExamples.length > 0
+            ? [
+                  '`dist/cem_ml/schema-packages/<package>/v1/examples/<example-file>.html`,',
+                  'then renders the `<pre>` spans through headless Chromium into',
+                  '`examples/previews/<example-file>.svg`.',
+              ]
+            : []),
         ...(hasSourceSnapshotFallback
             ? [
                   'Source snapshots are used only where the current CLI cannot yet render',
@@ -853,6 +936,7 @@ function generatedExamplesSection(manifest, packageLabel, inlinePreviews = null)
         const fileBase = plan.previewBase ?? previewFileBase(example);
         const preview = `examples/previews/${fileBase}.svg`;
         const htmlPreview = `dist/cem_ml/schema-packages/${manifest.packageId}/v1/examples/${fileBase}.html`;
+        const sourceFence = sourceFences.get(example.id) ?? null;
         lines.push('<details>', `<summary>${escapeHtml(example.id)}</summary>`, '');
         lines.push(`- Source: [\`${example.path}\`](${relativeMarkdownLink(example.path)})`);
         lines.push(`- Content type: \`${example.contentType}\``);
@@ -863,153 +947,11 @@ function generatedExamplesSection(manifest, packageLabel, inlinePreviews = null)
                 `- Expected diagnostics: ${example.expectedDiagnostics.map((code) => `\`${code}\``).join(', ')}`,
             );
         }
-        lines.push(`- Preview renderer: \`${previewRendererLabel(plan)}\``);
-        lines.push(`- Preview HTML: \`${htmlPreview}\``);
-        if (plan.args) {
-            lines.push('', '```bash');
-            lines.push(...shellCommandLines(['dist/target/cem_ml_cli/debug/cem-ml', ...plan.args]));
-            lines.push('```');
-        }
-        lines.push('', '</details>', '');
-        lines.push(`![Preview of ${packageLabel} ${example.id} example](${preview})`, '');
-    }
-    return `${lines.join('\n').trimEnd()}\n`;
-}
-
-function generateMarkdownHtmlReadmePreviews(manifest, packageLabel) {
-    const generatedRoot = join(workspaceRoot, 'dist/cem_ml/schema-packages', manifest.packageId, 'v1/examples');
-    mkdirSync(generatedRoot, { recursive: true });
-    removeMarkdownReadmePreviewArtifacts(generatedRoot);
-    rmSync(join(packageRoot, 'examples/previews'), { recursive: true, force: true });
-
-    const cliEnv = { ...process.env };
-    delete cliEnv.NO_COLOR;
-    const previews = new Map();
-    for (const example of manifest.examples) {
-        const plan = markdownReadmePreviewPlan(example, manifest, generatedRoot);
-        runMarkdownReadmePreviewCommand({ plan, cliEnv, packageLabel });
-        if (plan.outputPath) {
-            plan.content = readFileSync(plan.outputPath, 'utf8');
-        }
-        previews.set(example.id, plan);
-    }
-    return previews;
-}
-
-function removeMarkdownReadmePreviewArtifacts(directory) {
-    let entries;
-    try {
-        entries = readdirSync(directory, { withFileTypes: true });
-    } catch {
-        return;
-    }
-    for (const entry of entries) {
-        if (entry.isFile() && (entry.name.endsWith('.html') || entry.name.endsWith('.svg'))) {
-            rmSync(join(directory, entry.name), { force: true });
-        }
-    }
-}
-
-function markdownReadmePreviewPlan(example, manifest, generatedRoot) {
-    const inputPath = relative(workspaceRoot, join(packageRoot, example.path));
-    const inputSpec = inputSpecForExample(example, inputPath);
-    if (example.expectedResult !== 'pass') {
-        return {
-            label: 'markdown validate',
-            rendererLabel: 'CLI validate; no HTML preview for expected-fail example',
-            outputRelativePath: null,
-            outputPath: null,
-            args: validatePreviewArgs(inputPath, {
-                format: 'json',
-                failLevel: 'parse',
-                contentType: example.contentType,
-                schema: example.schema,
-            }),
-            expectedStatus: 'success',
-            content: null,
-        };
-    }
-
-    const fileBase = `${basename(example.path)}.html`;
-    const outputPath = join(generatedRoot, fileBase);
-    const outputRelativePath = relative(workspaceRoot, outputPath);
-    return {
-        label: 'markdown html',
-        rendererLabel: 'CLI convert, Markdown AST to HTML, README html snippet',
-        outputRelativePath,
-        outputPath,
-        args: convertPreviewArgs(inputSpec, {
-            toContentType: 'text/html',
-            toSchema: 'https://cem.dev/ns/data/html/1',
-            colorProfile: 'none',
-            outputColorType: null,
-            extra: ['--out', outputRelativePath],
-        }),
-        expectedStatus: 'success',
-        content: null,
-    };
-}
-
-function runMarkdownReadmePreviewCommand({ plan, cliEnv, packageLabel }) {
-    const result = spawnSync(cli, plan.args, {
-        cwd: workspaceRoot,
-        encoding: 'utf8',
-        env: cliEnv,
-        maxBuffer: 1024 * 1024,
-    });
-    if (!previewStatusMatches(result.status, plan.expectedStatus)) {
-        throw new Error(
-            [
-                `${packageLabel} README example command failed: ${cli} ${plan.args.join(' ')}`,
-                `exit status: ${result.status}`,
-                result.stdout,
-                result.stderr,
-            ]
-                .filter(Boolean)
-                .join('\n'),
-        );
-    }
-}
-
-function previewStatusMatches(status, expectedStatus) {
-    if (expectedStatus === 'any') {
-        return true;
-    }
-    if (expectedStatus === 'failure') {
-        return status !== 0;
-    }
-    return status === 0;
-}
-
-function generatedMarkdownExamplesSection(manifest, inlinePreviews) {
-    const lines = [
-        '## Examples',
-        '',
-        'This section is generated from `package.cem` `{example}` metadata by the',
-        '`samples2readme` Nx target. Passing Markdown examples are converted by the',
-        'CLI to browser HTML and written to',
-        '`dist/cem_ml/schema-packages/markdown/v1/examples/<example-name>.md.html`.',
-        'The README embeds that generated file content directly as a fenced `html`',
-        'snippet. README preview SVGs are not generated for this package.',
-        '',
-    ];
-    for (const example of manifest.examples) {
-        const plan = inlinePreviews.get(example.id);
-        lines.push('<details>', `<summary>${escapeHtml(example.id)}</summary>`, '');
-        lines.push(`- Source: [\`${example.path}\`](${relativeMarkdownLink(example.path)})`);
-        lines.push(`- Content type: \`${example.contentType}\``);
-        lines.push(`- Schema: \`${example.schema}\``);
-        lines.push(`- Expected result: \`${example.expectedResult}\``);
-        if (example.expectedDiagnostics.length > 0) {
-            lines.push(
-                `- Expected diagnostics: ${example.expectedDiagnostics.map((code) => `\`${code}\``).join(', ')}`,
-            );
-        }
-        lines.push(`- Preview renderer: \`${plan.rendererLabel}\``);
-        if (plan.outputRelativePath) {
-            lines.push(`- HTML output: \`${plan.outputRelativePath}\``);
+        if (sourceFence) {
+            lines.push(`- README rendering: fenced \`${sourceFence.language}\` source`);
         } else {
-            lines.push('- HTML output: not generated for expected-fail examples');
+            lines.push(`- Preview renderer: \`${previewRendererLabel(plan)}\``);
+            lines.push(`- Preview HTML: \`${htmlPreview}\``);
         }
         if (plan.args) {
             lines.push('', '```bash');
@@ -1017,10 +959,11 @@ function generatedMarkdownExamplesSection(manifest, inlinePreviews) {
             lines.push('```');
         }
         lines.push('', '</details>', '');
-        if (plan.content !== null) {
-            lines.push('```html');
-            lines.push(plan.content.trimEnd());
-            lines.push('```', '');
+        if (sourceFence) {
+            const delimiter = markdownFenceDelimiter(sourceFence.source);
+            lines.push(`${delimiter}${sourceFence.language}`, sourceFence.source, delimiter, '');
+        } else {
+            lines.push(`![Preview of ${packageLabel} ${example.id} example](${preview})`, '');
         }
     }
     return `${lines.join('\n').trimEnd()}\n`;

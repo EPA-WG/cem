@@ -177,6 +177,218 @@ impl XmlEventKind {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum XmlMarkupTokenKind {
+    Delimiter,
+    ElementName,
+    Whitespace,
+    AttributeName,
+    Equals,
+    AttributeValue,
+    Raw,
+}
+
+impl XmlMarkupTokenKind {
+    pub(crate) fn as_str(self) -> &'static str {
+        match self {
+            Self::Delimiter => "delimiter",
+            Self::ElementName => "element-name",
+            Self::Whitespace => "whitespace",
+            Self::AttributeName => "attribute-name",
+            Self::Equals => "equals",
+            Self::AttributeValue => "attribute-value",
+            Self::Raw => "raw",
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct XmlMarkupTokenAst {
+    pub kind: XmlMarkupTokenKind,
+    pub text: String,
+    pub source_range: XmlSourceRange,
+}
+
+pub(crate) fn xml_event_markup_tokens(event: &XmlEventAst) -> Vec<XmlMarkupTokenAst> {
+    if !matches!(
+        event.kind,
+        XmlEventKind::StartElement | XmlEventKind::EmptyElement | XmlEventKind::EndElement
+    ) {
+        return Vec::new();
+    }
+
+    let lexeme = event.lexeme.as_str();
+    let bytes = lexeme.as_bytes();
+    let mut tokens = Vec::new();
+    let mut offset = 0usize;
+    if bytes.starts_with(b"</") {
+        xml_push_markup_token(event, &mut tokens, XmlMarkupTokenKind::Delimiter, 0, 2);
+        offset = 2;
+    } else if bytes.starts_with(b"<") {
+        xml_push_markup_token(event, &mut tokens, XmlMarkupTokenKind::Delimiter, 0, 1);
+        offset = 1;
+    }
+
+    let name_start = offset;
+    while offset < bytes.len()
+        && !bytes[offset].is_ascii_whitespace()
+        && !matches!(bytes[offset], b'/' | b'>')
+    {
+        offset += 1;
+    }
+    if offset > name_start {
+        xml_push_markup_token(
+            event,
+            &mut tokens,
+            XmlMarkupTokenKind::ElementName,
+            name_start,
+            offset,
+        );
+    }
+
+    while offset < bytes.len() {
+        if bytes[offset].is_ascii_whitespace() {
+            let start = offset;
+            while offset < bytes.len() && bytes[offset].is_ascii_whitespace() {
+                offset += 1;
+            }
+            xml_push_markup_token(
+                event,
+                &mut tokens,
+                XmlMarkupTokenKind::Whitespace,
+                start,
+                offset,
+            );
+            continue;
+        }
+        if bytes[offset..].starts_with(b"/>") {
+            xml_push_markup_token(
+                event,
+                &mut tokens,
+                XmlMarkupTokenKind::Delimiter,
+                offset,
+                offset + 2,
+            );
+            offset += 2;
+            continue;
+        }
+        if bytes[offset] == b'>' {
+            xml_push_markup_token(
+                event,
+                &mut tokens,
+                XmlMarkupTokenKind::Delimiter,
+                offset,
+                offset + 1,
+            );
+            offset += 1;
+            continue;
+        }
+        if bytes[offset] == b'=' {
+            xml_push_markup_token(
+                event,
+                &mut tokens,
+                XmlMarkupTokenKind::Equals,
+                offset,
+                offset + 1,
+            );
+            offset += 1;
+            continue;
+        }
+        if matches!(bytes[offset], b'\'' | b'\"') {
+            let quote = bytes[offset];
+            let start = offset;
+            offset += 1;
+            while offset < bytes.len() && bytes[offset] != quote {
+                offset += 1;
+            }
+            if offset < bytes.len() {
+                offset += 1;
+            }
+            xml_push_markup_token(
+                event,
+                &mut tokens,
+                XmlMarkupTokenKind::AttributeValue,
+                start,
+                offset,
+            );
+            continue;
+        }
+
+        let start = offset;
+        while offset < bytes.len()
+            && !bytes[offset].is_ascii_whitespace()
+            && !matches!(bytes[offset], b'=' | b'/' | b'>')
+        {
+            offset += 1;
+        }
+        if offset == start {
+            offset += 1;
+            xml_push_markup_token(event, &mut tokens, XmlMarkupTokenKind::Raw, start, offset);
+        } else {
+            xml_push_markup_token(
+                event,
+                &mut tokens,
+                XmlMarkupTokenKind::AttributeName,
+                start,
+                offset,
+            );
+        }
+    }
+
+    tokens
+}
+
+fn xml_push_markup_token(
+    event: &XmlEventAst,
+    tokens: &mut Vec<XmlMarkupTokenAst>,
+    kind: XmlMarkupTokenKind,
+    start: usize,
+    end: usize,
+) {
+    let Some(text) = event.lexeme.get(start..end) else {
+        return;
+    };
+    if text.is_empty() {
+        return;
+    }
+    tokens.push(XmlMarkupTokenAst {
+        kind,
+        text: text.to_owned(),
+        source_range: xml_lexeme_range(event, start, end),
+    });
+}
+
+fn xml_lexeme_range(event: &XmlEventAst, start: usize, end: usize) -> XmlSourceRange {
+    let prefix = &event.lexeme[..start];
+    let mut line = event.source_range.start.line;
+    let mut column = event.source_range.start.column;
+    let mut chars = prefix.chars().peekable();
+    while let Some(ch) = chars.next() {
+        match ch {
+            '\r' => {
+                if chars.peek() == Some(&'\n') {
+                    chars.next();
+                }
+                line = line.saturating_add(1);
+                column = 1;
+            }
+            '\n' => {
+                line = line.saturating_add(1);
+                column = 1;
+            }
+            _ => column = column.saturating_add(1),
+        }
+    }
+    XmlSourceRange {
+        start: XmlSourcePosition {
+            line,
+            column,
+            byte_offset: event.source_range.start.byte_offset + start as u64,
+        },
+        byte_length: (end - start) as u64,
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct XmlAttributeAst {
     pub qualified_name: String,

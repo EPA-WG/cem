@@ -214,12 +214,12 @@ explicit policy boundaries.
 ## Formatter And Preview SDLC
 
 When a command example, fixture, formatter, colorizer, CLI report shape, or
-visible presentation output changes, update the SVG previews in
-`examples/previews/` in the same change by running
-`node packages/cem_ml/schema-packages/cem-transform/v1/scripts/verify-previews.mjs --update`.
+visible presentation output changes, regenerate the README examples with the
+package `samples2readme` target. Valid UTF-8 CEMT sources remain exact fenced
+source; an SVG preview is allowed only for an unfenceable fallback.
 
-The package `verify` target writes generated preview HTML/SVG artifacts into
-`dist/cem_ml/schema-packages/cem-transform/v1/examples/` and fails on drift.
+The package `verify` target checks generated README source and any referenced
+fallback preview artifacts for drift.
 
 ## Verification
 
@@ -249,19 +249,16 @@ Tracked but not complete:
 - schema-owned fact bindings for all transform parser and semantic diagnostics;
 - distinct `compact` and `tabular` transform layout rules beyond the current
   deterministic review layout;
-- HTML and Markdown preview drift checks once their transform presentation
-  profiles become stable enough for README demos.
+- HTML and Markdown output-parity checks once their transform presentation
+  profiles become stable enough for executable examples.
 
 ## Examples
 
 This section is generated from `package.cem` `{example}` metadata by the
-`samples2readme` Nx target. Each SVG previews the example content, not
-the validation report. The target writes a preformatted HTML preview to
-`dist/cem_ml/schema-packages/<package>/v1/examples/<example-file>.html`,
-then renders the `<pre>` spans through headless Chromium into
-`examples/previews/<example-file>.svg`.
-Source snapshots are used only where the current CLI cannot yet render
-the package formatter/colorizer path for that content identity.
+`samples2readme` Nx target. Text examples with a recognized language and
+valid UTF-8 are embedded directly as language-tagged fenced source.
+All declared examples in this package support source fences, so README SVG
+previews are not used.
 
 <details>
 <summary>basic-transform</summary>
@@ -270,8 +267,7 @@ the package formatter/colorizer path for that content identity.
 - Content type: `application/vnd.cem.transform+cem`
 - Schema: `https://cem.dev/ns/transform/cem/1`
 - Expected result: `pass`
-- Preview renderer: `CLI convert, tabular formatter, preview HTML + html2svg`
-- Preview HTML: `dist/cem_ml/schema-packages/cem-transform/v1/examples/basic-transform.cemt.html`
+- README rendering: fenced `cem` source
 
 ```bash
 dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
@@ -283,7 +279,17 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
 
 </details>
 
-![Preview of CEM Transform Template Schema Package basic-transform example](examples/previews/basic-transform.cemt.svg)
+```cem
+@doc cem-ml 1
+@ns transform = "https://cem.dev/ns/transform/cem/1"
+@default transform
+
+{module |
+    {template @name="main" |
+        {body | Converted output.}
+    }
+}
+```
 
 <details>
 <summary>module-transform</summary>
@@ -292,8 +298,7 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
 - Content type: `application/vnd.cem.transform+cem`
 - Schema: `https://cem.dev/ns/transform/cem/1`
 - Expected result: `pass`
-- Preview renderer: `CLI convert, tabular formatter, preview HTML + html2svg`
-- Preview HTML: `dist/cem_ml/schema-packages/cem-transform/v1/examples/module-transform.cemt.html`
+- README rendering: fenced `cem` source
 
 ```bash
 dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
@@ -305,7 +310,36 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
 
 </details>
 
-![Preview of CEM Transform Template Schema Package module-transform example](examples/previews/module-transform.cemt.svg)
+```cem
+@doc cem-ml 1
+@ns transform = "https://cem.dev/ns/transform/cem/1"
+@default transform
+
+{module @version="1.0.0" |
+    {import
+        @as="shared"
+        @src="shared.cemt"
+        @content-type="application/vnd.cem.transform+cem"
+        @schema="https://cem.dev/ns/transform/cem/1"
+    }
+
+    {param @name="items" @type="array"}
+
+    {template @name="main" @visibility="public" |
+        {body |
+            {call @template="row" @with:item="current"}
+            {section @class="summary" | Transform ready}
+        }
+    }
+
+    {template @name="row" |
+        {param @name="item" @type="object"}
+        {body |
+            {div @class="row" | Row output}
+        }
+    }
+}
+```
 
 <details>
 <summary>function-declarations</summary>
@@ -314,8 +348,7 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
 - Content type: `application/vnd.cem.transform+cem`
 - Schema: `https://cem.dev/ns/transform/cem/1`
 - Expected result: `pass`
-- Preview renderer: `CLI convert, tabular formatter, preview HTML + html2svg`
-- Preview HTML: `dist/cem_ml/schema-packages/cem-transform/v1/examples/function-declarations.cemt.html`
+- README rendering: fenced `cem` source
 
 ```bash
 dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
@@ -327,7 +360,112 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
 
 </details>
 
-![Preview of CEM Transform Template Schema Package function-declarations example](examples/previews/function-declarations.cemt.svg)
+```cem
+@doc cem-ml 1
+@ns transform = "https://cem.dev/ns/transform/cem/1"
+@default transform
+
+{module @version="1.0.0" |
+    {function
+        @name="acme.normalize-callout"
+        @visibility="private"
+        @returns="object"
+        @deterministic=true |
+        {param @name="subject" @type="object" @required=true}
+        {param @name="marker" @type="string" @default="NOTE"}
+        {body |
+            {$ { kind: "callout", marker: $marker, value: $subject.value } }
+        }
+    }
+
+    {encoding-function
+        @name="html.text"
+        @category="html-text"
+        @subject="string"
+        @produces="text"
+        @content-type="text/html"
+        @schema="https://cem.dev/ns/data/html/1"
+        @canonical=true
+        @deterministic=true
+        @streamable=true |
+        {param @name="subject" @type="string" @required=true}
+        {param @name="mode" @type="string" @default="canonical"}
+    }
+
+    {format-function
+        @name="json.pretty"
+        @category="json-document"
+        @subject="object"
+        @produces="tokens"
+        @content-type="application/json"
+        @schema="https://cem.dev/ns/data/json/1"
+        @canonical=false
+        @streamable=true |
+        {param @name="subject" @type="object" @required=true}
+        {param @name="indent" @type="string" @default="    "}
+    }
+
+    {format-function
+        @name="cem.format-tree"
+        @category="cem-tree"
+        @subject="cem-ast-node"
+        @produces="cem-tree"
+        @content-type="application/cem"
+        @schema="https://cem.dev/ns/cem-ml/1"
+        @canonical=true
+        @deterministic=true
+        @streamable=true |
+        {param @name="subject" @type="object" @required=true}
+    }
+
+    {color-function
+        @name="cem.color-tree"
+        @category="cem-tree"
+        @subject="cem-tree"
+        @produces="cem-tree"
+        @content-type="application/cem"
+        @schema="https://cem.dev/ns/cem-ml/1"
+        @profile="css-custom-properties"
+        @canonical=false
+        @deterministic=true
+        @streamable=true |
+        {param @name="subject" @type="object" @required=true}
+    }
+
+    {color-function
+        @name="terminal.diagnostic"
+        @category="terminal-color"
+        @subject="tokens"
+        @produces="text"
+        @content-type="text/plain"
+        @schema="https://cem.dev/ns/data/text/terminal/1"
+        @canonical=false
+        @streamable=true |
+        {param @name="subject" @type="array" @required=true}
+        {param @name="capability" @type="string" @default="auto"}
+    }
+
+    {encoding-function
+        @name="acme.markdown.callout-block"
+        @visibility="public"
+        @implementation="cemt"
+        @category="markdown-callout"
+        @subject="object"
+        @produces="tokens"
+        @content-type="text/markdown"
+        @schema="https://acme.test/ns/docs/markdown/1"
+        @canonical=false
+        @streamable=true
+        @deterministic=true
+        @extends="markdown-document" |
+        {param @name="subject" @type="object" @required=true}
+        {param @name="marker" @type="string" @default="NOTE"}
+        {body |
+            Markdown callout output.
+        }
+    }
+}
+```
 
 <details>
 <summary>formatter-coloring-pipeline</summary>
@@ -336,8 +474,7 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
 - Content type: `application/vnd.cem.transform+cem`
 - Schema: `https://cem.dev/ns/transform/cem/1`
 - Expected result: `pass`
-- Preview renderer: `CLI convert, tabular formatter, preview HTML + html2svg`
-- Preview HTML: `dist/cem_ml/schema-packages/cem-transform/v1/examples/formatter-coloring-pipeline.cemt.html`
+- README rendering: fenced `cem` source
 
 ```bash
 dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
@@ -349,7 +486,313 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
 
 </details>
 
-![Preview of CEM Transform Template Schema Package formatter-coloring-pipeline example](examples/previews/formatter-coloring-pipeline.cemt.svg)
+```cem
+@doc cem-ml 1
+@ns transform = "https://cem.dev/ns/transform/cem/1"
+@default transform
+
+{module @version="1.0.0" |
+    {format-function
+        @name="acme.showcase.format-node"
+        @visibility="private"
+        @category="cem-tree-node"
+        @subject="object"
+        @produces="cem-tree"
+        @content-type="application/cem"
+        @schema="https://cem.dev/ns/cem-ml/1"
+        @canonical=true
+        @deterministic=true
+        @streamable=true |
+        {param @name="subject" @type="object" @required=true}
+        {param @name="slot" @type="integer" @default="0"}
+        {body |
+            {$ match($subject.kind, {
+                element: call(acme.showcase.format-element, { subject: $subject, slot: $slot }),
+                text: call(acme.showcase.format-text, { subject: $subject, slot: $slot }),
+                default: $subject
+            }) }
+        }
+    }
+
+    {format-function
+        @name="acme.showcase.format-element"
+        @visibility="private"
+        @category="cem-tree-node"
+        @subject="object"
+        @produces="cem-tree"
+        @content-type="application/cem"
+        @schema="https://cem.dev/ns/cem-ml/1"
+        @canonical=true
+        @deterministic=true
+        @streamable=true |
+        {param @name="subject" @type="object" @required=true}
+        {param @name="slot" @type="integer" @default="0"}
+        {body |
+            {$ {
+                kind: "element",
+                name: $subject.name,
+                sourceMap: $subject.sourceMap,
+                attributes: $subject.attributes,
+                children: map($subject.children, call(acme.showcase.format-node, { subject: $item, slot: $index })),
+                formatLayout: {
+                    kind: "format-decision",
+                    formatterRole: match($subject.name, { strong: "formatter.inline-emphasis", default: "formatter.layout" }),
+                    value: match($subject.name, { strong: "inline-emphasis", default: "inline" })
+                }
+            } }
+        }
+    }
+
+    {format-function
+        @name="acme.showcase.format-text"
+        @visibility="private"
+        @category="cem-tree-node"
+        @subject="object"
+        @produces="cem-tree"
+        @content-type="application/cem"
+        @schema="https://cem.dev/ns/cem-ml/1"
+        @canonical=true
+        @deterministic=true
+        @streamable=true |
+        {param @name="subject" @type="object" @required=true}
+        {param @name="slot" @type="integer" @default="0"}
+        {body |
+            {$ {
+                kind: "text",
+                value: $subject.value,
+                sourceMap: $subject.sourceMap
+            } }
+        }
+    }
+
+    {format-function
+        @name="acme.showcase.format-tree"
+        @visibility="public"
+        @category="cem-tree"
+        @subject="cem-ast-node"
+        @produces="cem-tree"
+        @content-type="application/cem"
+        @schema="https://cem.dev/ns/cem-ml/1"
+        @extends="cem.format-tree"
+        @canonical=true
+        @deterministic=true
+        @streamable=true |
+        {param @name="subject" @type="json" @required=true}
+        {body |
+            {$ appendFormatNode(
+                {
+                    kind: "cem-tree",
+                    contentType: "application/cem",
+                    schema: "https://cem.dev/ns/cem-ml/1",
+                    category: "cem-tree",
+                    mode: "fragment",
+                    canonical: true,
+                    formatterProfile: "acme.showcase.format-tree",
+                    formatNodes: [{
+                        kind: "format-marker",
+                        name: "cem.format-tree",
+                        formatterRole: "formatter.boundary",
+                        formatterProfile: "acme.showcase.format-tree"
+                    }],
+                    nodes: match(exists($subject.kind), {
+                        true: [call(acme.showcase.format-node, { subject: $subject, slot: 0 })],
+                        false: map($subject, call(acme.showcase.format-node, { subject: $item, slot: $index }))
+                    })
+                },
+                {
+                    kind: "format-decision",
+                    name: "showcase",
+                    formatterRole: "formatter.showcase",
+                    value: "formatted tree before writer"
+                }
+            ) }
+        }
+    }
+
+    {color-function
+        @name="acme.showcase.color-node"
+        @visibility="private"
+        @category="cem-tree-node"
+        @subject="object"
+        @produces="cem-tree"
+        @content-type="application/cem"
+        @schema="https://cem.dev/ns/cem-ml/1"
+        @profile="classes"
+        @canonical=false
+        @deterministic=true
+        @streamable=true |
+        {param @name="subject" @type="object" @required=true}
+        {param @name="role" @type="string" @default="syntax.string"}
+        {param @name="className" @type="string" @default="cem-color cem-color-syntax-string"}
+        {body |
+            {$ match($subject.kind, {
+                element: call(acme.showcase.color-element, { subject: $subject }),
+                text: call(acme.showcase.color-text, { subject: $subject, role: $role, className: $className }),
+                default: $subject
+            }) }
+        }
+    }
+
+    {color-function
+        @name="acme.showcase.color-element"
+        @visibility="private"
+        @category="cem-tree-node"
+        @subject="object"
+        @produces="cem-tree"
+        @content-type="application/cem"
+        @schema="https://cem.dev/ns/cem-ml/1"
+        @profile="classes"
+        @canonical=false
+        @deterministic=true
+        @streamable=true |
+        {param @name="subject" @type="object" @required=true}
+        {body |
+            {$ {
+                kind: "element",
+                name: $subject.name,
+                sourceMap: $subject.sourceMap,
+                attributes: $subject.attributes,
+                formatLayout: $subject.formatLayout,
+                colorRole: match($subject.name, { strong: "syntax.keyword", default: "syntax.name" }),
+                style: {
+                    colorRole: match($subject.name, { strong: "syntax.keyword", default: "syntax.name" }),
+                    colorProfile: "classes"
+                },
+                writerAttributeNodes: [{
+                    kind: "writer-attribute",
+                    name: "class",
+                    value: match($subject.name, { strong: "cem-color cem-color-syntax-keyword", default: "cem-color cem-color-syntax-name" }),
+                    colorizerOwned: true,
+                    colorizerRole: "colorizer.writer-attribute",
+                    colorProfile: "classes"
+                }],
+                children: map($subject.children, call(acme.showcase.color-node, {
+                    subject: $item,
+                    role: match($subject.name, { strong: "syntax.keyword", default: "syntax.string" }),
+                    className: match($subject.name, { strong: "cem-color cem-color-syntax-keyword", default: "cem-color cem-color-syntax-string" })
+                }))
+            } }
+        }
+    }
+
+    {color-function
+        @name="acme.showcase.color-text"
+        @visibility="private"
+        @category="cem-tree-node"
+        @subject="object"
+        @produces="cem-tree"
+        @content-type="application/cem"
+        @schema="https://cem.dev/ns/cem-ml/1"
+        @profile="classes"
+        @canonical=false
+        @deterministic=true
+        @streamable=true |
+        {param @name="subject" @type="object" @required=true}
+        {param @name="role" @type="string" @required=true}
+        {param @name="className" @type="string" @required=true}
+        {body |
+            {$ {
+                kind: "element",
+                name: "span",
+                colorRole: $role,
+                style: {
+                    colorRole: $role,
+                    colorProfile: "classes"
+                },
+                writerAttributeNodes: [{
+                    kind: "writer-attribute",
+                    name: "class",
+                    value: $className,
+                    colorizerOwned: true,
+                    colorizerRole: "colorizer.writer-attribute",
+                    colorProfile: "classes"
+                }],
+                colorWrapperNodes: [
+                    {
+                        kind: "color-wrapper",
+                        name: "span",
+                        colorizerOwned: true,
+                        colorizerRole: "colorizer.text-wrapper",
+                        colorProfile: "classes"
+                    },
+                    {
+                        kind: "color-decision",
+                        name: "wrapped-role",
+                        value: $role,
+                        colorizerOwned: true,
+                        colorizerRole: "colorizer.wrapped-role",
+                        colorProfile: "classes"
+                    }
+                ],
+                children: [$subject]
+            } }
+        }
+    }
+
+    {color-function
+        @name="acme.showcase.color-tree"
+        @visibility="public"
+        @category="cem-tree"
+        @subject="cem-tree"
+        @produces="cem-tree"
+        @content-type="application/cem"
+        @schema="https://cem.dev/ns/cem-ml/1"
+        @extends="cem.color-tree"
+        @profile="classes"
+        @canonical=false
+        @deterministic=true
+        @streamable=true |
+        {param @name="subject" @type="object" @required=true}
+        {body |
+            {$ applyEdits(
+                appendWriterBoundary(
+                    appendColorNode(
+                        merge($subject, {
+                            colored: true,
+                            colorProfile: "classes",
+                            colorNodes: [{
+                                kind: "color-marker",
+                                name: "cem.color-tree",
+                                colorizerRole: "colorizer.boundary",
+                                colorProfile: "classes"
+                            }],
+                            nodes: map($subject.nodes, call(acme.showcase.color-node, { subject: $item }))
+                        }),
+                        {
+                            kind: "color-decision",
+                            name: "showcase",
+                            colorizerRole: "colorizer.showcase",
+                            value: "colored tree before writer"
+                        }
+                    ),
+                    {
+                        kind: "writer-boundary",
+                        stage: "after-color",
+                        value: "writer consumes colored CEM tree"
+                    }
+                ),
+                drainQueue(
+                    defer([],
+                        appendEdit(
+                            "nodes.0.children.1.children.0.colorWrapperNodes",
+                            {
+                                kind: "color-decision",
+                                name: "queued-edit",
+                                colorizerOwned: true,
+                                colorizerRole: "colorizer.queued-edit",
+                                colorProfile: "classes",
+                                value: "queued edit replay before writer"
+                            }
+                        )
+                    ),
+                    [],
+                    append($acc, $item)
+                )
+            ) }
+        }
+    }
+}
+```
 
 <details>
 <summary>formatter-coloring-pipeline-fixture</summary>
@@ -359,8 +802,7 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
 - Schema: `https://cem.dev/ns/cem-ml/1`
 - Expected result: `fail`
 - Expected diagnostics: `cem.schema.unresolved_namespace`
-- Preview renderer: `CLI convert, tabular formatter, preview HTML + html2svg`
-- Preview HTML: `dist/cem_ml/schema-packages/cem-transform/v1/examples/formatter-coloring-pipeline.fixture.cem.html`
+- README rendering: fenced `cem` source
 
 ```bash
 dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
@@ -372,7 +814,115 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
 
 </details>
 
-![Preview of CEM Transform Template Schema Package formatter-coloring-pipeline-fixture example](examples/previews/formatter-coloring-pipeline.fixture.cem.svg)
+````cem
+@doc cem-ml 1
+@ns showcase = "https://cem.dev/ns/showcase/1"
+@default showcase
+
+{cemt-output-pipeline-fixture
+    @source="schema-packages/cem-transform/v1/examples/formatter-coloring-pipeline.cemt"
+    @formatter="acme.showcase.format-tree"
+    @colorizer="acme.showcase.color-tree"
+    @color-profile="classes" |
+    {stage
+        @name="source-ast"
+        @content-type="application/cem"
+        @schema="https://cem.dev/ns/cem-ml/1"
+        @category="cem-fragment" |
+```cem
+{article |
+    {text | Ready }
+    {strong |
+        {text | now}
+    }
+    {text | .}
+}
+```
+    }
+
+    {stage
+        @name="formatted-cem-tree"
+        @content-type="application/cem"
+        @schema="https://cem.dev/ns/cem-ml/1"
+        @category="cem-tree" |
+```cem
+{cem-tree @content-type="application/cem" @schema="https://cem.dev/ns/cem-ml/1" @category="cem-tree" @mode="fragment" @canonical=true @formatter-profile="acme.showcase.format-tree" |
+    {format-nodes |
+        {format-marker @name="cem.format-tree" @formatter-role="formatter.boundary" @formatter-profile="acme.showcase.format-tree"}
+        {format-decision @name="showcase" @value="formatted tree before writer" @formatter-role="formatter.showcase"}
+    }
+    {nodes |
+        {article |
+            {format-layout @kind="format-decision" @value="inline" @formatter-role="formatter.layout"}
+            {text | Ready }
+            {strong |
+                {format-layout @kind="format-decision" @value="inline-emphasis" @formatter-role="formatter.inline-emphasis"}
+                {text | now}
+            }
+            {text | .}
+        }
+    }
+}
+```
+    }
+
+    {stage
+        @name="colored-cem-tree"
+        @content-type="application/cem"
+        @schema="https://cem.dev/ns/cem-ml/1"
+        @category="cem-tree" |
+```cem
+{cem-tree @content-type="application/cem" @schema="https://cem.dev/ns/cem-ml/1" @category="cem-tree" @mode="fragment" @canonical=true @formatter-profile="acme.showcase.format-tree" @colored=true @color-profile="classes" |
+    {format-nodes |
+        {format-marker @name="cem.format-tree" @formatter-role="formatter.boundary" @formatter-profile="acme.showcase.format-tree"}
+        {format-decision @name="showcase" @value="formatted tree before writer" @formatter-role="formatter.showcase"}
+    }
+    {color-nodes |
+        {color-marker @name="cem.color-tree" @color-profile="classes" @colorizer-role="colorizer.boundary"}
+        {color-decision @name="showcase" @value="colored tree before writer" @colorizer-role="colorizer.showcase"}
+    }
+    {writer-boundaries |
+        {writer-boundary @stage="after-color" @value="writer consumes colored CEM tree"}
+    }
+    {nodes |
+        {article @color-role="syntax.name" |
+            {format-layout @kind="format-decision" @value="inline" @formatter-role="formatter.layout"}
+            {style @color-role="syntax.name" @color-profile="classes"}
+            {writer-attribute @name="class" @value="cem-color cem-color-syntax-name" @color-profile="classes" @colorizer-owned=true @colorizer-role="colorizer.writer-attribute"}
+            {span @color-role="syntax.string" |
+                {style @color-role="syntax.string" @color-profile="classes"}
+                {writer-attribute @name="class" @value="cem-color cem-color-syntax-string" @color-profile="classes" @colorizer-owned=true @colorizer-role="colorizer.writer-attribute"}
+                {color-wrapper @name="span" @color-profile="classes" @colorizer-owned=true @colorizer-role="colorizer.text-wrapper"}
+                {color-decision @name="wrapped-role" @value="syntax.string" @color-profile="classes" @colorizer-owned=true @colorizer-role="colorizer.wrapped-role"}
+                {text | Ready }
+            }
+            {strong @color-role="syntax.keyword" |
+                {format-layout @kind="format-decision" @value="inline-emphasis" @formatter-role="formatter.inline-emphasis"}
+                {style @color-role="syntax.keyword" @color-profile="classes"}
+                {writer-attribute @name="class" @value="cem-color cem-color-syntax-keyword" @color-profile="classes" @colorizer-owned=true @colorizer-role="colorizer.writer-attribute"}
+                {span @color-role="syntax.keyword" |
+                    {style @color-role="syntax.keyword" @color-profile="classes"}
+                    {writer-attribute @name="class" @value="cem-color cem-color-syntax-keyword" @color-profile="classes" @colorizer-owned=true @colorizer-role="colorizer.writer-attribute"}
+                    {color-wrapper @name="span" @color-profile="classes" @colorizer-owned=true @colorizer-role="colorizer.text-wrapper"}
+                    {color-decision @name="wrapped-role" @value="syntax.keyword" @color-profile="classes" @colorizer-owned=true @colorizer-role="colorizer.wrapped-role"}
+                    {color-decision @name="queued-edit" @value="queued edit replay before writer" @color-profile="classes" @colorizer-owned=true @colorizer-role="colorizer.queued-edit"}
+                    {text | now}
+                }
+            }
+            {span @color-role="syntax.string" |
+                {style @color-role="syntax.string" @color-profile="classes"}
+                {writer-attribute @name="class" @value="cem-color cem-color-syntax-string" @color-profile="classes" @colorizer-owned=true @colorizer-role="colorizer.writer-attribute"}
+                {color-wrapper @name="span" @color-profile="classes" @colorizer-owned=true @colorizer-role="colorizer.text-wrapper"}
+                {color-decision @name="wrapped-role" @value="syntax.string" @color-profile="classes" @colorizer-owned=true @colorizer-role="colorizer.wrapped-role"}
+                {text | .}
+            }
+        }
+    }
+}
+```
+    }
+}
+````
 
 <details>
 <summary>invalid-missing-required-attribute</summary>
@@ -382,8 +932,7 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
 - Schema: `https://cem.dev/ns/transform/cem/1`
 - Expected result: `fail`
 - Expected diagnostics: `cem.schema_model.missing_required_attribute`
-- Preview renderer: `CLI convert, tabular formatter, preview HTML + html2svg`
-- Preview HTML: `dist/cem_ml/schema-packages/cem-transform/v1/examples/invalid-missing-required-attribute.cemt.html`
+- README rendering: fenced `cem` source
 
 ```bash
 dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
@@ -395,7 +944,17 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
 
 </details>
 
-![Preview of CEM Transform Template Schema Package invalid-missing-required-attribute example](examples/previews/invalid-missing-required-attribute.cemt.svg)
+```cem
+@doc cem-ml 1
+@ns transform = "https://cem.dev/ns/transform/cem/1"
+@default transform
+
+{module |
+    {template |
+        {body | Missing the required template name inherited from the native template schema.}
+    }
+}
+```
 
 <details>
 <summary>invalid-function-missing-category</summary>
@@ -405,8 +964,7 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
 - Schema: `https://cem.dev/ns/transform/cem/1`
 - Expected result: `fail`
 - Expected diagnostics: `cem.schema_model.missing_required_attribute`
-- Preview renderer: `CLI convert, tabular formatter, preview HTML + html2svg`
-- Preview HTML: `dist/cem_ml/schema-packages/cem-transform/v1/examples/invalid-function-missing-category.cemt.html`
+- README rendering: fenced `cem` source
 
 ```bash
 dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
@@ -418,7 +976,24 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
 
 </details>
 
-![Preview of CEM Transform Template Schema Package invalid-function-missing-category example](examples/previews/invalid-function-missing-category.cemt.svg)
+```cem
+@doc cem-ml 1
+@ns transform = "https://cem.dev/ns/transform/cem/1"
+@default transform
+
+{module |
+    {encoding-function
+        @name="html.text"
+        @subject="string"
+        @produces="text"
+        @content-type="text/html"
+        @schema="https://cem.dev/ns/data/html/1"
+        @canonical=true
+        @streamable=true |
+        {param @name="subject" @type="string" @required=true}
+    }
+}
+```
 
 <details>
 <summary>invalid-function-missing-contract-metadata</summary>
@@ -428,8 +1003,7 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
 - Schema: `https://cem.dev/ns/transform/cem/1`
 - Expected result: `fail`
 - Expected diagnostics: `cem.schema_model.missing_required_attribute`
-- Preview renderer: `CLI convert, tabular formatter, preview HTML + html2svg`
-- Preview HTML: `dist/cem_ml/schema-packages/cem-transform/v1/examples/invalid-function-missing-contract-metadata.cemt.html`
+- README rendering: fenced `cem` source
 
 ```bash
 dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
@@ -441,4 +1015,20 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
 
 </details>
 
-![Preview of CEM Transform Template Schema Package invalid-function-missing-contract-metadata example](examples/previews/invalid-function-missing-contract-metadata.cemt.svg)
+```cem
+@doc cem-ml 1
+@ns transform = "https://cem.dev/ns/transform/cem/1"
+@default transform
+
+{module |
+    {encoding-function
+        @name="html.text"
+        @category="html-text"
+        @subject="string"
+        @produces="text"
+        @content-type="text/html"
+        @schema="https://cem.dev/ns/data/html/1" |
+        {param @name="subject" @type="string" @required=true}
+    }
+}
+```

@@ -69,7 +69,9 @@
                     ],
                     call("mathml.format-document.events", {
                         events: match(typeOf($subject.events), { array: $subject.events, default: [] }),
-                        profile: $profile
+                        profile: $profile,
+                        lineEnding: match($lineEnding, { crlf: "\r\n", default: "\n" }),
+                        indent: $indent
                     })
                 )
             } }
@@ -80,11 +82,11 @@
         {param @name="profile" @type="string" @required=true}
         {body |
             {$ match($profile, {
-                compact: "lexical-lossless-compact",
-                pretty: "lexical-lossless-pretty",
-                "xml.pretty": "lexical-lossless-pretty",
-                tabular: "lexical-lossless-tabular",
-                default: "lexical-lossless"
+                compact: "structural-compact",
+                pretty: "structural-pretty",
+                "xml.pretty": "structural-pretty",
+                tabular: "attribute-tabular",
+                default: "structural-preserving"
             }) }
         }
     }
@@ -92,30 +94,181 @@
     {function @name="mathml.format-document.events" @visibility="private" @returns="array" @deterministic=true |
         {param @name="events" @type="array" @required=true}
         {param @name="profile" @type="string" @required=true}
+        {param @name="lineEnding" @type="string" @required=true}
+        {param @name="indent" @type="string" @required=true}
         {body |
             {$ fold($events, [], extend(
                 $acc,
-                [call("mathml.format-document.event", { event: $item, profile: $profile })]
+                call("mathml.format-document.event", {
+                    event: $item,
+                    profile: $profile,
+                    lineEnding: $lineEnding,
+                    indent: $indent
+                })
             )) }
         }
     }
 
-    {function @name="mathml.format-document.event" @visibility="private" @returns="object" @deterministic=true |
+    {function @name="mathml.format-document.event" @visibility="private" @returns="array" @deterministic=true |
+        {param @name="event" @type="object" @required=true}
+        {param @name="profile" @type="string" @required=true}
+        {param @name="lineEnding" @type="string" @required=true}
+        {param @name="indent" @type="string" @required=true}
+        {body |
+            {$ match($event.structuralWhitespace, {
+                true: [],
+                default: extend(
+                    call("mathml.format-document.event-prefix", {
+                        event: $event,
+                        profile: $profile,
+                        lineEnding: $lineEnding,
+                        indent: $indent
+                    }),
+                    match(gt(length($event.markupTokens), 0), {
+                        true: call("mathml.format-document.markup", {
+                            event: $event,
+                            profile: $profile,
+                            lineEnding: $lineEnding,
+                            indent: $indent
+                        }),
+                        false: [call("mathml.format-document.token", {
+                            kind: concat("mathml.", match(typeOf($event.kind), { string: $event.kind, default: "raw" })),
+                            text: match(typeOf($event.lexeme), { string: $event.lexeme, default: "" }),
+                            role: call("mathml.format-document.role", { event: $event }),
+                            sourceMap: match(exists($event.sourceMap), { true: $event.sourceMap, false: null }),
+                            value: {
+                                formatterProfile: $profile,
+                                eventKind: match(typeOf($event.kind), { string: $event.kind, default: "raw" }),
+                                depth: match(typeOf($event.depth), { integer: $event.depth, default: 0 }),
+                                qualifiedName: match(exists($event.qualifiedName), { true: $event.qualifiedName, false: null }),
+                                namespaceUri: match(exists($event.namespaceUri), { true: $event.namespaceUri, false: null }),
+                                layoutSensitive: match($event.layoutSensitive, { true: true, default: false }),
+                                sourceRange: match(exists($event.sourceRange), { true: $event.sourceRange, false: null })
+                            }
+                        })]
+                    })
+                )
+            }) }
+        }
+    }
+
+    {function @name="mathml.format-document.event-prefix" @visibility="private" @returns="array" @deterministic=true |
+        {param @name="event" @type="object" @required=true}
+        {param @name="profile" @type="string" @required=true}
+        {param @name="lineEnding" @type="string" @required=true}
+        {param @name="indent" @type="string" @required=true}
+        {body |
+            {$ match($profile, {
+                compact: [],
+                default: match($event.lineBreakBefore, {
+                    true: [call("mathml.format-document.generated-token", {
+                        text: concat($lineEnding, repeat($indent, $event.depth)),
+                        profile: $profile,
+                        layout: "event-line"
+                    })],
+                    default: []
+                })
+            }) }
+        }
+    }
+
+    {function @name="mathml.format-document.markup" @visibility="private" @returns="array" @deterministic=true |
+        {param @name="event" @type="object" @required=true}
+        {param @name="profile" @type="string" @required=true}
+        {param @name="lineEnding" @type="string" @required=true}
+        {param @name="indent" @type="string" @required=true}
+        {body |
+            {$ fold($event.markupTokens, [], extend(
+                $acc,
+                call("mathml.format-document.markup-token", {
+                    token: $item,
+                    event: $event,
+                    profile: $profile,
+                    lineEnding: $lineEnding,
+                    indent: $indent
+                })
+            )) }
+        }
+    }
+
+    {function @name="mathml.format-document.markup-token" @visibility="private" @returns="array" @deterministic=true |
+        {param @name="token" @type="object" @required=true}
+        {param @name="event" @type="object" @required=true}
+        {param @name="profile" @type="string" @required=true}
+        {param @name="lineEnding" @type="string" @required=true}
+        {param @name="indent" @type="string" @required=true}
+        {body |
+            {$ match($event.layoutSensitive, {
+                true: [call("mathml.format-document.lexical-markup-token", {
+                    token: $token,
+                    event: $event,
+                    profile: $profile
+                })],
+                default: match($token.kind, {
+                    whitespace: [],
+                    "attribute-name": [
+                        call("mathml.format-document.generated-token", {
+                            text: match($profile, {
+                                tabular: concat($lineEnding, repeat($indent, add($event.depth, 1))),
+                                default: " "
+                            }),
+                            profile: $profile,
+                            layout: match($profile, { tabular: "attribute-line", default: "attribute-space" })
+                        }),
+                        call("mathml.format-document.lexical-markup-token", {
+                            token: $token,
+                            event: $event,
+                            profile: $profile
+                        })
+                    ],
+                    default: [call("mathml.format-document.lexical-markup-token", {
+                        token: $token,
+                        event: $event,
+                        profile: $profile
+                    })]
+                })
+            }) }
+        }
+    }
+
+    {function @name="mathml.format-document.lexical-markup-token" @visibility="private" @returns="object" @deterministic=true |
+        {param @name="token" @type="object" @required=true}
         {param @name="event" @type="object" @required=true}
         {param @name="profile" @type="string" @required=true}
         {body |
             {$ call("mathml.format-document.token", {
-                kind: concat("mathml.", match(typeOf($event.kind), { string: $event.kind, default: "raw" })),
-                text: match(typeOf($event.lexeme), { string: $event.lexeme, default: "" }),
-                role: call("mathml.format-document.role", { event: $event }),
-                sourceMap: match(exists($event.sourceMap), { true: $event.sourceMap, false: null }),
+                kind: concat("mathml.markup-", $token.kind),
+                text: $token.text,
+                role: $token.role,
+                sourceMap: match(exists($token.sourceMap), { true: $token.sourceMap, false: null }),
                 value: {
                     formatterProfile: $profile,
-                    eventKind: match(typeOf($event.kind), { string: $event.kind, default: "raw" }),
-                    depth: match(typeOf($event.depth), { integer: $event.depth, default: 0 }),
+                    eventKind: $event.kind,
+                    tokenKind: $token.kind,
+                    depth: $event.depth,
                     qualifiedName: match(exists($event.qualifiedName), { true: $event.qualifiedName, false: null }),
                     namespaceUri: match(exists($event.namespaceUri), { true: $event.namespaceUri, false: null }),
-                    sourceRange: match(exists($event.sourceRange), { true: $event.sourceRange, false: null })
+                    layoutSensitive: match($event.layoutSensitive, { true: true, default: false }),
+                    sourceRange: match(exists($token.sourceRange), { true: $token.sourceRange, false: null })
+                }
+            }) }
+        }
+    }
+
+    {function @name="mathml.format-document.generated-token" @visibility="private" @returns="object" @deterministic=true |
+        {param @name="text" @type="string" @required=true}
+        {param @name="profile" @type="string" @required=true}
+        {param @name="layout" @type="string" @required=true}
+        {body |
+            {$ call("mathml.format-document.token", {
+                kind: "mathml.layout",
+                text: $text,
+                role: "formatter.layout",
+                sourceMap: null,
+                value: {
+                    formatterProfile: $profile,
+                    generated: true,
+                    layout: $layout
                 }
             }) }
         }

@@ -320,6 +320,100 @@ fn schema_package_schema_filename_exceptions_are_documented_and_explicit() {
 }
 
 #[test]
+fn textual_schema_package_readmes_embed_examples_as_language_fences() {
+    for report in audit_schema_package_structure() {
+        let mut hard_errors = Vec::new();
+        let manifest = parse_manifest(&report.version_dir.join("package.cem"), &mut hard_errors);
+        assert!(
+            hard_errors.is_empty(),
+            "{} manifest must parse before checking README examples: {hard_errors:?}",
+            report.package_id
+        );
+
+        let readme_path = report.version_dir.join("README.md");
+        let readme = fs::read_to_string(&readme_path)
+            .unwrap_or_else(|error| panic!("failed to read {}: {error}", readme_path.display()));
+        let mut fenceable_count = 0usize;
+
+        for example_path in &manifest.example_paths {
+            let Some(language) = source_fence_language(example_path) else {
+                continue;
+            };
+            let source_path = report.version_dir.join(example_path);
+            let bytes = fs::read(&source_path).unwrap_or_else(|error| {
+                panic!("failed to read {}: {error}", source_path.display())
+            });
+            let Ok(source) = std::str::from_utf8(&bytes) else {
+                continue;
+            };
+            let source = source.strip_prefix('\u{feff}').unwrap_or(source);
+            if source
+                .chars()
+                .any(|ch| ch.is_control() && !matches!(ch, '\n' | '\r' | '\t'))
+            {
+                continue;
+            }
+
+            fenceable_count += 1;
+            let source = source.replace("\r\n", "\n").replace('\r', "\n");
+            let source = source.trim_end();
+            let delimiter = "`".repeat(markdown_fence_length(source));
+            let expected = format!("{delimiter}{language}\n{source}\n{delimiter}");
+
+            assert!(
+                readme.contains(&expected),
+                "{} README must embed `{example_path}` with an exact {language} source fence",
+                report.package_id
+            );
+        }
+
+        if fenceable_count == manifest.example_paths.len() {
+            assert!(
+                !readme.contains("![Preview of"),
+                "{} README must not use SVG snapshots when every example supports a source fence",
+                report.package_id
+            );
+        }
+    }
+}
+
+fn source_fence_language(path: &str) -> Option<&'static str> {
+    match Path::new(path)
+        .extension()
+        .and_then(|extension| extension.to_str())?
+        .to_ascii_lowercase()
+        .as_str()
+    {
+        "cem" | "cemt" => Some("cem"),
+        "cemql" | "cem-ql" => Some("cemql"),
+        "css" => Some("css"),
+        "csv" => Some("csv"),
+        "html" | "htm" | "xhtml" => Some("html"),
+        "json" => Some("json"),
+        "md" | "markdown" => Some("markdown"),
+        "mathml" | "mml" | "rng" | "xml" | "xsl" | "xslt" => Some("xml"),
+        "rnc" => Some("rnc"),
+        "svg" => Some("svg"),
+        "yaml" | "yml" => Some("yaml"),
+        _ => None,
+    }
+}
+
+fn markdown_fence_length(source: &str) -> usize {
+    let mut longest = 0usize;
+    let mut current = 0usize;
+    for byte in source.bytes() {
+        if byte == b'`' {
+            current += 1;
+            longest = longest.max(current);
+        } else {
+            current = 0;
+        }
+    }
+    3.max(longest + 1)
+}
+
+#[test]
 fn schema_package_folders_are_nx_owned_libraries_with_cemt_inputs() {
     let reports = audit_schema_package_structure();
     for report in &reports {

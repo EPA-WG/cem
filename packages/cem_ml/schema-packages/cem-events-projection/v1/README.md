@@ -87,14 +87,13 @@ they are explicitly regenerated from a trusted binary projection.
 
 ## Formatter And Preview SDLC
 
-When a command example, fixture, converter, CLI report shape, or visible
-presentation output changes, update the SVG previews in `examples/previews/`
-in the same change by running
+When an example or command changes, regenerate fenceable README source with
+`samples2readme`. Refresh only the binary fallback SVG previews in
+`examples/previews/` by running
 `node packages/cem_ml/schema-packages/cem-events-projection/v1/scripts/verify-previews.mjs --update`.
 
-The package `verify` target writes generated preview HTML/SVG artifacts into
-`dist/cem_ml/schema-packages/cem-events-projection/v1/examples/` and fails on
-drift.
+The package `verify` target checks fenced source and referenced fallback
+preview HTML/SVG artifacts for drift.
 
 ## Verification
 
@@ -132,8 +131,10 @@ Tracked but not complete:
 ## Examples
 
 This section is generated from `package.cem` `{example}` metadata by the
-`samples2readme` Nx target. Each SVG previews the example content, not
-the validation report. The target writes a preformatted HTML preview to
+`samples2readme` Nx target. Text examples with a recognized language and
+valid UTF-8 are embedded directly as language-tagged fenced source.
+An SVG preview is used only when fenced source is unavailable. The target
+writes fallback preview HTML to
 `dist/cem_ml/schema-packages/<package>/v1/examples/<example-file>.html`,
 then renders the `<pre>` spans through headless Chromium into
 `examples/previews/<example-file>.svg`.
@@ -161,12 +162,202 @@ the package formatter/colorizer path for that content identity.
 - Content type: `application/vnd.cem.events+json`
 - Schema: `https://cem.dev/ns/projection/events/1`
 - Expected result: `pass`
-- Preview renderer: `source snapshot HTML + html2svg`
-- Preview HTML: `dist/cem_ml/schema-packages/cem-events-projection/v1/examples/basic-events.events.json.html`
+- README rendering: fenced `json` source
 
 </details>
 
-![Preview of CEM Events Projection Schema Package basic-events-json example](examples/previews/basic-events.events.json.svg)
+```json
+[
+  {
+    "byteRange": {
+      "len": 13,
+      "start": 0
+    },
+    "kind": "open",
+    "name": "@doc"
+  },
+  {
+    "byteRange": {
+      "len": 13,
+      "start": 0
+    },
+    "kind": "value",
+    "value": "cem-ml 1"
+  },
+  {
+    "byteRange": {
+      "len": 13,
+      "start": 0
+    },
+    "kind": "close",
+    "name": "@doc"
+  },
+  {
+    "byteRange": {
+      "len": 2,
+      "start": 13
+    },
+    "data": "\n\n",
+    "kind": "trivia",
+    "trivia": "whitespace"
+  },
+  {
+    "byteRange": {
+      "len": 8,
+      "start": 15
+    },
+    "kind": "open",
+    "name": "article"
+  },
+  {
+    "byteRange": {
+      "len": 2,
+      "start": 25
+    },
+    "kind": "name",
+    "name": "id"
+  },
+  {
+    "byteRange": {
+      "len": 9,
+      "start": 28
+    },
+    "kind": "value",
+    "value": "welcome"
+  },
+  {
+    "byteRange": {
+      "len": 1,
+      "start": 38
+    },
+    "kind": "separator"
+  },
+  {
+    "byteRange": {
+      "len": 5,
+      "start": 39
+    },
+    "data": "\n    ",
+    "kind": "trivia",
+    "trivia": "whitespace"
+  },
+  {
+    "byteRange": {
+      "len": 3,
+      "start": 44
+    },
+    "kind": "open",
+    "name": "h1"
+  },
+  {
+    "byteRange": {
+      "len": 1,
+      "start": 48
+    },
+    "kind": "separator"
+  },
+  {
+    "byteRange": {
+      "len": 1,
+      "start": 49
+    },
+    "data": " ",
+    "kind": "trivia",
+    "trivia": "whitespace"
+  },
+  {
+    "byteRange": {
+      "len": 7,
+      "start": 50
+    },
+    "kind": "value",
+    "value": "Welcome"
+  },
+  {
+    "byteRange": {
+      "len": 1,
+      "start": 57
+    },
+    "kind": "close",
+    "name": "h1"
+  },
+  {
+    "byteRange": {
+      "len": 5,
+      "start": 58
+    },
+    "data": "\n    ",
+    "kind": "trivia",
+    "trivia": "whitespace"
+  },
+  {
+    "byteRange": {
+      "len": 2,
+      "start": 63
+    },
+    "kind": "open",
+    "name": "p"
+  },
+  {
+    "byteRange": {
+      "len": 1,
+      "start": 66
+    },
+    "kind": "separator"
+  },
+  {
+    "byteRange": {
+      "len": 1,
+      "start": 67
+    },
+    "data": " ",
+    "kind": "trivia",
+    "trivia": "whitespace"
+  },
+  {
+    "byteRange": {
+      "len": 34,
+      "start": 68
+    },
+    "kind": "value",
+    "value": "This is a minimal CEM-ML document."
+  },
+  {
+    "byteRange": {
+      "len": 1,
+      "start": 102
+    },
+    "kind": "close",
+    "name": "p"
+  },
+  {
+    "byteRange": {
+      "len": 1,
+      "start": 103
+    },
+    "data": "\n",
+    "kind": "trivia",
+    "trivia": "whitespace"
+  },
+  {
+    "byteRange": {
+      "len": 1,
+      "start": 104
+    },
+    "kind": "close",
+    "name": "article"
+  },
+  {
+    "byteRange": {
+      "len": 1,
+      "start": 105
+    },
+    "data": "\n",
+    "kind": "trivia",
+    "trivia": "whitespace"
+  }
+]
+```
 
 <details>
 <summary>nested-events-json</summary>
@@ -175,12 +366,345 @@ the package formatter/colorizer path for that content identity.
 - Content type: `application/vnd.cem.events+json`
 - Schema: `https://cem.dev/ns/projection/events/1`
 - Expected result: `pass`
-- Preview renderer: `source snapshot HTML + html2svg`
-- Preview HTML: `dist/cem_ml/schema-packages/cem-events-projection/v1/examples/nested-events.events.json.html`
+- README rendering: fenced `json` source
 
 </details>
 
-![Preview of CEM Events Projection Schema Package nested-events-json example](examples/previews/nested-events.events.json.svg)
+```json
+[
+  {
+    "byteRange": {
+      "len": 13,
+      "start": 0
+    },
+    "kind": "open",
+    "name": "@doc"
+  },
+  {
+    "byteRange": {
+      "len": 13,
+      "start": 0
+    },
+    "kind": "value",
+    "value": "cem-ml 1"
+  },
+  {
+    "byteRange": {
+      "len": 13,
+      "start": 0
+    },
+    "kind": "close",
+    "name": "@doc"
+  },
+  {
+    "byteRange": {
+      "len": 1,
+      "start": 13
+    },
+    "data": "\n",
+    "kind": "trivia",
+    "trivia": "whitespace"
+  },
+  {
+    "byteRange": {
+      "len": 41,
+      "start": 14
+    },
+    "kind": "open",
+    "name": "@ns"
+  },
+  {
+    "byteRange": {
+      "len": 41,
+      "start": 14
+    },
+    "kind": "value",
+    "value": "html = \"http://www.w3.org/1999/xhtml\""
+  },
+  {
+    "byteRange": {
+      "len": 41,
+      "start": 14
+    },
+    "kind": "close",
+    "name": "@ns"
+  },
+  {
+    "byteRange": {
+      "len": 1,
+      "start": 55
+    },
+    "data": "\n",
+    "kind": "trivia",
+    "trivia": "whitespace"
+  },
+  {
+    "byteRange": {
+      "len": 13,
+      "start": 56
+    },
+    "kind": "open",
+    "name": "@default"
+  },
+  {
+    "byteRange": {
+      "len": 13,
+      "start": 56
+    },
+    "kind": "value",
+    "value": "html"
+  },
+  {
+    "byteRange": {
+      "len": 13,
+      "start": 56
+    },
+    "kind": "close",
+    "name": "@default"
+  },
+  {
+    "byteRange": {
+      "len": 2,
+      "start": 69
+    },
+    "data": "\n\n",
+    "kind": "trivia",
+    "trivia": "whitespace"
+  },
+  {
+    "byteRange": {
+      "len": 5,
+      "start": 71
+    },
+    "kind": "open",
+    "name": "main"
+  },
+  {
+    "byteRange": {
+      "len": 2,
+      "start": 78
+    },
+    "kind": "name",
+    "name": "id"
+  },
+  {
+    "byteRange": {
+      "len": 9,
+      "start": 81
+    },
+    "kind": "value",
+    "value": "profile"
+  },
+  {
+    "byteRange": {
+      "len": 1,
+      "start": 91
+    },
+    "kind": "separator"
+  },
+  {
+    "byteRange": {
+      "len": 5,
+      "start": 92
+    },
+    "data": "\n    ",
+    "kind": "trivia",
+    "trivia": "whitespace"
+  },
+  {
+    "byteRange": {
+      "len": 8,
+      "start": 97
+    },
+    "kind": "open",
+    "name": "section"
+  },
+  {
+    "byteRange": {
+      "len": 5,
+      "start": 107
+    },
+    "kind": "name",
+    "name": "class"
+  },
+  {
+    "byteRange": {
+      "len": 9,
+      "start": 113
+    },
+    "kind": "value",
+    "value": "summary"
+  },
+  {
+    "byteRange": {
+      "len": 1,
+      "start": 123
+    },
+    "kind": "separator"
+  },
+  {
+    "byteRange": {
+      "len": 9,
+      "start": 124
+    },
+    "data": "\n        ",
+    "kind": "trivia",
+    "trivia": "whitespace"
+  },
+  {
+    "byteRange": {
+      "len": 3,
+      "start": 133
+    },
+    "kind": "open",
+    "name": "h1"
+  },
+  {
+    "byteRange": {
+      "len": 1,
+      "start": 137
+    },
+    "kind": "separator"
+  },
+  {
+    "byteRange": {
+      "len": 1,
+      "start": 138
+    },
+    "data": " ",
+    "kind": "trivia",
+    "trivia": "whitespace"
+  },
+  {
+    "byteRange": {
+      "len": 12,
+      "start": 139
+    },
+    "kind": "value",
+    "value": "Ada Lovelace"
+  },
+  {
+    "byteRange": {
+      "len": 1,
+      "start": 151
+    },
+    "kind": "close",
+    "name": "h1"
+  },
+  {
+    "byteRange": {
+      "len": 9,
+      "start": 152
+    },
+    "data": "\n        ",
+    "kind": "trivia",
+    "trivia": "whitespace"
+  },
+  {
+    "byteRange": {
+      "len": 1,
+      "start": 161
+    },
+    "kind": "open",
+    "name": ""
+  },
+  {
+    "byteRange": {
+      "len": 4,
+      "start": 163
+    },
+    "kind": "name",
+    "name": "type"
+  },
+  {
+    "byteRange": {
+      "len": 11,
+      "start": 168
+    },
+    "kind": "value",
+    "value": "text/html"
+  },
+  {
+    "contentType": "text/html",
+    "kind": "mode-switch"
+  },
+  {
+    "byteRange": {
+      "len": 1,
+      "start": 180
+    },
+    "kind": "separator"
+  },
+  {
+    "byteRange": {
+      "len": 13,
+      "start": 181
+    },
+    "data": "\n            ",
+    "kind": "trivia",
+    "trivia": "whitespace"
+  },
+  {
+    "byteRange": {
+      "len": 68,
+      "start": 194
+    },
+    "kind": "value",
+    "value": "<p><strong>Known for:</strong> analytical engine notes.</p>\n        "
+  },
+  {
+    "byteRange": {
+      "len": 1,
+      "start": 262
+    },
+    "kind": "close",
+    "name": ""
+  },
+  {
+    "byteRange": {
+      "len": 5,
+      "start": 263
+    },
+    "data": "\n    ",
+    "kind": "trivia",
+    "trivia": "whitespace"
+  },
+  {
+    "byteRange": {
+      "len": 1,
+      "start": 268
+    },
+    "kind": "close",
+    "name": "section"
+  },
+  {
+    "byteRange": {
+      "len": 1,
+      "start": 269
+    },
+    "data": "\n",
+    "kind": "trivia",
+    "trivia": "whitespace"
+  },
+  {
+    "byteRange": {
+      "len": 1,
+      "start": 270
+    },
+    "kind": "close",
+    "name": "main"
+  },
+  {
+    "byteRange": {
+      "len": 1,
+      "start": 271
+    },
+    "data": "\n",
+    "kind": "trivia",
+    "trivia": "whitespace"
+  }
+]
+```
 
 <details>
 <summary>invalid-kind-json</summary>
@@ -190,12 +714,21 @@ the package formatter/colorizer path for that content identity.
 - Schema: `https://cem.dev/ns/projection/events/1`
 - Expected result: `fail`
 - Expected diagnostics: `cem.projection.events.json_shape`
-- Preview renderer: `source snapshot HTML + html2svg`
-- Preview HTML: `dist/cem_ml/schema-packages/cem-events-projection/v1/examples/invalid-kind.events.json.html`
+- README rendering: fenced `json` source
 
 </details>
 
-![Preview of CEM Events Projection Schema Package invalid-kind-json example](examples/previews/invalid-kind.events.json.svg)
+```json
+[
+  {
+    "kind": "widget",
+    "byteRange": {
+      "start": 0,
+      "len": 1
+    }
+  }
+]
+```
 
 <details>
 <summary>invalid-binary</summary>

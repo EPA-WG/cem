@@ -116,7 +116,7 @@ cem-ml validate --format json \
 complete example indexing, schema-derived fact tests, dedicated lifecycle
 load/export coverage, exact same-schema engine and CLI conversion, executable
 formatter/colorizer profile tests, schema-owned CLI example validation, and
-README/SVG preview drift checks with no source fallback.
+README source-fence generation checks with no SVG fallback.
 
 ## Release Behavior
 
@@ -139,12 +139,10 @@ explicit registered converter path.
 ## Examples
 
 This section is generated from `package.cem` `{example}` metadata by the
-`samples2readme` Nx target. Each SVG previews the rendered example
-content or validation diagnostics for expected-fail examples. The target writes a
-preformatted HTML preview to
-`dist/cem_ml/schema-packages/<package>/v1/examples/<example-file>.html`,
-then renders the `<pre>` spans through headless Chromium into
-`examples/previews/<example-file>.svg`.
+`samples2readme` Nx target. Text examples with a recognized language and
+valid UTF-8 are embedded directly as language-tagged fenced source.
+All declared examples in this package support source fences, so README SVG
+previews are not used.
 
 <details>
 <summary>basic-icon</summary>
@@ -153,8 +151,7 @@ then renders the `<pre>` spans through headless Chromium into
 - Content type: `image/svg+xml`
 - Schema: `https://cem.dev/ns/data/svg/1`
 - Expected result: `pass`
-- Preview renderer: `CLI convert, tabular formatter, preview HTML + html2svg`
-- Preview HTML: `dist/cem_ml/schema-packages/svg/v1/examples/basic-icon.svg.html`
+- README rendering: fenced `svg` source
 
 ```bash
 dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
@@ -165,7 +162,15 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
 
 </details>
 
-![Preview of SVG Resource Schema Package basic-icon example](examples/previews/basic-icon.svg.svg)
+```svg
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" role="img" viewBox="0 0 24 24" width="24" height="24">
+  <title>Download</title>
+  <path d="M12 3v12"/>
+  <path d="M7 10l5 5 5-5"/>
+  <path d="M5 21h14"/>
+</svg>
+```
 
 <details>
 <summary>bar-chart</summary>
@@ -174,8 +179,7 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
 - Content type: `image/svg+xml`
 - Schema: `https://cem.dev/ns/data/svg/1`
 - Expected result: `pass`
-- Preview renderer: `CLI convert, tabular formatter, preview HTML + html2svg`
-- Preview HTML: `dist/cem_ml/schema-packages/svg/v1/examples/bar-chart.svg.html`
+- README rendering: fenced `svg` source
 
 ```bash
 dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
@@ -186,7 +190,25 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
 
 </details>
 
-![Preview of SVG Resource Schema Package bar-chart example](examples/previews/bar-chart.svg.svg)
+```svg
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" role="img" viewBox="0 0 320 180" width="320" height="180">
+  <title>Quarterly Revenue</title>
+  <desc>Three bars compare revenue for the first three quarters.</desc>
+  <defs>
+    <linearGradient id="bar-fill" x1="0" x2="0" y1="0" y2="1">
+      <stop offset="0" stop-color="#4f7cff"/>
+      <stop offset="1" stop-color="#1b4fd7"/>
+    </linearGradient>
+  </defs>
+  <rect x="48" y="82" width="48" height="58" fill="url(#bar-fill)"/>
+  <rect x="136" y="48" width="48" height="92" fill="url(#bar-fill)"/>
+  <rect x="224" y="28" width="48" height="112" fill="url(#bar-fill)"/>
+  <text x="48" y="164">Q1</text>
+  <text x="136" y="164">Q2</text>
+  <text x="224" y="164">Q3</text>
+</svg>
+```
 
 <details>
 <summary>unnamed-icon</summary>
@@ -196,8 +218,7 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
 - Schema: `https://cem.dev/ns/data/svg/1`
 - Expected result: `pass`
 - Expected diagnostics: `cem.svg.accessible_name_missing`
-- Preview renderer: `CLI convert, tabular formatter, preview HTML + html2svg`
-- Preview HTML: `dist/cem_ml/schema-packages/svg/v1/examples/unnamed-icon.svg.html`
+- README rendering: fenced `svg` source
 
 ```bash
 dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
@@ -208,7 +229,13 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
 
 </details>
 
-![Preview of SVG Resource Schema Package unnamed-icon example](examples/previews/unnamed-icon.svg.svg)
+```svg
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24">
+  <path d="M12 3v18"/>
+  <path d="M3 12h18"/>
+</svg>
+```
 
 <details>
 <summary>invalid-missing-namespace</summary>
@@ -218,8 +245,7 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
 - Schema: `https://cem.dev/ns/data/svg/1`
 - Expected result: `fail`
 - Expected diagnostics: `cem.svg.namespace_missing`
-- Preview renderer: `CLI validate, JSON report, preview HTML + html2svg`
-- Preview HTML: `dist/cem_ml/schema-packages/svg/v1/examples/invalid-missing-namespace.svg.html`
+- README rendering: fenced `svg` source
 
 ```bash
 dist/target/cem_ml_cli/debug/cem-ml validate --format json --fail-level parse \
@@ -229,7 +255,13 @@ dist/target/cem_ml_cli/debug/cem-ml validate --format json --fail-level parse \
 
 </details>
 
-![Preview of SVG Resource Schema Package invalid-missing-namespace example](examples/previews/invalid-missing-namespace.svg.svg)
+```svg
+<?xml version="1.0" encoding="UTF-8"?>
+<svg role="img" viewBox="0 0 24 24" width="24" height="24">
+  <title>Missing Namespace</title>
+  <path d="M4 12h16"/>
+</svg>
+```
 
 <details>
 <summary>invalid-script</summary>
@@ -239,8 +271,7 @@ dist/target/cem_ml_cli/debug/cem-ml validate --format json --fail-level parse \
 - Schema: `https://cem.dev/ns/data/svg/1`
 - Expected result: `fail`
 - Expected diagnostics: `cem.svg.script_rejected`
-- Preview renderer: `CLI validate, JSON report, preview HTML + html2svg`
-- Preview HTML: `dist/cem_ml/schema-packages/svg/v1/examples/invalid-script.svg.html`
+- README rendering: fenced `svg` source
 
 ```bash
 dist/target/cem_ml_cli/debug/cem-ml validate --format json --fail-level parse \
@@ -250,7 +281,13 @@ dist/target/cem_ml_cli/debug/cem-ml validate --format json --fail-level parse \
 
 </details>
 
-![Preview of SVG Resource Schema Package invalid-script example](examples/previews/invalid-script.svg.svg)
+```svg
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" role="img" viewBox="0 0 24 24">
+  <title>Scripted SVG</title>
+  <script>alert("blocked")</script>
+</svg>
+```
 
 <details>
 <summary>invalid-external-image</summary>
@@ -260,8 +297,7 @@ dist/target/cem_ml_cli/debug/cem-ml validate --format json --fail-level parse \
 - Schema: `https://cem.dev/ns/data/svg/1`
 - Expected result: `fail`
 - Expected diagnostics: `cem.svg.external_resource_rejected`
-- Preview renderer: `CLI validate, JSON report, preview HTML + html2svg`
-- Preview HTML: `dist/cem_ml/schema-packages/svg/v1/examples/invalid-external-image.svg.html`
+- README rendering: fenced `svg` source
 
 ```bash
 dist/target/cem_ml_cli/debug/cem-ml validate --format json --fail-level parse \
@@ -271,4 +307,10 @@ dist/target/cem_ml_cli/debug/cem-ml validate --format json --fail-level parse \
 
 </details>
 
-![Preview of SVG Resource Schema Package invalid-external-image example](examples/previews/invalid-external-image.svg.svg)
+```svg
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" role="img" viewBox="0 0 64 64">
+  <title>External Image</title>
+  <image href="https://example.test/logo.png" width="64" height="64"/>
+</svg>
+```

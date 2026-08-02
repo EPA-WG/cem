@@ -18,6 +18,18 @@ export async function verifyReadmePreviews({
     packageLabel,
     refreshCommand,
 }) {
+    const { activeCases, unmatchedPreviews } = update
+        ? { activeCases: cases, unmatchedPreviews: [] }
+        : readmeReferencedPreviewCases(packageRoot, cases);
+    if (unmatchedPreviews.length > 0) {
+        throw new Error(
+            `${packageLabel} README references SVG previews without verifier cases: ${unmatchedPreviews.join(', ')}`,
+        );
+    }
+    if (activeCases.length === 0) {
+        console.log(`${packageLabel} has no README SVG fallback previews to verify.`);
+        return;
+    }
     ensureReadmePreviewDependencies();
 
     const previewRoot = join(packageRoot, 'examples/previews');
@@ -31,7 +43,7 @@ export async function verifyReadmePreviews({
     const browser = await launchPreviewBrowser();
     const failures = [];
     try {
-        for (const testCase of cases) {
+        for (const testCase of activeCases) {
             const previewInput = previewInputForCase({
                 cli,
                 cliEnv,
@@ -97,6 +109,26 @@ export async function verifyReadmePreviews({
             ? `Updated ${packageLabel} README SVG previews.`
             : `${packageLabel} README SVG previews verified.`,
     );
+}
+
+function readmeReferencedPreviewCases(packageRoot, cases) {
+    let readme;
+    try {
+        readme = readFileSync(join(packageRoot, 'README.md'), 'utf8');
+    } catch {
+        return { activeCases: cases, unmatchedPreviews: [] };
+    }
+    const referencedPreviews = new Set(
+        [...readme.matchAll(/\]\(examples\/previews\/([^\s)]+\.svg)\)/g)].map(
+            (match) => match[1],
+        ),
+    );
+    const activeCases = cases.filter((testCase) => referencedPreviews.has(testCase.preview));
+    const casePreviews = new Set(cases.map((testCase) => testCase.preview));
+    const unmatchedPreviews = [...referencedPreviews].filter(
+        (preview) => !casePreviews.has(preview),
+    );
+    return { activeCases, unmatchedPreviews };
 }
 
 export function ensureReadmePreviewDependencies() {

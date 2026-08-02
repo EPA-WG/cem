@@ -78,12 +78,10 @@ preserve source lexemes instead of claiming canonical browser DOM serialization.
 ## Examples
 
 This section is generated from `package.cem` `{example}` metadata by the
-`samples2readme` Nx target. Each SVG previews the rendered example
-content or validation diagnostics for expected-fail examples. The target writes a
-preformatted HTML preview to
-`dist/cem_ml/schema-packages/<package>/v1/examples/<example-file>.html`,
-then renders the `<pre>` spans through headless Chromium into
-`examples/previews/<example-file>.svg`.
+`samples2readme` Nx target. Text examples with a recognized language and
+valid UTF-8 are embedded directly as language-tagged fenced source.
+All declared examples in this package support source fences, so README SVG
+previews are not used.
 
 <details>
 <summary>basic-document</summary>
@@ -92,8 +90,7 @@ then renders the `<pre>` spans through headless Chromium into
 - Content type: `text/html`
 - Schema: `https://cem.dev/ns/data/html/1`
 - Expected result: `pass`
-- Preview renderer: `CLI convert, tabular formatter, preview HTML + html2svg`
-- Preview HTML: `dist/cem_ml/schema-packages/html/v1/examples/basic-document.html.html`
+- README rendering: fenced `html` source
 
 ```bash
 dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
@@ -104,7 +101,21 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
 
 </details>
 
-![Preview of HTML schema package v1 basic-document example](examples/previews/basic-document.html.svg)
+```html
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <title>Basic HTML Document</title>
+  </head>
+  <body>
+    <main>
+      <h1>Welcome</h1>
+      <p>Hello from HTML.</p>
+    </main>
+  </body>
+</html>
+```
 
 <details>
 <summary>fragment</summary>
@@ -113,8 +124,7 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
 - Content type: `text/html`
 - Schema: `https://cem.dev/ns/data/html/1`
 - Expected result: `pass`
-- Preview renderer: `CLI convert, tabular formatter, preview HTML + html2svg`
-- Preview HTML: `dist/cem_ml/schema-packages/html/v1/examples/fragment.html.html`
+- README rendering: fenced `html` source
 
 ```bash
 dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
@@ -125,7 +135,12 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
 
 </details>
 
-![Preview of HTML schema package v1 fragment example](examples/previews/fragment.html.svg)
+```html
+<article>
+  <h2>Card</h2>
+  <p>This fragment relies on HTML parser recovery.
+</article>
+```
 
 <details>
 <summary>svg-mathml-islands</summary>
@@ -134,8 +149,7 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
 - Content type: `text/html`
 - Schema: `https://cem.dev/ns/data/html/1`
 - Expected result: `pass`
-- Preview renderer: `CLI convert, tabular formatter, preview HTML + html2svg`
-- Preview HTML: `dist/cem_ml/schema-packages/html/v1/examples/svg-mathml-islands.html.html`
+- README rendering: fenced `html` source
 
 ```bash
 dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
@@ -146,7 +160,29 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
 
 </details>
 
-![Preview of HTML schema package v1 svg-mathml-islands example](examples/previews/svg-mathml-islands.html.svg)
+```html
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <title>SVG and MathML Islands</title>
+  </head>
+  <body>
+    <svg viewBox="0 0 24 24" role="img" aria-label="Plus">
+      <title>Plus</title>
+      <path d="M12 3v18"></path>
+      <path d="M3 12h18"></path>
+    </svg>
+    <math display="inline" alttext="x plus one">
+      <mrow>
+        <mi>x</mi>
+        <mo>+</mo>
+        <mn>1</mn>
+      </mrow>
+    </math>
+  </body>
+</html>
+```
 
 <details>
 <summary>invalid-script</summary>
@@ -156,8 +192,7 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
 - Schema: `https://cem.dev/ns/data/html/1`
 - Expected result: `fail`
 - Expected diagnostics: `cem.html.script_rejected`
-- Preview renderer: `CLI validate, JSON report, preview HTML + html2svg`
-- Preview HTML: `dist/cem_ml/schema-packages/html/v1/examples/invalid-script.html.html`
+- README rendering: fenced `html` source
 
 ```bash
 dist/target/cem_ml_cli/debug/cem-ml validate --format json --fail-level parse \
@@ -167,7 +202,18 @@ dist/target/cem_ml_cli/debug/cem-ml validate --format json --fail-level parse \
 
 </details>
 
-![Preview of HTML schema package v1 invalid-script example](examples/previews/invalid-script.html.svg)
+```html
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <title>Script</title>
+  </head>
+  <body>
+    <script>alert("blocked")</script>
+  </body>
+</html>
+```
 
 <details>
 <summary>invalid-external-resource</summary>
@@ -177,8 +223,7 @@ dist/target/cem_ml_cli/debug/cem-ml validate --format json --fail-level parse \
 - Schema: `https://cem.dev/ns/data/html/1`
 - Expected result: `fail`
 - Expected diagnostics: `cem.html.external_resource_rejected`
-- Preview renderer: `CLI validate, JSON report, preview HTML + html2svg`
-- Preview HTML: `dist/cem_ml/schema-packages/html/v1/examples/invalid-external-resource.html.html`
+- README rendering: fenced `html` source
 
 ```bash
 dist/target/cem_ml_cli/debug/cem-ml validate --format json --fail-level parse \
@@ -188,7 +233,18 @@ dist/target/cem_ml_cli/debug/cem-ml validate --format json --fail-level parse \
 
 </details>
 
-![Preview of HTML schema package v1 invalid-external-resource example](examples/previews/invalid-external-resource.html.svg)
+```html
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <title>External Resource</title>
+  </head>
+  <body>
+    <img src="images/logo.png" alt="Logo">
+  </body>
+</html>
+```
 
 <details>
 <summary>invalid-custom-element</summary>
@@ -198,8 +254,7 @@ dist/target/cem_ml_cli/debug/cem-ml validate --format json --fail-level parse \
 - Schema: `https://cem.dev/ns/data/html/1`
 - Expected result: `fail`
 - Expected diagnostics: `cem.html.custom_element_name_invalid`
-- Preview renderer: `CLI validate, JSON report, preview HTML + html2svg`
-- Preview HTML: `dist/cem_ml/schema-packages/html/v1/examples/invalid-custom-element.html.html`
+- README rendering: fenced `html` source
 
 ```bash
 dist/target/cem_ml_cli/debug/cem-ml validate --format json --fail-level parse \
@@ -209,7 +264,18 @@ dist/target/cem_ml_cli/debug/cem-ml validate --format json --fail-level parse \
 
 </details>
 
-![Preview of HTML schema package v1 invalid-custom-element example](examples/previews/invalid-custom-element.html.svg)
+```html
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <title>Invalid Custom Element</title>
+  </head>
+  <body>
+    <x->Broken custom element name</x->
+  </body>
+</html>
+```
 
 <details>
 <summary>encoding-conflict</summary>
@@ -219,8 +285,7 @@ dist/target/cem_ml_cli/debug/cem-ml validate --format json --fail-level parse \
 - Schema: `https://cem.dev/ns/data/html/1`
 - Expected result: `pass`
 - Expected diagnostics: `cem.html.encoding_conflict`
-- Preview renderer: `CLI convert, tabular formatter, preview HTML + html2svg`
-- Preview HTML: `dist/cem_ml/schema-packages/html/v1/examples/encoding-conflict.html.html`
+- README rendering: fenced `html` source
 
 ```bash
 dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
@@ -231,4 +296,15 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
 
 </details>
 
-![Preview of HTML schema package v1 encoding-conflict example](examples/previews/encoding-conflict.html.svg)
+```html
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <title>Encoding Conflict</title>
+  </head>
+  <body>
+    <p>The CLI content type declares a different charset.</p>
+  </body>
+</html>
+```

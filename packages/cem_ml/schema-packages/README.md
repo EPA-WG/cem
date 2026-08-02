@@ -71,16 +71,17 @@ external syntax such as JSON, HTML, or XML:
    JavaScript object-like inputs such as JSONP must not use direct format-pair
    bridges or source-specific shortcuts; each format contributes source and
    target adapters around the generic boundary.
-7. **Command examples carry SVG previews.** Package README command-line
-   examples that demonstrate visible output should be followed immediately by a
-   package-relative SVG preview of the resulting terminal report, formatted
-   bytes, rendered document, or other user-visible artifact. Store these
-   previews under `examples/previews/` with names tied to the fixture and
-   command/profile, for example `basic-table-pretty-terminal.svg`. When a
-   command example, fixture, formatter, colorizer, converter, CLI report shape,
-   or presentation output changes, AI-assisted edits must update the affected
-   SVG preview in the same change or explicitly state that the preview remains
-   unchanged because the visible output did not change.
+7. **README examples prefer fenced source.** Manifest-declared examples whose
+   source has a supported Markdown language tag and valid UTF-8 must be embedded
+   directly in the package README as a language-tagged fenced block using tags
+   such as `svg`, `html`, `xml`, or `css`. Such source examples must not be
+   represented by SVG code snapshots in the README. A package-relative SVG
+   preview is permitted only when source fencing is unavailable, including
+   binary input, invalid UTF-8, or an unsupported source language. Store those
+   fallback previews under `examples/previews/` with names tied to the fixture
+   and command/profile. When a fallback preview's visible output changes,
+   AI-assisted edits must update it in the same change or explicitly state why
+   it remains unchanged.
 8. **Resolver policy is separate from resource adapters.** CEM-ML resolver
    policy decides whether a request is denied, passed through, or explicitly
    substituted before a local read or `ResourceResolver` dispatch happens.
@@ -172,9 +173,10 @@ tests:
   meaningful, with explicit import-safe versus review/presentation boundaries;
 - colorizer profiles: provide `terminal`, `html`, and `md` output when useful,
   preserving source-map ranges and writer-boundary metadata;
-- command demos: include README command examples with adjacent SVG previews for
-  stable visible output and keep previews refreshed with the commands and
-  source assets;
+- command demos: include README command examples with adjacent language-tagged
+  source fences. Use an SVG preview only for binary, invalid UTF-8, or
+  unsupported source languages, and keep any fallback preview refreshed with
+  the commands and source assets;
 - safety notes: document active-content, formula-injection, external-resource,
   entity-expansion, script execution, privacy, integrity, or spoofing concerns
   that apply to the format;
@@ -210,10 +212,10 @@ checks a CLI demo. Review findings should explicitly cover these layers:
    substitution must preserve requested identity, substituted identity, source
    range, and artifact/cache stamp inputs.
 4. **Package folder completeness.** `package.cem`, `schema/*.cem`, examples,
-   formatter/colorizer artifacts, README sections, scripts, previews, and
-   package-local `project.json` verify targets must agree. Every checked-in
-   example must be manifest-declared with content type, schema, expected result,
-   and expected diagnostics when applicable.
+   formatter/colorizer artifacts, README sections, scripts, conditional
+   fallback previews, and package-local `project.json` verify targets must
+   agree. Every checked-in example must be manifest-declared with content type,
+   schema, expected result, and expected diagnostics when applicable.
 5. **Output pipeline shape.** Formatter/colorizer assets should declare
    `@produces="cem-tree"` and produce/consume formatted or colored CEM trees.
    Token arrays, HTML spans, ANSI codes, and other byte-oriented structures are
@@ -226,13 +228,13 @@ checks a CLI demo. Review findings should explicitly cover these layers:
    `tabSize`, and `wrapColumn` must be reviewed across all profiles.
 7. **README AC coverage.** The README must include standards/registry mapping,
    source identity, parser facts, formatter/colorizer profiles, command demos
-   with adjacent SVG previews, safety/security notes, verification gates,
-   release behavior, and tracked incomplete work.
+   with adjacent fenced source or a documented SVG fallback, safety/security
+   notes, verification gates, release behavior, and tracked incomplete work.
 8. **Verification and drift gates.** Package-local `verify` must fail when
    manifest validation, schema-owned example validation, formatter/colorizer
-   output, HTML/terminal presentation, README previews, or generated artifacts
-   drift. The target inputs must include package files and shared Rust/CLI code
-   that can change package behavior.
+   output, HTML/terminal presentation, README source fences or fallback
+   previews, or generated artifacts drift. The target inputs must include
+   package files and shared Rust/CLI code that can change package behavior.
 
 When a review finds gaps, immediately convert the findings into executable
 todo checkitems in `docs/todo.md` before implementation continues. Keep those
@@ -619,23 +621,19 @@ schema-packages/{package-id}/v1/
    expected diagnostics for invalid cases. Link those examples from the package
    README by running `yarn nx run
    cem_ml_schema_package_{package-id-with-underscores}_v1:samples2readme`.
-   That target rewrites the Examples section, emits `<example-file>.svg`
-   previews under `examples/previews/`, writes matching preview HTML to
-   `dist/cem_ml/schema-packages/<package>/v1/examples/`, and depends on the
-   package manifest, README, example files, preview scripts, and CLI/Rust
-   sources for Nx cache invalidation. The generated SVG must show the example
-   content. It should use the CLI `convert` path with the tabular formatter and
-   formatter-compatible colorizer wherever the package runtime can render that
-   content identity, falling back to a source snapshot only for content
-   identities that are not executable through the current preview path. When the
-   README includes additional hand-authored command-line examples with visible
-   output, add an SVG preview under `examples/previews/` immediately after each
-   command block and update it with the package-local
-   `scripts/verify-previews.mjs --update` command whenever the command, fixture,
-   formatter/colorizer, converter, CLI report shape, or presentation output
-   changes. The preview generators depend on Playwright Chromium. Generate
-   `.example.cem` sidecars only when a downstream package consumer needs a
-   CEM-format projection of the manifest metadata.
+   That target rewrites the Examples section and embeds textual, valid UTF-8
+   sources with a supported Markdown language as exact language-tagged fences.
+   Only examples that are binary, invalid UTF-8, or lack a supported fence
+   language may emit `<example-file>.svg` under `examples/previews/` with
+   matching preview HTML under
+   `dist/cem_ml/schema-packages/<package>/v1/examples/`. Fallback previews use
+   the CLI `convert` path with the tabular formatter and compatible colorizer
+   where possible, otherwise a bounded source snapshot. Package-local preview
+   verification must inspect only SVGs actually referenced by the README.
+   Additional hand-authored textual examples follow the same source-fence-first
+   rule. The fallback preview generators depend on Playwright Chromium.
+   Generate `.example.cem` sidecars only when a downstream package consumer
+   needs a CEM-format projection of the manifest metadata.
 
 8. Validate the manifest directly:
 

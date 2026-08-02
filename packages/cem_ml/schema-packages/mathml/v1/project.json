@@ -95,7 +95,7 @@
                     "cargo test -p cem-ml builtins_load_mathml_content_types_as_dedicated_internal_ast_stream -- --nocapture",
                     "cargo test -p cem-ml mathml_target_content_types_select_dedicated_mathml_export -- --nocapture",
                     "cargo test -p cem-ml validate_mathml_source_consumes_dedicated_lifecycle_ast_without_html_xml_or_cem_parse -- --nocapture",
-                    "cargo test -p cem-ml convert_mathml_same_schema_preserves_all_media_profiles_and_final_newline -- --nocapture",
+                    "cargo test -p cem-ml convert_mathml_same_schema_formats_all_media_profiles_and_final_newline -- --nocapture",
                     "cargo test -p cem-ml builtin_mathml_lifecycle_output_pipeline_executes_package_cemt_assets -- --nocapture",
                     "cargo test -p cem-ml builtin_mathml_colorizer_profiles_execute_package_cemt_assets -- --nocapture",
                     "cargo test -p cem-ml-cli mathml -- --nocapture",
