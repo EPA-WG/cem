@@ -934,9 +934,18 @@ Remaining dependency-ordered package checklist:
       - [ ] Add red tests for CEM tree `Arc` identity, formatter/colorizer
             metadata and source maps, ordered writer tokens/chunks, and explicit
             rejection of generic JSON-value ingress.
+        - [x] Prove raw CEMT tree owner identity, lazy node access, source-map
+              retention, and native formatter ingress without an encoded JSON
+              artifact boundary.
+        - [ ] Prove formatted/colored owner identity, ordered overlays,
+              generated-node provenance, stage metadata, and writer parity.
       - [x] Store text, byte, token, chunk, and diagnostic writer payloads as
             typed artifact variants; validate and compose them directly without
             constructor or writer-adapter JSON round trips.
+      - [x] Introduce a package-owned raw CEMT tree artifact that retains the
+            owning `Arc<CemTreeAstStream>` and exposes lazy node views; route
+            native formatter ingress through it without an encoded JSON
+            artifact boundary.
       - [ ] Make CEMT/native output-function implementations return typed
             payloads directly; remove runtime-value classification and the
             remaining byte-encoder serialization at the evaluator boundary.
@@ -999,43 +1008,38 @@ Remaining dependency-ordered package checklist:
 
 ### Next Work Item
 
-Replace the transitional `CemtOutputArtifact { value: serde_json::Value }`
-extension and `TransformTemplateEncodedArtifactPayload::Runtime(Value)` with a
-package-owned typed CEMT tree/result model. The writer artifact now stores text,
-bytes, tokens, chunks, and diagnostics as typed variants; retain that contract
-while removing the remaining evaluator-side runtime-value classification.
+Define typed formatted and colored CEMT overlays on the completed raw
+`CemtTreeArtifact`. Start with red tests proving that both stages retain the
+same `Arc<CemTreeAstStream>` as the raw artifact while preserving source maps,
+formatter/colorizer function and profile metadata, exact overlay order, writer
+attributes, color wrappers, and generated-node provenance.
 
-Start with red tests that prove the raw envelope owns the same
-`Arc<CemTreeAstStream>` received from lifecycle/graph routing. Add formatted and
-colored tests that retain that owner identity while preserving source maps,
-formatter/colorizer identity and profile metadata, writer attributes/color
-wrappers, and exact stage-specific node order through format, color, writer,
-graph routing, and secondary-input dispatch.
+Use stable owner-node paths/references for source nodes. Represent formatter
+layout markers, decisions, boundaries, and inserted whitespace as explicit
+typed overlay operations. Represent color markers, decisions, wrappers, and
+writer attributes as explicit typed color operations. Every inserted operation
+must identify its producing stage/function and carry either a retained source
+map or explicit generated provenance; do not add an open property bag or a
+generic recursive value enum to the artifact contract.
 
-Model raw, formatted, and colored envelopes as explicit variants. Raw nodes are
-stable references into the owning AST stream; formatter and colorizer results
-are typed ordered overlays/deltas, including generated nodes with explicit
-generated provenance, rather than copied generic maps. Expose a lazy
-`CemtSubjectRef`/node-view API to evaluator bindings. Evaluator-local scalar,
-sequence, and record values may support expression evaluation, but they must
-not implement `TransformNativeArtifact` or cross an adapter/output boundary;
-stage builders must lower a result into the declared typed envelope or reject
-it. This prevents an evaluator record from becoming another implicit JSON AST.
+At CEMT adapter completion, lower evaluator-local records into the declared
+formatted or colored overlay and reject unknown/malformed stage output. Return
+that artifact through `TransformArtifactBody::Extension` while preserving the
+raw owner. Update colorizer ingress and writer composition to consume lazy
+merged views over the owner plus overlays. Once both stages are typed, remove
+the formatter/colorizer use of `CemtOutputArtifact` and
+`TransformTemplateEncodedArtifactPayload::Runtime(Value)`.
 
-Change native and CEMT output-function execution to return a typed result enum,
-including direct byte/token/chunk variants, so
-`builtin_cem_bin_bytes_encoder`, `artifact_from_value`, and color-stage chaining
-do not serialize or classify `Value`. Remove `CemtOutputArtifact`,
-`transform_template_output_cemt_subject`, `explicit_json_value` CEMT ingress,
-and adapter DTO conversion. JSON serialization remains available only through
-registered JSON/`+json` exporters and public response serialization.
+The following slice should then change native/CEMT output-function execution to
+a typed result enum, including direct byte/token/chunk variants, and remove
+`artifact_from_value` plus `builtin_cem_bin_bytes_encoder` JSON serialization.
+JSON remains available only through registered JSON/`+json` exporters and
+public response serialization.
 
-Finish with graph/secondary-input routing tests, source audits, package
-formatter/colorizer parity, core/CLI tests, lint, native build, and WASM gates.
-
-After typed CEMT is complete, apply the same native output/input contract to
-XSLT result trees and XPath result association, then replace the params/defaults
-DTO separately.
+Finish each slice with graph/secondary-input routing tests, source audits,
+package formatter/colorizer parity, core/CLI tests, lint, native build, and WASM
+gates. After typed CEMT is complete, apply the same contract to XSLT result
+trees and XPath result association, then replace the params/defaults DTO.
 
 ## Current Verification Commands
 

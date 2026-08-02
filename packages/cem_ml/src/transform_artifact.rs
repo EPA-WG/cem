@@ -12,6 +12,74 @@ use std::collections::BTreeMap;
 use std::fmt;
 use std::sync::Arc;
 
+pub const CEMT_TREE_REPRESENTATION_ID: &str = "cem.cemt-tree";
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
+pub enum CemtTreeArtifactStage {
+    Raw,
+}
+
+#[derive(Debug, Clone)]
+pub struct CemtTreeArtifact {
+    stage: CemtTreeArtifactStage,
+    owner: Arc<CemTreeAstStream>,
+    source_map: Option<SourceMapStack>,
+}
+
+impl CemtTreeArtifact {
+    pub fn raw(owner: Arc<CemTreeAstStream>, source_map: Option<SourceMapStack>) -> Self {
+        Self {
+            stage: CemtTreeArtifactStage::Raw,
+            owner,
+            source_map,
+        }
+    }
+
+    pub fn stage(&self) -> CemtTreeArtifactStage {
+        self.stage
+    }
+
+    pub fn owner(&self) -> &Arc<CemTreeAstStream> {
+        &self.owner
+    }
+
+    pub fn subject(&self) -> CemtTreeSubjectRef<'_> {
+        CemtTreeSubjectRef {
+            owner: self.owner.as_ref(),
+        }
+    }
+}
+
+impl TransformNativeArtifact for CemtTreeArtifact {
+    fn representation_id(&self) -> &'static str {
+        CEMT_TREE_REPRESENTATION_ID
+    }
+
+    fn source_map(&self) -> Option<&SourceMapStack> {
+        self.source_map.as_ref()
+    }
+
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct CemtTreeSubjectRef<'a> {
+    owner: &'a CemTreeAstStream,
+}
+
+impl<'a> CemtTreeSubjectRef<'a> {
+    pub fn stream(self) -> &'a CemTreeAstStream {
+        self.owner
+    }
+
+    pub fn nodes(self) -> &'a [crate::projection::CemTreeAstNode] {
+        self.owner.as_nodes()
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct TransformDataArtifact {
     pub artifact_id: String,
@@ -347,6 +415,32 @@ fn identity_has_json_content_type(identity: &FormatIdentity) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn raw_cemt_tree_artifact_retains_owner_identity_and_lazy_nodes() {
+        let owner = Arc::new(CemTreeAstStream::new(vec![
+            crate::projection::CemTreeAstNode::Text {
+                value: "ready".to_owned(),
+                source: SourceMapStack::default(),
+            },
+        ]));
+        let source_map = SourceMapStack {
+            frames: vec![crate::source_map::SourceMapFrame {
+                source_id: crate::source::SourceId(7),
+                span: crate::source_map::FrameSpan::Single(crate::source::ByteRange::new(4, 5)),
+                transform: crate::source_map::TransformKind::TemplateTransform {
+                    function: "cem.format-tree".to_owned(),
+                },
+            }],
+        };
+        let artifact = CemtTreeArtifact::raw(owner.clone(), Some(source_map.clone()));
+
+        assert_eq!(artifact.stage(), CemtTreeArtifactStage::Raw);
+        assert!(Arc::ptr_eq(artifact.owner(), &owner));
+        assert!(std::ptr::eq(artifact.subject().nodes(), owner.as_nodes()));
+        assert_eq!(artifact.source_map(), Some(&source_map));
+        assert_eq!(artifact.representation_id(), CEMT_TREE_REPRESENTATION_ID);
+    }
 
     #[test]
     fn json_encoded_artifact_requires_explicit_json_identity() {

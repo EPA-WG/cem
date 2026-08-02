@@ -10,9 +10,8 @@ use crate::conversion::{
     conversion_output_safety_contract,
     conversion_package_artifacts_from_validated_schema_package_manifest,
     direct_cem_output_pipeline, direct_html_output_pipeline, direct_xml_output_pipeline,
-    execute_conversion_output_pipeline,
+    execute_conversion_output_pipeline_from_cem_tree_with_environment,
     execute_conversion_output_pipeline_from_formatted_cem_tree_with_environment,
-    execute_conversion_output_pipeline_with_environment,
     execute_css_document_output_pipeline_with_environment,
     execute_csv_document_output_pipeline_with_environment,
     execute_html_document_output_pipeline_with_environment,
@@ -27,7 +26,7 @@ use crate::conversion::{
     execute_xslt_stylesheet_output_pipeline_with_environment,
     execute_yaml_document_output_pipeline_with_environment, transform_template_output_cemt_subject,
     ConversionExecution, ConversionOutputPipeline, ConversionOutputPipelineEnvironment,
-    ConversionPackageArtifactDescriptor, ConversionPackageArtifactRead,
+    ConversionPackageArtifactDescriptor, ConversionPackageArtifactRead, ConversionRegistry,
     ConversionRustFallbackDescriptor, GenericDataCsvDocumentOutputSubject,
     GenericDataJsonDocumentOutputSubject, GenericDataYamlDocumentOutputSubject,
     CONVERSION_OUTPUT_PIPELINE_EXECUTION_CODE,
@@ -61,17 +60,18 @@ use crate::schema::machine::CemSchemaMachine;
 use crate::schema::package_consistency::validate_schema_package_source_consistency;
 use crate::schema::registry::{
     content_type_essence, schema_descriptor_from_manifest_and_schema_sources,
-    schema_source_path_from_manifest_source, SchemaDescriptor, CEM_AST_PROJECTION_CONTENT_TYPE,
-    CEM_AST_PROJECTION_SCHEMA_URI, CEM_DOM_JSON_PROJECTION_CONTENT_TYPE,
-    CEM_DOM_PROJECTION_CONTENT_TYPE, CEM_DOM_PROJECTION_SCHEMA_URI, CEM_ML_CONTENT_TYPE,
-    CEM_ML_SCHEMA_URI, CEM_NATIVE_TEMPLATE_CONTENT_TYPE, CEM_NATIVE_TEMPLATE_SCHEMA_URI,
-    CEM_SCHEMA_CONTENT_TYPE, CEM_SCHEMA_PACKAGE_CONTENT_TYPE, CEM_SCHEMA_PACKAGE_URI,
-    CSS_CONTENT_TYPE, CSS_SCHEMA_URI, CSV_CONTENT_TYPE, CSV_SCHEMA_URI, HTML_CONTENT_TYPE,
-    HTML_SCHEMA_URI, JSON_CONTENT_TYPE, JSON_SCHEMA_CONTENT_TYPE, JSON_SCHEMA_SCHEMA_URI,
-    JSON_VALUE_SCHEMA_URI, MARKDOWN_CONTENT_TYPE, MARKDOWN_SCHEMA_URI, MATHML_CONTENT_TYPE,
-    MATHML_SCHEMA_URI, RELAX_NG_SCHEMA_URI, SVG_CONTENT_TYPE, SVG_SCHEMA_URI, XHTML_CONTENT_TYPE,
-    XHTML_SCHEMA_URI, XML_CONTENT_TYPE, XML_SCHEMA_URI, XPATH_CONTENT_TYPE, XPATH_SCHEMA_URI,
-    XSLT_CONTENT_TYPE, XSLT_SCHEMA_URI, YAML_CONTENT_TYPE, YAML_SCHEMA_URI,
+    schema_source_path_from_manifest_source, SchemaDescriptor, SchemaRegistry,
+    CEM_AST_PROJECTION_CONTENT_TYPE, CEM_AST_PROJECTION_SCHEMA_URI,
+    CEM_DOM_JSON_PROJECTION_CONTENT_TYPE, CEM_DOM_PROJECTION_CONTENT_TYPE,
+    CEM_DOM_PROJECTION_SCHEMA_URI, CEM_ML_CONTENT_TYPE, CEM_ML_SCHEMA_URI,
+    CEM_NATIVE_TEMPLATE_CONTENT_TYPE, CEM_NATIVE_TEMPLATE_SCHEMA_URI, CEM_SCHEMA_CONTENT_TYPE,
+    CEM_SCHEMA_PACKAGE_CONTENT_TYPE, CEM_SCHEMA_PACKAGE_URI, CSS_CONTENT_TYPE, CSS_SCHEMA_URI,
+    CSV_CONTENT_TYPE, CSV_SCHEMA_URI, HTML_CONTENT_TYPE, HTML_SCHEMA_URI, JSON_CONTENT_TYPE,
+    JSON_SCHEMA_CONTENT_TYPE, JSON_SCHEMA_SCHEMA_URI, JSON_VALUE_SCHEMA_URI, MARKDOWN_CONTENT_TYPE,
+    MARKDOWN_SCHEMA_URI, MATHML_CONTENT_TYPE, MATHML_SCHEMA_URI, RELAX_NG_SCHEMA_URI,
+    SVG_CONTENT_TYPE, SVG_SCHEMA_URI, XHTML_CONTENT_TYPE, XHTML_SCHEMA_URI, XML_CONTENT_TYPE,
+    XML_SCHEMA_URI, XPATH_CONTENT_TYPE, XPATH_SCHEMA_URI, XSLT_CONTENT_TYPE, XSLT_SCHEMA_URI,
+    YAML_CONTENT_TYPE, YAML_SCHEMA_URI,
 };
 use crate::schema::vocab::CompiledSchema;
 use crate::source::line_index::LineIndex;
@@ -747,50 +747,6 @@ fn read_converter_template(
     })
 }
 
-fn execute_conversion_output_pipeline_with_context(
-    context: Option<&EngineContext>,
-    pipeline: &ConversionOutputPipeline,
-    rendered_value: Value,
-    rendered_source_map: Option<SourceMapStack>,
-    rendered_output_spans: Vec<OutputSpan>,
-    converter_id: &str,
-    diagnostic_node: Option<&str>,
-    diagnostic_uri: Option<&str>,
-) -> crate::conversion::ConversionOutputPipelineExecution {
-    let Some(context) = context else {
-        return execute_conversion_output_pipeline(
-            pipeline,
-            rendered_value,
-            rendered_source_map,
-            rendered_output_spans,
-            converter_id,
-            diagnostic_node,
-            diagnostic_uri,
-        );
-    };
-
-    let package_artifact_reader =
-        |artifact: &ConversionPackageArtifactDescriptor| -> Result<ConversionPackageArtifactRead, String> {
-            read_conversion_package_artifact(context, artifact).map_err(|error| error.to_string())
-        };
-    let environment = ConversionOutputPipelineEnvironment {
-        schema_registry: &context.schema_registry,
-        conversion_registry: &context.converter_registry,
-        package_artifact_reader: Some(&package_artifact_reader),
-        artifact_cache: None,
-    };
-    execute_conversion_output_pipeline_with_environment(
-        &environment,
-        pipeline,
-        rendered_value,
-        rendered_source_map,
-        rendered_output_spans,
-        converter_id,
-        diagnostic_node,
-        diagnostic_uri,
-    )
-}
-
 fn execute_cem_tree_output_pipeline_with_context(
     context: Option<&EngineContext>,
     pipeline: &ConversionOutputPipeline,
@@ -801,10 +757,34 @@ fn execute_cem_tree_output_pipeline_with_context(
     diagnostic_node: Option<&str>,
     diagnostic_uri: Option<&str>,
 ) -> crate::conversion::ConversionOutputPipelineExecution {
-    execute_conversion_output_pipeline_with_context(
-        context,
+    let schema_registry = SchemaRegistry::with_builtin_schemas();
+    let conversion_registry = ConversionRegistry::with_builtin_converters();
+    let package_artifact_reader =
+        |artifact: &ConversionPackageArtifactDescriptor| -> Result<ConversionPackageArtifactRead, String> {
+            let Some(context) = context else {
+                return Err("package artifact reader requires an engine context".to_owned());
+            };
+            read_conversion_package_artifact(context, artifact).map_err(|error| error.to_string())
+        };
+    let environment = ConversionOutputPipelineEnvironment {
+        schema_registry: context
+            .map(|context| &context.schema_registry)
+            .unwrap_or(&schema_registry),
+        conversion_registry: context
+            .map(|context| &context.converter_registry)
+            .unwrap_or(&conversion_registry),
+        package_artifact_reader: context.map(|_| {
+            &package_artifact_reader
+                as &dyn Fn(
+                    &ConversionPackageArtifactDescriptor,
+                ) -> Result<ConversionPackageArtifactRead, String>
+        }),
+        artifact_cache: None,
+    };
+    execute_conversion_output_pipeline_from_cem_tree_with_environment(
+        &environment,
         pipeline,
-        rendered_stream.into_cemt_subject(),
+        Arc::new(rendered_stream),
         rendered_source_map,
         rendered_output_spans,
         converter_id,

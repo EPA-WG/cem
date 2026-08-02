@@ -29,16 +29,16 @@ use crate::schema::package_sources::{
 };
 use crate::schema::registry::{
     content_type_essence, SchemaContentTypeRole, SchemaDescriptor, SchemaRegistry,
-    CEM_AST_JSON_PROJECTION_CONTENT_TYPE, CEM_AST_PROJECTION_SCHEMA_URI,
-    CEM_DOM_JSON_PROJECTION_CONTENT_TYPE, CEM_DOM_PROJECTION_CONTENT_TYPE,
-    CEM_DOM_PROJECTION_SCHEMA_URI, CEM_EVENTS_PROJECTION_SCHEMA_URI, CEM_ML_CONTENT_TYPE,
-    CEM_ML_SCHEMA_URI, CEM_QL_SCHEMA_URI, CEM_TRANSFORM_CONTENT_TYPE, CEM_TRANSFORM_SCHEMA_URI,
-    CSS_CONTENT_TYPE, CSS_SCHEMA_URI, CSV_CONTENT_TYPE, CSV_SCHEMA_URI, HTML_CONTENT_TYPE,
-    HTML_SCHEMA_URI, JSON_CONTENT_TYPE, JSON_SCHEMA_CONTENT_TYPE, JSON_SCHEMA_SCHEMA_URI,
-    JSON_VALUE_SCHEMA_URI, MARKDOWN_CONTENT_TYPE, MARKDOWN_SCHEMA_URI, MATHML_CONTENT_TYPE,
-    MATHML_SCHEMA_URI, RELAX_NG_SCHEMA_URI, SVG_CONTENT_TYPE, SVG_SCHEMA_URI, XHTML_CONTENT_TYPE,
-    XHTML_SCHEMA_URI, XML_CONTENT_TYPE, XML_SCHEMA_URI, XSLT_CONTENT_TYPE, XSLT_SCHEMA_URI,
-    YAML_CONTENT_TYPE, YAML_SCHEMA_URI,
+    CEM_AST_JSON_PROJECTION_CONTENT_TYPE, CEM_AST_PROJECTION_CONTENT_TYPE,
+    CEM_AST_PROJECTION_SCHEMA_URI, CEM_DOM_JSON_PROJECTION_CONTENT_TYPE,
+    CEM_DOM_PROJECTION_CONTENT_TYPE, CEM_DOM_PROJECTION_SCHEMA_URI,
+    CEM_EVENTS_PROJECTION_SCHEMA_URI, CEM_ML_CONTENT_TYPE, CEM_ML_SCHEMA_URI, CEM_QL_SCHEMA_URI,
+    CEM_TRANSFORM_CONTENT_TYPE, CEM_TRANSFORM_SCHEMA_URI, CSS_CONTENT_TYPE, CSS_SCHEMA_URI,
+    CSV_CONTENT_TYPE, CSV_SCHEMA_URI, HTML_CONTENT_TYPE, HTML_SCHEMA_URI, JSON_CONTENT_TYPE,
+    JSON_SCHEMA_CONTENT_TYPE, JSON_SCHEMA_SCHEMA_URI, JSON_VALUE_SCHEMA_URI, MARKDOWN_CONTENT_TYPE,
+    MARKDOWN_SCHEMA_URI, MATHML_CONTENT_TYPE, MATHML_SCHEMA_URI, RELAX_NG_SCHEMA_URI,
+    SVG_CONTENT_TYPE, SVG_SCHEMA_URI, XHTML_CONTENT_TYPE, XHTML_SCHEMA_URI, XML_CONTENT_TYPE,
+    XML_SCHEMA_URI, XSLT_CONTENT_TYPE, XSLT_SCHEMA_URI, YAML_CONTENT_TYPE, YAML_SCHEMA_URI,
 };
 use crate::source::{BytesSource, SourceId};
 use crate::source_map::SourceMapStack;
@@ -46,7 +46,10 @@ use crate::tokenizer::cem::CemTokenizer;
 use crate::tokenizer::html::HtmlTokenizer;
 use crate::tokenizer::xml::XmlTokenizer;
 use crate::tokenizer::{SchemaTokenKind, SchemaTokenizer};
-use crate::transform_artifact::{TransformArtifactBody, TransformNativeArtifact};
+use crate::transform_artifact::{
+    CemtTreeArtifact, CemtTreeArtifactStage, TransformArtifactBody, TransformNativeArtifact,
+    CEMT_TREE_REPRESENTATION_ID,
+};
 use crate::transform_template::{
     compose_transform_template_encoded_text_artifacts,
     evaluate_transform_template_encode_expressions, execute_transform_template_encode_binding,
@@ -2474,6 +2477,7 @@ fn conversion_output_boundary_value(
 #[derive(Debug, Clone, Default)]
 pub struct ConversionOutputPipelineExecution {
     pub output: Option<Value>,
+    pub raw_cem_tree: Option<Arc<CemtTreeArtifact>>,
     pub source_map: Option<SourceMapStack>,
     pub output_spans: Vec<OutputSpan>,
     pub format_execution: Option<ConversionOutputPipelineStageExecution>,
@@ -3407,16 +3411,40 @@ fn execute_conversion_cem_tree_output_stage_body(
     request: &TransformTemplateRenderRequest<'_>,
     binding: &TransformTemplateEncodeBinding,
 ) -> TransformTemplateAdapterResult<Option<Value>> {
-    let primary = request
-        .primary_input
-        .explicit_json_value()
-        .map_err(|error| {
-            TransformTemplateAdapterError::failed(
-                stage.adapter_id,
-                TransformTemplateAdapterExecutionPhase::Render,
-                error.to_string(),
-            )
-        })?;
+    let primary = match &request.primary_input.body {
+        TransformArtifactBody::Extension(native)
+            if native.representation_id() == CEMT_TREE_REPRESENTATION_ID =>
+        {
+            let artifact = native
+                .as_any()
+                .downcast_ref::<CemtTreeArtifact>()
+                .ok_or_else(|| {
+                    TransformTemplateAdapterError::failed(
+                        stage.adapter_id,
+                        TransformTemplateAdapterExecutionPhase::Render,
+                        "raw CEMT tree body type does not match its representation",
+                    )
+                })?;
+            if artifact.stage() != CemtTreeArtifactStage::Raw {
+                return Err(TransformTemplateAdapterError::failed(
+                    stage.adapter_id,
+                    TransformTemplateAdapterExecutionPhase::Render,
+                    "formatter input requires a raw CEMT tree artifact",
+                ));
+            }
+            artifact.subject().stream().clone().into_cemt_subject()
+        }
+        _ => request
+            .primary_input
+            .explicit_json_value()
+            .map_err(|error| {
+                TransformTemplateAdapterError::failed(
+                    stage.adapter_id,
+                    TransformTemplateAdapterExecutionPhase::Render,
+                    error.to_string(),
+                )
+            })?,
+    };
     let expressions = request
         .compiled
         .module_options
@@ -3523,8 +3551,9 @@ fn execute_conversion_cem_tree_format_stage(
     environment: &ConversionOutputPipelineEnvironment<'_>,
     binding: &TransformTemplateEncodeBinding,
     subject: &Value,
+    native_subject: Option<&Arc<CemtTreeArtifact>>,
 ) -> Result<(Value, ConversionOutputPipelineStageExecution), String> {
-    execute_conversion_cem_tree_output_stage(
+    execute_conversion_cem_tree_output_stage_with_native_subject(
         environment,
         cem_tree_cemt_output_stage(
             environment,
@@ -3535,6 +3564,7 @@ fn execute_conversion_cem_tree_format_stage(
         )?,
         binding,
         subject,
+        native_subject,
     )
 }
 
@@ -3562,6 +3592,22 @@ fn execute_conversion_cem_tree_output_stage(
     stage: CemTreeCemtOutputStage,
     binding: &TransformTemplateEncodeBinding,
     subject: &Value,
+) -> Result<(Value, ConversionOutputPipelineStageExecution), String> {
+    execute_conversion_cem_tree_output_stage_with_native_subject(
+        environment,
+        stage,
+        binding,
+        subject,
+        None,
+    )
+}
+
+fn execute_conversion_cem_tree_output_stage_with_native_subject(
+    environment: &ConversionOutputPipelineEnvironment<'_>,
+    stage: CemTreeCemtOutputStage,
+    binding: &TransformTemplateEncodeBinding,
+    subject: &Value,
+    native_subject: Option<&Arc<CemtTreeArtifact>>,
 ) -> Result<(Value, ConversionOutputPipelineStageExecution), String> {
     let adapter = CemTreeCemtOutputAdapter {
         stage: stage.clone(),
@@ -3644,17 +3690,30 @@ fn execute_conversion_cem_tree_output_stage(
     let compiled = compile_response
         .artifact
         .with_native_payload(execution_binding.clone());
-    let primary_input = TransformTemplateDataArtifact::explicit_json(
-        "subject",
-        None,
-        FormatIdentity {
-            content_type: Some(CEM_AST_JSON_PROJECTION_CONTENT_TYPE.to_owned()),
-            schema: Some(CEM_AST_PROJECTION_SCHEMA_URI.to_owned()),
-            ..FormatIdentity::default()
-        },
-        subject,
-    )
-    .map_err(|error| error.to_string())?;
+    let primary_input = if let Some(native_subject) = native_subject {
+        TransformTemplateDataArtifact::new(
+            "subject",
+            None,
+            Some(FormatIdentity {
+                content_type: Some(CEM_AST_PROJECTION_CONTENT_TYPE.to_owned()),
+                schema: Some(CEM_AST_PROJECTION_SCHEMA_URI.to_owned()),
+                ..FormatIdentity::default()
+            }),
+            TransformArtifactBody::Extension(native_subject.clone()),
+        )
+    } else {
+        TransformTemplateDataArtifact::explicit_json(
+            "subject",
+            None,
+            FormatIdentity {
+                content_type: Some(CEM_AST_JSON_PROJECTION_CONTENT_TYPE.to_owned()),
+                schema: Some(CEM_AST_PROJECTION_SCHEMA_URI.to_owned()),
+                ..FormatIdentity::default()
+            },
+            subject,
+        )
+        .map_err(|error| error.to_string())?
+    };
     let secondary_inputs = BTreeMap::new();
     let target = binding.identity.target.format_identity();
     let render_response = adapter
@@ -3858,6 +3917,79 @@ pub fn execute_conversion_output_pipeline_with_environment(
     diagnostic_node: Option<&str>,
     diagnostic_uri: Option<&str>,
 ) -> ConversionOutputPipelineExecution {
+    execute_conversion_output_pipeline_with_environment_subject(
+        environment,
+        pipeline,
+        ConversionOutputPipelineSubject::Runtime(rendered_value),
+        rendered_source_map,
+        rendered_output_spans,
+        converter_id,
+        diagnostic_node,
+        diagnostic_uri,
+    )
+}
+
+pub fn execute_conversion_output_pipeline_from_cem_tree_with_environment(
+    environment: &ConversionOutputPipelineEnvironment<'_>,
+    pipeline: &ConversionOutputPipeline,
+    rendered_stream: Arc<CemTreeAstStream>,
+    rendered_source_map: Option<SourceMapStack>,
+    rendered_output_spans: Vec<OutputSpan>,
+    converter_id: &str,
+    diagnostic_node: Option<&str>,
+    diagnostic_uri: Option<&str>,
+) -> ConversionOutputPipelineExecution {
+    let raw = Arc::new(CemtTreeArtifact::raw(
+        rendered_stream,
+        rendered_source_map.clone(),
+    ));
+    let mut execution = execute_conversion_output_pipeline_with_environment_subject(
+        environment,
+        pipeline,
+        ConversionOutputPipelineSubject::Raw(raw.clone()),
+        rendered_source_map,
+        rendered_output_spans,
+        converter_id,
+        diagnostic_node,
+        diagnostic_uri,
+    );
+    execution.raw_cem_tree = Some(raw);
+    execution
+}
+
+enum ConversionOutputPipelineSubject {
+    Runtime(Value),
+    Raw(Arc<CemtTreeArtifact>),
+}
+
+impl ConversionOutputPipelineSubject {
+    fn evaluator_value(&self) -> Value {
+        match self {
+            Self::Runtime(value) => value.clone(),
+            Self::Raw(artifact) => artifact.subject().stream().clone().into_cemt_subject(),
+        }
+    }
+
+    fn native_raw(&self) -> Option<&Arc<CemtTreeArtifact>> {
+        match self {
+            Self::Runtime(_) => None,
+            Self::Raw(artifact) => Some(artifact),
+        }
+    }
+}
+
+fn execute_conversion_output_pipeline_with_environment_subject(
+    environment: &ConversionOutputPipelineEnvironment<'_>,
+    pipeline: &ConversionOutputPipeline,
+    subject: ConversionOutputPipelineSubject,
+    rendered_source_map: Option<SourceMapStack>,
+    rendered_output_spans: Vec<OutputSpan>,
+    converter_id: &str,
+    diagnostic_node: Option<&str>,
+    diagnostic_uri: Option<&str>,
+) -> ConversionOutputPipelineExecution {
+    let rendered_value = subject.evaluator_value();
+    let native_subject = subject.native_raw();
     let local_artifact_cache = ConversionOutputPipelineArtifactCache::default();
     let cached_environment = if environment.artifact_cache.is_some() {
         *environment
@@ -3896,8 +4028,12 @@ pub fn execute_conversion_output_pipeline_with_environment(
         }
     };
     let format_started = Instant::now();
-    let format_result =
-        execute_conversion_cem_tree_format_stage(environment, &format_binding, &rendered_value);
+    let format_result = execute_conversion_cem_tree_format_stage(
+        environment,
+        &format_binding,
+        &rendered_value,
+        native_subject,
+    );
     let format_elapsed_ns = Some(format_started.elapsed().as_nanos());
     let (formatted_output, format_execution) = match format_result {
         Ok(output) => output,
@@ -4377,6 +4513,7 @@ pub fn execute_csv_document_output_pipeline_with_environment(
             }
             ConversionOutputPipelineExecution {
                 output: Some(artifact.value.into_runtime_value()),
+                raw_cem_tree: None,
                 source_map: artifact.source_map,
                 output_spans: artifact.output_spans,
                 format_execution,
@@ -5057,6 +5194,7 @@ pub fn execute_yaml_document_output_pipeline_with_environment(
             }
             ConversionOutputPipelineExecution {
                 output: Some(artifact.value.into_runtime_value()),
+                raw_cem_tree: None,
                 source_map: artifact.source_map,
                 output_spans: artifact.output_spans,
                 format_execution,
@@ -5708,6 +5846,7 @@ pub fn execute_json_document_output_pipeline_with_environment(
             }
             ConversionOutputPipelineExecution {
                 output: Some(artifact.value.into_runtime_value()),
+                raw_cem_tree: None,
                 source_map: artifact.source_map,
                 output_spans: artifact.output_spans,
                 format_execution,
@@ -6065,6 +6204,7 @@ pub fn execute_json_schema_document_output_pipeline_with_environment(
             }
             ConversionOutputPipelineExecution {
                 output: Some(artifact.value.into_runtime_value()),
+                raw_cem_tree: None,
                 source_map: artifact.source_map,
                 output_spans: artifact.output_spans,
                 format_execution,
@@ -6855,6 +6995,7 @@ pub fn execute_markdown_document_output_pipeline_with_environment(
             }
             ConversionOutputPipelineExecution {
                 output: Some(artifact.value.into_runtime_value()),
+                raw_cem_tree: None,
                 source_map: artifact.source_map,
                 output_spans: artifact.output_spans,
                 format_execution,
@@ -8342,6 +8483,7 @@ fn execute_conversion_output_pipeline_from_formatted_artifact(
     match composition.artifact {
         Some(artifact) => ConversionOutputPipelineExecution {
             output: Some(artifact.value.into_runtime_value()),
+            raw_cem_tree: None,
             source_map: artifact.source_map,
             output_spans: artifact.output_spans,
             format_execution,
@@ -14662,6 +14804,86 @@ mod tests {
         assert!(output.contains("<main"));
         assert!(output.contains("cem-color-syntax-name"));
         assert!(output.contains("<span class=\"cem-color cem-color-syntax-string\""));
+    }
+
+    #[test]
+    fn native_cem_tree_pipeline_retains_raw_owner_identity() {
+        let owner = Arc::new(CemTreeAstStream::new(vec![CemTreeAstNode::Text {
+            value: "Ready".to_owned(),
+            source: SourceMapStack::default(),
+        }]));
+        let schema_registry = SchemaRegistry::with_builtin_schemas();
+        let conversion_registry = ConversionRegistry::with_builtin_converters();
+        let environment = ConversionOutputPipelineEnvironment {
+            schema_registry: &schema_registry,
+            conversion_registry: &conversion_registry,
+            package_artifact_reader: None,
+            artifact_cache: None,
+        };
+
+        let execution = execute_conversion_output_pipeline_from_cem_tree_with_environment(
+            &environment,
+            &direct_cem_output_pipeline(),
+            owner.clone(),
+            None,
+            Vec::new(),
+            "typed-raw-cem-tree",
+            Some("output"),
+            Some("fixture.cem"),
+        );
+
+        assert!(
+            execution.diagnostics.is_empty(),
+            "{:?}",
+            execution.diagnostics
+        );
+        let raw = execution
+            .raw_cem_tree
+            .as_ref()
+            .expect("raw CEMT tree artifact is retained");
+        assert!(Arc::ptr_eq(raw.owner(), &owner));
+        assert!(std::ptr::eq(raw.subject().nodes(), owner.as_nodes()));
+    }
+
+    #[test]
+    fn native_cem_tree_formatter_ingress_has_no_encoded_json_boundary() {
+        let conversion_source = include_str!("conversion.rs");
+        let typed_entry = conversion_source
+            .split_once("pub fn execute_conversion_output_pipeline_from_cem_tree_with_environment")
+            .expect("typed CEM tree pipeline entrypoint")
+            .1
+            .split_once("enum ConversionOutputPipelineSubject")
+            .expect("typed entrypoint boundary")
+            .0;
+        assert!(typed_entry.contains("CemtTreeArtifact::raw"));
+        assert!(typed_entry.contains("ConversionOutputPipelineSubject::Raw(raw.clone())"));
+        assert!(!typed_entry.contains("TransformTemplateDataArtifact::explicit_json"));
+        assert!(!typed_entry.contains("serde_json"));
+        assert!(!typed_entry.contains("into_cemt_subject"));
+
+        let native_ingress = conversion_source
+            .split_once("let primary_input = if let Some(native_subject) = native_subject")
+            .expect("native formatter ingress")
+            .1
+            .split_once("} else {")
+            .expect("legacy evaluator ingress boundary")
+            .0;
+        assert!(native_ingress.contains("TransformArtifactBody::Extension"));
+        assert!(!native_ingress.contains("explicit_json"));
+
+        let real_source = include_str!("real.rs");
+        let real_entry = real_source
+            .split_once("fn execute_cem_tree_output_pipeline_with_context")
+            .expect("real-engine CEM tree entrypoint")
+            .1
+            .split_once(
+                "fn execute_conversion_output_pipeline_from_formatted_cem_tree_with_context",
+            )
+            .expect("real-engine entrypoint boundary")
+            .0;
+        assert!(real_entry
+            .contains("execute_conversion_output_pipeline_from_cem_tree_with_environment"));
+        assert!(!real_entry.contains("into_cemt_subject"));
     }
 
     #[test]
