@@ -1,6 +1,6 @@
 # XPath Schema Package
 
-Status: package and lossless XPath 3.1 syntax foundation
+Status: package, lossless XPath 3.1 syntax, and schema-owned diagnostics
 
 This package owns standalone and embedded XPath expression syntax. Host
 languages declare expression slots and static context, then associate the
@@ -37,6 +37,18 @@ source map, so a host can fuse the stream without rewriting XPath identities.
 The adapter follows XPath 3.1 longest-match tokenization. It does not reuse the
 legacy custom-element XPath rewriter or infer XPath by applying CEM-QL syntax.
 
+## Schema-Owned Diagnostics
+
+The native parser emits neutral facts for decode, lexical, parse, namespace,
+delimiter, host-association, external-resource, source-map, and event-lifecycle
+conditions. `schema/xpath.cem` owns the diagnostic code, severity, contract,
+behavior, and policy bound to each reportable fact.
+
+Standalone validation accepts the primary content type, the `text/xpath` alias,
+or the package schema URI and maps those facts without lowering the expression
+to CEM. Diagnostics retain exact byte, line, column, and source-map coordinates.
+Manifest-owned pass and failure fixtures exercise the same validation path.
+
 ## Host Association
 
 Standalone expressions use their own source identity. Embedded expressions add
@@ -60,9 +72,9 @@ owns parsing and static syntax; the CEM-ML `transform` path will own execution
 planning. Hosts may supply context items and bindings, but must not implement a
 private parser, evaluator, or external-resource resolver.
 
-The current slice parses and models expressions. Standalone lifecycle loading,
-evaluation, XSLT attribute fusion, CEM-QL/CEMT adapters, and external resource
-capabilities remain explicitly tracked work.
+The current slice parses, models, and validates expressions. Standalone
+lifecycle loading, evaluation, XSLT attribute fusion, CEM-QL/CEMT adapters, and
+external resource capabilities remain explicitly tracked work.
 
 ## Formatter And Colorizer Profiles
 
@@ -83,14 +95,15 @@ silently reused under a broader policy.
 ## Verification
 
 `yarn nx run cem_ml_schema_package_xpath_v1:verify` validates the schema-package
-manifest, runs lossless lexer/parser and host-attachment tests, verifies embedded
-catalog identity, and checks that README examples use fenced XPath source with
-no SVG fallback. `yarn nx run cem_ml:build:wasm` verifies that the pinned parser
-dependency stack remains compatible with the browser WASM target.
+manifest and fixture expectations, runs lossless lexer/parser, schema-diagnostic
+handoff, and host-attachment tests, verifies embedded catalog identity, and
+checks that README examples use fenced XPath source with no SVG fallback.
+`yarn nx run cem_ml:build:wasm` verifies that the pinned parser dependency stack
+remains compatible with the browser WASM target.
 
 ## Tracked Incomplete Work
 
-- Bind package facts to runtime diagnostics and add dedicated lifecycle loading.
+- Add dedicated standalone lifecycle loading and transformation planning.
 - Segment XSLT XPath attributes and AVTs, then associate their ASTs with exact
   XML attribute-value ranges.
 - Add standalone transformation execution and CEM-QL/CEMT/XSLT adapters.
@@ -167,6 +180,85 @@ map {
 
 ```xpath
 /catalog/π/@γλώσσα
+```
+
+<details>
+<summary>explicit-axes-and-escaped-string</summary>
+
+- Source: [`examples/explicit-axes-and-escaped-string.xpath`](./examples/explicit-axes-and-escaped-string.xpath)
+- Content type: `application/vnd.cem.xpath`
+- Schema: `https://cem.dev/ns/query/xpath/1`
+- Expected result: `pass`
+- README rendering: fenced `xpath` source
+
+</details>
+
+```xpath
+/catalog/descendant::book[@title = "The ""Quoted"" Book"]/ancestor-or-self::node()
+```
+
+<details>
+<summary>unknown-prefix</summary>
+
+- Source: [`examples/unknown-prefix.xpath`](./examples/unknown-prefix.xpath)
+- Content type: `application/vnd.cem.xpath`
+- Schema: `https://cem.dev/ns/query/xpath/1`
+- Expected result: `fail`
+- Expected diagnostics: `cem.xpath.unknown_namespace_prefix`
+- README rendering: fenced `xpath` source
+
+</details>
+
+```xpath
+/catalog/ns:book
+```
+
+<details>
+<summary>invalid-token</summary>
+
+- Source: [`examples/invalid-token.xpath`](./examples/invalid-token.xpath)
+- Content type: `text/xpath`
+- Schema: `https://cem.dev/ns/query/xpath/1`
+- Expected result: `fail`
+- Expected diagnostics: `cem.xpath.lexical_error`
+- README rendering: fenced `xpath` source
+
+</details>
+
+```xpath
+/catalog/`book
+```
+
+<details>
+<summary>mismatched-delimiter</summary>
+
+- Source: [`examples/mismatched-delimiter.xpath`](./examples/mismatched-delimiter.xpath)
+- Content type: `application/vnd.cem.xpath`
+- Schema: `https://cem.dev/ns/query/xpath/1`
+- Expected result: `fail`
+- Expected diagnostics: `cem.xpath.parse_error`, `cem.xpath.mismatched_delimiter`, `cem.xpath.unclosed_delimiter`
+- README rendering: fenced `xpath` source
+
+</details>
+
+```xpath
+/catalog/book[1)
+```
+
+<details>
+<summary>external-resource-denied</summary>
+
+- Source: [`examples/external-resource-denied.xpath`](./examples/external-resource-denied.xpath)
+- Content type: `application/vnd.cem.xpath`
+- Schema: `https://cem.dev/ns/query/xpath/1`
+- Expected result: `fail`
+- Expected diagnostics: `cem.xpath.external_resource_denied`
+- README rendering: fenced `xpath` source
+
+</details>
+
+```xpath
+doc("catalog.xml")/catalog
 ```
 
 <details>

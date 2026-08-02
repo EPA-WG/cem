@@ -51,7 +51,8 @@ use crate::schema::registry::{
     CSS_SCHEMA_URI, HTML_CONTENT_TYPE, HTML_SCHEMA_URI, MARKDOWN_CONTENT_TYPE, MARKDOWN_SCHEMA_URI,
     MATHML_CONTENT_TYPE, MATHML_SCHEMA_URI, RELAX_NG_COMPACT_CONTENT_TYPE, RELAX_NG_SCHEMA_URI,
     RELAX_NG_XML_CONTENT_TYPE, SVG_CONTENT_TYPE, SVG_SCHEMA_URI, XHTML_CONTENT_TYPE,
-    XHTML_SCHEMA_URI, XML_CONTENT_TYPE, XML_SCHEMA_URI, XSLT_CONTENT_TYPE, XSLT_SCHEMA_URI,
+    XHTML_SCHEMA_URI, XML_CONTENT_TYPE, XML_SCHEMA_URI, XPATH_CONTENT_TYPE, XPATH_SCHEMA_URI,
+    XSLT_CONTENT_TYPE, XSLT_SCHEMA_URI,
 };
 use crate::schema::vocab::CompiledSchema;
 use crate::source::{BytesSource, SourceId};
@@ -88,6 +89,7 @@ use crate::validation::{
     svg::{validate_svg_source_bytes, SvgSourceValidationRequest},
     xhtml::{validate_xhtml_source_bytes, XhtmlSourceValidationRequest},
     xml::{validate_xml_source_bytes, XmlSourceValidationRequest},
+    xpath::{validate_xpath_source_bytes, XPathSourceRequest},
     xslt::{validate_xslt_source_bytes, XsltSourceValidationRequest},
     RuleContext, RuleDescriptor, RuleId, RuleInput, RuleRegistry, RuleResourceRead, SemanticRule,
     TriggerLayer,
@@ -2855,6 +2857,13 @@ fn validate_schema_package_example_source_bytes(
                 content_type: Some(content_type),
             }));
         }
+        SchemaPackageExampleTokenizer::XPath => {
+            return Some(validate_xpath_source_bytes(XPathSourceRequest {
+                bytes,
+                source_uri,
+                content_type: Some(content_type),
+            }));
+        }
     };
     let upstream_diagnostics = document.diagnostics.clone();
     let mut diagnostics = document.diagnostics.clone();
@@ -2905,6 +2914,7 @@ enum SchemaPackageExampleTokenizer {
     RelaxNg,
     Svg,
     Xml,
+    XPath,
     Xhtml,
     Xslt,
 }
@@ -2980,6 +2990,11 @@ fn schema_package_example_tokenizer(
     }
     if content_type == XML_CONTENT_TYPE || schema_uri == XML_SCHEMA_URI {
         return Some(SchemaPackageExampleTokenizer::Xml);
+    }
+    if matches!(content_type.as_str(), XPATH_CONTENT_TYPE | "text/xpath")
+        || schema_uri == XPATH_SCHEMA_URI
+    {
+        return Some(SchemaPackageExampleTokenizer::XPath);
     }
     if matches!(
         content_type.as_str(),

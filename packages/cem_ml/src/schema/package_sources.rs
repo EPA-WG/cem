@@ -2795,7 +2795,7 @@ mod tests {
             top_level_example_paths("xpath"),
             "XPath top-level examples must be discoverable from package.cem"
         );
-        assert_eq!(examples.len(), 5);
+        assert_eq!(examples.len(), 10);
         assert!(examples
             .iter()
             .all(|example| example.schema == XPATH_SCHEMA_URI));
@@ -2824,6 +2824,38 @@ mod tests {
                 "cem.xpath.unclosed_delimiter".to_owned(),
             ]
         );
+        for (id, expected_codes) in [
+            ("unknown-prefix", vec!["cem.xpath.unknown_namespace_prefix"]),
+            ("invalid-token", vec!["cem.xpath.lexical_error"]),
+            (
+                "mismatched-delimiter",
+                vec![
+                    "cem.xpath.parse_error",
+                    "cem.xpath.mismatched_delimiter",
+                    "cem.xpath.unclosed_delimiter",
+                ],
+            ),
+            (
+                "external-resource-denied",
+                vec!["cem.xpath.external_resource_denied"],
+            ),
+        ] {
+            let example = examples
+                .iter()
+                .find(|example| example.id == id)
+                .unwrap_or_else(|| panic!("XPath example `{id}`"));
+            assert_eq!(
+                example.expected_result,
+                SchemaPackageExampleExpectedResult::Fail
+            );
+            assert_eq!(
+                example.expected_diagnostic_codes,
+                expected_codes
+                    .into_iter()
+                    .map(str::to_owned)
+                    .collect::<Vec<_>>()
+            );
+        }
     }
 
     #[test]

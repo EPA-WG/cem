@@ -86,6 +86,7 @@
                     "mkdir -p packages/cem_ml/schema-packages/xpath/v1/dist",
                     "./dist/target/cem_ml_cli/debug/cem-ml --quiet validate --fail-level parse --format json --content-type application/vnd.cem.schema-package+cem --schema https://cem.dev/ns/schema-package/1 --report-json packages/cem_ml/schema-packages/xpath/v1/dist packages/cem_ml/schema-packages/xpath/v1/package.cem",
                     "cargo test -p cem-ml 'validation::xpath::tests' -- --nocapture",
+                    "cargo test -p cem-ml xpath_source_validation -- --nocapture",
                     "cargo test -p cem-ml xpath_package -- --nocapture",
                     "cargo test -p cem-ml catalog_exposes_xpath_output_artifact_sources -- --nocapture",
                     "cargo test -p cem-ml --test schema_package_structure -- --nocapture",

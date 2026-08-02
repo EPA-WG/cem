@@ -140,6 +140,50 @@
     }
 
     {example
+        @id="explicit-axes-and-escaped-string"
+        @path="examples/explicit-axes-and-escaped-string.xpath"
+        @content-type="application/vnd.cem.xpath"
+        @schema="https://cem.dev/ns/query/xpath/1"
+        @expected-result="pass"
+    }
+
+    {example
+        @id="unknown-prefix"
+        @path="examples/unknown-prefix.xpath"
+        @content-type="application/vnd.cem.xpath"
+        @schema="https://cem.dev/ns/query/xpath/1"
+        @expected-result="fail"
+        @expected-diagnostics="cem.xpath.unknown_namespace_prefix"
+    }
+
+    {example
+        @id="invalid-token"
+        @path="examples/invalid-token.xpath"
+        @content-type="text/xpath"
+        @schema="https://cem.dev/ns/query/xpath/1"
+        @expected-result="fail"
+        @expected-diagnostics="cem.xpath.lexical_error"
+    }
+
+    {example
+        @id="mismatched-delimiter"
+        @path="examples/mismatched-delimiter.xpath"
+        @content-type="application/vnd.cem.xpath"
+        @schema="https://cem.dev/ns/query/xpath/1"
+        @expected-result="fail"
+        @expected-diagnostics="cem.xpath.parse_error cem.xpath.mismatched_delimiter cem.xpath.unclosed_delimiter"
+    }
+
+    {example
+        @id="external-resource-denied"
+        @path="examples/external-resource-denied.xpath"
+        @content-type="application/vnd.cem.xpath"
+        @schema="https://cem.dev/ns/query/xpath/1"
+        @expected-result="fail"
+        @expected-diagnostics="cem.xpath.external_resource_denied"
+    }
+
+    {example
         @id="invalid-unclosed-predicate"
         @path="examples/invalid-unclosed-predicate.xpath"
         @content-type="application/vnd.cem.xpath"

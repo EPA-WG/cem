@@ -826,7 +826,7 @@ Remaining dependency-ordered package checklist:
         source identity, owner-node identity/range, expression range, namespace
         context, variable/function bindings, expected result contract,
         evaluation phase, and resolver/safety policy stamps.
-  - [ ] Bind decode, lexical, parse, static-context, unresolved namespace,
+  - [x] Bind decode, lexical, parse, static-context, unresolved namespace,
         external-resource, source-map, and host-association facts to
         `schema/xpath.cem` diagnostics; add fixtures for paths/axes, predicates,
         functions, variables, maps/arrays, Unicode QNames, strings, nested
@@ -872,19 +872,20 @@ Remaining dependency-ordered package checklist:
 
 ### Next Work Item
 
-Bind native XPath facts to the `schema/xpath.cem` diagnostic contract and finish
-the syntax fixture matrix. Start with validation tests that drive standalone
-`application/vnd.cem.xpath` and `text/xpath` sources through schema-owned loading,
-then assert diagnostic codes, exact ranges, and source maps for decode errors,
-malformed tokens, unknown prefixes, mismatched/unclosed delimiters, and host
-association failures. Add manifest fixtures for explicit axes, escaped strings,
-unknown namespace prefixes, malformed lexical input, and mismatched delimiters.
+Route standalone XPath through the generic CEM-ML lifecycle without adding an
+evaluator yet. Start with red lifecycle and validation tests for the primary
+`application/vnd.cem.xpath` identity, the parameterized `text/xpath` alias, and
+the package schema URI. Add a dedicated `xpath` adapter and
+`LoadedInputAstStream::XPathExpression` variant, then assert that validation
+consumes the typed stream and its schema-owned diagnostics without CEM, XML, or
+legacy custom-element fallback.
 
-Keep evaluation out of this slice. Once package validation consumes the typed
-`XPathExpressionAst` and its facts directly, route the same AST through the
-generic CEM-ML lifecycle and `transform` command. That lifecycle boundary should
-precede CEM-QL, CEMT, and XSLT invocation adapters or AVT fusion so every host
-shares one parser, diagnostic path, resolver policy, and source identity.
+After lifecycle loading is stable, define the smallest `transform` command
+contract for applying an XPath expression to an XML context item. Preserve the
+expression AST, context source identity, resolver policy, result sequence type,
+and source maps across planning. Stop before implementation if choosing the
+result artifact model or evaluator capability boundary would commit CEM-QL,
+CEMT, or XSLT adapters to semantics that are not already schema-declared.
 
 ## Current Verification Commands
 

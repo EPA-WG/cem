@@ -1,7 +1,8 @@
-use super::csv;
+use super::{csv, xpath};
 use crate::diagnostics::Diagnostic;
 use crate::schema::package_loader::load_builtin_schema_package;
 use crate::schema::registry::{SchemaDescriptor, SchemaRegistry};
+use crate::source::SourceId;
 
 #[derive(Debug, Clone, Copy)]
 pub struct SchemaPackageSourceValidationRequest<'a> {
@@ -30,8 +31,33 @@ pub fn validate_schema_package_source(
 
     match descriptor.package_id.as_str() {
         "csv" => validate_csv_schema_package_source(request, descriptor),
+        "xpath" => validate_xpath_schema_package_source(request, descriptor),
         _ => None,
     }
+}
+
+fn validate_xpath_schema_package_source(
+    request: SchemaPackageSourceValidationRequest<'_>,
+    descriptor: &SchemaDescriptor,
+) -> Option<SchemaPackageSourceValidationReport> {
+    let package = load_builtin_schema_package(&descriptor.schema_uri).ok()?;
+    let contracts = xpath::XPathSchemaContractCatalog::from_schema_source(package.schema_source);
+    let ast = xpath::xpath_expression_ast_from_source_bytes(
+        xpath::XPathSourceRequest {
+            bytes: request.bytes,
+            source_uri: request.source_uri,
+            content_type: request.content_type,
+        },
+        xpath::XPathAttachment::Standalone {
+            source_id: SourceId(1).0,
+        },
+    );
+
+    Some(SchemaPackageSourceValidationReport {
+        package_id: descriptor.package_id.clone(),
+        schema_uri: descriptor.schema_uri.clone(),
+        diagnostics: xpath::validate_xpath_expression_ast(&ast, &contracts),
+    })
 }
 
 fn validate_csv_schema_package_source(
@@ -75,7 +101,9 @@ fn resolve_schema_package_source_descriptor<'a>(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::schema::registry::{SchemaRegistry, CSV_SCHEMA_URI, JSON_VALUE_SCHEMA_URI};
+    use crate::schema::registry::{
+        SchemaRegistry, CSV_SCHEMA_URI, JSON_VALUE_SCHEMA_URI, XPATH_SCHEMA_URI,
+    };
 
     #[test]
     fn csv_source_validation_enters_through_schema_package_content_type() {
@@ -137,5 +165,52 @@ mod tests {
         });
 
         assert!(report.is_none());
+    }
+
+    #[test]
+    fn xpath_source_validation_enters_through_primary_and_alias_content_types() {
+        let registry = SchemaRegistry::with_builtin_schemas();
+        for content_type in ["application/vnd.cem.xpath", "text/xpath; charset=utf-8"] {
+            let report = validate_schema_package_source(SchemaPackageSourceValidationRequest {
+                bytes: b"/catalog/ns:book",
+                source_uri: "memory://unknown-prefix.xpath",
+                content_type: Some(content_type),
+                schema_uri: None,
+                schema_registry: &registry,
+            })
+            .expect("XPath content type has a schema-package source validator");
+
+            assert_eq!(report.package_id, "xpath");
+            assert_eq!(report.schema_uri, XPATH_SCHEMA_URI);
+            let diagnostic = report
+                .diagnostics
+                .iter()
+                .find(|diagnostic| diagnostic.code == "cem.xpath.unknown_namespace_prefix")
+                .expect("unknown namespace diagnostic");
+            assert_eq!(diagnostic.byte_offset, Some(9));
+            assert!(diagnostic.source_map.is_some());
+            assert_eq!(
+                diagnostic.details.as_ref().unwrap()["xpath"]["behavior"],
+                "xpath-report-fact"
+            );
+        }
+    }
+
+    #[test]
+    fn xpath_source_validation_enters_through_schema_uri() {
+        let registry = SchemaRegistry::with_builtin_schemas();
+        let report = validate_schema_package_source(SchemaPackageSourceValidationRequest {
+            bytes: b"/catalog/`book",
+            source_uri: "memory://invalid-token.xpath",
+            content_type: None,
+            schema_uri: Some(XPATH_SCHEMA_URI),
+            schema_registry: &registry,
+        })
+        .expect("XPath schema URI has a schema-package source validator");
+
+        assert!(report
+            .diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.code == "cem.xpath.lexical_error"));
     }
 }

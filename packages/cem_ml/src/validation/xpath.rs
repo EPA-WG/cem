@@ -1,3 +1,6 @@
+use crate::diagnostics::{Diagnostic, Severity};
+use crate::schema::document_model::compile_schema_document_model;
+use crate::schema::package_sources::builtin_schema_package_source;
 use crate::schema::registry::content_type_essence;
 pub use crate::schema::registry::{XPATH_CONTENT_TYPE, XPATH_SCHEMA_URI};
 use crate::source::line_index::LineIndex;
@@ -5,9 +8,13 @@ use crate::source::{ByteRange, SourceId};
 use crate::source_map::{FrameSpan, SourceMapFrame, SourceMapStack, TransformKind};
 use serde_json::{json, Value};
 use std::collections::BTreeMap;
+use std::sync::OnceLock;
 use xee_xpath_ast::ast::XPath;
 use xee_xpath_ast::{Namespaces, ParserError, VariableNames, XPathParserContext};
 use xee_xpath_lexer::Token as XeeToken;
+
+const XPATH_PACKAGE_ID: &str = "xpath";
+const XPATH_FACT_BEHAVIOR: &str = "xpath-report-fact";
 
 #[derive(Debug, Clone, Copy)]
 pub struct XPathSourceRequest<'a> {
@@ -298,6 +305,10 @@ pub enum XPathFactKind {
     UnknownNamespacePrefix,
     UnclosedDelimiter,
     MismatchedDelimiter,
+    HostAssociationInvalid,
+    ExternalResourceDenied,
+    SourceMapUnavailable,
+    EventLifecycleInvalid,
     Parsed,
     HostAssociationObserved,
 }
@@ -311,6 +322,10 @@ impl XPathFactKind {
             Self::UnknownNamespacePrefix => "unknown-namespace-prefix",
             Self::UnclosedDelimiter => "unclosed-delimiter",
             Self::MismatchedDelimiter => "mismatched-delimiter",
+            Self::HostAssociationInvalid => "host-association-invalid",
+            Self::ExternalResourceDenied => "external-resource-denied",
+            Self::SourceMapUnavailable => "source-map-unavailable",
+            Self::EventLifecycleInvalid => "event-lifecycle-invalid",
             Self::Parsed => "parsed",
             Self::HostAssociationObserved => "host-association-observed",
         }
@@ -323,6 +338,67 @@ pub struct XPathFact {
     pub source_range: Option<XPathSourceRange>,
     pub message: String,
     pub value: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct XPathDiagnosticBinding {
+    pub fact_kind: String,
+    pub contract: String,
+    pub behavior: Option<String>,
+    pub diagnostic_code: String,
+    pub severity: Severity,
+    pub policy: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct XPathSchemaContractCatalog {
+    pub fact_bindings: BTreeMap<String, XPathDiagnosticBinding>,
+}
+
+impl XPathSchemaContractCatalog {
+    pub fn from_builtin() -> &'static Self {
+        static CATALOG: OnceLock<XPathSchemaContractCatalog> = OnceLock::new();
+        CATALOG.get_or_init(|| {
+            let source = builtin_schema_package_source(XPATH_PACKAGE_ID)
+                .expect("built-in XPath schema package source must be registered");
+            Self::from_schema_source(source.schema_source)
+        })
+    }
+
+    pub fn from_schema_source(schema_source: &str) -> Self {
+        let model = compile_schema_document_model(XPATH_SCHEMA_URI, schema_source);
+        let fact_bindings = model
+            .constraints
+            .values()
+            .filter_map(|constraint| {
+                if constraint.behavior.as_deref()?.trim() != XPATH_FACT_BEHAVIOR {
+                    return None;
+                }
+                let fact_kind = constraint.fact_kind.as_deref()?.trim();
+                let diagnostic_code = constraint.diagnostic.as_deref()?.trim();
+                if fact_kind.is_empty() || diagnostic_code.is_empty() {
+                    return None;
+                }
+                let diagnostic = model.diagnostics.get(diagnostic_code)?;
+                Some((
+                    fact_kind.to_owned(),
+                    XPathDiagnosticBinding {
+                        fact_kind: fact_kind.to_owned(),
+                        contract: constraint.kind.clone(),
+                        behavior: constraint.behavior.clone(),
+                        diagnostic_code: diagnostic.code.clone(),
+                        severity: diagnostic.severity,
+                        policy: constraint.policy.clone(),
+                    },
+                ))
+            })
+            .collect();
+        Self { fact_bindings }
+    }
+
+    fn binding_for_fact(&self, kind: XPathFactKind) -> Option<&XPathDiagnosticBinding> {
+        self.fact_bindings.get(kind.as_str())
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -395,6 +471,69 @@ impl XPathExpressionAst {
     }
 }
 
+pub fn validate_xpath_source_bytes(request: XPathSourceRequest<'_>) -> Vec<Diagnostic> {
+    let ast = xpath_expression_ast_from_source_bytes(
+        request,
+        XPathAttachment::Standalone { source_id: 1 },
+    );
+    validate_xpath_expression_ast(&ast, XPathSchemaContractCatalog::from_builtin())
+}
+
+pub fn validate_xpath_expression_ast(
+    ast: &XPathExpressionAst,
+    contracts: &XPathSchemaContractCatalog,
+) -> Vec<Diagnostic> {
+    let source_id = ast.attachment.source_id();
+    ast.facts
+        .iter()
+        .filter_map(|fact| {
+            let binding = contracts.binding_for_fact(fact.kind)?;
+            let (line, column, byte_offset) = fact
+                .source_range
+                .map(|range| {
+                    (
+                        Some(range.start.line),
+                        Some(range.start.column),
+                        Some(range.start.byte_offset),
+                    )
+                })
+                .unwrap_or((None, None, None));
+            Some(Diagnostic {
+                uri: Some(ast.source.uri.clone()),
+                line,
+                column,
+                byte_offset,
+                code: binding.diagnostic_code.clone(),
+                severity: binding.severity,
+                message: fact.message.clone(),
+                details: Some(json!({
+                    "xpath": {
+                        "phase": "parse",
+                        "factKind": fact.kind.as_str(),
+                        "contract": binding.contract,
+                        "behavior": binding.behavior,
+                        "policy": binding.policy,
+                        "schema": XPATH_SCHEMA_URI,
+                        "schemaPackage": XPATH_PACKAGE_ID,
+                        "contentType": ast.source.content_type,
+                        "mediaType": ast.source.media_type,
+                        "byteLength": fact.source_range.map(|range| range.byte_length),
+                        "value": fact.value,
+                        "attachmentKind": match ast.attachment {
+                            XPathAttachment::Standalone { .. } => "standalone",
+                            XPathAttachment::Host(_) => "host",
+                        },
+                    }
+                })),
+                source_map: fact
+                    .source_range
+                    .map(|range| range.source_map(source_id, ast.source.media_type.as_str())),
+                ..Diagnostic::default()
+            })
+        })
+        .collect()
+}
+
 pub fn xpath_expression_ast_from_source_bytes(
     request: XPathSourceRequest<'_>,
     attachment: XPathAttachment,
@@ -440,7 +579,7 @@ pub fn xpath_expression_ast_from_source_bytes(
     let line_index = LineIndex::from_utf8(source_text);
     let mut tokens = xpath_lossless_tokens(source_text, &line_index, origin);
     let mut facts = xpath_delimiter_facts(&mut tokens);
-    if matches!(attachment, XPathAttachment::Host(_)) {
+    if let XPathAttachment::Host(host) = &attachment {
         facts.push(XPathFact {
             kind: XPathFactKind::HostAssociationObserved,
             source_range: Some(XPathSourceRange::from_offsets(
@@ -452,7 +591,9 @@ pub fn xpath_expression_ast_from_source_bytes(
             message: "XPath expression is associated with a host AST node".to_owned(),
             value: Some("host".to_owned()),
         });
+        facts.extend(xpath_host_attachment_facts(request, host));
     }
+    facts.extend(xpath_external_resource_facts(&tokens, &attachment));
 
     let has_lexical_error = tokens
         .iter()
@@ -514,6 +655,7 @@ pub fn xpath_expression_ast_from_source_bytes(
     };
 
     let events = xpath_ast_events(&tokens, &line_index, origin, source_text.len());
+    facts.extend(xpath_stream_invariant_facts(&tokens, &events));
     XPathExpressionAst {
         source,
         source_text: Some(source_text.to_owned()),
@@ -524,6 +666,137 @@ pub fn xpath_expression_ast_from_source_bytes(
         attachment,
         line_ending: detect_line_ending_style_bytes(request.bytes).map(str::to_owned),
     }
+}
+
+fn xpath_host_attachment_facts(
+    request: XPathSourceRequest<'_>,
+    host: &XPathHostAttachment,
+) -> Vec<XPathFact> {
+    let expression_start = host.expression_range.start.byte_offset;
+    let expression_end = expression_start.saturating_add(host.expression_range.byte_length);
+    let owner_start = host.owner.source_range.start.byte_offset;
+    let owner_end = owner_start.saturating_add(host.owner.source_range.byte_length);
+    let mut failures = Vec::new();
+    if host.expression_range.byte_length != request.bytes.len() as u64 {
+        failures.push(format!(
+            "expression range length {} does not match {} source bytes",
+            host.expression_range.byte_length,
+            request.bytes.len()
+        ));
+    }
+    if expression_start < owner_start || expression_end > owner_end {
+        failures.push("expression range is outside the owning host node range".to_owned());
+    }
+    if host.owner.source_uri != request.source_uri {
+        failures.push(format!(
+            "owner source URI `{}` does not match expression source URI `{}`",
+            host.owner.source_uri, request.source_uri
+        ));
+    }
+    if failures.is_empty() {
+        Vec::new()
+    } else {
+        vec![XPathFact {
+            kind: XPathFactKind::HostAssociationInvalid,
+            source_range: Some(host.expression_range),
+            message: format!("Invalid XPath host association: {}", failures.join("; ")),
+            value: host.owner.node_id.clone(),
+        }]
+    }
+}
+
+fn xpath_external_resource_facts(
+    tokens: &[XPathTokenAst],
+    attachment: &XPathAttachment,
+) -> Vec<XPathFact> {
+    let resolver_policy_present = matches!(
+        attachment,
+        XPathAttachment::Host(XPathHostAttachment {
+            resolver_policy_stamp: Some(stamp),
+            ..
+        }) if !stamp.trim().is_empty()
+    );
+    if resolver_policy_present {
+        return Vec::new();
+    }
+
+    let significant = tokens
+        .iter()
+        .filter(|token| {
+            !matches!(
+                token.kind,
+                XPathTokenKind::Whitespace | XPathTokenKind::Comment
+            )
+        })
+        .collect::<Vec<_>>();
+    significant
+        .windows(2)
+        .filter_map(|pair| {
+            let name = pair[0].lexeme.rsplit(':').next().unwrap_or_default();
+            let is_external_function = matches!(
+                name,
+                "collection"
+                    | "doc"
+                    | "json-doc"
+                    | "unparsed-text"
+                    | "unparsed-text-available"
+                    | "unparsed-text-lines"
+                    | "uri-collection"
+            );
+            (is_external_function && pair[1].lexeme == "(").then(|| XPathFact {
+                kind: XPathFactKind::ExternalResourceDenied,
+                source_range: Some(pair[0].source_range),
+                message: format!(
+                    "XPath function `{}` requires an explicit resolver policy",
+                    pair[0].lexeme
+                ),
+                value: Some(pair[0].lexeme.clone()),
+            })
+        })
+        .collect()
+}
+
+fn xpath_stream_invariant_facts(
+    tokens: &[XPathTokenAst],
+    events: &[XPathAstEvent],
+) -> Vec<XPathFact> {
+    let mut facts = Vec::new();
+    if tokens
+        .iter()
+        .any(|token| token.source_range.byte_length == 0)
+    {
+        facts.push(XPathFact {
+            kind: XPathFactKind::SourceMapUnavailable,
+            source_range: None,
+            message: "XPath token stream contains a token without an exact source range".to_owned(),
+            value: None,
+        });
+    }
+    let lifecycle_valid = events.len() == tokens.len() + 2
+        && events
+            .first()
+            .is_some_and(|event| event.kind == XPathAstEventKind::StartExpression)
+        && events
+            .last()
+            .is_some_and(|event| event.kind == XPathAstEventKind::EndExpression)
+        && events[1..events.len().saturating_sub(1)]
+            .iter()
+            .zip(tokens)
+            .all(|(event, token)| {
+                event.kind == XPathAstEventKind::Token
+                    && event.token_index == Some(token.index)
+                    && event.source_range == token.source_range
+            });
+    if !lifecycle_valid {
+        facts.push(XPathFact {
+            kind: XPathFactKind::EventLifecycleInvalid,
+            source_range: None,
+            message: "XPath AST event lifecycle does not match the lossless token stream"
+                .to_owned(),
+            value: None,
+        });
+    }
+    facts
 }
 
 fn xpath_ast_events(
@@ -1111,6 +1384,12 @@ mod tests {
                 "unicode-qname",
                 include_str!("../../schema-packages/xpath/v1/examples/unicode-qname.xpath"),
             ),
+            (
+                "explicit-axes-and-escaped-string",
+                include_str!(
+                    "../../schema-packages/xpath/v1/examples/explicit-axes-and-escaped-string.xpath"
+                ),
+            ),
         ];
 
         for (name, source) in passing {
@@ -1148,6 +1427,215 @@ mod tests {
             .facts
             .iter()
             .any(|fact| fact.kind == XPathFactKind::UnclosedDelimiter));
+
+        for (name, source, expected_facts) in [
+            (
+                "unknown-prefix",
+                include_str!("../../schema-packages/xpath/v1/examples/unknown-prefix.xpath"),
+                vec![XPathFactKind::UnknownNamespacePrefix],
+            ),
+            (
+                "invalid-token",
+                include_str!("../../schema-packages/xpath/v1/examples/invalid-token.xpath"),
+                vec![XPathFactKind::LexicalError],
+            ),
+            (
+                "mismatched-delimiter",
+                include_str!("../../schema-packages/xpath/v1/examples/mismatched-delimiter.xpath"),
+                vec![
+                    XPathFactKind::ParseError,
+                    XPathFactKind::MismatchedDelimiter,
+                    XPathFactKind::UnclosedDelimiter,
+                ],
+            ),
+        ] {
+            let ast = parse(source);
+            assert!(ast.syntax_ast.is_none(), "{name} must not parse");
+            for expected in expected_facts {
+                assert!(
+                    ast.facts.iter().any(|fact| fact.kind == expected),
+                    "{name} must report {expected:?}: {:?}",
+                    ast.facts
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn xpath_schema_contract_binds_reportable_facts_to_diagnostics() {
+        let catalog = XPathSchemaContractCatalog::from_builtin();
+        for (kind, code, severity) in [
+            (
+                XPathFactKind::InvalidUtf8,
+                "cem.xpath.invalid_utf8",
+                crate::diagnostics::Severity::Error,
+            ),
+            (
+                XPathFactKind::LexicalError,
+                "cem.xpath.lexical_error",
+                crate::diagnostics::Severity::Error,
+            ),
+            (
+                XPathFactKind::ParseError,
+                "cem.xpath.parse_error",
+                crate::diagnostics::Severity::Error,
+            ),
+            (
+                XPathFactKind::UnknownNamespacePrefix,
+                "cem.xpath.unknown_namespace_prefix",
+                crate::diagnostics::Severity::Error,
+            ),
+            (
+                XPathFactKind::UnclosedDelimiter,
+                "cem.xpath.unclosed_delimiter",
+                crate::diagnostics::Severity::Error,
+            ),
+            (
+                XPathFactKind::MismatchedDelimiter,
+                "cem.xpath.mismatched_delimiter",
+                crate::diagnostics::Severity::Error,
+            ),
+            (
+                XPathFactKind::HostAssociationInvalid,
+                "cem.xpath.host_association_invalid",
+                crate::diagnostics::Severity::Error,
+            ),
+            (
+                XPathFactKind::ExternalResourceDenied,
+                "cem.xpath.external_resource_denied",
+                crate::diagnostics::Severity::Error,
+            ),
+            (
+                XPathFactKind::SourceMapUnavailable,
+                "cem.xpath.source_map_unavailable",
+                crate::diagnostics::Severity::Info,
+            ),
+            (
+                XPathFactKind::EventLifecycleInvalid,
+                "cem.xpath.event_lifecycle_invalid",
+                crate::diagnostics::Severity::Error,
+            ),
+        ] {
+            let binding = catalog
+                .binding_for_fact(kind)
+                .unwrap_or_else(|| panic!("schema binding for {}", kind.as_str()));
+            assert_eq!(binding.diagnostic_code, code);
+            assert_eq!(binding.severity, severity);
+            assert_eq!(binding.behavior.as_deref(), Some("xpath-report-fact"));
+        }
+    }
+
+    #[test]
+    fn xpath_unknown_prefix_diagnostic_is_schema_declared() {
+        let source = builtin_schema_package_source(XPATH_PACKAGE_ID)
+            .expect("XPath package source")
+            .schema_source
+            .replace(
+                r#"{constraint @kind="xpath-static-namespace" @target="static-context" @diagnostic="cem.xpath.unknown_namespace_prefix" @behavior="xpath-report-fact" @fact-kind="unknown-namespace-prefix" @policy="prefixed names resolve through the declared static context"}"#,
+                r#"{constraint @kind="xpath-static-namespace" @target="static-context" @diagnostic="example.xpath.unknown_prefix" @behavior="xpath-report-fact" @fact-kind="unknown-namespace-prefix" @policy="prefixed names resolve through the declared static context"}"#,
+            )
+            .replace(
+                r#"{diagnostic @code="cem.xpath.unknown_namespace_prefix" @severity="error"}"#,
+                r#"{diagnostic @code="example.xpath.unknown_prefix" @severity="warning"}"#,
+            );
+        let contracts = XPathSchemaContractCatalog::from_schema_source(&source);
+        let ast = parse("/catalog/ns:book");
+        let diagnostics = validate_xpath_expression_ast(&ast, &contracts);
+
+        assert_eq!(diagnostics.len(), 1);
+        assert_eq!(diagnostics[0].code, "example.xpath.unknown_prefix");
+        assert_eq!(diagnostics[0].severity, Severity::Warning);
+        assert_eq!(
+            diagnostics[0].details.as_ref().unwrap()["xpath"]["contract"],
+            "xpath-static-namespace"
+        );
+    }
+
+    #[test]
+    fn xpath_source_diagnostics_preserve_exact_ranges_maps_and_schema_details() {
+        let source = "/catalog/ns:book";
+        let diagnostics = validate_xpath_source_bytes(XPathSourceRequest {
+            bytes: source.as_bytes(),
+            source_uri: "memory://unknown-prefix.xpath",
+            content_type: Some("text/xpath; charset=utf-8"),
+        });
+        let diagnostic = diagnostics
+            .iter()
+            .find(|diagnostic| diagnostic.code == "cem.xpath.unknown_namespace_prefix")
+            .expect("unknown namespace diagnostic");
+
+        assert_eq!(
+            diagnostic.uri.as_deref(),
+            Some("memory://unknown-prefix.xpath")
+        );
+        assert_eq!(diagnostic.line, Some(1));
+        assert_eq!(diagnostic.column, Some(10));
+        assert_eq!(diagnostic.byte_offset, Some(9));
+        assert!(diagnostic.source_map.as_ref().is_some_and(|source_map| {
+            source_map.frames.iter().any(|frame| {
+                frame.source_id == SourceId(1)
+                    && matches!(frame.span, FrameSpan::Single(range) if range.start == 9)
+            })
+        }));
+        assert_eq!(
+            diagnostic.details.as_ref().unwrap()["xpath"]["factKind"],
+            "unknown-namespace-prefix"
+        );
+        assert_eq!(
+            diagnostic.details.as_ref().unwrap()["xpath"]["contract"],
+            "xpath-static-namespace"
+        );
+    }
+
+    #[test]
+    fn xpath_validation_denies_external_resource_functions_without_resolver_policy() {
+        let diagnostics = validate_xpath_source_bytes(XPathSourceRequest {
+            bytes: b"doc(\"catalog.xml\")/catalog",
+            source_uri: "memory://external.xpath",
+            content_type: Some(XPATH_CONTENT_TYPE),
+        });
+
+        assert!(diagnostics.iter().any(|diagnostic| {
+            diagnostic.code == "cem.xpath.external_resource_denied"
+                && diagnostic.byte_offset == Some(0)
+        }));
+    }
+
+    #[test]
+    fn xpath_validation_reports_invalid_host_association_from_schema_binding() {
+        let expression = "item/@id";
+        let attachment = XPathAttachment::Host(XPathHostAttachment {
+            owner: XPathHostOwner {
+                source_id: 11,
+                source_uri: "memory://stylesheet.xsl".to_owned(),
+                content_type: Some("application/xslt+xml".to_owned()),
+                schema_uri: Some("https://cem.dev/ns/transform/xslt/1".to_owned()),
+                node_kind: XPathHostNodeKind::XsltAttribute,
+                node_id: Some("event:4@select".to_owned()),
+                source_range: XPathSourceRange::new(3, 7, 34, 19),
+            },
+            expression_range: XPathSourceRange::new(3, 15, 42, 2),
+            static_context: XPathStaticContext::default(),
+            expected_result: None,
+            evaluation_phase: XPathEvaluationPhase::Transform,
+            resolver_policy_stamp: None,
+            safety_policy_stamp: None,
+        });
+        let ast = xpath_expression_ast_from_source_bytes(
+            XPathSourceRequest {
+                bytes: expression.as_bytes(),
+                source_uri: "memory://stylesheet.xsl",
+                content_type: Some(XPATH_CONTENT_TYPE),
+            },
+            attachment,
+        );
+        let diagnostics =
+            validate_xpath_expression_ast(&ast, &XPathSchemaContractCatalog::from_builtin());
+
+        assert!(diagnostics.iter().any(|diagnostic| {
+            diagnostic.code == "cem.xpath.host_association_invalid"
+                && diagnostic.byte_offset == Some(42)
+        }));
     }
 
     #[test]

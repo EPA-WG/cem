@@ -1,0 +1,1 @@
+/catalog/descendant::book[@title = "The ""Quoted"" Book"]/ancestor-or-self::node()
