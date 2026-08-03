@@ -973,9 +973,13 @@ Remaining dependency-ordered package checklist:
                 adapter completion into owner-backed `CemtTreeArtifact`
                 extension bodies; retain the evaluator value only as private
                 scratch for the immediately following evaluator stage.
-          - [ ] Route the CEM-ML writer and remaining evaluator handoffs from
-                the typed artifact, then remove their `CemtRuntime(Value)`
-                envelopes and evaluator-value scratch.
+          - [x] Route the native CEM-ML writer directly from formatted and
+                colored `CemtTreeArtifact` overlays, remove its
+                `CemtRuntime(Value)` envelopes, and prove profile/source-map
+                parity with the compatibility writer.
+          - [ ] Replace the native formatter/colorizer evaluator handoffs with
+                lazy typed views, then remove their evaluator-value scratch
+                and remaining `CemtRuntime(Value)` envelopes.
           - [ ] Give non-CEM CEMT tree producers package-owned typed result
                 artifacts, then remove `CemtEvaluator(Value)` globally.
       - [x] Define typed raw, formatted, and colored CEM tree envelopes with
@@ -1037,35 +1041,37 @@ Remaining dependency-ordered package checklist:
 
 ### Next Work Item
 
-Route the CEM-ML writer from `CemtTreeArtifact` instead of reconstructing a
-`TransformTemplateEncodedArtifactPayload::CemtRuntime(Value)`. Formatter and
-colorizer adapters now lower their evaluator results at adapter completion and
-return owner-backed extension bodies. The private evaluator view is still
-retained long enough to resolve the next CEMT binding, construct formatted and
-colored encoded envelopes, and feed the generic CEM-tree writer adapter.
+Eliminate the private recursive evaluator `Value` scratch from the native
+CEM-ML formatter-to-colorizer path. The native writer now consumes
+`Arc<CemtTreeArtifact>` directly and no longer constructs formatted or colored
+`CemtRuntime(Value)` writer envelopes. The remaining native materialization is
+at evaluator execution: formatter ingress calls `subject.evaluator_value()`,
+and colorizer binding/execution receives a recursively materialized formatted
+value even though the owner-backed artifact is already authoritative.
 
-Start with red tests that call the writer with formatted and colored typed
-artifacts. Prove output parity for compact, pretty, tabular, terminal, HTML,
-and Markdown profiles; preserve source maps and output spans; reject raw or
-stage-mismatched artifacts before serialization. Add a source audit proving the
-native CEM-ML writer path does not call `cemt_artifact_with_metadata`,
-`as_cemt_runtime_value`, `to_cemt_runtime_value`, or the generic
-`transform_template_writer_cem_tree_artifact_to_text` value adapter.
+Start with red tests proving the native formatter can bind and execute against
+the raw owner and the native colorizer can bind and execute against the
+formatted owner-plus-overlay view without calling `evaluator_value()`. Add a
+source audit over both native stage functions that rejects
+`ConversionOutputPipelineSubject::evaluator_value`, `as_cemt_runtime_value`,
+`to_cemt_runtime_value`, and cached `serde_json::Value` fields. Preserve the
+existing public runtime-value compatibility entrypoint as an explicit,
+lifecycle-owned compatibility path.
 
-Introduce a typed CEM-tree writer request containing the selected binding,
-target insertion context, and `Arc<CemtTreeArtifact>`. Render by walking the
-owner plus formatted/colored overlays through their lazy views; do not cache a
-recursive evaluator value inside the artifact. The writer must return the
-existing typed text/token/chunk payload and apply final-newline, color, source
-map, and insertion policies exactly once. Keep the public runtime-value
-compatibility entrypoint on its existing explicit path until it receives a
-lifecycle-owned input artifact.
+Introduce a CEMT evaluator subject abstraction over borrowed typed scalar,
+sequence, and record views. Implement the CEM-tree view by resolving stable
+owner paths against `CemTreeAstStream` and applying formatted overlays lazily;
+map lookup, sequence iteration, scalar access, and expression evaluation must
+not first build a recursive value tree. Extend binding classification and the
+CEMT adapter evaluator to accept that abstraction while retaining the existing
+runtime-value implementation for non-native callers. JSON serialization is
+not part of this boundary and remains available only through registered JSON
+or `+json` content-type exporters.
 
-Once writer parity is green, remove the CEM-ML native pipeline's formatted and
-colored `CemtRuntime(Value)` envelopes and evaluator scratch, then route graph
-and secondary inputs through the same typed artifact. The following slice gives
-each non-CEM CEMT tree producer a package-owned result type before deleting
-`CemtEvaluator(Value)` globally.
+After focused formatter/colorizer parity and source-map tests pass, route graph
+and secondary-input CEMT handoffs through the same typed subject. The next
+slice then gives each non-CEM CEMT tree producer a package-owned result type
+before removing `CemtEvaluator(Value)` globally.
 
 ## Current Verification Commands
 

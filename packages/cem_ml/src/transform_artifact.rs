@@ -175,7 +175,18 @@ pub struct CemtNodeFormatOperation {
 pub struct CemtFormattedTreeOverlay {
     pub producer: CemtOverlayProducer,
     pub operations: Vec<CemtFormatOperation>,
+    pub(crate) retained_node_paths: Vec<CemtOwnerPath>,
     pub node_operations: Vec<CemtNodeFormatOperation>,
+}
+
+impl CemtFormattedTreeOverlay {
+    pub fn retained_node_paths(&self) -> &[CemtOwnerPath] {
+        &self.retained_node_paths
+    }
+
+    pub fn retains_node(&self, path: &CemtOwnerPath) -> bool {
+        self.retained_node_paths.contains(path)
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

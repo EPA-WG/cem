@@ -15,6 +15,7 @@ use crate::interpreter::OutputSpan;
 use crate::parser::builder::CemAstBuilder;
 use crate::parser::document::CemDocument;
 use crate::parser::{AstNodeId, CemAstNode};
+use crate::projection::{CemTreeAstAttribute, CemTreeAstNode};
 use crate::run_config::ScopeConfig;
 use crate::schema::registry::{
     AI_CONTEXT_JSON_CONTENT_TYPE, AI_CONTEXT_SCHEMA_URI, CEM_AST_PROJECTION_CONTENT_TYPE,
@@ -34,7 +35,11 @@ use crate::source_map::{FrameSpan, SourceMapFrame, SourceMapStack, TransformKind
 use crate::tokenizer::cem::CemTokenizer;
 pub use crate::transform_artifact::TransformDataArtifact as TransformTemplateDataArtifact;
 use crate::transform_artifact::{
-    TransformArtifactBody, TransformEncodedArtifact, TransformEncoding,
+    CemtColorOperationKind, CemtColorTarget, CemtColoredTreeOverlay, CemtFormatFragment,
+    CemtFormatOperationKind, CemtFormattedTreeOverlay, CemtNodeColorOperationKind,
+    CemtNodeFormatOperationKind, CemtNodeFormatTarget, CemtOverlayProvenance, CemtOwnerPath,
+    CemtTreeArtifact, CemtTreeArtifactStage, TransformArtifactBody, TransformEncodedArtifact,
+    TransformEncoding, TransformNativeArtifact,
 };
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -9558,6 +9563,148 @@ fn transform_template_writer_cem_tree_artifact_to_text(
     })
 }
 
+pub(crate) struct TransformTemplateTypedCemTreeWriterRequest<'a> {
+    pub binding: &'a TransformTemplateEncodeBinding,
+    pub artifact: Arc<CemtTreeArtifact>,
+    pub insertion_context: &'a TransformTemplateEncodedArtifactInsertionContext,
+}
+
+pub(crate) fn execute_transform_template_typed_cem_tree_writer(
+    request: TransformTemplateTypedCemTreeWriterRequest<'_>,
+) -> Result<TransformTemplateEncodedArtifact, String> {
+    validate_typed_cem_tree_writer_boundary(
+        request.artifact.as_ref(),
+        &request.binding.identity,
+        request.insertion_context,
+    )?;
+    let rendered = transform_template_typed_cem_tree_to_rendered_text(
+        request.artifact.as_ref(),
+        request.insertion_context,
+    )?;
+    let mut identity = transform_template_typed_writer_text_identity_from_context(
+        &request.binding.identity,
+        request.insertion_context,
+    );
+    identity.produces = TransformTemplateOutputProducedKind::Text;
+    let (source_map, output_spans) = match identity.source_map_policy {
+        TransformTemplateSourceMapPolicy::None => (None, Vec::new()),
+        TransformTemplateSourceMapPolicy::Generated
+        | TransformTemplateSourceMapPolicy::Preserve => {
+            let source_map = request.artifact.source_map().cloned().or_else(|| {
+                rendered
+                    .output_spans
+                    .first()
+                    .map(|span| span.origin.clone())
+            });
+            (source_map, rendered.output_spans)
+        }
+    };
+
+    let mut artifact = TransformTemplateEncodedArtifact {
+        identity,
+        value: TransformTemplateEncodedArtifactPayload::Text(rendered.text),
+        source_map,
+        output_spans,
+        encoded: true,
+    };
+    transform_template_apply_output_final_newline_policy(&mut artifact, request.insertion_context);
+    Ok(artifact)
+}
+
+fn validate_typed_cem_tree_writer_boundary(
+    artifact: &CemtTreeArtifact,
+    identity: &TransformTemplateEncodedArtifactIdentity,
+    writer_boundary_context: &TransformTemplateEncodedArtifactInsertionContext,
+) -> Result<(), String> {
+    if artifact.stage() == CemtTreeArtifactStage::Raw {
+        return Err(
+            "CEM tree writer requires a typed formatted or colored artifact; run the package formatter before the writer"
+                .to_owned(),
+        );
+    }
+    let formatted = artifact
+        .formatted_overlay()
+        .ok_or_else(|| "CEM tree writer requires a typed formatter overlay".to_owned())?;
+    let formatter_profile =
+        trimmed_optional_str(formatted.producer.formatter_profile.as_deref())
+            .ok_or_else(|| "CEM tree writer requires a typed formatter profile".to_owned())?;
+    if let Some(expected) = trimmed_optional_str(identity.formatter_profile.as_deref()) {
+        if expected != formatter_profile {
+            return Err(format!(
+                "CEM tree formatter profile metadata mismatch: identity `{expected}`, typed tree `{formatter_profile}`"
+            ));
+        }
+    }
+    if let Some(expected) =
+        trimmed_optional_str(writer_boundary_context.formatter_profile.as_deref())
+    {
+        if expected.starts_with("cem.") && expected != formatter_profile {
+            return Err(format!(
+                "CEM tree writer expected formatterProfile `{expected}`, got `{formatter_profile}`"
+            ));
+        }
+    }
+    if !formatted
+        .operations
+        .iter()
+        .any(|operation| matches!(operation.kind, CemtFormatOperationKind::Marker))
+    {
+        return Err("CEM tree writer requires a package formatter marker".to_owned());
+    }
+    if !formatted
+        .operations
+        .iter()
+        .any(|operation| matches!(operation.kind, CemtFormatOperationKind::Decision { .. }))
+    {
+        return Err("CEM tree writer requires package formatter decisions".to_owned());
+    }
+
+    let identity_color_profile = trimmed_optional_str(identity.color_profile.as_deref());
+    let writer_color_profile =
+        trimmed_optional_str(writer_boundary_context.color_profile.as_deref());
+    let color_requested = artifact.stage() == CemtTreeArtifactStage::Colored
+        || cemt_writer_color_profile_requests_color(identity_color_profile)
+        || cemt_writer_color_profile_requests_color(writer_color_profile);
+    if !color_requested {
+        return Ok(());
+    }
+    let colored = artifact.colored_overlay().ok_or_else(|| {
+        "CEM tree writer requires a typed colored artifact when a color profile is requested"
+            .to_owned()
+    })?;
+    let color_profile = trimmed_optional_str(colored.producer.color_profile.as_deref())
+        .ok_or_else(|| "CEM tree writer requires a typed color profile".to_owned())?;
+    if let Some(expected) = identity_color_profile {
+        if expected != color_profile {
+            return Err(format!(
+                "CEM tree color profile metadata mismatch: identity `{expected}`, typed tree `{color_profile}`"
+            ));
+        }
+    }
+    if let Some(expected) = writer_color_profile {
+        if expected != color_profile {
+            return Err(format!(
+                "CEM tree writer expected colorProfile `{expected}`, got `{color_profile}`"
+            ));
+        }
+    }
+    if !colored
+        .operations
+        .iter()
+        .any(|operation| matches!(operation.kind, CemtColorOperationKind::Marker))
+    {
+        return Err("CEM tree writer requires a package colorizer marker".to_owned());
+    }
+    if !colored
+        .operations
+        .iter()
+        .any(|operation| matches!(operation.kind, CemtColorOperationKind::Decision { .. }))
+    {
+        return Err("CEM tree writer requires package colorizer decisions".to_owned());
+    }
+    Ok(())
+}
+
 fn validate_cem_tree_writer_boundary(
     artifact: &TransformTemplateEncodedArtifact,
     writer_boundary_context: &TransformTemplateEncodedArtifactInsertionContext,
@@ -10015,6 +10162,60 @@ fn transform_template_writer_text_identity_from_context(
     identity
 }
 
+fn transform_template_typed_writer_text_identity_from_context(
+    artifact_identity: &TransformTemplateEncodedArtifactIdentity,
+    writer_boundary_context: &TransformTemplateEncodedArtifactInsertionContext,
+) -> TransformTemplateEncodedArtifactIdentity {
+    let mut identity = artifact_identity.clone();
+    if !writer_boundary_context.content_type.trim().is_empty()
+        || !writer_boundary_context.schema.trim().is_empty()
+        || writer_boundary_context.category.is_some()
+    {
+        identity.target = TransformTemplateEncodingTarget {
+            content_type: if writer_boundary_context.content_type.trim().is_empty() {
+                artifact_identity.target.content_type.clone()
+            } else {
+                writer_boundary_context.content_type.clone()
+            },
+            schema: if writer_boundary_context.schema.trim().is_empty() {
+                artifact_identity.target.schema.clone()
+            } else {
+                writer_boundary_context.schema.clone()
+            },
+            category: writer_boundary_context
+                .category
+                .clone()
+                .unwrap_or_else(|| artifact_identity.target.category.clone()),
+            context: writer_boundary_context
+                .context
+                .clone()
+                .or_else(|| artifact_identity.target.context.clone()),
+        };
+    }
+    identity.formatter_profile = writer_boundary_context
+        .formatter_profile
+        .clone()
+        .or_else(|| artifact_identity.formatter_profile.clone());
+    identity.color_profile = writer_boundary_context
+        .color_profile
+        .clone()
+        .or_else(|| artifact_identity.color_profile.clone());
+    identity.color_capability = writer_boundary_context
+        .color_capability
+        .clone()
+        .or_else(|| artifact_identity.color_capability.clone());
+    if let Some(mode) = writer_boundary_context.mode {
+        identity.mode = mode;
+    }
+    if let Some(canonical) = writer_boundary_context.canonical {
+        identity.canonical = canonical;
+    }
+    if let Some(source_map_policy) = writer_boundary_context.source_map_policy {
+        identity.source_map_policy = source_map_policy;
+    }
+    identity
+}
+
 fn trimmed_optional_str(value: Option<&str>) -> Option<&str> {
     value.map(str::trim).filter(|value| !value.is_empty())
 }
@@ -10320,8 +10521,23 @@ fn transform_template_merge_tabular_cem_closing_scopes(
     writer_boundary_context: &TransformTemplateEncodedArtifactInsertionContext,
     syntax: TransformTemplateCemTreeWriterSyntax,
 ) {
+    let indent = transform_template_cem_tree_writer_indent(value);
+    transform_template_merge_tabular_cem_closing_scopes_with_options(
+        rendered,
+        syntax,
+        transform_template_cem_tree_writer_uses_tabular_profile(value, writer_boundary_context),
+        &indent,
+    );
+}
+
+fn transform_template_merge_tabular_cem_closing_scopes_with_options(
+    rendered: &mut TransformTemplateCemTreeRenderedText,
+    syntax: TransformTemplateCemTreeWriterSyntax,
+    tabular: bool,
+    indent: &str,
+) {
     if syntax != TransformTemplateCemTreeWriterSyntax::Cem
-        || !transform_template_cem_tree_writer_uses_tabular_profile(value, writer_boundary_context)
+        || !tabular
         || rendered.markdown_color_profile.is_some()
     {
         return;
@@ -10330,7 +10546,6 @@ fn transform_template_merge_tabular_cem_closing_scopes(
     if line_ending.is_empty() {
         return;
     }
-    let indent = transform_template_cem_tree_writer_indent(value);
     if indent.is_empty() {
         return;
     }
@@ -10359,7 +10574,7 @@ fn transform_template_merge_tabular_cem_closing_scopes(
             }
             if close_scopes.len() > 1 {
                 let merged =
-                    transform_template_rendered_text_merged_close_scopes(&close_scopes, &indent);
+                    transform_template_rendered_text_merged_close_scopes(&close_scopes, indent);
                 edits.push(TransformTemplateRenderedTextEdit {
                     start: line.start,
                     end: lines[last_close_line].content_end,
@@ -10389,7 +10604,7 @@ fn transform_template_merge_tabular_cem_closing_scopes(
                 continue;
             }
             let merged =
-                transform_template_rendered_text_merged_close_scopes(&close_scopes, &indent);
+                transform_template_rendered_text_merged_close_scopes(&close_scopes, indent);
             edits.push(TransformTemplateRenderedTextEdit {
                 start: line.start + trailing_close_scope.close_start,
                 end: line.start + trailing_close_scope.close_end,
@@ -10881,6 +11096,833 @@ fn transform_template_rendered_text_close_scope_separator(indent: &str) -> Strin
         return " ".repeat(indent.chars().count().saturating_sub(1));
     }
     indent.to_owned()
+}
+
+fn transform_template_typed_cem_tree_to_rendered_text(
+    artifact: &CemtTreeArtifact,
+    writer_boundary_context: &TransformTemplateEncodedArtifactInsertionContext,
+) -> Result<TransformTemplateCemTreeRenderedText, String> {
+    let formatted = artifact
+        .formatted_overlay()
+        .ok_or_else(|| "typed CEM tree writer requires a formatter overlay".to_owned())?;
+    let colored = artifact.colored_overlay();
+    let syntax = transform_template_cem_tree_writer_syntax(writer_boundary_context);
+    let terminal_color_profile = transform_template_typed_cem_tree_terminal_color_profile(
+        colored,
+        writer_boundary_context,
+        syntax,
+    );
+    let markdown_color_profile = transform_template_typed_cem_tree_markdown_color_profile(
+        colored,
+        writer_boundary_context,
+        syntax,
+    );
+    let mut rendered = TransformTemplateCemTreeRenderedText::with_color_profiles(
+        terminal_color_profile,
+        markdown_color_profile,
+        None,
+    );
+    rendered.line_ending = transform_template_line_ending_data_from_selector(
+        typed_cemt_format_decision(formatted, "line-ending"),
+    );
+    {
+        let mut renderer = TransformTemplateTypedCemTreeRenderer {
+            formatted,
+            colored,
+            syntax,
+            rendered: &mut rendered,
+        };
+        renderer.render_node_sequence(artifact.subject().nodes(), None)?;
+    }
+    let formatter_profile = formatted.producer.formatter_profile.as_deref();
+    let indent =
+        typed_cemt_format_decision(formatted, "indent").unwrap_or(DEFAULT_FORMATTER_INDENT);
+    transform_template_merge_tabular_cem_closing_scopes_with_options(
+        &mut rendered,
+        syntax,
+        formatter_profile == Some("tabular"),
+        indent,
+    );
+    rendered.finish_terminal_color_boundary();
+    Ok(rendered)
+}
+
+fn typed_cemt_format_decision<'a>(
+    overlay: &'a CemtFormattedTreeOverlay,
+    name: &str,
+) -> Option<&'a str> {
+    overlay.operations.iter().find_map(|operation| {
+        (operation.name == name)
+            .then_some(&operation.kind)
+            .and_then(|kind| match kind {
+                CemtFormatOperationKind::Decision { value } => Some(value.as_str()),
+                CemtFormatOperationKind::Marker => None,
+            })
+    })
+}
+
+fn typed_cemt_color_decision<'a>(
+    overlay: &'a CemtColoredTreeOverlay,
+    name: &str,
+) -> Option<&'a str> {
+    overlay.operations.iter().find_map(|operation| {
+        (operation.name == name)
+            .then_some(&operation.kind)
+            .and_then(|kind| match kind {
+                CemtColorOperationKind::Decision { value } => Some(value.as_str()),
+                CemtColorOperationKind::Marker => None,
+            })
+    })
+}
+
+fn transform_template_typed_cem_tree_terminal_color_profile(
+    colored: Option<&CemtColoredTreeOverlay>,
+    writer_boundary_context: &TransformTemplateEncodedArtifactInsertionContext,
+    syntax: TransformTemplateCemTreeWriterSyntax,
+) -> Option<TransformTemplateColorOutputProfile> {
+    if syntax != TransformTemplateCemTreeWriterSyntax::Cem {
+        return None;
+    }
+    if let Some(output_color_type) =
+        trimmed_optional_str(writer_boundary_context.output_color_type.as_deref())
+    {
+        let selection = parse_transform_template_output_color_type(output_color_type).ok()?;
+        if selection.target.category != "terminal-color" || selection.output_color_type == "none" {
+            return None;
+        }
+        let profile = TransformTemplateColorOutputProfile::terminal_from_selector(
+            &selection.output_color_type,
+        )
+        .ok()?;
+        return (!profile.no_color
+            && profile.output == TransformTemplateColorOutputKind::Terminal
+            && profile.terminal_capability != TransformTemplateTerminalColorCapability::None)
+            .then_some(profile);
+    }
+    let colored = colored?;
+    if typed_cemt_color_decision(colored, "output").is_some_and(|output| output != "terminal") {
+        return None;
+    }
+    let selector = trimmed_optional_str(writer_boundary_context.color_capability.as_deref())
+        .or_else(|| typed_cemt_color_decision(colored, "capability"))
+        .or_else(|| trimmed_optional_str(writer_boundary_context.color_profile.as_deref()))
+        .or_else(|| trimmed_optional_str(colored.producer.color_profile.as_deref()))?;
+    let profile = TransformTemplateColorOutputProfile::terminal_from_selector(selector).ok()?;
+    (!profile.no_color
+        && profile.output == TransformTemplateColorOutputKind::Terminal
+        && profile.terminal_capability != TransformTemplateTerminalColorCapability::None)
+        .then_some(profile)
+}
+
+fn transform_template_typed_cem_tree_markdown_color_profile(
+    colored: Option<&CemtColoredTreeOverlay>,
+    writer_boundary_context: &TransformTemplateEncodedArtifactInsertionContext,
+    syntax: TransformTemplateCemTreeWriterSyntax,
+) -> Option<TransformTemplateColorOutputProfile> {
+    if syntax != TransformTemplateCemTreeWriterSyntax::Markdown {
+        return None;
+    }
+    let colored = colored?;
+    let output = typed_cemt_color_decision(colored, "output");
+    if output.is_some_and(|output| !matches!(output, "md" | "markdown")) {
+        return None;
+    }
+    let selector_is_markdown =
+        trimmed_optional_str(writer_boundary_context.color_profile.as_deref())
+            .or_else(|| trimmed_optional_str(colored.producer.color_profile.as_deref()))
+            .is_some_and(|selector| matches!(selector, "md" | "markdown"));
+    (selector_is_markdown || output.is_some_and(|output| matches!(output, "md" | "markdown")))
+        .then(TransformTemplateColorOutputProfile::plain)
+}
+
+struct TransformTemplateTypedCemTreeRenderer<'a, 'b> {
+    formatted: &'a CemtFormattedTreeOverlay,
+    colored: Option<&'a CemtColoredTreeOverlay>,
+    syntax: TransformTemplateCemTreeWriterSyntax,
+    rendered: &'b mut TransformTemplateCemTreeRenderedText,
+}
+
+impl TransformTemplateTypedCemTreeRenderer<'_, '_> {
+    fn render_node_sequence(
+        &mut self,
+        nodes: &[CemTreeAstNode],
+        parent_path: Option<&CemtOwnerPath>,
+    ) -> Result<(), String> {
+        let mut wrote_source = false;
+        let mut previous_source_whitespace = false;
+        let mut has_intervening_fragment = false;
+        for before_node in 0..=nodes.len() {
+            let gap_indices = self.gap_operation_indices(parent_path, before_node);
+            for operation_index in gap_indices {
+                self.render_format_operation(operation_index)?;
+                has_intervening_fragment = true;
+            }
+            let Some(node) = nodes.get(before_node) else {
+                continue;
+            };
+            let path = match parent_path {
+                Some(parent) => parent.child(before_node),
+                None => CemtOwnerPath::root(before_node),
+            };
+            if !self.formatted.retains_node(&path) {
+                continue;
+            }
+            let whitespace = matches!(node, CemTreeAstNode::Whitespace { .. });
+            if wrote_source
+                && !has_intervening_fragment
+                && !previous_source_whitespace
+                && !whitespace
+                && self.syntax.is_cem_like()
+            {
+                if parent_path.is_some() {
+                    self.rendered.push_unmapped(" ");
+                } else {
+                    self.rendered.push_line_ending();
+                }
+            }
+            self.render_node(node, &path)?;
+            wrote_source = true;
+            previous_source_whitespace = whitespace;
+            has_intervening_fragment = false;
+        }
+        Ok(())
+    }
+
+    fn gap_operation_indices(
+        &self,
+        parent_path: Option<&CemtOwnerPath>,
+        before_node: usize,
+    ) -> Vec<usize> {
+        self.formatted
+            .node_operations
+            .iter()
+            .enumerate()
+            .filter_map(|(index, operation)| {
+                let target_matches = match (&operation.target, parent_path) {
+                    (CemtNodeFormatTarget::RootGap { before_root, .. }, None) => {
+                        *before_root == before_node
+                    }
+                    (
+                        CemtNodeFormatTarget::ChildGap {
+                            parent,
+                            before_child,
+                            ..
+                        },
+                        Some(expected_parent),
+                    ) => parent == expected_parent && *before_child == before_node,
+                    _ => false,
+                };
+                (target_matches
+                    && matches!(
+                        operation.kind,
+                        CemtNodeFormatOperationKind::InsertChild { .. }
+                    ))
+                .then_some(index)
+            })
+            .collect()
+    }
+
+    fn render_node(&mut self, node: &CemTreeAstNode, path: &CemtOwnerPath) -> Result<(), String> {
+        if self.syntax.is_markup() {
+            self.render_markup_node(node, path)
+        } else {
+            self.render_cem_node(node, path)
+        }
+    }
+
+    fn render_cem_node(
+        &mut self,
+        node: &CemTreeAstNode,
+        path: &CemtOwnerPath,
+    ) -> Result<(), String> {
+        let role = self.owner_color_role(path);
+        match node {
+            CemTreeAstNode::Document { children, .. } => {
+                self.render_node_sequence(children, Some(path))
+            }
+            CemTreeAstNode::Element {
+                name,
+                attributes,
+                children,
+                source,
+            } if name.trim().starts_with('@') => {
+                self.render_cem_directive(name, children, path, source, role.as_deref())
+            }
+            CemTreeAstNode::Element {
+                name,
+                attributes,
+                children,
+                source,
+            } => self.render_cem_element(name, attributes, children, path, source, role.as_deref()),
+            CemTreeAstNode::Text { value, source } => {
+                self.rendered.push_colored_mapped(
+                    &transform_template_encode_cem_content_text(value)?,
+                    Some(source),
+                    role.as_deref(),
+                );
+                Ok(())
+            }
+            CemTreeAstNode::Whitespace { data, source } => {
+                self.rendered
+                    .push_colored_mapped(data, Some(source), role.as_deref());
+                Ok(())
+            }
+            CemTreeAstNode::Comment { data, source } => {
+                let text = format!(
+                    "{{comment @value={}}}",
+                    transform_template_encode_cem_attribute_value(data, "CEM comment value")?
+                );
+                self.rendered
+                    .push_colored_mapped(&text, Some(source), role.as_deref());
+                Ok(())
+            }
+            CemTreeAstNode::ProcessingInstruction { name, source, .. } => {
+                self.render_cem_empty_element(name, source, role.as_deref())
+            }
+            CemTreeAstNode::Cdata { source, .. }
+            | CemTreeAstNode::RawText { source, .. }
+            | CemTreeAstNode::Error { source, .. } => {
+                self.render_cem_empty_element("node", source, role.as_deref())
+            }
+        }
+    }
+
+    fn render_cem_empty_element(
+        &mut self,
+        name: &str,
+        source: &SourceMapStack,
+        role: Option<&str>,
+    ) -> Result<(), String> {
+        self.rendered.push_colored_mapped("{", Some(source), role);
+        self.rendered.push_colored_mapped(
+            &transform_template_encode_cem_name(name)?,
+            Some(source),
+            role,
+        );
+        self.rendered.push_colored_mapped("}", Some(source), role);
+        Ok(())
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn render_cem_element(
+        &mut self,
+        raw_name: &str,
+        attributes: &[CemTreeAstAttribute],
+        children: &[CemTreeAstNode],
+        path: &CemtOwnerPath,
+        source: &SourceMapStack,
+        role: Option<&str>,
+    ) -> Result<(), String> {
+        let name = match raw_name.trim() {
+            "" => String::new(),
+            "$" => "$".to_owned(),
+            name => transform_template_encode_cem_name(name)?,
+        };
+        self.rendered.push_colored_mapped("{", Some(source), role);
+        self.rendered.push_colored_mapped(&name, Some(source), role);
+        for (index, attribute) in attributes.iter().enumerate() {
+            let attribute_path = path.attribute(index);
+            let format_before = self.owner_format_operation_indices(&attribute_path, |kind| {
+                matches!(kind, CemtNodeFormatOperationKind::BeforeAttribute { .. })
+            });
+            if !format_before.is_empty() {
+                for operation_index in format_before {
+                    self.render_format_operation(operation_index)?;
+                }
+            } else if index == 0 {
+                let before_attributes = self.owner_format_operation_indices(path, |kind| {
+                    matches!(kind, CemtNodeFormatOperationKind::BeforeAttributes { .. })
+                });
+                if before_attributes.is_empty() {
+                    if !name.is_empty() {
+                        self.rendered.push_mapped(" ", Some(source));
+                    }
+                } else {
+                    for operation_index in before_attributes {
+                        self.render_format_operation(operation_index)?;
+                    }
+                }
+            } else {
+                let between_attributes = self.owner_format_operation_indices(path, |kind| {
+                    matches!(kind, CemtNodeFormatOperationKind::BetweenAttributes { .. })
+                });
+                if between_attributes.is_empty() {
+                    self.rendered.push_mapped(" ", Some(source));
+                } else {
+                    for operation_index in between_attributes {
+                        self.render_format_operation(operation_index)?;
+                    }
+                }
+            }
+            let attribute_role = self
+                .owner_color_role(&attribute_path)
+                .unwrap_or_else(|| "syntax.attribute".to_owned());
+            self.rendered.push_colored_mapped(
+                &transform_template_typed_cem_attribute_to_text(attribute)?,
+                Some(&attribute.source),
+                Some(&attribute_role),
+            );
+        }
+        if self.has_rendered_children(children, path) {
+            let content_boundary = self.owner_format_operation_indices(path, |kind| {
+                matches!(kind, CemtNodeFormatOperationKind::ContentBoundary { .. })
+            });
+            if content_boundary.is_empty() {
+                self.rendered.push_mapped(" | ", Some(source));
+            } else {
+                for operation_index in content_boundary {
+                    self.render_format_operation(operation_index)?;
+                }
+            }
+            self.render_node_sequence(children, Some(path))?;
+            for operation_index in self.owner_format_operation_indices(path, |kind| {
+                matches!(kind, CemtNodeFormatOperationKind::BeforeClose { .. })
+            }) {
+                self.render_format_operation(operation_index)?;
+            }
+        }
+        self.rendered.push_colored_mapped("}", Some(source), role);
+        Ok(())
+    }
+
+    fn render_cem_directive(
+        &mut self,
+        raw_name: &str,
+        children: &[CemTreeAstNode],
+        path: &CemtOwnerPath,
+        source: &SourceMapStack,
+        role: Option<&str>,
+    ) -> Result<(), String> {
+        let name = raw_name.strip_prefix('@').unwrap_or(raw_name).trim();
+        self.rendered.push_colored_mapped("@", Some(source), role);
+        self.rendered.push_colored_mapped(
+            &transform_template_encode_cem_name(name)?,
+            Some(source),
+            role,
+        );
+        let mut body = Vec::new();
+        self.collect_directive_text(children, path, &mut body);
+        if !body.is_empty() {
+            self.rendered.push_mapped(" ", Some(source));
+            self.rendered
+                .push_colored_mapped(&body.join(" "), Some(source), role);
+        }
+        Ok(())
+    }
+
+    fn collect_directive_text(
+        &self,
+        nodes: &[CemTreeAstNode],
+        parent: &CemtOwnerPath,
+        parts: &mut Vec<String>,
+    ) {
+        for (index, node) in nodes.iter().enumerate() {
+            let path = parent.child(index);
+            if !self.formatted.retains_node(&path) {
+                continue;
+            }
+            match node {
+                CemTreeAstNode::Text { value, .. }
+                | CemTreeAstNode::RawText { data: value, .. } => {
+                    let value = value.trim();
+                    if !value.is_empty() {
+                        parts.push(value.to_owned());
+                    }
+                }
+                CemTreeAstNode::Document { children, .. }
+                | CemTreeAstNode::Element { children, .. } => {
+                    self.collect_directive_text(children, &path, parts)
+                }
+                _ => {}
+            }
+        }
+    }
+
+    fn render_markup_node(
+        &mut self,
+        node: &CemTreeAstNode,
+        path: &CemtOwnerPath,
+    ) -> Result<(), String> {
+        if let Some((wrapper_index, wrapper_name, wrapper_source)) = self.owner_wrapper(path) {
+            let attributes = self.writer_attributes(path, Some((wrapper_index, true)));
+            self.render_markup_open_tag(
+                &wrapper_name,
+                &attributes,
+                wrapper_source.as_ref(),
+                false,
+            )?;
+            self.render_markup_node_body(node, path, Some(wrapper_index))?;
+            self.rendered.push_mapped("</", wrapper_source.as_ref());
+            self.rendered
+                .push_mapped(&wrapper_name, wrapper_source.as_ref());
+            self.rendered.push_mapped(">", wrapper_source.as_ref());
+            Ok(())
+        } else {
+            self.render_markup_node_body(node, path, None)
+        }
+    }
+
+    fn render_markup_node_body(
+        &mut self,
+        node: &CemTreeAstNode,
+        path: &CemtOwnerPath,
+        wrapper_index: Option<usize>,
+    ) -> Result<(), String> {
+        match node {
+            CemTreeAstNode::Document { children, .. } => {
+                self.render_node_sequence(children, Some(path))
+            }
+            CemTreeAstNode::Element {
+                name,
+                attributes,
+                children,
+                source,
+            } => {
+                self.render_markup_element(name, attributes, children, path, source, wrapper_index)
+            }
+            CemTreeAstNode::Text { value, source } => {
+                let text = match self.syntax {
+                    TransformTemplateCemTreeWriterSyntax::Html => {
+                        transform_template_encode_html_text(value)
+                    }
+                    TransformTemplateCemTreeWriterSyntax::Xml => {
+                        transform_template_encode_xml_text(value)
+                    }
+                    _ => unreachable!(),
+                };
+                self.rendered.push_mapped(&text, Some(source));
+                Ok(())
+            }
+            CemTreeAstNode::Whitespace { data, source } => {
+                self.rendered.push_mapped(data, Some(source));
+                Ok(())
+            }
+            CemTreeAstNode::Comment { data, source } => {
+                self.rendered
+                    .push_mapped(&format!("<!--{data}-->"), Some(source));
+                Ok(())
+            }
+            CemTreeAstNode::Cdata { data, source }
+                if self.syntax == TransformTemplateCemTreeWriterSyntax::Xml =>
+            {
+                self.rendered
+                    .push_mapped(&format!("<![CDATA[{data}]]>"), Some(source));
+                Ok(())
+            }
+            CemTreeAstNode::ProcessingInstruction {
+                target,
+                data,
+                source,
+                ..
+            } if target.eq_ignore_ascii_case("DOCTYPE") => {
+                let data = data.trim();
+                let text = if data.is_empty() {
+                    "<!DOCTYPE>".to_owned()
+                } else {
+                    format!("<!DOCTYPE {data}>")
+                };
+                self.rendered.push_mapped(&text, Some(source));
+                Ok(())
+            }
+            CemTreeAstNode::ProcessingInstruction {
+                target,
+                data,
+                source,
+                ..
+            } if self.syntax == TransformTemplateCemTreeWriterSyntax::Xml => {
+                let text = if data.is_empty() {
+                    format!("<?{target}?>")
+                } else {
+                    format!("<?{target} {data}?>")
+                };
+                self.rendered.push_mapped(&text, Some(source));
+                Ok(())
+            }
+            CemTreeAstNode::RawText { data, source }
+                if self.syntax == TransformTemplateCemTreeWriterSyntax::Html =>
+            {
+                self.rendered.push_mapped(data, Some(source));
+                Ok(())
+            }
+            other => Err(format!(
+                "typed CEM tree writer cannot render `{}` in markup syntax",
+                other.kind()
+            )),
+        }
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn render_markup_element(
+        &mut self,
+        name: &str,
+        source_attributes: &[CemTreeAstAttribute],
+        children: &[CemTreeAstNode],
+        path: &CemtOwnerPath,
+        source: &SourceMapStack,
+        wrapper_index: Option<usize>,
+    ) -> Result<(), String> {
+        let mut attributes = source_attributes
+            .iter()
+            .map(|attribute| TransformTemplateTypedMarkupAttribute {
+                name: attribute.name.clone(),
+                value: attribute.value.clone(),
+                source_map: Some(attribute.source.clone()),
+            })
+            .collect::<Vec<_>>();
+        for attribute in self.writer_attributes(path, wrapper_index.map(|index| (index, false))) {
+            merge_typed_markup_attribute(&mut attributes, attribute);
+        }
+        let has_children = self.has_rendered_children(children, path);
+        let html_void = self.syntax == TransformTemplateCemTreeWriterSyntax::Html
+            && transform_template_cem_tree_markup_name_is_html_void(name);
+        let xml_empty = self.syntax == TransformTemplateCemTreeWriterSyntax::Xml && !has_children;
+        self.render_markup_open_tag(name, &attributes, Some(source), xml_empty)?;
+        if html_void || xml_empty {
+            return Ok(());
+        }
+        self.render_node_sequence(children, Some(path))?;
+        self.rendered.push_mapped("</", Some(source));
+        self.rendered.push_mapped(name, Some(source));
+        self.rendered.push_mapped(">", Some(source));
+        Ok(())
+    }
+
+    fn render_markup_open_tag(
+        &mut self,
+        name: &str,
+        attributes: &[TransformTemplateTypedMarkupAttribute],
+        source: Option<&SourceMapStack>,
+        self_closing: bool,
+    ) -> Result<(), String> {
+        self.rendered.push_mapped("<", source);
+        self.rendered.push_mapped(name, source);
+        for attribute in attributes {
+            let text = transform_template_typed_markup_attribute_to_text(
+                &attribute.name,
+                attribute.value.as_deref(),
+                self.syntax,
+            )?;
+            self.rendered.push_mapped(" ", source);
+            self.rendered
+                .push_mapped(&text, attribute.source_map.as_ref().or(source));
+        }
+        self.rendered
+            .push_mapped(if self_closing { "/>" } else { ">" }, source);
+        Ok(())
+    }
+
+    fn has_rendered_children(&self, children: &[CemTreeAstNode], path: &CemtOwnerPath) -> bool {
+        children
+            .iter()
+            .enumerate()
+            .any(|(index, _)| self.formatted.retains_node(&path.child(index)))
+            || !self
+                .gap_operation_indices(Some(path), children.len())
+                .is_empty()
+            || (0..children.len())
+                .any(|index| !self.gap_operation_indices(Some(path), index).is_empty())
+    }
+
+    fn owner_format_operation_indices(
+        &self,
+        path: &CemtOwnerPath,
+        predicate: impl Fn(&CemtNodeFormatOperationKind) -> bool,
+    ) -> Vec<usize> {
+        self.formatted
+            .node_operations
+            .iter()
+            .enumerate()
+            .filter_map(|(index, operation)| {
+                (matches!(&operation.target, CemtNodeFormatTarget::Owner(owner) if owner == path)
+                    && predicate(&operation.kind))
+                .then_some(index)
+            })
+            .collect()
+    }
+
+    fn render_format_operation(&mut self, operation_index: usize) -> Result<(), String> {
+        let operation = self
+            .formatted
+            .node_operations
+            .get(operation_index)
+            .ok_or_else(|| {
+                format!("typed CEM tree formatter operation {operation_index} is missing")
+            })?;
+        let fragment = match &operation.kind {
+            CemtNodeFormatOperationKind::BeforeAttributes { fragment }
+            | CemtNodeFormatOperationKind::BetweenAttributes { fragment }
+            | CemtNodeFormatOperationKind::BeforeAttribute { fragment, .. }
+            | CemtNodeFormatOperationKind::ContentBoundary { fragment, .. }
+            | CemtNodeFormatOperationKind::InsertChild { fragment }
+            | CemtNodeFormatOperationKind::BeforeClose { fragment } => fragment,
+            CemtNodeFormatOperationKind::Layout(_) => return Ok(()),
+        };
+        let value = match fragment {
+            CemtFormatFragment::Whitespace { value } | CemtFormatFragment::Raw { value } => value,
+        };
+        self.rendered.push_mapped(
+            value,
+            cemt_overlay_provenance_source_map(&operation.provenance),
+        );
+        Ok(())
+    }
+
+    fn owner_color_role(&self, path: &CemtOwnerPath) -> Option<String> {
+        self.colored?
+            .node_operations
+            .iter()
+            .rev()
+            .find_map(|operation| {
+                (operation.target == CemtColorTarget::Owner(path.clone()))
+                    .then_some(&operation.kind)
+                    .and_then(|kind| match kind {
+                        CemtNodeColorOperationKind::Role { role, .. } => {
+                            Some(transform_template_canonical_color_role(role))
+                        }
+                        _ => None,
+                    })
+            })
+    }
+
+    fn owner_wrapper(
+        &self,
+        path: &CemtOwnerPath,
+    ) -> Option<(usize, String, Option<SourceMapStack>)> {
+        self.colored?
+            .node_operations
+            .iter()
+            .enumerate()
+            .find_map(|(index, operation)| {
+                if operation.target != CemtColorTarget::Owner(path.clone()) {
+                    return None;
+                }
+                match &operation.kind {
+                    CemtNodeColorOperationKind::Wrapper { name, .. } => Some((
+                        index,
+                        name.clone(),
+                        cemt_overlay_provenance_source_map(&operation.provenance).cloned(),
+                    )),
+                    _ => None,
+                }
+            })
+    }
+
+    fn writer_attributes(
+        &self,
+        path: &CemtOwnerPath,
+        wrapper: Option<(usize, bool)>,
+    ) -> Vec<TransformTemplateTypedMarkupAttribute> {
+        let Some(colored) = self.colored else {
+            return Vec::new();
+        };
+        colored
+            .node_operations
+            .iter()
+            .enumerate()
+            .filter_map(|(index, operation)| {
+                if operation.target != CemtColorTarget::Owner(path.clone()) {
+                    return None;
+                }
+                if let Some((wrapper_index, for_wrapper)) = wrapper {
+                    if (index < wrapper_index) != for_wrapper {
+                        return None;
+                    }
+                }
+                let CemtNodeColorOperationKind::WriterAttribute { name, value, .. } =
+                    &operation.kind
+                else {
+                    return None;
+                };
+                Some(TransformTemplateTypedMarkupAttribute {
+                    name: name.clone(),
+                    value: Some(value.clone()),
+                    source_map: cemt_overlay_provenance_source_map(&operation.provenance).cloned(),
+                })
+            })
+            .collect()
+    }
+}
+
+fn cemt_overlay_provenance_source_map(
+    provenance: &CemtOverlayProvenance,
+) -> Option<&SourceMapStack> {
+    match provenance {
+        CemtOverlayProvenance::SourceMapped(source_map) => Some(source_map),
+        CemtOverlayProvenance::Generated { source_map, .. } => source_map.as_ref(),
+    }
+}
+
+fn transform_template_typed_cem_attribute_to_text(
+    attribute: &CemTreeAstAttribute,
+) -> Result<String, String> {
+    let name = transform_template_encode_cem_name(attribute.name.trim())?;
+    let Some(value) = attribute.value.as_deref() else {
+        return Ok(format!("@{name}"));
+    };
+    Ok(format!(
+        "@{name}={}",
+        transform_template_encode_cem_attribute_value(value, "CEM tree attribute value")?
+    ))
+}
+
+#[derive(Debug, Clone)]
+struct TransformTemplateTypedMarkupAttribute {
+    name: String,
+    value: Option<String>,
+    source_map: Option<SourceMapStack>,
+}
+
+fn merge_typed_markup_attribute(
+    entries: &mut Vec<TransformTemplateTypedMarkupAttribute>,
+    generated: TransformTemplateTypedMarkupAttribute,
+) {
+    let Some(existing) = entries
+        .iter_mut()
+        .find(|entry| entry.name == generated.name)
+    else {
+        entries.push(generated);
+        return;
+    };
+    match (
+        generated.name.as_str(),
+        existing.value.as_mut(),
+        generated.value.as_deref(),
+    ) {
+        ("class", Some(existing), Some(generated)) => {
+            transform_template_merge_space_separated_attribute(existing, generated)
+        }
+        ("style", Some(existing), Some(generated)) => {
+            transform_template_merge_css_declarations(existing, generated)
+        }
+        _ => existing.value = generated.value,
+    }
+    if generated.source_map.is_some() {
+        existing.source_map = generated.source_map;
+    }
+}
+
+fn transform_template_typed_markup_attribute_to_text(
+    name: &str,
+    value: Option<&str>,
+    syntax: TransformTemplateCemTreeWriterSyntax,
+) -> Result<String, String> {
+    if syntax == TransformTemplateCemTreeWriterSyntax::Html
+        && (value.is_none()
+            || (transform_template_cem_tree_markup_name_is_html_boolean_attribute(name)
+                && value.is_some_and(|value| value.is_empty() || value.eq_ignore_ascii_case(name))))
+    {
+        return Ok(name.to_owned());
+    }
+    let value = value.unwrap_or_default();
+    let encoded = match syntax {
+        TransformTemplateCemTreeWriterSyntax::Html => {
+            transform_template_encode_html_attribute(value)
+        }
+        TransformTemplateCemTreeWriterSyntax::Xml => transform_template_encode_xml_attribute(value),
+        TransformTemplateCemTreeWriterSyntax::Cem
+        | TransformTemplateCemTreeWriterSyntax::Markdown => unreachable!(),
+    };
+    Ok(format!("{name}=\"{encoded}\""))
 }
 
 fn transform_template_cem_tree_value_to_rendered_text(
