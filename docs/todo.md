@@ -990,6 +990,12 @@ Remaining dependency-ordered package checklist:
             - [ ] Migrate CEMT expression bindings and intermediates to the
                   typed evaluator value algebra, then route the native
                   formatter and colorizer through it.
+              - [x] Define the owned evaluator algebra, typed binding/path
+                    primitives, and persistent record/sequence overlays over
+                    borrowed native records without JSON storage.
+              - [ ] Move runtime variable and parameter bindings plus path,
+                    `exists`, `length`, and `get` evaluation onto the typed
+                    algebra with independent compatibility-oracle parity.
           - [ ] Give non-CEM CEMT tree producers package-owned typed result
                 artifacts, then remove `CemtEvaluator(Value)` globally.
       - [x] Define typed raw, formatted, and colored CEM tree envelopes with
@@ -1051,36 +1057,30 @@ Remaining dependency-ordered package checklist:
 
 ### Next Work Item
 
-Define the owned CEMT evaluator value algebra that complements
-`CemtEvaluatorValueRef`. Borrowed raw and formatted tree records now cover the
-complete formatter-to-colorizer input shape without recursive materialization;
-the evaluator still needs owned values for literals, generated sequences,
-record construction, and persistent updates produced by expressions.
+Move the first CEMT runtime dependency layer onto `CemtEvaluatorValue` and
+`CemtEvaluatorBindings`: variable/parameter binding, path and field resolution,
+`exists`, `length`, and `get`. The owned algebra now covers typed scalar atoms,
+ordered sequences, records, source maps, borrowed native views, and persistent
+record/sequence updates without `serde_json::Value`; runtime dispatch is still
+using the compatibility evaluator.
 
-Start with red tests for a closed `CemtEvaluatorValue` enum containing null,
-boolean, string, sequence, record, source-map, and borrowed/native reference
-forms. The borrowed/native form must retain the typed artifact or owner
-identity directly, not encode it as a string key or JSON sentinel. Define
-explicit borrow-to-owned behavior: immutable native records stay referenced,
-while expression-created scalars, sequences, and record fields become owned.
-No variant or helper in this boundary may contain `serde_json::Value`.
+Start with red parity tests that evaluate the same expressions independently
+through typed and compatibility contexts. Cover a borrowed raw CEM tree, a
+formatted envelope, generated fragments, source maps, numeric and string
+indices, null versus missing fields, Unicode string length, and invalid target
+diagnostics. Construct the typed context directly from
+`CemtTreeArtifact::evaluator_view()` and expression-owned values. Do not obtain
+typed values by converting compatibility JSON, and do not materialize the
+borrowed tree recursively.
 
-Migrate evaluator primitives in dependency order. First move path and field
-resolution, variable/parameter binding, `exists`, `length`, and `get`; then
-move record/sequence constructors plus `set`, append, and patch operations;
-then move `call`, `map`, `fold`, and `match`. Persistent updates must layer an
-owned field overlay over a borrowed record so changing one field does not copy
-the source AST or formatted subtree. Add parity tests for nested updates,
-generated fragments, source-map access, null versus missing fields, and
-sequence order before switching a formatter or colorizer stage.
-
-After those primitives are typed, route one native formatter/colorizer
-handoff through the new algebra while retaining the current value evaluator as
-an explicit compatibility oracle. Compare the typed and compatibility results
-for formatter profiles, colorizer profiles, generated operation order, owner
-identity, and source maps. Only after parity is green should
-`ConversionOutputPipelineSubject::evaluator_value`,
-`formatted_evaluator_value`, and native cached `Value` fields be removed.
+Introduce typed literal and path resolvers as the shared foundation, then move
+binding application and the three primitive functions. Keep the existing
+`Value` evaluator callable only as an explicit test oracle during this slice;
+production formatter/colorizer dispatch must not cross between the two value
+models. Once primitive parity is green, the following slice should migrate
+record/sequence literal construction plus `set`, append, extend, merge, and
+tree-patch evaluation onto the persistent overlay APIs before moving
+`call`/`map`/`fold`/`match` or switching a native output stage.
 
 ## Current Verification Commands
 

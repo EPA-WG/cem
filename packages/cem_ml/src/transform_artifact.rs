@@ -501,6 +501,7 @@ impl<'a> CemtTreeSubjectRef<'a> {
 pub enum CemtEvaluatorValueKind {
     Null,
     Boolean,
+    Number,
     String,
     Sequence,
     Record,
@@ -512,6 +513,7 @@ impl CemtEvaluatorValueKind {
         match self {
             Self::Null => "null",
             Self::Boolean => "boolean",
+            Self::Number => "number",
             Self::String => "string",
             Self::Sequence => "sequence",
             Self::Record => "record",
@@ -601,6 +603,578 @@ impl<'a> CemtEvaluatorValueRef<'a> {
             };
         }
         Some(self)
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct CemtEvaluatorNumber {
+    representation: CemtEvaluatorNumberRepresentation,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+enum CemtEvaluatorNumberRepresentation {
+    Integer(i64),
+    UnsignedInteger(u64),
+    Decimal(f64),
+}
+
+impl CemtEvaluatorNumber {
+    pub fn integer(value: i64) -> Self {
+        Self {
+            representation: CemtEvaluatorNumberRepresentation::Integer(value),
+        }
+    }
+
+    pub fn unsigned_integer(value: u64) -> Self {
+        Self {
+            representation: CemtEvaluatorNumberRepresentation::UnsignedInteger(value),
+        }
+    }
+
+    pub fn decimal(value: f64) -> Option<Self> {
+        value.is_finite().then_some(Self {
+            representation: CemtEvaluatorNumberRepresentation::Decimal(value),
+        })
+    }
+
+    pub fn as_i64(self) -> Option<i64> {
+        match self.representation {
+            CemtEvaluatorNumberRepresentation::Integer(value) => Some(value),
+            CemtEvaluatorNumberRepresentation::UnsignedInteger(value) => i64::try_from(value).ok(),
+            CemtEvaluatorNumberRepresentation::Decimal(_) => None,
+        }
+    }
+
+    pub fn as_u64(self) -> Option<u64> {
+        match self.representation {
+            CemtEvaluatorNumberRepresentation::Integer(value) => u64::try_from(value).ok(),
+            CemtEvaluatorNumberRepresentation::UnsignedInteger(value) => Some(value),
+            CemtEvaluatorNumberRepresentation::Decimal(_) => None,
+        }
+    }
+
+    pub fn as_f64(self) -> f64 {
+        match self.representation {
+            CemtEvaluatorNumberRepresentation::Integer(value) => value as f64,
+            CemtEvaluatorNumberRepresentation::UnsignedInteger(value) => value as f64,
+            CemtEvaluatorNumberRepresentation::Decimal(value) => value,
+        }
+    }
+
+    pub fn key_string(self) -> String {
+        match self.representation {
+            CemtEvaluatorNumberRepresentation::Integer(value) => value.to_string(),
+            CemtEvaluatorNumberRepresentation::UnsignedInteger(value) => value.to_string(),
+            CemtEvaluatorNumberRepresentation::Decimal(value) => value.to_string(),
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub enum CemtEvaluatorValue<'a> {
+    Null,
+    Boolean(bool),
+    Number(CemtEvaluatorNumber),
+    String(Arc<str>),
+    Sequence(Arc<[CemtEvaluatorValue<'a>]>),
+    Record(Arc<CemtEvaluatorRecord<'a>>),
+    SourceMap(Arc<SourceMapStack>),
+    Borrowed(CemtEvaluatorValueRef<'a>),
+}
+
+#[derive(Debug, Clone)]
+pub struct CemtEvaluatorRecord<'a> {
+    native_base: Option<CemtEvaluatorRecordRef<'a>>,
+    fields: BTreeMap<String, CemtEvaluatorValue<'a>>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum CemtEvaluatorValueAccessError {
+    InvalidPath {
+        path: String,
+    },
+    MissingPath {
+        path: String,
+    },
+    UnsupportedOperation {
+        operation: &'static str,
+        actual: CemtEvaluatorValueKind,
+    },
+}
+
+impl fmt::Display for CemtEvaluatorValueAccessError {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::InvalidPath { path } => write!(formatter, "invalid CEMT value path `{path}`"),
+            Self::MissingPath { path } => write!(formatter, "CEMT value path `{path}` is missing"),
+            Self::UnsupportedOperation { operation, actual } => write!(
+                formatter,
+                "CEMT {operation} does not support {} values",
+                actual.as_str()
+            ),
+        }
+    }
+}
+
+impl std::error::Error for CemtEvaluatorValueAccessError {}
+
+impl<'a> CemtEvaluatorValue<'a> {
+    pub fn borrowed(value: CemtEvaluatorValueRef<'a>) -> Self {
+        Self::Borrowed(value)
+    }
+
+    pub fn boolean(value: bool) -> Self {
+        Self::Boolean(value)
+    }
+
+    pub fn integer(value: i64) -> Self {
+        Self::Number(CemtEvaluatorNumber::integer(value))
+    }
+
+    pub fn unsigned_integer(value: u64) -> Self {
+        Self::Number(CemtEvaluatorNumber::unsigned_integer(value))
+    }
+
+    pub fn decimal(value: f64) -> Option<Self> {
+        CemtEvaluatorNumber::decimal(value).map(Self::Number)
+    }
+
+    pub fn string(value: impl Into<Arc<str>>) -> Self {
+        Self::String(value.into())
+    }
+
+    pub fn sequence(values: impl IntoIterator<Item = Self>) -> Self {
+        Self::Sequence(values.into_iter().collect::<Vec<_>>().into())
+    }
+
+    pub fn record<K>(fields: impl IntoIterator<Item = (K, Self)>) -> Self
+    where
+        K: Into<String>,
+    {
+        Self::Record(Arc::new(CemtEvaluatorRecord {
+            native_base: None,
+            fields: fields
+                .into_iter()
+                .map(|(name, value)| (name.into(), value))
+                .collect(),
+        }))
+    }
+
+    pub fn source_map(source_map: SourceMapStack) -> Self {
+        Self::SourceMap(Arc::new(source_map))
+    }
+
+    pub fn kind(&self) -> CemtEvaluatorValueKind {
+        match self {
+            Self::Null => CemtEvaluatorValueKind::Null,
+            Self::Boolean(_) => CemtEvaluatorValueKind::Boolean,
+            Self::Number(_) => CemtEvaluatorValueKind::Number,
+            Self::String(_) => CemtEvaluatorValueKind::String,
+            Self::Sequence(_) => CemtEvaluatorValueKind::Sequence,
+            Self::Record(_) => CemtEvaluatorValueKind::Record,
+            Self::SourceMap(_) => CemtEvaluatorValueKind::SourceMap,
+            Self::Borrowed(value) => value.kind(),
+        }
+    }
+
+    pub fn as_bool(&self) -> Option<bool> {
+        match self {
+            Self::Boolean(value) => Some(*value),
+            Self::Borrowed(value) => value.as_bool(),
+            _ => None,
+        }
+    }
+
+    pub fn as_number(&self) -> Option<CemtEvaluatorNumber> {
+        match self {
+            Self::Number(value) => Some(*value),
+            _ => None,
+        }
+    }
+
+    pub fn as_str(&self) -> Option<&str> {
+        match self {
+            Self::String(value) => Some(value),
+            Self::Borrowed(value) => value.as_str(),
+            _ => None,
+        }
+    }
+
+    pub fn as_source_map(&self) -> Option<&SourceMapStack> {
+        match self {
+            Self::SourceMap(value) => Some(value),
+            Self::Borrowed(value) => value.as_source_map(),
+            _ => None,
+        }
+    }
+
+    pub fn native_record(&self) -> Option<&CemtEvaluatorRecordRef<'a>> {
+        match self {
+            Self::Borrowed(CemtEvaluatorValueRef::Record(record)) => Some(record),
+            _ => None,
+        }
+    }
+
+    pub fn owned_record(&self) -> Option<&CemtEvaluatorRecord<'a>> {
+        match self {
+            Self::Record(record) => Some(record),
+            _ => None,
+        }
+    }
+
+    pub fn field(&self, name: &str) -> Option<Self> {
+        match self {
+            Self::Record(record) => record.field(name),
+            Self::Borrowed(CemtEvaluatorValueRef::Record(record)) => {
+                record.field(name).map(Self::Borrowed)
+            }
+            _ => None,
+        }
+    }
+
+    pub fn item(&self, index: usize) -> Option<Self> {
+        match self {
+            Self::Sequence(values) => values.get(index).cloned(),
+            Self::Borrowed(CemtEvaluatorValueRef::Sequence(sequence)) => {
+                sequence.item(index).map(Self::Borrowed)
+            }
+            _ => None,
+        }
+    }
+
+    pub fn resolve_path(&self, path: &str) -> Option<Self> {
+        if path.trim().is_empty() {
+            return Some(self.clone());
+        }
+        let mut cursor = self.clone();
+        for segment in path.split('.') {
+            let segment = segment.trim();
+            if segment.is_empty() {
+                return None;
+            }
+            cursor = match cursor.kind() {
+                CemtEvaluatorValueKind::Record => cursor.field(segment)?,
+                CemtEvaluatorValueKind::Sequence => cursor.item(segment.parse().ok()?)?,
+                _ => return None,
+            };
+        }
+        Some(cursor)
+    }
+
+    pub fn length(&self) -> Result<usize, CemtEvaluatorValueAccessError> {
+        match self {
+            Self::Null | Self::Borrowed(CemtEvaluatorValueRef::Null) => Ok(0),
+            Self::String(value) => Ok(value.chars().count()),
+            Self::Sequence(values) => Ok(values.len()),
+            Self::Record(record) => Ok(record.len()),
+            Self::Borrowed(CemtEvaluatorValueRef::String(value)) => Ok(value.chars().count()),
+            Self::Borrowed(CemtEvaluatorValueRef::Sequence(value)) => Ok(value.len()),
+            Self::Borrowed(CemtEvaluatorValueRef::Record(value)) => Ok(value
+                .field_names()
+                .iter()
+                .filter(|name| value.field(name).is_some())
+                .count()),
+            _ => Err(CemtEvaluatorValueAccessError::UnsupportedOperation {
+                operation: "length",
+                actual: self.kind(),
+            }),
+        }
+    }
+
+    pub fn get(&self, key: &str) -> Result<Self, CemtEvaluatorValueAccessError> {
+        match self.kind() {
+            CemtEvaluatorValueKind::Null => Ok(Self::Null),
+            CemtEvaluatorValueKind::Record => Ok(self.field(key.trim()).unwrap_or(Self::Null)),
+            CemtEvaluatorValueKind::Sequence => Ok(key
+                .trim()
+                .parse::<usize>()
+                .ok()
+                .and_then(|index| self.item(index))
+                .unwrap_or(Self::Null)),
+            CemtEvaluatorValueKind::String => Ok(key
+                .trim()
+                .parse::<usize>()
+                .ok()
+                .and_then(|index| self.as_str()?.chars().nth(index))
+                .map(|character| Self::string(character.to_string()))
+                .unwrap_or(Self::Null)),
+            actual => Err(CemtEvaluatorValueAccessError::UnsupportedOperation {
+                operation: "get",
+                actual,
+            }),
+        }
+    }
+
+    pub fn get_value(&self, key: &Self) -> Result<Self, CemtEvaluatorValueAccessError> {
+        if let Some(key) = key.as_str() {
+            return self.get(key);
+        }
+        if let Some(key) = key.as_number() {
+            return self.get(&key.key_string());
+        }
+        Err(CemtEvaluatorValueAccessError::UnsupportedOperation {
+            operation: "get key",
+            actual: key.kind(),
+        })
+    }
+
+    pub fn append(&self, value: Self) -> Result<Self, CemtEvaluatorValueAccessError> {
+        let mut values = self.sequence_values("append")?;
+        values.push(value);
+        Ok(Self::sequence(values))
+    }
+
+    pub fn extend(&self, values: &Self) -> Result<Self, CemtEvaluatorValueAccessError> {
+        let mut extended = self.sequence_values("extend")?;
+        extended.extend(values.sequence_values("extend")?);
+        Ok(Self::sequence(extended))
+    }
+
+    pub fn merge(&self, patch: &Self) -> Result<Self, CemtEvaluatorValueAccessError> {
+        let mut merged = self.clone();
+        for field in patch.record_field_names("merge")? {
+            let value =
+                patch
+                    .field(&field)
+                    .ok_or_else(|| CemtEvaluatorValueAccessError::MissingPath {
+                        path: field.clone(),
+                    })?;
+            merged = merged.with_field(field, value)?;
+        }
+        Ok(merged)
+    }
+
+    pub fn set_path(&self, path: &str, value: Self) -> Result<Self, CemtEvaluatorValueAccessError> {
+        let segments = path.split('.').map(str::trim).collect::<Vec<_>>();
+        if segments.is_empty() || segments.iter().any(|segment| segment.is_empty()) {
+            return Err(CemtEvaluatorValueAccessError::InvalidPath {
+                path: path.to_owned(),
+            });
+        }
+        self.set_path_segments(&segments, value, path)
+    }
+
+    fn set_path_segments(
+        &self,
+        segments: &[&str],
+        value: Self,
+        path: &str,
+    ) -> Result<Self, CemtEvaluatorValueAccessError> {
+        let Some((segment, tail)) = segments.split_first() else {
+            return Err(CemtEvaluatorValueAccessError::InvalidPath {
+                path: path.to_owned(),
+            });
+        };
+        match self.kind() {
+            CemtEvaluatorValueKind::Record => {
+                if tail.is_empty() {
+                    return self.with_field(*segment, value);
+                }
+                let child = self.field(segment).ok_or_else(|| {
+                    CemtEvaluatorValueAccessError::MissingPath {
+                        path: path.to_owned(),
+                    }
+                })?;
+                self.with_field(*segment, child.set_path_segments(tail, value, path)?)
+            }
+            CemtEvaluatorValueKind::Sequence => {
+                let index = segment.parse::<usize>().map_err(|_| {
+                    CemtEvaluatorValueAccessError::InvalidPath {
+                        path: path.to_owned(),
+                    }
+                })?;
+                if tail.is_empty() {
+                    return self.with_item(index, value, path);
+                }
+                let child =
+                    self.item(index)
+                        .ok_or_else(|| CemtEvaluatorValueAccessError::MissingPath {
+                            path: path.to_owned(),
+                        })?;
+                self.with_item(index, child.set_path_segments(tail, value, path)?, path)
+            }
+            actual => Err(CemtEvaluatorValueAccessError::UnsupportedOperation {
+                operation: "set",
+                actual,
+            }),
+        }
+    }
+
+    fn with_field(
+        &self,
+        name: impl Into<String>,
+        value: Self,
+    ) -> Result<Self, CemtEvaluatorValueAccessError> {
+        let mut record = match self {
+            Self::Record(record) => (**record).clone(),
+            Self::Borrowed(CemtEvaluatorValueRef::Record(record)) => CemtEvaluatorRecord {
+                native_base: Some(record.clone()),
+                fields: BTreeMap::new(),
+            },
+            _ => {
+                return Err(CemtEvaluatorValueAccessError::UnsupportedOperation {
+                    operation: "set",
+                    actual: self.kind(),
+                });
+            }
+        };
+        record.fields.insert(name.into(), value);
+        Ok(Self::Record(Arc::new(record)))
+    }
+
+    fn with_item(
+        &self,
+        index: usize,
+        value: Self,
+        path: &str,
+    ) -> Result<Self, CemtEvaluatorValueAccessError> {
+        let mut values = self.sequence_values("set")?;
+        let item =
+            values
+                .get_mut(index)
+                .ok_or_else(|| CemtEvaluatorValueAccessError::MissingPath {
+                    path: path.to_owned(),
+                })?;
+        *item = value;
+        Ok(Self::sequence(values))
+    }
+
+    fn sequence_values(
+        &self,
+        operation: &'static str,
+    ) -> Result<Vec<Self>, CemtEvaluatorValueAccessError> {
+        match self {
+            Self::Sequence(values) => Ok(values.iter().cloned().collect()),
+            Self::Borrowed(CemtEvaluatorValueRef::Sequence(sequence)) => {
+                Ok(sequence.iter().map(Self::Borrowed).collect())
+            }
+            _ => Err(CemtEvaluatorValueAccessError::UnsupportedOperation {
+                operation,
+                actual: self.kind(),
+            }),
+        }
+    }
+
+    fn record_field_names(
+        &self,
+        operation: &'static str,
+    ) -> Result<Vec<String>, CemtEvaluatorValueAccessError> {
+        match self {
+            Self::Record(record) => Ok(record.field_names()),
+            Self::Borrowed(CemtEvaluatorValueRef::Record(record)) => Ok(record
+                .field_names()
+                .iter()
+                .filter(|name| record.field(name).is_some())
+                .map(|name| (*name).to_owned())
+                .collect()),
+            _ => Err(CemtEvaluatorValueAccessError::UnsupportedOperation {
+                operation,
+                actual: self.kind(),
+            }),
+        }
+    }
+}
+
+impl<'a> CemtEvaluatorRecord<'a> {
+    pub fn native_base(&self) -> Option<&CemtEvaluatorRecordRef<'a>> {
+        self.native_base.as_ref()
+    }
+
+    pub fn field(&self, name: &str) -> Option<CemtEvaluatorValue<'a>> {
+        self.fields.get(name).cloned().or_else(|| {
+            self.native_base
+                .as_ref()?
+                .field(name)
+                .map(CemtEvaluatorValue::Borrowed)
+        })
+    }
+
+    pub fn field_names(&self) -> Vec<String> {
+        let mut names = self
+            .native_base
+            .as_ref()
+            .map(|base| {
+                base.field_names()
+                    .iter()
+                    .filter(|name| base.field(name).is_some())
+                    .map(|name| (*name).to_owned())
+                    .collect::<Vec<_>>()
+            })
+            .unwrap_or_default();
+        let added_names = self
+            .fields
+            .keys()
+            .filter(|name| !names.contains(name))
+            .cloned()
+            .collect::<Vec<_>>();
+        names.extend(added_names);
+        names
+    }
+
+    pub fn len(&self) -> usize {
+        self.field_names().len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
+}
+
+#[derive(Debug, Clone, Default)]
+pub struct CemtEvaluatorBindings<'a> {
+    values: BTreeMap<String, CemtEvaluatorValue<'a>>,
+}
+
+impl<'a> CemtEvaluatorBindings<'a> {
+    pub fn bind(
+        &mut self,
+        name: impl Into<String>,
+        value: CemtEvaluatorValue<'a>,
+    ) -> Option<CemtEvaluatorValue<'a>> {
+        self.values.insert(name.into(), value)
+    }
+
+    pub fn value(&self, name: &str) -> Option<&CemtEvaluatorValue<'a>> {
+        self.values.get(name)
+    }
+
+    pub fn resolve_path(&self, path: &str) -> Option<CemtEvaluatorValue<'a>> {
+        let mut segments = path.split('.');
+        let root = segments.next()?.trim();
+        if root.is_empty() {
+            return None;
+        }
+        let mut value = self.values.get(root)?.clone();
+        for segment in segments {
+            let segment = segment.trim();
+            if segment.is_empty() {
+                return None;
+            }
+            value = match value.kind() {
+                CemtEvaluatorValueKind::Record => value.field(segment)?,
+                CemtEvaluatorValueKind::Sequence => value.item(segment.parse().ok()?)?,
+                _ => return None,
+            };
+        }
+        Some(value)
+    }
+
+    pub fn exists(&self, path: &str) -> bool {
+        self.resolve_path(path).is_some()
+    }
+}
+
+impl<'a, K> FromIterator<(K, CemtEvaluatorValue<'a>)> for CemtEvaluatorBindings<'a>
+where
+    K: Into<String>,
+{
+    fn from_iter<T: IntoIterator<Item = (K, CemtEvaluatorValue<'a>)>>(iter: T) -> Self {
+        Self {
+            values: iter
+                .into_iter()
+                .map(|(name, value)| (name.into(), value))
+                .collect(),
+        }
     }
 }
 
@@ -1978,6 +2552,204 @@ mod tests {
     }
 
     #[test]
+    fn owned_cemt_evaluator_values_keep_native_records_borrowed() {
+        let source_map = SourceMapStack {
+            frames: vec![crate::source_map::SourceMapFrame {
+                source_id: crate::source::SourceId(14),
+                span: crate::source_map::FrameSpan::Single(crate::source::ByteRange::new(2, 3)),
+                transform: crate::source_map::TransformKind::CemAstBuilder,
+            }],
+        };
+        let owner = Arc::new(CemTreeAstStream::new(vec![CemTreeAstNode::Text {
+            value: "native".to_owned(),
+            source: source_map.clone(),
+        }]));
+        let artifact = CemtTreeArtifact::raw(owner.clone(), None);
+        let native = artifact
+            .evaluator_view()
+            .item(0)
+            .expect("native record view");
+        let borrowed = CemtEvaluatorValue::borrowed(native);
+
+        assert!(matches!(borrowed, CemtEvaluatorValue::Borrowed(_)));
+        assert!(matches!(
+            borrowed.native_record().and_then(CemtEvaluatorRecordRef::owner),
+            Some(CemtTreeOwnerRef::Node(node)) if std::ptr::eq(node, &owner.as_nodes()[0])
+        ));
+        assert_eq!(
+            borrowed
+                .resolve_path("sourceMap")
+                .and_then(|value| value.as_source_map().cloned()),
+            Some(source_map.clone())
+        );
+
+        let values = CemtEvaluatorValue::sequence([
+            CemtEvaluatorValue::Null,
+            CemtEvaluatorValue::boolean(true),
+            CemtEvaluatorValue::string("generated"),
+            CemtEvaluatorValue::record([("sourceMap", CemtEvaluatorValue::source_map(source_map))]),
+        ]);
+        assert_eq!(values.kind(), CemtEvaluatorValueKind::Sequence);
+        assert!(matches!(values.item(0), Some(CemtEvaluatorValue::Null)));
+        assert_eq!(values.item(1).and_then(|value| value.as_bool()), Some(true));
+        assert_eq!(
+            values
+                .item(2)
+                .and_then(|value| value.as_str().map(str::to_owned)),
+            Some("generated".to_owned())
+        );
+        assert_eq!(
+            values
+                .item(3)
+                .and_then(|value| value.field("sourceMap"))
+                .map(|value| value.kind()),
+            Some(CemtEvaluatorValueKind::SourceMap)
+        );
+        let integer = CemtEvaluatorValue::unsigned_integer(3);
+        assert_eq!(integer.kind(), CemtEvaluatorValueKind::Number);
+        assert_eq!(
+            integer.as_number().and_then(|value| value.as_u64()),
+            Some(3)
+        );
+        assert!(CemtEvaluatorValue::decimal(f64::NAN).is_none());
+    }
+
+    #[test]
+    fn typed_cemt_evaluator_bindings_preserve_missing_null_and_sequence_order() {
+        let bindings = CemtEvaluatorBindings::from_iter([
+            (
+                "input",
+                CemtEvaluatorValue::record([
+                    ("present", CemtEvaluatorValue::Null),
+                    (
+                        "items",
+                        CemtEvaluatorValue::sequence([
+                            CemtEvaluatorValue::string("first"),
+                            CemtEvaluatorValue::string("second"),
+                        ]),
+                    ),
+                ]),
+            ),
+            ("label", CemtEvaluatorValue::string("card")),
+        ]);
+
+        assert!(bindings.exists("input.present"));
+        assert!(!bindings.exists("input.missing"));
+        assert!(matches!(
+            bindings.resolve_path("input.present"),
+            Some(CemtEvaluatorValue::Null)
+        ));
+        assert_eq!(
+            bindings
+                .resolve_path("input.items.1")
+                .and_then(|value| value.as_str().map(str::to_owned)),
+            Some("second".to_owned())
+        );
+        assert_eq!(
+            bindings
+                .resolve_path("input.items")
+                .expect("items")
+                .length(),
+            Ok(2)
+        );
+        assert_eq!(
+            bindings.resolve_path("label").expect("label").length(),
+            Ok(4)
+        );
+        assert!(matches!(
+            bindings
+                .resolve_path("input")
+                .expect("input")
+                .get("missing"),
+            Ok(CemtEvaluatorValue::Null)
+        ));
+        assert_eq!(
+            bindings
+                .resolve_path("input.items")
+                .expect("items")
+                .get("0")
+                .ok()
+                .and_then(|value| value.as_str().map(str::to_owned)),
+            Some("first".to_owned())
+        );
+    }
+
+    #[test]
+    fn typed_cemt_evaluator_updates_layer_over_native_records() {
+        let owner = Arc::new(CemTreeAstStream::new(vec![CemTreeAstNode::Element {
+            name: "article".to_owned(),
+            attributes: Vec::new(),
+            children: vec![CemTreeAstNode::Text {
+                value: "before".to_owned(),
+                source: SourceMapStack::default(),
+            }],
+            source: SourceMapStack::default(),
+        }]));
+        let artifact = CemtTreeArtifact::raw(owner.clone(), None);
+        let native = CemtEvaluatorValue::borrowed(
+            artifact
+                .evaluator_view()
+                .item(0)
+                .expect("native root record"),
+        );
+
+        let updated = native
+            .set_path("name", CemtEvaluatorValue::string("card"))
+            .expect("set root field")
+            .set_path("children.0.value", CemtEvaluatorValue::string("after"))
+            .expect("set nested field");
+
+        assert_eq!(
+            native
+                .resolve_path("name")
+                .and_then(|value| value.as_str().map(str::to_owned)),
+            Some("article".to_owned())
+        );
+        assert_eq!(
+            updated
+                .resolve_path("name")
+                .and_then(|value| value.as_str().map(str::to_owned)),
+            Some("card".to_owned())
+        );
+        assert_eq!(
+            updated
+                .resolve_path("children.0.value")
+                .and_then(|value| value.as_str().map(str::to_owned)),
+            Some("after".to_owned())
+        );
+        assert!(matches!(
+            updated
+                .owned_record()
+                .and_then(CemtEvaluatorRecord::native_base)
+                .and_then(CemtEvaluatorRecordRef::owner),
+            Some(CemtTreeOwnerRef::Node(node)) if std::ptr::eq(node, &owner.as_nodes()[0])
+        ));
+        let updated_child = updated
+            .resolve_path("children.0")
+            .expect("updated child record");
+        assert!(matches!(
+            updated_child
+                .owned_record()
+                .and_then(CemtEvaluatorRecord::native_base)
+                .and_then(CemtEvaluatorRecordRef::owner),
+            Some(CemtTreeOwnerRef::Node(node)) if std::ptr::eq(node, &owner.as_nodes()[0].children()[0])
+        ));
+
+        let appended = updated
+            .resolve_path("children")
+            .expect("children")
+            .append(CemtEvaluatorValue::string("generated"))
+            .expect("append generated child");
+        assert_eq!(appended.length(), Ok(2));
+        assert_eq!(
+            appended
+                .item(1)
+                .and_then(|value| value.as_str().map(str::to_owned)),
+            Some("generated".to_owned())
+        );
+    }
+
+    #[test]
     fn formatted_cemt_evaluator_view_lazily_merges_owner_and_overlay_records() {
         let operation_source = SourceMapStack {
             frames: vec![crate::source_map::SourceMapFrame {
@@ -2271,7 +3043,6 @@ mod tests {
             .0;
 
         assert!(!view_contract.contains("serde_json"));
-        assert!(!view_contract.contains("Value::"));
         assert!(!view_contract.contains("Json"));
     }
 
