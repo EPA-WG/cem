@@ -1000,6 +1000,10 @@ Remaining dependency-ordered package checklist:
                     `extend`, and `merge`, edit constructors, and tree-patch
                     evaluation onto typed overlays with owner/source-map and
                     compatibility-oracle parity.
+              - [x] Move typed function descriptors, adapter-lowered defaults,
+                    `call`, `map`, `fold`, and `match` evaluation onto a typed
+                    evaluator context with lexical-scope, owner/source-map,
+                    contract-diagnostic, and compatibility-oracle parity.
           - [ ] Give non-CEM CEMT tree producers package-owned typed result
                 artifacts, then remove `CemtEvaluator(Value)` globally.
       - [x] Define typed raw, formatted, and colored CEM tree envelopes with
@@ -1061,33 +1065,33 @@ Remaining dependency-ordered package checklist:
 
 ### Next Work Item
 
-Move CEMT function invocation and scoped control evaluation onto
-`CemtEvaluatorValue`: `call`, `map`, `fold`, and `match`. Introduce a typed
-function descriptor and evaluator context containing the function registry,
-lexical bindings, and call depth. Lower parameter defaults into typed values at
-the adapter edge so neither the registry nor function calls carry
-`serde_json::Value` into the typed runtime.
+Close the pure CEMT value-helper dependency set on `CemtEvaluatorValue`. Move
+`last` and `typeOf`; numeric `add`, `sub`, `mul`, `div`, `min`, `max`, and `mod`;
+numeric/string `lt`, `lte`, `gt`, and `gte`; string `concat`, `contains`,
+`replace`, `trim`, `substring`, `indexOf`, `startsWith`, `endsWith`, and
+`repeat`; display `displayWidth`, `displayPrefix`, and `displaySuffix`; and
+`toInteger`, `toString`, `isAsciiInteger`, and `isAsciiDecimal` into the typed
+dispatcher.
 
-Start with red tests that compare independently evaluated typed and
-compatibility results. Cover direct and nested calls, bare and quoted function
-names, required/default/nullable parameters, unknown arguments, return
-contracts, removed built-in diagnostics, and the recursion limit. Verify that
-`match` selects only the chosen branch and preserves `default`/`_` behavior for
-null, boolean, number, and string keys.
+Start with table-driven red tests that evaluate typed and compatibility paths
+independently. Cover signed integers, unsigned values above `i64::MAX`, decimal
+promotion, mixed numeric inputs, strings, null, sequences, records, unresolved
+arguments, wrong arity, and wrong operand types. Assert exact overflow,
+non-finite, zero-divisor, comparison, conversion, range, and repeat-limit
+diagnostics as well as null/empty behavior for `last` and stable `typeOf` names.
 
-For `map` and `fold`, create child binding scopes for `$item`, `$index`, `$acc`,
-and `$accumulator` without leaking or overwriting parent bindings. Iterate
-borrowed raw and formatted sequences as owner-backed views; empty and nested
-iterations must preserve stable owner identity and existing source maps while
-new result containers remain typed overlays. Assert exact unresolved-value,
-collection-type, argument, return-type, and recursion diagnostics.
+For text and display helpers, cover UTF-8 byte boundaries, Unicode scalar and
+display-cell behavior, combining marks, wide glyphs, empty strings, negative or
+out-of-range indexes, and prefix/suffix truncation. Reuse typed numeric and
+string extraction helpers so each operation returns native evaluator scalars
+without a serialization round trip or compatibility fallback.
 
-Keep compatibility JSON and its dispatcher outside the typed module and extend
-the source audit over imports, descriptors, and evaluator context. Production
-formatter/colorizer dispatch remains on the compatibility evaluator after this
-slice. The following slice closes scalar, stack/queue, source-map, diagnostic,
-and metadata-accumulator dependencies used by schema-package CEMT bodies;
-production then switches once with no mixed value-model fallback.
+Keep every `serde_json::Value` reference and compatibility resolver outside the
+typed module, extend the source audit for the new dispatch/helpers, and rerun
+focused parity plus full native, WASM, CEMT fixture, converter-parity, and CLI
+e2e gates. Production formatter/colorizer dispatch remains on compatibility
+until the separate stateful stack/queue, source-map, diagnostic, and metadata
+accumulator slice closes the remaining schema-package dependencies.
 
 ## Current Verification Commands
 
