@@ -14705,9 +14705,12 @@ fn cemt_runtime_function_from_descriptor(
 #[allow(dead_code)]
 mod cemt_typed_runtime {
     use super::{
-        cemt_expression_call_name, parse_cemt_function_call_args, parse_cemt_quoted_string,
+        cemt_expression_call_name, matching_closing_delimiter, parse_cemt_function_call_args,
+        parse_cemt_literal, parse_cemt_object_literal, parse_cemt_quoted_string, split_top_level,
+        transform_template_source_map_with_transform, CemtExpressionLiteral,
         TransformTemplateModuleParamType,
     };
+    use crate::source_map::{SourceMapStack, TransformKind};
     use crate::transform_artifact::{
         CemtEvaluatorBindings, CemtEvaluatorValue, CemtEvaluatorValueKind,
     };
@@ -14866,6 +14869,12 @@ mod cemt_typed_runtime {
         if let Some(function_name) = cemt_expression_call_name(expression) {
             return resolve_cemt_typed_function(function_name, expression, bindings);
         }
+        if expression.starts_with('{') {
+            return resolve_cemt_typed_object(expression, bindings);
+        }
+        if expression.starts_with('[') {
+            return resolve_cemt_typed_sequence(expression, bindings);
+        }
         if expression.starts_with('"') || expression.starts_with('\'') {
             return parse_cemt_quoted_string(expression)
                 .map(CemtEvaluatorValue::string)
@@ -14893,8 +14902,118 @@ mod cemt_typed_runtime {
             "exists" => resolve_cemt_typed_exists(expression, bindings),
             "length" => resolve_cemt_typed_length(expression, bindings),
             "get" => resolve_cemt_typed_get(expression, bindings),
+            "append" => resolve_cemt_typed_append(expression, bindings),
+            "extend" => resolve_cemt_typed_extend(expression, bindings),
+            "merge" => resolve_cemt_typed_merge(expression, bindings),
+            "set" => resolve_cemt_typed_set(expression, bindings),
+            "replaceNode" | "appendNode" | "prependNode" | "wrapNode" => {
+                resolve_cemt_typed_tree_patch(expression, bindings)
+            }
+            "applyEdits" => resolve_cemt_typed_apply_edits(expression, bindings),
+            "setEdit" | "replaceEdit" | "appendEdit" | "prependEdit" | "wrapEdit" => {
+                resolve_cemt_typed_edit_constructor(expression, bindings)
+            }
             _ => Ok(None),
         }
+    }
+
+    fn resolve_cemt_typed_object<'a>(
+        expression: &str,
+        bindings: &CemtEvaluatorBindings<'a>,
+    ) -> Result<Option<CemtEvaluatorValue<'a>>, String> {
+        let fields = match parse_cemt_object_literal(expression) {
+            Ok(fields) => fields,
+            Err(_) => return Ok(None),
+        };
+        let mut resolved = Vec::with_capacity(fields.len());
+        for (name, literal) in fields {
+            let Some(value) = resolve_cemt_typed_literal(&literal, bindings)? else {
+                return Ok(None);
+            };
+            resolved.push((name, value));
+        }
+        Ok(Some(CemtEvaluatorValue::record(resolved)))
+    }
+
+    fn resolve_cemt_typed_sequence<'a>(
+        expression: &str,
+        bindings: &CemtEvaluatorBindings<'a>,
+    ) -> Result<Option<CemtEvaluatorValue<'a>>, String> {
+        let expression = expression.trim();
+        if !expression.starts_with('[') {
+            return Ok(None);
+        }
+        let end = matching_closing_delimiter(expression, 0, '[', ']')
+            .map_err(|error| error.to_string())?;
+        if !expression[end + 1..].trim().is_empty() {
+            return Ok(None);
+        }
+        let body = expression[1..end].trim();
+        if body.is_empty() {
+            return Ok(Some(CemtEvaluatorValue::sequence([])));
+        }
+        let mut values = Vec::new();
+        for item in split_top_level(body, ',').map_err(|error| error.to_string())? {
+            let literal = parse_cemt_literal(&item).map_err(|error| error.to_string())?;
+            let Some(value) = resolve_cemt_typed_literal(&literal, bindings)? else {
+                return Ok(None);
+            };
+            values.push(value);
+        }
+        Ok(Some(CemtEvaluatorValue::sequence(values)))
+    }
+
+    fn resolve_cemt_typed_literal<'a>(
+        literal: &CemtExpressionLiteral,
+        bindings: &CemtEvaluatorBindings<'a>,
+    ) -> Result<Option<CemtEvaluatorValue<'a>>, String> {
+        match literal {
+            CemtExpressionLiteral::String(value) => {
+                Ok(Some(CemtEvaluatorValue::string(value.as_str())))
+            }
+            CemtExpressionLiteral::Bool(value) => Ok(Some(CemtEvaluatorValue::boolean(*value))),
+            CemtExpressionLiteral::Number(value) => Ok(cemt_parse_typed_number(value)),
+            CemtExpressionLiteral::Null => Ok(Some(CemtEvaluatorValue::Null)),
+            CemtExpressionLiteral::Bare(value) => {
+                let value = value.trim();
+                if cemt_typed_runtime_expression_is_dynamic(value) {
+                    resolve_cemt_typed_expression(value, bindings)
+                } else if value.is_empty() {
+                    Ok(None)
+                } else {
+                    Ok(Some(CemtEvaluatorValue::string(value)))
+                }
+            }
+        }
+    }
+
+    fn cemt_typed_runtime_expression_is_dynamic(value: &str) -> bool {
+        let value = value.trim_start();
+        value.starts_with('$')
+            || value.starts_with('{')
+            || value.starts_with('[')
+            || matches!(
+                cemt_expression_call_name(value),
+                Some(
+                    "exists"
+                        | "length"
+                        | "get"
+                        | "append"
+                        | "extend"
+                        | "merge"
+                        | "set"
+                        | "replaceNode"
+                        | "appendNode"
+                        | "prependNode"
+                        | "wrapNode"
+                        | "applyEdits"
+                        | "setEdit"
+                        | "replaceEdit"
+                        | "appendEdit"
+                        | "prependEdit"
+                        | "wrapEdit"
+                )
+            )
     }
 
     fn resolve_cemt_typed_exists<'a>(
@@ -14975,6 +15094,1086 @@ mod cemt_typed_runtime {
             .get_value(&key)
             .map(Some)
             .map_err(|error| error.to_string())
+    }
+
+    fn resolve_cemt_typed_append<'a>(
+        expression: &str,
+        bindings: &CemtEvaluatorBindings<'a>,
+    ) -> Result<Option<CemtEvaluatorValue<'a>>, String> {
+        let Some(args) = parse_cemt_function_call_args(expression, "append")
+            .map_err(|error| error.to_string())?
+        else {
+            return Ok(None);
+        };
+        if args.len() != 2 {
+            return Ok(None);
+        }
+        let Some(accumulator) = resolve_cemt_typed_expression(&args[0], bindings)? else {
+            return Ok(None);
+        };
+        if accumulator.kind() != CemtEvaluatorValueKind::Sequence {
+            return Err(format!(
+                "CEMT append expected array accumulator, got {}",
+                cemt_typed_runtime_type_name(&accumulator)
+            ));
+        }
+        let Some(value) = resolve_cemt_typed_expression(&args[1], bindings)? else {
+            return Ok(None);
+        };
+        accumulator
+            .append(value)
+            .map(Some)
+            .map_err(|error| error.to_string())
+    }
+
+    fn resolve_cemt_typed_extend<'a>(
+        expression: &str,
+        bindings: &CemtEvaluatorBindings<'a>,
+    ) -> Result<Option<CemtEvaluatorValue<'a>>, String> {
+        let Some(args) = parse_cemt_function_call_args(expression, "extend")
+            .map_err(|error| error.to_string())?
+        else {
+            return Ok(None);
+        };
+        if args.len() != 2 {
+            return Ok(None);
+        }
+        let Some(accumulator) = resolve_cemt_typed_expression(&args[0], bindings)? else {
+            return Ok(None);
+        };
+        if accumulator.kind() != CemtEvaluatorValueKind::Sequence {
+            return Err(format!(
+                "CEMT extend expected array accumulator, got {}",
+                cemt_typed_runtime_type_name(&accumulator)
+            ));
+        }
+        let Some(values) = resolve_cemt_typed_expression(&args[1], bindings)? else {
+            return Ok(None);
+        };
+        if values.kind() != CemtEvaluatorValueKind::Sequence {
+            return Err(format!(
+                "CEMT extend expected array values, got {}",
+                cemt_typed_runtime_type_name(&values)
+            ));
+        }
+        accumulator
+            .extend(&values)
+            .map(Some)
+            .map_err(|error| error.to_string())
+    }
+
+    fn resolve_cemt_typed_merge<'a>(
+        expression: &str,
+        bindings: &CemtEvaluatorBindings<'a>,
+    ) -> Result<Option<CemtEvaluatorValue<'a>>, String> {
+        let Some(args) = parse_cemt_function_call_args(expression, "merge")
+            .map_err(|error| error.to_string())?
+        else {
+            return Ok(None);
+        };
+        if args.len() != 2 {
+            return Ok(None);
+        }
+        let Some(target) = resolve_cemt_typed_expression(&args[0], bindings)? else {
+            return Ok(None);
+        };
+        if target.kind() != CemtEvaluatorValueKind::Record {
+            return Err(format!(
+                "CEMT merge expected object target, got {}",
+                cemt_typed_runtime_type_name(&target)
+            ));
+        }
+        let Some(patch) = resolve_cemt_typed_expression(&args[1], bindings)? else {
+            return Ok(None);
+        };
+        if patch.kind() != CemtEvaluatorValueKind::Record {
+            return Err(format!(
+                "CEMT merge expected object patch, got {}",
+                cemt_typed_runtime_type_name(&patch)
+            ));
+        }
+        target
+            .merge(&patch)
+            .map(Some)
+            .map_err(|error| error.to_string())
+    }
+
+    fn resolve_cemt_typed_set<'a>(
+        expression: &str,
+        bindings: &CemtEvaluatorBindings<'a>,
+    ) -> Result<Option<CemtEvaluatorValue<'a>>, String> {
+        let Some(args) =
+            parse_cemt_function_call_args(expression, "set").map_err(|error| error.to_string())?
+        else {
+            return Ok(None);
+        };
+        if args.len() != 3 {
+            return Ok(None);
+        }
+        let Some(target) = resolve_cemt_typed_expression(&args[0], bindings)? else {
+            return Ok(None);
+        };
+        let Some(path) = resolve_cemt_typed_patch_path_argument(&args[1], "set", bindings)? else {
+            return Ok(None);
+        };
+        let Some(value) = resolve_cemt_typed_expression(&args[2], bindings)? else {
+            return Ok(None);
+        };
+        cemt_typed_set_value_path(target, &path, value, "set").map(Some)
+    }
+
+    fn resolve_cemt_typed_patch_path_argument<'a>(
+        expression: &str,
+        owner: &str,
+        bindings: &CemtEvaluatorBindings<'a>,
+    ) -> Result<Option<String>, String> {
+        let literal = parse_cemt_literal(expression).map_err(|error| error.to_string())?;
+        let Some(value) = resolve_cemt_typed_literal(&literal, bindings)? else {
+            return Ok(None);
+        };
+        let Some(path) = value
+            .as_str()
+            .map(str::trim)
+            .filter(|path| !path.is_empty())
+        else {
+            return Err(format!(
+                "CEMT {owner} expected string path, got {}",
+                cemt_typed_runtime_type_name(&value)
+            ));
+        };
+        Ok(Some(path.to_owned()))
+    }
+
+    fn cemt_typed_set_value_path<'a>(
+        target: CemtEvaluatorValue<'a>,
+        path: &str,
+        value: CemtEvaluatorValue<'a>,
+        owner: &str,
+    ) -> Result<CemtEvaluatorValue<'a>, String> {
+        let segments = path
+            .split('.')
+            .map(str::trim)
+            .filter(|segment| !segment.is_empty())
+            .collect::<Vec<_>>();
+        if segments.is_empty() {
+            return Err(format!(
+                "CEMT {owner} path must contain at least one segment"
+            ));
+        }
+        cemt_typed_set_value_path_segments(target, &segments, path, value, owner)
+    }
+
+    fn cemt_typed_set_value_path_segments<'a>(
+        target: CemtEvaluatorValue<'a>,
+        segments: &[&str],
+        original_path: &str,
+        value: CemtEvaluatorValue<'a>,
+        owner: &str,
+    ) -> Result<CemtEvaluatorValue<'a>, String> {
+        let (segment, rest) = segments
+            .split_first()
+            .expect("set path segments are checked before recursion");
+        match target.kind() {
+            CemtEvaluatorValueKind::Record => {
+                if rest.is_empty() {
+                    return target
+                        .with_field(*segment, value)
+                        .map_err(|error| error.to_string());
+                }
+                let child = target
+                    .field(segment)
+                    .unwrap_or_else(|| CemtEvaluatorValue::record(Vec::<(String, _)>::new()));
+                if !matches!(
+                    child.kind(),
+                    CemtEvaluatorValueKind::Record | CemtEvaluatorValueKind::Sequence
+                ) {
+                    return Err(format!(
+                        "CEMT {owner} path `{original_path}` crosses non-container field `{segment}`"
+                    ));
+                }
+                let child =
+                    cemt_typed_set_value_path_segments(child, rest, original_path, value, owner)?;
+                target
+                    .with_field(*segment, child)
+                    .map_err(|error| error.to_string())
+            }
+            CemtEvaluatorValueKind::Sequence => {
+                let index = segment.parse::<usize>().map_err(|_| {
+                    format!(
+                        "CEMT {owner} path `{original_path}` expected array index, got `{segment}`"
+                    )
+                })?;
+                let Some(child) = target.item(index) else {
+                    return Err(format!(
+                        "CEMT {owner} path `{original_path}` index `{index}` is out of bounds"
+                    ));
+                };
+                let child = if rest.is_empty() {
+                    value
+                } else {
+                    cemt_typed_set_value_path_segments(child, rest, original_path, value, owner)?
+                };
+                target
+                    .with_item(index, child, original_path)
+                    .map_err(|error| error.to_string())
+            }
+            _ => Err(format!(
+                "CEMT {owner} expected object or array target, got {}",
+                cemt_typed_runtime_type_name(&target)
+            )),
+        }
+    }
+
+    #[derive(Debug, Clone, Copy)]
+    enum CemtTypedTreePatchOperation {
+        Set,
+        Replace,
+        Append,
+        Prepend,
+        Wrap,
+    }
+
+    impl CemtTypedTreePatchOperation {
+        fn from_expression(expression: &str) -> Result<Option<(Self, Vec<String>)>, String> {
+            for (name, operation) in [
+                ("replaceNode", Self::Replace),
+                ("appendNode", Self::Append),
+                ("prependNode", Self::Prepend),
+                ("wrapNode", Self::Wrap),
+            ] {
+                if let Some(args) = parse_cemt_function_call_args(expression, name)
+                    .map_err(|error| error.to_string())?
+                {
+                    return Ok(Some((operation, args)));
+                }
+            }
+            Ok(None)
+        }
+
+        fn function_name(self) -> &'static str {
+            match self {
+                Self::Set => "set",
+                Self::Replace => "replaceNode",
+                Self::Append => "appendNode",
+                Self::Prepend => "prependNode",
+                Self::Wrap => "wrapNode",
+            }
+        }
+    }
+
+    fn resolve_cemt_typed_tree_patch<'a>(
+        expression: &str,
+        bindings: &CemtEvaluatorBindings<'a>,
+    ) -> Result<Option<CemtEvaluatorValue<'a>>, String> {
+        let Some((operation, args)) = CemtTypedTreePatchOperation::from_expression(expression)?
+        else {
+            return Ok(None);
+        };
+        if args.len() != 3 {
+            return Ok(None);
+        }
+        let owner = operation.function_name();
+        let Some(target) = resolve_cemt_typed_expression(&args[0], bindings)? else {
+            return Ok(None);
+        };
+        let Some(path) = resolve_cemt_typed_patch_path_argument(&args[1], owner, bindings)? else {
+            return Ok(None);
+        };
+        let Some(value) = resolve_cemt_typed_expression(&args[2], bindings)? else {
+            return Ok(None);
+        };
+        apply_cemt_typed_tree_patch_operation(target, operation, &path, value, owner).map(Some)
+    }
+
+    fn resolve_cemt_typed_apply_edits<'a>(
+        expression: &str,
+        bindings: &CemtEvaluatorBindings<'a>,
+    ) -> Result<Option<CemtEvaluatorValue<'a>>, String> {
+        let Some(args) = parse_cemt_function_call_args(expression, "applyEdits")
+            .map_err(|error| error.to_string())?
+        else {
+            return Ok(None);
+        };
+        if args.len() != 2 {
+            return Ok(None);
+        }
+        let Some(mut target) = resolve_cemt_typed_expression(&args[0], bindings)? else {
+            return Ok(None);
+        };
+        let Some(edits) = resolve_cemt_typed_expression(&args[1], bindings)? else {
+            return Ok(None);
+        };
+        if edits.kind() != CemtEvaluatorValueKind::Sequence {
+            return Err(format!(
+                "CEMT applyEdits expected array queue, got {}",
+                cemt_typed_runtime_type_name(&edits)
+            ));
+        }
+        for (index, edit) in edits
+            .sequence_values("applyEdits")
+            .map_err(|error| error.to_string())?
+            .into_iter()
+            .enumerate()
+        {
+            let edit = parse_cemt_typed_tree_patch_edit(index, edit)?;
+            target = apply_cemt_typed_tree_patch_operation(
+                target,
+                edit.operation,
+                &edit.path,
+                edit.value,
+                "applyEdits",
+            )?;
+        }
+        Ok(Some(target))
+    }
+
+    #[derive(Debug, Clone, Copy)]
+    enum CemtTypedTreePatchEditConstructor {
+        Set,
+        Replace,
+        Append,
+        Prepend,
+        Wrap,
+    }
+
+    impl CemtTypedTreePatchEditConstructor {
+        fn from_expression(expression: &str) -> Result<Option<(Self, Vec<String>)>, String> {
+            for (name, constructor) in [
+                ("setEdit", Self::Set),
+                ("replaceEdit", Self::Replace),
+                ("appendEdit", Self::Append),
+                ("prependEdit", Self::Prepend),
+                ("wrapEdit", Self::Wrap),
+            ] {
+                if let Some(args) = parse_cemt_function_call_args(expression, name)
+                    .map_err(|error| error.to_string())?
+                {
+                    return Ok(Some((constructor, args)));
+                }
+            }
+            Ok(None)
+        }
+
+        fn function_name(self) -> &'static str {
+            match self {
+                Self::Set => "setEdit",
+                Self::Replace => "replaceEdit",
+                Self::Append => "appendEdit",
+                Self::Prepend => "prependEdit",
+                Self::Wrap => "wrapEdit",
+            }
+        }
+
+        fn kind_name(self) -> &'static str {
+            match self {
+                Self::Set => "set",
+                Self::Replace => "replace",
+                Self::Append => "append",
+                Self::Prepend => "prepend",
+                Self::Wrap => "wrap",
+            }
+        }
+
+        fn value_field(self) -> &'static str {
+            match self {
+                Self::Set => "value",
+                Self::Replace | Self::Append | Self::Prepend => "node",
+                Self::Wrap => "wrapper",
+            }
+        }
+
+        fn operation(self) -> CemtTypedTreePatchOperation {
+            match self {
+                Self::Set => CemtTypedTreePatchOperation::Set,
+                Self::Replace => CemtTypedTreePatchOperation::Replace,
+                Self::Append => CemtTypedTreePatchOperation::Append,
+                Self::Prepend => CemtTypedTreePatchOperation::Prepend,
+                Self::Wrap => CemtTypedTreePatchOperation::Wrap,
+            }
+        }
+    }
+
+    fn resolve_cemt_typed_edit_constructor<'a>(
+        expression: &str,
+        bindings: &CemtEvaluatorBindings<'a>,
+    ) -> Result<Option<CemtEvaluatorValue<'a>>, String> {
+        let Some((constructor, args)) =
+            CemtTypedTreePatchEditConstructor::from_expression(expression)?
+        else {
+            return Ok(None);
+        };
+        if args.len() != 2 {
+            return Ok(None);
+        }
+        let Some(path) = resolve_cemt_typed_patch_path_argument(
+            &args[0],
+            constructor.function_name(),
+            bindings,
+        )?
+        else {
+            return Ok(None);
+        };
+        cemt_typed_patch_path_segments(&path, constructor.function_name())?;
+        let Some(value) = resolve_cemt_typed_expression(&args[1], bindings)? else {
+            return Ok(None);
+        };
+        validate_cemt_typed_edit_constructor_value(constructor, &value)?;
+        Ok(Some(CemtEvaluatorValue::record([
+            ("kind", CemtEvaluatorValue::string(constructor.kind_name())),
+            ("path", CemtEvaluatorValue::string(path)),
+            (constructor.value_field(), value),
+        ])))
+    }
+
+    fn validate_cemt_typed_edit_constructor_value(
+        constructor: CemtTypedTreePatchEditConstructor,
+        value: &CemtEvaluatorValue<'_>,
+    ) -> Result<(), String> {
+        match constructor.operation() {
+            CemtTypedTreePatchOperation::Append | CemtTypedTreePatchOperation::Prepend => {
+                if value.kind() == CemtEvaluatorValueKind::Null {
+                    return Err(format!(
+                        "CEMT {} node value must not be null",
+                        constructor.function_name()
+                    ));
+                }
+            }
+            CemtTypedTreePatchOperation::Wrap => {
+                if value.kind() != CemtEvaluatorValueKind::Record {
+                    return Err(format!(
+                        "CEMT {} expected object wrapper, got {}",
+                        constructor.function_name(),
+                        cemt_typed_runtime_type_name(value)
+                    ));
+                }
+            }
+            CemtTypedTreePatchOperation::Set | CemtTypedTreePatchOperation::Replace => {}
+        }
+        Ok(())
+    }
+
+    struct CemtTypedTreePatchEdit<'a> {
+        operation: CemtTypedTreePatchOperation,
+        path: String,
+        value: CemtEvaluatorValue<'a>,
+    }
+
+    fn parse_cemt_typed_tree_patch_edit<'a>(
+        index: usize,
+        value: CemtEvaluatorValue<'a>,
+    ) -> Result<CemtTypedTreePatchEdit<'a>, String> {
+        if value.kind() != CemtEvaluatorValueKind::Record {
+            return Err(format!(
+                "CEMT applyEdits expected edit object at index {index}, got {}",
+                cemt_typed_runtime_type_name(&value)
+            ));
+        }
+        let kind = required_cemt_typed_tree_patch_edit_string(&value, index, &["kind", "op"])?;
+        let normalized_kind = kind.trim().replace('_', "-").to_ascii_lowercase();
+        let operation = match normalized_kind.as_str() {
+            "set" => CemtTypedTreePatchOperation::Set,
+            "replace" | "replace-node" => CemtTypedTreePatchOperation::Replace,
+            "append" | "append-node" => CemtTypedTreePatchOperation::Append,
+            "prepend" | "prepend-node" => CemtTypedTreePatchOperation::Prepend,
+            "wrap" | "wrap-node" => CemtTypedTreePatchOperation::Wrap,
+            _ => {
+                return Err(format!(
+                    "CEMT applyEdits edit {index} has unsupported kind `{kind}`"
+                ));
+            }
+        };
+        let path = required_cemt_typed_tree_patch_edit_string(&value, index, &["path"])?;
+        cemt_typed_patch_path_segments(&path, &format!("applyEdits edit {index}"))?;
+        let value = required_cemt_typed_tree_patch_edit_value(
+            &value,
+            index,
+            match operation {
+                CemtTypedTreePatchOperation::Wrap => &["wrapper", "value", "node"],
+                _ => &["value", "node", "replacement"],
+            },
+        )?;
+        validate_cemt_typed_tree_patch_edit_value(index, operation, &value)?;
+        Ok(CemtTypedTreePatchEdit {
+            operation,
+            path,
+            value,
+        })
+    }
+
+    fn required_cemt_typed_tree_patch_edit_string(
+        object: &CemtEvaluatorValue<'_>,
+        index: usize,
+        keys: &[&str],
+    ) -> Result<String, String> {
+        let Some((key, value)) = keys
+            .iter()
+            .find_map(|key| object.field(key).map(|value| (*key, value)))
+        else {
+            return Err(format!(
+                "CEMT applyEdits edit {index} is missing `{}`",
+                keys[0]
+            ));
+        };
+        let Some(value) = value
+            .as_str()
+            .map(str::trim)
+            .filter(|value| !value.is_empty())
+        else {
+            return Err(format!(
+                "CEMT applyEdits edit {index} expected `{key}` string, got {}",
+                cemt_typed_runtime_type_name(&value)
+            ));
+        };
+        Ok(value.to_owned())
+    }
+
+    fn required_cemt_typed_tree_patch_edit_value<'a>(
+        object: &CemtEvaluatorValue<'a>,
+        index: usize,
+        keys: &[&str],
+    ) -> Result<CemtEvaluatorValue<'a>, String> {
+        let mut found = keys
+            .iter()
+            .filter_map(|key| object.field(key).map(|value| (*key, value)));
+        let Some((key, value)) = found.next() else {
+            return Err(format!(
+                "CEMT applyEdits edit {index} is missing `{}`",
+                keys[0]
+            ));
+        };
+        if let Some((other_key, _)) = found.next() {
+            return Err(format!(
+                "CEMT applyEdits edit {index} has ambiguous value fields `{key}` and `{other_key}`"
+            ));
+        }
+        Ok(value)
+    }
+
+    fn validate_cemt_typed_tree_patch_edit_value(
+        index: usize,
+        operation: CemtTypedTreePatchOperation,
+        value: &CemtEvaluatorValue<'_>,
+    ) -> Result<(), String> {
+        match operation {
+            CemtTypedTreePatchOperation::Wrap => {
+                if value.kind() != CemtEvaluatorValueKind::Record {
+                    return Err(format!(
+                        "CEMT applyEdits edit {index} wrap expected object wrapper, got {}",
+                        cemt_typed_runtime_type_name(value)
+                    ));
+                }
+            }
+            CemtTypedTreePatchOperation::Append | CemtTypedTreePatchOperation::Prepend => {
+                if value.kind() == CemtEvaluatorValueKind::Null {
+                    return Err(format!(
+                        "CEMT applyEdits edit {index} node value must not be null"
+                    ));
+                }
+            }
+            CemtTypedTreePatchOperation::Replace | CemtTypedTreePatchOperation::Set => {}
+        }
+        Ok(())
+    }
+
+    fn apply_cemt_typed_tree_patch_operation<'a>(
+        target: CemtEvaluatorValue<'a>,
+        operation: CemtTypedTreePatchOperation,
+        path: &str,
+        value: CemtEvaluatorValue<'a>,
+        owner: &str,
+    ) -> Result<CemtEvaluatorValue<'a>, String> {
+        match operation {
+            CemtTypedTreePatchOperation::Set => {
+                let value = apply_cemt_typed_patch_value_source_map_default(value, &target, owner)?;
+                cemt_typed_set_value_path(target, path, value, owner)
+            }
+            CemtTypedTreePatchOperation::Replace => {
+                let value = apply_cemt_typed_patch_value_source_map_default(value, &target, owner)?;
+                cemt_typed_replace_value_path(target, path, value, owner)
+            }
+            CemtTypedTreePatchOperation::Append => {
+                let value = apply_cemt_typed_patch_value_source_map_default(value, &target, owner)?;
+                cemt_typed_insert_sequence_value_path(
+                    target,
+                    path,
+                    value,
+                    CemtTypedSequenceInsertPosition::Back,
+                    owner,
+                )
+            }
+            CemtTypedTreePatchOperation::Prepend => {
+                let value = apply_cemt_typed_patch_value_source_map_default(value, &target, owner)?;
+                cemt_typed_insert_sequence_value_path(
+                    target,
+                    path,
+                    value,
+                    CemtTypedSequenceInsertPosition::Front,
+                    owner,
+                )
+            }
+            CemtTypedTreePatchOperation::Wrap => {
+                cemt_typed_wrap_value_path(target, path, value, owner)
+            }
+        }
+    }
+
+    fn apply_cemt_typed_patch_value_source_map_default<'a>(
+        value: CemtEvaluatorValue<'a>,
+        target: &CemtEvaluatorValue<'a>,
+        owner: &str,
+    ) -> Result<CemtEvaluatorValue<'a>, String> {
+        if value.kind() != CemtEvaluatorValueKind::Record || value.field("sourceMap").is_some() {
+            return Ok(value);
+        }
+        let source_map =
+            cemt_typed_first_source_map(target).or_else(|| cemt_typed_first_source_map(&value));
+        let Some(source_map) = source_map else {
+            return Ok(value);
+        };
+        let function = cemt_typed_tree_patch_source_map_function_name(&value, owner);
+        value
+            .with_field(
+                "sourceMap",
+                CemtEvaluatorValue::source_map(transform_template_source_map_with_transform(
+                    &source_map,
+                    TransformKind::TemplateTransform { function },
+                )),
+            )
+            .map_err(|error| error.to_string())
+    }
+
+    fn cemt_typed_first_source_map(value: &CemtEvaluatorValue<'_>) -> Option<SourceMapStack> {
+        match value.kind() {
+            CemtEvaluatorValueKind::SourceMap => value.as_source_map().cloned(),
+            CemtEvaluatorValueKind::Record => {
+                if let Some(source_map) = value
+                    .field("sourceMap")
+                    .and_then(|source_map| source_map.as_source_map().cloned())
+                {
+                    return Some(source_map);
+                }
+                if let Some(source_map) = value
+                    .resolve_path("outputSpan.origin")
+                    .and_then(|source_map| source_map.as_source_map().cloned())
+                {
+                    return Some(source_map);
+                }
+                for field in [
+                    "nodes",
+                    "node",
+                    "root",
+                    "attributes",
+                    "children",
+                    "slots",
+                    "formatNodes",
+                    "colorNodes",
+                    "formatLayout",
+                    "formatBefore",
+                    "formatBeforeAttribute",
+                    "formatBeforeAttributes",
+                    "formatBetweenAttributes",
+                    "formatContentBoundary",
+                    "formatBeforeClose",
+                    "writerAttributeNodes",
+                    "colorWrapperNodes",
+                ] {
+                    if let Some(source_map) = value
+                        .field(field)
+                        .and_then(|child| cemt_typed_first_source_map(&child))
+                    {
+                        return Some(source_map);
+                    }
+                }
+                None
+            }
+            CemtEvaluatorValueKind::Sequence => {
+                let length = value.length().ok()?;
+                (0..length).find_map(|index| {
+                    value
+                        .item(index)
+                        .and_then(|item| cemt_typed_first_source_map(&item))
+                })
+            }
+            _ => None,
+        }
+    }
+
+    fn cemt_typed_tree_patch_source_map_function_name(
+        value: &CemtEvaluatorValue<'_>,
+        owner: &str,
+    ) -> String {
+        if ["colorRole", "colorizerRole", "colorWrapperNodes"]
+            .iter()
+            .any(|field| value.field(field).is_some())
+        {
+            return "cem.color-tree".to_owned();
+        }
+        if ["formatterRole", "formatLayout", "formatNodes"]
+            .iter()
+            .any(|field| value.field(field).is_some())
+        {
+            return "cem.format-tree".to_owned();
+        }
+        owner.to_owned()
+    }
+
+    fn cemt_typed_patch_path_segments<'a>(
+        path: &'a str,
+        owner: &str,
+    ) -> Result<Vec<&'a str>, String> {
+        let path = path.trim();
+        if path.is_empty() {
+            return Err(format!(
+                "CEMT {owner} path must contain at least one segment"
+            ));
+        }
+        let mut segments = Vec::new();
+        for segment in path.split('.') {
+            let segment = segment.trim();
+            if segment.is_empty() {
+                return Err(format!(
+                    "CEMT {owner} path `{path}` contains an empty segment"
+                ));
+            }
+            segments.push(segment);
+        }
+        Ok(segments)
+    }
+
+    fn cemt_typed_replace_value_path<'a>(
+        target: CemtEvaluatorValue<'a>,
+        path: &str,
+        value: CemtEvaluatorValue<'a>,
+        owner: &str,
+    ) -> Result<CemtEvaluatorValue<'a>, String> {
+        let segments = cemt_typed_patch_path_segments(path, owner)?;
+        cemt_typed_replace_value_path_segments(target, &segments, path, value, owner)
+    }
+
+    fn cemt_typed_replace_value_path_segments<'a>(
+        target: CemtEvaluatorValue<'a>,
+        segments: &[&str],
+        original_path: &str,
+        value: CemtEvaluatorValue<'a>,
+        owner: &str,
+    ) -> Result<CemtEvaluatorValue<'a>, String> {
+        let (segment, rest) = segments
+            .split_first()
+            .expect("replace path segments are checked before recursion");
+        match target.kind() {
+            CemtEvaluatorValueKind::Record => {
+                let Some(child) = target.field(segment) else {
+                    return Err(format!(
+                        "CEMT {owner} path `{original_path}` missing field `{segment}`"
+                    ));
+                };
+                if rest.is_empty() {
+                    return target
+                        .with_field(*segment, value)
+                        .map_err(|error| error.to_string());
+                }
+                if !matches!(
+                    child.kind(),
+                    CemtEvaluatorValueKind::Record | CemtEvaluatorValueKind::Sequence
+                ) {
+                    return Err(format!(
+                        "CEMT {owner} path `{original_path}` crosses non-container field `{segment}`"
+                    ));
+                }
+                let child = cemt_typed_replace_value_path_segments(
+                    child,
+                    rest,
+                    original_path,
+                    value,
+                    owner,
+                )?;
+                target
+                    .with_field(*segment, child)
+                    .map_err(|error| error.to_string())
+            }
+            CemtEvaluatorValueKind::Sequence => {
+                let index = segment.parse::<usize>().map_err(|_| {
+                    format!(
+                        "CEMT {owner} path `{original_path}` expected array index, got `{segment}`"
+                    )
+                })?;
+                let Some(child) = target.item(index) else {
+                    return Err(format!(
+                        "CEMT {owner} path `{original_path}` index `{index}` is out of bounds"
+                    ));
+                };
+                let child = if rest.is_empty() {
+                    value
+                } else {
+                    cemt_typed_replace_value_path_segments(
+                        child,
+                        rest,
+                        original_path,
+                        value,
+                        owner,
+                    )?
+                };
+                target
+                    .with_item(index, child, original_path)
+                    .map_err(|error| error.to_string())
+            }
+            _ => Err(format!(
+                "CEMT {owner} expected object or array target, got {}",
+                cemt_typed_runtime_type_name(&target)
+            )),
+        }
+    }
+
+    #[derive(Debug, Clone, Copy)]
+    enum CemtTypedSequenceInsertPosition {
+        Front,
+        Back,
+    }
+
+    fn cemt_typed_insert_sequence_value_path<'a>(
+        target: CemtEvaluatorValue<'a>,
+        path: &str,
+        value: CemtEvaluatorValue<'a>,
+        position: CemtTypedSequenceInsertPosition,
+        owner: &str,
+    ) -> Result<CemtEvaluatorValue<'a>, String> {
+        let segments = cemt_typed_patch_path_segments(path, owner)?;
+        cemt_typed_insert_sequence_value_path_segments(
+            target, &segments, path, value, position, owner,
+        )
+    }
+
+    fn cemt_typed_insert_sequence_value_path_segments<'a>(
+        target: CemtEvaluatorValue<'a>,
+        segments: &[&str],
+        original_path: &str,
+        value: CemtEvaluatorValue<'a>,
+        position: CemtTypedSequenceInsertPosition,
+        owner: &str,
+    ) -> Result<CemtEvaluatorValue<'a>, String> {
+        let (segment, rest) = segments
+            .split_first()
+            .expect("sequence path segments are checked before recursion");
+        match target.kind() {
+            CemtEvaluatorValueKind::Record => {
+                if rest.is_empty() {
+                    let child = target
+                        .field(segment)
+                        .unwrap_or_else(|| CemtEvaluatorValue::sequence([]));
+                    if child.kind() != CemtEvaluatorValueKind::Sequence {
+                        return Err(format!(
+                            "CEMT {owner} path `{original_path}` expected array field `{segment}`, got {}",
+                            cemt_typed_runtime_type_name(&child)
+                        ));
+                    }
+                    let child = cemt_typed_insert_sequence_value(child, value, position)?;
+                    return target
+                        .with_field(*segment, child)
+                        .map_err(|error| error.to_string());
+                }
+                let child = target
+                    .field(segment)
+                    .unwrap_or_else(|| CemtEvaluatorValue::record(Vec::<(String, _)>::new()));
+                if !matches!(
+                    child.kind(),
+                    CemtEvaluatorValueKind::Record | CemtEvaluatorValueKind::Sequence
+                ) {
+                    return Err(format!(
+                        "CEMT {owner} path `{original_path}` crosses non-container field `{segment}`"
+                    ));
+                }
+                let child = cemt_typed_insert_sequence_value_path_segments(
+                    child,
+                    rest,
+                    original_path,
+                    value,
+                    position,
+                    owner,
+                )?;
+                target
+                    .with_field(*segment, child)
+                    .map_err(|error| error.to_string())
+            }
+            CemtEvaluatorValueKind::Sequence => {
+                let index = segment.parse::<usize>().map_err(|_| {
+                    format!(
+                        "CEMT {owner} path `{original_path}` expected array index, got `{segment}`"
+                    )
+                })?;
+                let Some(child) = target.item(index) else {
+                    return Err(format!(
+                        "CEMT {owner} path `{original_path}` index `{index}` is out of bounds"
+                    ));
+                };
+                if rest.is_empty() && child.kind() != CemtEvaluatorValueKind::Sequence {
+                    return Err(format!(
+                        "CEMT {owner} path `{original_path}` expected array at index `{index}`, got {}",
+                        cemt_typed_runtime_type_name(&child)
+                    ));
+                }
+                let child = if rest.is_empty() {
+                    cemt_typed_insert_sequence_value(child, value, position)?
+                } else {
+                    cemt_typed_insert_sequence_value_path_segments(
+                        child,
+                        rest,
+                        original_path,
+                        value,
+                        position,
+                        owner,
+                    )?
+                };
+                target
+                    .with_item(index, child, original_path)
+                    .map_err(|error| error.to_string())
+            }
+            _ => Err(format!(
+                "CEMT {owner} expected object or array target, got {}",
+                cemt_typed_runtime_type_name(&target)
+            )),
+        }
+    }
+
+    fn cemt_typed_insert_sequence_value<'a>(
+        target: CemtEvaluatorValue<'a>,
+        value: CemtEvaluatorValue<'a>,
+        position: CemtTypedSequenceInsertPosition,
+    ) -> Result<CemtEvaluatorValue<'a>, String> {
+        let mut values = target
+            .sequence_values("insert")
+            .map_err(|error| error.to_string())?;
+        match position {
+            CemtTypedSequenceInsertPosition::Front => values.insert(0, value),
+            CemtTypedSequenceInsertPosition::Back => values.push(value),
+        }
+        Ok(CemtEvaluatorValue::sequence(values))
+    }
+
+    fn cemt_typed_wrap_value_path<'a>(
+        target: CemtEvaluatorValue<'a>,
+        path: &str,
+        wrapper: CemtEvaluatorValue<'a>,
+        owner: &str,
+    ) -> Result<CemtEvaluatorValue<'a>, String> {
+        if wrapper.kind() != CemtEvaluatorValueKind::Record {
+            return Err(format!(
+                "CEMT {owner} expected object wrapper, got {}",
+                cemt_typed_runtime_type_name(&wrapper)
+            ));
+        }
+        let wrapped = cemt_typed_clone_existing_value_path(&target, path, owner)?;
+        let wrapper = apply_cemt_typed_wrapper_source_map_default(wrapper, &wrapped, owner)?;
+        let wrapper = cemt_typed_wrap_node_value(wrapper, wrapped, owner)?;
+        cemt_typed_replace_value_path(target, path, wrapper, owner)
+    }
+
+    fn apply_cemt_typed_wrapper_source_map_default<'a>(
+        wrapper: CemtEvaluatorValue<'a>,
+        wrapped: &CemtEvaluatorValue<'a>,
+        owner: &str,
+    ) -> Result<CemtEvaluatorValue<'a>, String> {
+        if wrapper.field("sourceMap").is_some() {
+            return Ok(wrapper);
+        }
+        let Some(source_map) = cemt_typed_first_source_map(wrapped) else {
+            return Ok(wrapper);
+        };
+        let function = cemt_typed_tree_patch_source_map_function_name(&wrapper, owner);
+        wrapper
+            .with_field(
+                "sourceMap",
+                CemtEvaluatorValue::source_map(transform_template_source_map_with_transform(
+                    &source_map,
+                    TransformKind::TemplateTransform { function },
+                )),
+            )
+            .map_err(|error| error.to_string())
+    }
+
+    fn cemt_typed_wrap_node_value<'a>(
+        wrapper: CemtEvaluatorValue<'a>,
+        wrapped: CemtEvaluatorValue<'a>,
+        owner: &str,
+    ) -> Result<CemtEvaluatorValue<'a>, String> {
+        let children = match wrapper.field("children") {
+            None => CemtEvaluatorValue::sequence([wrapped]),
+            Some(children) if children.kind() == CemtEvaluatorValueKind::Null => {
+                CemtEvaluatorValue::sequence([wrapped])
+            }
+            Some(children) if children.kind() == CemtEvaluatorValueKind::Sequence => children
+                .append(wrapped)
+                .map_err(|error| error.to_string())?,
+            Some(children) => {
+                return Err(format!(
+                    "CEMT {owner} expected wrapper `children` array, got {}",
+                    cemt_typed_runtime_type_name(&children)
+                ));
+            }
+        };
+        wrapper
+            .with_field("children", children)
+            .map_err(|error| error.to_string())
+    }
+
+    fn cemt_typed_clone_existing_value_path<'a>(
+        value: &CemtEvaluatorValue<'a>,
+        path: &str,
+        owner: &str,
+    ) -> Result<CemtEvaluatorValue<'a>, String> {
+        let segments = cemt_typed_patch_path_segments(path, owner)?;
+        cemt_typed_clone_existing_value_path_segments(value, &segments, path, owner)
+    }
+
+    fn cemt_typed_clone_existing_value_path_segments<'a>(
+        value: &CemtEvaluatorValue<'a>,
+        segments: &[&str],
+        original_path: &str,
+        owner: &str,
+    ) -> Result<CemtEvaluatorValue<'a>, String> {
+        let (segment, rest) = segments
+            .split_first()
+            .expect("clone path segments are checked before recursion");
+        match value.kind() {
+            CemtEvaluatorValueKind::Record => {
+                let Some(child) = value.field(segment) else {
+                    return Err(format!(
+                        "CEMT {owner} path `{original_path}` missing field `{segment}`"
+                    ));
+                };
+                if rest.is_empty() {
+                    return Ok(child);
+                }
+                if !matches!(
+                    child.kind(),
+                    CemtEvaluatorValueKind::Record | CemtEvaluatorValueKind::Sequence
+                ) {
+                    return Err(format!(
+                        "CEMT {owner} path `{original_path}` crosses non-container field `{segment}`"
+                    ));
+                }
+                cemt_typed_clone_existing_value_path_segments(&child, rest, original_path, owner)
+            }
+            CemtEvaluatorValueKind::Sequence => {
+                let index = segment.parse::<usize>().map_err(|_| {
+                    format!(
+                        "CEMT {owner} path `{original_path}` expected array index, got `{segment}`"
+                    )
+                })?;
+                let Some(child) = value.item(index) else {
+                    return Err(format!(
+                        "CEMT {owner} path `{original_path}` index `{index}` is out of bounds"
+                    ));
+                };
+                if rest.is_empty() {
+                    return Ok(child);
+                }
+                cemt_typed_clone_existing_value_path_segments(&child, rest, original_path, owner)
+            }
+            _ => Err(format!(
+                "CEMT {owner} expected object or array target, got {}",
+                cemt_typed_runtime_type_name(value)
+            )),
+        }
     }
 
     fn cemt_parse_typed_number(raw: &str) -> Option<CemtEvaluatorValue<'static>> {
@@ -26587,10 +27786,517 @@ mod tests {
     }
 
     #[test]
+    fn typed_cemt_runtime_literals_and_collection_mutations_match_independent_oracle() {
+        use crate::transform_artifact::{CemtEvaluatorBindings, CemtEvaluatorValue};
+
+        let typed = CemtEvaluatorBindings::from_iter([(
+            "node",
+            CemtEvaluatorValue::record([
+                ("name", CemtEvaluatorValue::string("card")),
+                (
+                    "children",
+                    CemtEvaluatorValue::sequence([CemtEvaluatorValue::record([(
+                        "value",
+                        CemtEvaluatorValue::string("Ready"),
+                    )])]),
+                ),
+            ]),
+        )]);
+        let compatibility = BTreeMap::from([(
+            "node".to_owned(),
+            json!({
+                "name": "card",
+                "children": [{"value": "Ready"}],
+            }),
+        )]);
+
+        let literal = r#"{
+            name: $node.name,
+            flags: [true, null, 3],
+            child: { value: $node.children.0.value }
+        }"#;
+        let typed_literal = resolve_cemt_typed_expression(literal, &typed)
+            .expect("typed literal")
+            .expect("typed literal value");
+        let compatibility_literal = resolve_encode_subject_expression(literal, &compatibility)
+            .expect("compatibility literal");
+        assert_eq!(
+            typed_literal
+                .field("name")
+                .and_then(|value| value.as_str().map(str::to_owned)),
+            compatibility_literal
+                .get("name")
+                .and_then(Value::as_str)
+                .map(str::to_owned)
+        );
+        assert_eq!(
+            typed_literal
+                .resolve_path("flags.2")
+                .and_then(|value| value.as_number())
+                .map(|number| number.as_f64()),
+            compatibility_literal
+                .pointer("/flags/2")
+                .and_then(Value::as_f64)
+        );
+        assert_eq!(
+            typed_literal
+                .resolve_path("child.value")
+                .and_then(|value| value.as_str().map(str::to_owned)),
+            compatibility_literal
+                .pointer("/child/value")
+                .and_then(Value::as_str)
+                .map(str::to_owned)
+        );
+
+        for expression in [
+            r#"append(["first"], "second")"#,
+            r#"extend(["first"], ["second", "third"])"#,
+        ] {
+            let typed_value = resolve_cemt_typed_expression(expression, &typed)
+                .expect("typed sequence mutation")
+                .expect("typed sequence value");
+            let compatibility_value = resolve_encode_subject_expression(expression, &compatibility)
+                .expect("compatibility sequence value");
+            assert_eq!(
+                typed_value.length().ok(),
+                compatibility_value.as_array().map(Vec::len)
+            );
+            assert_eq!(
+                typed_value
+                    .item(typed_value.length().expect("typed sequence length") - 1)
+                    .and_then(|value| value.as_str().map(str::to_owned)),
+                compatibility_value
+                    .as_array()
+                    .and_then(|items| items.last())
+                    .and_then(Value::as_str)
+                    .map(str::to_owned)
+            );
+        }
+
+        let set_expression = r#"set($node, "style.colorRole", "syntax.name")"#;
+        let typed_set = resolve_cemt_typed_expression(set_expression, &typed)
+            .expect("typed set")
+            .expect("typed set value");
+        let compatibility_set = resolve_encode_subject_expression(set_expression, &compatibility)
+            .expect("compatibility set");
+        assert_eq!(
+            typed_set
+                .resolve_path("style.colorRole")
+                .and_then(|value| value.as_str().map(str::to_owned)),
+            compatibility_set
+                .pointer("/style/colorRole")
+                .and_then(Value::as_str)
+                .map(str::to_owned)
+        );
+        assert!(typed
+            .value("node")
+            .and_then(|value| value.field("style"))
+            .is_none());
+
+        let merge_expression = r#"merge({ role: "old", keep: true }, { role: "new", added: 2 })"#;
+        let typed_merge = resolve_cemt_typed_expression(merge_expression, &typed)
+            .expect("typed merge")
+            .expect("typed merged value");
+        let compatibility_merge =
+            resolve_encode_subject_expression(merge_expression, &compatibility)
+                .expect("compatibility merged value");
+        assert_eq!(
+            typed_merge
+                .field("role")
+                .and_then(|value| value.as_str().map(str::to_owned)),
+            compatibility_merge
+                .get("role")
+                .and_then(Value::as_str)
+                .map(str::to_owned)
+        );
+        assert_eq!(
+            typed_merge.field("keep").and_then(|value| value.as_bool()),
+            compatibility_merge.get("keep").and_then(Value::as_bool)
+        );
+        assert_eq!(
+            typed_merge
+                .field("added")
+                .and_then(|value| value.as_number())
+                .map(|number| number.as_f64()),
+            compatibility_merge.get("added").and_then(Value::as_f64)
+        );
+    }
+
+    #[test]
+    fn typed_cemt_runtime_tree_patches_preserve_owner_and_source_maps() {
+        use crate::projection::CemTreeAstStream;
+        use crate::transform_artifact::{
+            CemtEvaluatorBindings, CemtEvaluatorRecord, CemtEvaluatorValue,
+            CemtFormattedTreeOverlay, CemtOverlayProducer, CemtTreeEnvelopeMetadata,
+            CemtTreeEnvelopeMode, CemtTreeOwnerRef,
+        };
+
+        let root_source = source_map_stack(20, 6);
+        let ready_source = source_map_stack(30, 5);
+        let soon_source = source_map_stack(40, 4);
+        let owner = Arc::new(CemTreeAstStream::new(vec![CemTreeAstNode::Element {
+            name: "card".to_owned(),
+            attributes: Vec::new(),
+            children: vec![
+                CemTreeAstNode::Text {
+                    value: "Ready".to_owned(),
+                    source: ready_source.clone(),
+                },
+                CemTreeAstNode::Text {
+                    value: "Soon".to_owned(),
+                    source: soon_source.clone(),
+                },
+            ],
+            source: root_source.clone(),
+        }]));
+        let artifact = CemtTreeArtifact::raw(owner.clone(), None);
+        let typed = CemtEvaluatorBindings::from_iter([(
+            "subject",
+            CemtEvaluatorValue::borrowed(artifact.evaluator_view()),
+        )]);
+        let compatibility = BTreeMap::from([(
+            "subject".to_owned(),
+            json!([{
+                "kind": "element",
+                "name": "card",
+                "attributes": [],
+                "children": [
+                    {"kind": "text", "value": "Ready", "sourceMap": ready_source},
+                    {"kind": "text", "value": "Soon", "sourceMap": soon_source},
+                ],
+                "sourceMap": root_source,
+            }]),
+        )]);
+        let expression = r#"appendNode(
+            prependNode(
+                replaceNode(
+                    wrapNode(
+                        $subject,
+                        "0.children.0",
+                        { kind: "element", name: "span", colorRole: "syntax.wrapper" }
+                    ),
+                    "0.children.1",
+                    { kind: "text", value: "Done" }
+                ),
+                "0.children",
+                { kind: "format-node", name: "before", formatterRole: "formatter.before" }
+            ),
+            "0.children",
+            { kind: "color-node", name: "after", colorizerRole: "colorizer.after" }
+        )"#;
+
+        let patched = resolve_cemt_typed_expression(expression, &typed)
+            .expect("typed patches")
+            .expect("typed patched tree");
+        let compatibility_patched = resolve_encode_subject_expression(expression, &compatibility)
+            .expect("compatibility patched tree");
+        assert_eq!(
+            patched
+                .resolve_path("0.children")
+                .and_then(|value| value.length().ok()),
+            Some(4)
+        );
+        for (index, field, expected) in [
+            (0, "name", "before"),
+            (1, "name", "span"),
+            (2, "value", "Done"),
+            (3, "name", "after"),
+        ] {
+            let path = format!("0.children.{index}.{field}");
+            assert_eq!(
+                patched
+                    .resolve_path(&path)
+                    .and_then(|value| value.as_str().map(str::to_owned)),
+                compatibility_patched
+                    .pointer(&format!("/0/children/{index}/{field}"))
+                    .and_then(Value::as_str)
+                    .map(str::to_owned)
+            );
+            assert_eq!(
+                patched
+                    .resolve_path(&path)
+                    .and_then(|value| value.as_str().map(str::to_owned)),
+                Some(expected.to_owned())
+            );
+        }
+        assert_eq!(
+            patched
+                .resolve_path("0.children.1.children.0.sourceMap")
+                .and_then(|value| value.as_source_map().cloned()),
+            Some(ready_source.clone())
+        );
+        let wrapper_source = patched
+            .resolve_path("0.children.1.sourceMap")
+            .and_then(|value| value.as_source_map().cloned())
+            .expect("generated wrapper source map");
+        assert!(matches!(
+            wrapper_source.current().map(|frame| &frame.transform),
+            Some(TransformKind::TemplateTransform { function }) if function == "cem.color-tree"
+        ));
+        assert_cem_tree_source_map_current_transform(
+            &compatibility_patched[0]["children"][1]["sourceMap"],
+            |transform| {
+                matches!(
+                    transform,
+                    TransformKind::TemplateTransform { function }
+                        if function == "cem.color-tree"
+                )
+            },
+        );
+        let prepended_source = patched
+            .resolve_path("0.children.0.sourceMap")
+            .and_then(|value| value.as_source_map().cloned())
+            .expect("generated prepended node source map");
+        assert!(matches!(
+            prepended_source.current().map(|frame| &frame.transform),
+            Some(TransformKind::TemplateTransform { function }) if function == "cem.format-tree"
+        ));
+        assert!(matches!(
+            patched
+                .item(0)
+                .and_then(|value| {
+                    value
+                        .owned_record()
+                        .and_then(CemtEvaluatorRecord::native_base)
+                        .and_then(|record| record.owner())
+                }),
+            Some(CemtTreeOwnerRef::Node(node)) if std::ptr::eq(node, &owner.as_nodes()[0])
+        ));
+        assert_eq!(
+            typed
+                .resolve_path("subject.0.children")
+                .and_then(|value| value.length().ok()),
+            Some(2),
+            "tree patches leave the borrowed source immutable"
+        );
+
+        let formatted = CemtTreeArtifact::formatted(
+            owner.clone(),
+            None,
+            CemtFormattedTreeOverlay {
+                envelope: CemtTreeEnvelopeMetadata {
+                    content_type: "application/cem".to_owned(),
+                    schema: "https://cem.dev/ns/cem-ml/1".to_owned(),
+                    category: "cem-tree".to_owned(),
+                    mode: CemtTreeEnvelopeMode::Document,
+                    canonical: false,
+                },
+                producer: CemtOverlayProducer {
+                    function_name: "cem.format-tree".to_owned(),
+                    formatter_profile: Some("tabular".to_owned()),
+                },
+                operations: Vec::new(),
+                retained_node_paths: vec![CemtOwnerPath::root(0)],
+                node_operations: Vec::new(),
+            },
+        );
+        let formatted_bindings = CemtEvaluatorBindings::from_iter([(
+            "subject",
+            CemtEvaluatorValue::borrowed(formatted.evaluator_view()),
+        )]);
+        let formatted_result = resolve_cemt_typed_expression(
+            r#"set($subject, "nodes.0.name", "formatted-card")"#,
+            &formatted_bindings,
+        )
+        .expect("typed formatted mutation")
+        .expect("typed formatted result");
+        let formatted_compatibility = BTreeMap::from([(
+            "subject".to_owned(),
+            json!({
+                "kind": "cem-tree",
+                "contentType": "application/cem",
+                "schema": "https://cem.dev/ns/cem-ml/1",
+                "category": "cem-tree",
+                "mode": "document",
+                "canonical": false,
+                "formatterProfile": "tabular",
+                "formatNodes": [],
+                "nodes": [{
+                    "kind": "element",
+                    "name": "card",
+                    "attributes": [],
+                    "children": [
+                        {"kind": "text", "value": "Ready", "sourceMap": ready_source},
+                        {"kind": "text", "value": "Soon", "sourceMap": soon_source},
+                    ],
+                    "sourceMap": root_source,
+                }],
+            }),
+        )]);
+        let formatted_compatibility_result = resolve_encode_subject_expression(
+            r#"set($subject, "nodes.0.name", "formatted-card")"#,
+            &formatted_compatibility,
+        )
+        .expect("compatibility formatted result");
+        assert_eq!(
+            formatted_result
+                .resolve_path("nodes.0.name")
+                .and_then(|value| value.as_str().map(str::to_owned)),
+            formatted_compatibility_result
+                .pointer("/nodes/0/name")
+                .and_then(Value::as_str)
+                .map(str::to_owned)
+        );
+        assert!(matches!(
+            formatted_result
+                .resolve_path("nodes.0")
+                .and_then(|value| {
+                    value
+                        .owned_record()
+                        .and_then(CemtEvaluatorRecord::native_base)
+                        .and_then(|record| record.owner())
+                }),
+            Some(CemtTreeOwnerRef::Node(node)) if std::ptr::eq(node, &owner.as_nodes()[0])
+        ));
+    }
+
+    #[test]
+    fn typed_cemt_runtime_apply_edits_preserves_queue_order() {
+        use crate::transform_artifact::{CemtEvaluatorBindings, CemtEvaluatorValue};
+
+        let typed = CemtEvaluatorBindings::from_iter([(
+            "node",
+            CemtEvaluatorValue::record([
+                ("kind", CemtEvaluatorValue::string("element")),
+                ("name", CemtEvaluatorValue::string("card")),
+                (
+                    "children",
+                    CemtEvaluatorValue::sequence([
+                        CemtEvaluatorValue::record([
+                            ("kind", CemtEvaluatorValue::string("element")),
+                            ("name", CemtEvaluatorValue::string("title")),
+                            ("children", CemtEvaluatorValue::sequence([])),
+                        ]),
+                        CemtEvaluatorValue::record([
+                            ("kind", CemtEvaluatorValue::string("text")),
+                            ("value", CemtEvaluatorValue::string("Ready")),
+                        ]),
+                    ]),
+                ),
+            ]),
+        )]);
+        let compatibility = BTreeMap::from([(
+            "node".to_owned(),
+            json!({
+                "kind": "element",
+                "name": "card",
+                "children": [
+                    {"kind": "element", "name": "title", "children": []},
+                    {"kind": "text", "value": "Ready"},
+                ],
+            }),
+        )]);
+        let expression = r#"applyEdits(
+            $node,
+            [
+                setEdit("children.0.style.colorRole", "syntax.name"),
+                appendEdit("children.0.children", { kind: "text", value: "Heading" }),
+                prependEdit("children", { kind: "format-node", name: "line-start" }),
+                wrapEdit("children.2", { kind: "element", name: "span" }),
+                replaceEdit("children.1.children.0", { kind: "text", value: "Title" })
+            ]
+        )"#;
+
+        let edited = resolve_cemt_typed_expression(expression, &typed)
+            .expect("typed edits")
+            .expect("typed edited value");
+        let compatibility_edited = resolve_encode_subject_expression(expression, &compatibility)
+            .expect("compatibility edited value");
+        for (path, pointer, expected) in [
+            ("children.0.name", "/children/0/name", "line-start"),
+            (
+                "children.1.style.colorRole",
+                "/children/1/style/colorRole",
+                "syntax.name",
+            ),
+            (
+                "children.1.children.0.value",
+                "/children/1/children/0/value",
+                "Title",
+            ),
+            ("children.2.name", "/children/2/name", "span"),
+            (
+                "children.2.children.0.value",
+                "/children/2/children/0/value",
+                "Ready",
+            ),
+        ] {
+            assert_eq!(
+                edited
+                    .resolve_path(path)
+                    .and_then(|value| value.as_str().map(str::to_owned)),
+                compatibility_edited
+                    .pointer(pointer)
+                    .and_then(Value::as_str)
+                    .map(str::to_owned)
+            );
+            assert_eq!(
+                edited
+                    .resolve_path(path)
+                    .and_then(|value| value.as_str().map(str::to_owned)),
+                Some(expected.to_owned())
+            );
+        }
+        assert_eq!(
+            typed
+                .resolve_path("node.children.1.value")
+                .and_then(|value| value.as_str().map(str::to_owned)),
+            Some("Ready".to_owned()),
+            "edit replay leaves the source binding immutable"
+        );
+    }
+
+    #[test]
+    fn typed_cemt_runtime_mutations_match_invalid_target_diagnostics() {
+        use crate::transform_artifact::{CemtEvaluatorBindings, CemtEvaluatorValue};
+
+        let typed = CemtEvaluatorBindings::from_iter([(
+            "node",
+            CemtEvaluatorValue::record([
+                ("name", CemtEvaluatorValue::string("card")),
+                (
+                    "children",
+                    CemtEvaluatorValue::sequence([CemtEvaluatorValue::record([(
+                        "value",
+                        CemtEvaluatorValue::string("Ready"),
+                    )])]),
+                ),
+            ]),
+        )]);
+        let compatibility = BTreeMap::from([(
+            "node".to_owned(),
+            json!({"name": "card", "children": [{"value": "Ready"}]}),
+        )]);
+        for expression in [
+            r#"append({}, 1)"#,
+            r#"extend([], {})"#,
+            r#"merge([], {})"#,
+            r#"set($node, "children.name.value", "Done")"#,
+            r#"appendNode($node, "name", { kind: "text", value: "bad" })"#,
+            r#"wrapNode($node, "children.0", [])"#,
+            r#"applyEdits($node, [{ kind: "unknown", path: "children", node: {} }])"#,
+            r#"applyEdits($node, [{ kind: "append", path: "children", node: null }])"#,
+            r#"appendEdit("children..0", { kind: "text", value: "bad" })"#,
+        ] {
+            let typed_error = resolve_cemt_typed_expression(expression, &typed)
+                .expect_err("typed mutation rejects invalid input");
+            let compatibility_error = resolve_encode_subject_expression_at_depth(
+                expression,
+                &compatibility,
+                &BTreeMap::new(),
+                None,
+                0,
+            )
+            .expect_err("compatibility mutation rejects invalid input");
+            assert_eq!(typed_error, compatibility_error, "expression: {expression}");
+        }
+    }
+
+    #[test]
     fn typed_cemt_runtime_boundary_has_no_json_or_compatibility_dispatch() {
         let source = include_str!("transform_template.rs");
         let typed_runtime = source
-            .split_once("struct CemtTypedRuntimeParam")
+            .split_once("mod cemt_typed_runtime {")
             .expect("typed runtime start")
             .1
             .split_once("fn resolve_encode_subject_expression(")

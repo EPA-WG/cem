@@ -1020,7 +1020,7 @@ impl<'a> CemtEvaluatorValue<'a> {
         }
     }
 
-    fn with_field(
+    pub(crate) fn with_field(
         &self,
         name: impl Into<String>,
         value: Self,
@@ -1042,7 +1042,7 @@ impl<'a> CemtEvaluatorValue<'a> {
         Ok(Self::Record(Arc::new(record)))
     }
 
-    fn with_item(
+    pub(crate) fn with_item(
         &self,
         index: usize,
         value: Self,
@@ -1059,7 +1059,7 @@ impl<'a> CemtEvaluatorValue<'a> {
         Ok(Self::sequence(values))
     }
 
-    fn sequence_values(
+    pub(crate) fn sequence_values(
         &self,
         operation: &'static str,
     ) -> Result<Vec<Self>, CemtEvaluatorValueAccessError> {
@@ -1075,7 +1075,7 @@ impl<'a> CemtEvaluatorValue<'a> {
         }
     }
 
-    fn record_field_names(
+    pub(crate) fn record_field_names(
         &self,
         operation: &'static str,
     ) -> Result<Vec<String>, CemtEvaluatorValueAccessError> {

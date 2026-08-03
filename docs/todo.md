@@ -996,6 +996,10 @@ Remaining dependency-ordered package checklist:
               - [x] Move runtime variable and parameter bindings plus path,
                     `exists`, `length`, and `get` evaluation onto the typed
                     algebra with independent compatibility-oracle parity.
+              - [x] Move record/sequence literals, persistent `set`, `append`,
+                    `extend`, and `merge`, edit constructors, and tree-patch
+                    evaluation onto typed overlays with owner/source-map and
+                    compatibility-oracle parity.
           - [ ] Give non-CEM CEMT tree producers package-owned typed result
                 artifacts, then remove `CemtEvaluator(Value)` globally.
       - [x] Define typed raw, formatted, and colored CEM tree envelopes with
@@ -1057,28 +1061,33 @@ Remaining dependency-ordered package checklist:
 
 ### Next Work Item
 
-Move CEMT record/sequence construction and persistent mutation onto
-`CemtEvaluatorValue`: record and sequence literals, `set`, `append`, `extend`,
-and `merge`, followed by the edit constructors and `replaceNode`, `appendNode`,
-`prependNode`, `wrapNode`, and `applyEdits`. Reuse the existing owned overlays
-so borrowed CEM trees remain owner-backed and immutable while each operation
-returns a new typed value.
+Move CEMT function invocation and scoped control evaluation onto
+`CemtEvaluatorValue`: `call`, `map`, `fold`, and `match`. Introduce a typed
+function descriptor and evaluator context containing the function registry,
+lexical bindings, and call depth. Lower parameter defaults into typed values at
+the adapter edge so neither the registry nor function calls carry
+`serde_json::Value` into the typed runtime.
 
 Start with red tests that compare independently evaluated typed and
-compatibility results. Cover owned records and sequences, borrowed raw and
-formatted nodes, generated fragments, nested and missing paths, invalid target
-diagnostics, stable owner identity, source-map preservation, edit queue order,
-and generated-source defaults. Build typed inputs directly from native values
-and `CemtTreeArtifact::evaluator_view()`; do not derive them from compatibility
-JSON or recursively materialize borrowed trees.
+compatibility results. Cover direct and nested calls, bare and quoted function
+names, required/default/nullable parameters, unknown arguments, return
+contracts, removed built-in diagnostics, and the recursion limit. Verify that
+`match` selects only the chosen branch and preserves `default`/`_` behavior for
+null, boolean, number, and string keys.
 
-Add typed record and sequence literal parsing as the shared constructor layer,
-then route collection mutation and tree patches through the persistent overlay
-APIs. Keep `serde_json::Value` and the compatibility dispatcher outside the
-typed module, enforced by source audits. Production formatter/colorizer
-dispatch remains on the compatibility evaluator until constructors, mutation,
-and the following higher-order `call`/`map`/`fold`/`match` slice are complete;
-the native output stage must switch once, without a mixed value-model path.
+For `map` and `fold`, create child binding scopes for `$item`, `$index`, `$acc`,
+and `$accumulator` without leaking or overwriting parent bindings. Iterate
+borrowed raw and formatted sequences as owner-backed views; empty and nested
+iterations must preserve stable owner identity and existing source maps while
+new result containers remain typed overlays. Assert exact unresolved-value,
+collection-type, argument, return-type, and recursion diagnostics.
+
+Keep compatibility JSON and its dispatcher outside the typed module and extend
+the source audit over imports, descriptors, and evaluator context. Production
+formatter/colorizer dispatch remains on the compatibility evaluator after this
+slice. The following slice closes scalar, stack/queue, source-map, diagnostic,
+and metadata-accumulator dependencies used by schema-package CEMT bodies;
+production then switches once with no mixed value-model fallback.
 
 ## Current Verification Commands
 
