@@ -6480,10 +6480,11 @@ fn markdown_generated_html_output(
     let color_profile = markdown_html_color_profile(target_scope, output_color_type.as_deref());
     let color_capability =
         markdown_html_color_capability(target_scope, output_color_type.as_deref());
-    let token_stream = TransformTemplateWriterTokenStream {
-        tokens: markdown_html_source_writer_tokens(&source),
-    };
-    let token_value = serde_json::to_value(token_stream).unwrap_or_else(|_| json!({"tokens": []}));
+    let tokens = markdown_html_source_writer_tokens(&source);
+    let token_value = serde_json::to_value(TransformTemplateWriterTokenStream {
+        tokens: tokens.clone(),
+    })
+    .unwrap_or_else(|_| json!({"tokens": []}));
     let mut identity = TransformTemplateEncodedArtifactIdentity::new(
         TransformTemplateOutputProducedKind::Tokens,
         target.clone(),
@@ -6494,7 +6495,7 @@ fn markdown_generated_html_output(
     identity.mode = TransformTemplateEncodedArtifactMode::Document;
     identity.canonical = false;
     identity.source_map_policy = TransformTemplateSourceMapPolicy::Generated;
-    let artifact = TransformTemplateEncodedArtifact::new(identity.clone(), token_value.clone());
+    let artifact = TransformTemplateEncodedArtifact::from_writer_tokens(identity.clone(), tokens);
     let binding = TransformTemplateEncodeBinding {
         function: cemt_output_function_descriptor(CemtOutputFunctionDescriptorSpec {
             owner: "html",
@@ -7955,7 +7956,7 @@ fn apply_render_encode_expressions(
         |binding, subject| {
             spec.context
                 .transform_template_encode_registry
-                .encode(binding, subject)
+                .execute(binding, subject)
         },
     );
 
@@ -12666,12 +12667,14 @@ mod tests {
             "html.tokens",
             |_binding: &crate::transform_template::TransformTemplateEncodeBinding,
              subject: &Value| {
-                Ok(json!({
-                    "tokens": [{
-                        "kind": "syntax.text",
-                        "text": subject.as_str().unwrap_or_default()
-                    }]
-                }))
+                Ok(
+                    crate::transform_template::TransformTemplateOutputFunctionResult::Tokens(
+                        TransformTemplateWriterTokenStream {
+                            tokens: vec![TransformTemplateWriterToken::new("syntax.text")
+                                .with_text(subject.as_str().unwrap_or_default())],
+                        },
+                    ),
+                )
             },
         );
         let adapter: Arc<dyn TransformTemplateAdapter> = Arc::new(ReadyCemtHtmlExportAdapter);

@@ -3957,6 +3957,18 @@ pub struct TransformTemplateColorBinding {
 }
 
 impl TransformTemplateColorBinding {
+    pub fn artifact_from_result(
+        &self,
+        result: TransformTemplateOutputFunctionResult,
+    ) -> Result<TransformTemplateEncodedArtifact, String> {
+        TransformTemplateEncodedArtifact::from_output_function_result(self.identity.clone(), result)
+    }
+
+    pub fn artifact_from_cemt_value(&self, value: Value) -> TransformTemplateEncodedArtifact {
+        TransformTemplateEncodedArtifact::from_cemt_runtime(self.identity.clone(), value)
+    }
+
+    #[cfg(test)]
     pub fn artifact_from_value(&self, value: Value) -> TransformTemplateEncodedArtifact {
         TransformTemplateEncodedArtifact::new(self.identity.clone(), value)
     }
@@ -3982,17 +3994,41 @@ pub struct TransformTemplateEncodeBinding {
 }
 
 impl TransformTemplateEncodeBinding {
+    pub fn artifact_from_result(
+        &self,
+        result: TransformTemplateOutputFunctionResult,
+    ) -> Result<TransformTemplateEncodedArtifact, String> {
+        TransformTemplateEncodedArtifact::from_output_function_result(self.identity.clone(), result)
+    }
+
+    pub fn artifact_from_cemt_value(&self, value: Value) -> TransformTemplateEncodedArtifact {
+        TransformTemplateEncodedArtifact::from_cemt_runtime(self.identity.clone(), value)
+    }
+
+    #[cfg(test)]
     pub fn artifact_from_value(&self, value: Value) -> TransformTemplateEncodedArtifact {
         TransformTemplateEncodedArtifact::new(self.identity.clone(), value)
     }
 
     pub fn artifact_with_metadata(
         &self,
+        result: TransformTemplateOutputFunctionResult,
+        source_map: Option<SourceMapStack>,
+        output_spans: Vec<OutputSpan>,
+    ) -> Result<TransformTemplateEncodedArtifact, String> {
+        let mut artifact = self.artifact_from_result(result)?;
+        artifact.source_map = source_map;
+        artifact.output_spans = output_spans;
+        Ok(artifact)
+    }
+
+    pub fn cemt_artifact_with_metadata(
+        &self,
         value: Value,
         source_map: Option<SourceMapStack>,
         output_spans: Vec<OutputSpan>,
     ) -> TransformTemplateEncodedArtifact {
-        let mut artifact = self.artifact_from_value(value);
+        let mut artifact = self.artifact_from_cemt_value(value);
         artifact.source_map = source_map;
         artifact.output_spans = output_spans;
         artifact
@@ -4004,14 +4040,40 @@ pub trait TransformTemplateEncodeImplementation: Send + Sync {
         &self,
         binding: &TransformTemplateEncodeBinding,
         subject: &Value,
-    ) -> Result<Value, String>;
+    ) -> Result<TransformTemplateOutputFunctionResult, String>;
 }
 
 impl<F> TransformTemplateEncodeImplementation for F
 where
-    F: Fn(&TransformTemplateEncodeBinding, &Value) -> Result<Value, String> + Send + Sync,
+    F: Fn(
+            &TransformTemplateEncodeBinding,
+            &Value,
+        ) -> Result<TransformTemplateOutputFunctionResult, String>
+        + Send
+        + Sync,
 {
     fn encode(
+        &self,
+        binding: &TransformTemplateEncodeBinding,
+        subject: &Value,
+    ) -> Result<TransformTemplateOutputFunctionResult, String> {
+        self(binding, subject)
+    }
+}
+
+trait TransformTemplateCemtRuntimeImplementation: Send + Sync {
+    fn evaluate(
+        &self,
+        binding: &TransformTemplateEncodeBinding,
+        subject: &Value,
+    ) -> Result<Value, String>;
+}
+
+impl<F> TransformTemplateCemtRuntimeImplementation for F
+where
+    F: Fn(&TransformTemplateEncodeBinding, &Value) -> Result<Value, String> + Send + Sync,
+{
+    fn evaluate(
         &self,
         binding: &TransformTemplateEncodeBinding,
         subject: &Value,
@@ -4033,9 +4095,16 @@ struct TransformTemplateEncodeImplementationEntry {
     origin: TransformTemplateEncodeImplementationOrigin,
 }
 
+#[derive(Clone)]
+struct TransformTemplateCemtRuntimeImplementationEntry {
+    implementation: Arc<dyn TransformTemplateCemtRuntimeImplementation>,
+    origin: TransformTemplateEncodeImplementationOrigin,
+}
+
 #[derive(Clone, Default)]
 pub struct TransformTemplateEncodeImplementationRegistry {
     implementations: BTreeMap<String, TransformTemplateEncodeImplementationEntry>,
+    cemt_runtime_implementations: BTreeMap<String, TransformTemplateCemtRuntimeImplementationEntry>,
     host_capabilities: BTreeSet<String>,
 }
 
@@ -4043,6 +4112,10 @@ impl fmt::Debug for TransformTemplateEncodeImplementationRegistry {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("TransformTemplateEncodeImplementationRegistry")
             .field("implementation_count", &self.implementations.len())
+            .field(
+                "cemt_runtime_implementation_count",
+                &self.cemt_runtime_implementations.len(),
+            )
             .field("host_capabilities", &self.host_capabilities)
             .finish()
     }
@@ -4130,24 +4203,12 @@ impl TransformTemplateEncodeImplementationRegistry {
         self.register(function_name, implementation);
     }
 
-    pub fn register_cemt_fallback(
+    fn register_cemt_intrinsic(
         &mut self,
         function_name: impl Into<String>,
-        implementation: impl TransformTemplateEncodeImplementation + 'static,
+        implementation: impl TransformTemplateCemtRuntimeImplementation + 'static,
     ) {
-        self.register_with_origin(
-            function_name,
-            implementation,
-            TransformTemplateEncodeImplementationOrigin::CemtFallback,
-        );
-    }
-
-    pub fn register_cemt_intrinsic(
-        &mut self,
-        function_name: impl Into<String>,
-        implementation: impl TransformTemplateEncodeImplementation + 'static,
-    ) {
-        self.register_with_origin(
+        self.register_cemt_runtime_with_origin(
             function_name,
             implementation,
             TransformTemplateEncodeImplementationOrigin::CemtIntrinsic,
@@ -4169,6 +4230,21 @@ impl TransformTemplateEncodeImplementationRegistry {
         );
     }
 
+    fn register_cemt_runtime_with_origin(
+        &mut self,
+        function_name: impl Into<String>,
+        implementation: impl TransformTemplateCemtRuntimeImplementation + 'static,
+        origin: TransformTemplateEncodeImplementationOrigin,
+    ) {
+        self.cemt_runtime_implementations.insert(
+            function_name.into(),
+            TransformTemplateCemtRuntimeImplementationEntry {
+                implementation: Arc::new(implementation),
+                origin,
+            },
+        );
+    }
+
     pub fn host_capabilities(&self) -> &BTreeSet<String> {
         &self.host_capabilities
     }
@@ -4180,45 +4256,121 @@ impl TransformTemplateEncodeImplementationRegistry {
         self.implementations
             .get(function_name)
             .map(|entry| entry.origin)
+            .or_else(|| {
+                self.cemt_runtime_implementations
+                    .get(function_name)
+                    .map(|entry| entry.origin)
+            })
     }
 
-    pub fn encode(
+    pub fn encode_result(
         &self,
         binding: &TransformTemplateEncodeBinding,
         subject: &Value,
-    ) -> Result<Value, String> {
+    ) -> Result<TransformTemplateOutputFunctionResult, String> {
         let Some(entry) = self.implementations.get(&binding.function.name) else {
             return Err(format!(
                 "no host encoder implementation registered for `{}`",
                 binding.function.name
             ));
         };
-        entry.implementation.encode(binding, subject)
+        let result = entry.implementation.encode(binding, subject)?;
+        if result.produced_kind() != binding.function.produces {
+            return Err(format!(
+                "output function `{}` declares `{}` but returned `{}`",
+                binding.function.name,
+                binding.function.produces.as_str(),
+                result.produced_kind().as_str(),
+            ));
+        }
+        Ok(result)
+    }
+
+    #[cfg(not(test))]
+    pub fn encode(
+        &self,
+        binding: &TransformTemplateEncodeBinding,
+        subject: &Value,
+    ) -> Result<TransformTemplateOutputFunctionResult, String> {
+        self.encode_result(binding, subject)
+    }
+
+    #[cfg(test)]
+    pub fn encode(
+        &self,
+        binding: &TransformTemplateEncodeBinding,
+        subject: &Value,
+    ) -> Result<Value, String> {
+        if binding.function.produces == TransformTemplateOutputProducedKind::CemTree {
+            self.evaluate_cemt_runtime(binding, subject)
+        } else {
+            self.encode_result(binding, subject)?.into_evaluator_value()
+        }
+    }
+
+    pub(crate) fn evaluate_cemt_runtime(
+        &self,
+        binding: &TransformTemplateEncodeBinding,
+        subject: &Value,
+    ) -> Result<Value, String> {
+        if binding.function.produces != TransformTemplateOutputProducedKind::CemTree {
+            return Err(format!(
+                "CEMT runtime output function `{}` must declare `cem-tree`, got `{}`",
+                binding.function.name,
+                binding.function.produces.as_str(),
+            ));
+        }
+        let Some(entry) = self
+            .cemt_runtime_implementations
+            .get(&binding.function.name)
+        else {
+            return Err(format!(
+                "no CEMT runtime implementation registered for `{}`",
+                binding.function.name
+            ));
+        };
+        entry.implementation.evaluate(binding, subject)
+    }
+
+    pub(crate) fn execute(
+        &self,
+        binding: &TransformTemplateEncodeBinding,
+        subject: &Value,
+    ) -> Result<TransformTemplateOutputFunctionExecution, String> {
+        if binding.function.produces == TransformTemplateOutputProducedKind::CemTree {
+            self.evaluate_cemt_runtime(binding, subject)
+                .map(TransformTemplateOutputFunctionExecution::CemtEvaluator)
+        } else {
+            self.encode_result(binding, subject)
+                .map(TransformTemplateOutputFunctionExecution::Native)
+        }
     }
 }
 
 fn builtin_html_text_encoder(
     binding: &TransformTemplateEncodeBinding,
     subject: &Value,
-) -> Result<Value, String> {
+) -> Result<TransformTemplateOutputFunctionResult, String> {
     validate_builtin_html_encoder_binding(binding, "html.text", "html-text")?;
     let text = subject
         .as_str()
         .ok_or_else(|| "html.text expected string subject".to_owned())?;
-    Ok(Value::String(transform_template_encode_html_text(text)))
+    Ok(TransformTemplateOutputFunctionResult::Text(
+        transform_template_encode_html_text(text),
+    ))
 }
 
 fn builtin_html_attribute_encoder(
     binding: &TransformTemplateEncodeBinding,
     subject: &Value,
-) -> Result<Value, String> {
+) -> Result<TransformTemplateOutputFunctionResult, String> {
     validate_builtin_html_encoder_binding(binding, "html.attribute", "html-attribute")?;
     let text = subject
         .as_str()
         .ok_or_else(|| "html.attribute expected string subject".to_owned())?;
-    Ok(Value::String(transform_template_encode_html_attribute(
-        text,
-    )))
+    Ok(TransformTemplateOutputFunctionResult::Text(
+        transform_template_encode_html_attribute(text),
+    ))
 }
 
 fn validate_builtin_html_encoder_binding(
@@ -4251,7 +4403,7 @@ struct TransformTemplateColorToken {
 fn builtin_terminal_colorizer(
     binding: &TransformTemplateEncodeBinding,
     subject: &Value,
-) -> Result<Value, String> {
+) -> Result<TransformTemplateOutputFunctionResult, String> {
     validate_builtin_colorizer_binding(binding, "terminal.", "terminal-color")?;
     let profile = transform_template_binding_color_profile(binding)?;
     if profile.output != TransformTemplateColorOutputKind::Terminal {
@@ -4274,13 +4426,13 @@ fn builtin_terminal_colorizer(
     {
         output.push_str("\u{1b}[0m");
     }
-    Ok(Value::String(output))
+    Ok(TransformTemplateOutputFunctionResult::Text(output))
 }
 
 fn builtin_html_colorizer(
     binding: &TransformTemplateEncodeBinding,
     subject: &Value,
-) -> Result<Value, String> {
+) -> Result<TransformTemplateOutputFunctionResult, String> {
     validate_builtin_colorizer_binding(binding, "html.", "html-color")?;
     let profile = transform_template_binding_color_profile(binding)?;
     if profile.output != TransformTemplateColorOutputKind::Html {
@@ -4295,7 +4447,7 @@ fn builtin_html_colorizer(
         .iter()
         .map(|token| transform_template_render_html_color_token(token, &profile))
         .collect::<String>();
-    Ok(Value::String(output))
+    Ok(TransformTemplateOutputFunctionResult::Text(output))
 }
 
 fn validate_builtin_colorizer_binding(
@@ -4664,40 +4816,46 @@ fn transform_template_html_color_for_role(role: &str) -> &'static str {
 fn builtin_json_string_encoder(
     binding: &TransformTemplateEncodeBinding,
     subject: &Value,
-) -> Result<Value, String> {
+) -> Result<TransformTemplateOutputFunctionResult, String> {
     validate_builtin_json_encoder_binding(binding, "json.string", "json-string")?;
     let text = subject
         .as_str()
         .ok_or_else(|| "json.string expected string subject".to_owned())?;
-    Ok(Value::String(transform_template_format_json_value(
-        &Value::String(text.to_owned()),
-        &binding.options,
-        binding.identity.formatter_profile.as_deref(),
-    )?))
+    Ok(TransformTemplateOutputFunctionResult::Text(
+        transform_template_format_json_value(
+            &Value::String(text.to_owned()),
+            &binding.options,
+            binding.identity.formatter_profile.as_deref(),
+        )?,
+    ))
 }
 
 fn builtin_json_value_encoder(
     binding: &TransformTemplateEncodeBinding,
     subject: &Value,
-) -> Result<Value, String> {
+) -> Result<TransformTemplateOutputFunctionResult, String> {
     validate_builtin_json_encoder_binding(binding, "json.value", "json-value")?;
-    Ok(Value::String(transform_template_format_json_value(
-        subject,
-        &binding.options,
-        binding.identity.formatter_profile.as_deref(),
-    )?))
+    Ok(TransformTemplateOutputFunctionResult::Text(
+        transform_template_format_json_value(
+            subject,
+            &binding.options,
+            binding.identity.formatter_profile.as_deref(),
+        )?,
+    ))
 }
 
 fn builtin_json_document_encoder(
     binding: &TransformTemplateEncodeBinding,
     subject: &Value,
-) -> Result<Value, String> {
+) -> Result<TransformTemplateOutputFunctionResult, String> {
     validate_builtin_json_encoder_binding(binding, "json.document", "json-document")?;
-    Ok(Value::String(transform_template_format_json_value(
-        subject,
-        &binding.options,
-        binding.identity.formatter_profile.as_deref(),
-    )?))
+    Ok(TransformTemplateOutputFunctionResult::Text(
+        transform_template_format_json_value(
+            subject,
+            &binding.options,
+            binding.identity.formatter_profile.as_deref(),
+        )?,
+    ))
 }
 
 fn validate_builtin_json_encoder_binding(
@@ -4735,29 +4893,31 @@ fn validate_builtin_json_encoder_binding(
 fn builtin_yaml_scalar_encoder(
     binding: &TransformTemplateEncodeBinding,
     subject: &Value,
-) -> Result<Value, String> {
+) -> Result<TransformTemplateOutputFunctionResult, String> {
     validate_builtin_yaml_encoder_binding(binding, "yaml.scalar", "yaml-scalar")?;
     let text = subject
         .as_str()
         .ok_or_else(|| "yaml.scalar expected string subject".to_owned())?;
-    Ok(Value::String(transform_template_format_yaml_scalar(
-        text,
-        &binding.options,
-        binding.identity.formatter_profile.as_deref(),
-    )?))
+    Ok(TransformTemplateOutputFunctionResult::Text(
+        transform_template_format_yaml_scalar(
+            text,
+            &binding.options,
+            binding.identity.formatter_profile.as_deref(),
+        )?,
+    ))
 }
 
 fn builtin_yaml_value_encoder(
     binding: &TransformTemplateEncodeBinding,
     subject: &Value,
-) -> Result<Value, String> {
+) -> Result<TransformTemplateOutputFunctionResult, String> {
     validate_builtin_yaml_encoder_binding(binding, "yaml.value", "yaml-value")?;
     transform_template_format_yaml_value(
         subject,
         &binding.options,
         binding.identity.formatter_profile.as_deref(),
     )
-    .map(Value::String)
+    .map(TransformTemplateOutputFunctionResult::Text)
 }
 
 fn validate_builtin_yaml_encoder_binding(
@@ -4802,7 +4962,7 @@ fn yaml_content_type_is_supported(content_type: &str) -> bool {
 fn builtin_xml_text_encoder(
     binding: &TransformTemplateEncodeBinding,
     subject: &Value,
-) -> Result<Value, String> {
+) -> Result<TransformTemplateOutputFunctionResult, String> {
     validate_builtin_xml_encoder_binding(binding, "xml.text", "xml-text")?;
     let text = subject
         .as_str()
@@ -4812,13 +4972,13 @@ fn builtin_xml_text_encoder(
         &binding.options,
         binding.identity.formatter_profile.as_deref(),
     )
-    .map(Value::String)
+    .map(TransformTemplateOutputFunctionResult::Text)
 }
 
 fn builtin_xml_attribute_encoder(
     binding: &TransformTemplateEncodeBinding,
     subject: &Value,
-) -> Result<Value, String> {
+) -> Result<TransformTemplateOutputFunctionResult, String> {
     validate_builtin_xml_encoder_binding(binding, "xml.attribute", "xml-attribute-value")?;
     let text = subject
         .as_str()
@@ -4828,7 +4988,7 @@ fn builtin_xml_attribute_encoder(
         &binding.options,
         binding.identity.formatter_profile.as_deref(),
     )
-    .map(Value::String)
+    .map(TransformTemplateOutputFunctionResult::Text)
 }
 
 fn validate_builtin_xml_encoder_binding(
@@ -4866,7 +5026,7 @@ fn validate_builtin_xml_encoder_binding(
 fn builtin_markdown_text_encoder(
     binding: &TransformTemplateEncodeBinding,
     subject: &Value,
-) -> Result<Value, String> {
+) -> Result<TransformTemplateOutputFunctionResult, String> {
     validate_builtin_markdown_encoder_binding(binding, "markdown.text", "markdown-text")?;
     let text = subject
         .as_str()
@@ -4876,13 +5036,13 @@ fn builtin_markdown_text_encoder(
         &binding.options,
         binding.identity.formatter_profile.as_deref(),
     )
-    .map(Value::String)
+    .map(TransformTemplateOutputFunctionResult::Text)
 }
 
 fn builtin_markdown_inline_code_encoder(
     binding: &TransformTemplateEncodeBinding,
     subject: &Value,
-) -> Result<Value, String> {
+) -> Result<TransformTemplateOutputFunctionResult, String> {
     validate_builtin_markdown_encoder_binding(
         binding,
         "markdown.inline-code",
@@ -4891,7 +5051,7 @@ fn builtin_markdown_inline_code_encoder(
     let text = subject
         .as_str()
         .ok_or_else(|| "markdown.inline-code expected string subject".to_owned())?;
-    Ok(Value::String(
+    Ok(TransformTemplateOutputFunctionResult::Text(
         transform_template_encode_markdown_inline_code(text),
     ))
 }
@@ -4931,23 +5091,25 @@ fn validate_builtin_markdown_encoder_binding(
 fn builtin_csv_field_encoder(
     binding: &TransformTemplateEncodeBinding,
     subject: &Value,
-) -> Result<Value, String> {
+) -> Result<TransformTemplateOutputFunctionResult, String> {
     validate_builtin_csv_encoder_binding(binding, "csv.field", "csv-field")?;
     let text = subject
         .as_str()
         .ok_or_else(|| "csv.field expected string subject".to_owned())?;
-    Ok(Value::String(transform_template_encode_csv_field(text)))
+    Ok(TransformTemplateOutputFunctionResult::Text(
+        transform_template_encode_csv_field(text),
+    ))
 }
 
 fn builtin_csv_record_encoder(
     binding: &TransformTemplateEncodeBinding,
     subject: &Value,
-) -> Result<Value, String> {
+) -> Result<TransformTemplateOutputFunctionResult, String> {
     validate_builtin_csv_encoder_binding(binding, "csv.record", "csv-record")?;
     let fields = subject
         .as_array()
         .ok_or_else(|| "csv.record expected array subject".to_owned())?;
-    transform_template_encode_csv_record(fields).map(Value::String)
+    transform_template_encode_csv_record(fields).map(TransformTemplateOutputFunctionResult::Text)
 }
 
 fn validate_builtin_csv_encoder_binding(
@@ -4985,25 +5147,27 @@ fn validate_builtin_csv_encoder_binding(
 fn builtin_css_string_encoder(
     binding: &TransformTemplateEncodeBinding,
     subject: &Value,
-) -> Result<Value, String> {
+) -> Result<TransformTemplateOutputFunctionResult, String> {
     validate_builtin_css_encoder_binding(binding, "css.string", "css-string")?;
     let text = subject
         .as_str()
         .ok_or_else(|| "css.string expected string subject".to_owned())?;
-    Ok(Value::String(transform_template_encode_css_string(text)))
+    Ok(TransformTemplateOutputFunctionResult::Text(
+        transform_template_encode_css_string(text),
+    ))
 }
 
 fn builtin_css_identifier_encoder(
     binding: &TransformTemplateEncodeBinding,
     subject: &Value,
-) -> Result<Value, String> {
+) -> Result<TransformTemplateOutputFunctionResult, String> {
     validate_builtin_css_encoder_binding(binding, "css.identifier", "css-identifier")?;
     let text = subject
         .as_str()
         .ok_or_else(|| "css.identifier expected string subject".to_owned())?;
-    Ok(Value::String(transform_template_encode_css_identifier(
-        text,
-    )))
+    Ok(TransformTemplateOutputFunctionResult::Text(
+        transform_template_encode_css_identifier(text),
+    ))
 }
 
 fn validate_builtin_css_encoder_binding(
@@ -5041,7 +5205,7 @@ fn validate_builtin_css_encoder_binding(
 fn builtin_cem_text_encoder(
     binding: &TransformTemplateEncodeBinding,
     subject: &Value,
-) -> Result<Value, String> {
+) -> Result<TransformTemplateOutputFunctionResult, String> {
     validate_builtin_source_text_encoder_binding(binding, "CEM source")?;
     let text = subject
         .as_str()
@@ -5051,51 +5215,54 @@ fn builtin_cem_text_encoder(
         &binding.options,
         binding.identity.formatter_profile.as_deref(),
     )
-    .map(Value::String)
+    .map(TransformTemplateOutputFunctionResult::Text)
 }
 
 fn builtin_cem_name_encoder(
     binding: &TransformTemplateEncodeBinding,
     subject: &Value,
-) -> Result<Value, String> {
+) -> Result<TransformTemplateOutputFunctionResult, String> {
     validate_builtin_cem_token_encoder_binding(binding, "CEM token")?;
     let text = subject
         .as_str()
         .ok_or_else(|| "cem.name expected string subject".to_owned())?;
-    transform_template_encode_cem_name(text).map(Value::String)
+    transform_template_encode_cem_name(text).map(TransformTemplateOutputFunctionResult::Text)
 }
 
 fn builtin_cem_attribute_value_encoder(
     binding: &TransformTemplateEncodeBinding,
     subject: &Value,
-) -> Result<Value, String> {
+) -> Result<TransformTemplateOutputFunctionResult, String> {
     validate_builtin_cem_token_encoder_binding(binding, "CEM token")?;
     let text = subject
         .as_str()
         .ok_or_else(|| "cem.attribute-value expected string subject".to_owned())?;
-    transform_template_encode_cem_attribute_value(text, "CEM attribute value").map(Value::String)
+    transform_template_encode_cem_attribute_value(text, "CEM attribute value")
+        .map(TransformTemplateOutputFunctionResult::Text)
 }
 
 fn builtin_cem_content_text_encoder(
     binding: &TransformTemplateEncodeBinding,
     subject: &Value,
-) -> Result<Value, String> {
+) -> Result<TransformTemplateOutputFunctionResult, String> {
     validate_builtin_cem_token_encoder_binding(binding, "CEM token")?;
     let text = subject
         .as_str()
         .ok_or_else(|| "cem.content-text expected string subject".to_owned())?;
-    transform_template_encode_cem_content_text(text).map(Value::String)
+    transform_template_encode_cem_content_text(text)
+        .map(TransformTemplateOutputFunctionResult::Text)
 }
 
 fn builtin_cem_string_literal_encoder(
     binding: &TransformTemplateEncodeBinding,
     subject: &Value,
-) -> Result<Value, String> {
+) -> Result<TransformTemplateOutputFunctionResult, String> {
     validate_builtin_cem_token_encoder_binding(binding, "CEM token")?;
     let text = subject
         .as_str()
         .ok_or_else(|| "cem.string-literal expected string subject".to_owned())?;
-    transform_template_encode_cem_string_literal(text).map(Value::String)
+    transform_template_encode_cem_string_literal(text)
+        .map(TransformTemplateOutputFunctionResult::Text)
 }
 
 fn builtin_cem_tree_formatter(
@@ -6945,7 +7112,7 @@ fn transform_template_merge_css_declarations(existing: &mut String, generated: &
 fn builtin_cemt_text_encoder(
     binding: &TransformTemplateEncodeBinding,
     subject: &Value,
-) -> Result<Value, String> {
+) -> Result<TransformTemplateOutputFunctionResult, String> {
     validate_builtin_source_text_encoder_binding(binding, "CEMT source")?;
     let text = subject
         .as_str()
@@ -6955,29 +7122,30 @@ fn builtin_cemt_text_encoder(
         &binding.options,
         binding.identity.formatter_profile.as_deref(),
     )
-    .map(Value::String)
+    .map(TransformTemplateOutputFunctionResult::Text)
 }
 
 fn builtin_cemt_attribute_value_encoder(
     binding: &TransformTemplateEncodeBinding,
     subject: &Value,
-) -> Result<Value, String> {
+) -> Result<TransformTemplateOutputFunctionResult, String> {
     validate_builtin_cem_token_encoder_binding(binding, "CEMT token")?;
     let text = subject
         .as_str()
         .ok_or_else(|| "cemt.attribute-value expected string subject".to_owned())?;
-    transform_template_encode_cem_attribute_value(text, "CEMT attribute value").map(Value::String)
+    transform_template_encode_cem_attribute_value(text, "CEMT attribute value")
+        .map(TransformTemplateOutputFunctionResult::Text)
 }
 
 fn builtin_cemt_string_literal_encoder(
     binding: &TransformTemplateEncodeBinding,
     subject: &Value,
-) -> Result<Value, String> {
+) -> Result<TransformTemplateOutputFunctionResult, String> {
     validate_builtin_cem_token_encoder_binding(binding, "CEMT token")?;
     let text = subject
         .as_str()
         .ok_or_else(|| "cemt.string-literal expected string subject".to_owned())?;
-    Ok(Value::String(
+    Ok(TransformTemplateOutputFunctionResult::Text(
         transform_template_encode_cemt_expression_string_literal(text),
     ))
 }
@@ -6985,7 +7153,7 @@ fn builtin_cemt_string_literal_encoder(
 fn builtin_cem_ql_text_encoder(
     binding: &TransformTemplateEncodeBinding,
     subject: &Value,
-) -> Result<Value, String> {
+) -> Result<TransformTemplateOutputFunctionResult, String> {
     validate_builtin_source_text_encoder_binding(binding, "CEM-QL source")?;
     let text = subject
         .as_str()
@@ -6995,13 +7163,13 @@ fn builtin_cem_ql_text_encoder(
         &binding.options,
         binding.identity.formatter_profile.as_deref(),
     )
-    .map(Value::String)
+    .map(TransformTemplateOutputFunctionResult::Text)
 }
 
 fn builtin_cem_ql_selector_encoder(
     binding: &TransformTemplateEncodeBinding,
     subject: &Value,
-) -> Result<Value, String> {
+) -> Result<TransformTemplateOutputFunctionResult, String> {
     validate_builtin_text_token_encoder_binding(binding, "CEM-QL token")?;
     let text = subject
         .as_str()
@@ -7011,35 +7179,38 @@ fn builtin_cem_ql_selector_encoder(
         &binding.options,
         binding.identity.formatter_profile.as_deref(),
     )
-    .map(Value::String)
+    .map(TransformTemplateOutputFunctionResult::Text)
 }
 
 fn builtin_cem_ql_string_encoder(
     binding: &TransformTemplateEncodeBinding,
     subject: &Value,
-) -> Result<Value, String> {
+) -> Result<TransformTemplateOutputFunctionResult, String> {
     validate_builtin_text_token_encoder_binding(binding, "CEM-QL token")?;
     let text = subject
         .as_str()
         .ok_or_else(|| "cem-ql.string expected string subject".to_owned())?;
-    Ok(Value::String(transform_template_encode_cem_ql_string(text)))
+    Ok(TransformTemplateOutputFunctionResult::Text(
+        transform_template_encode_cem_ql_string(text),
+    ))
 }
 
 fn builtin_cem_ql_identifier_encoder(
     binding: &TransformTemplateEncodeBinding,
     subject: &Value,
-) -> Result<Value, String> {
+) -> Result<TransformTemplateOutputFunctionResult, String> {
     validate_builtin_text_token_encoder_binding(binding, "CEM-QL token")?;
     let text = subject
         .as_str()
         .ok_or_else(|| "cem-ql.identifier expected string subject".to_owned())?;
-    transform_template_encode_cem_ql_identifier(text).map(Value::String)
+    transform_template_encode_cem_ql_identifier(text)
+        .map(TransformTemplateOutputFunctionResult::Text)
 }
 
 fn builtin_rnc_text_encoder(
     binding: &TransformTemplateEncodeBinding,
     subject: &Value,
-) -> Result<Value, String> {
+) -> Result<TransformTemplateOutputFunctionResult, String> {
     validate_builtin_source_text_encoder_binding(binding, "RNC source")?;
     let text = subject
         .as_str()
@@ -7049,13 +7220,13 @@ fn builtin_rnc_text_encoder(
         &binding.options,
         binding.identity.formatter_profile.as_deref(),
     )
-    .map(Value::String)
+    .map(TransformTemplateOutputFunctionResult::Text)
 }
 
 fn builtin_rnc_pattern_encoder(
     binding: &TransformTemplateEncodeBinding,
     subject: &Value,
-) -> Result<Value, String> {
+) -> Result<TransformTemplateOutputFunctionResult, String> {
     validate_builtin_text_token_encoder_binding(binding, "RNC token")?;
     let text = subject
         .as_str()
@@ -7065,29 +7236,29 @@ fn builtin_rnc_pattern_encoder(
         &binding.options,
         binding.identity.formatter_profile.as_deref(),
     )
-    .map(Value::String)
+    .map(TransformTemplateOutputFunctionResult::Text)
 }
 
 fn builtin_rnc_name_encoder(
     binding: &TransformTemplateEncodeBinding,
     subject: &Value,
-) -> Result<Value, String> {
+) -> Result<TransformTemplateOutputFunctionResult, String> {
     validate_builtin_text_token_encoder_binding(binding, "RNC token")?;
     let text = subject
         .as_str()
         .ok_or_else(|| "rnc.name expected string subject".to_owned())?;
-    transform_template_encode_rnc_name(text).map(Value::String)
+    transform_template_encode_rnc_name(text).map(TransformTemplateOutputFunctionResult::Text)
 }
 
 fn builtin_rnc_literal_encoder(
     binding: &TransformTemplateEncodeBinding,
     subject: &Value,
-) -> Result<Value, String> {
+) -> Result<TransformTemplateOutputFunctionResult, String> {
     validate_builtin_text_token_encoder_binding(binding, "RNC token")?;
     let text = subject
         .as_str()
         .ok_or_else(|| "rnc.literal expected string subject".to_owned())?;
-    transform_template_encode_rnc_literal(text).map(Value::String)
+    transform_template_encode_rnc_literal(text).map(TransformTemplateOutputFunctionResult::Text)
 }
 
 fn validate_builtin_source_text_encoder_binding(
@@ -7237,7 +7408,7 @@ fn validate_builtin_cem_token_encoder_binding(
 fn builtin_ai_context_projection_encoder(
     binding: &TransformTemplateEncodeBinding,
     subject: &Value,
-) -> Result<Value, String> {
+) -> Result<TransformTemplateOutputFunctionResult, String> {
     validate_builtin_ai_context_projection_encoder_binding(binding)?;
     let projection = subject
         .as_object()
@@ -7263,7 +7434,7 @@ fn builtin_ai_context_projection_encoder(
         &binding.options,
         binding.identity.formatter_profile.as_deref(),
     )
-    .map(Value::String)
+    .map(TransformTemplateOutputFunctionResult::Text)
 }
 
 fn validate_builtin_ai_context_projection_encoder_binding(
@@ -7322,11 +7493,12 @@ fn transform_template_ai_context_kind_for_category(category: &str) -> Option<&'s
 fn builtin_cem_bin_bytes_encoder(
     binding: &TransformTemplateEncodeBinding,
     subject: &Value,
-) -> Result<Value, String> {
+) -> Result<TransformTemplateOutputFunctionResult, String> {
     validate_builtin_cem_bin_bytes_encoder_binding(binding)?;
     let bytes = transform_template_writer_bytes_from_subject(subject, &binding.function.name)?;
-    serde_json::to_value(TransformTemplateWriterByteStream::new(bytes))
-        .map_err(|error| error.to_string())
+    Ok(TransformTemplateOutputFunctionResult::Bytes(
+        TransformTemplateWriterByteStream::new(bytes),
+    ))
 }
 
 fn validate_builtin_cem_bin_bytes_encoder_binding(
@@ -9124,7 +9296,7 @@ fn transform_template_writer_token_artifact_to_text(
         color_identity.color_capability = writer_boundary_context.color_capability.clone();
     }
     let color_profile = transform_template_writer_token_color_profile(
-        artifact.value.as_runtime_value(),
+        None,
         &color_identity,
         writer_boundary_context.output_color_type.as_deref(),
     );
@@ -9349,8 +9521,8 @@ fn transform_template_writer_cem_tree_artifact_to_text(
 ) -> Result<TransformTemplateEncodedArtifact, String> {
     let value = artifact
         .value
-        .as_runtime_value()
-        .ok_or_else(|| "CEM tree envelope is not a runtime tree payload".to_owned())?;
+        .as_cemt_runtime_value()
+        .ok_or_else(|| "CEM tree envelope is not a CEMT evaluator tree payload".to_owned())?;
     validate_cem_tree_value(value)
         .map_err(|message| format!("CEM tree envelope is invalid: {message}"))?;
     validate_cem_tree_writer_boundary(artifact, writer_boundary_context)?;
@@ -9392,8 +9564,8 @@ fn validate_cem_tree_writer_boundary(
 ) -> Result<(), String> {
     let value = artifact
         .value
-        .as_runtime_value()
-        .ok_or_else(|| "CEM tree envelope is not a runtime tree payload".to_owned())?;
+        .as_cemt_runtime_value()
+        .ok_or_else(|| "CEM tree envelope is not a CEMT evaluator tree payload".to_owned())?;
     let identity_formatter_profile =
         trimmed_optional_str(artifact.identity.formatter_profile.as_deref());
     let value_formatter_profile = trimmed_value_string_field(value, "formatterProfile");
@@ -11957,13 +12129,16 @@ fn json_value_type_name(value: &Value) -> &'static str {
     }
 }
 
-pub fn evaluate_transform_template_encode_expressions<F>(
+pub(crate) fn evaluate_transform_template_encode_expressions<F>(
     expressions: &[TransformTemplateEncodeExpression],
     context: TransformTemplateEncodeEvaluationContext<'_>,
     mut encode_impl: F,
 ) -> TransformTemplateEncodeEvaluationResponse
 where
-    F: FnMut(&TransformTemplateEncodeBinding, &Value) -> Result<Value, String>,
+    F: FnMut(
+        &TransformTemplateEncodeBinding,
+        &Value,
+    ) -> Result<TransformTemplateOutputFunctionExecution, String>,
 {
     let mut encoded = Vec::new();
     let mut diagnostics = Vec::new();
@@ -12026,7 +12201,7 @@ where
                     continue;
                 }
             };
-            let formatted_output = match execute_transform_template_encode_binding(
+            let formatted_execution = match execute_transform_template_output_function(
                 &format_binding,
                 &subject,
                 &context,
@@ -12048,13 +12223,45 @@ where
                     continue;
                 }
             };
+            let formatted_value = match formatted_execution.clone().into_cemt_evaluator_value() {
+                Ok(value) => value,
+                Err(message) => {
+                    diagnostics.push(Diagnostic {
+                        uri: context.uri.map(str::to_owned),
+                        code: TRANSFORM_TEMPLATE_ENCODE_IMPLEMENTATION_FAILED_CODE.to_owned(),
+                        severity: Severity::Error,
+                        message: format!(
+                            "CEMT output function `{}` failed for expression `{}`: {message}",
+                            format_binding.function.name, expression.expression
+                        ),
+                        details: None,
+                        ..Diagnostic::default()
+                    });
+                    continue;
+                }
+            };
             let mut binding = format_binding;
-            let mut artifact = binding.artifact_from_value(formatted_output);
+            let mut artifact = match formatted_execution.into_artifact(&binding) {
+                Ok(artifact) => artifact,
+                Err(message) => {
+                    diagnostics.push(Diagnostic {
+                        uri: context.uri.map(str::to_owned),
+                        code: TRANSFORM_TEMPLATE_ENCODE_IMPLEMENTATION_FAILED_CODE.to_owned(),
+                        severity: Severity::Error,
+                        message: format!(
+                            "CEMT output function `{}` failed for expression `{}`: {message}",
+                            binding.function.name, expression.expression
+                        ),
+                        details: None,
+                        ..Diagnostic::default()
+                    });
+                    continue;
+                }
+            };
 
             if request.requires_color_binding()
                 || transform_template_encode_options_request_color(&request.options)
             {
-                let formatted_value = artifact.value.to_runtime_value();
                 let color_request = TransformTemplateEncodeBindingRequest {
                     subject: formatted_value.clone(),
                     owner: request.owner.clone(),
@@ -12097,7 +12304,7 @@ where
                         continue;
                     }
                 };
-                let colored_output = match execute_transform_template_encode_binding(
+                let colored_execution = match execute_transform_template_output_function(
                     &color_binding,
                     &formatted_value,
                     &context,
@@ -12120,7 +12327,23 @@ where
                     }
                 };
                 binding = color_binding;
-                artifact = binding.artifact_from_value(colored_output);
+                artifact = match colored_execution.into_artifact(&binding) {
+                    Ok(artifact) => artifact,
+                    Err(message) => {
+                        diagnostics.push(Diagnostic {
+                            uri: context.uri.map(str::to_owned),
+                            code: TRANSFORM_TEMPLATE_ENCODE_IMPLEMENTATION_FAILED_CODE.to_owned(),
+                            severity: Severity::Error,
+                            message: format!(
+                                "CEMT output function `{}` failed for expression `{}`: {message}",
+                                binding.function.name, expression.expression
+                            ),
+                            details: None,
+                            ..Diagnostic::default()
+                        });
+                        continue;
+                    }
+                };
             }
 
             encoded.push(TransformTemplateEvaluatedEncodeExpression {
@@ -12167,7 +12390,7 @@ where
             }
         };
 
-        let output = match execute_transform_template_encode_binding(
+        let execution = match execute_transform_template_output_function(
             &binding,
             &subject,
             &context,
@@ -12190,7 +12413,23 @@ where
             }
         };
 
-        let artifact = binding.artifact_from_value(output);
+        let artifact = match execution.into_artifact(&binding) {
+            Ok(artifact) => artifact,
+            Err(message) => {
+                diagnostics.push(Diagnostic {
+                    uri: context.uri.map(str::to_owned),
+                    code: TRANSFORM_TEMPLATE_ENCODE_IMPLEMENTATION_FAILED_CODE.to_owned(),
+                    severity: Severity::Error,
+                    message: format!(
+                        "CEMT output function `{}` failed for expression `{}`: {message}",
+                        binding.function.name, expression.expression
+                    ),
+                    details: None,
+                    ..Diagnostic::default()
+                });
+                continue;
+            }
+        };
         encoded.push(TransformTemplateEvaluatedEncodeExpression {
             expression: expression.clone(),
             subject,
@@ -12203,6 +12442,29 @@ where
         encoded,
         diagnostics,
     }
+}
+
+fn execute_transform_template_output_function<F>(
+    binding: &TransformTemplateEncodeBinding,
+    subject: &Value,
+    context: &TransformTemplateEncodeEvaluationContext<'_>,
+    encode_impl: &mut F,
+) -> Result<TransformTemplateOutputFunctionExecution, String>
+where
+    F: FnMut(
+        &TransformTemplateEncodeBinding,
+        &Value,
+    ) -> Result<TransformTemplateOutputFunctionExecution, String>,
+{
+    if let Some(result) = execute_transform_template_cemt_body_expression(
+        binding,
+        subject,
+        context.value_bindings,
+        &context.registry.runtime_functions,
+    ) {
+        return result.map(TransformTemplateOutputFunctionExecution::CemtEvaluator);
+    }
+    encode_impl(binding, subject)
 }
 
 pub(crate) fn execute_transform_template_encode_binding<F>(
@@ -13258,6 +13520,77 @@ pub struct TransformTemplateWriterChunkStream {
 #[serde(rename_all = "camelCase")]
 pub struct TransformTemplateWriterDiagnostics {
     pub diagnostics: Vec<Diagnostic>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(tag = "kind", content = "payload", rename_all = "kebab-case")]
+pub enum TransformTemplateOutputFunctionResult {
+    Text(String),
+    Bytes(TransformTemplateWriterByteStream),
+    Tokens(TransformTemplateWriterTokenStream),
+    Chunks(TransformTemplateWriterChunkStream),
+    Diagnostics(TransformTemplateWriterDiagnostics),
+}
+
+impl TransformTemplateOutputFunctionResult {
+    pub fn produced_kind(&self) -> TransformTemplateOutputProducedKind {
+        match self {
+            Self::Text(_) => TransformTemplateOutputProducedKind::Text,
+            Self::Bytes(_) => TransformTemplateOutputProducedKind::Bytes,
+            Self::Tokens(_) => TransformTemplateOutputProducedKind::Tokens,
+            Self::Chunks(_) => TransformTemplateOutputProducedKind::Chunks,
+            Self::Diagnostics(_) => TransformTemplateOutputProducedKind::Diagnostics,
+        }
+    }
+
+    pub fn as_str(&self) -> Option<&str> {
+        match self {
+            Self::Text(text) => Some(text),
+            _ => None,
+        }
+    }
+
+    pub fn writer_bytes(&self) -> Option<&TransformTemplateWriterByteStream> {
+        match self {
+            Self::Bytes(stream) => Some(stream),
+            _ => None,
+        }
+    }
+
+    pub fn into_evaluator_value(self) -> Result<Value, String> {
+        match self {
+            Self::Text(text) => Ok(Value::String(text)),
+            Self::Bytes(_) | Self::Tokens(_) | Self::Chunks(_) | Self::Diagnostics(_) => Err(
+                "typed writer output cannot re-enter CEMT expression evaluation without an explicit decoder"
+                    .to_owned(),
+            ),
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub(crate) enum TransformTemplateOutputFunctionExecution {
+    Native(TransformTemplateOutputFunctionResult),
+    CemtEvaluator(Value),
+}
+
+impl TransformTemplateOutputFunctionExecution {
+    fn into_artifact(
+        self,
+        binding: &TransformTemplateEncodeBinding,
+    ) -> Result<TransformTemplateEncodedArtifact, String> {
+        match self {
+            Self::Native(result) => binding.artifact_from_result(result),
+            Self::CemtEvaluator(value) => Ok(binding.artifact_from_cemt_value(value)),
+        }
+    }
+
+    pub(crate) fn into_cemt_evaluator_value(self) -> Result<Value, String> {
+        match self {
+            Self::CemtEvaluator(value) => Ok(value),
+            Self::Native(result) => result.into_evaluator_value(),
+        }
+    }
 }
 
 const CEMT_RUNTIME_CALL_RECURSION_LIMIT: usize = 64;
@@ -19028,105 +19361,104 @@ pub enum TransformTemplateEncodedArtifactPayload {
     Tokens(TransformTemplateWriterTokenStream),
     Chunks(TransformTemplateWriterChunkStream),
     Diagnostics(TransformTemplateWriterDiagnostics),
-    Runtime(Value),
+    CemtRuntime(Value),
+    #[cfg(test)]
+    TestValue(Value),
 }
 
 impl TransformTemplateEncodedArtifactPayload {
-    fn from_runtime_value(produces: TransformTemplateOutputProducedKind, value: Value) -> Self {
-        match produces {
-            TransformTemplateOutputProducedKind::Text => match value {
-                Value::String(text) => Self::Text(text),
-                value => Self::Runtime(value),
-            },
-            TransformTemplateOutputProducedKind::Bytes
-                if validate_writer_byte_stream_value(&value).is_ok() =>
-            {
-                serde_json::from_value(value.clone())
-                    .map(Self::Bytes)
-                    .unwrap_or(Self::Runtime(value))
-            }
-            TransformTemplateOutputProducedKind::Tokens
-                if validate_writer_token_stream_value(&value).is_ok() =>
-            {
-                serde_json::from_value(value.clone())
-                    .map(Self::Tokens)
-                    .unwrap_or(Self::Runtime(value))
-            }
-            TransformTemplateOutputProducedKind::Chunks
-                if validate_writer_chunk_stream_value(&value).is_ok() =>
-            {
-                serde_json::from_value(value.clone())
-                    .map(Self::Chunks)
-                    .unwrap_or(Self::Runtime(value))
-            }
-            TransformTemplateOutputProducedKind::Diagnostics => {
-                if validate_writer_diagnostics_value(&value).is_ok() {
-                    serde_json::from_value(value.clone())
-                        .map(Self::Diagnostics)
-                        .unwrap_or(Self::Runtime(value))
-                } else {
-                    Self::Runtime(value)
-                }
-            }
-            TransformTemplateOutputProducedKind::Bytes
-            | TransformTemplateOutputProducedKind::Tokens
-            | TransformTemplateOutputProducedKind::Chunks
-            | TransformTemplateOutputProducedKind::CemTree => Self::Runtime(value),
+    fn from_output_function_result(result: TransformTemplateOutputFunctionResult) -> Self {
+        match result {
+            TransformTemplateOutputFunctionResult::Text(text) => Self::Text(text),
+            TransformTemplateOutputFunctionResult::Bytes(stream) => Self::Bytes(stream),
+            TransformTemplateOutputFunctionResult::Tokens(stream) => Self::Tokens(stream),
+            TransformTemplateOutputFunctionResult::Chunks(stream) => Self::Chunks(stream),
+            TransformTemplateOutputFunctionResult::Diagnostics(stream) => Self::Diagnostics(stream),
         }
     }
 
     pub fn as_str(&self) -> Option<&str> {
         match self {
             Self::Text(text) => Some(text),
-            Self::Runtime(value) => value.as_str(),
             _ => None,
         }
     }
 
+    pub fn as_cemt_runtime_value(&self) -> Option<&Value> {
+        match self {
+            Self::CemtRuntime(value) => Some(value),
+            #[cfg(test)]
+            Self::TestValue(value) => Some(value),
+            _ => None,
+        }
+    }
+
+    #[cfg(test)]
     pub fn as_runtime_value(&self) -> Option<&Value> {
+        self.as_cemt_runtime_value()
+    }
+
+    pub fn into_cemt_runtime_value(self) -> Result<Value, String> {
         match self {
-            Self::Runtime(value) => Some(value),
-            _ => None,
+            Self::CemtRuntime(value) => Ok(value),
+            #[cfg(test)]
+            Self::TestValue(value) => Ok(value),
+            value => Err(format!(
+                "typed `{}` output cannot be used as a CEMT evaluator value without an explicit decoder",
+                value.produced_kind().as_str()
+            )),
         }
     }
 
-    pub fn into_runtime_value(self) -> Value {
+    pub fn to_cemt_runtime_value(&self) -> Result<Value, String> {
+        self.clone().into_cemt_runtime_value()
+    }
+
+    pub fn into_public_value(self) -> Result<Value, String> {
         match self {
-            Self::Text(text) => Value::String(text),
-            Self::Bytes(stream) => {
-                serde_json::to_value(stream).expect("writer byte stream serializes")
-            }
-            Self::Tokens(stream) => {
-                serde_json::to_value(stream).expect("writer token stream serializes")
-            }
-            Self::Chunks(stream) => {
-                serde_json::to_value(stream).expect("writer chunk stream serializes")
-            }
+            Self::Text(text) => Ok(Value::String(text)),
+            Self::Bytes(stream) => serde_json::to_value(stream).map_err(|error| error.to_string()),
+            Self::Tokens(stream) => serde_json::to_value(stream).map_err(|error| error.to_string()),
+            Self::Chunks(stream) => serde_json::to_value(stream).map_err(|error| error.to_string()),
             Self::Diagnostics(stream) => {
-                serde_json::to_value(stream).expect("writer diagnostics serialize")
+                serde_json::to_value(stream).map_err(|error| error.to_string())
             }
-            Self::Runtime(value) => value,
+            Self::CemtRuntime(value) => Ok(value),
+            #[cfg(test)]
+            Self::TestValue(value) => Ok(value),
         }
     }
 
+    #[cfg(test)]
+    pub fn into_runtime_value(self) -> Value {
+        self.into_public_value()
+            .expect("test artifact payload projects to a runtime assertion value")
+    }
+
+    #[cfg(test)]
     pub fn to_runtime_value(&self) -> Value {
         self.clone().into_runtime_value()
     }
 
     pub fn as_object_mut(&mut self) -> Option<&mut serde_json::Map<String, Value>> {
         match self {
-            Self::Runtime(value) => value.as_object_mut(),
+            Self::CemtRuntime(value) => value.as_object_mut(),
+            #[cfg(test)]
+            Self::TestValue(value) => value.as_object_mut(),
             _ => None,
         }
     }
 
     pub fn get(&self, key: &str) -> Option<&Value> {
-        self.as_runtime_value().and_then(|value| value.get(key))
+        self.as_cemt_runtime_value()
+            .and_then(|value| value.get(key))
     }
 
     pub fn get_mut(&mut self, key: &str) -> Option<&mut Value> {
         match self {
-            Self::Runtime(value) => value.get_mut(key),
+            Self::CemtRuntime(value) => value.get_mut(key),
+            #[cfg(test)]
+            Self::TestValue(value) => value.get_mut(key),
             _ => None,
         }
     }
@@ -19135,14 +19467,23 @@ impl TransformTemplateEncodedArtifactPayload {
         match self {
             Self::Text(_) => "string",
             Self::Bytes(_) | Self::Tokens(_) | Self::Chunks(_) | Self::Diagnostics(_) => "object",
-            Self::Runtime(value) => json_value_type_name(value),
+            Self::CemtRuntime(value) => json_value_type_name(value),
+            #[cfg(test)]
+            Self::TestValue(value) => json_value_type_name(value),
         }
     }
-}
 
-impl From<Value> for TransformTemplateEncodedArtifactPayload {
-    fn from(value: Value) -> Self {
-        Self::Runtime(value)
+    fn produced_kind(&self) -> TransformTemplateOutputProducedKind {
+        match self {
+            Self::Text(_) => TransformTemplateOutputProducedKind::Text,
+            Self::Bytes(_) => TransformTemplateOutputProducedKind::Bytes,
+            Self::Tokens(_) => TransformTemplateOutputProducedKind::Tokens,
+            Self::Chunks(_) => TransformTemplateOutputProducedKind::Chunks,
+            Self::Diagnostics(_) => TransformTemplateOutputProducedKind::Diagnostics,
+            Self::CemtRuntime(_) => TransformTemplateOutputProducedKind::CemTree,
+            #[cfg(test)]
+            Self::TestValue(_) => TransformTemplateOutputProducedKind::CemTree,
+        }
     }
 }
 
@@ -19150,9 +19491,18 @@ impl PartialEq<Value> for TransformTemplateEncodedArtifactPayload {
     fn eq(&self, other: &Value) -> bool {
         match self {
             Self::Text(text) => other.as_str() == Some(text.as_str()),
-            Self::Runtime(value) => value == other,
+            Self::CemtRuntime(value) => value == other,
+            #[cfg(test)]
+            Self::TestValue(value) => value == other,
             _ => false,
         }
+    }
+}
+
+#[cfg(test)]
+impl From<Value> for TransformTemplateEncodedArtifactPayload {
+    fn from(value: Value) -> Self {
+        Self::TestValue(value)
     }
 }
 
@@ -19161,18 +19511,98 @@ impl std::ops::Index<&str> for TransformTemplateEncodedArtifactPayload {
 
     fn index(&self, index: &str) -> &Self::Output {
         &self
-            .as_runtime_value()
-            .expect("typed writer payload does not support JSON indexing")[index]
+            .as_cemt_runtime_value()
+            .expect("typed writer payload does not support CEMT evaluator indexing")[index]
     }
 }
 
 impl TransformTemplateEncodedArtifact {
+    #[cfg(test)]
     pub fn new(identity: TransformTemplateEncodedArtifactIdentity, value: Value) -> Self {
-        let value =
-            TransformTemplateEncodedArtifactPayload::from_runtime_value(identity.produces, value);
+        let payload = match identity.produces {
+            TransformTemplateOutputProducedKind::Text => value
+                .as_str()
+                .map(|text| TransformTemplateEncodedArtifactPayload::Text(text.to_owned())),
+            TransformTemplateOutputProducedKind::Bytes
+                if validate_writer_byte_stream_value(&value).is_ok() =>
+            {
+                serde_json::from_value(value.clone())
+                    .ok()
+                    .map(TransformTemplateEncodedArtifactPayload::Bytes)
+            }
+            TransformTemplateOutputProducedKind::Tokens
+                if validate_writer_token_stream_value(&value).is_ok() =>
+            {
+                serde_json::from_value(value.clone())
+                    .ok()
+                    .map(TransformTemplateEncodedArtifactPayload::Tokens)
+            }
+            TransformTemplateOutputProducedKind::Chunks
+                if validate_writer_chunk_stream_value(&value).is_ok() =>
+            {
+                serde_json::from_value(value.clone())
+                    .ok()
+                    .map(TransformTemplateEncodedArtifactPayload::Chunks)
+            }
+            TransformTemplateOutputProducedKind::Diagnostics
+                if validate_writer_diagnostics_value(&value).is_ok() =>
+            {
+                serde_json::from_value(value.clone())
+                    .ok()
+                    .map(TransformTemplateEncodedArtifactPayload::Diagnostics)
+            }
+            TransformTemplateOutputProducedKind::CemTree => Some(
+                TransformTemplateEncodedArtifactPayload::CemtRuntime(value.clone()),
+            ),
+            _ => None,
+        }
+        .unwrap_or(TransformTemplateEncodedArtifactPayload::TestValue(value));
         Self {
             identity,
-            value,
+            value: payload,
+            source_map: None,
+            output_spans: Vec::new(),
+            encoded: true,
+        }
+    }
+
+    pub fn from_output_function_result(
+        identity: TransformTemplateEncodedArtifactIdentity,
+        result: TransformTemplateOutputFunctionResult,
+    ) -> Result<Self, String> {
+        if identity.produces != result.produced_kind() {
+            return Err(format!(
+                "encoded artifact identity declares `{}` but output function returned `{}`",
+                identity.produces.as_str(),
+                result.produced_kind().as_str(),
+            ));
+        }
+        Ok(Self {
+            identity,
+            value: TransformTemplateEncodedArtifactPayload::from_output_function_result(result),
+            source_map: None,
+            output_spans: Vec::new(),
+            encoded: true,
+        })
+    }
+
+    pub fn from_text(
+        identity: TransformTemplateEncodedArtifactIdentity,
+        text: impl Into<String>,
+    ) -> Result<Self, String> {
+        Self::from_output_function_result(
+            identity,
+            TransformTemplateOutputFunctionResult::Text(text.into()),
+        )
+    }
+
+    pub fn from_cemt_runtime(
+        identity: TransformTemplateEncodedArtifactIdentity,
+        value: Value,
+    ) -> Self {
+        Self {
+            identity,
+            value: TransformTemplateEncodedArtifactPayload::CemtRuntime(value),
             source_map: None,
             output_spans: Vec::new(),
             encoded: true,
@@ -19668,32 +20098,27 @@ fn validate_encoded_artifact_value_shape(
             TransformTemplateEncodedArtifactPayload::Diagnostics(stream),
         ) => validate_typed_writer_diagnostics(stream),
         (
-            TransformTemplateOutputProducedKind::Text,
-            TransformTemplateEncodedArtifactPayload::Runtime(value),
-        ) => value
-            .is_string()
-            .then_some(())
-            .ok_or_else(|| json_value_type_name(value).to_owned()),
-        (
-            TransformTemplateOutputProducedKind::Bytes,
-            TransformTemplateEncodedArtifactPayload::Runtime(value),
-        ) => validate_writer_byte_stream_value(value),
-        (
             TransformTemplateOutputProducedKind::CemTree,
-            TransformTemplateEncodedArtifactPayload::Runtime(value),
+            TransformTemplateEncodedArtifactPayload::CemtRuntime(value),
         ) => validate_cem_tree_value(value),
-        (
-            TransformTemplateOutputProducedKind::Tokens,
-            TransformTemplateEncodedArtifactPayload::Runtime(value),
-        ) => validate_writer_token_stream_value(value),
-        (
-            TransformTemplateOutputProducedKind::Chunks,
-            TransformTemplateEncodedArtifactPayload::Runtime(value),
-        ) => validate_writer_chunk_stream_value(value),
-        (
-            TransformTemplateOutputProducedKind::Diagnostics,
-            TransformTemplateEncodedArtifactPayload::Runtime(value),
-        ) => validate_writer_diagnostics_value(value),
+        #[cfg(test)]
+        (produces, TransformTemplateEncodedArtifactPayload::TestValue(value)) => match produces {
+            TransformTemplateOutputProducedKind::Text => value
+                .is_string()
+                .then_some(())
+                .ok_or_else(|| json_value_type_name(value).to_owned()),
+            TransformTemplateOutputProducedKind::Bytes => validate_writer_byte_stream_value(value),
+            TransformTemplateOutputProducedKind::CemTree => validate_cem_tree_value(value),
+            TransformTemplateOutputProducedKind::Tokens => {
+                validate_writer_token_stream_value(value)
+            }
+            TransformTemplateOutputProducedKind::Chunks => {
+                validate_writer_chunk_stream_value(value)
+            }
+            TransformTemplateOutputProducedKind::Diagnostics => {
+                validate_writer_diagnostics_value(value)
+            }
+        },
         _ => Err(value.value_type_name().to_owned()),
     };
 
@@ -19975,6 +20400,7 @@ fn validate_writer_token_style(value: &Value, field: &str) -> Result<(), String>
     Ok(())
 }
 
+#[cfg(test)]
 fn validate_writer_byte_stream_value(value: &Value) -> Result<(), String> {
     let object = value
         .as_object()
@@ -19999,6 +20425,7 @@ fn validate_writer_byte_stream_value(value: &Value) -> Result<(), String> {
     }
 }
 
+#[cfg(test)]
 fn validate_writer_chunk_stream_value(value: &Value) -> Result<(), String> {
     let chunks = required_writer_array_field(value, "chunks")?;
     for (index, chunk) in chunks.iter().enumerate() {
@@ -20041,6 +20468,7 @@ fn validate_writer_chunk_stream_value(value: &Value) -> Result<(), String> {
     Ok(())
 }
 
+#[cfg(test)]
 fn validate_writer_diagnostics_value(value: &Value) -> Result<(), String> {
     let diagnostics = required_writer_array_field(value, "diagnostics")?;
     for (index, diagnostic) in diagnostics.iter().enumerate() {
@@ -20079,6 +20507,7 @@ fn required_writer_array_field<'a>(
         .ok_or_else(|| format!("missing `{field}` array"))
 }
 
+#[cfg(test)]
 fn validate_writer_byte_array(bytes: &[Value], field: &str) -> Result<(), String> {
     for (index, byte) in bytes.iter().enumerate() {
         if !byte.as_u64().is_some_and(|value| value <= 255) {
@@ -22553,7 +22982,7 @@ fn execute_cemt_formatter_coloring_pipeline(
         source_map_policy: Some(TransformTemplateSourceMapPolicy::Generated),
     };
     transform_template_writer_cem_tree_artifact_to_text(
-        &color_binding.artifact_from_value(colored.clone()),
+        &color_binding.artifact_from_cemt_value(colored.clone()),
         &writer_context,
     )
     .and_then(|artifact| {
@@ -30033,18 +30462,20 @@ mod tests {
 
         let registry = TransformTemplateEncodeImplementationRegistry::with_builtin_encoders();
         let encoded = registry
-            .encode(&binding, &request.subject)
+            .encode_result(&binding, &request.subject)
             .expect("CEM binary bytes encoder runs");
         assert_eq!(
-            encoded,
-            json!({
-                "encoding": "u8-array",
-                "bytes": [67, 69, 77],
-                "byteLength": 3
-            })
+            encoded.produced_kind(),
+            TransformTemplateOutputProducedKind::Bytes
+        );
+        assert_eq!(
+            encoded.writer_bytes().expect("native byte result"),
+            &TransformTemplateWriterByteStream::new(vec![67, 69, 77])
         );
 
-        let artifact = binding.artifact_from_value(encoded);
+        let artifact = binding
+            .artifact_from_result(encoded)
+            .expect("declared byte result matches binding");
         artifact
             .validate_insertion(
                 &TransformTemplateEncodedArtifactInsertionContext::new(
@@ -30083,6 +30514,86 @@ mod tests {
             .encode(&binding, &json!({"bytes": [300]}))
             .expect_err("byte values must fit in u8");
         assert!(bad_byte.contains("index `0`"));
+    }
+
+    #[test]
+    fn native_output_function_rejects_declared_result_kind_mismatch() {
+        let mut functions = TransformTemplateOutputFunctionRegistry::new();
+        functions.register(cem_bin_bytes_output_function_descriptor(
+            "test.native.bytes",
+            CEM_AST_PROJECTION_CONTENT_TYPE,
+            CEM_AST_PROJECTION_SCHEMA_URI,
+        ));
+        let request = TransformTemplateEncodeBindingRequest::new(
+            json!({"bytes": [67]}),
+            TransformTemplateEncodingTarget::new(
+                CEM_AST_PROJECTION_CONTENT_TYPE,
+                CEM_AST_PROJECTION_SCHEMA_URI,
+                "cem-bin-document",
+            ),
+        )
+        .with_options(TransformTemplateEncodeOptions {
+            encoder: Some("test.native.bytes".to_owned()),
+            ..TransformTemplateEncodeOptions::default()
+        });
+        let binding = functions
+            .resolve_encode_binding(&request, &BTreeSet::new())
+            .expect("test native output function resolves");
+
+        let mut implementations = TransformTemplateEncodeImplementationRegistry::new();
+        implementations.register(
+            "test.native.bytes",
+            |_: &TransformTemplateEncodeBinding, _: &Value| {
+                Ok(TransformTemplateOutputFunctionResult::Text(
+                    "not bytes".to_owned(),
+                ))
+            },
+        );
+
+        let error = implementations
+            .encode_result(&binding, &request.subject)
+            .expect_err("producer kind mismatch is rejected before artifact construction");
+        assert!(error.contains("declares `bytes` but returned `text`"));
+    }
+
+    #[test]
+    fn native_output_function_boundary_has_no_runtime_value_or_binary_json_bridge() {
+        let source = include_str!("transform_template.rs");
+        let production = source
+            .split_once("#[cfg(test)]\nmod tests")
+            .map(|(production, _)| production)
+            .expect("production source precedes the test module");
+
+        assert!(
+            !production.contains("from_runtime_value("),
+            "native output artifacts must not classify generic runtime values"
+        );
+        assert!(
+            !production.contains("TransformTemplateEncodedArtifactPayload::Runtime("),
+            "native output artifacts must not retain a generic runtime-value variant"
+        );
+
+        let native_trait = production
+            .split_once("pub trait TransformTemplateEncodeImplementation")
+            .and_then(|(_, suffix)| {
+                suffix.split_once("trait TransformTemplateCemtRuntimeImplementation")
+            })
+            .map(|(body, _)| body)
+            .expect("native output implementation trait source boundaries");
+        assert!(native_trait.contains("Result<TransformTemplateOutputFunctionResult, String>"));
+
+        let binary_encoder = production
+            .split_once("fn builtin_cem_bin_bytes_encoder(")
+            .and_then(|(_, suffix)| {
+                suffix.split_once("fn validate_builtin_cem_bin_bytes_encoder_binding(")
+            })
+            .map(|(body, _)| body)
+            .expect("binary encoder source boundaries");
+        assert!(binary_encoder.contains("TransformTemplateOutputFunctionResult::Bytes"));
+        assert!(
+            !binary_encoder.contains("serde_json::"),
+            "binary encoder must return a typed byte stream without JSON serialization"
+        );
     }
 
     #[test]
@@ -33541,7 +34052,9 @@ mod tests {
             |binding, subject| {
                 assert_eq!(binding.function.name, "html.text");
                 assert_eq!(subject, &Value::String("Hello & CEM".to_owned()));
-                Ok(Value::String("Hello &amp; CEM".to_owned()))
+                Ok(TransformTemplateOutputFunctionExecution::Native(
+                    TransformTemplateOutputFunctionResult::Text("Hello &amp; CEM".to_owned()),
+                ))
             },
         );
 
@@ -33677,7 +34190,7 @@ mod tests {
                 if binding.function.kind == TransformTemplateOutputFunctionKind::Color {
                     assert_eq!(subject["kind"], "cem-tree");
                 }
-                implementations.encode(binding, subject)
+                implementations.execute(binding, subject)
             },
         );
 
@@ -34113,7 +34626,7 @@ mod tests {
                 output_color_type: None,
                 uri: Some("templates/runtime-color.cemt"),
             },
-            |binding, subject| implementations.encode(binding, subject),
+            |binding, subject| implementations.execute(binding, subject),
         );
 
         assert!(
@@ -34206,7 +34719,7 @@ mod tests {
                 output_color_type: Some("html"),
                 uri: Some("templates/runtime-output-color.cemt"),
             },
-            |binding, subject| implementations.encode(binding, subject),
+            |binding, subject| implementations.execute(binding, subject),
         );
 
         assert!(
@@ -34383,7 +34896,11 @@ mod tests {
                 output_color_type: None,
                 uri: Some("templates/runtime-encoding.cemt"),
             },
-            |_, _| Ok(Value::Null),
+            |_, _| {
+                Ok(TransformTemplateOutputFunctionExecution::CemtEvaluator(
+                    Value::Null,
+                ))
+            },
         );
 
         assert!(evaluated.encoded.is_empty());
@@ -34413,7 +34930,11 @@ mod tests {
                 output_color_type: None,
                 uri: Some("templates/runtime-encoding.cemt"),
             },
-            |_, _| Ok(Value::Null),
+            |_, _| {
+                Ok(TransformTemplateOutputFunctionExecution::CemtEvaluator(
+                    Value::Null,
+                ))
+            },
         );
 
         assert!(evaluated.encoded.is_empty());
@@ -34443,7 +34964,11 @@ mod tests {
                 output_color_type: None,
                 uri: Some("templates/runtime-encoding.cemt"),
             },
-            |_, _| Ok(Value::Null),
+            |_, _| {
+                Ok(TransformTemplateOutputFunctionExecution::CemtEvaluator(
+                    Value::Null,
+                ))
+            },
         );
 
         assert!(evaluated.encoded.is_empty());

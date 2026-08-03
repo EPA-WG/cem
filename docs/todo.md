@@ -962,6 +962,13 @@ Remaining dependency-ordered package checklist:
       - [ ] Make CEMT/native output-function implementations return typed
             payloads directly; remove runtime-value classification and the
             remaining byte-encoder serialization at the evaluator boundary.
+        - [x] Return native text, byte, token, chunk, and diagnostic results
+              through a closed enum, validate the declared/returned kind at
+              the producer boundary, and remove binary-encoder JSON
+              serialization.
+        - [ ] Lower CEMT evaluator tree results immediately into package-owned
+              typed artifacts; remove `CemtEvaluator(Value)` and
+              `CemtRuntime(Value)` from cross-tier handoffs.
       - [x] Define typed raw, formatted, and colored CEM tree envelopes with
             ordered native nodes and lazy evaluator views over the owning AST.
       - [ ] Route formatter, colorizer, writer, graph, and secondary-input
@@ -1021,41 +1028,38 @@ Remaining dependency-ordered package checklist:
 
 ### Next Work Item
 
-Replace native/CEMT output-function runtime-value classification with a closed
-typed result contract. The completed CEMT stages now retain one
-`Arc<CemTreeAstStream>` through raw, formatted, and colored overlays, lower
-ordered formatter and colorizer operations with owner paths and provenance, and
-expose lazy merged views. Writer composition has typed handoff validation and
-parity coverage, but output-function evaluation can still create a generic
-runtime `Value` and classify its shape afterward.
+Lower CEMT output-function tree results from evaluator-local values into
+owner-backed typed artifacts. Native output functions now return a closed
+`TransformTemplateOutputFunctionResult`, enforce the selected binding's result
+kind, and transfer text/byte/token/chunk/diagnostic payloads without value-shape
+classification. The remaining transition is explicit:
+`TransformTemplateOutputFunctionExecution::CemtEvaluator(Value)` becomes
+`TransformTemplateEncodedArtifactPayload::CemtRuntime(Value)` before the
+conversion pipeline reconstructs typed tree state.
 
-Start with red tests for direct text, byte, token, chunk, diagnostic, and native
-CEM-tree results. Prove that each function declares and returns one result kind,
-that graph and secondary-input routing retain identity and order, and that
-cross-kind or malformed results fail at the producing function boundary instead
-of reaching a writer. Include the binary encoder path and source-map/generated
-provenance for token and chunk payloads.
+Start with red tests for `cem.format-tree` and `cem.color-tree`. Prove that each
+result retains the original `Arc<CemTreeAstStream>`, source maps, ordered
+formatter/colorizer operations, profile metadata, and stage identity; graph and
+secondary-input routing must retain the same owner and order. Reject a CEMT
+result whose stage or tree kind disagrees with its function declaration at the
+producer boundary, before writer selection.
 
-Introduce a package-owned output-function result enum and make native built-ins
-and CEMT adapters construct its variants directly. Transfer those variants into
-`TransformArtifactBody` without inspecting a generic value shape. Remove
-`artifact_from_value`, remove JSON serialization from
-`builtin_cem_bin_bytes_encoder`, and delete the formatted/colored runtime-value
-compatibility payload once no consumer uses it. Do not add a generic recursive
-value variant or an internal JSON bridge; JSON remains available only through
-registered JSON/`+json` exporters and public response serialization.
+At CEMT body completion, lower the evaluator result directly to an
+`Arc<CemtTreeArtifact>` and carry it as `TransformArtifactBody::Extension`.
+Keep scalar `Value` instances local to expression evaluation only. Remove the
+`CemtEvaluator` execution variant, the `CemtRuntime` encoded payload,
+`artifact_from_cemt_value`, and conversion helpers that recover tree state from
+adapter DTO values. Add a source audit proving no CEMT tree `Value` crosses the
+evaluator, graph, adapter, or writer boundary.
 
-Keep evaluator-local scalar values only for expression evaluation, never as the
-artifact exchanged between evaluator, graph, adapter, and writer tiers. The
-result-kind declaration must be checked against the selected function binding
-before execution and against the returned typed variant afterward, with
-diagnostics retaining function, package, profile, and source identity.
-
-Finish the slice with a source audit forbidding runtime-value/JSON artifact
-classification, package formatter/colorizer and writer parity, focused
-graph/secondary-input tests, core/CLI tests, lint, native build, and WASM gates.
-After typed CEMT is complete, apply the same contract to XSLT result trees and
-XPath result association, then replace the params/defaults DTO.
+Apply this first to the CEM-ML raw/formatted/colored owner chain. Then give each
+non-CEM tree-producing schema package its own owner-backed result type instead
+of introducing a generic recursive CEMT value tree. JSON remains valid only for
+an explicitly JSON-identified export or public response serialization. Finish
+with formatter/colorizer/writer parity, graph and secondary-input tests, core
+and CLI tests, lint, native build, and WASM gates. After typed CEMT is complete,
+apply the same contract to XSLT result trees and XPath result association, then
+replace the params/defaults DTO.
 
 ## Current Verification Commands
 
