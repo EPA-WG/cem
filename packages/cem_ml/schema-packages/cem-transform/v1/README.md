@@ -774,7 +774,7 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
                 drainQueue(
                     defer([],
                         appendEdit(
-                            "nodes.0.children.1.children.0.colorWrapperNodes",
+                            "colorNodes",
                             {
                                 kind: "color-decision",
                                 name: "queued-edit",
@@ -880,6 +880,7 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
     {color-nodes |
         {color-marker @name="cem.color-tree" @color-profile="classes" @colorizer-role="colorizer.boundary"}
         {color-decision @name="showcase" @value="colored tree before writer" @colorizer-role="colorizer.showcase"}
+        {color-decision @name="queued-edit" @value="queued edit replay before writer" @color-profile="classes" @colorizer-owned=true @colorizer-role="colorizer.queued-edit"}
     }
     {writer-boundaries |
         {writer-boundary @stage="after-color" @value="writer consumes colored CEM tree"}
@@ -905,7 +906,6 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
                     {writer-attribute @name="class" @value="cem-color cem-color-syntax-keyword" @color-profile="classes" @colorizer-owned=true @colorizer-role="colorizer.writer-attribute"}
                     {color-wrapper @name="span" @color-profile="classes" @colorizer-owned=true @colorizer-role="colorizer.text-wrapper"}
                     {color-decision @name="wrapped-role" @value="syntax.keyword" @color-profile="classes" @colorizer-owned=true @colorizer-role="colorizer.wrapped-role"}
-                    {color-decision @name="queued-edit" @value="queued edit replay before writer" @color-profile="classes" @colorizer-owned=true @colorizer-role="colorizer.queued-edit"}
                     {text | now}
                 }
             }

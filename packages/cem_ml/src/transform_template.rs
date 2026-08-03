@@ -27185,25 +27185,16 @@ mod tests {
             colored["nodes"][0]["children"][1]["children"][0]["colorWrapperNodes"][1]["value"],
             "syntax.keyword"
         );
-        assert_eq!(
-            colored["nodes"][0]["children"][1]["children"][0]["colorWrapperNodes"][2]
-                ["colorizerRole"],
-            "colorizer.queued-edit"
-        );
-        assert_eq!(
-            colored["nodes"][0]["children"][1]["children"][0]["colorWrapperNodes"][2]["value"],
-            "queued edit replay before writer"
-        );
-        assert_cem_tree_source_map_current_transform(
-            &colored["nodes"][0]["children"][1]["children"][0]["colorWrapperNodes"][2]["sourceMap"],
-            |transform| {
-                matches!(
-                    transform,
-                    TransformKind::TemplateTransform { function }
-                        if function == "acme.showcase.color-tree"
-                )
-            },
-        );
+        let queued_edit = cem_tree_color_decision(&colored, "queued-edit");
+        assert_eq!(queued_edit["colorizerRole"], "colorizer.queued-edit");
+        assert_eq!(queued_edit["value"], "queued edit replay before writer");
+        assert_cem_tree_source_map_current_transform(&queued_edit["sourceMap"], |transform| {
+            matches!(
+                transform,
+                TransformKind::TemplateTransform { function }
+                    if function == "acme.showcase.color-tree"
+            )
+        });
         assert_eq!(
             colored["nodes"][0]["children"][2]["colorRole"], "syntax.string",
             "coloring maps over later text children instead of using fixed child indexes"
@@ -27335,14 +27326,9 @@ mod tests {
         let aside = &section["children"][1];
         assert_eq!(aside["colorRole"], "syntax.name");
         assert_eq!(aside["children"][0]["colorRole"], "syntax.string");
-        assert_eq!(
-            aside["children"][0]["colorWrapperNodes"][2]["colorizerRole"],
-            "colorizer.queued-edit"
-        );
-        assert_eq!(
-            aside["children"][0]["colorWrapperNodes"][2]["value"],
-            "queued edit replay before writer"
-        );
+        let queued_edit = cem_tree_color_decision(&colored, "queued-edit");
+        assert_eq!(queued_edit["colorizerRole"], "colorizer.queued-edit");
+        assert_eq!(queued_edit["value"], "queued edit replay before writer");
         assert_eq!(aside["children"][0]["children"][0]["value"], "Gamma");
 
         assert!(writer_output.contains("<section class=\"cem-color cem-color-syntax-name\""));

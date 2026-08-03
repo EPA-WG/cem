@@ -19,6 +19,7 @@ pub const CEMT_TREE_REPRESENTATION_ID: &str = "cem.cemt-tree";
 pub enum CemtTreeArtifactStage {
     Raw,
     Formatted,
+    Colored,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -177,12 +178,120 @@ pub struct CemtFormattedTreeOverlay {
     pub node_operations: Vec<CemtNodeFormatOperation>,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CemtColorOverlayProducer {
+    pub function_name: String,
+    pub color_profile: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum CemtColorOperationKind {
+    Marker,
+    Decision { value: String },
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CemtColorOperation {
+    pub name: String,
+    pub colorizer_role: String,
+    pub color_profile: Option<String>,
+    pub color_role: Option<String>,
+    pub kind: CemtColorOperationKind,
+    pub provenance: CemtOverlayProvenance,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CemtColorOutput {
+    Terminal,
+    Html,
+    Markdown,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CemtColorStyle {
+    pub color_role: String,
+    pub color_profile: String,
+    pub output: Option<CemtColorOutput>,
+    pub terminal_capability: Option<String>,
+    pub html_mode: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum CemtColorTarget {
+    Owner(CemtOwnerPath),
+    FormatOperation(usize),
+    NodeFormatOperation(usize),
+}
+
+impl CemtColorTarget {
+    fn belongs_to(
+        &self,
+        path: &CemtOwnerPath,
+        format_operations: &[CemtNodeFormatOperation],
+    ) -> bool {
+        match self {
+            Self::Owner(owner) => owner == path,
+            Self::NodeFormatOperation(index) => format_operations
+                .get(*index)
+                .is_some_and(|operation| operation.target.belongs_to(path)),
+            Self::FormatOperation(_) => false,
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum CemtNodeColorOperationKind {
+    Role {
+        role: String,
+        style: Option<CemtColorStyle>,
+    },
+    WriterAttribute {
+        name: String,
+        value: String,
+        colorizer_role: String,
+        color_profile: String,
+        color_role: Option<String>,
+        style: Option<CemtColorStyle>,
+    },
+    Wrapper {
+        name: String,
+        colorizer_role: String,
+        color_profile: String,
+        color_role: Option<String>,
+        style: Option<CemtColorStyle>,
+    },
+    WrapperDecision {
+        name: String,
+        value: String,
+        colorizer_role: String,
+        color_profile: String,
+        color_role: Option<String>,
+        style: Option<CemtColorStyle>,
+    },
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CemtNodeColorOperation {
+    pub target: CemtColorTarget,
+    pub producer_function: String,
+    pub kind: CemtNodeColorOperationKind,
+    pub provenance: CemtOverlayProvenance,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CemtColoredTreeOverlay {
+    pub producer: CemtColorOverlayProducer,
+    pub operations: Vec<CemtColorOperation>,
+    pub node_operations: Vec<CemtNodeColorOperation>,
+}
+
 #[derive(Debug, Clone)]
 pub struct CemtTreeArtifact {
     stage: CemtTreeArtifactStage,
     owner: Arc<CemTreeAstStream>,
     source_map: Option<SourceMapStack>,
     formatted_overlay: Option<CemtFormattedTreeOverlay>,
+    colored_overlay: Option<CemtColoredTreeOverlay>,
 }
 
 impl CemtTreeArtifact {
@@ -192,6 +301,7 @@ impl CemtTreeArtifact {
             owner,
             source_map,
             formatted_overlay: None,
+            colored_overlay: None,
         }
     }
 
@@ -205,6 +315,22 @@ impl CemtTreeArtifact {
             owner,
             source_map,
             formatted_overlay: Some(overlay),
+            colored_overlay: None,
+        }
+    }
+
+    pub fn colored(
+        owner: Arc<CemTreeAstStream>,
+        source_map: Option<SourceMapStack>,
+        formatted_overlay: CemtFormattedTreeOverlay,
+        colored_overlay: CemtColoredTreeOverlay,
+    ) -> Self {
+        Self {
+            stage: CemtTreeArtifactStage::Colored,
+            owner,
+            source_map,
+            formatted_overlay: Some(formatted_overlay),
+            colored_overlay: Some(colored_overlay),
         }
     }
 
@@ -226,6 +352,10 @@ impl CemtTreeArtifact {
         self.formatted_overlay.as_ref()
     }
 
+    pub fn colored_overlay(&self) -> Option<&CemtColoredTreeOverlay> {
+        self.colored_overlay.as_ref()
+    }
+
     pub fn formatted_view(&self) -> Option<CemtFormattedTreeView<'_>> {
         self.formatted_overlay
             .as_ref()
@@ -233,6 +363,14 @@ impl CemtTreeArtifact {
                 subject: self.subject(),
                 overlay,
             })
+    }
+
+    pub fn colored_view(&self) -> Option<CemtColoredTreeView<'_>> {
+        Some(CemtColoredTreeView {
+            subject: self.subject(),
+            formatted_overlay: self.formatted_overlay.as_ref()?,
+            colored_overlay: self.colored_overlay.as_ref()?,
+        })
     }
 }
 
@@ -320,6 +458,52 @@ impl<'a> CemtFormattedOwnerRef<'a> {
         self.operations
             .iter()
             .filter(|operation| operation.target.belongs_to(&self.path))
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct CemtColoredTreeView<'a> {
+    subject: CemtTreeSubjectRef<'a>,
+    formatted_overlay: &'a CemtFormattedTreeOverlay,
+    colored_overlay: &'a CemtColoredTreeOverlay,
+}
+
+impl<'a> CemtColoredTreeView<'a> {
+    pub fn resolve_owner(self, path: &CemtOwnerPath) -> Option<CemtColoredOwnerRef<'a>> {
+        Some(CemtColoredOwnerRef {
+            owner: self.subject.resolve_owner(path)?,
+            path: path.clone(),
+            format_operations: &self.formatted_overlay.node_operations,
+            color_operations: &self.colored_overlay.node_operations,
+        })
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct CemtColoredOwnerRef<'a> {
+    owner: CemtTreeOwnerRef<'a>,
+    path: CemtOwnerPath,
+    format_operations: &'a [CemtNodeFormatOperation],
+    color_operations: &'a [CemtNodeColorOperation],
+}
+
+impl<'a> CemtColoredOwnerRef<'a> {
+    pub fn owner(&self) -> CemtTreeOwnerRef<'a> {
+        self.owner
+    }
+
+    pub fn format_operations(&self) -> impl Iterator<Item = &'a CemtNodeFormatOperation> + '_ {
+        self.format_operations
+            .iter()
+            .filter(|operation| operation.target.belongs_to(&self.path))
+    }
+
+    pub fn color_operations(&self) -> impl Iterator<Item = &'a CemtNodeColorOperation> + '_ {
+        self.color_operations.iter().filter(|operation| {
+            operation
+                .target
+                .belongs_to(&self.path, self.format_operations)
+        })
     }
 }
 

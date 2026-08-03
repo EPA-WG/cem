@@ -17914,11 +17914,17 @@ mod tests {
 
     #[test]
     fn convert_html_layer_with_selectors_accepts_native_cemt_tree_ingress() {
+        let mut source = input(
+            b"@doc cem-ml 1\n\n{article | Ready {strong | now}.}\n",
+            "in.cem",
+        );
+        source.root_scope = ScopeConfig {
+            default_content_type: Some("application/cem".to_owned()),
+            schema: Some("https://cem.dev/ns/cem-ml/1".to_owned()),
+            ..ScopeConfig::default()
+        };
         let req = ConvertRequest {
-            input: input(
-                b"@doc cem-ml 1\n{article | Ready {strong | now}.}",
-                "in.cem",
-            ),
+            input: source,
             to_format: LayerFormat::Html,
             preserve_source_offsets: false,
             context: ctx(),

@@ -931,7 +931,7 @@ Remaining dependency-ordered package checklist:
           graph behavior, then pass CEM-QL/core lint, test, and WASM gates.
     - [ ] Replace the transitional CEMT value boundary with package-owned typed
           tree-envelope and writer-payload contracts.
-      - [ ] Add red tests for CEM tree `Arc` identity, formatter/colorizer
+      - [x] Add red tests for CEM tree `Arc` identity, formatter/colorizer
             metadata and source maps, ordered writer tokens/chunks, and explicit
             rejection of generic JSON-value ingress.
         - [x] Prove raw CEMT tree owner identity, lazy node access, source-map
@@ -943,7 +943,7 @@ Remaining dependency-ordered package checklist:
         - [x] Prove stable owner paths and ordered per-node formatted overlays
               across nested nodes, attributes, preserved/elided source
               whitespace, and generated formatter fragments.
-        - [ ] Prove colored owner identity, generated color-operation
+        - [x] Prove colored owner identity, generated color-operation
               provenance, and writer parity.
       - [x] Store text, byte, token, chunk, and diagnostic writer payloads as
             typed artifact variants; validate and compose them directly without
@@ -962,7 +962,7 @@ Remaining dependency-ordered package checklist:
       - [ ] Make CEMT/native output-function implementations return typed
             payloads directly; remove runtime-value classification and the
             remaining byte-encoder serialization at the evaluator boundary.
-      - [ ] Define typed raw, formatted, and colored CEM tree envelopes with
+      - [x] Define typed raw, formatted, and colored CEM tree envelopes with
             ordered native nodes and lazy evaluator views over the owning AST.
       - [ ] Route formatter, colorizer, writer, graph, and secondary-input
             boundaries through typed CEMT artifacts; remove
@@ -1021,43 +1021,41 @@ Remaining dependency-ordered package checklist:
 
 ### Next Work Item
 
-Define the colored CEMT overlay over the completed typed formatter artifact.
-The formatter slice now retains the raw `Arc<CemTreeAstStream>`, resolves
-compact structural root/child/attribute paths back to exact owner references,
-and lowers layout decisions, content boundaries, attribute spacing, close
-spacing, and inserted child gaps into closed typed operations. It handles both
-preserved and elided source whitespace while keeping original structural
-indices, and exposes lazy owner-plus-operation views without copying source AST
-nodes.
+Replace native/CEMT output-function runtime-value classification with a closed
+typed result contract. The completed CEMT stages now retain one
+`Arc<CemTreeAstStream>` through raw, formatted, and colored overlays, lower
+ordered formatter and colorizer operations with owner paths and provenance, and
+expose lazy merged views. Writer composition has typed handoff validation and
+parity coverage, but output-function evaluation can still create a generic
+runtime `Value` and classify its shape afterward.
 
-Start with red tests proving that colorizer output retains the same owner
-`Arc`, reuses formatter owner paths, preserves ordered envelope color markers
-and decisions, and lowers per-node color roles, wrappers, and writer attributes
-with source-mapped or explicit generated provenance. Include nested nodes,
-attributes, formatter fragments, terminal roles, HTML writer attributes, and a
-negative malformed/unknown color operation case. Use closed color operation
-variants and schema-owned payloads; do not introduce an open property bag or a
-generic recursive value enum.
+Start with red tests for direct text, byte, token, chunk, diagnostic, and native
+CEM-tree results. Prove that each function declares and returns one result kind,
+that graph and secondary-input routing retain identity and order, and that
+cross-kind or malformed results fail at the producing function boundary instead
+of reaching a writer. Include the binary encoder path and source-map/generated
+provenance for token and chunk payloads.
 
-Add a lazy merged colored view over the raw owner plus formatter and color
-operations. Route colorizer ingress through the typed formatted artifact and
-writer composition through the typed colored artifact, returning both through
-`TransformArtifactBody::Extension`. Preserve evaluator runtime values only
-locally until each downstream consumer has moved, then remove the parallel
-formatted/colored `CemtOutputArtifact` values and
-`TransformTemplateEncodedArtifactPayload::Runtime(Value)` from those stage
-boundaries.
+Introduce a package-owned output-function result enum and make native built-ins
+and CEMT adapters construct its variants directly. Transfer those variants into
+`TransformArtifactBody` without inspecting a generic value shape. Remove
+`artifact_from_value`, remove JSON serialization from
+`builtin_cem_bin_bytes_encoder`, and delete the formatted/colored runtime-value
+compatibility payload once no consumer uses it. Do not add a generic recursive
+value variant or an internal JSON bridge; JSON remains available only through
+registered JSON/`+json` exporters and public response serialization.
 
-The following slice should then change native/CEMT output-function execution to
-a typed result enum, including direct byte/token/chunk variants, and remove
-`artifact_from_value` plus `builtin_cem_bin_bytes_encoder` JSON serialization.
-JSON remains available only through registered JSON/`+json` exporters and
-public response serialization.
+Keep evaluator-local scalar values only for expression evaluation, never as the
+artifact exchanged between evaluator, graph, adapter, and writer tiers. The
+result-kind declaration must be checked against the selected function binding
+before execution and against the returned typed variant afterward, with
+diagnostics retaining function, package, profile, and source identity.
 
-Finish each slice with graph/secondary-input routing tests, source audits,
-package formatter/colorizer parity, core/CLI tests, lint, native build, and WASM
-gates. After typed CEMT is complete, apply the same contract to XSLT result
-trees and XPath result association, then replace the params/defaults DTO.
+Finish the slice with a source audit forbidding runtime-value/JSON artifact
+classification, package formatter/colorizer and writer parity, focused
+graph/secondary-input tests, core/CLI tests, lint, native build, and WASM gates.
+After typed CEMT is complete, apply the same contract to XSLT result trees and
+XPath result association, then replace the params/defaults DTO.
 
 ## Current Verification Commands
 
