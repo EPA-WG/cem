@@ -980,6 +980,16 @@ Remaining dependency-ordered package checklist:
           - [ ] Replace the native formatter/colorizer evaluator handoffs with
                 lazy typed views, then remove their evaluator-value scratch
                 and remaining `CemtRuntime(Value)` envelopes.
+            - [x] Define a borrowed, zero-JSON evaluator view over raw
+                  `CemTreeAstStream` nodes and attributes with typed scalar,
+                  sequence, record, source-map, stable-path, lookup, and
+                  iteration access.
+            - [ ] Extend the evaluator view across formatted envelope metadata,
+                  owner-plus-overlay nodes, formatter operations, and generated
+                  fragments without reconstructing a recursive tree.
+            - [ ] Migrate CEMT expression bindings and intermediates to the
+                  typed evaluator value algebra, then route the native
+                  formatter and colorizer through it.
           - [ ] Give non-CEM CEMT tree producers package-owned typed result
                 artifacts, then remove `CemtEvaluator(Value)` globally.
       - [x] Define typed raw, formatted, and colored CEM tree envelopes with
@@ -1041,37 +1051,36 @@ Remaining dependency-ordered package checklist:
 
 ### Next Work Item
 
-Eliminate the private recursive evaluator `Value` scratch from the native
-CEM-ML formatter-to-colorizer path. The native writer now consumes
-`Arc<CemtTreeArtifact>` directly and no longer constructs formatted or colored
-`CemtRuntime(Value)` writer envelopes. The remaining native materialization is
-at evaluator execution: formatter ingress calls `subject.evaluator_value()`,
-and colorizer binding/execution receives a recursively materialized formatted
-value even though the owner-backed artifact is already authoritative.
+Extend `CemtEvaluatorValueRef` from raw `CemTreeAstStream` access to the
+formatted owner-plus-overlay tree. The raw view now provides stable-path record
+lookup, sequence iteration, borrowed scalar access, and typed source-map access
+without storing JSON values. The colorizer additionally needs the formatted
+envelope, global format operations, retained source-node sequence, generated
+gap fragments, per-node layout and boundary fields, and formatted attributes.
 
-Start with red tests proving the native formatter can bind and execute against
-the raw owner and the native colorizer can bind and execute against the
-formatted owner-plus-overlay view without calling `evaluator_value()`. Add a
-source audit over both native stage functions that rejects
-`ConversionOutputPipelineSubject::evaluator_value`, `as_cemt_runtime_value`,
-`to_cemt_runtime_value`, and cached `serde_json::Value` fields. Preserve the
-existing public runtime-value compatibility entrypoint as an explicit,
-lifecycle-owned compatibility path.
+First add package-owned formatted envelope metadata to
+`CemtFormattedTreeOverlay`; retain content type, schema, category, mode, and
+canonical state when lowering the formatter result. Add red view tests that
+walk `formatNodes`, `nodes`, nested `children`, generated formatter fragments,
+`formatLayout`, `formatContentBoundary`, and attribute `formatBefore` fields
+while proving every returned owner or operation refers to the existing typed
+artifact.
 
-Introduce a CEMT evaluator subject abstraction over borrowed typed scalar,
-sequence, and record views. Implement the CEM-tree view by resolving stable
-owner paths against `CemTreeAstStream` and applying formatted overlays lazily;
-map lookup, sequence iteration, scalar access, and expression evaluation must
-not first build a recursive value tree. Extend binding classification and the
-CEMT adapter evaluator to accept that abstraction while retaining the existing
-runtime-value implementation for non-native callers. JSON serialization is
-not part of this boundary and remains available only through registered JSON
-or `+json` content-type exporters.
+Then define an owned CEMT evaluator value algebra for generated scalars,
+sequences, records, and persistent record updates. It may borrow a
+`CemtEvaluatorValueRef`, but it must not use `serde_json::Value` or encode native
+references as JSON sentinels. Migrate path resolution, parameter binding,
+`call`, `map`, `fold`, `match`, `exists`, `length`, `get`, `set`, and patch
+operations first, followed by the remaining CEMT operations under existing
+runtime tests.
 
-After focused formatter/colorizer parity and source-map tests pass, route graph
-and secondary-input CEMT handoffs through the same typed subject. The next
-slice then gives each non-CEM CEMT tree producer a package-owned result type
-before removing `CemtEvaluator(Value)` globally.
+Once expression parity is green, place `Arc<CemtTreeArtifact>` rather than a
+recursive value in the native stage payload. Remove
+`ConversionOutputPipelineSubject::evaluator_value`,
+`formatted_evaluator_value`, and native cached `Value` fields; keep runtime
+value conversion only at the explicit compatibility entrypoint. Then rerun
+formatter/colorizer profile parity, source maps, converter parity, CLI e2e,
+lint, native tests, and WASM gates.
 
 ## Current Verification Commands
 

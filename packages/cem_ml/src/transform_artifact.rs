@@ -428,6 +428,321 @@ impl<'a> CemtTreeSubjectRef<'a> {
         }
         Some(owner)
     }
+
+    pub fn evaluator_view(self) -> CemtEvaluatorValueRef<'a> {
+        CemtEvaluatorValueRef::Sequence(CemtEvaluatorSequenceRef::nodes(
+            self.owner.as_nodes(),
+            None,
+        ))
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CemtEvaluatorValueKind {
+    Null,
+    Boolean,
+    String,
+    Sequence,
+    Record,
+    SourceMap,
+}
+
+impl CemtEvaluatorValueKind {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Null => "null",
+            Self::Boolean => "boolean",
+            Self::String => "string",
+            Self::Sequence => "sequence",
+            Self::Record => "record",
+            Self::SourceMap => "source-map",
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub enum CemtEvaluatorValueRef<'a> {
+    Null,
+    Boolean(bool),
+    String(&'a str),
+    Sequence(CemtEvaluatorSequenceRef<'a>),
+    Record(CemtEvaluatorRecordRef<'a>),
+    SourceMap(&'a SourceMapStack),
+}
+
+impl<'a> CemtEvaluatorValueRef<'a> {
+    pub fn kind(&self) -> CemtEvaluatorValueKind {
+        match self {
+            Self::Null => CemtEvaluatorValueKind::Null,
+            Self::Boolean(_) => CemtEvaluatorValueKind::Boolean,
+            Self::String(_) => CemtEvaluatorValueKind::String,
+            Self::Sequence(_) => CemtEvaluatorValueKind::Sequence,
+            Self::Record(_) => CemtEvaluatorValueKind::Record,
+            Self::SourceMap(_) => CemtEvaluatorValueKind::SourceMap,
+        }
+    }
+
+    pub fn as_bool(&self) -> Option<bool> {
+        match self {
+            Self::Boolean(value) => Some(*value),
+            _ => None,
+        }
+    }
+
+    pub fn as_str(&self) -> Option<&'a str> {
+        match self {
+            Self::String(value) => Some(value),
+            _ => None,
+        }
+    }
+
+    pub fn as_sequence(&self) -> Option<&CemtEvaluatorSequenceRef<'a>> {
+        match self {
+            Self::Sequence(value) => Some(value),
+            _ => None,
+        }
+    }
+
+    pub fn as_record(&self) -> Option<&CemtEvaluatorRecordRef<'a>> {
+        match self {
+            Self::Record(value) => Some(value),
+            _ => None,
+        }
+    }
+
+    pub fn as_source_map(&self) -> Option<&'a SourceMapStack> {
+        match self {
+            Self::SourceMap(value) => Some(value),
+            _ => None,
+        }
+    }
+
+    pub fn field(&self, name: &str) -> Option<Self> {
+        self.as_record()?.field(name)
+    }
+
+    pub fn item(&self, index: usize) -> Option<Self> {
+        self.as_sequence()?.item(index)
+    }
+
+    pub fn resolve_path(mut self, path: &str) -> Option<Self> {
+        if path.trim().is_empty() {
+            return Some(self);
+        }
+        for segment in path.split('.') {
+            let segment = segment.trim();
+            if segment.is_empty() {
+                return None;
+            }
+            self = match &self {
+                Self::Record(record) => record.field(segment)?,
+                Self::Sequence(sequence) => sequence.item(segment.parse::<usize>().ok()?)?,
+                _ => return None,
+            };
+        }
+        Some(self)
+    }
+}
+
+#[derive(Debug, Clone)]
+pub enum CemtEvaluatorSequenceRef<'a> {
+    Nodes {
+        nodes: &'a [CemTreeAstNode],
+        parent: Option<CemtOwnerPath>,
+    },
+    Attributes {
+        attributes: &'a [CemTreeAstAttribute],
+        parent: CemtOwnerPath,
+    },
+}
+
+impl<'a> CemtEvaluatorSequenceRef<'a> {
+    fn nodes(nodes: &'a [CemTreeAstNode], parent: Option<CemtOwnerPath>) -> Self {
+        Self::Nodes { nodes, parent }
+    }
+
+    fn attributes(attributes: &'a [CemTreeAstAttribute], parent: CemtOwnerPath) -> Self {
+        Self::Attributes { attributes, parent }
+    }
+
+    pub fn len(&self) -> usize {
+        match self {
+            Self::Nodes { nodes, .. } => nodes.len(),
+            Self::Attributes { attributes, .. } => attributes.len(),
+        }
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
+
+    pub fn item(&self, index: usize) -> Option<CemtEvaluatorValueRef<'a>> {
+        match self {
+            Self::Nodes { nodes, parent } => {
+                let node = nodes.get(index)?;
+                let path = match parent {
+                    Some(parent) => parent.child(index),
+                    None => CemtOwnerPath::root(index),
+                };
+                Some(CemtEvaluatorValueRef::Record(
+                    CemtEvaluatorRecordRef::Node { node, path },
+                ))
+            }
+            Self::Attributes { attributes, parent } => {
+                let attribute = attributes.get(index)?;
+                Some(CemtEvaluatorValueRef::Record(
+                    CemtEvaluatorRecordRef::Attribute {
+                        attribute,
+                        path: parent.attribute(index),
+                    },
+                ))
+            }
+        }
+    }
+
+    pub fn iter(&self) -> CemtEvaluatorSequenceIter<'a> {
+        CemtEvaluatorSequenceIter {
+            sequence: self.clone(),
+            index: 0,
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct CemtEvaluatorSequenceIter<'a> {
+    sequence: CemtEvaluatorSequenceRef<'a>,
+    index: usize,
+}
+
+impl<'a> Iterator for CemtEvaluatorSequenceIter<'a> {
+    type Item = CemtEvaluatorValueRef<'a>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let value = self.sequence.item(self.index)?;
+        self.index = self.index.saturating_add(1);
+        Some(value)
+    }
+
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        let remaining = self.sequence.len().saturating_sub(self.index);
+        (remaining, Some(remaining))
+    }
+}
+
+impl ExactSizeIterator for CemtEvaluatorSequenceIter<'_> {}
+
+#[derive(Debug, Clone)]
+pub enum CemtEvaluatorRecordRef<'a> {
+    Node {
+        node: &'a CemTreeAstNode,
+        path: CemtOwnerPath,
+    },
+    Attribute {
+        attribute: &'a CemTreeAstAttribute,
+        path: CemtOwnerPath,
+    },
+}
+
+impl<'a> CemtEvaluatorRecordRef<'a> {
+    pub fn owner_path(&self) -> &CemtOwnerPath {
+        match self {
+            Self::Node { path, .. } | Self::Attribute { path, .. } => path,
+        }
+    }
+
+    pub fn field_names(&self) -> &'static [&'static str] {
+        match self {
+            Self::Node { node, .. } => match node {
+                CemTreeAstNode::Document { .. } => &["kind", "children", "sourceMap"],
+                CemTreeAstNode::Element { .. } => {
+                    &["kind", "name", "attributes", "children", "sourceMap"]
+                }
+                CemTreeAstNode::Text { .. } => &["kind", "value", "sourceMap"],
+                CemTreeAstNode::Whitespace { .. }
+                | CemTreeAstNode::Comment { .. }
+                | CemTreeAstNode::Cdata { .. }
+                | CemTreeAstNode::RawText { .. } => &["kind", "data", "sourceMap"],
+                CemTreeAstNode::ProcessingInstruction { .. } => {
+                    &["kind", "name", "target", "data", "sourceMap"]
+                }
+                CemTreeAstNode::Error { .. } => &["kind", "code", "sourceMap"],
+            },
+            Self::Attribute { .. } => &["kind", "name", "value", "sourceMap"],
+        }
+    }
+
+    pub fn field(&self, name: &str) -> Option<CemtEvaluatorValueRef<'a>> {
+        match self {
+            Self::Node { node, path } => cemt_evaluator_node_field(node, path, name),
+            Self::Attribute { attribute, .. } => match name {
+                "kind" => Some(CemtEvaluatorValueRef::String("attribute")),
+                "name" => Some(CemtEvaluatorValueRef::String(&attribute.name)),
+                "value" => Some(match attribute.value.as_deref() {
+                    Some(value) => CemtEvaluatorValueRef::String(value),
+                    None => CemtEvaluatorValueRef::Null,
+                }),
+                "sourceMap" => Some(CemtEvaluatorValueRef::SourceMap(&attribute.source)),
+                _ => None,
+            },
+        }
+    }
+}
+
+fn cemt_evaluator_node_field<'a>(
+    node: &'a CemTreeAstNode,
+    path: &CemtOwnerPath,
+    name: &str,
+) -> Option<CemtEvaluatorValueRef<'a>> {
+    if name == "kind" {
+        return Some(CemtEvaluatorValueRef::String(node.kind()));
+    }
+    if name == "sourceMap" {
+        return Some(CemtEvaluatorValueRef::SourceMap(node.source_map()));
+    }
+    match (node, name) {
+        (CemTreeAstNode::Document { children, .. }, "children") => {
+            Some(CemtEvaluatorValueRef::Sequence(
+                CemtEvaluatorSequenceRef::nodes(children, Some(path.clone())),
+            ))
+        }
+        (CemTreeAstNode::Element { name: value, .. }, "name") => {
+            Some(CemtEvaluatorValueRef::String(value))
+        }
+        (CemTreeAstNode::Element { attributes, .. }, "attributes") => {
+            Some(CemtEvaluatorValueRef::Sequence(
+                CemtEvaluatorSequenceRef::attributes(attributes, path.clone()),
+            ))
+        }
+        (CemTreeAstNode::Element { children, .. }, "children") => {
+            Some(CemtEvaluatorValueRef::Sequence(
+                CemtEvaluatorSequenceRef::nodes(children, Some(path.clone())),
+            ))
+        }
+        (CemTreeAstNode::Text { value, .. }, "value") => Some(CemtEvaluatorValueRef::String(value)),
+        (
+            CemTreeAstNode::Whitespace { data, .. }
+            | CemTreeAstNode::Comment { data, .. }
+            | CemTreeAstNode::Cdata { data, .. }
+            | CemTreeAstNode::RawText { data, .. },
+            "data",
+        ) => Some(CemtEvaluatorValueRef::String(data)),
+        (
+            CemTreeAstNode::ProcessingInstruction {
+                name: value,
+                target,
+                data,
+                ..
+            },
+            field,
+        ) => match field {
+            "name" => Some(CemtEvaluatorValueRef::String(value)),
+            "target" => Some(CemtEvaluatorValueRef::String(target)),
+            "data" => Some(CemtEvaluatorValueRef::String(data)),
+            _ => None,
+        },
+        (CemTreeAstNode::Error { code, .. }, "code") => Some(CemtEvaluatorValueRef::String(code)),
+        _ => None,
+    }
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -878,6 +1193,121 @@ mod tests {
         assert!(std::ptr::eq(artifact.subject().nodes(), owner.as_nodes()));
         assert_eq!(artifact.source_map(), Some(&source_map));
         assert_eq!(artifact.representation_id(), CEMT_TREE_REPRESENTATION_ID);
+    }
+
+    #[test]
+    fn raw_cemt_evaluator_view_reads_nested_records_without_value_materialization() {
+        let text_source = SourceMapStack {
+            frames: vec![crate::source_map::SourceMapFrame {
+                source_id: crate::source::SourceId(11),
+                span: crate::source_map::FrameSpan::Single(crate::source::ByteRange::new(8, 5)),
+                transform: crate::source_map::TransformKind::CemAstBuilder,
+            }],
+        };
+        let owner = Arc::new(CemTreeAstStream::new(vec![CemTreeAstNode::Element {
+            name: "article".to_owned(),
+            attributes: vec![CemTreeAstAttribute {
+                name: "id".to_owned(),
+                value: Some("intro".to_owned()),
+                source: SourceMapStack::default(),
+            }],
+            children: vec![CemTreeAstNode::Text {
+                value: "ready".to_owned(),
+                source: text_source.clone(),
+            }],
+            source: SourceMapStack::default(),
+        }]));
+        let artifact = CemtTreeArtifact::raw(owner.clone(), None);
+
+        let subject = artifact.subject().evaluator_view();
+        assert_eq!(subject.kind(), CemtEvaluatorValueKind::Sequence);
+        assert_eq!(
+            subject.as_sequence().map(CemtEvaluatorSequenceRef::len),
+            Some(1)
+        );
+
+        let root = subject.item(0).expect("root record view");
+        let root_record = root.as_record().expect("root is a record");
+        assert_eq!(root_record.owner_path(), &CemtOwnerPath::root(0));
+        assert_eq!(
+            root.field("kind").and_then(|value| value.as_str()),
+            Some("element")
+        );
+        assert_eq!(
+            root.field("name").and_then(|value| value.as_str()),
+            Some("article")
+        );
+
+        let attribute = root
+            .field("attributes")
+            .and_then(|value| value.item(0))
+            .expect("attribute record view");
+        assert_eq!(
+            attribute
+                .as_record()
+                .map(CemtEvaluatorRecordRef::owner_path),
+            Some(&CemtOwnerPath::root(0).attribute(0))
+        );
+        assert_eq!(
+            attribute.field("value").and_then(|value| value.as_str()),
+            Some("intro")
+        );
+
+        let child = root
+            .field("children")
+            .and_then(|value| value.item(0))
+            .expect("child record view");
+        assert_eq!(
+            child.as_record().map(CemtEvaluatorRecordRef::owner_path),
+            Some(&CemtOwnerPath::root(0).child(0))
+        );
+        assert_eq!(
+            child.field("value").and_then(|value| value.as_str()),
+            Some("ready")
+        );
+        assert_eq!(
+            child
+                .field("sourceMap")
+                .and_then(|value| value.as_source_map()),
+            Some(&text_source)
+        );
+        assert_eq!(
+            subject
+                .clone()
+                .resolve_path("0.children.0.value")
+                .and_then(|value| value.as_str()),
+            Some("ready")
+        );
+        assert_eq!(
+            subject.clone().resolve_path("").map(|value| value.kind()),
+            Some(CemtEvaluatorValueKind::Sequence)
+        );
+        assert_eq!(
+            subject
+                .as_sequence()
+                .expect("root sequence")
+                .iter()
+                .map(|value| value.field("kind").and_then(|kind| kind.as_str()))
+                .collect::<Vec<_>>(),
+            vec![Some("element")]
+        );
+        assert!(Arc::ptr_eq(artifact.owner(), &owner));
+    }
+
+    #[test]
+    fn cemt_evaluator_view_contract_does_not_use_json_value_storage() {
+        let source = include_str!("transform_artifact.rs");
+        let view_contract = source
+            .split_once("pub enum CemtEvaluatorValueKind")
+            .expect("evaluator view contract")
+            .1
+            .split_once("pub struct CemtFormattedTreeView")
+            .expect("evaluator view contract boundary")
+            .0;
+
+        assert!(!view_contract.contains("serde_json"));
+        assert!(!view_contract.contains("Value::"));
+        assert!(!view_contract.contains("Json"));
     }
 
     #[test]
