@@ -665,7 +665,9 @@ impl CemtEvaluatorNumber {
         match self.representation {
             CemtEvaluatorNumberRepresentation::Integer(value) => value.to_string(),
             CemtEvaluatorNumberRepresentation::UnsignedInteger(value) => value.to_string(),
-            CemtEvaluatorNumberRepresentation::Decimal(value) => value.to_string(),
+            CemtEvaluatorNumberRepresentation::Decimal(value) => {
+                ryu::Buffer::new().format_finite(value).to_owned()
+            }
         }
     }
 }

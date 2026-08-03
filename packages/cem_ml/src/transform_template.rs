@@ -14813,15 +14813,18 @@ fn cemt_typed_runtime_value_from_adapter(
 #[allow(dead_code)]
 mod cemt_typed_runtime {
     use super::{
-        cemt_expression_call_name, matching_closing_delimiter, parse_cemt_function_call_args,
-        parse_cemt_literal, parse_cemt_object_literal, parse_cemt_quoted_string, split_top_level,
-        transform_template_source_map_with_transform, CemtExpressionLiteral,
-        TransformTemplateModuleParamType, CEMT_RUNTIME_CALL_RECURSION_LIMIT,
+        cemt_display_prefix, cemt_display_suffix, cemt_display_width, cemt_expression_call_name,
+        cemt_is_ascii_decimal, cemt_is_ascii_integer, matching_closing_delimiter,
+        parse_cemt_function_call_args, parse_cemt_literal, parse_cemt_object_literal,
+        parse_cemt_quoted_string, split_top_level, transform_template_source_map_with_transform,
+        CemtExpressionLiteral, TransformTemplateModuleParamType, CEMT_RUNTIME_CALL_RECURSION_LIMIT,
+        CEMT_RUNTIME_REPEAT_LIMIT,
     };
     use crate::source_map::{SourceMapStack, TransformKind};
     use crate::transform_artifact::{
         CemtEvaluatorBindings, CemtEvaluatorValue, CemtEvaluatorValueKind,
     };
+    use std::cmp::Ordering;
     use std::collections::BTreeMap;
 
     #[derive(Debug, Clone)]
@@ -15051,6 +15054,67 @@ mod cemt_typed_runtime {
             "match" => resolve_cemt_typed_match(expression, context),
             "exists" => resolve_cemt_typed_exists(expression, context),
             "length" => resolve_cemt_typed_length(expression, context),
+            "last" => resolve_cemt_typed_last(expression, context),
+            "typeOf" => resolve_cemt_typed_type_of(expression, context),
+            "add" => resolve_cemt_typed_add(expression, context),
+            "sub" => resolve_cemt_typed_sub(expression, context),
+            "mul" => resolve_cemt_typed_mul(expression, context),
+            "div" => resolve_cemt_typed_div(expression, context),
+            "min" => resolve_cemt_typed_min_max(expression, "min", context, i64::min, f64::min),
+            "max" => resolve_cemt_typed_min_max(expression, "max", context, i64::max, f64::max),
+            "lt" => resolve_cemt_typed_compare(expression, "lt", context, Ordering::is_lt),
+            "lte" => resolve_cemt_typed_compare(expression, "lte", context, Ordering::is_le),
+            "gt" => resolve_cemt_typed_compare(expression, "gt", context, Ordering::is_gt),
+            "gte" => resolve_cemt_typed_compare(expression, "gte", context, Ordering::is_ge),
+            "mod" => resolve_cemt_typed_mod(expression, context),
+            "concat" => resolve_cemt_typed_concat(expression, context),
+            "contains" => resolve_cemt_typed_string_predicate(
+                expression,
+                "contains",
+                context,
+                |value, needle| value.contains(needle),
+            ),
+            "replace" => resolve_cemt_typed_replace(expression, context),
+            "trim" => resolve_cemt_typed_trim(expression, context),
+            "substring" => resolve_cemt_typed_substring(expression, context),
+            "indexOf" => resolve_cemt_typed_index_of(expression, context),
+            "displayWidth" => resolve_cemt_typed_display_width(expression, context),
+            "displayPrefix" => resolve_cemt_typed_display_prefix_suffix(
+                expression,
+                "displayPrefix",
+                context,
+                false,
+            ),
+            "displaySuffix" => {
+                resolve_cemt_typed_display_prefix_suffix(expression, "displaySuffix", context, true)
+            }
+            "toInteger" => resolve_cemt_typed_to_integer(expression, context),
+            "toString" => resolve_cemt_typed_to_string(expression, context),
+            "isAsciiInteger" => resolve_cemt_typed_ascii_number_predicate(
+                expression,
+                "isAsciiInteger",
+                context,
+                cemt_is_ascii_integer,
+            ),
+            "isAsciiDecimal" => resolve_cemt_typed_ascii_number_predicate(
+                expression,
+                "isAsciiDecimal",
+                context,
+                cemt_is_ascii_decimal,
+            ),
+            "startsWith" => resolve_cemt_typed_string_predicate(
+                expression,
+                "startsWith",
+                context,
+                |value, needle| value.starts_with(needle),
+            ),
+            "endsWith" => resolve_cemt_typed_string_predicate(
+                expression,
+                "endsWith",
+                context,
+                |value, needle| value.ends_with(needle),
+            ),
+            "repeat" => resolve_cemt_typed_repeat(expression, context),
             "get" => resolve_cemt_typed_get(expression, context),
             "append" => resolve_cemt_typed_append(expression, context),
             "extend" => resolve_cemt_typed_extend(expression, context),
@@ -15151,6 +15215,35 @@ mod cemt_typed_runtime {
                         | "match"
                         | "exists"
                         | "length"
+                        | "last"
+                        | "typeOf"
+                        | "add"
+                        | "sub"
+                        | "mul"
+                        | "div"
+                        | "min"
+                        | "max"
+                        | "lt"
+                        | "lte"
+                        | "gt"
+                        | "gte"
+                        | "mod"
+                        | "concat"
+                        | "contains"
+                        | "replace"
+                        | "trim"
+                        | "substring"
+                        | "indexOf"
+                        | "displayWidth"
+                        | "displayPrefix"
+                        | "displaySuffix"
+                        | "toInteger"
+                        | "toString"
+                        | "isAsciiInteger"
+                        | "isAsciiDecimal"
+                        | "startsWith"
+                        | "endsWith"
+                        | "repeat"
                         | "get"
                         | "append"
                         | "extend"
@@ -15460,6 +15553,578 @@ mod cemt_typed_runtime {
             )
         })?;
         Ok(Some(CemtEvaluatorValue::unsigned_integer(length as u64)))
+    }
+
+    fn resolve_cemt_typed_function_arguments<'a>(
+        expression: &str,
+        function_name: &'static str,
+        context: &CemtTypedEvaluatorContext<'a, '_>,
+        valid_arity: impl FnOnce(usize) -> bool,
+    ) -> Result<Option<Vec<CemtEvaluatorValue<'a>>>, String> {
+        let Some(args) = parse_cemt_function_call_args(expression, function_name)
+            .map_err(|error| error.to_string())?
+        else {
+            return Ok(None);
+        };
+        if !valid_arity(args.len()) {
+            return Ok(None);
+        }
+        let mut values = Vec::with_capacity(args.len());
+        for arg in args {
+            let Some(value) = resolve_cemt_typed_expression_in_context(&arg, context)? else {
+                return Ok(None);
+            };
+            values.push(value);
+        }
+        Ok(Some(values))
+    }
+
+    fn resolve_cemt_typed_last<'a>(
+        expression: &str,
+        context: &CemtTypedEvaluatorContext<'a, '_>,
+    ) -> Result<Option<CemtEvaluatorValue<'a>>, String> {
+        let Some(mut args) =
+            resolve_cemt_typed_function_arguments(expression, "last", context, |len| len == 1)?
+        else {
+            return Ok(None);
+        };
+        let value = args.pop().expect("validated last argument");
+        if value.kind() != CemtEvaluatorValueKind::Sequence {
+            return Err(format!(
+                "CEMT last expected array, got {}",
+                cemt_typed_runtime_type_name(&value)
+            ));
+        }
+        let length = value.length().expect("typed sequence length");
+        Ok(Some(
+            length
+                .checked_sub(1)
+                .and_then(|index| value.item(index))
+                .unwrap_or(CemtEvaluatorValue::Null),
+        ))
+    }
+
+    fn resolve_cemt_typed_type_of<'a>(
+        expression: &str,
+        context: &CemtTypedEvaluatorContext<'a, '_>,
+    ) -> Result<Option<CemtEvaluatorValue<'a>>, String> {
+        let Some(mut args) =
+            resolve_cemt_typed_function_arguments(expression, "typeOf", context, |len| len == 1)?
+        else {
+            return Ok(None);
+        };
+        let value = args.pop().expect("validated typeOf argument");
+        Ok(Some(CemtEvaluatorValue::string(
+            cemt_typed_runtime_type_name(&value),
+        )))
+    }
+
+    fn resolve_cemt_typed_add<'a>(
+        expression: &str,
+        context: &CemtTypedEvaluatorContext<'a, '_>,
+    ) -> Result<Option<CemtEvaluatorValue<'a>>, String> {
+        resolve_cemt_typed_binary_numeric(
+            expression,
+            "add",
+            context,
+            i64::checked_add,
+            |left, right| left + right,
+        )
+    }
+
+    fn resolve_cemt_typed_sub<'a>(
+        expression: &str,
+        context: &CemtTypedEvaluatorContext<'a, '_>,
+    ) -> Result<Option<CemtEvaluatorValue<'a>>, String> {
+        resolve_cemt_typed_binary_numeric(
+            expression,
+            "sub",
+            context,
+            i64::checked_sub,
+            |left, right| left - right,
+        )
+    }
+
+    fn resolve_cemt_typed_mul<'a>(
+        expression: &str,
+        context: &CemtTypedEvaluatorContext<'a, '_>,
+    ) -> Result<Option<CemtEvaluatorValue<'a>>, String> {
+        resolve_cemt_typed_binary_numeric(
+            expression,
+            "mul",
+            context,
+            i64::checked_mul,
+            |left, right| left * right,
+        )
+    }
+
+    fn resolve_cemt_typed_binary_numeric<'a>(
+        expression: &str,
+        function_name: &'static str,
+        context: &CemtTypedEvaluatorContext<'a, '_>,
+        integer_op: impl FnOnce(i64, i64) -> Option<i64>,
+        decimal_op: impl FnOnce(f64, f64) -> f64,
+    ) -> Result<Option<CemtEvaluatorValue<'a>>, String> {
+        let Some(args) =
+            resolve_cemt_typed_function_arguments(expression, function_name, context, |len| {
+                len == 2
+            })?
+        else {
+            return Ok(None);
+        };
+        let left = &args[0];
+        let right = &args[1];
+        if let (Some(left), Some(right)) =
+            (cemt_typed_i64_number(left), cemt_typed_i64_number(right))
+        {
+            return integer_op(left, right)
+                .map(CemtEvaluatorValue::integer)
+                .map(Some)
+                .ok_or_else(|| format!("CEMT {function_name} integer overflow"));
+        }
+        let left = cemt_typed_numeric_operand(function_name, "left", left)?;
+        let right = cemt_typed_numeric_operand(function_name, "right", right)?;
+        CemtEvaluatorValue::decimal(decimal_op(left, right))
+            .map(Some)
+            .ok_or_else(|| format!("CEMT {function_name} produced a non-finite number"))
+    }
+
+    fn resolve_cemt_typed_div<'a>(
+        expression: &str,
+        context: &CemtTypedEvaluatorContext<'a, '_>,
+    ) -> Result<Option<CemtEvaluatorValue<'a>>, String> {
+        let Some(args) =
+            resolve_cemt_typed_function_arguments(expression, "div", context, |len| len == 2)?
+        else {
+            return Ok(None);
+        };
+        let left = &args[0];
+        let right = &args[1];
+        if let (Some(left), Some(right)) =
+            (cemt_typed_i64_number(left), cemt_typed_i64_number(right))
+        {
+            if right == 0 {
+                return Err("CEMT div expected non-zero right operand".to_owned());
+            }
+            return left
+                .checked_div(right)
+                .map(CemtEvaluatorValue::integer)
+                .map(Some)
+                .ok_or_else(|| "CEMT div integer overflow".to_owned());
+        }
+        let left = cemt_typed_numeric_operand("div", "left", left)?;
+        let right = cemt_typed_numeric_operand("div", "right", right)?;
+        if right == 0.0 {
+            return Err("CEMT div expected non-zero right operand".to_owned());
+        }
+        CemtEvaluatorValue::decimal(left / right)
+            .map(Some)
+            .ok_or_else(|| "CEMT div produced a non-finite number".to_owned())
+    }
+
+    fn resolve_cemt_typed_min_max<'a>(
+        expression: &str,
+        function_name: &'static str,
+        context: &CemtTypedEvaluatorContext<'a, '_>,
+        integer_op: impl FnOnce(i64, i64) -> i64,
+        decimal_op: impl FnOnce(f64, f64) -> f64,
+    ) -> Result<Option<CemtEvaluatorValue<'a>>, String> {
+        let Some(args) =
+            resolve_cemt_typed_function_arguments(expression, function_name, context, |len| {
+                len == 2
+            })?
+        else {
+            return Ok(None);
+        };
+        let left = &args[0];
+        let right = &args[1];
+        if let (Some(left), Some(right)) =
+            (cemt_typed_i64_number(left), cemt_typed_i64_number(right))
+        {
+            return Ok(Some(CemtEvaluatorValue::integer(integer_op(left, right))));
+        }
+        let left = cemt_typed_numeric_operand(function_name, "left", left)?;
+        let right = cemt_typed_numeric_operand(function_name, "right", right)?;
+        CemtEvaluatorValue::decimal(decimal_op(left, right))
+            .map(Some)
+            .ok_or_else(|| format!("CEMT {function_name} produced a non-finite number"))
+    }
+
+    fn resolve_cemt_typed_compare<'a>(
+        expression: &str,
+        function_name: &'static str,
+        context: &CemtTypedEvaluatorContext<'a, '_>,
+        predicate: impl FnOnce(Ordering) -> bool,
+    ) -> Result<Option<CemtEvaluatorValue<'a>>, String> {
+        let Some(args) =
+            resolve_cemt_typed_function_arguments(expression, function_name, context, |len| {
+                len == 2
+            })?
+        else {
+            return Ok(None);
+        };
+        let left = &args[0];
+        let right = &args[1];
+        if let (Some(left), Some(right)) = (left.as_number(), right.as_number()) {
+            let ordering = left
+                .as_f64()
+                .partial_cmp(&right.as_f64())
+                .ok_or_else(|| format!("CEMT {function_name} cannot compare non-finite numbers"))?;
+            return Ok(Some(CemtEvaluatorValue::boolean(predicate(ordering))));
+        }
+        let Some(left) = left.as_str() else {
+            return Err(format!(
+                "CEMT {function_name} expected numeric or string left operand, got {}",
+                cemt_typed_runtime_type_name(left)
+            ));
+        };
+        let Some(right) = right.as_str() else {
+            return Err(format!(
+                "CEMT {function_name} expected numeric or string right operand, got {}",
+                cemt_typed_runtime_type_name(right)
+            ));
+        };
+        Ok(Some(CemtEvaluatorValue::boolean(predicate(
+            left.cmp(right),
+        ))))
+    }
+
+    fn resolve_cemt_typed_mod<'a>(
+        expression: &str,
+        context: &CemtTypedEvaluatorContext<'a, '_>,
+    ) -> Result<Option<CemtEvaluatorValue<'a>>, String> {
+        let Some(args) =
+            resolve_cemt_typed_function_arguments(expression, "mod", context, |len| len == 2)?
+        else {
+            return Ok(None);
+        };
+        let left = cemt_typed_i64_number(&args[0]).ok_or_else(|| {
+            format!(
+                "CEMT mod expected integer left operand, got {}",
+                cemt_typed_runtime_type_name(&args[0])
+            )
+        })?;
+        let right = cemt_typed_i64_number(&args[1]).ok_or_else(|| {
+            format!(
+                "CEMT mod expected integer right operand, got {}",
+                cemt_typed_runtime_type_name(&args[1])
+            )
+        })?;
+        if right == 0 {
+            return Err("CEMT mod expected non-zero right operand".to_owned());
+        }
+        Ok(Some(CemtEvaluatorValue::integer(left.rem_euclid(right))))
+    }
+
+    fn resolve_cemt_typed_concat<'a>(
+        expression: &str,
+        context: &CemtTypedEvaluatorContext<'a, '_>,
+    ) -> Result<Option<CemtEvaluatorValue<'a>>, String> {
+        let Some(args) =
+            resolve_cemt_typed_function_arguments(expression, "concat", context, |len| len > 0)?
+        else {
+            return Ok(None);
+        };
+        let mut output = String::new();
+        for (index, value) in args.iter().enumerate() {
+            output.push_str(cemt_typed_string_argument("concat", index, value)?);
+        }
+        Ok(Some(CemtEvaluatorValue::string(output)))
+    }
+
+    fn resolve_cemt_typed_string_predicate<'a>(
+        expression: &str,
+        function_name: &'static str,
+        context: &CemtTypedEvaluatorContext<'a, '_>,
+        predicate: impl FnOnce(&str, &str) -> bool,
+    ) -> Result<Option<CemtEvaluatorValue<'a>>, String> {
+        let Some(args) =
+            resolve_cemt_typed_function_arguments(expression, function_name, context, |len| {
+                len == 2
+            })?
+        else {
+            return Ok(None);
+        };
+        let value = cemt_typed_string_argument(function_name, 0, &args[0])?;
+        let needle = cemt_typed_string_argument(function_name, 1, &args[1])?;
+        Ok(Some(CemtEvaluatorValue::boolean(predicate(value, needle))))
+    }
+
+    fn resolve_cemt_typed_replace<'a>(
+        expression: &str,
+        context: &CemtTypedEvaluatorContext<'a, '_>,
+    ) -> Result<Option<CemtEvaluatorValue<'a>>, String> {
+        let Some(args) =
+            resolve_cemt_typed_function_arguments(expression, "replace", context, |len| len == 3)?
+        else {
+            return Ok(None);
+        };
+        let value = cemt_typed_string_argument("replace", 0, &args[0])?;
+        let from = cemt_typed_string_argument("replace", 1, &args[1])?;
+        let to = cemt_typed_string_argument("replace", 2, &args[2])?;
+        if from.is_empty() {
+            return Err("CEMT replace expected non-empty search string".to_owned());
+        }
+        Ok(Some(CemtEvaluatorValue::string(value.replace(from, to))))
+    }
+
+    fn resolve_cemt_typed_trim<'a>(
+        expression: &str,
+        context: &CemtTypedEvaluatorContext<'a, '_>,
+    ) -> Result<Option<CemtEvaluatorValue<'a>>, String> {
+        let Some(args) =
+            resolve_cemt_typed_function_arguments(expression, "trim", context, |len| len == 1)?
+        else {
+            return Ok(None);
+        };
+        Ok(Some(CemtEvaluatorValue::string(
+            cemt_typed_string_argument("trim", 0, &args[0])?
+                .trim()
+                .to_owned(),
+        )))
+    }
+
+    fn resolve_cemt_typed_substring<'a>(
+        expression: &str,
+        context: &CemtTypedEvaluatorContext<'a, '_>,
+    ) -> Result<Option<CemtEvaluatorValue<'a>>, String> {
+        let Some(args) =
+            resolve_cemt_typed_function_arguments(expression, "substring", context, |len| {
+                len == 2 || len == 3
+            })?
+        else {
+            return Ok(None);
+        };
+        let value = cemt_typed_string_argument("substring", 0, &args[0])?;
+        let start = cemt_typed_usize_number(&args[1]).ok_or_else(|| {
+            format!(
+                "CEMT substring expected unsigned integer start, got {}",
+                cemt_typed_runtime_type_name(&args[1])
+            )
+        })?;
+        let count = args
+            .get(2)
+            .map(|value| {
+                cemt_typed_usize_number(value).ok_or_else(|| {
+                    format!(
+                        "CEMT substring expected unsigned integer count, got {}",
+                        cemt_typed_runtime_type_name(value)
+                    )
+                })
+            })
+            .transpose()?;
+        let chars = value.chars().skip(start);
+        let output = match count {
+            Some(count) => chars.take(count).collect::<String>(),
+            None => chars.collect::<String>(),
+        };
+        Ok(Some(CemtEvaluatorValue::string(output)))
+    }
+
+    fn resolve_cemt_typed_index_of<'a>(
+        expression: &str,
+        context: &CemtTypedEvaluatorContext<'a, '_>,
+    ) -> Result<Option<CemtEvaluatorValue<'a>>, String> {
+        let Some(args) =
+            resolve_cemt_typed_function_arguments(expression, "indexOf", context, |len| len == 2)?
+        else {
+            return Ok(None);
+        };
+        let value = cemt_typed_string_argument("indexOf", 0, &args[0])?;
+        let needle = cemt_typed_string_argument("indexOf", 1, &args[1])?;
+        let index = if needle.is_empty() {
+            0
+        } else {
+            value
+                .find(needle)
+                .map(|byte_index| value[..byte_index].chars().count() as i64)
+                .unwrap_or(-1)
+        };
+        Ok(Some(CemtEvaluatorValue::integer(index)))
+    }
+
+    fn resolve_cemt_typed_display_width<'a>(
+        expression: &str,
+        context: &CemtTypedEvaluatorContext<'a, '_>,
+    ) -> Result<Option<CemtEvaluatorValue<'a>>, String> {
+        let Some(args) =
+            resolve_cemt_typed_function_arguments(expression, "displayWidth", context, |len| {
+                len == 1
+            })?
+        else {
+            return Ok(None);
+        };
+        let value = cemt_typed_string_argument("displayWidth", 0, &args[0])?;
+        Ok(Some(CemtEvaluatorValue::unsigned_integer(
+            cemt_display_width(value) as u64,
+        )))
+    }
+
+    fn resolve_cemt_typed_display_prefix_suffix<'a>(
+        expression: &str,
+        function_name: &'static str,
+        context: &CemtTypedEvaluatorContext<'a, '_>,
+        from_end: bool,
+    ) -> Result<Option<CemtEvaluatorValue<'a>>, String> {
+        let Some(args) =
+            resolve_cemt_typed_function_arguments(expression, function_name, context, |len| {
+                len == 2
+            })?
+        else {
+            return Ok(None);
+        };
+        let value = cemt_typed_string_argument(function_name, 0, &args[0])?;
+        let width = cemt_typed_usize_number(&args[1]).ok_or_else(|| {
+            format!(
+                "CEMT {function_name} expected unsigned integer width, got {}",
+                cemt_typed_runtime_type_name(&args[1])
+            )
+        })?;
+        let output = if from_end {
+            cemt_display_suffix(value, width)
+        } else {
+            cemt_display_prefix(value, width)
+        };
+        Ok(Some(CemtEvaluatorValue::string(output)))
+    }
+
+    fn resolve_cemt_typed_to_integer<'a>(
+        expression: &str,
+        context: &CemtTypedEvaluatorContext<'a, '_>,
+    ) -> Result<Option<CemtEvaluatorValue<'a>>, String> {
+        let Some(mut args) =
+            resolve_cemt_typed_function_arguments(expression, "toInteger", context, |len| {
+                len == 1
+            })?
+        else {
+            return Ok(None);
+        };
+        let value = args.pop().expect("validated toInteger argument");
+        let integer = match value.kind() {
+            CemtEvaluatorValueKind::Number => cemt_typed_i64_number(&value),
+            CemtEvaluatorValueKind::String => value
+                .as_str()
+                .and_then(|value| value.trim().parse::<i64>().ok()),
+            _ => None,
+        }
+        .ok_or_else(|| {
+            format!(
+                "CEMT toInteger expected integer-compatible value, got {}",
+                cemt_typed_runtime_type_name(&value)
+            )
+        })?;
+        Ok(Some(CemtEvaluatorValue::integer(integer)))
+    }
+
+    fn resolve_cemt_typed_to_string<'a>(
+        expression: &str,
+        context: &CemtTypedEvaluatorContext<'a, '_>,
+    ) -> Result<Option<CemtEvaluatorValue<'a>>, String> {
+        let Some(mut args) =
+            resolve_cemt_typed_function_arguments(expression, "toString", context, |len| len == 1)?
+        else {
+            return Ok(None);
+        };
+        let value = args.pop().expect("validated toString argument");
+        let text = match value.kind() {
+            CemtEvaluatorValueKind::Null => "null".to_owned(),
+            CemtEvaluatorValueKind::Boolean => value.as_bool().expect("typed boolean").to_string(),
+            CemtEvaluatorValueKind::Number => value.as_number().expect("typed number").key_string(),
+            CemtEvaluatorValueKind::String => value.as_str().expect("typed string").to_owned(),
+            _ => {
+                return Err(format!(
+                    "CEMT toString expected scalar value, got {}",
+                    cemt_typed_runtime_type_name(&value)
+                ));
+            }
+        };
+        Ok(Some(CemtEvaluatorValue::string(text)))
+    }
+
+    fn resolve_cemt_typed_ascii_number_predicate<'a>(
+        expression: &str,
+        function_name: &'static str,
+        context: &CemtTypedEvaluatorContext<'a, '_>,
+        predicate: impl FnOnce(&str) -> bool,
+    ) -> Result<Option<CemtEvaluatorValue<'a>>, String> {
+        let Some(args) =
+            resolve_cemt_typed_function_arguments(expression, function_name, context, |len| {
+                len == 1
+            })?
+        else {
+            return Ok(None);
+        };
+        let value = cemt_typed_string_argument(function_name, 0, &args[0])?;
+        Ok(Some(CemtEvaluatorValue::boolean(predicate(value.trim()))))
+    }
+
+    fn resolve_cemt_typed_repeat<'a>(
+        expression: &str,
+        context: &CemtTypedEvaluatorContext<'a, '_>,
+    ) -> Result<Option<CemtEvaluatorValue<'a>>, String> {
+        let Some(args) =
+            resolve_cemt_typed_function_arguments(expression, "repeat", context, |len| len == 2)?
+        else {
+            return Ok(None);
+        };
+        let Some(value) = args[0].as_str() else {
+            return Err(format!(
+                "CEMT repeat expected string value, got {}",
+                cemt_typed_runtime_type_name(&args[0])
+            ));
+        };
+        let count = cemt_typed_usize_number(&args[1]).ok_or_else(|| {
+            format!(
+                "CEMT repeat expected unsigned integer count, got {}",
+                cemt_typed_runtime_type_name(&args[1])
+            )
+        })?;
+        if count > CEMT_RUNTIME_REPEAT_LIMIT {
+            return Err(format!(
+                "CEMT repeat exceeded count limit {CEMT_RUNTIME_REPEAT_LIMIT}"
+            ));
+        }
+        Ok(Some(CemtEvaluatorValue::string(value.repeat(count))))
+    }
+
+    fn cemt_typed_numeric_operand(
+        function_name: &'static str,
+        side: &'static str,
+        value: &CemtEvaluatorValue<'_>,
+    ) -> Result<f64, String> {
+        value
+            .as_number()
+            .map(|number| number.as_f64())
+            .ok_or_else(|| {
+                format!(
+                    "CEMT {function_name} expected numeric {side} operand, got {}",
+                    cemt_typed_runtime_type_name(value)
+                )
+            })
+    }
+
+    fn cemt_typed_i64_number(value: &CemtEvaluatorValue<'_>) -> Option<i64> {
+        value.as_number().and_then(|number| number.as_i64())
+    }
+
+    fn cemt_typed_usize_number(value: &CemtEvaluatorValue<'_>) -> Option<usize> {
+        value
+            .as_number()
+            .and_then(|number| number.as_u64())
+            .and_then(|number| usize::try_from(number).ok())
+    }
+
+    fn cemt_typed_string_argument<'a>(
+        function_name: &'static str,
+        index: usize,
+        value: &'a CemtEvaluatorValue<'_>,
+    ) -> Result<&'a str, String> {
+        value.as_str().ok_or_else(|| {
+            format!(
+                "CEMT {function_name} expected string argument {index}, got {}",
+                cemt_typed_runtime_type_name(value)
+            )
+        })
     }
 
     fn resolve_cemt_typed_get<'a>(
@@ -26467,6 +27132,61 @@ mod tests {
         }
     }
 
+    #[derive(Debug, PartialEq)]
+    enum CemtTestScalar {
+        Null,
+        Boolean(bool),
+        Integer(i64),
+        UnsignedInteger(u64),
+        Decimal(u64),
+        String(String),
+    }
+
+    fn cemt_typed_test_scalar(
+        value: crate::transform_artifact::CemtEvaluatorValue<'_>,
+    ) -> CemtTestScalar {
+        match value.kind() {
+            crate::transform_artifact::CemtEvaluatorValueKind::Null => CemtTestScalar::Null,
+            crate::transform_artifact::CemtEvaluatorValueKind::Boolean => {
+                CemtTestScalar::Boolean(value.as_bool().expect("typed boolean"))
+            }
+            crate::transform_artifact::CemtEvaluatorValueKind::Number => {
+                let number = value.as_number().expect("typed number");
+                if let Some(value) = number.as_i64() {
+                    CemtTestScalar::Integer(value)
+                } else if let Some(value) = number.as_u64() {
+                    CemtTestScalar::UnsignedInteger(value)
+                } else {
+                    CemtTestScalar::Decimal(number.as_f64().to_bits())
+                }
+            }
+            crate::transform_artifact::CemtEvaluatorValueKind::String => {
+                CemtTestScalar::String(value.as_str().expect("typed string").to_owned())
+            }
+            kind => panic!("expected typed scalar, got {}", kind.as_str()),
+        }
+    }
+
+    fn cemt_compatibility_test_scalar(value: Value) -> CemtTestScalar {
+        match value {
+            Value::Null => CemtTestScalar::Null,
+            Value::Bool(value) => CemtTestScalar::Boolean(value),
+            Value::Number(value) => {
+                if let Some(value) = value.as_i64() {
+                    CemtTestScalar::Integer(value)
+                } else if let Some(value) = value.as_u64() {
+                    CemtTestScalar::UnsignedInteger(value)
+                } else {
+                    CemtTestScalar::Decimal(
+                        value.as_f64().expect("compatibility decimal").to_bits(),
+                    )
+                }
+            }
+            Value::String(value) => CemtTestScalar::String(value),
+            other => panic!("expected compatibility scalar, got {other}"),
+        }
+    }
+
     fn encoded_html_text_artifact() -> TransformTemplateEncodedArtifact {
         let mut identity = TransformTemplateEncodedArtifactIdentity::new(
             TransformTemplateOutputProducedKind::Text,
@@ -29184,6 +29904,258 @@ mod tests {
     }
 
     #[test]
+    fn typed_cemt_runtime_pure_numeric_helpers_match_compatibility() {
+        use crate::transform_artifact::{CemtEvaluatorBindings, CemtEvaluatorValue};
+
+        let big_unsigned = i64::MAX as u64 + 1;
+        let typed = CemtEvaluatorBindings::from_iter([(
+            "big",
+            CemtEvaluatorValue::unsigned_integer(big_unsigned),
+        )]);
+        let compatibility = BTreeMap::from([("big".to_owned(), json!(big_unsigned))]);
+        let cases = vec![
+            ("last([1, 2, 3])", Some(CemtTestScalar::Integer(3))),
+            ("last([])", Some(CemtTestScalar::Null)),
+            (
+                "typeOf(null)",
+                Some(CemtTestScalar::String("null".to_owned())),
+            ),
+            (
+                "typeOf(true)",
+                Some(CemtTestScalar::String("boolean".to_owned())),
+            ),
+            (
+                "typeOf(1.5)",
+                Some(CemtTestScalar::String("number".to_owned())),
+            ),
+            (
+                "typeOf(\"value\")",
+                Some(CemtTestScalar::String("string".to_owned())),
+            ),
+            (
+                "typeOf([])",
+                Some(CemtTestScalar::String("array".to_owned())),
+            ),
+            (
+                "typeOf({})",
+                Some(CemtTestScalar::String("object".to_owned())),
+            ),
+            ("add(2, 3)", Some(CemtTestScalar::Integer(5))),
+            ("add(2, mul(3, 4))", Some(CemtTestScalar::Integer(14))),
+            (
+                "add(1, 0.5)",
+                Some(CemtTestScalar::Decimal(1.5f64.to_bits())),
+            ),
+            ("add($big, 0)", None),
+            ("sub(5, 8)", Some(CemtTestScalar::Integer(-3))),
+            ("mul(-4, 3)", Some(CemtTestScalar::Integer(-12))),
+            ("div(7, 2)", Some(CemtTestScalar::Integer(3))),
+            (
+                "div(7.0, 2)",
+                Some(CemtTestScalar::Decimal(3.5f64.to_bits())),
+            ),
+            (
+                "min(1.5, 2)",
+                Some(CemtTestScalar::Decimal(1.5f64.to_bits())),
+            ),
+            ("max(-2, 3)", Some(CemtTestScalar::Integer(3))),
+            ("mod(-5, 3)", Some(CemtTestScalar::Integer(1))),
+            ("lt(1, 2)", Some(CemtTestScalar::Boolean(true))),
+            ("lte(2, 2)", Some(CemtTestScalar::Boolean(true))),
+            (
+                "gt(\"beta\", \"alpha\")",
+                Some(CemtTestScalar::Boolean(true)),
+            ),
+            (
+                "gte(\"alpha\", \"beta\")",
+                Some(CemtTestScalar::Boolean(false)),
+            ),
+        ];
+
+        for (expression, expected) in cases {
+            let typed_value = resolve_cemt_typed_expression(expression, &typed)
+                .expect("typed pure numeric helper")
+                .map(cemt_typed_test_scalar);
+            let compatibility_value = resolve_encode_subject_expression(expression, &compatibility)
+                .map(cemt_compatibility_test_scalar);
+            assert_eq!(typed_value, compatibility_value, "expression: {expression}");
+            if let Some(expected) = expected {
+                assert_eq!(typed_value, Some(expected), "expression: {expression}");
+            }
+        }
+
+        for expression in [
+            "last()",
+            "typeOf()",
+            "add(1)",
+            "sub(1, 2, 3)",
+            "mul()",
+            "div(1)",
+            "min(1)",
+            "max(1, 2, 3)",
+            "lt(1)",
+            "mod(1)",
+        ] {
+            assert_eq!(
+                resolve_cemt_typed_expression(expression, &typed)
+                    .expect("typed wrong-arity helper")
+                    .map(cemt_typed_test_scalar),
+                resolve_encode_subject_expression(expression, &compatibility)
+                    .map(cemt_compatibility_test_scalar),
+                "expression: {expression}"
+            );
+        }
+    }
+
+    #[test]
+    fn typed_cemt_runtime_pure_text_helpers_match_unicode_and_display_behavior() {
+        use crate::transform_artifact::{CemtEvaluatorBindings, CemtEvaluatorValue};
+
+        let wide = "A\u{754c}B";
+        let combining = "e\u{301}x";
+        let typed = CemtEvaluatorBindings::from_iter([
+            ("wide", CemtEvaluatorValue::string(wide)),
+            ("combining", CemtEvaluatorValue::string(combining)),
+        ]);
+        let compatibility = BTreeMap::from([
+            ("wide".to_owned(), json!(wide)),
+            ("combining".to_owned(), json!(combining)),
+        ]);
+        let cases = vec![
+            (
+                "concat(\"A\", \"-\", \"B\")",
+                CemtTestScalar::String("A-B".to_owned()),
+            ),
+            (
+                "concat(\"n=\", toString(add(1, 2)))",
+                CemtTestScalar::String("n=3".to_owned()),
+            ),
+            ("contains($wide, \"B\")", CemtTestScalar::Boolean(true)),
+            ("startsWith($wide, \"A\")", CemtTestScalar::Boolean(true)),
+            ("endsWith($wide, \"B\")", CemtTestScalar::Boolean(true)),
+            (
+                "replace($wide, \"\u{754c}\", \"x\")",
+                CemtTestScalar::String("AxB".to_owned()),
+            ),
+            (
+                "trim(\"  value\\n\")",
+                CemtTestScalar::String("value".to_owned()),
+            ),
+            (
+                "substring($wide, 1, 1)",
+                CemtTestScalar::String("\u{754c}".to_owned()),
+            ),
+            (
+                "substring($wide, 1)",
+                CemtTestScalar::String("\u{754c}B".to_owned()),
+            ),
+            ("indexOf($wide, \"\u{754c}\")", CemtTestScalar::Integer(1)),
+            ("indexOf($wide, \"missing\")", CemtTestScalar::Integer(-1)),
+            ("displayWidth($wide)", CemtTestScalar::Integer(4)),
+            ("displayWidth($combining)", CemtTestScalar::Integer(2)),
+            (
+                "displayPrefix($wide, 3)",
+                CemtTestScalar::String("A\u{754c}".to_owned()),
+            ),
+            (
+                "displaySuffix($wide, 3)",
+                CemtTestScalar::String("\u{754c}B".to_owned()),
+            ),
+            (
+                "displayPrefix($combining, 1)",
+                CemtTestScalar::String("e\u{301}".to_owned()),
+            ),
+            ("toInteger(\" -42 \")", CemtTestScalar::Integer(-42)),
+            ("toString(null)", CemtTestScalar::String("null".to_owned())),
+            ("toString(true)", CemtTestScalar::String("true".to_owned())),
+            ("toString(3.0)", CemtTestScalar::String("3.0".to_owned())),
+            ("isAsciiInteger(\" +42 \")", CemtTestScalar::Boolean(true)),
+            ("isAsciiInteger(\"4.2\")", CemtTestScalar::Boolean(false)),
+            ("isAsciiDecimal(\"-.5\")", CemtTestScalar::Boolean(true)),
+            ("isAsciiDecimal(\"5\")", CemtTestScalar::Boolean(false)),
+            (
+                "repeat(\"ab\", 3)",
+                CemtTestScalar::String("ababab".to_owned()),
+            ),
+        ];
+
+        for (expression, expected) in cases {
+            let typed_value = resolve_cemt_typed_expression(expression, &typed)
+                .expect("typed pure text helper")
+                .map(cemt_typed_test_scalar);
+            let compatibility_value = resolve_encode_subject_expression(expression, &compatibility)
+                .map(cemt_compatibility_test_scalar);
+            assert_eq!(typed_value, compatibility_value, "expression: {expression}");
+            assert_eq!(typed_value, Some(expected), "expression: {expression}");
+        }
+    }
+
+    #[test]
+    fn typed_cemt_runtime_pure_helpers_match_exact_diagnostics_and_unresolved_values() {
+        use crate::transform_artifact::CemtEvaluatorBindings;
+
+        let typed = CemtEvaluatorBindings::default();
+        let compatibility = BTreeMap::new();
+        for expression in [
+            "last({})",
+            "add(9223372036854775807, 1)",
+            "sub(-9223372036854775808, 1)",
+            "mul(9223372036854775807, 2)",
+            "add(1e308, 1e308)",
+            "div(1, 0)",
+            "div(-9223372036854775808, -1)",
+            "min(\"x\", 1)",
+            "lt(true, false)",
+            "mod(1.5, 2)",
+            "mod(1, 0)",
+            "contains(1, \"x\")",
+            "replace(\"a\", \"\", \"b\")",
+            "trim(false)",
+            "substring(\"abc\", -1)",
+            "indexOf(\"abc\", 1)",
+            "displayPrefix(\"abc\", -1)",
+            "toInteger(1.5)",
+            "toString([])",
+            "isAsciiInteger(1)",
+            "repeat([], 2)",
+            "repeat(\"x\", -1)",
+            "repeat(\"x\", 4097)",
+        ] {
+            let typed_error = resolve_cemt_typed_expression(expression, &typed)
+                .expect_err("typed pure helper rejects invalid input");
+            let compatibility_error = resolve_encode_subject_expression_at_depth(
+                expression,
+                &compatibility,
+                &BTreeMap::new(),
+                None,
+                0,
+            )
+            .expect_err("compatibility pure helper rejects invalid input");
+            assert_eq!(typed_error, compatibility_error, "expression: {expression}");
+        }
+
+        for expression in [
+            "last($missing)",
+            "add($missing, 1)",
+            "concat(\"prefix\", $missing)",
+            "substring(\"abc\")",
+            "replace(\"a\", \"b\")",
+            "displayWidth()",
+            "toInteger()",
+            "repeat(\"x\")",
+        ] {
+            assert_eq!(
+                resolve_cemt_typed_expression(expression, &typed)
+                    .expect("typed unresolved helper")
+                    .map(cemt_typed_test_scalar),
+                resolve_encode_subject_expression(expression, &compatibility)
+                    .map(cemt_compatibility_test_scalar),
+                "expression: {expression}"
+            );
+        }
+    }
+
+    #[test]
     fn typed_cemt_runtime_function_defaults_lower_once_at_adapter_boundary() {
         use crate::transform_artifact::CemtEvaluatorBindings;
 
@@ -29262,6 +30234,58 @@ mod tests {
         assert!(!typed_runtime.contains("CemtRuntimeFunction {"));
         assert!(!typed_runtime.contains("value_bindings"));
         assert!(typed_runtime.contains("CemtTypedEvaluatorContext"));
+        for (function_name, compatibility_resolver) in [
+            ("last", "resolve_cemt_last_expression"),
+            ("typeOf", "resolve_cemt_type_of_expression"),
+            ("add", "resolve_cemt_add_expression"),
+            ("sub", "resolve_cemt_sub_expression"),
+            ("mul", "resolve_cemt_mul_expression"),
+            ("div", "resolve_cemt_div_expression"),
+            ("min", "resolve_cemt_min_max_expression"),
+            ("max", "resolve_cemt_min_max_expression"),
+            ("lt", "resolve_cemt_compare_expression"),
+            ("lte", "resolve_cemt_compare_expression"),
+            ("gt", "resolve_cemt_compare_expression"),
+            ("gte", "resolve_cemt_compare_expression"),
+            ("mod", "resolve_cemt_mod_expression"),
+            ("concat", "resolve_cemt_concat_expression"),
+            ("contains", "resolve_cemt_contains_expression"),
+            ("replace", "resolve_cemt_replace_expression"),
+            ("trim", "resolve_cemt_trim_expression"),
+            ("substring", "resolve_cemt_substring_expression"),
+            ("indexOf", "resolve_cemt_index_of_expression"),
+            ("displayWidth", "resolve_cemt_display_width_expression"),
+            (
+                "displayPrefix",
+                "resolve_cemt_display_prefix_suffix_expression",
+            ),
+            (
+                "displaySuffix",
+                "resolve_cemt_display_prefix_suffix_expression",
+            ),
+            ("toInteger", "resolve_cemt_to_integer_expression"),
+            ("toString", "resolve_cemt_to_string_expression"),
+            (
+                "isAsciiInteger",
+                "resolve_cemt_ascii_number_predicate_expression",
+            ),
+            (
+                "isAsciiDecimal",
+                "resolve_cemt_ascii_number_predicate_expression",
+            ),
+            ("startsWith", "resolve_cemt_starts_with_expression"),
+            ("endsWith", "resolve_cemt_ends_with_expression"),
+            ("repeat", "resolve_cemt_repeat_expression"),
+        ] {
+            assert!(
+                typed_runtime.contains(&format!("\"{function_name}\"")),
+                "typed runtime dispatch is missing {function_name}"
+            );
+            assert!(
+                !typed_runtime.contains(compatibility_resolver),
+                "typed runtime calls compatibility resolver for {function_name}"
+            );
+        }
     }
 
     #[test]

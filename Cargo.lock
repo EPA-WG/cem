@@ -265,6 +265,7 @@ dependencies = [
  "pulldown-cmark",
  "quick-xml",
  "regex",
+ "ryu",
  "serde",
  "serde_json",
  "syn 2.0.117",
