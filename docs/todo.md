@@ -993,7 +993,7 @@ Remaining dependency-ordered package checklist:
               - [x] Define the owned evaluator algebra, typed binding/path
                     primitives, and persistent record/sequence overlays over
                     borrowed native records without JSON storage.
-              - [ ] Move runtime variable and parameter bindings plus path,
+              - [x] Move runtime variable and parameter bindings plus path,
                     `exists`, `length`, and `get` evaluation onto the typed
                     algebra with independent compatibility-oracle parity.
           - [ ] Give non-CEM CEMT tree producers package-owned typed result
@@ -1057,30 +1057,28 @@ Remaining dependency-ordered package checklist:
 
 ### Next Work Item
 
-Move the first CEMT runtime dependency layer onto `CemtEvaluatorValue` and
-`CemtEvaluatorBindings`: variable/parameter binding, path and field resolution,
-`exists`, `length`, and `get`. The owned algebra now covers typed scalar atoms,
-ordered sequences, records, source maps, borrowed native views, and persistent
-record/sequence updates without `serde_json::Value`; runtime dispatch is still
-using the compatibility evaluator.
+Move CEMT record/sequence construction and persistent mutation onto
+`CemtEvaluatorValue`: record and sequence literals, `set`, `append`, `extend`,
+and `merge`, followed by the edit constructors and `replaceNode`, `appendNode`,
+`prependNode`, `wrapNode`, and `applyEdits`. Reuse the existing owned overlays
+so borrowed CEM trees remain owner-backed and immutable while each operation
+returns a new typed value.
 
-Start with red parity tests that evaluate the same expressions independently
-through typed and compatibility contexts. Cover a borrowed raw CEM tree, a
-formatted envelope, generated fragments, source maps, numeric and string
-indices, null versus missing fields, Unicode string length, and invalid target
-diagnostics. Construct the typed context directly from
-`CemtTreeArtifact::evaluator_view()` and expression-owned values. Do not obtain
-typed values by converting compatibility JSON, and do not materialize the
-borrowed tree recursively.
+Start with red tests that compare independently evaluated typed and
+compatibility results. Cover owned records and sequences, borrowed raw and
+formatted nodes, generated fragments, nested and missing paths, invalid target
+diagnostics, stable owner identity, source-map preservation, edit queue order,
+and generated-source defaults. Build typed inputs directly from native values
+and `CemtTreeArtifact::evaluator_view()`; do not derive them from compatibility
+JSON or recursively materialize borrowed trees.
 
-Introduce typed literal and path resolvers as the shared foundation, then move
-binding application and the three primitive functions. Keep the existing
-`Value` evaluator callable only as an explicit test oracle during this slice;
-production formatter/colorizer dispatch must not cross between the two value
-models. Once primitive parity is green, the following slice should migrate
-record/sequence literal construction plus `set`, append, extend, merge, and
-tree-patch evaluation onto the persistent overlay APIs before moving
-`call`/`map`/`fold`/`match` or switching a native output stage.
+Add typed record and sequence literal parsing as the shared constructor layer,
+then route collection mutation and tree patches through the persistent overlay
+APIs. Keep `serde_json::Value` and the compatibility dispatcher outside the
+typed module, enforced by source audits. Production formatter/colorizer
+dispatch remains on the compatibility evaluator until constructors, mutation,
+and the following higher-order `call`/`map`/`fold`/`match` slice are complete;
+the native output stage must switch once, without a mixed value-model path.
 
 ## Current Verification Commands
 

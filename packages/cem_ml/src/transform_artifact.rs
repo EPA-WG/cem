@@ -906,11 +906,31 @@ impl<'a> CemtEvaluatorValue<'a> {
     }
 
     pub fn get_value(&self, key: &Self) -> Result<Self, CemtEvaluatorValueAccessError> {
-        if let Some(key) = key.as_str() {
-            return self.get(key);
-        }
-        if let Some(key) = key.as_number() {
-            return self.get(&key.key_string());
+        match self.kind() {
+            CemtEvaluatorValueKind::Null => return Ok(Self::Null),
+            CemtEvaluatorValueKind::Record => {
+                if let Some(key) = key.as_str() {
+                    return self.get(key);
+                }
+                if let Some(key) = key.as_number() {
+                    return self.get(&key.key_string());
+                }
+            }
+            CemtEvaluatorValueKind::Sequence | CemtEvaluatorValueKind::String => {
+                if let Some(key) = key.as_str() {
+                    return self.get(key);
+                }
+                if let Some(index) = key.as_number().and_then(|number| number.as_u64()) {
+                    let Ok(index) = usize::try_from(index) else {
+                        return Ok(Self::Null);
+                    };
+                    return self.get(&index.to_string());
+                }
+                if key.as_number().is_some() {
+                    return Ok(Self::Null);
+                }
+            }
+            _ => {}
         }
         Err(CemtEvaluatorValueAccessError::UnsupportedOperation {
             operation: "get key",
@@ -2672,6 +2692,19 @@ mod tests {
                 .and_then(|value| value.as_str().map(str::to_owned)),
             Some("first".to_owned())
         );
+
+        let items = bindings.resolve_path("input.items").expect("items");
+        assert_eq!(
+            items
+                .get_value(&CemtEvaluatorValue::unsigned_integer(1))
+                .ok()
+                .and_then(|value| value.as_str().map(str::to_owned)),
+            Some("second".to_owned())
+        );
+        assert!(matches!(
+            items.get_value(&CemtEvaluatorValue::decimal(1.0).expect("finite decimal")),
+            Ok(CemtEvaluatorValue::Null)
+        ));
     }
 
     #[test]
