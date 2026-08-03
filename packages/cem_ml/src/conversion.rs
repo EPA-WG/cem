@@ -3259,6 +3259,95 @@ struct CemTreeCemtOutputExecutionPayload {
     evaluator_subject: Value,
 }
 
+#[derive(Debug)]
+struct CemTreeCemtOutputRenderResponse {
+    response: TransformTemplateRenderResponse,
+    evaluator_value: Value,
+}
+
+impl CemTreeCemtOutputAdapter {
+    fn render_with_evaluator_view(
+        &self,
+        request: TransformTemplateRenderRequest<'_>,
+    ) -> TransformTemplateAdapterResult<CemTreeCemtOutputRenderResponse> {
+        let execution = request
+            .compiled
+            .native_payload::<CemTreeCemtOutputExecutionPayload>()
+            .ok_or_else(|| {
+                TransformTemplateAdapterError::failed(
+                    self.id(),
+                    TransformTemplateAdapterExecutionPhase::Render,
+                    format!(
+                        "compiled {} artifact is missing the resolved encode binding",
+                        self.stage.role
+                    ),
+                )
+            })?;
+        let binding = &execution.binding;
+        if binding.function.kind != self.stage.function_kind
+            || binding.function.name.as_str() != self.stage.function_name.as_str()
+        {
+            return Err(TransformTemplateAdapterError::failed(
+                self.id(),
+                TransformTemplateAdapterExecutionPhase::Render,
+                format!(
+                    "compiled {} binding cannot execute `{}`",
+                    self.stage.role, binding.function.name
+                ),
+            ));
+        }
+
+        let Some(value) = execute_conversion_cem_tree_output_stage_body(
+            self.stage.clone(),
+            &request,
+            binding,
+            &execution.evaluator_subject,
+        )?
+        else {
+            return Err(TransformTemplateAdapterError::failed(
+                self.id(),
+                TransformTemplateAdapterExecutionPhase::Render,
+                format!(
+                    "CEMT {} `{}` requires a direct CEMT body",
+                    self.stage.role, self.stage.function_name
+                ),
+            ));
+        };
+        let body = lower_conversion_cem_tree_output_stage_body(
+            self.stage.function_kind,
+            &self.stage.function_name,
+            &request.primary_input.body,
+            &execution.evaluator_subject,
+            value.clone(),
+        )
+        .map_err(|message| {
+            TransformTemplateAdapterError::failed(
+                self.id(),
+                TransformTemplateAdapterExecutionPhase::Render,
+                message,
+            )
+        })?;
+        let source_map = match &body {
+            TransformArtifactBody::Extension(native) => native.source_map().cloned(),
+            _ => None,
+        };
+
+        Ok(CemTreeCemtOutputRenderResponse {
+            response: TransformTemplateRenderResponse {
+                output: TransformTemplateOutputArtifact {
+                    uri: None,
+                    identity: request.target.cloned(),
+                    body,
+                    source_map,
+                    output_spans: Vec::new(),
+                },
+                diagnostics: Vec::new(),
+            },
+            evaluator_value: value,
+        })
+    }
+}
+
 impl TransformTemplateAdapter for CemTreeCemtOutputAdapter {
     fn id(&self) -> &'static str {
         self.stage.adapter_id
@@ -3368,61 +3457,45 @@ impl TransformTemplateAdapter for CemTreeCemtOutputAdapter {
         &self,
         request: TransformTemplateRenderRequest<'_>,
     ) -> TransformTemplateAdapterResult<TransformTemplateRenderResponse> {
-        let execution = request
-            .compiled
-            .native_payload::<CemTreeCemtOutputExecutionPayload>()
-            .ok_or_else(|| {
-                TransformTemplateAdapterError::failed(
-                    self.id(),
-                    TransformTemplateAdapterExecutionPhase::Render,
-                    format!(
-                        "compiled {} artifact is missing the resolved encode binding",
-                        self.stage.role
-                    ),
-                )
-            })?;
-        let binding = &execution.binding;
-        if binding.function.kind != self.stage.function_kind
-            || binding.function.name.as_str() != self.stage.function_name.as_str()
-        {
-            return Err(TransformTemplateAdapterError::failed(
-                self.id(),
-                TransformTemplateAdapterExecutionPhase::Render,
-                format!(
-                    "compiled {} binding cannot execute `{}`",
-                    self.stage.role, binding.function.name
-                ),
-            ));
-        }
-
-        let Some(value) = execute_conversion_cem_tree_output_stage_body(
-            self.stage.clone(),
-            &request,
-            binding,
-            &execution.evaluator_subject,
-        )?
-        else {
-            return Err(TransformTemplateAdapterError::failed(
-                self.id(),
-                TransformTemplateAdapterExecutionPhase::Render,
-                format!(
-                    "CEMT {} `{}` requires a direct CEMT body",
-                    self.stage.role, self.stage.function_name
-                ),
-            ));
-        };
-
-        Ok(TransformTemplateRenderResponse {
-            output: TransformTemplateOutputArtifact {
-                uri: None,
-                identity: request.target.cloned(),
-                body: cemt_output_body(value),
-                source_map: None,
-                output_spans: Vec::new(),
-            },
-            diagnostics: Vec::new(),
-        })
+        self.render_with_evaluator_view(request)
+            .map(|rendered| rendered.response)
     }
+}
+
+fn lower_conversion_cem_tree_output_stage_body(
+    function_kind: TransformTemplateOutputFunctionKind,
+    function_name: &str,
+    primary: &TransformArtifactBody,
+    evaluator_subject: &Value,
+    evaluator_value: Value,
+) -> Result<TransformArtifactBody, String> {
+    let TransformArtifactBody::Extension(native) = primary else {
+        return Ok(cemt_output_body(evaluator_value));
+    };
+    if native.representation_id() != CEMT_TREE_REPRESENTATION_ID {
+        return Ok(cemt_output_body(evaluator_value));
+    }
+    let artifact = native
+        .as_any()
+        .downcast_ref::<CemtTreeArtifact>()
+        .ok_or_else(|| "CEMT tree body type does not match its representation".to_owned())?;
+    let lowered = match function_kind {
+        TransformTemplateOutputFunctionKind::Format => {
+            lower_formatted_cemt_tree_artifact(artifact, &evaluator_value, function_name)?
+        }
+        TransformTemplateOutputFunctionKind::Color => lower_colored_cemt_tree_artifact(
+            artifact,
+            evaluator_subject,
+            &evaluator_value,
+            function_name,
+        )?,
+        other => {
+            return Err(format!(
+                "CEMT tree output adapter cannot lower `{other:?}` results"
+            ))
+        }
+    };
+    Ok(TransformArtifactBody::Extension(lowered))
 }
 
 fn execute_conversion_cem_tree_output_stage_body(
@@ -3609,7 +3682,14 @@ fn execute_conversion_cem_tree_format_stage(
     binding: &TransformTemplateEncodeBinding,
     subject: &Value,
     native_subject: Option<&Arc<CemtTreeArtifact>>,
-) -> Result<(Value, ConversionOutputPipelineStageExecution), String> {
+) -> Result<
+    (
+        Value,
+        Option<Arc<CemtTreeArtifact>>,
+        ConversionOutputPipelineStageExecution,
+    ),
+    String,
+> {
     execute_conversion_cem_tree_output_stage_with_native_subject(
         environment,
         cem_tree_cemt_output_stage(
@@ -3626,7 +3706,7 @@ fn execute_conversion_cem_tree_format_stage(
 }
 
 fn lower_formatted_cemt_tree_artifact(
-    raw: &Arc<CemtTreeArtifact>,
+    raw: &CemtTreeArtifact,
     formatted: &Value,
     function_name: &str,
 ) -> Result<Arc<CemtTreeArtifact>, String> {
@@ -4215,7 +4295,7 @@ fn optional_cemt_overlay_string(
 }
 
 fn lower_colored_cemt_tree_artifact(
-    formatted_artifact: &Arc<CemtTreeArtifact>,
+    formatted_artifact: &CemtTreeArtifact,
     formatted: &Value,
     colored: &Value,
     function_name: &str,
@@ -4967,7 +5047,14 @@ fn execute_conversion_cem_tree_color_stage(
     binding: &TransformTemplateEncodeBinding,
     subject: &Value,
     native_subject: Option<&Arc<CemtTreeArtifact>>,
-) -> Result<(Value, ConversionOutputPipelineStageExecution), String> {
+) -> Result<
+    (
+        Value,
+        Option<Arc<CemtTreeArtifact>>,
+        ConversionOutputPipelineStageExecution,
+    ),
+    String,
+> {
     execute_conversion_cem_tree_output_stage_with_native_subject(
         environment,
         cem_tree_cemt_output_stage(
@@ -4989,13 +5076,14 @@ fn execute_conversion_cem_tree_output_stage(
     binding: &TransformTemplateEncodeBinding,
     subject: &Value,
 ) -> Result<(Value, ConversionOutputPipelineStageExecution), String> {
-    execute_conversion_cem_tree_output_stage_with_native_subject(
+    let (value, _, execution) = execute_conversion_cem_tree_output_stage_with_native_subject(
         environment,
         stage,
         binding,
         subject,
         None,
-    )
+    )?;
+    Ok((value, execution))
 }
 
 fn execute_conversion_cem_tree_output_stage_with_native_subject(
@@ -5004,7 +5092,14 @@ fn execute_conversion_cem_tree_output_stage_with_native_subject(
     binding: &TransformTemplateEncodeBinding,
     subject: &Value,
     native_subject: Option<&Arc<CemtTreeArtifact>>,
-) -> Result<(Value, ConversionOutputPipelineStageExecution), String> {
+) -> Result<
+    (
+        Value,
+        Option<Arc<CemtTreeArtifact>>,
+        ConversionOutputPipelineStageExecution,
+    ),
+    String,
+> {
     let adapter = CemTreeCemtOutputAdapter {
         stage: stage.clone(),
     };
@@ -5116,8 +5211,8 @@ fn execute_conversion_cem_tree_output_stage_with_native_subject(
     };
     let secondary_inputs = BTreeMap::new();
     let target = binding.identity.target.format_identity();
-    let render_response = adapter
-        .render(TransformTemplateRenderRequest {
+    let rendered = adapter
+        .render_with_evaluator_view(TransformTemplateRenderRequest {
             compiled: &compiled,
             primary_input: &primary_input,
             secondary_inputs: &secondary_inputs,
@@ -5126,6 +5221,7 @@ fn execute_conversion_cem_tree_output_stage_with_native_subject(
             execution_policy: TransformExecutionPolicy::default(),
         })
         .map_err(|error| error.to_string())?;
+    let render_response = rendered.response;
     if let Some(diagnostic) = render_response
         .diagnostics
         .iter()
@@ -5134,9 +5230,31 @@ fn execute_conversion_cem_tree_output_stage_with_native_subject(
         return Err(diagnostic.message.clone());
     }
 
-    let output = transform_template_output_cemt_subject(&render_response.output)?;
+    let typed_artifact = match (&render_response.output.body, native_subject) {
+        (TransformArtifactBody::Extension(native), Some(_))
+            if native.representation_id() == CEMT_TREE_REPRESENTATION_ID =>
+        {
+            Some(Arc::new(
+                native
+                    .as_any()
+                    .downcast_ref::<CemtTreeArtifact>()
+                    .ok_or_else(|| {
+                        "CEMT tree output body type does not match its representation".to_owned()
+                    })?
+                    .clone(),
+            ))
+        }
+        (_, Some(_)) => {
+            return Err(format!(
+                "CEMT {} `{}` did not return a typed CEMT tree artifact",
+                stage.role, stage.function_name
+            ))
+        }
+        _ => None,
+    };
     Ok((
-        output,
+        rendered.evaluator_value,
+        typed_artifact,
         ConversionOutputPipelineStageExecution::CemtAdapter {
             adapter_id: compiled.adapter_id,
             function_name: execution_binding.function.name.clone(),
@@ -5435,7 +5553,7 @@ fn execute_conversion_output_pipeline_with_environment_subject(
         native_subject,
     );
     let format_elapsed_ns = Some(format_started.elapsed().as_nanos());
-    let (formatted_output, format_execution) = match format_result {
+    let (formatted_output, formatted_cemt_tree, format_execution) = match format_result {
         Ok(output) => output,
         Err(message) => {
             diagnostics.push(output_pipeline_diagnostic(
@@ -5456,34 +5574,6 @@ fn execute_conversion_output_pipeline_with_environment_subject(
         }
     };
     let format_execution = Some(format_execution);
-    let formatted_cemt_tree = match native_subject {
-        Some(raw) => match lower_formatted_cemt_tree_artifact(
-            raw,
-            &formatted_output,
-            &format_binding.function.name,
-        ) {
-            Ok(artifact) => Some(artifact),
-            Err(message) => {
-                diagnostics.push(output_pipeline_diagnostic(
-                    converter_id,
-                    diagnostic_node,
-                    diagnostic_uri,
-                    format!(
-                        "CEMT formatter `{}` produced an invalid typed overlay: {message}",
-                        format_binding.function.name
-                    ),
-                ));
-                return ConversionOutputPipelineExecution {
-                    output: None,
-                    diagnostics,
-                    format_execution,
-                    format_elapsed_ns,
-                    ..ConversionOutputPipelineExecution::default()
-                };
-            }
-        },
-        None => None,
-    };
     let formatted_artifact = format_binding.cemt_artifact_with_metadata(
         formatted_output,
         rendered_source_map,
@@ -9911,7 +10001,7 @@ fn execute_conversion_output_pipeline_from_formatted_artifact(
             formatted_cemt_tree.as_ref(),
         );
         let color_elapsed_ns = Some(color_started.elapsed().as_nanos());
-        let (colored_output, color_execution) = match color_result {
+        let (colored_output, colored_cemt_tree, color_execution) = match color_result {
             Ok(output) => output,
             Err(message) => {
                 diagnostics.push(output_pipeline_diagnostic(
@@ -9936,42 +10026,6 @@ fn execute_conversion_output_pipeline_from_formatted_artifact(
             }
         };
         let color_execution = Some(color_execution);
-        let colored_cemt_tree = match formatted_cemt_tree.as_ref() {
-            Some(formatted_tree) => match lower_colored_cemt_tree_artifact(
-                formatted_tree,
-                formatted_artifact
-                    .value
-                    .as_cemt_runtime_value()
-                    .expect("formatted CEM tree has a runtime payload"),
-                &colored_output,
-                &color_binding.function.name,
-            ) {
-                Ok(artifact) => Some(artifact),
-                Err(message) => {
-                    diagnostics.push(output_pipeline_diagnostic(
-                        converter_id,
-                        diagnostic_node,
-                        diagnostic_uri,
-                        format!(
-                            "CEMT colorizer `{}` produced an invalid typed overlay: {message}",
-                            color_binding.function.name
-                        ),
-                    ));
-                    return ConversionOutputPipelineExecution {
-                        output: None,
-                        diagnostics,
-                        format_execution,
-                        color_execution,
-                        format_elapsed_ns,
-                        color_elapsed_ns,
-                        formatted_cem_tree: formatted_cem_tree.clone(),
-                        formatted_cemt_tree: formatted_cemt_tree.clone(),
-                        ..ConversionOutputPipelineExecution::default()
-                    };
-                }
-            },
-            None => None,
-        };
         let colored_artifact = color_binding.cemt_artifact_with_metadata(
             colored_output,
             formatted_artifact.source_map.clone(),
@@ -17136,6 +17190,91 @@ mod tests {
     }
 
     #[test]
+    fn native_cemt_formatter_result_lowers_at_adapter_completion() {
+        let owner = Arc::new(CemTreeAstStream::new(Vec::new()));
+        let source_map = SourceMapStack::default();
+        let raw = Arc::new(CemtTreeArtifact::raw(
+            owner.clone(),
+            Some(source_map.clone()),
+        ));
+        let primary = TransformArtifactBody::Extension(raw);
+        let formatted = serde_json::json!({
+            "kind": "cem-tree",
+            "formatterProfile": "compact",
+            "formatNodes": [],
+            "nodes": []
+        });
+
+        let body = lower_conversion_cem_tree_output_stage_body(
+            TransformTemplateOutputFunctionKind::Format,
+            "cem.format-tree",
+            &primary,
+            &formatted,
+            formatted.clone(),
+        )
+        .expect("native formatter result lowers");
+        let TransformArtifactBody::Extension(native) = body else {
+            panic!("native formatter result must remain a typed extension body");
+        };
+        let artifact = native
+            .as_any()
+            .downcast_ref::<CemtTreeArtifact>()
+            .expect("formatter result is a typed CEMT tree");
+
+        assert_eq!(artifact.stage(), CemtTreeArtifactStage::Formatted);
+        assert!(Arc::ptr_eq(artifact.owner(), &owner));
+        assert_eq!(artifact.source_map(), Some(&source_map));
+    }
+
+    #[test]
+    fn native_cemt_colorizer_result_lowers_at_adapter_completion() {
+        let owner = Arc::new(CemTreeAstStream::new(Vec::new()));
+        let source_map = SourceMapStack::default();
+        let raw = Arc::new(CemtTreeArtifact::raw(
+            owner.clone(),
+            Some(source_map.clone()),
+        ));
+        let formatted_value = serde_json::json!({
+            "kind": "cem-tree",
+            "formatterProfile": "compact",
+            "formatNodes": [],
+            "nodes": []
+        });
+        let formatted =
+            lower_formatted_cemt_tree_artifact(&raw, &formatted_value, "cem.format-tree")
+                .expect("formatted fixture lowers");
+        let primary = TransformArtifactBody::Extension(formatted);
+        let colored = serde_json::json!({
+            "kind": "cem-tree",
+            "colored": true,
+            "colorProfile": "terminal",
+            "formatNodes": [],
+            "colorNodes": [],
+            "nodes": []
+        });
+
+        let body = lower_conversion_cem_tree_output_stage_body(
+            TransformTemplateOutputFunctionKind::Color,
+            "cem.color-tree",
+            &primary,
+            &formatted_value,
+            colored,
+        )
+        .expect("native colorizer result lowers");
+        let TransformArtifactBody::Extension(native) = body else {
+            panic!("native colorizer result must remain a typed extension body");
+        };
+        let artifact = native
+            .as_any()
+            .downcast_ref::<CemtTreeArtifact>()
+            .expect("colorizer result is a typed CEMT tree");
+
+        assert_eq!(artifact.stage(), CemtTreeArtifactStage::Colored);
+        assert!(Arc::ptr_eq(artifact.owner(), &owner));
+        assert_eq!(artifact.source_map(), Some(&source_map));
+    }
+
+    #[test]
     fn native_cem_tree_formatter_ingress_has_no_encoded_json_boundary() {
         let conversion_source = include_str!("conversion.rs");
         let typed_entry = conversion_source
@@ -17185,6 +17324,28 @@ mod tests {
         assert!(
             typed_color_ingress.contains("colorizer input requires a formatted CEMT tree artifact")
         );
+
+        let typed_output_lowering = conversion_source
+            .split_once("fn lower_conversion_cem_tree_output_stage_body(")
+            .expect("typed CEMT output lowering boundary")
+            .1
+            .split_once("fn execute_conversion_cem_tree_output_stage_body(")
+            .expect("typed CEMT output lowering boundary end")
+            .0;
+        assert!(typed_output_lowering.contains("lower_formatted_cemt_tree_artifact"));
+        assert!(typed_output_lowering.contains("lower_colored_cemt_tree_artifact"));
+        assert!(typed_output_lowering.contains("TransformArtifactBody::Extension(lowered)"));
+
+        let native_stage_handoff = conversion_source
+            .split_once("fn execute_conversion_cem_tree_output_stage_with_native_subject(")
+            .expect("typed CEMT stage handoff")
+            .1
+            .split_once("fn conversion_cem_tree_output_stage_function(")
+            .expect("typed CEMT stage handoff end")
+            .0;
+        assert!(native_stage_handoff.contains("render_with_evaluator_view"));
+        assert!(native_stage_handoff.contains("downcast_ref::<CemtTreeArtifact>()"));
+        assert!(!native_stage_handoff.contains("transform_template_output_cemt_subject"));
 
         let real_source = include_str!("real.rs");
         let real_entry = real_source

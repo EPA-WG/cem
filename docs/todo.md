@@ -969,6 +969,15 @@ Remaining dependency-ordered package checklist:
         - [ ] Lower CEMT evaluator tree results immediately into package-owned
               typed artifacts; remove `CemtEvaluator(Value)` and
               `CemtRuntime(Value)` from cross-tier handoffs.
+          - [x] Lower CEM-ML `cem.format-tree` and `cem.color-tree` results at
+                adapter completion into owner-backed `CemtTreeArtifact`
+                extension bodies; retain the evaluator value only as private
+                scratch for the immediately following evaluator stage.
+          - [ ] Route the CEM-ML writer and remaining evaluator handoffs from
+                the typed artifact, then remove their `CemtRuntime(Value)`
+                envelopes and evaluator-value scratch.
+          - [ ] Give non-CEM CEMT tree producers package-owned typed result
+                artifacts, then remove `CemtEvaluator(Value)` globally.
       - [x] Define typed raw, formatted, and colored CEM tree envelopes with
             ordered native nodes and lazy evaluator views over the owning AST.
       - [ ] Route formatter, colorizer, writer, graph, and secondary-input
@@ -1028,38 +1037,35 @@ Remaining dependency-ordered package checklist:
 
 ### Next Work Item
 
-Lower CEMT output-function tree results from evaluator-local values into
-owner-backed typed artifacts. Native output functions now return a closed
-`TransformTemplateOutputFunctionResult`, enforce the selected binding's result
-kind, and transfer text/byte/token/chunk/diagnostic payloads without value-shape
-classification. The remaining transition is explicit:
-`TransformTemplateOutputFunctionExecution::CemtEvaluator(Value)` becomes
-`TransformTemplateEncodedArtifactPayload::CemtRuntime(Value)` before the
-conversion pipeline reconstructs typed tree state.
+Route the CEM-ML writer from `CemtTreeArtifact` instead of reconstructing a
+`TransformTemplateEncodedArtifactPayload::CemtRuntime(Value)`. Formatter and
+colorizer adapters now lower their evaluator results at adapter completion and
+return owner-backed extension bodies. The private evaluator view is still
+retained long enough to resolve the next CEMT binding, construct formatted and
+colored encoded envelopes, and feed the generic CEM-tree writer adapter.
 
-Start with red tests for `cem.format-tree` and `cem.color-tree`. Prove that each
-result retains the original `Arc<CemTreeAstStream>`, source maps, ordered
-formatter/colorizer operations, profile metadata, and stage identity; graph and
-secondary-input routing must retain the same owner and order. Reject a CEMT
-result whose stage or tree kind disagrees with its function declaration at the
-producer boundary, before writer selection.
+Start with red tests that call the writer with formatted and colored typed
+artifacts. Prove output parity for compact, pretty, tabular, terminal, HTML,
+and Markdown profiles; preserve source maps and output spans; reject raw or
+stage-mismatched artifacts before serialization. Add a source audit proving the
+native CEM-ML writer path does not call `cemt_artifact_with_metadata`,
+`as_cemt_runtime_value`, `to_cemt_runtime_value`, or the generic
+`transform_template_writer_cem_tree_artifact_to_text` value adapter.
 
-At CEMT body completion, lower the evaluator result directly to an
-`Arc<CemtTreeArtifact>` and carry it as `TransformArtifactBody::Extension`.
-Keep scalar `Value` instances local to expression evaluation only. Remove the
-`CemtEvaluator` execution variant, the `CemtRuntime` encoded payload,
-`artifact_from_cemt_value`, and conversion helpers that recover tree state from
-adapter DTO values. Add a source audit proving no CEMT tree `Value` crosses the
-evaluator, graph, adapter, or writer boundary.
+Introduce a typed CEM-tree writer request containing the selected binding,
+target insertion context, and `Arc<CemtTreeArtifact>`. Render by walking the
+owner plus formatted/colored overlays through their lazy views; do not cache a
+recursive evaluator value inside the artifact. The writer must return the
+existing typed text/token/chunk payload and apply final-newline, color, source
+map, and insertion policies exactly once. Keep the public runtime-value
+compatibility entrypoint on its existing explicit path until it receives a
+lifecycle-owned input artifact.
 
-Apply this first to the CEM-ML raw/formatted/colored owner chain. Then give each
-non-CEM tree-producing schema package its own owner-backed result type instead
-of introducing a generic recursive CEMT value tree. JSON remains valid only for
-an explicitly JSON-identified export or public response serialization. Finish
-with formatter/colorizer/writer parity, graph and secondary-input tests, core
-and CLI tests, lint, native build, and WASM gates. After typed CEMT is complete,
-apply the same contract to XSLT result trees and XPath result association, then
-replace the params/defaults DTO.
+Once writer parity is green, remove the CEM-ML native pipeline's formatted and
+colored `CemtRuntime(Value)` envelopes and evaluator scratch, then route graph
+and secondary inputs through the same typed artifact. The following slice gives
+each non-CEM CEMT tree producer a package-owned result type before deleting
+`CemtEvaluator(Value)` globally.
 
 ## Current Verification Commands
 
