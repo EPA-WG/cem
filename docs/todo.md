@@ -1008,6 +1008,10 @@ Remaining dependency-ordered package checklist:
                     conversion, and predicate helpers onto the typed evaluator
                     with nested-expression, Unicode/display-cell,
                     decimal-representation, and exact-diagnostic parity.
+              - [x] Move functional stack/queue, source-map, diagnostic, and
+                    metadata accumulator helpers onto persistent typed values
+                    with owner-backed field removal, exact compatibility
+                    diagnostics, and schema-expression closure audits.
           - [ ] Give non-CEM CEMT tree producers package-owned typed result
                 artifacts, then remove `CemtEvaluator(Value)` globally.
       - [x] Define typed raw, formatted, and colored CEM tree envelopes with
@@ -1069,34 +1073,30 @@ Remaining dependency-ordered package checklist:
 
 ### Next Work Item
 
-Close the remaining CEMT schema-package helper dependencies on
-`CemtEvaluatorValue`. Move functional stack operations `withStack`,
-`stackPush`, `stackPop`, `stackTop`, `stackDepth`, and `stackPath`; queue
-operations `defer`, `queuePush`, `queueShift`, `queuePeek`, `queueLength`, and
-`drainQueue`; `sourceMap`; `diagnostic` and `diagnostics`; and the six typed
-metadata accumulators into the typed dispatcher.
+Atomically route native CEM formatter and colorizer CEMT expression bindings
+and intermediates through `CemtEvaluatorValue`. First thread the active output
+function identity and kind through the typed evaluator context so metadata
+source-map defaults preserve custom formatter/colorizer function names exactly;
+keep `encode` as the explicit output boundary rather than evaluator dispatch.
 
-Start with independent typed-versus-compatibility red tests. Cover lexical
-stack binding isolation, empty and nested stacks, stable path projection,
-stack-depth limits, FIFO queue behavior, the remaining-queue binding during a
-drain, queue-length limits, nested function calls, wrong arity, unresolved
-arguments, and exact type/limit diagnostics. Preserve persistent sequence and
-record sharing rather than introducing mutable evaluator-global stack or queue
-state.
+Start with red production integration tests for canonical `cem.format-tree` and
+`cem.color-tree` execution. Prove the typed dispatcher is used and the
+compatibility dispatcher is not, raw/formatted/colored owner `Arc` identity and
+source maps survive, custom output-function defaults remain exact, and output
+and diagnostics match every formatter/colorizer profile and option. Use the
+schema-expression closure audit as a hard gate so production cannot encounter
+an operation absent from the typed dispatcher.
 
-Represent source maps, diagnostics, format/color nodes, namespaces, output
-spans, and writer boundaries as native typed records over owner-backed values.
-Assert source-map transform-frame defaults, diagnostic normalization and
-severity validation, required and optional metadata fields, output-span bounds,
-existing accumulator fields, and exact compatibility diagnostics. Keep JSON
-and every compatibility resolver outside the typed module.
+After parity is green, switch formatter and colorizer production dispatch once
+and remove their evaluator-value scratch and remaining CEM-path
+`CemtRuntime(Value)` envelopes. Keep explicit encoded JSON only at registered
+JSON or `+json` output boundaries. Then pass focused, full, lint, native, WASM,
+CEMT fixture, converter-parity, and CLI e2e gates before checking the parent
+migration item.
 
-After focused and full gates pass, audit every CEMT schema-package expression
-body against the typed dispatcher and record any remaining operation or value
-shape. Do not switch production formatter/colorizer dispatch in this slice;
-the following work item should use a zero-gap audit to decide and verify that
-atomic switch, then remove the compatibility handoff only after native, WASM,
-fixture, converter-parity, and CLI e2e equivalence is established.
+Do not migrate non-CEM CEMT tree producers in the same slice. Stop after the
+CEM formatter/colorizer switch to decide the package-owned typed result
+artifact contract needed before removing `CemtEvaluator(Value)` globally.
 
 ## Current Verification Commands
 

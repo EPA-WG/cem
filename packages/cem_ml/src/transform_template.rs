@@ -14818,7 +14818,7 @@ mod cemt_typed_runtime {
         parse_cemt_function_call_args, parse_cemt_literal, parse_cemt_object_literal,
         parse_cemt_quoted_string, split_top_level, transform_template_source_map_with_transform,
         CemtExpressionLiteral, TransformTemplateModuleParamType, CEMT_RUNTIME_CALL_RECURSION_LIMIT,
-        CEMT_RUNTIME_REPEAT_LIMIT,
+        CEMT_RUNTIME_QUEUE_LENGTH_LIMIT, CEMT_RUNTIME_REPEAT_LIMIT, CEMT_RUNTIME_STACK_DEPTH_LIMIT,
     };
     use crate::source_map::{SourceMapStack, TransformKind};
     use crate::transform_artifact::{
@@ -15115,6 +15115,30 @@ mod cemt_typed_runtime {
                 |value, needle| value.ends_with(needle),
             ),
             "repeat" => resolve_cemt_typed_repeat(expression, context),
+            "withStack" => resolve_cemt_typed_with_stack(expression, context),
+            "stackPush" => resolve_cemt_typed_stack_push(expression, context),
+            "stackPop" => resolve_cemt_typed_stack_pop(expression, context),
+            "stackTop" => resolve_cemt_typed_stack_top(expression, context),
+            "stackDepth" => resolve_cemt_typed_stack_depth(expression, context),
+            "stackPath" => resolve_cemt_typed_stack_path(expression, context),
+            "defer" | "queuePush" => {
+                resolve_cemt_typed_queue_push(expression, function_name, context)
+            }
+            "queueShift" => resolve_cemt_typed_queue_shift(expression, context),
+            "queuePeek" => resolve_cemt_typed_queue_peek(expression, context),
+            "queueLength" => resolve_cemt_typed_queue_length(expression, context),
+            "drainQueue" => resolve_cemt_typed_drain_queue(expression, context),
+            "sourceMap" => resolve_cemt_typed_source_map(expression, context),
+            "diagnostic" => resolve_cemt_typed_diagnostic(expression, context),
+            "diagnostics" => resolve_cemt_typed_diagnostics(expression, context),
+            "appendFormatNode"
+            | "appendColorNode"
+            | "appendDiagnostic"
+            | "appendNamespace"
+            | "appendOutputSpan"
+            | "appendWriterBoundary" => {
+                resolve_cemt_typed_metadata_accumulator(expression, context)
+            }
             "get" => resolve_cemt_typed_get(expression, context),
             "append" => resolve_cemt_typed_append(expression, context),
             "extend" => resolve_cemt_typed_extend(expression, context),
@@ -15244,6 +15268,27 @@ mod cemt_typed_runtime {
                         | "startsWith"
                         | "endsWith"
                         | "repeat"
+                        | "withStack"
+                        | "stackPush"
+                        | "stackPop"
+                        | "stackTop"
+                        | "stackDepth"
+                        | "stackPath"
+                        | "defer"
+                        | "queuePush"
+                        | "queueShift"
+                        | "queuePeek"
+                        | "queueLength"
+                        | "drainQueue"
+                        | "sourceMap"
+                        | "diagnostic"
+                        | "diagnostics"
+                        | "appendFormatNode"
+                        | "appendColorNode"
+                        | "appendDiagnostic"
+                        | "appendNamespace"
+                        | "appendOutputSpan"
+                        | "appendWriterBoundary"
                         | "get"
                         | "append"
                         | "extend"
@@ -15557,7 +15602,7 @@ mod cemt_typed_runtime {
 
     fn resolve_cemt_typed_function_arguments<'a>(
         expression: &str,
-        function_name: &'static str,
+        function_name: &str,
         context: &CemtTypedEvaluatorContext<'a, '_>,
         valid_arity: impl FnOnce(usize) -> bool,
     ) -> Result<Option<Vec<CemtEvaluatorValue<'a>>>, String> {
@@ -16085,6 +16130,908 @@ mod cemt_typed_runtime {
             ));
         }
         Ok(Some(CemtEvaluatorValue::string(value.repeat(count))))
+    }
+
+    fn resolve_cemt_typed_with_stack<'a>(
+        expression: &str,
+        context: &CemtTypedEvaluatorContext<'a, '_>,
+    ) -> Result<Option<CemtEvaluatorValue<'a>>, String> {
+        let Some(args) = parse_cemt_function_call_args(expression, "withStack")
+            .map_err(|error| error.to_string())?
+        else {
+            return Ok(None);
+        };
+        if args.len() != 3 {
+            return Ok(None);
+        }
+        let stack_name = parse_cemt_typed_stack_binding_name(&args[0])?;
+        let mut stack = match context.bindings.value(&stack_name) {
+            Some(value) if value.kind() == CemtEvaluatorValueKind::Sequence => value
+                .sequence_values("withStack")
+                .map_err(|error| error.to_string())?,
+            Some(value) => {
+                return Err(format!(
+                    "CEMT stack `{stack_name}` expected array binding, got {}",
+                    cemt_typed_runtime_type_name(value)
+                ));
+            }
+            None => Vec::new(),
+        };
+        let frame =
+            resolve_cemt_typed_expression_in_context(&args[1], context)?.ok_or_else(|| {
+                format!("CEMT withStack frame for `{stack_name}` could not be resolved")
+            })?;
+        push_cemt_typed_stack_frame(&mut stack, &stack_name, frame)?;
+
+        let mut bindings = context.bindings.clone();
+        bindings.bind(stack_name, CemtEvaluatorValue::sequence(stack));
+        resolve_cemt_typed_expression_in_context(
+            &args[2],
+            &CemtTypedEvaluatorContext {
+                bindings,
+                functions: context.functions,
+                call_depth: context.call_depth,
+            },
+        )
+    }
+
+    fn resolve_cemt_typed_stack_push<'a>(
+        expression: &str,
+        context: &CemtTypedEvaluatorContext<'a, '_>,
+    ) -> Result<Option<CemtEvaluatorValue<'a>>, String> {
+        let Some(args) =
+            resolve_cemt_typed_function_arguments(expression, "stackPush", context, |len| {
+                len == 2
+            })?
+        else {
+            return Ok(None);
+        };
+        let mut stack = cemt_typed_stack_values(&args[0], "stackPush")?;
+        push_cemt_typed_stack_frame(&mut stack, "stackPush", args[1].clone())?;
+        Ok(Some(CemtEvaluatorValue::sequence(stack)))
+    }
+
+    fn resolve_cemt_typed_stack_pop<'a>(
+        expression: &str,
+        context: &CemtTypedEvaluatorContext<'a, '_>,
+    ) -> Result<Option<CemtEvaluatorValue<'a>>, String> {
+        let Some(args) =
+            resolve_cemt_typed_function_arguments(expression, "stackPop", context, |len| len == 1)?
+        else {
+            return Ok(None);
+        };
+        let mut stack = cemt_typed_stack_values(&args[0], "stackPop")?;
+        stack.pop();
+        Ok(Some(CemtEvaluatorValue::sequence(stack)))
+    }
+
+    fn resolve_cemt_typed_stack_top<'a>(
+        expression: &str,
+        context: &CemtTypedEvaluatorContext<'a, '_>,
+    ) -> Result<Option<CemtEvaluatorValue<'a>>, String> {
+        let Some(args) =
+            resolve_cemt_typed_function_arguments(expression, "stackTop", context, |len| len == 1)?
+        else {
+            return Ok(None);
+        };
+        let stack = cemt_typed_stack_values(&args[0], "stackTop")?;
+        Ok(Some(
+            stack.last().cloned().unwrap_or(CemtEvaluatorValue::Null),
+        ))
+    }
+
+    fn resolve_cemt_typed_stack_depth<'a>(
+        expression: &str,
+        context: &CemtTypedEvaluatorContext<'a, '_>,
+    ) -> Result<Option<CemtEvaluatorValue<'a>>, String> {
+        let Some(args) =
+            resolve_cemt_typed_function_arguments(expression, "stackDepth", context, |len| {
+                len == 1
+            })?
+        else {
+            return Ok(None);
+        };
+        let stack = cemt_typed_stack_values(&args[0], "stackDepth")?;
+        Ok(Some(CemtEvaluatorValue::unsigned_integer(
+            stack.len() as u64
+        )))
+    }
+
+    fn resolve_cemt_typed_stack_path<'a>(
+        expression: &str,
+        context: &CemtTypedEvaluatorContext<'a, '_>,
+    ) -> Result<Option<CemtEvaluatorValue<'a>>, String> {
+        let Some(args) = parse_cemt_function_call_args(expression, "stackPath")
+            .map_err(|error| error.to_string())?
+        else {
+            return Ok(None);
+        };
+        if args.len() != 2 {
+            return Ok(None);
+        }
+        let Some(stack) = resolve_cemt_typed_expression_in_context(&args[0], context)? else {
+            return Ok(None);
+        };
+        let stack = cemt_typed_stack_values(&stack, "stackPath")?;
+        let Some(path) = resolve_cemt_typed_patch_path_argument(&args[1], "stackPath", context)?
+        else {
+            return Ok(None);
+        };
+        Ok(Some(CemtEvaluatorValue::sequence(stack.into_iter().map(
+            |frame| {
+                frame
+                    .resolve_path(&path)
+                    .unwrap_or(CemtEvaluatorValue::Null)
+            },
+        ))))
+    }
+
+    fn parse_cemt_typed_stack_binding_name(expression: &str) -> Result<String, String> {
+        let literal = parse_cemt_literal(expression).map_err(|error| error.to_string())?;
+        let Some(name) = literal
+            .as_string()
+            .map(|value| value.trim().to_owned())
+            .filter(|value| !value.is_empty())
+        else {
+            return Err("CEMT stack binding name must be a non-empty identifier".to_owned());
+        };
+        if !cemt_typed_stack_binding_name_is_valid(&name) {
+            return Err(format!("CEMT stack binding name `{name}` is invalid"));
+        }
+        Ok(name)
+    }
+
+    fn cemt_typed_stack_binding_name_is_valid(name: &str) -> bool {
+        let mut chars = name.chars();
+        chars
+            .next()
+            .is_some_and(|ch| ch.is_ascii_alphabetic() || ch == '_')
+            && chars.all(|ch| ch.is_ascii_alphanumeric() || ch == '_' || ch == '-')
+    }
+
+    fn cemt_typed_stack_values<'a>(
+        value: &CemtEvaluatorValue<'a>,
+        owner: &str,
+    ) -> Result<Vec<CemtEvaluatorValue<'a>>, String> {
+        if value.kind() != CemtEvaluatorValueKind::Sequence {
+            return Err(format!(
+                "CEMT {owner} expected array stack, got {}",
+                cemt_typed_runtime_type_name(value)
+            ));
+        }
+        value
+            .sequence_values("stack")
+            .map_err(|error| error.to_string())
+    }
+
+    fn push_cemt_typed_stack_frame<'a>(
+        stack: &mut Vec<CemtEvaluatorValue<'a>>,
+        owner: &str,
+        frame: CemtEvaluatorValue<'a>,
+    ) -> Result<(), String> {
+        if stack.len() >= CEMT_RUNTIME_STACK_DEPTH_LIMIT {
+            return Err(format!(
+                "CEMT stack `{owner}` exceeded depth limit {CEMT_RUNTIME_STACK_DEPTH_LIMIT}"
+            ));
+        }
+        stack.push(frame);
+        Ok(())
+    }
+
+    fn resolve_cemt_typed_queue_push<'a>(
+        expression: &str,
+        function_name: &str,
+        context: &CemtTypedEvaluatorContext<'a, '_>,
+    ) -> Result<Option<CemtEvaluatorValue<'a>>, String> {
+        let Some(args) =
+            resolve_cemt_typed_function_arguments(expression, function_name, context, |len| {
+                len == 2
+            })?
+        else {
+            return Ok(None);
+        };
+        let mut queue = cemt_typed_queue_values(&args[0], function_name)?;
+        push_cemt_typed_queue_item(&mut queue, function_name, args[1].clone())?;
+        Ok(Some(CemtEvaluatorValue::sequence(queue)))
+    }
+
+    fn resolve_cemt_typed_queue_shift<'a>(
+        expression: &str,
+        context: &CemtTypedEvaluatorContext<'a, '_>,
+    ) -> Result<Option<CemtEvaluatorValue<'a>>, String> {
+        let Some(args) =
+            resolve_cemt_typed_function_arguments(expression, "queueShift", context, |len| {
+                len == 1
+            })?
+        else {
+            return Ok(None);
+        };
+        let mut queue = cemt_typed_queue_values(&args[0], "queueShift")?;
+        let item = if queue.is_empty() {
+            CemtEvaluatorValue::Null
+        } else {
+            queue.remove(0)
+        };
+        Ok(Some(CemtEvaluatorValue::record([
+            ("item", item),
+            ("queue", CemtEvaluatorValue::sequence(queue)),
+        ])))
+    }
+
+    fn resolve_cemt_typed_queue_peek<'a>(
+        expression: &str,
+        context: &CemtTypedEvaluatorContext<'a, '_>,
+    ) -> Result<Option<CemtEvaluatorValue<'a>>, String> {
+        let Some(args) =
+            resolve_cemt_typed_function_arguments(expression, "queuePeek", context, |len| {
+                len == 1
+            })?
+        else {
+            return Ok(None);
+        };
+        let queue = cemt_typed_queue_values(&args[0], "queuePeek")?;
+        Ok(Some(
+            queue.first().cloned().unwrap_or(CemtEvaluatorValue::Null),
+        ))
+    }
+
+    fn resolve_cemt_typed_queue_length<'a>(
+        expression: &str,
+        context: &CemtTypedEvaluatorContext<'a, '_>,
+    ) -> Result<Option<CemtEvaluatorValue<'a>>, String> {
+        let Some(args) =
+            resolve_cemt_typed_function_arguments(expression, "queueLength", context, |len| {
+                len == 1
+            })?
+        else {
+            return Ok(None);
+        };
+        let queue = cemt_typed_queue_values(&args[0], "queueLength")?;
+        Ok(Some(CemtEvaluatorValue::unsigned_integer(
+            queue.len() as u64
+        )))
+    }
+
+    fn resolve_cemt_typed_drain_queue<'a>(
+        expression: &str,
+        context: &CemtTypedEvaluatorContext<'a, '_>,
+    ) -> Result<Option<CemtEvaluatorValue<'a>>, String> {
+        let Some(args) = parse_cemt_function_call_args(expression, "drainQueue")
+            .map_err(|error| error.to_string())?
+        else {
+            return Ok(None);
+        };
+        if args.len() != 3 {
+            return Ok(None);
+        }
+        let Some(queue) = resolve_cemt_typed_expression_in_context(&args[0], context)? else {
+            return Ok(None);
+        };
+        let queue = cemt_typed_queue_values(&queue, "drainQueue")?;
+        let Some(mut accumulator) = resolve_cemt_typed_expression_in_context(&args[1], context)?
+        else {
+            return Ok(None);
+        };
+
+        for (index, item) in queue.iter().cloned().enumerate() {
+            let mut bindings = context.bindings.clone();
+            bindings.bind("item", item);
+            bindings.bind("index", CemtEvaluatorValue::unsigned_integer(index as u64));
+            bindings.bind("acc", accumulator.clone());
+            bindings.bind("accumulator", accumulator);
+            bindings.bind(
+                "queue",
+                CemtEvaluatorValue::sequence(queue[index + 1..].iter().cloned()),
+            );
+            let Some(next) = resolve_cemt_typed_expression_in_context(
+                &args[2],
+                &CemtTypedEvaluatorContext {
+                    bindings,
+                    functions: context.functions,
+                    call_depth: context.call_depth,
+                },
+            )?
+            else {
+                return Ok(None);
+            };
+            accumulator = next;
+        }
+        Ok(Some(accumulator))
+    }
+
+    fn cemt_typed_queue_values<'a>(
+        value: &CemtEvaluatorValue<'a>,
+        owner: &str,
+    ) -> Result<Vec<CemtEvaluatorValue<'a>>, String> {
+        if value.kind() != CemtEvaluatorValueKind::Sequence {
+            return Err(format!(
+                "CEMT {owner} expected array queue, got {}",
+                cemt_typed_runtime_type_name(value)
+            ));
+        }
+        value
+            .sequence_values("queue")
+            .map_err(|error| error.to_string())
+    }
+
+    fn push_cemt_typed_queue_item<'a>(
+        queue: &mut Vec<CemtEvaluatorValue<'a>>,
+        owner: &str,
+        item: CemtEvaluatorValue<'a>,
+    ) -> Result<(), String> {
+        if queue.len() >= CEMT_RUNTIME_QUEUE_LENGTH_LIMIT {
+            return Err(format!(
+                "CEMT queue `{owner}` exceeded length limit {CEMT_RUNTIME_QUEUE_LENGTH_LIMIT}"
+            ));
+        }
+        queue.push(item);
+        Ok(())
+    }
+
+    fn resolve_cemt_typed_source_map<'a>(
+        expression: &str,
+        context: &CemtTypedEvaluatorContext<'a, '_>,
+    ) -> Result<Option<CemtEvaluatorValue<'a>>, String> {
+        let Some(args) =
+            resolve_cemt_typed_function_arguments(expression, "sourceMap", context, |len| {
+                len == 2
+            })?
+        else {
+            return Ok(None);
+        };
+        let Some(function_name) = args[1]
+            .as_str()
+            .map(str::trim)
+            .filter(|value| !value.is_empty())
+        else {
+            return Err(format!(
+                "CEMT sourceMap expected non-empty string function name, got {}",
+                cemt_typed_runtime_type_name(&args[1])
+            ));
+        };
+        Ok(Some(
+            cemt_typed_first_source_map(&args[0])
+                .map(|source_map| {
+                    CemtEvaluatorValue::source_map(transform_template_source_map_with_transform(
+                        &source_map,
+                        TransformKind::TemplateTransform {
+                            function: function_name.to_owned(),
+                        },
+                    ))
+                })
+                .unwrap_or(CemtEvaluatorValue::Null),
+        ))
+    }
+
+    fn resolve_cemt_typed_diagnostic<'a>(
+        expression: &str,
+        context: &CemtTypedEvaluatorContext<'a, '_>,
+    ) -> Result<Option<CemtEvaluatorValue<'a>>, String> {
+        let Some(args) = parse_cemt_function_call_args(expression, "diagnostic")
+            .map_err(|error| error.to_string())?
+        else {
+            return Ok(None);
+        };
+        match args.len() {
+            1 => {
+                let Some(value) = resolve_cemt_typed_expression_in_context(&args[0], context)?
+                else {
+                    return Ok(None);
+                };
+                if value.kind() != CemtEvaluatorValueKind::Record {
+                    return Err(format!(
+                        "CEMT diagnostic expected object argument, got {}",
+                        cemt_typed_runtime_type_name(&value)
+                    ));
+                }
+                normalize_cemt_typed_diagnostic(value).map(Some)
+            }
+            3 => {
+                let Some(code) = resolve_cemt_typed_expression_in_context(&args[0], context)?
+                else {
+                    return Ok(None);
+                };
+                let Some(severity) = resolve_cemt_typed_expression_in_context(&args[1], context)?
+                else {
+                    return Ok(None);
+                };
+                let Some(message) = resolve_cemt_typed_expression_in_context(&args[2], context)?
+                else {
+                    return Ok(None);
+                };
+                let code = cemt_typed_required_diagnostic_string_value(&code, "code")?;
+                let severity = normalize_cemt_typed_diagnostic_severity(
+                    &cemt_typed_required_diagnostic_string_value(&severity, "severity")?,
+                )?;
+                let message = cemt_typed_required_diagnostic_string_value(&message, "message")?;
+                Ok(Some(CemtEvaluatorValue::record([
+                    ("code", CemtEvaluatorValue::string(code)),
+                    ("severity", CemtEvaluatorValue::string(severity)),
+                    ("message", CemtEvaluatorValue::string(message)),
+                ])))
+            }
+            _ => Ok(None),
+        }
+    }
+
+    fn resolve_cemt_typed_diagnostics<'a>(
+        expression: &str,
+        context: &CemtTypedEvaluatorContext<'a, '_>,
+    ) -> Result<Option<CemtEvaluatorValue<'a>>, String> {
+        let Some(mut args) =
+            resolve_cemt_typed_function_arguments(expression, "diagnostics", context, |len| {
+                len == 1
+            })?
+        else {
+            return Ok(None);
+        };
+        let value = args.pop().expect("validated diagnostics argument");
+        match value.kind() {
+            CemtEvaluatorValueKind::Sequence => {
+                let diagnostics = normalize_cemt_typed_diagnostic_sequence(value)?;
+                Ok(Some(CemtEvaluatorValue::record([(
+                    "diagnostics",
+                    diagnostics,
+                )])))
+            }
+            CemtEvaluatorValueKind::Record if value.field("diagnostics").is_some() => {
+                let diagnostics = value
+                    .field("diagnostics")
+                    .expect("checked diagnostics field");
+                if diagnostics.kind() != CemtEvaluatorValueKind::Sequence {
+                    return Err("CEMT diagnostics expected `diagnostics` array".to_owned());
+                }
+                value
+                    .with_field(
+                        "diagnostics",
+                        normalize_cemt_typed_diagnostic_sequence(diagnostics)?,
+                    )
+                    .map(Some)
+                    .map_err(|error| error.to_string())
+            }
+            CemtEvaluatorValueKind::Record => Ok(Some(CemtEvaluatorValue::record([(
+                "diagnostics",
+                CemtEvaluatorValue::sequence([normalize_cemt_typed_diagnostic(value)?]),
+            )]))),
+            _ => Err(format!(
+                "CEMT diagnostics expected diagnostic object or array, got {}",
+                cemt_typed_runtime_type_name(&value)
+            )),
+        }
+    }
+
+    fn normalize_cemt_typed_diagnostic_sequence<'a>(
+        value: CemtEvaluatorValue<'a>,
+    ) -> Result<CemtEvaluatorValue<'a>, String> {
+        let items = value
+            .sequence_values("diagnostics")
+            .map_err(|error| error.to_string())?;
+        let diagnostics = items
+            .into_iter()
+            .enumerate()
+            .map(|(index, item)| {
+                if item.kind() != CemtEvaluatorValueKind::Record {
+                    return Err(format!(
+                        "CEMT diagnostics expected diagnostic object at index {index}, got {}",
+                        cemt_typed_runtime_type_name(&item)
+                    ));
+                }
+                normalize_cemt_typed_diagnostic(item)
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+        Ok(CemtEvaluatorValue::sequence(diagnostics))
+    }
+
+    fn normalize_cemt_typed_diagnostic<'a>(
+        value: CemtEvaluatorValue<'a>,
+    ) -> Result<CemtEvaluatorValue<'a>, String> {
+        let code = cemt_typed_required_diagnostic_string_field(&value, "code")?;
+        let message = cemt_typed_required_diagnostic_string_field(&value, "message")?;
+        let severity = cemt_typed_optional_diagnostic_string_field(&value, "severity")?
+            .map(|value| normalize_cemt_typed_diagnostic_severity(&value))
+            .transpose()?
+            .unwrap_or_else(|| "info".to_owned());
+
+        let mut normalized = value
+            .with_field("code", CemtEvaluatorValue::string(code))
+            .and_then(|value| value.with_field("severity", CemtEvaluatorValue::string(severity)))
+            .and_then(|value| value.with_field("message", CemtEvaluatorValue::string(message)))
+            .map_err(|error| error.to_string())?;
+        for field in ["uri", "node"] {
+            if let Some(value) = cemt_typed_optional_diagnostic_string_field(&normalized, field)? {
+                normalized = normalized
+                    .with_field(field, CemtEvaluatorValue::string(value))
+                    .map_err(|error| error.to_string())?;
+            }
+        }
+        for field in ["line", "column", "byteOffset"] {
+            if let Some(value) = cemt_typed_optional_diagnostic_u64_field(&normalized, field)? {
+                normalized = normalized
+                    .with_field(field, CemtEvaluatorValue::unsigned_integer(value))
+                    .map_err(|error| error.to_string())?;
+            }
+        }
+        Ok(normalized)
+    }
+
+    fn cemt_typed_required_diagnostic_string_field(
+        value: &CemtEvaluatorValue<'_>,
+        field: &str,
+    ) -> Result<String, String> {
+        let Some(value) = value.field(field) else {
+            return Err(format!("CEMT diagnostic missing `{field}`"));
+        };
+        cemt_typed_required_diagnostic_string_value(&value, field)
+    }
+
+    fn cemt_typed_required_diagnostic_string_value(
+        value: &CemtEvaluatorValue<'_>,
+        field: &str,
+    ) -> Result<String, String> {
+        value
+            .as_str()
+            .map(str::trim)
+            .filter(|value| !value.is_empty())
+            .map(str::to_owned)
+            .ok_or_else(|| {
+                format!(
+                    "CEMT diagnostic `{field}` expected non-empty string, got {}",
+                    cemt_typed_runtime_type_name(value)
+                )
+            })
+    }
+
+    fn cemt_typed_optional_diagnostic_string_field(
+        value: &CemtEvaluatorValue<'_>,
+        field: &str,
+    ) -> Result<Option<String>, String> {
+        let Some(value) = value.field(field) else {
+            return Ok(None);
+        };
+        if value.kind() == CemtEvaluatorValueKind::Null {
+            return Ok(None);
+        }
+        cemt_typed_required_diagnostic_string_value(&value, field).map(Some)
+    }
+
+    fn cemt_typed_optional_diagnostic_u64_field(
+        value: &CemtEvaluatorValue<'_>,
+        field: &str,
+    ) -> Result<Option<u64>, String> {
+        let Some(value) = value.field(field) else {
+            return Ok(None);
+        };
+        if value.kind() == CemtEvaluatorValueKind::Null {
+            return Ok(None);
+        }
+        value
+            .as_number()
+            .and_then(|value| value.as_u64())
+            .map(Some)
+            .ok_or_else(|| {
+                format!(
+                    "CEMT diagnostic `{field}` expected unsigned integer, got {}",
+                    cemt_typed_runtime_type_name(&value)
+                )
+            })
+    }
+
+    fn normalize_cemt_typed_diagnostic_severity(value: &str) -> Result<String, String> {
+        let normalized = value.trim().to_ascii_lowercase();
+        match normalized.as_str() {
+            "info" | "warning" | "error" | "fatal" => Ok(normalized),
+            _ => Err(format!(
+                "CEMT diagnostic severity expected one of info, warning, error, fatal, got `{value}`"
+            )),
+        }
+    }
+
+    #[derive(Debug, Clone, Copy)]
+    enum CemtTypedMetadataAccumulatorKind {
+        FormatNode,
+        ColorNode,
+        Diagnostic,
+        Namespace,
+        OutputSpan,
+        WriterBoundary,
+    }
+
+    impl CemtTypedMetadataAccumulatorKind {
+        fn from_expression(expression: &str) -> Result<Option<(Self, Vec<String>)>, String> {
+            for (name, kind) in [
+                ("appendFormatNode", Self::FormatNode),
+                ("appendColorNode", Self::ColorNode),
+                ("appendDiagnostic", Self::Diagnostic),
+                ("appendNamespace", Self::Namespace),
+                ("appendOutputSpan", Self::OutputSpan),
+                ("appendWriterBoundary", Self::WriterBoundary),
+            ] {
+                if let Some(args) = parse_cemt_function_call_args(expression, name)
+                    .map_err(|error| error.to_string())?
+                {
+                    return Ok(Some((kind, args)));
+                }
+            }
+            Ok(None)
+        }
+
+        fn function_name(self) -> &'static str {
+            match self {
+                Self::FormatNode => "appendFormatNode",
+                Self::ColorNode => "appendColorNode",
+                Self::Diagnostic => "appendDiagnostic",
+                Self::Namespace => "appendNamespace",
+                Self::OutputSpan => "appendOutputSpan",
+                Self::WriterBoundary => "appendWriterBoundary",
+            }
+        }
+
+        fn field_name(self) -> &'static str {
+            match self {
+                Self::FormatNode => "formatNodes",
+                Self::ColorNode => "colorNodes",
+                Self::Diagnostic => "diagnostics",
+                Self::Namespace => "namespaceDeclarations",
+                Self::OutputSpan => "outputSpans",
+                Self::WriterBoundary => "writerBoundaries",
+            }
+        }
+
+        fn default_source_map_function_name(self) -> &'static str {
+            match self {
+                Self::FormatNode => "cem.format-tree",
+                Self::ColorNode => "cem.color-tree",
+                _ => self.function_name(),
+            }
+        }
+
+        fn normalize_item<'a>(
+            self,
+            value: CemtEvaluatorValue<'a>,
+        ) -> Result<CemtEvaluatorValue<'a>, String> {
+            match self {
+                Self::FormatNode => {
+                    let value = cemt_typed_metadata_object(self, value, "format node")?;
+                    let value = cemt_typed_normalize_required_metadata_string(value, self, "kind")?;
+                    let value = cemt_typed_normalize_required_metadata_string(
+                        value,
+                        self,
+                        "formatterRole",
+                    )?;
+                    let value = cemt_typed_normalize_optional_metadata_string(value, self, "name")?;
+                    cemt_typed_normalize_optional_metadata_string(value, self, "value")
+                }
+                Self::ColorNode => {
+                    let value = cemt_typed_metadata_object(self, value, "color node")?;
+                    let value = cemt_typed_normalize_required_metadata_string(value, self, "kind")?;
+                    let value = cemt_typed_normalize_required_metadata_string(
+                        value,
+                        self,
+                        "colorizerRole",
+                    )?;
+                    let value = cemt_typed_normalize_optional_metadata_string(value, self, "name")?;
+                    let value =
+                        cemt_typed_normalize_optional_metadata_string(value, self, "colorRole")?;
+                    cemt_typed_normalize_optional_metadata_string(value, self, "value")
+                }
+                Self::Diagnostic => {
+                    if value.kind() != CemtEvaluatorValueKind::Record {
+                        return Err(format!(
+                            "CEMT {} expected diagnostic object, got {}",
+                            self.function_name(),
+                            cemt_typed_runtime_type_name(&value)
+                        ));
+                    }
+                    normalize_cemt_typed_diagnostic(value)
+                }
+                Self::Namespace => {
+                    let value = cemt_typed_metadata_object(self, value, "namespace declaration")?;
+                    let value = cemt_typed_normalize_required_metadata_string(value, self, "uri")?;
+                    cemt_typed_normalize_optional_metadata_string(value, self, "prefix")
+                }
+                Self::OutputSpan => {
+                    let value = cemt_typed_metadata_object(self, value, "output span")?;
+                    let value = cemt_typed_normalize_required_metadata_string(value, self, "kind")?;
+                    let (value, start) =
+                        cemt_typed_normalize_required_metadata_u64(value, self, "start")?;
+                    let (value, end) =
+                        cemt_typed_normalize_required_metadata_u64(value, self, "end")?;
+                    if end < start {
+                        return Err(format!(
+                            "CEMT {} output span `end` must be greater than or equal to `start`",
+                            self.function_name()
+                        ));
+                    }
+                    Ok(value)
+                }
+                Self::WriterBoundary => {
+                    let value = cemt_typed_metadata_object(self, value, "writer boundary")?;
+                    let value = cemt_typed_normalize_required_metadata_string(value, self, "kind")?;
+                    cemt_typed_normalize_required_metadata_string(value, self, "stage")
+                }
+            }
+        }
+    }
+
+    fn resolve_cemt_typed_metadata_accumulator<'a>(
+        expression: &str,
+        context: &CemtTypedEvaluatorContext<'a, '_>,
+    ) -> Result<Option<CemtEvaluatorValue<'a>>, String> {
+        let Some((kind, args)) = CemtTypedMetadataAccumulatorKind::from_expression(expression)?
+        else {
+            return Ok(None);
+        };
+        if args.len() != 2 {
+            return Ok(None);
+        }
+        let Some(accumulator) = resolve_cemt_typed_expression_in_context(&args[0], context)? else {
+            return Ok(None);
+        };
+        if accumulator.kind() != CemtEvaluatorValueKind::Record {
+            return Err(format!(
+                "CEMT {} expected object accumulator, got {}",
+                kind.function_name(),
+                cemt_typed_runtime_type_name(&accumulator)
+            ));
+        }
+        let Some(item) = resolve_cemt_typed_expression_in_context(&args[1], context)? else {
+            return Ok(None);
+        };
+        let item = kind.normalize_item(item)?;
+        let item = apply_cemt_typed_metadata_source_map_default(item, &accumulator, kind)?;
+        append_cemt_typed_metadata_accumulator_item(accumulator, kind, item).map(Some)
+    }
+
+    fn cemt_typed_metadata_object<'a>(
+        kind: CemtTypedMetadataAccumulatorKind,
+        value: CemtEvaluatorValue<'a>,
+        label: &str,
+    ) -> Result<CemtEvaluatorValue<'a>, String> {
+        if value.kind() != CemtEvaluatorValueKind::Record {
+            return Err(format!(
+                "CEMT {} expected {label} object, got {}",
+                kind.function_name(),
+                cemt_typed_runtime_type_name(&value)
+            ));
+        }
+        Ok(value)
+    }
+
+    fn cemt_typed_normalize_required_metadata_string<'a>(
+        value: CemtEvaluatorValue<'a>,
+        kind: CemtTypedMetadataAccumulatorKind,
+        field: &str,
+    ) -> Result<CemtEvaluatorValue<'a>, String> {
+        let Some(field_value) = value.field(field) else {
+            return Err(format!(
+                "CEMT {} metadata missing `{field}`",
+                kind.function_name()
+            ));
+        };
+        let Some(field_value) = field_value
+            .as_str()
+            .map(str::trim)
+            .filter(|value| !value.is_empty())
+        else {
+            return Err(format!(
+                "CEMT {} metadata `{field}` expected non-empty string, got {}",
+                kind.function_name(),
+                cemt_typed_runtime_type_name(&field_value)
+            ));
+        };
+        value
+            .with_field(field, CemtEvaluatorValue::string(field_value))
+            .map_err(|error| error.to_string())
+    }
+
+    fn cemt_typed_normalize_optional_metadata_string<'a>(
+        value: CemtEvaluatorValue<'a>,
+        kind: CemtTypedMetadataAccumulatorKind,
+        field: &str,
+    ) -> Result<CemtEvaluatorValue<'a>, String> {
+        let Some(field_value) = value.field(field) else {
+            return Ok(value);
+        };
+        if field_value.kind() == CemtEvaluatorValueKind::Null {
+            return value
+                .without_field(field)
+                .map_err(|error| error.to_string());
+        }
+        let Some(field_value) = field_value.as_str() else {
+            return Err(format!(
+                "CEMT {} metadata `{field}` expected string, got {}",
+                kind.function_name(),
+                cemt_typed_runtime_type_name(&field_value)
+            ));
+        };
+        let field_value = if field == "value" {
+            field_value.to_owned()
+        } else {
+            let field_value = field_value.trim();
+            if field_value.is_empty() {
+                return Err(format!(
+                    "CEMT {} metadata `{field}` expected non-empty string, got string",
+                    kind.function_name()
+                ));
+            }
+            field_value.to_owned()
+        };
+        value
+            .with_field(field, CemtEvaluatorValue::string(field_value))
+            .map_err(|error| error.to_string())
+    }
+
+    fn cemt_typed_normalize_required_metadata_u64<'a>(
+        value: CemtEvaluatorValue<'a>,
+        kind: CemtTypedMetadataAccumulatorKind,
+        field: &str,
+    ) -> Result<(CemtEvaluatorValue<'a>, u64), String> {
+        let Some(field_value) = value.field(field) else {
+            return Err(format!(
+                "CEMT {} metadata missing `{field}`",
+                kind.function_name()
+            ));
+        };
+        let Some(number) = field_value.as_number().and_then(|number| number.as_u64()) else {
+            return Err(format!(
+                "CEMT {} metadata `{field}` expected unsigned integer, got {}",
+                kind.function_name(),
+                cemt_typed_runtime_type_name(&field_value)
+            ));
+        };
+        value
+            .with_field(field, CemtEvaluatorValue::unsigned_integer(number))
+            .map(|value| (value, number))
+            .map_err(|error| error.to_string())
+    }
+
+    fn apply_cemt_typed_metadata_source_map_default<'a>(
+        item: CemtEvaluatorValue<'a>,
+        accumulator: &CemtEvaluatorValue<'a>,
+        kind: CemtTypedMetadataAccumulatorKind,
+    ) -> Result<CemtEvaluatorValue<'a>, String> {
+        if item.field("sourceMap").is_some() {
+            return Ok(item);
+        }
+        let source_map =
+            cemt_typed_first_source_map(accumulator).or_else(|| cemt_typed_first_source_map(&item));
+        let Some(source_map) = source_map else {
+            return Ok(item);
+        };
+        item.with_field(
+            "sourceMap",
+            CemtEvaluatorValue::source_map(transform_template_source_map_with_transform(
+                &source_map,
+                TransformKind::TemplateTransform {
+                    function: kind.default_source_map_function_name().to_owned(),
+                },
+            )),
+        )
+        .map_err(|error| error.to_string())
+    }
+
+    fn append_cemt_typed_metadata_accumulator_item<'a>(
+        accumulator: CemtEvaluatorValue<'a>,
+        kind: CemtTypedMetadataAccumulatorKind,
+        item: CemtEvaluatorValue<'a>,
+    ) -> Result<CemtEvaluatorValue<'a>, String> {
+        let field = kind.field_name();
+        let items = match accumulator.field(field) {
+            None => CemtEvaluatorValue::sequence([item]),
+            Some(items) if items.kind() == CemtEvaluatorValueKind::Sequence => {
+                items.append(item).map_err(|error| error.to_string())?
+            }
+            Some(items) => {
+                return Err(format!(
+                    "CEMT {} expected `{field}` array, got {}",
+                    kind.function_name(),
+                    cemt_typed_runtime_type_name(&items)
+                ));
+            }
+        };
+        accumulator
+            .with_field(field, items)
+            .map_err(|error| error.to_string())
     }
 
     fn cemt_typed_numeric_operand(
@@ -27187,6 +28134,96 @@ mod tests {
         }
     }
 
+    fn cemt_typed_test_json(value: crate::transform_artifact::CemtEvaluatorValue<'_>) -> Value {
+        use crate::transform_artifact::CemtEvaluatorValueKind;
+
+        match value.kind() {
+            CemtEvaluatorValueKind::Null => Value::Null,
+            CemtEvaluatorValueKind::Boolean => Value::Bool(value.as_bool().expect("typed boolean")),
+            CemtEvaluatorValueKind::Number => {
+                let number = value.as_number().expect("typed number");
+                if let Some(value) = number.as_i64() {
+                    Value::Number(value.into())
+                } else if let Some(value) = number.as_u64() {
+                    Value::Number(value.into())
+                } else {
+                    Value::Number(
+                        serde_json::Number::from_f64(number.as_f64())
+                            .expect("finite typed decimal"),
+                    )
+                }
+            }
+            CemtEvaluatorValueKind::String => {
+                Value::String(value.as_str().expect("typed string").to_owned())
+            }
+            CemtEvaluatorValueKind::Sequence => Value::Array(
+                value
+                    .sequence_values("test snapshot")
+                    .expect("typed sequence")
+                    .into_iter()
+                    .map(cemt_typed_test_json)
+                    .collect(),
+            ),
+            CemtEvaluatorValueKind::Record => Value::Object(
+                value
+                    .record_field_names("test snapshot")
+                    .expect("typed record")
+                    .into_iter()
+                    .map(|name| {
+                        let field = value.field(&name).expect("typed record field");
+                        (name, cemt_typed_test_json(field))
+                    })
+                    .collect(),
+            ),
+            CemtEvaluatorValueKind::SourceMap => {
+                serde_json::to_value(value.as_source_map().expect("typed source map"))
+                    .expect("source map serializes for compatibility snapshot")
+            }
+        }
+    }
+
+    fn cemt_test_expression_call_names(expression: &str) -> BTreeSet<String> {
+        let bytes = expression.as_bytes();
+        let mut calls = BTreeSet::new();
+        let mut index = 0;
+        while index < bytes.len() {
+            if matches!(bytes[index], b'\'' | b'"') {
+                let quote = bytes[index];
+                index += 1;
+                while index < bytes.len() {
+                    match bytes[index] {
+                        b'\\' => index = (index + 2).min(bytes.len()),
+                        value if value == quote => {
+                            index += 1;
+                            break;
+                        }
+                        _ => index += 1,
+                    }
+                }
+                continue;
+            }
+            if bytes[index].is_ascii_alphabetic() || bytes[index] == b'_' {
+                let start = index;
+                index += 1;
+                while index < bytes.len()
+                    && (bytes[index].is_ascii_alphanumeric() || bytes[index] == b'_')
+                {
+                    index += 1;
+                }
+                let mut next = index;
+                while next < bytes.len() && bytes[next].is_ascii_whitespace() {
+                    next += 1;
+                }
+                if next < bytes.len() && bytes[next] == b'(' {
+                    calls.insert(expression[start..index].to_owned());
+                }
+                continue;
+            }
+            index += 1;
+        }
+        calls
+    }
+
     fn encoded_html_text_artifact() -> TransformTemplateEncodedArtifact {
         let mut identity = TransformTemplateEncodedArtifactIdentity::new(
             TransformTemplateOutputProducedKind::Text,
@@ -29904,6 +30941,374 @@ mod tests {
     }
 
     #[test]
+    fn typed_cemt_runtime_stack_and_queue_helpers_match_compatibility() {
+        use crate::transform_artifact::{CemtEvaluatorBindings, CemtEvaluatorValue};
+
+        let typed = CemtEvaluatorBindings::from_iter([
+            (
+                "ancestors",
+                CemtEvaluatorValue::sequence([CemtEvaluatorValue::record([
+                    ("name", CemtEvaluatorValue::string("root")),
+                    (
+                        "namespace",
+                        CemtEvaluatorValue::record([(
+                            "html",
+                            CemtEvaluatorValue::string("http://www.w3.org/1999/xhtml"),
+                        )]),
+                    ),
+                ])]),
+            ),
+            (
+                "work",
+                CemtEvaluatorValue::sequence([CemtEvaluatorValue::string("repair")]),
+            ),
+        ]);
+        let compatibility = BTreeMap::from([
+            (
+                "ancestors".to_owned(),
+                json!([{
+                    "name": "root",
+                    "namespace": {"html": "http://www.w3.org/1999/xhtml"}
+                }]),
+            ),
+            ("work".to_owned(), json!(["repair"])),
+        ]);
+
+        for expression in [
+            r#"stackPush($ancestors, { name: "child" })"#,
+            r#"stackPop($ancestors)"#,
+            r#"stackTop($ancestors)"#,
+            r#"stackTop([])"#,
+            r#"stackDepth($ancestors)"#,
+            r#"stackPath($ancestors, namespace.html)"#,
+            r#"withStack(frames, { name: "root" }, withStack(frames, { name: "child" }, {
+                depth: stackDepth($frames),
+                names: stackPath($frames, name),
+                top: stackTop($frames)
+            }))"#,
+            r#"queuePush($work, "diagnostic")"#,
+            r#"defer($work, "diagnostic")"#,
+            r#"queueShift(["repair", "diagnostic"])"#,
+            r#"queueShift([])"#,
+            r#"queuePeek($work)"#,
+            r#"queuePeek([])"#,
+            r#"queueLength($work)"#,
+            r#"drainQueue(
+                defer(defer([], "first"), "second"),
+                [],
+                append($acc, {
+                    item: $item,
+                    slot: $index,
+                    remaining: queueLength($queue)
+                })
+            )"#,
+        ] {
+            let typed_value = resolve_cemt_typed_expression(expression, &typed)
+                .expect("typed stack or queue helper")
+                .map(cemt_typed_test_json);
+            let compatibility_value = resolve_encode_subject_expression(expression, &compatibility);
+            assert_eq!(typed_value, compatibility_value, "expression: {expression}");
+        }
+
+        assert_eq!(
+            typed
+                .resolve_path("ancestors.0.name")
+                .and_then(|value| value.as_str().map(str::to_owned)),
+            Some("root".to_owned()),
+            "typed stack operations preserve the caller binding"
+        );
+        assert_eq!(
+            typed.value("work").and_then(|value| value.length().ok()),
+            Some(1),
+            "typed queue operations preserve the caller binding"
+        );
+        assert!(typed.value("frames").is_none());
+    }
+
+    #[test]
+    fn typed_cemt_runtime_source_map_diagnostic_and_metadata_helpers_match_compatibility() {
+        use crate::transform_artifact::{CemtEvaluatorBindings, CemtEvaluatorValue};
+
+        let tree_source_map = source_map_stack(120, 6);
+        let explicit_source_map = source_map_stack(140, 3);
+        let typed = CemtEvaluatorBindings::from_iter([
+            (
+                "node",
+                CemtEvaluatorValue::record([
+                    ("name", CemtEvaluatorValue::string("button")),
+                    ("colorRole", CemtEvaluatorValue::string("syntax.name")),
+                ]),
+            ),
+            (
+                "tree",
+                CemtEvaluatorValue::record([
+                    ("kind", CemtEvaluatorValue::string("cem-tree")),
+                    (
+                        "sourceMap",
+                        CemtEvaluatorValue::source_map(tree_source_map.clone()),
+                    ),
+                ]),
+            ),
+            (
+                "explicit",
+                CemtEvaluatorValue::source_map(explicit_source_map.clone()),
+            ),
+        ]);
+        let compatibility = BTreeMap::from([
+            (
+                "node".to_owned(),
+                json!({"name": "button", "colorRole": "syntax.name"}),
+            ),
+            (
+                "tree".to_owned(),
+                json!({"kind": "cem-tree", "sourceMap": tree_source_map}),
+            ),
+            ("explicit".to_owned(), json!(explicit_source_map)),
+        ]);
+
+        for expression in [
+            r#"sourceMap($tree, "cem.format-tree")"#,
+            r#"diagnostic("cem.format.fallback", "warning", "using fallback layout")"#,
+            r#"diagnostic({ code: "cem.color.disabled", message: "no color capability" })"#,
+            r#"diagnostics([
+                diagnostic("cem.format.fallback", "warning", "using fallback layout"),
+                diagnostic({ code: "cem.color.disabled", severity: "info", message: "no color capability" })
+            ])"#,
+            r#"appendWriterBoundary(
+                appendOutputSpan(
+                    appendNamespace(
+                        appendDiagnostic(
+                            appendColorNode(
+                                appendFormatNode(
+                                    { kind: "cem-tree" },
+                                    {
+                                        kind: "format-decision",
+                                        name: "formatter.block",
+                                        formatterRole: "formatter.block",
+                                        value: "\t"
+                                    }
+                                ),
+                                {
+                                    kind: "color-decision",
+                                    name: "color.syntax",
+                                    colorizerRole: "colorizer.syntax",
+                                    colorRole: $node.colorRole
+                                }
+                            ),
+                            diagnostic({ code: "cem.format.metadata", message: $node.name })
+                        ),
+                        { prefix: "svg", uri: "http://www.w3.org/2000/svg" }
+                    ),
+                    { kind: "generated", start: 0, end: 6 }
+                ),
+                { kind: "writer-boundary", stage: "pre-write" }
+            )"#,
+            r#"appendColorNode(
+                appendFormatNode(
+                    appendFormatNode(
+                        $tree,
+                        { kind: "format-decision", name: "layout", formatterRole: "formatter.layout" }
+                    ),
+                    {
+                        kind: "format-decision",
+                        name: "explicit",
+                        formatterRole: "formatter.layout",
+                        sourceMap: $explicit
+                    }
+                ),
+                { kind: "color-decision", name: "syntax", colorizerRole: "colorizer.syntax" }
+            )"#,
+        ] {
+            let typed_value = resolve_cemt_typed_expression(expression, &typed)
+                .expect("typed source-map, diagnostic, or metadata helper")
+                .map(cemt_typed_test_json);
+            let compatibility_value = resolve_encode_subject_expression(expression, &compatibility);
+            assert_eq!(typed_value, compatibility_value, "expression: {expression}");
+        }
+    }
+
+    #[test]
+    fn typed_cemt_runtime_metadata_normalization_preserves_owner_backing() {
+        use crate::projection::CemTreeAstStream;
+        use crate::transform_artifact::{
+            CemtEvaluatorBindings, CemtEvaluatorRecord, CemtEvaluatorValue, CemtFormatOperation,
+            CemtFormatOperationKind, CemtFormattedTreeOverlay, CemtOverlayProducer,
+            CemtOverlayProvenance, CemtTreeArtifact, CemtTreeEnvelopeMetadata,
+            CemtTreeEnvelopeMode,
+        };
+
+        let source_map = source_map_stack(160, 4);
+        let owner = Arc::new(CemTreeAstStream::new(Vec::new()));
+        let artifact = CemtTreeArtifact::formatted(
+            owner,
+            None,
+            CemtFormattedTreeOverlay {
+                envelope: CemtTreeEnvelopeMetadata {
+                    content_type: "application/cem".to_owned(),
+                    schema: "https://cem.dev/ns/cem-ml/1".to_owned(),
+                    category: "cem-tree".to_owned(),
+                    mode: CemtTreeEnvelopeMode::Document,
+                    canonical: false,
+                },
+                producer: CemtOverlayProducer {
+                    function_name: "cem.format-tree".to_owned(),
+                    formatter_profile: Some("tabular".to_owned()),
+                },
+                operations: vec![CemtFormatOperation {
+                    name: "line-start".to_owned(),
+                    formatter_role: "formatter.line-start".to_owned(),
+                    formatter_profile: None,
+                    color_role: None,
+                    kind: CemtFormatOperationKind::Marker,
+                    provenance: CemtOverlayProvenance::SourceMapped(source_map.clone()),
+                }],
+                retained_node_paths: Vec::new(),
+                node_operations: Vec::new(),
+            },
+        );
+        let item = CemtEvaluatorValue::borrowed(
+            artifact
+                .evaluator_view()
+                .field("formatNodes")
+                .and_then(|nodes| nodes.item(0))
+                .expect("borrowed format operation"),
+        )
+        .with_field("value", CemtEvaluatorValue::Null)
+        .expect("explicit optional null overlay");
+        let typed = CemtEvaluatorBindings::from_iter([("item", item)]);
+        let compatibility = BTreeMap::from([(
+            "item".to_owned(),
+            json!({
+                "kind": "format-marker",
+                "name": "line-start",
+                "formatterRole": "formatter.line-start",
+                "value": null,
+                "sourceMap": source_map,
+            }),
+        )]);
+
+        let typed_value = resolve_cemt_typed_expression("appendFormatNode({}, $item)", &typed)
+            .expect("typed owner-backed metadata")
+            .expect("typed metadata result");
+        let compatibility_value =
+            resolve_encode_subject_expression("appendFormatNode({}, $item)", &compatibility)
+                .expect("compatibility metadata result");
+        assert_eq!(
+            cemt_typed_test_json(typed_value.clone()),
+            compatibility_value
+        );
+        let normalized = typed_value
+            .resolve_path("formatNodes.0")
+            .expect("normalized metadata item");
+        assert!(normalized.field("value").is_none());
+        assert!(normalized
+            .owned_record()
+            .and_then(CemtEvaluatorRecord::native_base)
+            .is_some());
+    }
+
+    #[test]
+    fn typed_cemt_runtime_stateful_and_metadata_helpers_match_exact_failures() {
+        use crate::transform_artifact::{CemtEvaluatorBindings, CemtEvaluatorValue};
+
+        let typed = CemtEvaluatorBindings::default();
+        let compatibility = BTreeMap::new();
+        for expression in [
+            r#"stackPush({ not: "array" }, { name: "child" })"#,
+            r#"withStack($ancestors, { name: "child" }, $ancestors)"#,
+            r#"defer({ not: "array" }, { kind: "repair" })"#,
+            r#"sourceMap({}, "")"#,
+            r#"diagnostic({ code: "cem.format.bad", severity: "notice", message: "bad" })"#,
+            r#"diagnostics("not a diagnostic")"#,
+            r#"appendFormatNode([], { kind: "format-decision" })"#,
+            r#"appendColorNode({ colorNodes: "bad" }, { kind: "color-decision", colorizerRole: "colorizer.syntax" })"#,
+            r#"appendDiagnostic({}, { message: "missing code" })"#,
+            r#"appendFormatNode({}, { kind: "format-decision" })"#,
+            r#"appendColorNode({}, { kind: "color-decision" })"#,
+            r#"appendNamespace({}, { prefix: "svg" })"#,
+            r#"appendOutputSpan({}, { kind: "generated", start: 8, end: 4 })"#,
+            r#"appendWriterBoundary({}, { kind: "writer-boundary" })"#,
+        ] {
+            let typed_error = resolve_cemt_typed_expression(expression, &typed)
+                .expect_err("typed helper rejects invalid input");
+            let compatibility_error = resolve_encode_subject_expression_at_depth(
+                expression,
+                &compatibility,
+                &BTreeMap::new(),
+                None,
+                0,
+            )
+            .expect_err("compatibility helper rejects invalid input");
+            assert_eq!(typed_error, compatibility_error, "expression: {expression}");
+        }
+
+        let typed_stack_limit = CemtEvaluatorBindings::from_iter([(
+            "ancestors",
+            CemtEvaluatorValue::sequence(
+                (0..CEMT_RUNTIME_STACK_DEPTH_LIMIT).map(|_| CemtEvaluatorValue::Null),
+            ),
+        )]);
+        let compatibility_stack_limit = BTreeMap::from([(
+            "ancestors".to_owned(),
+            Value::Array(vec![Value::Null; CEMT_RUNTIME_STACK_DEPTH_LIMIT]),
+        )]);
+        let expression = r#"withStack(ancestors, { name: "overflow" }, $ancestors)"#;
+        assert_eq!(
+            resolve_cemt_typed_expression(expression, &typed_stack_limit)
+                .expect_err("typed stack depth limit"),
+            resolve_encode_subject_expression_at_depth(
+                expression,
+                &compatibility_stack_limit,
+                &BTreeMap::new(),
+                None,
+                0,
+            )
+            .expect_err("compatibility stack depth limit")
+        );
+
+        let typed_queue_limit = CemtEvaluatorBindings::from_iter([(
+            "work",
+            CemtEvaluatorValue::sequence(
+                (0..CEMT_RUNTIME_QUEUE_LENGTH_LIMIT).map(|_| CemtEvaluatorValue::Null),
+            ),
+        )]);
+        let compatibility_queue_limit = BTreeMap::from([(
+            "work".to_owned(),
+            Value::Array(vec![Value::Null; CEMT_RUNTIME_QUEUE_LENGTH_LIMIT]),
+        )]);
+        let expression = r#"defer($work, null)"#;
+        assert_eq!(
+            resolve_cemt_typed_expression(expression, &typed_queue_limit)
+                .expect_err("typed queue length limit"),
+            resolve_encode_subject_expression_at_depth(
+                expression,
+                &compatibility_queue_limit,
+                &BTreeMap::new(),
+                None,
+                0,
+            )
+            .expect_err("compatibility queue length limit")
+        );
+
+        for expression in [
+            "withStack(frames, {})",
+            "queuePush([])",
+            r#"sourceMap($missing, "cem.format-tree")"#,
+            "diagnostic()",
+            "diagnostics()",
+            "appendFormatNode({})",
+        ] {
+            assert_eq!(
+                resolve_cemt_typed_expression(expression, &typed)
+                    .expect("typed wrong-arity or unresolved helper")
+                    .map(cemt_typed_test_json),
+                resolve_encode_subject_expression(expression, &compatibility),
+                "expression: {expression}"
+            );
+        }
+    }
+
+    #[test]
     fn typed_cemt_runtime_pure_numeric_helpers_match_compatibility() {
         use crate::transform_artifact::{CemtEvaluatorBindings, CemtEvaluatorValue};
 
@@ -30276,6 +31681,45 @@ mod tests {
             ("startsWith", "resolve_cemt_starts_with_expression"),
             ("endsWith", "resolve_cemt_ends_with_expression"),
             ("repeat", "resolve_cemt_repeat_expression"),
+            ("withStack", "resolve_cemt_with_stack_expression"),
+            ("stackPush", "resolve_cemt_stack_push_expression"),
+            ("stackPop", "resolve_cemt_stack_pop_expression"),
+            ("stackTop", "resolve_cemt_stack_top_expression"),
+            ("stackDepth", "resolve_cemt_stack_depth_expression"),
+            ("stackPath", "resolve_cemt_stack_path_expression"),
+            ("defer", "resolve_cemt_queue_push_expression"),
+            ("queuePush", "resolve_cemt_queue_push_expression"),
+            ("queueShift", "resolve_cemt_queue_shift_expression"),
+            ("queuePeek", "resolve_cemt_queue_peek_expression"),
+            ("queueLength", "resolve_cemt_queue_length_expression"),
+            ("drainQueue", "resolve_cemt_drain_queue_expression"),
+            ("sourceMap", "resolve_cemt_source_map_expression"),
+            ("diagnostic", "resolve_cemt_diagnostic_expression"),
+            ("diagnostics", "resolve_cemt_diagnostics_expression"),
+            (
+                "appendFormatNode",
+                "resolve_cemt_metadata_accumulator_expression",
+            ),
+            (
+                "appendColorNode",
+                "resolve_cemt_metadata_accumulator_expression",
+            ),
+            (
+                "appendDiagnostic",
+                "resolve_cemt_metadata_accumulator_expression",
+            ),
+            (
+                "appendNamespace",
+                "resolve_cemt_metadata_accumulator_expression",
+            ),
+            (
+                "appendOutputSpan",
+                "resolve_cemt_metadata_accumulator_expression",
+            ),
+            (
+                "appendWriterBoundary",
+                "resolve_cemt_metadata_accumulator_expression",
+            ),
         ] {
             assert!(
                 typed_runtime.contains(&format!("\"{function_name}\"")),
@@ -30284,6 +31728,108 @@ mod tests {
             assert!(
                 !typed_runtime.contains(compatibility_resolver),
                 "typed runtime calls compatibility resolver for {function_name}"
+            );
+        }
+    }
+
+    #[test]
+    fn typed_cemt_runtime_covers_builtin_schema_package_expression_calls() {
+        let source = include_str!("transform_template.rs");
+        let typed_runtime = source
+            .split_once("mod cemt_typed_runtime {")
+            .expect("typed runtime start")
+            .1
+            .split_once("fn resolve_encode_subject_expression(")
+            .expect("typed runtime boundary")
+            .0;
+        let mut usage = BTreeMap::<String, BTreeSet<String>>::new();
+
+        for artifact in crate::schema::package_sources::builtin_schema_package_artifact_sources()
+            .iter()
+            .filter(|artifact| artifact.path.ends_with(".cemt"))
+        {
+            let response =
+                parse_cem_native_template_module_options(TransformTemplateModuleParseRequest {
+                    template: template_input(
+                        artifact.path,
+                        artifact.source,
+                        Some(FormatIdentity {
+                            content_type: Some(CEM_TRANSFORM_CONTENT_TYPE.to_owned()),
+                            schema: Some(CEM_TRANSFORM_SCHEMA_URI.to_owned()),
+                            ..FormatIdentity::default()
+                        }),
+                    ),
+                });
+            assert!(
+                response.module_declared,
+                "embedded CEMT artifact did not declare a module: {}",
+                artifact.path
+            );
+
+            let expressions = response
+                .module_options
+                .functions
+                .iter()
+                .filter_map(|function| function.body_expression.as_deref())
+                .chain(
+                    response
+                        .module_options
+                        .output_functions
+                        .iter()
+                        .filter_map(|function| function.body_expression.as_deref()),
+                )
+                .chain(
+                    response
+                        .module_options
+                        .let_bindings
+                        .iter()
+                        .filter_map(|binding| binding.expression.as_deref()),
+                )
+                .chain(
+                    response
+                        .module_options
+                        .encode_expressions
+                        .iter()
+                        .map(|expression| expression.expression.as_str()),
+                );
+            for expression in expressions {
+                for call in cemt_test_expression_call_names(expression) {
+                    usage
+                        .entry(call)
+                        .or_default()
+                        .insert(artifact.path.to_owned());
+                }
+            }
+        }
+
+        let unsupported = usage
+            .iter()
+            .filter(|(call, _)| {
+                call.as_str() != "encode" && !typed_runtime.contains(&format!("\"{call}\""))
+            })
+            .map(|(call, paths)| {
+                format!(
+                    "{call}: {}",
+                    paths.iter().cloned().collect::<Vec<_>>().join(", ")
+                )
+            })
+            .collect::<Vec<_>>();
+        assert!(
+            unsupported.is_empty(),
+            "builtin CEMT expression calls missing typed dispatch:\n{}",
+            unsupported.join("\n")
+        );
+        for live_dependency in [
+            "appendColorNode",
+            "appendFormatNode",
+            "appendWriterBoundary",
+            "defer",
+            "drainQueue",
+            "sourceMap",
+        ] {
+            assert!(
+                usage.contains_key(live_dependency),
+                "schema-package operation audit did not observe {live_dependency}"
             );
         }
     }

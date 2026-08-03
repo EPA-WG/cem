@@ -8,7 +8,7 @@ use crate::source_map::SourceMapStack;
 use crate::validation::generic_data::GenericDataDocumentAst;
 use crate::validation::xpath::XPathResultArtifact;
 use std::any::Any;
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::fmt;
 use std::sync::Arc;
 
@@ -688,6 +688,7 @@ pub enum CemtEvaluatorValue<'a> {
 pub struct CemtEvaluatorRecord<'a> {
     native_base: Option<CemtEvaluatorRecordRef<'a>>,
     fields: BTreeMap<String, CemtEvaluatorValue<'a>>,
+    removed_fields: BTreeSet<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -759,6 +760,7 @@ impl<'a> CemtEvaluatorValue<'a> {
                 .into_iter()
                 .map(|(name, value)| (name.into(), value))
                 .collect(),
+            removed_fields: BTreeSet::new(),
         }))
     }
 
@@ -1032,6 +1034,7 @@ impl<'a> CemtEvaluatorValue<'a> {
             Self::Borrowed(CemtEvaluatorValueRef::Record(record)) => CemtEvaluatorRecord {
                 native_base: Some(record.clone()),
                 fields: BTreeMap::new(),
+                removed_fields: BTreeSet::new(),
             },
             _ => {
                 return Err(CemtEvaluatorValueAccessError::UnsupportedOperation {
@@ -1040,7 +1043,33 @@ impl<'a> CemtEvaluatorValue<'a> {
                 });
             }
         };
-        record.fields.insert(name.into(), value);
+        let name = name.into();
+        record.removed_fields.remove(&name);
+        record.fields.insert(name, value);
+        Ok(Self::Record(Arc::new(record)))
+    }
+
+    pub(crate) fn without_field(
+        &self,
+        name: impl Into<String>,
+    ) -> Result<Self, CemtEvaluatorValueAccessError> {
+        let mut record = match self {
+            Self::Record(record) => (**record).clone(),
+            Self::Borrowed(CemtEvaluatorValueRef::Record(record)) => CemtEvaluatorRecord {
+                native_base: Some(record.clone()),
+                fields: BTreeMap::new(),
+                removed_fields: BTreeSet::new(),
+            },
+            _ => {
+                return Err(CemtEvaluatorValueAccessError::UnsupportedOperation {
+                    operation: "remove field",
+                    actual: self.kind(),
+                });
+            }
+        };
+        let name = name.into();
+        record.fields.remove(&name);
+        record.removed_fields.insert(name);
         Ok(Self::Record(Arc::new(record)))
     }
 
@@ -1103,6 +1132,9 @@ impl<'a> CemtEvaluatorRecord<'a> {
     }
 
     pub fn field(&self, name: &str) -> Option<CemtEvaluatorValue<'a>> {
+        if self.removed_fields.contains(name) {
+            return None;
+        }
         self.fields.get(name).cloned().or_else(|| {
             self.native_base
                 .as_ref()?
@@ -1130,6 +1162,7 @@ impl<'a> CemtEvaluatorRecord<'a> {
             .cloned()
             .collect::<Vec<_>>();
         names.extend(added_names);
+        names.retain(|name| !self.removed_fields.contains(name));
         names
     }
 
