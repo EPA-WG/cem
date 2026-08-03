@@ -29,6 +29,30 @@ pub struct CemtOverlayProducer {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CemtTreeEnvelopeMetadata {
+    pub content_type: String,
+    pub schema: String,
+    pub category: String,
+    pub mode: CemtTreeEnvelopeMode,
+    pub canonical: bool,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CemtTreeEnvelopeMode {
+    Document,
+    Fragment,
+}
+
+impl CemtTreeEnvelopeMode {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Document => "document",
+            Self::Fragment => "fragment",
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum CemtOverlayProvenance {
     SourceMapped(SourceMapStack),
     Generated {
@@ -107,10 +131,35 @@ pub enum CemtFormatLayout {
     Block,
 }
 
+impl CemtFormatLayout {
+    fn as_str(self) -> &'static str {
+        match self {
+            Self::Inline => "inline",
+            Self::InlineEmphasis => "inline-emphasis",
+            Self::Block => "block",
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum CemtFormatFragment {
     Whitespace { value: String },
     Raw { value: String },
+}
+
+impl CemtFormatFragment {
+    fn kind(&self) -> &'static str {
+        match self {
+            Self::Whitespace { .. } => "whitespace",
+            Self::Raw { .. } => "raw",
+        }
+    }
+
+    fn value(&self) -> &str {
+        match self {
+            Self::Whitespace { value } | Self::Raw { value } => value,
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -173,6 +222,7 @@ pub struct CemtNodeFormatOperation {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CemtFormattedTreeOverlay {
+    pub envelope: CemtTreeEnvelopeMetadata,
     pub producer: CemtOverlayProducer,
     pub operations: Vec<CemtFormatOperation>,
     pub(crate) retained_node_paths: Vec<CemtOwnerPath>,
@@ -383,6 +433,16 @@ impl CemtTreeArtifact {
             colored_overlay: self.colored_overlay.as_ref()?,
         })
     }
+
+    pub fn evaluator_view(&self) -> CemtEvaluatorValueRef<'_> {
+        match self.formatted_overlay.as_ref() {
+            Some(overlay) => CemtEvaluatorValueRef::Record(CemtEvaluatorRecordRef::FormattedTree {
+                subject: self.subject(),
+                overlay,
+            }),
+            None => self.subject().evaluator_view(),
+        }
+    }
 }
 
 impl TransformNativeArtifact for CemtTreeArtifact {
@@ -554,6 +614,30 @@ pub enum CemtEvaluatorSequenceRef<'a> {
         attributes: &'a [CemTreeAstAttribute],
         parent: CemtOwnerPath,
     },
+    FormattedNodes {
+        nodes: &'a [CemTreeAstNode],
+        parent: Option<CemtOwnerPath>,
+        overlay: &'a CemtFormattedTreeOverlay,
+    },
+    FormattedAttributes {
+        attributes: &'a [CemTreeAstAttribute],
+        parent: CemtOwnerPath,
+        overlay: &'a CemtFormattedTreeOverlay,
+    },
+    FormatOperations {
+        operations: &'a [CemtFormatOperation],
+    },
+    NodeFormatFragments {
+        operations: &'a [CemtNodeFormatOperation],
+        owner: CemtOwnerPath,
+        kind: CemtEvaluatorNodeFormatSequenceKind,
+    },
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CemtEvaluatorNodeFormatSequenceKind {
+    BeforeAttribute,
+    ContentBoundary,
 }
 
 impl<'a> CemtEvaluatorSequenceRef<'a> {
@@ -565,10 +649,63 @@ impl<'a> CemtEvaluatorSequenceRef<'a> {
         Self::Attributes { attributes, parent }
     }
 
+    fn formatted_nodes(
+        nodes: &'a [CemTreeAstNode],
+        parent: Option<CemtOwnerPath>,
+        overlay: &'a CemtFormattedTreeOverlay,
+    ) -> Self {
+        Self::FormattedNodes {
+            nodes,
+            parent,
+            overlay,
+        }
+    }
+
+    fn formatted_attributes(
+        attributes: &'a [CemTreeAstAttribute],
+        parent: CemtOwnerPath,
+        overlay: &'a CemtFormattedTreeOverlay,
+    ) -> Self {
+        Self::FormattedAttributes {
+            attributes,
+            parent,
+            overlay,
+        }
+    }
+
+    fn node_format_fragments(
+        operations: &'a [CemtNodeFormatOperation],
+        owner: CemtOwnerPath,
+        kind: CemtEvaluatorNodeFormatSequenceKind,
+    ) -> Self {
+        Self::NodeFormatFragments {
+            operations,
+            owner,
+            kind,
+        }
+    }
+
     pub fn len(&self) -> usize {
         match self {
             Self::Nodes { nodes, .. } => nodes.len(),
             Self::Attributes { attributes, .. } => attributes.len(),
+            Self::FormattedNodes {
+                nodes,
+                parent,
+                overlay,
+            } => cemt_evaluator_formatted_node_sequence_len(nodes, parent.as_ref(), overlay),
+            Self::FormattedAttributes { attributes, .. } => attributes.len(),
+            Self::FormatOperations { operations } => operations.len(),
+            Self::NodeFormatFragments {
+                operations,
+                owner,
+                kind,
+            } => operations
+                .iter()
+                .filter(|operation| {
+                    cemt_evaluator_node_format_sequence_matches(operation, owner, *kind)
+                })
+                .count(),
         }
     }
 
@@ -597,6 +734,50 @@ impl<'a> CemtEvaluatorSequenceRef<'a> {
                     },
                 ))
             }
+            Self::FormattedNodes {
+                nodes,
+                parent,
+                overlay,
+            } => {
+                cemt_evaluator_formatted_node_sequence_item(nodes, parent.as_ref(), overlay, index)
+            }
+            Self::FormattedAttributes {
+                attributes,
+                parent,
+                overlay,
+            } => {
+                let attribute = attributes.get(index)?;
+                Some(CemtEvaluatorValueRef::Record(
+                    CemtEvaluatorRecordRef::FormattedAttribute {
+                        attribute,
+                        path: parent.attribute(index),
+                        overlay,
+                    },
+                ))
+            }
+            Self::FormatOperations { operations } => {
+                let operation = operations.get(index)?;
+                Some(CemtEvaluatorValueRef::Record(
+                    CemtEvaluatorRecordRef::FormatOperation { operation, index },
+                ))
+            }
+            Self::NodeFormatFragments {
+                operations,
+                owner,
+                kind,
+            } => operations
+                .iter()
+                .enumerate()
+                .filter(|(_, operation)| {
+                    cemt_evaluator_node_format_sequence_matches(operation, owner, *kind)
+                })
+                .nth(index)
+                .map(|(index, operation)| {
+                    CemtEvaluatorValueRef::Record(CemtEvaluatorRecordRef::NodeFormatOperation {
+                        operation,
+                        index,
+                    })
+                }),
         }
     }
 
@@ -631,6 +812,123 @@ impl<'a> Iterator for CemtEvaluatorSequenceIter<'a> {
 
 impl ExactSizeIterator for CemtEvaluatorSequenceIter<'_> {}
 
+fn cemt_evaluator_formatted_node_sequence_len(
+    nodes: &[CemTreeAstNode],
+    parent: Option<&CemtOwnerPath>,
+    overlay: &CemtFormattedTreeOverlay,
+) -> usize {
+    let inserted = (0..=nodes.len())
+        .map(|before_node| {
+            overlay
+                .node_operations
+                .iter()
+                .filter(|operation| {
+                    cemt_evaluator_gap_operation_matches(operation, parent, before_node)
+                })
+                .count()
+        })
+        .sum::<usize>();
+    let retained = nodes
+        .iter()
+        .enumerate()
+        .filter(|(index, _)| {
+            let path = match parent {
+                Some(parent) => parent.child(*index),
+                None => CemtOwnerPath::root(*index),
+            };
+            overlay.retains_node(&path)
+        })
+        .count();
+    inserted.saturating_add(retained)
+}
+
+fn cemt_evaluator_formatted_node_sequence_item<'a>(
+    nodes: &'a [CemTreeAstNode],
+    parent: Option<&CemtOwnerPath>,
+    overlay: &'a CemtFormattedTreeOverlay,
+    requested: usize,
+) -> Option<CemtEvaluatorValueRef<'a>> {
+    let mut logical_index = 0usize;
+    for before_node in 0..=nodes.len() {
+        for (operation_index, operation) in overlay.node_operations.iter().enumerate() {
+            if !cemt_evaluator_gap_operation_matches(operation, parent, before_node) {
+                continue;
+            }
+            if logical_index == requested {
+                return Some(CemtEvaluatorValueRef::Record(
+                    CemtEvaluatorRecordRef::NodeFormatOperation {
+                        operation,
+                        index: operation_index,
+                    },
+                ));
+            }
+            logical_index = logical_index.saturating_add(1);
+        }
+
+        let Some(node) = nodes.get(before_node) else {
+            continue;
+        };
+        let path = match parent {
+            Some(parent) => parent.child(before_node),
+            None => CemtOwnerPath::root(before_node),
+        };
+        if !overlay.retains_node(&path) {
+            continue;
+        }
+        if logical_index == requested {
+            return Some(CemtEvaluatorValueRef::Record(
+                CemtEvaluatorRecordRef::FormattedNode {
+                    node,
+                    path,
+                    overlay,
+                },
+            ));
+        }
+        logical_index = logical_index.saturating_add(1);
+    }
+    None
+}
+
+fn cemt_evaluator_gap_operation_matches(
+    operation: &CemtNodeFormatOperation,
+    parent: Option<&CemtOwnerPath>,
+    before_node: usize,
+) -> bool {
+    matches!(
+        &operation.kind,
+        CemtNodeFormatOperationKind::InsertChild { .. }
+    ) && match (&operation.target, parent) {
+        (CemtNodeFormatTarget::RootGap { before_root, .. }, None) => *before_root == before_node,
+        (
+            CemtNodeFormatTarget::ChildGap {
+                parent,
+                before_child,
+                ..
+            },
+            Some(expected_parent),
+        ) => parent == expected_parent && *before_child == before_node,
+        _ => false,
+    }
+}
+
+fn cemt_evaluator_node_format_sequence_matches(
+    operation: &CemtNodeFormatOperation,
+    owner: &CemtOwnerPath,
+    kind: CemtEvaluatorNodeFormatSequenceKind,
+) -> bool {
+    matches!(&operation.target, CemtNodeFormatTarget::Owner(path) if path == owner)
+        && match kind {
+            CemtEvaluatorNodeFormatSequenceKind::BeforeAttribute => matches!(
+                &operation.kind,
+                CemtNodeFormatOperationKind::BeforeAttribute { .. }
+            ),
+            CemtEvaluatorNodeFormatSequenceKind::ContentBoundary => matches!(
+                &operation.kind,
+                CemtNodeFormatOperationKind::ContentBoundary { .. }
+            ),
+        }
+}
+
 #[derive(Debug, Clone)]
 pub enum CemtEvaluatorRecordRef<'a> {
     Node {
@@ -641,12 +939,82 @@ pub enum CemtEvaluatorRecordRef<'a> {
         attribute: &'a CemTreeAstAttribute,
         path: CemtOwnerPath,
     },
+    FormattedTree {
+        subject: CemtTreeSubjectRef<'a>,
+        overlay: &'a CemtFormattedTreeOverlay,
+    },
+    FormattedNode {
+        node: &'a CemTreeAstNode,
+        path: CemtOwnerPath,
+        overlay: &'a CemtFormattedTreeOverlay,
+    },
+    FormattedAttribute {
+        attribute: &'a CemTreeAstAttribute,
+        path: CemtOwnerPath,
+        overlay: &'a CemtFormattedTreeOverlay,
+    },
+    FormatOperation {
+        operation: &'a CemtFormatOperation,
+        index: usize,
+    },
+    NodeFormatOperation {
+        operation: &'a CemtNodeFormatOperation,
+        index: usize,
+    },
 }
 
 impl<'a> CemtEvaluatorRecordRef<'a> {
-    pub fn owner_path(&self) -> &CemtOwnerPath {
+    pub fn owner_path(&self) -> Option<&CemtOwnerPath> {
         match self {
-            Self::Node { path, .. } | Self::Attribute { path, .. } => path,
+            Self::Node { path, .. }
+            | Self::Attribute { path, .. }
+            | Self::FormattedNode { path, .. }
+            | Self::FormattedAttribute { path, .. } => Some(path),
+            Self::FormattedTree { .. }
+            | Self::FormatOperation { .. }
+            | Self::NodeFormatOperation { .. } => None,
+        }
+    }
+
+    pub fn owner(&self) -> Option<CemtTreeOwnerRef<'a>> {
+        match self {
+            Self::Node { node, .. } | Self::FormattedNode { node, .. } => {
+                Some(CemtTreeOwnerRef::Node(node))
+            }
+            Self::Attribute { attribute, .. } | Self::FormattedAttribute { attribute, .. } => {
+                Some(CemtTreeOwnerRef::Attribute(attribute))
+            }
+            Self::FormattedTree { .. }
+            | Self::FormatOperation { .. }
+            | Self::NodeFormatOperation { .. } => None,
+        }
+    }
+
+    pub fn format_operation_index(&self) -> Option<usize> {
+        match self {
+            Self::FormatOperation { index, .. } => Some(*index),
+            _ => None,
+        }
+    }
+
+    pub fn format_operation(&self) -> Option<&'a CemtFormatOperation> {
+        match self {
+            Self::FormatOperation { operation, .. } => Some(operation),
+            _ => None,
+        }
+    }
+
+    pub fn node_format_operation_index(&self) -> Option<usize> {
+        match self {
+            Self::NodeFormatOperation { index, .. } => Some(*index),
+            _ => None,
+        }
+    }
+
+    pub fn node_format_operation(&self) -> Option<&'a CemtNodeFormatOperation> {
+        match self {
+            Self::NodeFormatOperation { operation, .. } => Some(operation),
+            _ => None,
         }
     }
 
@@ -668,6 +1036,83 @@ impl<'a> CemtEvaluatorRecordRef<'a> {
                 CemTreeAstNode::Error { .. } => &["kind", "code", "sourceMap"],
             },
             Self::Attribute { .. } => &["kind", "name", "value", "sourceMap"],
+            Self::FormattedTree { .. } => &[
+                "kind",
+                "contentType",
+                "schema",
+                "category",
+                "mode",
+                "canonical",
+                "formatterProfile",
+                "formatNodes",
+                "nodes",
+            ],
+            Self::FormattedNode { node, .. } => match node {
+                CemTreeAstNode::Document { .. } => &[
+                    "kind",
+                    "formatLayout",
+                    "formatContentBoundary",
+                    "children",
+                    "formatBeforeClose",
+                    "sourceMap",
+                ],
+                CemTreeAstNode::Element { .. } => &[
+                    "kind",
+                    "name",
+                    "formatLayout",
+                    "formatBeforeAttributes",
+                    "formatBetweenAttributes",
+                    "attributes",
+                    "formatContentBoundary",
+                    "children",
+                    "formatBeforeClose",
+                    "sourceMap",
+                ],
+                _ => match node {
+                    CemTreeAstNode::Text { .. } => &["kind", "value", "sourceMap"],
+                    CemTreeAstNode::Whitespace { .. }
+                    | CemTreeAstNode::Comment { .. }
+                    | CemTreeAstNode::Cdata { .. }
+                    | CemTreeAstNode::RawText { .. } => &["kind", "data", "sourceMap"],
+                    CemTreeAstNode::ProcessingInstruction { .. } => {
+                        &["kind", "name", "target", "data", "sourceMap"]
+                    }
+                    CemTreeAstNode::Error { .. } => &["kind", "code", "sourceMap"],
+                    CemTreeAstNode::Document { .. } | CemTreeAstNode::Element { .. } => {
+                        unreachable!()
+                    }
+                },
+            },
+            Self::FormattedAttribute { .. } => {
+                &["kind", "name", "value", "formatBefore", "sourceMap"]
+            }
+            Self::FormatOperation { .. } => &[
+                "kind",
+                "name",
+                "formatterRole",
+                "formatterProfile",
+                "colorRole",
+                "value",
+                "sourceMap",
+            ],
+            Self::NodeFormatOperation { operation, .. } => match &operation.kind {
+                CemtNodeFormatOperationKind::Layout(_) => &[
+                    "kind",
+                    "name",
+                    "formatterRole",
+                    "colorRole",
+                    "value",
+                    "sourceMap",
+                ],
+                _ => &[
+                    "kind",
+                    "value",
+                    "formatterOwned",
+                    "formatterRole",
+                    "colorRole",
+                    "sourceMap",
+                ],
+            },
         }
     }
 
@@ -684,6 +1129,25 @@ impl<'a> CemtEvaluatorRecordRef<'a> {
                 "sourceMap" => Some(CemtEvaluatorValueRef::SourceMap(&attribute.source)),
                 _ => None,
             },
+            Self::FormattedTree { subject, overlay } => {
+                cemt_evaluator_formatted_tree_field(*subject, overlay, name)
+            }
+            Self::FormattedNode {
+                node,
+                path,
+                overlay,
+            } => cemt_evaluator_formatted_node_field(node, path, overlay, name),
+            Self::FormattedAttribute {
+                attribute,
+                path,
+                overlay,
+            } => cemt_evaluator_formatted_attribute_field(attribute, path, overlay, name),
+            Self::FormatOperation { operation, .. } => {
+                cemt_evaluator_format_operation_field(operation, name)
+            }
+            Self::NodeFormatOperation { operation, .. } => {
+                cemt_evaluator_node_format_operation_field(operation, name)
+            }
         }
     }
 }
@@ -742,6 +1206,223 @@ fn cemt_evaluator_node_field<'a>(
         },
         (CemTreeAstNode::Error { code, .. }, "code") => Some(CemtEvaluatorValueRef::String(code)),
         _ => None,
+    }
+}
+
+fn cemt_evaluator_formatted_tree_field<'a>(
+    subject: CemtTreeSubjectRef<'a>,
+    overlay: &'a CemtFormattedTreeOverlay,
+    name: &str,
+) -> Option<CemtEvaluatorValueRef<'a>> {
+    match name {
+        "kind" => Some(CemtEvaluatorValueRef::String("cem-tree")),
+        "contentType" => Some(CemtEvaluatorValueRef::String(
+            &overlay.envelope.content_type,
+        )),
+        "schema" => Some(CemtEvaluatorValueRef::String(&overlay.envelope.schema)),
+        "category" => Some(CemtEvaluatorValueRef::String(&overlay.envelope.category)),
+        "mode" => Some(CemtEvaluatorValueRef::String(
+            overlay.envelope.mode.as_str(),
+        )),
+        "canonical" => Some(CemtEvaluatorValueRef::Boolean(overlay.envelope.canonical)),
+        "formatterProfile" => Some(match overlay.producer.formatter_profile.as_deref() {
+            Some(profile) => CemtEvaluatorValueRef::String(profile),
+            None => CemtEvaluatorValueRef::Null,
+        }),
+        "formatNodes" => Some(CemtEvaluatorValueRef::Sequence(
+            CemtEvaluatorSequenceRef::FormatOperations {
+                operations: &overlay.operations,
+            },
+        )),
+        "nodes" => Some(CemtEvaluatorValueRef::Sequence(
+            CemtEvaluatorSequenceRef::formatted_nodes(subject.nodes(), None, overlay),
+        )),
+        _ => None,
+    }
+}
+
+fn cemt_evaluator_formatted_node_field<'a>(
+    node: &'a CemTreeAstNode,
+    path: &CemtOwnerPath,
+    overlay: &'a CemtFormattedTreeOverlay,
+    name: &str,
+) -> Option<CemtEvaluatorValueRef<'a>> {
+    match name {
+        "formatLayout" => cemt_evaluator_owner_operation(overlay, path, |kind| {
+            matches!(kind, CemtNodeFormatOperationKind::Layout(_))
+        }),
+        "formatBeforeAttributes" => cemt_evaluator_owner_operation(overlay, path, |kind| {
+            matches!(kind, CemtNodeFormatOperationKind::BeforeAttributes { .. })
+        }),
+        "formatBetweenAttributes" => cemt_evaluator_owner_operation(overlay, path, |kind| {
+            matches!(kind, CemtNodeFormatOperationKind::BetweenAttributes { .. })
+        }),
+        "attributes" => match node {
+            CemTreeAstNode::Element { attributes, .. } => Some(CemtEvaluatorValueRef::Sequence(
+                CemtEvaluatorSequenceRef::formatted_attributes(attributes, path.clone(), overlay),
+            )),
+            _ => None,
+        },
+        "formatContentBoundary" => {
+            let sequence = CemtEvaluatorSequenceRef::node_format_fragments(
+                &overlay.node_operations,
+                path.clone(),
+                CemtEvaluatorNodeFormatSequenceKind::ContentBoundary,
+            );
+            (!sequence.is_empty()).then_some(CemtEvaluatorValueRef::Sequence(sequence))
+        }
+        "children" => match node {
+            CemTreeAstNode::Document { children, .. }
+            | CemTreeAstNode::Element { children, .. } => Some(CemtEvaluatorValueRef::Sequence(
+                CemtEvaluatorSequenceRef::formatted_nodes(children, Some(path.clone()), overlay),
+            )),
+            _ => None,
+        },
+        "formatBeforeClose" => cemt_evaluator_owner_operation(overlay, path, |kind| {
+            matches!(kind, CemtNodeFormatOperationKind::BeforeClose { .. })
+        }),
+        _ => cemt_evaluator_node_field(node, path, name),
+    }
+}
+
+fn cemt_evaluator_formatted_attribute_field<'a>(
+    attribute: &'a CemTreeAstAttribute,
+    path: &CemtOwnerPath,
+    overlay: &'a CemtFormattedTreeOverlay,
+    name: &str,
+) -> Option<CemtEvaluatorValueRef<'a>> {
+    match name {
+        "kind" => Some(CemtEvaluatorValueRef::String("attribute")),
+        "name" => Some(CemtEvaluatorValueRef::String(&attribute.name)),
+        "value" => Some(match attribute.value.as_deref() {
+            Some(value) => CemtEvaluatorValueRef::String(value),
+            None => CemtEvaluatorValueRef::Null,
+        }),
+        "formatBefore" => {
+            let sequence = CemtEvaluatorSequenceRef::node_format_fragments(
+                &overlay.node_operations,
+                path.clone(),
+                CemtEvaluatorNodeFormatSequenceKind::BeforeAttribute,
+            );
+            match sequence.len() {
+                0 => None,
+                1 => sequence.item(0),
+                _ => Some(CemtEvaluatorValueRef::Sequence(sequence)),
+            }
+        }
+        "sourceMap" => Some(CemtEvaluatorValueRef::SourceMap(&attribute.source)),
+        _ => None,
+    }
+}
+
+fn cemt_evaluator_owner_operation<'a>(
+    overlay: &'a CemtFormattedTreeOverlay,
+    path: &CemtOwnerPath,
+    kind_matches: impl Fn(&CemtNodeFormatOperationKind) -> bool,
+) -> Option<CemtEvaluatorValueRef<'a>> {
+    overlay
+        .node_operations
+        .iter()
+        .enumerate()
+        .find(|(_, operation)| {
+            matches!(&operation.target, CemtNodeFormatTarget::Owner(owner) if owner == path)
+                && kind_matches(&operation.kind)
+        })
+        .map(|(index, operation)| {
+            CemtEvaluatorValueRef::Record(CemtEvaluatorRecordRef::NodeFormatOperation {
+                operation,
+                index,
+            })
+        })
+}
+
+fn cemt_evaluator_format_operation_field<'a>(
+    operation: &'a CemtFormatOperation,
+    name: &str,
+) -> Option<CemtEvaluatorValueRef<'a>> {
+    match name {
+        "kind" => Some(CemtEvaluatorValueRef::String(match &operation.kind {
+            CemtFormatOperationKind::Marker => "format-marker",
+            CemtFormatOperationKind::Decision { .. } => "format-decision",
+        })),
+        "name" => Some(CemtEvaluatorValueRef::String(&operation.name)),
+        "formatterRole" => Some(CemtEvaluatorValueRef::String(&operation.formatter_role)),
+        "formatterProfile" => operation
+            .formatter_profile
+            .as_deref()
+            .map(CemtEvaluatorValueRef::String),
+        "colorRole" => operation
+            .color_role
+            .as_deref()
+            .map(CemtEvaluatorValueRef::String),
+        "value" => match &operation.kind {
+            CemtFormatOperationKind::Decision { value } => {
+                Some(CemtEvaluatorValueRef::String(value))
+            }
+            CemtFormatOperationKind::Marker => None,
+        },
+        "sourceMap" => cemt_overlay_provenance_source_map(&operation.provenance)
+            .map(CemtEvaluatorValueRef::SourceMap),
+        _ => None,
+    }
+}
+
+fn cemt_evaluator_node_format_operation_field<'a>(
+    operation: &'a CemtNodeFormatOperation,
+    name: &str,
+) -> Option<CemtEvaluatorValueRef<'a>> {
+    if let CemtNodeFormatOperationKind::Layout(layout) = &operation.kind {
+        return match name {
+            "kind" => Some(CemtEvaluatorValueRef::String("format-decision")),
+            "name" => Some(CemtEvaluatorValueRef::String("layout")),
+            "formatterRole" => Some(CemtEvaluatorValueRef::String(&operation.formatter_role)),
+            "colorRole" => operation
+                .color_role
+                .as_deref()
+                .map(CemtEvaluatorValueRef::String),
+            "value" => Some(CemtEvaluatorValueRef::String(layout.as_str())),
+            "sourceMap" => cemt_overlay_provenance_source_map(&operation.provenance)
+                .map(CemtEvaluatorValueRef::SourceMap),
+            _ => None,
+        };
+    }
+
+    let fragment = cemt_evaluator_node_format_fragment(&operation.kind)?;
+    match name {
+        "kind" => Some(CemtEvaluatorValueRef::String(fragment.kind())),
+        "value" => Some(CemtEvaluatorValueRef::String(fragment.value())),
+        "formatterOwned" => Some(CemtEvaluatorValueRef::Boolean(true)),
+        "formatterRole" => Some(CemtEvaluatorValueRef::String(&operation.formatter_role)),
+        "colorRole" => operation
+            .color_role
+            .as_deref()
+            .map(CemtEvaluatorValueRef::String),
+        "sourceMap" => cemt_overlay_provenance_source_map(&operation.provenance)
+            .map(CemtEvaluatorValueRef::SourceMap),
+        _ => None,
+    }
+}
+
+fn cemt_evaluator_node_format_fragment(
+    kind: &CemtNodeFormatOperationKind,
+) -> Option<&CemtFormatFragment> {
+    match kind {
+        CemtNodeFormatOperationKind::BeforeAttributes { fragment }
+        | CemtNodeFormatOperationKind::BetweenAttributes { fragment }
+        | CemtNodeFormatOperationKind::BeforeAttribute { fragment, .. }
+        | CemtNodeFormatOperationKind::ContentBoundary { fragment, .. }
+        | CemtNodeFormatOperationKind::InsertChild { fragment }
+        | CemtNodeFormatOperationKind::BeforeClose { fragment } => Some(fragment),
+        CemtNodeFormatOperationKind::Layout(_) => None,
+    }
+}
+
+fn cemt_overlay_provenance_source_map(
+    provenance: &CemtOverlayProvenance,
+) -> Option<&SourceMapStack> {
+    match provenance {
+        CemtOverlayProvenance::SourceMapped(source_map) => Some(source_map),
+        CemtOverlayProvenance::Generated { source_map, .. } => source_map.as_ref(),
     }
 }
 
@@ -1228,7 +1909,7 @@ mod tests {
 
         let root = subject.item(0).expect("root record view");
         let root_record = root.as_record().expect("root is a record");
-        assert_eq!(root_record.owner_path(), &CemtOwnerPath::root(0));
+        assert_eq!(root_record.owner_path(), Some(&CemtOwnerPath::root(0)));
         assert_eq!(
             root.field("kind").and_then(|value| value.as_str()),
             Some("element")
@@ -1245,7 +1926,7 @@ mod tests {
         assert_eq!(
             attribute
                 .as_record()
-                .map(CemtEvaluatorRecordRef::owner_path),
+                .and_then(CemtEvaluatorRecordRef::owner_path),
             Some(&CemtOwnerPath::root(0).attribute(0))
         );
         assert_eq!(
@@ -1258,7 +1939,9 @@ mod tests {
             .and_then(|value| value.item(0))
             .expect("child record view");
         assert_eq!(
-            child.as_record().map(CemtEvaluatorRecordRef::owner_path),
+            child
+                .as_record()
+                .and_then(CemtEvaluatorRecordRef::owner_path),
             Some(&CemtOwnerPath::root(0).child(0))
         );
         assert_eq!(
@@ -1290,6 +1973,288 @@ mod tests {
                 .map(|value| value.field("kind").and_then(|kind| kind.as_str()))
                 .collect::<Vec<_>>(),
             vec![Some("element")]
+        );
+        assert!(Arc::ptr_eq(artifact.owner(), &owner));
+    }
+
+    #[test]
+    fn formatted_cemt_evaluator_view_lazily_merges_owner_and_overlay_records() {
+        let operation_source = SourceMapStack {
+            frames: vec![crate::source_map::SourceMapFrame {
+                source_id: crate::source::SourceId(12),
+                span: crate::source_map::FrameSpan::Single(crate::source::ByteRange::new(3, 4)),
+                transform: crate::source_map::TransformKind::TemplateTransform {
+                    function: "cem.format-tree".to_owned(),
+                },
+            }],
+        };
+        let owner = Arc::new(CemTreeAstStream::new(vec![CemTreeAstNode::Element {
+            name: "card".to_owned(),
+            attributes: vec![CemTreeAstAttribute {
+                name: "tone".to_owned(),
+                value: Some("info".to_owned()),
+                source: SourceMapStack::default(),
+            }],
+            children: vec![CemTreeAstNode::Text {
+                value: "Ready".to_owned(),
+                source: SourceMapStack::default(),
+            }],
+            source: SourceMapStack::default(),
+        }]));
+        let root_path = CemtOwnerPath::root(0);
+        let attribute_path = root_path.attribute(0);
+        let child_path = root_path.child(0);
+        let fragment = |target, formatter_role: &str, kind| CemtNodeFormatOperation {
+            target,
+            producer_function: "cem.format-tree".to_owned(),
+            formatter_role: formatter_role.to_owned(),
+            color_role: Some("syntax.raw".to_owned()),
+            kind,
+            provenance: CemtOverlayProvenance::Generated {
+                function_name: "cem.format-tree".to_owned(),
+                source_map: None,
+            },
+        };
+        let overlay = CemtFormattedTreeOverlay {
+            envelope: CemtTreeEnvelopeMetadata {
+                content_type: "application/cem".to_owned(),
+                schema: "https://cem.dev/ns/cem-ml/1".to_owned(),
+                category: "cem-tree".to_owned(),
+                mode: CemtTreeEnvelopeMode::Document,
+                canonical: false,
+            },
+            producer: CemtOverlayProducer {
+                function_name: "cem.format-tree".to_owned(),
+                formatter_profile: Some("tabular".to_owned()),
+            },
+            operations: vec![
+                CemtFormatOperation {
+                    name: "cem.format-tree".to_owned(),
+                    formatter_role: "formatter.boundary".to_owned(),
+                    formatter_profile: Some("tabular".to_owned()),
+                    color_role: Some("source.gutter".to_owned()),
+                    kind: CemtFormatOperationKind::Marker,
+                    provenance: CemtOverlayProvenance::SourceMapped(operation_source.clone()),
+                },
+                CemtFormatOperation {
+                    name: "line-ending".to_owned(),
+                    formatter_role: "formatter.line-ending".to_owned(),
+                    formatter_profile: Some("tabular".to_owned()),
+                    color_role: None,
+                    kind: CemtFormatOperationKind::Decision {
+                        value: "lf".to_owned(),
+                    },
+                    provenance: CemtOverlayProvenance::Generated {
+                        function_name: "cem.format-tree".to_owned(),
+                        source_map: None,
+                    },
+                },
+            ],
+            retained_node_paths: vec![root_path.clone(), child_path.clone()],
+            node_operations: vec![
+                fragment(
+                    CemtNodeFormatTarget::Owner(root_path.clone()),
+                    "formatter.layout",
+                    CemtNodeFormatOperationKind::Layout(CemtFormatLayout::Block),
+                ),
+                fragment(
+                    CemtNodeFormatTarget::Owner(root_path.clone()),
+                    "formatter.attribute-prefix",
+                    CemtNodeFormatOperationKind::BeforeAttributes {
+                        fragment: CemtFormatFragment::Whitespace {
+                            value: " ".to_owned(),
+                        },
+                    },
+                ),
+                fragment(
+                    CemtNodeFormatTarget::Owner(attribute_path.clone()),
+                    "formatter.attribute-indent",
+                    CemtNodeFormatOperationKind::BeforeAttribute {
+                        index: 0,
+                        fragment: CemtFormatFragment::Whitespace {
+                            value: "\t".to_owned(),
+                        },
+                    },
+                ),
+                fragment(
+                    CemtNodeFormatTarget::Owner(root_path.clone()),
+                    "formatter.content-boundary",
+                    CemtNodeFormatOperationKind::ContentBoundary {
+                        index: 0,
+                        fragment: CemtFormatFragment::Raw {
+                            value: "|".to_owned(),
+                        },
+                    },
+                ),
+                fragment(
+                    CemtNodeFormatTarget::ChildGap {
+                        parent: root_path.clone(),
+                        before_child: 0,
+                        ordinal: 0,
+                    },
+                    "formatter.indent",
+                    CemtNodeFormatOperationKind::InsertChild {
+                        fragment: CemtFormatFragment::Whitespace {
+                            value: "    ".to_owned(),
+                        },
+                    },
+                ),
+                fragment(
+                    CemtNodeFormatTarget::Owner(root_path.clone()),
+                    "formatter.close-indent",
+                    CemtNodeFormatOperationKind::BeforeClose {
+                        fragment: CemtFormatFragment::Whitespace {
+                            value: "\n".to_owned(),
+                        },
+                    },
+                ),
+            ],
+        };
+        let artifact = CemtTreeArtifact::formatted(owner.clone(), None, overlay);
+        let view = artifact.evaluator_view();
+
+        assert_eq!(
+            view.clone()
+                .resolve_path("contentType")
+                .and_then(|value| value.as_str()),
+            Some("application/cem")
+        );
+        assert_eq!(
+            view.clone()
+                .resolve_path("formatterProfile")
+                .and_then(|value| value.as_str()),
+            Some("tabular")
+        );
+        assert_eq!(
+            view.clone()
+                .resolve_path("canonical")
+                .and_then(|value| value.as_bool()),
+            Some(false)
+        );
+
+        let format_marker = view
+            .clone()
+            .resolve_path("formatNodes.0")
+            .expect("format marker view");
+        let format_marker_record = format_marker.as_record().expect("format marker record");
+        assert_eq!(format_marker_record.format_operation_index(), Some(0));
+        assert!(std::ptr::eq(
+            format_marker_record
+                .format_operation()
+                .expect("typed format operation"),
+            &artifact.formatted_overlay().expect("overlay").operations[0]
+        ));
+        assert_eq!(
+            format_marker.field("kind").and_then(|value| value.as_str()),
+            Some("format-marker")
+        );
+        assert_eq!(
+            format_marker
+                .field("sourceMap")
+                .and_then(|value| value.as_source_map()),
+            Some(&operation_source)
+        );
+        assert_eq!(
+            view.clone()
+                .resolve_path("formatNodes.1.value")
+                .and_then(|value| value.as_str()),
+            Some("lf")
+        );
+
+        let root = view
+            .clone()
+            .resolve_path("nodes.0")
+            .expect("formatted root view");
+        assert_eq!(
+            root.as_record()
+                .and_then(CemtEvaluatorRecordRef::owner_path),
+            Some(&root_path)
+        );
+        assert!(matches!(
+            root.as_record().and_then(CemtEvaluatorRecordRef::owner),
+            Some(CemtTreeOwnerRef::Node(node)) if std::ptr::eq(node, &owner.as_nodes()[0])
+        ));
+        let layout = root.field("formatLayout").expect("format layout view");
+        assert_eq!(
+            layout.field("value").and_then(|value| value.as_str()),
+            Some("block")
+        );
+        assert_eq!(
+            layout
+                .as_record()
+                .and_then(CemtEvaluatorRecordRef::node_format_operation_index),
+            Some(0)
+        );
+        assert_eq!(
+            root.field("formatBeforeAttributes")
+                .and_then(|value| value.field("value"))
+                .and_then(|value| value.as_str()),
+            Some(" ")
+        );
+
+        let attribute = root
+            .field("attributes")
+            .and_then(|value| value.item(0))
+            .expect("formatted attribute view");
+        assert_eq!(
+            attribute
+                .as_record()
+                .and_then(CemtEvaluatorRecordRef::owner_path),
+            Some(&attribute_path)
+        );
+        assert_eq!(
+            attribute
+                .field("formatBefore")
+                .and_then(|value| value.field("value"))
+                .and_then(|value| value.as_str()),
+            Some("\t")
+        );
+        assert_eq!(
+            root.field("formatContentBoundary")
+                .and_then(|value| value.item(0))
+                .and_then(|value| value.field("value"))
+                .and_then(|value| value.as_str()),
+            Some("|")
+        );
+
+        let generated_child = root
+            .field("children")
+            .and_then(|value| value.item(0))
+            .expect("generated child fragment");
+        let generated_record = generated_child
+            .as_record()
+            .expect("generated fragment record");
+        assert_eq!(generated_record.node_format_operation_index(), Some(4));
+        assert!(std::ptr::eq(
+            generated_record
+                .node_format_operation()
+                .expect("typed node format operation"),
+            &artifact
+                .formatted_overlay()
+                .expect("overlay")
+                .node_operations[4]
+        ));
+        assert_eq!(
+            generated_child
+                .field("formatterOwned")
+                .and_then(|value| value.as_bool()),
+            Some(true)
+        );
+        let source_child = root
+            .field("children")
+            .and_then(|value| value.item(1))
+            .expect("source child view");
+        assert_eq!(
+            source_child
+                .as_record()
+                .and_then(CemtEvaluatorRecordRef::owner_path),
+            Some(&child_path)
+        );
+        assert_eq!(
+            root.field("formatBeforeClose")
+                .and_then(|value| value.field("value"))
+                .and_then(|value| value.as_str()),
+            Some("\n")
         );
         assert!(Arc::ptr_eq(artifact.owner(), &owner));
     }

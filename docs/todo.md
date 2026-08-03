@@ -984,7 +984,7 @@ Remaining dependency-ordered package checklist:
                   `CemTreeAstStream` nodes and attributes with typed scalar,
                   sequence, record, source-map, stable-path, lookup, and
                   iteration access.
-            - [ ] Extend the evaluator view across formatted envelope metadata,
+            - [x] Extend the evaluator view across formatted envelope metadata,
                   owner-plus-overlay nodes, formatter operations, and generated
                   fragments without reconstructing a recursive tree.
             - [ ] Migrate CEMT expression bindings and intermediates to the
@@ -1051,36 +1051,36 @@ Remaining dependency-ordered package checklist:
 
 ### Next Work Item
 
-Extend `CemtEvaluatorValueRef` from raw `CemTreeAstStream` access to the
-formatted owner-plus-overlay tree. The raw view now provides stable-path record
-lookup, sequence iteration, borrowed scalar access, and typed source-map access
-without storing JSON values. The colorizer additionally needs the formatted
-envelope, global format operations, retained source-node sequence, generated
-gap fragments, per-node layout and boundary fields, and formatted attributes.
+Define the owned CEMT evaluator value algebra that complements
+`CemtEvaluatorValueRef`. Borrowed raw and formatted tree records now cover the
+complete formatter-to-colorizer input shape without recursive materialization;
+the evaluator still needs owned values for literals, generated sequences,
+record construction, and persistent updates produced by expressions.
 
-First add package-owned formatted envelope metadata to
-`CemtFormattedTreeOverlay`; retain content type, schema, category, mode, and
-canonical state when lowering the formatter result. Add red view tests that
-walk `formatNodes`, `nodes`, nested `children`, generated formatter fragments,
-`formatLayout`, `formatContentBoundary`, and attribute `formatBefore` fields
-while proving every returned owner or operation refers to the existing typed
-artifact.
+Start with red tests for a closed `CemtEvaluatorValue` enum containing null,
+boolean, string, sequence, record, source-map, and borrowed/native reference
+forms. The borrowed/native form must retain the typed artifact or owner
+identity directly, not encode it as a string key or JSON sentinel. Define
+explicit borrow-to-owned behavior: immutable native records stay referenced,
+while expression-created scalars, sequences, and record fields become owned.
+No variant or helper in this boundary may contain `serde_json::Value`.
 
-Then define an owned CEMT evaluator value algebra for generated scalars,
-sequences, records, and persistent record updates. It may borrow a
-`CemtEvaluatorValueRef`, but it must not use `serde_json::Value` or encode native
-references as JSON sentinels. Migrate path resolution, parameter binding,
-`call`, `map`, `fold`, `match`, `exists`, `length`, `get`, `set`, and patch
-operations first, followed by the remaining CEMT operations under existing
-runtime tests.
+Migrate evaluator primitives in dependency order. First move path and field
+resolution, variable/parameter binding, `exists`, `length`, and `get`; then
+move record/sequence constructors plus `set`, append, and patch operations;
+then move `call`, `map`, `fold`, and `match`. Persistent updates must layer an
+owned field overlay over a borrowed record so changing one field does not copy
+the source AST or formatted subtree. Add parity tests for nested updates,
+generated fragments, source-map access, null versus missing fields, and
+sequence order before switching a formatter or colorizer stage.
 
-Once expression parity is green, place `Arc<CemtTreeArtifact>` rather than a
-recursive value in the native stage payload. Remove
+After those primitives are typed, route one native formatter/colorizer
+handoff through the new algebra while retaining the current value evaluator as
+an explicit compatibility oracle. Compare the typed and compatibility results
+for formatter profiles, colorizer profiles, generated operation order, owner
+identity, and source maps. Only after parity is green should
 `ConversionOutputPipelineSubject::evaluator_value`,
-`formatted_evaluator_value`, and native cached `Value` fields; keep runtime
-value conversion only at the explicit compatibility entrypoint. Then rerun
-formatter/colorizer profile parity, source maps, converter parity, CLI e2e,
-lint, native tests, and WASM gates.
+`formatted_evaluator_value`, and native cached `Value` fields be removed.
 
 ## Current Verification Commands
 

@@ -52,8 +52,8 @@ use crate::transform_artifact::{
     CemtFormatOperation, CemtFormatOperationKind, CemtFormattedTreeOverlay, CemtNodeColorOperation,
     CemtNodeColorOperationKind, CemtNodeFormatOperation, CemtNodeFormatOperationKind,
     CemtNodeFormatTarget, CemtOverlayProducer, CemtOverlayProvenance, CemtOwnerPath,
-    CemtTreeArtifact, CemtTreeArtifactStage, TransformArtifactBody, TransformNativeArtifact,
-    CEMT_TREE_REPRESENTATION_ID,
+    CemtTreeArtifact, CemtTreeArtifactStage, CemtTreeEnvelopeMetadata, CemtTreeEnvelopeMode,
+    TransformArtifactBody, TransformNativeArtifact, CEMT_TREE_REPRESENTATION_ID,
 };
 use crate::transform_template::{
     compose_transform_template_encoded_text_artifacts,
@@ -3715,6 +3715,24 @@ fn lower_formatted_cemt_tree_artifact(
     let tree = formatted
         .as_object()
         .ok_or_else(|| "formatted CEMT tree must be an object".to_owned())?;
+    let envelope = CemtTreeEnvelopeMetadata {
+        content_type: required_cemt_envelope_string(tree, "contentType")?,
+        schema: required_cemt_envelope_string(tree, "schema")?,
+        category: required_cemt_envelope_string(tree, "category")?,
+        mode: match required_cemt_envelope_string(tree, "mode")?.as_str() {
+            "document" => CemtTreeEnvelopeMode::Document,
+            "fragment" => CemtTreeEnvelopeMode::Fragment,
+            mode => {
+                return Err(format!(
+                    "formatted CEMT tree field `mode` has unsupported value `{mode}`"
+                ))
+            }
+        },
+        canonical: tree
+            .get("canonical")
+            .and_then(Value::as_bool)
+            .ok_or_else(|| "formatted CEMT tree requires a boolean `canonical` field".to_owned())?,
+    };
     let formatter_profile = optional_cemt_overlay_string(tree, "formatterProfile")?;
     let format_nodes = tree
         .get("formatNodes")
@@ -3744,6 +3762,7 @@ fn lower_formatted_cemt_tree_artifact(
         raw.owner().clone(),
         raw.source_map().cloned(),
         CemtFormattedTreeOverlay {
+            envelope,
             producer: CemtOverlayProducer {
                 function_name: function_name.to_owned(),
                 formatter_profile,
@@ -3753,6 +3772,16 @@ fn lower_formatted_cemt_tree_artifact(
             node_operations,
         },
     )))
+}
+
+fn required_cemt_envelope_string(
+    tree: &serde_json::Map<String, Value>,
+    field: &str,
+) -> Result<String, String> {
+    tree.get(field)
+        .and_then(Value::as_str)
+        .map(str::to_owned)
+        .ok_or_else(|| format!("formatted CEMT tree requires a string `{field}` field"))
 }
 
 fn lower_cemt_formatted_node_sequence(
@@ -16724,6 +16753,11 @@ mod tests {
         let overlay = formatted
             .formatted_overlay()
             .expect("formatted artifact has an overlay");
+        assert_eq!(overlay.envelope.content_type, CEM_ML_CONTENT_TYPE);
+        assert_eq!(overlay.envelope.schema, CEM_ML_SCHEMA_URI);
+        assert_eq!(overlay.envelope.category, "cem-tree");
+        assert_eq!(overlay.envelope.mode.as_str(), "document");
+        assert!(overlay.envelope.canonical);
         assert_eq!(overlay.producer.function_name, "cem.format-tree");
         assert_eq!(
             overlay.producer.formatter_profile.as_deref(),
@@ -17296,6 +17330,11 @@ mod tests {
 
         let formatted_value = serde_json::json!({
             "kind": "cem-tree",
+            "contentType": CEM_ML_CONTENT_TYPE,
+            "schema": CEM_ML_SCHEMA_URI,
+            "category": "cem-tree",
+            "mode": "document",
+            "canonical": false,
             "formatterProfile": "compact",
             "formatNodes": [
                 {
@@ -17340,6 +17379,12 @@ mod tests {
             None,
         ));
         let formatted_value = serde_json::json!({
+            "kind": "cem-tree",
+            "contentType": CEM_ML_CONTENT_TYPE,
+            "schema": CEM_ML_SCHEMA_URI,
+            "category": "cem-tree",
+            "mode": "document",
+            "canonical": false,
             "formatterProfile": "compact",
             "formatNodes": [],
             "nodes": []
@@ -17449,6 +17494,12 @@ mod tests {
         let error = lower_formatted_cemt_tree_artifact(
             &raw,
             &serde_json::json!({
+                "kind": "cem-tree",
+                "contentType": CEM_ML_CONTENT_TYPE,
+                "schema": CEM_ML_SCHEMA_URI,
+                "category": "cem-tree",
+                "mode": "document",
+                "canonical": false,
                 "formatterProfile": "compact",
                 "formatNodes": [],
                 "nodes": [{"kind": "element", "name": "wrong"}]
@@ -17476,6 +17527,12 @@ mod tests {
         let formatted = lower_formatted_cemt_tree_artifact(
             &raw,
             &serde_json::json!({
+                "kind": "cem-tree",
+                "contentType": CEM_ML_CONTENT_TYPE,
+                "schema": CEM_ML_SCHEMA_URI,
+                "category": "cem-tree",
+                "mode": "document",
+                "canonical": false,
                 "formatterProfile": "compact",
                 "formatNodes": [],
                 "nodes": [
@@ -17526,6 +17583,12 @@ mod tests {
         let formatted = lower_formatted_cemt_tree_artifact(
             &raw,
             &serde_json::json!({
+                "kind": "cem-tree",
+                "contentType": CEM_ML_CONTENT_TYPE,
+                "schema": CEM_ML_SCHEMA_URI,
+                "category": "cem-tree",
+                "mode": "document",
+                "canonical": false,
                 "formatterProfile": "acme.showcase.format-tree",
                 "formatNodes": [],
                 "nodes": [{
@@ -17564,6 +17627,12 @@ mod tests {
         let error = lower_formatted_cemt_tree_artifact(
             &raw,
             &serde_json::json!({
+                "kind": "cem-tree",
+                "contentType": CEM_ML_CONTENT_TYPE,
+                "schema": CEM_ML_SCHEMA_URI,
+                "category": "cem-tree",
+                "mode": "document",
+                "canonical": false,
                 "formatterProfile": "compact",
                 "formatNodes": [{
                     "kind": "format-decision",
@@ -17590,6 +17659,11 @@ mod tests {
         let primary = TransformArtifactBody::Extension(raw);
         let formatted = serde_json::json!({
             "kind": "cem-tree",
+            "contentType": CEM_ML_CONTENT_TYPE,
+            "schema": CEM_ML_SCHEMA_URI,
+            "category": "cem-tree",
+            "mode": "document",
+            "canonical": false,
             "formatterProfile": "compact",
             "formatNodes": [],
             "nodes": []
@@ -17626,6 +17700,11 @@ mod tests {
         ));
         let formatted_value = serde_json::json!({
             "kind": "cem-tree",
+            "contentType": CEM_ML_CONTENT_TYPE,
+            "schema": CEM_ML_SCHEMA_URI,
+            "category": "cem-tree",
+            "mode": "document",
+            "canonical": false,
             "formatterProfile": "compact",
             "formatNodes": [],
             "nodes": []
