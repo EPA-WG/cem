@@ -9,7 +9,9 @@ use crate::validation::generic_data::{
     GenericDataSourceAst, GenericDataSourceRangeAst, GenericDataStreamDocumentAst,
     GenericDataValueAst,
 };
-use serde_json::{json, Value};
+use serde_json::json;
+#[cfg(test)]
+use serde_json::Value;
 use std::collections::{BTreeMap, BTreeSet};
 use yaml_rust2::parser::{Event, MarkedEventReceiver, Parser, Tag};
 use yaml_rust2::scanner::{Marker, Scanner, TScalarStyle, TokenType};
@@ -36,6 +38,7 @@ pub struct YamlDocumentAst {
 }
 
 impl YamlDocumentAst {
+    #[cfg(test)]
     pub fn to_cemt_subject(&self) -> Value {
         let mut stream = serde_json::Map::new();
         stream.insert("kind".to_owned(), json!("yaml-stream"));
@@ -115,6 +118,7 @@ impl YamlDocumentAst {
     }
 }
 
+#[cfg(test)]
 pub fn generic_data_ast_to_yaml_cemt_subject(ast: &GenericDataDocumentAst) -> Value {
     let mut stream = serde_json::Map::new();
     stream.insert("kind".to_owned(), json!("yaml-stream"));
@@ -173,6 +177,7 @@ impl YamlDocumentSource {
         }
     }
 
+    #[cfg(test)]
     fn to_cemt_subject(&self) -> Value {
         json!({
             "uri": self.uri,
@@ -208,6 +213,7 @@ impl YamlEncodingReportAst {
         }
     }
 
+    #[cfg(test)]
     fn to_cemt_subject(&self) -> Value {
         let mut value = serde_json::Map::new();
         if let Some(charset) = self.declared_charset.as_deref() {
@@ -268,6 +274,7 @@ impl YamlDocumentParseFact {
         }
     }
 
+    #[cfg(test)]
     fn to_cemt_subject(&self) -> Value {
         json!({
             "kind": self.kind.as_str(),
@@ -304,6 +311,7 @@ pub struct YamlDirectiveAst {
 }
 
 impl YamlDirectiveAst {
+    #[cfg(test)]
     fn to_cemt_subject(&self) -> Value {
         json!({
             "index": self.index,
@@ -327,6 +335,7 @@ pub struct YamlCommentAst {
 }
 
 impl YamlCommentAst {
+    #[cfg(test)]
     fn to_cemt_subject(&self) -> Value {
         json!({
             "index": self.index,
@@ -349,6 +358,7 @@ pub enum YamlCommentPlacement {
 }
 
 impl YamlCommentPlacement {
+    #[cfg(test)]
     fn as_str(self) -> &'static str {
         match self {
             Self::Line => "line",
@@ -365,6 +375,7 @@ pub struct YamlStreamDocumentAst {
 }
 
 impl YamlStreamDocumentAst {
+    #[cfg(test)]
     fn to_cemt_subject(&self) -> Value {
         json!({
             "index": self.index,
@@ -392,6 +403,7 @@ pub struct YamlNodeAst {
 }
 
 impl YamlNodeAst {
+    #[cfg(test)]
     fn to_cemt_subject(&self) -> Value {
         json!({
             "kind": self.kind.as_str(),
@@ -419,6 +431,7 @@ pub struct YamlPairAst {
 }
 
 impl YamlPairAst {
+    #[cfg(test)]
     fn to_cemt_subject(&self) -> Value {
         json!({
             "index": self.index,
@@ -500,6 +513,7 @@ fn yaml_source_range_to_generic_data_range(range: YamlSourceRange) -> GenericDat
     }
 }
 
+#[cfg(test)]
 fn generic_data_document_to_yaml_cemt_subject(document: &GenericDataStreamDocumentAst) -> Value {
     json!({
         "index": document.index,
@@ -510,6 +524,7 @@ fn generic_data_document_to_yaml_cemt_subject(document: &GenericDataStreamDocume
     })
 }
 
+#[cfg(test)]
 fn generic_data_value_to_yaml_cemt_node(value: &GenericDataValueAst) -> Value {
     match value {
         GenericDataValueAst::Mapping {
@@ -608,6 +623,7 @@ fn generic_data_value_to_yaml_cemt_node(value: &GenericDataValueAst) -> Value {
     }
 }
 
+#[cfg(test)]
 fn generic_data_mapping_entry_to_yaml_pair(entry: &GenericDataMappingEntryAst) -> Value {
     json!({
         "index": entry.index,
@@ -616,6 +632,7 @@ fn generic_data_mapping_entry_to_yaml_pair(entry: &GenericDataMappingEntryAst) -
     })
 }
 
+#[cfg(test)]
 fn generic_data_scalar_to_yaml_cemt_node(
     source_range: &GenericDataSourceRangeAst,
     value: &str,
@@ -648,6 +665,7 @@ pub enum YamlNodeKind {
 }
 
 impl YamlNodeKind {
+    #[cfg(test)]
     fn as_str(self) -> &'static str {
         match self {
             Self::Mapping => "mapping",
@@ -724,6 +742,7 @@ impl YamlSourceRange {
         }
     }
 
+    #[cfg(test)]
     fn to_cemt_subject(self) -> Value {
         json!({
             "byteOffset": self.start.byte_offset,
@@ -893,6 +912,7 @@ pub fn validate_yaml_source_bytes(request: YamlSourceValidationRequest<'_>) -> V
     validate_yaml_parse_report(&report, &contracts)
 }
 
+#[cfg(test)]
 pub fn yaml_stream_value_from_source_bytes(
     request: YamlSourceValidationRequest<'_>,
 ) -> (Option<Value>, Vec<Diagnostic>) {

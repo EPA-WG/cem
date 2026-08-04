@@ -8,6 +8,7 @@ use crate::projection::{
 };
 use crate::schema::registry::{
     content_type_essence, JSON_CONTENT_TYPE, JSON_SCHEMA_CONTENT_TYPE, JSON_SCHEMA_SCHEMA_URI,
+    YAML_CONTENT_TYPE, YAML_SCHEMA_URI,
 };
 use crate::source_map::SourceMapStack;
 use crate::validation::csv::{
@@ -26,6 +27,11 @@ use crate::validation::json_schema::{
     JsonSchemaParseFact,
 };
 use crate::validation::xpath::XPathResultArtifact;
+use crate::validation::yaml::{
+    YamlCommentAst, YamlCommentPlacement, YamlDirectiveAst, YamlDocumentAst, YamlDocumentParseFact,
+    YamlDocumentSource, YamlEncodingReportAst, YamlNodeAst, YamlNodeKind, YamlPairAst,
+    YamlSourceRange, YamlStreamDocumentAst,
+};
 use std::any::Any;
 use std::collections::{BTreeMap, BTreeSet};
 use std::fmt;
@@ -896,6 +902,16 @@ pub struct GenericDataCsvDocumentCemtSubjectRef<'a> {
 }
 
 #[derive(Debug, Clone, Copy)]
+pub struct YamlDocumentCemtSubjectRef<'a> {
+    document: &'a YamlDocumentAst,
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct GenericDataYamlDocumentCemtSubjectRef<'a> {
+    document: &'a GenericDataDocumentAst,
+}
+
+#[derive(Debug, Clone, Copy)]
 pub struct JsonSchemaDocumentCemtSubjectRef<'a> {
     document: &'a JsonSchemaDocumentAst,
 }
@@ -947,6 +963,38 @@ impl<'a> GenericDataCsvDocumentCemtSubjectRef<'a> {
 
     pub fn evaluator_view(self) -> CemtEvaluatorValueRef<'a> {
         CemtEvaluatorValueRef::Record(CemtEvaluatorRecordRef::GenericDataCsvDocument {
+            document: self.document,
+        })
+    }
+}
+
+impl<'a> YamlDocumentCemtSubjectRef<'a> {
+    pub fn new(document: &'a YamlDocumentAst) -> Self {
+        Self { document }
+    }
+
+    pub fn document(self) -> &'a YamlDocumentAst {
+        self.document
+    }
+
+    pub fn evaluator_view(self) -> CemtEvaluatorValueRef<'a> {
+        CemtEvaluatorValueRef::Record(CemtEvaluatorRecordRef::YamlDocument {
+            document: self.document,
+        })
+    }
+}
+
+impl<'a> GenericDataYamlDocumentCemtSubjectRef<'a> {
+    pub fn new(document: &'a GenericDataDocumentAst) -> Self {
+        Self { document }
+    }
+
+    pub fn document(self) -> &'a GenericDataDocumentAst {
+        self.document
+    }
+
+    pub fn evaluator_view(self) -> CemtEvaluatorValueRef<'a> {
+        CemtEvaluatorValueRef::Record(CemtEvaluatorRecordRef::GenericDataYamlDocument {
             document: self.document,
         })
     }
@@ -1794,6 +1842,33 @@ pub enum CemtEvaluatorSequenceRef<'a> {
     GenericDataCsvValueFields {
         value: &'a GenericDataValueAst,
     },
+    YamlParseFacts {
+        facts: &'a [YamlDocumentParseFact],
+    },
+    YamlDirectives {
+        directives: &'a [YamlDirectiveAst],
+    },
+    YamlComments {
+        comments: &'a [YamlCommentAst],
+    },
+    YamlDocuments {
+        documents: &'a [YamlStreamDocumentAst],
+    },
+    YamlNodes {
+        nodes: &'a [YamlNodeAst],
+    },
+    YamlPairs {
+        pairs: &'a [YamlPairAst],
+    },
+    GenericDataYamlDocuments {
+        documents: &'a [GenericDataStreamDocumentAst],
+    },
+    GenericDataYamlValues {
+        values: &'a [GenericDataValueAst],
+    },
+    GenericDataYamlPairs {
+        entries: &'a [GenericDataMappingEntryAst],
+    },
     JsonMembers {
         members: &'a [JsonMemberAst],
     },
@@ -1910,6 +1985,15 @@ impl<'a> CemtEvaluatorSequenceRef<'a> {
                 GenericDataValueAst::Sequence { items, .. } => items.len(),
                 _ => 1,
             },
+            Self::YamlParseFacts { facts } => facts.len(),
+            Self::YamlDirectives { directives } => directives.len(),
+            Self::YamlComments { comments } => comments.len(),
+            Self::YamlDocuments { documents } => documents.len(),
+            Self::YamlNodes { nodes } => nodes.len(),
+            Self::YamlPairs { pairs } => pairs.len(),
+            Self::GenericDataYamlDocuments { documents } => documents.len(),
+            Self::GenericDataYamlValues { values } => values.len(),
+            Self::GenericDataYamlPairs { entries } => entries.len(),
             Self::JsonMembers { members } => members.len(),
             Self::JsonValues { values } => values.len(),
             Self::GenericDataJsonDocuments { documents } => documents.len(),
@@ -1990,6 +2074,37 @@ impl<'a> CemtEvaluatorSequenceRef<'a> {
                     },
                 ))
             }
+            Self::YamlParseFacts { facts } => facts.get(index).map(|fact| {
+                CemtEvaluatorValueRef::Record(CemtEvaluatorRecordRef::YamlParseFact { fact })
+            }),
+            Self::YamlDirectives { directives } => directives.get(index).map(|directive| {
+                CemtEvaluatorValueRef::Record(CemtEvaluatorRecordRef::YamlDirective { directive })
+            }),
+            Self::YamlComments { comments } => comments.get(index).map(|comment| {
+                CemtEvaluatorValueRef::Record(CemtEvaluatorRecordRef::YamlComment { comment })
+            }),
+            Self::YamlDocuments { documents } => documents.get(index).map(|document| {
+                CemtEvaluatorValueRef::Record(CemtEvaluatorRecordRef::YamlStreamDocument {
+                    document,
+                })
+            }),
+            Self::YamlNodes { nodes } => nodes.get(index).map(|node| {
+                CemtEvaluatorValueRef::Record(CemtEvaluatorRecordRef::YamlNode { node })
+            }),
+            Self::YamlPairs { pairs } => pairs.get(index).map(|pair| {
+                CemtEvaluatorValueRef::Record(CemtEvaluatorRecordRef::YamlPair { pair })
+            }),
+            Self::GenericDataYamlDocuments { documents } => documents.get(index).map(|document| {
+                CemtEvaluatorValueRef::Record(
+                    CemtEvaluatorRecordRef::GenericDataYamlStreamDocument { document },
+                )
+            }),
+            Self::GenericDataYamlValues { values } => values.get(index).map(|value| {
+                CemtEvaluatorValueRef::Record(CemtEvaluatorRecordRef::GenericDataYamlNode { value })
+            }),
+            Self::GenericDataYamlPairs { entries } => entries.get(index).map(|entry| {
+                CemtEvaluatorValueRef::Record(CemtEvaluatorRecordRef::GenericDataYamlPair { entry })
+            }),
             Self::JsonMembers { members } => {
                 let member = members.get(index)?;
                 Some(CemtEvaluatorValueRef::Record(
@@ -2307,6 +2422,55 @@ pub enum CemtEvaluatorRecordRef<'a> {
         value: &'a GenericDataValueAst,
         index: usize,
     },
+    YamlDocument {
+        document: &'a YamlDocumentAst,
+    },
+    YamlSource {
+        source: &'a YamlDocumentSource,
+    },
+    YamlEncodingReport {
+        report: &'a YamlEncodingReportAst,
+    },
+    YamlParseFact {
+        fact: &'a YamlDocumentParseFact,
+    },
+    YamlParseFactSourceRange {
+        fact: &'a YamlDocumentParseFact,
+    },
+    YamlDirective {
+        directive: &'a YamlDirectiveAst,
+    },
+    YamlComment {
+        comment: &'a YamlCommentAst,
+    },
+    YamlStreamDocument {
+        document: &'a YamlStreamDocumentAst,
+    },
+    YamlNode {
+        node: &'a YamlNodeAst,
+    },
+    YamlPair {
+        pair: &'a YamlPairAst,
+    },
+    YamlSourceRange {
+        range: YamlSourceRange,
+    },
+    GenericDataYamlDocument {
+        document: &'a GenericDataDocumentAst,
+    },
+    GenericDataYamlSource {
+        document: &'a GenericDataDocumentAst,
+    },
+    GenericDataYamlEncodingReport,
+    GenericDataYamlStreamDocument {
+        document: &'a GenericDataStreamDocumentAst,
+    },
+    GenericDataYamlNode {
+        value: &'a GenericDataValueAst,
+    },
+    GenericDataYamlPair {
+        entry: &'a GenericDataMappingEntryAst,
+    },
     JsonDocument {
         document: &'a JsonDocumentAst,
     },
@@ -2431,6 +2595,23 @@ impl<'a> CemtEvaluatorRecordRef<'a> {
             | Self::GenericDataCsvHeaderField { .. }
             | Self::GenericDataCsvMappingField { .. }
             | Self::GenericDataCsvValueField { .. }
+            | Self::YamlDocument { .. }
+            | Self::YamlSource { .. }
+            | Self::YamlEncodingReport { .. }
+            | Self::YamlParseFact { .. }
+            | Self::YamlParseFactSourceRange { .. }
+            | Self::YamlDirective { .. }
+            | Self::YamlComment { .. }
+            | Self::YamlStreamDocument { .. }
+            | Self::YamlNode { .. }
+            | Self::YamlPair { .. }
+            | Self::YamlSourceRange { .. }
+            | Self::GenericDataYamlDocument { .. }
+            | Self::GenericDataYamlSource { .. }
+            | Self::GenericDataYamlEncodingReport
+            | Self::GenericDataYamlStreamDocument { .. }
+            | Self::GenericDataYamlNode { .. }
+            | Self::GenericDataYamlPair { .. }
             | Self::JsonValue { .. }
             | Self::JsonMember { .. }
             | Self::JsonSourceRange { .. }
@@ -2487,6 +2668,23 @@ impl<'a> CemtEvaluatorRecordRef<'a> {
             | Self::GenericDataCsvHeaderField { .. }
             | Self::GenericDataCsvMappingField { .. }
             | Self::GenericDataCsvValueField { .. }
+            | Self::YamlDocument { .. }
+            | Self::YamlSource { .. }
+            | Self::YamlEncodingReport { .. }
+            | Self::YamlParseFact { .. }
+            | Self::YamlParseFactSourceRange { .. }
+            | Self::YamlDirective { .. }
+            | Self::YamlComment { .. }
+            | Self::YamlStreamDocument { .. }
+            | Self::YamlNode { .. }
+            | Self::YamlPair { .. }
+            | Self::YamlSourceRange { .. }
+            | Self::GenericDataYamlDocument { .. }
+            | Self::GenericDataYamlSource { .. }
+            | Self::GenericDataYamlEncodingReport
+            | Self::GenericDataYamlStreamDocument { .. }
+            | Self::GenericDataYamlNode { .. }
+            | Self::GenericDataYamlPair { .. }
             | Self::JsonValue { .. }
             | Self::JsonMember { .. }
             | Self::JsonSourceRange { .. }
@@ -2683,6 +2881,141 @@ impl<'a> CemtEvaluatorRecordRef<'a> {
                 &["delimiter", "quote", "escape", "header", "lineEnding"]
             }
             Self::GenericDataCsvDialect { .. } => &["delimiter", "quote", "escape", "header"],
+            Self::YamlDocument { document } if document.line_ending.is_some() => &[
+                "kind",
+                "contentType",
+                "schema",
+                "source",
+                "encoding",
+                "encodingReport",
+                "parseFacts",
+                "directives",
+                "comments",
+                "documents",
+                "lineEnding",
+            ],
+            Self::YamlDocument { .. } => &[
+                "kind",
+                "contentType",
+                "schema",
+                "source",
+                "encoding",
+                "encodingReport",
+                "parseFacts",
+                "directives",
+                "comments",
+                "documents",
+            ],
+            Self::YamlSource { .. } | Self::GenericDataYamlSource { .. } => &[
+                "uri",
+                "contentType",
+                "mediaType",
+                "parameters",
+                "byteLength",
+            ],
+            Self::YamlEncodingReport { report } if report.declared_charset.is_some() => {
+                if report.invalid_byte_offset.is_some() {
+                    &[
+                        "declaredCharset",
+                        "normalizedCharset",
+                        "decoderStatus",
+                        "invalidByteOffset",
+                    ]
+                } else {
+                    &["declaredCharset", "normalizedCharset", "decoderStatus"]
+                }
+            }
+            Self::YamlEncodingReport { report } if report.invalid_byte_offset.is_some() => {
+                &["normalizedCharset", "decoderStatus", "invalidByteOffset"]
+            }
+            Self::YamlEncodingReport { .. } | Self::GenericDataYamlEncodingReport => {
+                &["normalizedCharset", "decoderStatus"]
+            }
+            Self::YamlParseFact { .. } => &[
+                "kind",
+                "contract",
+                "behavior",
+                "diagnosticCode",
+                "diagnosticSeverity",
+                "recoverable",
+                "fatal",
+                "parameter",
+                "actual",
+                "expected",
+                "line",
+                "column",
+                "byteOffset",
+                "byteLength",
+                "message",
+                "sourceRange",
+            ],
+            Self::YamlParseFactSourceRange { .. } => {
+                &["byteOffset", "byteLength", "line", "column"]
+            }
+            Self::YamlDirective { .. } => &[
+                "index",
+                "name",
+                "value",
+                "byteOffset",
+                "sourceRange",
+                "sourceMap",
+            ],
+            Self::YamlComment { .. } => &[
+                "index",
+                "kind",
+                "value",
+                "text",
+                "indent",
+                "placement",
+                "byteOffset",
+                "sourceRange",
+                "sourceMap",
+            ],
+            Self::YamlStreamDocument { .. } | Self::GenericDataYamlStreamDocument { .. } => {
+                &["index", "byteOffset", "sourceRange", "sourceMap", "root"]
+            }
+            Self::YamlNode { .. } | Self::GenericDataYamlNode { .. } => &[
+                "kind",
+                "tag",
+                "anchor",
+                "anchorId",
+                "alias",
+                "value",
+                "style",
+                "implicitKind",
+                "byteOffset",
+                "sourceRange",
+                "sourceMap",
+                "sequence",
+                "mapping",
+            ],
+            Self::YamlPair { .. } | Self::GenericDataYamlPair { .. } => &["index", "key", "value"],
+            Self::YamlSourceRange { .. } => &["byteOffset", "byteLength", "line", "column"],
+            Self::GenericDataYamlDocument { document } if document.line_ending.is_some() => &[
+                "kind",
+                "contentType",
+                "schema",
+                "source",
+                "encoding",
+                "encodingReport",
+                "parseFacts",
+                "directives",
+                "comments",
+                "documents",
+                "lineEnding",
+            ],
+            Self::GenericDataYamlDocument { .. } => &[
+                "kind",
+                "contentType",
+                "schema",
+                "source",
+                "encoding",
+                "encodingReport",
+                "parseFacts",
+                "directives",
+                "comments",
+                "documents",
+            ],
             Self::JsonDocument { .. } => &[
                 "kind",
                 "contentType",
@@ -3029,6 +3362,41 @@ impl<'a> CemtEvaluatorRecordRef<'a> {
             }
             Self::GenericDataCsvValueField { value, index } => {
                 generic_data_csv_value_field_evaluator_field(value, *index, name)
+            }
+            Self::YamlDocument { document } => yaml_document_evaluator_field(document, name),
+            Self::YamlSource { source } => yaml_source_evaluator_field(source, name),
+            Self::YamlEncodingReport { report } => {
+                yaml_encoding_report_evaluator_field(report, name)
+            }
+            Self::YamlParseFact { fact } => yaml_parse_fact_evaluator_field(fact, name),
+            Self::YamlParseFactSourceRange { fact } => {
+                yaml_parse_fact_source_range_evaluator_field(fact, name)
+            }
+            Self::YamlDirective { directive } => yaml_directive_evaluator_field(directive, name),
+            Self::YamlComment { comment } => yaml_comment_evaluator_field(comment, name),
+            Self::YamlStreamDocument { document } => {
+                yaml_stream_document_evaluator_field(document, name)
+            }
+            Self::YamlNode { node } => yaml_node_evaluator_field(node, name),
+            Self::YamlPair { pair } => yaml_pair_evaluator_field(pair, name),
+            Self::YamlSourceRange { range } => yaml_source_range_evaluator_field(*range, name),
+            Self::GenericDataYamlDocument { document } => {
+                generic_data_yaml_document_evaluator_field(document, name)
+            }
+            Self::GenericDataYamlSource { document } => {
+                generic_data_yaml_source_evaluator_field(document, name)
+            }
+            Self::GenericDataYamlEncodingReport => {
+                generic_data_yaml_encoding_report_evaluator_field(name)
+            }
+            Self::GenericDataYamlStreamDocument { document } => {
+                generic_data_yaml_stream_document_evaluator_field(document, name)
+            }
+            Self::GenericDataYamlNode { value } => {
+                generic_data_yaml_node_evaluator_field(value, name)
+            }
+            Self::GenericDataYamlPair { entry } => {
+                generic_data_yaml_pair_evaluator_field(entry, name)
             }
             Self::JsonDocument { document } => json_document_evaluator_field(document, name),
             Self::JsonValue { value } => json_value_evaluator_field(value, name),
@@ -3769,6 +4137,451 @@ fn generic_data_csv_scalar_text(value: &GenericDataValueAst) -> String {
         GenericDataValueAst::Null { .. } => String::new(),
         GenericDataValueAst::Alias { alias, .. } => alias.clone().unwrap_or_default(),
         GenericDataValueAst::Mapping { .. } | GenericDataValueAst::Sequence { .. } => String::new(),
+    }
+}
+
+fn yaml_document_evaluator_field<'a>(
+    document: &'a YamlDocumentAst,
+    name: &str,
+) -> Option<CemtEvaluatorValueRef<'a>> {
+    match name {
+        "kind" => Some(CemtEvaluatorValueRef::String("yaml-stream")),
+        "contentType" => Some(CemtEvaluatorValueRef::String(YAML_CONTENT_TYPE)),
+        "schema" => Some(CemtEvaluatorValueRef::String(YAML_SCHEMA_URI)),
+        "source" => Some(CemtEvaluatorValueRef::Record(
+            CemtEvaluatorRecordRef::YamlSource {
+                source: &document.source,
+            },
+        )),
+        "encoding" => Some(CemtEvaluatorValueRef::String(&document.encoding)),
+        "encodingReport" => Some(CemtEvaluatorValueRef::Record(
+            CemtEvaluatorRecordRef::YamlEncodingReport {
+                report: &document.encoding_report,
+            },
+        )),
+        "parseFacts" => Some(CemtEvaluatorValueRef::Sequence(
+            CemtEvaluatorSequenceRef::YamlParseFacts {
+                facts: &document.parse_facts,
+            },
+        )),
+        "directives" => Some(CemtEvaluatorValueRef::Sequence(
+            CemtEvaluatorSequenceRef::YamlDirectives {
+                directives: &document.directives,
+            },
+        )),
+        "comments" => Some(CemtEvaluatorValueRef::Sequence(
+            CemtEvaluatorSequenceRef::YamlComments {
+                comments: &document.comments,
+            },
+        )),
+        "documents" => Some(CemtEvaluatorValueRef::Sequence(
+            CemtEvaluatorSequenceRef::YamlDocuments {
+                documents: &document.documents,
+            },
+        )),
+        "lineEnding" => document
+            .line_ending
+            .as_deref()
+            .map(CemtEvaluatorValueRef::String),
+        _ => None,
+    }
+}
+
+fn yaml_source_evaluator_field<'a>(
+    source: &'a YamlDocumentSource,
+    name: &str,
+) -> Option<CemtEvaluatorValueRef<'a>> {
+    match name {
+        "uri" => Some(CemtEvaluatorValueRef::String(&source.uri)),
+        "contentType" => Some(CemtEvaluatorValueRef::String(&source.content_type)),
+        "mediaType" => Some(CemtEvaluatorValueRef::String(&source.media_type)),
+        "parameters" => Some(CemtEvaluatorValueRef::StringMap(&source.parameters)),
+        "byteLength" => Some(usize_evaluator_value(source.byte_length)),
+        _ => None,
+    }
+}
+
+fn yaml_encoding_report_evaluator_field<'a>(
+    report: &'a YamlEncodingReportAst,
+    name: &str,
+) -> Option<CemtEvaluatorValueRef<'a>> {
+    match name {
+        "declaredCharset" => report
+            .declared_charset
+            .as_deref()
+            .map(CemtEvaluatorValueRef::String),
+        "normalizedCharset" => Some(CemtEvaluatorValueRef::String(&report.normalized_charset)),
+        "decoderStatus" => Some(CemtEvaluatorValueRef::String(&report.decoder_status)),
+        "invalidByteOffset" => report.invalid_byte_offset.map(u64_evaluator_value),
+        _ => None,
+    }
+}
+
+fn yaml_parse_fact_evaluator_field<'a>(
+    fact: &'a YamlDocumentParseFact,
+    name: &str,
+) -> Option<CemtEvaluatorValueRef<'a>> {
+    match name {
+        "kind" => Some(CemtEvaluatorValueRef::String(fact.kind.as_str())),
+        "contract" => Some(optional_string_evaluator_value(fact.contract.as_deref())),
+        "behavior" => Some(optional_string_evaluator_value(fact.behavior.as_deref())),
+        "diagnosticCode" => Some(optional_string_evaluator_value(
+            fact.diagnostic_code.as_deref(),
+        )),
+        "diagnosticSeverity" => Some(optional_string_evaluator_value(
+            fact.diagnostic_severity.as_deref(),
+        )),
+        "recoverable" => Some(CemtEvaluatorValueRef::Boolean(fact.recoverable)),
+        "fatal" => Some(CemtEvaluatorValueRef::Boolean(fact.fatal)),
+        "parameter" => Some(optional_string_evaluator_value(fact.parameter.as_deref())),
+        "actual" => Some(optional_string_evaluator_value(fact.actual.as_deref())),
+        "expected" => Some(CemtEvaluatorValueRef::Sequence(
+            CemtEvaluatorSequenceRef::Strings {
+                values: &fact.expected,
+            },
+        )),
+        "line" => Some(optional_u32_evaluator_value(fact.line)),
+        "column" => Some(optional_u32_evaluator_value(fact.column)),
+        "byteOffset" => Some(optional_u64_evaluator_value(fact.byte_offset)),
+        "byteLength" => Some(optional_u64_evaluator_value(fact.byte_length)),
+        "message" => Some(CemtEvaluatorValueRef::String(&fact.message)),
+        "sourceRange" => Some(CemtEvaluatorValueRef::Record(
+            CemtEvaluatorRecordRef::YamlParseFactSourceRange { fact },
+        )),
+        _ => None,
+    }
+}
+
+fn yaml_parse_fact_source_range_evaluator_field(
+    fact: &YamlDocumentParseFact,
+    name: &str,
+) -> Option<CemtEvaluatorValueRef<'static>> {
+    match name {
+        "byteOffset" => Some(optional_u64_evaluator_value(fact.byte_offset)),
+        "byteLength" => Some(optional_u64_evaluator_value(fact.byte_length)),
+        "line" => Some(optional_u32_evaluator_value(fact.line)),
+        "column" => Some(optional_u32_evaluator_value(fact.column)),
+        _ => None,
+    }
+}
+
+fn yaml_directive_evaluator_field<'a>(
+    directive: &'a YamlDirectiveAst,
+    name: &str,
+) -> Option<CemtEvaluatorValueRef<'a>> {
+    match name {
+        "index" => Some(usize_evaluator_value(directive.index)),
+        "name" => Some(CemtEvaluatorValueRef::String(&directive.name)),
+        "value" => Some(optional_string_evaluator_value(directive.value.as_deref())),
+        "byteOffset" => Some(u64_evaluator_value(directive.range.start.byte_offset)),
+        "sourceRange" => Some(CemtEvaluatorValueRef::Record(
+            CemtEvaluatorRecordRef::YamlSourceRange {
+                range: directive.range,
+            },
+        )),
+        "sourceMap" => Some(CemtEvaluatorValueRef::OwnedSourceMap(Arc::new(
+            directive.range.source_map(),
+        ))),
+        _ => None,
+    }
+}
+
+fn yaml_comment_evaluator_field<'a>(
+    comment: &'a YamlCommentAst,
+    name: &str,
+) -> Option<CemtEvaluatorValueRef<'a>> {
+    match name {
+        "index" => Some(usize_evaluator_value(comment.index)),
+        "kind" => Some(CemtEvaluatorValueRef::String("comment")),
+        "value" => Some(CemtEvaluatorValueRef::String(&comment.value)),
+        "text" => Some(CemtEvaluatorValueRef::String(&comment.text)),
+        "indent" => Some(CemtEvaluatorValueRef::String(&comment.indent)),
+        "placement" => Some(CemtEvaluatorValueRef::String(match comment.placement {
+            YamlCommentPlacement::Line => "line",
+            YamlCommentPlacement::Inline => "inline",
+        })),
+        "byteOffset" => Some(u64_evaluator_value(comment.range.start.byte_offset)),
+        "sourceRange" => Some(CemtEvaluatorValueRef::Record(
+            CemtEvaluatorRecordRef::YamlSourceRange {
+                range: comment.range,
+            },
+        )),
+        "sourceMap" => Some(CemtEvaluatorValueRef::OwnedSourceMap(Arc::new(
+            comment.range.source_map(),
+        ))),
+        _ => None,
+    }
+}
+
+fn yaml_stream_document_evaluator_field<'a>(
+    document: &'a YamlStreamDocumentAst,
+    name: &str,
+) -> Option<CemtEvaluatorValueRef<'a>> {
+    match name {
+        "index" => Some(usize_evaluator_value(document.index)),
+        "byteOffset" => Some(u64_evaluator_value(document.range.start.byte_offset)),
+        "sourceRange" => Some(CemtEvaluatorValueRef::Record(
+            CemtEvaluatorRecordRef::YamlSourceRange {
+                range: document.range,
+            },
+        )),
+        "sourceMap" => Some(CemtEvaluatorValueRef::OwnedSourceMap(Arc::new(
+            document.range.source_map(),
+        ))),
+        "root" => Some(match document.root.as_ref() {
+            Some(node) => CemtEvaluatorValueRef::Record(CemtEvaluatorRecordRef::YamlNode { node }),
+            None => CemtEvaluatorValueRef::Null,
+        }),
+        _ => None,
+    }
+}
+
+fn yaml_node_evaluator_field<'a>(
+    node: &'a YamlNodeAst,
+    name: &str,
+) -> Option<CemtEvaluatorValueRef<'a>> {
+    match name {
+        "kind" => Some(CemtEvaluatorValueRef::String(match node.kind {
+            YamlNodeKind::Mapping => "mapping",
+            YamlNodeKind::Sequence => "sequence",
+            YamlNodeKind::Scalar => "scalar",
+            YamlNodeKind::Alias => "alias",
+        })),
+        "tag" => Some(optional_string_evaluator_value(node.tag.as_deref())),
+        "anchor" => Some(optional_string_evaluator_value(node.anchor.as_deref())),
+        "anchorId" => Some(optional_usize_evaluator_value(node.anchor_id)),
+        "alias" => Some(optional_string_evaluator_value(node.alias.as_deref())),
+        "value" => Some(optional_string_evaluator_value(node.value.as_deref())),
+        "style" => Some(optional_string_evaluator_value(node.style.as_deref())),
+        "implicitKind" => Some(optional_string_evaluator_value(
+            node.implicit_kind.as_deref(),
+        )),
+        "byteOffset" => Some(u64_evaluator_value(node.range.start.byte_offset)),
+        "sourceRange" => Some(CemtEvaluatorValueRef::Record(
+            CemtEvaluatorRecordRef::YamlSourceRange { range: node.range },
+        )),
+        "sourceMap" => Some(CemtEvaluatorValueRef::OwnedSourceMap(Arc::new(
+            node.range.source_map(),
+        ))),
+        "sequence" => Some(CemtEvaluatorValueRef::Sequence(
+            CemtEvaluatorSequenceRef::YamlNodes {
+                nodes: &node.sequence,
+            },
+        )),
+        "mapping" => Some(CemtEvaluatorValueRef::Sequence(
+            CemtEvaluatorSequenceRef::YamlPairs {
+                pairs: &node.mapping,
+            },
+        )),
+        _ => None,
+    }
+}
+
+fn yaml_pair_evaluator_field<'a>(
+    pair: &'a YamlPairAst,
+    name: &str,
+) -> Option<CemtEvaluatorValueRef<'a>> {
+    match name {
+        "index" => Some(usize_evaluator_value(pair.index)),
+        "key" => Some(CemtEvaluatorValueRef::Record(
+            CemtEvaluatorRecordRef::YamlNode { node: &pair.key },
+        )),
+        "value" => Some(CemtEvaluatorValueRef::Record(
+            CemtEvaluatorRecordRef::YamlNode { node: &pair.value },
+        )),
+        _ => None,
+    }
+}
+
+fn yaml_source_range_evaluator_field(
+    range: YamlSourceRange,
+    name: &str,
+) -> Option<CemtEvaluatorValueRef<'static>> {
+    let value = match name {
+        "byteOffset" => range.start.byte_offset,
+        "byteLength" => range.byte_length,
+        "line" => u64::from(range.start.line),
+        "column" => u64::from(range.start.column),
+        _ => return None,
+    };
+    Some(u64_evaluator_value(value))
+}
+
+fn generic_data_yaml_document_evaluator_field<'a>(
+    document: &'a GenericDataDocumentAst,
+    name: &str,
+) -> Option<CemtEvaluatorValueRef<'a>> {
+    match name {
+        "kind" => Some(CemtEvaluatorValueRef::String("yaml-stream")),
+        "contentType" => Some(CemtEvaluatorValueRef::String(YAML_CONTENT_TYPE)),
+        "schema" => Some(CemtEvaluatorValueRef::String(YAML_SCHEMA_URI)),
+        "source" => Some(CemtEvaluatorValueRef::Record(
+            CemtEvaluatorRecordRef::GenericDataYamlSource { document },
+        )),
+        "encoding" => Some(CemtEvaluatorValueRef::String("utf-8")),
+        "encodingReport" => Some(CemtEvaluatorValueRef::Record(
+            CemtEvaluatorRecordRef::GenericDataYamlEncodingReport,
+        )),
+        "parseFacts" | "directives" | "comments" => Some(CemtEvaluatorValueRef::Sequence(
+            CemtEvaluatorSequenceRef::Empty,
+        )),
+        "documents" => Some(CemtEvaluatorValueRef::Sequence(
+            CemtEvaluatorSequenceRef::GenericDataYamlDocuments {
+                documents: &document.documents,
+            },
+        )),
+        "lineEnding" => document
+            .line_ending
+            .as_deref()
+            .map(CemtEvaluatorValueRef::String),
+        _ => None,
+    }
+}
+
+fn generic_data_yaml_source_evaluator_field<'a>(
+    document: &'a GenericDataDocumentAst,
+    name: &str,
+) -> Option<CemtEvaluatorValueRef<'a>> {
+    let source = &document.source;
+    match name {
+        "uri" => Some(CemtEvaluatorValueRef::String(&source.uri)),
+        "contentType" => Some(CemtEvaluatorValueRef::String(&source.content_type)),
+        "mediaType" => Some(CemtEvaluatorValueRef::String(&source.media_type)),
+        "parameters" => Some(CemtEvaluatorValueRef::StringMap(&source.parameters)),
+        "byteLength" => Some(usize_evaluator_value(source.byte_length)),
+        _ => None,
+    }
+}
+
+fn generic_data_yaml_encoding_report_evaluator_field(
+    name: &str,
+) -> Option<CemtEvaluatorValueRef<'static>> {
+    match name {
+        "normalizedCharset" => Some(CemtEvaluatorValueRef::String("utf-8")),
+        "decoderStatus" => Some(CemtEvaluatorValueRef::String("decoded")),
+        _ => None,
+    }
+}
+
+fn generic_data_yaml_stream_document_evaluator_field<'a>(
+    document: &'a GenericDataStreamDocumentAst,
+    name: &str,
+) -> Option<CemtEvaluatorValueRef<'a>> {
+    match name {
+        "index" => Some(usize_evaluator_value(document.index)),
+        "byteOffset" => Some(u64_evaluator_value(document.source_range.byte_offset)),
+        "sourceRange" => Some(CemtEvaluatorValueRef::Record(
+            CemtEvaluatorRecordRef::GenericDataSourceRange {
+                source_range: &document.source_range,
+            },
+        )),
+        "sourceMap" => Some(generic_data_source_map_evaluator_value(
+            &document.source_range,
+        )),
+        "root" => Some(match document.root.as_ref() {
+            Some(value) => {
+                CemtEvaluatorValueRef::Record(CemtEvaluatorRecordRef::GenericDataYamlNode { value })
+            }
+            None => CemtEvaluatorValueRef::Null,
+        }),
+        _ => None,
+    }
+}
+
+fn generic_data_yaml_node_evaluator_field<'a>(
+    value: &'a GenericDataValueAst,
+    name: &str,
+) -> Option<CemtEvaluatorValueRef<'a>> {
+    let source_range = value.source_range();
+    match name {
+        "kind" => Some(CemtEvaluatorValueRef::String(match value {
+            GenericDataValueAst::Mapping { .. } => "mapping",
+            GenericDataValueAst::Sequence { .. } => "sequence",
+            GenericDataValueAst::String { .. }
+            | GenericDataValueAst::Number { .. }
+            | GenericDataValueAst::Boolean { .. }
+            | GenericDataValueAst::Null { .. } => "scalar",
+            GenericDataValueAst::Alias { .. } => "alias",
+        })),
+        "tag" | "anchor" | "anchorId" => Some(CemtEvaluatorValueRef::Null),
+        "alias" => Some(match value {
+            GenericDataValueAst::Alias { alias, .. } => {
+                optional_string_evaluator_value(alias.as_deref())
+            }
+            _ => CemtEvaluatorValueRef::Null,
+        }),
+        "value" => Some(match value {
+            GenericDataValueAst::String { value, .. } => CemtEvaluatorValueRef::String(value),
+            GenericDataValueAst::Number { lexeme, .. } => CemtEvaluatorValueRef::String(lexeme),
+            GenericDataValueAst::Boolean { value: true, .. } => {
+                CemtEvaluatorValueRef::String("true")
+            }
+            GenericDataValueAst::Boolean { value: false, .. } => {
+                CemtEvaluatorValueRef::String("false")
+            }
+            GenericDataValueAst::Null { .. } => CemtEvaluatorValueRef::String(""),
+            GenericDataValueAst::Mapping { .. }
+            | GenericDataValueAst::Sequence { .. }
+            | GenericDataValueAst::Alias { .. } => CemtEvaluatorValueRef::Null,
+        }),
+        "style" => Some(match value {
+            GenericDataValueAst::String { style, .. } => {
+                CemtEvaluatorValueRef::String(style.as_deref().unwrap_or("plain"))
+            }
+            GenericDataValueAst::Number { .. }
+            | GenericDataValueAst::Boolean { .. }
+            | GenericDataValueAst::Null { .. } => CemtEvaluatorValueRef::String("plain"),
+            GenericDataValueAst::Mapping { .. }
+            | GenericDataValueAst::Sequence { .. }
+            | GenericDataValueAst::Alias { .. } => CemtEvaluatorValueRef::Null,
+        }),
+        "implicitKind" => Some(match value {
+            GenericDataValueAst::String { .. } => CemtEvaluatorValueRef::String("string"),
+            GenericDataValueAst::Number { number_kind, .. } => {
+                CemtEvaluatorValueRef::String(number_kind.as_yaml_implicit_kind())
+            }
+            GenericDataValueAst::Boolean { .. } => CemtEvaluatorValueRef::String("boolean"),
+            GenericDataValueAst::Null { .. } => CemtEvaluatorValueRef::String("null"),
+            GenericDataValueAst::Mapping { .. }
+            | GenericDataValueAst::Sequence { .. }
+            | GenericDataValueAst::Alias { .. } => CemtEvaluatorValueRef::Null,
+        }),
+        "byteOffset" => Some(u64_evaluator_value(source_range.byte_offset)),
+        "sourceRange" => Some(CemtEvaluatorValueRef::Record(
+            CemtEvaluatorRecordRef::GenericDataSourceRange { source_range },
+        )),
+        "sourceMap" => Some(generic_data_source_map_evaluator_value(source_range)),
+        "sequence" => Some(CemtEvaluatorValueRef::Sequence(match value {
+            GenericDataValueAst::Sequence { items, .. } => {
+                CemtEvaluatorSequenceRef::GenericDataYamlValues { values: items }
+            }
+            _ => CemtEvaluatorSequenceRef::Empty,
+        })),
+        "mapping" => Some(CemtEvaluatorValueRef::Sequence(match value {
+            GenericDataValueAst::Mapping { entries, .. } => {
+                CemtEvaluatorSequenceRef::GenericDataYamlPairs { entries }
+            }
+            _ => CemtEvaluatorSequenceRef::Empty,
+        })),
+        _ => None,
+    }
+}
+
+fn generic_data_yaml_pair_evaluator_field<'a>(
+    entry: &'a GenericDataMappingEntryAst,
+    name: &str,
+) -> Option<CemtEvaluatorValueRef<'a>> {
+    match name {
+        "index" => Some(usize_evaluator_value(entry.index)),
+        "key" => Some(CemtEvaluatorValueRef::Record(
+            CemtEvaluatorRecordRef::GenericDataYamlNode { value: &entry.key },
+        )),
+        "value" => Some(CemtEvaluatorValueRef::Record(
+            CemtEvaluatorRecordRef::GenericDataYamlNode {
+                value: &entry.value,
+            },
+        )),
+        _ => None,
     }
 }
 
@@ -5430,6 +6243,190 @@ mod tests {
         );
         assert_eq!(
             second[1].field("sourceMap").map(|value| value.kind()),
+            Some(CemtEvaluatorValueKind::Null)
+        );
+    }
+
+    #[test]
+    fn yaml_document_evaluator_view_borrows_syntax_owner_without_value_projection() {
+        use crate::validation::yaml::{
+            yaml_document_ast_from_source_bytes, YamlSourceValidationRequest,
+        };
+
+        let source =
+            "%YAML 1.2\r\n# header\r\n---\r\nroot: &base\r\n  quoted: \"Ada\"\r\nalias: *base\r\n";
+        let (document, diagnostics) =
+            yaml_document_ast_from_source_bytes(YamlSourceValidationRequest {
+                bytes: source.as_bytes(),
+                source_uri: "memory:borrowed.yaml",
+                content_type: Some("application/yaml; charset=utf-8"),
+            });
+        assert!(
+            diagnostics
+                .iter()
+                .all(|diagnostic| !diagnostic.severity.is_hard_violation()),
+            "YAML fixture diagnostics: {diagnostics:?}"
+        );
+        let owner = Arc::new(document.expect("YAML document AST"));
+        let subject = YamlDocumentCemtSubjectRef::new(owner.as_ref());
+        assert!(std::ptr::eq(subject.document(), owner.as_ref()));
+
+        let document = CemtEvaluatorValue::borrowed(subject.evaluator_view());
+        assert_eq!(
+            document
+                .field("lineEnding")
+                .and_then(|value| value.as_str().map(str::to_owned))
+                .as_deref(),
+            Some("crlf")
+        );
+        let directives = document
+            .field("directives")
+            .expect("borrowed YAML directives")
+            .sequence_values("borrowed YAML directives")
+            .expect("YAML directive sequence");
+        assert_eq!(directives.len(), 1);
+        assert_eq!(
+            directives[0]
+                .field("value")
+                .and_then(|value| value.as_str().map(str::to_owned))
+                .as_deref(),
+            Some("1.2")
+        );
+        let comments = document
+            .field("comments")
+            .expect("borrowed YAML comments")
+            .sequence_values("borrowed YAML comments")
+            .expect("YAML comment sequence");
+        assert_eq!(comments.len(), 1);
+        assert!(comments[0]
+            .field("sourceMap")
+            .and_then(|value| value.as_source_map().cloned())
+            .is_some());
+
+        let documents = document
+            .field("documents")
+            .expect("borrowed YAML documents")
+            .sequence_values("borrowed YAML documents")
+            .expect("YAML document sequence");
+        let mapping = documents[0]
+            .field("root")
+            .and_then(|root| root.field("mapping"))
+            .expect("root mapping")
+            .sequence_values("root mapping")
+            .expect("root mapping entries");
+        assert_eq!(mapping.len(), 2);
+        let anchored = mapping[0].field("value").expect("anchored mapping value");
+        assert_eq!(
+            anchored
+                .field("anchor")
+                .and_then(|value| value.as_str().map(str::to_owned))
+                .as_deref(),
+            Some("base")
+        );
+        let alias = mapping[1].field("value").expect("alias value");
+        assert_eq!(
+            alias
+                .field("alias")
+                .and_then(|value| value.as_str().map(str::to_owned))
+                .as_deref(),
+            Some("base")
+        );
+    }
+
+    #[test]
+    fn generic_data_yaml_evaluator_view_preserves_documents_duplicates_and_exact_numbers() {
+        use crate::validation::generic_data::{GenericDataNumberKind, GenericDataSourceAst};
+
+        let range = |byte_offset, byte_length| GenericDataSourceRangeAst {
+            byte_offset,
+            byte_length,
+            line: 1,
+            column: u32::try_from(byte_offset + 1).expect("test column"),
+            source_map: None,
+        };
+        let string = |value: &str, offset| GenericDataValueAst::String {
+            source_range: range(offset, value.len() as u64),
+            value: value.to_owned(),
+            lexeme: None,
+            style: Some("single-quoted".to_owned()),
+        };
+        let owner = Arc::new(GenericDataDocumentAst {
+            source: GenericDataSourceAst {
+                uri: "memory:generic.yaml-view".to_owned(),
+                content_type: "application/json".to_owned(),
+                media_type: "application/json".to_owned(),
+                parameters: BTreeMap::new(),
+                byte_length: 32,
+            },
+            documents: vec![
+                GenericDataStreamDocumentAst {
+                    index: 0,
+                    source_range: range(0, 32),
+                    root: Some(GenericDataValueAst::Mapping {
+                        source_range: range(0, 32),
+                        entries: vec![
+                            GenericDataMappingEntryAst {
+                                index: 0,
+                                key: string("same", 0),
+                                value: string("first", 6),
+                                source_range: range(0, 11),
+                            },
+                            GenericDataMappingEntryAst {
+                                index: 1,
+                                key: string("same", 12),
+                                value: GenericDataValueAst::Number {
+                                    source_range: range(18, 10),
+                                    lexeme: "1.2300e+4".to_owned(),
+                                    number_kind: GenericDataNumberKind::Exponent,
+                                },
+                                source_range: range(12, 16),
+                            },
+                        ],
+                    }),
+                },
+                GenericDataStreamDocumentAst {
+                    index: 1,
+                    source_range: range(32, 0),
+                    root: None,
+                },
+            ],
+            line_ending: Some("lf".to_owned()),
+        });
+        let subject = GenericDataYamlDocumentCemtSubjectRef::new(owner.as_ref());
+        assert!(std::ptr::eq(subject.document(), owner.as_ref()));
+
+        let document = CemtEvaluatorValue::borrowed(subject.evaluator_view());
+        let documents = document
+            .field("documents")
+            .expect("generic YAML documents")
+            .sequence_values("generic YAML documents")
+            .expect("generic YAML document sequence");
+        assert_eq!(documents.len(), 2);
+        let mapping = documents[0]
+            .field("root")
+            .and_then(|root| root.field("mapping"))
+            .expect("generic YAML mapping")
+            .sequence_values("generic YAML mapping")
+            .expect("generic YAML mapping entries");
+        assert_eq!(mapping.len(), 2);
+        assert_eq!(
+            mapping[0]
+                .field("key")
+                .and_then(|key| key.field("value"))
+                .and_then(|value| value.as_str().map(str::to_owned))
+                .as_deref(),
+            Some("same")
+        );
+        assert_eq!(
+            mapping[1]
+                .field("value")
+                .and_then(|value| value.field("value"))
+                .and_then(|value| value.as_str().map(str::to_owned))
+                .as_deref(),
+            Some("1.2300e+4")
+        );
+        assert_eq!(
+            documents[1].field("root").map(|value| value.kind()),
             Some(CemtEvaluatorValueKind::Null)
         );
     }

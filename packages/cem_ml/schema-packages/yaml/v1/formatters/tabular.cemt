@@ -396,72 +396,68 @@
                     profile: $profile
                 }),
                 scalar: extend(
+                    call("yaml.format-document.comments-between-lines", {
+                        comments: $comments,
+                        afterLine: $previousLine,
+                        beforeLine: call("yaml.format-document.node-line", { node: $node }),
+                        indent: $indent,
+                        sourceIndent: $sourceIndent,
+                        profile: $profile
+                    }),
                     extend(
-                        call("yaml.format-document.comments-between-lines", {
-                            comments: $comments,
-                            afterLine: $previousLine,
-                            beforeLine: call("yaml.format-document.node-line", { node: $node }),
-                            indent: $indent,
-                            sourceIndent: $sourceIndent,
-                            profile: $profile
-                        }),
+                        call("yaml.format-document.indent", { indent: $indent }),
                         extend(
-                            call("yaml.format-document.indent", { indent: $indent }),
+                            call("yaml.format-document.node-inline", { node: $node, scalarRole: "syntax.string", profile: $profile }),
                             extend(
-                                call("yaml.format-document.node-inline", { node: $node, scalarRole: "syntax.string", profile: $profile }),
+                                call("yaml.format-document.inline-comments-for-line", {
+                                    comments: $comments,
+                                    line: call("yaml.format-document.node-line", { node: $node }),
+                                    profile: $profile
+                                }),
                                 extend(
-                                    call("yaml.format-document.inline-comments-for-line", {
+                                    [call("yaml.format-document.line-ending", { profile: $profile })],
+                                    call("yaml.format-document.comments-between-lines", {
                                         comments: $comments,
-                                        line: call("yaml.format-document.node-line", { node: $node }),
+                                        afterLine: call("yaml.format-document.node-line", { node: $node }),
+                                        beforeLine: $endLine,
+                                        indent: $indent,
+                                        sourceIndent: $sourceIndent,
                                         profile: $profile
-                                    }),
-                                    extend(
-                                        [call("yaml.format-document.line-ending", { profile: $profile })],
-                                        call("yaml.format-document.comments-between-lines", {
-                                            comments: $comments,
-                                            afterLine: call("yaml.format-document.node-line", { node: $node }),
-                                            beforeLine: $endLine,
-                                            indent: $indent,
-                                            sourceIndent: $sourceIndent,
-                                            profile: $profile
-                                        })
-                                    )
+                                    })
                                 )
                             )
                         )
                     )
                 ),
                 alias: extend(
+                    call("yaml.format-document.comments-between-lines", {
+                        comments: $comments,
+                        afterLine: $previousLine,
+                        beforeLine: call("yaml.format-document.node-line", { node: $node }),
+                        indent: $indent,
+                        sourceIndent: $sourceIndent,
+                        profile: $profile
+                    }),
                     extend(
-                        call("yaml.format-document.comments-between-lines", {
-                            comments: $comments,
-                            afterLine: $previousLine,
-                            beforeLine: call("yaml.format-document.node-line", { node: $node }),
-                            indent: $indent,
-                            sourceIndent: $sourceIndent,
-                            profile: $profile
-                        }),
+                        call("yaml.format-document.indent", { indent: $indent }),
                         extend(
-                            call("yaml.format-document.indent", { indent: $indent }),
+                            call("yaml.format-document.node-inline", { node: $node, scalarRole: "syntax.string", profile: $profile }),
                             extend(
-                                call("yaml.format-document.node-inline", { node: $node, scalarRole: "syntax.string", profile: $profile }),
+                                call("yaml.format-document.inline-comments-for-line", {
+                                    comments: $comments,
+                                    line: call("yaml.format-document.node-line", { node: $node }),
+                                    profile: $profile
+                                }),
                                 extend(
-                                    call("yaml.format-document.inline-comments-for-line", {
+                                    [call("yaml.format-document.line-ending", { profile: $profile })],
+                                    call("yaml.format-document.comments-between-lines", {
                                         comments: $comments,
-                                        line: call("yaml.format-document.node-line", { node: $node }),
+                                        afterLine: call("yaml.format-document.node-line", { node: $node }),
+                                        beforeLine: $endLine,
+                                        indent: $indent,
+                                        sourceIndent: $sourceIndent,
                                         profile: $profile
-                                    }),
-                                    extend(
-                                        [call("yaml.format-document.line-ending", { profile: $profile })],
-                                        call("yaml.format-document.comments-between-lines", {
-                                            comments: $comments,
-                                            afterLine: call("yaml.format-document.node-line", { node: $node }),
-                                            beforeLine: $endLine,
-                                            indent: $indent,
-                                            sourceIndent: $sourceIndent,
-                                            profile: $profile
-                                        })
-                                    )
+                                    })
                                 )
                             )
                         )

@@ -16968,8 +16968,9 @@ mod tests {
     }
 
     #[test]
-    fn convert_yaml_same_schema_uses_lifecycle_output_pipeline() {
-        let mut source = input(b"name: Ada\nactive: true\n", "document.yaml");
+    fn convert_yaml_same_schema_uses_borrowed_lifecycle_ast_stream() {
+        let source_bytes = b"name: \"Ada\"\r\nactive: true\r\n";
+        let mut source = input(source_bytes, "document.yaml");
         source.identity = Some(FormatIdentity {
             content_type: Some(YAML_CONTENT_TYPE.to_owned()),
             schema: Some(YAML_SCHEMA_URI.to_owned()),
@@ -16987,7 +16988,11 @@ mod tests {
             context: ctx(),
             target: Some(target),
             target_scope: ScopeConfig {
-                cemt_formatter_profile: Some("tabular".to_owned()),
+                cemt_formatter_profile: Some("compact".to_owned()),
+                cemt_formatter_options: BTreeMap::from([(
+                    "lineEnding".to_owned(),
+                    "preserve".to_owned(),
+                )]),
                 ..ScopeConfig::default()
             },
             scheduler_scope_id: 0,
@@ -17015,10 +17020,7 @@ mod tests {
         let primary_bytes = resp.primary_bytes.as_ref().expect("YAML primary bytes");
         assert_eq!(primary_bytes.content_type, YAML_CONTENT_TYPE);
         assert_eq!(primary_bytes.schema.as_deref(), Some(YAML_SCHEMA_URI));
-        assert_eq!(
-            std::str::from_utf8(&primary_bytes.bytes).unwrap(),
-            "name: Ada\nactive: true\n"
-        );
+        assert_eq!(primary_bytes.bytes, source_bytes);
         assert_eq!(resp.primary["kind"], "document");
         assert_eq!(resp.primary["contentType"], YAML_CONTENT_TYPE);
     }
