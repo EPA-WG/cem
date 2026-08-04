@@ -1059,10 +1059,17 @@ Remaining dependency-ordered package checklist:
                     formatter, colorizer, and writer stages. The legacy public
                     tree projection is now created only after writer completion
                     for response/debug compatibility.
-              - [ ] Route a JSON-produced materialized body through an actual
+              - [x] Route a JSON-produced materialized body through an actual
                     graph stage, ordered join, and secondary-input edge, proving
                     both artifact and owner `Arc` identity rather than only the
-                    general body-routing contract.
+                    general body-routing contract. The production JSON pipeline
+                    now exposes the selected formatted/colored tree as a
+                    `TransformTemplateOutputArtifact` whose body is the exact
+                    `TransformArtifactBody::MaterializedCemtTree`; real graph
+                    execution tests cover formatted-only and colored-overlay
+                    routing through the stage, declared collection order, and
+                    named secondary binding with outer artifact, materialized
+                    artifact, and owner `Arc::ptr_eq` assertions.
               - [ ] Replace the generic-data-to-JSON compatibility projection
                     with a borrowed/typed generic-data evaluator view so every
                     production JSON entry path uses the materialized pipeline.
@@ -1127,34 +1134,37 @@ Remaining dependency-ordered package checklist:
 
 ### Next Work Item
 
-Finish JSON graph and alternate-ingress closure before applying the pattern to
-another package. The lossless JSON formatter, colorizer, and writer now exchange
-only a borrowed typed evaluator, `Arc<CemTreeAstStream>`, and typed color overlay;
-the remaining JSON gaps are routing and the generic-data ingress adapter.
+Close the alternate generic-data ingress into the JSON materialized pipeline.
+The lossless JSON formatter, colorizer, writer, production stage output, graph
+collection, and secondary-input handoffs now exchange only typed evaluator and
+AST artifacts with exact owner identity. The remaining JSON transformation
+boundary is `GenericDataJsonDocumentOutputSubject`'s compatibility projection.
 
 Implement the next slice in this order:
 
-1. Return the formatted/colored JSON materialized artifact as a first-class
-   `TransformArtifactBody::MaterializedCemtTree` from the production stage
-   boundary, rather than exposing it only through pipeline execution metadata.
-2. Send that produced body through one real graph stage, ordered collection
-   join, and secondary-input binding. Assert `Arc::ptr_eq` for both the
-   `CemtMaterializedTreeArtifact` and its `CemTreeAstStream` owner at every
-   handoff, including the optional colored overlay path.
-3. Add a borrowed or typed evaluator view for `GenericDataDocumentAst` as a
-   JSON formatter subject, preserving ordered mapping entries, generated JSON
-   member names, normalized number lexemes, source ranges, and source maps.
-   Then remove `GenericDataJsonDocumentOutputSubject`'s
-   `generic_data_ast_to_json_cemt_subject` production fallback.
-4. Tighten the source audit so no production JSON ingress can select
-   `into_compatibility_cemt_subject`; keep JSON serialization only in the
-   post-writer public/debug projection and registered external exporters.
-5. Re-run JSON package, full core, converter parity, CLI e2e, lint, native, and
-   WASM gates. Once green, migrate JSON Schema next because it shares the JSON
-   token and writer contracts; then apply the same pattern to CSV, YAML,
-   Markdown, XML-family, XSLT, Relax NG, DOM projection, and remaining generic
-   CEMT producers before deleting `CemtEvaluator(Value)`, `CemtRuntime(Value)`,
-   and adapter DTO conversion globally.
+1. Define a borrowed evaluator view over `GenericDataDocumentAst` and its value,
+   sequence, mapping, and mapping-entry variants. The view must retain ordered
+   mapping entries, duplicate/generated JSON member names, normalized number
+   lexemes, source ranges, source maps, and the original generic-data owner.
+2. Map that view to the JSON formatter's existing typed subject contract without
+   constructing `JsonDocumentAst`, `serde_json::Value`, a DTO record tree, or a
+   serialized/reparsed JSON document. Add focused parity cases for CSV- and
+   YAML-originated scalar, sequence, mapping, missing-name, and numeric values.
+3. Route `GenericDataJsonDocumentOutputSubject` through the native typed stage
+   executor and delete its production
+   `generic_data_ast_to_json_cemt_subject`/`into_compatibility_cemt_subject`
+   fallback. Keep any compatibility oracle test-only and outside layer handoffs.
+4. Tighten the JSON source audit so every production ingress is prohibited from
+   selecting a compatibility subject, serializer, composer, or runtime `Value`
+   artifact. Serialization remains allowed only after the writer for the public
+   response/debug projection and at registered external exporters.
+5. Run focused generic-data/JSON cases, JSON schema-package verification, full
+   core tests, converter parity, CLI e2e, lint, native build, and WASM build.
+   Once green, migrate JSON Schema next because it shares the JSON token and
+   writer contracts; then apply the pattern to CSV, YAML, Markdown, XML-family,
+   XSLT, Relax NG, DOM projection, and remaining generic CEMT producers before
+   deleting `CemtEvaluator(Value)`, `CemtRuntime(Value)`, and adapter DTO
+   conversion globally.
 
 ## Current Verification Commands
 

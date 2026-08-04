@@ -10974,7 +10974,9 @@ mod tests {
         CEM_TRANSFORM_CONTENT_TYPE, CEM_TRANSFORM_SCHEMA_URI, RELAX_NG_COMPACT_CONTENT_TYPE,
         RELAX_NG_XML_CONTENT_TYPE,
     };
-    use crate::transform_artifact::{TransformArtifactBody, TransformNativeArtifact};
+    use crate::transform_artifact::{
+        CemtMaterializedTreeArtifact, TransformArtifactBody, TransformNativeArtifact,
+    };
     use crate::transform_template::{
         TransformTemplateAdapterCapability, TransformTemplateAdapterError,
         TransformTemplateAdapterExecutionPhase, TransformTemplateAdapterRegistry,
@@ -10982,6 +10984,7 @@ mod tests {
         TransformTemplateRenderResponse,
     };
     use std::any::Any;
+    use std::sync::Mutex;
 
     #[derive(Debug)]
     struct StaticReadResolver {
@@ -11097,6 +11100,272 @@ mod tests {
         }
     }
 
+    const MATERIALIZED_JSON_GRAPH_TEMPLATE_CONTENT_TYPE: &str =
+        "application/x-cem-materialized-json-graph-test";
+
+    #[derive(Default)]
+    struct MaterializedJsonGraphProbe {
+        selected: Option<Arc<CemtMaterializedTreeArtifact>>,
+        owner: Option<Arc<projection::CemTreeAstStream>>,
+        stage_output_matched: bool,
+        join_order_matched: bool,
+        join_artifact_matched: bool,
+        join_owner_matched: bool,
+        secondary_artifact_matched: bool,
+        secondary_owner_matched: bool,
+        collection_and_secondary_share_input: bool,
+        colored: bool,
+    }
+
+    #[derive(Clone)]
+    struct MaterializedJsonGraphAdapter {
+        probe: Arc<Mutex<MaterializedJsonGraphProbe>>,
+    }
+
+    impl MaterializedJsonGraphAdapter {
+        fn failed(&self, message: impl Into<String>) -> TransformTemplateAdapterError {
+            TransformTemplateAdapterError::failed(
+                self.id(),
+                TransformTemplateAdapterExecutionPhase::Render,
+                message,
+            )
+        }
+    }
+
+    impl TransformTemplateAdapter for MaterializedJsonGraphAdapter {
+        fn id(&self) -> &'static str {
+            "materialized-json-graph-test"
+        }
+
+        fn kind(&self) -> TransformTemplateKind {
+            TransformTemplateKind::CemQlExpression
+        }
+
+        fn capability(&self) -> TransformTemplateAdapterCapability {
+            TransformTemplateAdapterCapability::Executable
+        }
+
+        fn matches_template(&self, identity: &FormatIdentity) -> bool {
+            identity
+                .content_type
+                .as_deref()
+                .is_some_and(|content_type| {
+                    content_type_essence(content_type)
+                        == MATERIALIZED_JSON_GRAPH_TEMPLATE_CONTENT_TYPE
+                })
+        }
+
+        fn compile(
+            &self,
+            request: TransformTemplateCompileRequest<'_>,
+        ) -> TransformTemplateAdapterResult<TransformTemplateCompileResponse> {
+            let mode = std::str::from_utf8(&request.template.bytes).map_err(|error| {
+                TransformTemplateAdapterError::failed(
+                    self.id(),
+                    TransformTemplateAdapterExecutionPhase::Compile,
+                    error.to_string(),
+                )
+            })?;
+            if !matches!(mode, "produce-formatted" | "produce-colored" | "consume") {
+                return Err(TransformTemplateAdapterError::failed(
+                    self.id(),
+                    TransformTemplateAdapterExecutionPhase::Compile,
+                    format!("unknown materialized JSON graph test mode `{mode}`"),
+                ));
+            }
+            Ok(TransformTemplateCompileResponse {
+                artifact: TransformTemplateCompiledArtifact::new(
+                    self.id(),
+                    self.kind(),
+                    request.template.uri.clone(),
+                    request.template.identity.clone(),
+                    request.entrypoint.clone(),
+                    json!({ "mode": mode }),
+                ),
+                diagnostics: Vec::new(),
+            })
+        }
+
+        fn render(
+            &self,
+            request: TransformTemplateRenderRequest<'_>,
+        ) -> TransformTemplateAdapterResult<TransformTemplateRenderResponse> {
+            let mode = request
+                .compiled
+                .opaque
+                .get("mode")
+                .and_then(Value::as_str)
+                .ok_or_else(|| self.failed("compiled graph test mode is missing"))?;
+            if mode == "consume" {
+                return self.consume_materialized_graph_inputs(request);
+            }
+
+            let TransformArtifactBody::Lifecycle(stream) = &request.primary_input.body else {
+                return Err(self.failed(format!(
+                    "JSON producer requires lifecycle input, received `{}`",
+                    request.primary_input.body.representation_id()
+                )));
+            };
+            let LoadedInputAstStream::JsonDocument(document) = stream.as_ref() else {
+                return Err(self.failed("JSON producer requires a lossless JsonDocumentAst"));
+            };
+            let schema_registry = SchemaRegistry::with_builtin_schemas();
+            let conversion_registry = ConversionRegistry::with_builtin_converters();
+            let environment = ConversionOutputPipelineEnvironment {
+                schema_registry: &schema_registry,
+                conversion_registry: &conversion_registry,
+                package_artifact_reader: None,
+                artifact_cache: None,
+            };
+            let colored = mode == "produce-colored";
+            let target_scope = ScopeConfig {
+                cemt_color_profile: colored.then(|| "html".to_owned()),
+                ..ScopeConfig::default()
+            };
+            let mut execution = execute_json_document_output_pipeline_with_environment(
+                &environment,
+                document.clone(),
+                &target_scope,
+                request.primary_input.uri.as_deref(),
+            );
+            if !execution.diagnostics.is_empty() {
+                return Err(self.failed(format!(
+                    "JSON materialized pipeline failed: {:?}",
+                    execution.diagnostics
+                )));
+            }
+            let formatted = execution
+                .formatted_materialized_cemt_tree
+                .as_ref()
+                .ok_or_else(|| self.failed("JSON formatter did not return a materialized tree"))?;
+            let selected_expected = if colored {
+                let colored_artifact = execution
+                    .colored_materialized_cemt_tree
+                    .as_ref()
+                    .ok_or_else(|| {
+                        self.failed("JSON colorizer did not return a materialized tree")
+                    })?;
+                if !Arc::ptr_eq(formatted.owner(), colored_artifact.owner()) {
+                    return Err(self.failed("JSON colorizer replaced the formatted AST owner"));
+                }
+                if colored_artifact.color_overlay().is_none() {
+                    return Err(self.failed("colored JSON materialized tree has no typed overlay"));
+                }
+                Arc::clone(colored_artifact)
+            } else {
+                Arc::clone(formatted)
+            };
+            let output = execution
+                .materialized_cemt_stage_output
+                .take()
+                .ok_or_else(|| self.failed("JSON pipeline did not expose a typed stage output"))?;
+            let TransformArtifactBody::MaterializedCemtTree(selected_output) = &output.body else {
+                return Err(self.failed("JSON stage output is not a materialized CEMT tree"));
+            };
+            if !Arc::ptr_eq(&selected_expected, selected_output) {
+                return Err(
+                    self.failed("JSON stage output replaced the selected materialized artifact")
+                );
+            }
+
+            let mut probe = self
+                .probe
+                .lock()
+                .map_err(|_| self.failed("materialized JSON graph probe lock was poisoned"))?;
+            probe.owner = Some(Arc::clone(selected_output.owner()));
+            probe.selected = Some(Arc::clone(selected_output));
+            probe.stage_output_matched = true;
+            probe.colored = colored;
+            drop(probe);
+
+            Ok(TransformTemplateRenderResponse {
+                output,
+                diagnostics: Vec::new(),
+            })
+        }
+    }
+
+    impl MaterializedJsonGraphAdapter {
+        fn consume_materialized_graph_inputs(
+            &self,
+            request: TransformTemplateRenderRequest<'_>,
+        ) -> TransformTemplateAdapterResult<TransformTemplateRenderResponse> {
+            let TransformArtifactBody::Collection(collection) = &request.primary_input.body else {
+                return Err(
+                    self.failed("consumer primary input is not the ordered graph collection")
+                );
+            };
+            if collection.items.len() != 2
+                || collection.items[0].artifact.artifact_id != "json-tree"
+                || collection.items[1].artifact.artifact_id != "source-json"
+            {
+                return Err(self.failed("graph collection did not retain declared input order"));
+            }
+            let joined_artifact = &collection.items[0].artifact;
+            let secondary_artifact = request
+                .secondary_inputs
+                .get("json-tree")
+                .ok_or_else(|| self.failed("materialized JSON secondary input is missing"))?;
+            let TransformArtifactBody::MaterializedCemtTree(joined_tree) = &joined_artifact.body
+            else {
+                return Err(self.failed("joined JSON body is not materialized CEMT"));
+            };
+            let TransformArtifactBody::MaterializedCemtTree(secondary_tree) =
+                &secondary_artifact.body
+            else {
+                return Err(self.failed("secondary JSON body is not materialized CEMT"));
+            };
+
+            let mut probe = self
+                .probe
+                .lock()
+                .map_err(|_| self.failed("materialized JSON graph probe lock was poisoned"))?;
+            let selected = probe
+                .selected
+                .as_ref()
+                .cloned()
+                .ok_or_else(|| self.failed("producer artifact was not recorded"))?;
+            let owner = probe
+                .owner
+                .as_ref()
+                .cloned()
+                .ok_or_else(|| self.failed("producer AST owner was not recorded"))?;
+            probe.join_order_matched = true;
+            probe.join_artifact_matched = Arc::ptr_eq(&selected, joined_tree);
+            probe.join_owner_matched = Arc::ptr_eq(&owner, joined_tree.owner());
+            probe.secondary_artifact_matched = Arc::ptr_eq(&selected, secondary_tree);
+            probe.secondary_owner_matched = Arc::ptr_eq(&owner, secondary_tree.owner());
+            probe.collection_and_secondary_share_input =
+                Arc::ptr_eq(joined_artifact, secondary_artifact);
+            if !probe.join_artifact_matched
+                || !probe.join_owner_matched
+                || !probe.secondary_artifact_matched
+                || !probe.secondary_owner_matched
+                || !probe.collection_and_secondary_share_input
+            {
+                return Err(self.failed(
+                    "graph join or secondary binding replaced the materialized artifact owner",
+                ));
+            }
+            drop(probe);
+
+            let identity = request.target.cloned().unwrap_or_else(|| FormatIdentity {
+                content_type: Some("text/plain".to_owned()),
+                ..FormatIdentity::default()
+            });
+            let output = TransformTemplateOutputArtifact::encoded_text(
+                None,
+                identity,
+                "materialized-json-graph-ok",
+            )
+            .map_err(|error| self.failed(error.to_string()))?;
+            Ok(TransformTemplateRenderResponse {
+                output,
+                diagnostics: Vec::new(),
+            })
+        }
+    }
+
     #[test]
     fn transform_output_routing_preserves_native_body_identity() {
         let native: Arc<dyn TransformNativeArtifact> = Arc::new(OutputIdentityProbe);
@@ -11163,6 +11432,160 @@ mod tests {
 
         assert!(Arc::ptr_eq(&artifact, routed_artifact));
         assert!(Arc::ptr_eq(&tree, routed_artifact.owner()));
+    }
+
+    #[test]
+    fn production_json_materialized_body_retains_identity_through_graph_join_and_secondary_input() {
+        for colored in [false, true] {
+            let probe = Arc::new(Mutex::new(MaterializedJsonGraphProbe::default()));
+            let mut context = ctx();
+            context
+                .template_adapter_registry
+                .register(MaterializedJsonGraphAdapter {
+                    probe: Arc::clone(&probe),
+                });
+            let execution_policy = TransformExecutionPolicy {
+                runtime_phase: TransformRuntimePhase::CemQlExpression,
+                ..TransformExecutionPolicy::default()
+            };
+            let template = |uri: &str, mode: &str| TemplateInput {
+                uri: uri.to_owned(),
+                bytes: mode.as_bytes().to_vec(),
+                identity: Some(FormatIdentity {
+                    content_type: Some(MATERIALIZED_JSON_GRAPH_TEMPLATE_CONTENT_TYPE.to_owned()),
+                    ..FormatIdentity::default()
+                }),
+                root_scope: ScopeConfig::default(),
+            };
+            let request = TransformGraphRequest {
+                imports: vec![TransformGraphImport {
+                    id: "source-json".to_owned(),
+                    input: identified_input(
+                        br#"{"name":"Ada","active":true}"#,
+                        "memory://materialized-graph.json",
+                        JSON_CONTENT_TYPE,
+                        JSON_VALUE_SCHEMA_URI,
+                    ),
+                    scheduler_scope_id: 1,
+                }],
+                joins: vec![TransformGraphJoin {
+                    id: "ordered-inputs".to_owned(),
+                    mode: TransformGraphJoinMode::Collect,
+                    input_names: vec!["items".to_owned()],
+                    inputs: vec![
+                        TransformGraphJoinInput {
+                            input_name: "items".to_owned(),
+                            artifact_id: "json-tree".to_owned(),
+                            bindings: BTreeMap::new(),
+                            destination: None,
+                            target: None,
+                        },
+                        TransformGraphJoinInput {
+                            input_name: "items".to_owned(),
+                            artifact_id: "source-json".to_owned(),
+                            bindings: BTreeMap::new(),
+                            destination: None,
+                            target: None,
+                        },
+                    ],
+                    bindings: BTreeMap::new(),
+                    scheduler_scope_id: 4,
+                }],
+                stages: vec![
+                    TransformGraphStage {
+                        id: "json-tree".to_owned(),
+                        template: template(
+                            "memory://materialize-json.expr",
+                            if colored {
+                                "produce-colored"
+                            } else {
+                                "produce-formatted"
+                            },
+                        ),
+                        template_kind: TransformTemplateKind::CemQlExpression,
+                        template_entrypoint: TransformTemplateEntrypoint::implicit(),
+                        params: BTreeMap::new(),
+                        execution_policy,
+                        target: Some(FormatIdentity {
+                            content_type: Some(JSON_CONTENT_TYPE.to_owned()),
+                            schema: Some(JSON_VALUE_SCHEMA_URI.to_owned()),
+                            ..FormatIdentity::default()
+                        }),
+                        primary_input: "source-json".to_owned(),
+                        secondary_inputs: BTreeMap::new(),
+                        scheduler_scope_ids: TransformStageSchedulerScopeIds {
+                            template_load: 2,
+                            execution: 3,
+                        },
+                    },
+                    TransformGraphStage {
+                        id: "verify-tree".to_owned(),
+                        template: template("memory://verify-json-tree.expr", "consume"),
+                        template_kind: TransformTemplateKind::CemQlExpression,
+                        template_entrypoint: TransformTemplateEntrypoint::implicit(),
+                        params: BTreeMap::new(),
+                        execution_policy,
+                        target: Some(FormatIdentity {
+                            content_type: Some("text/plain".to_owned()),
+                            ..FormatIdentity::default()
+                        }),
+                        primary_input: "ordered-inputs".to_owned(),
+                        secondary_inputs: BTreeMap::from([(
+                            "json-tree".to_owned(),
+                            "json-tree".to_owned(),
+                        )]),
+                        scheduler_scope_ids: TransformStageSchedulerScopeIds {
+                            template_load: 5,
+                            execution: 6,
+                        },
+                    },
+                ],
+                importmap_rewrites: Vec::new(),
+                exports: vec![TransformGraphExport {
+                    id: "verified".to_owned(),
+                    input: "verify-tree".to_owned(),
+                    destination: None,
+                    target: Some(FormatIdentity {
+                        content_type: Some("text/plain".to_owned()),
+                        ..FormatIdentity::default()
+                    }),
+                    target_scope: ScopeConfig::default(),
+                    style_policy: TransformGraphStylePolicy::default(),
+                    scheduler_scope_id: 7,
+                }],
+                edges: Vec::new(),
+                preserve_source_offsets: true,
+                context,
+                execution_policy,
+            };
+
+            let response = RealCemMlEngine::new()
+                .transform_graph(request)
+                .expect("materialized JSON graph execution");
+
+            assert!(
+                response
+                    .diagnostics
+                    .iter()
+                    .all(|diagnostic| !diagnostic.severity.is_hard_violation()),
+                "colored={colored}: {:?}",
+                response.diagnostics
+            );
+            assert_eq!(response.artifacts.len(), 1);
+            assert_eq!(
+                response.artifacts[0].primary,
+                Value::String("materialized-json-graph-ok".to_owned())
+            );
+            let probe = probe.lock().expect("materialized JSON graph probe");
+            assert_eq!(probe.colored, colored);
+            assert!(probe.stage_output_matched);
+            assert!(probe.join_order_matched);
+            assert!(probe.join_artifact_matched);
+            assert!(probe.join_owner_matched);
+            assert!(probe.secondary_artifact_matched);
+            assert!(probe.secondary_owner_matched);
+            assert!(probe.collection_and_secondary_share_input);
+        }
     }
 
     #[test]

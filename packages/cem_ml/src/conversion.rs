@@ -2501,6 +2501,12 @@ pub struct ConversionOutputPipelineExecution {
     pub colored_cemt_tree: Option<Arc<CemtTreeArtifact>>,
     pub formatted_materialized_cemt_tree: Option<Arc<CemtMaterializedTreeArtifact>>,
     pub colored_materialized_cemt_tree: Option<Arc<CemtMaterializedTreeArtifact>>,
+    /// The selected typed tree at the production stage boundary.
+    ///
+    /// This is the colored materialized artifact when coloring ran and the
+    /// formatted artifact otherwise. Graph routing consumes this body directly;
+    /// it is not reconstructed from the public/debug tree projection.
+    pub materialized_cemt_stage_output: Option<TransformTemplateOutputArtifact>,
     pub source_map: Option<SourceMapStack>,
     pub output_spans: Vec<OutputSpan>,
     pub format_execution: Option<ConversionOutputPipelineStageExecution>,
@@ -6578,6 +6584,7 @@ pub fn execute_csv_document_output_pipeline_with_environment(
                 colored_cemt_tree: None,
                 formatted_materialized_cemt_tree: None,
                 colored_materialized_cemt_tree: None,
+                materialized_cemt_stage_output: None,
                 source_map: artifact.source_map,
                 output_spans: artifact.output_spans,
                 format_execution,
@@ -7271,6 +7278,7 @@ pub fn execute_yaml_document_output_pipeline_with_environment(
                 colored_cemt_tree: None,
                 formatted_materialized_cemt_tree: None,
                 colored_materialized_cemt_tree: None,
+                materialized_cemt_stage_output: None,
                 source_map: artifact.source_map,
                 output_spans: artifact.output_spans,
                 format_execution,
@@ -7963,6 +7971,7 @@ pub fn execute_json_document_output_pipeline_with_environment(
                 colored_cemt_tree: None,
                 formatted_materialized_cemt_tree: None,
                 colored_materialized_cemt_tree: None,
+                materialized_cemt_stage_output: None,
                 source_map: artifact.source_map,
                 output_spans: artifact.output_spans,
                 format_execution,
@@ -8210,6 +8219,17 @@ fn execute_native_json_document_output_pipeline(
         identity: writer_identity,
         options: TransformTemplateEncodeOptions::default(),
     };
+    let materialized_cemt_stage_output = TransformTemplateOutputArtifact {
+        uri: diagnostic_uri.map(str::to_owned),
+        identity: Some(FormatIdentity {
+            content_type: Some(writer_artifact.identity().content_type.clone()),
+            schema: Some(writer_artifact.identity().schema.clone()),
+            ..FormatIdentity::default()
+        }),
+        body: TransformArtifactBody::MaterializedCemtTree(writer_artifact.clone()),
+        source_map: writer_artifact.source_map().cloned(),
+        output_spans: writer_artifact.output_spans().to_vec(),
+    };
     let writer_started = Instant::now();
     let writer_result = execute_transform_template_materialized_cemt_writer(
         TransformTemplateMaterializedCemtWriterRequest {
@@ -8258,6 +8278,7 @@ fn execute_native_json_document_output_pipeline(
         writer_elapsed_ns,
         formatted_materialized_cemt_tree: Some(formatted_artifact),
         colored_materialized_cemt_tree,
+        materialized_cemt_stage_output: Some(materialized_cemt_stage_output),
         formatted_cem_tree: Some(formatted_public),
         colored_cem_tree: colored_public,
         diagnostics: Vec::new(),
@@ -9105,6 +9126,7 @@ pub fn execute_json_schema_document_output_pipeline_with_environment(
                 colored_cemt_tree: None,
                 formatted_materialized_cemt_tree: None,
                 colored_materialized_cemt_tree: None,
+                materialized_cemt_stage_output: None,
                 source_map: artifact.source_map,
                 output_spans: artifact.output_spans,
                 format_execution,
@@ -9908,6 +9930,7 @@ pub fn execute_markdown_document_output_pipeline_with_environment(
                 colored_cemt_tree: None,
                 formatted_materialized_cemt_tree: None,
                 colored_materialized_cemt_tree: None,
+                materialized_cemt_stage_output: None,
                 source_map: artifact.source_map,
                 output_spans: artifact.output_spans,
                 format_execution,
@@ -11411,6 +11434,7 @@ fn execute_conversion_output_pipeline_from_typed_formatted_artifact(
         colored_cemt_tree,
         formatted_materialized_cemt_tree: None,
         colored_materialized_cemt_tree: None,
+        materialized_cemt_stage_output: None,
         source_map: artifact.source_map,
         output_spans: artifact.output_spans,
         format_execution,
@@ -11629,6 +11653,7 @@ fn execute_conversion_output_pipeline_from_formatted_artifact(
             colored_cemt_tree,
             formatted_materialized_cemt_tree: None,
             colored_materialized_cemt_tree: None,
+            materialized_cemt_stage_output: None,
             source_map: artifact.source_map,
             output_spans: artifact.output_spans,
             format_execution,
@@ -23051,6 +23076,20 @@ mod tests {
             .formatted_materialized_cemt_tree
             .as_ref()
             .expect("materialized formatted JSON CEMT tree");
+        let materialized_stage_output = execution
+            .materialized_cemt_stage_output
+            .as_ref()
+            .expect("typed materialized JSON stage output");
+        let TransformArtifactBody::MaterializedCemtTree(stage_artifact) =
+            &materialized_stage_output.body
+        else {
+            panic!("expected first-class materialized CEMT stage output body");
+        };
+        assert!(Arc::ptr_eq(formatted_materialized, stage_artifact));
+        assert!(Arc::ptr_eq(
+            formatted_materialized.owner(),
+            stage_artifact.owner()
+        ));
         assert_eq!(
             formatted_materialized.stage(),
             crate::transform_artifact::CemtMaterializedTreeStage::Formatted
@@ -23267,7 +23306,18 @@ mod tests {
             .colored_materialized_cemt_tree
             .as_ref()
             .expect("materialized colored tree");
+        let materialized_stage_output = execution
+            .materialized_cemt_stage_output
+            .as_ref()
+            .expect("typed colored JSON stage output");
+        let TransformArtifactBody::MaterializedCemtTree(stage_artifact) =
+            &materialized_stage_output.body
+        else {
+            panic!("expected first-class colored materialized CEMT stage output body");
+        };
         assert!(Arc::ptr_eq(formatted.owner(), colored.owner()));
+        assert!(Arc::ptr_eq(colored, stage_artifact));
+        assert!(Arc::ptr_eq(colored.owner(), stage_artifact.owner()));
         assert!(colored.color_overlay().is_some());
         assert!(execution
             .output
