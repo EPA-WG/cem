@@ -34,6 +34,7 @@ pub struct XsltStylesheetAst {
 }
 
 impl XsltStylesheetAst {
+    #[cfg(test)]
     pub fn to_cemt_subject(&self) -> Value {
         let source = &self.xml_document.source;
         let encoding = &self.xml_document.encoding_report;
@@ -145,6 +146,7 @@ pub struct XsltFact {
 }
 
 impl XsltFact {
+    #[cfg(test)]
     fn to_cemt_subject(&self) -> Value {
         json!({
             "kind": self.kind.as_str(),
@@ -673,6 +675,7 @@ fn xslt_source_map(range: XmlSourceRange, content_type: &str) -> SourceMapStack 
     }
 }
 
+#[cfg(test)]
 fn xslt_event_to_cemt_subject(event: &XmlEventAst, content_type: &str) -> Value {
     json!({
         "index": event.index,

@@ -63,8 +63,9 @@ use crate::transform_artifact::{
     CsvDocumentCemtSubjectRef, GenericDataCsvDocumentCemtSubjectRef,
     GenericDataJsonDocumentCemtSubjectRef, GenericDataYamlDocumentCemtSubjectRef,
     JsonDocumentCemtSubjectRef, JsonSchemaDocumentCemtSubjectRef, MarkdownDocumentCemtSubjectRef,
-    TransformArtifactBody, TransformNativeArtifact, YamlDocumentCemtSubjectRef,
-    CEMT_MATERIALIZED_TREE_REPRESENTATION_ID, CEMT_TREE_REPRESENTATION_ID,
+    TransformArtifactBody, TransformNativeArtifact, XmlFamilyDocumentCemtSubjectRef,
+    YamlDocumentCemtSubjectRef, CEMT_MATERIALIZED_TREE_REPRESENTATION_ID,
+    CEMT_TREE_REPRESENTATION_ID,
 };
 use crate::transform_template::{
     compose_transform_template_encoded_text_artifacts,
@@ -9170,6 +9171,16 @@ fn lower_materialized_writer_token_metadata(
             "eventKind",
             "eventTag",
             "package",
+            "depth",
+            "qualifiedName",
+            "lexicalName",
+            "localName",
+            "namespaceUri",
+            "tokenKind",
+            "documentSafeBoundary",
+            "lexicalSafeBoundary",
+            "layoutSensitive",
+            "generated",
             "layout",
             "lineEnding",
             "indent",
@@ -9207,6 +9218,16 @@ fn lower_materialized_writer_token_metadata(
         event_kind: optional_typed_cemt_string(value, "eventKind")?,
         event_tag: optional_typed_cemt_string(value, "eventTag")?,
         package: optional_typed_cemt_string(value, "package")?,
+        depth: optional_typed_cemt_u64(value, "depth")?,
+        qualified_name: optional_typed_cemt_string(value, "qualifiedName")?,
+        lexical_name: optional_typed_cemt_string(value, "lexicalName")?,
+        local_name: optional_typed_cemt_string(value, "localName")?,
+        namespace_uri: optional_typed_cemt_string(value, "namespaceUri")?,
+        token_kind: optional_typed_cemt_string(value, "tokenKind")?,
+        document_safe_boundary: optional_typed_cemt_bool(value, "documentSafeBoundary")?,
+        lexical_safe_boundary: optional_typed_cemt_bool(value, "lexicalSafeBoundary")?,
+        layout_sensitive: optional_typed_cemt_bool(value, "layoutSensitive")?,
+        generated: optional_typed_cemt_bool(value, "generated")?,
         layout: optional_typed_cemt_string(value, "layout")?,
         line_ending: optional_typed_cemt_string(value, "lineEnding")?,
         indent: optional_typed_cemt_string(value, "indent")?,
@@ -9351,7 +9372,11 @@ fn lower_materialized_writer_token_colorizer_result(
         let style = colored_node
             .field("style")
             .ok_or_else(|| format!("materialized colored token {index} requires style"))?;
-        let style = lower_materialized_writer_token_style(&style, index)?;
+        let mut style = lower_materialized_writer_token_style(&style, index)?;
+        if output == CemtColorOutput::Markdown && style.color_output.as_deref() == Some("markdown")
+        {
+            style.color_output = Some(output.as_str().to_owned());
+        }
         let color_role = style.color_role.clone().ok_or_else(|| {
             format!("materialized colored token {index} requires style.colorRole")
         })?;
@@ -9492,6 +9517,21 @@ fn materialized_cemt_public_projection(
     color_decision_name: &str,
 ) -> TransformTemplateEncodedArtifact {
     let mut nodes = artifact.owner().as_ref().clone().into_cemt_subject();
+    if let Some(nodes) = nodes.as_array_mut() {
+        for node in nodes {
+            let has_empty_source_map = node
+                .get("sourceMap")
+                .and_then(Value::as_object)
+                .and_then(|source_map| source_map.get("frames"))
+                .and_then(Value::as_array)
+                .is_some_and(Vec::is_empty);
+            if has_empty_source_map {
+                node.as_object_mut()
+                    .expect("materialized writer token projects to an object")
+                    .insert("sourceMap".to_owned(), Value::Null);
+            }
+        }
+    }
     if let (Some(overlay), Some(nodes)) = (artifact.color_overlay(), nodes.as_array_mut()) {
         for token in &overlay.tokens {
             let Some(node) = nodes
@@ -11723,7 +11763,16 @@ fn markdown_output_pipeline_failed_with_timings(
 
 pub trait XmlDocumentOutputSubject {
     fn source_line_ending(&self) -> Option<&str>;
-    fn into_cemt_subject(self) -> Value;
+    fn input_representation_id(&self) -> &'static str;
+    fn native_cemt_subject(&self) -> Option<CemtEvaluatorValue<'_>> {
+        None
+    }
+    fn into_test_compatibility_cemt_subject(self) -> Option<Value>
+    where
+        Self: Sized,
+    {
+        None
+    }
 }
 
 impl XmlDocumentOutputSubject for XmlDocumentAst {
@@ -11731,8 +11780,14 @@ impl XmlDocumentOutputSubject for XmlDocumentAst {
         self.line_ending.as_deref()
     }
 
-    fn into_cemt_subject(self) -> Value {
-        self.to_cemt_subject()
+    fn input_representation_id(&self) -> &'static str {
+        "cem.xml-document-ast"
+    }
+
+    fn native_cemt_subject(&self) -> Option<CemtEvaluatorValue<'_>> {
+        Some(CemtEvaluatorValue::borrowed(
+            XmlFamilyDocumentCemtSubjectRef::xml(self).evaluator_view(),
+        ))
     }
 }
 
@@ -11741,8 +11796,14 @@ impl XmlDocumentOutputSubject for HtmlDocumentAst {
         self.line_ending.as_deref()
     }
 
-    fn into_cemt_subject(self) -> Value {
-        self.to_cemt_subject()
+    fn input_representation_id(&self) -> &'static str {
+        "cem.html-document-ast"
+    }
+
+    fn native_cemt_subject(&self) -> Option<CemtEvaluatorValue<'_>> {
+        Some(CemtEvaluatorValue::borrowed(
+            XmlFamilyDocumentCemtSubjectRef::html(self).evaluator_view(),
+        ))
     }
 }
 
@@ -11751,8 +11812,14 @@ impl XmlDocumentOutputSubject for CssDocumentAst {
         self.line_ending.as_deref()
     }
 
-    fn into_cemt_subject(self) -> Value {
-        self.to_cemt_subject()
+    fn input_representation_id(&self) -> &'static str {
+        "cem.css-document-ast"
+    }
+
+    fn native_cemt_subject(&self) -> Option<CemtEvaluatorValue<'_>> {
+        Some(CemtEvaluatorValue::borrowed(
+            XmlFamilyDocumentCemtSubjectRef::css(self).evaluator_view(),
+        ))
     }
 }
 
@@ -11761,8 +11828,14 @@ impl XmlDocumentOutputSubject for XhtmlDocumentAst {
         self.line_ending.as_deref()
     }
 
-    fn into_cemt_subject(self) -> Value {
-        self.to_cemt_subject()
+    fn input_representation_id(&self) -> &'static str {
+        "cem.xhtml-document-ast"
+    }
+
+    fn native_cemt_subject(&self) -> Option<CemtEvaluatorValue<'_>> {
+        Some(CemtEvaluatorValue::borrowed(
+            XmlFamilyDocumentCemtSubjectRef::xhtml(self).evaluator_view(),
+        ))
     }
 }
 
@@ -11771,8 +11844,14 @@ impl XmlDocumentOutputSubject for SvgDocumentAst {
         self.line_ending.as_deref()
     }
 
-    fn into_cemt_subject(self) -> Value {
-        self.to_cemt_subject()
+    fn input_representation_id(&self) -> &'static str {
+        "cem.svg-document-ast"
+    }
+
+    fn native_cemt_subject(&self) -> Option<CemtEvaluatorValue<'_>> {
+        Some(CemtEvaluatorValue::borrowed(
+            XmlFamilyDocumentCemtSubjectRef::svg(self).evaluator_view(),
+        ))
     }
 }
 
@@ -11781,8 +11860,14 @@ impl XmlDocumentOutputSubject for MathMlDocumentAst {
         self.line_ending.as_deref()
     }
 
-    fn into_cemt_subject(self) -> Value {
-        self.to_cemt_subject()
+    fn input_representation_id(&self) -> &'static str {
+        "cem.mathml-document-ast"
+    }
+
+    fn native_cemt_subject(&self) -> Option<CemtEvaluatorValue<'_>> {
+        Some(CemtEvaluatorValue::borrowed(
+            XmlFamilyDocumentCemtSubjectRef::mathml(self).evaluator_view(),
+        ))
     }
 }
 
@@ -11791,8 +11876,14 @@ impl XmlDocumentOutputSubject for XsltStylesheetAst {
         self.line_ending.as_deref()
     }
 
-    fn into_cemt_subject(self) -> Value {
-        self.to_cemt_subject()
+    fn input_representation_id(&self) -> &'static str {
+        "cem.xslt-stylesheet-ast"
+    }
+
+    fn native_cemt_subject(&self) -> Option<CemtEvaluatorValue<'_>> {
+        Some(CemtEvaluatorValue::borrowed(
+            XmlFamilyDocumentCemtSubjectRef::xslt(self).evaluator_view(),
+        ))
     }
 }
 
@@ -11802,8 +11893,12 @@ impl XmlDocumentOutputSubject for Value {
         self.get("lineEnding").and_then(Value::as_str)
     }
 
-    fn into_cemt_subject(self) -> Value {
-        self
+    fn input_representation_id(&self) -> &'static str {
+        "cem.test-xml-family-value-oracle"
+    }
+
+    fn into_test_compatibility_cemt_subject(self) -> Option<Value> {
+        Some(self)
     }
 }
 
@@ -12164,7 +12259,7 @@ fn execute_xml_family_document_output_pipeline_with_environment(
     }
     let line_ending =
         resolve_formatter_line_ending(document.source_line_ending(), line_ending_mode);
-    let document_subject = document.into_cemt_subject();
+    let input_representation_id = document.input_representation_id();
     let mut pipeline = direct_xml_output_pipeline();
     pipeline.cemt_target =
         TransformTemplateEncodingTarget::new(spec.content_type, spec.schema, spec.category);
@@ -12214,6 +12309,29 @@ fn execute_xml_family_document_output_pipeline_with_environment(
     };
     let environment = &cached_environment;
     let format_options = pipeline.cemt_options.clone();
+    if let Some(document_subject) = document.native_cemt_subject() {
+        return execute_native_xml_family_document_output_pipeline(
+            environment,
+            document_subject,
+            pipeline,
+            diagnostic_uri,
+            spec,
+            formatter_name,
+            formatter_profile,
+            color_profile,
+            input_representation_id,
+        );
+    }
+    let Some(document_subject) = document.into_test_compatibility_cemt_subject() else {
+        return xml_family_output_pipeline_failed(
+            diagnostic_uri,
+            format!(
+                "{} output subject does not expose a native evaluator view",
+                spec.label
+            ),
+            spec,
+        );
+    };
     let (format_stage, format_binding) = match resolve_cemt_output_stage_binding(
         environment,
         spec.label,
@@ -12254,6 +12372,8 @@ fn execute_xml_family_document_output_pipeline_with_environment(
                     format_binding.function.name
                 ),
                 format_elapsed_ns,
+                None,
+                None,
                 spec,
             )
         }
@@ -12266,6 +12386,8 @@ fn execute_xml_family_document_output_pipeline_with_environment(
             diagnostic_uri,
             error.diagnostic(diagnostic_uri).message,
             format_elapsed_ns,
+            None,
+            None,
             spec,
         );
     }
@@ -12283,18 +12405,313 @@ fn execute_xml_family_document_output_pipeline_with_environment(
     )
 }
 
+#[allow(clippy::too_many_arguments)]
+fn execute_native_xml_family_document_output_pipeline(
+    environment: &ConversionOutputPipelineEnvironment<'_>,
+    document_subject: CemtEvaluatorValue<'_>,
+    mut pipeline: ConversionOutputPipeline,
+    diagnostic_uri: Option<&str>,
+    spec: XmlFamilyOutputSpec,
+    formatter_name: &str,
+    formatter_profile: &str,
+    color_profile: Option<&str>,
+    input_representation_id: &str,
+) -> ConversionOutputPipelineExecution {
+    let (format_stage, format_binding) = match resolve_cemt_output_stage_binding(
+        environment,
+        spec.label,
+        spec.formatter,
+        &pipeline.cemt_target,
+        Some(formatter_profile),
+        Some(formatter_name),
+        &Value::Null,
+        spec.subject_kind,
+        pipeline.cemt_options.clone(),
+    ) {
+        Ok(resolved) => resolved,
+        Err(message) => return xml_family_output_pipeline_failed(diagnostic_uri, message, spec),
+    };
+    let resolved_formatter_profile = format_binding
+        .identity
+        .formatter_profile
+        .clone()
+        .unwrap_or_else(|| formatter_profile.to_owned());
+    pipeline.cemt_options.formatter_profile = Some(resolved_formatter_profile.clone());
+    pipeline.cemt_insertion_context.formatter_profile = Some(resolved_formatter_profile.clone());
+    pipeline.writer_insertion_context.formatter_profile = Some(resolved_formatter_profile.clone());
+
+    let format_started = Instant::now();
+    let format_result = execute_conversion_typed_cemt_output_stage(
+        environment,
+        format_stage,
+        &format_binding,
+        document_subject,
+    );
+    let format_elapsed_ns = Some(format_started.elapsed().as_nanos());
+    let (formatted_value, format_execution) = match format_result {
+        Ok(output) => output,
+        Err(message) => {
+            return xml_family_output_pipeline_failed_with_timings(
+                diagnostic_uri,
+                format!(
+                    "CEMT formatter `{}` failed: {message}",
+                    format_binding.function.name
+                ),
+                format_elapsed_ns,
+                None,
+                None,
+                spec,
+            )
+        }
+    };
+    let formatted_artifact = match lower_materialized_writer_token_formatter_result(
+        formatted_value,
+        &pipeline.cemt_target,
+        &format_binding.function.name,
+        &resolved_formatter_profile,
+        input_representation_id,
+    ) {
+        Ok(artifact) => artifact,
+        Err(message) => {
+            return xml_family_output_pipeline_failed_with_timings(
+                diagnostic_uri,
+                format!(
+                    "CEMT formatter `{}` failed: {message}",
+                    format_binding.function.name
+                ),
+                format_elapsed_ns,
+                None,
+                None,
+                spec,
+            )
+        }
+    };
+    let format_execution = Some(format_execution);
+
+    let mut color_elapsed_ns = None;
+    let (writer_artifact, color_execution, colored_materialized_cemt_tree) =
+        if let Some(color_profile) = color_profile {
+            let mut color_options = pipeline.cemt_options.clone();
+            color_options.formatter_profile = Some(resolved_formatter_profile.clone());
+            color_options.colorizer = Some(spec.colorizer.function_name.to_owned());
+            color_options.color_profile = Some(color_profile.to_owned());
+            color_options.canonical = false;
+            let (color_stage, color_binding) = match resolve_cemt_output_stage_binding(
+                environment,
+                spec.label,
+                spec.colorizer,
+                &pipeline.cemt_target,
+                Some(color_profile),
+                Some(spec.colorizer.function_name),
+                &Value::Null,
+                "cem-tree",
+                color_options,
+            ) {
+                Ok(resolved) => resolved,
+                Err(message) => {
+                    return xml_family_output_pipeline_failed_with_timings(
+                        diagnostic_uri,
+                        message,
+                        format_elapsed_ns,
+                        None,
+                        None,
+                        spec,
+                    )
+                }
+            };
+            let color_started = Instant::now();
+            let color_result = execute_conversion_typed_cemt_output_stage(
+                environment,
+                color_stage,
+                &color_binding,
+                CemtEvaluatorValue::borrowed(formatted_artifact.evaluator_view()),
+            );
+            color_elapsed_ns = Some(color_started.elapsed().as_nanos());
+            let (colored_value, color_execution) = match color_result {
+                Ok(output) => output,
+                Err(message) => {
+                    return xml_family_output_pipeline_failed_with_timings(
+                        diagnostic_uri,
+                        format!(
+                            "CEMT colorizer `{}` failed: {message}",
+                            color_binding.function.name
+                        ),
+                        format_elapsed_ns,
+                        color_elapsed_ns,
+                        None,
+                        spec,
+                    )
+                }
+            };
+            let colored_artifact = match lower_materialized_writer_token_colorizer_result(
+                formatted_artifact.as_ref(),
+                colored_value,
+                &color_binding.function.name,
+                color_profile,
+            ) {
+                Ok(artifact) => artifact,
+                Err(message) => {
+                    return xml_family_output_pipeline_failed_with_timings(
+                        diagnostic_uri,
+                        format!(
+                            "CEMT colorizer `{}` failed: {message}",
+                            color_binding.function.name
+                        ),
+                        format_elapsed_ns,
+                        color_elapsed_ns,
+                        None,
+                        spec,
+                    )
+                }
+            };
+            (
+                colored_artifact.clone(),
+                Some(color_execution),
+                Some(colored_artifact),
+            )
+        } else {
+            (formatted_artifact.clone(), None, None)
+        };
+
+    pipeline.writer_insertion_context.color_profile = writer_artifact
+        .color_overlay()
+        .and_then(|overlay| overlay.producer.profile().map(str::to_owned));
+    let mut writer_identity = format_binding.identity.clone();
+    writer_identity.color_profile = pipeline.writer_insertion_context.color_profile.clone();
+    let writer_binding = TransformTemplateEncodeBinding {
+        function: if color_execution.is_some() {
+            xml_family_output_function_descriptor(
+                spec,
+                spec.colorizer.function_name,
+                "cem-tree",
+                TransformTemplateOutputFunctionKind::Color,
+                TransformTemplateOutputProducedKind::CemTree,
+                pipeline.writer_insertion_context.color_profile.clone(),
+            )
+        } else {
+            xml_family_output_function_descriptor(
+                spec,
+                spec.formatter.function_name,
+                spec.subject_kind,
+                TransformTemplateOutputFunctionKind::Format,
+                TransformTemplateOutputProducedKind::CemTree,
+                Some(resolved_formatter_profile.clone()),
+            )
+        },
+        subject_type: "cem-tree".to_owned(),
+        identity: writer_identity,
+        options: TransformTemplateEncodeOptions::default(),
+    };
+    let materialized_cemt_stage_output = TransformTemplateOutputArtifact {
+        uri: diagnostic_uri.map(str::to_owned),
+        identity: Some(FormatIdentity {
+            content_type: Some(writer_artifact.identity().content_type.clone()),
+            schema: Some(writer_artifact.identity().schema.clone()),
+            ..FormatIdentity::default()
+        }),
+        body: TransformArtifactBody::MaterializedCemtTree(writer_artifact.clone()),
+        source_map: writer_artifact.source_map().cloned(),
+        output_spans: writer_artifact.output_spans().to_vec(),
+    };
+    let writer_started = Instant::now();
+    let writer_result = execute_transform_template_materialized_cemt_writer(
+        TransformTemplateMaterializedCemtWriterRequest {
+            binding: &writer_binding,
+            artifact: writer_artifact,
+            insertion_context: &pipeline.writer_insertion_context,
+        },
+    );
+    let writer_elapsed_ns = Some(writer_started.elapsed().as_nanos());
+    let writer_output = match writer_result {
+        Ok(output) => output,
+        Err(message) => {
+            return xml_family_output_pipeline_failed_with_timings(
+                diagnostic_uri,
+                format!("materialized CEMT writer failed: {message}"),
+                format_elapsed_ns,
+                color_elapsed_ns,
+                writer_elapsed_ns,
+                spec,
+            )
+        }
+    };
+
+    let format_decision_name = format!("{}.layout", spec.diagnostic_node);
+    let color_decision_name = format!("{}.role-palette", spec.diagnostic_node);
+    let formatted_public = materialized_cemt_public_projection(
+        formatted_artifact.as_ref(),
+        &format_binding.identity,
+        &format_decision_name,
+        &color_decision_name,
+    );
+    let colored_public = colored_materialized_cemt_tree.as_ref().map(|artifact| {
+        materialized_cemt_public_projection(
+            artifact.as_ref(),
+            &writer_binding.identity,
+            &format_decision_name,
+            &color_decision_name,
+        )
+    });
+    ConversionOutputPipelineExecution {
+        output: Some(
+            writer_output
+                .value
+                .into_public_value()
+                .expect("typed XML-family writer text projects to the public response"),
+        ),
+        source_map: writer_output.source_map,
+        output_spans: writer_output.output_spans,
+        format_execution,
+        color_execution,
+        format_elapsed_ns,
+        color_elapsed_ns,
+        writer_elapsed_ns,
+        formatted_materialized_cemt_tree: Some(formatted_artifact),
+        colored_materialized_cemt_tree,
+        materialized_cemt_stage_output: Some(materialized_cemt_stage_output),
+        formatted_cem_tree: Some(formatted_public),
+        colored_cem_tree: colored_public,
+        diagnostics: Vec::new(),
+        ..ConversionOutputPipelineExecution::default()
+    }
+}
+
+fn xml_family_output_function_descriptor(
+    spec: XmlFamilyOutputSpec,
+    name: &str,
+    subject: &str,
+    kind: TransformTemplateOutputFunctionKind,
+    produces: TransformTemplateOutputProducedKind,
+    profile: Option<String>,
+) -> TransformTemplateOutputFunctionDescriptor {
+    cemt_output_function_descriptor(CemtOutputFunctionDescriptorSpec {
+        owner: spec.diagnostic_node,
+        name,
+        category: spec.category,
+        subject,
+        kind,
+        produces,
+        content_type: spec.content_type,
+        schema: spec.schema,
+        canonical: false,
+        profile,
+    })
+}
+
 fn xml_family_output_pipeline_failed(
     diagnostic_uri: Option<&str>,
     message: String,
     spec: XmlFamilyOutputSpec,
 ) -> ConversionOutputPipelineExecution {
-    xml_family_output_pipeline_failed_with_timings(diagnostic_uri, message, None, spec)
+    xml_family_output_pipeline_failed_with_timings(diagnostic_uri, message, None, None, None, spec)
 }
 
 fn xml_family_output_pipeline_failed_with_timings(
     diagnostic_uri: Option<&str>,
     message: String,
     format_elapsed_ns: Option<u128>,
+    color_elapsed_ns: Option<u128>,
+    writer_elapsed_ns: Option<u128>,
     spec: XmlFamilyOutputSpec,
 ) -> ConversionOutputPipelineExecution {
     failed_pipeline_execution(
@@ -12303,8 +12720,8 @@ fn xml_family_output_pipeline_failed_with_timings(
         diagnostic_uri,
         message,
         format_elapsed_ns,
-        None,
-        None,
+        color_elapsed_ns,
+        writer_elapsed_ns,
     )
 }
 
@@ -21233,6 +21650,158 @@ mod tests {
     }
 
     #[test]
+    fn native_xml_family_output_layers_have_no_serialized_intermediate_boundary() {
+        let source = include_str!("conversion.rs");
+        let pipeline = source
+            .split_once("fn execute_native_xml_family_document_output_pipeline(")
+            .and_then(|(_, suffix)| suffix.split_once("fn xml_family_output_function_descriptor("))
+            .map(|(pipeline, _)| pipeline)
+            .expect("native XML-family materialized pipeline source");
+        for required in [
+            "execute_conversion_typed_cemt_output_stage",
+            "CemtEvaluatorValue::borrowed(formatted_artifact.evaluator_view())",
+            "lower_materialized_writer_token_formatter_result",
+            "lower_materialized_writer_token_colorizer_result",
+            "TransformArtifactBody::MaterializedCemtTree",
+            "execute_transform_template_materialized_cemt_writer",
+        ] {
+            assert!(
+                pipeline.contains(required),
+                "missing `{required}` native XML-family handoff"
+            );
+        }
+        for forbidden in [
+            "execute_conversion_cem_tree_output_stage(",
+            "artifact_from_cemt_value",
+            "as_cemt_runtime_value",
+            "to_cemt_runtime_value",
+            "compose_transform_template_encoded_text_artifacts",
+            "into_test_compatibility_cemt_subject",
+            "into_cemt_subject",
+            "serde_json",
+            "CemtRuntime",
+        ] {
+            assert!(
+                !pipeline.contains(forbidden),
+                "native XML-family layers must not cross `{forbidden}`"
+            );
+        }
+
+        let native_subjects = source
+            .split_once("impl XmlDocumentOutputSubject for XmlDocumentAst")
+            .and_then(|(_, suffix)| {
+                suffix.split_once("#[cfg(test)]\nimpl XmlDocumentOutputSubject for Value")
+            })
+            .map(|(implementations, _)| implementations)
+            .expect("native XML-family output subject implementations");
+        for required in [
+            "XmlFamilyDocumentCemtSubjectRef::xml(self).evaluator_view()",
+            "XmlFamilyDocumentCemtSubjectRef::html(self).evaluator_view()",
+            "XmlFamilyDocumentCemtSubjectRef::css(self).evaluator_view()",
+            "XmlFamilyDocumentCemtSubjectRef::xhtml(self).evaluator_view()",
+            "XmlFamilyDocumentCemtSubjectRef::svg(self).evaluator_view()",
+            "XmlFamilyDocumentCemtSubjectRef::mathml(self).evaluator_view()",
+            "XmlFamilyDocumentCemtSubjectRef::xslt(self).evaluator_view()",
+            "cem.xml-document-ast",
+            "cem.html-document-ast",
+            "cem.css-document-ast",
+            "cem.xhtml-document-ast",
+            "cem.svg-document-ast",
+            "cem.mathml-document-ast",
+            "cem.xslt-stylesheet-ast",
+        ] {
+            assert!(
+                native_subjects.contains(required),
+                "missing native XML-family subject contract `{required}`"
+            );
+        }
+        for forbidden in [
+            "to_cemt_subject",
+            "into_cemt_subject",
+            "serde_json",
+            "Option<Value>",
+        ] {
+            assert!(
+                !native_subjects.contains(forbidden),
+                "native XML-family subjects must not use `{forbidden}`"
+            );
+        }
+
+        let view_source = include_str!("transform_artifact.rs")
+            .split_once("fn xml_family_document_evaluator_field_names")
+            .and_then(|(_, suffix)| suffix.split_once("fn markdown_document_evaluator_field"))
+            .map(|(view, _)| view)
+            .expect("borrowed native XML-family evaluator views");
+        for forbidden in ["serde_json", "to_cemt_subject", "into_cemt_subject"] {
+            assert!(
+                !view_source.contains(forbidden),
+                "borrowed XML-family evaluator views must not use `{forbidden}`"
+            );
+        }
+
+        for (label, validation_source) in [
+            ("HTML", include_str!("validation/html.rs")),
+            ("CSS", include_str!("validation/css.rs")),
+            ("XHTML", include_str!("validation/xhtml.rs")),
+            ("SVG", include_str!("validation/svg.rs")),
+            ("MathML", include_str!("validation/mathml.rs")),
+            ("XSLT", include_str!("validation/xslt.rs")),
+        ] {
+            let composer_count = validation_source.matches("fn to_cemt_subject").count();
+            let gated_composer_count = validation_source
+                .matches("#[cfg(test)]\n    pub fn to_cemt_subject")
+                .count()
+                + validation_source
+                    .matches("#[cfg(test)]\n    fn to_cemt_subject")
+                    .count();
+            assert!(
+                composer_count > 0,
+                "{label}: compatibility composer coverage"
+            );
+            assert_eq!(
+                composer_count, gated_composer_count,
+                "{label}: production compatibility composer escaped its test gate"
+            );
+        }
+        for (label, validation_source, composer) in [
+            (
+                "XHTML",
+                include_str!("validation/xhtml.rs"),
+                "xhtml_event_to_cemt_subject",
+            ),
+            (
+                "SVG",
+                include_str!("validation/svg.rs"),
+                "svg_events_to_cemt_subject",
+            ),
+            (
+                "MathML",
+                include_str!("validation/mathml.rs"),
+                "mathml_events_to_cemt_subject",
+            ),
+            (
+                "XSLT",
+                include_str!("validation/xslt.rs"),
+                "xslt_event_to_cemt_subject",
+            ),
+        ] {
+            assert!(
+                validation_source.contains(&format!("#[cfg(test)]\nfn {composer}")),
+                "{label}: `{composer}` must remain test-only"
+            );
+        }
+
+        let relax_ng_source = include_str!("validation/relax_ng.rs");
+        assert_eq!(
+            relax_ng_source
+                .matches("XmlDocumentAst::to_cemt_subject")
+                .count(),
+            1,
+            "RELAX NG XML is the one remaining production owner of the XML compatibility composer"
+        );
+    }
+
+    #[test]
     fn native_yaml_output_layers_exchange_only_borrowed_evaluators_and_ast_stream_artifacts() {
         let source = include_str!("conversion.rs");
         let pipeline = source
@@ -26565,7 +27134,7 @@ mod tests {
                         ref function_name,
                         ref body_function_name,
                         ..
-                    }) if adapter_id == "cem-tree-color-cemt"
+                    }) if adapter_id == "xhtml-color-cemt"
                         && function_name == "xhtml.color-document"
                         && body_function_name.as_deref() == Some("xhtml.color-document")
                 ),
@@ -26867,7 +27436,7 @@ mod tests {
                         ref function_name,
                         ref body_function_name,
                         ..
-                    }) if adapter_id == "cem-tree-color-cemt"
+                    }) if adapter_id == "svg-color-cemt"
                         && function_name == "svg.color-document"
                         && body_function_name.as_deref() == Some("svg.color-document")
                 ),
@@ -27142,7 +27711,7 @@ mod tests {
                         ref function_name,
                         ref body_function_name,
                         ..
-                    }) if adapter_id == "cem-tree-color-cemt"
+                    }) if adapter_id == "mathml-color-cemt"
                         && function_name == "mathml.color-document"
                         && body_function_name.as_deref() == Some("mathml.color-document")
                 ),
@@ -27855,6 +28424,261 @@ mod tests {
             assert!(Arc::ptr_eq(materialized, selected));
             assert!(Arc::ptr_eq(materialized.owner(), selected.owner()));
         }
+    }
+
+    #[test]
+    fn xml_family_output_layers_exchange_borrowed_evaluators_and_materialized_ast_streams() {
+        use crate::validation::css::{
+            css_document_ast_from_source_bytes, CssSourceValidationRequest,
+        };
+        use crate::validation::html::{
+            html_document_ast_from_source_bytes, HtmlSourceValidationRequest,
+        };
+        use crate::validation::mathml::{
+            mathml_document_ast_from_source_bytes, MathMlSourceValidationRequest,
+        };
+        use crate::validation::svg::{
+            svg_document_ast_from_source_bytes, SvgSourceValidationRequest,
+        };
+        use crate::validation::xhtml::{
+            xhtml_document_ast_from_source_bytes, XhtmlSourceValidationRequest,
+        };
+        use crate::validation::xml::{
+            xml_document_ast_from_source_bytes, XmlSourceValidationRequest,
+        };
+        use crate::validation::xslt::{
+            xslt_stylesheet_ast_from_source_bytes, XsltSourceValidationRequest,
+        };
+
+        let schema_registry = SchemaRegistry::with_builtin_schemas();
+        let conversion_registry = ConversionRegistry::with_builtin_converters();
+        let environment = ConversionOutputPipelineEnvironment {
+            schema_registry: &schema_registry,
+            conversion_registry: &conversion_registry,
+            package_artifact_reader: None,
+            artifact_cache: None,
+        };
+        let target_scope = ScopeConfig::default();
+
+        macro_rules! document {
+            ($parser:ident, $request:expr, $label:literal) => {{
+                let (document, diagnostics) = $parser($request);
+                assert!(
+                    diagnostics
+                        .iter()
+                        .all(|diagnostic| !diagnostic.severity.is_hard_violation()),
+                    "{}: {diagnostics:?}",
+                    $label
+                );
+                document.unwrap_or_else(|| panic!("{} typed AST", $label))
+            }};
+        }
+
+        let xml = document!(
+            xml_document_ast_from_source_bytes,
+            XmlSourceValidationRequest {
+                bytes: b"<?xml version=\"1.0\"?><root xmlns:p=\"urn:test\" p:id=\"1\"><![CDATA[value]]><!--note--><?next ready?></root>\n",
+                source_uri: "builtin:typed-xml-family-xml",
+                content_type: Some(XML_CONTENT_TYPE),
+            },
+            "XML"
+        );
+        let html = document!(
+            html_document_ast_from_source_bytes,
+            HtmlSourceValidationRequest {
+                bytes: b"<!doctype html><html><body><p data-id=\"1\">value</p></body></html>\n",
+                source_uri: "builtin:typed-xml-family-html",
+                content_type: Some(HTML_CONTENT_TYPE),
+            },
+            "HTML"
+        );
+        let css = document!(
+            css_document_ast_from_source_bytes,
+            CssSourceValidationRequest {
+                bytes: b"@charset \"UTF-8\"; /* note */ .card { color: currentColor; }\n",
+                source_uri: "builtin:typed-xml-family-css",
+                content_type: Some(CSS_CONTENT_TYPE),
+            },
+            "CSS"
+        );
+        let xhtml = document!(
+            xhtml_document_ast_from_source_bytes,
+            XhtmlSourceValidationRequest {
+                bytes: b"<html xmlns=\"http://www.w3.org/1999/xhtml\"><head><title>Typed</title></head><body><p id=\"one\">value</p></body></html>\n",
+                source_uri: "builtin:typed-xml-family-xhtml",
+                content_type: Some(XHTML_CONTENT_TYPE),
+            },
+            "XHTML"
+        );
+        let svg = document!(
+            svg_document_ast_from_source_bytes,
+            SvgSourceValidationRequest {
+                bytes: b"<svg xmlns=\"http://www.w3.org/2000/svg\"><title>Typed</title><text>A <tspan data-kind=\"unit\">kg</tspan></text><path d=\"M0 0h1\"/></svg>\n",
+                source_uri: "builtin:typed-xml-family-svg",
+                content_type: Some(SVG_CONTENT_TYPE),
+            },
+            "SVG"
+        );
+        let mathml = document!(
+            mathml_document_ast_from_source_bytes,
+            MathMlSourceValidationRequest {
+                bytes: b"<math xmlns=\"http://www.w3.org/1998/Math/MathML\"><mrow><mi>x</mi><mo>+</mo><mn>1</mn></mrow></math>\n",
+                source_uri: "builtin:typed-xml-family-mathml",
+                content_type: Some(MATHML_CONTENT_TYPE),
+            },
+            "MathML"
+        );
+        let xslt = document!(
+            xslt_stylesheet_ast_from_source_bytes,
+            XsltSourceValidationRequest {
+                bytes: b"<xsl:stylesheet xmlns:xsl=\"http://www.w3.org/1999/XSL/Transform\" version=\"1.0\"><xsl:template match=\"/\"><main><xsl:value-of select=\"name(/*)\"/></main></xsl:template></xsl:stylesheet>\n",
+                source_uri: "builtin:typed-xml-family-xslt",
+                content_type: Some(XSLT_CONTENT_TYPE),
+            },
+            "XSLT"
+        );
+
+        assert!(matches!(
+            XmlFamilyDocumentCemtSubjectRef::xml(&xml),
+            XmlFamilyDocumentCemtSubjectRef::Xml(owner) if std::ptr::eq(owner, &xml)
+        ));
+        assert!(matches!(
+            XmlFamilyDocumentCemtSubjectRef::html(&html),
+            XmlFamilyDocumentCemtSubjectRef::Html(owner) if std::ptr::eq(owner, &html)
+        ));
+        assert!(matches!(
+            XmlFamilyDocumentCemtSubjectRef::css(&css),
+            XmlFamilyDocumentCemtSubjectRef::Css(owner) if std::ptr::eq(owner, &css)
+        ));
+        assert!(matches!(
+            XmlFamilyDocumentCemtSubjectRef::xhtml(&xhtml),
+            XmlFamilyDocumentCemtSubjectRef::Xhtml(owner) if std::ptr::eq(owner, &xhtml)
+        ));
+        assert!(matches!(
+            XmlFamilyDocumentCemtSubjectRef::svg(&svg),
+            XmlFamilyDocumentCemtSubjectRef::Svg(owner) if std::ptr::eq(owner, &svg)
+        ));
+        assert!(matches!(
+            XmlFamilyDocumentCemtSubjectRef::mathml(&mathml),
+            XmlFamilyDocumentCemtSubjectRef::MathMl(owner) if std::ptr::eq(owner, &mathml)
+        ));
+        assert!(matches!(
+            XmlFamilyDocumentCemtSubjectRef::xslt(&xslt),
+            XmlFamilyDocumentCemtSubjectRef::Xslt(owner) if std::ptr::eq(owner, &xslt)
+        ));
+
+        macro_rules! assert_typed_owner {
+            ($label:literal, $document:ident, $view:expr, $spec:expr, $representation:literal) => {{
+                let compatibility = $document.to_cemt_subject();
+                assert_cemt_lowering_value_equivalent_by_name(
+                    $label,
+                    CemtTreeLoweringValue::Typed(CemtEvaluatorValue::borrowed(
+                        $view.evaluator_view(),
+                    )),
+                    CemtTreeLoweringValue::Compatibility(&compatibility),
+                );
+                let execution = execute_xml_family_document_output_pipeline_with_environment(
+                    &environment,
+                    $document.clone(),
+                    &target_scope,
+                    Some(concat!("builtin:typed-xml-family-", $label)),
+                    $spec,
+                );
+                let oracle = execute_xml_family_document_output_pipeline_with_environment(
+                    &environment,
+                    compatibility,
+                    &target_scope,
+                    Some(concat!("builtin:value-oracle-", $label)),
+                    $spec,
+                );
+                assert!(
+                    execution.diagnostics.is_empty(),
+                    "{}: {:?}",
+                    $label,
+                    execution.diagnostics
+                );
+                assert!(
+                    oracle.diagnostics.is_empty(),
+                    "{} oracle: {:?}",
+                    $label,
+                    oracle.diagnostics
+                );
+                assert_eq!(execution.output, oracle.output, "{} output parity", $label);
+                let materialized = execution
+                    .formatted_materialized_cemt_tree
+                    .as_ref()
+                    .unwrap_or_else(|| panic!("{} materialized tree", $label));
+                assert_eq!(
+                    materialized.input_provenance().representation_id,
+                    $representation
+                );
+                assert!(materialized
+                    .owner()
+                    .as_nodes()
+                    .iter()
+                    .all(|node| matches!(node, CemTreeAstNode::WriterToken { .. })));
+                let stage_output = execution
+                    .materialized_cemt_stage_output
+                    .as_ref()
+                    .unwrap_or_else(|| panic!("{} materialized stage output", $label));
+                let TransformArtifactBody::MaterializedCemtTree(selected) = &stage_output.body
+                else {
+                    panic!("{} stage output must retain the materialized AST", $label)
+                };
+                assert!(Arc::ptr_eq(materialized, selected));
+                assert!(Arc::ptr_eq(materialized.owner(), selected.owner()));
+            }};
+        }
+
+        assert_typed_owner!(
+            "xml",
+            xml,
+            XmlFamilyDocumentCemtSubjectRef::xml(&xml),
+            XmlFamilyOutputSpec::xml(),
+            "cem.xml-document-ast"
+        );
+        assert_typed_owner!(
+            "html",
+            html,
+            XmlFamilyDocumentCemtSubjectRef::html(&html),
+            XmlFamilyOutputSpec::html(),
+            "cem.html-document-ast"
+        );
+        assert_typed_owner!(
+            "css",
+            css,
+            XmlFamilyDocumentCemtSubjectRef::css(&css),
+            XmlFamilyOutputSpec::css(),
+            "cem.css-document-ast"
+        );
+        assert_typed_owner!(
+            "xhtml",
+            xhtml,
+            XmlFamilyDocumentCemtSubjectRef::xhtml(&xhtml),
+            XmlFamilyOutputSpec::xhtml(),
+            "cem.xhtml-document-ast"
+        );
+        assert_typed_owner!(
+            "svg",
+            svg,
+            XmlFamilyDocumentCemtSubjectRef::svg(&svg),
+            XmlFamilyOutputSpec::svg(),
+            "cem.svg-document-ast"
+        );
+        assert_typed_owner!(
+            "mathml",
+            mathml,
+            XmlFamilyDocumentCemtSubjectRef::mathml(&mathml),
+            XmlFamilyOutputSpec::mathml(),
+            "cem.mathml-document-ast"
+        );
+        assert_typed_owner!(
+            "xslt",
+            xslt,
+            XmlFamilyDocumentCemtSubjectRef::xslt(&xslt),
+            XmlFamilyOutputSpec::xslt(),
+            "cem.xslt-stylesheet-ast"
+        );
     }
 
     #[test]

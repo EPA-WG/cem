@@ -7,10 +7,17 @@ use crate::projection::{
     CemTreeAstWriterTokenSourceRange, CemTreeAstWriterTokenStyle,
 };
 use crate::schema::registry::{
-    content_type_essence, JSON_CONTENT_TYPE, JSON_SCHEMA_CONTENT_TYPE, JSON_SCHEMA_SCHEMA_URI,
-    MARKDOWN_CONTENT_TYPE, MARKDOWN_SCHEMA_URI, YAML_CONTENT_TYPE, YAML_SCHEMA_URI,
+    content_type_essence, CSS_CONTENT_TYPE, CSS_SCHEMA_URI, HTML_CONTENT_TYPE, HTML_SCHEMA_URI,
+    JSON_CONTENT_TYPE, JSON_SCHEMA_CONTENT_TYPE, JSON_SCHEMA_SCHEMA_URI, MARKDOWN_CONTENT_TYPE,
+    MARKDOWN_SCHEMA_URI, MATHML_NAMESPACE_URI, MATHML_SCHEMA_URI, SVG_CONTENT_TYPE,
+    SVG_NAMESPACE_URI, SVG_SCHEMA_URI, XHTML_CONTENT_TYPE, XHTML_SCHEMA_URI, XML_CONTENT_TYPE,
+    XML_SCHEMA_URI, XSLT_SCHEMA_URI, YAML_CONTENT_TYPE, YAML_SCHEMA_URI,
 };
-use crate::source_map::SourceMapStack;
+use crate::source::{ByteRange, SourceId};
+use crate::source_map::{FrameSpan, SourceMapFrame, SourceMapStack, TransformKind};
+use crate::validation::css::{
+    CssDocumentAst, CssDocumentSource, CssEncodingReportAst, CssEventAst, CssFact,
+};
 use crate::validation::csv::{
     CsvDialectAst, CsvDocumentAst, CsvDocumentParseFact, CsvDocumentSource, CsvEncodingReportAst,
     CsvFieldAst, CsvRecordAst, CsvSourceRange,
@@ -18,6 +25,10 @@ use crate::validation::csv::{
 use crate::validation::generic_data::{
     GenericDataDocumentAst, GenericDataMappingEntryAst, GenericDataSourceRangeAst,
     GenericDataStreamDocumentAst, GenericDataValueAst,
+};
+use crate::validation::html::{
+    HtmlAttributeAst, HtmlDocumentAst, HtmlDocumentSource, HtmlEncodingReportAst, HtmlEventAst,
+    HtmlFact,
 };
 use crate::validation::json::{
     JsonDocumentAst, JsonMemberAst, JsonNumberKind, JsonSourceRange, JsonValueAst,
@@ -30,7 +41,16 @@ use crate::validation::markdown::{
     MarkdownDocumentAst, MarkdownDocumentSource, MarkdownEncodingFact, MarkdownEncodingReportAst,
     MarkdownEventAst, MarkdownParseFact, MarkdownSourceRange, MarkdownVariantFact,
 };
+use crate::validation::mathml::{MathMlDocumentAst, MathMlFact};
+use crate::validation::svg::{SvgDocumentAst, SvgDocumentSource, SvgFact};
+use crate::validation::xhtml::{XhtmlDocumentAst, XhtmlDocumentSource, XhtmlFact};
+use crate::validation::xml::{
+    xml_event_markup_tokens, XmlAttributeAst, XmlDocumentAst, XmlDocumentSource,
+    XmlEncodingReportAst, XmlEventAst, XmlEventKind, XmlMarkupTokenAst, XmlMarkupTokenKind,
+    XmlParseFact, XmlSourceRange,
+};
 use crate::validation::xpath::XPathResultArtifact;
+use crate::validation::xslt::{XsltFact, XsltStylesheetAst};
 use crate::validation::yaml::{
     YamlCommentAst, YamlCommentPlacement, YamlDirectiveAst, YamlDocumentAst, YamlDocumentParseFact,
     YamlDocumentSource, YamlEncodingReportAst, YamlNodeAst, YamlNodeKind, YamlPairAst,
@@ -921,6 +941,23 @@ pub struct MarkdownDocumentCemtSubjectRef<'a> {
 }
 
 #[derive(Debug, Clone, Copy)]
+pub enum XmlFamilyDocumentCemtSubjectRef<'a> {
+    Xml(&'a XmlDocumentAst),
+    Html(&'a HtmlDocumentAst),
+    Css(&'a CssDocumentAst),
+    Xhtml(&'a XhtmlDocumentAst),
+    Svg(&'a SvgDocumentAst),
+    MathMl(&'a MathMlDocumentAst),
+    Xslt(&'a XsltStylesheetAst),
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum XmlFamilyMarkupPackage {
+    Svg,
+    MathMl,
+}
+
+#[derive(Debug, Clone, Copy)]
 pub struct JsonSchemaDocumentCemtSubjectRef<'a> {
     document: &'a JsonSchemaDocumentAst,
 }
@@ -1022,6 +1059,40 @@ impl<'a> MarkdownDocumentCemtSubjectRef<'a> {
         CemtEvaluatorValueRef::Record(CemtEvaluatorRecordRef::MarkdownDocument {
             document: self.document,
         })
+    }
+}
+
+impl<'a> XmlFamilyDocumentCemtSubjectRef<'a> {
+    pub fn xml(document: &'a XmlDocumentAst) -> Self {
+        Self::Xml(document)
+    }
+
+    pub fn html(document: &'a HtmlDocumentAst) -> Self {
+        Self::Html(document)
+    }
+
+    pub fn css(document: &'a CssDocumentAst) -> Self {
+        Self::Css(document)
+    }
+
+    pub fn xhtml(document: &'a XhtmlDocumentAst) -> Self {
+        Self::Xhtml(document)
+    }
+
+    pub fn svg(document: &'a SvgDocumentAst) -> Self {
+        Self::Svg(document)
+    }
+
+    pub fn mathml(document: &'a MathMlDocumentAst) -> Self {
+        Self::MathMl(document)
+    }
+
+    pub fn xslt(document: &'a XsltStylesheetAst) -> Self {
+        Self::Xslt(document)
+    }
+
+    pub fn evaluator_view(self) -> CemtEvaluatorValueRef<'a> {
+        CemtEvaluatorValueRef::Record(CemtEvaluatorRecordRef::XmlFamilyDocument { document: self })
     }
 }
 
@@ -1879,6 +1950,23 @@ pub enum CemtEvaluatorSequenceRef<'a> {
     MarkdownEvents {
         events: &'a [MarkdownEventAst],
     },
+    XmlFamilyFacts {
+        document: XmlFamilyDocumentCemtSubjectRef<'a>,
+    },
+    XmlFamilyEvents {
+        document: XmlFamilyDocumentCemtSubjectRef<'a>,
+    },
+    XmlAttributes {
+        attributes: &'a [XmlAttributeAst],
+    },
+    HtmlAttributes {
+        attributes: &'a [HtmlAttributeAst],
+    },
+    XmlFamilyMarkupTokens {
+        event: &'a XmlEventAst,
+        content_type: &'a str,
+        package: XmlFamilyMarkupPackage,
+    },
     YamlParseFacts {
         facts: &'a [YamlDocumentParseFact],
     },
@@ -2026,6 +2114,11 @@ impl<'a> CemtEvaluatorSequenceRef<'a> {
             Self::MarkdownVariantFacts { facts } => facts.len(),
             Self::MarkdownParseFacts { facts } => facts.len(),
             Self::MarkdownEvents { events } => events.len(),
+            Self::XmlFamilyFacts { document } => xml_family_fact_count(*document),
+            Self::XmlFamilyEvents { document } => xml_family_event_count(*document),
+            Self::XmlAttributes { attributes } => attributes.len(),
+            Self::HtmlAttributes { attributes } => attributes.len(),
+            Self::XmlFamilyMarkupTokens { event, .. } => xml_event_markup_tokens(event).len(),
             Self::YamlParseFacts { facts } => facts.len(),
             Self::YamlDirectives { directives } => directives.len(),
             Self::YamlComments { comments } => comments.len(),
@@ -2127,6 +2220,40 @@ impl<'a> CemtEvaluatorSequenceRef<'a> {
             Self::MarkdownEvents { events } => events.get(index).map(|event| {
                 CemtEvaluatorValueRef::Record(CemtEvaluatorRecordRef::MarkdownEvent { event })
             }),
+            Self::XmlFamilyFacts { document } => (index < xml_family_fact_count(*document))
+                .then_some(CemtEvaluatorValueRef::Record(
+                    CemtEvaluatorRecordRef::XmlFamilyFact {
+                        document: *document,
+                        index,
+                    },
+                )),
+            Self::XmlFamilyEvents { document } => (index < xml_family_event_count(*document))
+                .then_some(CemtEvaluatorValueRef::Record(
+                    CemtEvaluatorRecordRef::XmlFamilyEvent {
+                        document: *document,
+                        index,
+                    },
+                )),
+            Self::XmlAttributes { attributes } => attributes.get(index).map(|attribute| {
+                CemtEvaluatorValueRef::Record(CemtEvaluatorRecordRef::XmlAttribute { attribute })
+            }),
+            Self::HtmlAttributes { attributes } => attributes.get(index).map(|attribute| {
+                CemtEvaluatorValueRef::Record(CemtEvaluatorRecordRef::HtmlAttribute { attribute })
+            }),
+            Self::XmlFamilyMarkupTokens {
+                event,
+                content_type,
+                package,
+            } => xml_event_markup_tokens(event)
+                .get(index)
+                .cloned()
+                .map(|token| {
+                    CemtEvaluatorValueRef::Record(CemtEvaluatorRecordRef::XmlFamilyMarkupToken {
+                        token,
+                        content_type,
+                        package: *package,
+                    })
+                }),
             Self::YamlParseFacts { facts } => facts.get(index).map(|fact| {
                 CemtEvaluatorValueRef::Record(CemtEvaluatorRecordRef::YamlParseFact { fact })
             }),
@@ -2499,6 +2626,40 @@ pub enum CemtEvaluatorRecordRef<'a> {
     MarkdownSourceRange {
         range: MarkdownSourceRange,
     },
+    XmlFamilyDocument {
+        document: XmlFamilyDocumentCemtSubjectRef<'a>,
+    },
+    XmlFamilySource {
+        document: XmlFamilyDocumentCemtSubjectRef<'a>,
+    },
+    XmlFamilyEncodingReport {
+        document: XmlFamilyDocumentCemtSubjectRef<'a>,
+    },
+    XmlFamilyFact {
+        document: XmlFamilyDocumentCemtSubjectRef<'a>,
+        index: usize,
+    },
+    XmlFamilyEvent {
+        document: XmlFamilyDocumentCemtSubjectRef<'a>,
+        index: usize,
+    },
+    XmlAttribute {
+        attribute: &'a XmlAttributeAst,
+    },
+    HtmlAttribute {
+        attribute: &'a HtmlAttributeAst,
+    },
+    XmlFamilyMarkupToken {
+        token: XmlMarkupTokenAst,
+        content_type: &'a str,
+        package: XmlFamilyMarkupPackage,
+    },
+    XmlFamilySourceRange {
+        byte_offset: u64,
+        byte_length: u64,
+        line: u32,
+        column: u32,
+    },
     YamlDocument {
         document: &'a YamlDocumentAst,
     },
@@ -2680,6 +2841,15 @@ impl<'a> CemtEvaluatorRecordRef<'a> {
             | Self::MarkdownParseFact { .. }
             | Self::MarkdownEvent { .. }
             | Self::MarkdownSourceRange { .. }
+            | Self::XmlFamilyDocument { .. }
+            | Self::XmlFamilySource { .. }
+            | Self::XmlFamilyEncodingReport { .. }
+            | Self::XmlFamilyFact { .. }
+            | Self::XmlFamilyEvent { .. }
+            | Self::XmlAttribute { .. }
+            | Self::HtmlAttribute { .. }
+            | Self::XmlFamilyMarkupToken { .. }
+            | Self::XmlFamilySourceRange { .. }
             | Self::YamlDocument { .. }
             | Self::YamlSource { .. }
             | Self::YamlEncodingReport { .. }
@@ -2761,6 +2931,15 @@ impl<'a> CemtEvaluatorRecordRef<'a> {
             | Self::MarkdownParseFact { .. }
             | Self::MarkdownEvent { .. }
             | Self::MarkdownSourceRange { .. }
+            | Self::XmlFamilyDocument { .. }
+            | Self::XmlFamilySource { .. }
+            | Self::XmlFamilyEncodingReport { .. }
+            | Self::XmlFamilyFact { .. }
+            | Self::XmlFamilyEvent { .. }
+            | Self::XmlAttribute { .. }
+            | Self::HtmlAttribute { .. }
+            | Self::XmlFamilyMarkupToken { .. }
+            | Self::XmlFamilySourceRange { .. }
             | Self::YamlDocument { .. }
             | Self::YamlSource { .. }
             | Self::YamlEncodingReport { .. }
@@ -3074,6 +3253,45 @@ impl<'a> CemtEvaluatorRecordRef<'a> {
                 "sourceMap",
             ],
             Self::MarkdownSourceRange { .. } => &["byteOffset", "byteLength", "line", "column"],
+            Self::XmlFamilyDocument { document } => {
+                xml_family_document_evaluator_field_names(*document)
+            }
+            Self::XmlFamilySource { .. } => &[
+                "uri",
+                "contentType",
+                "mediaType",
+                "parameters",
+                "byteLength",
+            ],
+            Self::XmlFamilyEncodingReport { document } => {
+                xml_family_encoding_report_evaluator_field_names(*document)
+            }
+            Self::XmlFamilyFact { document, .. } => {
+                xml_family_fact_evaluator_field_names(*document)
+            }
+            Self::XmlFamilyEvent { document, .. } => {
+                xml_family_event_evaluator_field_names(*document)
+            }
+            Self::XmlAttribute { .. } => &[
+                "qualifiedName",
+                "localName",
+                "prefix",
+                "namespaceUri",
+                "value",
+            ],
+            Self::HtmlAttribute { .. } => &[
+                "lexicalName",
+                "localName",
+                "value",
+                "lexeme",
+                "duplicate",
+                "sourceRange",
+                "sourceMap",
+            ],
+            Self::XmlFamilyMarkupToken { .. } => {
+                &["kind", "text", "role", "sourceRange", "sourceMap"]
+            }
+            Self::XmlFamilySourceRange { .. } => &["byteOffset", "byteLength", "line", "column"],
             Self::YamlDocument { document } if document.line_ending.is_some() => &[
                 "kind",
                 "contentType",
@@ -3359,6 +3577,16 @@ impl<'a> CemtEvaluatorRecordRef<'a> {
                 "eventKind",
                 "eventTag",
                 "package",
+                "depth",
+                "qualifiedName",
+                "lexicalName",
+                "localName",
+                "namespaceUri",
+                "tokenKind",
+                "documentSafeBoundary",
+                "lexicalSafeBoundary",
+                "layoutSensitive",
+                "generated",
                 "layout",
                 "lineEnding",
                 "indent",
@@ -3576,6 +3804,40 @@ impl<'a> CemtEvaluatorRecordRef<'a> {
             Self::MarkdownSourceRange { range } => {
                 markdown_source_range_evaluator_field(*range, name)
             }
+            Self::XmlFamilyDocument { document } => {
+                xml_family_document_evaluator_field(*document, name)
+            }
+            Self::XmlFamilySource { document } => {
+                xml_family_source_evaluator_field(*document, name)
+            }
+            Self::XmlFamilyEncodingReport { document } => {
+                xml_family_encoding_report_evaluator_field(*document, name)
+            }
+            Self::XmlFamilyFact { document, index } => {
+                xml_family_fact_evaluator_field(*document, *index, name)
+            }
+            Self::XmlFamilyEvent { document, index } => {
+                xml_family_event_evaluator_field(*document, *index, name)
+            }
+            Self::XmlAttribute { attribute } => xml_attribute_evaluator_field(attribute, name),
+            Self::HtmlAttribute { attribute } => html_attribute_evaluator_field(attribute, name),
+            Self::XmlFamilyMarkupToken {
+                token,
+                content_type,
+                package,
+            } => xml_family_markup_token_evaluator_field(token, content_type, *package, name),
+            Self::XmlFamilySourceRange {
+                byte_offset,
+                byte_length,
+                line,
+                column,
+            } => xml_family_source_range_evaluator_field(
+                *byte_offset,
+                *byte_length,
+                *line,
+                *column,
+                name,
+            ),
             Self::YamlDocument { document } => yaml_document_evaluator_field(document, name),
             Self::YamlSource { source } => yaml_source_evaluator_field(source, name),
             Self::YamlEncodingReport { report } => {
@@ -4351,6 +4613,1078 @@ fn generic_data_csv_scalar_text(value: &GenericDataValueAst) -> String {
         GenericDataValueAst::Alias { alias, .. } => alias.clone().unwrap_or_default(),
         GenericDataValueAst::Mapping { .. } | GenericDataValueAst::Sequence { .. } => String::new(),
     }
+}
+
+fn xml_family_document_evaluator_field_names(
+    document: XmlFamilyDocumentCemtSubjectRef<'_>,
+) -> &'static [&'static str] {
+    match document {
+        XmlFamilyDocumentCemtSubjectRef::Xml(_) => &[
+            "kind",
+            "contentType",
+            "schema",
+            "source",
+            "resourceKind",
+            "encodingReport",
+            "parseFacts",
+            "events",
+            "lineEnding",
+        ],
+        XmlFamilyDocumentCemtSubjectRef::Html(_) => &[
+            "kind",
+            "contentType",
+            "schema",
+            "category",
+            "source",
+            "documentMode",
+            "encodingReport",
+            "parseFacts",
+            "events",
+            "lineEnding",
+            "recoveryCount",
+        ],
+        XmlFamilyDocumentCemtSubjectRef::Css(_) => &[
+            "kind",
+            "contentType",
+            "schema",
+            "category",
+            "source",
+            "entryMode",
+            "encodingReport",
+            "parseFacts",
+            "events",
+            "lineEnding",
+            "recoveryCount",
+        ],
+        XmlFamilyDocumentCemtSubjectRef::Xhtml(_) | XmlFamilyDocumentCemtSubjectRef::Svg(_) => &[
+            "kind",
+            "contentType",
+            "schema",
+            "category",
+            "source",
+            "resourceKind",
+            "encodingReport",
+            "parseFacts",
+            "events",
+            "lineEnding",
+        ],
+        XmlFamilyDocumentCemtSubjectRef::MathMl(_) => &[
+            "kind",
+            "contentType",
+            "schema",
+            "category",
+            "mediaProfile",
+            "source",
+            "resourceKind",
+            "encodingReport",
+            "parseFacts",
+            "events",
+            "lineEnding",
+        ],
+        XmlFamilyDocumentCemtSubjectRef::Xslt(_) => &[
+            "kind",
+            "contentType",
+            "schema",
+            "category",
+            "version",
+            "source",
+            "resourceKind",
+            "encodingReport",
+            "parseFacts",
+            "events",
+            "lineEnding",
+        ],
+    }
+}
+
+fn xml_family_encoding_report_evaluator_field_names(
+    document: XmlFamilyDocumentCemtSubjectRef<'_>,
+) -> &'static [&'static str] {
+    match document {
+        XmlFamilyDocumentCemtSubjectRef::Html(_) => &[
+            "mimeCharset",
+            "metaCharset",
+            "normalizedEncoding",
+            "decoderStatus",
+        ],
+        XmlFamilyDocumentCemtSubjectRef::Css(_) => &[
+            "mimeCharset",
+            "stylesheetCharset",
+            "bom",
+            "normalizedEncoding",
+            "decoderStatus",
+        ],
+        _ => &[
+            "mimeCharset",
+            "declarationEncoding",
+            "normalizedEncoding",
+            "decoderStatus",
+        ],
+    }
+}
+
+fn xml_family_fact_evaluator_field_names(
+    document: XmlFamilyDocumentCemtSubjectRef<'_>,
+) -> &'static [&'static str] {
+    match document {
+        XmlFamilyDocumentCemtSubjectRef::Xml(_) => &[
+            "kind",
+            "line",
+            "column",
+            "byteOffset",
+            "byteLength",
+            "message",
+        ],
+        _ => &["kind", "sourceRange", "message", "value"],
+    }
+}
+
+fn xml_family_event_evaluator_field_names(
+    document: XmlFamilyDocumentCemtSubjectRef<'_>,
+) -> &'static [&'static str] {
+    match document {
+        XmlFamilyDocumentCemtSubjectRef::Html(_) => &[
+            "index",
+            "kind",
+            "depth",
+            "lexicalName",
+            "localName",
+            "namespace",
+            "namespaceUri",
+            "attributes",
+            "value",
+            "lexeme",
+            "whitespaceOnly",
+            "selfClosing",
+            "voidElement",
+            "recovered",
+            "sourceRange",
+            "sourceMap",
+        ],
+        XmlFamilyDocumentCemtSubjectRef::Css(_) => &[
+            "index",
+            "depth",
+            "kind",
+            "tokenKind",
+            "value",
+            "lexeme",
+            "recovered",
+            "sourceRange",
+            "sourceMap",
+        ],
+        XmlFamilyDocumentCemtSubjectRef::Svg(_) | XmlFamilyDocumentCemtSubjectRef::MathMl(_) => &[
+            "index",
+            "kind",
+            "depth",
+            "qualifiedName",
+            "localName",
+            "prefix",
+            "namespaceUri",
+            "attributes",
+            "value",
+            "lexeme",
+            "whitespaceOnly",
+            "layoutSensitive",
+            "structuralWhitespace",
+            "lineBreakBefore",
+            "markupTokens",
+            "sourceRange",
+            "sourceMap",
+        ],
+        _ => &[
+            "index",
+            "kind",
+            "depth",
+            "qualifiedName",
+            "localName",
+            "prefix",
+            "namespaceUri",
+            "attributes",
+            "value",
+            "lexeme",
+            "whitespaceOnly",
+            "sourceRange",
+            "sourceMap",
+        ],
+    }
+}
+
+fn xml_family_document_evaluator_field<'a>(
+    document: XmlFamilyDocumentCemtSubjectRef<'a>,
+    name: &str,
+) -> Option<CemtEvaluatorValueRef<'a>> {
+    match name {
+        "kind" => Some(CemtEvaluatorValueRef::String(match document {
+            XmlFamilyDocumentCemtSubjectRef::Xml(_) => "xml-document",
+            XmlFamilyDocumentCemtSubjectRef::Html(_) => "html-document",
+            XmlFamilyDocumentCemtSubjectRef::Css(_) => "css-document",
+            XmlFamilyDocumentCemtSubjectRef::Xhtml(_) => "xhtml-document",
+            XmlFamilyDocumentCemtSubjectRef::Svg(_) => "svg-document",
+            XmlFamilyDocumentCemtSubjectRef::MathMl(_) => "mathml-document",
+            XmlFamilyDocumentCemtSubjectRef::Xslt(_) => "xslt-stylesheet",
+        })),
+        "contentType" => Some(CemtEvaluatorValueRef::String(
+            xml_family_document_content_type(document),
+        )),
+        "schema" => Some(CemtEvaluatorValueRef::String(match document {
+            XmlFamilyDocumentCemtSubjectRef::Xml(_) => XML_SCHEMA_URI,
+            XmlFamilyDocumentCemtSubjectRef::Html(_) => HTML_SCHEMA_URI,
+            XmlFamilyDocumentCemtSubjectRef::Css(_) => CSS_SCHEMA_URI,
+            XmlFamilyDocumentCemtSubjectRef::Xhtml(_) => XHTML_SCHEMA_URI,
+            XmlFamilyDocumentCemtSubjectRef::Svg(_) => SVG_SCHEMA_URI,
+            XmlFamilyDocumentCemtSubjectRef::MathMl(_) => MATHML_SCHEMA_URI,
+            XmlFamilyDocumentCemtSubjectRef::Xslt(_) => XSLT_SCHEMA_URI,
+        })),
+        "category" => match document {
+            XmlFamilyDocumentCemtSubjectRef::Xml(_) => None,
+            XmlFamilyDocumentCemtSubjectRef::Html(_) => {
+                Some(CemtEvaluatorValueRef::String("html-document"))
+            }
+            XmlFamilyDocumentCemtSubjectRef::Css(_) => {
+                Some(CemtEvaluatorValueRef::String("css-document"))
+            }
+            XmlFamilyDocumentCemtSubjectRef::Xhtml(_) => {
+                Some(CemtEvaluatorValueRef::String("xhtml-document"))
+            }
+            XmlFamilyDocumentCemtSubjectRef::Svg(_) => {
+                Some(CemtEvaluatorValueRef::String("svg-document"))
+            }
+            XmlFamilyDocumentCemtSubjectRef::MathMl(_) => {
+                Some(CemtEvaluatorValueRef::String("mathml-document"))
+            }
+            XmlFamilyDocumentCemtSubjectRef::Xslt(_) => {
+                Some(CemtEvaluatorValueRef::String("xslt-stylesheet"))
+            }
+        },
+        "source" => Some(CemtEvaluatorValueRef::Record(
+            CemtEvaluatorRecordRef::XmlFamilySource { document },
+        )),
+        "resourceKind" => xml_family_xml_document(document)
+            .map(|xml| CemtEvaluatorValueRef::String(&xml.resource_kind)),
+        "documentMode" => match document {
+            XmlFamilyDocumentCemtSubjectRef::Html(document) => {
+                Some(CemtEvaluatorValueRef::String(document.mode.as_str()))
+            }
+            _ => None,
+        },
+        "entryMode" => match document {
+            XmlFamilyDocumentCemtSubjectRef::Css(document) => {
+                Some(CemtEvaluatorValueRef::String(document.entry_mode.as_str()))
+            }
+            _ => None,
+        },
+        "mediaProfile" => match document {
+            XmlFamilyDocumentCemtSubjectRef::MathMl(document) => Some(
+                CemtEvaluatorValueRef::String(document.media_profile.as_str()),
+            ),
+            _ => None,
+        },
+        "version" => match document {
+            XmlFamilyDocumentCemtSubjectRef::Xslt(document) => {
+                Some(optional_string_evaluator_value(document.version.as_deref()))
+            }
+            _ => None,
+        },
+        "encodingReport" => Some(CemtEvaluatorValueRef::Record(
+            CemtEvaluatorRecordRef::XmlFamilyEncodingReport { document },
+        )),
+        "parseFacts" => Some(CemtEvaluatorValueRef::Sequence(
+            CemtEvaluatorSequenceRef::XmlFamilyFacts { document },
+        )),
+        "events" => Some(CemtEvaluatorValueRef::Sequence(
+            CemtEvaluatorSequenceRef::XmlFamilyEvents { document },
+        )),
+        "lineEnding" => Some(optional_string_evaluator_value(xml_family_line_ending(
+            document,
+        ))),
+        "recoveryCount" => match document {
+            XmlFamilyDocumentCemtSubjectRef::Html(document) => {
+                Some(usize_evaluator_value(document.recovery_count))
+            }
+            XmlFamilyDocumentCemtSubjectRef::Css(document) => {
+                Some(usize_evaluator_value(document.recovery_count))
+            }
+            _ => None,
+        },
+        _ => None,
+    }
+}
+
+fn xml_family_document_content_type<'a>(document: XmlFamilyDocumentCemtSubjectRef<'a>) -> &'a str {
+    match document {
+        XmlFamilyDocumentCemtSubjectRef::Xml(_) => XML_CONTENT_TYPE,
+        XmlFamilyDocumentCemtSubjectRef::Html(document) => &document.source.media_type,
+        XmlFamilyDocumentCemtSubjectRef::Css(document) => &document.source.media_type,
+        XmlFamilyDocumentCemtSubjectRef::Xhtml(_) => XHTML_CONTENT_TYPE,
+        XmlFamilyDocumentCemtSubjectRef::Svg(_) => SVG_CONTENT_TYPE,
+        XmlFamilyDocumentCemtSubjectRef::MathMl(document) => {
+            &document.xml_document.source.media_type
+        }
+        XmlFamilyDocumentCemtSubjectRef::Xslt(document) => &document.xml_document.source.media_type,
+    }
+}
+
+fn xml_family_line_ending(document: XmlFamilyDocumentCemtSubjectRef<'_>) -> Option<&str> {
+    match document {
+        XmlFamilyDocumentCemtSubjectRef::Xml(document) => document.line_ending.as_deref(),
+        XmlFamilyDocumentCemtSubjectRef::Html(document) => document.line_ending.as_deref(),
+        XmlFamilyDocumentCemtSubjectRef::Css(document) => document.line_ending.as_deref(),
+        XmlFamilyDocumentCemtSubjectRef::Xhtml(document) => document.line_ending.as_deref(),
+        XmlFamilyDocumentCemtSubjectRef::Svg(document) => document.line_ending.as_deref(),
+        XmlFamilyDocumentCemtSubjectRef::MathMl(document) => document.line_ending.as_deref(),
+        XmlFamilyDocumentCemtSubjectRef::Xslt(document) => document.line_ending.as_deref(),
+    }
+}
+
+fn xml_family_xml_document<'a>(
+    document: XmlFamilyDocumentCemtSubjectRef<'a>,
+) -> Option<&'a XmlDocumentAst> {
+    match document {
+        XmlFamilyDocumentCemtSubjectRef::Xml(document) => Some(document),
+        XmlFamilyDocumentCemtSubjectRef::Xhtml(document) => Some(&document.xml_document),
+        XmlFamilyDocumentCemtSubjectRef::Svg(document) => Some(&document.xml_document),
+        XmlFamilyDocumentCemtSubjectRef::MathMl(document) => Some(&document.xml_document),
+        XmlFamilyDocumentCemtSubjectRef::Xslt(document) => Some(&document.xml_document),
+        XmlFamilyDocumentCemtSubjectRef::Html(_) | XmlFamilyDocumentCemtSubjectRef::Css(_) => None,
+    }
+}
+
+fn xml_family_source_evaluator_field<'a>(
+    document: XmlFamilyDocumentCemtSubjectRef<'a>,
+    name: &str,
+) -> Option<CemtEvaluatorValueRef<'a>> {
+    match document {
+        XmlFamilyDocumentCemtSubjectRef::Xml(document) => {
+            xml_document_source_evaluator_field(&document.source, name)
+        }
+        XmlFamilyDocumentCemtSubjectRef::Html(document) => {
+            html_document_source_evaluator_field(&document.source, name)
+        }
+        XmlFamilyDocumentCemtSubjectRef::Css(document) => {
+            css_document_source_evaluator_field(&document.source, name)
+        }
+        XmlFamilyDocumentCemtSubjectRef::Xhtml(document) => {
+            xhtml_document_source_evaluator_field(&document.source, name)
+        }
+        XmlFamilyDocumentCemtSubjectRef::Svg(document) => {
+            svg_document_source_evaluator_field(&document.source, name)
+        }
+        XmlFamilyDocumentCemtSubjectRef::MathMl(document) => {
+            xml_document_source_evaluator_field(&document.xml_document.source, name)
+        }
+        XmlFamilyDocumentCemtSubjectRef::Xslt(document) => {
+            xml_document_source_evaluator_field(&document.xml_document.source, name)
+        }
+    }
+}
+
+macro_rules! xml_family_source_field_match {
+    ($source:expr, $name:expr) => {{
+        match $name {
+            "uri" => Some(CemtEvaluatorValueRef::String(&$source.uri)),
+            "contentType" => Some(CemtEvaluatorValueRef::String(&$source.content_type)),
+            "mediaType" => Some(CemtEvaluatorValueRef::String(&$source.media_type)),
+            "parameters" => Some(CemtEvaluatorValueRef::StringMap(&$source.parameters)),
+            "byteLength" => Some(usize_evaluator_value($source.byte_length)),
+            _ => None,
+        }
+    }};
+}
+
+fn xml_document_source_evaluator_field<'a>(
+    source: &'a XmlDocumentSource,
+    name: &str,
+) -> Option<CemtEvaluatorValueRef<'a>> {
+    xml_family_source_field_match!(source, name)
+}
+
+fn html_document_source_evaluator_field<'a>(
+    source: &'a HtmlDocumentSource,
+    name: &str,
+) -> Option<CemtEvaluatorValueRef<'a>> {
+    xml_family_source_field_match!(source, name)
+}
+
+fn css_document_source_evaluator_field<'a>(
+    source: &'a CssDocumentSource,
+    name: &str,
+) -> Option<CemtEvaluatorValueRef<'a>> {
+    xml_family_source_field_match!(source, name)
+}
+
+fn xhtml_document_source_evaluator_field<'a>(
+    source: &'a XhtmlDocumentSource,
+    name: &str,
+) -> Option<CemtEvaluatorValueRef<'a>> {
+    xml_family_source_field_match!(source, name)
+}
+
+fn svg_document_source_evaluator_field<'a>(
+    source: &'a SvgDocumentSource,
+    name: &str,
+) -> Option<CemtEvaluatorValueRef<'a>> {
+    xml_family_source_field_match!(source, name)
+}
+
+fn xml_family_encoding_report_evaluator_field<'a>(
+    document: XmlFamilyDocumentCemtSubjectRef<'a>,
+    name: &str,
+) -> Option<CemtEvaluatorValueRef<'a>> {
+    match document {
+        XmlFamilyDocumentCemtSubjectRef::Html(document) => {
+            html_encoding_report_evaluator_field(&document.encoding_report, name)
+        }
+        XmlFamilyDocumentCemtSubjectRef::Css(document) => {
+            css_encoding_report_evaluator_field(&document.encoding_report, name)
+        }
+        _ => xml_encoding_report_evaluator_field(
+            &xml_family_xml_document(document)?.encoding_report,
+            name,
+        ),
+    }
+}
+
+fn xml_encoding_report_evaluator_field<'a>(
+    report: &'a XmlEncodingReportAst,
+    name: &str,
+) -> Option<CemtEvaluatorValueRef<'a>> {
+    match name {
+        "mimeCharset" => Some(optional_string_evaluator_value(
+            report.mime_charset.as_deref(),
+        )),
+        "declarationEncoding" => Some(optional_string_evaluator_value(
+            report.declaration_encoding.as_deref(),
+        )),
+        "normalizedEncoding" => Some(CemtEvaluatorValueRef::String(&report.normalized_encoding)),
+        "decoderStatus" => Some(CemtEvaluatorValueRef::String(&report.decoder_status)),
+        _ => None,
+    }
+}
+
+fn html_encoding_report_evaluator_field<'a>(
+    report: &'a HtmlEncodingReportAst,
+    name: &str,
+) -> Option<CemtEvaluatorValueRef<'a>> {
+    match name {
+        "mimeCharset" => Some(optional_string_evaluator_value(
+            report.mime_charset.as_deref(),
+        )),
+        "metaCharset" => Some(optional_string_evaluator_value(
+            report.meta_charset.as_deref(),
+        )),
+        "normalizedEncoding" => Some(CemtEvaluatorValueRef::String(&report.normalized_encoding)),
+        "decoderStatus" => Some(CemtEvaluatorValueRef::String(&report.decoder_status)),
+        _ => None,
+    }
+}
+
+fn css_encoding_report_evaluator_field<'a>(
+    report: &'a CssEncodingReportAst,
+    name: &str,
+) -> Option<CemtEvaluatorValueRef<'a>> {
+    match name {
+        "mimeCharset" => Some(optional_string_evaluator_value(
+            report.mime_charset.as_deref(),
+        )),
+        "stylesheetCharset" => Some(optional_string_evaluator_value(
+            report.stylesheet_charset.as_deref(),
+        )),
+        "bom" => Some(optional_string_evaluator_value(report.bom.as_deref())),
+        "normalizedEncoding" => Some(CemtEvaluatorValueRef::String(&report.normalized_encoding)),
+        "decoderStatus" => Some(CemtEvaluatorValueRef::String(&report.decoder_status)),
+        _ => None,
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+enum XmlFamilySemanticFactRef<'a> {
+    Html(&'a HtmlFact),
+    Css(&'a CssFact),
+    Xhtml(&'a XhtmlFact),
+    Svg(&'a SvgFact),
+    MathMl(&'a MathMlFact),
+    Xslt(&'a XsltFact),
+}
+
+fn xml_family_fact_count(document: XmlFamilyDocumentCemtSubjectRef<'_>) -> usize {
+    match document {
+        XmlFamilyDocumentCemtSubjectRef::Xml(document) => document.parse_facts.len(),
+        XmlFamilyDocumentCemtSubjectRef::Html(document) => document.facts.len(),
+        XmlFamilyDocumentCemtSubjectRef::Css(document) => document.facts.len(),
+        XmlFamilyDocumentCemtSubjectRef::Xhtml(document) => document.facts.len(),
+        XmlFamilyDocumentCemtSubjectRef::Svg(document) => document.facts.len(),
+        XmlFamilyDocumentCemtSubjectRef::MathMl(document) => document.facts.len(),
+        XmlFamilyDocumentCemtSubjectRef::Xslt(document) => document.facts.len(),
+    }
+}
+
+fn xml_family_semantic_fact<'a>(
+    document: XmlFamilyDocumentCemtSubjectRef<'a>,
+    index: usize,
+) -> Option<XmlFamilySemanticFactRef<'a>> {
+    match document {
+        XmlFamilyDocumentCemtSubjectRef::Xml(_) => None,
+        XmlFamilyDocumentCemtSubjectRef::Html(document) => document
+            .facts
+            .get(index)
+            .map(XmlFamilySemanticFactRef::Html),
+        XmlFamilyDocumentCemtSubjectRef::Css(document) => {
+            document.facts.get(index).map(XmlFamilySemanticFactRef::Css)
+        }
+        XmlFamilyDocumentCemtSubjectRef::Xhtml(document) => document
+            .facts
+            .get(index)
+            .map(XmlFamilySemanticFactRef::Xhtml),
+        XmlFamilyDocumentCemtSubjectRef::Svg(document) => {
+            document.facts.get(index).map(XmlFamilySemanticFactRef::Svg)
+        }
+        XmlFamilyDocumentCemtSubjectRef::MathMl(document) => document
+            .facts
+            .get(index)
+            .map(XmlFamilySemanticFactRef::MathMl),
+        XmlFamilyDocumentCemtSubjectRef::Xslt(document) => document
+            .facts
+            .get(index)
+            .map(XmlFamilySemanticFactRef::Xslt),
+    }
+}
+
+fn xml_family_fact_evaluator_field<'a>(
+    document: XmlFamilyDocumentCemtSubjectRef<'a>,
+    index: usize,
+    name: &str,
+) -> Option<CemtEvaluatorValueRef<'a>> {
+    if let XmlFamilyDocumentCemtSubjectRef::Xml(document) = document {
+        return xml_parse_fact_evaluator_field(document.parse_facts.get(index)?, name);
+    }
+    let fact = xml_family_semantic_fact(document, index)?;
+    match name {
+        "kind" => Some(CemtEvaluatorValueRef::String(match fact {
+            XmlFamilySemanticFactRef::Html(fact) => fact.kind.as_str(),
+            XmlFamilySemanticFactRef::Css(fact) => fact.kind.as_str(),
+            XmlFamilySemanticFactRef::Xhtml(fact) => fact.kind.as_str(),
+            XmlFamilySemanticFactRef::Svg(fact) => fact.kind.as_str(),
+            XmlFamilySemanticFactRef::MathMl(fact) => fact.kind.as_str(),
+            XmlFamilySemanticFactRef::Xslt(fact) => fact.kind.as_str(),
+        })),
+        "sourceRange" => Some(xml_family_optional_fact_source_range(fact)),
+        "message" => Some(CemtEvaluatorValueRef::String(match fact {
+            XmlFamilySemanticFactRef::Html(fact) => &fact.message,
+            XmlFamilySemanticFactRef::Css(fact) => &fact.message,
+            XmlFamilySemanticFactRef::Xhtml(fact) => &fact.message,
+            XmlFamilySemanticFactRef::Svg(fact) => &fact.message,
+            XmlFamilySemanticFactRef::MathMl(fact) => &fact.message,
+            XmlFamilySemanticFactRef::Xslt(fact) => &fact.message,
+        })),
+        "value" => Some(optional_string_evaluator_value(match fact {
+            XmlFamilySemanticFactRef::Html(fact) => fact.value.as_deref(),
+            XmlFamilySemanticFactRef::Css(fact) => fact.value.as_deref(),
+            XmlFamilySemanticFactRef::Xhtml(fact) => fact.value.as_deref(),
+            XmlFamilySemanticFactRef::Svg(fact) => fact.value.as_deref(),
+            XmlFamilySemanticFactRef::MathMl(fact) => fact.value.as_deref(),
+            XmlFamilySemanticFactRef::Xslt(fact) => fact.value.as_deref(),
+        })),
+        _ => None,
+    }
+}
+
+fn xml_parse_fact_evaluator_field<'a>(
+    fact: &'a XmlParseFact,
+    name: &str,
+) -> Option<CemtEvaluatorValueRef<'a>> {
+    match name {
+        "kind" => Some(CemtEvaluatorValueRef::String(fact.kind.as_str())),
+        "line" => Some(optional_u32_evaluator_value(fact.line)),
+        "column" => Some(optional_u32_evaluator_value(fact.column)),
+        "byteOffset" => Some(optional_u64_evaluator_value(fact.byte_offset)),
+        "byteLength" => Some(optional_u64_evaluator_value(fact.byte_length)),
+        "message" => Some(CemtEvaluatorValueRef::String(&fact.message)),
+        _ => None,
+    }
+}
+
+fn xml_family_optional_fact_source_range(
+    fact: XmlFamilySemanticFactRef<'_>,
+) -> CemtEvaluatorValueRef<'static> {
+    let coordinates = match fact {
+        XmlFamilySemanticFactRef::Html(fact) => fact.source_range.map(|range| {
+            (
+                range.start.byte_offset,
+                range.byte_length,
+                range.start.line,
+                range.start.column,
+            )
+        }),
+        XmlFamilySemanticFactRef::Css(fact) => fact.source_range.map(|range| {
+            (
+                range.start.byte_offset,
+                range.byte_length,
+                range.start.line,
+                range.start.column,
+            )
+        }),
+        XmlFamilySemanticFactRef::Xhtml(fact) => fact.source_range.map(|range| {
+            (
+                range.start.byte_offset,
+                range.byte_length,
+                range.start.line,
+                range.start.column,
+            )
+        }),
+        XmlFamilySemanticFactRef::Svg(fact) => fact.source_range.map(|range| {
+            (
+                range.start.byte_offset,
+                range.byte_length,
+                range.start.line,
+                range.start.column,
+            )
+        }),
+        XmlFamilySemanticFactRef::MathMl(fact) => fact.source_range.map(|range| {
+            (
+                range.start.byte_offset,
+                range.byte_length,
+                range.start.line,
+                range.start.column,
+            )
+        }),
+        XmlFamilySemanticFactRef::Xslt(fact) => fact.source_range.map(|range| {
+            (
+                range.start.byte_offset,
+                range.byte_length,
+                range.start.line,
+                range.start.column,
+            )
+        }),
+    };
+    coordinates
+        .map(|(byte_offset, byte_length, line, column)| {
+            xml_family_source_range_evaluator_value(byte_offset, byte_length, line, column)
+        })
+        .unwrap_or(CemtEvaluatorValueRef::Null)
+}
+
+fn xml_family_event_count(document: XmlFamilyDocumentCemtSubjectRef<'_>) -> usize {
+    match document {
+        XmlFamilyDocumentCemtSubjectRef::Html(document) => document.events.len(),
+        XmlFamilyDocumentCemtSubjectRef::Css(document) => document.events.len(),
+        _ => xml_family_xml_document(document)
+            .map(|document| document.events.len())
+            .unwrap_or_default(),
+    }
+}
+
+fn xml_family_event_evaluator_field<'a>(
+    document: XmlFamilyDocumentCemtSubjectRef<'a>,
+    index: usize,
+    name: &str,
+) -> Option<CemtEvaluatorValueRef<'a>> {
+    match document {
+        XmlFamilyDocumentCemtSubjectRef::Html(document) => {
+            html_event_evaluator_field(document.events.get(index)?, name)
+        }
+        XmlFamilyDocumentCemtSubjectRef::Css(document) => {
+            css_event_evaluator_field(document.events.get(index)?, name)
+        }
+        _ => xml_backed_event_evaluator_field(document, index, name),
+    }
+}
+
+fn xml_backed_event_evaluator_field<'a>(
+    document: XmlFamilyDocumentCemtSubjectRef<'a>,
+    index: usize,
+    name: &str,
+) -> Option<CemtEvaluatorValueRef<'a>> {
+    let xml_document = xml_family_xml_document(document)?;
+    let event = xml_document.events.get(index)?;
+    let content_type = xml_family_event_content_type(document);
+    let markup_package = match document {
+        XmlFamilyDocumentCemtSubjectRef::Svg(_) => Some(XmlFamilyMarkupPackage::Svg),
+        XmlFamilyDocumentCemtSubjectRef::MathMl(_) => Some(XmlFamilyMarkupPackage::MathMl),
+        _ => None,
+    };
+    match name {
+        "index" => Some(usize_evaluator_value(event.index)),
+        "kind" => Some(CemtEvaluatorValueRef::String(event.kind.as_str())),
+        "depth" => Some(usize_evaluator_value(event.depth)),
+        "qualifiedName" => Some(optional_string_evaluator_value(
+            event.qualified_name.as_deref(),
+        )),
+        "localName" => Some(optional_string_evaluator_value(event.local_name.as_deref())),
+        "prefix" => Some(optional_string_evaluator_value(event.prefix.as_deref())),
+        "namespaceUri" => Some(optional_string_evaluator_value(
+            event.namespace_uri.as_deref(),
+        )),
+        "attributes" => Some(CemtEvaluatorValueRef::Sequence(
+            CemtEvaluatorSequenceRef::XmlAttributes {
+                attributes: &event.attributes,
+            },
+        )),
+        "value" => Some(optional_string_evaluator_value(event.value.as_deref())),
+        "lexeme" => Some(CemtEvaluatorValueRef::String(&event.lexeme)),
+        "whitespaceOnly" => Some(CemtEvaluatorValueRef::Boolean(event.whitespace_only)),
+        "layoutSensitive" => markup_package.map(|package| {
+            CemtEvaluatorValueRef::Boolean(
+                xml_family_event_layout_at(&xml_document.events, index, package).0,
+            )
+        }),
+        "structuralWhitespace" => markup_package.map(|package| {
+            CemtEvaluatorValueRef::Boolean(
+                xml_family_event_layout_at(&xml_document.events, index, package).1,
+            )
+        }),
+        "lineBreakBefore" => markup_package.map(|package| {
+            CemtEvaluatorValueRef::Boolean(
+                xml_family_event_layout_at(&xml_document.events, index, package).2,
+            )
+        }),
+        "markupTokens" => markup_package.map(|package| {
+            CemtEvaluatorValueRef::Sequence(CemtEvaluatorSequenceRef::XmlFamilyMarkupTokens {
+                event,
+                content_type,
+                package,
+            })
+        }),
+        "sourceRange" => Some(xml_family_source_range_evaluator_value(
+            event.source_range.start.byte_offset,
+            event.source_range.byte_length,
+            event.source_range.start.line,
+            event.source_range.start.column,
+        )),
+        "sourceMap" => Some(CemtEvaluatorValueRef::OwnedSourceMap(Arc::new(
+            xml_family_source_map(event.source_range, content_type),
+        ))),
+        _ => None,
+    }
+}
+
+fn xml_family_event_content_type<'a>(document: XmlFamilyDocumentCemtSubjectRef<'a>) -> &'a str {
+    match document {
+        XmlFamilyDocumentCemtSubjectRef::Xml(_) => XML_CONTENT_TYPE,
+        XmlFamilyDocumentCemtSubjectRef::Xhtml(_) => XHTML_CONTENT_TYPE,
+        XmlFamilyDocumentCemtSubjectRef::Svg(_) => SVG_CONTENT_TYPE,
+        XmlFamilyDocumentCemtSubjectRef::MathMl(document) => {
+            &document.xml_document.source.media_type
+        }
+        XmlFamilyDocumentCemtSubjectRef::Xslt(document) => &document.xml_document.source.media_type,
+        XmlFamilyDocumentCemtSubjectRef::Html(_) => HTML_CONTENT_TYPE,
+        XmlFamilyDocumentCemtSubjectRef::Css(_) => CSS_CONTENT_TYPE,
+    }
+}
+
+fn html_event_evaluator_field<'a>(
+    event: &'a HtmlEventAst,
+    name: &str,
+) -> Option<CemtEvaluatorValueRef<'a>> {
+    match name {
+        "index" => Some(usize_evaluator_value(event.index)),
+        "kind" => Some(CemtEvaluatorValueRef::String(event.kind.as_str())),
+        "depth" => Some(usize_evaluator_value(event.depth)),
+        "lexicalName" => Some(optional_string_evaluator_value(
+            event.lexical_name.as_deref(),
+        )),
+        "localName" => Some(optional_string_evaluator_value(event.local_name.as_deref())),
+        "namespace" => Some(CemtEvaluatorValueRef::String(event.namespace.as_str())),
+        "namespaceUri" => Some(CemtEvaluatorValueRef::String(&event.namespace_uri)),
+        "attributes" => Some(CemtEvaluatorValueRef::Sequence(
+            CemtEvaluatorSequenceRef::HtmlAttributes {
+                attributes: &event.attributes,
+            },
+        )),
+        "value" => Some(optional_string_evaluator_value(event.value.as_deref())),
+        "lexeme" => Some(CemtEvaluatorValueRef::String(&event.lexeme)),
+        "whitespaceOnly" => Some(CemtEvaluatorValueRef::Boolean(event.whitespace_only)),
+        "selfClosing" => Some(CemtEvaluatorValueRef::Boolean(event.self_closing)),
+        "voidElement" => Some(CemtEvaluatorValueRef::Boolean(event.void_element)),
+        "recovered" => Some(CemtEvaluatorValueRef::Boolean(event.recovered)),
+        "sourceRange" => Some(xml_family_source_range_evaluator_value(
+            event.source_range.start.byte_offset,
+            event.source_range.byte_length,
+            event.source_range.start.line,
+            event.source_range.start.column,
+        )),
+        "sourceMap" => Some(CemtEvaluatorValueRef::OwnedSourceMap(Arc::new(
+            xml_family_source_map_from_coordinates(
+                event.source_range.start.byte_offset,
+                event.source_range.byte_length,
+                HTML_CONTENT_TYPE,
+            ),
+        ))),
+        _ => None,
+    }
+}
+
+fn css_event_evaluator_field<'a>(
+    event: &'a CssEventAst,
+    name: &str,
+) -> Option<CemtEvaluatorValueRef<'a>> {
+    match name {
+        "index" => Some(usize_evaluator_value(event.index)),
+        "depth" => Some(usize_evaluator_value(event.depth)),
+        "kind" => Some(CemtEvaluatorValueRef::String(&event.kind)),
+        "tokenKind" => Some(CemtEvaluatorValueRef::String(&event.token_kind)),
+        "value" => Some(optional_string_evaluator_value(event.value.as_deref())),
+        "lexeme" => Some(CemtEvaluatorValueRef::String(&event.lexeme)),
+        "recovered" => Some(CemtEvaluatorValueRef::Boolean(event.recovered)),
+        "sourceRange" => Some(xml_family_source_range_evaluator_value(
+            event.source_range.start.byte_offset,
+            event.source_range.byte_length,
+            event.source_range.start.line,
+            event.source_range.start.column,
+        )),
+        "sourceMap" => Some(CemtEvaluatorValueRef::OwnedSourceMap(Arc::new(
+            xml_family_source_map_from_coordinates(
+                event.source_range.start.byte_offset,
+                event.source_range.byte_length,
+                CSS_CONTENT_TYPE,
+            ),
+        ))),
+        _ => None,
+    }
+}
+
+fn xml_attribute_evaluator_field<'a>(
+    attribute: &'a XmlAttributeAst,
+    name: &str,
+) -> Option<CemtEvaluatorValueRef<'a>> {
+    match name {
+        "qualifiedName" => Some(CemtEvaluatorValueRef::String(&attribute.qualified_name)),
+        "localName" => Some(CemtEvaluatorValueRef::String(&attribute.local_name)),
+        "prefix" => Some(optional_string_evaluator_value(attribute.prefix.as_deref())),
+        "namespaceUri" => Some(optional_string_evaluator_value(
+            attribute.namespace_uri.as_deref(),
+        )),
+        "value" => Some(CemtEvaluatorValueRef::String(&attribute.value)),
+        _ => None,
+    }
+}
+
+fn html_attribute_evaluator_field<'a>(
+    attribute: &'a HtmlAttributeAst,
+    name: &str,
+) -> Option<CemtEvaluatorValueRef<'a>> {
+    match name {
+        "lexicalName" => Some(CemtEvaluatorValueRef::String(&attribute.lexical_name)),
+        "localName" => Some(CemtEvaluatorValueRef::String(&attribute.local_name)),
+        "value" => Some(optional_string_evaluator_value(attribute.value.as_deref())),
+        "lexeme" => Some(CemtEvaluatorValueRef::String(&attribute.lexeme)),
+        "duplicate" => Some(CemtEvaluatorValueRef::Boolean(attribute.duplicate)),
+        "sourceRange" => Some(xml_family_source_range_evaluator_value(
+            attribute.source_range.start.byte_offset,
+            attribute.source_range.byte_length,
+            attribute.source_range.start.line,
+            attribute.source_range.start.column,
+        )),
+        "sourceMap" => Some(CemtEvaluatorValueRef::OwnedSourceMap(Arc::new(
+            xml_family_source_map_from_coordinates(
+                attribute.source_range.start.byte_offset,
+                attribute.source_range.byte_length,
+                HTML_CONTENT_TYPE,
+            ),
+        ))),
+        _ => None,
+    }
+}
+
+fn xml_family_markup_token_evaluator_field<'a>(
+    token: &XmlMarkupTokenAst,
+    content_type: &str,
+    _package: XmlFamilyMarkupPackage,
+    name: &str,
+) -> Option<CemtEvaluatorValueRef<'a>> {
+    match name {
+        "kind" => Some(CemtEvaluatorValueRef::String(token.kind.as_str())),
+        "text" => Some(CemtEvaluatorValueRef::OwnedString(Arc::from(
+            token.text.as_str(),
+        ))),
+        "role" => Some(CemtEvaluatorValueRef::String(xml_family_markup_token_role(
+            token.kind,
+        ))),
+        "sourceRange" => Some(xml_family_source_range_evaluator_value(
+            token.source_range.start.byte_offset,
+            token.source_range.byte_length,
+            token.source_range.start.line,
+            token.source_range.start.column,
+        )),
+        "sourceMap" => Some(CemtEvaluatorValueRef::OwnedSourceMap(Arc::new(
+            xml_family_source_map(token.source_range, content_type),
+        ))),
+        _ => None,
+    }
+}
+
+fn xml_family_markup_token_role(kind: XmlMarkupTokenKind) -> &'static str {
+    match kind {
+        XmlMarkupTokenKind::Delimiter | XmlMarkupTokenKind::Equals => "syntax.punctuation",
+        XmlMarkupTokenKind::ElementName => "syntax.name",
+        XmlMarkupTokenKind::AttributeName => "syntax.attribute",
+        XmlMarkupTokenKind::AttributeValue => "syntax.string",
+        XmlMarkupTokenKind::Whitespace | XmlMarkupTokenKind::Raw => "syntax.raw",
+    }
+}
+
+fn xml_family_source_range_evaluator_value(
+    byte_offset: u64,
+    byte_length: u64,
+    line: u32,
+    column: u32,
+) -> CemtEvaluatorValueRef<'static> {
+    CemtEvaluatorValueRef::Record(CemtEvaluatorRecordRef::XmlFamilySourceRange {
+        byte_offset,
+        byte_length,
+        line,
+        column,
+    })
+}
+
+fn xml_family_source_range_evaluator_field(
+    byte_offset: u64,
+    byte_length: u64,
+    line: u32,
+    column: u32,
+    name: &str,
+) -> Option<CemtEvaluatorValueRef<'static>> {
+    match name {
+        "byteOffset" => Some(u64_evaluator_value(byte_offset)),
+        "byteLength" => Some(u64_evaluator_value(byte_length)),
+        "line" => Some(u64_evaluator_value(u64::from(line))),
+        "column" => Some(u64_evaluator_value(u64::from(column))),
+        _ => None,
+    }
+}
+
+fn xml_family_source_map(range: XmlSourceRange, content_type: &str) -> SourceMapStack {
+    xml_family_source_map_from_coordinates(range.start.byte_offset, range.byte_length, content_type)
+}
+
+fn xml_family_source_map_from_coordinates(
+    byte_offset: u64,
+    byte_length: u64,
+    content_type: &str,
+) -> SourceMapStack {
+    SourceMapStack {
+        frames: vec![SourceMapFrame {
+            source_id: SourceId(1),
+            span: FrameSpan::Single(ByteRange::new(
+                byte_offset,
+                u32::try_from(byte_length).unwrap_or(u32::MAX),
+            )),
+            transform: TransformKind::ContentTypeTransform {
+                content_type: content_type.to_owned(),
+            },
+        }],
+    }
+}
+
+fn xml_family_event_layout_at(
+    events: &[XmlEventAst],
+    requested: usize,
+    package: XmlFamilyMarkupPackage,
+) -> (bool, bool, bool) {
+    let mut sensitive_scopes = vec![None; events.len()];
+    let mut stack = Vec::<(usize, bool)>::new();
+    let mut ranges = Vec::<(usize, usize, usize)>::new();
+    let mut next_scope = 0usize;
+
+    for (index, event) in events.iter().enumerate() {
+        match event.kind {
+            XmlEventKind::StartElement => {
+                let inherited = stack.last().is_some_and(|(_, sensitive)| *sensitive);
+                stack.push((
+                    index,
+                    inherited || xml_family_element_requires_lexical_layout(event, package),
+                ));
+            }
+            XmlEventKind::EmptyElement => {
+                if stack.last().is_some_and(|(_, sensitive)| *sensitive)
+                    || xml_family_element_requires_lexical_layout(event, package)
+                {
+                    ranges.push((index, index, next_scope));
+                    next_scope = next_scope.saturating_add(1);
+                }
+            }
+            XmlEventKind::EndElement => {
+                if let Some((start, true)) = stack.pop() {
+                    ranges.push((start, index, next_scope));
+                    next_scope = next_scope.saturating_add(1);
+                }
+            }
+            XmlEventKind::Text => {
+                if !event.whitespace_only {
+                    if let Some((_, sensitive)) = stack.last_mut() {
+                        *sensitive = true;
+                    } else {
+                        ranges.push((index, index, next_scope));
+                        next_scope = next_scope.saturating_add(1);
+                    }
+                }
+            }
+            XmlEventKind::Cdata | XmlEventKind::EntityReference => {
+                if let Some((_, sensitive)) = stack.last_mut() {
+                    *sensitive = true;
+                } else {
+                    ranges.push((index, index, next_scope));
+                    next_scope = next_scope.saturating_add(1);
+                }
+            }
+            XmlEventKind::Declaration
+            | XmlEventKind::Comment
+            | XmlEventKind::ProcessingInstruction
+            | XmlEventKind::Doctype => {}
+        }
+    }
+
+    for (start, end, scope) in ranges {
+        for event_scope in &mut sensitive_scopes[start..=end] {
+            *event_scope = Some(scope);
+        }
+    }
+
+    let mut previous_scope = None;
+    let mut has_previous = false;
+    for (index, event) in events.iter().enumerate() {
+        let scope = sensitive_scopes[index];
+        let structural_whitespace =
+            matches!(event.kind, XmlEventKind::Text) && event.whitespace_only && scope.is_none();
+        let line_break_before =
+            !structural_whitespace && has_previous && !(scope.is_some() && scope == previous_scope);
+        if index == requested {
+            return (scope.is_some(), structural_whitespace, line_break_before);
+        }
+        if !structural_whitespace {
+            has_previous = true;
+            previous_scope = scope;
+        }
+    }
+    (false, false, false)
+}
+
+fn xml_family_element_requires_lexical_layout(
+    event: &XmlEventAst,
+    package: XmlFamilyMarkupPackage,
+) -> bool {
+    let local_name = event.local_name.as_deref().unwrap_or_default();
+    let name_requires_layout = match package {
+        XmlFamilyMarkupPackage::Svg => matches!(
+            local_name,
+            "text" | "tspan" | "textPath" | "title" | "desc" | "style" | "script" | "foreignObject"
+        ),
+        XmlFamilyMarkupPackage::MathMl => matches!(
+            local_name,
+            "mi" | "mn" | "mo" | "mtext" | "ms" | "annotation" | "annotation-xml"
+        ),
+    };
+    let expected_namespace = match package {
+        XmlFamilyMarkupPackage::Svg => SVG_NAMESPACE_URI,
+        XmlFamilyMarkupPackage::MathMl => MATHML_NAMESPACE_URI,
+    };
+    name_requires_layout
+        || event
+            .namespace_uri
+            .as_deref()
+            .is_some_and(|namespace| namespace != expected_namespace)
+        || event.attributes.iter().any(|attribute| {
+            attribute.qualified_name == "xml:space" && attribute.value == "preserve"
+        })
 }
 
 fn markdown_document_evaluator_field<'a>(
@@ -5676,6 +7010,30 @@ fn writer_token_metadata_evaluator_field<'a>(
             metadata.event_tag.as_deref(),
         )),
         "package" => Some(optional_string_evaluator_value(metadata.package.as_deref())),
+        "depth" => Some(optional_u64_evaluator_value(metadata.depth)),
+        "qualifiedName" => Some(optional_string_evaluator_value(
+            metadata.qualified_name.as_deref(),
+        )),
+        "lexicalName" => Some(optional_string_evaluator_value(
+            metadata.lexical_name.as_deref(),
+        )),
+        "localName" => Some(optional_string_evaluator_value(
+            metadata.local_name.as_deref(),
+        )),
+        "namespaceUri" => Some(optional_string_evaluator_value(
+            metadata.namespace_uri.as_deref(),
+        )),
+        "tokenKind" => Some(optional_string_evaluator_value(
+            metadata.token_kind.as_deref(),
+        )),
+        "documentSafeBoundary" => Some(optional_bool_evaluator_value(
+            metadata.document_safe_boundary,
+        )),
+        "lexicalSafeBoundary" => Some(optional_bool_evaluator_value(
+            metadata.lexical_safe_boundary,
+        )),
+        "layoutSensitive" => Some(optional_bool_evaluator_value(metadata.layout_sensitive)),
+        "generated" => Some(optional_bool_evaluator_value(metadata.generated)),
         "layout" => Some(optional_string_evaluator_value(metadata.layout.as_deref())),
         "lineEnding" => Some(optional_string_evaluator_value(
             metadata.line_ending.as_deref(),

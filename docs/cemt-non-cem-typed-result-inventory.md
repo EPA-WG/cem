@@ -2,10 +2,11 @@
 
 Status: inventory complete; serializer-free typed-result contract selected and
 materialized-tree artifact introduced. The lossless and generic-data JSON, JSON
-Schema, CSV, YAML, and Markdown formatter/colorizer/writer paths now use
-borrowed evaluators, the materialized writer-token stream, and typed color
-overlay end to end; JSON graph routing is also closed. This inventory is
-promoted as active migration evidence by `docs/todo.md`.
+Schema, CSV, YAML, Markdown, and all seven XML-family
+formatter/colorizer/writer paths now use borrowed evaluators, the materialized
+writer-token stream, and typed color overlay end to end; JSON graph routing is
+also closed. This inventory is promoted as active migration evidence by
+`docs/todo.md`.
 
 ## Existing Typed Baseline
 
@@ -27,7 +28,7 @@ describe every remaining producer.
 | Direct CSV pipeline                                        | `CsvDocumentAst` or a borrowed CSV-contract view over `GenericDataDocumentAst`                                                                    | `CemtMaterializedTreeArtifact` owning ordered `WriterToken` nodes, plus an optional typed color overlay                              | Borrowed evaluator → exact `Arc<CemTreeAstStream>` → overlay → typed stage output and direct writer                                                                       | Closed for both production owners; compatibility `Value` subjects and composers are test-only parity oracles.                                                             |
 | Direct YAML pipeline                                      | `YamlDocumentAst` or a borrowed YAML-contract view over `GenericDataDocumentAst`                                                                  | `CemtMaterializedTreeArtifact` owning ordered `WriterToken` nodes, plus an optional typed color overlay                              | Borrowed evaluator → exact `Arc<CemTreeAstStream>` → overlay → typed stage output and direct writer                                                                       | Closed for both production owners; compatibility `Value` subjects and composers are test-only parity oracles.                                                             |
 | Direct Markdown pipeline                                  | `MarkdownDocumentAst`                                                                                                                             | `CemtMaterializedTreeArtifact` owning ordered `WriterToken` nodes, plus an optional typed color overlay                              | Borrowed evaluator → exact `Arc<CemTreeAstStream>` → overlay → typed stage output and direct writer                                                                       | Closed for the sole production owner; compatibility `Value` subjects and composers are test-only parity oracles.                                                          |
-| XML-family direct pipelines                                 | `XmlDocumentAst`, `HtmlDocumentAst`, `CssDocumentAst`, `XhtmlDocumentAst`, `SvgDocumentAst`, `MathMlDocumentAst`, or `XsltStylesheetAst`        | A newly materialized package-specific formatted/colored tree                                  | The same evaluator/runtime value envelopes                                                                                         | The common `XmlDocumentOutputSubject` erases seven distinct AST owners before formatting. The output is not an overlay over a raw `CemTreeAstStream`.                      |
+| XML-family direct pipelines                                | `XmlDocumentAst`, `HtmlDocumentAst`, `CssDocumentAst`, `XhtmlDocumentAst`, `SvgDocumentAst`, `MathMlDocumentAst`, or `XsltStylesheetAst`                                                                          | `CemtMaterializedTreeArtifact` owning ordered `WriterToken` nodes, plus an optional typed color overlay                              | Closed native-owner sum → borrowed evaluator → exact `Arc<CemTreeAstStream>` → overlay → typed stage output and direct writer                                              | Closed for all seven production owners; six compatibility composer families are test-only, while the XML compatibility composer remains reachable only from unmigrated RELAX NG XML.       |
 | Relax NG direct pipeline                                    | `RelaxNgDocumentAst`, with XML and compact syntax selecting different formatter/colorizer contracts                                             | A newly materialized formatted/colored tree                                                   | The same evaluator/runtime value envelopes                                                                                         | The original syntax owner and syntax kind are lost when the formatter subject is built; stage metadata is inferred later from binding/value shape.                         |
 | Generic CEMT output-function runtime                        | Explicit JSON subject and value bindings                                                                                                        | Any declared CEM-tree formatter/colorizer result                                              | `TransformTemplateOutputFunctionExecution::CemtEvaluator(Value)`                                                                   | The stage is carried by the selected binding while the payload remains untyped. Format-to-color chaining clones the value instead of retaining a typed result artifact.    |
 | Compatibility CEM-tree stage fallback                       | Any primary body other than the native `CemtTreeArtifact` representation                                                                        | Formatter/colorizer evaluator output                                                          | `lower_conversion_cem_tree_output_stage_body` falls back to `CemtOutputArtifact`                                                   | A single value envelope hides whether the result was generated raw, materialized formatted, or materialized colored.                                                       |
@@ -185,15 +186,28 @@ materialized lifecycle, retain the exact owner through the selected stage body,
 and invoke the direct writer; production Markdown DTO composers are test-only
 parity oracles.
 
-Next, close the shared XML-family boundary for `XmlDocumentAst`,
+The shared XML-family boundary is now closed for `XmlDocumentAst`,
 `HtmlDocumentAst`, `CssDocumentAst`, `XhtmlDocumentAst`, `SvgDocumentAst`,
-`MathMlDocumentAst`, and `XsltStylesheetAst`. Replace the common
-`XmlDocumentOutputSubject::into_cemt_subject` erasure with a closed native-owner
-view contract, reuse borrowed XML event components where the ASTs already share
-them, retain HTML/CSS and package-specific semantics, and route every package
-formatter/colorizer/writer path through the typed materialized lifecycle. The
-slice must close all seven production implementations together; otherwise the
-shared trait remains a production serializer boundary.
+`MathMlDocumentAst`, and `XsltStylesheetAst`. The closed
+`XmlFamilyDocumentCemtSubjectRef` preserves each exact owner while exposing
+borrowed source, encoding, fact, event, namespace, range/map, and package layout
+semantics. Formatter and colorizer results lower directly into the typed
+materialized tree, the direct writer consumes that tree plus its overlay, and
+the typed stage body retains the exact selected artifact and owner `Arc`.
+Compatibility-oracle parity covers all seven owners, including SVG/MathML
+markup-token and structural-layout derivation. The production subject trait no
+longer serializes any of these owners.
+
+Next, close `RelaxNgDocumentAst` for both XML and compact syntax. Its borrowed
+view must retain `syntax_kind`, source and line-ending metadata, parse and
+semantic facts, XML events or compact tokens, ranges/maps, and the
+syntax-selected formatter/colorizer identity. Both branches must produce the
+typed materialized writer-token stream, preserve the exact selected artifact
+through the stage body and direct writer, and keep compatibility composers only
+as test oracles. Completing that slice removes the sole remaining production
+caller of `XmlDocumentAst::to_cemt_subject`; source audits should then gate or
+delete the XML compatibility composer before moving to the DOM-projection and
+generic runtime producers.
 
 Migrate every remaining producer using the same direct owner/view/builder
 pattern. Only then remove `CemtOutputArtifact`,

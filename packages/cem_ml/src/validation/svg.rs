@@ -5,10 +5,11 @@ use crate::schema::registry::{SVG_CONTENT_TYPE, SVG_NAMESPACE_URI, SVG_SCHEMA_UR
 use crate::source::{ByteRange, SourceId};
 use crate::source_map::{FrameSpan, SourceMapFrame, SourceMapStack, TransformKind};
 use crate::validation::xml::{
-    xml_document_ast_from_source_bytes, xml_event_markup_tokens, XmlAttributeAst, XmlDocumentAst,
-    XmlEventAst, XmlEventKind, XmlMarkupTokenKind, XmlParseFactKind, XmlSourceRange,
-    XmlSourceValidationRequest,
+    xml_document_ast_from_source_bytes, XmlAttributeAst, XmlDocumentAst, XmlEventAst, XmlEventKind,
+    XmlParseFactKind, XmlSourceRange, XmlSourceValidationRequest,
 };
+#[cfg(test)]
+use crate::validation::xml::{xml_event_markup_tokens, XmlMarkupTokenKind};
 use serde_json::{json, Value};
 use std::collections::{BTreeMap, BTreeSet};
 use std::sync::OnceLock;
@@ -32,6 +33,7 @@ pub struct SvgDocumentAst {
 }
 
 impl SvgDocumentAst {
+    #[cfg(test)]
     pub fn to_cemt_subject(&self) -> Value {
         json!({
             "kind": "svg-document",
@@ -77,6 +79,7 @@ impl SvgDocumentSource {
         }
     }
 
+    #[cfg(test)]
     fn to_cemt_subject(&self) -> Value {
         json!({
             "uri": self.uri,
@@ -133,6 +136,7 @@ impl SvgSourceRange {
         })
     }
 
+    #[cfg(test)]
     fn to_cemt_subject(self) -> Value {
         json!({
             "byteOffset": self.start.byte_offset,
@@ -156,6 +160,15 @@ impl SvgSourceRange {
             }],
         }
     }
+}
+
+fn svg_source_range_diagnostic_value(range: SvgSourceRange) -> Value {
+    json!({
+        "byteOffset": range.start.byte_offset,
+        "byteLength": range.byte_length,
+        "line": range.start.line,
+        "column": range.start.column,
+    })
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
@@ -224,6 +237,7 @@ pub struct SvgFact {
 }
 
 impl SvgFact {
+    #[cfg(test)]
     fn to_cemt_subject(&self) -> Value {
         json!({
             "kind": self.kind.as_str(),
@@ -663,7 +677,7 @@ fn svg_diagnostics(
                         "policy": binding.policy,
                         "contentType": content_type,
                         "value": fact.value,
-                        "sourceRange": fact.source_range.map(SvgSourceRange::to_cemt_subject),
+                        "sourceRange": fact.source_range.map(svg_source_range_diagnostic_value),
                     }
                 })),
                 source_map: fact.source_range.map(SvgSourceRange::source_map),
@@ -673,6 +687,7 @@ fn svg_diagnostics(
         .collect()
 }
 
+#[cfg(test)]
 #[derive(Debug, Clone, Copy, Default)]
 struct SvgEventLayout {
     layout_sensitive: bool,
@@ -680,12 +695,14 @@ struct SvgEventLayout {
     line_break_before: bool,
 }
 
+#[cfg(test)]
 #[derive(Debug)]
 struct SvgSensitiveFrame {
     start: usize,
     sensitive: bool,
 }
 
+#[cfg(test)]
 fn svg_events_to_cemt_subject(events: &[XmlEventAst]) -> Vec<Value> {
     let layout = svg_event_layout(events);
     events
@@ -695,6 +712,7 @@ fn svg_events_to_cemt_subject(events: &[XmlEventAst]) -> Vec<Value> {
         .collect()
 }
 
+#[cfg(test)]
 fn svg_event_layout(events: &[XmlEventAst]) -> Vec<SvgEventLayout> {
     let mut sensitive_scopes = vec![None; events.len()];
     let mut stack = Vec::<SvgSensitiveFrame>::new();
@@ -781,6 +799,7 @@ fn svg_event_layout(events: &[XmlEventAst]) -> Vec<SvgEventLayout> {
         .collect()
 }
 
+#[cfg(test)]
 fn svg_element_requires_lexical_layout(event: &XmlEventAst) -> bool {
     let local_name = event.local_name.as_deref().unwrap_or_default();
     matches!(
@@ -795,6 +814,7 @@ fn svg_element_requires_lexical_layout(event: &XmlEventAst) -> bool {
         })
 }
 
+#[cfg(test)]
 fn svg_event_to_cemt_subject(event: &XmlEventAst, layout: SvgEventLayout) -> Value {
     let range = SvgSourceRange::from_event(event);
     json!({
@@ -824,6 +844,7 @@ fn svg_event_to_cemt_subject(event: &XmlEventAst, layout: SvgEventLayout) -> Val
     })
 }
 
+#[cfg(test)]
 fn svg_markup_tokens(event: &XmlEventAst) -> Vec<Value> {
     xml_event_markup_tokens(event)
         .into_iter()
@@ -840,6 +861,7 @@ fn svg_markup_tokens(event: &XmlEventAst) -> Vec<Value> {
         .collect()
 }
 
+#[cfg(test)]
 fn svg_markup_token_role(kind: XmlMarkupTokenKind) -> &'static str {
     match kind {
         XmlMarkupTokenKind::Delimiter | XmlMarkupTokenKind::Equals => "syntax.punctuation",

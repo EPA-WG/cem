@@ -5,10 +5,11 @@ use crate::schema::registry::{MATHML_CONTENT_TYPE, MATHML_NAMESPACE_URI, MATHML_
 use crate::source::{ByteRange, SourceId};
 use crate::source_map::{FrameSpan, SourceMapFrame, SourceMapStack, TransformKind};
 use crate::validation::xml::{
-    xml_document_ast_from_source_bytes, xml_event_markup_tokens, XmlAttributeAst, XmlDocumentAst,
-    XmlEventAst, XmlEventKind, XmlMarkupTokenKind, XmlParseFactKind, XmlSourceRange,
-    XmlSourceValidationRequest,
+    xml_document_ast_from_source_bytes, XmlAttributeAst, XmlDocumentAst, XmlEventAst, XmlEventKind,
+    XmlParseFactKind, XmlSourceRange, XmlSourceValidationRequest,
 };
+#[cfg(test)]
+use crate::validation::xml::{xml_event_markup_tokens, XmlMarkupTokenKind};
 use serde_json::{json, Value};
 use std::collections::{BTreeMap, BTreeSet};
 use std::sync::OnceLock;
@@ -51,6 +52,7 @@ pub struct MathMlDocumentAst {
 }
 
 impl MathMlDocumentAst {
+    #[cfg(test)]
     pub fn to_cemt_subject(&self) -> Value {
         let source = &self.xml_document.source;
         let encoding = &self.xml_document.encoding_report;
@@ -158,6 +160,7 @@ pub struct MathMlFact {
 }
 
 impl MathMlFact {
+    #[cfg(test)]
     fn to_cemt_subject(&self) -> Value {
         json!({
             "kind": self.kind.as_str(),
@@ -677,6 +680,7 @@ fn mathml_source_map(range: XmlSourceRange, content_type: &str) -> SourceMapStac
     }
 }
 
+#[cfg(test)]
 #[derive(Debug, Clone, Copy, Default)]
 struct MathMlEventLayout {
     layout_sensitive: bool,
@@ -684,12 +688,14 @@ struct MathMlEventLayout {
     line_break_before: bool,
 }
 
+#[cfg(test)]
 #[derive(Debug)]
 struct MathMlSensitiveFrame {
     start: usize,
     sensitive: bool,
 }
 
+#[cfg(test)]
 fn mathml_events_to_cemt_subject(events: &[XmlEventAst], content_type: &str) -> Vec<Value> {
     let layout = mathml_event_layout(events);
     events
@@ -699,6 +705,7 @@ fn mathml_events_to_cemt_subject(events: &[XmlEventAst], content_type: &str) -> 
         .collect()
 }
 
+#[cfg(test)]
 fn mathml_event_layout(events: &[XmlEventAst]) -> Vec<MathMlEventLayout> {
     let mut sensitive_scopes = vec![None; events.len()];
     let mut stack = Vec::<MathMlSensitiveFrame>::new();
@@ -785,6 +792,7 @@ fn mathml_event_layout(events: &[XmlEventAst]) -> Vec<MathMlEventLayout> {
         .collect()
 }
 
+#[cfg(test)]
 fn mathml_element_requires_lexical_layout(event: &XmlEventAst) -> bool {
     let local_name = event.local_name.as_deref().unwrap_or_default();
     matches!(
@@ -799,6 +807,7 @@ fn mathml_element_requires_lexical_layout(event: &XmlEventAst) -> bool {
         })
 }
 
+#[cfg(test)]
 fn mathml_event_to_cemt_subject(
     event: &XmlEventAst,
     layout: MathMlEventLayout,
@@ -831,6 +840,7 @@ fn mathml_event_to_cemt_subject(
     })
 }
 
+#[cfg(test)]
 fn mathml_markup_tokens(event: &XmlEventAst, content_type: &str) -> Vec<Value> {
     xml_event_markup_tokens(event)
         .into_iter()
@@ -846,6 +856,7 @@ fn mathml_markup_tokens(event: &XmlEventAst, content_type: &str) -> Vec<Value> {
         .collect()
 }
 
+#[cfg(test)]
 fn mathml_markup_token_role(kind: XmlMarkupTokenKind) -> &'static str {
     match kind {
         XmlMarkupTokenKind::Delimiter | XmlMarkupTokenKind::Equals => "syntax.punctuation",

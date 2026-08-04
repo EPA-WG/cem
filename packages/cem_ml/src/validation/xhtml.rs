@@ -31,6 +31,7 @@ pub struct XhtmlDocumentAst {
 }
 
 impl XhtmlDocumentAst {
+    #[cfg(test)]
     pub fn to_cemt_subject(&self) -> Value {
         json!({
             "kind": "xhtml-document",
@@ -81,6 +82,7 @@ impl XhtmlDocumentSource {
         }
     }
 
+    #[cfg(test)]
     fn to_cemt_subject(&self) -> Value {
         json!({
             "uri": self.uri,
@@ -133,6 +135,7 @@ impl XhtmlSourceRange {
         })
     }
 
+    #[cfg(test)]
     fn to_cemt_subject(self) -> Value {
         json!({
             "byteOffset": self.start.byte_offset,
@@ -156,6 +159,15 @@ impl XhtmlSourceRange {
             }],
         }
     }
+}
+
+fn xhtml_source_range_diagnostic_value(range: XhtmlSourceRange) -> Value {
+    json!({
+        "byteOffset": range.start.byte_offset,
+        "byteLength": range.byte_length,
+        "line": range.start.line,
+        "column": range.start.column,
+    })
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
@@ -216,6 +228,7 @@ pub struct XhtmlFact {
 }
 
 impl XhtmlFact {
+    #[cfg(test)]
     fn to_cemt_subject(&self) -> Value {
         json!({
             "kind": self.kind.as_str(),
@@ -527,7 +540,7 @@ fn xhtml_diagnostics(
                         "policy": binding.policy,
                         "contentType": content_type,
                         "value": fact.value,
-                        "sourceRange": fact.source_range.map(XhtmlSourceRange::to_cemt_subject),
+                        "sourceRange": fact.source_range.map(xhtml_source_range_diagnostic_value),
                     }
                 })),
                 source_map: fact.source_range.map(XhtmlSourceRange::source_map),
@@ -537,6 +550,7 @@ fn xhtml_diagnostics(
         .collect()
 }
 
+#[cfg(test)]
 fn xhtml_event_to_cemt_subject(event: &XmlEventAst) -> Value {
     let range = XhtmlSourceRange::from_event(event);
     json!({

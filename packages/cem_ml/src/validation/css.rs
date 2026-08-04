@@ -32,6 +32,7 @@ pub struct CssDocumentAst {
 }
 
 impl CssDocumentAst {
+    #[cfg(test)]
     pub fn to_cemt_subject(&self) -> Value {
         json!({
             "kind": "css-document",
@@ -73,6 +74,7 @@ impl CssDocumentSource {
         }
     }
 
+    #[cfg(test)]
     fn to_cemt_subject(&self) -> Value {
         json!({
             "uri": self.uri,
@@ -111,6 +113,7 @@ pub struct CssEncodingReportAst {
 }
 
 impl CssEncodingReportAst {
+    #[cfg(test)]
     fn to_cemt_subject(&self) -> Value {
         json!({
             "mimeCharset": self.mime_charset,
@@ -135,6 +138,7 @@ pub struct CssEventAst {
 }
 
 impl CssEventAst {
+    #[cfg(test)]
     fn to_cemt_subject(&self) -> Value {
         json!({
             "index": self.index,
@@ -195,6 +199,7 @@ impl CssSourceRange {
         }
     }
 
+    #[cfg(test)]
     fn to_cemt_subject(self) -> Value {
         json!({
             "byteOffset": self.start.byte_offset,
@@ -203,6 +208,15 @@ impl CssSourceRange {
             "column": self.start.column,
         })
     }
+}
+
+fn css_source_range_diagnostic_value(range: CssSourceRange) -> Value {
+    json!({
+        "byteOffset": range.start.byte_offset,
+        "byteLength": range.byte_length,
+        "line": range.start.line,
+        "column": range.start.column,
+    })
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
@@ -263,6 +277,7 @@ pub struct CssFact {
 }
 
 impl CssFact {
+    #[cfg(test)]
     fn to_cemt_subject(&self) -> Value {
         json!({
             "kind": self.kind.as_str(),
@@ -781,7 +796,7 @@ fn css_fact_diagnostics(
                     "factKind": fact.kind.as_str(),
                     "factValue": fact.value,
                     "contentType": media_type,
-                    "sourceRange": fact.source_range.map(CssSourceRange::to_cemt_subject),
+                    "sourceRange": fact.source_range.map(css_source_range_diagnostic_value),
                 })),
                 source_map: fact.source_range.map(CssSourceRange::source_map),
                 ..Diagnostic::default()

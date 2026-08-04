@@ -36,6 +36,7 @@ pub struct HtmlDocumentAst {
 }
 
 impl HtmlDocumentAst {
+    #[cfg(test)]
     pub fn to_cemt_subject(&self) -> Value {
         json!({
             "kind": "html-document",
@@ -85,6 +86,7 @@ impl HtmlDocumentSource {
         }
     }
 
+    #[cfg(test)]
     fn to_cemt_subject(&self) -> Value {
         json!({
             "uri": self.uri,
@@ -120,6 +122,7 @@ pub struct HtmlEncodingReportAst {
 }
 
 impl HtmlEncodingReportAst {
+    #[cfg(test)]
     fn to_cemt_subject(&self) -> Value {
         json!({
             "mimeCharset": self.mime_charset,
@@ -146,7 +149,7 @@ impl HtmlNamespace {
         }
     }
 
-    fn as_str(self) -> &'static str {
+    pub(crate) fn as_str(self) -> &'static str {
         match self {
             Self::Html => "html",
             Self::Svg => "svg",
@@ -175,6 +178,7 @@ pub struct HtmlEventAst {
 }
 
 impl HtmlEventAst {
+    #[cfg(test)]
     fn to_cemt_subject(&self) -> Value {
         json!({
             "index": self.index,
@@ -238,6 +242,7 @@ pub struct HtmlAttributeAst {
 }
 
 impl HtmlAttributeAst {
+    #[cfg(test)]
     fn to_cemt_subject(&self) -> Value {
         json!({
             "lexicalName": self.lexical_name,
@@ -301,6 +306,7 @@ impl HtmlSourceRange {
         }
     }
 
+    #[cfg(test)]
     fn to_cemt_subject(self) -> Value {
         json!({
             "byteOffset": self.start.byte_offset,
@@ -309,6 +315,15 @@ impl HtmlSourceRange {
             "column": self.start.column,
         })
     }
+}
+
+fn html_source_range_diagnostic_value(range: HtmlSourceRange) -> Value {
+    json!({
+        "byteOffset": range.start.byte_offset,
+        "byteLength": range.byte_length,
+        "line": range.start.line,
+        "column": range.start.column,
+    })
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
@@ -375,6 +390,7 @@ pub struct HtmlFact {
 }
 
 impl HtmlFact {
+    #[cfg(test)]
     fn to_cemt_subject(&self) -> Value {
         json!({
             "kind": self.kind.as_str(),
@@ -1056,7 +1072,7 @@ fn html_fact_diagnostics(
                     "factKind": fact.kind.as_str(),
                     "factValue": fact.value,
                     "contentType": media_type,
-                    "sourceRange": fact.source_range.map(HtmlSourceRange::to_cemt_subject),
+                    "sourceRange": fact.source_range.map(html_source_range_diagnostic_value),
                 })),
                 source_map: fact.source_range.map(HtmlSourceRange::source_map),
                 ..Diagnostic::default()

@@ -203,10 +203,10 @@ impl XmlMarkupTokenKind {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct XmlMarkupTokenAst {
-    pub kind: XmlMarkupTokenKind,
-    pub text: String,
-    pub source_range: XmlSourceRange,
+pub struct XmlMarkupTokenAst {
+    pub(crate) kind: XmlMarkupTokenKind,
+    pub(crate) text: String,
+    pub(crate) source_range: XmlSourceRange,
 }
 
 pub(crate) fn xml_event_markup_tokens(event: &XmlEventAst) -> Vec<XmlMarkupTokenAst> {

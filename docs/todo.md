@@ -1135,6 +1135,24 @@ Remaining dependency-ordered package checklist:
                     Production Markdown subject composers are test-only parity
                     oracles; source audits and native same-schema conversion
                     coverage enforce the boundary.
+              - [x] Migrate the shared XML-family output boundary for
+                    `XmlDocumentAst`, `HtmlDocumentAst`, `CssDocumentAst`,
+                    `XhtmlDocumentAst`, `SvgDocumentAst`, `MathMlDocumentAst`,
+                    and `XsltStylesheetAst` as one closed unit. A borrowed
+                    `XmlFamilyDocumentCemtSubjectRef` retains each exact native
+                    owner while reusing XML event components and preserving
+                    HTML/CSS events, package facts, namespace/name data,
+                    source/encoding metadata, SVG/MathML layout decisions and
+                    markup tokens, ranges, maps, and line endings. All seven
+                    formatter/colorizer/writer paths now exchange the typed
+                    materialized writer-token stream and color overlay, retain
+                    the selected artifact and owner `Arc` in the typed stage
+                    body, and match the compatibility oracle. HTML, CSS,
+                    XHTML, SVG, MathML, and XSLT subject composers are
+                    test-only; the XML composer remains production-reachable
+                    only through the next unmigrated `RelaxNgDocumentAst` XML
+                    compatibility projection, with a source audit locking that
+                    single remaining owner.
       - [x] Define typed raw, formatted, and colored CEM tree envelopes with
             ordered native nodes and lazy evaluator views over the owning AST.
       - [ ] Route formatter, colorizer, writer, graph, and secondary-input

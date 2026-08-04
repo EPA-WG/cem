@@ -1216,6 +1216,26 @@ pub struct CemTreeAstWriterTokenMetadata {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub package: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub depth: Option<u64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub qualified_name: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub lexical_name: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub local_name: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub namespace_uri: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub token_kind: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub document_safe_boundary: Option<bool>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub lexical_safe_boundary: Option<bool>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub layout_sensitive: Option<bool>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub generated: Option<bool>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub layout: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub line_ending: Option<String>,
