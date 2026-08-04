@@ -1095,6 +1095,19 @@ Remaining dependency-ordered package checklist:
                     only under `#[cfg(test)]` as a byte-parity oracle. Tabular
                     close-scope compaction now operates as a non-mutating typed
                     view over the materialized AST stream.
+              - [x] Migrate native and generic-data CSV output to borrowed
+                    evaluator views over `CsvDocumentAst` and
+                    `GenericDataDocumentAst`. Both entry paths now preserve
+                    exact field/number lexemes, row and field ordering, table
+                    shape, ranges, maps, parse facts, missing cells, and the
+                    original owner without a serialized CSV document or
+                    runtime `Value` DTO. Formatter and colorizer stages exchange
+                    the typed materialized writer-token stream and owner-path
+                    overlay, the stage output retains that exact artifact, and
+                    the direct writer handles plain, terminal, HTML, and
+                    Markdown output. Production CSV subject composers are
+                    test-only parity oracles, with source audits and native
+                    same-schema conversion coverage enforcing the boundary.
       - [x] Define typed raw, formatted, and colored CEM tree envelopes with
             ordered native nodes and lazy evaluator views over the owning AST.
       - [ ] Route formatter, colorizer, writer, graph, and secondary-input
@@ -1156,43 +1169,46 @@ Remaining dependency-ordered package checklist:
 
 ### Next Work Item
 
-Close the direct CSV output family on the serializer-free typed result contract.
-Lossless JSON, generic-data-to-JSON, and JSON Schema production paths now enter
-their package formatters through borrowed evaluator views and exchange typed
-materialized AST artifacts with exact owner identity. CSV is next because both
-native `CsvDocumentAst` reformatting and generic-data-to-CSV conversion still
-construct runtime `Value` subjects before the CSV formatter, while its formatter
-and colorizer already emit the same writer-token shape consumed by the typed
-materialized writer.
+Close the direct YAML output family on the serializer-free typed result
+contract. JSON, JSON Schema, and both CSV owners now enter their package
+formatters through borrowed evaluator views, retain the formatter-produced
+`Arc<CemTreeAstStream>` through coloring, and use the direct materialized writer.
+YAML is next because native `YamlDocumentAst` reformatting and
+generic-data-to-YAML conversion still construct runtime `Value` subjects before
+the formatter even though their downstream formatter/colorizer result has the
+same materialized writer-token lifecycle.
 
 Implement the next slice in this order:
 
-1. Define `CsvDocumentCemtSubjectRef` as a borrowed evaluator view over the
-   owning `CsvDocumentAst`. Expose source/encoding reports, dialect, header,
-   records, fields, parse facts, exact field lexemes, ranges, and source maps
-   directly, preserving duplicate and missing header names and owner identity.
-2. Define a CSV-contract view over `GenericDataDocumentAst` for production
-   JSON/YAML/generic-data-to-CSV ingress. Preserve the current table-shape,
-   generated-name, null/missing-cell, scalar coercion, ordering, range, and map
-   behavior without creating a `CsvDocumentAst`, serialized CSV document, or
+1. Define `YamlDocumentCemtSubjectRef` as a borrowed evaluator view over the
+   owning `YamlDocumentAst`. Expose source/encoding reports, directives,
+   comments, documents, typed nodes, scalar styles and exact lexemes, tags,
+   anchors, aliases, parse facts, ranges, and source maps without cloning the
+   owner or flattening YAML-specific syntax.
+2. Define a YAML-contract view over `GenericDataDocumentAst` for production
+   JSON/CSV/generic-data-to-YAML ingress. Preserve document order, missing
+   roots, mapping entry order and duplicate keys, sequences, nulls, aliases,
+   exact normalized number lexemes, ranges, maps, and existing scalar-style
+   policy without creating a `YamlDocumentAst`, serialized YAML document, or
    `Value` DTO.
-3. Add failing native/generic parity and identity tests first, including quoted
-   delimiters/newlines, custom delimiter/header modes, duplicate and empty
-   headings, ragged rows, empty input, scalar/sequence/mapping generic data,
-   source maps, and exact output across compact, pretty, and tabular profiles.
-4. Give `CsvDocumentOutputSubject` a native evaluator path and route formatter
-   and colorizer stages through `execute_conversion_typed_cemt_output_stage`.
+3. Add native/generic parity and identity tests first. Cover multi-document
+   streams, directives and comments, quoted/block/plain scalars, tags,
+   anchors/aliases, empty and missing roots, duplicate mappings, nested
+   sequences/mappings, exact numeric lexemes, LF/CRLF preservation, and compact,
+   pretty, and tabular output.
+4. Give `YamlDocumentOutputSubject` a native evaluator path and route formatter
+   and colorizer execution through `execute_conversion_typed_cemt_output_stage`.
    Lower writer tokens directly into `CemtMaterializedTreeArtifact`, retain the
    exact formatted owner in the color overlay and typed stage body, and use the
-   direct writer for plain, terminal, HTML, and Markdown output.
-5. Delete production `CsvDocumentAst::to_cemt_subject`,
-   `generic_data_ast_to_csv_cemt_subject`, and the CSV runtime-`Value` composer
-   path. Keep any compatibility subject only under `#[cfg(test)]` as a parity
-   oracle and add source audits rejecting serializer, DTO, re-parser, composer,
-   or runtime-value handoffs between CSV layers.
-6. Run focused CSV lifecycle/conversion cases, CSV schema-package verification,
-   full core tests, converter parity, CLI e2e, lint, native build, and WASM
-   build. Once green, migrate YAML, Markdown, XML-family/XSLT, Relax NG, DOM
+   direct materialized writer for plain, terminal, HTML, and Markdown output.
+5. Delete production `YamlDocumentAst::to_cemt_subject`,
+   `generic_data_ast_to_yaml_cemt_subject`, and the YAML runtime-`Value` composer
+   path. Keep compatibility subjects only under `#[cfg(test)]` as parity oracles
+   and add source audits rejecting serializers, DTOs, re-parsers, composers, or
+   runtime-value handoffs between YAML layers.
+6. Run focused YAML lifecycle/conversion cases, YAML schema-package
+   verification, full core tests, converter parity, CLI e2e, lint, native build,
+   and WASM build. Once green, migrate Markdown, XML-family/XSLT, Relax NG, DOM
    projection, and remaining generic CEMT producers before deleting
    `CemtEvaluator(Value)`, `CemtRuntime(Value)`, and adapter DTO conversion
    globally.

@@ -8,7 +8,9 @@ use crate::validation::generic_data::{
     GenericDataDocumentAst, GenericDataMappingEntryAst, GenericDataSourceAst,
     GenericDataSourceRangeAst, GenericDataStreamDocumentAst, GenericDataValueAst,
 };
-use serde_json::{json, Value};
+use serde_json::json;
+#[cfg(test)]
+use serde_json::Value;
 use std::collections::BTreeMap;
 
 const CSV_PACKAGE_ID: &str = "csv";
@@ -36,6 +38,7 @@ pub struct CsvDocumentAst {
 }
 
 impl CsvDocumentAst {
+    #[cfg(test)]
     pub fn to_cemt_subject(&self) -> Value {
         let mut table = serde_json::Map::new();
         table.insert("kind".to_owned(), json!("csv-table"));
@@ -100,6 +103,7 @@ impl CsvDocumentAst {
     }
 }
 
+#[cfg(test)]
 pub fn generic_data_ast_to_csv_cemt_subject(
     ast: &GenericDataDocumentAst,
 ) -> (Value, Vec<Diagnostic>) {
@@ -147,6 +151,7 @@ pub fn generic_data_ast_to_csv_cemt_subject(
     (Value::Object(table), diagnostics)
 }
 
+#[cfg(test)]
 struct GenericDataCsvRows {
     header_present: bool,
     rows: Vec<Value>,
@@ -238,6 +243,7 @@ fn csv_source_range_to_generic_data_range(range: CsvSourceRange) -> GenericDataS
     }
 }
 
+#[cfg(test)]
 fn generic_data_value_to_csv_rows(
     value: &GenericDataValueAst,
     uri: &str,
@@ -293,6 +299,7 @@ fn generic_data_value_to_csv_rows(
     }
 }
 
+#[cfg(test)]
 fn generic_data_values_to_csv_rows(
     values: &[&GenericDataValueAst],
     uri: &str,
@@ -339,6 +346,7 @@ fn generic_data_values_to_csv_rows(
     }
 }
 
+#[cfg(test)]
 fn generic_data_mappings_to_csv_rows(
     mappings: &[&Vec<GenericDataMappingEntryAst>],
     uri: &str,
@@ -365,6 +373,7 @@ fn generic_data_mappings_to_csv_rows(
     }
 }
 
+#[cfg(test)]
 fn generic_data_header_row_to_csv_row(
     header_names: &[(String, GenericDataSourceRangeAst)],
 ) -> Value {
@@ -383,6 +392,7 @@ fn generic_data_header_row_to_csv_row(
     )
 }
 
+#[cfg(test)]
 fn generic_data_mapping_to_csv_row(
     row_index: usize,
     header_names: &[(String, GenericDataSourceRangeAst)],
@@ -416,6 +426,7 @@ fn generic_data_mapping_to_csv_row(
     csv_cemt_row(row_index, &source_range, fields)
 }
 
+#[cfg(test)]
 fn generic_data_value_to_csv_row(
     row_index: usize,
     value: &GenericDataValueAst,
@@ -442,6 +453,7 @@ fn generic_data_value_to_csv_row(
     }
 }
 
+#[cfg(test)]
 fn generic_data_scalar_to_csv_row(
     row_index: usize,
     value: &GenericDataValueAst,
@@ -456,6 +468,7 @@ fn generic_data_scalar_to_csv_row(
     )
 }
 
+#[cfg(test)]
 fn generic_data_value_to_csv_scalar_text(
     value: &GenericDataValueAst,
     uri: &str,
@@ -479,6 +492,7 @@ fn generic_data_value_to_csv_scalar_text(
     }
 }
 
+#[cfg(test)]
 fn csv_cemt_row(
     index: usize,
     source_range: &GenericDataSourceRangeAst,
@@ -495,6 +509,7 @@ fn csv_cemt_row(
     })
 }
 
+#[cfg(test)]
 fn csv_cemt_field(index: usize, value: &str, source_range: &GenericDataSourceRangeAst) -> Value {
     json!({
         "index": index,
@@ -529,6 +544,126 @@ fn generic_data_csv_unsupported_diagnostic(
     }
 }
 
+pub fn generic_data_ast_to_csv_diagnostics(ast: &GenericDataDocumentAst) -> Vec<Diagnostic> {
+    let roots = ast
+        .documents
+        .iter()
+        .filter_map(|document| document.root.as_ref())
+        .collect::<Vec<_>>();
+    let mut diagnostics = Vec::new();
+    if roots.len() == 1 {
+        validate_generic_data_csv_root(roots[0], &ast.source.uri, &mut diagnostics);
+    } else if roots
+        .iter()
+        .all(|value| matches!(value, GenericDataValueAst::Mapping { .. }))
+    {
+        for value in roots {
+            validate_generic_data_csv_mapping(value, &ast.source.uri, &mut diagnostics);
+        }
+    } else if roots
+        .iter()
+        .any(|value| matches!(value, GenericDataValueAst::Mapping { .. }))
+    {
+        let generated_range = GenericDataSourceRangeAst::generated();
+        diagnostics.push(generic_data_csv_unsupported_diagnostic(
+            &ast.source.uri,
+            roots
+                .first()
+                .map(|value| value.source_range())
+                .unwrap_or(&generated_range),
+            "mixed mapping and non-mapping generic data documents cannot be projected to CSV without a tabular schema",
+        ));
+    } else {
+        for value in roots {
+            validate_generic_data_csv_row(value, &ast.source.uri, &mut diagnostics);
+        }
+    }
+    diagnostics
+}
+
+fn validate_generic_data_csv_root(
+    value: &GenericDataValueAst,
+    uri: &str,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    match value {
+        GenericDataValueAst::Mapping { .. } => {
+            validate_generic_data_csv_mapping(value, uri, diagnostics)
+        }
+        GenericDataValueAst::Sequence { items, .. }
+            if items
+                .iter()
+                .all(|item| matches!(item, GenericDataValueAst::Mapping { .. })) =>
+        {
+            for item in items {
+                validate_generic_data_csv_mapping(item, uri, diagnostics);
+            }
+        }
+        GenericDataValueAst::Sequence { items, .. }
+            if items
+                .iter()
+                .any(|item| matches!(item, GenericDataValueAst::Mapping { .. })) =>
+        {
+            diagnostics.push(generic_data_csv_unsupported_diagnostic(
+                uri,
+                value.source_range(),
+                "mixed mapping and non-mapping generic data sequences cannot be projected to CSV without a tabular schema",
+            ));
+        }
+        GenericDataValueAst::Sequence { items, .. } => {
+            for item in items {
+                validate_generic_data_csv_row(item, uri, diagnostics);
+            }
+        }
+        _ => validate_generic_data_csv_scalar(value, uri, diagnostics),
+    }
+}
+
+fn validate_generic_data_csv_mapping(
+    value: &GenericDataValueAst,
+    uri: &str,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    let GenericDataValueAst::Mapping { entries, .. } = value else {
+        return;
+    };
+    for entry in entries {
+        validate_generic_data_csv_scalar(&entry.key, uri, diagnostics);
+        validate_generic_data_csv_scalar(&entry.value, uri, diagnostics);
+    }
+}
+
+fn validate_generic_data_csv_row(
+    value: &GenericDataValueAst,
+    uri: &str,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    match value {
+        GenericDataValueAst::Sequence { items, .. } => {
+            for item in items {
+                validate_generic_data_csv_scalar(item, uri, diagnostics);
+            }
+        }
+        _ => validate_generic_data_csv_scalar(value, uri, diagnostics),
+    }
+}
+
+fn validate_generic_data_csv_scalar(
+    value: &GenericDataValueAst,
+    uri: &str,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    if let GenericDataValueAst::Mapping { source_range, .. }
+    | GenericDataValueAst::Sequence { source_range, .. } = value
+    {
+        diagnostics.push(generic_data_csv_unsupported_diagnostic(
+            uri,
+            source_range,
+            "nested generic data values cannot be projected to a CSV field without an explicit flattening schema",
+        ));
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CsvDocumentSource {
     pub uri: String,
@@ -555,6 +690,7 @@ impl CsvDocumentSource {
         }
     }
 
+    #[cfg(test)]
     fn to_cemt_subject(&self) -> serde_json::Value {
         json!({
             "uri": self.uri,
@@ -591,6 +727,7 @@ impl CsvEncodingReportAst {
         }
     }
 
+    #[cfg(test)]
     fn to_cemt_subject(&self) -> serde_json::Value {
         let mut value = serde_json::Map::new();
         if let Some(charset) = self.declared_charset.as_deref() {
@@ -628,6 +765,7 @@ impl CsvDialectAst {
         }
     }
 
+    #[cfg(test)]
     fn to_cemt_subject(&self) -> serde_json::Value {
         let mut value = serde_json::Map::new();
         value.insert("delimiter".to_owned(), json!(self.delimiter));
@@ -690,6 +828,7 @@ impl CsvDocumentParseFact {
         }
     }
 
+    #[cfg(test)]
     fn to_cemt_subject(&self) -> serde_json::Value {
         json!({
             "kind": self.kind.as_str(),
@@ -728,6 +867,7 @@ pub struct CsvRecordAst {
 }
 
 impl CsvRecordAst {
+    #[cfg(test)]
     fn to_cemt_subject(&self) -> serde_json::Value {
         json!({
             "index": self.index,
@@ -747,16 +887,19 @@ impl CsvRecordAst {
 pub struct CsvFieldAst {
     pub index: usize,
     pub value: String,
+    pub lexeme: String,
     pub quoted: bool,
     pub range: CsvSourceRange,
     pub delimiter_before: Option<CsvSourceRange>,
 }
 
 impl CsvFieldAst {
+    #[cfg(test)]
     fn to_cemt_subject(&self) -> serde_json::Value {
         json!({
             "index": self.index,
             "value": self.value,
+            "lexeme": self.lexeme,
             "quoted": self.quoted,
             "byteOffset": self.range.start.byte_offset,
             "byteLength": self.range.byte_length(),
@@ -805,6 +948,7 @@ impl CsvSourceRange {
         }
     }
 
+    #[cfg(test)]
     fn to_cemt_subject(self) -> serde_json::Value {
         json!({
             "byteOffset": self.start.byte_offset,
@@ -939,6 +1083,7 @@ pub fn validate_csv_source_bytes(request: CsvSourceValidationRequest<'_>) -> Vec
     validate_csv_parse_report(&report, &contracts)
 }
 
+#[cfg(test)]
 pub fn csv_table_value_from_source_bytes(
     request: CsvSourceValidationRequest<'_>,
 ) -> (Option<serde_json::Value>, Vec<Diagnostic>) {
@@ -1502,6 +1647,7 @@ fn csv_scan_projected_field(
     let text = source.text.as_str();
     let bytes = text.as_bytes();
     let start = csv_current_position(*byte, *line, *column, source.byte_offset_base);
+    let lexeme_start = *byte;
     let mut value = String::new();
     let mut quoted = false;
 
@@ -1543,6 +1689,7 @@ fn csv_scan_projected_field(
     CsvFieldAst {
         index: 0,
         value,
+        lexeme: text[lexeme_start..*byte].to_owned(),
         quoted,
         range: CsvSourceRange {
             start,

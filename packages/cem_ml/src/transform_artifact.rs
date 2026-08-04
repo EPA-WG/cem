@@ -10,6 +10,10 @@ use crate::schema::registry::{
     content_type_essence, JSON_CONTENT_TYPE, JSON_SCHEMA_CONTENT_TYPE, JSON_SCHEMA_SCHEMA_URI,
 };
 use crate::source_map::SourceMapStack;
+use crate::validation::csv::{
+    CsvDialectAst, CsvDocumentAst, CsvDocumentParseFact, CsvDocumentSource, CsvEncodingReportAst,
+    CsvFieldAst, CsvRecordAst, CsvSourceRange,
+};
 use crate::validation::generic_data::{
     GenericDataDocumentAst, GenericDataMappingEntryAst, GenericDataSourceRangeAst,
     GenericDataStreamDocumentAst, GenericDataValueAst,
@@ -882,6 +886,16 @@ pub struct GenericDataJsonDocumentCemtSubjectRef<'a> {
 }
 
 #[derive(Debug, Clone, Copy)]
+pub struct CsvDocumentCemtSubjectRef<'a> {
+    document: &'a CsvDocumentAst,
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct GenericDataCsvDocumentCemtSubjectRef<'a> {
+    document: &'a GenericDataDocumentAst,
+}
+
+#[derive(Debug, Clone, Copy)]
 pub struct JsonSchemaDocumentCemtSubjectRef<'a> {
     document: &'a JsonSchemaDocumentAst,
 }
@@ -901,6 +915,38 @@ impl<'a> JsonSchemaDocumentCemtSubjectRef<'a> {
 
     pub fn evaluator_view(self) -> CemtEvaluatorValueRef<'a> {
         CemtEvaluatorValueRef::Record(CemtEvaluatorRecordRef::JsonSchemaDocument {
+            document: self.document,
+        })
+    }
+}
+
+impl<'a> CsvDocumentCemtSubjectRef<'a> {
+    pub fn new(document: &'a CsvDocumentAst) -> Self {
+        Self { document }
+    }
+
+    pub fn document(self) -> &'a CsvDocumentAst {
+        self.document
+    }
+
+    pub fn evaluator_view(self) -> CemtEvaluatorValueRef<'a> {
+        CemtEvaluatorValueRef::Record(CemtEvaluatorRecordRef::CsvDocument {
+            document: self.document,
+        })
+    }
+}
+
+impl<'a> GenericDataCsvDocumentCemtSubjectRef<'a> {
+    pub fn new(document: &'a GenericDataDocumentAst) -> Self {
+        Self { document }
+    }
+
+    pub fn document(self) -> &'a GenericDataDocumentAst {
+        self.document
+    }
+
+    pub fn evaluator_view(self) -> CemtEvaluatorValueRef<'a> {
+        CemtEvaluatorValueRef::Record(CemtEvaluatorRecordRef::GenericDataCsvDocument {
             document: self.document,
         })
     }
@@ -1722,6 +1768,32 @@ where
 
 #[derive(Debug, Clone)]
 pub enum CemtEvaluatorSequenceRef<'a> {
+    Empty,
+    Strings {
+        values: &'a [String],
+    },
+    CsvParseFacts {
+        facts: &'a [CsvDocumentParseFact],
+    },
+    CsvRows {
+        rows: &'a [CsvRecordAst],
+    },
+    CsvFields {
+        fields: &'a [CsvFieldAst],
+    },
+    GenericDataCsvRows {
+        document: &'a GenericDataDocumentAst,
+    },
+    GenericDataCsvHeaderFields {
+        document: &'a GenericDataDocumentAst,
+    },
+    GenericDataCsvMappingFields {
+        document: &'a GenericDataDocumentAst,
+        entries: &'a [GenericDataMappingEntryAst],
+    },
+    GenericDataCsvValueFields {
+        value: &'a GenericDataValueAst,
+    },
     JsonMembers {
         members: &'a [JsonMemberAst],
     },
@@ -1824,6 +1896,20 @@ impl<'a> CemtEvaluatorSequenceRef<'a> {
 
     pub fn len(&self) -> usize {
         match self {
+            Self::Empty => 0,
+            Self::Strings { values } => values.len(),
+            Self::CsvParseFacts { facts } => facts.len(),
+            Self::CsvRows { rows } => rows.len(),
+            Self::CsvFields { fields } => fields.len(),
+            Self::GenericDataCsvRows { document } => generic_data_csv_row_count(document),
+            Self::GenericDataCsvHeaderFields { document }
+            | Self::GenericDataCsvMappingFields { document, .. } => {
+                generic_data_csv_header_count(document)
+            }
+            Self::GenericDataCsvValueFields { value } => match value {
+                GenericDataValueAst::Sequence { items, .. } => items.len(),
+                _ => 1,
+            },
             Self::JsonMembers { members } => members.len(),
             Self::JsonValues { values } => values.len(),
             Self::GenericDataJsonDocuments { documents } => documents.len(),
@@ -1859,6 +1945,51 @@ impl<'a> CemtEvaluatorSequenceRef<'a> {
 
     pub fn item(&self, index: usize) -> Option<CemtEvaluatorValueRef<'a>> {
         match self {
+            Self::Empty => None,
+            Self::Strings { values } => values
+                .get(index)
+                .map(|value| CemtEvaluatorValueRef::String(value)),
+            Self::CsvParseFacts { facts } => facts.get(index).map(|fact| {
+                CemtEvaluatorValueRef::Record(CemtEvaluatorRecordRef::CsvParseFact { fact })
+            }),
+            Self::CsvRows { rows } => rows
+                .get(index)
+                .map(|row| CemtEvaluatorValueRef::Record(CemtEvaluatorRecordRef::CsvRow { row })),
+            Self::CsvFields { fields } => fields.get(index).map(|field| {
+                CemtEvaluatorValueRef::Record(CemtEvaluatorRecordRef::CsvField { field })
+            }),
+            Self::GenericDataCsvRows { document } => {
+                generic_data_csv_row_evaluator_value(document, index)
+            }
+            Self::GenericDataCsvHeaderFields { document } => {
+                let entry = generic_data_csv_header_entry(document, index)?;
+                Some(CemtEvaluatorValueRef::Record(
+                    CemtEvaluatorRecordRef::GenericDataCsvHeaderField { entry, index },
+                ))
+            }
+            Self::GenericDataCsvMappingFields { document, entries } => {
+                let header_entry = generic_data_csv_header_entry(document, index)?;
+                Some(CemtEvaluatorValueRef::Record(
+                    CemtEvaluatorRecordRef::GenericDataCsvMappingField {
+                        header_entry,
+                        entries,
+                        index,
+                    },
+                ))
+            }
+            Self::GenericDataCsvValueFields { value } => {
+                let field_value = match value {
+                    GenericDataValueAst::Sequence { items, .. } => items.get(index)?,
+                    _ if index == 0 => value,
+                    _ => return None,
+                };
+                Some(CemtEvaluatorValueRef::Record(
+                    CemtEvaluatorRecordRef::GenericDataCsvValueField {
+                        value: field_value,
+                        index,
+                    },
+                ))
+            }
             Self::JsonMembers { members } => {
                 let member = members.get(index)?;
                 Some(CemtEvaluatorValueRef::Record(
@@ -2114,6 +2245,68 @@ fn cemt_evaluator_node_format_sequence_matches(
 
 #[derive(Debug, Clone)]
 pub enum CemtEvaluatorRecordRef<'a> {
+    CsvDocument {
+        document: &'a CsvDocumentAst,
+    },
+    CsvSource {
+        source: &'a CsvDocumentSource,
+    },
+    CsvEncodingReport {
+        report: &'a CsvEncodingReportAst,
+    },
+    CsvDialect {
+        dialect: &'a CsvDialectAst,
+    },
+    CsvParseFact {
+        fact: &'a CsvDocumentParseFact,
+    },
+    CsvParseFactSourceRange {
+        fact: &'a CsvDocumentParseFact,
+    },
+    CsvRow {
+        row: &'a CsvRecordAst,
+    },
+    CsvField {
+        field: &'a CsvFieldAst,
+    },
+    CsvSourceRange {
+        range: CsvSourceRange,
+    },
+    GenericDataCsvDocument {
+        document: &'a GenericDataDocumentAst,
+    },
+    GenericDataCsvSource {
+        document: &'a GenericDataDocumentAst,
+    },
+    GenericDataCsvEncodingReport,
+    GenericDataCsvDialect {
+        document: &'a GenericDataDocumentAst,
+    },
+    GenericDataCsvHeaderRow {
+        document: &'a GenericDataDocumentAst,
+    },
+    GenericDataCsvMappingRow {
+        document: &'a GenericDataDocumentAst,
+        entries: &'a [GenericDataMappingEntryAst],
+        index: usize,
+    },
+    GenericDataCsvValueRow {
+        value: &'a GenericDataValueAst,
+        index: usize,
+    },
+    GenericDataCsvHeaderField {
+        entry: &'a GenericDataMappingEntryAst,
+        index: usize,
+    },
+    GenericDataCsvMappingField {
+        header_entry: &'a GenericDataMappingEntryAst,
+        entries: &'a [GenericDataMappingEntryAst],
+        index: usize,
+    },
+    GenericDataCsvValueField {
+        value: &'a GenericDataValueAst,
+        index: usize,
+    },
     JsonDocument {
         document: &'a JsonDocumentAst,
     },
@@ -2219,6 +2412,25 @@ impl<'a> CemtEvaluatorRecordRef<'a> {
             | Self::FormattedNode { path, .. }
             | Self::FormattedAttribute { path, .. } => Some(path),
             Self::JsonDocument { .. }
+            | Self::CsvDocument { .. }
+            | Self::CsvSource { .. }
+            | Self::CsvEncodingReport { .. }
+            | Self::CsvDialect { .. }
+            | Self::CsvParseFact { .. }
+            | Self::CsvParseFactSourceRange { .. }
+            | Self::CsvRow { .. }
+            | Self::CsvField { .. }
+            | Self::CsvSourceRange { .. }
+            | Self::GenericDataCsvDocument { .. }
+            | Self::GenericDataCsvSource { .. }
+            | Self::GenericDataCsvEncodingReport
+            | Self::GenericDataCsvDialect { .. }
+            | Self::GenericDataCsvHeaderRow { .. }
+            | Self::GenericDataCsvMappingRow { .. }
+            | Self::GenericDataCsvValueRow { .. }
+            | Self::GenericDataCsvHeaderField { .. }
+            | Self::GenericDataCsvMappingField { .. }
+            | Self::GenericDataCsvValueField { .. }
             | Self::JsonValue { .. }
             | Self::JsonMember { .. }
             | Self::JsonSourceRange { .. }
@@ -2256,6 +2468,25 @@ impl<'a> CemtEvaluatorRecordRef<'a> {
                 Some(CemtTreeOwnerRef::Attribute(attribute))
             }
             Self::JsonDocument { .. }
+            | Self::CsvDocument { .. }
+            | Self::CsvSource { .. }
+            | Self::CsvEncodingReport { .. }
+            | Self::CsvDialect { .. }
+            | Self::CsvParseFact { .. }
+            | Self::CsvParseFactSourceRange { .. }
+            | Self::CsvRow { .. }
+            | Self::CsvField { .. }
+            | Self::CsvSourceRange { .. }
+            | Self::GenericDataCsvDocument { .. }
+            | Self::GenericDataCsvSource { .. }
+            | Self::GenericDataCsvEncodingReport
+            | Self::GenericDataCsvDialect { .. }
+            | Self::GenericDataCsvHeaderRow { .. }
+            | Self::GenericDataCsvMappingRow { .. }
+            | Self::GenericDataCsvValueRow { .. }
+            | Self::GenericDataCsvHeaderField { .. }
+            | Self::GenericDataCsvMappingField { .. }
+            | Self::GenericDataCsvValueField { .. }
             | Self::JsonValue { .. }
             | Self::JsonMember { .. }
             | Self::JsonSourceRange { .. }
@@ -2314,6 +2545,144 @@ impl<'a> CemtEvaluatorRecordRef<'a> {
 
     pub fn field_names(&self) -> &'static [&'static str] {
         match self {
+            Self::CsvDocument { document } if document.line_ending.is_some() => &[
+                "kind",
+                "source",
+                "encoding",
+                "encodingReport",
+                "delimiter",
+                "header",
+                "dialect",
+                "parseFacts",
+                "rows",
+                "lineEnding",
+            ],
+            Self::CsvDocument { .. } => &[
+                "kind",
+                "source",
+                "encoding",
+                "encodingReport",
+                "delimiter",
+                "header",
+                "dialect",
+                "parseFacts",
+                "rows",
+            ],
+            Self::CsvSource { .. } | Self::GenericDataCsvSource { .. } => &[
+                "uri",
+                "contentType",
+                "mediaType",
+                "parameters",
+                "byteLength",
+            ],
+            Self::CsvEncodingReport { report } if report.declared_charset.is_some() => {
+                if report.invalid_byte_offset.is_some() {
+                    &[
+                        "declaredCharset",
+                        "normalizedCharset",
+                        "decoderStatus",
+                        "invalidByteOffset",
+                    ]
+                } else {
+                    &["declaredCharset", "normalizedCharset", "decoderStatus"]
+                }
+            }
+            Self::CsvEncodingReport { report } if report.invalid_byte_offset.is_some() => {
+                &["normalizedCharset", "decoderStatus", "invalidByteOffset"]
+            }
+            Self::CsvEncodingReport { .. } | Self::GenericDataCsvEncodingReport => {
+                &["normalizedCharset", "decoderStatus"]
+            }
+            Self::CsvDialect { dialect } if dialect.line_ending.is_some() => {
+                &["delimiter", "quote", "escape", "header", "lineEnding"]
+            }
+            Self::CsvDialect { .. } => &["delimiter", "quote", "escape", "header"],
+            Self::CsvParseFact { .. } => &[
+                "kind",
+                "contract",
+                "behavior",
+                "diagnosticCode",
+                "diagnosticSeverity",
+                "recoverable",
+                "fatal",
+                "parameter",
+                "actual",
+                "expected",
+                "rowIndex",
+                "fieldIndex",
+                "expectedCount",
+                "actualCount",
+                "line",
+                "column",
+                "byteOffset",
+                "message",
+                "sourceRange",
+            ],
+            Self::CsvParseFactSourceRange { .. } => &["byteOffset", "line", "column"],
+            Self::CsvRow { .. }
+            | Self::GenericDataCsvHeaderRow { .. }
+            | Self::GenericDataCsvMappingRow { .. }
+            | Self::GenericDataCsvValueRow { .. } => &[
+                "index",
+                "fieldCount",
+                "byteOffset",
+                "byteLength",
+                "sourceRange",
+                "sourceMap",
+                "recordEndingSourceRange",
+                "recordEndingSourceMap",
+                "fields",
+            ],
+            Self::CsvField { .. }
+            | Self::GenericDataCsvHeaderField { .. }
+            | Self::GenericDataCsvMappingField { .. }
+            | Self::GenericDataCsvValueField { .. } => &[
+                "index",
+                "value",
+                "lexeme",
+                "quoted",
+                "byteOffset",
+                "byteLength",
+                "sourceRange",
+                "sourceMap",
+                "delimiterBeforeSourceRange",
+                "delimiterBeforeSourceMap",
+            ],
+            Self::CsvSourceRange { .. } => &[
+                "byteOffset",
+                "byteLength",
+                "line",
+                "column",
+                "endLine",
+                "endColumn",
+            ],
+            Self::GenericDataCsvDocument { document } if document.line_ending.is_some() => &[
+                "kind",
+                "source",
+                "encoding",
+                "encodingReport",
+                "delimiter",
+                "header",
+                "dialect",
+                "parseFacts",
+                "rows",
+                "lineEnding",
+            ],
+            Self::GenericDataCsvDocument { .. } => &[
+                "kind",
+                "source",
+                "encoding",
+                "encodingReport",
+                "delimiter",
+                "header",
+                "dialect",
+                "parseFacts",
+                "rows",
+            ],
+            Self::GenericDataCsvDialect { document } if document.line_ending.is_some() => {
+                &["delimiter", "quote", "escape", "header", "lineEnding"]
+            }
+            Self::GenericDataCsvDialect { .. } => &["delimiter", "quote", "escape", "header"],
             Self::JsonDocument { .. } => &[
                 "kind",
                 "contentType",
@@ -2452,6 +2821,7 @@ impl<'a> CemtEvaluatorRecordRef<'a> {
                 "color",
                 "wrapper",
                 "terminalCapability",
+                "tabular",
             ],
             Self::WriterTokenMetadata { .. } => &[
                 "name",
@@ -2464,6 +2834,21 @@ impl<'a> CemtEvaluatorRecordRef<'a> {
                 "indent",
                 "leadingComma",
                 "scopeOpeningNewLine",
+                "delimiter",
+                "rowIndex",
+                "fieldIndex",
+                "raw",
+                "quoted",
+                "byteOffset",
+                "byteLength",
+                "rowSourceRange",
+                "rowByteOffset",
+                "rowByteLength",
+                "fieldCount",
+                "tabSize",
+                "presentationOnly",
+                "strictCsv",
+                "dataPreserving",
             ],
             Self::WriterTokenSourceRange { .. } => &["byteOffset", "byteLength", "line", "column"],
             Self::OutputSpan { .. } => &["outputRange", "origin"],
@@ -2598,6 +2983,53 @@ impl<'a> CemtEvaluatorRecordRef<'a> {
 
     pub fn field(&self, name: &str) -> Option<CemtEvaluatorValueRef<'a>> {
         match self {
+            Self::CsvDocument { document } => csv_document_evaluator_field(document, name),
+            Self::CsvSource { source } => csv_source_evaluator_field(source, name),
+            Self::CsvEncodingReport { report } => csv_encoding_report_evaluator_field(report, name),
+            Self::CsvDialect { dialect } => csv_dialect_evaluator_field(dialect, name),
+            Self::CsvParseFact { fact } => csv_parse_fact_evaluator_field(fact, name),
+            Self::CsvParseFactSourceRange { fact } => {
+                csv_parse_fact_source_range_evaluator_field(fact, name)
+            }
+            Self::CsvRow { row } => csv_row_evaluator_field(row, name),
+            Self::CsvField { field } => csv_field_evaluator_field(field, name),
+            Self::CsvSourceRange { range } => csv_source_range_evaluator_field(*range, name),
+            Self::GenericDataCsvDocument { document } => {
+                generic_data_csv_document_evaluator_field(document, name)
+            }
+            Self::GenericDataCsvSource { document } => {
+                generic_data_csv_source_evaluator_field(document, name)
+            }
+            Self::GenericDataCsvEncodingReport => {
+                generic_data_csv_encoding_report_evaluator_field(name)
+            }
+            Self::GenericDataCsvDialect { document } => {
+                generic_data_csv_dialect_evaluator_field(document, name)
+            }
+            Self::GenericDataCsvHeaderRow { document } => {
+                generic_data_csv_header_row_evaluator_field(document, name)
+            }
+            Self::GenericDataCsvMappingRow {
+                document,
+                entries,
+                index,
+            } => generic_data_csv_mapping_row_evaluator_field(document, entries, *index, name),
+            Self::GenericDataCsvValueRow { value, index } => {
+                generic_data_csv_value_row_evaluator_field(value, *index, name)
+            }
+            Self::GenericDataCsvHeaderField { entry, index } => {
+                generic_data_csv_header_field_evaluator_field(entry, *index, name)
+            }
+            Self::GenericDataCsvMappingField {
+                header_entry,
+                entries,
+                index,
+            } => {
+                generic_data_csv_mapping_field_evaluator_field(header_entry, entries, *index, name)
+            }
+            Self::GenericDataCsvValueField { value, index } => {
+                generic_data_csv_value_field_evaluator_field(value, *index, name)
+            }
             Self::JsonDocument { document } => json_document_evaluator_field(document, name),
             Self::JsonValue { value } => json_value_evaluator_field(value, name),
             Self::JsonMember { member } => json_member_evaluator_field(member, name),
@@ -2733,6 +3165,626 @@ fn cemt_evaluator_materialized_tree_field<'a>(
         ),
         _ => None,
     }
+}
+
+fn csv_document_evaluator_field<'a>(
+    document: &'a CsvDocumentAst,
+    name: &str,
+) -> Option<CemtEvaluatorValueRef<'a>> {
+    match name {
+        "kind" => Some(CemtEvaluatorValueRef::String("csv-table")),
+        "source" => Some(CemtEvaluatorValueRef::Record(
+            CemtEvaluatorRecordRef::CsvSource {
+                source: &document.source,
+            },
+        )),
+        "encoding" => Some(CemtEvaluatorValueRef::String(&document.encoding)),
+        "encodingReport" => Some(CemtEvaluatorValueRef::Record(
+            CemtEvaluatorRecordRef::CsvEncodingReport {
+                report: &document.encoding_report,
+            },
+        )),
+        "delimiter" => Some(CemtEvaluatorValueRef::String(&document.delimiter)),
+        "header" => Some(CemtEvaluatorValueRef::String(&document.header)),
+        "dialect" => Some(CemtEvaluatorValueRef::Record(
+            CemtEvaluatorRecordRef::CsvDialect {
+                dialect: &document.dialect,
+            },
+        )),
+        "parseFacts" => Some(CemtEvaluatorValueRef::Sequence(
+            CemtEvaluatorSequenceRef::CsvParseFacts {
+                facts: &document.parse_facts,
+            },
+        )),
+        "rows" => Some(CemtEvaluatorValueRef::Sequence(
+            CemtEvaluatorSequenceRef::CsvRows {
+                rows: &document.rows,
+            },
+        )),
+        "lineEnding" => document
+            .line_ending
+            .as_deref()
+            .map(CemtEvaluatorValueRef::String),
+        _ => None,
+    }
+}
+
+fn csv_source_evaluator_field<'a>(
+    source: &'a CsvDocumentSource,
+    name: &str,
+) -> Option<CemtEvaluatorValueRef<'a>> {
+    match name {
+        "uri" => Some(CemtEvaluatorValueRef::String(&source.uri)),
+        "contentType" => Some(CemtEvaluatorValueRef::String(&source.content_type)),
+        "mediaType" => Some(CemtEvaluatorValueRef::String(&source.media_type)),
+        "parameters" => Some(CemtEvaluatorValueRef::StringMap(&source.parameters)),
+        "byteLength" => Some(usize_evaluator_value(source.byte_length)),
+        _ => None,
+    }
+}
+
+fn csv_encoding_report_evaluator_field<'a>(
+    report: &'a CsvEncodingReportAst,
+    name: &str,
+) -> Option<CemtEvaluatorValueRef<'a>> {
+    match name {
+        "declaredCharset" => report
+            .declared_charset
+            .as_deref()
+            .map(CemtEvaluatorValueRef::String),
+        "normalizedCharset" => Some(CemtEvaluatorValueRef::String(&report.normalized_charset)),
+        "decoderStatus" => Some(CemtEvaluatorValueRef::String(&report.decoder_status)),
+        "invalidByteOffset" => report.invalid_byte_offset.map(u64_evaluator_value),
+        _ => None,
+    }
+}
+
+fn csv_dialect_evaluator_field<'a>(
+    dialect: &'a CsvDialectAst,
+    name: &str,
+) -> Option<CemtEvaluatorValueRef<'a>> {
+    match name {
+        "delimiter" => Some(CemtEvaluatorValueRef::String(&dialect.delimiter)),
+        "quote" => Some(CemtEvaluatorValueRef::String(&dialect.quote)),
+        "escape" => Some(CemtEvaluatorValueRef::String(&dialect.escape)),
+        "header" => Some(CemtEvaluatorValueRef::String(&dialect.header)),
+        "lineEnding" => dialect
+            .line_ending
+            .as_deref()
+            .map(CemtEvaluatorValueRef::String),
+        _ => None,
+    }
+}
+
+fn csv_parse_fact_evaluator_field<'a>(
+    fact: &'a CsvDocumentParseFact,
+    name: &str,
+) -> Option<CemtEvaluatorValueRef<'a>> {
+    match name {
+        "kind" => Some(CemtEvaluatorValueRef::String(fact.kind.as_str())),
+        "contract" => Some(optional_string_evaluator_value(fact.contract.as_deref())),
+        "behavior" => Some(optional_string_evaluator_value(fact.behavior.as_deref())),
+        "diagnosticCode" => Some(optional_string_evaluator_value(
+            fact.diagnostic_code.as_deref(),
+        )),
+        "diagnosticSeverity" => Some(optional_string_evaluator_value(
+            fact.diagnostic_severity.as_deref(),
+        )),
+        "recoverable" => Some(CemtEvaluatorValueRef::Boolean(fact.recoverable)),
+        "fatal" => Some(CemtEvaluatorValueRef::Boolean(fact.fatal)),
+        "parameter" => Some(optional_string_evaluator_value(fact.parameter.as_deref())),
+        "actual" => Some(optional_string_evaluator_value(fact.actual.as_deref())),
+        "expected" => Some(CemtEvaluatorValueRef::Sequence(
+            CemtEvaluatorSequenceRef::Strings {
+                values: &fact.expected,
+            },
+        )),
+        "rowIndex" => Some(optional_usize_evaluator_value(fact.row_index)),
+        "fieldIndex" => Some(optional_usize_evaluator_value(fact.field_index)),
+        "expectedCount" => Some(optional_usize_evaluator_value(fact.expected_count)),
+        "actualCount" => Some(optional_usize_evaluator_value(fact.actual_count)),
+        "line" => Some(optional_u32_evaluator_value(fact.line)),
+        "column" => Some(optional_u32_evaluator_value(fact.column)),
+        "byteOffset" => Some(optional_u64_evaluator_value(fact.byte_offset)),
+        "message" => Some(CemtEvaluatorValueRef::String(&fact.message)),
+        "sourceRange" => Some(CemtEvaluatorValueRef::Record(
+            CemtEvaluatorRecordRef::CsvParseFactSourceRange { fact },
+        )),
+        _ => None,
+    }
+}
+
+fn csv_parse_fact_source_range_evaluator_field(
+    fact: &CsvDocumentParseFact,
+    name: &str,
+) -> Option<CemtEvaluatorValueRef<'static>> {
+    match name {
+        "byteOffset" => Some(optional_u64_evaluator_value(fact.byte_offset)),
+        "line" => Some(optional_u32_evaluator_value(fact.line)),
+        "column" => Some(optional_u32_evaluator_value(fact.column)),
+        _ => None,
+    }
+}
+
+fn csv_row_evaluator_field<'a>(
+    row: &'a CsvRecordAst,
+    name: &str,
+) -> Option<CemtEvaluatorValueRef<'a>> {
+    match name {
+        "index" => Some(usize_evaluator_value(row.index)),
+        "fieldCount" => Some(usize_evaluator_value(row.fields.len())),
+        "byteOffset" => Some(u64_evaluator_value(row.range.start.byte_offset)),
+        "byteLength" => Some(u64_evaluator_value(row.range.byte_length())),
+        "sourceRange" => Some(CemtEvaluatorValueRef::Record(
+            CemtEvaluatorRecordRef::CsvSourceRange { range: row.range },
+        )),
+        "sourceMap" => Some(CemtEvaluatorValueRef::OwnedSourceMap(Arc::new(
+            row.range.source_map(),
+        ))),
+        "recordEndingSourceRange" => Some(match row.record_ending {
+            Some(range) => {
+                CemtEvaluatorValueRef::Record(CemtEvaluatorRecordRef::CsvSourceRange { range })
+            }
+            None => CemtEvaluatorValueRef::Null,
+        }),
+        "recordEndingSourceMap" => Some(match row.record_ending {
+            Some(range) => CemtEvaluatorValueRef::OwnedSourceMap(Arc::new(range.source_map())),
+            None => CemtEvaluatorValueRef::Null,
+        }),
+        "fields" => Some(CemtEvaluatorValueRef::Sequence(
+            CemtEvaluatorSequenceRef::CsvFields {
+                fields: &row.fields,
+            },
+        )),
+        _ => None,
+    }
+}
+
+fn csv_field_evaluator_field<'a>(
+    field: &'a CsvFieldAst,
+    name: &str,
+) -> Option<CemtEvaluatorValueRef<'a>> {
+    match name {
+        "index" => Some(usize_evaluator_value(field.index)),
+        "value" => Some(CemtEvaluatorValueRef::String(&field.value)),
+        "lexeme" => Some(CemtEvaluatorValueRef::String(&field.lexeme)),
+        "quoted" => Some(CemtEvaluatorValueRef::Boolean(field.quoted)),
+        "byteOffset" => Some(u64_evaluator_value(field.range.start.byte_offset)),
+        "byteLength" => Some(u64_evaluator_value(field.range.byte_length())),
+        "sourceRange" => Some(CemtEvaluatorValueRef::Record(
+            CemtEvaluatorRecordRef::CsvSourceRange { range: field.range },
+        )),
+        "sourceMap" => Some(CemtEvaluatorValueRef::OwnedSourceMap(Arc::new(
+            field.range.source_map(),
+        ))),
+        "delimiterBeforeSourceRange" => Some(match field.delimiter_before {
+            Some(range) => {
+                CemtEvaluatorValueRef::Record(CemtEvaluatorRecordRef::CsvSourceRange { range })
+            }
+            None => CemtEvaluatorValueRef::Null,
+        }),
+        "delimiterBeforeSourceMap" => Some(match field.delimiter_before {
+            Some(range) => CemtEvaluatorValueRef::OwnedSourceMap(Arc::new(range.source_map())),
+            None => CemtEvaluatorValueRef::Null,
+        }),
+        _ => None,
+    }
+}
+
+fn csv_source_range_evaluator_field(
+    range: CsvSourceRange,
+    name: &str,
+) -> Option<CemtEvaluatorValueRef<'static>> {
+    let value = match name {
+        "byteOffset" => range.start.byte_offset,
+        "byteLength" => range.byte_length(),
+        "line" => u64::from(range.start.line),
+        "column" => u64::from(range.start.column),
+        "endLine" => u64::from(range.end.line),
+        "endColumn" => u64::from(range.end.column),
+        _ => return None,
+    };
+    Some(u64_evaluator_value(value))
+}
+
+fn generic_data_csv_document_evaluator_field<'a>(
+    document: &'a GenericDataDocumentAst,
+    name: &str,
+) -> Option<CemtEvaluatorValueRef<'a>> {
+    match name {
+        "kind" => Some(CemtEvaluatorValueRef::String("csv-table")),
+        "source" => Some(CemtEvaluatorValueRef::Record(
+            CemtEvaluatorRecordRef::GenericDataCsvSource { document },
+        )),
+        "encoding" => Some(CemtEvaluatorValueRef::String("utf-8")),
+        "encodingReport" => Some(CemtEvaluatorValueRef::Record(
+            CemtEvaluatorRecordRef::GenericDataCsvEncodingReport,
+        )),
+        "delimiter" => Some(CemtEvaluatorValueRef::String(",")),
+        "header" => Some(CemtEvaluatorValueRef::String(
+            if generic_data_csv_has_header(document) {
+                "present"
+            } else {
+                "absent"
+            },
+        )),
+        "dialect" => Some(CemtEvaluatorValueRef::Record(
+            CemtEvaluatorRecordRef::GenericDataCsvDialect { document },
+        )),
+        "parseFacts" => Some(CemtEvaluatorValueRef::Sequence(
+            CemtEvaluatorSequenceRef::Empty,
+        )),
+        "rows" => Some(CemtEvaluatorValueRef::Sequence(
+            CemtEvaluatorSequenceRef::GenericDataCsvRows { document },
+        )),
+        "lineEnding" => document
+            .line_ending
+            .as_deref()
+            .map(CemtEvaluatorValueRef::String),
+        _ => None,
+    }
+}
+
+fn generic_data_csv_source_evaluator_field<'a>(
+    document: &'a GenericDataDocumentAst,
+    name: &str,
+) -> Option<CemtEvaluatorValueRef<'a>> {
+    let source = &document.source;
+    match name {
+        "uri" => Some(CemtEvaluatorValueRef::String(&source.uri)),
+        "contentType" => Some(CemtEvaluatorValueRef::String(&source.content_type)),
+        "mediaType" => Some(CemtEvaluatorValueRef::String(&source.media_type)),
+        "parameters" => Some(CemtEvaluatorValueRef::StringMap(&source.parameters)),
+        "byteLength" => Some(usize_evaluator_value(source.byte_length)),
+        _ => None,
+    }
+}
+
+fn generic_data_csv_encoding_report_evaluator_field(
+    name: &str,
+) -> Option<CemtEvaluatorValueRef<'static>> {
+    match name {
+        "normalizedCharset" => Some(CemtEvaluatorValueRef::String("utf-8")),
+        "decoderStatus" => Some(CemtEvaluatorValueRef::String("decoded")),
+        _ => None,
+    }
+}
+
+fn generic_data_csv_dialect_evaluator_field<'a>(
+    document: &'a GenericDataDocumentAst,
+    name: &str,
+) -> Option<CemtEvaluatorValueRef<'a>> {
+    match name {
+        "delimiter" => Some(CemtEvaluatorValueRef::String(",")),
+        "quote" => Some(CemtEvaluatorValueRef::String("\"")),
+        "escape" => Some(CemtEvaluatorValueRef::String("double-quote")),
+        "header" => Some(CemtEvaluatorValueRef::String(
+            if generic_data_csv_has_header(document) {
+                "present"
+            } else {
+                "absent"
+            },
+        )),
+        "lineEnding" => document
+            .line_ending
+            .as_deref()
+            .map(CemtEvaluatorValueRef::String),
+        _ => None,
+    }
+}
+
+fn generic_data_csv_header_row_evaluator_field<'a>(
+    document: &'a GenericDataDocumentAst,
+    name: &str,
+) -> Option<CemtEvaluatorValueRef<'a>> {
+    let range = generic_data_csv_header_entry(document, 0).map(|entry| entry.key.source_range());
+    generic_data_csv_row_common_field(
+        0,
+        generic_data_csv_header_count(document),
+        range,
+        name,
+        || CemtEvaluatorSequenceRef::GenericDataCsvHeaderFields { document },
+    )
+}
+
+fn generic_data_csv_mapping_row_evaluator_field<'a>(
+    document: &'a GenericDataDocumentAst,
+    entries: &'a [GenericDataMappingEntryAst],
+    index: usize,
+    name: &str,
+) -> Option<CemtEvaluatorValueRef<'a>> {
+    generic_data_csv_row_common_field(
+        index,
+        generic_data_csv_header_count(document),
+        entries.first().map(|entry| &entry.source_range),
+        name,
+        || CemtEvaluatorSequenceRef::GenericDataCsvMappingFields { document, entries },
+    )
+}
+
+fn generic_data_csv_value_row_evaluator_field<'a>(
+    value: &'a GenericDataValueAst,
+    index: usize,
+    name: &str,
+) -> Option<CemtEvaluatorValueRef<'a>> {
+    let field_count = match value {
+        GenericDataValueAst::Sequence { items, .. } => items.len(),
+        _ => 1,
+    };
+    generic_data_csv_row_common_field(index, field_count, Some(value.source_range()), name, || {
+        CemtEvaluatorSequenceRef::GenericDataCsvValueFields { value }
+    })
+}
+
+fn generic_data_csv_row_common_field<'a>(
+    index: usize,
+    field_count: usize,
+    range: Option<&'a GenericDataSourceRangeAst>,
+    name: &str,
+    fields: impl FnOnce() -> CemtEvaluatorSequenceRef<'a>,
+) -> Option<CemtEvaluatorValueRef<'a>> {
+    match name {
+        "index" => Some(usize_evaluator_value(index)),
+        "fieldCount" => Some(usize_evaluator_value(field_count)),
+        "byteOffset" => Some(u64_evaluator_value(
+            range.map_or(0, |range| range.byte_offset),
+        )),
+        "byteLength" => Some(u64_evaluator_value(
+            range.map_or(0, |range| range.byte_length),
+        )),
+        "sourceRange" => Some(CemtEvaluatorValueRef::Record(match range {
+            Some(source_range) => CemtEvaluatorRecordRef::GenericDataSourceRange { source_range },
+            None => CemtEvaluatorRecordRef::GenericDataGeneratedSourceRange,
+        })),
+        "sourceMap" => Some(match range {
+            Some(range) => generic_data_source_map_evaluator_value(range),
+            None => CemtEvaluatorValueRef::Null,
+        }),
+        "recordEndingSourceRange" | "recordEndingSourceMap" => Some(CemtEvaluatorValueRef::Null),
+        "fields" => Some(CemtEvaluatorValueRef::Sequence(fields())),
+        _ => None,
+    }
+}
+
+fn generic_data_csv_header_field_evaluator_field<'a>(
+    entry: &'a GenericDataMappingEntryAst,
+    index: usize,
+    name: &str,
+) -> Option<CemtEvaluatorValueRef<'a>> {
+    generic_data_csv_field_common_field(
+        index,
+        Some(entry.key.source_range()),
+        generic_data_csv_scalar_text(&entry.key),
+        name,
+    )
+}
+
+fn generic_data_csv_mapping_field_evaluator_field<'a>(
+    header_entry: &'a GenericDataMappingEntryAst,
+    entries: &'a [GenericDataMappingEntryAst],
+    index: usize,
+    name: &str,
+) -> Option<CemtEvaluatorValueRef<'a>> {
+    let header = generic_data_csv_scalar_text(&header_entry.key);
+    let entry = entries
+        .iter()
+        .find(|entry| generic_data_csv_scalar_text(&entry.key) == header);
+    generic_data_csv_field_common_field(
+        index,
+        entry.map(|entry| entry.value.source_range()),
+        entry
+            .map(|entry| generic_data_csv_scalar_text(&entry.value))
+            .unwrap_or_default(),
+        name,
+    )
+}
+
+fn generic_data_csv_value_field_evaluator_field<'a>(
+    value: &'a GenericDataValueAst,
+    index: usize,
+    name: &str,
+) -> Option<CemtEvaluatorValueRef<'a>> {
+    generic_data_csv_field_common_field(
+        index,
+        Some(value.source_range()),
+        generic_data_csv_scalar_text(value),
+        name,
+    )
+}
+
+fn generic_data_csv_field_common_field<'a>(
+    index: usize,
+    range: Option<&'a GenericDataSourceRangeAst>,
+    value: String,
+    name: &str,
+) -> Option<CemtEvaluatorValueRef<'a>> {
+    match name {
+        "index" => Some(usize_evaluator_value(index)),
+        "value" | "lexeme" => Some(CemtEvaluatorValueRef::OwnedString(Arc::from(value))),
+        "quoted" => Some(CemtEvaluatorValueRef::Boolean(false)),
+        "byteOffset" => Some(u64_evaluator_value(
+            range.map_or(0, |range| range.byte_offset),
+        )),
+        "byteLength" => Some(u64_evaluator_value(
+            range.map_or(0, |range| range.byte_length),
+        )),
+        "sourceRange" => Some(CemtEvaluatorValueRef::Record(match range {
+            Some(source_range) => CemtEvaluatorRecordRef::GenericDataSourceRange { source_range },
+            None => CemtEvaluatorRecordRef::GenericDataGeneratedSourceRange,
+        })),
+        "sourceMap" => Some(match range {
+            Some(range) => generic_data_source_map_evaluator_value(range),
+            None => CemtEvaluatorValueRef::Null,
+        }),
+        "delimiterBeforeSourceRange" | "delimiterBeforeSourceMap" => {
+            Some(CemtEvaluatorValueRef::Null)
+        }
+        _ => None,
+    }
+}
+
+fn generic_data_csv_roots(document: &GenericDataDocumentAst) -> Vec<&GenericDataValueAst> {
+    document
+        .documents
+        .iter()
+        .filter_map(|document| document.root.as_ref())
+        .collect()
+}
+
+fn generic_data_csv_mapping_rows(
+    document: &GenericDataDocumentAst,
+) -> Option<Vec<&[GenericDataMappingEntryAst]>> {
+    let roots = generic_data_csv_roots(document);
+    if roots.len() == 1 {
+        return match roots[0] {
+            GenericDataValueAst::Mapping { entries, .. } => Some(vec![entries]),
+            GenericDataValueAst::Sequence { items, .. }
+                if items
+                    .iter()
+                    .all(|item| matches!(item, GenericDataValueAst::Mapping { .. })) =>
+            {
+                Some(
+                    items
+                        .iter()
+                        .filter_map(|item| match item {
+                            GenericDataValueAst::Mapping { entries, .. } => {
+                                Some(entries.as_slice())
+                            }
+                            _ => None,
+                        })
+                        .collect(),
+                )
+            }
+            _ => None,
+        };
+    }
+    roots
+        .iter()
+        .all(|value| matches!(value, GenericDataValueAst::Mapping { .. }))
+        .then(|| {
+            roots
+                .into_iter()
+                .filter_map(|value| match value {
+                    GenericDataValueAst::Mapping { entries, .. } => Some(entries.as_slice()),
+                    _ => None,
+                })
+                .collect()
+        })
+}
+
+fn generic_data_csv_has_header(document: &GenericDataDocumentAst) -> bool {
+    generic_data_csv_mapping_rows(document).is_some()
+}
+
+fn generic_data_csv_header_entry(
+    document: &GenericDataDocumentAst,
+    index: usize,
+) -> Option<&GenericDataMappingEntryAst> {
+    let mut names = BTreeSet::new();
+    let mut current = 0usize;
+    for entries in generic_data_csv_mapping_rows(document)? {
+        for entry in entries {
+            if names.insert(generic_data_csv_scalar_text(&entry.key)) {
+                if current == index {
+                    return Some(entry);
+                }
+                current = current.saturating_add(1);
+            }
+        }
+    }
+    None
+}
+
+fn generic_data_csv_header_count(document: &GenericDataDocumentAst) -> usize {
+    let mut names = BTreeSet::new();
+    for entries in generic_data_csv_mapping_rows(document).unwrap_or_default() {
+        for entry in entries {
+            names.insert(generic_data_csv_scalar_text(&entry.key));
+        }
+    }
+    names.len()
+}
+
+fn generic_data_csv_row_count(document: &GenericDataDocumentAst) -> usize {
+    if let Some(rows) = generic_data_csv_mapping_rows(document) {
+        return rows.len().saturating_add(1);
+    }
+    let roots = generic_data_csv_roots(document);
+    match roots.as_slice() {
+        [GenericDataValueAst::Sequence { items, .. }]
+            if items
+                .iter()
+                .any(|item| matches!(item, GenericDataValueAst::Mapping { .. })) =>
+        {
+            0
+        }
+        [GenericDataValueAst::Sequence { items, .. }] => items.len(),
+        [_] => 1,
+        roots
+            if roots
+                .iter()
+                .any(|value| matches!(value, GenericDataValueAst::Mapping { .. })) =>
+        {
+            0
+        }
+        roots => roots.len(),
+    }
+}
+
+fn generic_data_csv_row_evaluator_value<'a>(
+    document: &'a GenericDataDocumentAst,
+    index: usize,
+) -> Option<CemtEvaluatorValueRef<'a>> {
+    if let Some(rows) = generic_data_csv_mapping_rows(document) {
+        if index == 0 {
+            return Some(CemtEvaluatorValueRef::Record(
+                CemtEvaluatorRecordRef::GenericDataCsvHeaderRow { document },
+            ));
+        }
+        let entries = *rows.get(index.saturating_sub(1))?;
+        return Some(CemtEvaluatorValueRef::Record(
+            CemtEvaluatorRecordRef::GenericDataCsvMappingRow {
+                document,
+                entries,
+                index,
+            },
+        ));
+    }
+    let roots = generic_data_csv_roots(document);
+    let value = match roots.as_slice() {
+        [GenericDataValueAst::Sequence { items, .. }] => items.get(index)?,
+        [value] if index == 0 => *value,
+        roots => *roots.get(index)?,
+    };
+    Some(CemtEvaluatorValueRef::Record(
+        CemtEvaluatorRecordRef::GenericDataCsvValueRow { value, index },
+    ))
+}
+
+fn generic_data_csv_scalar_text(value: &GenericDataValueAst) -> String {
+    match value {
+        GenericDataValueAst::String { value, .. } => value.clone(),
+        GenericDataValueAst::Number { lexeme, .. } => lexeme.clone(),
+        GenericDataValueAst::Boolean { value, .. } => value.to_string(),
+        GenericDataValueAst::Null { .. } => String::new(),
+        GenericDataValueAst::Alias { alias, .. } => alias.clone().unwrap_or_default(),
+        GenericDataValueAst::Mapping { .. } | GenericDataValueAst::Sequence { .. } => String::new(),
+    }
+}
+
+fn usize_evaluator_value(value: usize) -> CemtEvaluatorValueRef<'static> {
+    u64_evaluator_value(u64::try_from(value).unwrap_or(u64::MAX))
+}
+
+fn optional_usize_evaluator_value(value: Option<usize>) -> CemtEvaluatorValueRef<'static> {
+    match value {
+        Some(value) => usize_evaluator_value(value),
+        None => CemtEvaluatorValueRef::Null,
+    }
+}
+
+fn u64_evaluator_value(value: u64) -> CemtEvaluatorValueRef<'static> {
+    CemtEvaluatorValueRef::Number(CemtEvaluatorNumber::unsigned_integer(value))
 }
 
 fn json_document_evaluator_field<'a>(
@@ -3335,6 +4387,9 @@ fn writer_token_style_evaluator_field<'a>(
         "color" => style.color.as_deref(),
         "wrapper" => style.wrapper.as_deref(),
         "terminalCapability" => style.terminal_capability.as_deref(),
+        "tabular" => {
+            return Some(optional_bool_evaluator_value(style.tabular));
+        }
         _ => return None,
     };
     Some(optional_string_evaluator_value(value))
@@ -3379,7 +4434,38 @@ fn writer_token_metadata_evaluator_field<'a>(
             Some(value) => CemtEvaluatorValueRef::Boolean(value),
             None => CemtEvaluatorValueRef::Null,
         }),
+        "delimiter" => Some(optional_string_evaluator_value(
+            metadata.delimiter.as_deref(),
+        )),
+        "rowIndex" => Some(optional_u64_evaluator_value(metadata.row_index)),
+        "fieldIndex" => Some(optional_u64_evaluator_value(metadata.field_index)),
+        "raw" => Some(optional_string_evaluator_value(metadata.raw.as_deref())),
+        "quoted" => Some(optional_bool_evaluator_value(metadata.quoted)),
+        "byteOffset" => Some(optional_u64_evaluator_value(metadata.byte_offset)),
+        "byteLength" => Some(optional_u64_evaluator_value(metadata.byte_length)),
+        "rowSourceRange" => Some(match metadata.row_source_range.as_ref() {
+            Some(range) => {
+                CemtEvaluatorValueRef::Record(CemtEvaluatorRecordRef::WriterTokenSourceRange {
+                    range,
+                })
+            }
+            None => CemtEvaluatorValueRef::Null,
+        }),
+        "rowByteOffset" => Some(optional_u64_evaluator_value(metadata.row_byte_offset)),
+        "rowByteLength" => Some(optional_u64_evaluator_value(metadata.row_byte_length)),
+        "fieldCount" => Some(optional_u64_evaluator_value(metadata.field_count)),
+        "tabSize" => Some(optional_u64_evaluator_value(metadata.tab_size)),
+        "presentationOnly" => Some(optional_bool_evaluator_value(metadata.presentation_only)),
+        "strictCsv" => Some(optional_bool_evaluator_value(metadata.strict_csv)),
+        "dataPreserving" => Some(optional_bool_evaluator_value(metadata.data_preserving)),
         _ => None,
+    }
+}
+
+fn optional_bool_evaluator_value(value: Option<bool>) -> CemtEvaluatorValueRef<'static> {
+    match value {
+        Some(value) => CemtEvaluatorValueRef::Boolean(value),
+        None => CemtEvaluatorValueRef::Null,
     }
 }
 
@@ -4143,6 +5229,209 @@ mod tests {
             "JSON fixture diagnostics: {diagnostics:?}"
         );
         Arc::new(document.expect("lossless JSON document AST"))
+    }
+
+    #[test]
+    fn csv_document_evaluator_view_borrows_rows_fields_lexemes_and_maps() {
+        use crate::validation::csv::{
+            csv_document_ast_from_source_bytes, CsvSourceValidationRequest,
+        };
+
+        let source = "same,same\r\n\"a,b\",\"line\nbreak\"\r\n";
+        let (document, diagnostics) =
+            csv_document_ast_from_source_bytes(CsvSourceValidationRequest {
+                bytes: source.as_bytes(),
+                source_uri: "memory:borrowed.csv",
+                content_type: Some("text/csv; charset=utf-8; header=present"),
+            });
+        assert!(
+            diagnostics
+                .iter()
+                .all(|diagnostic| !diagnostic.severity.is_hard_violation()),
+            "CSV fixture diagnostics: {diagnostics:?}"
+        );
+        let owner = Arc::new(document.expect("CSV document AST"));
+        let subject = CsvDocumentCemtSubjectRef::new(owner.as_ref());
+        assert!(std::ptr::eq(subject.document(), owner.as_ref()));
+
+        let document = CemtEvaluatorValue::borrowed(subject.evaluator_view());
+        assert_eq!(
+            document
+                .resolve_path("source.parameters.header")
+                .and_then(|value| value.as_str().map(str::to_owned))
+                .as_deref(),
+            Some("present")
+        );
+        assert_eq!(
+            document
+                .field("lineEnding")
+                .and_then(|value| value.as_str().map(str::to_owned))
+                .as_deref(),
+            Some("crlf")
+        );
+        let rows = document
+            .field("rows")
+            .expect("borrowed CSV rows")
+            .sequence_values("borrowed CSV rows")
+            .expect("CSV row sequence");
+        assert_eq!(rows.len(), 2);
+        let fields = rows[1]
+            .field("fields")
+            .expect("borrowed CSV fields")
+            .sequence_values("borrowed CSV fields")
+            .expect("CSV field sequence");
+        assert_eq!(fields.len(), 2);
+        assert_eq!(
+            fields[0]
+                .field("value")
+                .and_then(|value| value.as_str().map(str::to_owned))
+                .as_deref(),
+            Some("a,b")
+        );
+        assert_eq!(
+            fields[0]
+                .field("lexeme")
+                .and_then(|value| value.as_str().map(str::to_owned))
+                .as_deref(),
+            Some("\"a,b\"")
+        );
+        assert_eq!(
+            fields[1]
+                .field("value")
+                .and_then(|value| value.as_str().map(str::to_owned))
+                .as_deref(),
+            Some("line\nbreak")
+        );
+        assert!(fields[1]
+            .field("sourceMap")
+            .and_then(|value| value.as_source_map().cloned())
+            .is_some());
+    }
+
+    #[test]
+    fn generic_data_csv_evaluator_view_borrows_table_shape_without_csv_dto() {
+        use crate::validation::generic_data::{GenericDataNumberKind, GenericDataSourceAst};
+
+        let range = |byte_offset, byte_length| GenericDataSourceRangeAst {
+            byte_offset,
+            byte_length,
+            line: 1,
+            column: u32::try_from(byte_offset + 1).expect("test column"),
+            source_map: None,
+        };
+        let string = |value: &str, offset| GenericDataValueAst::String {
+            source_range: range(offset, value.len() as u64),
+            value: value.to_owned(),
+            lexeme: None,
+            style: None,
+        };
+        let mapping = |index: usize, entries| GenericDataStreamDocumentAst {
+            index,
+            source_range: range(index as u64 * 20, 20),
+            root: Some(GenericDataValueAst::Mapping {
+                source_range: range(index as u64 * 20, 20),
+                entries,
+            }),
+        };
+        let owner = Arc::new(GenericDataDocumentAst {
+            source: GenericDataSourceAst {
+                uri: "memory:generic.csv-view".to_owned(),
+                content_type: "application/yaml".to_owned(),
+                media_type: "application/yaml".to_owned(),
+                parameters: BTreeMap::new(),
+                byte_length: 40,
+            },
+            documents: vec![
+                mapping(
+                    0,
+                    vec![
+                        GenericDataMappingEntryAst {
+                            index: 0,
+                            key: string("name", 0),
+                            value: string("Ada", 5),
+                            source_range: range(0, 8),
+                        },
+                        GenericDataMappingEntryAst {
+                            index: 1,
+                            key: string("score", 9),
+                            value: GenericDataValueAst::Number {
+                                source_range: range(15, 10),
+                                lexeme: "1.2300e+4".to_owned(),
+                                number_kind: GenericDataNumberKind::Exponent,
+                            },
+                            source_range: range(9, 16),
+                        },
+                    ],
+                ),
+                mapping(
+                    1,
+                    vec![GenericDataMappingEntryAst {
+                        index: 0,
+                        key: string("name", 26),
+                        value: string("Lin", 31),
+                        source_range: range(26, 8),
+                    }],
+                ),
+            ],
+            line_ending: Some("lf".to_owned()),
+        });
+        let subject = GenericDataCsvDocumentCemtSubjectRef::new(owner.as_ref());
+        assert!(std::ptr::eq(subject.document(), owner.as_ref()));
+        let document = CemtEvaluatorValue::borrowed(subject.evaluator_view());
+        assert_eq!(
+            document
+                .field("header")
+                .and_then(|value| value.as_str().map(str::to_owned))
+                .as_deref(),
+            Some("present")
+        );
+        let rows = document
+            .field("rows")
+            .expect("generic CSV rows")
+            .sequence_values("generic CSV rows")
+            .expect("generic CSV row sequence");
+        assert_eq!(rows.len(), 3);
+        let header = rows[0]
+            .field("fields")
+            .expect("generic CSV header")
+            .sequence_values("generic CSV header")
+            .expect("generic CSV header fields");
+        assert_eq!(header.len(), 2);
+        assert_eq!(
+            header[1]
+                .field("value")
+                .and_then(|value| value.as_str().map(str::to_owned))
+                .as_deref(),
+            Some("score")
+        );
+        let first = rows[1]
+            .field("fields")
+            .expect("first generic CSV row")
+            .sequence_values("first generic CSV row")
+            .expect("first row fields");
+        assert_eq!(
+            first[1]
+                .field("value")
+                .and_then(|value| value.as_str().map(str::to_owned))
+                .as_deref(),
+            Some("1.2300e+4")
+        );
+        let second = rows[2]
+            .field("fields")
+            .expect("second generic CSV row")
+            .sequence_values("second generic CSV row")
+            .expect("second row fields");
+        assert_eq!(
+            second[1]
+                .field("value")
+                .and_then(|value| value.as_str().map(str::to_owned))
+                .as_deref(),
+            Some("")
+        );
+        assert_eq!(
+            second[1].field("sourceMap").map(|value| value.kind()),
+            Some(CemtEvaluatorValueKind::Null)
+        );
     }
 
     #[test]

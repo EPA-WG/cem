@@ -16209,7 +16209,8 @@ mod cemt_typed_runtime {
             return Ok(None);
         }
         Ok(Some(CemtEvaluatorValue::boolean(
-            resolve_cemt_typed_expression_in_context(&args[0], context)?.is_some(),
+            resolve_cemt_typed_expression_in_context(&args[0], context)?
+                .is_some_and(|value| value.kind() != CemtEvaluatorValueKind::Null),
         )))
     }
 
@@ -23814,7 +23815,7 @@ fn resolve_cemt_exists_expression(
         binding,
         call_depth,
     )?
-    .is_some();
+    .is_some_and(|value| !value.is_null());
     Ok(Some(Value::Bool(exists)))
 }
 
@@ -30330,9 +30331,9 @@ mod tests {
                 .expect("compatibility value");
         assert_eq!(typed_name.as_str(), compatibility_name.as_str());
 
-        for expression in [
-            "exists($subject.0.attributes.0.value)",
-            "exists($subject.0.missing)",
+        for (expression, expected) in [
+            ("exists($subject.0.attributes.0.value)", false),
+            ("exists($subject.0.missing)", false),
         ] {
             let typed_value = resolve_cemt_typed_expression(expression, &typed)
                 .expect("typed expression")
@@ -30340,6 +30341,7 @@ mod tests {
             let compatibility_value = resolve_encode_subject_expression(expression, &compatibility)
                 .expect("compatibility value");
             assert_eq!(typed_value.as_bool(), compatibility_value.as_bool());
+            assert_eq!(typed_value.as_bool(), Some(expected));
         }
 
         for expression in ["length($subject)", "length($label)"] {

@@ -17401,6 +17401,62 @@ mod tests {
         assert_eq!(output, "name,active\nAda,true\n");
     }
 
+    #[test]
+    fn convert_csv_same_schema_uses_borrowed_lifecycle_ast_stream() {
+        let source_bytes = b"id,name,score\r\n1,\"Ada, A.\",1.2300e+4\r\n";
+        let mut source = input(source_bytes, "table.csv");
+        source.identity = Some(FormatIdentity {
+            content_type: Some(format!("{CSV_CONTENT_TYPE}; header=present")),
+            schema: Some(CSV_SCHEMA_URI.to_owned()),
+            ..FormatIdentity::default()
+        });
+        let target = FormatIdentity {
+            content_type: Some(CSV_CONTENT_TYPE.to_owned()),
+            schema: Some(CSV_SCHEMA_URI.to_owned()),
+            ..FormatIdentity::default()
+        };
+        let req = ConvertRequest {
+            input: source,
+            to_format: LayerFormat::Csv,
+            preserve_source_offsets: false,
+            context: ctx(),
+            target: Some(target),
+            target_scope: ScopeConfig {
+                cemt_formatter_profile: Some("compact".to_owned()),
+                cemt_formatter_options: BTreeMap::from([(
+                    "lineEnding".to_owned(),
+                    "preserve".to_owned(),
+                )]),
+                ..ScopeConfig::default()
+            },
+            scheduler_scope_id: 0,
+        };
+
+        let resp = RealCemMlEngine::new().convert(req).unwrap();
+
+        assert!(
+            resp.diagnostics.is_empty(),
+            "CSV same-schema conversion should retain the lifecycle AST through the typed output pipeline: {:?}",
+            resp.diagnostics
+        );
+        assert_eq!(
+            resp.conversion
+                .as_ref()
+                .and_then(|conversion| conversion.converter_id.as_deref()),
+            Some("csv-lifecycle-output")
+        );
+        assert_eq!(
+            resp.conversion
+                .as_ref()
+                .and_then(|conversion| conversion.implementation.as_deref()),
+            Some("lifecycle-cemt-output-pipeline")
+        );
+        let primary_bytes = resp.primary_bytes.as_ref().expect("CSV primary bytes");
+        assert_eq!(primary_bytes.content_type, CSV_CONTENT_TYPE);
+        assert_eq!(primary_bytes.schema.as_deref(), Some(CSV_SCHEMA_URI));
+        assert_eq!(primary_bytes.bytes, source_bytes);
+    }
+
     #[derive(Debug, Clone, Copy)]
     struct DataFormatConversionCase {
         name: &'static str,

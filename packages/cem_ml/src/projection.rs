@@ -1190,6 +1190,8 @@ pub struct CemTreeAstWriterTokenStyle {
     pub wrapper: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub terminal_capability: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub tabular: Option<bool>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize)]
@@ -1215,6 +1217,36 @@ pub struct CemTreeAstWriterTokenMetadata {
     pub leading_comma: Option<bool>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub scope_opening_new_line: Option<bool>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub delimiter: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub row_index: Option<u64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub field_index: Option<u64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub raw: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub quoted: Option<bool>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub byte_offset: Option<u64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub byte_length: Option<u64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub row_source_range: Option<CemTreeAstWriterTokenSourceRange>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub row_byte_offset: Option<u64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub row_byte_length: Option<u64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub field_count: Option<u64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub tab_size: Option<u64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub presentation_only: Option<bool>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub strict_csv: Option<bool>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub data_preserving: Option<bool>,
 }
 
 #[derive(Debug, Clone, PartialEq, Deserialize)]
