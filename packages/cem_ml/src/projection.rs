@@ -11,6 +11,7 @@ use crate::events::{
     cem::CemEventNormalizer, EventNormalizer, NormalizedEvent, ScalarValue, SeparatorKind,
     Synthesis, TriviaKind,
 };
+use crate::interpreter::OutputSpan;
 use crate::parser::document::CemDocument;
 use crate::parser::{AstNodeId, CemAstNode, ExpandedName};
 use crate::schema::registry::{
@@ -24,7 +25,7 @@ use crate::tokenizer::cem::CemTokenizer;
 use crate::tokenizer::html::HtmlTokenizer;
 use crate::tokenizer::xml::XmlTokenizer;
 use crate::tokenizer::SchemaTokenizer;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use std::collections::BTreeMap;
 use std::sync::Arc;
@@ -1161,6 +1162,61 @@ impl CemTreeAstAttribute {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CemTreeAstWriterTokenSourceRange {
+    pub byte_offset: u64,
+    pub byte_length: u64,
+    pub line: u32,
+    pub column: u32,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CemTreeAstWriterTokenStyle {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub color_role: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub color_profile: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub color_output: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub html_mode: Option<String>,
+    #[serde(rename = "class", default, skip_serializing_if = "Option::is_none")]
+    pub class_name: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub color: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub wrapper: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub terminal_capability: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CemTreeAstWriterTokenMetadata {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub name: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub formatter_profile: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub formatter_role: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub source_range: Option<CemTreeAstWriterTokenSourceRange>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub member_index: Option<u64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub layout: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub line_ending: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub indent: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub leading_comma: Option<bool>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub scope_opening_new_line: Option<bool>,
+}
+
 #[derive(Debug, Clone, PartialEq, Deserialize)]
 #[serde(tag = "kind", rename_all = "kebab-case")]
 pub enum CemTreeAstNode {
@@ -1213,6 +1269,20 @@ pub enum CemTreeAstNode {
         #[serde(rename = "sourceMap", default)]
         source: SourceMapStack,
     },
+    WriterToken {
+        #[serde(rename = "tokenKind")]
+        token_kind: String,
+        text: String,
+        role: String,
+        #[serde(default)]
+        style: Box<CemTreeAstWriterTokenStyle>,
+        #[serde(rename = "value", default)]
+        metadata: Box<CemTreeAstWriterTokenMetadata>,
+        #[serde(rename = "outputSpan", default)]
+        output_span: Option<OutputSpan>,
+        #[serde(rename = "sourceMap", default)]
+        source: SourceMapStack,
+    },
 }
 
 impl CemTreeAstNode {
@@ -1227,6 +1297,7 @@ impl CemTreeAstNode {
             Self::Cdata { .. } => "cdata",
             Self::RawText { .. } => "raw-text",
             Self::Error { .. } => "error",
+            Self::WriterToken { .. } => "writer-token",
         }
     }
 
@@ -1263,7 +1334,8 @@ impl CemTreeAstNode {
             | Self::ProcessingInstruction { source, .. }
             | Self::Cdata { source, .. }
             | Self::RawText { source, .. }
-            | Self::Error { source, .. } => source,
+            | Self::Error { source, .. }
+            | Self::WriterToken { source, .. } => source,
         }
     }
 
@@ -1344,6 +1416,24 @@ impl CemTreeAstNode {
             Self::Error { code, source } => json!({
                 "kind": "error",
                 "code": code,
+                "sourceMap": source,
+            }),
+            Self::WriterToken {
+                token_kind,
+                text,
+                role,
+                style,
+                metadata,
+                output_span,
+                source,
+            } => json!({
+                "kind": token_kind,
+                "writerKind": "token",
+                "text": text,
+                "role": role,
+                "style": style,
+                "value": metadata,
+                "outputSpan": output_span,
                 "sourceMap": source,
             }),
         }
@@ -1906,6 +1996,80 @@ mod tests {
         ));
         assert!(!button.attributes()[0].source.frames.is_empty());
         assert!(!button.children()[0].source_map().frames.is_empty());
+    }
+
+    #[test]
+    fn writer_token_is_a_typed_cem_tree_ast_node_without_json_storage() {
+        let source = SourceMapStack {
+            frames: vec![SourceMapFrame {
+                source_id: SourceId(9),
+                span: FrameSpan::Single(ByteRange::new(4, 6)),
+                transform: TransformKind::ContentTypeTransform {
+                    content_type: "application/json".to_owned(),
+                },
+            }],
+        };
+        let output_span = crate::interpreter::OutputSpan {
+            output_range: ByteRange::new(0, 6),
+            origin: source.clone(),
+        };
+        let node = CemTreeAstNode::WriterToken {
+            token_kind: "json.string".to_owned(),
+            text: "\"same\"".to_owned(),
+            role: "syntax.string".to_owned(),
+            style: Box::new(CemTreeAstWriterTokenStyle {
+                color_role: Some("syntax.string".to_owned()),
+                ..CemTreeAstWriterTokenStyle::default()
+            }),
+            metadata: Box::new(CemTreeAstWriterTokenMetadata {
+                formatter_profile: Some("compact".to_owned()),
+                source_range: Some(CemTreeAstWriterTokenSourceRange {
+                    byte_offset: 4,
+                    byte_length: 6,
+                    line: 1,
+                    column: 5,
+                }),
+                member_index: Some(1),
+                ..CemTreeAstWriterTokenMetadata::default()
+            }),
+            output_span: Some(output_span.clone()),
+            source: source.clone(),
+        };
+
+        assert_eq!(node.kind(), "writer-token");
+        assert_eq!(node.source_map(), &source);
+        let CemTreeAstNode::WriterToken {
+            token_kind,
+            text,
+            role,
+            style,
+            metadata,
+            output_span: actual_output_span,
+            ..
+        } = node
+        else {
+            panic!("expected typed writer-token node");
+        };
+        assert_eq!(token_kind, "json.string");
+        assert_eq!(text, "\"same\"");
+        assert_eq!(role, "syntax.string");
+        assert_eq!(style.color_role.as_deref(), Some("syntax.string"));
+        assert_eq!(metadata.formatter_profile.as_deref(), Some("compact"));
+        assert_eq!(metadata.member_index, Some(1));
+        assert_eq!(actual_output_span, Some(output_span));
+
+        let source = include_str!("projection.rs");
+        let contract = source
+            .split_once("pub struct CemTreeAstWriterTokenSourceRange")
+            .and_then(|(_, suffix)| suffix.split_once("impl CemTreeAstNode"))
+            .map(|(contract, _)| contract)
+            .expect("writer-token AST contract source");
+        for forbidden in ["serde_json", "Value>", " Value", "to_value", "from_value"] {
+            assert!(
+                !contract.contains(forbidden),
+                "writer-token AST contract must not store `{forbidden}`"
+            );
+        }
     }
 
     #[test]

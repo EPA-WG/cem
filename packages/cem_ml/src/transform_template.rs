@@ -11384,6 +11384,9 @@ impl TransformTemplateTypedCemTreeRenderer<'_, '_> {
             | CemTreeAstNode::Error { source, .. } => {
                 self.render_cem_empty_element("node", source, role.as_deref())
             }
+            CemTreeAstNode::WriterToken { .. } => Err(
+                "native CEM tree writer cannot render a materialized writer-token node".to_owned(),
+            ),
         }
     }
 

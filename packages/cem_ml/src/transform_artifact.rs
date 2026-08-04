@@ -2,7 +2,10 @@ use crate::engine::FormatIdentity;
 use crate::interpreter::OutputSpan;
 use crate::lifecycle::LoadedInputAstStream;
 use crate::parser::document::CemDocument;
-use crate::projection::{CemTreeAstAttribute, CemTreeAstNode, CemTreeAstStream};
+use crate::projection::{
+    CemTreeAstAttribute, CemTreeAstNode, CemTreeAstStream, CemTreeAstWriterTokenMetadata,
+    CemTreeAstWriterTokenSourceRange, CemTreeAstWriterTokenStyle,
+};
 use crate::schema::registry::{content_type_essence, JSON_CONTENT_TYPE};
 use crate::source_map::SourceMapStack;
 use crate::validation::generic_data::GenericDataDocumentAst;
@@ -270,6 +273,16 @@ pub enum CemtColorOutput {
     Terminal,
     Html,
     Markdown,
+}
+
+impl CemtColorOutput {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Terminal => "terminal",
+            Self::Html => "html",
+            Self::Markdown => "md",
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -600,6 +613,117 @@ impl CemtMaterializedTreePipeline {
     }
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CemtMaterializedWriterTokenColor {
+    pub target: CemtOwnerPath,
+    pub color_role: String,
+    pub style: CemTreeAstWriterTokenStyle,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CemtMaterializedTreeColorOverlay {
+    pub producer: CemtMaterializedTreeProducer,
+    pub output: CemtColorOutput,
+    pub tokens: Vec<CemtMaterializedWriterTokenColor>,
+}
+
+impl CemtMaterializedTreeColorOverlay {
+    fn validate(
+        &self,
+        pipeline: &CemtMaterializedTreePipeline,
+        owner: &CemTreeAstStream,
+    ) -> Result<(), String> {
+        let CemtMaterializedTreePipeline::Colored { colorizer, .. } = pipeline else {
+            return Err(
+                "materialized CEMT color overlay requires the Colored pipeline stage".to_owned(),
+            );
+        };
+        if self.producer.kind() != CemtMaterializedTreeProducerKind::Colorizer {
+            return Err(format!(
+                "materialized CEMT color overlay requires a Colorizer producer, but `{}` is {:?}",
+                self.producer.function_name(),
+                self.producer.kind()
+            ));
+        }
+        if &self.producer != colorizer {
+            return Err(format!(
+                "materialized CEMT color overlay producer `{}` does not match pipeline colorizer `{}`",
+                self.producer.function_name(),
+                colorizer.function_name()
+            ));
+        }
+
+        let subject = CemtTreeSubjectRef { owner };
+        let mut seen_targets = Vec::with_capacity(self.tokens.len());
+        for token in &self.tokens {
+            let target = cemt_owner_path_label(&token.target);
+            if seen_targets.contains(&token.target) {
+                return Err(format!(
+                    "materialized CEMT color overlay contains duplicate target {target}"
+                ));
+            }
+            seen_targets.push(token.target.clone());
+            if token.color_role.trim().is_empty() {
+                return Err(format!(
+                    "materialized CEMT color overlay target {target} has an empty color role"
+                ));
+            }
+            if !matches!(
+                subject.resolve_owner(&token.target),
+                Some(CemtTreeOwnerRef::Node(CemTreeAstNode::WriterToken { .. }))
+            ) {
+                return Err(format!(
+                    "materialized CEMT color overlay target {target} is not a writer-token node"
+                ));
+            }
+            if token
+                .style
+                .color_role
+                .as_deref()
+                .is_some_and(|role| role != token.color_role)
+            {
+                return Err(format!(
+                    "materialized CEMT color overlay target {target} style color role does not match `{}`",
+                    token.color_role
+                ));
+            }
+            if token
+                .style
+                .color_profile
+                .as_deref()
+                .is_some_and(|style| Some(style) != self.producer.profile())
+            {
+                return Err(format!(
+                    "materialized CEMT color overlay target {target} style color profile does not match producer profile"
+                ));
+            }
+            if token
+                .style
+                .color_output
+                .as_deref()
+                .is_some_and(|output| output != self.output.as_str())
+            {
+                return Err(format!(
+                    "materialized CEMT color overlay target {target} style color output does not match `{}`",
+                    self.output.as_str()
+                ));
+            }
+        }
+        Ok(())
+    }
+}
+
+fn cemt_owner_path_label(path: &CemtOwnerPath) -> String {
+    let mut label = format!("root[{}]", path.root_index());
+    for step in path.steps() {
+        match step {
+            CemtOwnerStep::Child(index) => label.push_str(&format!(".children[{index}]")),
+            CemtOwnerStep::Attribute(index) => label.push_str(&format!(".attributes[{index}]")),
+        }
+    }
+    label
+}
+
 #[derive(Debug, Clone)]
 pub struct CemtMaterializedTreeArtifact {
     identity: CemtMaterializedTreeIdentity,
@@ -608,6 +732,7 @@ pub struct CemtMaterializedTreeArtifact {
     owner: Arc<CemTreeAstStream>,
     source_map: Option<SourceMapStack>,
     output_spans: Vec<OutputSpan>,
+    color_overlay: Option<CemtMaterializedTreeColorOverlay>,
 }
 
 impl CemtMaterializedTreeArtifact {
@@ -620,6 +745,12 @@ impl CemtMaterializedTreeArtifact {
         output_spans: Vec<OutputSpan>,
     ) -> Result<Self, String> {
         pipeline.validate()?;
+        if pipeline.stage() == CemtMaterializedTreeStage::Colored {
+            return Err(
+                "colored materialized CEMT trees require a typed color overlay; use `new_colored`"
+                    .to_owned(),
+            );
+        }
         Ok(Self {
             identity,
             input_provenance,
@@ -627,6 +758,30 @@ impl CemtMaterializedTreeArtifact {
             owner,
             source_map,
             output_spans,
+            color_overlay: None,
+        })
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub fn new_colored(
+        identity: CemtMaterializedTreeIdentity,
+        input_provenance: CemtMaterializedTreeInputProvenance,
+        pipeline: CemtMaterializedTreePipeline,
+        owner: Arc<CemTreeAstStream>,
+        source_map: Option<SourceMapStack>,
+        output_spans: Vec<OutputSpan>,
+        color_overlay: CemtMaterializedTreeColorOverlay,
+    ) -> Result<Self, String> {
+        pipeline.validate()?;
+        color_overlay.validate(&pipeline, owner.as_ref())?;
+        Ok(Self {
+            identity,
+            input_provenance,
+            pipeline,
+            owner,
+            source_map,
+            output_spans,
+            color_overlay: Some(color_overlay),
         })
     }
 
@@ -656,6 +811,10 @@ impl CemtMaterializedTreeArtifact {
 
     pub fn output_spans(&self) -> &[OutputSpan] {
         &self.output_spans
+    }
+
+    pub fn color_overlay(&self) -> Option<&CemtMaterializedTreeColorOverlay> {
+        self.color_overlay.as_ref()
     }
 }
 
@@ -1834,6 +1993,21 @@ pub enum CemtEvaluatorRecordRef<'a> {
     JsonSourceRange {
         range: JsonSourceRange,
     },
+    WriterTokenStyle {
+        style: &'a CemTreeAstWriterTokenStyle,
+    },
+    WriterTokenMetadata {
+        metadata: &'a CemTreeAstWriterTokenMetadata,
+    },
+    WriterTokenSourceRange {
+        range: &'a CemTreeAstWriterTokenSourceRange,
+    },
+    OutputSpan {
+        output_span: &'a OutputSpan,
+    },
+    OutputRange {
+        range: &'a crate::source::ByteRange,
+    },
     Node {
         node: &'a CemTreeAstNode,
         path: CemtOwnerPath,
@@ -1877,6 +2051,11 @@ impl<'a> CemtEvaluatorRecordRef<'a> {
             | Self::JsonValue { .. }
             | Self::JsonMember { .. }
             | Self::JsonSourceRange { .. }
+            | Self::WriterTokenStyle { .. }
+            | Self::WriterTokenMetadata { .. }
+            | Self::WriterTokenSourceRange { .. }
+            | Self::OutputSpan { .. }
+            | Self::OutputRange { .. }
             | Self::FormattedTree { .. }
             | Self::FormatOperation { .. }
             | Self::NodeFormatOperation { .. } => None,
@@ -1895,6 +2074,11 @@ impl<'a> CemtEvaluatorRecordRef<'a> {
             | Self::JsonValue { .. }
             | Self::JsonMember { .. }
             | Self::JsonSourceRange { .. }
+            | Self::WriterTokenStyle { .. }
+            | Self::WriterTokenMetadata { .. }
+            | Self::WriterTokenSourceRange { .. }
+            | Self::OutputSpan { .. }
+            | Self::OutputRange { .. }
             | Self::FormattedTree { .. }
             | Self::FormatOperation { .. }
             | Self::NodeFormatOperation { .. } => None,
@@ -1962,6 +2146,31 @@ impl<'a> CemtEvaluatorRecordRef<'a> {
                 "value",
             ],
             Self::JsonSourceRange { .. } => &["byteOffset", "byteLength", "line", "column"],
+            Self::WriterTokenStyle { .. } => &[
+                "colorRole",
+                "colorProfile",
+                "colorOutput",
+                "htmlMode",
+                "class",
+                "color",
+                "wrapper",
+                "terminalCapability",
+            ],
+            Self::WriterTokenMetadata { .. } => &[
+                "name",
+                "formatterProfile",
+                "formatterRole",
+                "sourceRange",
+                "memberIndex",
+                "layout",
+                "lineEnding",
+                "indent",
+                "leadingComma",
+                "scopeOpeningNewLine",
+            ],
+            Self::WriterTokenSourceRange { .. } => &["byteOffset", "byteLength", "line", "column"],
+            Self::OutputSpan { .. } => &["outputRange", "origin"],
+            Self::OutputRange { .. } => &["start", "len"],
             Self::Node { node, .. } => match node {
                 CemTreeAstNode::Document { .. } => &["kind", "children", "sourceMap"],
                 CemTreeAstNode::Element { .. } => {
@@ -1976,6 +2185,17 @@ impl<'a> CemtEvaluatorRecordRef<'a> {
                     &["kind", "name", "target", "data", "sourceMap"]
                 }
                 CemTreeAstNode::Error { .. } => &["kind", "code", "sourceMap"],
+                CemTreeAstNode::WriterToken { .. } => &[
+                    "kind",
+                    "writerKind",
+                    "tokenKind",
+                    "text",
+                    "role",
+                    "style",
+                    "value",
+                    "outputSpan",
+                    "sourceMap",
+                ],
             },
             Self::Attribute { .. } => &["kind", "name", "value", "sourceMap"],
             Self::FormattedTree { .. } => &[
@@ -2020,6 +2240,17 @@ impl<'a> CemtEvaluatorRecordRef<'a> {
                         &["kind", "name", "target", "data", "sourceMap"]
                     }
                     CemTreeAstNode::Error { .. } => &["kind", "code", "sourceMap"],
+                    CemTreeAstNode::WriterToken { .. } => &[
+                        "kind",
+                        "writerKind",
+                        "tokenKind",
+                        "text",
+                        "role",
+                        "style",
+                        "value",
+                        "outputSpan",
+                        "sourceMap",
+                    ],
                     CemTreeAstNode::Document { .. } | CemTreeAstNode::Element { .. } => {
                         unreachable!()
                     }
@@ -2064,6 +2295,31 @@ impl<'a> CemtEvaluatorRecordRef<'a> {
             Self::JsonValue { value } => json_value_evaluator_field(value, name),
             Self::JsonMember { member } => json_member_evaluator_field(member, name),
             Self::JsonSourceRange { range } => json_source_range_evaluator_field(*range, name),
+            Self::WriterTokenStyle { style } => writer_token_style_evaluator_field(style, name),
+            Self::WriterTokenMetadata { metadata } => {
+                writer_token_metadata_evaluator_field(metadata, name)
+            }
+            Self::WriterTokenSourceRange { range } => {
+                writer_token_source_range_evaluator_field(range, name)
+            }
+            Self::OutputSpan { output_span } => match name {
+                "outputRange" => Some(CemtEvaluatorValueRef::Record(
+                    CemtEvaluatorRecordRef::OutputRange {
+                        range: &output_span.output_range,
+                    },
+                )),
+                "origin" => Some(CemtEvaluatorValueRef::SourceMap(&output_span.origin)),
+                _ => None,
+            },
+            Self::OutputRange { range } => match name {
+                "start" => Some(CemtEvaluatorValueRef::Number(
+                    CemtEvaluatorNumber::unsigned_integer(range.start),
+                )),
+                "len" => Some(CemtEvaluatorValueRef::Number(
+                    CemtEvaluatorNumber::unsigned_integer(u64::from(range.len)),
+                )),
+                _ => None,
+            },
             Self::Node { node, path } => cemt_evaluator_node_field(node, path, name),
             Self::Attribute { attribute, .. } => match name {
                 "kind" => Some(CemtEvaluatorValueRef::String("attribute")),
@@ -2231,13 +2487,100 @@ fn json_source_range_evaluator_field(
     ))
 }
 
+fn optional_string_evaluator_value(value: Option<&str>) -> CemtEvaluatorValueRef<'_> {
+    match value {
+        Some(value) => CemtEvaluatorValueRef::String(value),
+        None => CemtEvaluatorValueRef::Null,
+    }
+}
+
+fn writer_token_style_evaluator_field<'a>(
+    style: &'a CemTreeAstWriterTokenStyle,
+    name: &str,
+) -> Option<CemtEvaluatorValueRef<'a>> {
+    let value = match name {
+        "colorRole" => style.color_role.as_deref(),
+        "colorProfile" => style.color_profile.as_deref(),
+        "colorOutput" => style.color_output.as_deref(),
+        "htmlMode" => style.html_mode.as_deref(),
+        "class" => style.class_name.as_deref(),
+        "color" => style.color.as_deref(),
+        "wrapper" => style.wrapper.as_deref(),
+        "terminalCapability" => style.terminal_capability.as_deref(),
+        _ => return None,
+    };
+    Some(optional_string_evaluator_value(value))
+}
+
+fn writer_token_metadata_evaluator_field<'a>(
+    metadata: &'a CemTreeAstWriterTokenMetadata,
+    name: &str,
+) -> Option<CemtEvaluatorValueRef<'a>> {
+    match name {
+        "name" => Some(optional_string_evaluator_value(metadata.name.as_deref())),
+        "formatterProfile" => Some(optional_string_evaluator_value(
+            metadata.formatter_profile.as_deref(),
+        )),
+        "formatterRole" => Some(optional_string_evaluator_value(
+            metadata.formatter_role.as_deref(),
+        )),
+        "sourceRange" => Some(match metadata.source_range.as_ref() {
+            Some(range) => {
+                CemtEvaluatorValueRef::Record(CemtEvaluatorRecordRef::WriterTokenSourceRange {
+                    range,
+                })
+            }
+            None => CemtEvaluatorValueRef::Null,
+        }),
+        "memberIndex" => Some(match metadata.member_index {
+            Some(index) => {
+                CemtEvaluatorValueRef::Number(CemtEvaluatorNumber::unsigned_integer(index))
+            }
+            None => CemtEvaluatorValueRef::Null,
+        }),
+        "layout" => Some(optional_string_evaluator_value(metadata.layout.as_deref())),
+        "lineEnding" => Some(optional_string_evaluator_value(
+            metadata.line_ending.as_deref(),
+        )),
+        "indent" => Some(optional_string_evaluator_value(metadata.indent.as_deref())),
+        "leadingComma" => Some(match metadata.leading_comma {
+            Some(value) => CemtEvaluatorValueRef::Boolean(value),
+            None => CemtEvaluatorValueRef::Null,
+        }),
+        "scopeOpeningNewLine" => Some(match metadata.scope_opening_new_line {
+            Some(value) => CemtEvaluatorValueRef::Boolean(value),
+            None => CemtEvaluatorValueRef::Null,
+        }),
+        _ => None,
+    }
+}
+
+fn writer_token_source_range_evaluator_field(
+    range: &CemTreeAstWriterTokenSourceRange,
+    name: &str,
+) -> Option<CemtEvaluatorValueRef<'static>> {
+    let value = match name {
+        "byteOffset" => range.byte_offset,
+        "byteLength" => range.byte_length,
+        "line" => u64::from(range.line),
+        "column" => u64::from(range.column),
+        _ => return None,
+    };
+    Some(CemtEvaluatorValueRef::Number(
+        CemtEvaluatorNumber::unsigned_integer(value),
+    ))
+}
+
 fn cemt_evaluator_node_field<'a>(
     node: &'a CemTreeAstNode,
     path: &CemtOwnerPath,
     name: &str,
 ) -> Option<CemtEvaluatorValueRef<'a>> {
     if name == "kind" {
-        return Some(CemtEvaluatorValueRef::String(node.kind()));
+        return Some(CemtEvaluatorValueRef::String(match node {
+            CemTreeAstNode::WriterToken { token_kind, .. } => token_kind,
+            _ => node.kind(),
+        }));
     }
     if name == "sourceMap" {
         return Some(CemtEvaluatorValueRef::SourceMap(node.source_map()));
@@ -2284,6 +2627,32 @@ fn cemt_evaluator_node_field<'a>(
             _ => None,
         },
         (CemTreeAstNode::Error { code, .. }, "code") => Some(CemtEvaluatorValueRef::String(code)),
+        (CemTreeAstNode::WriterToken { .. }, "writerKind") => {
+            Some(CemtEvaluatorValueRef::String("token"))
+        }
+        (CemTreeAstNode::WriterToken { token_kind, .. }, "tokenKind") => {
+            Some(CemtEvaluatorValueRef::String(token_kind))
+        }
+        (CemTreeAstNode::WriterToken { text, .. }, "text") => {
+            Some(CemtEvaluatorValueRef::String(text))
+        }
+        (CemTreeAstNode::WriterToken { role, .. }, "role") => {
+            Some(CemtEvaluatorValueRef::String(role))
+        }
+        (CemTreeAstNode::WriterToken { style, .. }, "style") => Some(
+            CemtEvaluatorValueRef::Record(CemtEvaluatorRecordRef::WriterTokenStyle { style }),
+        ),
+        (CemTreeAstNode::WriterToken { metadata, .. }, "value") => Some(
+            CemtEvaluatorValueRef::Record(CemtEvaluatorRecordRef::WriterTokenMetadata { metadata }),
+        ),
+        (CemTreeAstNode::WriterToken { output_span, .. }, "outputSpan") => Some(match output_span
+            .as_ref()
+        {
+            Some(output_span) => {
+                CemtEvaluatorValueRef::Record(CemtEvaluatorRecordRef::OutputSpan { output_span })
+            }
+            None => CemtEvaluatorValueRef::Null,
+        }),
         _ => None,
     }
 }
@@ -3031,6 +3400,87 @@ mod tests {
         }
     }
 
+    #[test]
+    fn writer_token_evaluator_view_borrows_typed_ast_fields_and_output_span() {
+        let source_map = SourceMapStack {
+            frames: vec![crate::source_map::SourceMapFrame {
+                source_id: crate::source::SourceId(23),
+                span: crate::source_map::FrameSpan::Single(crate::source::ByteRange::new(8, 4)),
+                transform: crate::source_map::TransformKind::TemplateTransform {
+                    function: "json.format-document".to_owned(),
+                },
+            }],
+        };
+        let owner = Arc::new(CemTreeAstStream::new(vec![CemTreeAstNode::WriterToken {
+            token_kind: "json.number".to_owned(),
+            text: "1.00".to_owned(),
+            role: "syntax.number".to_owned(),
+            style: Box::new(crate::projection::CemTreeAstWriterTokenStyle {
+                color_role: Some("syntax.number".to_owned()),
+                ..crate::projection::CemTreeAstWriterTokenStyle::default()
+            }),
+            metadata: Box::new(crate::projection::CemTreeAstWriterTokenMetadata {
+                formatter_profile: Some("compact".to_owned()),
+                source_range: Some(crate::projection::CemTreeAstWriterTokenSourceRange {
+                    byte_offset: 8,
+                    byte_length: 4,
+                    line: 1,
+                    column: 9,
+                }),
+                ..crate::projection::CemTreeAstWriterTokenMetadata::default()
+            }),
+            output_span: Some(OutputSpan {
+                output_range: crate::source::ByteRange::new(0, 4),
+                origin: source_map.clone(),
+            }),
+            source: source_map.clone(),
+        }]));
+
+        let token = CemtTreeSubjectRef {
+            owner: owner.as_ref(),
+        }
+        .evaluator_view()
+        .item(0)
+        .expect("writer token evaluator record");
+        assert_eq!(
+            token.field("kind").and_then(|value| value.as_str()),
+            Some("json.number")
+        );
+        assert_eq!(
+            token.field("writerKind").and_then(|value| value.as_str()),
+            Some("token")
+        );
+        assert_eq!(
+            token
+                .clone()
+                .resolve_path("style.colorRole")
+                .and_then(|value| value.as_str()),
+            Some("syntax.number")
+        );
+        assert_eq!(
+            token
+                .clone()
+                .resolve_path("value.sourceRange.byteOffset")
+                .and_then(|value| value.as_number())
+                .and_then(CemtEvaluatorNumber::as_u64),
+            Some(8)
+        );
+        assert_eq!(
+            token
+                .clone()
+                .resolve_path("outputSpan.outputRange.len")
+                .and_then(|value| value.as_number())
+                .and_then(CemtEvaluatorNumber::as_u64),
+            Some(4)
+        );
+        assert_eq!(
+            token
+                .resolve_path("outputSpan.origin")
+                .and_then(CemtEvaluatorValueRef::into_source_map),
+            Some(source_map)
+        );
+    }
+
     fn materialized_tree_identity() -> CemtMaterializedTreeIdentity {
         CemtMaterializedTreeIdentity {
             content_type: "application/json".to_owned(),
@@ -3131,6 +3581,119 @@ mod tests {
         assert_eq!(
             result.expect_err("converter cannot claim the formatted stage"),
             "materialized CEMT tree stage requires a Formatter producer, but `json.to-cem-tree` is Converter"
+        );
+    }
+
+    #[test]
+    fn colored_materialized_tree_retains_formatted_owner_with_typed_token_overlay() {
+        let owner = Arc::new(CemTreeAstStream::new(vec![CemTreeAstNode::WriterToken {
+            token_kind: "json.string".to_owned(),
+            text: "\"ready\"".to_owned(),
+            role: "syntax.string".to_owned(),
+            style: Box::new(crate::projection::CemTreeAstWriterTokenStyle {
+                color_role: Some("syntax.string".to_owned()),
+                ..crate::projection::CemTreeAstWriterTokenStyle::default()
+            }),
+            metadata: Box::new(crate::projection::CemTreeAstWriterTokenMetadata {
+                formatter_profile: Some("compact".to_owned()),
+                ..crate::projection::CemTreeAstWriterTokenMetadata::default()
+            }),
+            output_span: None,
+            source: SourceMapStack::default(),
+        }]));
+        let overlay = CemtMaterializedTreeColorOverlay {
+            producer: CemtMaterializedTreeProducer::colorizer(
+                "json.color-document",
+                Some("html".to_owned()),
+            ),
+            output: CemtColorOutput::Html,
+            tokens: vec![CemtMaterializedWriterTokenColor {
+                target: CemtOwnerPath::root(0),
+                color_role: "syntax.string".to_owned(),
+                style: crate::projection::CemTreeAstWriterTokenStyle {
+                    color_role: Some("syntax.string".to_owned()),
+                    color_profile: Some("html".to_owned()),
+                    color_output: Some("html".to_owned()),
+                    html_mode: Some("classes".to_owned()),
+                    class_name: Some("cem-color cem-color-syntax-string".to_owned()),
+                    color: Some("var(--cem-color-syntax-string)".to_owned()),
+                    ..crate::projection::CemTreeAstWriterTokenStyle::default()
+                },
+            }],
+        };
+        let artifact = CemtMaterializedTreeArtifact::new_colored(
+            materialized_tree_identity(),
+            CemtMaterializedTreeInputProvenance {
+                representation_id: CEMT_MATERIALIZED_TREE_REPRESENTATION_ID.to_owned(),
+                source_map: None,
+            },
+            CemtMaterializedTreePipeline::Colored {
+                formatter: CemtMaterializedTreeProducer::formatter(
+                    "json.format-document",
+                    Some("compact".to_owned()),
+                ),
+                colorizer: CemtMaterializedTreeProducer::colorizer(
+                    "json.color-document",
+                    Some("html".to_owned()),
+                ),
+            },
+            owner.clone(),
+            None,
+            Vec::new(),
+            overlay.clone(),
+        )
+        .expect("typed materialized color overlay");
+
+        assert_eq!(artifact.stage(), CemtMaterializedTreeStage::Colored);
+        assert!(Arc::ptr_eq(artifact.owner(), &owner));
+        assert_eq!(artifact.color_overlay(), Some(&overlay));
+        assert_eq!(
+            artifact.color_overlay().unwrap().tokens[0].target,
+            CemtOwnerPath::root(0)
+        );
+    }
+
+    #[test]
+    fn materialized_color_overlay_rejects_non_writer_token_targets() {
+        let result = CemtMaterializedTreeArtifact::new_colored(
+            materialized_tree_identity(),
+            CemtMaterializedTreeInputProvenance {
+                representation_id: CEMT_MATERIALIZED_TREE_REPRESENTATION_ID.to_owned(),
+                source_map: None,
+            },
+            CemtMaterializedTreePipeline::Colored {
+                formatter: CemtMaterializedTreeProducer::formatter(
+                    "json.format-document",
+                    Some("compact".to_owned()),
+                ),
+                colorizer: CemtMaterializedTreeProducer::colorizer(
+                    "json.color-document",
+                    Some("html".to_owned()),
+                ),
+            },
+            Arc::new(CemTreeAstStream::new(vec![CemTreeAstNode::Text {
+                value: "not a writer token".to_owned(),
+                source: SourceMapStack::default(),
+            }])),
+            None,
+            Vec::new(),
+            CemtMaterializedTreeColorOverlay {
+                producer: CemtMaterializedTreeProducer::colorizer(
+                    "json.color-document",
+                    Some("html".to_owned()),
+                ),
+                output: CemtColorOutput::Html,
+                tokens: vec![CemtMaterializedWriterTokenColor {
+                    target: CemtOwnerPath::root(0),
+                    color_role: "syntax.string".to_owned(),
+                    style: crate::projection::CemTreeAstWriterTokenStyle::default(),
+                }],
+            },
+        );
+
+        assert_eq!(
+            result.expect_err("color overlay target must be a writer token"),
+            "materialized CEMT color overlay target root[0] is not a writer-token node"
         );
     }
 

@@ -99,31 +99,39 @@ edge that creates an AST stream before transformation begins or be removed from
 production and retained only as a test fixture. It cannot be an owner variant
 or an intermediate transformation representation.
 
-## Materialized Writer-Token Decision Point
+## Materialized Writer-Token Resolution
 
 The JSON formatter does not return DOM-shaped CEM nodes. It returns ordered
 writer-token records with token kind, text, role, style, value metadata, source
-map, and output span. The current `CemTreeAstNode` algebra cannot retain that
+map, and output span. The former `CemTreeAstNode` algebra could not retain that
 information: mapping tokens to `Text` or `RawText` would lose colorizer and
 writer semantics, while retaining the records as `serde_json::Value` would
 reintroduce the prohibited intermediate DTO.
 
-The recommended resolution is a concrete typed `WriterToken` variant in
-`CemTreeAstNode`, followed by a typed color overlay that retains the exact
-formatted `Arc<CemTreeAstStream>`. A separate materialized-token stream is the
-alternative, but it changes the selected `CemtMaterializedTreeArtifact` owner
-contract and graph representation. Production formatter wiring stops until
-this representation is confirmed.
+The recommended resolution is now implemented. `CemTreeAstNode::WriterToken`
+owns concrete token kind/text/role, style, formatter metadata, source-range,
+source-map, and output-span fields. Its evaluator record borrows those fields
+directly, including nested style, metadata, range, and output-span records;
+there is no serializer or `Value` projection in that view.
+
+Colored materialized results retain the formatted owner and attach a
+`CemtMaterializedTreeColorOverlay` keyed by `CemtOwnerPath`.
+`CemtMaterializedTreeArtifact::new_colored` validates the colorizer producer,
+target identity, writer-token target kind, unique targets, color role/profile,
+and output style while preserving the exact formatted
+`Arc<CemTreeAstStream>`. The separate materialized-token-stream alternative is
+rejected because it would change the selected owner and graph contract.
 
 ## Implementation After Decision
 
-Define the first-class materialized-tree body and its closed typed stage
-metadata without a `Value` payload or serialization helper. Add red tests for
-one package-native formatter, its colorizer and writer, a graph stage plus
-ordered join, and a secondary-input edge. The tests must prove input and result
-owner `Arc` identity, direct AST-stream handoff, typed stage validation,
-source-map/output-span retention, and absence of `Value` classification. Then
-migrate every producer in one atomic slice, remove `CemtOutputArtifact`,
-`transform_template_output_cemt_subject`, `CemtEvaluator(Value)`, and
-`CemtRuntime(Value)`, and add source audits before running the full verification
-matrix.
+Connect the JSON formatter to the borrowed `JsonDocumentAst` evaluator view and
+lower its result directly into the new writer-token nodes. Connect the JSON
+colorizer to the exact formatted owner plus typed overlay and make the writer
+consume that pair directly. Add graph, ordered-join, and secondary-input
+identity tests, then remove the JSON subject serializer from production.
+
+After this first end-to-end producer passes source audits and the full
+verification matrix, migrate every remaining producer using the same direct
+owner/view/builder pattern. Only then remove `CemtOutputArtifact`,
+`transform_template_output_cemt_subject`, `CemtEvaluator(Value)`,
+`CemtRuntime(Value)`, and adapter DTO conversions globally.
