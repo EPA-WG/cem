@@ -60,8 +60,8 @@ use crate::transform_artifact::{
     CemtNodeColorOperationKind, CemtNodeFormatOperation, CemtNodeFormatOperationKind,
     CemtNodeFormatTarget, CemtOverlayProducer, CemtOverlayProvenance, CemtOwnerPath,
     CemtTreeArtifact, CemtTreeArtifactStage, CemtTreeEnvelopeMetadata, CemtTreeEnvelopeMode,
-    JsonDocumentCemtSubjectRef, TransformArtifactBody, TransformNativeArtifact,
-    CEMT_MATERIALIZED_TREE_REPRESENTATION_ID, CEMT_TREE_REPRESENTATION_ID,
+    GenericDataJsonDocumentCemtSubjectRef, JsonDocumentCemtSubjectRef, TransformArtifactBody,
+    TransformNativeArtifact, CEMT_MATERIALIZED_TREE_REPRESENTATION_ID, CEMT_TREE_REPRESENTATION_ID,
 };
 use crate::transform_template::{
     compose_transform_template_encoded_text_artifacts,
@@ -100,7 +100,7 @@ use crate::validation::css::CssDocumentAst;
 use crate::validation::csv::{generic_data_ast_to_csv_cemt_subject, CsvDocumentAst};
 use crate::validation::generic_data::GenericDataDocumentAst;
 use crate::validation::html::HtmlDocumentAst;
-use crate::validation::json::{generic_data_ast_to_json_cemt_subject, JsonDocumentAst};
+use crate::validation::json::JsonDocumentAst;
 use crate::validation::json_schema::JsonSchemaDocumentAst;
 use crate::validation::markdown::MarkdownDocumentAst;
 use crate::validation::mathml::MathMlDocumentAst;
@@ -7533,7 +7533,12 @@ pub trait JsonDocumentOutputSubject {
     fn native_cemt_subject(&self) -> Option<CemtEvaluatorValue<'_>> {
         None
     }
-    fn into_compatibility_cemt_subject(self) -> Option<Value>;
+    fn into_test_compatibility_cemt_subject(self) -> Option<Value>
+    where
+        Self: Sized,
+    {
+        None
+    }
 }
 
 impl JsonDocumentOutputSubject for JsonDocumentAst {
@@ -7545,10 +7550,6 @@ impl JsonDocumentOutputSubject for JsonDocumentAst {
         Some(CemtEvaluatorValue::borrowed(
             JsonDocumentCemtSubjectRef::new(self).evaluator_view(),
         ))
-    }
-
-    fn into_compatibility_cemt_subject(self) -> Option<Value> {
-        None
     }
 }
 
@@ -7568,8 +7569,10 @@ impl JsonDocumentOutputSubject for GenericDataJsonDocumentOutputSubject {
         self.ast.source_line_ending()
     }
 
-    fn into_compatibility_cemt_subject(self) -> Option<Value> {
-        Some(generic_data_ast_to_json_cemt_subject(&self.ast))
+    fn native_cemt_subject(&self) -> Option<CemtEvaluatorValue<'_>> {
+        Some(CemtEvaluatorValue::borrowed(
+            GenericDataJsonDocumentCemtSubjectRef::new(&self.ast).evaluator_view(),
+        ))
     }
 }
 
@@ -7579,7 +7582,7 @@ impl JsonDocumentOutputSubject for Value {
         self.get("lineEnding").and_then(Value::as_str)
     }
 
-    fn into_compatibility_cemt_subject(self) -> Option<Value> {
+    fn into_test_compatibility_cemt_subject(self) -> Option<Value> {
         Some(self)
     }
 }
@@ -7664,11 +7667,10 @@ pub fn execute_json_document_output_pipeline_with_environment(
             line_ending,
         );
     }
-    let Some(document_subject) = document.into_compatibility_cemt_subject() else {
+    let Some(document_subject) = document.into_test_compatibility_cemt_subject() else {
         return json_output_pipeline_failed(
             diagnostic_uri,
-            "JSON output subject has neither a native evaluator view nor a compatibility projection"
-                .to_owned(),
+            "JSON output subject does not expose a native evaluator view".to_owned(),
         );
     };
     let target = TransformTemplateEncodingTarget::new(
@@ -19344,7 +19346,7 @@ mod tests {
             "artifact_from_cemt_value",
             "to_cemt_runtime_value",
             "compose_transform_template_encoded_text_artifacts",
-            "into_compatibility_cemt_subject",
+            "into_test_compatibility_cemt_subject",
         ] {
             assert!(
                 !pipeline.contains(forbidden),
@@ -19361,6 +19363,45 @@ mod tests {
             .expect("lossless JSON output subject implementation");
         assert!(json_subject.contains("JsonDocumentCemtSubjectRef::new(self).evaluator_view()"));
         assert!(!json_subject.contains("to_cemt_subject"));
+
+        let generic_subject = source
+            .split_once("impl JsonDocumentOutputSubject for GenericDataJsonDocumentOutputSubject")
+            .and_then(|(_, suffix)| suffix.split_once("#[cfg(test)]"))
+            .map(|(implementation, _)| implementation)
+            .expect("generic-data JSON output subject implementation");
+        assert!(generic_subject
+            .contains("GenericDataJsonDocumentCemtSubjectRef::new(&self.ast).evaluator_view()"));
+        for forbidden in [
+            "into_test_compatibility_cemt_subject",
+            "generic_data_ast_to_json_cemt_subject",
+            "serde_json",
+            "Option<Value>",
+        ] {
+            assert!(
+                !generic_subject.contains(forbidden),
+                "generic-data JSON production subject must not use `{forbidden}`"
+            );
+        }
+
+        let generic_view_source = include_str!("transform_artifact.rs")
+            .split_once("fn generic_data_json_document_evaluator_field")
+            .and_then(|(_, suffix)| suffix.split_once("fn optional_string_evaluator_value"))
+            .map(|(view, _)| view)
+            .expect("borrowed generic-data JSON evaluator view");
+        for forbidden in [
+            "serde_json",
+            "JsonDocumentAst",
+            "to_cemt_subject",
+            "generic_data_ast_to_json_cemt_subject",
+        ] {
+            assert!(
+                !generic_view_source.contains(forbidden),
+                "borrowed generic-data JSON evaluator view must not use `{forbidden}`"
+            );
+        }
+
+        let json_validation_source = include_str!("validation/json.rs");
+        assert!(!json_validation_source.contains("generic_data_ast_to_json_cemt_subject"));
     }
 
     #[test]

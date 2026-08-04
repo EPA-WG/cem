@@ -17076,6 +17076,116 @@ mod tests {
     }
 
     #[test]
+    fn convert_yaml_and_csv_generic_data_shapes_to_json_without_value_projection() {
+        for (name, bytes, expected) in [
+            ("scalar", b"Ada\n".as_slice(), "\"Ada\"\n"),
+            (
+                "sequence",
+                b"- Ada\n- true\n".as_slice(),
+                "[\"Ada\",true]\n",
+            ),
+            (
+                "mapping-and-numbers",
+                b"count: 01\nratio: 1.50\n".as_slice(),
+                "{\"count\":1,\"ratio\":1.50}\n",
+            ),
+            ("missing-root", b"---\n...\n".as_slice(), "null\n"),
+        ] {
+            let mut source = input(bytes, &format!("{name}.yaml"));
+            source.identity = Some(FormatIdentity {
+                content_type: Some(YAML_CONTENT_TYPE.to_owned()),
+                schema: Some(YAML_SCHEMA_URI.to_owned()),
+                ..FormatIdentity::default()
+            });
+            let resp = RealCemMlEngine::new()
+                .convert(ConvertRequest {
+                    input: source,
+                    to_format: LayerFormat::DomJson,
+                    preserve_source_offsets: false,
+                    context: ctx(),
+                    target: Some(FormatIdentity {
+                        content_type: Some(JSON_CONTENT_TYPE.to_owned()),
+                        schema: Some(JSON_VALUE_SCHEMA_URI.to_owned()),
+                        ..FormatIdentity::default()
+                    }),
+                    target_scope: ScopeConfig {
+                        cemt_formatter_profile: Some("compact".to_owned()),
+                        ..ScopeConfig::default()
+                    },
+                    scheduler_scope_id: 0,
+                })
+                .unwrap();
+
+            assert!(
+                resp.diagnostics.is_empty(),
+                "{name}: {:?}",
+                resp.diagnostics
+            );
+            assert_eq!(
+                resp.conversion
+                    .as_ref()
+                    .and_then(|conversion| conversion.converter_id.as_deref()),
+                Some("generic-data-ast-to-json-output"),
+                "{name}"
+            );
+            assert_eq!(
+                std::str::from_utf8(
+                    &resp
+                        .primary_bytes
+                        .as_ref()
+                        .unwrap_or_else(|| panic!("{name} JSON primary bytes"))
+                        .bytes
+                )
+                .unwrap(),
+                expected,
+                "{name}"
+            );
+        }
+
+        let mut source = input(b",name\nleft,Ada\n", "missing-name.csv");
+        source.identity = Some(FormatIdentity {
+            content_type: Some(format!("{CSV_CONTENT_TYPE}; header=present")),
+            schema: Some(CSV_SCHEMA_URI.to_owned()),
+            ..FormatIdentity::default()
+        });
+        let resp = RealCemMlEngine::new()
+            .convert(ConvertRequest {
+                input: source,
+                to_format: LayerFormat::Json,
+                preserve_source_offsets: false,
+                context: ctx(),
+                target: Some(FormatIdentity {
+                    content_type: Some(JSON_CONTENT_TYPE.to_owned()),
+                    schema: Some(JSON_VALUE_SCHEMA_URI.to_owned()),
+                    ..FormatIdentity::default()
+                }),
+                target_scope: ScopeConfig {
+                    cemt_formatter_profile: Some("compact".to_owned()),
+                    ..ScopeConfig::default()
+                },
+                scheduler_scope_id: 0,
+            })
+            .unwrap();
+
+        assert!(
+            resp.diagnostics.is_empty(),
+            "CSV missing-name generic-data output: {:?}",
+            resp.diagnostics
+        );
+        assert_eq!(
+            std::str::from_utf8(
+                &resp
+                    .primary_bytes
+                    .as_ref()
+                    .expect("CSV missing-name JSON primary bytes")
+                    .bytes
+            )
+            .unwrap(),
+            "[{\"\":\"left\",\"name\":\"Ada\"}]\n"
+        );
+    }
+
+    #[test]
     fn convert_json_to_yaml_uses_generic_data_ast_stream() {
         let mut source = input(
             br#"{"service":{"name":"catalog","enabled":true,"ports":[80,443]}}"#,

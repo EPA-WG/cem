@@ -8,7 +8,10 @@ use crate::projection::{
 };
 use crate::schema::registry::{content_type_essence, JSON_CONTENT_TYPE};
 use crate::source_map::SourceMapStack;
-use crate::validation::generic_data::GenericDataDocumentAst;
+use crate::validation::generic_data::{
+    GenericDataDocumentAst, GenericDataMappingEntryAst, GenericDataSourceRangeAst,
+    GenericDataStreamDocumentAst, GenericDataValueAst,
+};
 use crate::validation::json::{
     JsonDocumentAst, JsonMemberAst, JsonNumberKind, JsonSourceRange, JsonValueAst,
 };
@@ -867,6 +870,27 @@ pub struct JsonDocumentCemtSubjectRef<'a> {
     document: &'a JsonDocumentAst,
 }
 
+#[derive(Debug, Clone, Copy)]
+pub struct GenericDataJsonDocumentCemtSubjectRef<'a> {
+    document: &'a GenericDataDocumentAst,
+}
+
+impl<'a> GenericDataJsonDocumentCemtSubjectRef<'a> {
+    pub fn new(document: &'a GenericDataDocumentAst) -> Self {
+        Self { document }
+    }
+
+    pub fn document(self) -> &'a GenericDataDocumentAst {
+        self.document
+    }
+
+    pub fn evaluator_view(self) -> CemtEvaluatorValueRef<'a> {
+        CemtEvaluatorValueRef::Record(CemtEvaluatorRecordRef::GenericDataJsonDocument {
+            document: self.document,
+        })
+    }
+}
+
 impl<'a> JsonDocumentCemtSubjectRef<'a> {
     pub fn new(document: &'a JsonDocumentAst) -> Self {
         Self { document }
@@ -914,6 +938,7 @@ pub enum CemtEvaluatorValueRef<'a> {
     Boolean(bool),
     Number(CemtEvaluatorNumber),
     String(&'a str),
+    OwnedString(Arc<str>),
     Sequence(CemtEvaluatorSequenceRef<'a>),
     Record(CemtEvaluatorRecordRef<'a>),
     SourceMap(&'a SourceMapStack),
@@ -926,7 +951,7 @@ impl<'a> CemtEvaluatorValueRef<'a> {
             Self::Null => CemtEvaluatorValueKind::Null,
             Self::Boolean(_) => CemtEvaluatorValueKind::Boolean,
             Self::Number(_) => CemtEvaluatorValueKind::Number,
-            Self::String(_) => CemtEvaluatorValueKind::String,
+            Self::String(_) | Self::OwnedString(_) => CemtEvaluatorValueKind::String,
             Self::Sequence(_) => CemtEvaluatorValueKind::Sequence,
             Self::Record(_) => CemtEvaluatorValueKind::Record,
             Self::SourceMap(_) | Self::OwnedSourceMap(_) => CemtEvaluatorValueKind::SourceMap,
@@ -1128,7 +1153,14 @@ impl std::error::Error for CemtEvaluatorValueAccessError {}
 
 impl<'a> CemtEvaluatorValue<'a> {
     pub fn borrowed(value: CemtEvaluatorValueRef<'a>) -> Self {
-        Self::Borrowed(value)
+        Self::from_borrowed_ref(value)
+    }
+
+    fn from_borrowed_ref(value: CemtEvaluatorValueRef<'a>) -> Self {
+        match value {
+            CemtEvaluatorValueRef::OwnedString(value) => Self::String(value),
+            value => Self::Borrowed(value),
+        }
     }
 
     pub fn boolean(value: bool) -> Self {
@@ -1237,7 +1269,7 @@ impl<'a> CemtEvaluatorValue<'a> {
         match self {
             Self::Record(record) => record.field(name),
             Self::Borrowed(CemtEvaluatorValueRef::Record(record)) => {
-                record.field(name).map(Self::Borrowed)
+                record.field(name).map(Self::from_borrowed_ref)
             }
             _ => None,
         }
@@ -1247,7 +1279,7 @@ impl<'a> CemtEvaluatorValue<'a> {
         match self {
             Self::Sequence(values) => values.get(index).cloned(),
             Self::Borrowed(CemtEvaluatorValueRef::Sequence(sequence)) => {
-                sequence.item(index).map(Self::Borrowed)
+                sequence.item(index).map(Self::from_borrowed_ref)
             }
             _ => None,
         }
@@ -1279,6 +1311,7 @@ impl<'a> CemtEvaluatorValue<'a> {
             Self::Sequence(values) => Ok(values.len()),
             Self::Record(record) => Ok(record.len()),
             Self::Borrowed(CemtEvaluatorValueRef::String(value)) => Ok(value.chars().count()),
+            Self::Borrowed(CemtEvaluatorValueRef::OwnedString(value)) => Ok(value.chars().count()),
             Self::Borrowed(CemtEvaluatorValueRef::Sequence(value)) => Ok(value.len()),
             Self::Borrowed(CemtEvaluatorValueRef::Record(value)) => Ok(value
                 .field_names()
@@ -1504,7 +1537,7 @@ impl<'a> CemtEvaluatorValue<'a> {
         match self {
             Self::Sequence(values) => Ok(values.iter().cloned().collect()),
             Self::Borrowed(CemtEvaluatorValueRef::Sequence(sequence)) => {
-                Ok(sequence.iter().map(Self::Borrowed).collect())
+                Ok(sequence.iter().map(Self::from_borrowed_ref).collect())
             }
             _ => Err(CemtEvaluatorValueAccessError::UnsupportedOperation {
                 operation,
@@ -1546,7 +1579,7 @@ impl<'a> CemtEvaluatorRecord<'a> {
             self.native_base
                 .as_ref()?
                 .field(name)
-                .map(CemtEvaluatorValue::Borrowed)
+                .map(CemtEvaluatorValue::from_borrowed_ref)
         })
     }
 
@@ -1648,6 +1681,15 @@ pub enum CemtEvaluatorSequenceRef<'a> {
     JsonValues {
         values: &'a [JsonValueAst],
     },
+    GenericDataJsonDocuments {
+        documents: &'a [GenericDataStreamDocumentAst],
+    },
+    GenericDataJsonEntries {
+        entries: &'a [GenericDataMappingEntryAst],
+    },
+    GenericDataJsonValues {
+        values: &'a [GenericDataValueAst],
+    },
     Nodes {
         nodes: &'a [CemTreeAstNode],
         parent: Option<CemtOwnerPath>,
@@ -1731,6 +1773,9 @@ impl<'a> CemtEvaluatorSequenceRef<'a> {
         match self {
             Self::JsonMembers { members } => members.len(),
             Self::JsonValues { values } => values.len(),
+            Self::GenericDataJsonDocuments { documents } => documents.len(),
+            Self::GenericDataJsonEntries { entries } => entries.len(),
+            Self::GenericDataJsonValues { values } => values.len(),
             Self::Nodes { nodes, .. } => nodes.len(),
             Self::Attributes { attributes, .. } => attributes.len(),
             Self::FormattedNodes {
@@ -1769,6 +1814,21 @@ impl<'a> CemtEvaluatorSequenceRef<'a> {
                 let value = values.get(index)?;
                 Some(CemtEvaluatorValueRef::Record(
                     CemtEvaluatorRecordRef::JsonValue { value },
+                ))
+            }
+            Self::GenericDataJsonDocuments { documents } => {
+                generic_data_json_stream_document_value(documents.get(index)?)
+            }
+            Self::GenericDataJsonEntries { entries } => {
+                let entry = entries.get(index)?;
+                Some(CemtEvaluatorValueRef::Record(
+                    CemtEvaluatorRecordRef::GenericDataJsonMember { entry },
+                ))
+            }
+            Self::GenericDataJsonValues { values } => {
+                let value = values.get(index)?;
+                Some(CemtEvaluatorValueRef::Record(
+                    CemtEvaluatorRecordRef::GenericDataJsonValue { value },
                 ))
             }
             Self::Nodes { nodes, parent } => {
@@ -1999,6 +2059,26 @@ pub enum CemtEvaluatorRecordRef<'a> {
     JsonSourceRange {
         range: JsonSourceRange,
     },
+    GenericDataJsonDocument {
+        document: &'a GenericDataDocumentAst,
+    },
+    GenericDataJsonValue {
+        value: &'a GenericDataValueAst,
+    },
+    GenericDataJsonMember {
+        entry: &'a GenericDataMappingEntryAst,
+    },
+    GenericDataJsonDocumentSequenceRoot {
+        documents: &'a [GenericDataStreamDocumentAst],
+    },
+    GenericDataJsonMissingRoot {
+        source_range: &'a GenericDataSourceRangeAst,
+    },
+    GenericDataJsonGeneratedNull,
+    GenericDataSourceRange {
+        source_range: &'a GenericDataSourceRangeAst,
+    },
+    GenericDataGeneratedSourceRange,
     WriterTokenStyle {
         style: &'a CemTreeAstWriterTokenStyle,
     },
@@ -2060,6 +2140,14 @@ impl<'a> CemtEvaluatorRecordRef<'a> {
             | Self::JsonValue { .. }
             | Self::JsonMember { .. }
             | Self::JsonSourceRange { .. }
+            | Self::GenericDataJsonDocument { .. }
+            | Self::GenericDataJsonValue { .. }
+            | Self::GenericDataJsonMember { .. }
+            | Self::GenericDataJsonDocumentSequenceRoot { .. }
+            | Self::GenericDataJsonMissingRoot { .. }
+            | Self::GenericDataJsonGeneratedNull
+            | Self::GenericDataSourceRange { .. }
+            | Self::GenericDataGeneratedSourceRange
             | Self::WriterTokenStyle { .. }
             | Self::WriterTokenMetadata { .. }
             | Self::WriterTokenSourceRange { .. }
@@ -2084,6 +2172,14 @@ impl<'a> CemtEvaluatorRecordRef<'a> {
             | Self::JsonValue { .. }
             | Self::JsonMember { .. }
             | Self::JsonSourceRange { .. }
+            | Self::GenericDataJsonDocument { .. }
+            | Self::GenericDataJsonValue { .. }
+            | Self::GenericDataJsonMember { .. }
+            | Self::GenericDataJsonDocumentSequenceRoot { .. }
+            | Self::GenericDataJsonMissingRoot { .. }
+            | Self::GenericDataJsonGeneratedNull
+            | Self::GenericDataSourceRange { .. }
+            | Self::GenericDataGeneratedSourceRange
             | Self::WriterTokenStyle { .. }
             | Self::WriterTokenMetadata { .. }
             | Self::WriterTokenSourceRange { .. }
@@ -2157,6 +2253,53 @@ impl<'a> CemtEvaluatorRecordRef<'a> {
                 "value",
             ],
             Self::JsonSourceRange { .. } => &["byteOffset", "byteLength", "line", "column"],
+            Self::GenericDataJsonDocument { .. } => &[
+                "kind",
+                "contentType",
+                "schema",
+                "encoding",
+                "lineEnding",
+                "root",
+            ],
+            Self::GenericDataJsonValue { value } => match value {
+                GenericDataValueAst::Mapping { .. } => {
+                    &["kind", "sourceRange", "sourceMap", "members"]
+                }
+                GenericDataValueAst::Sequence { .. } => {
+                    &["kind", "sourceRange", "sourceMap", "items"]
+                }
+                GenericDataValueAst::String { .. } => {
+                    &["kind", "sourceRange", "sourceMap", "value", "lexeme"]
+                }
+                GenericDataValueAst::Number { .. } => {
+                    &["kind", "sourceRange", "sourceMap", "lexeme", "numberKind"]
+                }
+                GenericDataValueAst::Boolean { .. } => {
+                    &["kind", "sourceRange", "sourceMap", "value"]
+                }
+                GenericDataValueAst::Null { .. } | GenericDataValueAst::Alias { .. } => {
+                    &["kind", "sourceRange", "sourceMap"]
+                }
+            },
+            Self::GenericDataJsonMember { .. } => &[
+                "index",
+                "name",
+                "nameLexeme",
+                "nameSourceRange",
+                "nameSourceMap",
+                "sourceRange",
+                "sourceMap",
+                "value",
+            ],
+            Self::GenericDataJsonDocumentSequenceRoot { .. } => {
+                &["kind", "sourceRange", "sourceMap", "items"]
+            }
+            Self::GenericDataJsonMissingRoot { .. } | Self::GenericDataJsonGeneratedNull => {
+                &["kind", "sourceRange", "sourceMap"]
+            }
+            Self::GenericDataSourceRange { .. } | Self::GenericDataGeneratedSourceRange => {
+                &["byteOffset", "byteLength", "line", "column"]
+            }
             Self::WriterTokenStyle { .. } => &[
                 "colorRole",
                 "colorProfile",
@@ -2316,6 +2459,30 @@ impl<'a> CemtEvaluatorRecordRef<'a> {
             Self::JsonValue { value } => json_value_evaluator_field(value, name),
             Self::JsonMember { member } => json_member_evaluator_field(member, name),
             Self::JsonSourceRange { range } => json_source_range_evaluator_field(*range, name),
+            Self::GenericDataJsonDocument { document } => {
+                generic_data_json_document_evaluator_field(document, name)
+            }
+            Self::GenericDataJsonValue { value } => {
+                generic_data_json_value_evaluator_field(value, name)
+            }
+            Self::GenericDataJsonMember { entry } => {
+                generic_data_json_member_evaluator_field(entry, name)
+            }
+            Self::GenericDataJsonDocumentSequenceRoot { documents } => {
+                generic_data_json_document_sequence_root_evaluator_field(documents, name)
+            }
+            Self::GenericDataJsonMissingRoot { source_range } => {
+                generic_data_json_null_evaluator_field(Some(source_range), name)
+            }
+            Self::GenericDataJsonGeneratedNull => {
+                generic_data_json_null_evaluator_field(None, name)
+            }
+            Self::GenericDataSourceRange { source_range } => {
+                generic_data_source_range_evaluator_field(Some(source_range), name)
+            }
+            Self::GenericDataGeneratedSourceRange => {
+                generic_data_source_range_evaluator_field(None, name)
+            }
             Self::WriterTokenStyle { style } => writer_token_style_evaluator_field(style, name),
             Self::WriterTokenMetadata { metadata } => {
                 writer_token_metadata_evaluator_field(metadata, name)
@@ -2543,6 +2710,335 @@ fn json_source_range_evaluator_field(
     Some(CemtEvaluatorValueRef::Number(
         CemtEvaluatorNumber::unsigned_integer(value),
     ))
+}
+
+fn generic_data_json_document_evaluator_field<'a>(
+    document: &'a GenericDataDocumentAst,
+    name: &str,
+) -> Option<CemtEvaluatorValueRef<'a>> {
+    match name {
+        "kind" => Some(CemtEvaluatorValueRef::String("json-document")),
+        "contentType" => Some(CemtEvaluatorValueRef::String(JSON_CONTENT_TYPE)),
+        "schema" => Some(CemtEvaluatorValueRef::String(
+            crate::schema::registry::JSON_VALUE_SCHEMA_URI,
+        )),
+        "encoding" => Some(CemtEvaluatorValueRef::String("utf-8")),
+        "lineEnding" => Some(match document.line_ending.as_deref() {
+            Some(line_ending) => CemtEvaluatorValueRef::String(line_ending),
+            None => CemtEvaluatorValueRef::Null,
+        }),
+        "root" => match document.documents.as_slice() {
+            [] => Some(CemtEvaluatorValueRef::Record(
+                CemtEvaluatorRecordRef::GenericDataJsonGeneratedNull,
+            )),
+            [stream_document] => generic_data_json_stream_document_value(stream_document),
+            documents => Some(CemtEvaluatorValueRef::Record(
+                CemtEvaluatorRecordRef::GenericDataJsonDocumentSequenceRoot { documents },
+            )),
+        },
+        _ => None,
+    }
+}
+
+fn generic_data_json_stream_document_value<'a>(
+    document: &'a GenericDataStreamDocumentAst,
+) -> Option<CemtEvaluatorValueRef<'a>> {
+    Some(match document.root.as_ref() {
+        Some(value) => {
+            CemtEvaluatorValueRef::Record(CemtEvaluatorRecordRef::GenericDataJsonValue { value })
+        }
+        None => CemtEvaluatorValueRef::Record(CemtEvaluatorRecordRef::GenericDataJsonMissingRoot {
+            source_range: &document.source_range,
+        }),
+    })
+}
+
+fn generic_data_json_document_sequence_root_evaluator_field<'a>(
+    documents: &'a [GenericDataStreamDocumentAst],
+    name: &str,
+) -> Option<CemtEvaluatorValueRef<'a>> {
+    match name {
+        "kind" => Some(CemtEvaluatorValueRef::String("array")),
+        "sourceRange" => Some(CemtEvaluatorValueRef::Record(
+            CemtEvaluatorRecordRef::GenericDataGeneratedSourceRange,
+        )),
+        "sourceMap" => Some(CemtEvaluatorValueRef::Null),
+        "items" => Some(CemtEvaluatorValueRef::Sequence(
+            CemtEvaluatorSequenceRef::GenericDataJsonDocuments { documents },
+        )),
+        _ => None,
+    }
+}
+
+fn generic_data_json_value_evaluator_field<'a>(
+    value: &'a GenericDataValueAst,
+    name: &str,
+) -> Option<CemtEvaluatorValueRef<'a>> {
+    let source_range = value.source_range();
+    match name {
+        "kind" => Some(CemtEvaluatorValueRef::String(match value {
+            GenericDataValueAst::Mapping { .. } => "object",
+            GenericDataValueAst::Sequence { .. } => "array",
+            GenericDataValueAst::String { .. } => "string",
+            GenericDataValueAst::Number { .. } => "number",
+            GenericDataValueAst::Boolean { .. } => "boolean",
+            GenericDataValueAst::Null { .. } | GenericDataValueAst::Alias { .. } => "null",
+        })),
+        "sourceRange" => Some(CemtEvaluatorValueRef::Record(
+            CemtEvaluatorRecordRef::GenericDataSourceRange { source_range },
+        )),
+        "sourceMap" => Some(generic_data_source_map_evaluator_value(source_range)),
+        "members" => match value {
+            GenericDataValueAst::Mapping { entries, .. } => Some(CemtEvaluatorValueRef::Sequence(
+                CemtEvaluatorSequenceRef::GenericDataJsonEntries { entries },
+            )),
+            _ => None,
+        },
+        "items" => match value {
+            GenericDataValueAst::Sequence { items, .. } => Some(CemtEvaluatorValueRef::Sequence(
+                CemtEvaluatorSequenceRef::GenericDataJsonValues { values: items },
+            )),
+            _ => None,
+        },
+        "value" => match value {
+            GenericDataValueAst::String { value, .. } => Some(CemtEvaluatorValueRef::String(value)),
+            GenericDataValueAst::Boolean { value, .. } => {
+                Some(CemtEvaluatorValueRef::Boolean(*value))
+            }
+            _ => None,
+        },
+        "lexeme" => match value {
+            GenericDataValueAst::String { lexeme, .. } => {
+                lexeme.as_deref().map(CemtEvaluatorValueRef::String)
+            }
+            GenericDataValueAst::Number { lexeme, .. } => Some(CemtEvaluatorValueRef::OwnedString(
+                Arc::from(normalize_generic_data_json_number_lexeme(lexeme)),
+            )),
+            _ => None,
+        },
+        "numberKind" => match value {
+            GenericDataValueAst::Number { number_kind, .. } => Some(CemtEvaluatorValueRef::String(
+                number_kind.as_json_number_kind(),
+            )),
+            _ => None,
+        },
+        _ => None,
+    }
+}
+
+fn generic_data_json_member_evaluator_field<'a>(
+    entry: &'a GenericDataMappingEntryAst,
+    name: &str,
+) -> Option<CemtEvaluatorValueRef<'a>> {
+    let member_name = || generic_data_json_member_name(&entry.key);
+    let name_source_range = entry.key.source_range();
+    match name {
+        "index" => Some(CemtEvaluatorValueRef::Number(
+            CemtEvaluatorNumber::unsigned_integer(entry.index as u64),
+        )),
+        "name" => Some(CemtEvaluatorValueRef::OwnedString(Arc::from(member_name()))),
+        "nameLexeme" => Some(CemtEvaluatorValueRef::OwnedString(Arc::from(
+            quote_generic_data_json_string(&member_name()),
+        ))),
+        "nameSourceRange" => Some(CemtEvaluatorValueRef::Record(
+            CemtEvaluatorRecordRef::GenericDataSourceRange {
+                source_range: name_source_range,
+            },
+        )),
+        "nameSourceMap" => Some(generic_data_source_map_evaluator_value(name_source_range)),
+        "sourceRange" => Some(CemtEvaluatorValueRef::Record(
+            CemtEvaluatorRecordRef::GenericDataSourceRange {
+                source_range: &entry.source_range,
+            },
+        )),
+        "sourceMap" => Some(generic_data_source_map_evaluator_value(&entry.source_range)),
+        "value" => Some(CemtEvaluatorValueRef::Record(
+            CemtEvaluatorRecordRef::GenericDataJsonValue {
+                value: &entry.value,
+            },
+        )),
+        _ => None,
+    }
+}
+
+fn generic_data_json_null_evaluator_field<'a>(
+    source_range: Option<&'a GenericDataSourceRangeAst>,
+    name: &str,
+) -> Option<CemtEvaluatorValueRef<'a>> {
+    match name {
+        "kind" => Some(CemtEvaluatorValueRef::String("null")),
+        "sourceRange" => Some(CemtEvaluatorValueRef::Record(match source_range {
+            Some(source_range) => CemtEvaluatorRecordRef::GenericDataSourceRange { source_range },
+            None => CemtEvaluatorRecordRef::GenericDataGeneratedSourceRange,
+        })),
+        "sourceMap" => Some(match source_range {
+            Some(source_range) => generic_data_source_map_evaluator_value(source_range),
+            None => CemtEvaluatorValueRef::Null,
+        }),
+        _ => None,
+    }
+}
+
+fn generic_data_source_range_evaluator_field(
+    source_range: Option<&GenericDataSourceRangeAst>,
+    name: &str,
+) -> Option<CemtEvaluatorValueRef<'static>> {
+    let value = match (source_range, name) {
+        (Some(source_range), "byteOffset") => source_range.byte_offset,
+        (Some(source_range), "byteLength") => source_range.byte_length,
+        (Some(source_range), "line") => u64::from(source_range.line),
+        (Some(source_range), "column") => u64::from(source_range.column),
+        (None, "byteOffset" | "byteLength") => 0,
+        (None, "line" | "column") => 1,
+        _ => return None,
+    };
+    Some(CemtEvaluatorValueRef::Number(
+        CemtEvaluatorNumber::unsigned_integer(value),
+    ))
+}
+
+fn generic_data_source_map_evaluator_value(
+    source_range: &GenericDataSourceRangeAst,
+) -> CemtEvaluatorValueRef<'_> {
+    match source_range.source_map.as_ref() {
+        Some(source_map) => CemtEvaluatorValueRef::SourceMap(source_map),
+        None => CemtEvaluatorValueRef::Null,
+    }
+}
+
+fn generic_data_json_member_name(value: &GenericDataValueAst) -> String {
+    match value {
+        GenericDataValueAst::String { value, .. } => value.clone(),
+        GenericDataValueAst::Number { lexeme, .. } => {
+            normalize_generic_data_json_number_lexeme(lexeme)
+        }
+        GenericDataValueAst::Boolean { value, .. } => value.to_string(),
+        GenericDataValueAst::Null { .. } => "null".to_owned(),
+        GenericDataValueAst::Alias { alias, .. } => alias.clone().unwrap_or_default(),
+        GenericDataValueAst::Mapping { .. } | GenericDataValueAst::Sequence { .. } => {
+            compact_generic_data_json_value(value)
+        }
+    }
+}
+
+fn compact_generic_data_json_value(value: &GenericDataValueAst) -> String {
+    match value {
+        GenericDataValueAst::Mapping { entries, .. } => {
+            let mut output = String::from("{");
+            for (index, entry) in entries.iter().enumerate() {
+                if index > 0 {
+                    output.push(',');
+                }
+                output.push_str(&quote_generic_data_json_string(
+                    &generic_data_json_member_name(&entry.key),
+                ));
+                output.push(':');
+                output.push_str(&compact_generic_data_json_value(&entry.value));
+            }
+            output.push('}');
+            output
+        }
+        GenericDataValueAst::Sequence { items, .. } => {
+            let mut output = String::from("[");
+            for (index, item) in items.iter().enumerate() {
+                if index > 0 {
+                    output.push(',');
+                }
+                output.push_str(&compact_generic_data_json_value(item));
+            }
+            output.push(']');
+            output
+        }
+        GenericDataValueAst::String { value, .. } => quote_generic_data_json_string(value),
+        GenericDataValueAst::Number { lexeme, .. } => {
+            normalize_generic_data_json_number_lexeme(lexeme)
+        }
+        GenericDataValueAst::Boolean { value, .. } => value.to_string(),
+        GenericDataValueAst::Null { .. } | GenericDataValueAst::Alias { .. } => "null".to_owned(),
+    }
+}
+
+fn quote_generic_data_json_string(value: &str) -> String {
+    const HEX: &[u8; 16] = b"0123456789abcdef";
+    let mut output = String::with_capacity(value.len().saturating_add(2));
+    output.push('"');
+    for character in value.chars() {
+        match character {
+            '"' => output.push_str("\\\""),
+            '\\' => output.push_str("\\\\"),
+            '\u{0008}' => output.push_str("\\b"),
+            '\u{000c}' => output.push_str("\\f"),
+            '\n' => output.push_str("\\n"),
+            '\r' => output.push_str("\\r"),
+            '\t' => output.push_str("\\t"),
+            character if character <= '\u{001f}' => {
+                let code = character as u8;
+                output.push_str("\\u00");
+                output.push(HEX[usize::from(code >> 4)] as char);
+                output.push(HEX[usize::from(code & 0x0f)] as char);
+            }
+            character => output.push(character),
+        }
+    }
+    output.push('"');
+    output
+}
+
+fn normalize_generic_data_json_number_lexeme(lexeme: &str) -> String {
+    if is_json_number_lexeme(lexeme) {
+        return lexeme.to_owned();
+    }
+    if let Ok(value) = lexeme.parse::<i64>() {
+        return value.to_string();
+    }
+    if let Ok(value) = lexeme.parse::<f64>() {
+        if value.is_finite() {
+            return ryu::Buffer::new().format_finite(value).to_owned();
+        }
+    }
+    "0".to_owned()
+}
+
+fn is_json_number_lexeme(lexeme: &str) -> bool {
+    let bytes = lexeme.as_bytes();
+    let mut cursor = 0usize;
+    if bytes.get(cursor) == Some(&b'-') {
+        cursor += 1;
+    }
+    match bytes.get(cursor) {
+        Some(b'0') => cursor += 1,
+        Some(b'1'..=b'9') => {
+            cursor += 1;
+            while bytes.get(cursor).is_some_and(u8::is_ascii_digit) {
+                cursor += 1;
+            }
+        }
+        _ => return false,
+    }
+    if bytes.get(cursor) == Some(&b'.') {
+        cursor += 1;
+        let fraction_start = cursor;
+        while bytes.get(cursor).is_some_and(u8::is_ascii_digit) {
+            cursor += 1;
+        }
+        if cursor == fraction_start {
+            return false;
+        }
+    }
+    if matches!(bytes.get(cursor), Some(b'e' | b'E')) {
+        cursor += 1;
+        if matches!(bytes.get(cursor), Some(b'+' | b'-')) {
+            cursor += 1;
+        }
+        let exponent_start = cursor;
+        while bytes.get(cursor).is_some_and(u8::is_ascii_digit) {
+            cursor += 1;
+        }
+        if cursor == exponent_start {
+            return false;
+        }
+    }
+    cursor == bytes.len()
 }
 
 fn optional_string_evaluator_value(value: Option<&str>) -> CemtEvaluatorValueRef<'_> {
@@ -3433,6 +3929,135 @@ mod tests {
                 .and_then(|value| value.as_number())
                 .and_then(CemtEvaluatorNumber::as_u64),
             Some(12)
+        );
+    }
+
+    #[test]
+    fn generic_data_json_evaluator_view_borrows_owner_and_preserves_json_contract() {
+        use crate::source::{ByteRange, SourceId};
+        use crate::source_map::{FrameSpan, SourceMapFrame, TransformKind};
+        use crate::validation::generic_data::{
+            GenericDataMappingEntryAst, GenericDataNumberKind, GenericDataSourceAst,
+            GenericDataSourceRangeAst, GenericDataStreamDocumentAst, GenericDataValueAst,
+        };
+
+        let range = |byte_offset: u64, byte_length: u64| GenericDataSourceRangeAst {
+            byte_offset,
+            byte_length,
+            line: 1,
+            column: u32::try_from(byte_offset + 1).expect("test column"),
+            source_map: Some(SourceMapStack {
+                frames: vec![SourceMapFrame {
+                    source_id: SourceId(41),
+                    span: FrameSpan::Single(ByteRange::new(
+                        byte_offset,
+                        u32::try_from(byte_length).expect("test range length"),
+                    )),
+                    transform: TransformKind::ContentTypeTransform {
+                        content_type: "application/json".to_owned(),
+                    },
+                }],
+            }),
+        };
+        let string =
+            |value: &str, source_range: GenericDataSourceRangeAst| GenericDataValueAst::String {
+                source_range,
+                value: value.to_owned(),
+                lexeme: None,
+                style: None,
+            };
+        let entries = vec![
+            GenericDataMappingEntryAst {
+                index: 0,
+                key: string("same", range(1, 4)),
+                value: string("first", range(7, 5)),
+                source_range: range(1, 11),
+            },
+            GenericDataMappingEntryAst {
+                index: 1,
+                key: string("same", range(14, 4)),
+                value: GenericDataValueAst::Number {
+                    source_range: range(20, 2),
+                    lexeme: "01".to_owned(),
+                    number_kind: GenericDataNumberKind::Integer,
+                },
+                source_range: range(14, 8),
+            },
+        ];
+        let owner = Arc::new(GenericDataDocumentAst {
+            source: GenericDataSourceAst {
+                uri: "memory:generic-data.json".to_owned(),
+                content_type: "application/yaml".to_owned(),
+                media_type: "application/yaml".to_owned(),
+                parameters: BTreeMap::new(),
+                byte_length: 22,
+            },
+            documents: vec![GenericDataStreamDocumentAst {
+                index: 0,
+                source_range: range(0, 22),
+                root: Some(GenericDataValueAst::Mapping {
+                    source_range: range(0, 22),
+                    entries,
+                }),
+            }],
+            line_ending: Some("lf".to_owned()),
+        });
+        let subject = GenericDataJsonDocumentCemtSubjectRef::new(owner.as_ref());
+
+        assert!(std::ptr::eq(subject.document(), owner.as_ref()));
+        let document = CemtEvaluatorValue::borrowed(subject.evaluator_view());
+        let members = document
+            .field("root")
+            .and_then(|root| root.field("members"))
+            .expect("ordered generic-data JSON members");
+        let members = members
+            .sequence_values("generic-data JSON evaluator test")
+            .expect("generic-data JSON member sequence");
+        assert_eq!(members.len(), 2);
+
+        let first = &members[0];
+        let second = &members[1];
+        assert_eq!(
+            first
+                .field("name")
+                .and_then(|value| value.as_str().map(str::to_owned))
+                .as_deref(),
+            Some("same")
+        );
+        assert_eq!(
+            second
+                .field("name")
+                .and_then(|value| value.as_str().map(str::to_owned))
+                .as_deref(),
+            Some("same")
+        );
+        assert_eq!(
+            second
+                .field("nameLexeme")
+                .and_then(|value| value.as_str().map(str::to_owned))
+                .as_deref(),
+            Some("\"same\"")
+        );
+        assert_eq!(
+            second
+                .field("value")
+                .and_then(|value| value.field("lexeme"))
+                .and_then(|value| value.as_str().map(str::to_owned))
+                .as_deref(),
+            Some("1")
+        );
+        let name_source_map = second
+            .field("nameSourceMap")
+            .and_then(|value| value.as_source_map().cloned())
+            .expect("generic-data member name source map");
+        assert_eq!(name_source_map.frames.len(), 1);
+        assert_eq!(
+            second
+                .field("sourceRange")
+                .and_then(|value| value.field("byteOffset"))
+                .and_then(|value| value.as_number())
+                .and_then(CemtEvaluatorNumber::as_u64),
+            Some(14)
         );
     }
 

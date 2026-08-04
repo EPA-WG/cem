@@ -1070,9 +1070,17 @@ Remaining dependency-ordered package checklist:
                     routing through the stage, declared collection order, and
                     named secondary binding with outer artifact, materialized
                     artifact, and owner `Arc::ptr_eq` assertions.
-              - [ ] Replace the generic-data-to-JSON compatibility projection
-                    with a borrowed/typed generic-data evaluator view so every
-                    production JSON entry path uses the materialized pipeline.
+              - [x] Replace the generic-data-to-JSON compatibility projection
+                    with a borrowed/typed `GenericDataDocumentAst` evaluator
+                    view so every production JSON entry path uses the
+                    materialized pipeline. The view retains ordered and
+                    duplicate mapping entries, generated/missing member names,
+                    normalized JSON number lexemes, ranges, source maps, and
+                    the original owner without constructing a
+                    `JsonDocumentAst`, `Value`, DTO, or serialized document;
+                    YAML scalar/sequence/mapping/missing-root/numeric and CSV
+                    missing-name output cases plus source audits cover the
+                    boundary.
       - [x] Define typed raw, formatted, and colored CEM tree envelopes with
             ordered native nodes and lazy evaluator views over the owning AST.
       - [ ] Route formatter, colorizer, writer, graph, and secondary-input
@@ -1134,37 +1142,41 @@ Remaining dependency-ordered package checklist:
 
 ### Next Work Item
 
-Close the alternate generic-data ingress into the JSON materialized pipeline.
-The lossless JSON formatter, colorizer, writer, production stage output, graph
-collection, and secondary-input handoffs now exchange only typed evaluator and
-AST artifacts with exact owner identity. The remaining JSON transformation
-boundary is `GenericDataJsonDocumentOutputSubject`'s compatibility projection.
+Migrate the direct JSON Schema output pipeline to the serializer-free typed
+result contract. Lossless JSON and every generic-data-to-JSON production ingress
+now enter the JSON materialized formatter/colorizer/writer pipeline through
+borrowed evaluator views and exchange typed AST artifacts with exact owner
+identity. JSON Schema is next because it owns a lossless `JsonDocumentAst`, adds
+package-specific source/dialect/parse facts, and already shares the JSON token
+and writer contracts.
 
 Implement the next slice in this order:
 
-1. Define a borrowed evaluator view over `GenericDataDocumentAst` and its value,
-   sequence, mapping, and mapping-entry variants. The view must retain ordered
-   mapping entries, duplicate/generated JSON member names, normalized number
-   lexemes, source ranges, source maps, and the original generic-data owner.
-2. Map that view to the JSON formatter's existing typed subject contract without
-   constructing `JsonDocumentAst`, `serde_json::Value`, a DTO record tree, or a
-   serialized/reparsed JSON document. Add focused parity cases for CSV- and
-   YAML-originated scalar, sequence, mapping, missing-name, and numeric values.
-3. Route `GenericDataJsonDocumentOutputSubject` through the native typed stage
-   executor and delete its production
-   `generic_data_ast_to_json_cemt_subject`/`into_compatibility_cemt_subject`
-   fallback. Keep any compatibility oracle test-only and outside layer handoffs.
-4. Tighten the JSON source audit so every production ingress is prohibited from
-   selecting a compatibility subject, serializer, composer, or runtime `Value`
-   artifact. Serialization remains allowed only after the writer for the public
-   response/debug projection and at registered external exporters.
-5. Run focused generic-data/JSON cases, JSON schema-package verification, full
-   core tests, converter parity, CLI e2e, lint, native build, and WASM build.
-   Once green, migrate JSON Schema next because it shares the JSON token and
-   writer contracts; then apply the pattern to CSV, YAML, Markdown, XML-family,
-   XSLT, Relax NG, DOM projection, and remaining generic CEMT producers before
-   deleting `CemtEvaluator(Value)`, `CemtRuntime(Value)`, and adapter DTO
-   conversion globally.
+1. Define `JsonSchemaDocumentCemtSubjectRef` as a borrowed evaluator view over
+   the owning `JsonSchemaDocumentAst`. Reuse the existing lossless JSON view for
+   its nested `json` field and expose source metadata, dialect, parse facts, and
+   dialect facts directly with their ranges/maps; do not clone the nested JSON
+   AST into a second owner.
+2. Add failing parity and identity tests first. Cover draft 2020-12 roots,
+   boolean schemas, nested keywords, duplicate members, exact string/number
+   lexemes, recoverable parse facts, dialect diagnostics, source ranges/maps,
+   and pointer identity for both the outer JSON Schema owner and nested JSON
+   document.
+3. Give `JsonSchemaDocumentOutputSubject` a native evaluator path and route its
+   formatter through `execute_conversion_typed_cemt_output_stage`. Lower the
+   formatter result directly into `CemtMaterializedTreeArtifact`, pass the exact
+   formatted owner into the typed color overlay, and use the direct writer for
+   plain, terminal, HTML, and Markdown output.
+4. Delete the production `into_cemt_subject` and legacy runtime-`Value` stage
+   path for JSON Schema. Retain any `Value` subject only as an explicitly
+   test-only compatibility oracle, and add a source audit forbidding serializer,
+   DTO, composer, re-parser, or runtime-value handoffs between its layers.
+5. Run focused JSON Schema lifecycle/package cases, JSON Schema schema-package
+   verification, full core tests, converter parity, CLI e2e, lint, native build,
+   and WASM build. Once green, migrate the direct CSV output pipeline, followed
+   by YAML, Markdown, XML-family/XSLT, Relax NG, DOM projection, and remaining
+   generic CEMT producers before deleting `CemtEvaluator(Value)`,
+   `CemtRuntime(Value)`, and adapter DTO conversion globally.
 
 ## Current Verification Commands
 
