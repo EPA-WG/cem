@@ -62,41 +62,51 @@ sum type with separate overlay-backed and materialized branches. Treating those
 differences as optional fields would make stage validity dependent on runtime
 field combinations and is rejected by the migration acceptance criteria.
 
-The recommended direction is a second closed materialized-tree artifact family,
-leaving `CemtTreeArtifact` as the owner-plus-overlay contract for native CEM.
-The materialized family should contain a typed stage, output-function identity,
-package/result identity, an owned `Arc<CemTreeAstStream>` result, source-map and
-output-span provenance, and a closed owner descriptor. Writers, graph routing,
-and public exporters can then dispatch over the two explicit artifact families.
+## Resolved Contract
 
-## Decisions Required Before Implementation
+No serializer, encoder, `serde_json::Value` projection, DTO, or re-parser may
+sit between transformation layers. The native stream handed off by one layer
+is the stream consumed by the next layer.
 
-Two choices change the artifact's fields and routing contract, so production
-implementation must stop until they are resolved:
+The materialized-tree contract is therefore fixed as follows:
 
-1. Define retained ownership for a materialized package result. Either retain
-   the original heterogeneous package AST in a closed owner enum, requiring the
-   direct pipeline APIs to accept and preserve `Arc` owners, or declare the
-   generated `Arc<CemTreeAstStream>` to be the result owner while source
-   provenance separately identifies the input package AST.
-2. Choose the graph representation. Either add a first-class
-   `TransformArtifactBody` variant for materialized CEMT trees or keep a closed
-   `TransformNativeArtifact` extension representation. The former makes graph
-   and secondary-input dispatch exhaustive; the latter avoids widening the
-   shared body enum but requires checked downcasts at every typed consumer.
+1. A package formatter evaluates through a borrowed typed view over the owning
+   `Arc` of its native package AST. It must not call `to_cemt_subject()`,
+   `into_cemt_subject()`, `serde_json::to_value()`, or an equivalent DTO
+   projection.
+2. The formatter constructs and owns an `Arc<CemTreeAstStream>` result directly
+   from typed evaluator nodes. The result retains typed input provenance; it
+   does not recover provenance by serializing and parsing the package AST.
+3. The colorizer receives that exact formatted AST-stream `Arc` through a typed
+   artifact view and returns a typed colored AST stream or overlay. The writer
+   consumes that typed result directly.
+4. Materialized CEMT trees receive a first-class `TransformArtifactBody`
+   variant. Graph stages, ordered joins, and secondary inputs dispatch
+   exhaustively on the variant and preserve its `Arc` identity instead of
+   relying on extension downcasts.
+5. `CemtTreeArtifact` remains the owner-plus-overlay contract for native CEM.
+   A separate closed materialized-tree artifact carries the package/result
+   identity, typed stage, output-function identity, result
+   `Arc<CemTreeAstStream>`, source-map provenance, and output spans for package
+   formatters that generate a new tree.
+6. Serialization is permitted only at a registered external encoding/export
+   boundary. JSON and `+json` inputs parse once into their native lossless AST;
+   JSON and `+json` outputs serialize once after the final typed artifact.
 
-The explicit-JSON DOM compatibility branch also needs a disposition after
-those choices: isolate it as a compatibility parser edge that immediately
-produces the chosen typed artifact, or remove it from production and retain an
-equivalent test-only fixture path.
+The explicit-JSON DOM compatibility branch must either enter through a parser
+edge that creates an AST stream before transformation begins or be removed from
+production and retained only as a test fixture. It cannot be an owner variant
+or an intermediate transformation representation.
 
 ## Implementation After Decision
 
-Add red tests for one package-native formatter, its colorizer and writer, a
-graph stage plus ordered join, and a secondary-input edge. The tests must prove
-owner `Arc` identity, typed stage validation, source-map/output-span retention,
-and absence of `Value` classification. Then migrate every producer in one
-atomic slice, remove `CemtOutputArtifact`,
+Define the first-class materialized-tree body and its closed typed stage
+metadata without a `Value` payload or serialization helper. Add red tests for
+one package-native formatter, its colorizer and writer, a graph stage plus
+ordered join, and a secondary-input edge. The tests must prove input and result
+owner `Arc` identity, direct AST-stream handoff, typed stage validation,
+source-map/output-span retention, and absence of `Value` classification. Then
+migrate every producer in one atomic slice, remove `CemtOutputArtifact`,
 `transform_template_output_cemt_subject`, `CemtEvaluator(Value)`, and
 `CemtRuntime(Value)`, and add source audits before running the full verification
 matrix.

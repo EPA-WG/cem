@@ -11118,6 +11118,54 @@ mod tests {
     }
 
     #[test]
+    fn transform_output_routing_preserves_materialized_cemt_ast_stream_identity() {
+        let tree = Arc::new(crate::projection::CemTreeAstStream::empty());
+        let artifact = Arc::new(
+            crate::transform_artifact::CemtMaterializedTreeArtifact::new(
+                crate::transform_artifact::CemtMaterializedTreeIdentity {
+                    content_type: JSON_CONTENT_TYPE.to_owned(),
+                    schema: JSON_VALUE_SCHEMA_URI.to_owned(),
+                    category: "json-document".to_owned(),
+                },
+                crate::transform_artifact::CemtMaterializedTreeInputProvenance {
+                    representation_id: "cem.json-document-ast".to_owned(),
+                    source_map: None,
+                },
+                crate::transform_artifact::CemtMaterializedTreePipeline::Formatted {
+                    formatter: crate::transform_artifact::CemtMaterializedTreeProducer::formatter(
+                        "json.format-document",
+                        Some("compact".to_owned()),
+                    ),
+                },
+                tree.clone(),
+                None,
+                Vec::new(),
+            )
+            .expect("typed materialized JSON formatter artifact"),
+        );
+        let output = TransformTemplateOutputArtifact {
+            uri: Some("memory:json-output".to_owned()),
+            identity: Some(FormatIdentity {
+                content_type: Some(JSON_CONTENT_TYPE.to_owned()),
+                schema: Some(JSON_VALUE_SCHEMA_URI.to_owned()),
+                ..FormatIdentity::default()
+            }),
+            body: TransformArtifactBody::MaterializedCemtTree(artifact.clone()),
+            source_map: None,
+            output_spans: Vec::new(),
+        };
+
+        let routed = transform_data_artifact_from_output("stage", &output)
+            .expect("materialized CEMT tree body should route directly");
+        let TransformArtifactBody::MaterializedCemtTree(routed_artifact) = &routed.body else {
+            panic!("expected first-class materialized CEMT tree body");
+        };
+
+        assert!(Arc::ptr_eq(&artifact, routed_artifact));
+        assert!(Arc::ptr_eq(&tree, routed_artifact.owner()));
+    }
+
+    #[test]
     fn transform_output_routing_preserves_encoded_body_identity() {
         let encoded = Arc::new(
             TransformEncodedArtifact::new(

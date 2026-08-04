@@ -13,6 +13,7 @@ use std::fmt;
 use std::sync::Arc;
 
 pub const CEMT_TREE_REPRESENTATION_ID: &str = "cem.cemt-tree";
+pub const CEMT_MATERIALIZED_TREE_REPRESENTATION_ID: &str = "cem.cemt-materialized-tree";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[non_exhaustive]
@@ -456,6 +457,202 @@ impl TransformNativeArtifact for CemtTreeArtifact {
 
     fn as_any(&self) -> &dyn Any {
         self
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CemtMaterializedTreeStage {
+    Raw,
+    Formatted,
+    Colored,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CemtMaterializedTreeProducerKind {
+    Converter,
+    Formatter,
+    Colorizer,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CemtMaterializedTreeProducer {
+    function_name: String,
+    kind: CemtMaterializedTreeProducerKind,
+    profile: Option<String>,
+}
+
+impl CemtMaterializedTreeProducer {
+    pub fn converter(function_name: impl Into<String>) -> Self {
+        Self::new(
+            function_name,
+            CemtMaterializedTreeProducerKind::Converter,
+            None,
+        )
+    }
+
+    pub fn formatter(function_name: impl Into<String>, profile: Option<String>) -> Self {
+        Self::new(
+            function_name,
+            CemtMaterializedTreeProducerKind::Formatter,
+            profile,
+        )
+    }
+
+    pub fn colorizer(function_name: impl Into<String>, profile: Option<String>) -> Self {
+        Self::new(
+            function_name,
+            CemtMaterializedTreeProducerKind::Colorizer,
+            profile,
+        )
+    }
+
+    fn new(
+        function_name: impl Into<String>,
+        kind: CemtMaterializedTreeProducerKind,
+        profile: Option<String>,
+    ) -> Self {
+        Self {
+            function_name: function_name.into(),
+            kind,
+            profile,
+        }
+    }
+
+    pub fn function_name(&self) -> &str {
+        &self.function_name
+    }
+
+    pub fn kind(&self) -> CemtMaterializedTreeProducerKind {
+        self.kind
+    }
+
+    pub fn profile(&self) -> Option<&str> {
+        self.profile.as_deref()
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CemtMaterializedTreeIdentity {
+    pub content_type: String,
+    pub schema: String,
+    pub category: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CemtMaterializedTreeInputProvenance {
+    pub representation_id: String,
+    pub source_map: Option<SourceMapStack>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum CemtMaterializedTreePipeline {
+    Raw {
+        producer: CemtMaterializedTreeProducer,
+    },
+    Formatted {
+        formatter: CemtMaterializedTreeProducer,
+    },
+    Colored {
+        formatter: CemtMaterializedTreeProducer,
+        colorizer: CemtMaterializedTreeProducer,
+    },
+}
+
+impl CemtMaterializedTreePipeline {
+    pub fn stage(&self) -> CemtMaterializedTreeStage {
+        match self {
+            Self::Raw { .. } => CemtMaterializedTreeStage::Raw,
+            Self::Formatted { .. } => CemtMaterializedTreeStage::Formatted,
+            Self::Colored { .. } => CemtMaterializedTreeStage::Colored,
+        }
+    }
+
+    fn validate(&self) -> Result<(), String> {
+        let validate_kind =
+            |producer: &CemtMaterializedTreeProducer,
+             expected: CemtMaterializedTreeProducerKind| {
+                (producer.kind() == expected).then_some(()).ok_or_else(|| {
+                    format!(
+                        "materialized CEMT tree stage requires a {expected:?} producer, but `{}` is {:?}",
+                        producer.function_name(),
+                        producer.kind()
+                    )
+                })
+            };
+        match self {
+            Self::Raw { producer } => {
+                validate_kind(producer, CemtMaterializedTreeProducerKind::Converter)
+            }
+            Self::Formatted { formatter } => {
+                validate_kind(formatter, CemtMaterializedTreeProducerKind::Formatter)
+            }
+            Self::Colored {
+                formatter,
+                colorizer,
+            } => {
+                validate_kind(formatter, CemtMaterializedTreeProducerKind::Formatter)?;
+                validate_kind(colorizer, CemtMaterializedTreeProducerKind::Colorizer)
+            }
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct CemtMaterializedTreeArtifact {
+    identity: CemtMaterializedTreeIdentity,
+    input_provenance: CemtMaterializedTreeInputProvenance,
+    pipeline: CemtMaterializedTreePipeline,
+    owner: Arc<CemTreeAstStream>,
+    source_map: Option<SourceMapStack>,
+    output_spans: Vec<OutputSpan>,
+}
+
+impl CemtMaterializedTreeArtifact {
+    pub fn new(
+        identity: CemtMaterializedTreeIdentity,
+        input_provenance: CemtMaterializedTreeInputProvenance,
+        pipeline: CemtMaterializedTreePipeline,
+        owner: Arc<CemTreeAstStream>,
+        source_map: Option<SourceMapStack>,
+        output_spans: Vec<OutputSpan>,
+    ) -> Result<Self, String> {
+        pipeline.validate()?;
+        Ok(Self {
+            identity,
+            input_provenance,
+            pipeline,
+            owner,
+            source_map,
+            output_spans,
+        })
+    }
+
+    pub fn stage(&self) -> CemtMaterializedTreeStage {
+        self.pipeline.stage()
+    }
+
+    pub fn identity(&self) -> &CemtMaterializedTreeIdentity {
+        &self.identity
+    }
+
+    pub fn input_provenance(&self) -> &CemtMaterializedTreeInputProvenance {
+        &self.input_provenance
+    }
+
+    pub fn pipeline(&self) -> &CemtMaterializedTreePipeline {
+        &self.pipeline
+    }
+
+    pub fn owner(&self) -> &Arc<CemTreeAstStream> {
+        &self.owner
+    }
+
+    pub fn source_map(&self) -> Option<&SourceMapStack> {
+        self.source_map.as_ref()
+    }
+
+    pub fn output_spans(&self) -> &[OutputSpan] {
+        &self.output_spans
     }
 }
 
@@ -2249,6 +2446,7 @@ pub enum TransformArtifactBody {
     CemDocument(Arc<CemDocument>),
     GenericData(Arc<GenericDataDocumentAst>),
     CemTree(Arc<CemTreeAstStream>),
+    MaterializedCemtTree(Arc<CemtMaterializedTreeArtifact>),
     XPathResult(Arc<XPathResultArtifact>),
     Collection(Arc<TransformArtifactCollection>),
     Extension(Arc<dyn TransformNativeArtifact>),
@@ -2262,6 +2460,7 @@ impl TransformArtifactBody {
             Self::CemDocument(_) => "cem.document-ast",
             Self::GenericData(_) => "cem.generic-data-ast",
             Self::CemTree(_) => "cem.tree-ast",
+            Self::MaterializedCemtTree(_) => CEMT_MATERIALIZED_TREE_REPRESENTATION_ID,
             Self::XPathResult(_) => "cem.xpath-result",
             Self::Collection(_) => "cem.transform-collection",
             Self::Extension(artifact) => artifact.representation_id(),
@@ -2478,6 +2677,132 @@ fn identity_has_json_content_type(identity: &FormatIdentity) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn materialized_tree_identity() -> CemtMaterializedTreeIdentity {
+        CemtMaterializedTreeIdentity {
+            content_type: "application/json".to_owned(),
+            schema: "https://cem.dev/ns/data/json/1".to_owned(),
+            category: "json-document".to_owned(),
+        }
+    }
+
+    #[test]
+    fn materialized_cemt_tree_artifact_retains_ast_stream_and_provenance() {
+        let owner = Arc::new(CemTreeAstStream::new(vec![CemTreeAstNode::Text {
+            value: "ready".to_owned(),
+            source: SourceMapStack::default(),
+        }]));
+        let input_source_map = SourceMapStack {
+            frames: vec![crate::source_map::SourceMapFrame {
+                source_id: crate::source::SourceId(17),
+                span: crate::source_map::FrameSpan::Single(crate::source::ByteRange::new(2, 5)),
+                transform: crate::source_map::TransformKind::ContentTypeTransform {
+                    content_type: "application/json".to_owned(),
+                },
+            }],
+        };
+        let output_source_map = SourceMapStack {
+            frames: vec![crate::source_map::SourceMapFrame {
+                source_id: crate::source::SourceId(17),
+                span: crate::source_map::FrameSpan::Single(crate::source::ByteRange::new(2, 5)),
+                transform: crate::source_map::TransformKind::TemplateTransform {
+                    function: "json.format-document".to_owned(),
+                },
+            }],
+        };
+        let output_spans = vec![OutputSpan {
+            output_range: crate::source::ByteRange::new(0, 5),
+            origin: output_source_map.clone(),
+        }];
+        let artifact = Arc::new(
+            CemtMaterializedTreeArtifact::new(
+                materialized_tree_identity(),
+                CemtMaterializedTreeInputProvenance {
+                    representation_id: "cem.json-document-ast".to_owned(),
+                    source_map: Some(input_source_map.clone()),
+                },
+                CemtMaterializedTreePipeline::Formatted {
+                    formatter: CemtMaterializedTreeProducer::formatter(
+                        "json.format-document",
+                        Some("compact".to_owned()),
+                    ),
+                },
+                owner.clone(),
+                Some(output_source_map.clone()),
+                output_spans.clone(),
+            )
+            .expect("typed formatter producer"),
+        );
+
+        assert_eq!(artifact.stage(), CemtMaterializedTreeStage::Formatted);
+        assert!(Arc::ptr_eq(artifact.owner(), &owner));
+        assert_eq!(artifact.identity(), &materialized_tree_identity());
+        assert_eq!(
+            artifact.input_provenance(),
+            &CemtMaterializedTreeInputProvenance {
+                representation_id: "cem.json-document-ast".to_owned(),
+                source_map: Some(input_source_map),
+            }
+        );
+        assert_eq!(artifact.source_map(), Some(&output_source_map));
+        assert_eq!(artifact.output_spans(), output_spans.as_slice());
+
+        let body = TransformArtifactBody::MaterializedCemtTree(artifact.clone());
+        let cloned = body.clone();
+        let TransformArtifactBody::MaterializedCemtTree(cloned_artifact) = cloned else {
+            panic!("expected first-class materialized CEMT tree body");
+        };
+        assert!(Arc::ptr_eq(&artifact, &cloned_artifact));
+        assert_eq!(
+            body.representation_id(),
+            CEMT_MATERIALIZED_TREE_REPRESENTATION_ID
+        );
+    }
+
+    #[test]
+    fn materialized_cemt_tree_artifact_rejects_stage_producer_mismatch() {
+        let result = CemtMaterializedTreeArtifact::new(
+            materialized_tree_identity(),
+            CemtMaterializedTreeInputProvenance {
+                representation_id: "cem.json-document-ast".to_owned(),
+                source_map: None,
+            },
+            CemtMaterializedTreePipeline::Formatted {
+                formatter: CemtMaterializedTreeProducer::converter("json.to-cem-tree"),
+            },
+            Arc::new(CemTreeAstStream::empty()),
+            None,
+            Vec::new(),
+        );
+
+        assert_eq!(
+            result.expect_err("converter cannot claim the formatted stage"),
+            "materialized CEMT tree stage requires a Formatter producer, but `json.to-cem-tree` is Converter"
+        );
+    }
+
+    #[test]
+    fn materialized_cemt_tree_contract_has_no_serialized_value_boundary() {
+        let source = include_str!("transform_artifact.rs");
+        let contract = source
+            .split_once("pub enum CemtMaterializedTreeStage")
+            .and_then(|(_, suffix)| suffix.split_once("pub struct CemtTreeSubjectRef"))
+            .map(|(contract, _)| contract)
+            .expect("materialized CEMT tree contract source");
+
+        for forbidden in [
+            "serde_json",
+            "Value",
+            "to_cemt_subject",
+            "into_cemt_subject",
+            "try_from_cemt_subject",
+        ] {
+            assert!(
+                !contract.contains(forbidden),
+                "materialized CEMT tree contract must not cross `{forbidden}`"
+            );
+        }
+    }
 
     #[test]
     fn raw_cemt_tree_artifact_retains_owner_identity_and_lazy_nodes() {

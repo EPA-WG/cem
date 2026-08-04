@@ -1020,14 +1020,15 @@ Remaining dependency-ordered package checklist:
             - [x] Inventory remaining producers, consumers, owner models,
                   stages, graph/secondary-input routing, and provenance gaps in
                   `docs/cemt-non-cem-typed-result-inventory.md`.
-            - [ ] Decide whether a materialized result retains the original
-                  heterogeneous package AST or treats the generated
-                  `Arc<CemTreeAstStream>` as its owner with separate input
-                  provenance.
-            - [ ] Decide whether materialized CEMT results receive a first-class
-                  `TransformArtifactBody` variant or a closed native-extension
-                  representation.
-            - [ ] Introduce the recommended separate closed materialized-tree
+            - [x] Require direct borrowed evaluator views over the owning
+                  package AST and direct construction of the result
+                  `Arc<CemTreeAstStream>` with typed input provenance; prohibit
+                  serializer, DTO, and re-parser boundaries between layers.
+            - [x] Give materialized CEMT results a first-class
+                  `TransformArtifactBody` variant so graph, join, and
+                  secondary-input routing is exhaustive and preserves `Arc`
+                  identity without extension downcasts.
+            - [x] Introduce the recommended separate closed materialized-tree
                   artifact family after both ownership and graph decisions are
                   recorded.
       - [x] Define typed raw, formatted, and colored CEM tree envelopes with
@@ -1091,34 +1092,30 @@ Remaining dependency-ordered package checklist:
 
 ### Next Work Item
 
-Resolve the two materialized-result contract decisions recorded in
-`docs/cemt-non-cem-typed-result-inventory.md`. The inventory proves that the
-remaining producers do not share the native CEM owner-plus-overlay lifecycle,
-so the recommended baseline is a separate closed materialized-tree artifact
-family rather than optional owner/stage fields on `CemtTreeArtifact`.
+Migrate the JSON package as the first serializer-free materialized-tree
+producer. Add a borrowed typed evaluator view over the owning
+`Arc<JsonDocumentAst>` and its `JsonValueAst` nodes, preserving duplicate member
+order, number lexemes, source ranges, source maps, and owner identity. Remove
+`JsonDocumentOutputSubject::into_cemt_subject` from the production path; do not
+replace it with `to_json_value`, `serde_json::to_value`, or another DTO builder.
 
-First decide what ownership means for generated package results: retain the
-original CSV, YAML, JSON, JSON Schema, Markdown, XML-family, XSLT, or Relax NG
-AST in a closed owner enum, or make the generated `Arc<CemTreeAstStream>` the
-result owner and carry input provenance separately. This choice determines
-whether direct pipeline APIs must change to accept `Arc` package owners and
-whether exact input-owner identity is an artifact invariant.
+Start with red tests proving `json.format-document` receives the original AST
+owner and returns a `CemtMaterializedTreeArtifact` whose
+`Arc<CemTreeAstStream>` was constructed directly from typed evaluator nodes.
+Extend the typed handoff through `json.color-document`, the writer, a graph
+stage, ordered join, and secondary-input lookup. Assert input and result `Arc`
+identity, formatted/colored producer-stage validation, source-map and
+output-span preservation, formatter/colorizer parity, and source audits
+excluding `Value` projections, serializers, and re-parsers from the new path.
 
-Then decide whether the materialized result is a first-class
-`TransformArtifactBody` variant or a closed native extension. Prefer the body
-variant if exhaustive graph, join, and secondary-input dispatch is more
-important than keeping the shared body enum narrow; prefer the extension if
-representation registration and checked downcasts are the intended plugin
-boundary. Record both decisions before adding fields or production dispatch.
-
-After those decisions, add red package formatter/colorizer/writer plus graph,
-ordered-join, and secondary-input tests. Migrate all remaining producers in one
-atomic slice, lower evaluator results once into the chosen typed artifact,
+After JSON passes focused, full, lint, native, WASM, converter-parity, and CLI
+e2e gates, use its owner-view and direct AST-node builder as the pattern for
+CSV, YAML, JSON Schema, Markdown, XML-family, XSLT, Relax NG, DOM projection,
+and generic CEMT producers. Migrate those remaining producers atomically, then
 remove `CemtOutputArtifact`, `transform_template_output_cemt_subject`,
-`CemtEvaluator(Value)`, `CemtRuntime(Value)`, and adapter DTO conversions, add
-source audits, and pass the current verification matrix. Keep the explicit-JSON
-DOM compatibility branch only behind a parser edge that immediately creates
-the typed artifact; otherwise remove it from production.
+`CemtEvaluator(Value)`, `CemtRuntime(Value)`, and adapter DTO conversions.
+Permit serialization only at registered external JSON, `+json`, text, or byte
+exporters.
 
 ## Current Verification Commands
 
