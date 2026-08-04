@@ -2,10 +2,10 @@
 
 Status: inventory complete; serializer-free typed-result contract selected and
 materialized-tree artifact introduced. The lossless and generic-data JSON, JSON
-Schema, CSV, and YAML formatter/colorizer/writer paths now use borrowed
-evaluators, the materialized writer-token stream, and typed color overlay end
-to end; JSON graph routing is also closed. This inventory is promoted as active
-migration evidence by `docs/todo.md`.
+Schema, CSV, YAML, and Markdown formatter/colorizer/writer paths now use
+borrowed evaluators, the materialized writer-token stream, and typed color
+overlay end to end; JSON graph routing is also closed. This inventory is
+promoted as active migration evidence by `docs/todo.md`.
 
 ## Existing Typed Baseline
 
@@ -26,7 +26,7 @@ describe every remaining producer.
 | Lossless, generic-data JSON, and JSON Schema pipelines     | `JsonDocumentAst`, `GenericDataDocumentAst`, or `JsonSchemaDocumentAst`                                                                          | `CemtMaterializedTreeArtifact` owning ordered `WriterToken` nodes, plus an optional typed color overlay                               | Borrowed evaluator → exact `Arc<CemTreeAstStream>` → overlay → direct writer and typed stage output; real JSON graph collection/secondary routing retains the exact artifact and owner `Arc` | All production JSON and JSON Schema formatter, colorizer, writer, and stage handoffs are closed; production serializers are deleted and compatibility subjects remain test-only.          |
 | Direct CSV pipeline                                        | `CsvDocumentAst` or a borrowed CSV-contract view over `GenericDataDocumentAst`                                                                    | `CemtMaterializedTreeArtifact` owning ordered `WriterToken` nodes, plus an optional typed color overlay                              | Borrowed evaluator → exact `Arc<CemTreeAstStream>` → overlay → typed stage output and direct writer                                                                       | Closed for both production owners; compatibility `Value` subjects and composers are test-only parity oracles.                                                             |
 | Direct YAML pipeline                                      | `YamlDocumentAst` or a borrowed YAML-contract view over `GenericDataDocumentAst`                                                                  | `CemtMaterializedTreeArtifact` owning ordered `WriterToken` nodes, plus an optional typed color overlay                              | Borrowed evaluator → exact `Arc<CemTreeAstStream>` → overlay → typed stage output and direct writer                                                                       | Closed for both production owners; compatibility `Value` subjects and composers are test-only parity oracles.                                                             |
-| Direct Markdown pipeline                                  | `MarkdownDocumentAst`                                                                                                                             | A newly materialized formatted tree, optionally followed by a newly materialized colored tree                                      | `TransformTemplateOutputFunctionExecution::CemtEvaluator(Value)` and `TransformTemplateEncodedArtifactPayload::CemtRuntime(Value)`                                      | `MarkdownDocumentOutputSubject::into_cemt_subject` consumes the native AST into a DTO value before evaluation, so owner identity does not survive.                         |
+| Direct Markdown pipeline                                  | `MarkdownDocumentAst`                                                                                                                             | `CemtMaterializedTreeArtifact` owning ordered `WriterToken` nodes, plus an optional typed color overlay                              | Borrowed evaluator → exact `Arc<CemTreeAstStream>` → overlay → typed stage output and direct writer                                                                       | Closed for the sole production owner; compatibility `Value` subjects and composers are test-only parity oracles.                                                          |
 | XML-family direct pipelines                                 | `XmlDocumentAst`, `HtmlDocumentAst`, `CssDocumentAst`, `XhtmlDocumentAst`, `SvgDocumentAst`, `MathMlDocumentAst`, or `XsltStylesheetAst`        | A newly materialized package-specific formatted/colored tree                                  | The same evaluator/runtime value envelopes                                                                                         | The common `XmlDocumentOutputSubject` erases seven distinct AST owners before formatting. The output is not an overlay over a raw `CemTreeAstStream`.                      |
 | Relax NG direct pipeline                                    | `RelaxNgDocumentAst`, with XML and compact syntax selecting different formatter/colorizer contracts                                             | A newly materialized formatted/colored tree                                                   | The same evaluator/runtime value envelopes                                                                                         | The original syntax owner and syntax kind are lost when the formatter subject is built; stage metadata is inferred later from binding/value shape.                         |
 | Generic CEMT output-function runtime                        | Explicit JSON subject and value bindings                                                                                                        | Any declared CEM-tree formatter/colorizer result                                              | `TransformTemplateOutputFunctionExecution::CemtEvaluator(Value)`                                                                   | The stage is carried by the selected binding while the payload remains untyped. Format-to-color chaining clones the value instead of retaining a typed result artifact.    |
@@ -177,13 +177,23 @@ the stage body; production YAML composers are test-only parity oracles. The
 YAML formatter assets also now use valid binary `extend` calls for root scalar
 and alias branches.
 
-Next, close the direct Markdown owner. Define a borrowed evaluator over
-`MarkdownDocumentAst`, route its formatter and colorizer through the typed
-materialized lifecycle, retain the selected artifact and owner in the stage
-body, use the direct writer, and confine the Markdown subject composer to tests.
-Markdown currently has no generic-data output subject, so the slice should not
-invent one unless a registered conversion edge first establishes that owner
-contract.
+Markdown now closes its sole production owner.
+`MarkdownDocumentCemtSubjectRef` borrows source and encoding metadata,
+CommonMark/GFM variant and parse facts, ordered events, optional event fields,
+ranges, maps, and line-ending policy. Its formatter and colorizer use the typed
+materialized lifecycle, retain the exact owner through the selected stage body,
+and invoke the direct writer; production Markdown DTO composers are test-only
+parity oracles.
+
+Next, close the shared XML-family boundary for `XmlDocumentAst`,
+`HtmlDocumentAst`, `CssDocumentAst`, `XhtmlDocumentAst`, `SvgDocumentAst`,
+`MathMlDocumentAst`, and `XsltStylesheetAst`. Replace the common
+`XmlDocumentOutputSubject::into_cemt_subject` erasure with a closed native-owner
+view contract, reuse borrowed XML event components where the ASTs already share
+them, retain HTML/CSS and package-specific semantics, and route every package
+formatter/colorizer/writer path through the typed materialized lifecycle. The
+slice must close all seven production implementations together; otherwise the
+shared trait remains a production serializer boundary.
 
 Migrate every remaining producer using the same direct owner/view/builder
 pattern. Only then remove `CemtOutputArtifact`,

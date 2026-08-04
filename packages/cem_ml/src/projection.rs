@@ -1208,6 +1208,14 @@ pub struct CemTreeAstWriterTokenMetadata {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub member_index: Option<u64>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub event_index: Option<u64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub event_kind: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub event_tag: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub package: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub layout: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub line_ending: Option<String>,

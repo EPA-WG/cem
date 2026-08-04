@@ -62,9 +62,9 @@ use crate::transform_artifact::{
     CemtTreeArtifact, CemtTreeArtifactStage, CemtTreeEnvelopeMetadata, CemtTreeEnvelopeMode,
     CsvDocumentCemtSubjectRef, GenericDataCsvDocumentCemtSubjectRef,
     GenericDataJsonDocumentCemtSubjectRef, GenericDataYamlDocumentCemtSubjectRef,
-    JsonDocumentCemtSubjectRef, JsonSchemaDocumentCemtSubjectRef, TransformArtifactBody,
-    TransformNativeArtifact, YamlDocumentCemtSubjectRef, CEMT_MATERIALIZED_TREE_REPRESENTATION_ID,
-    CEMT_TREE_REPRESENTATION_ID,
+    JsonDocumentCemtSubjectRef, JsonSchemaDocumentCemtSubjectRef, MarkdownDocumentCemtSubjectRef,
+    TransformArtifactBody, TransformNativeArtifact, YamlDocumentCemtSubjectRef,
+    CEMT_MATERIALIZED_TREE_REPRESENTATION_ID, CEMT_TREE_REPRESENTATION_ID,
 };
 use crate::transform_template::{
     compose_transform_template_encoded_text_artifacts,
@@ -9166,6 +9166,10 @@ fn lower_materialized_writer_token_metadata(
             "formatterRole",
             "sourceRange",
             "memberIndex",
+            "eventIndex",
+            "eventKind",
+            "eventTag",
+            "package",
             "layout",
             "lineEnding",
             "indent",
@@ -9199,6 +9203,10 @@ fn lower_materialized_writer_token_metadata(
             .map(|range| lower_materialized_writer_token_source_range(&range, index))
             .transpose()?,
         member_index: optional_typed_cemt_u64(value, "memberIndex")?,
+        event_index: optional_typed_cemt_u64(value, "eventIndex")?,
+        event_kind: optional_typed_cemt_string(value, "eventKind")?,
+        event_tag: optional_typed_cemt_string(value, "eventTag")?,
+        package: optional_typed_cemt_string(value, "package")?,
         layout: optional_typed_cemt_string(value, "layout")?,
         line_ending: optional_typed_cemt_string(value, "lineEnding")?,
         indent: optional_typed_cemt_string(value, "indent")?,
@@ -10742,7 +10750,16 @@ fn json_schema_output_pipeline_failed_with_timings(
 
 pub trait MarkdownDocumentOutputSubject {
     fn source_line_ending(&self) -> Option<&str>;
-    fn into_cemt_subject(self) -> Value;
+    fn input_representation_id(&self) -> &'static str;
+    fn native_cemt_subject(&self) -> Option<CemtEvaluatorValue<'_>> {
+        None
+    }
+    fn into_test_compatibility_cemt_subject(self) -> Option<Value>
+    where
+        Self: Sized,
+    {
+        None
+    }
 }
 
 impl MarkdownDocumentOutputSubject for MarkdownDocumentAst {
@@ -10750,8 +10767,14 @@ impl MarkdownDocumentOutputSubject for MarkdownDocumentAst {
         self.line_ending.as_deref()
     }
 
-    fn into_cemt_subject(self) -> Value {
-        self.to_cemt_subject()
+    fn input_representation_id(&self) -> &'static str {
+        "cem.markdown-document-ast"
+    }
+
+    fn native_cemt_subject(&self) -> Option<CemtEvaluatorValue<'_>> {
+        Some(CemtEvaluatorValue::borrowed(
+            MarkdownDocumentCemtSubjectRef::new(self).evaluator_view(),
+        ))
     }
 }
 
@@ -10761,8 +10784,12 @@ impl MarkdownDocumentOutputSubject for Value {
         self.get("lineEnding").and_then(Value::as_str)
     }
 
-    fn into_cemt_subject(self) -> Value {
-        self
+    fn input_representation_id(&self) -> &'static str {
+        "cem.test-markdown-value-oracle"
+    }
+
+    fn into_test_compatibility_cemt_subject(self) -> Option<Value> {
+        Some(self)
     }
 }
 
@@ -10792,7 +10819,7 @@ pub fn execute_markdown_document_output_pipeline_with_environment(
     };
     let line_ending =
         markdown_formatter_line_ending(document.source_line_ending(), &presentation_options);
-    let document_subject = document.into_cemt_subject();
+    let input_representation_id = document.input_representation_id();
     let local_artifact_cache = ConversionOutputPipelineArtifactCache::default();
     let cached_environment = if environment.artifact_cache.is_some() {
         *environment
@@ -10805,6 +10832,26 @@ pub fn execute_markdown_document_output_pipeline_with_environment(
         }
     };
     let environment = &cached_environment;
+    if let Some(document_subject) = document.native_cemt_subject() {
+        return execute_native_markdown_document_output_pipeline(
+            environment,
+            document_subject,
+            target_scope,
+            diagnostic_uri,
+            formatter_name,
+            formatter_profile,
+            presentation_options,
+            output_color_selection,
+            line_ending,
+            input_representation_id,
+        );
+    }
+    let Some(document_subject) = document.into_test_compatibility_cemt_subject() else {
+        return markdown_output_pipeline_failed(
+            diagnostic_uri,
+            "Markdown output subject does not expose a native evaluator view".to_owned(),
+        );
+    };
     let target = TransformTemplateEncodingTarget::new(
         MARKDOWN_CONTENT_TYPE,
         MARKDOWN_SCHEMA_URI,
@@ -11130,6 +11177,322 @@ pub fn execute_markdown_document_output_pipeline_with_environment(
             colored_cem_tree,
             ..ConversionOutputPipelineExecution::default()
         },
+    }
+}
+
+#[allow(clippy::too_many_arguments)]
+fn execute_native_markdown_document_output_pipeline(
+    environment: &ConversionOutputPipelineEnvironment<'_>,
+    document_subject: CemtEvaluatorValue<'_>,
+    target_scope: &ScopeConfig,
+    diagnostic_uri: Option<&str>,
+    formatter_name: String,
+    formatter_profile: String,
+    presentation_options: MarkdownFormatterPresentationOptions,
+    output_color_selection: Option<TransformTemplateOutputColorSelection>,
+    line_ending: Option<String>,
+    input_representation_id: &str,
+) -> ConversionOutputPipelineExecution {
+    let target = TransformTemplateEncodingTarget::new(
+        MARKDOWN_CONTENT_TYPE,
+        MARKDOWN_SCHEMA_URI,
+        "markdown-document",
+    );
+    let format_options = TransformTemplateEncodeOptions {
+        formatter: Some(formatter_name.clone()),
+        formatter_profile: Some(formatter_profile.clone()),
+        formatter_options: target_scope.cemt_formatter_options.clone(),
+        line_ending: line_ending.clone(),
+        mode: TransformTemplateEncodedArtifactMode::Document,
+        canonical: formatter_profile == "compact",
+        source_map_policy: TransformTemplateSourceMapPolicy::Generated,
+        ..TransformTemplateEncodeOptions::default()
+    };
+    let (format_stage, format_binding) = match resolve_cemt_output_stage_binding(
+        environment,
+        "Markdown",
+        MARKDOWN_FORMAT_CEMT_STAGE_SPEC,
+        &target,
+        Some(formatter_profile.as_str()),
+        Some(formatter_name.as_str()),
+        &Value::Null,
+        "markdown-document",
+        format_options,
+    ) {
+        Ok(resolved) => resolved,
+        Err(message) => return markdown_output_pipeline_failed(diagnostic_uri, message),
+    };
+    let format_started = Instant::now();
+    let format_result = execute_conversion_typed_cemt_output_stage(
+        environment,
+        format_stage,
+        &format_binding,
+        document_subject,
+    );
+    let format_elapsed_ns = Some(format_started.elapsed().as_nanos());
+    let (formatted_value, format_execution) = match format_result {
+        Ok(output) => output,
+        Err(message) => {
+            return markdown_output_pipeline_failed_with_timings(
+                diagnostic_uri,
+                format!(
+                    "CEMT formatter `{}` failed: {message}",
+                    format_binding.function.name
+                ),
+                format_elapsed_ns,
+                None,
+                None,
+            )
+        }
+    };
+    let formatted_artifact = match lower_materialized_writer_token_formatter_result(
+        formatted_value,
+        &target,
+        &format_binding.function.name,
+        &formatter_profile,
+        input_representation_id,
+    ) {
+        Ok(artifact) => artifact,
+        Err(message) => {
+            return markdown_output_pipeline_failed_with_timings(
+                diagnostic_uri,
+                format!(
+                    "CEMT formatter `{}` failed: {message}",
+                    format_binding.function.name
+                ),
+                format_elapsed_ns,
+                None,
+                None,
+            )
+        }
+    };
+    let format_execution = Some(format_execution);
+
+    let cemt_color_profile =
+        match markdown_cemt_color_profile_for_output(target_scope, output_color_selection.as_ref())
+        {
+            Ok(profile) => profile,
+            Err(message) => return markdown_output_pipeline_failed(diagnostic_uri, message),
+        };
+    let wants_color = target_scope
+        .cemt_colorizer
+        .as_deref()
+        .map(str::trim)
+        .is_some_and(|name| !name.is_empty())
+        || cemt_color_profile.is_some()
+        || output_color_selection
+            .as_ref()
+            .is_some_and(markdown_output_color_selection_requests_color);
+    let mut color_elapsed_ns = None;
+    let (writer_artifact, color_execution, colored_materialized_cemt_tree) = if wants_color {
+        let colorizer_name = target_scope
+            .cemt_colorizer
+            .as_deref()
+            .map(str::trim)
+            .filter(|name| !name.is_empty())
+            .unwrap_or(MARKDOWN_COLOR_CEMT_STAGE_SPEC.function_name);
+        let color_profile = cemt_color_profile.as_deref().unwrap_or("terminal");
+        let color_options = TransformTemplateEncodeOptions {
+            formatter_options: target_scope.cemt_formatter_options.clone(),
+            formatter_profile: Some(formatter_profile.clone()),
+            colorizer: Some(colorizer_name.to_owned()),
+            color_profile: Some(color_profile.to_owned()),
+            line_ending: line_ending.clone(),
+            mode: TransformTemplateEncodedArtifactMode::Document,
+            canonical: false,
+            source_map_policy: TransformTemplateSourceMapPolicy::Generated,
+            ..TransformTemplateEncodeOptions::default()
+        };
+        let (color_stage, color_binding) = match resolve_cemt_output_stage_binding(
+            environment,
+            "Markdown",
+            MARKDOWN_COLOR_CEMT_STAGE_SPEC,
+            &target,
+            Some(color_profile),
+            Some(colorizer_name),
+            &Value::Null,
+            "cem-tree",
+            color_options,
+        ) {
+            Ok(resolved) => resolved,
+            Err(message) => return markdown_output_pipeline_failed(diagnostic_uri, message),
+        };
+        let color_started = Instant::now();
+        let color_result = execute_conversion_typed_cemt_output_stage(
+            environment,
+            color_stage,
+            &color_binding,
+            CemtEvaluatorValue::borrowed(formatted_artifact.evaluator_view()),
+        );
+        color_elapsed_ns = Some(color_started.elapsed().as_nanos());
+        let (colored_value, color_execution) = match color_result {
+            Ok(output) => output,
+            Err(message) => {
+                return markdown_output_pipeline_failed_with_timings(
+                    diagnostic_uri,
+                    format!(
+                        "CEMT colorizer `{}` failed: {message}",
+                        color_binding.function.name
+                    ),
+                    format_elapsed_ns,
+                    color_elapsed_ns,
+                    None,
+                )
+            }
+        };
+        let colored_artifact = match lower_materialized_writer_token_colorizer_result(
+            formatted_artifact.as_ref(),
+            colored_value,
+            &color_binding.function.name,
+            color_profile,
+        ) {
+            Ok(artifact) => artifact,
+            Err(message) => {
+                return markdown_output_pipeline_failed_with_timings(
+                    diagnostic_uri,
+                    format!(
+                        "CEMT colorizer `{}` failed: {message}",
+                        color_binding.function.name
+                    ),
+                    format_elapsed_ns,
+                    color_elapsed_ns,
+                    None,
+                )
+            }
+        };
+        (
+            colored_artifact.clone(),
+            Some(color_execution),
+            Some(colored_artifact),
+        )
+    } else {
+        (formatted_artifact.clone(), None, None)
+    };
+
+    let wrap_html_output = output_color_selection
+        .as_ref()
+        .is_some_and(markdown_output_color_selection_is_html)
+        || writer_artifact
+            .color_overlay()
+            .is_some_and(|overlay| overlay.output == CemtColorOutput::Html);
+    let mut writer_context = TransformTemplateEncodedArtifactInsertionContext::from_encoding_target(
+        &target,
+        Some(TransformTemplateOutputProducedKind::Text),
+    );
+    writer_context.formatter_profile = Some(formatter_profile.clone());
+    writer_context.color_profile = writer_artifact
+        .color_overlay()
+        .and_then(|overlay| overlay.producer.profile().map(str::to_owned));
+    writer_context.output_color_type = output_color_selection
+        .as_ref()
+        .map(|selection| selection.output_color_type.clone());
+    if output_color_selection
+        .as_ref()
+        .is_some_and(markdown_output_color_selection_is_terminal)
+    {
+        writer_context.color_capability = output_color_selection
+            .as_ref()
+            .map(|selection| selection.output_color_type.clone());
+    }
+    writer_context.mode = Some(TransformTemplateEncodedArtifactMode::Document);
+    writer_context.source_map_policy = Some(TransformTemplateSourceMapPolicy::Generated);
+    let mut writer_identity = format_binding.identity.clone();
+    writer_identity.color_profile = writer_context.color_profile.clone();
+    let writer_binding = TransformTemplateEncodeBinding {
+        function: if color_execution.is_some() {
+            markdown_output_function_descriptor(
+                MARKDOWN_COLOR_CEMT_STAGE_SPEC.function_name,
+                "markdown-document",
+                "cem-tree",
+                TransformTemplateOutputFunctionKind::Color,
+                TransformTemplateOutputProducedKind::CemTree,
+                writer_context.color_profile.clone(),
+            )
+        } else {
+            markdown_output_function_descriptor(
+                MARKDOWN_FORMAT_CEMT_STAGE_SPEC.function_name,
+                "markdown-document",
+                "markdown-document",
+                TransformTemplateOutputFunctionKind::Format,
+                TransformTemplateOutputProducedKind::CemTree,
+                Some(formatter_profile.clone()),
+            )
+        },
+        subject_type: "cem-tree".to_owned(),
+        identity: writer_identity,
+        options: TransformTemplateEncodeOptions::default(),
+    };
+    let materialized_cemt_stage_output = TransformTemplateOutputArtifact {
+        uri: diagnostic_uri.map(str::to_owned),
+        identity: Some(FormatIdentity {
+            content_type: Some(writer_artifact.identity().content_type.clone()),
+            schema: Some(writer_artifact.identity().schema.clone()),
+            ..FormatIdentity::default()
+        }),
+        body: TransformArtifactBody::MaterializedCemtTree(writer_artifact.clone()),
+        source_map: writer_artifact.source_map().cloned(),
+        output_spans: writer_artifact.output_spans().to_vec(),
+    };
+    let writer_started = Instant::now();
+    let writer_result = execute_transform_template_materialized_cemt_writer(
+        TransformTemplateMaterializedCemtWriterRequest {
+            binding: &writer_binding,
+            artifact: writer_artifact,
+            insertion_context: &writer_context,
+        },
+    );
+    let writer_elapsed_ns = Some(writer_started.elapsed().as_nanos());
+    let mut writer_output = match writer_result {
+        Ok(output) => output,
+        Err(message) => {
+            return markdown_output_pipeline_failed_with_timings(
+                diagnostic_uri,
+                format!("materialized CEMT writer failed: {message}"),
+                format_elapsed_ns,
+                color_elapsed_ns,
+                writer_elapsed_ns,
+            )
+        }
+    };
+    if wrap_html_output {
+        markdown_wrap_html_preview_artifact(&mut writer_output, presentation_options.tab_size);
+    }
+
+    let formatted_public = materialized_cemt_public_projection(
+        formatted_artifact.as_ref(),
+        &format_binding.identity,
+        "markdown.layout",
+        "markdown.role-palette",
+    );
+    let colored_public = colored_materialized_cemt_tree.as_ref().map(|artifact| {
+        materialized_cemt_public_projection(
+            artifact.as_ref(),
+            &writer_binding.identity,
+            "markdown.layout",
+            "markdown.role-palette",
+        )
+    });
+    ConversionOutputPipelineExecution {
+        output: Some(
+            writer_output
+                .value
+                .into_public_value()
+                .expect("typed Markdown writer text projects to the public response"),
+        ),
+        source_map: writer_output.source_map,
+        output_spans: writer_output.output_spans,
+        format_execution,
+        color_execution,
+        format_elapsed_ns,
+        color_elapsed_ns,
+        writer_elapsed_ns,
+        formatted_materialized_cemt_tree: Some(formatted_artifact),
+        colored_materialized_cemt_tree,
+        materialized_cemt_stage_output: Some(materialized_cemt_stage_output),
+        formatted_cem_tree: Some(formatted_public),
+        colored_cem_tree: colored_public,
+        diagnostics: Vec::new(),
+        ..ConversionOutputPipelineExecution::default()
     }
 }
 
@@ -20780,6 +21143,96 @@ mod tests {
     }
 
     #[test]
+    fn native_markdown_output_layers_exchange_only_borrowed_evaluators_and_ast_stream_artifacts() {
+        let source = include_str!("conversion.rs");
+        let pipeline = source
+            .split_once("fn execute_native_markdown_document_output_pipeline(")
+            .and_then(|(_, suffix)| suffix.split_once("fn markdown_formatter_name_for_scope("))
+            .map(|(pipeline, _)| pipeline)
+            .expect("native Markdown materialized pipeline source");
+        for required in [
+            "execute_conversion_typed_cemt_output_stage",
+            "CemtEvaluatorValue::borrowed(formatted_artifact.evaluator_view())",
+            "lower_materialized_writer_token_formatter_result",
+            "lower_materialized_writer_token_colorizer_result",
+            "TransformArtifactBody::MaterializedCemtTree",
+            "execute_transform_template_materialized_cemt_writer",
+        ] {
+            assert!(
+                pipeline.contains(required),
+                "missing `{required}` native Markdown handoff"
+            );
+        }
+        for forbidden in [
+            "execute_conversion_cem_tree_output_stage(",
+            "artifact_from_cemt_value",
+            "as_cemt_runtime_value",
+            "to_cemt_runtime_value",
+            "compose_transform_template_encoded_text_artifacts",
+            "into_test_compatibility_cemt_subject",
+            "CemtRuntime",
+        ] {
+            assert!(
+                !pipeline.contains(forbidden),
+                "native Markdown layers must not cross `{forbidden}`"
+            );
+        }
+
+        let native_subject = source
+            .split_once("impl MarkdownDocumentOutputSubject for MarkdownDocumentAst")
+            .and_then(|(_, suffix)| suffix.split_once("#[cfg(test)]"))
+            .map(|(implementation, _)| implementation)
+            .expect("native Markdown output subject implementation");
+        assert!(
+            native_subject.contains("MarkdownDocumentCemtSubjectRef::new(self).evaluator_view()")
+        );
+        for forbidden in ["to_cemt_subject", "serde_json", "Option<Value>"] {
+            assert!(
+                !native_subject.contains(forbidden),
+                "native Markdown production subject must not use `{forbidden}`"
+            );
+        }
+
+        let view_source = include_str!("transform_artifact.rs")
+            .split_once("fn markdown_document_evaluator_field")
+            .and_then(|(_, suffix)| suffix.split_once("fn yaml_document_evaluator_field"))
+            .map(|(view, _)| view)
+            .expect("borrowed native Markdown evaluator view");
+        for forbidden in [
+            "serde_json::Value",
+            "to_cemt_subject",
+            "MarkdownDocumentAst::clone",
+        ] {
+            assert!(
+                !view_source.contains(forbidden),
+                "borrowed Markdown evaluator view must not use `{forbidden}`"
+            );
+        }
+
+        let markdown_validation_source = include_str!("validation/markdown.rs");
+        assert!(markdown_validation_source.contains("#[cfg(test)]\n    pub fn to_cemt_subject"));
+        let composer_count = markdown_validation_source
+            .matches("    pub fn to_cemt_subject(&self) -> Value")
+            .count()
+            + markdown_validation_source
+                .matches("    fn to_cemt_subject(&self) -> Value")
+                .count()
+            + markdown_validation_source
+                .matches("    fn to_cemt_subject(self) -> Value")
+                .count();
+        let gated_composer_count = markdown_validation_source
+            .matches("#[cfg(test)]\n    pub fn to_cemt_subject(&self) -> Value")
+            .count()
+            + markdown_validation_source
+                .matches("#[cfg(test)]\n    fn to_cemt_subject(&self) -> Value")
+                .count()
+            + markdown_validation_source
+                .matches("#[cfg(test)]\n    fn to_cemt_subject(self) -> Value")
+                .count();
+        assert_eq!(composer_count, gated_composer_count);
+    }
+
+    #[test]
     fn native_yaml_output_layers_exchange_only_borrowed_evaluators_and_ast_stream_artifacts() {
         let source = include_str!("conversion.rs");
         let pipeline = source
@@ -27303,6 +27756,177 @@ mod tests {
                     .unwrap_or_else(|| panic!("{content_type}/{profile} colored tree"));
                 assert_eq!(colored.value["colorProfile"], profile);
                 assert_eq!(colored.value["nodes"][2]["style"][style_key], style_value);
+            }
+        }
+    }
+
+    #[test]
+    fn builtin_markdown_lifecycle_output_uses_typed_materialized_ast_pipeline() {
+        use crate::validation::markdown::{
+            markdown_document_ast_from_source_bytes, MarkdownSourceValidationRequest,
+        };
+
+        let schema_registry = SchemaRegistry::with_builtin_schemas();
+        let conversion_registry = ConversionRegistry::with_builtin_converters();
+        let environment = ConversionOutputPipelineEnvironment {
+            schema_registry: &schema_registry,
+            conversion_registry: &conversion_registry,
+            package_artifact_reader: None,
+            artifact_cache: None,
+        };
+        let source = b"# Release Notes\r\n\r\n3. [x] **Ready** with [docs](https://example.test \"Guide\")\r\n\r\n```rust\r\nlet ready = true;\r\n```\r\n\r\n| name | state |\r\n| --- | --- |\r\n| CEM | ready |\r\n";
+        let (document, diagnostics) =
+            markdown_document_ast_from_source_bytes(MarkdownSourceValidationRequest {
+                bytes: source,
+                source_uri: "builtin:typed-markdown-output",
+                content_type: Some("text/markdown; charset=utf-8; variant=GFM"),
+            });
+        assert!(diagnostics.is_empty(), "{diagnostics:?}");
+        let document = document.expect("typed Markdown AST");
+        let compatibility = document.to_cemt_subject();
+        assert_cemt_lowering_value_equivalent_by_name(
+            "markdown",
+            CemtTreeLoweringValue::Typed(CemtEvaluatorValue::borrowed(
+                MarkdownDocumentCemtSubjectRef::new(&document).evaluator_view(),
+            )),
+            CemtTreeLoweringValue::Compatibility(&compatibility),
+        );
+
+        for profile in ["compact", "pretty", "tabular"] {
+            let target_scope = ScopeConfig {
+                cemt_formatter_profile: Some(profile.to_owned()),
+                cemt_formatter_options: BTreeMap::from([(
+                    "lineEnding".to_owned(),
+                    "preserve".to_owned(),
+                )]),
+                ..ScopeConfig::default()
+            };
+            let execution = execute_markdown_document_output_pipeline_with_environment(
+                &environment,
+                document.clone(),
+                &target_scope,
+                Some("builtin:typed-markdown-output"),
+            );
+            let oracle = execute_markdown_document_output_pipeline_with_environment(
+                &environment,
+                compatibility.clone(),
+                &target_scope,
+                Some("builtin:markdown-value-oracle"),
+            );
+            assert!(
+                execution.diagnostics.is_empty(),
+                "{profile}: {:?}",
+                execution.diagnostics
+            );
+            assert!(
+                oracle.diagnostics.is_empty(),
+                "{profile}: compatibility oracle diagnostics: {:?}",
+                oracle.diagnostics
+            );
+            assert_eq!(execution.output, oracle.output, "{profile} Markdown parity");
+            assert!(
+                execution
+                    .output
+                    .as_ref()
+                    .and_then(Value::as_str)
+                    .is_some_and(|output| output.contains("\r\n")),
+                "{profile}: preserve must retain CRLF output"
+            );
+            let materialized = execution
+                .formatted_materialized_cemt_tree
+                .as_ref()
+                .unwrap_or_else(|| panic!("{profile} materialized Markdown tree"));
+            assert_eq!(
+                materialized.input_provenance().representation_id,
+                "cem.markdown-document-ast"
+            );
+            assert!(materialized
+                .owner()
+                .as_nodes()
+                .iter()
+                .all(|node| matches!(node, CemTreeAstNode::WriterToken { .. })));
+            let stage_output = execution
+                .materialized_cemt_stage_output
+                .as_ref()
+                .unwrap_or_else(|| panic!("{profile} typed Markdown stage output"));
+            let TransformArtifactBody::MaterializedCemtTree(selected) = &stage_output.body else {
+                panic!("{profile} Markdown stage output must be materialized")
+            };
+            assert!(Arc::ptr_eq(materialized, selected));
+            assert!(Arc::ptr_eq(materialized.owner(), selected.owner()));
+        }
+    }
+
+    #[test]
+    fn builtin_markdown_typed_color_pipeline_retains_formatted_owner_and_selected_overlay() {
+        use crate::validation::markdown::{
+            markdown_document_ast_from_source_bytes, MarkdownSourceValidationRequest,
+        };
+
+        let schema_registry = SchemaRegistry::with_builtin_schemas();
+        let conversion_registry = ConversionRegistry::with_builtin_converters();
+        let environment = ConversionOutputPipelineEnvironment {
+            schema_registry: &schema_registry,
+            conversion_registry: &conversion_registry,
+            package_artifact_reader: None,
+            artifact_cache: None,
+        };
+        let (document, diagnostics) =
+            markdown_document_ast_from_source_bytes(MarkdownSourceValidationRequest {
+                bytes: b"# Release Notes\n\nReady\n",
+                source_uri: "builtin:typed-colored-markdown-output",
+                content_type: Some("text/markdown; charset=utf-8; variant=CommonMark"),
+            });
+        assert!(diagnostics.is_empty(), "{diagnostics:?}");
+        let document = document.expect("typed Markdown AST");
+
+        for profile in ["terminal", "html", "md"] {
+            let target_scope = ScopeConfig {
+                cemt_formatter_profile: Some("compact".to_owned()),
+                cemt_color_profile: Some(profile.to_owned()),
+                ..ScopeConfig::default()
+            };
+            let execution = execute_markdown_document_output_pipeline_with_environment(
+                &environment,
+                document.clone(),
+                &target_scope,
+                Some("builtin:typed-colored-markdown-output"),
+            );
+            assert!(
+                execution.diagnostics.is_empty(),
+                "{profile}: {:?}",
+                execution.diagnostics
+            );
+            let formatted = execution
+                .formatted_materialized_cemt_tree
+                .as_ref()
+                .unwrap_or_else(|| panic!("{profile} formatted Markdown tree"));
+            let colored = execution
+                .colored_materialized_cemt_tree
+                .as_ref()
+                .unwrap_or_else(|| panic!("{profile} colored Markdown tree"));
+            assert!(Arc::ptr_eq(formatted.owner(), colored.owner()));
+            assert!(colored.color_overlay().is_some());
+            let stage_output = execution
+                .materialized_cemt_stage_output
+                .as_ref()
+                .unwrap_or_else(|| panic!("{profile} selected Markdown stage output"));
+            let TransformArtifactBody::MaterializedCemtTree(selected) = &stage_output.body else {
+                panic!("{profile} Markdown stage output must be materialized")
+            };
+            assert!(Arc::ptr_eq(colored, selected));
+            if profile == "html" {
+                assert!(execution
+                    .output
+                    .as_ref()
+                    .and_then(Value::as_str)
+                    .is_some_and(|output| output
+                        .starts_with(&markdown_html_preview_prefix(default_formatter_tab_size()))));
+            } else {
+                assert_eq!(
+                    strip_ansi_codes(execution.output.as_ref().and_then(Value::as_str).unwrap()),
+                    "# Release Notes\n\nReady\n\n"
+                );
             }
         }
     }

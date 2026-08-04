@@ -1123,6 +1123,18 @@ Remaining dependency-ordered package checklist:
                     native same-schema conversion coverage enforce the
                     boundary. Invalid unary `extend` expressions in the YAML
                     root scalar and alias formatter branches are also corrected.
+              - [x] Migrate native Markdown output to a borrowed evaluator view
+                    over `MarkdownDocumentAst`. The view preserves source and
+                    encoding metadata, CommonMark/GFM variant and parse facts,
+                    ordered events, optional event fields, ranges, maps, and
+                    LF/CRLF policy without a runtime `Value` DTO. Formatter and
+                    colorizer stages now exchange the typed materialized
+                    writer-token stream and owner-path overlay, the stage output
+                    retains the exact selected artifact, and the direct writer
+                    handles plain, terminal, HTML, and Markdown output.
+                    Production Markdown subject composers are test-only parity
+                    oracles; source audits and native same-schema conversion
+                    coverage enforce the boundary.
       - [x] Define typed raw, formatted, and colored CEM tree envelopes with
             ordered native nodes and lazy evaluator views over the owning AST.
       - [ ] Route formatter, colorizer, writer, graph, and secondary-input
@@ -1184,46 +1196,50 @@ Remaining dependency-ordered package checklist:
 
 ### Next Work Item
 
-Close the direct Markdown output family on the serializer-free typed-result
-contract. JSON, JSON Schema, CSV, and YAML production owners now enter their
-package formatters through borrowed evaluator views, retain the generated
+Close the shared XML-family output contract on the serializer-free typed-result
+lifecycle. JSON, JSON Schema, CSV, YAML, and Markdown production owners now enter
+their package formatters through borrowed evaluator views, retain the generated
 `Arc<CemTreeAstStream>` through coloring and the typed stage body, and use the
-direct materialized writer. Markdown is next because its sole production owner,
-`MarkdownDocumentAst`, still enters `MarkdownDocumentOutputSubject` through
-`into_cemt_subject` and crosses the formatter/colorizer/writer lifecycle as a
-runtime `Value` DTO. No generic-data-to-Markdown subject or registered output
-edge exists today, so this slice should migrate the native owner only rather
-than inventing a second contract.
+direct materialized writer. The next boundary is
+`XmlDocumentOutputSubject::into_cemt_subject`, which currently erases seven
+distinct production owners—`XmlDocumentAst`, `HtmlDocumentAst`, `CssDocumentAst`,
+`XhtmlDocumentAst`, `SvgDocumentAst`, `MathMlDocumentAst`, and
+`XsltStylesheetAst`—before their common formatter/colorizer/writer pipeline.
+Migrate the shared boundary as one unit so no production owner can continue
+through the serializer fallback. Keep the separately tracked XSLT profile
+semantic polish out of this data-plane slice.
 
 Implement the next slice in this order:
 
-1. Add parity tests first for a borrowed `MarkdownDocumentAst` evaluator view.
-   Cover source and encoding metadata, CommonMark/GFM variant facts, recoverable
-   parse facts, ordered events, headings, paragraphs, emphasis/strong text,
-   links/images, fenced code metadata, lists and ordered starts, block quotes,
-   tables, task-list checked state, embedded HTML facts, exact source ranges and
-   maps, and LF/CRLF policy.
-2. Define `MarkdownDocumentCemtSubjectRef` over the owning AST without cloning
-   events or building records in `serde_json::Value`. Expose optional event
-   fields as typed null/scalar values and preserve event order, byte offsets,
-   source ranges, and source maps exactly as the current CEMT contract expects.
-3. Give `MarkdownDocumentOutputSubject` a native evaluator path with an explicit
-   input representation ID. Route compact, pretty, and tabular formatting
-   through `execute_conversion_typed_cemt_output_stage`, then lower formatter
-   tokens directly into `CemtMaterializedTreeArtifact`.
-4. Pass the exact formatted owner into the Markdown colorizer, retain terminal,
-   HTML, and Markdown coloring as the validated owner-path overlay, expose the
-   selected materialized artifact as the typed stage body, and invoke the direct
-   materialized writer. Keep HTML preview wrapping strictly after writer
-   completion at the external response boundary.
-5. Confine `MarkdownDocumentAst::to_cemt_subject` and all recursive Markdown DTO
-   composers to `#[cfg(test)]` parity use. Add source audits rejecting
-   serializers, runtime-value envelopes, legacy tree-stage execution, and owner
-   cloning between Markdown formatter, colorizer, stage output, and writer.
-6. Add real same-schema Markdown identity/output coverage, then run focused
-   Markdown cases, Markdown schema-package verification, core lint/build/test,
-   WASM build, converter parity, and CLI e2e. Once green, continue with the
-   XML-family/XSLT owner set, Relax NG, DOM projection, and remaining generic
+1. Add parity tests first for borrowed views over all seven native owners. Cover
+   each package's source/media parameters, encoding report, document or entry
+   mode, recovery count, resource kind, profile/version fields, package facts,
+   ordered lexical events, attributes and namespaces, comments, CDATA,
+   processing instructions, doctypes, exact ranges/maps, and LF/CRLF policy.
+2. Define a closed borrowed XML-family subject enum with one concrete view and
+   representation ID per owner. Reuse a shared borrowed XML event/attribute/
+   range/map evaluator for XML-backed owners, but retain HTML and CSS native
+   token/event contracts and every package-specific event decoration; do not
+   normalize one owner into another AST or construct `serde_json::Value`.
+3. Replace `XmlDocumentOutputSubject::into_cemt_subject` with native line-ending,
+   representation, and borrowed-evaluator access. Route compact, pretty, and
+   tabular execution for every `XmlFamilyOutputSpec` through
+   `execute_conversion_typed_cemt_output_stage`, then lower formatter tokens
+   directly into `CemtMaterializedTreeArtifact`.
+4. Pass each exact formatted owner into its package colorizer, retain terminal,
+   HTML, and Markdown coloring as a validated owner-path overlay, expose the
+   exact selected materialized artifact as the typed stage body, and invoke the
+   direct materialized writer. Preserve package-specific HTML response wrapping
+   only after writer completion.
+5. Confine all seven top-level subject composers and recursive DTO helpers to
+   `#[cfg(test)]` parity use. Add source audits rejecting serializers,
+   runtime-value envelopes, legacy tree-stage execution, cross-owner AST
+   projection, and owner cloning within the shared XML-family production path.
+6. Add real same-schema identity/output tests for XML, HTML, CSS, XHTML, SVG,
+   MathML, and XSLT, including formatted-only and colored-overlay `Arc::ptr_eq`
+   assertions. Run focused owner cases, all seven schema-package verification
+   targets, core lint/build/test, WASM build, converter parity, and CLI e2e.
+   Once green, continue with Relax NG, DOM projection, and remaining generic
    CEMT producers before removing `CemtEvaluator(Value)`, `CemtRuntime(Value)`,
    and adapter DTO conversion globally.
 

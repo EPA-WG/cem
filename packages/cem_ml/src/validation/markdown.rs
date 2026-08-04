@@ -5,7 +5,9 @@ use crate::schema::registry::{content_type_essence, MARKDOWN_CONTENT_TYPE, MARKD
 use crate::source::line_index::LineIndex;
 use crate::source::{ByteRange, SourceId};
 use crate::source_map::{FrameSpan, SourceMapFrame, SourceMapStack, TransformKind};
-use serde_json::{json, Value};
+use serde_json::json;
+#[cfg(test)]
+use serde_json::Value;
 use std::collections::BTreeMap;
 use std::sync::OnceLock;
 
@@ -35,6 +37,7 @@ pub struct MarkdownDocumentAst {
 }
 
 impl MarkdownDocumentAst {
+    #[cfg(test)]
     pub fn to_cemt_subject(&self) -> Value {
         let mut document = serde_json::Map::new();
         document.insert("kind".to_owned(), json!("markdown-document"));
@@ -113,6 +116,7 @@ impl MarkdownDocumentSource {
         }
     }
 
+    #[cfg(test)]
     fn to_cemt_subject(&self) -> Value {
         json!({
             "uri": self.uri,
@@ -157,6 +161,7 @@ impl MarkdownEncodingReportAst {
         }
     }
 
+    #[cfg(test)]
     fn to_cemt_subject(&self) -> Value {
         let mut value = serde_json::Map::new();
         if let Some(charset) = self.declared_charset.as_deref() {
@@ -233,6 +238,7 @@ impl MarkdownEncodingFact {
         }
     }
 
+    #[cfg(test)]
     fn to_cemt_subject(&self) -> Value {
         json!({
             "kind": self.kind.as_str(),
@@ -257,7 +263,7 @@ pub enum MarkdownEncodingFactKind {
 }
 
 impl MarkdownEncodingFactKind {
-    fn as_str(self) -> &'static str {
+    pub(crate) fn as_str(self) -> &'static str {
         match self {
             Self::CharsetMissing => "charset-missing",
             Self::UnsupportedEncoding => "unsupported-encoding",
@@ -317,6 +323,7 @@ impl MarkdownVariantFact {
         }
     }
 
+    #[cfg(test)]
     fn to_cemt_subject(&self) -> Value {
         json!({
             "kind": self.kind.as_str(),
@@ -338,7 +345,7 @@ pub enum MarkdownVariantFactKind {
 }
 
 impl MarkdownVariantFactKind {
-    fn as_str(self) -> &'static str {
+    pub(crate) fn as_str(self) -> &'static str {
         match self {
             Self::DefaultVariant => "default-variant",
             Self::KnownVariant => "known-variant",
@@ -385,6 +392,7 @@ impl MarkdownParseFact {
         }
     }
 
+    #[cfg(test)]
     fn to_cemt_subject(&self) -> Value {
         json!({
             "kind": self.kind.as_str(),
@@ -408,7 +416,7 @@ pub enum MarkdownParseFactKind {
 }
 
 impl MarkdownParseFactKind {
-    fn as_str(self) -> &'static str {
+    pub(crate) fn as_str(self) -> &'static str {
         match self {
             Self::EmbeddedHtml => "embedded-html",
         }
@@ -431,6 +439,7 @@ pub struct MarkdownEventAst {
 }
 
 impl MarkdownEventAst {
+    #[cfg(test)]
     fn to_cemt_subject(&self) -> Value {
         json!({
             "index": self.index,
@@ -509,6 +518,7 @@ impl MarkdownSourceRange {
         }
     }
 
+    #[cfg(test)]
     fn to_cemt_subject(self) -> Value {
         json!({
             "byteOffset": self.start.byte_offset,
@@ -681,7 +691,12 @@ fn markdown_encoding_fact_diagnostic(
                 "parameter": fact.parameter,
                 "actual": fact.actual,
                 "expected": fact.expected,
-                "sourceRange": fact.source_range.map(MarkdownSourceRange::to_cemt_subject),
+                "sourceRange": fact.source_range.map(|range| json!({
+                    "byteOffset": range.start.byte_offset,
+                    "byteLength": range.byte_length,
+                    "line": range.start.line,
+                    "column": range.start.column,
+                })),
             },
         })),
         source_map: fact.source_range.map(MarkdownSourceRange::source_map),
@@ -733,7 +748,12 @@ fn markdown_parse_fact_diagnostic(
                 "factKind": fact.kind.as_str(),
                 "eventIndex": fact.event_index,
                 "eventKind": fact.event_kind,
-                "sourceRange": fact.source_range.map(MarkdownSourceRange::to_cemt_subject),
+                "sourceRange": fact.source_range.map(|range| json!({
+                    "byteOffset": range.start.byte_offset,
+                    "byteLength": range.byte_length,
+                    "line": range.start.line,
+                    "column": range.start.column,
+                })),
             },
         })),
         source_map: fact.source_range.map(MarkdownSourceRange::source_map),

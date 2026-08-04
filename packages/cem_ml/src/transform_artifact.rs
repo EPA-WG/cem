@@ -8,7 +8,7 @@ use crate::projection::{
 };
 use crate::schema::registry::{
     content_type_essence, JSON_CONTENT_TYPE, JSON_SCHEMA_CONTENT_TYPE, JSON_SCHEMA_SCHEMA_URI,
-    YAML_CONTENT_TYPE, YAML_SCHEMA_URI,
+    MARKDOWN_CONTENT_TYPE, MARKDOWN_SCHEMA_URI, YAML_CONTENT_TYPE, YAML_SCHEMA_URI,
 };
 use crate::source_map::SourceMapStack;
 use crate::validation::csv::{
@@ -25,6 +25,10 @@ use crate::validation::json::{
 use crate::validation::json_schema::{
     json_schema_source_map, JsonSchemaDialectFact, JsonSchemaDocumentAst, JsonSchemaDocumentSource,
     JsonSchemaParseFact,
+};
+use crate::validation::markdown::{
+    MarkdownDocumentAst, MarkdownDocumentSource, MarkdownEncodingFact, MarkdownEncodingReportAst,
+    MarkdownEventAst, MarkdownParseFact, MarkdownSourceRange, MarkdownVariantFact,
 };
 use crate::validation::xpath::XPathResultArtifact;
 use crate::validation::yaml::{
@@ -912,6 +916,11 @@ pub struct GenericDataYamlDocumentCemtSubjectRef<'a> {
 }
 
 #[derive(Debug, Clone, Copy)]
+pub struct MarkdownDocumentCemtSubjectRef<'a> {
+    document: &'a MarkdownDocumentAst,
+}
+
+#[derive(Debug, Clone, Copy)]
 pub struct JsonSchemaDocumentCemtSubjectRef<'a> {
     document: &'a JsonSchemaDocumentAst,
 }
@@ -995,6 +1004,22 @@ impl<'a> GenericDataYamlDocumentCemtSubjectRef<'a> {
 
     pub fn evaluator_view(self) -> CemtEvaluatorValueRef<'a> {
         CemtEvaluatorValueRef::Record(CemtEvaluatorRecordRef::GenericDataYamlDocument {
+            document: self.document,
+        })
+    }
+}
+
+impl<'a> MarkdownDocumentCemtSubjectRef<'a> {
+    pub fn new(document: &'a MarkdownDocumentAst) -> Self {
+        Self { document }
+    }
+
+    pub fn document(self) -> &'a MarkdownDocumentAst {
+        self.document
+    }
+
+    pub fn evaluator_view(self) -> CemtEvaluatorValueRef<'a> {
+        CemtEvaluatorValueRef::Record(CemtEvaluatorRecordRef::MarkdownDocument {
             document: self.document,
         })
     }
@@ -1842,6 +1867,18 @@ pub enum CemtEvaluatorSequenceRef<'a> {
     GenericDataCsvValueFields {
         value: &'a GenericDataValueAst,
     },
+    MarkdownEncodingFacts {
+        facts: &'a [MarkdownEncodingFact],
+    },
+    MarkdownVariantFacts {
+        facts: &'a [MarkdownVariantFact],
+    },
+    MarkdownParseFacts {
+        facts: &'a [MarkdownParseFact],
+    },
+    MarkdownEvents {
+        events: &'a [MarkdownEventAst],
+    },
     YamlParseFacts {
         facts: &'a [YamlDocumentParseFact],
     },
@@ -1985,6 +2022,10 @@ impl<'a> CemtEvaluatorSequenceRef<'a> {
                 GenericDataValueAst::Sequence { items, .. } => items.len(),
                 _ => 1,
             },
+            Self::MarkdownEncodingFacts { facts } => facts.len(),
+            Self::MarkdownVariantFacts { facts } => facts.len(),
+            Self::MarkdownParseFacts { facts } => facts.len(),
+            Self::MarkdownEvents { events } => events.len(),
             Self::YamlParseFacts { facts } => facts.len(),
             Self::YamlDirectives { directives } => directives.len(),
             Self::YamlComments { comments } => comments.len(),
@@ -2074,6 +2115,18 @@ impl<'a> CemtEvaluatorSequenceRef<'a> {
                     },
                 ))
             }
+            Self::MarkdownEncodingFacts { facts } => facts.get(index).map(|fact| {
+                CemtEvaluatorValueRef::Record(CemtEvaluatorRecordRef::MarkdownEncodingFact { fact })
+            }),
+            Self::MarkdownVariantFacts { facts } => facts.get(index).map(|fact| {
+                CemtEvaluatorValueRef::Record(CemtEvaluatorRecordRef::MarkdownVariantFact { fact })
+            }),
+            Self::MarkdownParseFacts { facts } => facts.get(index).map(|fact| {
+                CemtEvaluatorValueRef::Record(CemtEvaluatorRecordRef::MarkdownParseFact { fact })
+            }),
+            Self::MarkdownEvents { events } => events.get(index).map(|event| {
+                CemtEvaluatorValueRef::Record(CemtEvaluatorRecordRef::MarkdownEvent { event })
+            }),
             Self::YamlParseFacts { facts } => facts.get(index).map(|fact| {
                 CemtEvaluatorValueRef::Record(CemtEvaluatorRecordRef::YamlParseFact { fact })
             }),
@@ -2422,6 +2475,30 @@ pub enum CemtEvaluatorRecordRef<'a> {
         value: &'a GenericDataValueAst,
         index: usize,
     },
+    MarkdownDocument {
+        document: &'a MarkdownDocumentAst,
+    },
+    MarkdownSource {
+        source: &'a MarkdownDocumentSource,
+    },
+    MarkdownEncodingReport {
+        report: &'a MarkdownEncodingReportAst,
+    },
+    MarkdownEncodingFact {
+        fact: &'a MarkdownEncodingFact,
+    },
+    MarkdownVariantFact {
+        fact: &'a MarkdownVariantFact,
+    },
+    MarkdownParseFact {
+        fact: &'a MarkdownParseFact,
+    },
+    MarkdownEvent {
+        event: &'a MarkdownEventAst,
+    },
+    MarkdownSourceRange {
+        range: MarkdownSourceRange,
+    },
     YamlDocument {
         document: &'a YamlDocumentAst,
     },
@@ -2595,6 +2672,14 @@ impl<'a> CemtEvaluatorRecordRef<'a> {
             | Self::GenericDataCsvHeaderField { .. }
             | Self::GenericDataCsvMappingField { .. }
             | Self::GenericDataCsvValueField { .. }
+            | Self::MarkdownDocument { .. }
+            | Self::MarkdownSource { .. }
+            | Self::MarkdownEncodingReport { .. }
+            | Self::MarkdownEncodingFact { .. }
+            | Self::MarkdownVariantFact { .. }
+            | Self::MarkdownParseFact { .. }
+            | Self::MarkdownEvent { .. }
+            | Self::MarkdownSourceRange { .. }
             | Self::YamlDocument { .. }
             | Self::YamlSource { .. }
             | Self::YamlEncodingReport { .. }
@@ -2668,6 +2753,14 @@ impl<'a> CemtEvaluatorRecordRef<'a> {
             | Self::GenericDataCsvHeaderField { .. }
             | Self::GenericDataCsvMappingField { .. }
             | Self::GenericDataCsvValueField { .. }
+            | Self::MarkdownDocument { .. }
+            | Self::MarkdownSource { .. }
+            | Self::MarkdownEncodingReport { .. }
+            | Self::MarkdownEncodingFact { .. }
+            | Self::MarkdownVariantFact { .. }
+            | Self::MarkdownParseFact { .. }
+            | Self::MarkdownEvent { .. }
+            | Self::MarkdownSourceRange { .. }
             | Self::YamlDocument { .. }
             | Self::YamlSource { .. }
             | Self::YamlEncodingReport { .. }
@@ -2881,6 +2974,106 @@ impl<'a> CemtEvaluatorRecordRef<'a> {
                 &["delimiter", "quote", "escape", "header", "lineEnding"]
             }
             Self::GenericDataCsvDialect { .. } => &["delimiter", "quote", "escape", "header"],
+            Self::MarkdownDocument { document } if document.line_ending.is_some() => &[
+                "kind",
+                "contentType",
+                "schema",
+                "source",
+                "encodingReport",
+                "encodingFacts",
+                "variant",
+                "variantFacts",
+                "parseFacts",
+                "events",
+                "lineEnding",
+            ],
+            Self::MarkdownDocument { .. } => &[
+                "kind",
+                "contentType",
+                "schema",
+                "source",
+                "encodingReport",
+                "encodingFacts",
+                "variant",
+                "variantFacts",
+                "parseFacts",
+                "events",
+            ],
+            Self::MarkdownSource { .. } => &[
+                "uri",
+                "contentType",
+                "mediaType",
+                "parameters",
+                "byteLength",
+            ],
+            Self::MarkdownEncodingReport { report } if report.declared_charset.is_some() => {
+                if report.invalid_byte_offset.is_some() {
+                    &[
+                        "declaredCharset",
+                        "normalizedCharset",
+                        "decoderStatus",
+                        "invalidByteOffset",
+                    ]
+                } else {
+                    &["declaredCharset", "normalizedCharset", "decoderStatus"]
+                }
+            }
+            Self::MarkdownEncodingReport { report } if report.invalid_byte_offset.is_some() => {
+                &["normalizedCharset", "decoderStatus", "invalidByteOffset"]
+            }
+            Self::MarkdownEncodingReport { .. } => &["normalizedCharset", "decoderStatus"],
+            Self::MarkdownEncodingFact { .. } => &[
+                "kind",
+                "diagnosticCode",
+                "diagnosticSeverity",
+                "recoverable",
+                "fatal",
+                "parameter",
+                "actual",
+                "expected",
+                "message",
+                "sourceRange",
+                "sourceMap",
+            ],
+            Self::MarkdownVariantFact { .. } => &[
+                "kind",
+                "variant",
+                "diagnosticCode",
+                "diagnosticSeverity",
+                "recoverable",
+                "fatal",
+                "message",
+            ],
+            Self::MarkdownParseFact { .. } => &[
+                "kind",
+                "diagnosticCode",
+                "diagnosticSeverity",
+                "recoverable",
+                "fatal",
+                "eventIndex",
+                "eventKind",
+                "raw",
+                "message",
+                "sourceRange",
+                "sourceMap",
+            ],
+            Self::MarkdownEvent { .. } => &[
+                "index",
+                "kind",
+                "tag",
+                "text",
+                "destination",
+                "title",
+                "info",
+                "level",
+                "checked",
+                "orderedStart",
+                "byteOffset",
+                "byteLength",
+                "sourceRange",
+                "sourceMap",
+            ],
+            Self::MarkdownSourceRange { .. } => &["byteOffset", "byteLength", "line", "column"],
             Self::YamlDocument { document } if document.line_ending.is_some() => &[
                 "kind",
                 "contentType",
@@ -3162,6 +3355,10 @@ impl<'a> CemtEvaluatorRecordRef<'a> {
                 "formatterRole",
                 "sourceRange",
                 "memberIndex",
+                "eventIndex",
+                "eventKind",
+                "eventTag",
+                "package",
                 "layout",
                 "lineEnding",
                 "indent",
@@ -3362,6 +3559,22 @@ impl<'a> CemtEvaluatorRecordRef<'a> {
             }
             Self::GenericDataCsvValueField { value, index } => {
                 generic_data_csv_value_field_evaluator_field(value, *index, name)
+            }
+            Self::MarkdownDocument { document } => {
+                markdown_document_evaluator_field(document, name)
+            }
+            Self::MarkdownSource { source } => markdown_source_evaluator_field(source, name),
+            Self::MarkdownEncodingReport { report } => {
+                markdown_encoding_report_evaluator_field(report, name)
+            }
+            Self::MarkdownEncodingFact { fact } => {
+                markdown_encoding_fact_evaluator_field(fact, name)
+            }
+            Self::MarkdownVariantFact { fact } => markdown_variant_fact_evaluator_field(fact, name),
+            Self::MarkdownParseFact { fact } => markdown_parse_fact_evaluator_field(fact, name),
+            Self::MarkdownEvent { event } => markdown_event_evaluator_field(event, name),
+            Self::MarkdownSourceRange { range } => {
+                markdown_source_range_evaluator_field(*range, name)
             }
             Self::YamlDocument { document } => yaml_document_evaluator_field(document, name),
             Self::YamlSource { source } => yaml_source_evaluator_field(source, name),
@@ -4137,6 +4350,227 @@ fn generic_data_csv_scalar_text(value: &GenericDataValueAst) -> String {
         GenericDataValueAst::Null { .. } => String::new(),
         GenericDataValueAst::Alias { alias, .. } => alias.clone().unwrap_or_default(),
         GenericDataValueAst::Mapping { .. } | GenericDataValueAst::Sequence { .. } => String::new(),
+    }
+}
+
+fn markdown_document_evaluator_field<'a>(
+    document: &'a MarkdownDocumentAst,
+    name: &str,
+) -> Option<CemtEvaluatorValueRef<'a>> {
+    match name {
+        "kind" => Some(CemtEvaluatorValueRef::String("markdown-document")),
+        "contentType" => Some(CemtEvaluatorValueRef::String(MARKDOWN_CONTENT_TYPE)),
+        "schema" => Some(CemtEvaluatorValueRef::String(MARKDOWN_SCHEMA_URI)),
+        "source" => Some(CemtEvaluatorValueRef::Record(
+            CemtEvaluatorRecordRef::MarkdownSource {
+                source: &document.source,
+            },
+        )),
+        "encodingReport" => Some(CemtEvaluatorValueRef::Record(
+            CemtEvaluatorRecordRef::MarkdownEncodingReport {
+                report: &document.encoding_report,
+            },
+        )),
+        "encodingFacts" => Some(CemtEvaluatorValueRef::Sequence(
+            CemtEvaluatorSequenceRef::MarkdownEncodingFacts {
+                facts: &document.encoding_facts,
+            },
+        )),
+        "variant" => Some(CemtEvaluatorValueRef::String(&document.variant)),
+        "variantFacts" => Some(CemtEvaluatorValueRef::Sequence(
+            CemtEvaluatorSequenceRef::MarkdownVariantFacts {
+                facts: &document.variant_facts,
+            },
+        )),
+        "parseFacts" => Some(CemtEvaluatorValueRef::Sequence(
+            CemtEvaluatorSequenceRef::MarkdownParseFacts {
+                facts: &document.parse_facts,
+            },
+        )),
+        "events" => Some(CemtEvaluatorValueRef::Sequence(
+            CemtEvaluatorSequenceRef::MarkdownEvents {
+                events: &document.events,
+            },
+        )),
+        "lineEnding" => document
+            .line_ending
+            .as_deref()
+            .map(CemtEvaluatorValueRef::String),
+        _ => None,
+    }
+}
+
+fn markdown_source_evaluator_field<'a>(
+    source: &'a MarkdownDocumentSource,
+    name: &str,
+) -> Option<CemtEvaluatorValueRef<'a>> {
+    match name {
+        "uri" => Some(CemtEvaluatorValueRef::String(&source.uri)),
+        "contentType" => Some(CemtEvaluatorValueRef::String(&source.content_type)),
+        "mediaType" => Some(CemtEvaluatorValueRef::String(&source.media_type)),
+        "parameters" => Some(CemtEvaluatorValueRef::StringMap(&source.parameters)),
+        "byteLength" => Some(usize_evaluator_value(source.byte_length)),
+        _ => None,
+    }
+}
+
+fn markdown_encoding_report_evaluator_field<'a>(
+    report: &'a MarkdownEncodingReportAst,
+    name: &str,
+) -> Option<CemtEvaluatorValueRef<'a>> {
+    match name {
+        "declaredCharset" => report
+            .declared_charset
+            .as_deref()
+            .map(CemtEvaluatorValueRef::String),
+        "normalizedCharset" => Some(CemtEvaluatorValueRef::String(&report.normalized_charset)),
+        "decoderStatus" => Some(CemtEvaluatorValueRef::String(&report.decoder_status)),
+        "invalidByteOffset" => report.invalid_byte_offset.map(u64_evaluator_value),
+        _ => None,
+    }
+}
+
+fn markdown_encoding_fact_evaluator_field<'a>(
+    fact: &'a MarkdownEncodingFact,
+    name: &str,
+) -> Option<CemtEvaluatorValueRef<'a>> {
+    match name {
+        "kind" => Some(CemtEvaluatorValueRef::String(fact.kind.as_str())),
+        "diagnosticCode" => Some(optional_string_evaluator_value(
+            fact.diagnostic_code.as_deref(),
+        )),
+        "diagnosticSeverity" => Some(optional_string_evaluator_value(
+            fact.diagnostic_severity.as_deref(),
+        )),
+        "recoverable" => Some(CemtEvaluatorValueRef::Boolean(fact.recoverable)),
+        "fatal" => Some(CemtEvaluatorValueRef::Boolean(fact.fatal)),
+        "parameter" => Some(optional_string_evaluator_value(fact.parameter.as_deref())),
+        "actual" => Some(optional_string_evaluator_value(fact.actual.as_deref())),
+        "expected" => Some(CemtEvaluatorValueRef::Sequence(
+            CemtEvaluatorSequenceRef::Strings {
+                values: &fact.expected,
+            },
+        )),
+        "message" => Some(CemtEvaluatorValueRef::String(&fact.message)),
+        "sourceRange" => Some(markdown_optional_source_range_evaluator_value(
+            fact.source_range,
+        )),
+        "sourceMap" => Some(markdown_optional_source_map_evaluator_value(
+            fact.source_range,
+        )),
+        _ => None,
+    }
+}
+
+fn markdown_variant_fact_evaluator_field<'a>(
+    fact: &'a MarkdownVariantFact,
+    name: &str,
+) -> Option<CemtEvaluatorValueRef<'a>> {
+    match name {
+        "kind" => Some(CemtEvaluatorValueRef::String(fact.kind.as_str())),
+        "variant" => Some(optional_string_evaluator_value(fact.variant.as_deref())),
+        "diagnosticCode" => Some(optional_string_evaluator_value(
+            fact.diagnostic_code.as_deref(),
+        )),
+        "diagnosticSeverity" => Some(optional_string_evaluator_value(
+            fact.diagnostic_severity.as_deref(),
+        )),
+        "recoverable" => Some(CemtEvaluatorValueRef::Boolean(fact.recoverable)),
+        "fatal" => Some(CemtEvaluatorValueRef::Boolean(fact.fatal)),
+        "message" => Some(CemtEvaluatorValueRef::String(&fact.message)),
+        _ => None,
+    }
+}
+
+fn markdown_parse_fact_evaluator_field<'a>(
+    fact: &'a MarkdownParseFact,
+    name: &str,
+) -> Option<CemtEvaluatorValueRef<'a>> {
+    match name {
+        "kind" => Some(CemtEvaluatorValueRef::String(fact.kind.as_str())),
+        "diagnosticCode" => Some(optional_string_evaluator_value(
+            fact.diagnostic_code.as_deref(),
+        )),
+        "diagnosticSeverity" => Some(optional_string_evaluator_value(
+            fact.diagnostic_severity.as_deref(),
+        )),
+        "recoverable" => Some(CemtEvaluatorValueRef::Boolean(fact.recoverable)),
+        "fatal" => Some(CemtEvaluatorValueRef::Boolean(fact.fatal)),
+        "eventIndex" => Some(optional_usize_evaluator_value(fact.event_index)),
+        "eventKind" => Some(optional_string_evaluator_value(fact.event_kind.as_deref())),
+        "raw" => Some(optional_string_evaluator_value(fact.raw.as_deref())),
+        "message" => Some(CemtEvaluatorValueRef::String(&fact.message)),
+        "sourceRange" => Some(markdown_optional_source_range_evaluator_value(
+            fact.source_range,
+        )),
+        "sourceMap" => Some(markdown_optional_source_map_evaluator_value(
+            fact.source_range,
+        )),
+        _ => None,
+    }
+}
+
+fn markdown_event_evaluator_field<'a>(
+    event: &'a MarkdownEventAst,
+    name: &str,
+) -> Option<CemtEvaluatorValueRef<'a>> {
+    match name {
+        "index" => Some(usize_evaluator_value(event.index)),
+        "kind" => Some(CemtEvaluatorValueRef::String(&event.kind)),
+        "tag" => Some(optional_string_evaluator_value(event.tag.as_deref())),
+        "text" => Some(optional_string_evaluator_value(event.text.as_deref())),
+        "destination" => Some(optional_string_evaluator_value(
+            event.destination.as_deref(),
+        )),
+        "title" => Some(optional_string_evaluator_value(event.title.as_deref())),
+        "info" => Some(optional_string_evaluator_value(event.info.as_deref())),
+        "level" => Some(optional_u32_evaluator_value(event.level)),
+        "checked" => Some(optional_bool_evaluator_value(event.checked)),
+        "orderedStart" => Some(optional_u64_evaluator_value(event.ordered_start)),
+        "byteOffset" => Some(u64_evaluator_value(event.source_range.start.byte_offset)),
+        "byteLength" => Some(u64_evaluator_value(event.source_range.byte_length)),
+        "sourceRange" => Some(CemtEvaluatorValueRef::Record(
+            CemtEvaluatorRecordRef::MarkdownSourceRange {
+                range: event.source_range,
+            },
+        )),
+        "sourceMap" => Some(CemtEvaluatorValueRef::OwnedSourceMap(Arc::new(
+            event.source_range.source_map(),
+        ))),
+        _ => None,
+    }
+}
+
+fn markdown_optional_source_range_evaluator_value(
+    range: Option<MarkdownSourceRange>,
+) -> CemtEvaluatorValueRef<'static> {
+    match range {
+        Some(range) => {
+            CemtEvaluatorValueRef::Record(CemtEvaluatorRecordRef::MarkdownSourceRange { range })
+        }
+        None => CemtEvaluatorValueRef::Null,
+    }
+}
+
+fn markdown_optional_source_map_evaluator_value(
+    range: Option<MarkdownSourceRange>,
+) -> CemtEvaluatorValueRef<'static> {
+    match range {
+        Some(range) => CemtEvaluatorValueRef::OwnedSourceMap(Arc::new(range.source_map())),
+        None => CemtEvaluatorValueRef::Null,
+    }
+}
+
+fn markdown_source_range_evaluator_field(
+    range: MarkdownSourceRange,
+    name: &str,
+) -> Option<CemtEvaluatorValueRef<'static>> {
+    match name {
+        "byteOffset" => Some(u64_evaluator_value(range.start.byte_offset)),
+        "byteLength" => Some(u64_evaluator_value(range.byte_length)),
+        "line" => Some(u64_evaluator_value(u64::from(range.start.line))),
+        "column" => Some(u64_evaluator_value(u64::from(range.start.column))),
+        _ => None,
     }
 }
 
@@ -5234,6 +5668,14 @@ fn writer_token_metadata_evaluator_field<'a>(
             }
             None => CemtEvaluatorValueRef::Null,
         }),
+        "eventIndex" => Some(optional_u64_evaluator_value(metadata.event_index)),
+        "eventKind" => Some(optional_string_evaluator_value(
+            metadata.event_kind.as_deref(),
+        )),
+        "eventTag" => Some(optional_string_evaluator_value(
+            metadata.event_tag.as_deref(),
+        )),
+        "package" => Some(optional_string_evaluator_value(metadata.package.as_deref())),
         "layout" => Some(optional_string_evaluator_value(metadata.layout.as_deref())),
         "lineEnding" => Some(optional_string_evaluator_value(
             metadata.line_ending.as_deref(),
@@ -6042,6 +6484,131 @@ mod tests {
             "JSON fixture diagnostics: {diagnostics:?}"
         );
         Arc::new(document.expect("lossless JSON document AST"))
+    }
+
+    #[test]
+    fn markdown_document_evaluator_view_borrows_events_facts_ranges_and_maps() {
+        use crate::validation::markdown::{
+            markdown_document_ast_from_source_bytes, MarkdownSourceValidationRequest,
+        };
+
+        let source = "# Release\r\n\r\n3. [x] **Ready** with [docs](https://example.test \"Guide\")\r\n\r\n> quoted\r\n\r\n```rust\r\nlet ready = true;\r\n```\r\n\r\n| name | state |\r\n| --- | --- |\r\n| CEM | ready |\r\n\r\n<div>embedded</div>\r\n";
+        let (document, diagnostics) =
+            markdown_document_ast_from_source_bytes(MarkdownSourceValidationRequest {
+                bytes: source.as_bytes(),
+                source_uri: "memory:borrowed.md",
+                content_type: Some("text/markdown; charset=utf-8; variant=GFM"),
+            });
+        assert!(
+            diagnostics
+                .iter()
+                .all(|diagnostic| diagnostic.code == "cem.markdown.embedded_html_rejected"),
+            "Markdown fixture diagnostics: {diagnostics:?}"
+        );
+        let owner = Arc::new(document.expect("Markdown document AST"));
+        let subject = MarkdownDocumentCemtSubjectRef::new(owner.as_ref());
+        assert!(std::ptr::eq(subject.document(), owner.as_ref()));
+
+        let document = CemtEvaluatorValue::borrowed(subject.evaluator_view());
+        assert_eq!(
+            document
+                .resolve_path("source.parameters.variant")
+                .and_then(|value| value.as_str().map(str::to_owned))
+                .as_deref(),
+            Some("GFM")
+        );
+        assert_eq!(
+            document
+                .field("lineEnding")
+                .and_then(|value| value.as_str().map(str::to_owned))
+                .as_deref(),
+            Some("crlf")
+        );
+        let variant_facts = document
+            .field("variantFacts")
+            .expect("variant facts")
+            .sequence_values("variant facts")
+            .expect("variant fact sequence");
+        assert_eq!(variant_facts.len(), 1);
+        assert_eq!(
+            variant_facts[0]
+                .field("kind")
+                .and_then(|value| value.as_str().map(str::to_owned))
+                .as_deref(),
+            Some("known-variant")
+        );
+        let parse_facts = document
+            .field("parseFacts")
+            .expect("parse facts")
+            .sequence_values("parse facts")
+            .expect("parse fact sequence");
+        assert!(!parse_facts.is_empty());
+        assert!(parse_facts[0]
+            .field("sourceMap")
+            .and_then(|value| value.as_source_map().cloned())
+            .is_some());
+
+        let events = document
+            .field("events")
+            .expect("Markdown events")
+            .sequence_values("Markdown events")
+            .expect("Markdown event sequence");
+        for tag in [
+            "heading",
+            "ordered-list",
+            "strong",
+            "link",
+            "blockquote",
+            "code-block",
+            "table",
+        ] {
+            assert!(
+                events.iter().any(|event| {
+                    event
+                        .field("tag")
+                        .and_then(|value| value.as_str().map(str::to_owned))
+                        .as_deref()
+                        == Some(tag)
+                }),
+                "missing borrowed Markdown event tag `{tag}`"
+            );
+        }
+        assert!(events.iter().any(|event| {
+            event.field("checked").and_then(|value| value.as_bool()) == Some(true)
+        }));
+        assert!(events.iter().any(|event| {
+            event
+                .field("orderedStart")
+                .and_then(|value| value.as_number())
+                .and_then(CemtEvaluatorNumber::as_u64)
+                == Some(3)
+        }));
+        let link = events
+            .iter()
+            .find(|event| {
+                event
+                    .field("tag")
+                    .and_then(|value| value.as_str().map(str::to_owned))
+                    .as_deref()
+                    == Some("link")
+            })
+            .expect("link event");
+        assert_eq!(
+            link.field("destination")
+                .and_then(|value| value.as_str().map(str::to_owned))
+                .as_deref(),
+            Some("https://example.test")
+        );
+        assert_eq!(
+            link.field("title")
+                .and_then(|value| value.as_str().map(str::to_owned))
+                .as_deref(),
+            Some("Guide")
+        );
+        assert!(link
+            .field("sourceMap")
+            .and_then(|value| value.as_source_map().cloned())
+            .is_some());
     }
 
     #[test]

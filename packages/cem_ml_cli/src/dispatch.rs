@@ -12839,7 +12839,7 @@ active: true
     }
 
     #[test]
-    fn convert_markdown_same_schema_uses_lifecycle_output_pipeline() {
+    fn convert_markdown_same_schema_uses_borrowed_lifecycle_ast_stream() {
         let p = write_fixture(
             "convert-markdown-same-schema.md",
             r#"# Release Notes
