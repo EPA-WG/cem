@@ -6,7 +6,9 @@ use crate::projection::{
     CemTreeAstAttribute, CemTreeAstNode, CemTreeAstStream, CemTreeAstWriterTokenMetadata,
     CemTreeAstWriterTokenSourceRange, CemTreeAstWriterTokenStyle,
 };
-use crate::schema::registry::{content_type_essence, JSON_CONTENT_TYPE};
+use crate::schema::registry::{
+    content_type_essence, JSON_CONTENT_TYPE, JSON_SCHEMA_CONTENT_TYPE, JSON_SCHEMA_SCHEMA_URI,
+};
 use crate::source_map::SourceMapStack;
 use crate::validation::generic_data::{
     GenericDataDocumentAst, GenericDataMappingEntryAst, GenericDataSourceRangeAst,
@@ -14,6 +16,10 @@ use crate::validation::generic_data::{
 };
 use crate::validation::json::{
     JsonDocumentAst, JsonMemberAst, JsonNumberKind, JsonSourceRange, JsonValueAst,
+};
+use crate::validation::json_schema::{
+    json_schema_source_map, JsonSchemaDialectFact, JsonSchemaDocumentAst, JsonSchemaDocumentSource,
+    JsonSchemaParseFact,
 };
 use crate::validation::xpath::XPathResultArtifact;
 use std::any::Any;
@@ -875,6 +881,31 @@ pub struct GenericDataJsonDocumentCemtSubjectRef<'a> {
     document: &'a GenericDataDocumentAst,
 }
 
+#[derive(Debug, Clone, Copy)]
+pub struct JsonSchemaDocumentCemtSubjectRef<'a> {
+    document: &'a JsonSchemaDocumentAst,
+}
+
+impl<'a> JsonSchemaDocumentCemtSubjectRef<'a> {
+    pub fn new(document: &'a JsonSchemaDocumentAst) -> Self {
+        Self { document }
+    }
+
+    pub fn document(self) -> &'a JsonSchemaDocumentAst {
+        self.document
+    }
+
+    pub fn json_document(self) -> &'a JsonDocumentAst {
+        &self.document.json
+    }
+
+    pub fn evaluator_view(self) -> CemtEvaluatorValueRef<'a> {
+        CemtEvaluatorValueRef::Record(CemtEvaluatorRecordRef::JsonSchemaDocument {
+            document: self.document,
+        })
+    }
+}
+
 impl<'a> GenericDataJsonDocumentCemtSubjectRef<'a> {
     pub fn new(document: &'a GenericDataDocumentAst) -> Self {
         Self { document }
@@ -939,6 +970,7 @@ pub enum CemtEvaluatorValueRef<'a> {
     Number(CemtEvaluatorNumber),
     String(&'a str),
     OwnedString(Arc<str>),
+    StringMap(&'a BTreeMap<String, String>),
     Sequence(CemtEvaluatorSequenceRef<'a>),
     Record(CemtEvaluatorRecordRef<'a>),
     SourceMap(&'a SourceMapStack),
@@ -952,6 +984,7 @@ impl<'a> CemtEvaluatorValueRef<'a> {
             Self::Boolean(_) => CemtEvaluatorValueKind::Boolean,
             Self::Number(_) => CemtEvaluatorValueKind::Number,
             Self::String(_) | Self::OwnedString(_) => CemtEvaluatorValueKind::String,
+            Self::StringMap(_) => CemtEvaluatorValueKind::Record,
             Self::Sequence(_) => CemtEvaluatorValueKind::Sequence,
             Self::Record(_) => CemtEvaluatorValueKind::Record,
             Self::SourceMap(_) | Self::OwnedSourceMap(_) => CemtEvaluatorValueKind::SourceMap,
@@ -1010,7 +1043,11 @@ impl<'a> CemtEvaluatorValueRef<'a> {
     }
 
     pub fn field(&self, name: &str) -> Option<Self> {
-        self.as_record()?.field(name)
+        match self {
+            Self::Record(record) => record.field(name),
+            Self::StringMap(values) => values.get(name).map(|value| Self::String(value)),
+            _ => None,
+        }
     }
 
     pub fn item(&self, index: usize) -> Option<Self> {
@@ -1028,6 +1065,9 @@ impl<'a> CemtEvaluatorValueRef<'a> {
             }
             self = match &self {
                 Self::Record(record) => record.field(segment)?,
+                Self::StringMap(values) => {
+                    CemtEvaluatorValueRef::String(values.get(segment)?.as_str())
+                }
                 Self::Sequence(sequence) => sequence.item(segment.parse::<usize>().ok()?)?,
                 _ => return None,
             };
@@ -1271,6 +1311,9 @@ impl<'a> CemtEvaluatorValue<'a> {
             Self::Borrowed(CemtEvaluatorValueRef::Record(record)) => {
                 record.field(name).map(Self::from_borrowed_ref)
             }
+            Self::Borrowed(CemtEvaluatorValueRef::StringMap(values)) => values
+                .get(name)
+                .map(|value| Self::Borrowed(CemtEvaluatorValueRef::String(value))),
             _ => None,
         }
     }
@@ -1318,6 +1361,7 @@ impl<'a> CemtEvaluatorValue<'a> {
                 .iter()
                 .filter(|name| value.field(name).is_some())
                 .count()),
+            Self::Borrowed(CemtEvaluatorValueRef::StringMap(values)) => Ok(values.len()),
             _ => Err(CemtEvaluatorValueAccessError::UnsupportedOperation {
                 operation: "length",
                 actual: self.kind(),
@@ -1558,6 +1602,9 @@ impl<'a> CemtEvaluatorValue<'a> {
                 .filter(|name| record.field(name).is_some())
                 .map(|name| (*name).to_owned())
                 .collect()),
+            Self::Borrowed(CemtEvaluatorValueRef::StringMap(values)) => {
+                Ok(values.keys().cloned().collect())
+            }
             _ => Err(CemtEvaluatorValueAccessError::UnsupportedOperation {
                 operation,
                 actual: self.kind(),
@@ -1690,6 +1737,12 @@ pub enum CemtEvaluatorSequenceRef<'a> {
     GenericDataJsonValues {
         values: &'a [GenericDataValueAst],
     },
+    JsonSchemaParseFacts {
+        facts: &'a [JsonSchemaParseFact],
+    },
+    JsonSchemaDialectFacts {
+        facts: &'a [JsonSchemaDialectFact],
+    },
     Nodes {
         nodes: &'a [CemTreeAstNode],
         parent: Option<CemtOwnerPath>,
@@ -1776,6 +1829,8 @@ impl<'a> CemtEvaluatorSequenceRef<'a> {
             Self::GenericDataJsonDocuments { documents } => documents.len(),
             Self::GenericDataJsonEntries { entries } => entries.len(),
             Self::GenericDataJsonValues { values } => values.len(),
+            Self::JsonSchemaParseFacts { facts } => facts.len(),
+            Self::JsonSchemaDialectFacts { facts } => facts.len(),
             Self::Nodes { nodes, .. } => nodes.len(),
             Self::Attributes { attributes, .. } => attributes.len(),
             Self::FormattedNodes {
@@ -1829,6 +1884,18 @@ impl<'a> CemtEvaluatorSequenceRef<'a> {
                 let value = values.get(index)?;
                 Some(CemtEvaluatorValueRef::Record(
                     CemtEvaluatorRecordRef::GenericDataJsonValue { value },
+                ))
+            }
+            Self::JsonSchemaParseFacts { facts } => {
+                let fact = facts.get(index)?;
+                Some(CemtEvaluatorValueRef::Record(
+                    CemtEvaluatorRecordRef::JsonSchemaParseFact { fact },
+                ))
+            }
+            Self::JsonSchemaDialectFacts { facts } => {
+                let fact = facts.get(index)?;
+                Some(CemtEvaluatorValueRef::Record(
+                    CemtEvaluatorRecordRef::JsonSchemaDialectFact { fact },
                 ))
             }
             Self::Nodes { nodes, parent } => {
@@ -2059,6 +2126,21 @@ pub enum CemtEvaluatorRecordRef<'a> {
     JsonSourceRange {
         range: JsonSourceRange,
     },
+    JsonSchemaDocument {
+        document: &'a JsonSchemaDocumentAst,
+    },
+    JsonSchemaSource {
+        source: &'a JsonSchemaDocumentSource,
+    },
+    JsonSchemaParseFact {
+        fact: &'a JsonSchemaParseFact,
+    },
+    JsonSchemaParseFactSourceRange {
+        fact: &'a JsonSchemaParseFact,
+    },
+    JsonSchemaDialectFact {
+        fact: &'a JsonSchemaDialectFact,
+    },
     GenericDataJsonDocument {
         document: &'a GenericDataDocumentAst,
     },
@@ -2140,6 +2222,11 @@ impl<'a> CemtEvaluatorRecordRef<'a> {
             | Self::JsonValue { .. }
             | Self::JsonMember { .. }
             | Self::JsonSourceRange { .. }
+            | Self::JsonSchemaDocument { .. }
+            | Self::JsonSchemaSource { .. }
+            | Self::JsonSchemaParseFact { .. }
+            | Self::JsonSchemaParseFactSourceRange { .. }
+            | Self::JsonSchemaDialectFact { .. }
             | Self::GenericDataJsonDocument { .. }
             | Self::GenericDataJsonValue { .. }
             | Self::GenericDataJsonMember { .. }
@@ -2172,6 +2259,11 @@ impl<'a> CemtEvaluatorRecordRef<'a> {
             | Self::JsonValue { .. }
             | Self::JsonMember { .. }
             | Self::JsonSourceRange { .. }
+            | Self::JsonSchemaDocument { .. }
+            | Self::JsonSchemaSource { .. }
+            | Self::JsonSchemaParseFact { .. }
+            | Self::JsonSchemaParseFactSourceRange { .. }
+            | Self::JsonSchemaDialectFact { .. }
             | Self::GenericDataJsonDocument { .. }
             | Self::GenericDataJsonValue { .. }
             | Self::GenericDataJsonMember { .. }
@@ -2253,6 +2345,57 @@ impl<'a> CemtEvaluatorRecordRef<'a> {
                 "value",
             ],
             Self::JsonSourceRange { .. } => &["byteOffset", "byteLength", "line", "column"],
+            Self::JsonSchemaDocument { .. } => &[
+                "kind",
+                "contentType",
+                "schema",
+                "source",
+                "json",
+                "parseFacts",
+                "dialectFacts",
+                "dialect",
+            ],
+            Self::JsonSchemaSource { .. } => &[
+                "uri",
+                "contentType",
+                "mediaType",
+                "parameters",
+                "byteLength",
+            ],
+            Self::JsonSchemaParseFact { .. } => &[
+                "kind",
+                "diagnosticCode",
+                "diagnosticSeverity",
+                "fatal",
+                "memberName",
+                "line",
+                "column",
+                "byteOffset",
+                "byteLength",
+                "message",
+                "sourceRange",
+            ],
+            Self::JsonSchemaParseFactSourceRange { .. } => {
+                &["byteOffset", "byteLength", "line", "column"]
+            }
+            Self::JsonSchemaDialectFact { fact } if fact.source_range.is_some() => &[
+                "kind",
+                "dialect",
+                "diagnosticCode",
+                "diagnosticSeverity",
+                "fatal",
+                "message",
+                "sourceRange",
+                "sourceMap",
+            ],
+            Self::JsonSchemaDialectFact { .. } => &[
+                "kind",
+                "dialect",
+                "diagnosticCode",
+                "diagnosticSeverity",
+                "fatal",
+                "message",
+            ],
             Self::GenericDataJsonDocument { .. } => &[
                 "kind",
                 "contentType",
@@ -2459,6 +2602,19 @@ impl<'a> CemtEvaluatorRecordRef<'a> {
             Self::JsonValue { value } => json_value_evaluator_field(value, name),
             Self::JsonMember { member } => json_member_evaluator_field(member, name),
             Self::JsonSourceRange { range } => json_source_range_evaluator_field(*range, name),
+            Self::JsonSchemaDocument { document } => {
+                json_schema_document_evaluator_field(document, name)
+            }
+            Self::JsonSchemaSource { source } => json_schema_source_evaluator_field(source, name),
+            Self::JsonSchemaParseFact { fact } => {
+                json_schema_parse_fact_evaluator_field(fact, name)
+            }
+            Self::JsonSchemaParseFactSourceRange { fact } => {
+                json_schema_parse_fact_source_range_evaluator_field(fact, name)
+            }
+            Self::JsonSchemaDialectFact { fact } => {
+                json_schema_dialect_fact_evaluator_field(fact, name)
+            }
             Self::GenericDataJsonDocument { document } => {
                 generic_data_json_document_evaluator_field(document, name)
             }
@@ -2710,6 +2866,124 @@ fn json_source_range_evaluator_field(
     Some(CemtEvaluatorValueRef::Number(
         CemtEvaluatorNumber::unsigned_integer(value),
     ))
+}
+
+fn json_schema_document_evaluator_field<'a>(
+    document: &'a JsonSchemaDocumentAst,
+    name: &str,
+) -> Option<CemtEvaluatorValueRef<'a>> {
+    match name {
+        "kind" => Some(CemtEvaluatorValueRef::String("json-schema-document")),
+        "contentType" => Some(CemtEvaluatorValueRef::String(JSON_SCHEMA_CONTENT_TYPE)),
+        "schema" => Some(CemtEvaluatorValueRef::String(JSON_SCHEMA_SCHEMA_URI)),
+        "source" => Some(CemtEvaluatorValueRef::Record(
+            CemtEvaluatorRecordRef::JsonSchemaSource {
+                source: &document.source,
+            },
+        )),
+        "json" => Some(JsonDocumentCemtSubjectRef::new(&document.json).evaluator_view()),
+        "parseFacts" => Some(CemtEvaluatorValueRef::Sequence(
+            CemtEvaluatorSequenceRef::JsonSchemaParseFacts {
+                facts: &document.parse_facts,
+            },
+        )),
+        "dialectFacts" => Some(CemtEvaluatorValueRef::Sequence(
+            CemtEvaluatorSequenceRef::JsonSchemaDialectFacts {
+                facts: &document.dialect_facts,
+            },
+        )),
+        "dialect" => Some(CemtEvaluatorValueRef::String(&document.dialect)),
+        _ => None,
+    }
+}
+
+fn json_schema_source_evaluator_field<'a>(
+    source: &'a JsonSchemaDocumentSource,
+    name: &str,
+) -> Option<CemtEvaluatorValueRef<'a>> {
+    match name {
+        "uri" => Some(CemtEvaluatorValueRef::String(&source.uri)),
+        "contentType" => Some(CemtEvaluatorValueRef::String(&source.content_type)),
+        "mediaType" => Some(CemtEvaluatorValueRef::String(&source.media_type)),
+        "parameters" => Some(CemtEvaluatorValueRef::StringMap(&source.parameters)),
+        "byteLength" => Some(CemtEvaluatorValueRef::Number(
+            CemtEvaluatorNumber::unsigned_integer(
+                u64::try_from(source.byte_length).unwrap_or(u64::MAX),
+            ),
+        )),
+        _ => None,
+    }
+}
+
+fn json_schema_parse_fact_evaluator_field<'a>(
+    fact: &'a JsonSchemaParseFact,
+    name: &str,
+) -> Option<CemtEvaluatorValueRef<'a>> {
+    match name {
+        "kind" => Some(CemtEvaluatorValueRef::String(fact.kind.as_str())),
+        "diagnosticCode" => Some(CemtEvaluatorValueRef::String(&fact.diagnostic_code)),
+        "diagnosticSeverity" => Some(CemtEvaluatorValueRef::String(&fact.diagnostic_severity)),
+        "fatal" => Some(CemtEvaluatorValueRef::Boolean(fact.fatal)),
+        "memberName" => Some(optional_string_evaluator_value(fact.member_name.as_deref())),
+        "line" => Some(optional_u32_evaluator_value(fact.line)),
+        "column" => Some(optional_u32_evaluator_value(fact.column)),
+        "byteOffset" => Some(optional_u64_evaluator_value(fact.byte_offset)),
+        "byteLength" => Some(optional_u64_evaluator_value(fact.byte_length)),
+        "message" => Some(CemtEvaluatorValueRef::String(&fact.message)),
+        "sourceRange" => Some(CemtEvaluatorValueRef::Record(
+            CemtEvaluatorRecordRef::JsonSchemaParseFactSourceRange { fact },
+        )),
+        _ => None,
+    }
+}
+
+fn json_schema_parse_fact_source_range_evaluator_field(
+    fact: &JsonSchemaParseFact,
+    name: &str,
+) -> Option<CemtEvaluatorValueRef<'static>> {
+    match name {
+        "byteOffset" => Some(optional_u64_evaluator_value(fact.byte_offset)),
+        "byteLength" => Some(optional_u64_evaluator_value(fact.byte_length)),
+        "line" => Some(optional_u32_evaluator_value(fact.line)),
+        "column" => Some(optional_u32_evaluator_value(fact.column)),
+        _ => None,
+    }
+}
+
+fn json_schema_dialect_fact_evaluator_field<'a>(
+    fact: &'a JsonSchemaDialectFact,
+    name: &str,
+) -> Option<CemtEvaluatorValueRef<'a>> {
+    match name {
+        "kind" => Some(CemtEvaluatorValueRef::String(fact.kind.as_str())),
+        "dialect" => Some(optional_string_evaluator_value(fact.dialect.as_deref())),
+        "diagnosticCode" => Some(optional_string_evaluator_value(
+            fact.diagnostic_code.as_deref(),
+        )),
+        "diagnosticSeverity" => Some(optional_string_evaluator_value(
+            fact.diagnostic_severity.as_deref(),
+        )),
+        "fatal" => Some(CemtEvaluatorValueRef::Boolean(fact.fatal)),
+        "message" => Some(CemtEvaluatorValueRef::String(&fact.message)),
+        "sourceRange" => fact.source_range.map(|range| {
+            CemtEvaluatorValueRef::Record(CemtEvaluatorRecordRef::JsonSourceRange { range })
+        }),
+        "sourceMap" => fact.source_range.map(|range| {
+            CemtEvaluatorValueRef::OwnedSourceMap(Arc::new(json_schema_source_map(range)))
+        }),
+        _ => None,
+    }
+}
+
+fn optional_u32_evaluator_value(value: Option<u32>) -> CemtEvaluatorValueRef<'static> {
+    optional_u64_evaluator_value(value.map(u64::from))
+}
+
+fn optional_u64_evaluator_value(value: Option<u64>) -> CemtEvaluatorValueRef<'static> {
+    match value {
+        Some(value) => CemtEvaluatorValueRef::Number(CemtEvaluatorNumber::unsigned_integer(value)),
+        None => CemtEvaluatorValueRef::Null,
+    }
 }
 
 fn generic_data_json_document_evaluator_field<'a>(
@@ -3929,6 +4203,195 @@ mod tests {
                 .and_then(|value| value.as_number())
                 .and_then(CemtEvaluatorNumber::as_u64),
             Some(12)
+        );
+    }
+
+    #[test]
+    fn json_schema_document_evaluator_view_borrows_outer_and_nested_owners() {
+        use crate::schema::registry::JSON_SCHEMA_CONTENT_TYPE;
+        use crate::validation::json::{
+            json_document_ast_from_source_bytes, JsonParseFactKind, JsonSourceValidationRequest,
+            JsonValueAst,
+        };
+        use crate::validation::json_schema::{
+            JsonSchemaDialectFact, JsonSchemaDialectFactKind, JsonSchemaDocumentAst,
+            JsonSchemaDocumentSource, JsonSchemaParseFact,
+        };
+
+        let source = r#"{"$schema":"https://json-schema.org/draft/2020-12/schema","same":1.2300e+4,"same":true,"properties":{"flag":true}}"#;
+        let (json, diagnostics) =
+            json_document_ast_from_source_bytes(JsonSourceValidationRequest {
+                bytes: source.as_bytes(),
+                source_uri: "memory:schema-owner",
+                content_type: Some(JSON_SCHEMA_CONTENT_TYPE),
+            });
+        assert!(
+            diagnostics
+                .iter()
+                .all(|diagnostic| !diagnostic.severity.is_hard_violation()),
+            "JSON Schema fixture diagnostics: {diagnostics:?}"
+        );
+        let json = json.expect("lossless nested JSON AST");
+        let dialect_range = match json.root.as_ref() {
+            Some(JsonValueAst::Object { members, .. }) => members[0].value.range(),
+            root => panic!("expected JSON Schema object root, received {root:?}"),
+        };
+        let owner = Arc::new(JsonSchemaDocumentAst {
+            source: JsonSchemaDocumentSource {
+                uri: "memory:schema-owner".to_owned(),
+                content_type: "application/schema+json; charset=utf-8; profile=contract-test"
+                    .to_owned(),
+                media_type: JSON_SCHEMA_CONTENT_TYPE.to_owned(),
+                parameters: BTreeMap::from([
+                    ("charset".to_owned(), "utf-8".to_owned()),
+                    ("profile".to_owned(), "contract-test".to_owned()),
+                ]),
+                byte_length: source.len(),
+            },
+            json,
+            parse_facts: vec![JsonSchemaParseFact {
+                kind: JsonParseFactKind::DuplicateMemberName,
+                diagnostic_code: "cem.json_schema.parse_error".to_owned(),
+                diagnostic_severity: "warning".to_owned(),
+                fatal: false,
+                member_name: Some("same".to_owned()),
+                line: Some(1),
+                column: Some(75),
+                byte_offset: Some(74),
+                byte_length: Some(6),
+                message: "duplicate JSON object member name `same`".to_owned(),
+            }],
+            dialect_facts: vec![JsonSchemaDialectFact {
+                kind: JsonSchemaDialectFactKind::SupportedDialect,
+                dialect: Some("https://json-schema.org/draft/2020-12/schema".to_owned()),
+                diagnostic_code: None,
+                diagnostic_severity: None,
+                fatal: false,
+                source_range: Some(dialect_range),
+                message: "JSON Schema dialect is supported".to_owned(),
+            }],
+            dialect: "https://json-schema.org/draft/2020-12/schema".to_owned(),
+        });
+        let subject = JsonSchemaDocumentCemtSubjectRef::new(owner.as_ref());
+
+        assert!(std::ptr::eq(subject.document(), owner.as_ref()));
+        assert!(std::ptr::eq(subject.json_document(), &owner.json));
+        assert_eq!(
+            subject
+                .evaluator_view()
+                .resolve_path("source.parameters.charset")
+                .and_then(|value| value.as_str()),
+            Some("utf-8")
+        );
+
+        let document = CemtEvaluatorValue::borrowed(subject.evaluator_view());
+        assert_eq!(
+            document
+                .field("contentType")
+                .and_then(|value| { value.as_str().map(str::to_owned) }),
+            Some(JSON_SCHEMA_CONTENT_TYPE.to_owned())
+        );
+        assert_eq!(
+            document
+                .field("dialect")
+                .and_then(|value| value.as_str().map(str::to_owned))
+                .as_deref(),
+            Some("https://json-schema.org/draft/2020-12/schema")
+        );
+
+        let source = document.field("source").expect("JSON Schema source");
+        assert_eq!(
+            source
+                .field("uri")
+                .and_then(|value| value.as_str().map(str::to_owned))
+                .as_deref(),
+            Some("memory:schema-owner")
+        );
+        let parameters = source.field("parameters").expect("source parameters");
+        assert_eq!(
+            parameters
+                .field("charset")
+                .and_then(|value| value.as_str().map(str::to_owned))
+                .as_deref(),
+            Some("utf-8")
+        );
+        assert_eq!(
+            parameters
+                .field("profile")
+                .and_then(|value| value.as_str().map(str::to_owned))
+                .as_deref(),
+            Some("contract-test")
+        );
+
+        let parse_facts = document
+            .field("parseFacts")
+            .expect("JSON Schema parse facts")
+            .sequence_values("JSON Schema parse facts")
+            .expect("parse fact sequence");
+        assert_eq!(parse_facts.len(), 1);
+        assert_eq!(
+            parse_facts[0]
+                .field("kind")
+                .and_then(|value| value.as_str().map(str::to_owned))
+                .as_deref(),
+            Some("duplicate-member-name")
+        );
+        assert_eq!(
+            parse_facts[0]
+                .field("memberName")
+                .and_then(|value| value.as_str().map(str::to_owned))
+                .as_deref(),
+            Some("same")
+        );
+        assert_eq!(
+            parse_facts[0]
+                .field("sourceRange")
+                .and_then(|range| range.field("byteLength"))
+                .and_then(|value| value.as_number())
+                .and_then(CemtEvaluatorNumber::as_u64),
+            Some(6)
+        );
+
+        let dialect_facts = document
+            .field("dialectFacts")
+            .expect("JSON Schema dialect facts")
+            .sequence_values("JSON Schema dialect facts")
+            .expect("dialect fact sequence");
+        assert_eq!(dialect_facts.len(), 1);
+        assert_eq!(
+            dialect_facts[0]
+                .field("kind")
+                .and_then(|value| value.as_str().map(str::to_owned))
+                .as_deref(),
+            Some("supported-dialect")
+        );
+        assert!(dialect_facts[0]
+            .field("sourceMap")
+            .and_then(|value| value.as_source_map().cloned())
+            .is_some());
+
+        let members = document
+            .field("json")
+            .and_then(|json| json.field("root"))
+            .and_then(|root| root.field("members"))
+            .expect("lossless nested JSON members")
+            .sequence_values("JSON Schema nested JSON members")
+            .expect("nested member sequence");
+        assert_eq!(members.len(), 4);
+        assert_eq!(
+            members[1]
+                .field("value")
+                .and_then(|value| value.field("lexeme"))
+                .and_then(|value| value.as_str().map(str::to_owned))
+                .as_deref(),
+            Some("1.2300e+4")
+        );
+        assert_eq!(
+            members[2]
+                .field("value")
+                .and_then(|value| value.field("value"))
+                .and_then(|value| value.as_bool()),
+            Some(true)
         );
     }
 

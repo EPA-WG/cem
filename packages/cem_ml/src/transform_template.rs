@@ -9630,6 +9630,249 @@ pub(crate) struct TransformTemplateMaterializedCemtWriterRequest<'a> {
     pub insertion_context: &'a TransformTemplateEncodedArtifactInsertionContext,
 }
 
+#[derive(Debug, Clone)]
+enum TransformTemplateMaterializedWriterPiece {
+    Node(usize),
+    GeneratedCloseSeparator(String),
+}
+
+#[derive(Debug)]
+struct TransformTemplateMaterializedWriterTokenLine {
+    tokens: Vec<usize>,
+    line_ending: Option<usize>,
+}
+
+#[derive(Debug)]
+struct TransformTemplateMaterializedWriterCloseScopeLine {
+    leading_tokens: Vec<usize>,
+    close_token: usize,
+    trailing_tokens: Vec<usize>,
+}
+
+fn transform_template_materialized_writer_token_plan(
+    artifact: &CemtMaterializedTreeArtifact,
+) -> Vec<TransformTemplateMaterializedWriterPiece> {
+    let nodes = artifact.owner().as_nodes();
+    let unchanged = || {
+        (0..nodes.len())
+            .map(TransformTemplateMaterializedWriterPiece::Node)
+            .collect::<Vec<_>>()
+    };
+    let formatter_profile = match artifact.pipeline() {
+        crate::transform_artifact::CemtMaterializedTreePipeline::Formatted { formatter }
+        | crate::transform_artifact::CemtMaterializedTreePipeline::Colored { formatter, .. } => {
+            formatter.profile()
+        }
+        crate::transform_artifact::CemtMaterializedTreePipeline::Raw { .. } => None,
+    };
+    if formatter_profile != Some("tabular") {
+        return unchanged();
+    }
+    let indent = nodes.iter().find_map(|node| match node {
+        CemTreeAstNode::WriterToken { metadata, .. } => metadata.indent.as_deref(),
+        _ => None,
+    });
+    let Some(indent) = indent.filter(|indent| !indent.is_empty()) else {
+        return unchanged();
+    };
+    let line_ending = nodes.iter().find_map(|node| match node {
+        CemTreeAstNode::WriterToken {
+            token_kind, text, ..
+        } if token_kind.ends_with("line-ending") && matches!(text.as_str(), "\n" | "\r\n") => {
+            Some(text.as_str())
+        }
+        _ => None,
+    });
+    let Some(line_ending) = line_ending else {
+        return unchanged();
+    };
+    let lines = transform_template_materialized_writer_token_lines(nodes, line_ending);
+    if lines.len() < 2 {
+        return unchanged();
+    }
+
+    let separator = transform_template_rendered_text_close_scope_separator(indent);
+    let mut compacted = Vec::with_capacity(nodes.len());
+    let mut changed = false;
+    let mut index = 0usize;
+    while index < lines.len() {
+        let Some(first_close_scope) =
+            transform_template_materialized_writer_close_scope_line(nodes, &lines[index], false)
+        else {
+            transform_template_push_materialized_writer_token_line(&mut compacted, &lines[index]);
+            index += 1;
+            continue;
+        };
+        let mut close_scopes = vec![first_close_scope];
+        let mut last_close_line = index;
+        while last_close_line + 1 < lines.len() {
+            let Some(next_close_scope) = transform_template_materialized_writer_close_scope_line(
+                nodes,
+                &lines[last_close_line + 1],
+                false,
+            ) else {
+                break;
+            };
+            close_scopes.push(next_close_scope);
+            last_close_line += 1;
+        }
+        if last_close_line + 1 < lines.len() {
+            if let Some(next_close_scope) = transform_template_materialized_writer_close_scope_line(
+                nodes,
+                &lines[last_close_line + 1],
+                true,
+            )
+            .filter(|line| !line.trailing_tokens.is_empty())
+            {
+                close_scopes.push(next_close_scope);
+                last_close_line += 1;
+            }
+        }
+        if close_scopes.len() <= 1 {
+            transform_template_push_materialized_writer_token_line(&mut compacted, &lines[index]);
+            index += 1;
+            continue;
+        }
+
+        changed = true;
+        if let Some(outer_close_scope) = close_scopes.last() {
+            compacted.extend(
+                outer_close_scope
+                    .leading_tokens
+                    .iter()
+                    .copied()
+                    .map(TransformTemplateMaterializedWriterPiece::Node),
+            );
+        }
+        for (close_index, close_scope) in close_scopes.iter().enumerate() {
+            if close_index > 0 {
+                compacted.push(
+                    TransformTemplateMaterializedWriterPiece::GeneratedCloseSeparator(
+                        separator.clone(),
+                    ),
+                );
+            }
+            compacted.push(TransformTemplateMaterializedWriterPiece::Node(
+                close_scope.close_token,
+            ));
+        }
+        if let Some(outer_close_scope) = close_scopes.last() {
+            compacted.extend(
+                outer_close_scope
+                    .trailing_tokens
+                    .iter()
+                    .copied()
+                    .map(TransformTemplateMaterializedWriterPiece::Node),
+            );
+        }
+        if let Some(line_ending) = lines[last_close_line].line_ending {
+            compacted.push(TransformTemplateMaterializedWriterPiece::Node(line_ending));
+        }
+        index = last_close_line + 1;
+    }
+    if changed {
+        compacted
+    } else {
+        unchanged()
+    }
+}
+
+fn transform_template_materialized_writer_token_lines(
+    nodes: &[CemTreeAstNode],
+    line_ending: &str,
+) -> Vec<TransformTemplateMaterializedWriterTokenLine> {
+    let mut lines = Vec::new();
+    let mut current = Vec::new();
+    for (index, node) in nodes.iter().enumerate() {
+        if transform_template_materialized_writer_token_text(node) == Some(line_ending) {
+            lines.push(TransformTemplateMaterializedWriterTokenLine {
+                tokens: std::mem::take(&mut current),
+                line_ending: Some(index),
+            });
+        } else {
+            current.push(index);
+        }
+    }
+    if !current.is_empty() {
+        lines.push(TransformTemplateMaterializedWriterTokenLine {
+            tokens: current,
+            line_ending: None,
+        });
+    }
+    lines
+}
+
+fn transform_template_push_materialized_writer_token_line(
+    output: &mut Vec<TransformTemplateMaterializedWriterPiece>,
+    line: &TransformTemplateMaterializedWriterTokenLine,
+) {
+    output.extend(
+        line.tokens
+            .iter()
+            .copied()
+            .map(TransformTemplateMaterializedWriterPiece::Node),
+    );
+    if let Some(line_ending) = line.line_ending {
+        output.push(TransformTemplateMaterializedWriterPiece::Node(line_ending));
+    }
+}
+
+fn transform_template_materialized_writer_close_scope_line(
+    nodes: &[CemTreeAstNode],
+    line: &TransformTemplateMaterializedWriterTokenLine,
+    allow_trailing_suffix: bool,
+) -> Option<TransformTemplateMaterializedWriterCloseScopeLine> {
+    let mut leading_tokens = Vec::new();
+    let mut close_token = None;
+    let mut trailing_tokens = Vec::new();
+    for index in &line.tokens {
+        let text = transform_template_materialized_writer_token_text(nodes.get(*index)?)?;
+        if close_token.is_none() {
+            if text.is_empty() || text.chars().all(char::is_whitespace) {
+                leading_tokens.push(*index);
+                continue;
+            }
+            if transform_template_cem_tree_writer_token_is_close_scope(text) {
+                close_token = Some(*index);
+                continue;
+            }
+            return None;
+        }
+        if text.is_empty() {
+            continue;
+        }
+        if text.chars().all(char::is_whitespace) {
+            if allow_trailing_suffix {
+                trailing_tokens.push(*index);
+            } else {
+                return None;
+            }
+            continue;
+        }
+        if allow_trailing_suffix
+            && transform_template_cem_tree_writer_token_is_close_scope_suffix(text)
+        {
+            trailing_tokens.push(*index);
+            continue;
+        }
+        return None;
+    }
+    close_token.map(
+        |close_token| TransformTemplateMaterializedWriterCloseScopeLine {
+            leading_tokens,
+            close_token,
+            trailing_tokens,
+        },
+    )
+}
+
+fn transform_template_materialized_writer_token_text(node: &CemTreeAstNode) -> Option<&str> {
+    match node {
+        CemTreeAstNode::WriterToken { text, .. } => Some(text),
+        _ => None,
+    }
+}
+
 pub(crate) fn execute_transform_template_materialized_cemt_writer(
     request: TransformTemplateMaterializedCemtWriterRequest<'_>,
 ) -> Result<TransformTemplateEncodedArtifact, String> {
@@ -9666,9 +9909,22 @@ pub(crate) fn execute_transform_template_materialized_cemt_writer(
             .or(inferred_output_color_type),
     );
     let color_overlay = request.artifact.color_overlay();
+    let token_plan = transform_template_materialized_writer_token_plan(&request.artifact);
     let mut text = String::new();
     let mut output_spans = Vec::new();
-    for (index, node) in request.artifact.owner().as_nodes().iter().enumerate() {
+    for piece in token_plan {
+        let index = match piece {
+            TransformTemplateMaterializedWriterPiece::Node(index) => index,
+            TransformTemplateMaterializedWriterPiece::GeneratedCloseSeparator(separator) => {
+                text.push_str(&transform_template_writer_token_rendered_text_for_role(
+                    &separator,
+                    Some("syntax.raw"),
+                    color_profile.as_ref(),
+                ));
+                continue;
+            }
+        };
+        let node = &request.artifact.owner().as_nodes()[index];
         let CemTreeAstNode::WriterToken {
             text: token_text,
             role,

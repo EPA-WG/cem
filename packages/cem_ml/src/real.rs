@@ -15961,6 +15961,62 @@ mod tests {
     }
 
     #[test]
+    fn convert_json_schema_uses_typed_materialized_ast_pipeline() {
+        let source_bytes = br#"{"$schema":"https://json-schema.org/draft/2020-12/schema","multipleOf":1.2300e+4,"properties":{"flag":true}}"#;
+        let mut source = input(source_bytes, "typed-output.schema.json");
+        source.identity = Some(FormatIdentity {
+            content_type: Some(JSON_SCHEMA_CONTENT_TYPE.to_owned()),
+            schema: Some(JSON_SCHEMA_SCHEMA_URI.to_owned()),
+            ..FormatIdentity::default()
+        });
+        let response = RealCemMlEngine::new()
+            .convert(ConvertRequest {
+                input: source,
+                to_format: LayerFormat::Json,
+                preserve_source_offsets: false,
+                context: ctx(),
+                target: Some(FormatIdentity {
+                    content_type: Some(JSON_SCHEMA_CONTENT_TYPE.to_owned()),
+                    schema: Some(JSON_SCHEMA_SCHEMA_URI.to_owned()),
+                    ..FormatIdentity::default()
+                }),
+                target_scope: ScopeConfig {
+                    cemt_formatter_profile: Some("compact".to_owned()),
+                    ..ScopeConfig::default()
+                },
+                scheduler_scope_id: 0,
+            })
+            .expect("typed JSON Schema conversion");
+
+        assert!(
+            response.diagnostics.is_empty(),
+            "{:?}",
+            response.diagnostics
+        );
+        assert_eq!(
+            response
+                .conversion
+                .as_ref()
+                .and_then(|conversion| conversion.converter_id.as_deref()),
+            Some("json-schema-lifecycle-output")
+        );
+        assert_eq!(
+            std::str::from_utf8(
+                &response
+                    .primary_bytes
+                    .as_ref()
+                    .expect("JSON Schema primary bytes")
+                    .bytes
+            )
+            .expect("UTF-8 JSON Schema output"),
+            concat!(
+                "{\"$schema\":\"https://json-schema.org/draft/2020-12/schema\",",
+                "\"multipleOf\":1.2300e+4,\"properties\":{\"flag\":true}}\n"
+            )
+        );
+    }
+
+    #[test]
     fn validate_json_schema_source_reports_schema_owned_lifecycle_diagnostics() {
         let mut source = input(
             br#"{"$schema":"http://json-schema.org/draft-07/schema#","type":"object"}"#,

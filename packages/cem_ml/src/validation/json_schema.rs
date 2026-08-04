@@ -37,27 +37,6 @@ pub struct JsonSchemaDocumentAst {
 }
 
 impl JsonSchemaDocumentAst {
-    pub fn to_cemt_subject(&self) -> Value {
-        json!({
-            "kind": "json-schema-document",
-            "contentType": JSON_SCHEMA_CONTENT_TYPE,
-            "schema": JSON_SCHEMA_SCHEMA_URI,
-            "source": self.source.to_cemt_subject(),
-            "json": self.json.to_cemt_subject(),
-            "parseFacts": self
-                .parse_facts
-                .iter()
-                .map(JsonSchemaParseFact::to_cemt_subject)
-                .collect::<Vec<_>>(),
-            "dialectFacts": self
-                .dialect_facts
-                .iter()
-                .map(JsonSchemaDialectFact::to_cemt_subject)
-                .collect::<Vec<_>>(),
-            "dialect": self.dialect,
-        })
-    }
-
     pub fn into_json_document_ast(self) -> JsonDocumentAst {
         self.json
     }
@@ -86,16 +65,6 @@ impl JsonSchemaDocumentSource {
             parameters: content_type_parameters(request.content_type),
             byte_length: request.bytes.len(),
         }
-    }
-
-    fn to_cemt_subject(&self) -> Value {
-        json!({
-            "uri": self.uri,
-            "contentType": self.content_type,
-            "mediaType": self.media_type,
-            "parameters": self.parameters,
-            "byteLength": self.byte_length,
-        })
     }
 }
 
@@ -128,27 +97,6 @@ impl JsonSchemaParseFact {
             byte_length: fact.byte_length,
             message: fact.message.clone(),
         }
-    }
-
-    fn to_cemt_subject(&self) -> Value {
-        json!({
-            "kind": self.kind.as_str(),
-            "diagnosticCode": self.diagnostic_code,
-            "diagnosticSeverity": self.diagnostic_severity,
-            "fatal": self.fatal,
-            "memberName": self.member_name,
-            "line": self.line,
-            "column": self.column,
-            "byteOffset": self.byte_offset,
-            "byteLength": self.byte_length,
-            "message": self.message,
-            "sourceRange": {
-                "byteOffset": self.byte_offset,
-                "byteLength": self.byte_length,
-                "line": self.line,
-                "column": self.column,
-            },
-        })
     }
 }
 
@@ -193,27 +141,6 @@ impl JsonSchemaDialectFact {
             source_range,
             message: "JSON Schema dialect is supported".to_owned(),
         }
-    }
-
-    fn to_cemt_subject(&self) -> Value {
-        let mut fact = serde_json::Map::new();
-        fact.insert("kind".to_owned(), json!(self.kind.as_str()));
-        fact.insert("dialect".to_owned(), json!(self.dialect));
-        fact.insert("diagnosticCode".to_owned(), json!(self.diagnostic_code));
-        fact.insert(
-            "diagnosticSeverity".to_owned(),
-            json!(self.diagnostic_severity),
-        );
-        fact.insert("fatal".to_owned(), json!(self.fatal));
-        fact.insert("message".to_owned(), json!(self.message));
-        if let Some(source_range) = self.source_range {
-            fact.insert("sourceRange".to_owned(), source_range.to_cemt_subject());
-            fact.insert(
-                "sourceMap".to_owned(),
-                json!(json_schema_source_map(source_range)),
-            );
-        }
-        Value::Object(fact)
     }
 }
 
@@ -457,7 +384,7 @@ fn source_map_for_parse_fact(fact: &JsonParseFact) -> Option<SourceMapStack> {
     })
 }
 
-fn json_schema_source_map(range: JsonSourceRange) -> SourceMapStack {
+pub(crate) fn json_schema_source_map(range: JsonSourceRange) -> SourceMapStack {
     SourceMapStack {
         frames: vec![SourceMapFrame {
             source_id: SourceId(1),

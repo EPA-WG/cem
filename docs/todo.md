@@ -1081,6 +1081,20 @@ Remaining dependency-ordered package checklist:
                     YAML scalar/sequence/mapping/missing-root/numeric and CSV
                     missing-name output cases plus source audits cover the
                     boundary.
+              - [x] Migrate JSON Schema output to a borrowed
+                    `JsonSchemaDocumentAst` evaluator that reuses the nested
+                    lossless JSON view without cloning its owner. Source
+                    metadata/parameters, dialect, parse facts, dialect facts,
+                    ranges, maps, duplicate members, boolean schemas, and exact
+                    lexemes remain typed; formatter and colorizer execution now
+                    produce a materialized writer-token stream plus typed
+                    owner-path overlay, the typed stage output retains that exact
+                    artifact, and the direct writer consumes it without a
+                    runtime `Value` handoff. The former JSON Schema AST
+                    serializer is deleted, with its `Value` pipeline retained
+                    only under `#[cfg(test)]` as a byte-parity oracle. Tabular
+                    close-scope compaction now operates as a non-mutating typed
+                    view over the materialized AST stream.
       - [x] Define typed raw, formatted, and colored CEM tree envelopes with
             ordered native nodes and lazy evaluator views over the owning AST.
       - [ ] Route formatter, colorizer, writer, graph, and secondary-input
@@ -1142,41 +1156,46 @@ Remaining dependency-ordered package checklist:
 
 ### Next Work Item
 
-Migrate the direct JSON Schema output pipeline to the serializer-free typed
-result contract. Lossless JSON and every generic-data-to-JSON production ingress
-now enter the JSON materialized formatter/colorizer/writer pipeline through
-borrowed evaluator views and exchange typed AST artifacts with exact owner
-identity. JSON Schema is next because it owns a lossless `JsonDocumentAst`, adds
-package-specific source/dialect/parse facts, and already shares the JSON token
-and writer contracts.
+Close the direct CSV output family on the serializer-free typed result contract.
+Lossless JSON, generic-data-to-JSON, and JSON Schema production paths now enter
+their package formatters through borrowed evaluator views and exchange typed
+materialized AST artifacts with exact owner identity. CSV is next because both
+native `CsvDocumentAst` reformatting and generic-data-to-CSV conversion still
+construct runtime `Value` subjects before the CSV formatter, while its formatter
+and colorizer already emit the same writer-token shape consumed by the typed
+materialized writer.
 
 Implement the next slice in this order:
 
-1. Define `JsonSchemaDocumentCemtSubjectRef` as a borrowed evaluator view over
-   the owning `JsonSchemaDocumentAst`. Reuse the existing lossless JSON view for
-   its nested `json` field and expose source metadata, dialect, parse facts, and
-   dialect facts directly with their ranges/maps; do not clone the nested JSON
-   AST into a second owner.
-2. Add failing parity and identity tests first. Cover draft 2020-12 roots,
-   boolean schemas, nested keywords, duplicate members, exact string/number
-   lexemes, recoverable parse facts, dialect diagnostics, source ranges/maps,
-   and pointer identity for both the outer JSON Schema owner and nested JSON
-   document.
-3. Give `JsonSchemaDocumentOutputSubject` a native evaluator path and route its
-   formatter through `execute_conversion_typed_cemt_output_stage`. Lower the
-   formatter result directly into `CemtMaterializedTreeArtifact`, pass the exact
-   formatted owner into the typed color overlay, and use the direct writer for
-   plain, terminal, HTML, and Markdown output.
-4. Delete the production `into_cemt_subject` and legacy runtime-`Value` stage
-   path for JSON Schema. Retain any `Value` subject only as an explicitly
-   test-only compatibility oracle, and add a source audit forbidding serializer,
-   DTO, composer, re-parser, or runtime-value handoffs between its layers.
-5. Run focused JSON Schema lifecycle/package cases, JSON Schema schema-package
-   verification, full core tests, converter parity, CLI e2e, lint, native build,
-   and WASM build. Once green, migrate the direct CSV output pipeline, followed
-   by YAML, Markdown, XML-family/XSLT, Relax NG, DOM projection, and remaining
-   generic CEMT producers before deleting `CemtEvaluator(Value)`,
-   `CemtRuntime(Value)`, and adapter DTO conversion globally.
+1. Define `CsvDocumentCemtSubjectRef` as a borrowed evaluator view over the
+   owning `CsvDocumentAst`. Expose source/encoding reports, dialect, header,
+   records, fields, parse facts, exact field lexemes, ranges, and source maps
+   directly, preserving duplicate and missing header names and owner identity.
+2. Define a CSV-contract view over `GenericDataDocumentAst` for production
+   JSON/YAML/generic-data-to-CSV ingress. Preserve the current table-shape,
+   generated-name, null/missing-cell, scalar coercion, ordering, range, and map
+   behavior without creating a `CsvDocumentAst`, serialized CSV document, or
+   `Value` DTO.
+3. Add failing native/generic parity and identity tests first, including quoted
+   delimiters/newlines, custom delimiter/header modes, duplicate and empty
+   headings, ragged rows, empty input, scalar/sequence/mapping generic data,
+   source maps, and exact output across compact, pretty, and tabular profiles.
+4. Give `CsvDocumentOutputSubject` a native evaluator path and route formatter
+   and colorizer stages through `execute_conversion_typed_cemt_output_stage`.
+   Lower writer tokens directly into `CemtMaterializedTreeArtifact`, retain the
+   exact formatted owner in the color overlay and typed stage body, and use the
+   direct writer for plain, terminal, HTML, and Markdown output.
+5. Delete production `CsvDocumentAst::to_cemt_subject`,
+   `generic_data_ast_to_csv_cemt_subject`, and the CSV runtime-`Value` composer
+   path. Keep any compatibility subject only under `#[cfg(test)]` as a parity
+   oracle and add source audits rejecting serializer, DTO, re-parser, composer,
+   or runtime-value handoffs between CSV layers.
+6. Run focused CSV lifecycle/conversion cases, CSV schema-package verification,
+   full core tests, converter parity, CLI e2e, lint, native build, and WASM
+   build. Once green, migrate YAML, Markdown, XML-family/XSLT, Relax NG, DOM
+   projection, and remaining generic CEMT producers before deleting
+   `CemtEvaluator(Value)`, `CemtRuntime(Value)`, and adapter DTO conversion
+   globally.
 
 ## Current Verification Commands
 
