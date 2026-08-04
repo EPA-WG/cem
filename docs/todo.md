@@ -1017,6 +1017,19 @@ Remaining dependency-ordered package checklist:
                     formatter/colorizer switch.
           - [ ] Give non-CEM CEMT tree producers package-owned typed result
                 artifacts, then remove `CemtEvaluator(Value)` globally.
+            - [x] Inventory remaining producers, consumers, owner models,
+                  stages, graph/secondary-input routing, and provenance gaps in
+                  `docs/cemt-non-cem-typed-result-inventory.md`.
+            - [ ] Decide whether a materialized result retains the original
+                  heterogeneous package AST or treats the generated
+                  `Arc<CemTreeAstStream>` as its owner with separate input
+                  provenance.
+            - [ ] Decide whether materialized CEMT results receive a first-class
+                  `TransformArtifactBody` variant or a closed native-extension
+                  representation.
+            - [ ] Introduce the recommended separate closed materialized-tree
+                  artifact family after both ownership and graph decisions are
+                  recorded.
       - [x] Define typed raw, formatted, and colored CEM tree envelopes with
             ordered native nodes and lazy evaluator views over the owning AST.
       - [ ] Route formatter, colorizer, writer, graph, and secondary-input
@@ -1078,39 +1091,34 @@ Remaining dependency-ordered package checklist:
 
 ### Next Work Item
 
-Stop at the typed-result contract decision for non-CEM CEMT tree producers.
-Inventory every remaining producer and consumer that can create, accept, or
-forward `CemtEvaluator(Value)`, including package-specific formatter/colorizer
-paths, graph artifacts, and secondary inputs. For each boundary, record its
-package owner, native AST type, result stage, declared result kind, overlay or
-edit metadata, source maps/provenance, and required owner identity.
+Resolve the two materialized-result contract decisions recorded in
+`docs/cemt-non-cem-typed-result-inventory.md`. The inventory proves that the
+remaining producers do not share the native CEM owner-plus-overlay lifecycle,
+so the recommended baseline is a separate closed materialized-tree artifact
+family rather than optional owner/stage fields on `CemtTreeArtifact`.
 
-Use that inventory to choose and document one of these contracts before making
-production edits:
+First decide what ownership means for generated package results: retain the
+original CSV, YAML, JSON, JSON Schema, Markdown, XML-family, XSLT, or Relax NG
+AST in a closed owner enum, or make the generated `Arc<CemTreeAstStream>` the
+result owner and carry input provenance separately. This choice determines
+whether direct pipeline APIs must change to accept `Arc` package owners and
+whether exact input-owner identity is an artifact invariant.
 
-- extend `CemtTreeArtifact` with a package-neutral closed owner/stage payload
-  when all remaining producers share the same lifecycle and invariants; or
-- introduce a second closed package-owned typed artifact family when their AST
-  ownership, stage model, or result invariants cannot be represented without
-  optional fields or runtime value-shape classification.
+Then decide whether the materialized result is a first-class
+`TransformArtifactBody` variant or a closed native extension. Prefer the body
+variant if exhaustive graph, join, and secondary-input dispatch is more
+important than keeping the shared body enum narrow; prefer the extension if
+representation registration and checked downcasts are the intended plugin
+boundary. Record both decisions before adding fields or production dispatch.
 
-The selected contract must retain the owning `Arc`, preserve package-native AST
-identity and source maps, validate stage and result kind at the producer
-boundary, lower exactly once at producer completion, support typed writer,
-graph, and secondary-input dispatch, and keep JSON encoding limited to explicit
-registered JSON or `+json` outputs. Reject a design that needs generic
-`serde_json::Value`, stringly typed stages, or downstream artifact-shape
-inspection.
-
-After the decision is recorded, add red tests for one representative non-CEM
-producer plus graph and secondary-input edges, then migrate all remaining
-producers atomically. Remove `CemtEvaluator(Value)` globally, route the remaining
-formatter, colorizer, writer, graph, and secondary-input boundaries through the
-chosen typed artifact, remove `CemtOutputArtifact`,
-`transform_template_output_cemt_subject`, and adapter DTO value conversion, and
-pass the current verification matrix. If the inventory exposes incompatible
-ownership or lifecycle models, stop and document the competing cases instead
-of selecting a contract implicitly.
+After those decisions, add red package formatter/colorizer/writer plus graph,
+ordered-join, and secondary-input tests. Migrate all remaining producers in one
+atomic slice, lower evaluator results once into the chosen typed artifact,
+remove `CemtOutputArtifact`, `transform_template_output_cemt_subject`,
+`CemtEvaluator(Value)`, `CemtRuntime(Value)`, and adapter DTO conversions, add
+source audits, and pass the current verification matrix. Keep the explicit-JSON
+DOM compatibility branch only behind a parser edge that immediately creates
+the typed artifact; otherwise remove it from production.
 
 ## Current Verification Commands
 
