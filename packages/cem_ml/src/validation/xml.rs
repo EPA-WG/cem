@@ -5,7 +5,9 @@ use crate::schema::registry::{content_type_essence, XML_CONTENT_TYPE, XML_SCHEMA
 use crate::source::line_index::LineIndex;
 use crate::source::{ByteRange, SourceId};
 use crate::source_map::{FrameSpan, SourceMapFrame, SourceMapStack, TransformKind};
-use serde_json::{json, Value};
+use serde_json::json;
+#[cfg(test)]
+use serde_json::Value;
 use std::collections::{BTreeMap, BTreeSet};
 
 const XML_PACKAGE_ID: &str = "xml";
@@ -28,6 +30,7 @@ pub struct XmlDocumentAst {
 }
 
 impl XmlDocumentAst {
+    #[cfg(test)]
     pub fn to_cemt_subject(&self) -> Value {
         json!({
             "kind": "xml-document",
@@ -75,6 +78,7 @@ impl XmlDocumentSource {
         }
     }
 
+    #[cfg(test)]
     fn to_cemt_subject(&self) -> Value {
         json!({
             "uri": self.uri,
@@ -95,6 +99,7 @@ pub struct XmlEncodingReportAst {
 }
 
 impl XmlEncodingReportAst {
+    #[cfg(test)]
     fn to_cemt_subject(&self) -> Value {
         json!({
             "mimeCharset": self.mime_charset,
@@ -122,6 +127,7 @@ pub struct XmlEventAst {
 }
 
 impl XmlEventAst {
+    #[cfg(test)]
     fn to_cemt_subject(&self) -> Value {
         json!({
             "index": self.index,
@@ -399,6 +405,7 @@ pub struct XmlAttributeAst {
 }
 
 impl XmlAttributeAst {
+    #[cfg(test)]
     fn to_cemt_subject(&self) -> Value {
         json!({
             "qualifiedName": self.qualified_name,
@@ -455,6 +462,7 @@ impl XmlSourceRange {
         }
     }
 
+    #[cfg(test)]
     fn to_cemt_subject(self) -> Value {
         json!({
             "byteOffset": self.start.byte_offset,
@@ -476,6 +484,7 @@ pub struct XmlParseFact {
 }
 
 impl XmlParseFact {
+    #[cfg(test)]
     fn to_cemt_subject(&self) -> Value {
         json!({
             "kind": self.kind.as_str(),

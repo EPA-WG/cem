@@ -1148,11 +1148,20 @@ Remaining dependency-ordered package checklist:
                     materialized writer-token stream and color overlay, retain
                     the selected artifact and owner `Arc` in the typed stage
                     body, and match the compatibility oracle. HTML, CSS,
-                    XHTML, SVG, MathML, and XSLT subject composers are
-                    test-only; the XML composer remains production-reachable
-                    only through the next unmigrated `RelaxNgDocumentAst` XML
-                    compatibility projection, with a source audit locking that
-                    single remaining owner.
+                    XHTML, SVG, MathML, XSLT, and XML subject composers are now
+                    test-only compatibility oracles.
+              - [x] Migrate both XML and compact `RelaxNgDocumentAst` output
+                    through `RelaxNgDocumentCemtSubjectRef`. The borrowed view
+                    preserves syntax kind, source/media parameters, parse and
+                    semantic facts, XML events or compact tokens, exact
+                    ranges/maps, and line endings. Syntax-selected formatters
+                    now materialize typed writer tokens (including typed
+                    `syntaxKind` metadata), colorizers attach an owner-path
+                    overlay to the same `Arc<CemTreeAstStream>`, the typed stage
+                    body retains the selected artifact, and the direct writer
+                    consumes it without a serialized DTO. RELAX NG and XML
+                    subject composers are test-only parity oracles, enforced
+                    by evaluator parity, `Arc::ptr_eq`, and source-audit tests.
       - [x] Define typed raw, formatted, and colored CEM tree envelopes with
             ordered native nodes and lazy evaluator views over the owning AST.
       - [ ] Route formatter, colorizer, writer, graph, and secondary-input
@@ -1214,52 +1223,44 @@ Remaining dependency-ordered package checklist:
 
 ### Next Work Item
 
-Close the shared XML-family output contract on the serializer-free typed-result
-lifecycle. JSON, JSON Schema, CSV, YAML, and Markdown production owners now enter
-their package formatters through borrowed evaluator views, retain the generated
-`Arc<CemTreeAstStream>` through coloring and the typed stage body, and use the
-direct materialized writer. The next boundary is
-`XmlDocumentOutputSubject::into_cemt_subject`, which currently erases seven
-distinct production owners—`XmlDocumentAst`, `HtmlDocumentAst`, `CssDocumentAst`,
-`XhtmlDocumentAst`, `SvgDocumentAst`, `MathMlDocumentAst`, and
-`XsltStylesheetAst`—before their common formatter/colorizer/writer pipeline.
-Migrate the shared boundary as one unit so no production owner can continue
-through the serializer fallback. Keep the separately tracked XSLT profile
-semantic polish out of this data-plane slice.
+Close the DOM-projection CEMT adapter next. The package document pipelines,
+including RELAX NG, now use borrowed AST views and typed materialized results.
+`DomProjectionParityCemtAdapter` is the next production producer that still
+clones a native `CemTreeAstStream` into a CEMT/JSON subject, constructs its
+formatted tree as `serde_json::Value`, wraps that value in `CemtOutputArtifact`,
+and asks the downstream output pipeline to rediscover the tree shape. Its
+explicit-JSON render branch is used by parity fixtures and must not become a
+native production owner.
 
 Implement the next slice in this order:
 
-1. Add parity tests first for borrowed views over all seven native owners. Cover
-   each package's source/media parameters, encoding report, document or entry
-   mode, recovery count, resource kind, profile/version fields, package facts,
-   ordered lexical events, attributes and namespaces, comments, CDATA,
-   processing instructions, doctypes, exact ranges/maps, and LF/CRLF policy.
-2. Define a closed borrowed XML-family subject enum with one concrete view and
-   representation ID per owner. Reuse a shared borrowed XML event/attribute/
-   range/map evaluator for XML-backed owners, but retain HTML and CSS native
-   token/event contracts and every package-specific event decoration; do not
-   normalize one owner into another AST or construct `serde_json::Value`.
-3. Replace `XmlDocumentOutputSubject::into_cemt_subject` with native line-ending,
-   representation, and borrowed-evaluator access. Route compact, pretty, and
-   tabular execution for every `XmlFamilyOutputSpec` through
-   `execute_conversion_typed_cemt_output_stage`, then lower formatter tokens
-   directly into `CemtMaterializedTreeArtifact`.
-4. Pass each exact formatted owner into its package colorizer, retain terminal,
-   HTML, and Markdown coloring as a validated owner-path overlay, expose the
-   exact selected materialized artifact as the typed stage body, and invoke the
-   direct materialized writer. Preserve package-specific HTML response wrapping
-   only after writer completion.
-5. Confine all seven top-level subject composers and recursive DTO helpers to
-   `#[cfg(test)]` parity use. Add source audits rejecting serializers,
-   runtime-value envelopes, legacy tree-stage execution, cross-owner AST
-   projection, and owner cloning within the shared XML-family production path.
-6. Add real same-schema identity/output tests for XML, HTML, CSS, XHTML, SVG,
-   MathML, and XSLT, including formatted-only and colored-overlay `Arc::ptr_eq`
-   assertions. Run focused owner cases, all seven schema-package verification
-   targets, core lint/build/test, WASM build, converter parity, and CLI e2e.
-   Once green, continue with Relax NG, DOM projection, and remaining generic
-   CEMT producers before removing `CemtEvaluator(Value)`, `CemtRuntime(Value)`,
-   and adapter DTO conversion globally.
+1. Add red tests that exercise the native `TransformArtifactBody::CemTree`
+   branch and assert exact input-owner/source-map identity through generated
+   formatted output. Add a source audit that rejects `into_cemt_subject`,
+   `serde_json`, `CemtOutputArtifact`, and shape-based stage recovery in that
+   production branch.
+2. Make production rendering accept the borrowed `CemtTreeSubjectRef` directly.
+   Confine the explicit-JSON DOM branch to parity fixtures (or route any future
+   external JSON input through its registered parser edge before adapter
+   execution); do not add JSON as a native owner variant.
+3. Replace `conversion_dom_projection_parity_cem_tree_document` and its
+   recursive `Value` builders with a typed builder that constructs one owned
+   `Arc<CemTreeAstStream>` plus typed format operations from the borrowed source
+   nodes and attributes, preserving source-map stacks without cloning the input
+   into a DTO.
+4. Return the generated tree as a declared typed artifact/stage body and feed
+   it directly to the formatter/colorizer/writer route. Keep HTML/XML encoded
+   text creation only at the final public output boundary.
+5. Update the parity executor to compare the typed producer against the existing
+   Rust HTML/XML oracles, including attributes, namespaces, text, whitespace,
+   comments, processing instructions, CDATA, raw text, errors, source maps, and
+   `compact`/`pretty`/`tabular` formatting metadata.
+6. Run the DOM parity fixtures, conversion manifest/rule tests, converter
+   parity, core lint/build/test, CLI e2e, and WASM gates. Once green, continue
+   with the generic CEMT output-function runtime and compatibility stage
+   fallback before deleting `CemtOutputArtifact`,
+   `transform_template_output_cemt_subject`, `CemtEvaluator(Value)`, and
+   `CemtRuntime(Value)` globally.
 
 ## Current Verification Commands
 

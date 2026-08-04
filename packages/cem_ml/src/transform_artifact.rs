@@ -9,9 +9,9 @@ use crate::projection::{
 use crate::schema::registry::{
     content_type_essence, CSS_CONTENT_TYPE, CSS_SCHEMA_URI, HTML_CONTENT_TYPE, HTML_SCHEMA_URI,
     JSON_CONTENT_TYPE, JSON_SCHEMA_CONTENT_TYPE, JSON_SCHEMA_SCHEMA_URI, MARKDOWN_CONTENT_TYPE,
-    MARKDOWN_SCHEMA_URI, MATHML_NAMESPACE_URI, MATHML_SCHEMA_URI, SVG_CONTENT_TYPE,
-    SVG_NAMESPACE_URI, SVG_SCHEMA_URI, XHTML_CONTENT_TYPE, XHTML_SCHEMA_URI, XML_CONTENT_TYPE,
-    XML_SCHEMA_URI, XSLT_SCHEMA_URI, YAML_CONTENT_TYPE, YAML_SCHEMA_URI,
+    MARKDOWN_SCHEMA_URI, MATHML_NAMESPACE_URI, MATHML_SCHEMA_URI, RELAX_NG_SCHEMA_URI,
+    SVG_CONTENT_TYPE, SVG_NAMESPACE_URI, SVG_SCHEMA_URI, XHTML_CONTENT_TYPE, XHTML_SCHEMA_URI,
+    XML_CONTENT_TYPE, XML_SCHEMA_URI, XSLT_SCHEMA_URI, YAML_CONTENT_TYPE, YAML_SCHEMA_URI,
 };
 use crate::source::{ByteRange, SourceId};
 use crate::source_map::{FrameSpan, SourceMapFrame, SourceMapStack, TransformKind};
@@ -42,6 +42,9 @@ use crate::validation::markdown::{
     MarkdownEventAst, MarkdownParseFact, MarkdownSourceRange, MarkdownVariantFact,
 };
 use crate::validation::mathml::{MathMlDocumentAst, MathMlFact};
+use crate::validation::relax_ng::{
+    RelaxNgCompactTokenAst, RelaxNgDocumentAst, RelaxNgDocumentSource, RelaxNgFact,
+};
 use crate::validation::svg::{SvgDocumentAst, SvgDocumentSource, SvgFact};
 use crate::validation::xhtml::{XhtmlDocumentAst, XhtmlDocumentSource, XhtmlFact};
 use crate::validation::xml::{
@@ -941,6 +944,11 @@ pub struct MarkdownDocumentCemtSubjectRef<'a> {
 }
 
 #[derive(Debug, Clone, Copy)]
+pub struct RelaxNgDocumentCemtSubjectRef<'a> {
+    document: &'a RelaxNgDocumentAst,
+}
+
+#[derive(Debug, Clone, Copy)]
 pub enum XmlFamilyDocumentCemtSubjectRef<'a> {
     Xml(&'a XmlDocumentAst),
     Html(&'a HtmlDocumentAst),
@@ -1057,6 +1065,22 @@ impl<'a> MarkdownDocumentCemtSubjectRef<'a> {
 
     pub fn evaluator_view(self) -> CemtEvaluatorValueRef<'a> {
         CemtEvaluatorValueRef::Record(CemtEvaluatorRecordRef::MarkdownDocument {
+            document: self.document,
+        })
+    }
+}
+
+impl<'a> RelaxNgDocumentCemtSubjectRef<'a> {
+    pub fn new(document: &'a RelaxNgDocumentAst) -> Self {
+        Self { document }
+    }
+
+    pub fn document(self) -> &'a RelaxNgDocumentAst {
+        self.document
+    }
+
+    pub fn evaluator_view(self) -> CemtEvaluatorValueRef<'a> {
+        CemtEvaluatorValueRef::Record(CemtEvaluatorRecordRef::RelaxNgDocument {
             document: self.document,
         })
     }
@@ -1950,6 +1974,12 @@ pub enum CemtEvaluatorSequenceRef<'a> {
     MarkdownEvents {
         events: &'a [MarkdownEventAst],
     },
+    RelaxNgCompactTokens {
+        document: &'a RelaxNgDocumentAst,
+    },
+    RelaxNgFacts {
+        facts: &'a [RelaxNgFact],
+    },
     XmlFamilyFacts {
         document: XmlFamilyDocumentCemtSubjectRef<'a>,
     },
@@ -2114,6 +2144,8 @@ impl<'a> CemtEvaluatorSequenceRef<'a> {
             Self::MarkdownVariantFacts { facts } => facts.len(),
             Self::MarkdownParseFacts { facts } => facts.len(),
             Self::MarkdownEvents { events } => events.len(),
+            Self::RelaxNgCompactTokens { document } => document.compact_tokens.len(),
+            Self::RelaxNgFacts { facts } => facts.len(),
             Self::XmlFamilyFacts { document } => xml_family_fact_count(*document),
             Self::XmlFamilyEvents { document } => xml_family_event_count(*document),
             Self::XmlAttributes { attributes } => attributes.len(),
@@ -2219,6 +2251,17 @@ impl<'a> CemtEvaluatorSequenceRef<'a> {
             }),
             Self::MarkdownEvents { events } => events.get(index).map(|event| {
                 CemtEvaluatorValueRef::Record(CemtEvaluatorRecordRef::MarkdownEvent { event })
+            }),
+            Self::RelaxNgCompactTokens { document } => {
+                document.compact_tokens.get(index).map(|token| {
+                    CemtEvaluatorValueRef::Record(CemtEvaluatorRecordRef::RelaxNgCompactToken {
+                        token,
+                        content_type: &document.source.media_type,
+                    })
+                })
+            }
+            Self::RelaxNgFacts { facts } => facts.get(index).map(|fact| {
+                CemtEvaluatorValueRef::Record(CemtEvaluatorRecordRef::RelaxNgFact { fact })
             }),
             Self::XmlFamilyFacts { document } => (index < xml_family_fact_count(*document))
                 .then_some(CemtEvaluatorValueRef::Record(
@@ -2626,6 +2669,19 @@ pub enum CemtEvaluatorRecordRef<'a> {
     MarkdownSourceRange {
         range: MarkdownSourceRange,
     },
+    RelaxNgDocument {
+        document: &'a RelaxNgDocumentAst,
+    },
+    RelaxNgSource {
+        source: &'a RelaxNgDocumentSource,
+    },
+    RelaxNgCompactToken {
+        token: &'a RelaxNgCompactTokenAst,
+        content_type: &'a str,
+    },
+    RelaxNgFact {
+        fact: &'a RelaxNgFact,
+    },
     XmlFamilyDocument {
         document: XmlFamilyDocumentCemtSubjectRef<'a>,
     },
@@ -2841,6 +2897,10 @@ impl<'a> CemtEvaluatorRecordRef<'a> {
             | Self::MarkdownParseFact { .. }
             | Self::MarkdownEvent { .. }
             | Self::MarkdownSourceRange { .. }
+            | Self::RelaxNgDocument { .. }
+            | Self::RelaxNgSource { .. }
+            | Self::RelaxNgCompactToken { .. }
+            | Self::RelaxNgFact { .. }
             | Self::XmlFamilyDocument { .. }
             | Self::XmlFamilySource { .. }
             | Self::XmlFamilyEncodingReport { .. }
@@ -2931,6 +2991,10 @@ impl<'a> CemtEvaluatorRecordRef<'a> {
             | Self::MarkdownParseFact { .. }
             | Self::MarkdownEvent { .. }
             | Self::MarkdownSourceRange { .. }
+            | Self::RelaxNgDocument { .. }
+            | Self::RelaxNgSource { .. }
+            | Self::RelaxNgCompactToken { .. }
+            | Self::RelaxNgFact { .. }
             | Self::XmlFamilyDocument { .. }
             | Self::XmlFamilySource { .. }
             | Self::XmlFamilyEncodingReport { .. }
@@ -3253,6 +3317,35 @@ impl<'a> CemtEvaluatorRecordRef<'a> {
                 "sourceMap",
             ],
             Self::MarkdownSourceRange { .. } => &["byteOffset", "byteLength", "line", "column"],
+            Self::RelaxNgDocument { .. } => &[
+                "kind",
+                "contentType",
+                "schema",
+                "category",
+                "syntaxKind",
+                "source",
+                "xmlEvents",
+                "compactTokens",
+                "parseFacts",
+                "lineEnding",
+            ],
+            Self::RelaxNgSource { .. } => &[
+                "uri",
+                "contentType",
+                "mediaType",
+                "parameters",
+                "byteLength",
+            ],
+            Self::RelaxNgCompactToken { .. } => &[
+                "index",
+                "kind",
+                "lexeme",
+                "depth",
+                "role",
+                "sourceRange",
+                "sourceMap",
+            ],
+            Self::RelaxNgFact { .. } => &["kind", "syntaxKind", "sourceRange", "message", "value"],
             Self::XmlFamilyDocument { document } => {
                 xml_family_document_evaluator_field_names(*document)
             }
@@ -3577,6 +3670,7 @@ impl<'a> CemtEvaluatorRecordRef<'a> {
                 "eventKind",
                 "eventTag",
                 "package",
+                "syntaxKind",
                 "depth",
                 "qualifiedName",
                 "lexicalName",
@@ -3804,6 +3898,13 @@ impl<'a> CemtEvaluatorRecordRef<'a> {
             Self::MarkdownSourceRange { range } => {
                 markdown_source_range_evaluator_field(*range, name)
             }
+            Self::RelaxNgDocument { document } => relax_ng_document_evaluator_field(document, name),
+            Self::RelaxNgSource { source } => relax_ng_source_evaluator_field(source, name),
+            Self::RelaxNgCompactToken {
+                token,
+                content_type,
+            } => relax_ng_compact_token_evaluator_field(token, content_type, name),
+            Self::RelaxNgFact { fact } => relax_ng_fact_evaluator_field(fact, name),
             Self::XmlFamilyDocument { document } => {
                 xml_family_document_evaluator_field(*document, name)
             }
@@ -4612,6 +4713,116 @@ fn generic_data_csv_scalar_text(value: &GenericDataValueAst) -> String {
         GenericDataValueAst::Null { .. } => String::new(),
         GenericDataValueAst::Alias { alias, .. } => alias.clone().unwrap_or_default(),
         GenericDataValueAst::Mapping { .. } | GenericDataValueAst::Sequence { .. } => String::new(),
+    }
+}
+
+fn relax_ng_document_evaluator_field<'a>(
+    document: &'a RelaxNgDocumentAst,
+    name: &str,
+) -> Option<CemtEvaluatorValueRef<'a>> {
+    match name {
+        "kind" => Some(CemtEvaluatorValueRef::String("relax-ng-document")),
+        "contentType" => Some(CemtEvaluatorValueRef::String(
+            document.syntax_kind.content_type(),
+        )),
+        "schema" => Some(CemtEvaluatorValueRef::String(RELAX_NG_SCHEMA_URI)),
+        "category" => Some(CemtEvaluatorValueRef::String(
+            document.syntax_kind.category(),
+        )),
+        "syntaxKind" => Some(CemtEvaluatorValueRef::String(document.syntax_kind.as_str())),
+        "source" => Some(CemtEvaluatorValueRef::Record(
+            CemtEvaluatorRecordRef::RelaxNgSource {
+                source: &document.source,
+            },
+        )),
+        "xmlEvents" => Some(CemtEvaluatorValueRef::Sequence(
+            document
+                .xml_document
+                .as_ref()
+                .map(|xml_document| CemtEvaluatorSequenceRef::XmlFamilyEvents {
+                    document: XmlFamilyDocumentCemtSubjectRef::xml(xml_document),
+                })
+                .unwrap_or(CemtEvaluatorSequenceRef::Empty),
+        )),
+        "compactTokens" => Some(CemtEvaluatorValueRef::Sequence(
+            CemtEvaluatorSequenceRef::RelaxNgCompactTokens { document },
+        )),
+        "parseFacts" => Some(CemtEvaluatorValueRef::Sequence(
+            CemtEvaluatorSequenceRef::RelaxNgFacts {
+                facts: &document.facts,
+            },
+        )),
+        "lineEnding" => Some(optional_string_evaluator_value(
+            document.line_ending.as_deref(),
+        )),
+        _ => None,
+    }
+}
+
+fn relax_ng_source_evaluator_field<'a>(
+    source: &'a RelaxNgDocumentSource,
+    name: &str,
+) -> Option<CemtEvaluatorValueRef<'a>> {
+    match name {
+        "uri" => Some(CemtEvaluatorValueRef::String(&source.uri)),
+        "contentType" => Some(CemtEvaluatorValueRef::String(&source.content_type)),
+        "mediaType" => Some(CemtEvaluatorValueRef::String(&source.media_type)),
+        "parameters" => Some(CemtEvaluatorValueRef::StringMap(&source.parameters)),
+        "byteLength" => Some(usize_evaluator_value(source.byte_length)),
+        _ => None,
+    }
+}
+
+fn relax_ng_compact_token_evaluator_field<'a>(
+    token: &'a RelaxNgCompactTokenAst,
+    content_type: &str,
+    name: &str,
+) -> Option<CemtEvaluatorValueRef<'a>> {
+    match name {
+        "index" => Some(usize_evaluator_value(token.index)),
+        "kind" => Some(CemtEvaluatorValueRef::String(token.kind.as_str())),
+        "lexeme" => Some(CemtEvaluatorValueRef::String(&token.lexeme)),
+        "depth" => Some(usize_evaluator_value(token.depth)),
+        "role" => Some(CemtEvaluatorValueRef::String(token.kind.role())),
+        "sourceRange" => Some(xml_family_source_range_evaluator_value(
+            token.source_range.start.byte_offset,
+            token.source_range.byte_length,
+            token.source_range.start.line,
+            token.source_range.start.column,
+        )),
+        "sourceMap" => Some(CemtEvaluatorValueRef::OwnedSourceMap(Arc::new(
+            xml_family_source_map_from_coordinates(
+                token.source_range.start.byte_offset,
+                token.source_range.byte_length,
+                content_type,
+            ),
+        ))),
+        _ => None,
+    }
+}
+
+fn relax_ng_fact_evaluator_field<'a>(
+    fact: &'a RelaxNgFact,
+    name: &str,
+) -> Option<CemtEvaluatorValueRef<'a>> {
+    match name {
+        "kind" => Some(CemtEvaluatorValueRef::String(fact.kind.as_str())),
+        "syntaxKind" => Some(CemtEvaluatorValueRef::String(fact.syntax_kind.as_str())),
+        "sourceRange" => Some(
+            fact.source_range
+                .map(|range| {
+                    xml_family_source_range_evaluator_value(
+                        range.start.byte_offset,
+                        range.byte_length,
+                        range.start.line,
+                        range.start.column,
+                    )
+                })
+                .unwrap_or(CemtEvaluatorValueRef::Null),
+        ),
+        "message" => Some(CemtEvaluatorValueRef::String(&fact.message)),
+        "value" => Some(optional_string_evaluator_value(fact.value.as_deref())),
+        _ => None,
     }
 }
 
@@ -7010,6 +7221,9 @@ fn writer_token_metadata_evaluator_field<'a>(
             metadata.event_tag.as_deref(),
         )),
         "package" => Some(optional_string_evaluator_value(metadata.package.as_deref())),
+        "syntaxKind" => Some(optional_string_evaluator_value(
+            metadata.syntax_kind.as_deref(),
+        )),
         "depth" => Some(optional_u64_evaluator_value(metadata.depth)),
         "qualifiedName" => Some(optional_string_evaluator_value(
             metadata.qualified_name.as_deref(),

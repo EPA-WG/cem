@@ -1216,6 +1216,8 @@ pub struct CemTreeAstWriterTokenMetadata {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub package: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub syntax_kind: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub depth: Option<u64>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub qualified_name: Option<String>,

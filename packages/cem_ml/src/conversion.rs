@@ -63,9 +63,9 @@ use crate::transform_artifact::{
     CsvDocumentCemtSubjectRef, GenericDataCsvDocumentCemtSubjectRef,
     GenericDataJsonDocumentCemtSubjectRef, GenericDataYamlDocumentCemtSubjectRef,
     JsonDocumentCemtSubjectRef, JsonSchemaDocumentCemtSubjectRef, MarkdownDocumentCemtSubjectRef,
-    TransformArtifactBody, TransformNativeArtifact, XmlFamilyDocumentCemtSubjectRef,
-    YamlDocumentCemtSubjectRef, CEMT_MATERIALIZED_TREE_REPRESENTATION_ID,
-    CEMT_TREE_REPRESENTATION_ID,
+    RelaxNgDocumentCemtSubjectRef, TransformArtifactBody, TransformNativeArtifact,
+    XmlFamilyDocumentCemtSubjectRef, YamlDocumentCemtSubjectRef,
+    CEMT_MATERIALIZED_TREE_REPRESENTATION_ID, CEMT_TREE_REPRESENTATION_ID,
 };
 use crate::transform_template::{
     compose_transform_template_encoded_text_artifacts,
@@ -9171,6 +9171,7 @@ fn lower_materialized_writer_token_metadata(
             "eventKind",
             "eventTag",
             "package",
+            "syntaxKind",
             "depth",
             "qualifiedName",
             "lexicalName",
@@ -9218,6 +9219,7 @@ fn lower_materialized_writer_token_metadata(
         event_kind: optional_typed_cemt_string(value, "eventKind")?,
         event_tag: optional_typed_cemt_string(value, "eventTag")?,
         package: optional_typed_cemt_string(value, "package")?,
+        syntax_kind: optional_typed_cemt_string(value, "syntaxKind")?,
         depth: optional_typed_cemt_u64(value, "depth")?,
         qualified_name: optional_typed_cemt_string(value, "qualifiedName")?,
         lexical_name: optional_typed_cemt_string(value, "lexicalName")?,
@@ -9576,6 +9578,7 @@ fn materialized_cemt_public_projection(
             CemTreeAstNode::WriterToken { metadata, .. } => Some(metadata.as_ref()),
             _ => None,
         });
+    let syntax_kind = decision.and_then(|metadata| metadata.syntax_kind.as_deref());
     let mut tree = serde_json::json!({
         "kind": "cem-tree",
         "contentType": artifact.identity().content_type,
@@ -9599,6 +9602,9 @@ fn materialized_cemt_public_projection(
         ],
         "nodes": nodes,
     });
+    if let Some(syntax_kind) = syntax_kind {
+        tree["syntaxKind"] = Value::String(syntax_kind.to_owned());
+    }
     if let (Some(colorizer), Some(overlay)) = (colorizer, artifact.color_overlay()) {
         tree["colored"] = Value::Bool(true);
         tree["colorProfile"] = Value::String(colorizer.profile().unwrap_or("unknown").to_owned());
@@ -12858,7 +12864,6 @@ pub fn execute_relax_ng_document_output_pipeline_with_environment(
     }
     let line_ending =
         resolve_formatter_line_ending(document.line_ending.as_deref(), line_ending_mode);
-    let document_subject = document.to_cemt_subject();
     let mut pipeline = direct_xml_output_pipeline();
     pipeline.cemt_target =
         TransformTemplateEncodingTarget::new(content_type, RELAX_NG_SCHEMA_URI, category);
@@ -12906,71 +12911,30 @@ pub fn execute_relax_ng_document_output_pipeline_with_environment(
         }
     };
     let environment = &cached_environment;
-    let format_options = pipeline.cemt_options.clone();
-    let (format_stage, format_binding) = match resolve_cemt_output_stage_binding(
-        environment,
-        "RELAX NG",
-        formatter_spec,
-        &pipeline.cemt_target,
-        Some(formatter_profile),
-        Some(formatter_name),
-        &document_subject,
-        "relax-ng-document",
-        format_options,
-    ) {
-        Ok(resolved) => resolved,
-        Err(message) => return relax_ng_output_pipeline_failed(diagnostic_uri, message),
+    let output_spec = XmlFamilyOutputSpec {
+        label: "RELAX NG",
+        formatter: formatter_spec,
+        colorizer: color_spec,
+        content_type,
+        schema: RELAX_NG_SCHEMA_URI,
+        category,
+        subject_kind: "relax-ng-document",
+        formatter_option_prefix: "relax-ng.",
+        converter_id: "relax-ng-direct-output",
+        diagnostic_node: "relax-ng",
     };
-    let resolved_formatter_profile = format_binding
-        .identity
-        .formatter_profile
-        .clone()
-        .unwrap_or_else(|| formatter_profile.to_owned());
-    pipeline.cemt_options.formatter_profile = Some(resolved_formatter_profile.clone());
-    pipeline.cemt_insertion_context.formatter_profile = Some(resolved_formatter_profile.clone());
-    pipeline.writer_insertion_context.formatter_profile = Some(resolved_formatter_profile);
-    let format_started = Instant::now();
-    let format_result = execute_conversion_cem_tree_output_stage(
+    execute_native_xml_family_document_output_pipeline(
         environment,
-        format_stage,
-        &format_binding,
-        &document_subject,
-    );
-    let format_elapsed_ns = Some(format_started.elapsed().as_nanos());
-    let (formatted_output, format_execution) = match format_result {
-        Ok(output) => output,
-        Err(message) => {
-            return relax_ng_output_pipeline_failed_with_timings(
-                diagnostic_uri,
-                format!(
-                    "CEMT formatter `{}` failed: {message}",
-                    format_binding.function.name
-                ),
-                format_elapsed_ns,
-            )
-        }
-    };
-    let formatted_artifact = format_binding.artifact_from_cemt_value(formatted_output);
-    if let Err(error) = formatted_artifact
-        .validate_insertion(&conversion_cem_tree_format_insertion_context(&pipeline))
-    {
-        return relax_ng_output_pipeline_failed_with_timings(
-            diagnostic_uri,
-            error.diagnostic(diagnostic_uri).message,
-            format_elapsed_ns,
-        );
-    }
-    execute_conversion_output_pipeline_from_formatted_artifact(
-        environment,
-        &pipeline,
-        formatted_artifact,
-        None,
-        Some(format_execution),
-        format_elapsed_ns,
-        Vec::new(),
-        "relax-ng-direct-output",
-        Some("relax-ng"),
+        CemtEvaluatorValue::borrowed(
+            RelaxNgDocumentCemtSubjectRef::new(&document).evaluator_view(),
+        ),
+        pipeline,
         diagnostic_uri,
+        output_spec,
+        formatter_name,
+        formatter_profile,
+        color_profile,
+        "cem.relax-ng-document-ast",
     )
 }
 
@@ -21797,7 +21761,86 @@ mod tests {
                 .matches("XmlDocumentAst::to_cemt_subject")
                 .count(),
             1,
-            "RELAX NG XML is the one remaining production owner of the XML compatibility composer"
+            "RELAX NG retains one test-only XML compatibility oracle"
+        );
+        let xml_validation_source = include_str!("validation/xml.rs");
+        let composer_count = xml_validation_source.matches("fn to_cemt_subject").count();
+        let gated_composer_count = xml_validation_source
+            .matches("#[cfg(test)]\n    pub fn to_cemt_subject")
+            .count()
+            + xml_validation_source
+                .matches("#[cfg(test)]\n    fn to_cemt_subject")
+                .count();
+        assert!(composer_count > 0, "XML compatibility composer coverage");
+        assert_eq!(
+            composer_count, gated_composer_count,
+            "XML production compatibility composer escaped its test gate"
+        );
+    }
+
+    #[test]
+    fn native_relax_ng_output_layers_have_no_serialized_intermediate_boundary() {
+        let source = include_str!("conversion.rs");
+        let pipeline = source
+            .split_once("pub fn execute_relax_ng_document_output_pipeline_with_environment(")
+            .and_then(|(_, suffix)| suffix.split_once("fn relax_ng_output_pipeline_failed("))
+            .map(|(pipeline, _)| pipeline)
+            .expect("native RELAX NG output pipeline source");
+        for required in [
+            "RelaxNgDocumentCemtSubjectRef::new(&document).evaluator_view()",
+            "execute_native_xml_family_document_output_pipeline(",
+            "cem.relax-ng-document-ast",
+        ] {
+            assert!(
+                pipeline.contains(required),
+                "missing `{required}` native RELAX NG handoff"
+            );
+        }
+        for forbidden in [
+            "execute_conversion_cem_tree_output_stage(",
+            "artifact_from_cemt_value",
+            "to_cemt_subject",
+            "into_cemt_subject",
+            "serde_json",
+            "CemtRuntime",
+        ] {
+            assert!(
+                !pipeline.contains(forbidden),
+                "native RELAX NG layers must not cross `{forbidden}`"
+            );
+        }
+
+        let view_source = include_str!("transform_artifact.rs")
+            .split_once("fn relax_ng_document_evaluator_field")
+            .and_then(|(_, suffix)| {
+                suffix.split_once("fn xml_family_document_evaluator_field_names")
+            })
+            .map(|(view, _)| view)
+            .expect("borrowed native RELAX NG evaluator view");
+        for forbidden in ["serde_json", "to_cemt_subject", "into_cemt_subject"] {
+            assert!(
+                !view_source.contains(forbidden),
+                "borrowed RELAX NG evaluator view must not use `{forbidden}`"
+            );
+        }
+
+        let relax_ng_validation_source = include_str!("validation/relax_ng.rs");
+        let composer_count = relax_ng_validation_source
+            .matches("fn to_cemt_subject")
+            .count();
+        let gated_composer_count = relax_ng_validation_source
+            .matches("#[cfg(test)]\n    pub fn to_cemt_subject")
+            .count()
+            + relax_ng_validation_source
+                .matches("#[cfg(test)]\n    fn to_cemt_subject")
+                .count();
+        assert!(
+            composer_count > 0,
+            "RELAX NG compatibility composer coverage"
+        );
+        assert_eq!(
+            composer_count, gated_composer_count,
+            "RELAX NG production compatibility composer escaped its test gate"
         );
     }
 
@@ -28326,6 +28369,122 @@ mod tests {
                 assert_eq!(colored.value["colorProfile"], profile);
                 assert_eq!(colored.value["nodes"][2]["style"][style_key], style_value);
             }
+        }
+    }
+
+    #[test]
+    fn relax_ng_output_layers_exchange_borrowed_evaluators_and_materialized_ast_streams() {
+        use crate::validation::relax_ng::{
+            relax_ng_document_ast_from_source_bytes, RelaxNgSourceValidationRequest,
+        };
+
+        let schema_registry = SchemaRegistry::with_builtin_schemas();
+        let conversion_registry = ConversionRegistry::with_builtin_converters();
+        let environment = ConversionOutputPipelineEnvironment {
+            schema_registry: &schema_registry,
+            conversion_registry: &conversion_registry,
+            package_artifact_reader: None,
+            artifact_cache: None,
+        };
+
+        for (label, content_type, source) in [
+            (
+                "xml",
+                RELAX_NG_XML_CONTENT_TYPE,
+                b"<grammar xmlns=\"http://relaxng.org/ns/structure/1.0\"><start><element name=\"note\"><text/></element></start></grammar>\r\n"
+                    .as_slice(),
+            ),
+            (
+                "compact",
+                RELAX_NG_COMPACT_CONTENT_TYPE,
+                b"start = element note { text }\r\n".as_slice(),
+            ),
+        ] {
+            let (document, diagnostics) =
+                relax_ng_document_ast_from_source_bytes(RelaxNgSourceValidationRequest {
+                    bytes: source,
+                    source_uri: "builtin:typed-relax-ng-output",
+                    content_type: Some(content_type),
+                });
+            assert!(diagnostics.is_empty(), "{label}: {diagnostics:?}");
+            let document = document.unwrap_or_else(|| panic!("{label} typed RELAX NG AST"));
+            let view = RelaxNgDocumentCemtSubjectRef::new(&document);
+            assert!(std::ptr::eq(view.document(), &document));
+            let compatibility = document.to_cemt_subject();
+            assert_cemt_lowering_value_equivalent_by_name(
+                label,
+                CemtTreeLoweringValue::Typed(CemtEvaluatorValue::borrowed(
+                    view.evaluator_view(),
+                )),
+                CemtTreeLoweringValue::Compatibility(&compatibility),
+            );
+
+            let execution = execute_relax_ng_document_output_pipeline_with_environment(
+                &environment,
+                document.clone(),
+                &ScopeConfig::default(),
+                Some("builtin:typed-relax-ng-output"),
+            );
+            assert!(
+                execution.diagnostics.is_empty(),
+                "{label}: {:?}",
+                execution.diagnostics
+            );
+            let materialized = execution
+                .formatted_materialized_cemt_tree
+                .as_ref()
+                .unwrap_or_else(|| panic!("{label} materialized RELAX NG tree"));
+            assert_eq!(
+                materialized.input_provenance().representation_id,
+                "cem.relax-ng-document-ast"
+            );
+            assert!(materialized
+                .owner()
+                .as_nodes()
+                .iter()
+                .all(|node| matches!(node, CemTreeAstNode::WriterToken { .. })));
+            let stage_output = execution
+                .materialized_cemt_stage_output
+                .as_ref()
+                .unwrap_or_else(|| panic!("{label} typed RELAX NG stage output"));
+            let TransformArtifactBody::MaterializedCemtTree(selected) = &stage_output.body else {
+                panic!("{label} RELAX NG stage output must retain the materialized AST")
+            };
+            assert!(Arc::ptr_eq(materialized, selected));
+            assert!(Arc::ptr_eq(materialized.owner(), selected.owner()));
+
+            let colored = execute_relax_ng_document_output_pipeline_with_environment(
+                &environment,
+                document,
+                &ScopeConfig {
+                    cemt_color_profile: Some("terminal".to_owned()),
+                    ..ScopeConfig::default()
+                },
+                Some("builtin:typed-colored-relax-ng-output"),
+            );
+            assert!(
+                colored.diagnostics.is_empty(),
+                "{label}: {:?}",
+                colored.diagnostics
+            );
+            let formatted = colored
+                .formatted_materialized_cemt_tree
+                .as_ref()
+                .unwrap_or_else(|| panic!("{label} colored formatter owner"));
+            let overlay = colored
+                .colored_materialized_cemt_tree
+                .as_ref()
+                .unwrap_or_else(|| panic!("{label} typed color overlay"));
+            assert!(Arc::ptr_eq(formatted.owner(), overlay.owner()));
+            assert!(overlay.color_overlay().is_some());
+            let stage_output = colored
+                .materialized_cemt_stage_output
+                .as_ref()
+                .unwrap_or_else(|| panic!("{label} colored stage output"));
+            let TransformArtifactBody::MaterializedCemtTree(selected) = &stage_output.body else {
+                panic!("{label} colored stage output must retain the materialized AST")
+            };
+            assert!(Arc::ptr_eq(overlay, selected));
         }
     }
 

@@ -141,6 +141,11 @@ node tools/scripts/debug-cem.mjs packages/cem-theme/src/lib/css-generators/cem-c
 node tools/scripts/debug-cem.mjs packages/cem-theme/dist/lib/tokens/cem-colors.xhtml
 ```
 
+Playwright/Chromium cannot launch inside the workspace restriction: Chromium's sandbox host aborts with
+`Operation not permitted`. Treat this as a systematic environment limitation, not a product failure. Start
+browser-backed commands—including Nx targets whose prerequisites generate or verify README SVG previews—with the
+required host permission on the first attempt; do not first retry them inside the workspace sandbox.
+
 Edit the `page.evaluate()` block inside the script for each investigation. Browser console and page errors are
 forwarded to stderr automatically.
 

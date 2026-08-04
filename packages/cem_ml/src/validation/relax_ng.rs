@@ -12,7 +12,9 @@ use crate::validation::xml::{
     xml_document_ast_from_source_bytes, XmlDocumentAst, XmlEventKind, XmlParseFactKind,
     XmlSourceValidationRequest,
 };
-use serde_json::{json, Value};
+use serde_json::json;
+#[cfg(test)]
+use serde_json::Value;
 use std::collections::BTreeMap;
 use std::sync::OnceLock;
 
@@ -80,6 +82,7 @@ pub struct RelaxNgDocumentAst {
 }
 
 impl RelaxNgDocumentAst {
+    #[cfg(test)]
     pub fn to_cemt_subject(&self) -> Value {
         let xml_events = self
             .xml_document
@@ -136,6 +139,7 @@ impl RelaxNgDocumentSource {
         }
     }
 
+    #[cfg(test)]
     fn to_cemt_subject(&self) -> Value {
         json!({
             "uri": self.uri,
@@ -189,6 +193,7 @@ impl RelaxNgSourceRange {
         })
     }
 
+    #[cfg(test)]
     fn to_cemt_subject(self) -> Value {
         json!({
             "byteOffset": self.start.byte_offset,
@@ -227,7 +232,7 @@ pub enum RelaxNgCompactTokenKind {
 }
 
 impl RelaxNgCompactTokenKind {
-    fn as_str(self) -> &'static str {
+    pub(crate) fn as_str(self) -> &'static str {
         match self {
             Self::Keyword => "keyword",
             Self::Identifier => "identifier",
@@ -240,7 +245,7 @@ impl RelaxNgCompactTokenKind {
         }
     }
 
-    fn role(self) -> &'static str {
+    pub(crate) fn role(self) -> &'static str {
         match self {
             Self::Keyword => "syntax.keyword",
             Self::Identifier => "syntax.name",
@@ -263,6 +268,7 @@ pub struct RelaxNgCompactTokenAst {
 }
 
 impl RelaxNgCompactTokenAst {
+    #[cfg(test)]
     fn to_cemt_subject(&self, content_type: &str) -> Value {
         json!({
             "index": self.index,
@@ -327,6 +333,7 @@ pub struct RelaxNgFact {
 }
 
 impl RelaxNgFact {
+    #[cfg(test)]
     fn to_cemt_subject(&self) -> Value {
         json!({
             "kind": self.kind.as_str(),
@@ -492,7 +499,12 @@ fn relax_ng_diagnostic_from_fact(
                 "policy": binding.policy,
                 "contentType": report.content_type,
                 "value": fact.value,
-                "sourceRange": fact.source_range.map(RelaxNgSourceRange::to_cemt_subject),
+                "sourceRange": fact.source_range.map(|range| json!({
+                    "byteOffset": range.start.byte_offset,
+                    "byteLength": range.byte_length,
+                    "line": range.start.line,
+                    "column": range.start.column,
+                })),
             }
         })),
         source_map: fact
