@@ -1,9 +1,11 @@
 # Non-CEM CEMT Typed-Result Inventory
 
 Status: inventory complete; serializer-free typed-result contract selected and
-materialized-tree artifact introduced. JSON borrowed evaluator view complete;
-materialized writer-token AST representation remains a recorded decision point.
-This inventory is promoted as active migration evidence by `docs/todo.md`.
+materialized-tree artifact introduced. The lossless JSON formatter/colorizer/
+writer path now uses the borrowed evaluator, materialized writer-token stream,
+and typed color overlay end to end. JSON graph routing and generic-data JSON
+ingress remain open. This inventory is promoted as active migration evidence by
+`docs/todo.md`.
 
 ## Existing Typed Baseline
 
@@ -21,7 +23,8 @@ describe every remaining producer.
 | Producer family                                             | Input owner before execution                                                                                                                    | Current result                                                                                | Current handoff                                                                                                                    | Ownership/provenance gap                                                                                                                                                   |
 | ----------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | DOM-projection parity adapter                               | Either `Arc<CemTreeAstStream>` or an explicit JSON DOM projection                                                                               | A newly generated raw CEM tree                                                                | `CemtOutputArtifact { value: Value }`                                                                                              | The generated tree has no typed result owner; the JSON-input branch has no package-native owner and currently emits no source map.                                         |
-| Direct CSV, YAML, JSON, JSON Schema, and Markdown pipelines | `CsvDocumentAst`, `YamlDocumentAst`, `JsonDocumentAst`, `JsonSchemaDocumentAst`, `MarkdownDocumentAst`, or a generic-data compatibility subject | A newly materialized formatted tree, optionally followed by a newly materialized colored tree | `TransformTemplateOutputFunctionExecution::CemtEvaluator(Value)` and `TransformTemplateEncodedArtifactPayload::CemtRuntime(Value)` | Each `*DocumentOutputSubject::into_cemt_subject` consumes the native AST into a DTO value before evaluation, so neither the source owner nor its native identity survives. |
+| Lossless JSON direct pipeline                              | `JsonDocumentAst`                                                                                                                               | `CemtMaterializedTreeArtifact` owning ordered `WriterToken` nodes, plus an optional typed color overlay                               | Borrowed evaluator → exact `Arc<CemTreeAstStream>` → overlay → direct writer; a legacy-shaped projection is created only after writing for the public/debug response | Production formatter, colorizer, and writer handoffs are closed; graph/secondary-input production routing is not yet exercised, and generic-data JSON ingress still uses compatibility. |
+| Direct CSV, YAML, JSON Schema, and Markdown pipelines      | `CsvDocumentAst`, `YamlDocumentAst`, `JsonSchemaDocumentAst`, `MarkdownDocumentAst`, or a generic-data compatibility subject                    | A newly materialized formatted tree, optionally followed by a newly materialized colored tree                                      | `TransformTemplateOutputFunctionExecution::CemtEvaluator(Value)` and `TransformTemplateEncodedArtifactPayload::CemtRuntime(Value)`                                      | Each remaining `*DocumentOutputSubject::into_cemt_subject` consumes the native AST into a DTO value before evaluation, so neither the source owner nor its native identity survives.       |
 | XML-family direct pipelines                                 | `XmlDocumentAst`, `HtmlDocumentAst`, `CssDocumentAst`, `XhtmlDocumentAst`, `SvgDocumentAst`, `MathMlDocumentAst`, or `XsltStylesheetAst`        | A newly materialized package-specific formatted/colored tree                                  | The same evaluator/runtime value envelopes                                                                                         | The common `XmlDocumentOutputSubject` erases seven distinct AST owners before formatting. The output is not an overlay over a raw `CemTreeAstStream`.                      |
 | Relax NG direct pipeline                                    | `RelaxNgDocumentAst`, with XML and compact syntax selecting different formatter/colorizer contracts                                             | A newly materialized formatted/colored tree                                                   | The same evaluator/runtime value envelopes                                                                                         | The original syntax owner and syntax kind are lost when the formatter subject is built; stage metadata is inferred later from binding/value shape.                         |
 | Generic CEMT output-function runtime                        | Explicit JSON subject and value bindings                                                                                                        | Any declared CEM-tree formatter/colorizer result                                              | `TransformTemplateOutputFunctionExecution::CemtEvaluator(Value)`                                                                   | The stage is carried by the selected binding while the payload remains untyped. Format-to-color chaining clones the value instead of retaining a typed result artifact.    |
@@ -124,11 +127,15 @@ rejected because it would change the selected owner and graph contract.
 
 ## Implementation After Decision
 
-Connect the JSON formatter to the borrowed `JsonDocumentAst` evaluator view and
-lower its result directly into the new writer-token nodes. Connect the JSON
-colorizer to the exact formatted owner plus typed overlay and make the writer
-consume that pair directly. Add graph, ordered-join, and secondary-input
-identity tests, then remove the JSON subject serializer from production.
+The lossless JSON formatter now lowers the package CEMT result directly into
+writer-token nodes, the colorizer receives the exact formatted owner and emits
+only the typed overlay, and the writer traverses those typed artifacts. The
+`JsonDocumentAst` production path no longer calls its subject serializer.
+
+Next, return the JSON materialized body from a production graph stage and prove
+artifact/owner identity through ordered joins and secondary inputs. Then replace
+the generic-data-to-JSON compatibility projection with a typed evaluator view,
+closing every production JSON ingress before moving to JSON Schema.
 
 After this first end-to-end producer passes source audits and the full
 verification matrix, migrate every remaining producer using the same direct

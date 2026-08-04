@@ -37,9 +37,10 @@ pub use crate::transform_artifact::TransformDataArtifact as TransformTemplateDat
 use crate::transform_artifact::{
     CemtColorOperationKind, CemtColorTarget, CemtColoredTreeOverlay, CemtEvaluatorBindings,
     CemtEvaluatorValue, CemtFormatFragment, CemtFormatOperationKind, CemtFormattedTreeOverlay,
-    CemtNodeColorOperationKind, CemtNodeFormatOperationKind, CemtNodeFormatTarget,
-    CemtOverlayProvenance, CemtOwnerPath, CemtTreeArtifact, CemtTreeArtifactStage,
-    TransformArtifactBody, TransformEncodedArtifact, TransformEncoding, TransformNativeArtifact,
+    CemtMaterializedTreeArtifact, CemtMaterializedTreeStage, CemtNodeColorOperationKind,
+    CemtNodeFormatOperationKind, CemtNodeFormatTarget, CemtOverlayProvenance, CemtOwnerPath,
+    CemtTreeArtifact, CemtTreeArtifactStage, TransformArtifactBody, TransformEncodedArtifact,
+    TransformEncoding, TransformNativeArtifact,
 };
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -9423,10 +9424,22 @@ fn transform_template_writer_token_rendered_text(
     token: &TransformTemplateWriterToken,
     color_profile: Option<&TransformTemplateWriterTokenColorProfile>,
 ) -> String {
+    transform_template_writer_token_rendered_text_for_role(
+        text,
+        transform_template_writer_token_color_role(token),
+        color_profile,
+    )
+}
+
+fn transform_template_writer_token_rendered_text_for_role(
+    text: &str,
+    role: Option<&str>,
+    color_profile: Option<&TransformTemplateWriterTokenColorProfile>,
+) -> String {
     let Some(color_profile) = color_profile else {
         return text.to_owned();
     };
-    let Some(role) = transform_template_writer_token_color_role(token) else {
+    let Some(role) = role else {
         return match color_profile {
             TransformTemplateWriterTokenColorProfile::Terminal(_) => text.to_owned(),
             TransformTemplateWriterTokenColorProfile::Html(_) => {
@@ -9603,6 +9616,115 @@ pub(crate) fn execute_transform_template_typed_cem_tree_writer(
     let mut artifact = TransformTemplateEncodedArtifact {
         identity,
         value: TransformTemplateEncodedArtifactPayload::Text(rendered.text),
+        source_map,
+        output_spans,
+        encoded: true,
+    };
+    transform_template_apply_output_final_newline_policy(&mut artifact, request.insertion_context);
+    Ok(artifact)
+}
+
+pub(crate) struct TransformTemplateMaterializedCemtWriterRequest<'a> {
+    pub binding: &'a TransformTemplateEncodeBinding,
+    pub artifact: Arc<CemtMaterializedTreeArtifact>,
+    pub insertion_context: &'a TransformTemplateEncodedArtifactInsertionContext,
+}
+
+pub(crate) fn execute_transform_template_materialized_cemt_writer(
+    request: TransformTemplateMaterializedCemtWriterRequest<'_>,
+) -> Result<TransformTemplateEncodedArtifact, String> {
+    if request.artifact.stage() == CemtMaterializedTreeStage::Raw {
+        return Err(
+            "materialized CEMT writer requires a formatted or colored AST stream".to_owned(),
+        );
+    }
+    if request.binding.identity.target.content_type != request.artifact.identity().content_type
+        || request.binding.identity.target.schema != request.artifact.identity().schema
+        || request.binding.identity.target.category != request.artifact.identity().category
+    {
+        return Err("materialized CEMT writer identity does not match its AST stream".to_owned());
+    }
+
+    let inferred_output_color_type =
+        request
+            .artifact
+            .color_overlay()
+            .and_then(|overlay| match overlay.output {
+                crate::transform_artifact::CemtColorOutput::Html => Some("html"),
+                crate::transform_artifact::CemtColorOutput::Terminal => {
+                    overlay.producer.profile().or(Some("terminal"))
+                }
+                crate::transform_artifact::CemtColorOutput::Markdown => None,
+            });
+    let color_profile = transform_template_writer_token_color_profile(
+        None,
+        &request.binding.identity,
+        request
+            .insertion_context
+            .output_color_type
+            .as_deref()
+            .or(inferred_output_color_type),
+    );
+    let color_overlay = request.artifact.color_overlay();
+    let mut text = String::new();
+    let mut output_spans = Vec::new();
+    for (index, node) in request.artifact.owner().as_nodes().iter().enumerate() {
+        let CemTreeAstNode::WriterToken {
+            text: token_text,
+            role,
+            style,
+            output_span,
+            ..
+        } = node
+        else {
+            return Err(format!(
+                "materialized CEMT writer expected writer-token node at index {index}"
+            ));
+        };
+        let overlay_token = color_overlay.and_then(|overlay| {
+            overlay
+                .tokens
+                .iter()
+                .find(|token| token.target == CemtOwnerPath::root(index))
+        });
+        let color_role = overlay_token
+            .map(|token| token.color_role.as_str())
+            .or(style.color_role.as_deref())
+            .unwrap_or(role);
+        let rendered_token_text = transform_template_writer_token_rendered_text_for_role(
+            token_text,
+            Some(color_role),
+            color_profile.as_ref(),
+        );
+        if let Some(output_span) = output_span {
+            let mut generated_span = output_span.clone();
+            generated_span.output_range =
+                ByteRange::new(text.len() as u64, rendered_token_text.len() as u32);
+            output_spans.push(generated_span);
+        }
+        text.push_str(&rendered_token_text);
+    }
+
+    let mut identity = transform_template_typed_writer_text_identity_from_context(
+        &request.binding.identity,
+        request.insertion_context,
+    );
+    identity.produces = TransformTemplateOutputProducedKind::Text;
+    let (source_map, output_spans) = match identity.source_map_policy {
+        TransformTemplateSourceMapPolicy::None => (None, Vec::new()),
+        TransformTemplateSourceMapPolicy::Generated
+        | TransformTemplateSourceMapPolicy::Preserve => {
+            let source_map = request
+                .artifact
+                .source_map()
+                .cloned()
+                .or_else(|| output_spans.first().map(|span| span.origin.clone()));
+            (source_map, output_spans)
+        }
+    };
+    let mut artifact = TransformTemplateEncodedArtifact {
+        identity,
+        value: TransformTemplateEncodedArtifactPayload::Text(text),
         source_map,
         output_spans,
         encoded: true,

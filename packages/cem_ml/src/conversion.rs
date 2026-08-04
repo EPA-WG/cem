@@ -21,7 +21,10 @@ use crate::interpreter::OutputSpan;
 use crate::parser::builder::CemAstBuilder;
 use crate::parser::document::CemDocument;
 use crate::parser::{AstNodeId, CemAstNode};
-use crate::projection::{CemTreeAstAttribute, CemTreeAstNode, CemTreeAstStream};
+use crate::projection::{
+    CemTreeAstAttribute, CemTreeAstNode, CemTreeAstStream, CemTreeAstWriterTokenMetadata,
+    CemTreeAstWriterTokenSourceRange, CemTreeAstWriterTokenStyle,
+};
 use crate::run_config::ScopeConfig;
 use crate::schema::package_loader::{load_builtin_schema_package, BuiltinSchemaPackage};
 use crate::schema::package_sources::{
@@ -40,7 +43,7 @@ use crate::schema::registry::{
     SVG_CONTENT_TYPE, SVG_SCHEMA_URI, XHTML_CONTENT_TYPE, XHTML_SCHEMA_URI, XML_CONTENT_TYPE,
     XML_SCHEMA_URI, XSLT_CONTENT_TYPE, XSLT_SCHEMA_URI, YAML_CONTENT_TYPE, YAML_SCHEMA_URI,
 };
-use crate::source::{BytesSource, SourceId};
+use crate::source::{ByteRange, BytesSource, SourceId};
 use crate::source_map::SourceMapStack;
 use crate::tokenizer::cem::CemTokenizer;
 use crate::tokenizer::html::HtmlTokenizer;
@@ -50,15 +53,20 @@ use crate::transform_artifact::{
     CemtColorOperation, CemtColorOperationKind, CemtColorOutput, CemtColorOverlayProducer,
     CemtColorStyle, CemtColorTarget, CemtColoredTreeOverlay, CemtEvaluatorValue,
     CemtEvaluatorValueKind, CemtFormatFragment, CemtFormatLayout, CemtFormatOperation,
-    CemtFormatOperationKind, CemtFormattedTreeOverlay, CemtNodeColorOperation,
+    CemtFormatOperationKind, CemtFormattedTreeOverlay, CemtMaterializedTreeArtifact,
+    CemtMaterializedTreeColorOverlay, CemtMaterializedTreeIdentity,
+    CemtMaterializedTreeInputProvenance, CemtMaterializedTreePipeline,
+    CemtMaterializedTreeProducer, CemtMaterializedWriterTokenColor, CemtNodeColorOperation,
     CemtNodeColorOperationKind, CemtNodeFormatOperation, CemtNodeFormatOperationKind,
     CemtNodeFormatTarget, CemtOverlayProducer, CemtOverlayProvenance, CemtOwnerPath,
     CemtTreeArtifact, CemtTreeArtifactStage, CemtTreeEnvelopeMetadata, CemtTreeEnvelopeMode,
-    TransformArtifactBody, TransformNativeArtifact, CEMT_TREE_REPRESENTATION_ID,
+    JsonDocumentCemtSubjectRef, TransformArtifactBody, TransformNativeArtifact,
+    CEMT_MATERIALIZED_TREE_REPRESENTATION_ID, CEMT_TREE_REPRESENTATION_ID,
 };
 use crate::transform_template::{
     compose_transform_template_encoded_text_artifacts,
     evaluate_transform_template_encode_expressions, execute_transform_template_encode_binding,
+    execute_transform_template_materialized_cemt_writer,
     execute_transform_template_typed_cem_tree_writer,
     execute_transform_template_typed_cemt_body_expression,
     parse_cem_native_template_module_options, parse_transform_template_output_color_type,
@@ -76,15 +84,16 @@ use crate::transform_template::{
     TransformTemplateEncodedArtifactIdentity, TransformTemplateEncodedArtifactInsertionContext,
     TransformTemplateEncodedArtifactMode, TransformTemplateEncodedArtifactPayload,
     TransformTemplateEncodingTarget, TransformTemplateEvaluatedEncodeExpression,
-    TransformTemplateHtmlColorMode, TransformTemplateModuleOptions,
-    TransformTemplateModuleParseRequest, TransformTemplateModulePreflight,
-    TransformTemplateOutputArtifact, TransformTemplateOutputColorSelection,
-    TransformTemplateOutputFunctionDescriptor, TransformTemplateOutputFunctionImplementation,
-    TransformTemplateOutputFunctionKind, TransformTemplateOutputFunctionRegistry,
-    TransformTemplateOutputProducedKind, TransformTemplateRenderRequest,
-    TransformTemplateRenderResponse, TransformTemplateSourceMapPolicy,
-    TransformTemplateTargetSyntaxKind, TransformTemplateTargetSyntaxRules,
-    TransformTemplateTerminalColorCapability, TransformTemplateTypedCemTreeWriterRequest,
+    TransformTemplateHtmlColorMode, TransformTemplateMaterializedCemtWriterRequest,
+    TransformTemplateModuleOptions, TransformTemplateModuleParseRequest,
+    TransformTemplateModulePreflight, TransformTemplateOutputArtifact,
+    TransformTemplateOutputColorSelection, TransformTemplateOutputFunctionDescriptor,
+    TransformTemplateOutputFunctionImplementation, TransformTemplateOutputFunctionKind,
+    TransformTemplateOutputFunctionRegistry, TransformTemplateOutputProducedKind,
+    TransformTemplateRenderRequest, TransformTemplateRenderResponse,
+    TransformTemplateSourceMapPolicy, TransformTemplateTargetSyntaxKind,
+    TransformTemplateTargetSyntaxRules, TransformTemplateTerminalColorCapability,
+    TransformTemplateTypedCemTreeWriterRequest,
     TRANSFORM_TEMPLATE_ENCODED_ARTIFACT_WRITER_ADAPTER_FAILED_CODE,
 };
 use crate::validation::css::CssDocumentAst;
@@ -2490,6 +2499,8 @@ pub struct ConversionOutputPipelineExecution {
     pub raw_cem_tree: Option<Arc<CemtTreeArtifact>>,
     pub formatted_cemt_tree: Option<Arc<CemtTreeArtifact>>,
     pub colored_cemt_tree: Option<Arc<CemtTreeArtifact>>,
+    pub formatted_materialized_cemt_tree: Option<Arc<CemtMaterializedTreeArtifact>>,
+    pub colored_materialized_cemt_tree: Option<Arc<CemtMaterializedTreeArtifact>>,
     pub source_map: Option<SourceMapStack>,
     pub output_spans: Vec<OutputSpan>,
     pub format_execution: Option<ConversionOutputPipelineStageExecution>,
@@ -5499,6 +5510,85 @@ fn execute_conversion_cem_tree_output_stage(
     ))
 }
 
+fn execute_conversion_typed_cemt_output_stage<'a>(
+    environment: &ConversionOutputPipelineEnvironment<'_>,
+    stage: CemTreeCemtOutputStage,
+    binding: &TransformTemplateEncodeBinding,
+    subject: CemtEvaluatorValue<'a>,
+) -> Result<
+    (
+        CemtEvaluatorValue<'a>,
+        ConversionOutputPipelineStageExecution,
+    ),
+    String,
+> {
+    let template = TemplateInput {
+        uri: stage.template_uri.clone(),
+        bytes: stage.template_bytes.clone(),
+        identity: Some(FormatIdentity {
+            content_type: Some(CEM_TRANSFORM_CONTENT_TYPE.to_owned()),
+            schema: Some(CEM_TRANSFORM_SCHEMA_URI.to_owned()),
+            ..FormatIdentity::default()
+        }),
+        root_scope: ScopeConfig::default(),
+    };
+    let parse_response =
+        parse_cem_native_template_module_options(TransformTemplateModuleParseRequest {
+            template: template.clone(),
+        });
+    if !parse_response.diagnostics.is_empty() {
+        return Err(parse_response
+            .diagnostics
+            .iter()
+            .map(|diagnostic| diagnostic.message.as_str())
+            .collect::<Vec<_>>()
+            .join("; "));
+    }
+    let mut module_options = parse_response.module_options;
+    let loaded_helpers =
+        load_cem_tree_cemt_output_stage_helpers(environment, &stage, &mut module_options)?;
+    let mut execution_binding = binding.clone();
+    if let Some(parsed_function) = conversion_cem_tree_output_stage_function(
+        &module_options,
+        &stage,
+        &execution_binding.function,
+    ) {
+        execution_binding.function = parsed_function;
+    }
+    validate_cem_tree_cemt_output_stage_helper_resolution(
+        &stage,
+        &module_options,
+        &execution_binding.function,
+        &loaded_helpers,
+    )?;
+    let body_declared = module_options
+        .encode_expressions
+        .iter()
+        .any(|expression| expression.owner.as_deref() == Some(stage.function_name.as_str()))
+        || execution_binding.function.body_expression.is_some();
+    let body_function_name = body_declared.then(|| stage.function_name.clone());
+    let Some(value) = execute_transform_template_typed_cemt_body_expression(
+        &execution_binding,
+        subject,
+        &module_options,
+    ) else {
+        return Err(format!(
+            "CEMT {} `{}` requires a direct typed CEMT body",
+            stage.role, stage.function_name
+        ));
+    };
+    let value = value?;
+    Ok((
+        value,
+        ConversionOutputPipelineStageExecution::CemtAdapter {
+            adapter_id: stage.adapter_id.to_owned(),
+            function_name: execution_binding.function.name,
+            fallback_function_name: None,
+            body_function_name,
+        },
+    ))
+}
+
 fn execute_conversion_cem_tree_output_stage_with_native_subject(
     environment: &ConversionOutputPipelineEnvironment<'_>,
     stage: CemTreeCemtOutputStage,
@@ -6486,6 +6576,8 @@ pub fn execute_csv_document_output_pipeline_with_environment(
                 raw_cem_tree: None,
                 formatted_cemt_tree: None,
                 colored_cemt_tree: None,
+                formatted_materialized_cemt_tree: None,
+                colored_materialized_cemt_tree: None,
                 source_map: artifact.source_map,
                 output_spans: artifact.output_spans,
                 format_execution,
@@ -7177,6 +7269,8 @@ pub fn execute_yaml_document_output_pipeline_with_environment(
                 raw_cem_tree: None,
                 formatted_cemt_tree: None,
                 colored_cemt_tree: None,
+                formatted_materialized_cemt_tree: None,
+                colored_materialized_cemt_tree: None,
                 source_map: artifact.source_map,
                 output_spans: artifact.output_spans,
                 format_execution,
@@ -7428,7 +7522,10 @@ fn yaml_output_pipeline_failed_with_timings(
 
 pub trait JsonDocumentOutputSubject {
     fn source_line_ending(&self) -> Option<&str>;
-    fn into_cemt_subject(self) -> Value;
+    fn native_cemt_subject(&self) -> Option<CemtEvaluatorValue<'_>> {
+        None
+    }
+    fn into_compatibility_cemt_subject(self) -> Option<Value>;
 }
 
 impl JsonDocumentOutputSubject for JsonDocumentAst {
@@ -7436,8 +7533,14 @@ impl JsonDocumentOutputSubject for JsonDocumentAst {
         self.line_ending.as_deref()
     }
 
-    fn into_cemt_subject(self) -> Value {
-        self.to_cemt_subject()
+    fn native_cemt_subject(&self) -> Option<CemtEvaluatorValue<'_>> {
+        Some(CemtEvaluatorValue::borrowed(
+            JsonDocumentCemtSubjectRef::new(self).evaluator_view(),
+        ))
+    }
+
+    fn into_compatibility_cemt_subject(self) -> Option<Value> {
+        None
     }
 }
 
@@ -7457,8 +7560,8 @@ impl JsonDocumentOutputSubject for GenericDataJsonDocumentOutputSubject {
         self.ast.source_line_ending()
     }
 
-    fn into_cemt_subject(self) -> Value {
-        generic_data_ast_to_json_cemt_subject(&self.ast)
+    fn into_compatibility_cemt_subject(self) -> Option<Value> {
+        Some(generic_data_ast_to_json_cemt_subject(&self.ast))
     }
 }
 
@@ -7468,8 +7571,8 @@ impl JsonDocumentOutputSubject for Value {
         self.get("lineEnding").and_then(Value::as_str)
     }
 
-    fn into_cemt_subject(self) -> Value {
-        self
+    fn into_compatibility_cemt_subject(self) -> Option<Value> {
+        Some(self)
     }
 }
 
@@ -7528,7 +7631,6 @@ pub fn execute_json_document_output_pipeline_with_environment(
     };
     let line_ending =
         json_formatter_line_ending(document.source_line_ending(), &presentation_options);
-    let document_subject = document.into_cemt_subject();
     let local_artifact_cache = ConversionOutputPipelineArtifactCache::default();
     let cached_environment = if environment.artifact_cache.is_some() {
         *environment
@@ -7541,6 +7643,26 @@ pub fn execute_json_document_output_pipeline_with_environment(
         }
     };
     let environment = &cached_environment;
+    if let Some(document_subject) = document.native_cemt_subject() {
+        return execute_native_json_document_output_pipeline(
+            environment,
+            document_subject,
+            target_scope,
+            diagnostic_uri,
+            formatter_name,
+            formatter_profile,
+            presentation_options,
+            output_color_selection,
+            line_ending,
+        );
+    }
+    let Some(document_subject) = document.into_compatibility_cemt_subject() else {
+        return json_output_pipeline_failed(
+            diagnostic_uri,
+            "JSON output subject has neither a native evaluator view nor a compatibility projection"
+                .to_owned(),
+        );
+    };
     let target = TransformTemplateEncodingTarget::new(
         JSON_CONTENT_TYPE,
         JSON_VALUE_SCHEMA_URI,
@@ -7839,6 +7961,8 @@ pub fn execute_json_document_output_pipeline_with_environment(
                 raw_cem_tree: None,
                 formatted_cemt_tree: None,
                 colored_cemt_tree: None,
+                formatted_materialized_cemt_tree: None,
+                colored_materialized_cemt_tree: None,
                 source_map: artifact.source_map,
                 output_spans: artifact.output_spans,
                 format_execution,
@@ -7862,6 +7986,778 @@ pub fn execute_json_document_output_pipeline_with_environment(
             colored_cem_tree,
             ..ConversionOutputPipelineExecution::default()
         },
+    }
+}
+
+#[allow(clippy::too_many_arguments)]
+fn execute_native_json_document_output_pipeline(
+    environment: &ConversionOutputPipelineEnvironment<'_>,
+    document_subject: CemtEvaluatorValue<'_>,
+    target_scope: &ScopeConfig,
+    diagnostic_uri: Option<&str>,
+    formatter_name: String,
+    formatter_profile: String,
+    presentation_options: JsonFormatterPresentationOptions,
+    output_color_selection: Option<TransformTemplateOutputColorSelection>,
+    line_ending: Option<String>,
+) -> ConversionOutputPipelineExecution {
+    let target = TransformTemplateEncodingTarget::new(
+        JSON_CONTENT_TYPE,
+        JSON_VALUE_SCHEMA_URI,
+        "json-document",
+    );
+    let format_options = TransformTemplateEncodeOptions {
+        formatter: Some(formatter_name.clone()),
+        formatter_profile: Some(formatter_profile.clone()),
+        formatter_options: target_scope.cemt_formatter_options.clone(),
+        line_ending: line_ending.clone(),
+        mode: TransformTemplateEncodedArtifactMode::Document,
+        canonical: formatter_profile == "compact",
+        source_map_policy: TransformTemplateSourceMapPolicy::Generated,
+        ..TransformTemplateEncodeOptions::default()
+    };
+    let (format_stage, format_binding) = match resolve_cemt_output_stage_binding(
+        environment,
+        "JSON",
+        JSON_FORMAT_CEMT_STAGE_SPEC,
+        &target,
+        Some(formatter_profile.as_str()),
+        Some(formatter_name.as_str()),
+        &Value::Null,
+        "json-document",
+        format_options,
+    ) {
+        Ok(resolved) => resolved,
+        Err(message) => return json_output_pipeline_failed(diagnostic_uri, message),
+    };
+    let format_started = Instant::now();
+    let format_result = execute_conversion_typed_cemt_output_stage(
+        environment,
+        format_stage,
+        &format_binding,
+        document_subject,
+    );
+    let format_elapsed_ns = Some(format_started.elapsed().as_nanos());
+    let (formatted_value, format_execution) = match format_result {
+        Ok(output) => output,
+        Err(message) => {
+            return json_output_pipeline_failed_with_timings(
+                diagnostic_uri,
+                format!(
+                    "CEMT formatter `{}` failed: {message}",
+                    format_binding.function.name
+                ),
+                format_elapsed_ns,
+                None,
+                None,
+            )
+        }
+    };
+    let formatted_artifact = match lower_json_materialized_formatter_result(
+        formatted_value,
+        &target,
+        &format_binding.function.name,
+        &formatter_profile,
+    ) {
+        Ok(artifact) => artifact,
+        Err(message) => {
+            return json_output_pipeline_failed_with_timings(
+                diagnostic_uri,
+                format!(
+                    "CEMT formatter `{}` failed: {message}",
+                    format_binding.function.name
+                ),
+                format_elapsed_ns,
+                None,
+                None,
+            )
+        }
+    };
+    let format_execution = Some(format_execution);
+
+    let cemt_color_profile =
+        match json_cemt_color_profile_for_output(target_scope, output_color_selection.as_ref()) {
+            Ok(profile) => profile,
+            Err(message) => return json_output_pipeline_failed(diagnostic_uri, message),
+        };
+    let wants_color = target_scope
+        .cemt_colorizer
+        .as_deref()
+        .map(str::trim)
+        .is_some_and(|name| !name.is_empty())
+        || cemt_color_profile.is_some()
+        || output_color_selection
+            .as_ref()
+            .is_some_and(json_output_color_selection_requests_color);
+    let mut color_elapsed_ns = None;
+    let (writer_artifact, color_execution, colored_materialized_cemt_tree) = if wants_color {
+        let colorizer_name = target_scope
+            .cemt_colorizer
+            .as_deref()
+            .map(str::trim)
+            .filter(|name| !name.is_empty())
+            .unwrap_or(JSON_COLOR_CEMT_STAGE_SPEC.function_name);
+        let color_profile = cemt_color_profile.as_deref().unwrap_or("terminal");
+        let color_options = TransformTemplateEncodeOptions {
+            formatter_options: target_scope.cemt_formatter_options.clone(),
+            formatter_profile: Some(formatter_profile.clone()),
+            colorizer: Some(colorizer_name.to_owned()),
+            color_profile: Some(color_profile.to_owned()),
+            line_ending: line_ending.clone(),
+            mode: TransformTemplateEncodedArtifactMode::Document,
+            canonical: false,
+            source_map_policy: TransformTemplateSourceMapPolicy::Generated,
+            ..TransformTemplateEncodeOptions::default()
+        };
+        let (color_stage, color_binding) = match resolve_cemt_output_stage_binding(
+            environment,
+            "JSON",
+            JSON_COLOR_CEMT_STAGE_SPEC,
+            &target,
+            Some(color_profile),
+            Some(colorizer_name),
+            &Value::Null,
+            "cem-tree",
+            color_options,
+        ) {
+            Ok(resolved) => resolved,
+            Err(message) => return json_output_pipeline_failed(diagnostic_uri, message),
+        };
+        let color_started = Instant::now();
+        let color_result = execute_conversion_typed_cemt_output_stage(
+            environment,
+            color_stage,
+            &color_binding,
+            CemtEvaluatorValue::borrowed(formatted_artifact.evaluator_view()),
+        );
+        color_elapsed_ns = Some(color_started.elapsed().as_nanos());
+        let (colored_value, color_execution) = match color_result {
+            Ok(output) => output,
+            Err(message) => {
+                return json_output_pipeline_failed_with_timings(
+                    diagnostic_uri,
+                    format!(
+                        "CEMT colorizer `{}` failed: {message}",
+                        color_binding.function.name
+                    ),
+                    format_elapsed_ns,
+                    color_elapsed_ns,
+                    None,
+                )
+            }
+        };
+        let colored_artifact = match lower_json_materialized_colorizer_result(
+            formatted_artifact.as_ref(),
+            colored_value,
+            &color_binding.function.name,
+            color_profile,
+        ) {
+            Ok(artifact) => artifact,
+            Err(message) => {
+                return json_output_pipeline_failed_with_timings(
+                    diagnostic_uri,
+                    format!(
+                        "CEMT colorizer `{}` failed: {message}",
+                        color_binding.function.name
+                    ),
+                    format_elapsed_ns,
+                    color_elapsed_ns,
+                    None,
+                )
+            }
+        };
+        (
+            colored_artifact.clone(),
+            Some(color_execution),
+            Some(colored_artifact),
+        )
+    } else {
+        (formatted_artifact.clone(), None, None)
+    };
+
+    let wrap_html_output = output_color_selection
+        .as_ref()
+        .is_some_and(json_output_color_selection_is_html)
+        || writer_artifact
+            .color_overlay()
+            .is_some_and(|overlay| overlay.output == CemtColorOutput::Html);
+    let mut writer_context = TransformTemplateEncodedArtifactInsertionContext::from_encoding_target(
+        &target,
+        Some(TransformTemplateOutputProducedKind::Text),
+    );
+    writer_context.formatter_profile = Some(formatter_profile.clone());
+    writer_context.color_profile = writer_artifact
+        .color_overlay()
+        .and_then(|overlay| overlay.producer.profile().map(str::to_owned));
+    writer_context.output_color_type = output_color_selection
+        .as_ref()
+        .map(|selection| selection.output_color_type.clone());
+    if output_color_selection
+        .as_ref()
+        .is_some_and(json_output_color_selection_is_terminal)
+    {
+        writer_context.color_capability = output_color_selection
+            .as_ref()
+            .map(|selection| selection.output_color_type.clone());
+    }
+    writer_context.mode = Some(TransformTemplateEncodedArtifactMode::Document);
+    writer_context.source_map_policy = Some(TransformTemplateSourceMapPolicy::Generated);
+    let mut writer_identity = format_binding.identity.clone();
+    writer_identity.color_profile = writer_context.color_profile.clone();
+    let writer_binding = TransformTemplateEncodeBinding {
+        function: format_binding.function.clone(),
+        subject_type: "cem-tree".to_owned(),
+        identity: writer_identity,
+        options: TransformTemplateEncodeOptions::default(),
+    };
+    let writer_started = Instant::now();
+    let writer_result = execute_transform_template_materialized_cemt_writer(
+        TransformTemplateMaterializedCemtWriterRequest {
+            binding: &writer_binding,
+            artifact: writer_artifact,
+            insertion_context: &writer_context,
+        },
+    );
+    let writer_elapsed_ns = Some(writer_started.elapsed().as_nanos());
+    let mut writer_output = match writer_result {
+        Ok(output) => output,
+        Err(message) => {
+            return json_output_pipeline_failed_with_timings(
+                diagnostic_uri,
+                format!("materialized CEMT writer failed: {message}"),
+                format_elapsed_ns,
+                color_elapsed_ns,
+                writer_elapsed_ns,
+            )
+        }
+    };
+    if wrap_html_output {
+        json_wrap_html_preview_artifact(&mut writer_output, presentation_options.tab_size);
+    }
+
+    let formatted_public = json_materialized_cemt_public_projection(
+        formatted_artifact.as_ref(),
+        &format_binding.identity,
+    );
+    let colored_public = colored_materialized_cemt_tree.as_ref().map(|artifact| {
+        json_materialized_cemt_public_projection(artifact.as_ref(), &writer_binding.identity)
+    });
+    ConversionOutputPipelineExecution {
+        output: Some(
+            writer_output
+                .value
+                .into_public_value()
+                .expect("typed writer text projects to the public response"),
+        ),
+        source_map: writer_output.source_map,
+        output_spans: writer_output.output_spans,
+        format_execution,
+        color_execution,
+        format_elapsed_ns,
+        color_elapsed_ns,
+        writer_elapsed_ns,
+        formatted_materialized_cemt_tree: Some(formatted_artifact),
+        colored_materialized_cemt_tree,
+        formatted_cem_tree: Some(formatted_public),
+        colored_cem_tree: colored_public,
+        diagnostics: Vec::new(),
+        ..ConversionOutputPipelineExecution::default()
+    }
+}
+
+fn lower_json_materialized_formatter_result(
+    value: CemtEvaluatorValue<'_>,
+    target: &TransformTemplateEncodingTarget,
+    function_name: &str,
+    formatter_profile: &str,
+) -> Result<Arc<CemtMaterializedTreeArtifact>, String> {
+    let nodes = value
+        .field("nodes")
+        .ok_or_else(|| "formatted JSON CEMT result requires `nodes`".to_owned())?
+        .sequence_values("formatted JSON CEMT nodes")
+        .map_err(|error| error.to_string())?;
+    let nodes = nodes
+        .iter()
+        .enumerate()
+        .map(|(index, node)| lower_json_materialized_writer_token(node, index))
+        .collect::<Result<Vec<_>, _>>()?;
+    let owner = Arc::new(CemTreeAstStream::new(nodes));
+    let output_spans = owner
+        .as_nodes()
+        .iter()
+        .filter_map(|node| match node {
+            CemTreeAstNode::WriterToken { output_span, .. } => output_span.clone(),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    let source_map = output_spans.first().map(|span| span.origin.clone());
+    CemtMaterializedTreeArtifact::new(
+        CemtMaterializedTreeIdentity {
+            content_type: target.content_type.clone(),
+            schema: target.schema.clone(),
+            category: target.category.clone(),
+        },
+        CemtMaterializedTreeInputProvenance {
+            representation_id: "cem.json-document-ast".to_owned(),
+            source_map: source_map.clone(),
+        },
+        CemtMaterializedTreePipeline::Formatted {
+            formatter: CemtMaterializedTreeProducer::formatter(
+                function_name,
+                Some(formatter_profile.to_owned()),
+            ),
+        },
+        owner,
+        source_map,
+        output_spans,
+    )
+    .map(Arc::new)
+}
+
+fn lower_json_materialized_writer_token(
+    value: &CemtEvaluatorValue<'_>,
+    index: usize,
+) -> Result<CemTreeAstNode, String> {
+    if value.kind() != CemtEvaluatorValueKind::Record {
+        return Err(format!("formatted JSON CEMT node {index} must be a record"));
+    }
+    let writer_kind = required_typed_cemt_string(value, "writerKind", "JSON writer token")?;
+    if writer_kind != "token" {
+        return Err(format!(
+            "formatted JSON CEMT node {index} has unsupported writerKind `{writer_kind}`"
+        ));
+    }
+    let token_kind = required_typed_cemt_string(value, "kind", "JSON writer token")?;
+    let text = required_typed_cemt_string(value, "text", "JSON writer token")?;
+    let role = required_typed_cemt_string(value, "role", "JSON writer token")?;
+    let style = value
+        .field("style")
+        .map(|style| lower_json_writer_token_style(&style, index))
+        .transpose()?
+        .unwrap_or_default();
+    let metadata = value
+        .field("value")
+        .map(|metadata| lower_json_writer_token_metadata(&metadata, index))
+        .transpose()?
+        .unwrap_or_default();
+    let source = optional_typed_cemt_source_map(value, "sourceMap", index)?.unwrap_or_default();
+    let output_span = value
+        .field("outputSpan")
+        .filter(|value| value.kind() != CemtEvaluatorValueKind::Null)
+        .map(|span| lower_json_writer_token_output_span(&span, index))
+        .transpose()?;
+    Ok(CemTreeAstNode::WriterToken {
+        token_kind,
+        text,
+        role,
+        style: Box::new(style),
+        metadata: Box::new(metadata),
+        output_span,
+        source,
+    })
+}
+
+fn lower_json_writer_token_style(
+    value: &CemtEvaluatorValue<'_>,
+    index: usize,
+) -> Result<CemTreeAstWriterTokenStyle, String> {
+    validate_typed_cemt_record_fields(
+        value,
+        &[
+            "colorRole",
+            "colorProfile",
+            "colorOutput",
+            "htmlMode",
+            "class",
+            "color",
+            "wrapper",
+            "terminalCapability",
+        ],
+        &format!("JSON writer token {index} style"),
+    )?;
+    Ok(CemTreeAstWriterTokenStyle {
+        color_role: optional_typed_cemt_string(value, "colorRole")?,
+        color_profile: optional_typed_cemt_string(value, "colorProfile")?,
+        color_output: optional_typed_cemt_string(value, "colorOutput")?,
+        html_mode: optional_typed_cemt_string(value, "htmlMode")?,
+        class_name: optional_typed_cemt_string(value, "class")?,
+        color: optional_typed_cemt_string(value, "color")?,
+        wrapper: optional_typed_cemt_string(value, "wrapper")?,
+        terminal_capability: optional_typed_cemt_string(value, "terminalCapability")?,
+    })
+}
+
+fn lower_json_writer_token_metadata(
+    value: &CemtEvaluatorValue<'_>,
+    index: usize,
+) -> Result<CemTreeAstWriterTokenMetadata, String> {
+    validate_typed_cemt_record_fields(
+        value,
+        &[
+            "name",
+            "formatterProfile",
+            "formatterRole",
+            "sourceRange",
+            "memberIndex",
+            "layout",
+            "lineEnding",
+            "indent",
+            "leadingComma",
+            "scopeOpeningNewLine",
+        ],
+        &format!("JSON writer token {index} metadata"),
+    )?;
+    Ok(CemTreeAstWriterTokenMetadata {
+        name: optional_typed_cemt_string(value, "name")?,
+        formatter_profile: optional_typed_cemt_string(value, "formatterProfile")?,
+        formatter_role: optional_typed_cemt_string(value, "formatterRole")?,
+        source_range: value
+            .field("sourceRange")
+            .filter(|value| value.kind() != CemtEvaluatorValueKind::Null)
+            .map(|range| lower_json_writer_token_source_range(&range, index))
+            .transpose()?,
+        member_index: optional_typed_cemt_u64(value, "memberIndex")?,
+        layout: optional_typed_cemt_string(value, "layout")?,
+        line_ending: optional_typed_cemt_string(value, "lineEnding")?,
+        indent: optional_typed_cemt_string(value, "indent")?,
+        leading_comma: optional_typed_cemt_bool(value, "leadingComma")?,
+        scope_opening_new_line: optional_typed_cemt_bool(value, "scopeOpeningNewLine")?,
+    })
+}
+
+fn lower_json_writer_token_source_range(
+    value: &CemtEvaluatorValue<'_>,
+    index: usize,
+) -> Result<CemTreeAstWriterTokenSourceRange, String> {
+    Ok(CemTreeAstWriterTokenSourceRange {
+        byte_offset: required_typed_cemt_u64(value, "byteOffset", "JSON source range")?,
+        byte_length: required_typed_cemt_u64(value, "byteLength", "JSON source range")?,
+        line: u32::try_from(required_typed_cemt_u64(value, "line", "JSON source range")?)
+            .map_err(|_| format!("JSON writer token {index} source range line exceeds u32"))?,
+        column: u32::try_from(required_typed_cemt_u64(
+            value,
+            "column",
+            "JSON source range",
+        )?)
+        .map_err(|_| format!("JSON writer token {index} source range column exceeds u32"))?,
+    })
+}
+
+fn lower_json_writer_token_output_span(
+    value: &CemtEvaluatorValue<'_>,
+    index: usize,
+) -> Result<OutputSpan, String> {
+    let range = value
+        .field("outputRange")
+        .ok_or_else(|| format!("JSON writer token {index} outputSpan requires outputRange"))?;
+    let start = required_typed_cemt_u64(&range, "start", "JSON output range")?;
+    let len = u32::try_from(required_typed_cemt_u64(&range, "len", "JSON output range")?)
+        .map_err(|_| format!("JSON writer token {index} output span length exceeds u32"))?;
+    let origin = value
+        .field("origin")
+        .and_then(|origin| origin.as_source_map().cloned())
+        .ok_or_else(|| format!("JSON writer token {index} outputSpan requires origin"))?;
+    Ok(OutputSpan {
+        output_range: ByteRange::new(start, len),
+        origin,
+    })
+}
+
+fn lower_json_materialized_colorizer_result(
+    formatted: &CemtMaterializedTreeArtifact,
+    value: CemtEvaluatorValue<'_>,
+    function_name: &str,
+    color_profile: &str,
+) -> Result<Arc<CemtMaterializedTreeArtifact>, String> {
+    let output = match required_typed_cemt_string(&value, "colorOutput", "JSON colorizer")?.as_str()
+    {
+        "terminal" => CemtColorOutput::Terminal,
+        "html" => CemtColorOutput::Html,
+        "md" | "markdown" => CemtColorOutput::Markdown,
+        output => {
+            return Err(format!(
+                "JSON colorizer returned unsupported output `{output}`"
+            ))
+        }
+    };
+    let colored_nodes = value
+        .field("nodes")
+        .ok_or_else(|| "colored JSON CEMT result requires `nodes`".to_owned())?
+        .sequence_values("colored JSON CEMT nodes")
+        .map_err(|error| error.to_string())?;
+    if colored_nodes.len() != formatted.owner().as_nodes().len() {
+        return Err(format!(
+            "JSON colorizer returned {} nodes for {} formatted writer tokens",
+            colored_nodes.len(),
+            formatted.owner().as_nodes().len()
+        ));
+    }
+    let mut tokens = Vec::with_capacity(colored_nodes.len());
+    for (index, (formatted_node, colored_node)) in formatted
+        .owner()
+        .as_nodes()
+        .iter()
+        .zip(&colored_nodes)
+        .enumerate()
+    {
+        let CemTreeAstNode::WriterToken {
+            token_kind,
+            text,
+            role,
+            ..
+        } = formatted_node
+        else {
+            return Err(format!(
+                "formatted JSON CEMT node {index} is not a writer token"
+            ));
+        };
+        for (field, expected) in [
+            ("kind", token_kind.as_str()),
+            ("text", text.as_str()),
+            ("role", role.as_str()),
+        ] {
+            let actual = required_typed_cemt_string(colored_node, field, "JSON colored token")?;
+            if actual != expected {
+                return Err(format!(
+                    "JSON colorizer changed writer token {index} `{field}` from `{expected}` to `{actual}`"
+                ));
+            }
+        }
+        let style = colored_node
+            .field("style")
+            .ok_or_else(|| format!("JSON colored token {index} requires style"))?;
+        let style = lower_json_writer_token_style(&style, index)?;
+        let color_role = style
+            .color_role
+            .clone()
+            .ok_or_else(|| format!("JSON colored token {index} requires style.colorRole"))?;
+        tokens.push(CemtMaterializedWriterTokenColor {
+            target: CemtOwnerPath::root(index),
+            color_role,
+            style,
+        });
+    }
+    let formatter = match formatted.pipeline() {
+        CemtMaterializedTreePipeline::Formatted { formatter } => formatter.clone(),
+        _ => return Err("JSON colorizer requires a formatted materialized owner".to_owned()),
+    };
+    let colorizer =
+        CemtMaterializedTreeProducer::colorizer(function_name, Some(color_profile.to_owned()));
+    CemtMaterializedTreeArtifact::new_colored(
+        formatted.identity().clone(),
+        CemtMaterializedTreeInputProvenance {
+            representation_id: CEMT_MATERIALIZED_TREE_REPRESENTATION_ID.to_owned(),
+            source_map: formatted.source_map().cloned(),
+        },
+        CemtMaterializedTreePipeline::Colored {
+            formatter,
+            colorizer: colorizer.clone(),
+        },
+        formatted.owner().clone(),
+        formatted.source_map().cloned(),
+        formatted.output_spans().to_vec(),
+        CemtMaterializedTreeColorOverlay {
+            producer: colorizer,
+            output,
+            tokens,
+        },
+    )
+    .map(Arc::new)
+}
+
+fn required_typed_cemt_string(
+    value: &CemtEvaluatorValue<'_>,
+    field: &str,
+    context: &str,
+) -> Result<String, String> {
+    value
+        .field(field)
+        .and_then(|value| value.as_str().map(str::to_owned))
+        .ok_or_else(|| format!("{context} requires string `{field}`"))
+}
+
+fn optional_typed_cemt_string(
+    value: &CemtEvaluatorValue<'_>,
+    field: &str,
+) -> Result<Option<String>, String> {
+    match value.field(field) {
+        None | Some(CemtEvaluatorValue::Null) => Ok(None),
+        Some(value) if value.kind() == CemtEvaluatorValueKind::Null => Ok(None),
+        Some(value) => value
+            .as_str()
+            .map(|value| Some(value.to_owned()))
+            .ok_or_else(|| format!("typed CEMT field `{field}` must be a string")),
+    }
+}
+
+fn required_typed_cemt_u64(
+    value: &CemtEvaluatorValue<'_>,
+    field: &str,
+    context: &str,
+) -> Result<u64, String> {
+    value
+        .field(field)
+        .and_then(|value| value.as_number())
+        .and_then(|number| number.as_u64())
+        .ok_or_else(|| format!("{context} requires unsigned integer `{field}`"))
+}
+
+fn optional_typed_cemt_u64(
+    value: &CemtEvaluatorValue<'_>,
+    field: &str,
+) -> Result<Option<u64>, String> {
+    match value.field(field) {
+        None | Some(CemtEvaluatorValue::Null) => Ok(None),
+        Some(value) if value.kind() == CemtEvaluatorValueKind::Null => Ok(None),
+        Some(value) => value
+            .as_number()
+            .and_then(|number| number.as_u64())
+            .map(Some)
+            .ok_or_else(|| format!("typed CEMT field `{field}` must be an unsigned integer")),
+    }
+}
+
+fn optional_typed_cemt_bool(
+    value: &CemtEvaluatorValue<'_>,
+    field: &str,
+) -> Result<Option<bool>, String> {
+    match value.field(field) {
+        None | Some(CemtEvaluatorValue::Null) => Ok(None),
+        Some(value) if value.kind() == CemtEvaluatorValueKind::Null => Ok(None),
+        Some(value) => value
+            .as_bool()
+            .map(Some)
+            .ok_or_else(|| format!("typed CEMT field `{field}` must be boolean")),
+    }
+}
+
+fn optional_typed_cemt_source_map(
+    value: &CemtEvaluatorValue<'_>,
+    field: &str,
+    index: usize,
+) -> Result<Option<SourceMapStack>, String> {
+    match value.field(field) {
+        None | Some(CemtEvaluatorValue::Null) => Ok(None),
+        Some(value) if value.kind() == CemtEvaluatorValueKind::Null => Ok(None),
+        Some(value) => value.as_source_map().cloned().map(Some).ok_or_else(|| {
+            format!("JSON writer token {index} field `{field}` must be a source map")
+        }),
+    }
+}
+
+fn validate_typed_cemt_record_fields(
+    value: &CemtEvaluatorValue<'_>,
+    allowed: &[&str],
+    context: &str,
+) -> Result<(), String> {
+    let names = value
+        .record_field_names("typed CEMT record validation")
+        .map_err(|error| error.to_string())?;
+    if let Some(name) = names.iter().find(|name| !allowed.contains(&name.as_str())) {
+        return Err(format!("{context} has unsupported field `{name}`"));
+    }
+    Ok(())
+}
+
+fn json_materialized_cemt_public_projection(
+    artifact: &CemtMaterializedTreeArtifact,
+    identity: &TransformTemplateEncodedArtifactIdentity,
+) -> TransformTemplateEncodedArtifact {
+    let mut nodes = artifact.owner().as_ref().clone().into_cemt_subject();
+    if let (Some(overlay), Some(nodes)) = (artifact.color_overlay(), nodes.as_array_mut()) {
+        for token in &overlay.tokens {
+            let Some(node) = nodes
+                .get_mut(token.target.root_index())
+                .and_then(Value::as_object_mut)
+            else {
+                continue;
+            };
+            node.insert(
+                "style".to_owned(),
+                serde_json::to_value(&token.style).expect("typed writer token style projects"),
+            );
+            if let Some(metadata) = node.get_mut("value").and_then(Value::as_object_mut) {
+                metadata.insert(
+                    "colorRole".to_owned(),
+                    Value::String(token.color_role.clone()),
+                );
+                if let Some(profile) = overlay.producer.profile() {
+                    metadata.insert("colorProfile".to_owned(), Value::String(profile.to_owned()));
+                }
+                metadata.insert(
+                    "colorOutput".to_owned(),
+                    Value::String(overlay.output.as_str().to_owned()),
+                );
+            }
+        }
+    }
+    let (formatter, colorizer) = match artifact.pipeline() {
+        CemtMaterializedTreePipeline::Formatted { formatter } => (formatter, None),
+        CemtMaterializedTreePipeline::Colored {
+            formatter,
+            colorizer,
+        } => (formatter, Some(colorizer)),
+        CemtMaterializedTreePipeline::Raw { producer } => (producer, None),
+    };
+    let formatter_profile = formatter.profile().unwrap_or("unknown");
+    let decision = artifact
+        .owner()
+        .as_nodes()
+        .get(1)
+        .and_then(|node| match node {
+            CemTreeAstNode::WriterToken { metadata, .. } => Some(metadata.as_ref()),
+            _ => None,
+        });
+    let mut tree = serde_json::json!({
+        "kind": "cem-tree",
+        "contentType": artifact.identity().content_type,
+        "schema": artifact.identity().schema,
+        "category": artifact.identity().category,
+        "formatterProfile": formatter_profile,
+        "formatNodes": [
+            {
+                "kind": "format-marker",
+                "name": formatter.function_name(),
+                "formatterRole": "formatter.boundary",
+                "formatterProfile": formatter_profile,
+            },
+            {
+                "kind": "format-decision",
+                "name": "json.layout",
+                "formatterRole": "formatter.layout",
+                "formatterProfile": formatter_profile,
+                "value": decision,
+            }
+        ],
+        "nodes": nodes,
+    });
+    if let (Some(colorizer), Some(overlay)) = (colorizer, artifact.color_overlay()) {
+        tree["colored"] = Value::Bool(true);
+        tree["colorProfile"] = Value::String(colorizer.profile().unwrap_or("unknown").to_owned());
+        tree["colorOutput"] = Value::String(overlay.output.as_str().to_owned());
+        tree["colorNodes"] = serde_json::json!([
+            {
+                "kind": "color-marker",
+                "name": colorizer.function_name(),
+                "colorizerRole": "colorizer.boundary",
+                "colorProfile": colorizer.profile(),
+                "colorOutput": overlay.output.as_str(),
+            },
+            {
+                "kind": "color-decision",
+                "name": "json.role-palette",
+                "colorizerRole": "colorizer.role",
+                "colorProfile": colorizer.profile(),
+                "colorOutput": overlay.output.as_str(),
+            }
+        ]);
+    }
+    TransformTemplateEncodedArtifact {
+        identity: identity.clone(),
+        value: TransformTemplateEncodedArtifactPayload::CemtRuntime(tree),
+        source_map: artifact.source_map().cloned(),
+        output_spans: artifact.output_spans().to_vec(),
+        encoded: true,
     }
 }
 
@@ -8207,6 +9103,8 @@ pub fn execute_json_schema_document_output_pipeline_with_environment(
                 raw_cem_tree: None,
                 formatted_cemt_tree: None,
                 colored_cemt_tree: None,
+                formatted_materialized_cemt_tree: None,
+                colored_materialized_cemt_tree: None,
                 source_map: artifact.source_map,
                 output_spans: artifact.output_spans,
                 format_execution,
@@ -9008,6 +9906,8 @@ pub fn execute_markdown_document_output_pipeline_with_environment(
                 raw_cem_tree: None,
                 formatted_cemt_tree: None,
                 colored_cemt_tree: None,
+                formatted_materialized_cemt_tree: None,
+                colored_materialized_cemt_tree: None,
                 source_map: artifact.source_map,
                 output_spans: artifact.output_spans,
                 format_execution,
@@ -10509,6 +11409,8 @@ fn execute_conversion_output_pipeline_from_typed_formatted_artifact(
         raw_cem_tree: None,
         formatted_cemt_tree: Some(formatted_cemt_tree),
         colored_cemt_tree,
+        formatted_materialized_cemt_tree: None,
+        colored_materialized_cemt_tree: None,
         source_map: artifact.source_map,
         output_spans: artifact.output_spans,
         format_execution,
@@ -10725,6 +11627,8 @@ fn execute_conversion_output_pipeline_from_formatted_artifact(
             raw_cem_tree: None,
             formatted_cemt_tree,
             colored_cemt_tree,
+            formatted_materialized_cemt_tree: None,
+            colored_materialized_cemt_tree: None,
             source_map: artifact.source_map,
             output_spans: artifact.output_spans,
             format_execution,
@@ -18390,6 +19294,51 @@ mod tests {
     }
 
     #[test]
+    fn native_json_output_layers_exchange_only_typed_evaluator_and_ast_stream_artifacts() {
+        let source = include_str!("conversion.rs");
+        let pipeline = source
+            .split_once("fn execute_native_json_document_output_pipeline(")
+            .and_then(|(_, suffix)| {
+                suffix.split_once("fn lower_json_materialized_formatter_result(")
+            })
+            .map(|(pipeline, _)| pipeline)
+            .expect("native JSON materialized pipeline source");
+        for required in [
+            "execute_conversion_typed_cemt_output_stage",
+            "lower_json_materialized_formatter_result",
+            "lower_json_materialized_colorizer_result",
+            "execute_transform_template_materialized_cemt_writer",
+        ] {
+            assert!(
+                pipeline.contains(required),
+                "missing `{required}` native handoff"
+            );
+        }
+        for forbidden in [
+            "execute_conversion_cem_tree_output_stage(",
+            "artifact_from_cemt_value",
+            "to_cemt_runtime_value",
+            "compose_transform_template_encoded_text_artifacts",
+            "into_compatibility_cemt_subject",
+        ] {
+            assert!(
+                !pipeline.contains(forbidden),
+                "native JSON layers must not cross `{forbidden}`"
+            );
+        }
+
+        let json_subject = source
+            .split_once("impl JsonDocumentOutputSubject for JsonDocumentAst")
+            .and_then(|(_, suffix)| {
+                suffix.split_once("pub struct GenericDataJsonDocumentOutputSubject")
+            })
+            .map(|(implementation, _)| implementation)
+            .expect("lossless JSON output subject implementation");
+        assert!(json_subject.contains("JsonDocumentCemtSubjectRef::new(self).evaluator_view()"));
+        assert!(!json_subject.contains("to_cemt_subject"));
+    }
+
+    #[test]
     fn conversion_output_pipeline_applies_literal_baseline_formatter_profiles() {
         let mut pretty_pipeline = direct_cem_output_pipeline();
         pretty_pipeline.cemt_options.formatter_profile = Some("pretty".to_owned());
@@ -22045,41 +22994,22 @@ mod tests {
             package_artifact_reader: None,
             artifact_cache: None,
         };
-        let document = serde_json::json!({
-            "kind": "json-document",
-            "lineEnding": "lf",
-            "root": {
-                "kind": "object",
-                "sourceMap": json_test_source_map(0, 28),
-                "members": [
-                    {
-                        "index": 0,
-                        "name": "name",
-                        "nameLexeme": "\"name\"",
-                        "nameSourceMap": json_test_source_map(1, 6),
-                        "sourceMap": json_test_source_map(1, 12),
-                        "value": {
-                            "kind": "string",
-                            "value": "Ada",
-                            "lexeme": "\"Ada\"",
-                            "sourceMap": json_test_source_map(8, 5)
-                        }
-                    },
-                    {
-                        "index": 1,
-                        "name": "active",
-                        "nameLexeme": "\"active\"",
-                        "nameSourceMap": json_test_source_map(15, 8),
-                        "sourceMap": json_test_source_map(15, 12),
-                        "value": {
-                            "kind": "boolean",
-                            "value": true,
-                            "sourceMap": json_test_source_map(24, 4)
-                        }
-                    }
-                ]
-            }
-        });
+        let source = br#"{"name":"Ada","active":true}"#;
+        let (document, parse_diagnostics) =
+            crate::validation::json::json_document_ast_from_source_bytes(
+                crate::validation::json::JsonSourceValidationRequest {
+                    bytes: source,
+                    source_uri: "builtin:json-output",
+                    content_type: Some(JSON_CONTENT_TYPE),
+                },
+            );
+        assert!(
+            parse_diagnostics
+                .iter()
+                .all(|diagnostic| !diagnostic.severity.is_hard_violation()),
+            "{parse_diagnostics:?}"
+        );
+        let document = document.expect("lossless JSON AST");
         let target_scope = ScopeConfig {
             cemt_formatter_profile: Some("tabular".to_owned()),
             ..ScopeConfig::default()
@@ -22117,6 +23047,19 @@ mod tests {
             execution.format_execution
         );
         assert_eq!(execution.color_execution, None);
+        let formatted_materialized = execution
+            .formatted_materialized_cemt_tree
+            .as_ref()
+            .expect("materialized formatted JSON CEMT tree");
+        assert_eq!(
+            formatted_materialized.stage(),
+            crate::transform_artifact::CemtMaterializedTreeStage::Formatted
+        );
+        assert!(formatted_materialized
+            .owner()
+            .as_nodes()
+            .iter()
+            .all(|node| matches!(node, CemTreeAstNode::WriterToken { .. })));
         let formatted = execution
             .formatted_cem_tree
             .as_ref()
@@ -22274,6 +23217,63 @@ mod tests {
             "{:?}",
             execution.color_execution
         );
+    }
+
+    #[test]
+    fn builtin_json_colorizer_retains_exact_materialized_writer_token_stream() {
+        let schema_registry = SchemaRegistry::with_builtin_schemas();
+        let conversion_registry = ConversionRegistry::with_builtin_converters();
+        let environment = ConversionOutputPipelineEnvironment {
+            schema_registry: &schema_registry,
+            conversion_registry: &conversion_registry,
+            package_artifact_reader: None,
+            artifact_cache: None,
+        };
+        let source = br#"{"name":"Ada"}"#;
+        let (document, diagnostics) = crate::validation::json::json_document_ast_from_source_bytes(
+            crate::validation::json::JsonSourceValidationRequest {
+                bytes: source,
+                source_uri: "builtin:json-materialized-color",
+                content_type: Some(JSON_CONTENT_TYPE),
+            },
+        );
+        assert!(
+            diagnostics
+                .iter()
+                .all(|diagnostic| !diagnostic.severity.is_hard_violation()),
+            "{diagnostics:?}"
+        );
+
+        let execution = execute_json_document_output_pipeline_with_environment(
+            &environment,
+            document.expect("lossless JSON AST"),
+            &ScopeConfig {
+                cemt_color_profile: Some("html".to_owned()),
+                ..ScopeConfig::default()
+            },
+            Some("builtin:json-materialized-color"),
+        );
+
+        assert!(
+            execution.diagnostics.is_empty(),
+            "{:?}",
+            execution.diagnostics
+        );
+        let formatted = execution
+            .formatted_materialized_cemt_tree
+            .as_ref()
+            .expect("materialized formatted tree");
+        let colored = execution
+            .colored_materialized_cemt_tree
+            .as_ref()
+            .expect("materialized colored tree");
+        assert!(Arc::ptr_eq(formatted.owner(), colored.owner()));
+        assert!(colored.color_overlay().is_some());
+        assert!(execution
+            .output
+            .as_ref()
+            .and_then(Value::as_str)
+            .is_some_and(|output| output.contains(r#"data-role="syntax.name""#)));
     }
 
     #[test]

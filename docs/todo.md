@@ -1044,6 +1044,28 @@ Remaining dependency-ordered package checklist:
                     `Arc<CemTreeAstStream>` and rejecting non-token, duplicate,
                     producer-mismatched, role-mismatched, and output-mismatched
                     overlay entries.
+              - [x] Route lossless `JsonDocumentAst` formatter execution
+                    through the borrowed typed evaluator and lower its package
+                    CEMT result directly into ordered `WriterToken` AST nodes.
+              - [x] Pass the exact formatted JSON `Arc<CemTreeAstStream>` into
+                    `json.color-document`, retain coloring only as the typed
+                    owner-path overlay, and make the writer traverse the stream
+                    plus overlay directly for plain, terminal, HTML, and
+                    Markdown output.
+              - [x] Remove `JsonDocumentAst::to_cemt_subject` from the JSON
+                    production output path and add a source audit rejecting the
+                    legacy stage executor, runtime `Value` artifact handoff,
+                    composer, or compatibility-subject bridge between JSON
+                    formatter, colorizer, and writer stages. The legacy public
+                    tree projection is now created only after writer completion
+                    for response/debug compatibility.
+              - [ ] Route a JSON-produced materialized body through an actual
+                    graph stage, ordered join, and secondary-input edge, proving
+                    both artifact and owner `Arc` identity rather than only the
+                    general body-routing contract.
+              - [ ] Replace the generic-data-to-JSON compatibility projection
+                    with a borrowed/typed generic-data evaluator view so every
+                    production JSON entry path uses the materialized pipeline.
       - [x] Define typed raw, formatted, and colored CEM tree envelopes with
             ordered native nodes and lazy evaluator views over the owning AST.
       - [ ] Route formatter, colorizer, writer, graph, and secondary-input
@@ -1105,46 +1127,34 @@ Remaining dependency-ordered package checklist:
 
 ### Next Work Item
 
-Migrate the JSON package as the first end-to-end serializer-free materialized
-CEMT producer. The representation decision is complete:
-`CemTreeAstNode::WriterToken` now carries concrete formatter fields, the
-borrowed evaluator exposes those fields directly, and
-`CemtMaterializedTreeArtifact::new_colored` attaches a validated typed overlay
-to the exact formatted `Arc<CemTreeAstStream>`.
+Finish JSON graph and alternate-ingress closure before applying the pattern to
+another package. The lossless JSON formatter, colorizer, and writer now exchange
+only a borrowed typed evaluator, `Arc<CemTreeAstStream>`, and typed color overlay;
+the remaining JSON gaps are routing and the generic-data ingress adapter.
 
-Implement the JSON slice in this order:
+Implement the next slice in this order:
 
-1. Add a typed formatter-result builder that consumes the borrowed
-   `JsonDocumentCemtSubjectRef` evaluator result and constructs ordered
-   `WriterToken` nodes directly. It must map token kind/text/role, style,
-   formatter metadata, `JsonSourceRange`, `SourceMapStack`, and `OutputSpan`
-   without calling `into_cemt_subject`, `to_json_value`, `serde_json::to_value`,
-   `serde_json::from_value`, or a text re-parser.
-2. Return that owner in a formatted `CemtMaterializedTreeArtifact`, then pass
-   the same `Arc` to `json.color-document`. Lower the colorizer result into
-   `CemtMaterializedTreeColorOverlay` entries only; do not clone or rebuild the
-   formatted token stream.
-3. Make the JSON writer traverse the formatted stream plus optional color
-   overlay directly. Preserve token order, duplicate-member lexemes, source
-   maps, and output spans for compact, pretty, terminal, HTML, and Markdown
-   profiles.
-4. Route the first-class materialized body through a graph stage, ordered join,
-   and secondary-input edge, asserting both artifact and owner `Arc` identity.
-   Remove `JsonDocumentOutputSubject::into_cemt_subject` from the production
-   path and add a source audit preventing replacement DTO or serializer
-   helpers.
-5. Pass focused JSON formatter/colorizer/writer tests, the full `cem_ml` suite,
-   converter parity, CLI e2e, lint, native build/test, and WASM gates before
-   using the JSON builder/view pattern for other packages.
-
-After JSON passes focused, full, lint, native, WASM, converter-parity, and CLI
-e2e gates, use its owner-view and direct AST-node builder as the pattern for
-CSV, YAML, JSON Schema, Markdown, XML-family, XSLT, Relax NG, DOM projection,
-and generic CEMT producers. Migrate those remaining producers atomically, then
-remove `CemtOutputArtifact`, `transform_template_output_cemt_subject`,
-`CemtEvaluator(Value)`, `CemtRuntime(Value)`, and adapter DTO conversions.
-Permit serialization only at registered external JSON, `+json`, text, or byte
-exporters.
+1. Return the formatted/colored JSON materialized artifact as a first-class
+   `TransformArtifactBody::MaterializedCemtTree` from the production stage
+   boundary, rather than exposing it only through pipeline execution metadata.
+2. Send that produced body through one real graph stage, ordered collection
+   join, and secondary-input binding. Assert `Arc::ptr_eq` for both the
+   `CemtMaterializedTreeArtifact` and its `CemTreeAstStream` owner at every
+   handoff, including the optional colored overlay path.
+3. Add a borrowed or typed evaluator view for `GenericDataDocumentAst` as a
+   JSON formatter subject, preserving ordered mapping entries, generated JSON
+   member names, normalized number lexemes, source ranges, and source maps.
+   Then remove `GenericDataJsonDocumentOutputSubject`'s
+   `generic_data_ast_to_json_cemt_subject` production fallback.
+4. Tighten the source audit so no production JSON ingress can select
+   `into_compatibility_cemt_subject`; keep JSON serialization only in the
+   post-writer public/debug projection and registered external exporters.
+5. Re-run JSON package, full core, converter parity, CLI e2e, lint, native, and
+   WASM gates. Once green, migrate JSON Schema next because it shares the JSON
+   token and writer contracts; then apply the same pattern to CSV, YAML,
+   Markdown, XML-family, XSLT, Relax NG, DOM projection, and remaining generic
+   CEMT producers before deleting `CemtEvaluator(Value)`, `CemtRuntime(Value)`,
+   and adapter DTO conversion globally.
 
 ## Current Verification Commands
 

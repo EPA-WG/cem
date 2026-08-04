@@ -856,6 +856,12 @@ impl<'a> CemtTreeSubjectRef<'a> {
     }
 }
 
+impl CemtMaterializedTreeArtifact {
+    pub fn evaluator_view(&self) -> CemtEvaluatorValueRef<'_> {
+        CemtEvaluatorValueRef::Record(CemtEvaluatorRecordRef::MaterializedTree { artifact: self })
+    }
+}
+
 #[derive(Debug, Clone, Copy)]
 pub struct JsonDocumentCemtSubjectRef<'a> {
     document: &'a JsonDocumentAst,
@@ -2020,6 +2026,9 @@ pub enum CemtEvaluatorRecordRef<'a> {
         subject: CemtTreeSubjectRef<'a>,
         overlay: &'a CemtFormattedTreeOverlay,
     },
+    MaterializedTree {
+        artifact: &'a CemtMaterializedTreeArtifact,
+    },
     FormattedNode {
         node: &'a CemTreeAstNode,
         path: CemtOwnerPath,
@@ -2057,6 +2066,7 @@ impl<'a> CemtEvaluatorRecordRef<'a> {
             | Self::OutputSpan { .. }
             | Self::OutputRange { .. }
             | Self::FormattedTree { .. }
+            | Self::MaterializedTree { .. }
             | Self::FormatOperation { .. }
             | Self::NodeFormatOperation { .. } => None,
         }
@@ -2080,6 +2090,7 @@ impl<'a> CemtEvaluatorRecordRef<'a> {
             | Self::OutputSpan { .. }
             | Self::OutputRange { .. }
             | Self::FormattedTree { .. }
+            | Self::MaterializedTree { .. }
             | Self::FormatOperation { .. }
             | Self::NodeFormatOperation { .. } => None,
         }
@@ -2209,6 +2220,16 @@ impl<'a> CemtEvaluatorRecordRef<'a> {
                 "formatNodes",
                 "nodes",
             ],
+            Self::MaterializedTree { .. } => &[
+                "kind",
+                "contentType",
+                "schema",
+                "category",
+                "mode",
+                "canonical",
+                "formatterProfile",
+                "nodes",
+            ],
             Self::FormattedNode { node, .. } => match node {
                 CemTreeAstNode::Document { .. } => &[
                     "kind",
@@ -2334,6 +2355,9 @@ impl<'a> CemtEvaluatorRecordRef<'a> {
             Self::FormattedTree { subject, overlay } => {
                 cemt_evaluator_formatted_tree_field(*subject, overlay, name)
             }
+            Self::MaterializedTree { artifact } => {
+                cemt_evaluator_materialized_tree_field(artifact, name)
+            }
             Self::FormattedNode {
                 node,
                 path,
@@ -2351,6 +2375,40 @@ impl<'a> CemtEvaluatorRecordRef<'a> {
                 cemt_evaluator_node_format_operation_field(operation, name)
             }
         }
+    }
+}
+
+fn cemt_evaluator_materialized_tree_field<'a>(
+    artifact: &'a CemtMaterializedTreeArtifact,
+    name: &str,
+) -> Option<CemtEvaluatorValueRef<'a>> {
+    let formatter = match artifact.pipeline() {
+        CemtMaterializedTreePipeline::Formatted { formatter }
+        | CemtMaterializedTreePipeline::Colored { formatter, .. } => Some(formatter),
+        CemtMaterializedTreePipeline::Raw { .. } => None,
+    };
+    match name {
+        "kind" => Some(CemtEvaluatorValueRef::String("cem-tree")),
+        "contentType" => Some(CemtEvaluatorValueRef::String(
+            &artifact.identity().content_type,
+        )),
+        "schema" => Some(CemtEvaluatorValueRef::String(&artifact.identity().schema)),
+        "category" => Some(CemtEvaluatorValueRef::String(&artifact.identity().category)),
+        "mode" => Some(CemtEvaluatorValueRef::String("document")),
+        "canonical" => Some(CemtEvaluatorValueRef::Boolean(
+            formatter.and_then(|producer| producer.profile()) == Some("compact"),
+        )),
+        "formatterProfile" => Some(match formatter.and_then(|producer| producer.profile()) {
+            Some(profile) => CemtEvaluatorValueRef::String(profile),
+            None => CemtEvaluatorValueRef::Null,
+        }),
+        "nodes" => Some(
+            CemtTreeSubjectRef {
+                owner: artifact.owner().as_ref(),
+            }
+            .evaluator_view(),
+        ),
+        _ => None,
     }
 }
 
