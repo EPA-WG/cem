@@ -977,7 +977,7 @@ Remaining dependency-ordered package checklist:
                 colored `CemtTreeArtifact` overlays, remove its
                 `CemtRuntime(Value)` envelopes, and prove profile/source-map
                 parity with the compatibility writer.
-          - [ ] Replace the native formatter/colorizer evaluator handoffs with
+          - [x] Replace the native formatter/colorizer evaluator handoffs with
                 lazy typed views, then remove their evaluator-value scratch
                 and remaining `CemtRuntime(Value)` envelopes.
             - [x] Define a borrowed, zero-JSON evaluator view over raw
@@ -987,7 +987,7 @@ Remaining dependency-ordered package checklist:
             - [x] Extend the evaluator view across formatted envelope metadata,
                   owner-plus-overlay nodes, formatter operations, and generated
                   fragments without reconstructing a recursive tree.
-            - [ ] Migrate CEMT expression bindings and intermediates to the
+            - [x] Migrate CEMT expression bindings and intermediates to the
                   typed evaluator value algebra, then route the native
                   formatter and colorizer through it.
               - [x] Define the owned evaluator algebra, typed binding/path
@@ -1012,6 +1012,9 @@ Remaining dependency-ordered package checklist:
                     metadata accumulator helpers onto persistent typed values
                     with owner-backed field removal, exact compatibility
                     diagnostics, and schema-expression closure audits.
+              - [x] Pass focused, full, lint, native, WASM, CEMT fixture,
+                    converter-parity, and CLI e2e gates for the native CEM
+                    formatter/colorizer switch.
           - [ ] Give non-CEM CEMT tree producers package-owned typed result
                 artifacts, then remove `CemtEvaluator(Value)` globally.
       - [x] Define typed raw, formatted, and colored CEM tree envelopes with
@@ -1055,6 +1058,8 @@ Remaining dependency-ordered package checklist:
   - [ ] Preserve token-level source maps, leave generated layout unmapped,
         honor formatter options, and verify terminal/HTML/Markdown parity.
   - [ ] Run the XSLT package, converter parity, CLI e2e, and core gates.
+- [ ] cleanup completed items in todo.md
+
 ### Deferred: Phase 3 Custom-Element Runtime
 
 - [ ] Resume Phase 3 custom-element runtime substrate expansion after the
@@ -1073,30 +1078,39 @@ Remaining dependency-ordered package checklist:
 
 ### Next Work Item
 
-Atomically route native CEM formatter and colorizer CEMT expression bindings
-and intermediates through `CemtEvaluatorValue`. First thread the active output
-function identity and kind through the typed evaluator context so metadata
-source-map defaults preserve custom formatter/colorizer function names exactly;
-keep `encode` as the explicit output boundary rather than evaluator dispatch.
+Stop at the typed-result contract decision for non-CEM CEMT tree producers.
+Inventory every remaining producer and consumer that can create, accept, or
+forward `CemtEvaluator(Value)`, including package-specific formatter/colorizer
+paths, graph artifacts, and secondary inputs. For each boundary, record its
+package owner, native AST type, result stage, declared result kind, overlay or
+edit metadata, source maps/provenance, and required owner identity.
 
-Start with red production integration tests for canonical `cem.format-tree` and
-`cem.color-tree` execution. Prove the typed dispatcher is used and the
-compatibility dispatcher is not, raw/formatted/colored owner `Arc` identity and
-source maps survive, custom output-function defaults remain exact, and output
-and diagnostics match every formatter/colorizer profile and option. Use the
-schema-expression closure audit as a hard gate so production cannot encounter
-an operation absent from the typed dispatcher.
+Use that inventory to choose and document one of these contracts before making
+production edits:
 
-After parity is green, switch formatter and colorizer production dispatch once
-and remove their evaluator-value scratch and remaining CEM-path
-`CemtRuntime(Value)` envelopes. Keep explicit encoded JSON only at registered
-JSON or `+json` output boundaries. Then pass focused, full, lint, native, WASM,
-CEMT fixture, converter-parity, and CLI e2e gates before checking the parent
-migration item.
+- extend `CemtTreeArtifact` with a package-neutral closed owner/stage payload
+  when all remaining producers share the same lifecycle and invariants; or
+- introduce a second closed package-owned typed artifact family when their AST
+  ownership, stage model, or result invariants cannot be represented without
+  optional fields or runtime value-shape classification.
 
-Do not migrate non-CEM CEMT tree producers in the same slice. Stop after the
-CEM formatter/colorizer switch to decide the package-owned typed result
-artifact contract needed before removing `CemtEvaluator(Value)` globally.
+The selected contract must retain the owning `Arc`, preserve package-native AST
+identity and source maps, validate stage and result kind at the producer
+boundary, lower exactly once at producer completion, support typed writer,
+graph, and secondary-input dispatch, and keep JSON encoding limited to explicit
+registered JSON or `+json` outputs. Reject a design that needs generic
+`serde_json::Value`, stringly typed stages, or downstream artifact-shape
+inspection.
+
+After the decision is recorded, add red tests for one representative non-CEM
+producer plus graph and secondary-input edges, then migrate all remaining
+producers atomically. Remove `CemtEvaluator(Value)` globally, route the remaining
+formatter, colorizer, writer, graph, and secondary-input boundaries through the
+chosen typed artifact, remove `CemtOutputArtifact`,
+`transform_template_output_cemt_subject`, and adapter DTO value conversion, and
+pass the current verification matrix. If the inventory exposes incompatible
+ownership or lifecycle models, stop and document the competing cases instead
+of selecting a contract implicitly.
 
 ## Current Verification Commands
 

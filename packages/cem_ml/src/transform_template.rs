@@ -35,11 +35,11 @@ use crate::source_map::{FrameSpan, SourceMapFrame, SourceMapStack, TransformKind
 use crate::tokenizer::cem::CemTokenizer;
 pub use crate::transform_artifact::TransformDataArtifact as TransformTemplateDataArtifact;
 use crate::transform_artifact::{
-    CemtColorOperationKind, CemtColorTarget, CemtColoredTreeOverlay, CemtFormatFragment,
-    CemtFormatOperationKind, CemtFormattedTreeOverlay, CemtNodeColorOperationKind,
-    CemtNodeFormatOperationKind, CemtNodeFormatTarget, CemtOverlayProvenance, CemtOwnerPath,
-    CemtTreeArtifact, CemtTreeArtifactStage, TransformArtifactBody, TransformEncodedArtifact,
-    TransformEncoding, TransformNativeArtifact,
+    CemtColorOperationKind, CemtColorTarget, CemtColoredTreeOverlay, CemtEvaluatorBindings,
+    CemtEvaluatorValue, CemtFormatFragment, CemtFormatOperationKind, CemtFormattedTreeOverlay,
+    CemtNodeColorOperationKind, CemtNodeFormatOperationKind, CemtNodeFormatTarget,
+    CemtOverlayProvenance, CemtOwnerPath, CemtTreeArtifact, CemtTreeArtifactStage,
+    TransformArtifactBody, TransformEncodedArtifact, TransformEncoding, TransformNativeArtifact,
 };
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -14810,6 +14810,239 @@ fn cemt_typed_runtime_value_from_adapter(
     }
 }
 
+pub(crate) fn execute_transform_template_typed_cemt_body_expression<'a>(
+    binding: &TransformTemplateEncodeBinding,
+    subject: CemtEvaluatorValue<'a>,
+    module_options: &TransformTemplateModuleOptions,
+) -> Option<Result<CemtEvaluatorValue<'a>, String>> {
+    if binding.function.implementation != TransformTemplateOutputFunctionImplementation::Cemt {
+        return None;
+    }
+    let body_expression = binding.function.body_expression.as_deref()?.trim();
+    if cemt_expression_starts_with_call(body_expression, "encode") {
+        return None;
+    }
+
+    let functions = match cemt_typed_runtime_functions_from_module_options(module_options) {
+        Ok(functions) => functions,
+        Err(message) => return Some(Err(message)),
+    };
+    let mut bindings = CemtEvaluatorBindings::default();
+    if let Err(message) = apply_cemt_typed_runtime_module_let_bindings(
+        &mut bindings,
+        module_options,
+        Some(binding.function.name.as_str()),
+        &functions,
+    ) {
+        return Some(Err(message));
+    }
+    cemt_typed_runtime_bind_output_contract_metadata(binding, &mut bindings);
+    bindings.bind("subject", subject.clone());
+
+    for param in &binding.function.params {
+        let value = if param.name == "subject" {
+            subject.clone()
+        } else if let Some(value) = bindings.value(&param.name).cloned() {
+            value
+        } else if let Some(value) = param.default_value.as_ref() {
+            match cemt_typed_runtime_value_from_adapter(value) {
+                Ok(value) => value,
+                Err(message) => return Some(Err(message)),
+            }
+        } else if param.required {
+            return Some(Err(format!(
+                "CEMT output function `{}` requires runtime param `{}`",
+                binding.function.name, param.name
+            )));
+        } else {
+            continue;
+        };
+        if !cemt_typed_runtime::cemt_typed_value_matches_contract(
+            param.value_type,
+            &value,
+            param.nullable,
+        ) {
+            return Some(Err(format!(
+                "CEMT output function `{}` param `{}` expected {}, got {}",
+                binding.function.name,
+                param.name,
+                param.value_type.as_contract_name(),
+                value.kind().as_str()
+            )));
+        }
+        bindings.bind(&param.name, value);
+    }
+
+    Some(
+        cemt_typed_runtime::resolve_cemt_typed_expression_with_output_function(
+            body_expression,
+            &bindings,
+            &functions,
+            &binding.function.name,
+            binding.function.kind,
+        )
+        .and_then(|resolved| {
+            resolved.ok_or_else(|| {
+                format!(
+                    "CEMT output function `{}` body expression could not be resolved",
+                    binding.function.name
+                )
+            })
+        }),
+    )
+}
+
+fn apply_cemt_typed_runtime_module_let_bindings<'a>(
+    bindings: &mut CemtEvaluatorBindings<'a>,
+    options: &TransformTemplateModuleOptions,
+    owner_entrypoint: Option<&str>,
+    functions: &BTreeMap<String, cemt_typed_runtime::CemtTypedRuntimeFunction>,
+) -> Result<(), String> {
+    for binding in options.let_bindings.iter().filter(|binding| {
+        binding.owner_entrypoint.is_none()
+            || binding.owner_entrypoint.as_deref() == owner_entrypoint
+    }) {
+        let value = match binding.expression.as_deref() {
+            Some(expression) => cemt_typed_runtime::resolve_cemt_typed_expression_with_functions(
+                expression, bindings, functions,
+            )?
+            .ok_or_else(|| {
+                format!(
+                    "template let `{}` expression `{expression}` could not be resolved",
+                    binding.name
+                )
+            })?,
+            None => cemt_typed_runtime_value_from_adapter(&binding.value)?,
+        };
+        if !cemt_typed_runtime::cemt_typed_value_matches_contract(
+            binding.value_type,
+            &value,
+            binding.nullable,
+        ) {
+            return Err(format!(
+                "template let `{}` expected {}, got {}",
+                binding.name,
+                binding.value_type.as_contract_name(),
+                value.kind().as_str()
+            ));
+        }
+        bindings.bind(&binding.name, value);
+    }
+    Ok(())
+}
+
+fn cemt_typed_runtime_bind_output_contract_metadata<'a>(
+    binding: &TransformTemplateEncodeBinding,
+    bindings: &mut CemtEvaluatorBindings<'a>,
+) {
+    let mut bind_default = |name: &str, value: CemtEvaluatorValue<'a>| {
+        if bindings.value(name).is_none() {
+            bindings.bind(name, value);
+        }
+    };
+    bind_default(
+        "functionName",
+        CemtEvaluatorValue::string(binding.function.name.as_str()),
+    );
+    bind_default(
+        "mode",
+        CemtEvaluatorValue::string(binding.identity.mode.as_str()),
+    );
+    bind_default(
+        "lineEnding",
+        CemtEvaluatorValue::string(transform_template_cem_tree_formatter_line_ending(
+            &binding.options,
+        )),
+    );
+    bind_default(
+        "indent",
+        CemtEvaluatorValue::string(transform_template_cem_tree_formatter_indent(
+            &binding.options,
+        )),
+    );
+    bind_default(
+        "tabSize",
+        CemtEvaluatorValue::integer(transform_template_cem_tree_formatter_tab_size(
+            &binding.options,
+        )),
+    );
+    bind_default(
+        "ordering",
+        CemtEvaluatorValue::string(transform_template_cem_tree_formatter_ordering(
+            &binding.options,
+        )),
+    );
+    bind_default(
+        "wrapColumn",
+        CemtEvaluatorValue::string(transform_template_cem_tree_formatter_wrapping(
+            &binding.options,
+        )),
+    );
+    if !binding.options.formatter_options.is_empty() {
+        bind_default(
+            "formatterOptions",
+            cemt_typed_nested_string_options_value(&binding.options.formatter_options),
+        );
+    }
+    for (name, value) in [
+        ("functionProfile", binding.function.profile.as_deref()),
+        (
+            "formatterProfile",
+            binding.identity.formatter_profile.as_deref(),
+        ),
+        ("colorProfile", binding.identity.color_profile.as_deref()),
+        (
+            "colorCapability",
+            binding.identity.color_capability.as_deref(),
+        ),
+    ] {
+        if let Some(value) = value {
+            bind_default(name, CemtEvaluatorValue::string(value));
+        }
+    }
+}
+
+#[derive(Default)]
+struct CemtTypedStringOptionNode {
+    value: Option<String>,
+    children: BTreeMap<String, CemtTypedStringOptionNode>,
+}
+
+fn cemt_typed_nested_string_options_value(
+    options: &BTreeMap<String, String>,
+) -> CemtEvaluatorValue<'static> {
+    let mut root = CemtTypedStringOptionNode::default();
+    for (key, value) in options {
+        let segments = key
+            .split('.')
+            .map(str::trim)
+            .filter(|segment| !segment.is_empty())
+            .collect::<Vec<_>>();
+        let Some((last, parents)) = segments.split_last() else {
+            continue;
+        };
+        let mut cursor = &mut root;
+        for segment in parents {
+            cursor.value = None;
+            cursor = cursor.children.entry((*segment).to_owned()).or_default();
+        }
+        let leaf = cursor.children.entry((*last).to_owned()).or_default();
+        leaf.children.clear();
+        leaf.value = Some(value.clone());
+    }
+    fn lower(node: CemtTypedStringOptionNode) -> CemtEvaluatorValue<'static> {
+        match (node.value, node.children.is_empty()) {
+            (Some(value), true) => CemtEvaluatorValue::string(value),
+            (_, _) => CemtEvaluatorValue::record(
+                node.children
+                    .into_iter()
+                    .map(|(name, child)| (name, lower(child))),
+            ),
+        }
+    }
+    lower(root)
+}
+
 #[allow(dead_code)]
 mod cemt_typed_runtime {
     use super::{
@@ -14849,6 +15082,7 @@ mod cemt_typed_runtime {
         bindings: CemtEvaluatorBindings<'value>,
         functions: &'registry BTreeMap<String, CemtTypedRuntimeFunction>,
         call_depth: usize,
+        active_output_function: Option<(String, super::TransformTemplateOutputFunctionKind)>,
     }
 
     #[derive(Debug, Clone)]
@@ -14954,7 +15188,7 @@ mod cemt_typed_runtime {
         Ok(scoped)
     }
 
-    fn cemt_typed_value_matches_contract(
+    pub(super) fn cemt_typed_value_matches_contract(
         value_type: TransformTemplateModuleParamType,
         value: &CemtEvaluatorValue<'_>,
         nullable: bool,
@@ -15006,6 +15240,25 @@ mod cemt_typed_runtime {
                 bindings: bindings.clone(),
                 functions,
                 call_depth: 0,
+                active_output_function: None,
+            },
+        )
+    }
+
+    pub(super) fn resolve_cemt_typed_expression_with_output_function<'a>(
+        expression: &str,
+        bindings: &CemtEvaluatorBindings<'a>,
+        functions: &BTreeMap<String, CemtTypedRuntimeFunction>,
+        function_name: &str,
+        function_kind: super::TransformTemplateOutputFunctionKind,
+    ) -> Result<Option<CemtEvaluatorValue<'a>>, String> {
+        resolve_cemt_typed_expression_in_context(
+            expression,
+            &CemtTypedEvaluatorContext {
+                bindings: bindings.clone(),
+                functions,
+                call_depth: 0,
+                active_output_function: Some((function_name.to_owned(), function_kind)),
             },
         )
     }
@@ -15393,6 +15646,7 @@ mod cemt_typed_runtime {
                 bindings,
                 functions: context.functions,
                 call_depth: context.call_depth + 1,
+                active_output_function: context.active_output_function.clone(),
             },
         )?;
         if let Some(value) = result.as_ref() {
@@ -15464,6 +15718,7 @@ mod cemt_typed_runtime {
                     bindings,
                     functions: context.functions,
                     call_depth: context.call_depth,
+                    active_output_function: context.active_output_function.clone(),
                 },
             )?
             else {
@@ -15512,6 +15767,7 @@ mod cemt_typed_runtime {
                     bindings,
                     functions: context.functions,
                     call_depth: context.call_depth,
+                    active_output_function: context.active_output_function.clone(),
                 },
             )?
             else {
@@ -16171,6 +16427,7 @@ mod cemt_typed_runtime {
                 bindings,
                 functions: context.functions,
                 call_depth: context.call_depth,
+                active_output_function: context.active_output_function.clone(),
             },
         )
     }
@@ -16429,6 +16686,7 @@ mod cemt_typed_runtime {
                     bindings,
                     functions: context.functions,
                     call_depth: context.call_depth,
+                    active_output_function: context.active_output_function.clone(),
                 },
             )?
             else {
@@ -16777,11 +17035,23 @@ mod cemt_typed_runtime {
             }
         }
 
-        fn default_source_map_function_name(self) -> &'static str {
-            match self {
-                Self::FormatNode => "cem.format-tree",
-                Self::ColorNode => "cem.color-tree",
-                _ => self.function_name(),
+        fn default_source_map_function_name(
+            self,
+            active_output_function: Option<&(String, super::TransformTemplateOutputFunctionKind)>,
+        ) -> String {
+            match (self, active_output_function) {
+                (
+                    Self::FormatNode,
+                    Some((function_name, super::TransformTemplateOutputFunctionKind::Format)),
+                )
+                | (
+                    Self::ColorNode,
+                    Some((function_name, super::TransformTemplateOutputFunctionKind::Color)),
+                ) => function_name.clone(),
+                (Self::FormatNode, _) => "cem.format-tree".to_owned(),
+                (Self::ColorNode, _) => "cem.color-tree".to_owned(),
+                (_, Some((function_name, _))) => function_name.clone(),
+                _ => self.function_name().to_owned(),
             }
         }
 
@@ -16878,7 +17148,12 @@ mod cemt_typed_runtime {
             return Ok(None);
         };
         let item = kind.normalize_item(item)?;
-        let item = apply_cemt_typed_metadata_source_map_default(item, &accumulator, kind)?;
+        let item = apply_cemt_typed_metadata_source_map_default(
+            item,
+            &accumulator,
+            kind,
+            context.active_output_function.as_ref(),
+        )?;
         append_cemt_typed_metadata_accumulator_item(accumulator, kind, item).map(Some)
     }
 
@@ -16989,6 +17264,7 @@ mod cemt_typed_runtime {
         item: CemtEvaluatorValue<'a>,
         accumulator: &CemtEvaluatorValue<'a>,
         kind: CemtTypedMetadataAccumulatorKind,
+        active_output_function: Option<&(String, super::TransformTemplateOutputFunctionKind)>,
     ) -> Result<CemtEvaluatorValue<'a>, String> {
         if item.field("sourceMap").is_some() {
             return Ok(item);
@@ -17003,7 +17279,7 @@ mod cemt_typed_runtime {
             CemtEvaluatorValue::source_map(transform_template_source_map_with_transform(
                 &source_map,
                 TransformKind::TemplateTransform {
-                    function: kind.default_source_map_function_name().to_owned(),
+                    function: kind.default_source_map_function_name(active_output_function),
                 },
             )),
         )
@@ -31124,6 +31400,59 @@ mod tests {
                 .map(cemt_typed_test_json);
             let compatibility_value = resolve_encode_subject_expression(expression, &compatibility);
             assert_eq!(typed_value, compatibility_value, "expression: {expression}");
+        }
+    }
+
+    #[test]
+    fn typed_cemt_runtime_metadata_defaults_use_active_output_function_identity() {
+        use crate::transform_artifact::{CemtEvaluatorBindings, CemtEvaluatorValue};
+
+        for (helper, function_name, function_kind, metadata) in [
+            (
+                "appendFormatNode",
+                "acme.custom.format-tree",
+                TransformTemplateOutputFunctionKind::Format,
+                r#"{ kind: "format-decision", formatterRole: "formatter.layout" }"#,
+            ),
+            (
+                "appendColorNode",
+                "acme.custom.color-tree",
+                TransformTemplateOutputFunctionKind::Color,
+                r#"{ kind: "color-decision", colorizerRole: "colorizer.syntax" }"#,
+            ),
+        ] {
+            let source_map = source_map_stack(180, 5);
+            let bindings = CemtEvaluatorBindings::from_iter([(
+                "tree",
+                CemtEvaluatorValue::record([
+                    ("kind", CemtEvaluatorValue::string("cem-tree")),
+                    ("sourceMap", CemtEvaluatorValue::source_map(source_map)),
+                ]),
+            )]);
+            let expression = format!("{helper}($tree, {metadata})");
+            let resolved = resolve_cemt_typed_expression_with_output_function(
+                &expression,
+                &bindings,
+                &BTreeMap::new(),
+                function_name,
+                function_kind,
+            )
+            .expect("typed metadata helper")
+            .expect("typed metadata result");
+            let field = if function_kind == TransformTemplateOutputFunctionKind::Format {
+                "formatNodes"
+            } else {
+                "colorNodes"
+            };
+            let source_map = resolved
+                .resolve_path(&format!("{field}.0.sourceMap"))
+                .and_then(|value| value.as_source_map().cloned())
+                .expect("defaulted metadata source map");
+
+            assert!(matches!(
+                source_map.current().map(|frame| &frame.transform),
+                Some(TransformKind::TemplateTransform { function }) if function == function_name
+            ));
         }
     }
 
