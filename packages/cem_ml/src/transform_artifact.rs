@@ -6,6 +6,9 @@ use crate::projection::{CemTreeAstAttribute, CemTreeAstNode, CemTreeAstStream};
 use crate::schema::registry::{content_type_essence, JSON_CONTENT_TYPE};
 use crate::source_map::SourceMapStack;
 use crate::validation::generic_data::GenericDataDocumentAst;
+use crate::validation::json::{
+    JsonDocumentAst, JsonMemberAst, JsonNumberKind, JsonSourceRange, JsonValueAst,
+};
 use crate::validation::xpath::XPathResultArtifact;
 use std::any::Any;
 use std::collections::{BTreeMap, BTreeSet};
@@ -694,6 +697,27 @@ impl<'a> CemtTreeSubjectRef<'a> {
     }
 }
 
+#[derive(Debug, Clone, Copy)]
+pub struct JsonDocumentCemtSubjectRef<'a> {
+    document: &'a JsonDocumentAst,
+}
+
+impl<'a> JsonDocumentCemtSubjectRef<'a> {
+    pub fn new(document: &'a JsonDocumentAst) -> Self {
+        Self { document }
+    }
+
+    pub fn document(self) -> &'a JsonDocumentAst {
+        self.document
+    }
+
+    pub fn evaluator_view(self) -> CemtEvaluatorValueRef<'a> {
+        CemtEvaluatorValueRef::Record(CemtEvaluatorRecordRef::JsonDocument {
+            document: self.document,
+        })
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CemtEvaluatorValueKind {
     Null,
@@ -723,10 +747,12 @@ impl CemtEvaluatorValueKind {
 pub enum CemtEvaluatorValueRef<'a> {
     Null,
     Boolean(bool),
+    Number(CemtEvaluatorNumber),
     String(&'a str),
     Sequence(CemtEvaluatorSequenceRef<'a>),
     Record(CemtEvaluatorRecordRef<'a>),
     SourceMap(&'a SourceMapStack),
+    OwnedSourceMap(Arc<SourceMapStack>),
 }
 
 impl<'a> CemtEvaluatorValueRef<'a> {
@@ -734,16 +760,24 @@ impl<'a> CemtEvaluatorValueRef<'a> {
         match self {
             Self::Null => CemtEvaluatorValueKind::Null,
             Self::Boolean(_) => CemtEvaluatorValueKind::Boolean,
+            Self::Number(_) => CemtEvaluatorValueKind::Number,
             Self::String(_) => CemtEvaluatorValueKind::String,
             Self::Sequence(_) => CemtEvaluatorValueKind::Sequence,
             Self::Record(_) => CemtEvaluatorValueKind::Record,
-            Self::SourceMap(_) => CemtEvaluatorValueKind::SourceMap,
+            Self::SourceMap(_) | Self::OwnedSourceMap(_) => CemtEvaluatorValueKind::SourceMap,
         }
     }
 
     pub fn as_bool(&self) -> Option<bool> {
         match self {
             Self::Boolean(value) => Some(*value),
+            _ => None,
+        }
+    }
+
+    pub fn as_number(&self) -> Option<CemtEvaluatorNumber> {
+        match self {
+            Self::Number(value) => Some(*value),
             _ => None,
         }
     }
@@ -769,9 +803,18 @@ impl<'a> CemtEvaluatorValueRef<'a> {
         }
     }
 
-    pub fn as_source_map(&self) -> Option<&'a SourceMapStack> {
+    pub fn as_source_map(&self) -> Option<&SourceMapStack> {
         match self {
             Self::SourceMap(value) => Some(value),
+            Self::OwnedSourceMap(value) => Some(value),
+            _ => None,
+        }
+    }
+
+    pub fn into_source_map(self) -> Option<SourceMapStack> {
+        match self {
+            Self::SourceMap(value) => Some(value.clone()),
+            Self::OwnedSourceMap(value) => Some((*value).clone()),
             _ => None,
         }
     }
@@ -989,6 +1032,7 @@ impl<'a> CemtEvaluatorValue<'a> {
     pub fn as_number(&self) -> Option<CemtEvaluatorNumber> {
         match self {
             Self::Number(value) => Some(*value),
+            Self::Borrowed(value) => value.as_number(),
             _ => None,
         }
     }
@@ -1004,7 +1048,8 @@ impl<'a> CemtEvaluatorValue<'a> {
     pub fn as_source_map(&self) -> Option<&SourceMapStack> {
         match self {
             Self::SourceMap(value) => Some(value),
-            Self::Borrowed(value) => value.as_source_map(),
+            Self::Borrowed(CemtEvaluatorValueRef::SourceMap(value)) => Some(value),
+            Self::Borrowed(CemtEvaluatorValueRef::OwnedSourceMap(value)) => Some(value),
             _ => None,
         }
     }
@@ -1432,6 +1477,12 @@ where
 
 #[derive(Debug, Clone)]
 pub enum CemtEvaluatorSequenceRef<'a> {
+    JsonMembers {
+        members: &'a [JsonMemberAst],
+    },
+    JsonValues {
+        values: &'a [JsonValueAst],
+    },
     Nodes {
         nodes: &'a [CemTreeAstNode],
         parent: Option<CemtOwnerPath>,
@@ -1513,6 +1564,8 @@ impl<'a> CemtEvaluatorSequenceRef<'a> {
 
     pub fn len(&self) -> usize {
         match self {
+            Self::JsonMembers { members } => members.len(),
+            Self::JsonValues { values } => values.len(),
             Self::Nodes { nodes, .. } => nodes.len(),
             Self::Attributes { attributes, .. } => attributes.len(),
             Self::FormattedNodes {
@@ -1541,6 +1594,18 @@ impl<'a> CemtEvaluatorSequenceRef<'a> {
 
     pub fn item(&self, index: usize) -> Option<CemtEvaluatorValueRef<'a>> {
         match self {
+            Self::JsonMembers { members } => {
+                let member = members.get(index)?;
+                Some(CemtEvaluatorValueRef::Record(
+                    CemtEvaluatorRecordRef::JsonMember { member },
+                ))
+            }
+            Self::JsonValues { values } => {
+                let value = values.get(index)?;
+                Some(CemtEvaluatorValueRef::Record(
+                    CemtEvaluatorRecordRef::JsonValue { value },
+                ))
+            }
             Self::Nodes { nodes, parent } => {
                 let node = nodes.get(index)?;
                 let path = match parent {
@@ -1757,6 +1822,18 @@ fn cemt_evaluator_node_format_sequence_matches(
 
 #[derive(Debug, Clone)]
 pub enum CemtEvaluatorRecordRef<'a> {
+    JsonDocument {
+        document: &'a JsonDocumentAst,
+    },
+    JsonValue {
+        value: &'a JsonValueAst,
+    },
+    JsonMember {
+        member: &'a JsonMemberAst,
+    },
+    JsonSourceRange {
+        range: JsonSourceRange,
+    },
     Node {
         node: &'a CemTreeAstNode,
         path: CemtOwnerPath,
@@ -1796,7 +1873,11 @@ impl<'a> CemtEvaluatorRecordRef<'a> {
             | Self::Attribute { path, .. }
             | Self::FormattedNode { path, .. }
             | Self::FormattedAttribute { path, .. } => Some(path),
-            Self::FormattedTree { .. }
+            Self::JsonDocument { .. }
+            | Self::JsonValue { .. }
+            | Self::JsonMember { .. }
+            | Self::JsonSourceRange { .. }
+            | Self::FormattedTree { .. }
             | Self::FormatOperation { .. }
             | Self::NodeFormatOperation { .. } => None,
         }
@@ -1810,7 +1891,11 @@ impl<'a> CemtEvaluatorRecordRef<'a> {
             Self::Attribute { attribute, .. } | Self::FormattedAttribute { attribute, .. } => {
                 Some(CemtTreeOwnerRef::Attribute(attribute))
             }
-            Self::FormattedTree { .. }
+            Self::JsonDocument { .. }
+            | Self::JsonValue { .. }
+            | Self::JsonMember { .. }
+            | Self::JsonSourceRange { .. }
+            | Self::FormattedTree { .. }
             | Self::FormatOperation { .. }
             | Self::NodeFormatOperation { .. } => None,
         }
@@ -1846,6 +1931,37 @@ impl<'a> CemtEvaluatorRecordRef<'a> {
 
     pub fn field_names(&self) -> &'static [&'static str] {
         match self {
+            Self::JsonDocument { .. } => &[
+                "kind",
+                "contentType",
+                "schema",
+                "encoding",
+                "lineEnding",
+                "root",
+            ],
+            Self::JsonValue { value } => match value {
+                JsonValueAst::Object { .. } => &["kind", "sourceRange", "sourceMap", "members"],
+                JsonValueAst::Array { .. } => &["kind", "sourceRange", "sourceMap", "items"],
+                JsonValueAst::String { .. } => {
+                    &["kind", "sourceRange", "sourceMap", "value", "lexeme"]
+                }
+                JsonValueAst::Number { .. } => {
+                    &["kind", "sourceRange", "sourceMap", "lexeme", "numberKind"]
+                }
+                JsonValueAst::Boolean { .. } => &["kind", "sourceRange", "sourceMap", "value"],
+                JsonValueAst::Null { .. } => &["kind", "sourceRange", "sourceMap"],
+            },
+            Self::JsonMember { .. } => &[
+                "index",
+                "name",
+                "nameLexeme",
+                "nameSourceRange",
+                "nameSourceMap",
+                "sourceRange",
+                "sourceMap",
+                "value",
+            ],
+            Self::JsonSourceRange { .. } => &["byteOffset", "byteLength", "line", "column"],
             Self::Node { node, .. } => match node {
                 CemTreeAstNode::Document { .. } => &["kind", "children", "sourceMap"],
                 CemTreeAstNode::Element { .. } => {
@@ -1944,6 +2060,10 @@ impl<'a> CemtEvaluatorRecordRef<'a> {
 
     pub fn field(&self, name: &str) -> Option<CemtEvaluatorValueRef<'a>> {
         match self {
+            Self::JsonDocument { document } => json_document_evaluator_field(document, name),
+            Self::JsonValue { value } => json_value_evaluator_field(value, name),
+            Self::JsonMember { member } => json_member_evaluator_field(member, name),
+            Self::JsonSourceRange { range } => json_source_range_evaluator_field(*range, name),
             Self::Node { node, path } => cemt_evaluator_node_field(node, path, name),
             Self::Attribute { attribute, .. } => match name {
                 "kind" => Some(CemtEvaluatorValueRef::String("attribute")),
@@ -1976,6 +2096,139 @@ impl<'a> CemtEvaluatorRecordRef<'a> {
             }
         }
     }
+}
+
+fn json_document_evaluator_field<'a>(
+    document: &'a JsonDocumentAst,
+    name: &str,
+) -> Option<CemtEvaluatorValueRef<'a>> {
+    match name {
+        "kind" => Some(CemtEvaluatorValueRef::String("json-document")),
+        "contentType" => Some(CemtEvaluatorValueRef::String(JSON_CONTENT_TYPE)),
+        "schema" => Some(CemtEvaluatorValueRef::String(
+            crate::schema::registry::JSON_VALUE_SCHEMA_URI,
+        )),
+        "encoding" => Some(CemtEvaluatorValueRef::String(&document.encoding)),
+        "lineEnding" => Some(match document.line_ending.as_deref() {
+            Some(line_ending) => CemtEvaluatorValueRef::String(line_ending),
+            None => CemtEvaluatorValueRef::Null,
+        }),
+        "root" => Some(match document.root.as_ref() {
+            Some(value) => {
+                CemtEvaluatorValueRef::Record(CemtEvaluatorRecordRef::JsonValue { value })
+            }
+            None => CemtEvaluatorValueRef::Null,
+        }),
+        _ => None,
+    }
+}
+
+fn json_value_evaluator_field<'a>(
+    value: &'a JsonValueAst,
+    name: &str,
+) -> Option<CemtEvaluatorValueRef<'a>> {
+    let range = value.range();
+    match name {
+        "kind" => Some(CemtEvaluatorValueRef::String(match value {
+            JsonValueAst::Object { .. } => "object",
+            JsonValueAst::Array { .. } => "array",
+            JsonValueAst::String { .. } => "string",
+            JsonValueAst::Number { .. } => "number",
+            JsonValueAst::Boolean { .. } => "boolean",
+            JsonValueAst::Null { .. } => "null",
+        })),
+        "sourceRange" => Some(CemtEvaluatorValueRef::Record(
+            CemtEvaluatorRecordRef::JsonSourceRange { range },
+        )),
+        "sourceMap" => Some(CemtEvaluatorValueRef::OwnedSourceMap(Arc::new(
+            range.source_map(),
+        ))),
+        "members" => match value {
+            JsonValueAst::Object { members, .. } => Some(CemtEvaluatorValueRef::Sequence(
+                CemtEvaluatorSequenceRef::JsonMembers { members },
+            )),
+            _ => None,
+        },
+        "items" => match value {
+            JsonValueAst::Array { items, .. } => Some(CemtEvaluatorValueRef::Sequence(
+                CemtEvaluatorSequenceRef::JsonValues { values: items },
+            )),
+            _ => None,
+        },
+        "value" => match value {
+            JsonValueAst::String { value, .. } => Some(CemtEvaluatorValueRef::String(value)),
+            JsonValueAst::Boolean { value, .. } => Some(CemtEvaluatorValueRef::Boolean(*value)),
+            _ => None,
+        },
+        "lexeme" => match value {
+            JsonValueAst::String { lexeme, .. } | JsonValueAst::Number { lexeme, .. } => {
+                Some(CemtEvaluatorValueRef::String(lexeme))
+            }
+            _ => None,
+        },
+        "numberKind" => match value {
+            JsonValueAst::Number { number_kind, .. } => {
+                Some(CemtEvaluatorValueRef::String(match number_kind {
+                    JsonNumberKind::Integer => "integer",
+                    JsonNumberKind::Decimal => "decimal",
+                    JsonNumberKind::Exponent => "exponent",
+                }))
+            }
+            _ => None,
+        },
+        _ => None,
+    }
+}
+
+fn json_member_evaluator_field<'a>(
+    member: &'a JsonMemberAst,
+    name: &str,
+) -> Option<CemtEvaluatorValueRef<'a>> {
+    match name {
+        "index" => Some(CemtEvaluatorValueRef::Number(
+            CemtEvaluatorNumber::unsigned_integer(member.index as u64),
+        )),
+        "name" => Some(CemtEvaluatorValueRef::String(&member.name)),
+        "nameLexeme" => Some(CemtEvaluatorValueRef::String(&member.name_lexeme)),
+        "nameSourceRange" => Some(CemtEvaluatorValueRef::Record(
+            CemtEvaluatorRecordRef::JsonSourceRange {
+                range: member.name_range,
+            },
+        )),
+        "nameSourceMap" => Some(CemtEvaluatorValueRef::OwnedSourceMap(Arc::new(
+            member.name_range.source_map(),
+        ))),
+        "sourceRange" => Some(CemtEvaluatorValueRef::Record(
+            CemtEvaluatorRecordRef::JsonSourceRange {
+                range: member.range,
+            },
+        )),
+        "sourceMap" => Some(CemtEvaluatorValueRef::OwnedSourceMap(Arc::new(
+            member.range.source_map(),
+        ))),
+        "value" => Some(CemtEvaluatorValueRef::Record(
+            CemtEvaluatorRecordRef::JsonValue {
+                value: &member.value,
+            },
+        )),
+        _ => None,
+    }
+}
+
+fn json_source_range_evaluator_field(
+    range: JsonSourceRange,
+    name: &str,
+) -> Option<CemtEvaluatorValueRef<'static>> {
+    let value = match name {
+        "byteOffset" => range.start.byte_offset,
+        "byteLength" => range.byte_length,
+        "line" => u64::from(range.start.line),
+        "column" => u64::from(range.start.column),
+        _ => return None,
+    };
+    Some(CemtEvaluatorValueRef::Number(
+        CemtEvaluatorNumber::unsigned_integer(value),
+    ))
 }
 
 fn cemt_evaluator_node_field<'a>(
@@ -2678,6 +2931,106 @@ fn identity_has_json_content_type(identity: &FormatIdentity) -> bool {
 mod tests {
     use super::*;
 
+    fn json_document_owner(source: &str) -> Arc<crate::validation::json::JsonDocumentAst> {
+        let (document, diagnostics) = crate::validation::json::json_document_ast_from_source_bytes(
+            crate::validation::json::JsonSourceValidationRequest {
+                bytes: source.as_bytes(),
+                source_uri: "memory:materialized-json",
+                content_type: Some("application/json"),
+            },
+        );
+        assert!(
+            diagnostics
+                .iter()
+                .all(|diagnostic| !diagnostic.severity.is_hard_violation()),
+            "JSON fixture diagnostics: {diagnostics:?}"
+        );
+        Arc::new(document.expect("lossless JSON document AST"))
+    }
+
+    #[test]
+    fn json_document_evaluator_view_borrows_lossless_owner_without_value_projection() {
+        let owner = json_document_owner(r#"{"same": 1, "same": 1.2300e+4}"#);
+        let subject = JsonDocumentCemtSubjectRef::new(owner.as_ref());
+
+        assert!(std::ptr::eq(subject.document(), owner.as_ref()));
+        let document = subject.evaluator_view();
+        let root = document.field("root").expect("JSON document root");
+        let members = root
+            .field("members")
+            .and_then(|members| members.as_sequence().cloned())
+            .expect("ordered JSON members");
+        assert_eq!(members.len(), 2);
+
+        let first = members.item(0).expect("first duplicate member");
+        let second = members.item(1).expect("second duplicate member");
+        assert_eq!(
+            first.field("name").and_then(|value| value.as_str()),
+            Some("same")
+        );
+        assert_eq!(
+            second.field("name").and_then(|value| value.as_str()),
+            Some("same")
+        );
+        assert_eq!(
+            first
+                .field("index")
+                .and_then(|value| value.as_number())
+                .and_then(CemtEvaluatorNumber::as_u64),
+            Some(0)
+        );
+        assert_eq!(
+            second
+                .field("index")
+                .and_then(|value| value.as_number())
+                .and_then(CemtEvaluatorNumber::as_u64),
+            Some(1)
+        );
+        assert_eq!(
+            second
+                .field("value")
+                .and_then(|value| value.field("lexeme"))
+                .and_then(|value| value.as_str()),
+            Some("1.2300e+4")
+        );
+
+        let name_source_map = second
+            .field("nameSourceMap")
+            .and_then(CemtEvaluatorValueRef::into_source_map)
+            .expect("member name source map");
+        assert_eq!(name_source_map.frames.len(), 1);
+        assert_eq!(
+            second
+                .field("sourceRange")
+                .and_then(|value| value.field("byteOffset"))
+                .and_then(|value| value.as_number())
+                .and_then(CemtEvaluatorNumber::as_u64),
+            Some(12)
+        );
+    }
+
+    #[test]
+    fn json_document_evaluator_view_has_no_serializer_or_dto_projection() {
+        let source = include_str!("transform_artifact.rs");
+        let view = source
+            .split_once("pub struct JsonDocumentCemtSubjectRef")
+            .and_then(|(_, suffix)| suffix.split_once("pub enum CemtEvaluatorValueKind"))
+            .map(|(view, _)| view)
+            .expect("JSON document evaluator-view source");
+
+        for forbidden in [
+            "serde_json",
+            "to_cemt_subject",
+            "into_cemt_subject",
+            "to_json_value",
+        ] {
+            assert!(
+                !view.contains(forbidden),
+                "JSON evaluator view must not cross `{forbidden}`"
+            );
+        }
+    }
+
     fn materialized_tree_identity() -> CemtMaterializedTreeIdentity {
         CemtMaterializedTreeIdentity {
             content_type: "application/json".to_owned(),
@@ -2905,8 +3258,8 @@ mod tests {
         assert_eq!(
             child
                 .field("sourceMap")
-                .and_then(|value| value.as_source_map()),
-            Some(&text_source)
+                .and_then(CemtEvaluatorValueRef::into_source_map),
+            Some(text_source.clone())
         );
         assert_eq!(
             subject
@@ -3316,8 +3669,8 @@ mod tests {
         assert_eq!(
             format_marker
                 .field("sourceMap")
-                .and_then(|value| value.as_source_map()),
-            Some(&operation_source)
+                .and_then(CemtEvaluatorValueRef::into_source_map),
+            Some(operation_source.clone())
         );
         assert_eq!(
             view.clone()
@@ -3425,7 +3778,7 @@ mod tests {
     }
 
     #[test]
-    fn cemt_evaluator_view_contract_does_not_use_json_value_storage() {
+    fn cemt_evaluator_view_contract_does_not_use_serialized_json_storage() {
         let source = include_str!("transform_artifact.rs");
         let view_contract = source
             .split_once("pub enum CemtEvaluatorValueKind")
@@ -3436,7 +3789,6 @@ mod tests {
             .0;
 
         assert!(!view_contract.contains("serde_json"));
-        assert!(!view_contract.contains("Json"));
     }
 
     #[test]

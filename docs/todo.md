@@ -1031,6 +1031,13 @@ Remaining dependency-ordered package checklist:
             - [x] Introduce the recommended separate closed materialized-tree
                   artifact family after both ownership and graph decisions are
                   recorded.
+            - [x] Add the serializer-free borrowed evaluator view over
+                  `JsonDocumentAst`, `JsonValueAst`, ordered duplicate members,
+                  exact number/string lexemes, source ranges, and source maps.
+            - [ ] Decide how formatter-generated writer-token role, style,
+                  value metadata, and output spans become nodes in the direct
+                  `CemTreeAstStream`; the current CEM AST node algebra cannot
+                  represent those fields without loss.
       - [x] Define typed raw, formatted, and colored CEM tree envelopes with
             ordered native nodes and lazy evaluator views over the owning AST.
       - [ ] Route formatter, colorizer, writer, graph, and secondary-input
@@ -1092,21 +1099,31 @@ Remaining dependency-ordered package checklist:
 
 ### Next Work Item
 
-Migrate the JSON package as the first serializer-free materialized-tree
-producer. Add a borrowed typed evaluator view over the owning
-`Arc<JsonDocumentAst>` and its `JsonValueAst` nodes, preserving duplicate member
-order, number lexemes, source ranges, source maps, and owner identity. Remove
+Resolve the materialized writer-token AST representation before connecting the
+new JSON evaluator view to `json.format-document`. The formatter currently
+returns typed records carrying `writerKind`, token kind/text/role, a style
+record, value metadata, source maps, and output spans, while
+`CemTreeAstNode` can represent only document/element/text/trivia/error nodes.
+Mapping those records to text or raw-text nodes would discard colorizer and
+writer semantics; retaining the records as `Value` would recreate the DTO
+boundary this migration prohibits.
+
+The recommended choice is to add a typed `WriterToken` node to
+`CemTreeAstNode`, with concrete typed role/style/metadata/output-span fields,
+and have the formatter lower evaluator records directly into that AST variant.
+The colorizer should receive the exact formatted `Arc<CemTreeAstStream>` and
+attach a typed color overlay, while the writer traverses the stream plus overlay
+directly. The alternative is a separate closed materialized-token AST stream,
+which would require changing the already-selected
+`CemtMaterializedTreeArtifact` owner contract.
+
+After that decision, migrate the JSON package as the first serializer-free
+materialized-tree producer. Remove
 `JsonDocumentOutputSubject::into_cemt_subject` from the production path; do not
 replace it with `to_json_value`, `serde_json::to_value`, or another DTO builder.
-
-Start with red tests proving `json.format-document` receives the original AST
-owner and returns a `CemtMaterializedTreeArtifact` whose
-`Arc<CemTreeAstStream>` was constructed directly from typed evaluator nodes.
-Extend the typed handoff through `json.color-document`, the writer, a graph
-stage, ordered join, and secondary-input lookup. Assert input and result `Arc`
-identity, formatted/colored producer-stage validation, source-map and
-output-span preservation, formatter/colorizer parity, and source audits
-excluding `Value` projections, serializers, and re-parsers from the new path.
+Prove formatter/colorizer/writer, graph, ordered-join, and secondary-input `Arc`
+identity plus source-map/output-span preservation before applying the pattern
+to the remaining package producers.
 
 After JSON passes focused, full, lint, native, WASM, converter-parity, and CLI
 e2e gates, use its owner-view and direct AST-node builder as the pattern for

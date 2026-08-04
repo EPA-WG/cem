@@ -1,8 +1,9 @@
 # Non-CEM CEMT Typed-Result Inventory
 
-Status: inventory complete; typed-result contract not yet selected for
-production. This inventory is promoted as active migration evidence by
-`docs/todo.md`.
+Status: inventory complete; serializer-free typed-result contract selected and
+materialized-tree artifact introduced. JSON borrowed evaluator view complete;
+materialized writer-token AST representation remains a recorded decision point.
+This inventory is promoted as active migration evidence by `docs/todo.md`.
 
 ## Existing Typed Baseline
 
@@ -97,6 +98,22 @@ The explicit-JSON DOM compatibility branch must either enter through a parser
 edge that creates an AST stream before transformation begins or be removed from
 production and retained only as a test fixture. It cannot be an owner variant
 or an intermediate transformation representation.
+
+## Materialized Writer-Token Decision Point
+
+The JSON formatter does not return DOM-shaped CEM nodes. It returns ordered
+writer-token records with token kind, text, role, style, value metadata, source
+map, and output span. The current `CemTreeAstNode` algebra cannot retain that
+information: mapping tokens to `Text` or `RawText` would lose colorizer and
+writer semantics, while retaining the records as `serde_json::Value` would
+reintroduce the prohibited intermediate DTO.
+
+The recommended resolution is a concrete typed `WriterToken` variant in
+`CemTreeAstNode`, followed by a typed color overlay that retains the exact
+formatted `Arc<CemTreeAstStream>`. A separate materialized-token stream is the
+alternative, but it changes the selected `CemtMaterializedTreeArtifact` owner
+contract and graph representation. Production formatter wiring stops until
+this representation is confirmed.
 
 ## Implementation After Decision
 
