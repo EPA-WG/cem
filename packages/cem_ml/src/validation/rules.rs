@@ -65,7 +65,7 @@ use crate::transform_template::{
     TransformTemplateCompileRequest, TransformTemplateModuleOptions,
     TransformTemplateModuleParseRequest, TransformTemplateModuleParseResponse,
     TransformTemplateModulePreflight, TransformTemplateOutputFunctionDescriptor,
-    TransformTemplateOutputFunctionRegistry,
+    TransformTemplateOutputFunctionRegistry, TransformTemplateParameterArena,
 };
 use crate::validation::{
     cem_ast_projection::{
@@ -1752,7 +1752,7 @@ fn validate_cemt_converter_template_source_contract(
         .filter(|value| !value.is_empty())
         .map(TransformTemplateEntrypoint::named)
         .unwrap_or_else(TransformTemplateEntrypoint::implicit);
-    let params = BTreeMap::new();
+    let params = TransformTemplateParameterArena::default();
     let data_bindings = vec!["input".to_owned()];
     let adapter = DomProjectionParityCemtAdapter;
     let compile_response = match adapter.compile(TransformTemplateCompileRequest {

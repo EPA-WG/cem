@@ -2628,6 +2628,20 @@ impl<'a> CemtEvaluatorBindings<'a> {
         self.values.get(name)
     }
 
+    pub fn len(&self) -> usize {
+        self.values.len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.values.is_empty()
+    }
+
+    pub fn iter(&self) -> impl Iterator<Item = (&str, &CemtEvaluatorValue<'a>)> {
+        self.values
+            .iter()
+            .map(|(name, value)| (name.as_str(), value))
+    }
+
     pub fn resolve_path(&self, path: &str) -> Option<CemtEvaluatorValue<'a>> {
         let mut segments = path.split('.');
         let root = segments.next()?.trim();

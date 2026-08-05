@@ -1229,8 +1229,12 @@ Remaining dependency-ordered package checklist:
           evaluator view, duplicate members and exact lexemes survive, and the
           data-input decoded JSON accessors plus production legacy evaluator
           are removed.
-    - [ ] Retain normalized transform-template parameters in an owner-backed
+    - [x] Retain normalized transform-template parameters in an owner-backed
           typed binding scope without introducing another JSON-shaped DTO.
+          The compiled artifact now owns a non-serializing typed parameter
+          arena, adapters receive that arena instead of a `Value` map, render
+          borrows its evaluator values before evaluating lets, and typed
+          parameter identity participates in the module cache key.
     - [x] Remove the DOM-projection adapter's explicit JSON compatibility
           ingress and restrict decoded JSON output access to explicit public
           export boundaries. The adapter and its typed-envelope test now start
@@ -1297,35 +1301,55 @@ Remaining dependency-ordered package checklist:
       exact number/string lexemes, ranges, source maps, and native CEM-tree
       owner identity reach the selected encoder unchanged.
 
-### Next Work Item — Ownership Decision Required
+### Completed: Typed Compile-Parameter Ownership
 
-Choose the compile-parameter ownership/lifetime contract before implementing
-another binding slice. Compile requests currently receive
-`BTreeMap<String, Value>`, normalized values are not retained by
-`TransformTemplateCompiledArtifact`, and render therefore has no owner from
-which it can borrow parameter AST values.
+- [x] Retain normalized parameters in the non-serializing
+      `TransformTemplateParameterArena` owned by the compiled artifact.
+- [x] Remove parameter `Value` maps from CEM-QL template/expression/XSLT
+      adapter payloads. Those adapters enumerate arena names during compile
+      and traverse borrowed evaluator values directly when constructing CEM-QL
+      bindings or scalar XSLT entrypoint arguments.
+- [x] Canonicalize selected-entrypoint aliases to their local binding names,
+      copy defaults into the same owner, and bind parameters after data inputs
+      but before typed lets.
+- [x] Treat CLI/config-created values as generated evaluator values with no AST
+      identity, source range, source map, or source lexeme. Strings retain
+      decoded content and numbers retain their canonical typed value.
+- [x] Include the arena representation and normalized typed values in module
+      cache identity. Imported-module defaults and call arguments remain copied
+      into their module-local owned evaluator values rather than borrowing a
+      root parameter owner.
+
+### Next Work Item — Collection Evaluator Shape Decision Required
+
+Choose the native evaluator contract for graph collection modes before making
+collections visible to CEMT expressions. `TransformArtifactCollection` already
+owns ordered child `Arc<TransformDataArtifact>` values plus input name,
+destination, target identity, bindings, source map, and output spans; the next
+slice must expose borrowed views over that owner, not copy those fields into a
+JSON-shaped DTO.
 
 The decision must define:
 
-1. whether normalized parameters become an owned typed binding arena retained
-   by the compiled artifact, or move to a render-time request with an external
-   lifecycle owner;
-2. how source identity, ranges, maps, and exact scalar lexemes behave for CLI
-   values that did not originate in a source AST;
-3. whether cache identity includes normalized parameter values and their
-   representation metadata; and
-4. how imported-module/default parameter values share or isolate owners.
+1. whether `collect` evaluates as the ordered child sequence itself or as item
+   records that retain routing metadata alongside each borrowed child value;
+2. the key derivation and stable ordering for `groupBy`, including duplicate
+   keys and missing keys;
+3. the cardinality, unmatched-side representation, and duplicate-match policy
+   for `matchBy`;
+4. whether `zip` truncates, pads with typed null, or rejects length mismatch,
+   and how tuple positions retain input aliases;
+5. which identities belong to the collection, item wrapper, and child AST,
+   and how item/child source maps and output spans are exposed without merging
+   away provenance; and
+6. whether join-level and input-level binding aliases are fields, lexical
+   bindings, or both, including collision diagnostics.
 
-Recommended direction for the decision: retain a non-serializing, owned typed
-parameter arena on the compiled artifact and expose borrowed evaluator views
-at render time. This keeps cache inputs explicit and avoids requiring callers
-to keep a separate render-time owner alive, but it needs an accepted policy
-for generated source identity and lexemes before implementation.
-
-After parameter ownership is settled, separately specify evaluator shapes for
-collection `collect`, `groupBy`, `matchBy`, and `zip`. Define child artifact
-identity, ordering, missing/mismatch behavior, aliases, and source-map
-propagation for each mode; do not infer these contracts from a JSON DTO.
+Recommended starting point for the decision is one borrowed native collection
+view with mode-specific sequence/record projections and item records that keep
+metadata separate from a direct borrowed `artifact` evaluator field. The exact
+`groupBy`, `matchBy`, and `zip` cardinality policies remain a semantic choice;
+do not implement them by inheriting behavior from a JSON projection.
 
 ## Current Verification Commands
 

@@ -47,9 +47,10 @@ use cem_ml::tokenizer::cem::CemTokenizer;
 use cem_ml::tokenizer::{SchemaToken, SchemaTokenizer};
 use cem_ml::transform_artifact::{
     CemtEvaluatorNumber, CemtEvaluatorRecordRef, CemtEvaluatorRecordView, CemtEvaluatorSequenceRef,
-    CemtEvaluatorSequenceView, CemtEvaluatorValue, CemtEvaluatorValueRef, TransformArtifactBody,
-    TransformArtifactCollection, TransformArtifactCollectionMode, TransformArtifactExporter,
-    TransformEncodedArtifact, TransformEncoding, TransformNativeArtifact,
+    CemtEvaluatorSequenceView, CemtEvaluatorValue, CemtEvaluatorValueKind, CemtEvaluatorValueRef,
+    TransformArtifactBody, TransformArtifactCollection, TransformArtifactCollectionMode,
+    TransformArtifactExporter, TransformEncodedArtifact, TransformEncoding,
+    TransformNativeArtifact,
 };
 use cem_ml::transform_template::{
     parse_cem_native_template_module_options, parse_transform_template_output_color_type,
@@ -63,8 +64,9 @@ use cem_ml::transform_template::{
     TransformTemplateModuleParamDeclaration, TransformTemplateModuleParseRequest,
     TransformTemplateModulePreflight, TransformTemplateOutputArtifact,
     TransformTemplateOutputColorSelection, TransformTemplateOutputProducedKind,
-    TransformTemplateRenderRequest, TransformTemplateRenderResponse,
-    TransformTemplateSourceMapPolicy, CEM_NATIVE_TEMPLATE_SCHEMA_URI, DEFAULT_FORMATTER_TAB_SIZE,
+    TransformTemplateParameterArena, TransformTemplateRenderRequest,
+    TransformTemplateRenderResponse, TransformTemplateSourceMapPolicy,
+    CEM_NATIVE_TEMPLATE_SCHEMA_URI, DEFAULT_FORMATTER_TAB_SIZE,
     TRANSFORM_TEMPLATE_CALL_UNKNOWN_CODE, TRANSFORM_TEMPLATE_PARAM_REQUIRED_CODE,
     TRANSFORM_TEMPLATE_PARAM_TYPE_CODE, TRANSFORM_TEMPLATE_RECURSION_LIMIT_CODE,
 };
@@ -419,7 +421,6 @@ struct CemQlCompiledTemplatePayload {
     template_uri: String,
     artifact: TemplateArtifact,
     selected_entrypoint: Option<String>,
-    params: BTreeMap<String, Value>,
     param_declarations: Vec<TransformTemplateModuleParamDeclaration>,
     entrypoints: CemQlTemplateEntrypoints,
     modules: Vec<CemQlCompiledTemplateModulePayload>,
@@ -430,7 +431,6 @@ struct CemQlCompiledTemplatePayload {
 struct CemQlCompiledExpressionPayload {
     template_uri: String,
     compiled: CompiledExpression,
-    params: BTreeMap<String, Value>,
 }
 
 #[derive(Debug, Clone)]
@@ -1676,11 +1676,11 @@ impl TransformTemplateAdapter for CemQlTransformTemplateAdapter {
                 request.entrypoint.clone(),
                 opaque,
             )
+            .with_parameters(request.params.clone())
             .with_native_payload(CemQlCompiledTemplatePayload {
                 template_uri: request.template.uri.clone(),
                 artifact: render_artifact,
                 selected_entrypoint: request.entrypoint.name.clone(),
-                params: request.params.clone(),
                 param_declarations: request.module_options.params.clone(),
                 entrypoints,
                 modules,
@@ -1755,7 +1755,8 @@ impl TransformTemplateAdapter for CemQlExpressionTransformTemplateAdapter {
                             "templateKind": "expression",
                             "diagnostics": diagnostics.len(),
                         }),
-                    ),
+                    )
+                    .with_parameters(request.params.clone()),
                     diagnostics,
                 });
             }
@@ -1776,10 +1777,10 @@ impl TransformTemplateAdapter for CemQlExpressionTransformTemplateAdapter {
                     "diagnostics": diagnostics.len(),
                 }),
             )
+            .with_parameters(request.params.clone())
             .with_native_payload(CemQlCompiledExpressionPayload {
                 template_uri: request.template.uri.clone(),
                 compiled,
-                params: request.params.clone(),
             }),
             diagnostics,
         })
@@ -1824,7 +1825,14 @@ impl TransformTemplateAdapter for XsltParityTransformTemplateAdapter {
                 ),
             )
         })?;
-        let source = xslt_source_for_entrypoint(source, request.entrypoint, request.params);
+        let source = xslt_source_for_entrypoint(source, request.entrypoint, request.params)
+            .map_err(|message| {
+                TransformTemplateAdapterError::failed(
+                    self.id(),
+                    TransformTemplateAdapterExecutionPhase::Compile,
+                    message,
+                )
+            })?;
         let lowered = convert_template_source(&source);
         let mut diagnostics = lowered
             .diagnostics
@@ -1873,11 +1881,11 @@ impl TransformTemplateAdapter for XsltParityTransformTemplateAdapter {
                 request.entrypoint.clone(),
                 opaque,
             )
+            .with_parameters(request.params.clone())
             .with_native_payload(CemQlCompiledTemplatePayload {
                 template_uri: request.template.uri.clone(),
                 artifact: render_artifact,
                 selected_entrypoint: request.entrypoint.name.clone(),
-                params: request.params.clone(),
                 param_declarations: Vec::new(),
                 entrypoints: CemQlTemplateEntrypoints::default(),
                 modules: Vec::new(),
@@ -1898,48 +1906,67 @@ impl TransformTemplateAdapter for XsltParityTransformTemplateAdapter {
 fn xslt_source_for_entrypoint(
     source: &str,
     entrypoint: &TransformTemplateEntrypoint,
-    params: &BTreeMap<String, Value>,
-) -> String {
+    params: &TransformTemplateParameterArena,
+) -> Result<String, String> {
     let Some(name) = entrypoint.name.as_deref() else {
-        return source.to_owned();
+        return Ok(source.to_owned());
     };
 
-    let wrapper = xslt_entrypoint_wrapper(name, params);
+    let wrapper = xslt_entrypoint_wrapper(name, params)?;
     for closing in ["</xsl:stylesheet>", "</stylesheet>"] {
         if let Some(index) = source.rfind(closing) {
             let mut out = String::with_capacity(source.len() + wrapper.len());
             out.push_str(&source[..index]);
             out.push_str(&wrapper);
             out.push_str(&source[index..]);
-            return out;
+            return Ok(out);
         }
     }
 
-    format!(r#"<xsl:stylesheet version="1.0">{source}{wrapper}</xsl:stylesheet>"#)
+    Ok(format!(
+        r#"<xsl:stylesheet version="1.0">{source}{wrapper}</xsl:stylesheet>"#
+    ))
 }
 
-fn xslt_entrypoint_wrapper(name: &str, params: &BTreeMap<String, Value>) -> String {
+fn xslt_entrypoint_wrapper(
+    name: &str,
+    params: &TransformTemplateParameterArena,
+) -> Result<String, String> {
     let mut out = format!(
         r#"<xsl:template match="/"><xsl:call-template name="{}">"#,
         xml_attr_escape(name)
     );
-    for (name, value) in params {
+    for (name, value) in params.iter() {
         out.push_str(&format!(
             r#"<xsl:with-param name="{}">{}"#,
             xml_attr_escape(name),
-            xml_text_escape(&xslt_param_text(value))
+            xml_text_escape(&xslt_param_text(name, value)?)
         ));
         out.push_str("</xsl:with-param>");
     }
     out.push_str("</xsl:call-template></xsl:template>");
-    out
+    Ok(out)
 }
 
-fn xslt_param_text(value: &Value) -> String {
-    match value {
-        Value::String(value) => value.clone(),
-        Value::Null => String::new(),
-        other => other.to_string(),
+fn xslt_param_text(name: &str, value: &CemtEvaluatorValue<'_>) -> Result<String, String> {
+    match value.kind() {
+        CemtEvaluatorValueKind::Null => Ok(String::new()),
+        CemtEvaluatorValueKind::Boolean => value
+            .as_bool()
+            .map(|value| value.to_string())
+            .ok_or_else(|| format!("XSLT entrypoint param `{name}` has no boolean value")),
+        CemtEvaluatorValueKind::Number => value
+            .as_number()
+            .map(CemtEvaluatorNumber::key_string)
+            .ok_or_else(|| format!("XSLT entrypoint param `{name}` has no numeric value")),
+        CemtEvaluatorValueKind::String => value
+            .as_str()
+            .map(str::to_owned)
+            .ok_or_else(|| format!("XSLT entrypoint param `{name}` has no string value")),
+        kind => Err(format!(
+            "XSLT entrypoint param `{name}` must be scalar, got `{}`",
+            kind.as_str()
+        )),
     }
 }
 
@@ -3450,7 +3477,15 @@ fn render_cem_ql_payload(
                 message,
             )
         })?;
-    let plan = render_payload_template(payload, &data);
+    let plan = render_payload_template(payload, request.compiled.parameters(), &data).map_err(
+        |message| {
+            TransformTemplateAdapterError::failed(
+                adapter_id,
+                TransformTemplateAdapterExecutionPhase::Render,
+                message,
+            )
+        },
+    )?;
     if target_is_cem_tree(request.target) {
         return Ok(TransformTemplateRenderResponse {
             output: TransformTemplateOutputArtifact {
@@ -3504,14 +3539,16 @@ fn render_cem_ql_expression_payload(
                 "compiled expression artifact was not produced by the CEM-QL expression adapter",
             )
         })?;
-    let policy_bindings = expression_policy_bindings(request.primary_input, &payload.params)
-        .map_err(|message| {
-            TransformTemplateAdapterError::failed(
-                adapter_id,
-                TransformTemplateAdapterExecutionPhase::Render,
-                message,
-            )
-        })?;
+    let policy_bindings =
+        expression_policy_bindings(request.primary_input, request.compiled.parameters()).map_err(
+            |message| {
+                TransformTemplateAdapterError::failed(
+                    adapter_id,
+                    TransformTemplateAdapterExecutionPhase::Render,
+                    message,
+                )
+            },
+        )?;
     let result = evaluate(
         &payload.compiled.query,
         &EvaluationContext {
@@ -3648,12 +3685,12 @@ fn render_plan_cem_tree_name(local_name: &str, namespace: Option<&str>) -> Strin
 }
 
 fn host_binding_names(
-    params: &BTreeMap<String, Value>,
+    params: &TransformTemplateParameterArena,
     data_bindings: &[String],
     module_options: &TransformTemplateModuleOptions,
 ) -> Vec<String> {
     let mut bindings = data_bindings.to_vec();
-    for name in params.keys() {
+    for (name, _) in params.iter() {
         push_binding_name(&mut bindings, name);
     }
     extend_module_param_binding_names(&mut bindings, module_options);
@@ -3945,37 +3982,39 @@ fn select_entrypoint_artifact(
 
 fn render_payload_template(
     payload: &CemQlCompiledTemplatePayload,
+    params: &TransformTemplateParameterArena,
     data: &TemplateData,
-) -> RenderPlan {
-    let data = root_template_data_with_params(payload, data);
+) -> Result<RenderPlan, String> {
+    let data = root_template_data_with_params(payload, params, data)?;
     let mut plan = render_compiled_template(&payload.artifact, &data);
     fill_diagnostic_uri(&mut plan.diagnostics, payload.template_uri.as_str());
     let nodes = expand_call_nodes(&plan.nodes, payload, None, &data, 0, &mut plan.diagnostics);
-    RenderPlan {
+    Ok(RenderPlan {
         nodes,
         diagnostics: plan.diagnostics,
-    }
+    })
 }
 
 fn root_template_data_with_params(
     payload: &CemQlCompiledTemplatePayload,
+    params: &TransformTemplateParameterArena,
     data: &TemplateData,
-) -> TemplateData {
+) -> Result<TemplateData, String> {
     let mut data = data.clone();
-    for (name, value) in &payload.params {
+    for (name, value) in params.iter() {
         bind_param_value(
             &mut data,
             payload.selected_entrypoint.as_deref(),
             name,
             value,
-        );
+        )?;
     }
     apply_param_declarations(
         &mut data,
         &payload.param_declarations,
         payload.selected_entrypoint.as_deref(),
     );
-    data
+    Ok(data)
 }
 
 fn expand_call_nodes(
@@ -4156,9 +4195,9 @@ fn bind_param_value(
     data: &mut TemplateData,
     selected_entrypoint: Option<&str>,
     name: &str,
-    value: &Value,
-) {
-    let stream = explicit_param_value_to_stream(value);
+    value: &CemtEvaluatorValue<'_>,
+) -> Result<(), String> {
+    let stream = evaluator_param_value_to_stream(value)?;
     data.bindings.insert(name.to_owned(), stream.clone());
     if let Some((qualified, local)) = entrypoint_param_aliases(name, selected_entrypoint) {
         data.bindings
@@ -4166,6 +4205,7 @@ fn bind_param_value(
             .or_insert_with(|| stream.clone());
         data.bindings.entry(local).or_insert(stream);
     }
+    Ok(())
 }
 
 fn apply_param_declarations(
@@ -5255,7 +5295,7 @@ fn template_data_from_artifacts(
 
 fn expression_compile_context(
     template_uri: &str,
-    params: &BTreeMap<String, Value>,
+    params: &TransformTemplateParameterArena,
     data_bindings: &[String],
     resolver_policy_stamp: Option<String>,
 ) -> StandaloneExpressionContext {
@@ -5271,9 +5311,9 @@ fn expression_compile_context(
             StandaloneExpressionBinding::new(ItemStream::empty(), Type::Any),
         );
     }
-    for name in params.keys() {
+    for (name, _) in params.iter() {
         context = context.with_binding(
-            name.clone(),
+            name.to_owned(),
             StandaloneExpressionBinding::new(ItemStream::empty(), Type::Any),
         );
     }
@@ -5282,14 +5322,92 @@ fn expression_compile_context(
 
 fn expression_policy_bindings(
     primary: &TransformTemplateDataArtifact,
-    params: &BTreeMap<String, Value>,
+    params: &TransformTemplateParameterArena,
 ) -> Result<BTreeMap<String, ItemStream>, String> {
     let mut bindings = BTreeMap::new();
     bindings.insert("input".to_owned(), artifact_query_stream(primary)?);
-    for (name, value) in params {
-        bindings.insert(name.clone(), explicit_param_value_to_stream(value));
+    for (name, value) in params.iter() {
+        bindings.insert(name.to_owned(), evaluator_param_value_to_stream(value)?);
     }
     Ok(bindings)
+}
+
+fn evaluator_param_value_to_stream(value: &CemtEvaluatorValue<'_>) -> Result<ItemStream, String> {
+    if value.kind() == CemtEvaluatorValueKind::Sequence {
+        return (0..value.length().map_err(|error| error.to_string())?)
+            .map(|index| {
+                value
+                    .item(index)
+                    .ok_or_else(|| format!("typed parameter sequence item {index} is unavailable"))
+                    .and_then(|value| evaluator_param_value_to_item(&value))
+            })
+            .collect::<Result<Vec<_>, _>>()
+            .map(ItemStream::from_items);
+    }
+
+    evaluator_param_value_to_item(value).map(ItemStream::once)
+}
+
+fn evaluator_param_value_to_item(value: &CemtEvaluatorValue<'_>) -> Result<Item, String> {
+    match value.kind() {
+        CemtEvaluatorValueKind::Null => Ok(Item::Atomic(AtomValue::Null)),
+        CemtEvaluatorValueKind::Boolean => value
+            .as_bool()
+            .map(|value| Item::Atomic(AtomValue::Boolean(value)))
+            .ok_or_else(|| "typed boolean parameter value is unavailable".to_owned()),
+        CemtEvaluatorValueKind::Number => value
+            .as_number()
+            .map(evaluator_param_number_to_item)
+            .ok_or_else(|| "typed numeric parameter value is unavailable".to_owned()),
+        CemtEvaluatorValueKind::String => value
+            .as_str()
+            .map(|value| Item::Atomic(AtomValue::String(value.to_owned())))
+            .ok_or_else(|| "typed string parameter value is unavailable".to_owned()),
+        CemtEvaluatorValueKind::Sequence => (0..value
+            .length()
+            .map_err(|error| error.to_string())?)
+            .map(|index| {
+                value
+                    .item(index)
+                    .ok_or_else(|| format!("typed parameter sequence item {index} is unavailable"))
+                    .and_then(|value| evaluator_param_value_to_item(&value))
+            })
+            .collect::<Result<Vec<_>, _>>()
+            .map(Item::Array),
+        CemtEvaluatorValueKind::Record => {
+            let record = value
+                .owned_record()
+                .ok_or_else(|| "typed parameter record is not owned by its arena".to_owned())?;
+            record
+                .field_names()
+                .into_iter()
+                .map(|name| {
+                    value
+                        .field(&name)
+                        .ok_or_else(|| {
+                            format!("typed parameter record field `{name}` is unavailable")
+                        })
+                        .and_then(|value| evaluator_param_value_to_item(&value))
+                        .map(|value| (name, vec![value]))
+                })
+                .collect::<Result<BTreeMap<_, _>, _>>()
+                .map(Item::Record)
+        }
+        kind => Err(format!(
+            "typed parameter arena cannot expose `{}` as a CEM-QL item",
+            kind.as_str()
+        )),
+    }
+}
+
+fn evaluator_param_number_to_item(value: CemtEvaluatorNumber) -> Item {
+    if let Some(value) = value.as_i64() {
+        Item::Atomic(AtomValue::Integer(value))
+    } else if let Some(value) = value.as_u64().and_then(|value| i64::try_from(value).ok()) {
+        Item::Atomic(AtomValue::Integer(value))
+    } else {
+        Item::Atomic(AtomValue::Double(value.as_f64()))
+    }
 }
 
 fn explicit_param_value_to_stream(value: &Value) -> ItemStream {
@@ -5806,7 +5924,7 @@ count + 1"#,
             }),
             root_scope: ScopeConfig::default(),
         };
-        let params = BTreeMap::new();
+        let params = TransformTemplateParameterArena::default();
         let data_bindings = vec!["input".to_owned()];
         let compiled = adapter
             .compile(TransformTemplateCompileRequest {
@@ -5890,6 +6008,35 @@ count + 1"#,
             assert!(
                 !render.contains(forbidden),
                 "CEM-QL expression rendering must not materialize `{forbidden}`"
+            );
+        }
+    }
+
+    #[test]
+    fn transform_parameter_handoff_uses_compiled_typed_arena_without_json_payload() {
+        let source = include_str!("lib.rs");
+        let payload = source
+            .split("struct CemQlCompiledTemplatePayload")
+            .nth(1)
+            .and_then(|source| {
+                source
+                    .split("struct CemQlCompiledTemplateModulePayload")
+                    .next()
+            })
+            .expect("compiled adapter payload source");
+        assert!(!payload.contains("params:"));
+        assert!(!payload.contains("BTreeMap<String, Value>"));
+
+        let bindings = source
+            .split("fn expression_policy_bindings")
+            .nth(1)
+            .and_then(|source| source.split("fn explicit_param_value_to_stream").next())
+            .expect("typed parameter binding source");
+        assert!(bindings.contains("TransformTemplateParameterArena"));
+        for forbidden in ["serde_json", "to_public_json", "BTreeMap<String, Value>"] {
+            assert!(
+                !bindings.contains(forbidden),
+                "typed parameter binding must not use `{forbidden}`"
             );
         }
     }
@@ -6879,7 +7026,7 @@ count + 1"#,
             "{template_uri}: {:?}",
             module_parse.diagnostics
         );
-        let params = BTreeMap::new();
+        let params = TransformTemplateParameterArena::default();
         let data_bindings = vec!["input".to_owned()];
         let compiled = adapter
             .compile(TransformTemplateCompileRequest {
@@ -6939,7 +7086,7 @@ count + 1"#,
             identity: Some(identity),
             root_scope: ScopeConfig::default(),
         };
-        let params = BTreeMap::new();
+        let params = TransformTemplateParameterArena::default();
         let data_bindings = Vec::new();
         let compiled = adapter
             .compile(TransformTemplateCompileRequest {
@@ -6999,7 +7146,7 @@ count + 1"#,
             identity: Some(identity),
             root_scope: ScopeConfig::default(),
         };
-        let params = BTreeMap::new();
+        let params = TransformTemplateParameterArena::default();
         let data_bindings = vec!["input".to_owned()];
         let compiled = adapter
             .compile(TransformTemplateCompileRequest {
@@ -7059,7 +7206,11 @@ count + 1"#,
             identity: Some(identity),
             root_scope: ScopeConfig::default(),
         };
-        let params = BTreeMap::from([("title".to_owned(), Value::String("Intro".to_owned()))]);
+        let params = TransformTemplateParameterArena::from_normalized_values(BTreeMap::from([(
+            "title".to_owned(),
+            Value::String("Intro".to_owned()),
+        )]))
+        .expect("typed params");
         let data_bindings = vec!["input".to_owned()];
         let compiled = adapter
             .compile(TransformTemplateCompileRequest {
@@ -7119,7 +7270,7 @@ count + 1"#,
             identity: Some(identity),
             root_scope: ScopeConfig::default(),
         };
-        let params = BTreeMap::new();
+        let params = TransformTemplateParameterArena::default();
         let data_bindings = vec!["input".to_owned()];
         let compiled = adapter
             .compile(TransformTemplateCompileRequest {
@@ -7158,7 +7309,7 @@ count + 1"#,
             identity: Some(identity),
             root_scope: ScopeConfig::default(),
         };
-        let params = BTreeMap::new();
+        let params = TransformTemplateParameterArena::default();
         let data_bindings = vec!["input".to_owned()];
         let compiled = adapter
             .compile(TransformTemplateCompileRequest {
@@ -7193,7 +7344,7 @@ count + 1"#,
             identity: Some(identity),
             root_scope: ScopeConfig::default(),
         };
-        let params = BTreeMap::new();
+        let params = TransformTemplateParameterArena::default();
         let data_bindings = Vec::new();
 
         let compiled = adapter
@@ -7255,7 +7406,7 @@ count + 1"#,
             identity: Some(identity),
             root_scope: ScopeConfig::default(),
         };
-        let params = BTreeMap::new();
+        let params = TransformTemplateParameterArena::default();
         let data_bindings = vec!["input".to_owned()];
 
         let compiled = adapter
@@ -7297,7 +7448,7 @@ count + 1"#,
             identity: Some(identity.clone()),
             root_scope: ScopeConfig::default(),
         };
-        let params = BTreeMap::new();
+        let params = TransformTemplateParameterArena::default();
         let data_bindings = Vec::new();
 
         let compiled = adapter
@@ -7354,7 +7505,7 @@ count + 1"#,
             identity: Some(identity),
             root_scope: ScopeConfig::default(),
         };
-        let params = BTreeMap::new();
+        let params = TransformTemplateParameterArena::default();
         let data_bindings = vec!["input".to_owned(), "meta".to_owned()];
         let compiled = adapter
             .compile(TransformTemplateCompileRequest {
@@ -7417,7 +7568,7 @@ count + 1"#,
             identity: Some(identity.clone()),
             root_scope: ScopeConfig::default(),
         };
-        let params = BTreeMap::new();
+        let params = TransformTemplateParameterArena::default();
         let data_bindings = Vec::new();
 
         let compiled = adapter
@@ -7479,7 +7630,7 @@ count + 1"#,
             identity: Some(identity),
             root_scope: ScopeConfig::default(),
         };
-        let params = BTreeMap::new();
+        let params = TransformTemplateParameterArena::default();
         let data_bindings = Vec::new();
         let compiled = adapter
             .compile(TransformTemplateCompileRequest {
@@ -7539,7 +7690,7 @@ count + 1"#,
             identity: Some(identity),
             root_scope: ScopeConfig::default(),
         };
-        let params = BTreeMap::new();
+        let params = TransformTemplateParameterArena::default();
         let data_bindings = Vec::new();
         let compiled = adapter
             .compile(TransformTemplateCompileRequest {
@@ -7609,7 +7760,7 @@ count + 1"#,
             identity: Some(identity),
             root_scope: ScopeConfig::default(),
         };
-        let params = BTreeMap::new();
+        let params = TransformTemplateParameterArena::default();
         let data_bindings = Vec::new();
         let compiled = adapter
             .compile(TransformTemplateCompileRequest {
@@ -7678,7 +7829,7 @@ count + 1"#,
             identity: Some(identity),
             root_scope: ScopeConfig::default(),
         };
-        let params = BTreeMap::new();
+        let params = TransformTemplateParameterArena::default();
         let data_bindings = vec!["enabled".to_owned()];
         let compiled = adapter
             .compile(TransformTemplateCompileRequest {
@@ -7752,7 +7903,7 @@ count + 1"#,
             identity: Some(identity),
             root_scope: ScopeConfig::default(),
         };
-        let params = BTreeMap::new();
+        let params = TransformTemplateParameterArena::default();
         let data_bindings = Vec::new();
         let compiled = adapter
             .compile(TransformTemplateCompileRequest {
@@ -7821,7 +7972,7 @@ count + 1"#,
             identity: Some(identity),
             root_scope: ScopeConfig::default(),
         };
-        let params = BTreeMap::new();
+        let params = TransformTemplateParameterArena::default();
         let data_bindings = vec!["title".to_owned()];
         let compiled = adapter
             .compile(TransformTemplateCompileRequest {
@@ -7892,7 +8043,7 @@ count + 1"#,
             identity: Some(identity),
             root_scope: ScopeConfig::default(),
         };
-        let params = BTreeMap::new();
+        let params = TransformTemplateParameterArena::default();
         let data_bindings = vec!["missing".to_owned()];
         let compiled = adapter
             .compile(TransformTemplateCompileRequest {
@@ -7961,7 +8112,7 @@ count + 1"#,
             identity: Some(identity),
             root_scope: ScopeConfig::default(),
         };
-        let params = BTreeMap::new();
+        let params = TransformTemplateParameterArena::default();
         let data_bindings = vec!["sourceSettings".to_owned()];
         let compiled = adapter
             .compile(TransformTemplateCompileRequest {
@@ -8038,7 +8189,7 @@ count + 1"#,
             identity: Some(identity),
             root_scope: ScopeConfig::default(),
         };
-        let params = BTreeMap::new();
+        let params = TransformTemplateParameterArena::default();
         let data_bindings = Vec::new();
         let compiled = adapter
             .compile(TransformTemplateCompileRequest {
@@ -8122,7 +8273,7 @@ count + 1"#,
             identity: Some(identity),
             root_scope: ScopeConfig::default(),
         };
-        let params = BTreeMap::new();
+        let params = TransformTemplateParameterArena::default();
         let data_bindings = Vec::new();
         let compiled = adapter
             .compile(TransformTemplateCompileRequest {
@@ -8205,7 +8356,7 @@ count + 1"#,
             identity: Some(identity),
             root_scope: ScopeConfig::default(),
         };
-        let params = BTreeMap::new();
+        let params = TransformTemplateParameterArena::default();
         let data_bindings = Vec::new();
         let compiled = adapter
             .compile(TransformTemplateCompileRequest {
@@ -8279,10 +8430,11 @@ count + 1"#,
             identity: Some(identity),
             root_scope: ScopeConfig::default(),
         };
-        let params = BTreeMap::from([
+        let params = TransformTemplateParameterArena::from_normalized_values(BTreeMap::from([
             ("locale".to_owned(), Value::String("fr-FR".to_owned())),
             ("title".to_owned(), Value::String("Intro".to_owned())),
-        ]);
+        ]))
+        .expect("typed params");
         let data_bindings = Vec::new();
         let compiled = adapter
             .compile(TransformTemplateCompileRequest {
@@ -8366,10 +8518,11 @@ count + 1"#,
             identity: Some(identity),
             root_scope: ScopeConfig::default(),
         };
-        let params = BTreeMap::from([
+        let params = TransformTemplateParameterArena::from_normalized_values(BTreeMap::from([
             ("locale".to_owned(), Value::String("fr-FR".to_owned())),
             ("card.title".to_owned(), Value::String("Intro".to_owned())),
-        ]);
+        ]))
+        .expect("typed params");
         let data_bindings = Vec::new();
         let compiled = adapter
             .compile(TransformTemplateCompileRequest {
@@ -8453,7 +8606,11 @@ count + 1"#,
             identity: Some(identity),
             root_scope: ScopeConfig::default(),
         };
-        let params = BTreeMap::from([("title".to_owned(), Value::Null)]);
+        let params = TransformTemplateParameterArena::from_normalized_values(BTreeMap::from([(
+            "title".to_owned(),
+            Value::Null,
+        )]))
+        .expect("typed params");
         let data_bindings = Vec::new();
         let compiled = adapter
             .compile(TransformTemplateCompileRequest {
@@ -8534,7 +8691,7 @@ count + 1"#,
             identity: Some(identity),
             root_scope: ScopeConfig::default(),
         };
-        let params = BTreeMap::new();
+        let params = TransformTemplateParameterArena::default();
         let data_bindings = Vec::new();
         let compiled = adapter
             .compile(TransformTemplateCompileRequest {
@@ -8599,7 +8756,7 @@ count + 1"#,
             identity: Some(identity.clone()),
             root_scope: ScopeConfig::default(),
         };
-        let params = BTreeMap::new();
+        let params = TransformTemplateParameterArena::default();
         let data_bindings = Vec::new();
         let compiled = adapter
             .compile(TransformTemplateCompileRequest {
@@ -8674,7 +8831,7 @@ count + 1"#,
             identity: Some(identity.clone()),
             root_scope: ScopeConfig::default(),
         };
-        let params = BTreeMap::new();
+        let params = TransformTemplateParameterArena::default();
         let data_bindings = Vec::new();
         let compiled = adapter
             .compile(TransformTemplateCompileRequest {
@@ -8751,7 +8908,7 @@ count + 1"#,
             identity: Some(identity.clone()),
             root_scope: ScopeConfig::default(),
         };
-        let params = BTreeMap::new();
+        let params = TransformTemplateParameterArena::default();
         let data_bindings = Vec::new();
         let compiled = adapter
             .compile(TransformTemplateCompileRequest {
@@ -8846,7 +9003,7 @@ count + 1"#,
             identity: Some(identity.clone()),
             root_scope: ScopeConfig::default(),
         };
-        let params = BTreeMap::new();
+        let params = TransformTemplateParameterArena::default();
         let data_bindings = Vec::new();
         let compiled = adapter
             .compile(TransformTemplateCompileRequest {
@@ -8935,7 +9092,7 @@ count + 1"#,
             identity: Some(identity.clone()),
             root_scope: ScopeConfig::default(),
         };
-        let params = BTreeMap::new();
+        let params = TransformTemplateParameterArena::default();
         let data_bindings = Vec::new();
         let compiled = adapter
             .compile(TransformTemplateCompileRequest {
@@ -9012,7 +9169,7 @@ count + 1"#,
             identity: Some(identity.clone()),
             root_scope: ScopeConfig::default(),
         };
-        let params = BTreeMap::new();
+        let params = TransformTemplateParameterArena::default();
         let data_bindings = Vec::new();
         let compiled = adapter
             .compile(TransformTemplateCompileRequest {
@@ -9090,7 +9247,7 @@ count + 1"#,
             identity: Some(identity.clone()),
             root_scope: ScopeConfig::default(),
         };
-        let params = BTreeMap::new();
+        let params = TransformTemplateParameterArena::default();
         let data_bindings = vec!["title".to_owned()];
         let compiled = adapter
             .compile(TransformTemplateCompileRequest {
@@ -9168,7 +9325,7 @@ count + 1"#,
             identity: Some(identity.clone()),
             root_scope: ScopeConfig::default(),
         };
-        let params = BTreeMap::new();
+        let params = TransformTemplateParameterArena::default();
         let data_bindings = vec!["missing".to_owned()];
         let compiled = adapter
             .compile(TransformTemplateCompileRequest {
@@ -9248,7 +9405,7 @@ count + 1"#,
             identity: Some(identity.clone()),
             root_scope: ScopeConfig::default(),
         };
-        let params = BTreeMap::new();
+        let params = TransformTemplateParameterArena::default();
         let data_bindings = vec!["sourceSettings".to_owned()];
         let compiled = adapter
             .compile(TransformTemplateCompileRequest {
@@ -9332,7 +9489,7 @@ count + 1"#,
             identity: Some(identity.clone()),
             root_scope: ScopeConfig::default(),
         };
-        let params = BTreeMap::new();
+        let params = TransformTemplateParameterArena::default();
         let data_bindings = vec!["sourceCount".to_owned()];
         let compiled = adapter
             .compile(TransformTemplateCompileRequest {
@@ -9413,7 +9570,7 @@ count + 1"#,
             identity: Some(identity.clone()),
             root_scope: ScopeConfig::default(),
         };
-        let params = BTreeMap::new();
+        let params = TransformTemplateParameterArena::default();
         let data_bindings = Vec::new();
         let compiled = adapter
             .compile(TransformTemplateCompileRequest {
@@ -9493,7 +9650,7 @@ count + 1"#,
             identity: Some(identity.clone()),
             root_scope: ScopeConfig::default(),
         };
-        let params = BTreeMap::new();
+        let params = TransformTemplateParameterArena::default();
         let data_bindings = Vec::new();
         let compiled = adapter
             .compile(TransformTemplateCompileRequest {
@@ -9569,7 +9726,7 @@ count + 1"#,
             identity: Some(identity.clone()),
             root_scope: ScopeConfig::default(),
         };
-        let params = BTreeMap::new();
+        let params = TransformTemplateParameterArena::default();
         let data_bindings = Vec::new();
 
         let error = adapter
@@ -9701,7 +9858,7 @@ count + 1"#,
                 "{uri}: {:?}",
                 module_parse.diagnostics
             );
-            let params = BTreeMap::new();
+            let params = TransformTemplateParameterArena::default();
             let data_bindings = vec!["input".to_owned()];
 
             let compiled = adapter

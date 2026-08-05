@@ -110,16 +110,16 @@ use crate::transform_template::{
     TransformTemplateModuleVisibility, TransformTemplateOutputArtifact,
     TransformTemplateOutputColorSelection, TransformTemplateOutputFunctionKind,
     TransformTemplateOutputFunctionRegistry, TransformTemplateOutputProducedKind,
-    TransformTemplateRenderRequest, TransformTemplateResolvedModule,
-    TransformTemplateSourceMapPolicy, TransformTemplateTypedEncodeEvaluationContext,
-    TransformTemplateWriterToken, TransformTemplateWriterTokenStream,
-    CEM_TEMPLATE_IMPORT_DENIED_CODE, CEM_TEMPLATE_IMPORT_UNRESOLVED_CODE,
-    TRANSFORM_TEMPLATE_CALL_UNKNOWN_CODE, TRANSFORM_TEMPLATE_ENTRYPOINT_NOT_PUBLIC_CODE,
-    TRANSFORM_TEMPLATE_IMPORT_ALIAS_DUPLICATE_CODE, TRANSFORM_TEMPLATE_IMPORT_CYCLE_CODE,
-    TRANSFORM_TEMPLATE_IMPORT_DEPTH_CODE, TRANSFORM_TEMPLATE_INCLUDE_RESERVED_CODE,
-    TRANSFORM_TEMPLATE_LET_EXPR_INVALID_CODE, TRANSFORM_TEMPLATE_PARAM_DUPLICATE_ALIAS_CODE,
-    TRANSFORM_TEMPLATE_PARAM_REQUIRED_CODE, TRANSFORM_TEMPLATE_PARAM_TYPE_CODE,
-    TRANSFORM_TEMPLATE_PARAM_UNKNOWN_CODE,
+    TransformTemplateParameterArena, TransformTemplateRenderRequest,
+    TransformTemplateResolvedModule, TransformTemplateSourceMapPolicy,
+    TransformTemplateTypedEncodeEvaluationContext, TransformTemplateWriterToken,
+    TransformTemplateWriterTokenStream, CEM_TEMPLATE_IMPORT_DENIED_CODE,
+    CEM_TEMPLATE_IMPORT_UNRESOLVED_CODE, TRANSFORM_TEMPLATE_CALL_UNKNOWN_CODE,
+    TRANSFORM_TEMPLATE_ENTRYPOINT_NOT_PUBLIC_CODE, TRANSFORM_TEMPLATE_IMPORT_ALIAS_DUPLICATE_CODE,
+    TRANSFORM_TEMPLATE_IMPORT_CYCLE_CODE, TRANSFORM_TEMPLATE_IMPORT_DEPTH_CODE,
+    TRANSFORM_TEMPLATE_INCLUDE_RESERVED_CODE, TRANSFORM_TEMPLATE_LET_EXPR_INVALID_CODE,
+    TRANSFORM_TEMPLATE_PARAM_DUPLICATE_ALIAS_CODE, TRANSFORM_TEMPLATE_PARAM_REQUIRED_CODE,
+    TRANSFORM_TEMPLATE_PARAM_TYPE_CODE, TRANSFORM_TEMPLATE_PARAM_UNKNOWN_CODE,
 };
 use crate::validation::css::CssDocumentAst;
 use crate::validation::csv::CsvDocumentAst;
@@ -3376,7 +3376,24 @@ fn compile_transform_template(
         &module_options,
         diagnostics,
     )?;
-    let module_preflight = preflight_transform_template_modules(
+    let parameter_values = materialize_transform_template_parameter_values(
+        &params,
+        spec.entrypoint.name.as_deref(),
+        &module_options,
+    );
+    let parameter_arena =
+        match TransformTemplateParameterArena::from_normalized_values(parameter_values) {
+            Ok(parameters) => parameters,
+            Err(message) => {
+                diagnostics.push(template_module_diagnostic(
+                    Some(&spec.template.uri),
+                    TRANSFORM_TEMPLATE_PARAM_TYPE_CODE,
+                    message,
+                ));
+                return None;
+            }
+        };
+    let mut module_preflight = preflight_transform_template_modules(
         spec.context,
         spec.adapter.id(),
         spec.template,
@@ -3385,6 +3402,9 @@ fn compile_transform_template(
         spec.execution_policy,
         diagnostics,
     )?;
+    if let Some(cache_key) = module_preflight.cache_key.as_mut() {
+        cache_key.parameter_hash = content_hash(parameter_arena.identity_bytes());
+    }
     let imported_modules = parse_imported_template_modules(&module_preflight, diagnostics)?;
     validate_transform_template_call_sites_with_imported_modules(
         &spec.template.uri,
@@ -3401,7 +3421,7 @@ fn compile_transform_template(
     match spec.adapter.compile(TransformTemplateCompileRequest {
         template: spec.template,
         entrypoint: spec.entrypoint,
-        params: &params,
+        params: &parameter_arena,
         data_bindings: spec.data_bindings,
         module_options: compiled_module_options.clone(),
         module_preflight,
@@ -3412,7 +3432,8 @@ fn compile_transform_template(
             Some(
                 response
                     .artifact
-                    .with_module_options(compiled_module_options),
+                    .with_module_options(compiled_module_options)
+                    .with_parameters(parameter_arena),
             )
         }
         Err(err) => {
@@ -3477,6 +3498,40 @@ fn normalize_transform_template_module_params(
         }
     }
     normalized
+}
+
+fn materialize_transform_template_parameter_values(
+    params: &BTreeMap<String, Value>,
+    selected_entrypoint: Option<&str>,
+    module_options: &TransformTemplateModuleOptions,
+) -> BTreeMap<String, Value> {
+    let mut remaining = params.clone();
+    let mut materialized = BTreeMap::new();
+    let mut materialized_names = BTreeSet::new();
+
+    for declaration in &module_options.params {
+        let accepted_names = accepted_param_names(declaration, selected_entrypoint);
+        let Some(canonical_name) = accepted_names.first().copied() else {
+            continue;
+        };
+
+        if materialized_names.insert(canonical_name.to_owned()) {
+            let value = accepted_names
+                .iter()
+                .find_map(|name| params.get(*name))
+                .or(declaration.default_value.as_ref());
+            if let Some(value) = value {
+                materialized.insert(canonical_name.to_owned(), value.clone());
+            }
+        }
+
+        for name in accepted_names {
+            remaining.remove(name);
+        }
+    }
+
+    materialized.extend(remaining);
+    materialized
 }
 
 fn coerce_transform_template_param_value(
@@ -8030,6 +8085,10 @@ fn transform_template_render_value_bindings<'a>(
         let value = transform_template_ast_binding(artifact)?;
         value_bindings.bind(name, value.clone());
         value_bindings.bind(&artifact.artifact_id, value);
+    }
+
+    for (name, value) in spec.compiled.parameters().iter() {
+        value_bindings.bind(name, value.clone());
     }
 
     apply_transform_template_typed_let_bindings(
@@ -13175,6 +13234,114 @@ mod tests {
         assert_eq!(
             compiled.module_options.output_functions[0].name,
             "html.text"
+        );
+    }
+
+    #[test]
+    fn compile_transform_template_owns_normalized_parameters_for_render() {
+        let template = TemplateInput {
+            uri: "templates/parameters.cemt".to_owned(),
+            bytes: br#"{@doc cem-ml 1}
+{module |
+  {template @name="card" @visibility="public" |
+    {param @name="title" @type="string" @default="Untitled"}
+    {param @name="count" @type="integer" @required="true"}
+    {param @name="options" @type="object" @required="true"}
+    {body |
+      {let @name="selectedCount" @type="integer" @expr="$count"}
+      {span | Card}
+    }
+  }
+}"#
+            .to_vec(),
+            identity: Some(FormatIdentity {
+                content_type: Some(CEM_TRANSFORM_CONTENT_TYPE.to_owned()),
+                schema: Some(CEM_TRANSFORM_SCHEMA_URI.to_owned()),
+                ..FormatIdentity::default()
+            }),
+            root_scope: ScopeConfig::default(),
+        };
+        let adapter: Arc<dyn TransformTemplateAdapter> = Arc::new(ReadyCemtHtmlExportAdapter);
+        let params = BTreeMap::from([
+            ("card.count".to_owned(), json!("42")),
+            ("options".to_owned(), json!(r#"{"compact":true}"#)),
+        ]);
+        let data_bindings = vec!["input".to_owned()];
+        let mut diagnostics = Vec::new();
+
+        let compiled = compile_transform_template(
+            TransformTemplateCompileSpec {
+                context: &ctx(),
+                adapter: &adapter,
+                template: &template,
+                template_kind: TransformTemplateKind::CemNative,
+                entrypoint: &TransformTemplateEntrypoint::named("card"),
+                params: &params,
+                data_bindings: &data_bindings,
+                module_options: TransformTemplateModuleOptions::default(),
+                execution_policy: TransformExecutionPolicy::default(),
+            },
+            &mut diagnostics,
+        )
+        .unwrap_or_else(|| panic!("template should compile: {diagnostics:?}"));
+
+        assert!(diagnostics.is_empty(), "{diagnostics:?}");
+        assert_eq!(
+            compiled
+                .parameters()
+                .value("count")
+                .and_then(CemtEvaluatorValue::as_number)
+                .and_then(|value| value.as_i64()),
+            Some(42)
+        );
+        assert_eq!(
+            compiled
+                .parameters()
+                .value("title")
+                .and_then(CemtEvaluatorValue::as_str),
+            Some("Untitled")
+        );
+        assert_eq!(
+            compiled
+                .parameters()
+                .resolve_path("options.compact")
+                .and_then(|value| value.as_bool()),
+            Some(true)
+        );
+        assert!(compiled.parameters().value("card.count").is_none());
+
+        let primary = lifecycle_json_test_artifact(
+            "input",
+            Some("memory://input.json"),
+            json!({"value": "primary"}),
+        );
+        let context = ctx();
+        let secondary_inputs = BTreeMap::new();
+        let target_scope = ScopeConfig::default();
+        let spec = TransformStageRenderSpec {
+            context: &context,
+            adapter: &adapter,
+            compiled: &compiled,
+            primary_input: &primary,
+            secondary_inputs: &secondary_inputs,
+            target: None,
+            target_scope: &target_scope,
+            execution_policy: TransformExecutionPolicy::default(),
+            diagnostic_uri: "templates/parameters.cemt",
+            diagnostic_node: None,
+        };
+
+        let bindings = transform_template_render_value_bindings(&spec).expect("typed bindings");
+        assert_eq!(
+            bindings
+                .value("selectedCount")
+                .and_then(CemtEvaluatorValue::as_number)
+                .and_then(|value| value.as_i64()),
+            Some(42)
+        );
+        assert_eq!(
+            bindings.value("title").and_then(CemtEvaluatorValue::as_str),
+            Some("Untitled")
         );
     }
 

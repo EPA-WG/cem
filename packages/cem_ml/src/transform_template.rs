@@ -155,11 +155,166 @@ impl fmt::Debug for TransformTemplateAdapterLookup {
     }
 }
 
+pub const TRANSFORM_TEMPLATE_PARAMETER_ARENA_REPRESENTATION_ID: &str =
+    "cem.transform-template.parameter-arena/1";
+
+#[derive(Debug, Clone)]
+pub struct TransformTemplateParameterArena {
+    bindings: CemtEvaluatorBindings<'static>,
+    identity_bytes: Arc<[u8]>,
+}
+
+impl Default for TransformTemplateParameterArena {
+    fn default() -> Self {
+        Self::from_normalized_values(BTreeMap::new())
+            .expect("an empty transform-template parameter arena is valid")
+    }
+}
+
+impl PartialEq for TransformTemplateParameterArena {
+    fn eq(&self, other: &Self) -> bool {
+        self.identity_bytes == other.identity_bytes
+    }
+}
+
+impl Eq for TransformTemplateParameterArena {}
+
+impl TransformTemplateParameterArena {
+    pub fn from_normalized_values(values: BTreeMap<String, Value>) -> Result<Self, String> {
+        let mut identity_bytes = Vec::new();
+        append_parameter_identity_chunk(
+            &mut identity_bytes,
+            TRANSFORM_TEMPLATE_PARAMETER_ARENA_REPRESENTATION_ID.as_bytes(),
+        );
+        append_parameter_identity_len(&mut identity_bytes, values.len());
+
+        let mut bindings = CemtEvaluatorBindings::default();
+        for (name, value) in values {
+            append_parameter_identity_chunk(&mut identity_bytes, name.as_bytes());
+            let value = own_transform_template_parameter_value(value, &mut identity_bytes)?;
+            bindings.bind(name, value);
+        }
+
+        Ok(Self {
+            bindings,
+            identity_bytes: identity_bytes.into(),
+        })
+    }
+
+    pub fn representation_id(&self) -> &'static str {
+        TRANSFORM_TEMPLATE_PARAMETER_ARENA_REPRESENTATION_ID
+    }
+
+    pub fn identity_bytes(&self) -> &[u8] {
+        &self.identity_bytes
+    }
+
+    pub fn len(&self) -> usize {
+        self.bindings.len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.bindings.is_empty()
+    }
+
+    pub fn value(&self, name: &str) -> Option<&CemtEvaluatorValue<'static>> {
+        self.bindings.value(name)
+    }
+
+    pub fn resolve_path(&self, path: &str) -> Option<CemtEvaluatorValue<'static>> {
+        self.bindings.resolve_path(path)
+    }
+
+    pub fn iter(&self) -> impl Iterator<Item = (&str, &CemtEvaluatorValue<'static>)> {
+        self.bindings.iter()
+    }
+}
+
+fn append_parameter_identity_len(identity: &mut Vec<u8>, len: usize) {
+    identity.extend_from_slice(&(len as u64).to_be_bytes());
+}
+
+fn append_parameter_identity_chunk(identity: &mut Vec<u8>, bytes: &[u8]) {
+    append_parameter_identity_len(identity, bytes.len());
+    identity.extend_from_slice(bytes);
+}
+
+fn own_transform_template_parameter_value(
+    value: Value,
+    identity: &mut Vec<u8>,
+) -> Result<CemtEvaluatorValue<'static>, String> {
+    match value {
+        Value::Null => {
+            identity.push(0);
+            Ok(CemtEvaluatorValue::Null)
+        }
+        Value::Bool(value) => {
+            identity.push(if value { 2 } else { 1 });
+            Ok(CemtEvaluatorValue::boolean(value))
+        }
+        Value::Number(value) => {
+            if let Some(value) = value.as_i64() {
+                identity.push(3);
+                append_parameter_identity_chunk(identity, value.to_string().as_bytes());
+                return Ok(CemtEvaluatorValue::integer(value));
+            }
+            if let Some(value) = value.as_u64() {
+                identity.push(4);
+                append_parameter_identity_chunk(identity, value.to_string().as_bytes());
+                return Ok(CemtEvaluatorValue::unsigned_integer(value));
+            }
+            let value = value
+                .as_f64()
+                .filter(|value| value.is_finite())
+                .ok_or_else(|| {
+                    "transform-template parameter arena received a non-finite number".to_owned()
+                })?;
+            identity.push(5);
+            append_parameter_identity_chunk(
+                identity,
+                ryu::Buffer::new().format_finite(value).as_bytes(),
+            );
+            CemtEvaluatorValue::decimal(value).ok_or_else(|| {
+                "transform-template parameter arena received a non-finite number".to_owned()
+            })
+        }
+        Value::String(value) => {
+            identity.push(6);
+            append_parameter_identity_chunk(identity, value.as_bytes());
+            Ok(CemtEvaluatorValue::string(value))
+        }
+        Value::Array(values) => {
+            identity.push(7);
+            append_parameter_identity_len(identity, values.len());
+            values
+                .into_iter()
+                .map(|value| own_transform_template_parameter_value(value, identity))
+                .collect::<Result<Vec<_>, _>>()
+                .map(CemtEvaluatorValue::sequence)
+        }
+        Value::Object(fields) => {
+            identity.push(8);
+            append_parameter_identity_len(identity, fields.len());
+            fields
+                .into_iter()
+                .collect::<BTreeMap<_, _>>()
+                .into_iter()
+                .map(|(name, value)| {
+                    append_parameter_identity_chunk(identity, name.as_bytes());
+                    own_transform_template_parameter_value(value, identity)
+                        .map(|value| (name, value))
+                })
+                .collect::<Result<Vec<_>, _>>()
+                .map(CemtEvaluatorValue::record)
+        }
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct TransformTemplateCompileRequest<'a> {
     pub template: &'a TemplateInput,
     pub entrypoint: &'a TransformTemplateEntrypoint,
-    pub params: &'a BTreeMap<String, Value>,
+    pub params: &'a TransformTemplateParameterArena,
     pub data_bindings: &'a [String],
     pub module_options: TransformTemplateModuleOptions,
     pub module_preflight: TransformTemplateModulePreflight,
@@ -25196,6 +25351,8 @@ pub struct TransformTemplateModuleCacheKey {
     pub content_hash: String,
     pub entrypoint: TransformTemplateEntrypoint,
     pub execution_policy: TransformExecutionPolicy,
+    #[serde(default)]
+    pub parameter_hash: String,
     pub dependency_graph_hash: String,
 }
 
@@ -25246,8 +25403,14 @@ impl TransformTemplateModuleCacheKey {
             content_hash: content_hash.into(),
             entrypoint,
             execution_policy,
+            parameter_hash: String::new(),
             dependency_graph_hash: dependency_graph_hash.into(),
         }
+    }
+
+    pub fn with_parameter_hash(mut self, parameter_hash: impl Into<String>) -> Self {
+        self.parameter_hash = parameter_hash.into();
+        self
     }
 }
 
@@ -25266,6 +25429,8 @@ pub struct TransformTemplateCompiledArtifact {
     pub module_options: TransformTemplateModuleOptions,
     #[serde(default, skip_serializing_if = "Value::is_null")]
     pub opaque: Value,
+    #[serde(skip, default)]
+    parameters: TransformTemplateParameterArena,
     #[serde(skip)]
     native_payload: Option<Arc<dyn Any + Send + Sync>>,
 }
@@ -25280,6 +25445,7 @@ impl fmt::Debug for TransformTemplateCompiledArtifact {
             .field("entrypoint", &self.entrypoint)
             .field("module_options", &self.module_options)
             .field("opaque", &self.opaque)
+            .field("parameters", &self.parameters)
             .field("has_native_payload", &self.native_payload.is_some())
             .finish()
     }
@@ -25294,6 +25460,7 @@ impl PartialEq for TransformTemplateCompiledArtifact {
             && self.entrypoint == other.entrypoint
             && self.module_options == other.module_options
             && self.opaque == other.opaque
+            && self.parameters == other.parameters
     }
 }
 
@@ -25314,6 +25481,7 @@ impl TransformTemplateCompiledArtifact {
             entrypoint,
             module_options: TransformTemplateModuleOptions::default(),
             opaque,
+            parameters: TransformTemplateParameterArena::default(),
             native_payload: None,
         }
     }
@@ -25321,6 +25489,15 @@ impl TransformTemplateCompiledArtifact {
     pub fn with_module_options(mut self, module_options: TransformTemplateModuleOptions) -> Self {
         self.module_options = module_options;
         self
+    }
+
+    pub fn with_parameters(mut self, parameters: TransformTemplateParameterArena) -> Self {
+        self.parameters = parameters;
+        self
+    }
+
+    pub fn parameters(&self) -> &TransformTemplateParameterArena {
+        &self.parameters
     }
 
     pub fn with_native_payload<T>(mut self, payload: T) -> Self
@@ -39858,6 +40035,74 @@ mod tests {
     }
 
     #[test]
+    fn parameter_arena_owns_typed_values_without_json_shape_classification() {
+        let first = TransformTemplateParameterArena::from_normalized_values(BTreeMap::from([
+            ("count".to_owned(), json!(42)),
+            (
+                "metadata".to_owned(),
+                json!({"frames": [{"transform": "generated-boundary"}]}),
+            ),
+            ("title".to_owned(), json!("Card")),
+        ]))
+        .expect("typed parameter arena");
+        let second = TransformTemplateParameterArena::from_normalized_values(BTreeMap::from([
+            ("title".to_owned(), json!("Card")),
+            (
+                "metadata".to_owned(),
+                json!({"frames": [{"transform": "generated-boundary"}]}),
+            ),
+            ("count".to_owned(), json!(42)),
+        ]))
+        .expect("typed parameter arena");
+        let string_count =
+            TransformTemplateParameterArena::from_normalized_values(BTreeMap::from([
+                ("count".to_owned(), json!("42")),
+                (
+                    "metadata".to_owned(),
+                    json!({"frames": [{"transform": "generated-boundary"}]}),
+                ),
+                ("title".to_owned(), json!("Card")),
+            ]))
+            .expect("typed string parameter arena");
+
+        assert_eq!(
+            first.representation_id(),
+            "cem.transform-template.parameter-arena/1"
+        );
+        assert_eq!(first.identity_bytes(), second.identity_bytes());
+        assert_ne!(first.identity_bytes(), string_count.identity_bytes());
+        assert_eq!(first.len(), 3);
+        let count = first.value("count").expect("owned numeric parameter");
+        assert_eq!(count.as_number().and_then(|value| value.as_i64()), Some(42));
+        assert!(count.json_ast().is_none());
+        assert!(count.json_lexeme().is_none());
+        assert!(count.json_source_range().is_none());
+        assert!(count.json_source_map().is_none());
+        assert_eq!(
+            first.value("metadata").expect("metadata record").kind(),
+            CemtEvaluatorValueKind::Record
+        );
+    }
+
+    #[test]
+    fn compile_request_contract_exposes_typed_parameter_arena_only() {
+        let source = include_str!("transform_template.rs");
+        let contract = source
+            .split("pub struct TransformTemplateCompileRequest")
+            .nth(1)
+            .and_then(|source| {
+                source
+                    .split("pub const TRANSFORM_TEMPLATE_ENTRYPOINT")
+                    .next()
+            })
+            .expect("compile request contract source");
+
+        assert!(contract.contains("TransformTemplateParameterArena"));
+        assert!(!contract.contains("BTreeMap"));
+        assert!(!contract.contains("Value"));
+    }
+
+    #[test]
     fn native_template_module_cache_key_records_identity_policy_entrypoint_and_dependencies() {
         let identity = FormatIdentity {
             content_type: Some("application/vnd.cem.template+cem;version=2".to_owned()),
@@ -39871,7 +40116,8 @@ mod tests {
             TransformTemplateEntrypoint::named("card"),
             TransformExecutionPolicy::default(),
             "sha256:dependency-graph",
-        );
+        )
+        .with_parameter_hash("sha256:parameters");
         let json = serde_json::to_value(&key).expect("cache key serializes");
 
         assert_eq!(json["adapterId"], "cem-native-template-v2");
@@ -39880,6 +40126,7 @@ mod tests {
         assert_eq!(json["entrypoint"]["name"], "card");
         assert_eq!(json["executionPolicy"]["failurePolicy"], "fail-fast");
         assert_eq!(json["dependencyGraphHash"], "sha256:dependency-graph");
+        assert_eq!(json["parameterHash"], "sha256:parameters");
     }
 
     #[test]
@@ -39951,7 +40198,7 @@ mod tests {
             identity: Some(identity),
             root_scope: ScopeConfig::default(),
         };
-        let params = BTreeMap::new();
+        let params = TransformTemplateParameterArena::default();
         let data_bindings = Vec::new();
         let compile_error = adapter
             .compile(TransformTemplateCompileRequest {
@@ -40137,7 +40384,7 @@ mod tests {
             identity: Some(identity),
             root_scope: ScopeConfig::default(),
         };
-        let params = BTreeMap::new();
+        let params = TransformTemplateParameterArena::default();
         let data_bindings = Vec::new();
         let compiled = adapter
             .compile(TransformTemplateCompileRequest {
@@ -40219,7 +40466,7 @@ mod tests {
             }],
             ..TransformTemplateModuleOptions::default()
         };
-        let params = BTreeMap::new();
+        let params = TransformTemplateParameterArena::default();
         let data_bindings = Vec::new();
 
         let compiled = adapter

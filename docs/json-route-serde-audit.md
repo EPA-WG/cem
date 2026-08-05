@@ -10,6 +10,7 @@ diagnostic-details/public-response model.
 | Route | Classification | Constraint |
 | --- | --- | --- |
 | `run_config::parse_run_config` | Explicit JSON configuration ingress into the typed `RunConfig` contract | Parsing occurs once at the configuration API edge; `Value` is not handed to transform stages. |
+| Transform request parameter parsing and normalization | Explicit CLI/configuration ingress | Declared scalar/array/object parameters may be decoded and coerced at the request edge, then are materialized once into the compiled artifact's typed parameter arena. The adapter and render layers do not receive the `Value` map. |
 | `validation::{cem_ast_projection,cem_dom_projection,cem_events_projection}` JSON validators | Explicit registered JSON projection ingress | These validators consume the encoded projection at its validation edge and do not feed a generic JSON transform data plane. |
 | `validation::json` string and number lexeme helpers | Lossless JSON parser implementation | `from_str` is limited to decoding one string token or validating one exact number lexeme while the owning `JsonValueAst` retains the lexeme and range. |
 | `real::transform_artifact_export_primary` and `conversion_output_boundary_value` | Explicit JSON/public response export | An encoded JSON result is decoded only where the public `Value` response contract requires it. No later runtime stage consumes that projection. |
@@ -50,18 +51,29 @@ subject snapshot were deleted. Coverage proves duplicate members, exact
 number/string lexemes, ranges, source maps, and native CEM-tree owner identity
 reach the selected encoder unchanged.
 
+The transform-template compile/render parameter boundary is now typed end to
+end. Request-edge `Value` parameters are normalized and validated once, then
+materialized directly as owned `CemtEvaluatorValue` bindings in the
+non-serializing `TransformTemplateParameterArena`. Compile adapters receive the
+arena rather than a `BTreeMap<String, Value>`, and the compiled artifact owns it
+for render. Selected-entrypoint aliases become local binding names, defaults
+are copied into the owner, and render borrows the values before typed lets run.
+The CEM-QL template, standalone-expression, and XSLT parity adapters no longer
+retain their own parameter `Value` maps: CEM-QL item streams are built by
+walking the arena's evaluator values, while the XSLT parity compiler accepts
+only directly read scalar values for generated entrypoint arguments.
+Generated parameters intentionally have no AST identity, source range, source
+map, or source lexeme; their decoded string content and canonical typed numeric
+value remain available. The arena representation and values are encoded
+directly into cache identity without a JSON serializer or shape classifier.
+
 ## Remaining prohibited internal handoffs
 
-1. Compile-request parameters still arrive as `BTreeMap<String, Value>` and the
-   normalized parameter values are not retained by
-   `TransformTemplateCompiledArtifact`, so render cannot add them to the typed
-   binding scope. Their owner/lifetime contract must be selected before adding
-   them; introducing another JSON-shaped DTO is not permitted.
-2. Collection joins retain typed child artifacts, but `collect`, `groupBy`,
+1. Collection joins retain typed child artifacts, but `collect`, `groupBy`,
    `matchBy`, and `zip` do not yet define the evaluator shape and identity rules
    needed to expose those children as transform-template bindings. Do not infer
    those semantics from a JSON projection.
 
-The next work is an explicit design point: choose parameter ownership first,
-then define collection binding shapes. No implementation should begin by
-projecting either contract through JSON.
+The next work is an explicit design point: define collection binding shapes,
+ordering, mismatch behavior, aliases, and provenance. No implementation should
+begin by projecting that contract through JSON.

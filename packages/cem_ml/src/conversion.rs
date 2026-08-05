@@ -91,10 +91,10 @@ use crate::transform_template::{
     TransformTemplateOutputColorSelection, TransformTemplateOutputFunctionDescriptor,
     TransformTemplateOutputFunctionImplementation, TransformTemplateOutputFunctionKind,
     TransformTemplateOutputFunctionRegistry, TransformTemplateOutputProducedKind,
-    TransformTemplateRenderRequest, TransformTemplateRenderResponse,
-    TransformTemplateSourceMapPolicy, TransformTemplateTargetSyntaxKind,
-    TransformTemplateTargetSyntaxRules, TransformTemplateTerminalColorCapability,
-    TransformTemplateTypedCemTreeWriterRequest,
+    TransformTemplateParameterArena, TransformTemplateRenderRequest,
+    TransformTemplateRenderResponse, TransformTemplateSourceMapPolicy,
+    TransformTemplateTargetSyntaxKind, TransformTemplateTargetSyntaxRules,
+    TransformTemplateTerminalColorCapability, TransformTemplateTypedCemTreeWriterRequest,
     TRANSFORM_TEMPLATE_ENCODED_ARTIFACT_WRITER_ADAPTER_FAILED_CODE,
 };
 use crate::validation::css::CssDocumentAst;
@@ -2022,7 +2022,7 @@ fn execute_cemt_template_parity_fixture(
         .as_deref()
         .map(TransformTemplateEntrypoint::named)
         .unwrap_or_else(TransformTemplateEntrypoint::implicit);
-    let params = BTreeMap::new();
+    let params = TransformTemplateParameterArena::default();
     let data_bindings = vec!["input".to_owned()];
     let execution_policy = TransformExecutionPolicy::default();
 
@@ -5147,7 +5147,7 @@ fn execute_conversion_cem_tree_output_stage_with_native_subject(
         || execution_binding.function.body_expression.is_some();
     let body_function_name = body_declared.then(|| stage.function_name.clone());
     let entrypoint = TransformTemplateEntrypoint::named(stage.function_name.as_str());
-    let params = BTreeMap::new();
+    let params = TransformTemplateParameterArena::default();
     let data_bindings = vec!["subject".to_owned()];
     let compile_response = adapter
         .compile(TransformTemplateCompileRequest {
@@ -14272,7 +14272,7 @@ fn validate_conversion_descriptor_cemt_output_template_source(
         .as_deref()
         .map(TransformTemplateEntrypoint::named)
         .unwrap_or_else(TransformTemplateEntrypoint::implicit);
-    let params = BTreeMap::new();
+    let params = TransformTemplateParameterArena::default();
     let data_bindings = vec!["input".to_owned()];
     let adapter = DomProjectionParityCemtAdapter;
     let compile_response = adapter
