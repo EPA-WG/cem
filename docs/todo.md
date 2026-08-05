@@ -1214,6 +1214,20 @@ Remaining dependency-ordered package checklist:
   - [ ] Represent JSON input internally with a lossless `JsonDocumentAst` and
         `JsonValueAst`, not `serde_json::Value`, preserving duplicate members,
         number lexemes, source ranges, diagnostics, and source maps.
+    - [x] Classify the production JSON-route serde boundaries and record the
+          remaining prohibited handoffs in
+          `docs/json-route-serde-audit.md`. Migrate root `moduleMap` loading
+          from `serde_json::Value` to one lifecycle parse plus direct ordered
+          `JsonValueAst` traversal, preserving duplicate-member diagnostics,
+          source positions, and last-declaration alias semantics. A source
+          audit forbids serializer, public projection, or DTO conversion in
+          both the loader and its AST traversal.
+    - [ ] Replace transform-template primary, secondary, parameter, and let
+          JSON `Value` bindings with borrowed evaluator views over the owning
+          lifecycle `JsonDocumentAst`/`JsonValueAst`.
+    - [ ] Remove the DOM-projection adapter's explicit JSON compatibility
+          ingress and restrict decoded JSON output access to explicit public
+          export boundaries.
   - [x] Make transform outputs typed native artifacts or explicit encoded
         artifacts, enforce encoding/content-type agreement, and require encoded
         input to pass through a lifecycle parser edge before AST consumption.
@@ -1264,40 +1278,35 @@ Remaining dependency-ordered package checklist:
 
 ### Next Work Item
 
-Finish the lossless JSON input migration next. JSON lifecycle parsing and the
-package JSON formatter already own `JsonDocumentAst`/`JsonValueAst`, preserve
-duplicate members and source ranges, and feed typed materialized AST streams to
-the writer. The remaining risk is older ingress and generic-data code that can
-still collapse JSON into `serde_json::Value` before a converter, graph stage, or
-secondary input consumes it.
+Replace the transform-template JSON binding plane next. Lifecycle loading and
+root `moduleMap` ingestion now retain `JsonDocumentAst`/`JsonValueAst`, but
+`transform_template_render_value_bindings` still calls
+`explicit_json_value()` for primary and secondary graph artifacts before
+let/encode evaluation. That is the next prohibited inter-layer handoff in the
+JSON route audit.
 
 Implement the next slice in this order:
 
-1. Add a source audit that classifies every production `serde_json::Value`,
-   `serde_json::from_*`, and `serde_json::to_*` use on a JSON route as one of:
-   explicit JSON/`+json` ingress or export, public/debug projection, or a
-   prohibited internal handoff. Record the remaining prohibited call sites
-   before changing them.
-2. Replace the remaining JSON-input `Value` entrypoints and generic-data
-   adapters with borrowed or `Arc`-owned `JsonDocumentAst`/`JsonValueAst`
-   subjects. Parse encoded JSON exactly once at the registered lifecycle edge;
-   do not reparse or serialize between loader, converter, graph, join, and
-   secondary-input stages.
-3. Carry JSON member order, duplicate keys, exact number/string lexemes, source
-   ranges, diagnostics, and source-map identity through conversion planning and
-   graph collection. Where a converter needs a generic-data view, make that a
-   typed borrowed view over the JSON AST instead of a `Value` projection.
-4. Keep serialization available only through registered JSON or `+json` export
-   edges and explicit public/debug APIs. Make unsupported consumers fail with a
-   typed boundary diagnostic rather than falling back to value-shape
-   classification.
-5. Add native and WASM behavior tests for duplicate members, non-canonical
-   numeric lexemes, nested ordered objects/arrays, warnings, and exact
-   range/source-map preservation through direct conversion, graph joins, and
-   secondary inputs. Strengthen the source audit to prove those routes never
-   call a serializer.
-6. Run the JSON and JSON Schema package verifies, converter parity, CLI e2e,
-   core lint/test, and WASM gates.
+1. Introduce a borrowed transform-template binding value that can reference an
+   owning `Arc<LoadedInputAstStream::JsonDocument>` and expose ordered object
+   members, arrays, exact string/number lexemes, scalar values, ranges, and
+   source maps without a `serde_json::Value` projection.
+2. Change primary, named secondary, artifact-id, parameter, and let bindings to
+   use that typed value. Expression-created scalars and collections may be
+   owned typed evaluator values, but must not be serialized and reparsed.
+3. Route explicitly encoded JSON through `LifecycleRegistry` exactly once at
+   ingress, then retain that `Arc` through graph, join, secondary-input, and
+   encode-expression evaluation. Reject non-lifecycle JSON with a typed
+   boundary diagnostic.
+4. Preserve duplicate-member order and lookup semantics deliberately; add
+   tests for `1.00e+2`, escaped strings, nested arrays/objects, warnings,
+   ranges, source maps, and `Arc::ptr_eq` identity across primary and secondary
+   bindings.
+5. Delete the data-input use of `explicit_json_value`, strengthen the source
+   audit for the binding route, and then remove the DOM-projection adapter's
+   explicit JSON compatibility branch if no typed caller remains.
+6. Run focused transform tests, JSON and JSON Schema package verifies,
+   converter parity, CLI e2e, core lint/test, and WASM gates.
 
 ## Current Verification Commands
 

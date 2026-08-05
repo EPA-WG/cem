@@ -124,7 +124,9 @@ use crate::validation::css::CssDocumentAst;
 use crate::validation::csv::CsvDocumentAst;
 use crate::validation::generic_data::GenericDataDocumentAst;
 use crate::validation::html::HtmlDocumentAst;
-use crate::validation::json::JsonDocumentAst;
+use crate::validation::json::{
+    json_document_ast_from_source_bytes, JsonDocumentAst, JsonSourceValidationRequest, JsonValueAst,
+};
 use crate::validation::json_schema::JsonSchemaDocumentAst;
 use crate::validation::markdown::MarkdownDocumentAst;
 use crate::validation::mathml::MathMlDocumentAst;
@@ -1988,41 +1990,58 @@ fn load_root_module_map(scope: &ScopeConfig, context: Option<&EngineContext>) ->
         },
     };
 
-    let value = match serde_json::from_slice::<Value>(&bytes) {
-        Ok(value) => value,
-        Err(error) => {
-            return LoadedModuleMap {
-                entries: BTreeMap::new(),
-                diagnostics: vec![Diagnostic {
-                    code: "cem.scope.module_map_invalid".to_owned(),
-                    severity: Severity::Warning,
-                    message: format!(
-                        "root-scope moduleMap `{module_map}` is not valid JSON: {error}"
-                    ),
-                    details: None,
-                    ..Diagnostic::default()
-                }],
-                uri: Some(resolved_uri),
-            };
-        }
+    let (document, mut diagnostics) =
+        json_document_ast_from_source_bytes(JsonSourceValidationRequest {
+            bytes: &bytes,
+            source_uri: &resolved_uri,
+            content_type: Some(JSON_CONTENT_TYPE),
+        });
+    let Some(document) = document else {
+        let message = diagnostics
+            .iter()
+            .find(|diagnostic| diagnostic.severity.is_hard_violation())
+            .map(|diagnostic| diagnostic.message.as_str())
+            .unwrap_or("JSON lifecycle parser did not produce a document AST");
+        return invalid_module_map_json(module_map, resolved_uri, message);
     };
-    match module_map_aliases(&value) {
+    diagnostics.retain(|diagnostic| !diagnostic.severity.is_hard_violation());
+
+    match module_map_aliases(document.root.as_ref()) {
         Ok(entries) => LoadedModuleMap {
             entries,
-            diagnostics: Vec::new(),
+            diagnostics,
             uri: Some(resolved_uri),
         },
-        Err(message) => LoadedModuleMap {
-            entries: BTreeMap::new(),
-            diagnostics: vec![Diagnostic {
-                code: "cem.scope.module_map_invalid".to_owned(),
-                severity: Severity::Warning,
-                message: format!("root-scope moduleMap `{module_map}` is invalid: {message}"),
-                details: None,
-                ..Diagnostic::default()
-            }],
-            uri: Some(resolved_uri),
-        },
+        Err(message) => {
+            diagnostics.push(invalid_module_map_diagnostic(module_map, &message));
+            LoadedModuleMap {
+                entries: BTreeMap::new(),
+                diagnostics,
+                uri: Some(resolved_uri),
+            }
+        }
+    }
+}
+
+fn invalid_module_map_json(
+    module_map: &str,
+    resolved_uri: String,
+    message: &str,
+) -> LoadedModuleMap {
+    LoadedModuleMap {
+        entries: BTreeMap::new(),
+        diagnostics: vec![invalid_module_map_diagnostic(module_map, message)],
+        uri: Some(resolved_uri),
+    }
+}
+
+fn invalid_module_map_diagnostic(module_map: &str, message: &str) -> Diagnostic {
+    Diagnostic {
+        code: "cem.scope.module_map_invalid".to_owned(),
+        severity: Severity::Warning,
+        message: format!("root-scope moduleMap `{module_map}` is invalid: {message}"),
+        details: None,
+        ..Diagnostic::default()
     }
 }
 
@@ -2066,30 +2085,33 @@ fn resolver_module_map_error(module_map: &str, error: ResolverDiagnostic) -> Loa
     }
 }
 
-fn module_map_aliases(value: &Value) -> Result<BTreeMap<String, String>, String> {
-    let Some(object) = value.as_object() else {
+fn module_map_aliases(value: Option<&JsonValueAst>) -> Result<BTreeMap<String, String>, String> {
+    let Some(JsonValueAst::Object { members, .. }) = value else {
         return Err("expected a JSON object".to_owned());
     };
     let mut aliases = BTreeMap::new();
-    collect_module_map_aliases(object, &mut aliases)?;
+    collect_module_map_aliases(members, &mut aliases)?;
     Ok(aliases)
 }
 
 fn collect_module_map_aliases(
-    object: &serde_json::Map<String, Value>,
+    members: &[crate::validation::json::JsonMemberAst],
     aliases: &mut BTreeMap<String, String>,
 ) -> Result<(), String> {
-    for (key, value) in object {
-        match key.as_str() {
+    for member in members {
+        match member.name.as_str() {
             "imports" | "schemas" | "modules" => {
-                let Some(nested) = value.as_object() else {
-                    return Err(format!("`{key}` must be a JSON object"));
+                let JsonValueAst::Object {
+                    members: nested, ..
+                } = &member.value
+                else {
+                    return Err(format!("`{}` must be a JSON object", member.name));
                 };
                 collect_module_map_aliases(nested, aliases)?;
             }
             _ => {
-                if let Some(target) = module_map_entry_target(key, value)? {
-                    aliases.insert(key.clone(), target);
+                if let Some(target) = module_map_entry_target(&member.name, &member.value)? {
+                    aliases.insert(member.name.clone(), target);
                 }
             }
         }
@@ -2097,19 +2119,24 @@ fn collect_module_map_aliases(
     Ok(())
 }
 
-fn module_map_entry_target(key: &str, value: &Value) -> Result<Option<String>, String> {
-    if let Some(target) = value.as_str() {
-        return Ok(Some(target.to_owned()));
+fn module_map_entry_target(key: &str, value: &JsonValueAst) -> Result<Option<String>, String> {
+    if let JsonValueAst::String { value: target, .. } = value {
+        return Ok(Some(target.clone()));
     }
-    let Some(object) = value.as_object() else {
+    let JsonValueAst::Object { members, .. } = value else {
         return Ok(None);
     };
     for field in ["uri", "src", "path"] {
-        if let Some(target) = object.get(field) {
-            let Some(target) = target.as_str() else {
+        if let Some(target) = members
+            .iter()
+            .rev()
+            .find(|member| member.name == field)
+            .map(|member| &member.value)
+        {
+            let JsonValueAst::String { value: target, .. } = target else {
                 return Err(format!("moduleMap entry `{key}.{field}` must be a string"));
             };
-            return Ok(Some(target.to_owned()));
+            return Ok(Some(target.clone()));
         }
     }
     Ok(None)
@@ -15436,7 +15463,7 @@ mod tests {
 
     #[test]
     fn root_module_map_json_loads_flat_and_nested_aliases() {
-        let value = json!({
+        let source = br#"{
             "ui/button": "./schemas/button.schema",
             "schemas": {
                 "ui/card": {
@@ -15446,9 +15473,17 @@ mod tests {
             "imports": {
                 "ui/list": "./schemas/list.schema"
             }
-        });
+        }"#;
+        let (document, diagnostics) =
+            json_document_ast_from_source_bytes(JsonSourceValidationRequest {
+                bytes: source,
+                source_uri: "memory://module-map.json",
+                content_type: Some(JSON_CONTENT_TYPE),
+            });
+        assert!(diagnostics.is_empty());
+        let document = document.expect("lossless module-map JSON document");
 
-        let aliases = module_map_aliases(&value).unwrap();
+        let aliases = module_map_aliases(document.root.as_ref()).unwrap();
         assert_eq!(
             aliases.get("ui/button").map(String::as_str),
             Some("./schemas/button.schema")
@@ -15461,6 +15496,72 @@ mod tests {
             aliases.get("ui/list").map(String::as_str),
             Some("./schemas/list.schema")
         );
+    }
+
+    #[test]
+    fn root_module_map_loader_preserves_duplicate_diagnostic_and_source_order() {
+        let path = std::env::temp_dir().join(format!(
+            "cem-ml-duplicate-module-map-{}.json",
+            std::process::id()
+        ));
+        std::fs::write(
+            &path,
+            r#"{
+                "imports": {"ui/button": "./first.schema"},
+                "imports": {"ui/button": "./second.schema"}
+            }"#,
+        )
+        .unwrap();
+        let scope = ScopeConfig {
+            module_map: Some(path.to_string_lossy().into_owned()),
+            ..ScopeConfig::default()
+        };
+
+        let loaded = load_root_module_map(&scope, None);
+        let _ = std::fs::remove_file(path);
+
+        assert_eq!(
+            loaded.entries.get("ui/button").map(String::as_str),
+            Some("./second.schema")
+        );
+        let duplicate = loaded
+            .diagnostics
+            .iter()
+            .find(|diagnostic| diagnostic.code == "cem.json.duplicate_member_name")
+            .expect("lossless JSON duplicate-member diagnostic");
+        assert_eq!(duplicate.severity, Severity::Warning);
+        assert_eq!(duplicate.line, Some(3));
+        assert!(duplicate.byte_offset.is_some());
+    }
+
+    #[test]
+    fn root_module_map_source_uses_lossless_json_ast_without_value_projection() {
+        let source = include_str!("real.rs");
+        let loader = source
+            .split("fn load_root_module_map")
+            .nth(1)
+            .and_then(|source| source.split("fn unreadable_module_map").next())
+            .expect("root module-map loader source");
+        assert!(loader.contains("json_document_ast_from_source_bytes"));
+        for forbidden in ["serde_json", "to_json_value", "to_cemt_subject"] {
+            assert!(
+                !loader.contains(forbidden),
+                "root module-map loader must not cross `{forbidden}`"
+            );
+        }
+
+        let traversal = source
+            .split("fn module_map_aliases")
+            .nth(1)
+            .and_then(|source| source.split("fn scope_time_budget").next())
+            .expect("root module-map AST traversal source");
+        assert!(traversal.contains("JsonValueAst"));
+        for forbidden in ["serde_json", "to_json_value", "to_cemt_subject"] {
+            assert!(
+                !traversal.contains(forbidden),
+                "root module-map traversal must not cross `{forbidden}`"
+            );
+        }
     }
 
     #[test]
