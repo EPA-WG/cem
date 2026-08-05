@@ -59,6 +59,7 @@ use crate::validation::yaml::{
     YamlDocumentSource, YamlEncodingReportAst, YamlNodeAst, YamlNodeKind, YamlPairAst,
     YamlSourceRange, YamlStreamDocumentAst,
 };
+use serde::{Deserialize, Serialize};
 use std::any::Any;
 use std::collections::{BTreeMap, BTreeSet};
 use std::fmt;
@@ -1652,7 +1653,8 @@ impl<'a> JsonDocumentCemtSubjectRef<'a> {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
 pub enum CemtEvaluatorValueKind {
     Null,
     Boolean,

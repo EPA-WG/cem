@@ -99,26 +99,27 @@ use crate::transform_template::{
     TransformTemplateAdapterLookup, TransformTemplateCompileRequest,
     TransformTemplateCompiledArtifact, TransformTemplateDataArtifact,
     TransformTemplateEncodeBinding, TransformTemplateEncodeExpression,
-    TransformTemplateEncodeOptions, TransformTemplateEncodedArtifact,
-    TransformTemplateEncodedArtifactIdentity, TransformTemplateEncodedArtifactInsertionContext,
-    TransformTemplateEncodedArtifactMode, TransformTemplateEncodingTarget,
-    TransformTemplateEvaluatedEncodeExpression, TransformTemplateModuleCacheKey,
-    TransformTemplateModuleDependencyKind, TransformTemplateModuleImport,
-    TransformTemplateModuleOptions, TransformTemplateModuleParamDeclaration,
-    TransformTemplateModuleParamType, TransformTemplateModuleParseRequest,
-    TransformTemplateModulePreflight, TransformTemplateModuleVisibility,
-    TransformTemplateOutputArtifact, TransformTemplateOutputColorSelection,
-    TransformTemplateOutputFunctionKind, TransformTemplateOutputFunctionRegistry,
-    TransformTemplateOutputProducedKind, TransformTemplateRenderRequest,
-    TransformTemplateResolvedModule, TransformTemplateSourceMapPolicy,
-    TransformTemplateTypedEncodeEvaluationContext, TransformTemplateWriterToken,
-    TransformTemplateWriterTokenStream, CEM_TEMPLATE_IMPORT_DENIED_CODE,
-    CEM_TEMPLATE_IMPORT_UNRESOLVED_CODE, TRANSFORM_TEMPLATE_CALL_UNKNOWN_CODE,
-    TRANSFORM_TEMPLATE_ENTRYPOINT_NOT_PUBLIC_CODE, TRANSFORM_TEMPLATE_IMPORT_ALIAS_DUPLICATE_CODE,
-    TRANSFORM_TEMPLATE_IMPORT_CYCLE_CODE, TRANSFORM_TEMPLATE_IMPORT_DEPTH_CODE,
-    TRANSFORM_TEMPLATE_INCLUDE_RESERVED_CODE, TRANSFORM_TEMPLATE_LET_EXPR_INVALID_CODE,
-    TRANSFORM_TEMPLATE_PARAM_DUPLICATE_ALIAS_CODE, TRANSFORM_TEMPLATE_PARAM_REQUIRED_CODE,
-    TRANSFORM_TEMPLATE_PARAM_TYPE_CODE, TRANSFORM_TEMPLATE_PARAM_UNKNOWN_CODE,
+    TransformTemplateEncodeOptions, TransformTemplateEncodeSubjectMetadata,
+    TransformTemplateEncodedArtifact, TransformTemplateEncodedArtifactIdentity,
+    TransformTemplateEncodedArtifactInsertionContext, TransformTemplateEncodedArtifactMode,
+    TransformTemplateEncodingTarget, TransformTemplateEvaluatedEncodeExpression,
+    TransformTemplateModuleCacheKey, TransformTemplateModuleDependencyKind,
+    TransformTemplateModuleImport, TransformTemplateModuleOptions,
+    TransformTemplateModuleParamDeclaration, TransformTemplateModuleParamType,
+    TransformTemplateModuleParseRequest, TransformTemplateModulePreflight,
+    TransformTemplateModuleVisibility, TransformTemplateOutputArtifact,
+    TransformTemplateOutputColorSelection, TransformTemplateOutputFunctionKind,
+    TransformTemplateOutputFunctionRegistry, TransformTemplateOutputProducedKind,
+    TransformTemplateRenderRequest, TransformTemplateResolvedModule,
+    TransformTemplateSourceMapPolicy, TransformTemplateTypedEncodeEvaluationContext,
+    TransformTemplateWriterToken, TransformTemplateWriterTokenStream,
+    CEM_TEMPLATE_IMPORT_DENIED_CODE, CEM_TEMPLATE_IMPORT_UNRESOLVED_CODE,
+    TRANSFORM_TEMPLATE_CALL_UNKNOWN_CODE, TRANSFORM_TEMPLATE_ENTRYPOINT_NOT_PUBLIC_CODE,
+    TRANSFORM_TEMPLATE_IMPORT_ALIAS_DUPLICATE_CODE, TRANSFORM_TEMPLATE_IMPORT_CYCLE_CODE,
+    TRANSFORM_TEMPLATE_IMPORT_DEPTH_CODE, TRANSFORM_TEMPLATE_INCLUDE_RESERVED_CODE,
+    TRANSFORM_TEMPLATE_LET_EXPR_INVALID_CODE, TRANSFORM_TEMPLATE_PARAM_DUPLICATE_ALIAS_CODE,
+    TRANSFORM_TEMPLATE_PARAM_REQUIRED_CODE, TRANSFORM_TEMPLATE_PARAM_TYPE_CODE,
+    TRANSFORM_TEMPLATE_PARAM_UNKNOWN_CODE,
 };
 use crate::validation::css::CssDocumentAst;
 use crate::validation::csv::CsvDocumentAst;
@@ -6561,7 +6562,7 @@ fn markdown_generated_html_output(
             target: target.clone(),
             options: TransformTemplateEncodeOptions::default(),
         },
-        subject: token_value,
+        subject_metadata: TransformTemplateEncodeSubjectMetadata::from(token_value),
         binding,
         artifact,
     };
@@ -7985,7 +7986,7 @@ fn apply_render_encode_expressions(
         |binding, subject| {
             spec.context
                 .transform_template_encode_registry
-                .execute_typed(binding, subject)
+                .execute(binding, subject)
         },
     );
 
@@ -13459,7 +13460,7 @@ mod tests {
         context.transform_template_encode_registry.register(
             "html.tokens",
             |_binding: &crate::transform_template::TransformTemplateEncodeBinding,
-             subject: &Value| {
+             subject: &CemtEvaluatorValue<'_>| {
                 Ok(
                     crate::transform_template::TransformTemplateOutputFunctionResult::Tokens(
                         TransformTemplateWriterTokenStream {

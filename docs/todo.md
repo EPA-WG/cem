@@ -1283,35 +1283,49 @@ Remaining dependency-ordered package checklist:
 - [ ] Verify the state-matrix slice with focused `@epa-wg/cem-components`
       target(s), then `yarn nx run @epa-wg/cem-components:verify`.
 
-### Next Work Item
+### Completed: Typed Evaluator-to-Encoder Boundary
 
-Remove the remaining evaluator-to-encoder `Value` projection next. Primary,
-secondary, artifact-id, and let bindings now use borrowed AST evaluator views,
-but `TransformTemplateEncodeBindingRequest.subject`, the registered host
-encoder trait, and `TransformTemplateEvaluatedEncodeExpression.subject` still
-form a legacy decoded-value boundary.
+- [x] Replace binding-request payload shape inference with typed evaluator
+      kind, native representation, and inferred semantic type metadata.
+- [x] Change registered host encoders to consume borrowed
+      `CemtEvaluatorValue` directly and delete the `execute_typed` JSON
+      compatibility projection.
+- [x] Replace the evaluated encode response's decoded subject snapshot with
+      non-payload subject metadata.
+- [x] Make built-in encoders traverse typed AST/evaluator values directly.
+- [x] Add source audits and behavior coverage proving duplicate JSON members,
+      exact number/string lexemes, ranges, source maps, and native CEM-tree
+      owner identity reach the selected encoder unchanged.
 
-Implement the next slice in this order:
+### Next Work Item — Ownership Decision Required
 
-1. Replace binding-request subject-shape inference with typed evaluator kind
-   and declared/native representation metadata; registry selection must not
-   need a decoded subject payload.
-2. Change registered encoder execution to accept `CemtEvaluatorValue` or an
-   owning native artifact directly. Remove the `execute_typed` compatibility
-   projection instead of moving it to another helper.
-3. Delete the decoded `subject` snapshot from evaluated encode responses, or
-   replace it with non-payload metadata used by diagnostics and insertion
-   validation. Keep public JSON projection only in explicit export/report APIs.
-4. Add source audits and behavior tests proving duplicate members, exact
-   number/string lexemes, ranges, maps, and native owner identity reach the
-   selected encoder unchanged.
-5. Run focused transform tests, JSON and JSON Schema package verifies,
-   converter parity, CLI e2e, core lint/test, and WASM gates.
+Choose the compile-parameter ownership/lifetime contract before implementing
+another binding slice. Compile requests currently receive
+`BTreeMap<String, Value>`, normalized values are not retained by
+`TransformTemplateCompiledArtifact`, and render therefore has no owner from
+which it can borrow parameter AST values.
 
-After that slice, stop for the parameter/collection ownership decision.
-Compile-request parameters currently have no render-time owner, and collection
-join modes do not yet specify evaluator shapes for `collect`, `groupBy`,
-`matchBy`, or `zip`; neither contract should be guessed from a JSON DTO.
+The decision must define:
+
+1. whether normalized parameters become an owned typed binding arena retained
+   by the compiled artifact, or move to a render-time request with an external
+   lifecycle owner;
+2. how source identity, ranges, maps, and exact scalar lexemes behave for CLI
+   values that did not originate in a source AST;
+3. whether cache identity includes normalized parameter values and their
+   representation metadata; and
+4. how imported-module/default parameter values share or isolate owners.
+
+Recommended direction for the decision: retain a non-serializing, owned typed
+parameter arena on the compiled artifact and expose borrowed evaluator views
+at render time. This keeps cache inputs explicit and avoids requiring callers
+to keep a separate render-time owner alive, but it needs an accepted policy
+for generated source identity and lexemes before implementation.
+
+After parameter ownership is settled, separately specify evaluator shapes for
+collection `collect`, `groupBy`, `matchBy`, and `zip`. Define child artifact
+identity, ordering, missing/mismatch behavior, aliases, and source-map
+propagation for each mode; do not infer these contracts from a JSON DTO.
 
 ## Current Verification Commands
 

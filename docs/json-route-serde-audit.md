@@ -38,25 +38,30 @@ collections remain typed evaluator values.
 `CemTreeAstStream`. Its JSON compatibility ingress and JSON-to-tree fixture
 helpers were deleted, and its formatter path retains the native stream owner.
 
+The transform-template encoder boundary is now typed end to end.
+`TransformTemplateEncodeBindingRequest.subject` contains only
+`TransformTemplateEncodeSubjectMetadata`: the typed evaluator kind, native
+representation id, and inferred semantic type candidates. The registered host
+encoder trait accepts the borrowed `CemtEvaluatorValue` directly, built-in
+encoders traverse typed scalar/sequence/record or lossless `JsonValueAst`
+views, and `TransformTemplateEvaluatedEncodeExpression` retains only subject
+metadata. The `execute_typed` compatibility projection and decoded evaluated
+subject snapshot were deleted. Coverage proves duplicate members, exact
+number/string lexemes, ranges, source maps, and native CEM-tree owner identity
+reach the selected encoder unchanged.
+
 ## Remaining prohibited internal handoffs
 
-1. `TransformTemplateEncodeBindingRequest.subject`,
-   `TransformTemplateEvaluatedEncodeExpression.subject`, and the registered
-   host encoder trait are still `Value`-based. The typed evaluator currently
-   projects a subject at that legacy output boundary for binding selection and
-   host execution. Binding selection needs typed subject metadata, registered
-   encoders need to consume `CemtEvaluatorValue` or an owning native artifact,
-   and the evaluation response must stop retaining a decoded subject snapshot.
-2. Compile-request parameters still arrive as `BTreeMap<String, Value>` and the
+1. Compile-request parameters still arrive as `BTreeMap<String, Value>` and the
    normalized parameter values are not retained by
    `TransformTemplateCompiledArtifact`, so render cannot add them to the typed
    binding scope. Their owner/lifetime contract must be selected before adding
    them; introducing another JSON-shaped DTO is not permitted.
-3. Collection joins retain typed child artifacts, but `collect`, `groupBy`,
+2. Collection joins retain typed child artifacts, but `collect`, `groupBy`,
    `matchBy`, and `zip` do not yet define the evaluator shape and identity rules
    needed to expose those children as transform-template bindings. Do not infer
    those semantics from a JSON projection.
 
-The next unambiguous slice is item 1: make encoder binding selection,
-execution, and evaluation responses typed end to end. Parameter ownership and
-collection binding shapes remain explicit design points after that slice.
+The next work is an explicit design point: choose parameter ownership first,
+then define collection binding shapes. No implementation should begin by
+projecting either contract through JSON.

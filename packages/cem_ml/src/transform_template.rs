@@ -36,12 +36,14 @@ use crate::tokenizer::cem::CemTokenizer;
 pub use crate::transform_artifact::TransformDataArtifact as TransformTemplateDataArtifact;
 use crate::transform_artifact::{
     CemtColorOperationKind, CemtColorTarget, CemtColoredTreeOverlay, CemtEvaluatorBindings,
-    CemtEvaluatorValue, CemtFormatFragment, CemtFormatOperationKind, CemtFormattedTreeOverlay,
-    CemtMaterializedTreeArtifact, CemtMaterializedTreeStage, CemtNodeColorOperationKind,
-    CemtNodeFormatOperationKind, CemtNodeFormatTarget, CemtOverlayProvenance, CemtOwnerPath,
-    CemtTreeArtifact, CemtTreeArtifactStage, TransformArtifactBody, TransformEncodedArtifact,
-    TransformEncoding, TransformNativeArtifact,
+    CemtEvaluatorValue, CemtEvaluatorValueKind, CemtEvaluatorValueRef, CemtFormatFragment,
+    CemtFormatOperationKind, CemtFormattedTreeOverlay, CemtMaterializedTreeArtifact,
+    CemtMaterializedTreeStage, CemtNodeColorOperationKind, CemtNodeFormatOperationKind,
+    CemtNodeFormatTarget, CemtOverlayProvenance, CemtOwnerPath, CemtTreeArtifact,
+    CemtTreeArtifactStage, TransformArtifactBody, TransformEncodedArtifact, TransformEncoding,
+    TransformNativeArtifact,
 };
+use crate::validation::json::JsonValueAst;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::any::Any;
@@ -3135,13 +3137,75 @@ pub struct TransformTemplateEncodeExpression {
 }
 
 impl TransformTemplateEncodeExpression {
-    pub fn binding_request(&self, subject: Value) -> TransformTemplateEncodeBindingRequest {
+    pub fn binding_request(
+        &self,
+        subject: impl Into<TransformTemplateEncodeSubjectMetadata>,
+    ) -> TransformTemplateEncodeBindingRequest {
         let mut request = TransformTemplateEncodeBindingRequest::new(subject, self.target.clone())
             .with_options(self.options.clone());
         if let Some(subject_type) = &self.subject_type {
             request = request.with_subject_type(subject_type.clone());
         }
         request
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TransformTemplateEncodeSubjectMetadata {
+    pub kind: CemtEvaluatorValueKind,
+    pub representation: String,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub inferred_types: Vec<String>,
+    #[cfg(test)]
+    #[serde(skip)]
+    compatibility_value: Option<Value>,
+}
+
+impl TransformTemplateEncodeSubjectMetadata {
+    pub fn from_evaluator(subject: &CemtEvaluatorValue<'_>) -> Self {
+        Self {
+            kind: subject.kind(),
+            representation: transform_template_evaluator_representation(subject).to_owned(),
+            inferred_types: transform_template_encode_typed_subject_type_candidates(subject),
+            #[cfg(test)]
+            compatibility_value: None,
+        }
+    }
+
+    pub fn declared(kind: CemtEvaluatorValueKind, representation: impl Into<String>) -> Self {
+        Self {
+            kind,
+            representation: representation.into(),
+            inferred_types: transform_template_encode_kind_subject_type_candidates(kind, None),
+            #[cfg(test)]
+            compatibility_value: None,
+        }
+    }
+}
+
+impl From<Value> for TransformTemplateEncodeSubjectMetadata {
+    fn from(subject: Value) -> Self {
+        let kind = transform_template_json_value_evaluator_kind(&subject);
+        Self {
+            kind,
+            representation: "public.serde-json-value".to_owned(),
+            inferred_types: transform_template_encode_subject_type_candidates(&subject),
+            #[cfg(test)]
+            compatibility_value: Some(subject),
+        }
+    }
+}
+
+impl From<&Value> for TransformTemplateEncodeSubjectMetadata {
+    fn from(subject: &Value) -> Self {
+        subject.clone().into()
+    }
+}
+
+impl From<&CemtEvaluatorValue<'_>> for TransformTemplateEncodeSubjectMetadata {
+    fn from(subject: &CemtEvaluatorValue<'_>) -> Self {
+        Self::from_evaluator(subject)
     }
 }
 
@@ -3221,7 +3285,7 @@ pub fn parse_transform_template_encode_expression(
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct TransformTemplateEncodeBindingRequest {
-    pub subject: Value,
+    pub subject: TransformTemplateEncodeSubjectMetadata,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub owner: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -3232,9 +3296,12 @@ pub struct TransformTemplateEncodeBindingRequest {
 }
 
 impl TransformTemplateEncodeBindingRequest {
-    pub fn new(subject: Value, target: TransformTemplateEncodingTarget) -> Self {
+    pub fn new(
+        subject: impl Into<TransformTemplateEncodeSubjectMetadata>,
+        target: TransformTemplateEncodingTarget,
+    ) -> Self {
         Self {
-            subject,
+            subject: subject.into(),
             owner: None,
             subject_type: None,
             target,
@@ -3266,7 +3333,7 @@ impl TransformTemplateEncodeBindingRequest {
         {
             return vec![subject_type.to_owned()];
         }
-        transform_template_encode_subject_type_candidates(&self.subject)
+        self.subject.inferred_types.clone()
     }
 
     pub fn syntax_rules(
@@ -4049,26 +4116,26 @@ impl TransformTemplateEncodeBinding {
 }
 
 pub trait TransformTemplateEncodeImplementation: Send + Sync {
-    fn encode(
+    fn encode<'value>(
         &self,
         binding: &TransformTemplateEncodeBinding,
-        subject: &Value,
+        subject: &CemtEvaluatorValue<'value>,
     ) -> Result<TransformTemplateOutputFunctionResult, String>;
 }
 
 impl<F> TransformTemplateEncodeImplementation for F
 where
-    F: Fn(
+    F: for<'value> Fn(
             &TransformTemplateEncodeBinding,
-            &Value,
+            &CemtEvaluatorValue<'value>,
         ) -> Result<TransformTemplateOutputFunctionResult, String>
         + Send
         + Sync,
 {
-    fn encode(
+    fn encode<'value>(
         &self,
         binding: &TransformTemplateEncodeBinding,
-        subject: &Value,
+        subject: &CemtEvaluatorValue<'value>,
     ) -> Result<TransformTemplateOutputFunctionResult, String> {
         self(binding, subject)
     }
@@ -4098,6 +4165,35 @@ impl fmt::Debug for TransformTemplateEncodeImplementationRegistry {
             .field("implementation_count", &self.implementations.len())
             .field("host_capabilities", &self.host_capabilities)
             .finish()
+    }
+}
+
+#[cfg(test)]
+pub trait TransformTemplateTestEncodeSubject {
+    fn evaluator_value(&self) -> Result<CemtEvaluatorValue<'_>, String>;
+}
+
+#[cfg(test)]
+impl TransformTemplateTestEncodeSubject for Value {
+    fn evaluator_value(&self) -> Result<CemtEvaluatorValue<'_>, String> {
+        Ok(cemt_evaluator_value_from_json(self))
+    }
+}
+
+#[cfg(test)]
+impl TransformTemplateTestEncodeSubject for TransformTemplateEncodeSubjectMetadata {
+    fn evaluator_value(&self) -> Result<CemtEvaluatorValue<'_>, String> {
+        self.compatibility_value
+            .as_ref()
+            .map(cemt_evaluator_value_from_json)
+            .ok_or_else(|| "test encoder request has no compatibility subject".to_owned())
+    }
+}
+
+#[cfg(test)]
+impl TransformTemplateTestEncodeSubject for CemtEvaluatorValue<'_> {
+    fn evaluator_value(&self) -> Result<CemtEvaluatorValue<'_>, String> {
+        Ok(self.clone())
     }
 }
 
@@ -4209,10 +4305,10 @@ impl TransformTemplateEncodeImplementationRegistry {
             .map(|entry| entry.origin)
     }
 
-    pub fn encode_result(
+    fn encode_typed_result<'value>(
         &self,
         binding: &TransformTemplateEncodeBinding,
-        subject: &Value,
+        subject: &CemtEvaluatorValue<'value>,
     ) -> Result<TransformTemplateOutputFunctionResult, String> {
         let Some(entry) = self.implementations.get(&binding.function.name) else {
             return Err(format!(
@@ -4233,19 +4329,38 @@ impl TransformTemplateEncodeImplementationRegistry {
     }
 
     #[cfg(not(test))]
-    pub fn encode(
+    pub fn encode_result<'value>(
         &self,
         binding: &TransformTemplateEncodeBinding,
-        subject: &Value,
+        subject: &CemtEvaluatorValue<'value>,
     ) -> Result<TransformTemplateOutputFunctionResult, String> {
-        self.encode_result(binding, subject)
+        self.encode_typed_result(binding, subject)
     }
 
     #[cfg(test)]
-    pub fn encode(
+    pub fn encode_result<S: TransformTemplateTestEncodeSubject + ?Sized>(
         &self,
         binding: &TransformTemplateEncodeBinding,
-        subject: &Value,
+        subject: &S,
+    ) -> Result<TransformTemplateOutputFunctionResult, String> {
+        let subject = subject.evaluator_value()?;
+        self.encode_typed_result(binding, &subject)
+    }
+
+    #[cfg(not(test))]
+    pub fn encode<'value>(
+        &self,
+        binding: &TransformTemplateEncodeBinding,
+        subject: &CemtEvaluatorValue<'value>,
+    ) -> Result<TransformTemplateOutputFunctionResult, String> {
+        self.encode_typed_result(binding, subject)
+    }
+
+    #[cfg(test)]
+    pub fn encode<S: TransformTemplateTestEncodeSubject + ?Sized>(
+        &self,
+        binding: &TransformTemplateEncodeBinding,
+        subject: &S,
     ) -> Result<Value, String> {
         if binding.function.produces == TransformTemplateOutputProducedKind::CemTree {
             return Err(format!(
@@ -4256,10 +4371,10 @@ impl TransformTemplateEncodeImplementationRegistry {
         self.encode_result(binding, subject)?.into_evaluator_value()
     }
 
-    pub(crate) fn execute(
+    pub(crate) fn execute<'value>(
         &self,
         binding: &TransformTemplateEncodeBinding,
-        subject: &Value,
+        subject: &CemtEvaluatorValue<'value>,
     ) -> Result<TransformTemplateOutputFunctionExecution, String> {
         if binding.function.produces == TransformTemplateOutputProducedKind::CemTree {
             return Err(format!(
@@ -4267,29 +4382,15 @@ impl TransformTemplateEncodeImplementationRegistry {
                 binding.function.name
             ));
         } else {
-            self.encode_result(binding, subject)
+            self.encode_typed_result(binding, subject)
                 .map(TransformTemplateOutputFunctionExecution::Native)
         }
-    }
-
-    /// Crosses the explicit host-encoder boundary from the typed evaluator.
-    ///
-    /// Runtime stages retain borrowed/native values up to this point. Legacy
-    /// host encoders still declare a public `serde_json::Value` contract, so
-    /// projection is intentionally confined to this export boundary.
-    pub(crate) fn execute_typed(
-        &self,
-        binding: &TransformTemplateEncodeBinding,
-        subject: &CemtEvaluatorValue<'_>,
-    ) -> Result<TransformTemplateOutputFunctionExecution, String> {
-        let boundary_subject = subject.to_public_json()?;
-        self.execute(binding, &boundary_subject)
     }
 }
 
 fn builtin_html_text_encoder(
     binding: &TransformTemplateEncodeBinding,
-    subject: &Value,
+    subject: &CemtEvaluatorValue<'_>,
 ) -> Result<TransformTemplateOutputFunctionResult, String> {
     validate_builtin_html_encoder_binding(binding, "html.text", "html-text")?;
     let text = subject
@@ -4302,7 +4403,7 @@ fn builtin_html_text_encoder(
 
 fn builtin_html_attribute_encoder(
     binding: &TransformTemplateEncodeBinding,
-    subject: &Value,
+    subject: &CemtEvaluatorValue<'_>,
 ) -> Result<TransformTemplateOutputFunctionResult, String> {
     validate_builtin_html_encoder_binding(binding, "html.attribute", "html-attribute")?;
     let text = subject
@@ -4342,7 +4443,7 @@ struct TransformTemplateColorToken {
 
 fn builtin_terminal_colorizer(
     binding: &TransformTemplateEncodeBinding,
-    subject: &Value,
+    subject: &CemtEvaluatorValue<'_>,
 ) -> Result<TransformTemplateOutputFunctionResult, String> {
     validate_builtin_colorizer_binding(binding, "terminal.", "terminal-color")?;
     let profile = transform_template_binding_color_profile(binding)?;
@@ -4371,7 +4472,7 @@ fn builtin_terminal_colorizer(
 
 fn builtin_html_colorizer(
     binding: &TransformTemplateEncodeBinding,
-    subject: &Value,
+    subject: &CemtEvaluatorValue<'_>,
 ) -> Result<TransformTemplateOutputFunctionResult, String> {
     validate_builtin_colorizer_binding(binding, "html.", "html-color")?;
     let profile = transform_template_binding_color_profile(binding)?;
@@ -4439,23 +4540,25 @@ fn transform_template_binding_color_profile(
 }
 
 fn transform_template_color_tokens_from_subject(
-    subject: &Value,
+    subject: &CemtEvaluatorValue<'_>,
 ) -> Result<Vec<TransformTemplateColorToken>, String> {
-    match subject {
-        Value::Array(items) => items
+    match subject.kind() {
+        CemtEvaluatorValueKind::Sequence => subject
+            .sequence_values("color token decoding")
+            .map_err(|error| error.to_string())?
             .iter()
             .enumerate()
             .map(|(index, value)| transform_template_color_token_from_value(value, index))
             .collect(),
-        Value::Object(fields) => {
-            if let Some(tokens) = fields.get("tokens") {
-                return transform_template_color_tokens_from_subject(tokens);
+        CemtEvaluatorValueKind::Record => {
+            if let Some(tokens) = subject.field("tokens") {
+                return transform_template_color_tokens_from_subject(&tokens);
             }
             transform_template_color_token_from_value(subject, 0).map(|token| vec![token])
         }
-        Value::String(text) => Ok(vec![TransformTemplateColorToken {
+        CemtEvaluatorValueKind::String => Ok(vec![TransformTemplateColorToken {
             role: "syntax.token".to_owned(),
-            text: text.clone(),
+            text: subject.as_str().unwrap_or_default().to_owned(),
             href: None,
         }]),
         _ => Err("colorizer expected token array, token object, or string subject".to_owned()),
@@ -4478,34 +4581,33 @@ fn transform_template_array_looks_like_color_tokens(items: &[Value]) -> bool {
 }
 
 fn transform_template_color_token_from_value(
-    value: &Value,
+    value: &CemtEvaluatorValue<'_>,
     index: usize,
 ) -> Result<TransformTemplateColorToken, String> {
-    match value {
-        Value::String(text) => Ok(TransformTemplateColorToken {
+    match value.kind() {
+        CemtEvaluatorValueKind::String => Ok(TransformTemplateColorToken {
             role: "syntax.token".to_owned(),
-            text: text.clone(),
+            text: value.as_str().unwrap_or_default().to_owned(),
             href: None,
         }),
-        Value::Object(fields) => {
-            let text = fields
-                .get("text")
-                .or_else(|| fields.get("value"))
-                .or_else(|| fields.get("label"))
-                .and_then(Value::as_str)
-                .ok_or_else(|| format!("color token at index `{index}` is missing string `text`"))?
-                .to_owned();
-            let role = fields
-                .get("role")
-                .or_else(|| fields.get("kind"))
-                .and_then(Value::as_str)
-                .map(transform_template_canonical_color_role)
+        CemtEvaluatorValueKind::Record => {
+            let text = value
+                .field("text")
+                .or_else(|| value.field("value"))
+                .or_else(|| value.field("label"))
+                .and_then(|value| value.as_str().map(str::to_owned))
+                .ok_or_else(|| {
+                    format!("color token at index `{index}` is missing string `text`")
+                })?;
+            let role = value
+                .field("role")
+                .or_else(|| value.field("kind"))
+                .and_then(|value| value.as_str().map(transform_template_canonical_color_role))
                 .unwrap_or_else(|| "syntax.token".to_owned());
-            let href = fields
-                .get("href")
-                .or_else(|| fields.get("uri"))
-                .and_then(Value::as_str)
-                .map(str::to_owned);
+            let href = value
+                .field("href")
+                .or_else(|| value.field("uri"))
+                .and_then(|value| value.as_str().map(str::to_owned));
 
             Ok(TransformTemplateColorToken { role, text, href })
         }
@@ -4755,15 +4857,15 @@ fn transform_template_html_color_for_role(role: &str) -> &'static str {
 
 fn builtin_json_string_encoder(
     binding: &TransformTemplateEncodeBinding,
-    subject: &Value,
+    subject: &CemtEvaluatorValue<'_>,
 ) -> Result<TransformTemplateOutputFunctionResult, String> {
     validate_builtin_json_encoder_binding(binding, "json.string", "json-string")?;
-    let text = subject
+    subject
         .as_str()
         .ok_or_else(|| "json.string expected string subject".to_owned())?;
     Ok(TransformTemplateOutputFunctionResult::Text(
-        transform_template_format_json_value(
-            &Value::String(text.to_owned()),
+        transform_template_format_typed_json_value(
+            subject,
             &binding.options,
             binding.identity.formatter_profile.as_deref(),
         )?,
@@ -4772,11 +4874,11 @@ fn builtin_json_string_encoder(
 
 fn builtin_json_value_encoder(
     binding: &TransformTemplateEncodeBinding,
-    subject: &Value,
+    subject: &CemtEvaluatorValue<'_>,
 ) -> Result<TransformTemplateOutputFunctionResult, String> {
     validate_builtin_json_encoder_binding(binding, "json.value", "json-value")?;
     Ok(TransformTemplateOutputFunctionResult::Text(
-        transform_template_format_json_value(
+        transform_template_format_typed_json_value(
             subject,
             &binding.options,
             binding.identity.formatter_profile.as_deref(),
@@ -4786,11 +4888,11 @@ fn builtin_json_value_encoder(
 
 fn builtin_json_document_encoder(
     binding: &TransformTemplateEncodeBinding,
-    subject: &Value,
+    subject: &CemtEvaluatorValue<'_>,
 ) -> Result<TransformTemplateOutputFunctionResult, String> {
     validate_builtin_json_encoder_binding(binding, "json.document", "json-document")?;
     Ok(TransformTemplateOutputFunctionResult::Text(
-        transform_template_format_json_value(
+        transform_template_format_typed_json_value(
             subject,
             &binding.options,
             binding.identity.formatter_profile.as_deref(),
@@ -4832,7 +4934,7 @@ fn validate_builtin_json_encoder_binding(
 
 fn builtin_yaml_scalar_encoder(
     binding: &TransformTemplateEncodeBinding,
-    subject: &Value,
+    subject: &CemtEvaluatorValue<'_>,
 ) -> Result<TransformTemplateOutputFunctionResult, String> {
     validate_builtin_yaml_encoder_binding(binding, "yaml.scalar", "yaml-scalar")?;
     let text = subject
@@ -4849,10 +4951,10 @@ fn builtin_yaml_scalar_encoder(
 
 fn builtin_yaml_value_encoder(
     binding: &TransformTemplateEncodeBinding,
-    subject: &Value,
+    subject: &CemtEvaluatorValue<'_>,
 ) -> Result<TransformTemplateOutputFunctionResult, String> {
     validate_builtin_yaml_encoder_binding(binding, "yaml.value", "yaml-value")?;
-    transform_template_format_yaml_value(
+    transform_template_format_typed_yaml_value(
         subject,
         &binding.options,
         binding.identity.formatter_profile.as_deref(),
@@ -4901,7 +5003,7 @@ fn yaml_content_type_is_supported(content_type: &str) -> bool {
 
 fn builtin_xml_text_encoder(
     binding: &TransformTemplateEncodeBinding,
-    subject: &Value,
+    subject: &CemtEvaluatorValue<'_>,
 ) -> Result<TransformTemplateOutputFunctionResult, String> {
     validate_builtin_xml_encoder_binding(binding, "xml.text", "xml-text")?;
     let text = subject
@@ -4917,7 +5019,7 @@ fn builtin_xml_text_encoder(
 
 fn builtin_xml_attribute_encoder(
     binding: &TransformTemplateEncodeBinding,
-    subject: &Value,
+    subject: &CemtEvaluatorValue<'_>,
 ) -> Result<TransformTemplateOutputFunctionResult, String> {
     validate_builtin_xml_encoder_binding(binding, "xml.attribute", "xml-attribute-value")?;
     let text = subject
@@ -4965,7 +5067,7 @@ fn validate_builtin_xml_encoder_binding(
 
 fn builtin_markdown_text_encoder(
     binding: &TransformTemplateEncodeBinding,
-    subject: &Value,
+    subject: &CemtEvaluatorValue<'_>,
 ) -> Result<TransformTemplateOutputFunctionResult, String> {
     validate_builtin_markdown_encoder_binding(binding, "markdown.text", "markdown-text")?;
     let text = subject
@@ -4981,7 +5083,7 @@ fn builtin_markdown_text_encoder(
 
 fn builtin_markdown_inline_code_encoder(
     binding: &TransformTemplateEncodeBinding,
-    subject: &Value,
+    subject: &CemtEvaluatorValue<'_>,
 ) -> Result<TransformTemplateOutputFunctionResult, String> {
     validate_builtin_markdown_encoder_binding(
         binding,
@@ -5030,7 +5132,7 @@ fn validate_builtin_markdown_encoder_binding(
 
 fn builtin_csv_field_encoder(
     binding: &TransformTemplateEncodeBinding,
-    subject: &Value,
+    subject: &CemtEvaluatorValue<'_>,
 ) -> Result<TransformTemplateOutputFunctionResult, String> {
     validate_builtin_csv_encoder_binding(binding, "csv.field", "csv-field")?;
     let text = subject
@@ -5043,13 +5145,18 @@ fn builtin_csv_field_encoder(
 
 fn builtin_csv_record_encoder(
     binding: &TransformTemplateEncodeBinding,
-    subject: &Value,
+    subject: &CemtEvaluatorValue<'_>,
 ) -> Result<TransformTemplateOutputFunctionResult, String> {
     validate_builtin_csv_encoder_binding(binding, "csv.record", "csv-record")?;
     let fields = subject
-        .as_array()
-        .ok_or_else(|| "csv.record expected array subject".to_owned())?;
-    transform_template_encode_csv_record(fields).map(TransformTemplateOutputFunctionResult::Text)
+        .sequence_values("CSV record encoding")
+        .map_err(|_| "csv.record expected array subject".to_owned())?;
+    fields
+        .iter()
+        .map(transform_template_typed_csv_value_to_field)
+        .collect::<Result<Vec<_>, _>>()
+        .map(|fields| fields.join(","))
+        .map(TransformTemplateOutputFunctionResult::Text)
 }
 
 fn validate_builtin_csv_encoder_binding(
@@ -5086,7 +5193,7 @@ fn validate_builtin_csv_encoder_binding(
 
 fn builtin_css_string_encoder(
     binding: &TransformTemplateEncodeBinding,
-    subject: &Value,
+    subject: &CemtEvaluatorValue<'_>,
 ) -> Result<TransformTemplateOutputFunctionResult, String> {
     validate_builtin_css_encoder_binding(binding, "css.string", "css-string")?;
     let text = subject
@@ -5099,7 +5206,7 @@ fn builtin_css_string_encoder(
 
 fn builtin_css_identifier_encoder(
     binding: &TransformTemplateEncodeBinding,
-    subject: &Value,
+    subject: &CemtEvaluatorValue<'_>,
 ) -> Result<TransformTemplateOutputFunctionResult, String> {
     validate_builtin_css_encoder_binding(binding, "css.identifier", "css-identifier")?;
     let text = subject
@@ -5144,7 +5251,7 @@ fn validate_builtin_css_encoder_binding(
 
 fn builtin_cem_text_encoder(
     binding: &TransformTemplateEncodeBinding,
-    subject: &Value,
+    subject: &CemtEvaluatorValue<'_>,
 ) -> Result<TransformTemplateOutputFunctionResult, String> {
     validate_builtin_source_text_encoder_binding(binding, "CEM source")?;
     let text = subject
@@ -5160,7 +5267,7 @@ fn builtin_cem_text_encoder(
 
 fn builtin_cem_name_encoder(
     binding: &TransformTemplateEncodeBinding,
-    subject: &Value,
+    subject: &CemtEvaluatorValue<'_>,
 ) -> Result<TransformTemplateOutputFunctionResult, String> {
     validate_builtin_cem_token_encoder_binding(binding, "CEM token")?;
     let text = subject
@@ -5171,7 +5278,7 @@ fn builtin_cem_name_encoder(
 
 fn builtin_cem_attribute_value_encoder(
     binding: &TransformTemplateEncodeBinding,
-    subject: &Value,
+    subject: &CemtEvaluatorValue<'_>,
 ) -> Result<TransformTemplateOutputFunctionResult, String> {
     validate_builtin_cem_token_encoder_binding(binding, "CEM token")?;
     let text = subject
@@ -5183,7 +5290,7 @@ fn builtin_cem_attribute_value_encoder(
 
 fn builtin_cem_content_text_encoder(
     binding: &TransformTemplateEncodeBinding,
-    subject: &Value,
+    subject: &CemtEvaluatorValue<'_>,
 ) -> Result<TransformTemplateOutputFunctionResult, String> {
     validate_builtin_cem_token_encoder_binding(binding, "CEM token")?;
     let text = subject
@@ -5195,7 +5302,7 @@ fn builtin_cem_content_text_encoder(
 
 fn builtin_cem_string_literal_encoder(
     binding: &TransformTemplateEncodeBinding,
-    subject: &Value,
+    subject: &CemtEvaluatorValue<'_>,
 ) -> Result<TransformTemplateOutputFunctionResult, String> {
     validate_builtin_cem_token_encoder_binding(binding, "CEM token")?;
     let text = subject
@@ -5447,7 +5554,7 @@ fn transform_template_merge_css_declarations(existing: &mut String, generated: &
 
 fn builtin_cemt_text_encoder(
     binding: &TransformTemplateEncodeBinding,
-    subject: &Value,
+    subject: &CemtEvaluatorValue<'_>,
 ) -> Result<TransformTemplateOutputFunctionResult, String> {
     validate_builtin_source_text_encoder_binding(binding, "CEMT source")?;
     let text = subject
@@ -5463,7 +5570,7 @@ fn builtin_cemt_text_encoder(
 
 fn builtin_cemt_attribute_value_encoder(
     binding: &TransformTemplateEncodeBinding,
-    subject: &Value,
+    subject: &CemtEvaluatorValue<'_>,
 ) -> Result<TransformTemplateOutputFunctionResult, String> {
     validate_builtin_cem_token_encoder_binding(binding, "CEMT token")?;
     let text = subject
@@ -5475,7 +5582,7 @@ fn builtin_cemt_attribute_value_encoder(
 
 fn builtin_cemt_string_literal_encoder(
     binding: &TransformTemplateEncodeBinding,
-    subject: &Value,
+    subject: &CemtEvaluatorValue<'_>,
 ) -> Result<TransformTemplateOutputFunctionResult, String> {
     validate_builtin_cem_token_encoder_binding(binding, "CEMT token")?;
     let text = subject
@@ -5488,7 +5595,7 @@ fn builtin_cemt_string_literal_encoder(
 
 fn builtin_cem_ql_text_encoder(
     binding: &TransformTemplateEncodeBinding,
-    subject: &Value,
+    subject: &CemtEvaluatorValue<'_>,
 ) -> Result<TransformTemplateOutputFunctionResult, String> {
     validate_builtin_source_text_encoder_binding(binding, "CEM-QL source")?;
     let text = subject
@@ -5504,7 +5611,7 @@ fn builtin_cem_ql_text_encoder(
 
 fn builtin_cem_ql_selector_encoder(
     binding: &TransformTemplateEncodeBinding,
-    subject: &Value,
+    subject: &CemtEvaluatorValue<'_>,
 ) -> Result<TransformTemplateOutputFunctionResult, String> {
     validate_builtin_text_token_encoder_binding(binding, "CEM-QL token")?;
     let text = subject
@@ -5520,7 +5627,7 @@ fn builtin_cem_ql_selector_encoder(
 
 fn builtin_cem_ql_string_encoder(
     binding: &TransformTemplateEncodeBinding,
-    subject: &Value,
+    subject: &CemtEvaluatorValue<'_>,
 ) -> Result<TransformTemplateOutputFunctionResult, String> {
     validate_builtin_text_token_encoder_binding(binding, "CEM-QL token")?;
     let text = subject
@@ -5533,7 +5640,7 @@ fn builtin_cem_ql_string_encoder(
 
 fn builtin_cem_ql_identifier_encoder(
     binding: &TransformTemplateEncodeBinding,
-    subject: &Value,
+    subject: &CemtEvaluatorValue<'_>,
 ) -> Result<TransformTemplateOutputFunctionResult, String> {
     validate_builtin_text_token_encoder_binding(binding, "CEM-QL token")?;
     let text = subject
@@ -5545,7 +5652,7 @@ fn builtin_cem_ql_identifier_encoder(
 
 fn builtin_rnc_text_encoder(
     binding: &TransformTemplateEncodeBinding,
-    subject: &Value,
+    subject: &CemtEvaluatorValue<'_>,
 ) -> Result<TransformTemplateOutputFunctionResult, String> {
     validate_builtin_source_text_encoder_binding(binding, "RNC source")?;
     let text = subject
@@ -5561,7 +5668,7 @@ fn builtin_rnc_text_encoder(
 
 fn builtin_rnc_pattern_encoder(
     binding: &TransformTemplateEncodeBinding,
-    subject: &Value,
+    subject: &CemtEvaluatorValue<'_>,
 ) -> Result<TransformTemplateOutputFunctionResult, String> {
     validate_builtin_text_token_encoder_binding(binding, "RNC token")?;
     let text = subject
@@ -5577,7 +5684,7 @@ fn builtin_rnc_pattern_encoder(
 
 fn builtin_rnc_name_encoder(
     binding: &TransformTemplateEncodeBinding,
-    subject: &Value,
+    subject: &CemtEvaluatorValue<'_>,
 ) -> Result<TransformTemplateOutputFunctionResult, String> {
     validate_builtin_text_token_encoder_binding(binding, "RNC token")?;
     let text = subject
@@ -5588,7 +5695,7 @@ fn builtin_rnc_name_encoder(
 
 fn builtin_rnc_literal_encoder(
     binding: &TransformTemplateEncodeBinding,
-    subject: &Value,
+    subject: &CemtEvaluatorValue<'_>,
 ) -> Result<TransformTemplateOutputFunctionResult, String> {
     validate_builtin_text_token_encoder_binding(binding, "RNC token")?;
     let text = subject
@@ -5743,13 +5850,16 @@ fn validate_builtin_cem_token_encoder_binding(
 
 fn builtin_ai_context_projection_encoder(
     binding: &TransformTemplateEncodeBinding,
-    subject: &Value,
+    subject: &CemtEvaluatorValue<'_>,
 ) -> Result<TransformTemplateOutputFunctionResult, String> {
     validate_builtin_ai_context_projection_encoder_binding(binding)?;
-    let projection = subject
-        .as_object()
-        .ok_or_else(|| format!("{} expected object subject", binding.function.name))?;
-    if let Some(kind) = projection.get("kind").and_then(Value::as_str) {
+    if subject.kind() != CemtEvaluatorValueKind::Record {
+        return Err(format!("{} expected object subject", binding.function.name));
+    }
+    if let Some(kind) = subject
+        .field("kind")
+        .and_then(|value| value.as_str().map(str::to_owned))
+    {
         let expected_kind =
             transform_template_ai_context_kind_for_category(&binding.identity.target.category)
                 .ok_or_else(|| {
@@ -5765,7 +5875,7 @@ fn builtin_ai_context_projection_encoder(
             ));
         }
     }
-    transform_template_format_json_value(
+    transform_template_format_typed_json_value(
         subject,
         &binding.options,
         binding.identity.formatter_profile.as_deref(),
@@ -5828,7 +5938,7 @@ fn transform_template_ai_context_kind_for_category(category: &str) -> Option<&'s
 
 fn builtin_cem_bin_bytes_encoder(
     binding: &TransformTemplateEncodeBinding,
-    subject: &Value,
+    subject: &CemtEvaluatorValue<'_>,
 ) -> Result<TransformTemplateOutputFunctionResult, String> {
     validate_builtin_cem_bin_bytes_encoder_binding(binding)?;
     let bytes = transform_template_writer_bytes_from_subject(subject, &binding.function.name)?;
@@ -5891,19 +6001,27 @@ fn validate_builtin_cem_bin_bytes_encoder_binding(
 }
 
 fn transform_template_writer_bytes_from_subject(
-    subject: &Value,
+    subject: &CemtEvaluatorValue<'_>,
     encoder_name: &str,
 ) -> Result<Vec<u8>, String> {
-    let bytes = subject
-        .as_array()
-        .or_else(|| subject.get("bytes").and_then(Value::as_array))
-        .ok_or_else(|| format!("{encoder_name} expected byte array subject"))?;
+    let bytes = if subject.kind() == CemtEvaluatorValueKind::Sequence {
+        subject.clone()
+    } else {
+        subject
+            .field("bytes")
+            .filter(|value| value.kind() == CemtEvaluatorValueKind::Sequence)
+            .ok_or_else(|| format!("{encoder_name} expected byte array subject"))?
+    };
+    let bytes = bytes
+        .sequence_values("binary byte encoding")
+        .map_err(|error| error.to_string())?;
     bytes
         .iter()
         .enumerate()
         .map(|(index, value)| {
             value
-                .as_u64()
+                .as_number()
+                .and_then(|number| number.as_u64())
                 .and_then(|byte| u8::try_from(byte).ok())
                 .ok_or_else(|| format!("{encoder_name} expected byte value at index `{index}`"))
         })
@@ -6485,6 +6603,42 @@ fn transform_template_csv_value_to_field(value: &Value) -> Result<String, String
     Ok(transform_template_encode_csv_field(&text))
 }
 
+fn transform_template_typed_csv_value_to_field(
+    value: &CemtEvaluatorValue<'_>,
+) -> Result<String, String> {
+    let text = match value.kind() {
+        CemtEvaluatorValueKind::Null => String::new(),
+        CemtEvaluatorValueKind::Boolean => value
+            .as_bool()
+            .expect("boolean evaluator kind exposes a boolean")
+            .to_string(),
+        CemtEvaluatorValueKind::Number => value
+            .json_lexeme()
+            .map(str::to_owned)
+            .or_else(|| value.as_number().map(|number| number.key_string()))
+            .expect("number evaluator kind exposes a number"),
+        CemtEvaluatorValueKind::String => value
+            .as_str()
+            .expect("string evaluator kind exposes a string")
+            .to_owned(),
+        CemtEvaluatorValueKind::Sequence | CemtEvaluatorValueKind::Record => {
+            transform_template_render_typed_json_value(
+                value,
+                TransformTemplateFlowFormatterMode {
+                    pretty: false,
+                    ordering: TransformTemplateObjectOrdering::Preserve,
+                },
+                DEFAULT_FORMATTER_INDENT,
+                0,
+            )?
+        }
+        CemtEvaluatorValueKind::SourceMap => {
+            return Err("CSV field cannot implicitly serialize a source-map value".to_owned());
+        }
+    };
+    Ok(transform_template_encode_csv_field(&text))
+}
+
 pub fn transform_template_encode_css_string(value: &str) -> String {
     let mut output = String::with_capacity(value.len() + 2);
     output.push('"');
@@ -6613,6 +6767,49 @@ pub fn transform_template_format_yaml_value(
             &transform_template_cem_tree_formatter_indent(options),
         )?,
         Value::Array(_) | Value::Object(_) => transform_template_encode_json_value(value)?,
+    };
+    transform_template_apply_yaml_line_ending(
+        output,
+        transform_template_encode_options_line_ending_option(options),
+    )
+}
+
+fn transform_template_format_typed_yaml_value(
+    value: &CemtEvaluatorValue<'_>,
+    options: &TransformTemplateEncodeOptions,
+    formatter_profile: Option<&str>,
+) -> Result<String, String> {
+    let mode = transform_template_yaml_formatter_mode(options, formatter_profile)?;
+    transform_template_yaml_scalar_style(options)?;
+    let output = match value.kind() {
+        CemtEvaluatorValueKind::String => {
+            return transform_template_format_yaml_scalar(
+                value
+                    .as_str()
+                    .expect("string evaluator kind exposes a string"),
+                options,
+                formatter_profile,
+            );
+        }
+        CemtEvaluatorValueKind::Null => "null".to_owned(),
+        CemtEvaluatorValueKind::Boolean => value
+            .as_bool()
+            .expect("boolean evaluator kind exposes a boolean")
+            .to_string(),
+        CemtEvaluatorValueKind::Number => value
+            .json_lexeme()
+            .map(str::to_owned)
+            .or_else(|| value.as_number().map(|number| number.key_string()))
+            .expect("number evaluator kind exposes a number"),
+        CemtEvaluatorValueKind::Sequence | CemtEvaluatorValueKind::Record => {
+            let indent = transform_template_cem_tree_formatter_indent(options);
+            transform_template_render_typed_json_value(value, mode, &indent, 0)?
+        }
+        CemtEvaluatorValueKind::SourceMap => {
+            return Err(
+                "YAML encoder does not implicitly serialize source-map evaluator values".to_owned(),
+            );
+        }
     };
     transform_template_apply_yaml_line_ending(
         output,
@@ -6856,6 +7053,225 @@ pub fn transform_template_format_json_value(
     )
 }
 
+fn transform_template_format_typed_json_value(
+    value: &CemtEvaluatorValue<'_>,
+    options: &TransformTemplateEncodeOptions,
+    formatter_profile: Option<&str>,
+) -> Result<String, String> {
+    let mode = transform_template_json_formatter_mode(options, formatter_profile)?;
+    let indent = transform_template_cem_tree_formatter_indent(options);
+    if mode.pretty && !indent.chars().all(|ch| ch == ' ' || ch == '\t') {
+        return Err("JSON formatter indent may contain only spaces or tabs".to_owned());
+    }
+    let output = transform_template_render_typed_json_value(value, mode, &indent, 0)?;
+    transform_template_apply_json_line_ending(
+        output,
+        transform_template_encode_options_line_ending_option(options),
+    )
+}
+
+fn transform_template_render_typed_json_value(
+    value: &CemtEvaluatorValue<'_>,
+    mode: TransformTemplateFlowFormatterMode,
+    indent: &str,
+    depth: usize,
+) -> Result<String, String> {
+    if let Some(value) = value.json_ast() {
+        return transform_template_render_json_ast_value(value, mode, indent, depth);
+    }
+    match value.kind() {
+        CemtEvaluatorValueKind::Null => Ok("null".to_owned()),
+        CemtEvaluatorValueKind::Boolean => Ok(value
+            .as_bool()
+            .expect("boolean evaluator kind exposes a boolean")
+            .to_string()),
+        CemtEvaluatorValueKind::Number => Ok(value
+            .as_number()
+            .expect("number evaluator kind exposes a number")
+            .key_string()),
+        CemtEvaluatorValueKind::String => serde_json::to_string(
+            value
+                .as_str()
+                .expect("string evaluator kind exposes a string"),
+        )
+        .map_err(|error| error.to_string()),
+        CemtEvaluatorValueKind::Sequence => {
+            let values = value
+                .sequence_values("JSON encoding")
+                .map_err(|error| error.to_string())?;
+            transform_template_render_typed_json_sequence(&values, mode, indent, depth)
+        }
+        CemtEvaluatorValueKind::Record => {
+            let mut names = value
+                .record_field_names("JSON encoding")
+                .map_err(|error| error.to_string())?;
+            if mode.ordering == TransformTemplateObjectOrdering::Lexical {
+                names.sort();
+            }
+            let fields = names
+                .into_iter()
+                .map(|name| {
+                    let field = value.field(&name).ok_or_else(|| {
+                        format!("typed evaluator record field `{name}` is unavailable")
+                    })?;
+                    Ok((name, field))
+                })
+                .collect::<Result<Vec<_>, String>>()?;
+            transform_template_render_typed_json_record(&fields, mode, indent, depth)
+        }
+        CemtEvaluatorValueKind::SourceMap => {
+            Err("JSON encoder does not implicitly serialize source-map evaluator values".to_owned())
+        }
+    }
+}
+
+fn transform_template_render_json_ast_value(
+    value: &JsonValueAst,
+    mode: TransformTemplateFlowFormatterMode,
+    indent: &str,
+    depth: usize,
+) -> Result<String, String> {
+    match value {
+        JsonValueAst::Object { members, .. } => {
+            let mut members = members.iter().collect::<Vec<_>>();
+            if mode.ordering == TransformTemplateObjectOrdering::Lexical {
+                members.sort_by(|left, right| left.name.cmp(&right.name));
+            }
+            let fields = members
+                .into_iter()
+                .map(|member| {
+                    transform_template_render_json_ast_value(&member.value, mode, indent, depth + 1)
+                        .map(|value| (member.name_lexeme.as_str(), value))
+                })
+                .collect::<Result<Vec<_>, _>>()?;
+            Ok(transform_template_join_rendered_json_fields(
+                &fields,
+                mode.pretty,
+                indent,
+                depth,
+            ))
+        }
+        JsonValueAst::Array { items, .. } => {
+            let values = items
+                .iter()
+                .map(|item| transform_template_render_json_ast_value(item, mode, indent, depth + 1))
+                .collect::<Result<Vec<_>, _>>()?;
+            Ok(transform_template_join_rendered_json_values(
+                &values,
+                mode.pretty,
+                indent,
+                depth,
+            ))
+        }
+        JsonValueAst::String { lexeme, .. } | JsonValueAst::Number { lexeme, .. } => {
+            Ok(lexeme.clone())
+        }
+        JsonValueAst::Boolean { value, .. } => Ok(value.to_string()),
+        JsonValueAst::Null { .. } => Ok("null".to_owned()),
+    }
+}
+
+fn transform_template_render_typed_json_sequence(
+    values: &[CemtEvaluatorValue<'_>],
+    mode: TransformTemplateFlowFormatterMode,
+    indent: &str,
+    depth: usize,
+) -> Result<String, String> {
+    let values = values
+        .iter()
+        .map(|value| transform_template_render_typed_json_value(value, mode, indent, depth + 1))
+        .collect::<Result<Vec<_>, _>>()?;
+    Ok(transform_template_join_rendered_json_values(
+        &values,
+        mode.pretty,
+        indent,
+        depth,
+    ))
+}
+
+fn transform_template_render_typed_json_record(
+    fields: &[(String, CemtEvaluatorValue<'_>)],
+    mode: TransformTemplateFlowFormatterMode,
+    indent: &str,
+    depth: usize,
+) -> Result<String, String> {
+    let fields = fields
+        .iter()
+        .map(|(name, value)| {
+            let name = serde_json::to_string(name).map_err(|error| error.to_string())?;
+            let value = transform_template_render_typed_json_value(value, mode, indent, depth + 1)?;
+            Ok((name, value))
+        })
+        .collect::<Result<Vec<_>, String>>()?;
+    let fields = fields
+        .iter()
+        .map(|(name, value)| (name.as_str(), value.clone()))
+        .collect::<Vec<_>>();
+    Ok(transform_template_join_rendered_json_fields(
+        &fields,
+        mode.pretty,
+        indent,
+        depth,
+    ))
+}
+
+fn transform_template_join_rendered_json_values(
+    values: &[String],
+    pretty: bool,
+    indent: &str,
+    depth: usize,
+) -> String {
+    if values.is_empty() {
+        return "[]".to_owned();
+    }
+    if !pretty {
+        return format!("[{}]", values.join(","));
+    }
+    let child_indent = indent.repeat(depth + 1);
+    let closing_indent = indent.repeat(depth);
+    format!(
+        "[\n{}\n{}]",
+        values
+            .iter()
+            .map(|value| format!("{child_indent}{value}"))
+            .collect::<Vec<_>>()
+            .join(",\n"),
+        closing_indent
+    )
+}
+
+fn transform_template_join_rendered_json_fields(
+    fields: &[(&str, String)],
+    pretty: bool,
+    indent: &str,
+    depth: usize,
+) -> String {
+    if fields.is_empty() {
+        return "{}".to_owned();
+    }
+    if !pretty {
+        return format!(
+            "{{{}}}",
+            fields
+                .iter()
+                .map(|(name, value)| format!("{name}:{value}"))
+                .collect::<Vec<_>>()
+                .join(",")
+        );
+    }
+    let child_indent = indent.repeat(depth + 1);
+    let closing_indent = indent.repeat(depth);
+    format!(
+        "{{\n{}\n{}}}",
+        fields
+            .iter()
+            .map(|(name, value)| format!("{child_indent}{name}: {value}"))
+            .collect::<Vec<_>>()
+            .join(",\n"),
+        closing_indent
+    )
+}
+
 fn transform_template_json_formatter_mode(
     options: &TransformTemplateEncodeOptions,
     formatter_profile: Option<&str>,
@@ -7087,6 +7503,7 @@ fn normalize_line_endings_to_lf(value: &str) -> String {
 }
 
 #[derive(Debug, Clone, Copy)]
+#[cfg(test)]
 pub struct TransformTemplateEncodeEvaluationContext<'a> {
     pub registry: &'a TransformTemplateOutputFunctionRegistry,
     pub value_bindings: &'a BTreeMap<String, Value>,
@@ -7108,7 +7525,7 @@ pub(crate) struct TransformTemplateTypedEncodeEvaluationContext<'value, 'registr
 #[serde(rename_all = "camelCase")]
 pub struct TransformTemplateEvaluatedEncodeExpression {
     pub expression: TransformTemplateEncodeExpression,
-    pub subject: Value,
+    pub subject_metadata: TransformTemplateEncodeSubjectMetadata,
     pub binding: TransformTemplateEncodeBinding,
     pub artifact: TransformTemplateEncodedArtifact,
 }
@@ -10059,26 +10476,8 @@ where
             }
         };
 
-        // Binding selection and legacy host encoders are the declared output
-        // boundary. The complete binding plane above remains typed/borrowed.
-        let boundary_subject = match subject.to_public_json() {
-            Ok(subject) => subject,
-            Err(message) => {
-                diagnostics.push(Diagnostic {
-                    uri: context.uri.map(str::to_owned),
-                    code: TRANSFORM_TEMPLATE_ENCODE_IMPLEMENTATION_FAILED_CODE.to_owned(),
-                    severity: Severity::Error,
-                    message: format!(
-                        "CEMT encode subject expression `{}` cannot cross the host encoder boundary: {message}",
-                        expression.subject
-                    ),
-                    details: None,
-                    ..Diagnostic::default()
-                });
-                continue;
-            }
-        };
-        let mut request = expression.binding_request(boundary_subject.clone());
+        let subject_metadata = TransformTemplateEncodeSubjectMetadata::from_evaluator(&subject);
+        let mut request = expression.binding_request(subject_metadata.clone());
         if let Err(diagnostic) =
             resolve_typed_encode_request_runtime_values(&mut request, &context, expression)
         {
@@ -10152,7 +10551,10 @@ where
                 || transform_template_encode_options_request_color(&request.options)
             {
                 let mut color_request = TransformTemplateEncodeBindingRequest {
-                    subject: Value::Null,
+                    subject: TransformTemplateEncodeSubjectMetadata::declared(
+                        CemtEvaluatorValueKind::Record,
+                        "cem.cemt-tree",
+                    ),
                     owner: request.owner.clone(),
                     subject_type: Some("cem-tree".to_owned()),
                     target: request.target.clone(),
@@ -10227,7 +10629,7 @@ where
 
             encoded.push(TransformTemplateEvaluatedEncodeExpression {
                 expression: expression.clone(),
-                subject: boundary_subject,
+                subject_metadata,
                 binding,
                 artifact,
             });
@@ -10301,7 +10703,7 @@ where
         };
         encoded.push(TransformTemplateEvaluatedEncodeExpression {
             expression: expression.clone(),
-            subject: boundary_subject,
+            subject_metadata,
             binding,
             artifact,
         });
@@ -10354,9 +10756,8 @@ where
                 binding.function.name
             ));
         }
-        if let Some(result) = execute_transform_template_typed_cem_tree_output_function(
+        if let Some(result) = execute_transform_template_native_cem_tree_output_function(
             binding,
-            &Value::Null,
             typed_subject,
             &context.registry.module_options,
         ) {
@@ -10404,6 +10805,55 @@ where
     encode_impl(binding, subject)
 }
 
+fn execute_transform_template_native_cem_tree_output_function(
+    binding: &TransformTemplateEncodeBinding,
+    typed_subject: Option<&TransformTemplateCemTreeOutput>,
+    module_options: &TransformTemplateModuleOptions,
+) -> Option<Result<TransformTemplateCemTreeOutput, String>> {
+    if binding.function.implementation != TransformTemplateOutputFunctionImplementation::Cemt {
+        return None;
+    }
+    let body_expression = binding.function.body_expression.as_deref()?.trim();
+    if cemt_expression_starts_with_call(body_expression, "encode") {
+        return None;
+    }
+
+    Some(match binding.function.kind {
+        TransformTemplateOutputFunctionKind::Format => Err(format!(
+            "CEMT formatter `{}` requires a declared typed CEM-tree input owner",
+            binding.function.name
+        )),
+        TransformTemplateOutputFunctionKind::Color => {
+            let Some(TransformTemplateCemTreeOutput::Formatted(formatted)) = typed_subject else {
+                return Some(Err(format!(
+                    "CEMT colorizer `{}` requires a declared typed formatted artifact; JSON shape classification is not permitted",
+                    binding.function.name
+                )));
+            };
+            let Some(result) = execute_transform_template_typed_cemt_body_expression(
+                binding,
+                CemtEvaluatorValue::borrowed(formatted.evaluator_view()),
+                module_options,
+            ) else {
+                return None;
+            };
+            result
+                .and_then(|result| {
+                    crate::conversion::lower_typed_colored_cemt_tree_artifact(
+                        formatted.as_ref(),
+                        result,
+                        &binding.function.name,
+                    )
+                })
+                .and_then(TransformTemplateCemTreeOutput::from_tree)
+        }
+        TransformTemplateOutputFunctionKind::Encoding => Err(format!(
+            "CEMT encoder `{}` cannot declare a CEM-tree result without an explicit raw or materialized AST producer",
+            binding.function.name
+        )),
+    })
+}
+
 #[cfg(test)]
 pub(crate) fn evaluate_transform_template_encode_expressions<F>(
     expressions: &[TransformTemplateEncodeExpression],
@@ -10437,7 +10887,8 @@ where
             continue;
         };
 
-        let mut request = expression.binding_request(subject.clone());
+        let subject_metadata = TransformTemplateEncodeSubjectMetadata::from(subject.clone());
+        let mut request = expression.binding_request(subject_metadata.clone());
         if let Err(diagnostic) = resolve_encode_request_runtime_values(
             &mut request,
             context.value_bindings,
@@ -10527,7 +10978,7 @@ where
                     // Binding resolution uses the declared `cem-tree` subject
                     // type. The runtime subject is the exact typed formatted
                     // artifact passed below, never this selector placeholder.
-                    subject: Value::Null,
+                    subject: TransformTemplateEncodeSubjectMetadata::from(Value::Null),
                     owner: request.owner.clone(),
                     subject_type: Some("cem-tree".to_owned()),
                     target: request.target.clone(),
@@ -10613,7 +11064,7 @@ where
 
             encoded.push(TransformTemplateEvaluatedEncodeExpression {
                 expression: expression.clone(),
-                subject,
+                subject_metadata,
                 binding,
                 artifact,
             });
@@ -10698,7 +11149,7 @@ where
         };
         encoded.push(TransformTemplateEvaluatedEncodeExpression {
             expression: expression.clone(),
-            subject,
+            subject_metadata,
             binding,
             artifact,
         });
@@ -10775,6 +11226,7 @@ where
     encode_impl(binding, subject)
 }
 
+#[cfg(test)]
 fn execute_transform_template_typed_cem_tree_output_function(
     binding: &TransformTemplateEncodeBinding,
     compatibility_subject: &Value,
@@ -11435,6 +11887,224 @@ fn encode_runtime_value_diagnostic(
             .or_else(|| Some(expression.expression.clone())),
         details: None,
         ..Diagnostic::default()
+    }
+}
+
+fn transform_template_evaluator_representation(subject: &CemtEvaluatorValue<'_>) -> &'static str {
+    match subject {
+        CemtEvaluatorValue::Json(_) => "cem.json-value-ast",
+        CemtEvaluatorValue::Borrowed(CemtEvaluatorValueRef::Record(_))
+        | CemtEvaluatorValue::Borrowed(CemtEvaluatorValueRef::StringMap(_)) => {
+            "cem.native-record-view"
+        }
+        CemtEvaluatorValue::Borrowed(CemtEvaluatorValueRef::Sequence(_)) => {
+            "cem.native-sequence-view"
+        }
+        CemtEvaluatorValue::Borrowed(CemtEvaluatorValueRef::SourceMap(_))
+        | CemtEvaluatorValue::Borrowed(CemtEvaluatorValueRef::OwnedSourceMap(_))
+        | CemtEvaluatorValue::SourceMap(_) => "cem.source-map",
+        CemtEvaluatorValue::Borrowed(_) => "cem.native-scalar-view",
+        CemtEvaluatorValue::Sequence(_) => "cem.evaluator-sequence",
+        CemtEvaluatorValue::Record(_) => "cem.evaluator-record",
+        CemtEvaluatorValue::Null
+        | CemtEvaluatorValue::Boolean(_)
+        | CemtEvaluatorValue::Number(_)
+        | CemtEvaluatorValue::String(_) => "cem.evaluator-scalar",
+    }
+}
+
+fn transform_template_encode_typed_subject_type_candidates(
+    subject: &CemtEvaluatorValue<'_>,
+) -> Vec<String> {
+    let mut candidates = Vec::new();
+    append_transform_template_typed_semantic_subject_type_candidates(&mut candidates, subject);
+    let number = subject.as_number();
+    for candidate in transform_template_encode_kind_subject_type_candidates(subject.kind(), number)
+    {
+        append_transform_template_subject_type_candidate(&mut candidates, candidate);
+    }
+    candidates
+}
+
+fn transform_template_encode_kind_subject_type_candidates(
+    kind: CemtEvaluatorValueKind,
+    number: Option<crate::transform_artifact::CemtEvaluatorNumber>,
+) -> Vec<String> {
+    match kind {
+        CemtEvaluatorValueKind::Null => vec!["null".to_owned(), "json".to_owned()],
+        CemtEvaluatorValueKind::Boolean => vec!["boolean".to_owned(), "json".to_owned()],
+        CemtEvaluatorValueKind::Number
+            if number
+                .is_some_and(|number| number.as_i64().is_some() || number.as_u64().is_some()) =>
+        {
+            vec!["integer".to_owned(), "number".to_owned(), "json".to_owned()]
+        }
+        CemtEvaluatorValueKind::Number => vec!["number".to_owned(), "json".to_owned()],
+        CemtEvaluatorValueKind::String => vec!["string".to_owned(), "json".to_owned()],
+        CemtEvaluatorValueKind::Sequence => vec!["array".to_owned(), "json".to_owned()],
+        CemtEvaluatorValueKind::Record => {
+            vec!["map".to_owned(), "object".to_owned(), "json".to_owned()]
+        }
+        CemtEvaluatorValueKind::SourceMap => vec!["source-map".to_owned()],
+    }
+}
+
+fn append_transform_template_typed_semantic_subject_type_candidates(
+    candidates: &mut Vec<String>,
+    subject: &CemtEvaluatorValue<'_>,
+) {
+    if subject.kind() == CemtEvaluatorValueKind::Sequence {
+        if transform_template_typed_sequence_looks_like_color_tokens(subject) {
+            append_transform_template_subject_type_hint(candidates, "tokens");
+        }
+        return;
+    }
+    if subject.kind() != CemtEvaluatorValueKind::Record {
+        return;
+    }
+
+    for key in [
+        "subjectType",
+        "subject-type",
+        "cemtSubjectType",
+        "cemt-subject-type",
+    ] {
+        if let Some(subject_type) = transform_template_typed_string_field(subject, key) {
+            append_transform_template_subject_type_hint(candidates, &subject_type);
+        }
+    }
+
+    if subject
+        .field("tokens")
+        .is_some_and(|value| value.kind() == CemtEvaluatorValueKind::Sequence)
+    {
+        append_transform_template_subject_type_hint(candidates, "tokens");
+    }
+    if subject
+        .field("bytes")
+        .is_some_and(|value| value.kind() == CemtEvaluatorValueKind::Sequence)
+    {
+        append_transform_template_subject_type_hint(candidates, "bytes");
+    }
+
+    if let Some(kind) = transform_template_typed_string_field(subject, "kind") {
+        append_transform_template_subject_type_hint(candidates, &kind);
+    }
+    if transform_template_typed_string_field(subject, "qualifiedName").is_some()
+        || transform_template_typed_string_field(subject, "qualified-name").is_some()
+        || transform_template_typed_string_field(subject, "qName").is_some()
+        || transform_template_typed_string_field(subject, "prefix").is_some()
+    {
+        append_transform_template_subject_type_hint(candidates, "qualified-name");
+    } else if transform_template_typed_string_field(subject, "localName").is_some()
+        || transform_template_typed_string_field(subject, "local-name").is_some()
+    {
+        append_transform_template_subject_type_hint(candidates, "local-name");
+    }
+    if transform_template_typed_string_field(subject, "namespaceUri").is_some()
+        || transform_template_typed_string_field(subject, "namespaceURI").is_some()
+        || transform_template_typed_string_field(subject, "namespace-uri").is_some()
+    {
+        append_transform_template_subject_type_hint(candidates, "namespace-uri");
+    }
+    if transform_template_typed_string_field(subject, "identifier").is_some() {
+        append_transform_template_subject_type_hint(candidates, "identifier");
+    }
+    if subject.field("attributeName").is_some() || subject.field("attribute-name").is_some() {
+        append_transform_template_subject_type_hint(candidates, "attribute");
+    }
+    if subject.field("slotName").is_some()
+        || subject.field("slot-name").is_some()
+        || subject.field("slot").is_some()
+    {
+        append_transform_template_subject_type_hint(candidates, "slot");
+    }
+    if subject.field("attributes").is_some() {
+        append_transform_template_subject_type_hint(candidates, "attributes");
+    }
+    if subject.field("slots").is_some() {
+        append_transform_template_subject_type_hint(candidates, "slots");
+    }
+
+    let raw_syntax = [
+        "rawSyntax",
+        "raw-syntax",
+        "cemtRawSyntax",
+        "cemt-raw-syntax",
+    ]
+    .into_iter()
+    .find_map(|key| transform_template_typed_string_field(subject, key));
+    if let Some(raw_syntax) = raw_syntax {
+        append_transform_template_raw_subject_type_hint(candidates, &raw_syntax);
+    }
+}
+
+fn transform_template_typed_string_field(
+    subject: &CemtEvaluatorValue<'_>,
+    name: &str,
+) -> Option<String> {
+    subject
+        .field(name)
+        .and_then(|value| value.as_str().map(str::trim).map(str::to_owned))
+        .filter(|value| !value.is_empty())
+}
+
+fn transform_template_typed_sequence_looks_like_color_tokens(
+    subject: &CemtEvaluatorValue<'_>,
+) -> bool {
+    let Ok(items) = subject.sequence_values("color token classification") else {
+        return false;
+    };
+    !items.is_empty()
+        && items.iter().all(|item| match item.kind() {
+            CemtEvaluatorValueKind::String => true,
+            CemtEvaluatorValueKind::Record => ["text", "value", "label", "role", "kind"]
+                .into_iter()
+                .any(|name| {
+                    item.field(name)
+                        .is_some_and(|value| value.as_str().is_some())
+                }),
+            _ => false,
+        })
+}
+
+fn transform_template_json_value_evaluator_kind(subject: &Value) -> CemtEvaluatorValueKind {
+    match subject {
+        Value::Null => CemtEvaluatorValueKind::Null,
+        Value::Bool(_) => CemtEvaluatorValueKind::Boolean,
+        Value::Number(_) => CemtEvaluatorValueKind::Number,
+        Value::String(_) => CemtEvaluatorValueKind::String,
+        Value::Array(_) => CemtEvaluatorValueKind::Sequence,
+        Value::Object(_) => CemtEvaluatorValueKind::Record,
+    }
+}
+
+#[cfg(test)]
+fn cemt_evaluator_value_from_json(value: &Value) -> CemtEvaluatorValue<'static> {
+    match value {
+        Value::Null => CemtEvaluatorValue::Null,
+        Value::Bool(value) => CemtEvaluatorValue::boolean(*value),
+        Value::Number(value) if value.is_i64() => {
+            CemtEvaluatorValue::integer(value.as_i64().expect("checked integer"))
+        }
+        Value::Number(value) if value.is_u64() => {
+            CemtEvaluatorValue::unsigned_integer(value.as_u64().expect("checked integer"))
+        }
+        Value::Number(value) => CemtEvaluatorValue::decimal(
+            value
+                .as_f64()
+                .expect("JSON number has a finite f64 representation"),
+        )
+        .expect("JSON numbers are finite"),
+        Value::String(value) => CemtEvaluatorValue::string(value.clone()),
+        Value::Array(values) => {
+            CemtEvaluatorValue::sequence(values.iter().map(cemt_evaluator_value_from_json))
+        }
+        Value::Object(fields) => CemtEvaluatorValue::record(
+            fields
+                .iter()
+                .map(|(name, value)| (name.clone(), cemt_evaluator_value_from_json(value))),
+        ),
     }
 }
 
@@ -26504,7 +27174,9 @@ mod tests {
 
         TransformTemplateEvaluatedEncodeExpression {
             expression,
-            subject: Value::String(value.to_owned()),
+            subject_metadata: TransformTemplateEncodeSubjectMetadata::from(Value::String(
+                value.to_owned(),
+            )),
             binding,
             artifact,
         }
@@ -35101,7 +35773,7 @@ mod tests {
         let mut implementations = TransformTemplateEncodeImplementationRegistry::new();
         implementations.register(
             "test.native.bytes",
-            |_: &TransformTemplateEncodeBinding, _: &Value| {
+            |_: &TransformTemplateEncodeBinding, _: &CemtEvaluatorValue<'_>| {
                 Ok(TransformTemplateOutputFunctionResult::Text(
                     "not bytes".to_owned(),
                 ))
@@ -35139,6 +35811,30 @@ mod tests {
             .map(|(body, _)| body)
             .expect("native output implementation trait source boundaries");
         assert!(native_trait.contains("Result<TransformTemplateOutputFunctionResult, String>"));
+        assert!(native_trait.contains("&CemtEvaluatorValue<'value>"));
+        assert!(!native_trait.contains("subject: &Value"));
+
+        let typed_evaluator = production
+            .split_once("pub(crate) fn evaluate_transform_template_typed_encode_expressions")
+            .and_then(|(_, suffix)| suffix.split_once("fn typed_encode_implementation_diagnostic"))
+            .map(|(body, _)| body)
+            .expect("typed encode evaluator source boundaries");
+        for forbidden in ["to_public_json", "boundary_subject", "serde_json"] {
+            assert!(
+                !typed_evaluator.contains(forbidden),
+                "typed encode evaluator must not cross `{forbidden}`"
+            );
+        }
+
+        let evaluated_response = production
+            .split_once("pub struct TransformTemplateEvaluatedEncodeExpression")
+            .and_then(|(_, suffix)| {
+                suffix.split_once("pub struct TransformTemplateEncodeEvaluationResponse")
+            })
+            .map(|(body, _)| body)
+            .expect("evaluated encode response source boundaries");
+        assert!(evaluated_response.contains("subject_metadata"));
+        assert!(!evaluated_response.contains("pub subject: Value"));
 
         let binary_encoder = production
             .split_once("fn builtin_cem_bin_bytes_encoder(")
@@ -35152,6 +35848,122 @@ mod tests {
             !binary_encoder.contains("serde_json::"),
             "binary encoder must return a typed byte stream without JSON serialization"
         );
+    }
+
+    #[test]
+    fn selected_encoder_receives_lossless_json_ast_and_native_owner_unchanged() {
+        use crate::transform_artifact::CemtTreeSubjectRef;
+        use crate::validation::json::{
+            json_document_ast_from_source_bytes, JsonSourceValidationRequest,
+        };
+        use std::sync::atomic::{AtomicUsize, Ordering as AtomicOrdering};
+
+        let bytes = br#"{"dup":1,"dup":1.2300e+02,"s":"\u0061"}"#;
+        let (document, diagnostics) =
+            json_document_ast_from_source_bytes(JsonSourceValidationRequest {
+                bytes,
+                source_uri: "memory://encoder-subject.json",
+                content_type: Some(JSON_CONTENT_TYPE),
+            });
+        assert!(!diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.severity.is_hard_violation()));
+        let document = document.expect("lossless JSON document");
+        let root = document.root.as_ref().expect("JSON root");
+        let root_address = root as *const JsonValueAst as usize;
+        let root_range = root.range();
+        let root_source_map = root_range.source_map();
+        let json_subject = CemtEvaluatorValue::json(root);
+        let json_metadata = TransformTemplateEncodeSubjectMetadata::from_evaluator(&json_subject);
+        assert_eq!(json_metadata.kind, CemtEvaluatorValueKind::Record);
+        assert_eq!(json_metadata.representation, "cem.json-value-ast");
+
+        let owner = Arc::new(CemTreeAstStream::new(vec![CemTreeAstNode::Element {
+            name: "card".to_owned(),
+            attributes: Vec::new(),
+            children: Vec::new(),
+            source: source_map_stack(40, 8),
+        }]));
+        let node_address = &owner.as_nodes()[0] as *const CemTreeAstNode as usize;
+        let tree_subject =
+            CemtEvaluatorValue::borrowed(CemtTreeSubjectRef::new(owner.as_ref()).evaluator_view());
+        let tree_metadata = TransformTemplateEncodeSubjectMetadata::from_evaluator(&tree_subject);
+        assert_eq!(tree_metadata.kind, CemtEvaluatorValueKind::Sequence);
+        assert_eq!(tree_metadata.representation, "cem.native-sequence-view");
+
+        let mut functions = TransformTemplateOutputFunctionRegistry::new();
+        let mut descriptor = json_output_function_descriptor(
+            "test.capture-typed-subject",
+            "json-document",
+            "object",
+        );
+        descriptor.visibility = TransformTemplateModuleVisibility::Public;
+        functions.register(descriptor);
+        let request = TransformTemplateEncodeBindingRequest::new(
+            json_metadata.clone(),
+            TransformTemplateEncodingTarget::new(
+                JSON_CONTENT_TYPE,
+                JSON_VALUE_SCHEMA_URI,
+                "json-document",
+            ),
+        )
+        .with_options(TransformTemplateEncodeOptions {
+            encoder: Some("test.capture-typed-subject".to_owned()),
+            ..TransformTemplateEncodeOptions::default()
+        });
+        let binding = functions
+            .resolve_encode_binding(&request, &BTreeSet::new())
+            .expect("typed metadata selects the capture encoder");
+
+        let invocation_count = Arc::new(AtomicUsize::new(0));
+        let observed_invocations = Arc::clone(&invocation_count);
+        let mut implementations = TransformTemplateEncodeImplementationRegistry::new();
+        implementations.register(
+            "test.capture-typed-subject",
+            move |_: &TransformTemplateEncodeBinding, subject: &CemtEvaluatorValue<'_>| {
+                observed_invocations.fetch_add(1, AtomicOrdering::SeqCst);
+                if let Some(ast) = subject.json_ast() {
+                    assert_eq!(ast as *const JsonValueAst as usize, root_address);
+                    assert_eq!(subject.json_source_range(), Some(root_range));
+                    assert_eq!(subject.json_source_map(), Some(root_source_map.clone()));
+                    let JsonValueAst::Object { members, .. } = ast else {
+                        panic!("expected object AST");
+                    };
+                    assert_eq!(
+                        members.iter().filter(|member| member.name == "dup").count(),
+                        2
+                    );
+                    assert!(matches!(
+                        &members[1].value,
+                        JsonValueAst::Number { lexeme, .. } if lexeme == "1.2300e+02"
+                    ));
+                    assert!(matches!(
+                        &members[2].value,
+                        JsonValueAst::String { lexeme, .. } if lexeme == "\"\\u0061\""
+                    ));
+                } else {
+                    let node = subject.item(0).expect("native tree root node");
+                    let Some(crate::transform_artifact::CemtEvaluatorRecordRef::Node {
+                        node, ..
+                    }) = node.native_record()
+                    else {
+                        panic!("expected native CEM tree owner");
+                    };
+                    assert_eq!(*node as *const CemTreeAstNode as usize, node_address);
+                }
+                Ok(TransformTemplateOutputFunctionResult::Text(
+                    "captured".to_owned(),
+                ))
+            },
+        );
+
+        implementations
+            .execute(&binding, &json_subject)
+            .expect("lossless JSON AST reaches selected encoder");
+        implementations
+            .execute(&binding, &tree_subject)
+            .expect("native owner reaches selected encoder");
+        assert_eq!(invocation_count.load(AtomicOrdering::SeqCst), 2);
     }
 
     #[test]
@@ -37070,7 +37882,8 @@ mod tests {
                 if binding.function.kind == TransformTemplateOutputFunctionKind::Color {
                     assert_eq!(subject["kind"], "cem-tree");
                 }
-                implementations.execute(binding, subject)
+                let subject = cemt_evaluator_value_from_json(subject);
+                implementations.execute(binding, &subject)
             },
         );
 
@@ -37448,7 +38261,10 @@ mod tests {
                 output_color_type: None,
                 uri: Some("templates/runtime-color.cemt"),
             },
-            |binding, subject| implementations.execute(binding, subject),
+            |binding, subject| {
+                let subject = cemt_evaluator_value_from_json(subject);
+                implementations.execute(binding, &subject)
+            },
         );
 
         assert!(
@@ -37541,7 +38357,10 @@ mod tests {
                 output_color_type: Some("html"),
                 uri: Some("templates/runtime-output-color.cemt"),
             },
-            |binding, subject| implementations.execute(binding, subject),
+            |binding, subject| {
+                let subject = cemt_evaluator_value_from_json(subject);
+                implementations.execute(binding, &subject)
+            },
         );
 
         assert!(
