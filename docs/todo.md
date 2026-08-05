@@ -1200,10 +1200,15 @@ Remaining dependency-ordered package checklist:
             boundaries through typed CEMT artifacts; remove
             `CemtOutputArtifact`, `transform_template_output_cemt_subject`, and
             their generic adapter DTO value conversion.
-      - [ ] Delete legacy `PublicJson` CEM-tree compatibility entrypoints,
+      - [x] Delete legacy `PublicJson` CEM-tree compatibility entrypoints,
             normalizers, runtime registry hooks, and value-based writer helpers;
             migrate or remove their test-only parity oracles while retaining
-            `PublicJson` for actual JSON/public/debug boundaries.
+            `PublicJson` for actual JSON/public/debug boundaries. Formatted and
+            colored continuation now accepts only typed CEMT artifacts, package
+            parity fixtures enter through lifecycle ASTs, and the typed writer
+            runs before the one-way public/debug projection. Source audits also
+            forbid JSON projection or serialization across formatter,
+            colorizer, writer, graph, join, and secondary-input handoffs.
       - [x] Add CEMT source audits and pass focused package, core, converter
             parity, CLI e2e, lint, native build/test, and WASM gates.
   - [ ] Represent JSON input internally with a lossless `JsonDocumentAst` and
@@ -1259,41 +1264,40 @@ Remaining dependency-ordered package checklist:
 
 ### Next Work Item
 
-Delete the remaining legacy `PublicJson` CEM-tree compatibility surface next.
-The generic output-function runtime, package document pipelines,
-DOM-projection producer, and CEM-QL direct-output bridge now hand exact AST
-owners and declared typed stages directly to their consumers. The named
-cross-tier DTO/result envelopes and compatibility stage fallback are gone.
-What remains is old compatibility code that can still construct a formatted or
-colored CEM tree as `PublicJson`, plus its value-based normalizers, runtime
-registry hooks, writer helpers, and test-only parity oracles.
+Finish the lossless JSON input migration next. JSON lifecycle parsing and the
+package JSON formatter already own `JsonDocumentAst`/`JsonValueAst`, preserve
+duplicate members and source ranges, and feed typed materialized AST streams to
+the writer. The remaining risk is older ingress and generic-data code that can
+still collapse JSON into `serde_json::Value` before a converter, graph stage, or
+secondary input consumes it.
 
 Implement the next slice in this order:
 
-1. Add a source audit that classifies every
-   `TransformTemplateEncodedArtifactPayload::PublicJson` construction and every
-   `from_public_json` call as a real JSON/public/debug boundary or a prohibited
-   CEM-tree compatibility handoff.
-2. Remove
-   `execute_conversion_output_pipeline_from_formatted_cem_tree_with_environment`,
-   `execute_conversion_output_pipeline_from_formatted_artifact`, its formatted
-   tree normalizer/shape classifier, and any caller that attempts to resume a
-   CEM-tree runtime stage from JSON. Keep the typed formatted-artifact
-   entrypoint as the sole successful continuation API.
-3. Migrate or delete the `#[cfg(test)]` XML-family and package parity oracles
-   that still compose formatter/colorizer results as `Value`. Fixtures that
-   intentionally begin as JSON must use the registered lifecycle parser once,
-   before formatter execution.
-4. Delete the now-unused `TransformTemplateCemtRuntimeImplementation`
-   evaluation hook and the legacy value-based CEM-tree writer/render helpers.
-   Preserve the typed writer and explicit text/bytes/tokens/chunks/diagnostics
-   payload variants.
-5. Strengthen source audits so formatter → colorizer → writer, graph, join, and
-   secondary-input paths cannot call `to_public_json`, `from_public_json`, or a
-   serializer. Allow the one-way typed overlay projection only after writer
-   execution for public/debug output.
-6. Run focused compatibility and source-audit tests, DOM/converter parity,
-   conversion manifest/rules, CLI e2e, core lint/build/test, and WASM gates.
+1. Add a source audit that classifies every production `serde_json::Value`,
+   `serde_json::from_*`, and `serde_json::to_*` use on a JSON route as one of:
+   explicit JSON/`+json` ingress or export, public/debug projection, or a
+   prohibited internal handoff. Record the remaining prohibited call sites
+   before changing them.
+2. Replace the remaining JSON-input `Value` entrypoints and generic-data
+   adapters with borrowed or `Arc`-owned `JsonDocumentAst`/`JsonValueAst`
+   subjects. Parse encoded JSON exactly once at the registered lifecycle edge;
+   do not reparse or serialize between loader, converter, graph, join, and
+   secondary-input stages.
+3. Carry JSON member order, duplicate keys, exact number/string lexemes, source
+   ranges, diagnostics, and source-map identity through conversion planning and
+   graph collection. Where a converter needs a generic-data view, make that a
+   typed borrowed view over the JSON AST instead of a `Value` projection.
+4. Keep serialization available only through registered JSON or `+json` export
+   edges and explicit public/debug APIs. Make unsupported consumers fail with a
+   typed boundary diagnostic rather than falling back to value-shape
+   classification.
+5. Add native and WASM behavior tests for duplicate members, non-canonical
+   numeric lexemes, nested ordered objects/arrays, warnings, and exact
+   range/source-map preservation through direct conversion, graph joins, and
+   secondary inputs. Strengthen the source audit to prove those routes never
+   call a serializer.
+6. Run the JSON and JSON Schema package verifies, converter parity, CLI e2e,
+   core lint/test, and WASM gates.
 
 ## Current Verification Commands
 
@@ -1302,11 +1306,11 @@ Implement the next slice in this order:
 - `yarn nx run cem_ml_cli:validate-cemt-pipeline-fixture`
 - `yarn nx run cem_ml_cli:validate-converter-parity`
 - `yarn nx run cem_ml_cli:e2e`
+- `yarn nx run cem_ml:lint`
 - `yarn nx run cem_ml:test`
 - `yarn nx run cem_ml:build:wasm`
-- `yarn nx run cem_ml_schema_package_xpath_v1:verify`
-- `yarn nx run cem_ml_schema_package_svg_v1:verify`
-- `yarn nx run cem_ml_schema_package_mathml_v1:verify`
+- `yarn nx run cem_ml_schema_package_json_v1:verify`
+- `yarn nx run cem_ml_schema_package_json_schema_v1:verify`
 
 ## Externally Gated
 

@@ -69,7 +69,6 @@ use crate::transform_artifact::{
 #[cfg(test)]
 use crate::transform_template::cemt_typed_runtime_value_from_adapter;
 use crate::transform_template::{
-    compose_transform_template_encoded_text_artifacts,
     execute_transform_template_materialized_cemt_writer,
     execute_transform_template_typed_cem_tree_writer,
     execute_transform_template_typed_cemt_body_expression,
@@ -82,21 +81,20 @@ use crate::transform_template::{
     TransformTemplateCompileRequest, TransformTemplateCompileResponse,
     TransformTemplateCompiledArtifact, TransformTemplateDataArtifact,
     TransformTemplateEncodeBinding, TransformTemplateEncodeBindingRequest,
-    TransformTemplateEncodeExpression, TransformTemplateEncodeImplementationRegistry,
-    TransformTemplateEncodeOptions, TransformTemplateEncodedArtifact,
-    TransformTemplateEncodedArtifactCompositionResponse, TransformTemplateEncodedArtifactIdentity,
+    TransformTemplateEncodeImplementationRegistry, TransformTemplateEncodeOptions,
+    TransformTemplateEncodedArtifact, TransformTemplateEncodedArtifactIdentity,
     TransformTemplateEncodedArtifactInsertionContext, TransformTemplateEncodedArtifactMode,
     TransformTemplateEncodedArtifactPayload, TransformTemplateEncodingTarget,
-    TransformTemplateEvaluatedEncodeExpression, TransformTemplateHtmlColorMode,
-    TransformTemplateMaterializedCemtWriterRequest, TransformTemplateModuleOptions,
-    TransformTemplateModuleParseRequest, TransformTemplateModulePreflight,
-    TransformTemplateOutputArtifact, TransformTemplateOutputColorSelection,
-    TransformTemplateOutputFunctionDescriptor, TransformTemplateOutputFunctionImplementation,
-    TransformTemplateOutputFunctionKind, TransformTemplateOutputFunctionRegistry,
-    TransformTemplateOutputProducedKind, TransformTemplateRenderRequest,
-    TransformTemplateRenderResponse, TransformTemplateSourceMapPolicy,
-    TransformTemplateTargetSyntaxKind, TransformTemplateTargetSyntaxRules,
-    TransformTemplateTerminalColorCapability, TransformTemplateTypedCemTreeWriterRequest,
+    TransformTemplateHtmlColorMode, TransformTemplateMaterializedCemtWriterRequest,
+    TransformTemplateModuleOptions, TransformTemplateModuleParseRequest,
+    TransformTemplateModulePreflight, TransformTemplateOutputArtifact,
+    TransformTemplateOutputColorSelection, TransformTemplateOutputFunctionDescriptor,
+    TransformTemplateOutputFunctionImplementation, TransformTemplateOutputFunctionKind,
+    TransformTemplateOutputFunctionRegistry, TransformTemplateOutputProducedKind,
+    TransformTemplateRenderRequest, TransformTemplateRenderResponse,
+    TransformTemplateSourceMapPolicy, TransformTemplateTargetSyntaxKind,
+    TransformTemplateTargetSyntaxRules, TransformTemplateTerminalColorCapability,
+    TransformTemplateTypedCemTreeWriterRequest,
     TRANSFORM_TEMPLATE_ENCODED_ARTIFACT_WRITER_ADAPTER_FAILED_CODE,
 };
 use crate::validation::css::CssDocumentAst;
@@ -112,8 +110,6 @@ use crate::validation::svg::SvgDocumentAst;
 use crate::validation::xhtml::XhtmlDocumentAst;
 use crate::validation::xml::XmlDocumentAst;
 use crate::validation::xslt::XsltStylesheetAst;
-#[cfg(test)]
-use crate::validation::yaml::generic_data_ast_to_yaml_cemt_subject;
 use crate::validation::yaml::YamlDocumentAst;
 use serde_json::Value;
 use std::cell::RefCell;
@@ -3648,52 +3644,24 @@ fn execute_conversion_cem_tree_format_stage(
     )
 }
 
-fn lower_formatted_cemt_tree_artifact(
-    raw: &CemtTreeArtifact,
-    formatted: &Value,
-    function_name: &str,
-) -> Result<Arc<CemtTreeArtifact>, String> {
-    lower_formatted_cemt_tree_value(
-        raw,
-        CemtTreeLoweringValue::Compatibility(formatted),
-        function_name,
-    )
-}
-
 pub(crate) fn lower_typed_formatted_cemt_tree_artifact<'a>(
     raw: &CemtTreeArtifact,
     formatted: CemtEvaluatorValue<'a>,
     function_name: &str,
 ) -> Result<Arc<CemtTreeArtifact>, String> {
-    lower_formatted_cemt_tree_value(raw, CemtTreeLoweringValue::Typed(formatted), function_name)
+    lower_formatted_cemt_tree_value(raw, CemtTreeLoweringValue(formatted), function_name)
 }
 
 #[derive(Clone)]
-enum CemtTreeLoweringValue<'a> {
-    Compatibility(&'a Value),
-    Typed(CemtEvaluatorValue<'a>),
-}
+struct CemtTreeLoweringValue<'a>(CemtEvaluatorValue<'a>);
 
 impl<'a> CemtTreeLoweringValue<'a> {
     fn kind(&self) -> CemtEvaluatorValueKind {
-        match self {
-            Self::Compatibility(value) => match value {
-                Value::Null => CemtEvaluatorValueKind::Null,
-                Value::Bool(_) => CemtEvaluatorValueKind::Boolean,
-                Value::Number(_) => CemtEvaluatorValueKind::Number,
-                Value::String(_) => CemtEvaluatorValueKind::String,
-                Value::Array(_) => CemtEvaluatorValueKind::Sequence,
-                Value::Object(_) => CemtEvaluatorValueKind::Record,
-            },
-            Self::Typed(value) => value.kind(),
-        }
+        self.0.kind()
     }
 
     fn field(&self, name: &str) -> Option<Self> {
-        match self {
-            Self::Compatibility(value) => value.get(name).map(Self::Compatibility),
-            Self::Typed(value) => value.field(name).map(Self::Typed),
-        }
+        self.0.field(name).map(Self)
     }
 
     fn has_field(&self, name: &str) -> bool {
@@ -3701,40 +3669,24 @@ impl<'a> CemtTreeLoweringValue<'a> {
     }
 
     fn field_names(&self) -> Result<Vec<String>, String> {
-        match self {
-            Self::Compatibility(Value::Object(fields)) => Ok(fields.keys().cloned().collect()),
-            Self::Typed(value) => value
-                .record_field_names("CEMT tree lowering")
-                .map_err(|error| error.to_string()),
-            _ => Err(format!("expected object, got {}", self.type_name())),
-        }
+        self.0
+            .record_field_names("CEMT tree lowering")
+            .map_err(|error| error.to_string())
     }
 
     fn sequence(&self) -> Option<Vec<Self>> {
-        match self {
-            Self::Compatibility(Value::Array(values)) => {
-                Some(values.iter().map(Self::Compatibility).collect())
-            }
-            Self::Typed(value) => value
-                .sequence_values("CEMT tree lowering")
-                .ok()
-                .map(|values| values.into_iter().map(Self::Typed).collect()),
-            _ => None,
-        }
+        self.0
+            .sequence_values("CEMT tree lowering")
+            .ok()
+            .map(|values| values.into_iter().map(Self).collect())
     }
 
     fn string(&self) -> Option<String> {
-        match self {
-            Self::Compatibility(value) => value.as_str().map(str::to_owned),
-            Self::Typed(value) => value.as_str().map(str::to_owned),
-        }
+        self.0.as_str().map(str::to_owned)
     }
 
     fn boolean(&self) -> Option<bool> {
-        match self {
-            Self::Compatibility(value) => value.as_bool(),
-            Self::Typed(value) => value.as_bool(),
-        }
+        self.0.as_bool()
     }
 
     fn is_null(&self) -> bool {
@@ -3742,25 +3694,21 @@ impl<'a> CemtTreeLoweringValue<'a> {
     }
 
     fn source_map(&self) -> Result<SourceMapStack, String> {
-        match self {
-            Self::Compatibility(value) => {
-                serde_json::from_value((*value).clone()).map_err(|error| error.to_string())
-            }
-            Self::Typed(value) => value
-                .as_source_map()
-                .cloned()
-                .ok_or_else(|| format!("expected source-map, got {}", self.type_name())),
-        }
+        self.0
+            .as_source_map()
+            .cloned()
+            .ok_or_else(|| format!("expected source-map, got {}", self.type_name()))
     }
 
     fn owner_path(&self) -> Option<&CemtOwnerPath> {
-        match self {
-            Self::Compatibility(_) => None,
-            Self::Typed(value) => value
-                .native_record()
-                .or_else(|| value.owned_record().and_then(|record| record.native_base()))
-                .and_then(|record| record.owner_path()),
-        }
+        self.0
+            .native_record()
+            .or_else(|| {
+                self.0
+                    .owned_record()
+                    .and_then(|record| record.native_base())
+            })
+            .and_then(|record| record.owner_path())
     }
 
     fn equivalent(&self, other: &Self) -> bool {
@@ -3770,15 +3718,7 @@ impl<'a> CemtTreeLoweringValue<'a> {
         match self.kind() {
             CemtEvaluatorValueKind::Null => true,
             CemtEvaluatorValueKind::Boolean => self.boolean() == other.boolean(),
-            CemtEvaluatorValueKind::Number => match (self, other) {
-                (Self::Compatibility(left), Self::Compatibility(right)) => left == right,
-                (Self::Typed(left), Self::Typed(right)) => left.as_number() == right.as_number(),
-                (Self::Compatibility(left), Self::Typed(right))
-                | (Self::Typed(right), Self::Compatibility(left)) => left
-                    .as_f64()
-                    .zip(right.as_number().map(|number| number.as_f64()))
-                    .is_some_and(|(left, right)| left == right),
-            },
+            CemtEvaluatorValueKind::Number => self.0.as_number() == other.0.as_number(),
             CemtEvaluatorValueKind::String => self.string() == other.string(),
             CemtEvaluatorValueKind::SourceMap => self.source_map().ok() == other.source_map().ok(),
             CemtEvaluatorValueKind::Sequence => {
@@ -3821,7 +3761,6 @@ impl<'a> CemtTreeLoweringValue<'a> {
         }
     }
 }
-
 fn lower_formatted_cemt_tree_value<'a>(
     raw: &CemtTreeArtifact,
     formatted: CemtTreeLoweringValue<'a>,
@@ -4502,20 +4441,6 @@ fn optional_cemt_overlay_string(
     }
 }
 
-fn lower_colored_cemt_tree_artifact(
-    formatted_artifact: &CemtTreeArtifact,
-    formatted: &Value,
-    colored: &Value,
-    function_name: &str,
-) -> Result<Arc<CemtTreeArtifact>, String> {
-    lower_colored_cemt_tree_value(
-        formatted_artifact,
-        CemtTreeLoweringValue::Compatibility(formatted),
-        CemtTreeLoweringValue::Compatibility(colored),
-        function_name,
-    )
-}
-
 pub(crate) fn lower_typed_colored_cemt_tree_artifact<'a>(
     formatted_artifact: &'a CemtTreeArtifact,
     colored: CemtEvaluatorValue<'a>,
@@ -4523,10 +4448,10 @@ pub(crate) fn lower_typed_colored_cemt_tree_artifact<'a>(
 ) -> Result<Arc<CemtTreeArtifact>, String> {
     lower_colored_cemt_tree_value(
         formatted_artifact,
-        CemtTreeLoweringValue::Typed(CemtEvaluatorValue::borrowed(
+        CemtTreeLoweringValue(CemtEvaluatorValue::borrowed(
             formatted_artifact.evaluator_view(),
         )),
-        CemtTreeLoweringValue::Typed(colored),
+        CemtTreeLoweringValue(colored),
         function_name,
     )
 }
@@ -5723,22 +5648,6 @@ fn conversion_cem_tree_output_stage_function(
     Some(selected)
 }
 
-fn cemt_output_expression_starts_with_call(expression: &str, name: &str) -> bool {
-    let expression = expression.trim_start();
-    let Some(rest) = expression.strip_prefix(name) else {
-        return false;
-    };
-    if expression.len() > name.len()
-        && expression[name.len()..]
-            .chars()
-            .next()
-            .is_some_and(|ch| ch.is_ascii_alphanumeric() || matches!(ch, '_' | '-' | '.'))
-    {
-        return false;
-    }
-    rest.trim_start().starts_with('(')
-}
-
 pub fn execute_conversion_output_pipeline(
     pipeline: &ConversionOutputPipeline,
     rendered_value: Value,
@@ -6479,86 +6388,10 @@ fn execute_conversion_output_pipeline_with_environment_subject(
     )
 }
 
-pub fn execute_conversion_output_pipeline_from_formatted_cem_tree_with_environment(
-    environment: &ConversionOutputPipelineEnvironment<'_>,
-    pipeline: &ConversionOutputPipeline,
-    formatted_value: Value,
-    formatted_source_map: Option<SourceMapStack>,
-    formatted_output_spans: Vec<OutputSpan>,
-    converter_id: &str,
-    diagnostic_node: Option<&str>,
-    diagnostic_uri: Option<&str>,
-) -> ConversionOutputPipelineExecution {
-    let local_artifact_cache = ConversionOutputPipelineArtifactCache::default();
-    let cached_environment = if environment.artifact_cache.is_some() {
-        *environment
-    } else {
-        ConversionOutputPipelineEnvironment {
-            schema_registry: environment.schema_registry,
-            conversion_registry: environment.conversion_registry,
-            package_artifact_reader: environment.package_artifact_reader,
-            artifact_cache: Some(&local_artifact_cache),
-        }
-    };
-    let environment = &cached_environment;
-    let mut diagnostics = Vec::new();
-    if let Some(diagnostic) = conversion_output_pipeline_claimed_formatted_cem_tree_diagnostic(
-        pipeline,
-        &formatted_value,
-        converter_id,
-        diagnostic_node,
-        diagnostic_uri,
-    ) {
-        diagnostics.push(diagnostic);
-        return ConversionOutputPipelineExecution {
-            output: None,
-            diagnostics,
-            ..ConversionOutputPipelineExecution::default()
-        };
-    }
-    let formatted_artifact = conversion_output_pipeline_formatted_cem_tree_artifact(
-        pipeline,
-        formatted_value,
-        formatted_source_map,
-        formatted_output_spans,
-    );
-    if let Err(error) = formatted_artifact
-        .validate_insertion(&conversion_cem_tree_format_insertion_context(pipeline))
-    {
-        let mut diagnostic = error.diagnostic(diagnostic_uri);
-        diagnostic.node = diagnostic_node.map(str::to_owned);
-        diagnostics.push(diagnostic);
-        return ConversionOutputPipelineExecution {
-            output: None,
-            diagnostics,
-            ..ConversionOutputPipelineExecution::default()
-        };
-    }
-
-    execute_conversion_output_pipeline_from_formatted_artifact(
-        environment,
-        pipeline,
-        formatted_artifact,
-        None,
-        None,
-        None,
-        diagnostics,
-        converter_id,
-        diagnostic_node,
-        diagnostic_uri,
-    )
-}
-
 pub trait CsvDocumentOutputSubject {
     fn source_line_ending(&self) -> Option<&str>;
     fn input_representation_id(&self) -> &'static str;
     fn native_cemt_subject(&self) -> Option<CemtEvaluatorValue<'_>> {
-        None
-    }
-    fn into_test_compatibility_cemt_subject(self) -> Option<Value>
-    where
-        Self: Sized,
-    {
         None
     }
 }
@@ -6607,21 +6440,6 @@ impl CsvDocumentOutputSubject for GenericDataCsvDocumentOutputSubject {
     }
 }
 
-#[cfg(test)]
-impl CsvDocumentOutputSubject for Value {
-    fn source_line_ending(&self) -> Option<&str> {
-        self.get("lineEnding").and_then(Value::as_str)
-    }
-
-    fn input_representation_id(&self) -> &'static str {
-        "cem.test-csv-value-oracle"
-    }
-
-    fn native_cemt_subject(&self) -> Option<CemtEvaluatorValue<'_>> {
-        cemt_typed_runtime_value_from_adapter(self).ok()
-    }
-}
-
 pub fn execute_csv_document_output_pipeline_with_environment(
     environment: &ConversionOutputPipelineEnvironment<'_>,
     table: impl CsvDocumentOutputSubject,
@@ -6644,9 +6462,6 @@ pub fn execute_csv_document_output_pipeline_with_environment(
         }
     };
     let environment = &cached_environment;
-    #[cfg(test)]
-    let target =
-        TransformTemplateEncodingTarget::new(CSV_CONTENT_TYPE, CSV_SCHEMA_URI, "csv-document");
     let formatter_name = target_scope
         .cemt_formatter
         .as_deref()
@@ -6680,331 +6495,10 @@ pub fn execute_csv_document_output_pipeline_with_environment(
             input_representation_id,
         );
     }
-    #[cfg(not(test))]
-    return csv_output_pipeline_failed(
+    csv_output_pipeline_failed(
         diagnostic_uri,
         "CSV output subject does not expose a native evaluator view".to_owned(),
-    );
-    #[cfg(test)]
-    {
-        let Some(table_subject) = table.into_test_compatibility_cemt_subject() else {
-            return csv_output_pipeline_failed(
-                diagnostic_uri,
-                "CSV output subject does not expose a native evaluator view".to_owned(),
-            );
-        };
-        let format_options = TransformTemplateEncodeOptions {
-            formatter: Some(formatter_name.to_owned()),
-            formatter_profile: Some(formatter_profile.to_owned()),
-            formatter_options: target_scope.cemt_formatter_options.clone(),
-            line_ending: line_ending.clone(),
-            mode: TransformTemplateEncodedArtifactMode::Document,
-            canonical: formatter_profile == "compact",
-            source_map_policy: TransformTemplateSourceMapPolicy::Generated,
-            ..TransformTemplateEncodeOptions::default()
-        };
-        let (format_stage, format_binding) = match resolve_cemt_output_stage_binding(
-            environment,
-            "CSV",
-            CSV_FORMAT_CEMT_STAGE_SPEC,
-            &target,
-            Some(formatter_profile),
-            Some(formatter_name),
-            &table_subject,
-            "csv-document",
-            format_options,
-        ) {
-            Ok(resolved) => resolved,
-            Err(message) => {
-                return csv_output_pipeline_failed(diagnostic_uri, message);
-            }
-        };
-        let format_started = Instant::now();
-        let format_result = execute_conversion_cem_tree_output_stage(
-            environment,
-            format_stage,
-            &format_binding,
-            &table_subject,
-        );
-        let format_elapsed_ns = Some(format_started.elapsed().as_nanos());
-        let (formatted_output, format_execution) = match format_result {
-            Ok(output) => output,
-            Err(message) => {
-                return csv_output_pipeline_failed_with_timings(
-                    diagnostic_uri,
-                    format!(
-                        "CEMT formatter `{}` failed: {message}",
-                        format_binding.function.name
-                    ),
-                    format_elapsed_ns,
-                    None,
-                    None,
-                );
-            }
-        };
-        let format_execution = Some(format_execution);
-        let formatted_artifact = TransformTemplateEncodedArtifact::from_public_json(
-            format_binding.identity.clone(),
-            formatted_output,
-        );
-        let mut formatted_context =
-            TransformTemplateEncodedArtifactInsertionContext::from_encoding_target(
-                &target,
-                Some(TransformTemplateOutputProducedKind::CemTree),
-            );
-        formatted_context.formatter_profile = Some(formatter_profile.to_owned());
-        formatted_context.mode = Some(TransformTemplateEncodedArtifactMode::Document);
-        formatted_context.canonical = Some(formatter_profile == "compact");
-        formatted_context.source_map_policy = Some(TransformTemplateSourceMapPolicy::Generated);
-        if let Err(error) = formatted_artifact.validate_insertion(&formatted_context) {
-            return csv_output_pipeline_failed_with_timings(
-                diagnostic_uri,
-                error.diagnostic(diagnostic_uri).message,
-                format_elapsed_ns,
-                None,
-                None,
-            );
-        }
-
-        let cemt_color_profile = match csv_cemt_color_profile_for_output(
-            target_scope,
-            output_color_selection.as_ref(),
-        ) {
-            Ok(profile) => profile,
-            Err(message) => return csv_output_pipeline_failed(diagnostic_uri, message),
-        };
-        let wants_color = target_scope
-            .cemt_colorizer
-            .as_deref()
-            .map(str::trim)
-            .is_some_and(|name| !name.is_empty())
-            || cemt_color_profile.is_some()
-            || output_color_selection
-                .as_ref()
-                .is_some_and(csv_output_color_selection_requests_color);
-        let mut color_elapsed_ns = None;
-        let (writer_artifact, color_execution, colored_cem_tree) = if wants_color {
-            let colorizer_name = target_scope
-                .cemt_colorizer
-                .as_deref()
-                .map(str::trim)
-                .filter(|name| !name.is_empty())
-                .unwrap_or(CSV_COLOR_CEMT_STAGE_SPEC.function_name);
-            let color_profile = cemt_color_profile.as_deref().unwrap_or("terminal");
-            let color_options = TransformTemplateEncodeOptions {
-                formatter_options: target_scope.cemt_formatter_options.clone(),
-                formatter_profile: Some(formatter_profile.to_owned()),
-                colorizer: Some(colorizer_name.to_owned()),
-                color_profile: Some(color_profile.to_owned()),
-                line_ending: line_ending.clone(),
-                mode: TransformTemplateEncodedArtifactMode::Document,
-                canonical: false,
-                source_map_policy: TransformTemplateSourceMapPolicy::Generated,
-                ..TransformTemplateEncodeOptions::default()
-            };
-            let (color_stage, color_binding) = match resolve_cemt_output_stage_binding(
-                environment,
-                "CSV",
-                CSV_COLOR_CEMT_STAGE_SPEC,
-                &target,
-                Some(color_profile),
-                Some(colorizer_name),
-                formatted_artifact
-                    .value
-                    .as_public_json_value()
-                    .expect("formatted CEM tree has a runtime payload"),
-                "cem-tree",
-                color_options,
-            ) {
-                Ok(resolved) => resolved,
-                Err(message) => {
-                    return csv_output_pipeline_failed(diagnostic_uri, message);
-                }
-            };
-            let color_started = Instant::now();
-            let color_result = execute_conversion_cem_tree_output_stage(
-                environment,
-                color_stage,
-                &color_binding,
-                formatted_artifact
-                    .value
-                    .as_public_json_value()
-                    .expect("formatted CEM tree has a runtime payload"),
-            );
-            color_elapsed_ns = Some(color_started.elapsed().as_nanos());
-            let (colored_output, color_execution) = match color_result {
-                Ok(output) => output,
-                Err(message) => {
-                    return csv_output_pipeline_failed_with_timings(
-                        diagnostic_uri,
-                        format!(
-                            "CEMT colorizer `{}` failed: {message}",
-                            color_binding.function.name
-                        ),
-                        format_elapsed_ns,
-                        color_elapsed_ns,
-                        None,
-                    );
-                }
-            };
-            let colored_artifact = TransformTemplateEncodedArtifact::from_public_json(
-                color_binding.identity.clone(),
-                colored_output,
-            );
-            let mut colored_context =
-                TransformTemplateEncodedArtifactInsertionContext::from_encoding_target(
-                    &target,
-                    Some(TransformTemplateOutputProducedKind::CemTree),
-                );
-            colored_context.formatter_profile = Some(formatter_profile.to_owned());
-            colored_context.color_profile = Some(color_profile.to_owned());
-            colored_context.mode = Some(TransformTemplateEncodedArtifactMode::Document);
-            colored_context.source_map_policy = Some(TransformTemplateSourceMapPolicy::Generated);
-            if let Err(error) = colored_artifact.validate_insertion(&colored_context) {
-                return csv_output_pipeline_failed_with_timings(
-                    diagnostic_uri,
-                    error.diagnostic(diagnostic_uri).message,
-                    format_elapsed_ns,
-                    color_elapsed_ns,
-                    None,
-                );
-            }
-            (
-                colored_artifact.clone(),
-                Some(color_execution),
-                Some(colored_artifact),
-            )
-        } else {
-            (formatted_artifact.clone(), None, None)
-        };
-
-        let mut writer_context =
-            TransformTemplateEncodedArtifactInsertionContext::from_encoding_target(
-                &target,
-                Some(TransformTemplateOutputProducedKind::Text),
-            );
-        writer_context.formatter_profile = Some(formatter_profile.to_owned());
-        writer_context.color_profile = writer_artifact.identity.color_profile.clone();
-        writer_context.output_color_type = output_color_selection
-            .as_ref()
-            .map(|selection| selection.output_color_type.clone());
-        if output_color_selection
-            .as_ref()
-            .is_some_and(csv_output_color_selection_is_terminal)
-        {
-            writer_context.color_capability = output_color_selection
-                .as_ref()
-                .map(|selection| selection.output_color_type.clone());
-        }
-        writer_context.mode = Some(TransformTemplateEncodedArtifactMode::Document);
-        writer_context.source_map_policy = Some(TransformTemplateSourceMapPolicy::Generated);
-        let evaluated = TransformTemplateEvaluatedEncodeExpression {
-            expression: TransformTemplateEncodeExpression {
-                owner: Some("csv-direct-output".to_owned()),
-                expression: "csv-direct-output writer".to_owned(),
-                subject: "csv-document".to_owned(),
-                subject_type: Some("cem-tree".to_owned()),
-                target,
-                options: TransformTemplateEncodeOptions::default(),
-            },
-            subject: writer_artifact
-                .value
-                .as_public_json_value()
-                .cloned()
-                .expect("writer input is a CEMT evaluator tree"),
-            binding: TransformTemplateEncodeBinding {
-                function: if wants_color {
-                    csv_output_function_descriptor(
-                        CSV_COLOR_CEMT_STAGE_SPEC.function_name,
-                        "csv-document",
-                        "cem-tree",
-                        TransformTemplateOutputFunctionKind::Color,
-                        TransformTemplateOutputProducedKind::CemTree,
-                        writer_artifact.identity.color_profile.clone(),
-                    )
-                } else {
-                    csv_output_function_descriptor(
-                        CSV_FORMAT_CEMT_STAGE_SPEC.function_name,
-                        "csv-document",
-                        "csv-document",
-                        TransformTemplateOutputFunctionKind::Format,
-                        TransformTemplateOutputProducedKind::CemTree,
-                        Some(formatter_profile.to_owned()),
-                    )
-                },
-                subject_type: "cem-tree".to_owned(),
-                identity: writer_artifact.identity.clone(),
-                options: TransformTemplateEncodeOptions::default(),
-            },
-            artifact: writer_artifact,
-        };
-        let writer_started = Instant::now();
-        let mut composition = compose_transform_template_encoded_text_artifacts(
-            &[evaluated],
-            &writer_context,
-            diagnostic_uri,
-        );
-        let writer_elapsed_ns = Some(writer_started.elapsed().as_nanos());
-        if !composition.diagnostics.is_empty() {
-            return ConversionOutputPipelineExecution {
-                output: None,
-                diagnostics: std::mem::take(&mut composition.diagnostics),
-                format_execution,
-                color_execution,
-                format_elapsed_ns,
-                color_elapsed_ns,
-                writer_elapsed_ns,
-                formatted_cem_tree: Some(formatted_artifact),
-                colored_cem_tree,
-                ..ConversionOutputPipelineExecution::default()
-            };
-        }
-        match composition.artifact {
-            Some(mut artifact) => {
-                if output_color_selection
-                    .as_ref()
-                    .is_some_and(csv_output_color_selection_is_html)
-                {
-                    csv_wrap_html_preview_artifact(&mut artifact, presentation_options.tab_size);
-                }
-                ConversionOutputPipelineExecution {
-                    output: Some(
-                        artifact
-                            .value
-                            .into_public_value()
-                            .expect("composed writer artifact projects to the public response"),
-                    ),
-                    raw_cem_tree: None,
-                    formatted_cemt_tree: None,
-                    colored_cemt_tree: None,
-                    formatted_materialized_cemt_tree: None,
-                    colored_materialized_cemt_tree: None,
-                    materialized_cemt_stage_output: None,
-                    source_map: artifact.source_map,
-                    output_spans: artifact.output_spans,
-                    format_execution,
-                    color_execution,
-                    format_elapsed_ns,
-                    color_elapsed_ns,
-                    writer_elapsed_ns,
-                    formatted_cem_tree: Some(formatted_artifact),
-                    colored_cem_tree,
-                    diagnostics: Vec::new(),
-                }
-            }
-            None => ConversionOutputPipelineExecution {
-                output: None,
-                format_execution,
-                color_execution,
-                format_elapsed_ns,
-                color_elapsed_ns,
-                writer_elapsed_ns,
-                formatted_cem_tree: Some(formatted_artifact),
-                colored_cem_tree,
-                ..ConversionOutputPipelineExecution::default()
-            },
-        }
-    }
+    )
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -7618,12 +7112,6 @@ pub trait YamlDocumentOutputSubject {
     fn native_cemt_subject(&self) -> Option<CemtEvaluatorValue<'_>> {
         None
     }
-    fn into_test_compatibility_cemt_subject(self) -> Option<Value>
-    where
-        Self: Sized,
-    {
-        None
-    }
 }
 
 impl YamlDocumentOutputSubject for YamlDocumentAst {
@@ -7666,21 +7154,6 @@ impl YamlDocumentOutputSubject for GenericDataYamlDocumentOutputSubject {
         Some(CemtEvaluatorValue::borrowed(
             GenericDataYamlDocumentCemtSubjectRef::new(&self.ast).evaluator_view(),
         ))
-    }
-}
-
-#[cfg(test)]
-impl YamlDocumentOutputSubject for Value {
-    fn source_line_ending(&self) -> Option<&str> {
-        self.get("lineEnding").and_then(Value::as_str)
-    }
-
-    fn input_representation_id(&self) -> &'static str {
-        "cem.test-yaml-value-oracle"
-    }
-
-    fn native_cemt_subject(&self) -> Option<CemtEvaluatorValue<'_>> {
-        cemt_typed_runtime_value_from_adapter(self).ok()
     }
 }
 
@@ -7737,354 +7210,10 @@ pub fn execute_yaml_document_output_pipeline_with_environment(
             input_representation_id,
         );
     }
-    #[cfg(not(test))]
-    return yaml_output_pipeline_failed(
+    yaml_output_pipeline_failed(
         diagnostic_uri,
         "YAML output subject does not expose a native evaluator view".to_owned(),
-    );
-    #[cfg(test)]
-    {
-        let Some(document_subject) = document.into_test_compatibility_cemt_subject() else {
-            return yaml_output_pipeline_failed(
-                diagnostic_uri,
-                "YAML output subject does not expose a native evaluator view".to_owned(),
-            );
-        };
-        let target = TransformTemplateEncodingTarget::new(
-            YAML_CONTENT_TYPE,
-            YAML_SCHEMA_URI,
-            "yaml-document",
-        );
-        let format_options = TransformTemplateEncodeOptions {
-            formatter: Some(formatter_name.clone()),
-            formatter_profile: Some(formatter_profile.clone()),
-            formatter_options: target_scope.cemt_formatter_options.clone(),
-            line_ending: line_ending.clone(),
-            mode: TransformTemplateEncodedArtifactMode::Document,
-            canonical: formatter_profile == "compact",
-            source_map_policy: TransformTemplateSourceMapPolicy::Generated,
-            ..TransformTemplateEncodeOptions::default()
-        };
-        let (format_stage, format_binding) = match resolve_cemt_output_stage_binding(
-            environment,
-            "YAML",
-            YAML_FORMAT_CEMT_STAGE_SPEC,
-            &target,
-            Some(formatter_profile.as_str()),
-            Some(formatter_name.as_str()),
-            &document_subject,
-            "yaml-document",
-            format_options,
-        ) {
-            Ok(resolved) => resolved,
-            Err(message) => return yaml_output_pipeline_failed(diagnostic_uri, message),
-        };
-        let format_started = Instant::now();
-        let format_result = execute_conversion_cem_tree_output_stage(
-            environment,
-            format_stage,
-            &format_binding,
-            &document_subject,
-        );
-        let format_elapsed_ns = Some(format_started.elapsed().as_nanos());
-        let (formatted_output, format_execution) = match format_result {
-            Ok(output) => output,
-            Err(message) => {
-                return yaml_output_pipeline_failed_with_timings(
-                    diagnostic_uri,
-                    format!(
-                        "CEMT formatter `{}` failed: {message}",
-                        format_binding.function.name
-                    ),
-                    format_elapsed_ns,
-                    None,
-                    None,
-                );
-            }
-        };
-        let format_execution = Some(format_execution);
-        let formatted_artifact = TransformTemplateEncodedArtifact::from_public_json(
-            format_binding.identity.clone(),
-            formatted_output,
-        );
-        let mut formatted_context =
-            TransformTemplateEncodedArtifactInsertionContext::from_encoding_target(
-                &target,
-                Some(TransformTemplateOutputProducedKind::CemTree),
-            );
-        formatted_context.formatter_profile = formatted_artifact
-            .identity
-            .formatter_profile
-            .clone()
-            .or_else(|| Some(formatter_profile.clone()));
-        formatted_context.mode = Some(TransformTemplateEncodedArtifactMode::Document);
-        formatted_context.canonical = Some(formatter_profile == "compact");
-        formatted_context.source_map_policy = Some(TransformTemplateSourceMapPolicy::Generated);
-        if let Err(error) = formatted_artifact.validate_insertion(&formatted_context) {
-            return yaml_output_pipeline_failed_with_timings(
-                diagnostic_uri,
-                error.diagnostic(diagnostic_uri).message,
-                format_elapsed_ns,
-                None,
-                None,
-            );
-        }
-
-        let cemt_color_profile =
-            match yaml_cemt_color_profile_for_output(target_scope, output_color_selection.as_ref())
-            {
-                Ok(profile) => profile,
-                Err(message) => return yaml_output_pipeline_failed(diagnostic_uri, message),
-            };
-        let wants_color = target_scope
-            .cemt_colorizer
-            .as_deref()
-            .map(str::trim)
-            .is_some_and(|name| !name.is_empty())
-            || cemt_color_profile.is_some()
-            || output_color_selection
-                .as_ref()
-                .is_some_and(yaml_output_color_selection_requests_color);
-        let mut color_elapsed_ns = None;
-        let (writer_artifact, color_execution, colored_cem_tree) = if wants_color {
-            let colorizer_name = target_scope
-                .cemt_colorizer
-                .as_deref()
-                .map(str::trim)
-                .filter(|name| !name.is_empty())
-                .unwrap_or(YAML_COLOR_CEMT_STAGE_SPEC.function_name);
-            let color_profile = cemt_color_profile.as_deref().unwrap_or("terminal");
-            let color_options = TransformTemplateEncodeOptions {
-                formatter_options: target_scope.cemt_formatter_options.clone(),
-                formatter_profile: formatted_artifact
-                    .identity
-                    .formatter_profile
-                    .clone()
-                    .or_else(|| Some(formatter_profile.clone())),
-                colorizer: Some(colorizer_name.to_owned()),
-                color_profile: Some(color_profile.to_owned()),
-                line_ending: line_ending.clone(),
-                mode: TransformTemplateEncodedArtifactMode::Document,
-                canonical: false,
-                source_map_policy: TransformTemplateSourceMapPolicy::Generated,
-                ..TransformTemplateEncodeOptions::default()
-            };
-            let (color_stage, color_binding) = match resolve_cemt_output_stage_binding(
-                environment,
-                "YAML",
-                YAML_COLOR_CEMT_STAGE_SPEC,
-                &target,
-                Some(color_profile),
-                Some(colorizer_name),
-                formatted_artifact
-                    .value
-                    .as_public_json_value()
-                    .expect("formatted CEM tree has a runtime payload"),
-                "cem-tree",
-                color_options,
-            ) {
-                Ok(resolved) => resolved,
-                Err(message) => return yaml_output_pipeline_failed(diagnostic_uri, message),
-            };
-            let color_started = Instant::now();
-            let color_result = execute_conversion_cem_tree_output_stage(
-                environment,
-                color_stage,
-                &color_binding,
-                formatted_artifact
-                    .value
-                    .as_public_json_value()
-                    .expect("formatted CEM tree has a runtime payload"),
-            );
-            color_elapsed_ns = Some(color_started.elapsed().as_nanos());
-            let (colored_output, color_execution) = match color_result {
-                Ok(output) => output,
-                Err(message) => {
-                    return yaml_output_pipeline_failed_with_timings(
-                        diagnostic_uri,
-                        format!(
-                            "CEMT colorizer `{}` failed: {message}",
-                            color_binding.function.name
-                        ),
-                        format_elapsed_ns,
-                        color_elapsed_ns,
-                        None,
-                    );
-                }
-            };
-            let colored_artifact = TransformTemplateEncodedArtifact::from_public_json(
-                color_binding.identity.clone(),
-                colored_output,
-            );
-            let mut colored_context =
-                TransformTemplateEncodedArtifactInsertionContext::from_encoding_target(
-                    &target,
-                    Some(TransformTemplateOutputProducedKind::CemTree),
-                );
-            colored_context.formatter_profile = colored_artifact
-                .identity
-                .formatter_profile
-                .clone()
-                .or_else(|| Some(formatter_profile.clone()));
-            colored_context.color_profile = Some(color_profile.to_owned());
-            colored_context.mode = Some(TransformTemplateEncodedArtifactMode::Document);
-            colored_context.source_map_policy = Some(TransformTemplateSourceMapPolicy::Generated);
-            if let Err(error) = colored_artifact.validate_insertion(&colored_context) {
-                return yaml_output_pipeline_failed_with_timings(
-                    diagnostic_uri,
-                    error.diagnostic(diagnostic_uri).message,
-                    format_elapsed_ns,
-                    color_elapsed_ns,
-                    None,
-                );
-            }
-            (
-                colored_artifact.clone(),
-                Some(color_execution),
-                Some(colored_artifact),
-            )
-        } else {
-            (formatted_artifact.clone(), None, None)
-        };
-
-        let wrap_html_output = output_color_selection
-            .as_ref()
-            .is_some_and(yaml_output_color_selection_is_html)
-            || writer_artifact.identity.color_profile.as_deref() == Some("html");
-        let mut writer_context =
-            TransformTemplateEncodedArtifactInsertionContext::from_encoding_target(
-                &target,
-                Some(TransformTemplateOutputProducedKind::Text),
-            );
-        writer_context.formatter_profile = writer_artifact
-            .identity
-            .formatter_profile
-            .clone()
-            .or_else(|| Some(formatter_profile.clone()));
-        writer_context.color_profile = writer_artifact.identity.color_profile.clone();
-        writer_context.output_color_type = output_color_selection
-            .as_ref()
-            .map(|selection| selection.output_color_type.clone());
-        if output_color_selection
-            .as_ref()
-            .is_some_and(yaml_output_color_selection_is_terminal)
-        {
-            writer_context.color_capability = output_color_selection
-                .as_ref()
-                .map(|selection| selection.output_color_type.clone());
-        }
-        writer_context.mode = Some(TransformTemplateEncodedArtifactMode::Document);
-        writer_context.source_map_policy = Some(TransformTemplateSourceMapPolicy::Generated);
-        let evaluated = TransformTemplateEvaluatedEncodeExpression {
-            expression: TransformTemplateEncodeExpression {
-                owner: Some("yaml-direct-output".to_owned()),
-                expression: "yaml-direct-output writer".to_owned(),
-                subject: "yaml-document".to_owned(),
-                subject_type: Some("cem-tree".to_owned()),
-                target,
-                options: TransformTemplateEncodeOptions::default(),
-            },
-            subject: writer_artifact
-                .value
-                .as_public_json_value()
-                .cloned()
-                .expect("writer input is a CEMT evaluator tree"),
-            binding: TransformTemplateEncodeBinding {
-                function: yaml_output_function_descriptor(
-                    if color_execution.is_some() {
-                        YAML_COLOR_CEMT_STAGE_SPEC.function_name
-                    } else {
-                        YAML_FORMAT_CEMT_STAGE_SPEC.function_name
-                    },
-                    "yaml-document",
-                    if color_execution.is_some() {
-                        "cem-tree"
-                    } else {
-                        "yaml-document"
-                    },
-                    if color_execution.is_some() {
-                        TransformTemplateOutputFunctionKind::Color
-                    } else {
-                        TransformTemplateOutputFunctionKind::Format
-                    },
-                    TransformTemplateOutputProducedKind::CemTree,
-                    writer_artifact
-                        .identity
-                        .color_profile
-                        .clone()
-                        .or_else(|| writer_artifact.identity.formatter_profile.clone())
-                        .or_else(|| Some(formatter_profile.clone())),
-                ),
-                subject_type: "cem-tree".to_owned(),
-                identity: writer_artifact.identity.clone(),
-                options: TransformTemplateEncodeOptions::default(),
-            },
-            artifact: writer_artifact,
-        };
-        let writer_started = Instant::now();
-        let mut composition = compose_transform_template_encoded_text_artifacts(
-            &[evaluated],
-            &writer_context,
-            diagnostic_uri,
-        );
-        let writer_elapsed_ns = Some(writer_started.elapsed().as_nanos());
-        if !composition.diagnostics.is_empty() {
-            return ConversionOutputPipelineExecution {
-                output: None,
-                diagnostics: std::mem::take(&mut composition.diagnostics),
-                format_execution,
-                color_execution,
-                format_elapsed_ns,
-                color_elapsed_ns,
-                writer_elapsed_ns,
-                formatted_cem_tree: Some(formatted_artifact),
-                colored_cem_tree,
-                ..ConversionOutputPipelineExecution::default()
-            };
-        }
-        match composition.artifact {
-            Some(mut artifact) => {
-                if wrap_html_output {
-                    yaml_wrap_html_preview_artifact(&mut artifact, presentation_options.tab_size);
-                }
-                ConversionOutputPipelineExecution {
-                    output: Some(
-                        artifact
-                            .value
-                            .into_public_value()
-                            .expect("composed writer artifact projects to the public response"),
-                    ),
-                    raw_cem_tree: None,
-                    formatted_cemt_tree: None,
-                    colored_cemt_tree: None,
-                    formatted_materialized_cemt_tree: None,
-                    colored_materialized_cemt_tree: None,
-                    materialized_cemt_stage_output: None,
-                    source_map: artifact.source_map,
-                    output_spans: artifact.output_spans,
-                    format_execution,
-                    color_execution,
-                    format_elapsed_ns,
-                    color_elapsed_ns,
-                    writer_elapsed_ns,
-                    formatted_cem_tree: Some(formatted_artifact),
-                    colored_cem_tree,
-                    diagnostics: Vec::new(),
-                }
-            }
-            None => ConversionOutputPipelineExecution {
-                output: None,
-                format_execution,
-                color_execution,
-                format_elapsed_ns,
-                color_elapsed_ns,
-                writer_elapsed_ns,
-                formatted_cem_tree: Some(formatted_artifact),
-                colored_cem_tree,
-                ..ConversionOutputPipelineExecution::default()
-            },
-        }
-    }
+    )
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -8627,12 +7756,6 @@ pub trait JsonDocumentOutputSubject {
     fn native_cemt_subject(&self) -> Option<CemtEvaluatorValue<'_>> {
         None
     }
-    fn into_test_compatibility_cemt_subject(self) -> Option<Value>
-    where
-        Self: Sized,
-    {
-        None
-    }
 }
 
 impl JsonDocumentOutputSubject for JsonDocumentAst {
@@ -8670,26 +7793,9 @@ impl JsonDocumentOutputSubject for GenericDataJsonDocumentOutputSubject {
     }
 }
 
-#[cfg(test)]
-impl JsonDocumentOutputSubject for Value {
-    fn source_line_ending(&self) -> Option<&str> {
-        self.get("lineEnding").and_then(Value::as_str)
-    }
-
-    fn native_cemt_subject(&self) -> Option<CemtEvaluatorValue<'_>> {
-        cemt_typed_runtime_value_from_adapter(self).ok()
-    }
-}
-
 pub trait JsonSchemaDocumentOutputSubject {
     fn source_line_ending(&self) -> Option<&str>;
     fn native_cemt_subject(&self) -> Option<CemtEvaluatorValue<'_>> {
-        None
-    }
-    fn into_test_compatibility_cemt_subject(self) -> Option<Value>
-    where
-        Self: Sized,
-    {
         None
     }
 }
@@ -8703,20 +7809,6 @@ impl JsonSchemaDocumentOutputSubject for JsonSchemaDocumentAst {
         Some(CemtEvaluatorValue::borrowed(
             JsonSchemaDocumentCemtSubjectRef::new(self).evaluator_view(),
         ))
-    }
-}
-
-#[cfg(test)]
-impl JsonSchemaDocumentOutputSubject for Value {
-    fn source_line_ending(&self) -> Option<&str> {
-        self.get("json")
-            .and_then(|json| json.get("lineEnding"))
-            .and_then(Value::as_str)
-            .or_else(|| self.get("lineEnding").and_then(Value::as_str))
-    }
-
-    fn native_cemt_subject(&self) -> Option<CemtEvaluatorValue<'_>> {
-        cemt_typed_runtime_value_from_adapter(self).ok()
     }
 }
 
@@ -8771,354 +7863,10 @@ pub fn execute_json_document_output_pipeline_with_environment(
             line_ending,
         );
     }
-    #[cfg(not(test))]
-    return json_output_pipeline_failed(
+    json_output_pipeline_failed(
         diagnostic_uri,
         "JSON output subject does not expose a native evaluator view".to_owned(),
-    );
-    #[cfg(test)]
-    {
-        let Some(document_subject) = document.into_test_compatibility_cemt_subject() else {
-            return json_output_pipeline_failed(
-                diagnostic_uri,
-                "JSON output subject does not expose a native evaluator view".to_owned(),
-            );
-        };
-        let target = TransformTemplateEncodingTarget::new(
-            JSON_CONTENT_TYPE,
-            JSON_VALUE_SCHEMA_URI,
-            "json-document",
-        );
-        let format_options = TransformTemplateEncodeOptions {
-            formatter: Some(formatter_name.clone()),
-            formatter_profile: Some(formatter_profile.clone()),
-            formatter_options: target_scope.cemt_formatter_options.clone(),
-            line_ending: line_ending.clone(),
-            mode: TransformTemplateEncodedArtifactMode::Document,
-            canonical: formatter_profile == "compact",
-            source_map_policy: TransformTemplateSourceMapPolicy::Generated,
-            ..TransformTemplateEncodeOptions::default()
-        };
-        let (format_stage, format_binding) = match resolve_cemt_output_stage_binding(
-            environment,
-            "JSON",
-            JSON_FORMAT_CEMT_STAGE_SPEC,
-            &target,
-            Some(formatter_profile.as_str()),
-            Some(formatter_name.as_str()),
-            &document_subject,
-            "json-document",
-            format_options,
-        ) {
-            Ok(resolved) => resolved,
-            Err(message) => return json_output_pipeline_failed(diagnostic_uri, message),
-        };
-        let format_started = Instant::now();
-        let format_result = execute_conversion_cem_tree_output_stage(
-            environment,
-            format_stage,
-            &format_binding,
-            &document_subject,
-        );
-        let format_elapsed_ns = Some(format_started.elapsed().as_nanos());
-        let (formatted_output, format_execution) = match format_result {
-            Ok(output) => output,
-            Err(message) => {
-                return json_output_pipeline_failed_with_timings(
-                    diagnostic_uri,
-                    format!(
-                        "CEMT formatter `{}` failed: {message}",
-                        format_binding.function.name
-                    ),
-                    format_elapsed_ns,
-                    None,
-                    None,
-                );
-            }
-        };
-        let format_execution = Some(format_execution);
-        let formatted_artifact = TransformTemplateEncodedArtifact::from_public_json(
-            format_binding.identity.clone(),
-            formatted_output,
-        );
-        let mut formatted_context =
-            TransformTemplateEncodedArtifactInsertionContext::from_encoding_target(
-                &target,
-                Some(TransformTemplateOutputProducedKind::CemTree),
-            );
-        formatted_context.formatter_profile = formatted_artifact
-            .identity
-            .formatter_profile
-            .clone()
-            .or_else(|| Some(formatter_profile.clone()));
-        formatted_context.mode = Some(TransformTemplateEncodedArtifactMode::Document);
-        formatted_context.canonical = Some(formatter_profile == "compact");
-        formatted_context.source_map_policy = Some(TransformTemplateSourceMapPolicy::Generated);
-        if let Err(error) = formatted_artifact.validate_insertion(&formatted_context) {
-            return json_output_pipeline_failed_with_timings(
-                diagnostic_uri,
-                error.diagnostic(diagnostic_uri).message,
-                format_elapsed_ns,
-                None,
-                None,
-            );
-        }
-
-        let cemt_color_profile =
-            match json_cemt_color_profile_for_output(target_scope, output_color_selection.as_ref())
-            {
-                Ok(profile) => profile,
-                Err(message) => return json_output_pipeline_failed(diagnostic_uri, message),
-            };
-        let wants_color = target_scope
-            .cemt_colorizer
-            .as_deref()
-            .map(str::trim)
-            .is_some_and(|name| !name.is_empty())
-            || cemt_color_profile.is_some()
-            || output_color_selection
-                .as_ref()
-                .is_some_and(json_output_color_selection_requests_color);
-        let mut color_elapsed_ns = None;
-        let (writer_artifact, color_execution, colored_cem_tree) = if wants_color {
-            let colorizer_name = target_scope
-                .cemt_colorizer
-                .as_deref()
-                .map(str::trim)
-                .filter(|name| !name.is_empty())
-                .unwrap_or(JSON_COLOR_CEMT_STAGE_SPEC.function_name);
-            let color_profile = cemt_color_profile.as_deref().unwrap_or("terminal");
-            let color_options = TransformTemplateEncodeOptions {
-                formatter_options: target_scope.cemt_formatter_options.clone(),
-                formatter_profile: formatted_artifact
-                    .identity
-                    .formatter_profile
-                    .clone()
-                    .or_else(|| Some(formatter_profile.clone())),
-                colorizer: Some(colorizer_name.to_owned()),
-                color_profile: Some(color_profile.to_owned()),
-                line_ending: line_ending.clone(),
-                mode: TransformTemplateEncodedArtifactMode::Document,
-                canonical: false,
-                source_map_policy: TransformTemplateSourceMapPolicy::Generated,
-                ..TransformTemplateEncodeOptions::default()
-            };
-            let (color_stage, color_binding) = match resolve_cemt_output_stage_binding(
-                environment,
-                "JSON",
-                JSON_COLOR_CEMT_STAGE_SPEC,
-                &target,
-                Some(color_profile),
-                Some(colorizer_name),
-                formatted_artifact
-                    .value
-                    .as_public_json_value()
-                    .expect("formatted CEM tree has a runtime payload"),
-                "cem-tree",
-                color_options,
-            ) {
-                Ok(resolved) => resolved,
-                Err(message) => return json_output_pipeline_failed(diagnostic_uri, message),
-            };
-            let color_started = Instant::now();
-            let color_result = execute_conversion_cem_tree_output_stage(
-                environment,
-                color_stage,
-                &color_binding,
-                formatted_artifact
-                    .value
-                    .as_public_json_value()
-                    .expect("formatted CEM tree has a runtime payload"),
-            );
-            color_elapsed_ns = Some(color_started.elapsed().as_nanos());
-            let (colored_output, color_execution) = match color_result {
-                Ok(output) => output,
-                Err(message) => {
-                    return json_output_pipeline_failed_with_timings(
-                        diagnostic_uri,
-                        format!(
-                            "CEMT colorizer `{}` failed: {message}",
-                            color_binding.function.name
-                        ),
-                        format_elapsed_ns,
-                        color_elapsed_ns,
-                        None,
-                    );
-                }
-            };
-            let colored_artifact = TransformTemplateEncodedArtifact::from_public_json(
-                color_binding.identity.clone(),
-                colored_output,
-            );
-            let mut colored_context =
-                TransformTemplateEncodedArtifactInsertionContext::from_encoding_target(
-                    &target,
-                    Some(TransformTemplateOutputProducedKind::CemTree),
-                );
-            colored_context.formatter_profile = colored_artifact
-                .identity
-                .formatter_profile
-                .clone()
-                .or_else(|| Some(formatter_profile.clone()));
-            colored_context.color_profile = Some(color_profile.to_owned());
-            colored_context.mode = Some(TransformTemplateEncodedArtifactMode::Document);
-            colored_context.source_map_policy = Some(TransformTemplateSourceMapPolicy::Generated);
-            if let Err(error) = colored_artifact.validate_insertion(&colored_context) {
-                return json_output_pipeline_failed_with_timings(
-                    diagnostic_uri,
-                    error.diagnostic(diagnostic_uri).message,
-                    format_elapsed_ns,
-                    color_elapsed_ns,
-                    None,
-                );
-            }
-            (
-                colored_artifact.clone(),
-                Some(color_execution),
-                Some(colored_artifact),
-            )
-        } else {
-            (formatted_artifact.clone(), None, None)
-        };
-
-        let wrap_html_output = output_color_selection
-            .as_ref()
-            .is_some_and(json_output_color_selection_is_html)
-            || writer_artifact.identity.color_profile.as_deref() == Some("html");
-        let mut writer_context =
-            TransformTemplateEncodedArtifactInsertionContext::from_encoding_target(
-                &target,
-                Some(TransformTemplateOutputProducedKind::Text),
-            );
-        writer_context.formatter_profile = writer_artifact
-            .identity
-            .formatter_profile
-            .clone()
-            .or_else(|| Some(formatter_profile.clone()));
-        writer_context.color_profile = writer_artifact.identity.color_profile.clone();
-        writer_context.output_color_type = output_color_selection
-            .as_ref()
-            .map(|selection| selection.output_color_type.clone());
-        if output_color_selection
-            .as_ref()
-            .is_some_and(json_output_color_selection_is_terminal)
-        {
-            writer_context.color_capability = output_color_selection
-                .as_ref()
-                .map(|selection| selection.output_color_type.clone());
-        }
-        writer_context.mode = Some(TransformTemplateEncodedArtifactMode::Document);
-        writer_context.source_map_policy = Some(TransformTemplateSourceMapPolicy::Generated);
-        let evaluated = TransformTemplateEvaluatedEncodeExpression {
-            expression: TransformTemplateEncodeExpression {
-                owner: Some("json-direct-output".to_owned()),
-                expression: "json-direct-output writer".to_owned(),
-                subject: "json-document".to_owned(),
-                subject_type: Some("cem-tree".to_owned()),
-                target,
-                options: TransformTemplateEncodeOptions::default(),
-            },
-            subject: writer_artifact
-                .value
-                .as_public_json_value()
-                .cloned()
-                .expect("writer input is a CEMT evaluator tree"),
-            binding: TransformTemplateEncodeBinding {
-                function: json_output_function_descriptor(
-                    if color_execution.is_some() {
-                        JSON_COLOR_CEMT_STAGE_SPEC.function_name
-                    } else {
-                        JSON_FORMAT_CEMT_STAGE_SPEC.function_name
-                    },
-                    "json-document",
-                    if color_execution.is_some() {
-                        "cem-tree"
-                    } else {
-                        "json-document"
-                    },
-                    if color_execution.is_some() {
-                        TransformTemplateOutputFunctionKind::Color
-                    } else {
-                        TransformTemplateOutputFunctionKind::Format
-                    },
-                    TransformTemplateOutputProducedKind::CemTree,
-                    writer_artifact
-                        .identity
-                        .color_profile
-                        .clone()
-                        .or_else(|| writer_artifact.identity.formatter_profile.clone())
-                        .or_else(|| Some(formatter_profile.clone())),
-                ),
-                subject_type: "cem-tree".to_owned(),
-                identity: writer_artifact.identity.clone(),
-                options: TransformTemplateEncodeOptions::default(),
-            },
-            artifact: writer_artifact,
-        };
-        let writer_started = Instant::now();
-        let mut composition = compose_transform_template_encoded_text_artifacts(
-            &[evaluated],
-            &writer_context,
-            diagnostic_uri,
-        );
-        let writer_elapsed_ns = Some(writer_started.elapsed().as_nanos());
-        if !composition.diagnostics.is_empty() {
-            return ConversionOutputPipelineExecution {
-                output: None,
-                diagnostics: std::mem::take(&mut composition.diagnostics),
-                format_execution,
-                color_execution,
-                format_elapsed_ns,
-                color_elapsed_ns,
-                writer_elapsed_ns,
-                formatted_cem_tree: Some(formatted_artifact),
-                colored_cem_tree,
-                ..ConversionOutputPipelineExecution::default()
-            };
-        }
-        match composition.artifact {
-            Some(mut artifact) => {
-                if wrap_html_output {
-                    json_wrap_html_preview_artifact(&mut artifact, presentation_options.tab_size);
-                }
-                ConversionOutputPipelineExecution {
-                    output: Some(
-                        artifact
-                            .value
-                            .into_public_value()
-                            .expect("composed writer artifact projects to the public response"),
-                    ),
-                    raw_cem_tree: None,
-                    formatted_cemt_tree: None,
-                    colored_cemt_tree: None,
-                    formatted_materialized_cemt_tree: None,
-                    colored_materialized_cemt_tree: None,
-                    materialized_cemt_stage_output: None,
-                    source_map: artifact.source_map,
-                    output_spans: artifact.output_spans,
-                    format_execution,
-                    color_execution,
-                    format_elapsed_ns,
-                    color_elapsed_ns,
-                    writer_elapsed_ns,
-                    formatted_cem_tree: Some(formatted_artifact),
-                    colored_cem_tree,
-                    diagnostics: Vec::new(),
-                }
-            }
-            None => ConversionOutputPipelineExecution {
-                output: None,
-                format_execution,
-                color_execution,
-                format_elapsed_ns,
-                color_elapsed_ns,
-                writer_elapsed_ns,
-                formatted_cem_tree: Some(formatted_artifact),
-                colored_cem_tree,
-                ..ConversionOutputPipelineExecution::default()
-            },
-        }
-    }
+    )
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -10104,15 +8852,6 @@ pub fn execute_json_schema_document_output_pipeline_with_environment(
             line_ending,
         );
     }
-    #[cfg(test)]
-    if let Some(document_subject) = document.into_test_compatibility_cemt_subject() {
-        return execute_test_compatibility_json_schema_document_output_pipeline_with_environment(
-            environment,
-            document_subject,
-            target_scope,
-            diagnostic_uri,
-        );
-    }
     json_schema_output_pipeline_failed(
         diagnostic_uri,
         "JSON Schema output subject does not expose a native evaluator view".to_owned(),
@@ -10421,389 +9160,6 @@ fn execute_native_json_schema_document_output_pipeline(
         colored_cem_tree: colored_public,
         diagnostics: Vec::new(),
         ..ConversionOutputPipelineExecution::default()
-    }
-}
-
-#[cfg(test)]
-fn execute_test_compatibility_json_schema_document_output_pipeline_with_environment(
-    environment: &ConversionOutputPipelineEnvironment<'_>,
-    document: Value,
-    target_scope: &ScopeConfig,
-    diagnostic_uri: Option<&str>,
-) -> ConversionOutputPipelineExecution {
-    let formatter_name = match json_schema_formatter_name_for_scope(target_scope) {
-        Ok(name) => name,
-        Err(message) => return json_schema_output_pipeline_failed(diagnostic_uri, message),
-    };
-    let formatter_profile = match json_schema_formatter_profile_for_scope(target_scope) {
-        Ok(profile) => profile,
-        Err(message) => return json_schema_output_pipeline_failed(diagnostic_uri, message),
-    };
-    let presentation_options = match JsonFormatterPresentationOptions::from_options(
-        &target_scope.cemt_formatter_options,
-    ) {
-        Ok(options) => options,
-        Err(message) => return json_schema_output_pipeline_failed(diagnostic_uri, message),
-    };
-    let output_color_selection = match json_schema_output_color_selection_for_scope(target_scope) {
-        Ok(selection) => selection,
-        Err(message) => return json_schema_output_pipeline_failed(diagnostic_uri, message),
-    };
-    let source_line_ending = document
-        .get("json")
-        .and_then(|json| json.get("lineEnding"))
-        .and_then(Value::as_str)
-        .or_else(|| document.get("lineEnding").and_then(Value::as_str));
-    let line_ending = json_formatter_line_ending(source_line_ending, &presentation_options);
-    let document_subject = document;
-    let local_artifact_cache = ConversionOutputPipelineArtifactCache::default();
-    let cached_environment = if environment.artifact_cache.is_some() {
-        *environment
-    } else {
-        ConversionOutputPipelineEnvironment {
-            schema_registry: environment.schema_registry,
-            conversion_registry: environment.conversion_registry,
-            package_artifact_reader: environment.package_artifact_reader,
-            artifact_cache: Some(&local_artifact_cache),
-        }
-    };
-    let environment = &cached_environment;
-    let target = TransformTemplateEncodingTarget::new(
-        JSON_SCHEMA_CONTENT_TYPE,
-        JSON_SCHEMA_SCHEMA_URI,
-        "json-schema-document",
-    );
-    let format_options = TransformTemplateEncodeOptions {
-        formatter: Some(formatter_name.clone()),
-        formatter_profile: Some(formatter_profile.clone()),
-        formatter_options: target_scope.cemt_formatter_options.clone(),
-        line_ending: line_ending.clone(),
-        mode: TransformTemplateEncodedArtifactMode::Document,
-        canonical: formatter_profile == "compact",
-        source_map_policy: TransformTemplateSourceMapPolicy::Generated,
-        ..TransformTemplateEncodeOptions::default()
-    };
-    let (format_stage, format_binding) = match resolve_cemt_output_stage_binding(
-        environment,
-        "JSON Schema",
-        JSON_SCHEMA_FORMAT_CEMT_STAGE_SPEC,
-        &target,
-        Some(formatter_profile.as_str()),
-        Some(formatter_name.as_str()),
-        &document_subject,
-        "json-schema-document",
-        format_options,
-    ) {
-        Ok(resolved) => resolved,
-        Err(message) => return json_schema_output_pipeline_failed(diagnostic_uri, message),
-    };
-    let format_started = Instant::now();
-    let format_result = execute_conversion_cem_tree_output_stage(
-        environment,
-        format_stage,
-        &format_binding,
-        &document_subject,
-    );
-    let format_elapsed_ns = Some(format_started.elapsed().as_nanos());
-    let (formatted_output, format_execution) = match format_result {
-        Ok(output) => output,
-        Err(message) => {
-            return json_schema_output_pipeline_failed_with_timings(
-                diagnostic_uri,
-                format!(
-                    "CEMT formatter `{}` failed: {message}",
-                    format_binding.function.name
-                ),
-                format_elapsed_ns,
-                None,
-                None,
-            );
-        }
-    };
-    let format_execution = Some(format_execution);
-    let formatted_artifact = TransformTemplateEncodedArtifact::from_public_json(
-        format_binding.identity.clone(),
-        formatted_output,
-    );
-    let mut formatted_context =
-        TransformTemplateEncodedArtifactInsertionContext::from_encoding_target(
-            &target,
-            Some(TransformTemplateOutputProducedKind::CemTree),
-        );
-    formatted_context.formatter_profile = formatted_artifact
-        .identity
-        .formatter_profile
-        .clone()
-        .or_else(|| Some(formatter_profile.clone()));
-    formatted_context.mode = Some(TransformTemplateEncodedArtifactMode::Document);
-    formatted_context.canonical = Some(formatter_profile == "compact");
-    formatted_context.source_map_policy = Some(TransformTemplateSourceMapPolicy::Generated);
-    if let Err(error) = formatted_artifact.validate_insertion(&formatted_context) {
-        return json_schema_output_pipeline_failed_with_timings(
-            diagnostic_uri,
-            error.diagnostic(diagnostic_uri).message,
-            format_elapsed_ns,
-            None,
-            None,
-        );
-    }
-
-    let cemt_color_profile = match json_schema_cemt_color_profile_for_output(
-        target_scope,
-        output_color_selection.as_ref(),
-    ) {
-        Ok(profile) => profile,
-        Err(message) => return json_schema_output_pipeline_failed(diagnostic_uri, message),
-    };
-    let wants_color = target_scope
-        .cemt_colorizer
-        .as_deref()
-        .map(str::trim)
-        .is_some_and(|name| !name.is_empty())
-        || cemt_color_profile.is_some()
-        || output_color_selection
-            .as_ref()
-            .is_some_and(json_schema_output_color_selection_requests_color);
-    let mut color_elapsed_ns = None;
-    let (writer_artifact, color_execution, colored_cem_tree) = if wants_color {
-        let colorizer_name = target_scope
-            .cemt_colorizer
-            .as_deref()
-            .map(str::trim)
-            .filter(|name| !name.is_empty())
-            .unwrap_or(JSON_SCHEMA_COLOR_CEMT_STAGE_SPEC.function_name);
-        let color_profile = cemt_color_profile.as_deref().unwrap_or("terminal");
-        let color_options = TransformTemplateEncodeOptions {
-            formatter_options: target_scope.cemt_formatter_options.clone(),
-            formatter_profile: formatted_artifact
-                .identity
-                .formatter_profile
-                .clone()
-                .or_else(|| Some(formatter_profile.clone())),
-            colorizer: Some(colorizer_name.to_owned()),
-            color_profile: Some(color_profile.to_owned()),
-            line_ending: line_ending.clone(),
-            mode: TransformTemplateEncodedArtifactMode::Document,
-            canonical: false,
-            source_map_policy: TransformTemplateSourceMapPolicy::Generated,
-            ..TransformTemplateEncodeOptions::default()
-        };
-        let (color_stage, color_binding) = match resolve_cemt_output_stage_binding(
-            environment,
-            "JSON Schema",
-            JSON_SCHEMA_COLOR_CEMT_STAGE_SPEC,
-            &target,
-            Some(color_profile),
-            Some(colorizer_name),
-            formatted_artifact
-                .value
-                .as_public_json_value()
-                .expect("formatted CEM tree has a runtime payload"),
-            "cem-tree",
-            color_options,
-        ) {
-            Ok(resolved) => resolved,
-            Err(message) => return json_schema_output_pipeline_failed(diagnostic_uri, message),
-        };
-        let color_started = Instant::now();
-        let color_result = execute_conversion_cem_tree_output_stage(
-            environment,
-            color_stage,
-            &color_binding,
-            formatted_artifact
-                .value
-                .as_public_json_value()
-                .expect("formatted CEM tree has a runtime payload"),
-        );
-        color_elapsed_ns = Some(color_started.elapsed().as_nanos());
-        let (colored_output, color_execution) = match color_result {
-            Ok(output) => output,
-            Err(message) => {
-                return json_schema_output_pipeline_failed_with_timings(
-                    diagnostic_uri,
-                    format!(
-                        "CEMT colorizer `{}` failed: {message}",
-                        color_binding.function.name
-                    ),
-                    format_elapsed_ns,
-                    color_elapsed_ns,
-                    None,
-                );
-            }
-        };
-        let colored_artifact = TransformTemplateEncodedArtifact::from_public_json(
-            color_binding.identity.clone(),
-            colored_output,
-        );
-        let mut colored_context =
-            TransformTemplateEncodedArtifactInsertionContext::from_encoding_target(
-                &target,
-                Some(TransformTemplateOutputProducedKind::CemTree),
-            );
-        colored_context.formatter_profile = colored_artifact
-            .identity
-            .formatter_profile
-            .clone()
-            .or_else(|| Some(formatter_profile.clone()));
-        colored_context.color_profile = Some(color_profile.to_owned());
-        colored_context.mode = Some(TransformTemplateEncodedArtifactMode::Document);
-        colored_context.source_map_policy = Some(TransformTemplateSourceMapPolicy::Generated);
-        if let Err(error) = colored_artifact.validate_insertion(&colored_context) {
-            return json_schema_output_pipeline_failed_with_timings(
-                diagnostic_uri,
-                error.diagnostic(diagnostic_uri).message,
-                format_elapsed_ns,
-                color_elapsed_ns,
-                None,
-            );
-        }
-        (
-            colored_artifact.clone(),
-            Some(color_execution),
-            Some(colored_artifact),
-        )
-    } else {
-        (formatted_artifact.clone(), None, None)
-    };
-
-    let wrap_html_output = output_color_selection
-        .as_ref()
-        .is_some_and(json_schema_output_color_selection_is_html)
-        || writer_artifact.identity.color_profile.as_deref() == Some("html");
-    let mut writer_context = TransformTemplateEncodedArtifactInsertionContext::from_encoding_target(
-        &target,
-        Some(TransformTemplateOutputProducedKind::Text),
-    );
-    writer_context.formatter_profile = writer_artifact
-        .identity
-        .formatter_profile
-        .clone()
-        .or_else(|| Some(formatter_profile.clone()));
-    writer_context.color_profile = writer_artifact.identity.color_profile.clone();
-    writer_context.output_color_type = output_color_selection
-        .as_ref()
-        .map(|selection| selection.output_color_type.clone());
-    if output_color_selection
-        .as_ref()
-        .is_some_and(json_schema_output_color_selection_is_terminal)
-    {
-        writer_context.color_capability = output_color_selection
-            .as_ref()
-            .map(|selection| selection.output_color_type.clone());
-    }
-    writer_context.mode = Some(TransformTemplateEncodedArtifactMode::Document);
-    writer_context.source_map_policy = Some(TransformTemplateSourceMapPolicy::Generated);
-    let evaluated = TransformTemplateEvaluatedEncodeExpression {
-        expression: TransformTemplateEncodeExpression {
-            owner: Some("json-schema-direct-output".to_owned()),
-            expression: "json-schema-direct-output writer".to_owned(),
-            subject: "json-schema-document".to_owned(),
-            subject_type: Some("cem-tree".to_owned()),
-            target,
-            options: TransformTemplateEncodeOptions::default(),
-        },
-        subject: writer_artifact
-            .value
-            .as_public_json_value()
-            .cloned()
-            .expect("writer input is a CEMT evaluator tree"),
-        binding: TransformTemplateEncodeBinding {
-            function: json_schema_output_function_descriptor(
-                if color_execution.is_some() {
-                    JSON_SCHEMA_COLOR_CEMT_STAGE_SPEC.function_name
-                } else {
-                    JSON_SCHEMA_FORMAT_CEMT_STAGE_SPEC.function_name
-                },
-                "json-schema-document",
-                if color_execution.is_some() {
-                    "cem-tree"
-                } else {
-                    "json-schema-document"
-                },
-                if color_execution.is_some() {
-                    TransformTemplateOutputFunctionKind::Color
-                } else {
-                    TransformTemplateOutputFunctionKind::Format
-                },
-                TransformTemplateOutputProducedKind::CemTree,
-                writer_artifact
-                    .identity
-                    .color_profile
-                    .clone()
-                    .or_else(|| writer_artifact.identity.formatter_profile.clone())
-                    .or_else(|| Some(formatter_profile.clone())),
-            ),
-            subject_type: "cem-tree".to_owned(),
-            identity: writer_artifact.identity.clone(),
-            options: TransformTemplateEncodeOptions::default(),
-        },
-        artifact: writer_artifact,
-    };
-    let writer_started = Instant::now();
-    let mut composition = compose_transform_template_encoded_text_artifacts(
-        &[evaluated],
-        &writer_context,
-        diagnostic_uri,
-    );
-    let writer_elapsed_ns = Some(writer_started.elapsed().as_nanos());
-    if !composition.diagnostics.is_empty() {
-        return ConversionOutputPipelineExecution {
-            output: None,
-            diagnostics: std::mem::take(&mut composition.diagnostics),
-            format_execution,
-            color_execution,
-            format_elapsed_ns,
-            color_elapsed_ns,
-            writer_elapsed_ns,
-            formatted_cem_tree: Some(formatted_artifact),
-            colored_cem_tree,
-            ..ConversionOutputPipelineExecution::default()
-        };
-    }
-    match composition.artifact {
-        Some(mut artifact) => {
-            if wrap_html_output {
-                json_schema_wrap_html_preview_artifact(
-                    &mut artifact,
-                    presentation_options.tab_size,
-                );
-            }
-            ConversionOutputPipelineExecution {
-                output: Some(
-                    artifact
-                        .value
-                        .into_public_value()
-                        .expect("composed writer artifact projects to the public response"),
-                ),
-                raw_cem_tree: None,
-                formatted_cemt_tree: None,
-                colored_cemt_tree: None,
-                formatted_materialized_cemt_tree: None,
-                colored_materialized_cemt_tree: None,
-                materialized_cemt_stage_output: None,
-                source_map: artifact.source_map,
-                output_spans: artifact.output_spans,
-                format_execution,
-                color_execution,
-                format_elapsed_ns,
-                color_elapsed_ns,
-                writer_elapsed_ns,
-                formatted_cem_tree: Some(formatted_artifact),
-                colored_cem_tree,
-                diagnostics: Vec::new(),
-            }
-        }
-        None => ConversionOutputPipelineExecution {
-            output: None,
-            format_execution,
-            color_execution,
-            format_elapsed_ns,
-            color_elapsed_ns,
-            writer_elapsed_ns,
-            formatted_cem_tree: Some(formatted_artifact),
-            colored_cem_tree,
-            ..ConversionOutputPipelineExecution::default()
-        },
     }
 }
 
@@ -11124,28 +9480,6 @@ fn json_formatter_line_ending(
     resolve_formatter_line_ending(source_line_ending, options.line_ending)
 }
 
-fn json_output_function_descriptor(
-    name: &str,
-    category: &str,
-    subject: &str,
-    kind: TransformTemplateOutputFunctionKind,
-    produces: TransformTemplateOutputProducedKind,
-    profile: Option<String>,
-) -> TransformTemplateOutputFunctionDescriptor {
-    cemt_output_function_descriptor(CemtOutputFunctionDescriptorSpec {
-        owner: "json",
-        name,
-        category,
-        subject,
-        kind,
-        produces,
-        content_type: JSON_CONTENT_TYPE,
-        schema: JSON_VALUE_SCHEMA_URI,
-        canonical: false,
-        profile,
-    })
-}
-
 fn json_output_pipeline_failed(
     diagnostic_uri: Option<&str>,
     message: String,
@@ -11169,29 +9503,6 @@ fn json_output_pipeline_failed_with_timings(
         color_elapsed_ns,
         writer_elapsed_ns,
     )
-}
-
-#[cfg(test)]
-fn json_schema_output_function_descriptor(
-    name: &str,
-    category: &str,
-    subject: &str,
-    kind: TransformTemplateOutputFunctionKind,
-    produces: TransformTemplateOutputProducedKind,
-    profile: Option<String>,
-) -> TransformTemplateOutputFunctionDescriptor {
-    cemt_output_function_descriptor(CemtOutputFunctionDescriptorSpec {
-        owner: "json-schema",
-        name,
-        category,
-        subject,
-        kind,
-        produces,
-        content_type: JSON_SCHEMA_CONTENT_TYPE,
-        schema: JSON_SCHEMA_SCHEMA_URI,
-        canonical: false,
-        profile,
-    })
 }
 
 fn json_schema_output_pipeline_failed(
@@ -11225,12 +9536,6 @@ pub trait MarkdownDocumentOutputSubject {
     fn native_cemt_subject(&self) -> Option<CemtEvaluatorValue<'_>> {
         None
     }
-    fn into_test_compatibility_cemt_subject(self) -> Option<Value>
-    where
-        Self: Sized,
-    {
-        None
-    }
 }
 
 impl MarkdownDocumentOutputSubject for MarkdownDocumentAst {
@@ -11246,21 +9551,6 @@ impl MarkdownDocumentOutputSubject for MarkdownDocumentAst {
         Some(CemtEvaluatorValue::borrowed(
             MarkdownDocumentCemtSubjectRef::new(self).evaluator_view(),
         ))
-    }
-}
-
-#[cfg(test)]
-impl MarkdownDocumentOutputSubject for Value {
-    fn source_line_ending(&self) -> Option<&str> {
-        self.get("lineEnding").and_then(Value::as_str)
-    }
-
-    fn input_representation_id(&self) -> &'static str {
-        "cem.test-markdown-value-oracle"
-    }
-
-    fn native_cemt_subject(&self) -> Option<CemtEvaluatorValue<'_>> {
-        cemt_typed_runtime_value_from_adapter(self).ok()
     }
 }
 
@@ -11317,358 +9607,10 @@ pub fn execute_markdown_document_output_pipeline_with_environment(
             input_representation_id,
         );
     }
-    #[cfg(not(test))]
-    return markdown_output_pipeline_failed(
+    markdown_output_pipeline_failed(
         diagnostic_uri,
         "Markdown output subject does not expose a native evaluator view".to_owned(),
-    );
-    #[cfg(test)]
-    {
-        let Some(document_subject) = document.into_test_compatibility_cemt_subject() else {
-            return markdown_output_pipeline_failed(
-                diagnostic_uri,
-                "Markdown output subject does not expose a native evaluator view".to_owned(),
-            );
-        };
-        let target = TransformTemplateEncodingTarget::new(
-            MARKDOWN_CONTENT_TYPE,
-            MARKDOWN_SCHEMA_URI,
-            "markdown-document",
-        );
-        let format_options = TransformTemplateEncodeOptions {
-            formatter: Some(formatter_name.clone()),
-            formatter_profile: Some(formatter_profile.clone()),
-            formatter_options: target_scope.cemt_formatter_options.clone(),
-            line_ending: line_ending.clone(),
-            mode: TransformTemplateEncodedArtifactMode::Document,
-            canonical: formatter_profile == "compact",
-            source_map_policy: TransformTemplateSourceMapPolicy::Generated,
-            ..TransformTemplateEncodeOptions::default()
-        };
-        let (format_stage, format_binding) = match resolve_cemt_output_stage_binding(
-            environment,
-            "Markdown",
-            MARKDOWN_FORMAT_CEMT_STAGE_SPEC,
-            &target,
-            Some(formatter_profile.as_str()),
-            Some(formatter_name.as_str()),
-            &document_subject,
-            "markdown-document",
-            format_options,
-        ) {
-            Ok(resolved) => resolved,
-            Err(message) => return markdown_output_pipeline_failed(diagnostic_uri, message),
-        };
-        let format_started = Instant::now();
-        let format_result = execute_conversion_cem_tree_output_stage(
-            environment,
-            format_stage,
-            &format_binding,
-            &document_subject,
-        );
-        let format_elapsed_ns = Some(format_started.elapsed().as_nanos());
-        let (formatted_output, format_execution) = match format_result {
-            Ok(output) => output,
-            Err(message) => {
-                return markdown_output_pipeline_failed_with_timings(
-                    diagnostic_uri,
-                    format!(
-                        "CEMT formatter `{}` failed: {message}",
-                        format_binding.function.name
-                    ),
-                    format_elapsed_ns,
-                    None,
-                    None,
-                );
-            }
-        };
-        let format_execution = Some(format_execution);
-        let formatted_artifact = TransformTemplateEncodedArtifact::from_public_json(
-            format_binding.identity.clone(),
-            formatted_output,
-        );
-        let mut formatted_context =
-            TransformTemplateEncodedArtifactInsertionContext::from_encoding_target(
-                &target,
-                Some(TransformTemplateOutputProducedKind::CemTree),
-            );
-        formatted_context.formatter_profile = formatted_artifact
-            .identity
-            .formatter_profile
-            .clone()
-            .or_else(|| Some(formatter_profile.clone()));
-        formatted_context.mode = Some(TransformTemplateEncodedArtifactMode::Document);
-        formatted_context.canonical = Some(formatter_profile == "compact");
-        formatted_context.source_map_policy = Some(TransformTemplateSourceMapPolicy::Generated);
-        if let Err(error) = formatted_artifact.validate_insertion(&formatted_context) {
-            return markdown_output_pipeline_failed_with_timings(
-                diagnostic_uri,
-                error.diagnostic(diagnostic_uri).message,
-                format_elapsed_ns,
-                None,
-                None,
-            );
-        }
-
-        let cemt_color_profile = match markdown_cemt_color_profile_for_output(
-            target_scope,
-            output_color_selection.as_ref(),
-        ) {
-            Ok(profile) => profile,
-            Err(message) => return markdown_output_pipeline_failed(diagnostic_uri, message),
-        };
-        let wants_color = target_scope
-            .cemt_colorizer
-            .as_deref()
-            .map(str::trim)
-            .is_some_and(|name| !name.is_empty())
-            || cemt_color_profile.is_some()
-            || output_color_selection
-                .as_ref()
-                .is_some_and(markdown_output_color_selection_requests_color);
-        let mut color_elapsed_ns = None;
-        let (writer_artifact, color_execution, colored_cem_tree) = if wants_color {
-            let colorizer_name = target_scope
-                .cemt_colorizer
-                .as_deref()
-                .map(str::trim)
-                .filter(|name| !name.is_empty())
-                .unwrap_or(MARKDOWN_COLOR_CEMT_STAGE_SPEC.function_name);
-            let color_profile = cemt_color_profile.as_deref().unwrap_or("terminal");
-            let color_options = TransformTemplateEncodeOptions {
-                formatter_options: target_scope.cemt_formatter_options.clone(),
-                formatter_profile: formatted_artifact
-                    .identity
-                    .formatter_profile
-                    .clone()
-                    .or_else(|| Some(formatter_profile.clone())),
-                colorizer: Some(colorizer_name.to_owned()),
-                color_profile: Some(color_profile.to_owned()),
-                line_ending: line_ending.clone(),
-                mode: TransformTemplateEncodedArtifactMode::Document,
-                canonical: false,
-                source_map_policy: TransformTemplateSourceMapPolicy::Generated,
-                ..TransformTemplateEncodeOptions::default()
-            };
-            let (color_stage, color_binding) = match resolve_cemt_output_stage_binding(
-                environment,
-                "Markdown",
-                MARKDOWN_COLOR_CEMT_STAGE_SPEC,
-                &target,
-                Some(color_profile),
-                Some(colorizer_name),
-                formatted_artifact
-                    .value
-                    .as_public_json_value()
-                    .expect("formatted CEM tree has a runtime payload"),
-                "cem-tree",
-                color_options,
-            ) {
-                Ok(resolved) => resolved,
-                Err(message) => return markdown_output_pipeline_failed(diagnostic_uri, message),
-            };
-            let color_started = Instant::now();
-            let color_result = execute_conversion_cem_tree_output_stage(
-                environment,
-                color_stage,
-                &color_binding,
-                formatted_artifact
-                    .value
-                    .as_public_json_value()
-                    .expect("formatted CEM tree has a runtime payload"),
-            );
-            color_elapsed_ns = Some(color_started.elapsed().as_nanos());
-            let (colored_output, color_execution) = match color_result {
-                Ok(output) => output,
-                Err(message) => {
-                    return markdown_output_pipeline_failed_with_timings(
-                        diagnostic_uri,
-                        format!(
-                            "CEMT colorizer `{}` failed: {message}",
-                            color_binding.function.name
-                        ),
-                        format_elapsed_ns,
-                        color_elapsed_ns,
-                        None,
-                    );
-                }
-            };
-            let colored_artifact = TransformTemplateEncodedArtifact::from_public_json(
-                color_binding.identity.clone(),
-                colored_output,
-            );
-            let mut colored_context =
-                TransformTemplateEncodedArtifactInsertionContext::from_encoding_target(
-                    &target,
-                    Some(TransformTemplateOutputProducedKind::CemTree),
-                );
-            colored_context.formatter_profile = colored_artifact
-                .identity
-                .formatter_profile
-                .clone()
-                .or_else(|| Some(formatter_profile.clone()));
-            colored_context.color_profile = Some(color_profile.to_owned());
-            colored_context.mode = Some(TransformTemplateEncodedArtifactMode::Document);
-            colored_context.source_map_policy = Some(TransformTemplateSourceMapPolicy::Generated);
-            if let Err(error) = colored_artifact.validate_insertion(&colored_context) {
-                return markdown_output_pipeline_failed_with_timings(
-                    diagnostic_uri,
-                    error.diagnostic(diagnostic_uri).message,
-                    format_elapsed_ns,
-                    color_elapsed_ns,
-                    None,
-                );
-            }
-            (
-                colored_artifact.clone(),
-                Some(color_execution),
-                Some(colored_artifact),
-            )
-        } else {
-            (formatted_artifact.clone(), None, None)
-        };
-
-        let wrap_html_output = output_color_selection
-            .as_ref()
-            .is_some_and(markdown_output_color_selection_is_html)
-            || writer_artifact.identity.color_profile.as_deref() == Some("html");
-        let mut writer_context =
-            TransformTemplateEncodedArtifactInsertionContext::from_encoding_target(
-                &target,
-                Some(TransformTemplateOutputProducedKind::Text),
-            );
-        writer_context.formatter_profile = writer_artifact
-            .identity
-            .formatter_profile
-            .clone()
-            .or_else(|| Some(formatter_profile.clone()));
-        writer_context.color_profile = writer_artifact.identity.color_profile.clone();
-        writer_context.output_color_type = output_color_selection
-            .as_ref()
-            .map(|selection| selection.output_color_type.clone());
-        if output_color_selection
-            .as_ref()
-            .is_some_and(markdown_output_color_selection_is_terminal)
-        {
-            writer_context.color_capability = output_color_selection
-                .as_ref()
-                .map(|selection| selection.output_color_type.clone());
-        }
-        writer_context.mode = Some(TransformTemplateEncodedArtifactMode::Document);
-        writer_context.source_map_policy = Some(TransformTemplateSourceMapPolicy::Generated);
-        let evaluated = TransformTemplateEvaluatedEncodeExpression {
-            expression: TransformTemplateEncodeExpression {
-                owner: Some("markdown-direct-output".to_owned()),
-                expression: "markdown-direct-output writer".to_owned(),
-                subject: "markdown-document".to_owned(),
-                subject_type: Some("cem-tree".to_owned()),
-                target,
-                options: TransformTemplateEncodeOptions::default(),
-            },
-            subject: writer_artifact
-                .value
-                .as_public_json_value()
-                .cloned()
-                .expect("writer input is a CEMT evaluator tree"),
-            binding: TransformTemplateEncodeBinding {
-                function: markdown_output_function_descriptor(
-                    if color_execution.is_some() {
-                        MARKDOWN_COLOR_CEMT_STAGE_SPEC.function_name
-                    } else {
-                        MARKDOWN_FORMAT_CEMT_STAGE_SPEC.function_name
-                    },
-                    "markdown-document",
-                    if color_execution.is_some() {
-                        "cem-tree"
-                    } else {
-                        "markdown-document"
-                    },
-                    if color_execution.is_some() {
-                        TransformTemplateOutputFunctionKind::Color
-                    } else {
-                        TransformTemplateOutputFunctionKind::Format
-                    },
-                    TransformTemplateOutputProducedKind::CemTree,
-                    writer_artifact
-                        .identity
-                        .color_profile
-                        .clone()
-                        .or_else(|| writer_artifact.identity.formatter_profile.clone())
-                        .or_else(|| Some(formatter_profile.clone())),
-                ),
-                subject_type: "cem-tree".to_owned(),
-                identity: writer_artifact.identity.clone(),
-                options: TransformTemplateEncodeOptions::default(),
-            },
-            artifact: writer_artifact,
-        };
-        let writer_started = Instant::now();
-        let mut composition = compose_transform_template_encoded_text_artifacts(
-            &[evaluated],
-            &writer_context,
-            diagnostic_uri,
-        );
-        let writer_elapsed_ns = Some(writer_started.elapsed().as_nanos());
-        if !composition.diagnostics.is_empty() {
-            return ConversionOutputPipelineExecution {
-                output: None,
-                diagnostics: std::mem::take(&mut composition.diagnostics),
-                format_execution,
-                color_execution,
-                format_elapsed_ns,
-                color_elapsed_ns,
-                writer_elapsed_ns,
-                formatted_cem_tree: Some(formatted_artifact),
-                colored_cem_tree,
-                ..ConversionOutputPipelineExecution::default()
-            };
-        }
-        match composition.artifact {
-            Some(mut artifact) => {
-                if wrap_html_output {
-                    markdown_wrap_html_preview_artifact(
-                        &mut artifact,
-                        presentation_options.tab_size,
-                    );
-                }
-                ConversionOutputPipelineExecution {
-                    output: Some(
-                        artifact
-                            .value
-                            .into_public_value()
-                            .expect("composed writer artifact projects to the public response"),
-                    ),
-                    raw_cem_tree: None,
-                    formatted_cemt_tree: None,
-                    colored_cemt_tree: None,
-                    formatted_materialized_cemt_tree: None,
-                    colored_materialized_cemt_tree: None,
-                    materialized_cemt_stage_output: None,
-                    source_map: artifact.source_map,
-                    output_spans: artifact.output_spans,
-                    format_execution,
-                    color_execution,
-                    format_elapsed_ns,
-                    color_elapsed_ns,
-                    writer_elapsed_ns,
-                    formatted_cem_tree: Some(formatted_artifact),
-                    colored_cem_tree,
-                    diagnostics: Vec::new(),
-                }
-            }
-            None => ConversionOutputPipelineExecution {
-                output: None,
-                format_execution,
-                color_execution,
-                format_elapsed_ns,
-                color_elapsed_ns,
-                writer_elapsed_ns,
-                formatted_cem_tree: Some(formatted_artifact),
-                colored_cem_tree,
-                ..ConversionOutputPipelineExecution::default()
-            },
-        }
-    }
+    )
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -12218,12 +10160,6 @@ pub trait XmlDocumentOutputSubject {
     fn native_cemt_subject(&self) -> Option<CemtEvaluatorValue<'_>> {
         None
     }
-    fn into_test_compatibility_cemt_subject(self) -> Option<Value>
-    where
-        Self: Sized,
-    {
-        None
-    }
 }
 
 impl XmlDocumentOutputSubject for XmlDocumentAst {
@@ -12335,21 +10271,6 @@ impl XmlDocumentOutputSubject for XsltStylesheetAst {
         Some(CemtEvaluatorValue::borrowed(
             XmlFamilyDocumentCemtSubjectRef::xslt(self).evaluator_view(),
         ))
-    }
-}
-
-#[cfg(test)]
-impl XmlDocumentOutputSubject for Value {
-    fn source_line_ending(&self) -> Option<&str> {
-        self.get("lineEnding").and_then(Value::as_str)
-    }
-
-    fn input_representation_id(&self) -> &'static str {
-        "cem.test-xml-family-value-oracle"
-    }
-
-    fn native_cemt_subject(&self) -> Option<CemtEvaluatorValue<'_>> {
-        cemt_typed_runtime_value_from_adapter(self).ok()
     }
 }
 
@@ -12759,8 +10680,6 @@ fn execute_xml_family_document_output_pipeline_with_environment(
         }
     };
     let environment = &cached_environment;
-    #[cfg(test)]
-    let format_options = pipeline.cemt_options.clone();
     if let Some(document_subject) = document.native_cemt_subject() {
         return execute_native_xml_family_document_output_pipeline(
             environment,
@@ -12774,105 +10693,14 @@ fn execute_xml_family_document_output_pipeline_with_environment(
             input_representation_id,
         );
     }
-    #[cfg(not(test))]
-    return xml_family_output_pipeline_failed(
+    xml_family_output_pipeline_failed(
         diagnostic_uri,
         format!(
             "{} output subject does not expose a native evaluator view",
             spec.label
         ),
         spec,
-    );
-    #[cfg(test)]
-    {
-        let Some(document_subject) = document.into_test_compatibility_cemt_subject() else {
-            return xml_family_output_pipeline_failed(
-                diagnostic_uri,
-                format!(
-                    "{} output subject does not expose a native evaluator view",
-                    spec.label
-                ),
-                spec,
-            );
-        };
-        let (format_stage, format_binding) = match resolve_cemt_output_stage_binding(
-            environment,
-            spec.label,
-            spec.formatter,
-            &pipeline.cemt_target,
-            Some(formatter_profile),
-            Some(formatter_name),
-            &document_subject,
-            spec.subject_kind,
-            format_options,
-        ) {
-            Ok(resolved) => resolved,
-            Err(message) => {
-                return xml_family_output_pipeline_failed(diagnostic_uri, message, spec)
-            }
-        };
-        let resolved_formatter_profile = format_binding
-            .identity
-            .formatter_profile
-            .clone()
-            .unwrap_or_else(|| formatter_profile.to_owned());
-        pipeline.cemt_options.formatter_profile = Some(resolved_formatter_profile.clone());
-        pipeline.cemt_insertion_context.formatter_profile =
-            Some(resolved_formatter_profile.clone());
-        pipeline.writer_insertion_context.formatter_profile = Some(resolved_formatter_profile);
-        let format_started = Instant::now();
-        let format_result = execute_conversion_cem_tree_output_stage(
-            environment,
-            format_stage,
-            &format_binding,
-            &document_subject,
-        );
-        let format_elapsed_ns = Some(format_started.elapsed().as_nanos());
-        let (formatted_output, format_execution) = match format_result {
-            Ok(output) => output,
-            Err(message) => {
-                return xml_family_output_pipeline_failed_with_timings(
-                    diagnostic_uri,
-                    format!(
-                        "CEMT formatter `{}` failed: {message}",
-                        format_binding.function.name
-                    ),
-                    format_elapsed_ns,
-                    None,
-                    None,
-                    spec,
-                )
-            }
-        };
-        let formatted_artifact = TransformTemplateEncodedArtifact::from_public_json(
-            format_binding.identity.clone(),
-            formatted_output,
-        );
-        if let Err(error) = formatted_artifact
-            .validate_insertion(&conversion_cem_tree_format_insertion_context(&pipeline))
-        {
-            return xml_family_output_pipeline_failed_with_timings(
-                diagnostic_uri,
-                error.diagnostic(diagnostic_uri).message,
-                format_elapsed_ns,
-                None,
-                None,
-                spec,
-            );
-        }
-        execute_conversion_output_pipeline_from_formatted_artifact(
-            environment,
-            &pipeline,
-            formatted_artifact,
-            None,
-            Some(format_execution),
-            format_elapsed_ns,
-            Vec::new(),
-            spec.converter_id,
-            Some(spec.diagnostic_node),
-            diagnostic_uri,
-        )
-    }
+    )
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -13425,242 +11253,6 @@ fn relax_ng_output_pipeline_failed_with_timings(
     )
 }
 
-fn conversion_output_pipeline_formatted_cem_tree_artifact(
-    pipeline: &ConversionOutputPipeline,
-    value: Value,
-    source_map: Option<SourceMapStack>,
-    output_spans: Vec<OutputSpan>,
-) -> TransformTemplateEncodedArtifact {
-    TransformTemplateEncodedArtifact {
-        identity: TransformTemplateEncodedArtifactIdentity::from_options(
-            TransformTemplateOutputProducedKind::CemTree,
-            pipeline.cemt_target.clone(),
-            &pipeline.cemt_options,
-        ),
-        value: TransformTemplateEncodedArtifactPayload::PublicJson(
-            conversion_output_pipeline_formatted_cem_tree_value(pipeline, value),
-        ),
-        source_map,
-        output_spans,
-        encoded: true,
-    }
-}
-
-fn conversion_output_pipeline_formatted_cem_tree_value(
-    pipeline: &ConversionOutputPipeline,
-    value: Value,
-) -> Value {
-    let apply_envelope_defaults = |object: &mut serde_json::Map<String, Value>| {
-        object
-            .entry("contentType".to_owned())
-            .or_insert_with(|| Value::String(pipeline.cemt_target.content_type.clone()));
-        object
-            .entry("schema".to_owned())
-            .or_insert_with(|| Value::String(pipeline.cemt_target.schema.clone()));
-        object
-            .entry("category".to_owned())
-            .or_insert_with(|| Value::String(pipeline.cemt_target.category.clone()));
-        object
-            .entry("mode".to_owned())
-            .or_insert_with(|| Value::String(pipeline.cemt_options.mode.as_str().to_owned()));
-        object
-            .entry("canonical".to_owned())
-            .or_insert_with(|| Value::Bool(pipeline.cemt_options.canonical));
-        if let Some(formatter_profile) = pipeline.cemt_options.formatter_profile.as_ref() {
-            object.insert(
-                "formatterProfile".to_owned(),
-                Value::String(formatter_profile.clone()),
-            );
-            object.entry("formatNodes".to_owned()).or_insert_with(|| {
-                Value::Array(vec![
-                    serde_json::json!({
-                        "kind": "format-marker",
-                        "name": "cem.format-tree",
-                        "formatterRole": "formatter.boundary",
-                        "formatterProfile": formatter_profile,
-                    }),
-                    serde_json::json!({
-                        "kind": "format-decision",
-                        "name": "converter-cemt",
-                        "formatterRole": "formatter.converter",
-                        "formatterProfile": formatter_profile,
-                        "value": "converter CEMT produced formatted tree",
-                    }),
-                ])
-            });
-        }
-    };
-
-    match value {
-        Value::Object(object) if object.get("kind").and_then(Value::as_str) == Some("cem-tree") => {
-            Value::Object(object)
-        }
-        Value::Array(nodes) => {
-            let mut object = serde_json::Map::new();
-            object.insert("kind".to_owned(), Value::String("cem-tree".to_owned()));
-            object.insert("nodes".to_owned(), Value::Array(nodes));
-            apply_envelope_defaults(&mut object);
-            conversion_output_pipeline_normalize_formatted_cem_tree_nodes(&mut object);
-            Value::Object(object)
-        }
-        Value::Object(node) => {
-            let mut object = serde_json::Map::new();
-            object.insert("kind".to_owned(), Value::String("cem-tree".to_owned()));
-            object.insert("node".to_owned(), Value::Object(node));
-            apply_envelope_defaults(&mut object);
-            conversion_output_pipeline_normalize_formatted_cem_tree_nodes(&mut object);
-            Value::Object(object)
-        }
-        other => {
-            let mut object = serde_json::Map::new();
-            object.insert("kind".to_owned(), Value::String("cem-tree".to_owned()));
-            object.insert("root".to_owned(), other);
-            apply_envelope_defaults(&mut object);
-            conversion_output_pipeline_normalize_formatted_cem_tree_nodes(&mut object);
-            Value::Object(object)
-        }
-    }
-}
-
-fn conversion_output_pipeline_claimed_formatted_cem_tree_diagnostic(
-    pipeline: &ConversionOutputPipeline,
-    value: &Value,
-    converter_id: &str,
-    diagnostic_node: Option<&str>,
-    diagnostic_uri: Option<&str>,
-) -> Option<Diagnostic> {
-    let object = value.as_object()?;
-    if object.get("kind").and_then(Value::as_str) != Some("cem-tree") {
-        return None;
-    }
-
-    let formatter_profile = object
-        .get("formatterProfile")
-        .and_then(Value::as_str)
-        .map(str::trim)
-        .filter(|value| !value.is_empty());
-    let Some(formatter_profile) = formatter_profile else {
-        return Some(output_pipeline_diagnostic(
-            converter_id,
-            diagnostic_node,
-            diagnostic_uri,
-            "converter output claims formatted CEM tree but omits required formatter metadata `formatterProfile`".to_owned(),
-        ));
-    };
-    if let Some(expected) = pipeline
-        .cemt_options
-        .formatter_profile
-        .as_deref()
-        .map(str::trim)
-        .filter(|value| !value.is_empty())
-    {
-        if formatter_profile != expected {
-            return Some(output_pipeline_diagnostic(
-                converter_id,
-                diagnostic_node,
-                diagnostic_uri,
-                format!(
-                    "converter output claims formatted CEM tree with formatterProfile `{formatter_profile}` but the output pipeline expects `{expected}`"
-                ),
-            ));
-        }
-    }
-
-    let Some(format_nodes) = object
-        .get("formatNodes")
-        .and_then(Value::as_array)
-        .filter(|nodes| !nodes.is_empty())
-    else {
-        return Some(output_pipeline_diagnostic(
-            converter_id,
-            diagnostic_node,
-            diagnostic_uri,
-            "converter output claims formatted CEM tree but omits required formatter metadata `formatNodes`".to_owned(),
-        ));
-    };
-    let has_marker = format_nodes.iter().any(|node| {
-        node.get("kind").and_then(Value::as_str) == Some("format-marker")
-            && node.get("name").and_then(Value::as_str) == Some("cem.format-tree")
-    });
-    if !has_marker {
-        return Some(output_pipeline_diagnostic(
-            converter_id,
-            diagnostic_node,
-            diagnostic_uri,
-            "converter output claims formatted CEM tree but `formatNodes` has no `cem.format-tree` formatter marker".to_owned(),
-        ));
-    }
-    let has_decision = format_nodes.iter().any(|node| {
-        node.get("kind").and_then(Value::as_str) == Some("format-decision")
-            && node
-                .get("formatterRole")
-                .and_then(Value::as_str)
-                .is_some_and(|role| role.starts_with("formatter."))
-    });
-    if !has_decision {
-        return Some(output_pipeline_diagnostic(
-            converter_id,
-            diagnostic_node,
-            diagnostic_uri,
-            "converter output claims formatted CEM tree but `formatNodes` has no formatter decision node".to_owned(),
-        ));
-    }
-
-    None
-}
-
-fn conversion_output_pipeline_normalize_formatted_cem_tree_nodes(
-    object: &mut serde_json::Map<String, Value>,
-) {
-    for field in ["nodes", "node", "root"] {
-        if let Some(value) = object.get_mut(field) {
-            conversion_output_pipeline_normalize_formatted_cem_tree_node_value(value);
-        }
-    }
-}
-
-fn conversion_output_pipeline_normalize_formatted_cem_tree_node_value(value: &mut Value) {
-    match value {
-        Value::Array(items) => {
-            for item in items {
-                conversion_output_pipeline_normalize_formatted_cem_tree_node_value(item);
-            }
-        }
-        Value::Object(object) => {
-            let kind = object
-                .get("kind")
-                .and_then(Value::as_str)
-                .unwrap_or_default()
-                .to_owned();
-            if !kind.is_empty() {
-                object.entry("sourceMap".to_owned()).or_insert(Value::Null);
-            }
-            if kind == "element" {
-                object
-                    .entry("attributes".to_owned())
-                    .or_insert_with(|| Value::Array(Vec::new()));
-                object
-                    .entry("children".to_owned())
-                    .or_insert_with(|| Value::Array(Vec::new()));
-                object.entry("formatLayout".to_owned()).or_insert_with(|| {
-                    serde_json::json!({
-                        "kind": "format-decision",
-                        "formatterRole": "formatter.layout",
-                        "value": "inline",
-                    })
-                });
-            }
-            for field in ["attributes", "children", "nodes", "node", "root"] {
-                if let Some(child) = object.get_mut(field) {
-                    conversion_output_pipeline_normalize_formatted_cem_tree_node_value(child);
-                }
-            }
-        }
-        _ => {}
-    }
-}
-
-#[allow(clippy::too_many_arguments)]
 fn execute_conversion_output_pipeline_from_typed_formatted_artifact(
     environment: &ConversionOutputPipelineEnvironment<'_>,
     pipeline: &ConversionOutputPipeline,
@@ -13851,299 +11443,6 @@ fn cemt_tree_public_projection(
         source_map: artifact.source_map().cloned(),
         output_spans: Vec::new(),
         encoded: true,
-    }
-}
-
-fn execute_conversion_output_pipeline_from_formatted_artifact(
-    environment: &ConversionOutputPipelineEnvironment<'_>,
-    pipeline: &ConversionOutputPipeline,
-    formatted_artifact: TransformTemplateEncodedArtifact,
-    formatted_cemt_tree: Option<Arc<CemtTreeArtifact>>,
-    format_execution: Option<ConversionOutputPipelineStageExecution>,
-    format_elapsed_ns: Option<u128>,
-    mut diagnostics: Vec<Diagnostic>,
-    converter_id: &str,
-    diagnostic_node: Option<&str>,
-    diagnostic_uri: Option<&str>,
-) -> ConversionOutputPipelineExecution {
-    let functions = conversion_cem_tree_output_function_registry(environment, pipeline);
-    let implementations = TransformTemplateEncodeImplementationRegistry::with_builtin_encoders();
-    let formatted_cem_tree = Some(formatted_artifact.clone());
-
-    let (
-        writer_artifact,
-        writer_cemt_tree,
-        writer_binding,
-        color_execution,
-        color_elapsed_ns,
-        colored_cem_tree,
-        colored_cemt_tree,
-    ) = if conversion_output_pipeline_should_skip_color_stage(pipeline) {
-        let formatter_profile = formatted_artifact
-            .identity
-            .formatter_profile
-            .as_deref()
-            .or(pipeline.cemt_options.formatter_profile.as_deref())
-            .unwrap_or("compact");
-        let writer_binding = TransformTemplateEncodeBinding {
-            function: conversion_cem_tree_format_function_descriptor(formatter_profile),
-            subject_type: "cem-tree".to_owned(),
-            identity: formatted_artifact.identity.clone(),
-            options: pipeline.cemt_options.clone(),
-        };
-        (
-            formatted_artifact.clone(),
-            formatted_cemt_tree.clone(),
-            writer_binding,
-            None,
-            None,
-            None,
-            None,
-        )
-    } else {
-        let color_request = TransformTemplateEncodeBindingRequest::new(
-            formatted_artifact
-                .value
-                .as_public_json_value()
-                .cloned()
-                .expect("formatted CEM tree has a CEMT evaluator payload"),
-            pipeline.cemt_target.clone(),
-        )
-        .with_subject_type(conversion_output_pipeline_color_subject_type(
-            formatted_artifact.identity.produces,
-        ))
-        .with_options(pipeline.cemt_options.clone());
-        let color_binding = match functions
-            .resolve_color_binding(&color_request, implementations.host_capabilities())
-        {
-            Ok(binding) => binding.into_encode_binding(),
-            Err(message) => {
-                let mut diagnostic = message.diagnostic(diagnostic_uri);
-                diagnostic.node = diagnostic_node.map(str::to_owned);
-                diagnostics.push(diagnostic);
-                return ConversionOutputPipelineExecution {
-                    output: None,
-                    diagnostics,
-                    format_execution,
-                    format_elapsed_ns,
-                    formatted_cem_tree: formatted_cem_tree.clone(),
-                    formatted_cemt_tree: formatted_cemt_tree.clone(),
-                    ..ConversionOutputPipelineExecution::default()
-                };
-            }
-        };
-        let color_started = Instant::now();
-        let color_result = execute_conversion_cem_tree_color_stage(
-            environment,
-            &color_binding,
-            Some(
-                formatted_artifact
-                    .value
-                    .as_public_json_value()
-                    .expect("formatted CEM tree has a runtime payload"),
-            ),
-            formatted_cemt_tree.as_ref(),
-        );
-        let color_elapsed_ns = Some(color_started.elapsed().as_nanos());
-        let (colored_output, colored_cemt_tree, color_execution) = match color_result {
-            Ok(output) => output,
-            Err(message) => {
-                diagnostics.push(output_pipeline_diagnostic(
-                    converter_id,
-                    diagnostic_node,
-                    diagnostic_uri,
-                    format!(
-                        "CEMT colorizer `{}` failed: {message}",
-                        color_binding.function.name
-                    ),
-                ));
-                return ConversionOutputPipelineExecution {
-                    output: None,
-                    diagnostics,
-                    format_execution,
-                    format_elapsed_ns,
-                    color_elapsed_ns,
-                    formatted_cem_tree: formatted_cem_tree.clone(),
-                    formatted_cemt_tree: formatted_cemt_tree.clone(),
-                    ..ConversionOutputPipelineExecution::default()
-                };
-            }
-        };
-        let color_execution = Some(color_execution);
-        let Some(colored_output) = colored_output else {
-            diagnostics.push(output_pipeline_diagnostic(
-                converter_id,
-                diagnostic_node,
-                diagnostic_uri,
-                "compatibility CEMT colorizer did not return an evaluator value".to_owned(),
-            ));
-            return ConversionOutputPipelineExecution {
-                output: None,
-                diagnostics,
-                format_execution,
-                color_execution,
-                format_elapsed_ns,
-                color_elapsed_ns,
-                formatted_cem_tree: formatted_cem_tree.clone(),
-                formatted_cemt_tree: formatted_cemt_tree.clone(),
-                ..ConversionOutputPipelineExecution::default()
-            };
-        };
-        let mut colored_artifact = TransformTemplateEncodedArtifact::from_public_json(
-            color_binding.identity.clone(),
-            colored_output,
-        );
-        colored_artifact.source_map = formatted_artifact.source_map.clone();
-        colored_artifact.output_spans = formatted_artifact.output_spans.clone();
-        if let Err(error) = colored_artifact.validate_insertion(&pipeline.cemt_insertion_context) {
-            let mut diagnostic = error.diagnostic(diagnostic_uri);
-            diagnostic.node = diagnostic_node.map(str::to_owned);
-            diagnostics.push(diagnostic);
-            return ConversionOutputPipelineExecution {
-                output: None,
-                diagnostics,
-                format_execution,
-                color_execution,
-                format_elapsed_ns,
-                color_elapsed_ns,
-                formatted_cem_tree,
-                formatted_cemt_tree,
-                colored_cemt_tree,
-                ..ConversionOutputPipelineExecution::default()
-            };
-        }
-        (
-            colored_artifact.clone(),
-            colored_cemt_tree.clone(),
-            color_binding,
-            color_execution,
-            color_elapsed_ns,
-            Some(colored_artifact),
-            colored_cemt_tree,
-        )
-    };
-
-    let evaluated = TransformTemplateEvaluatedEncodeExpression {
-        expression: TransformTemplateEncodeExpression {
-            owner: diagnostic_node.map(str::to_owned),
-            expression: format!("{converter_id} output pipeline"),
-            subject: "rendered-cem-tree".to_owned(),
-            subject_type: Some("cem-tree".to_owned()),
-            target: pipeline.cemt_target.clone(),
-            options: pipeline.cemt_options.clone(),
-        },
-        subject: writer_artifact
-            .value
-            .as_public_json_value()
-            .cloned()
-            .expect("writer input is a CEMT evaluator tree"),
-        binding: writer_binding,
-        artifact: writer_artifact,
-    };
-    let writer_started = Instant::now();
-    let composition = compose_conversion_cemt_writer_artifact(
-        writer_cemt_tree.as_ref(),
-        &[evaluated],
-        &pipeline.writer_insertion_context,
-        diagnostic_uri,
-    );
-    let writer_elapsed_ns = Some(writer_started.elapsed().as_nanos());
-    diagnostics.extend(composition.diagnostics);
-    match composition.artifact {
-        Some(artifact) => ConversionOutputPipelineExecution {
-            output: Some(
-                artifact
-                    .value
-                    .into_public_value()
-                    .expect("composed writer artifact projects to the public response"),
-            ),
-            raw_cem_tree: None,
-            formatted_cemt_tree,
-            colored_cemt_tree,
-            formatted_materialized_cemt_tree: None,
-            colored_materialized_cemt_tree: None,
-            materialized_cemt_stage_output: None,
-            source_map: artifact.source_map,
-            output_spans: artifact.output_spans,
-            format_execution,
-            color_execution,
-            format_elapsed_ns,
-            color_elapsed_ns,
-            writer_elapsed_ns,
-            formatted_cem_tree,
-            colored_cem_tree,
-            diagnostics,
-        },
-        None => ConversionOutputPipelineExecution {
-            output: None,
-            diagnostics,
-            format_execution,
-            color_execution,
-            format_elapsed_ns,
-            color_elapsed_ns,
-            writer_elapsed_ns,
-            formatted_cem_tree,
-            colored_cem_tree,
-            formatted_cemt_tree,
-            colored_cemt_tree,
-            ..ConversionOutputPipelineExecution::default()
-        },
-    }
-}
-
-fn compose_conversion_cemt_writer_artifact(
-    typed_tree: Option<&Arc<CemtTreeArtifact>>,
-    encoded: &[TransformTemplateEvaluatedEncodeExpression],
-    context: &TransformTemplateEncodedArtifactInsertionContext,
-    uri: Option<&str>,
-) -> TransformTemplateEncodedArtifactCompositionResponse {
-    if let Some(tree) = typed_tree {
-        let valid = match tree.stage() {
-            CemtTreeArtifactStage::Formatted => tree.formatted_view().is_some(),
-            CemtTreeArtifactStage::Colored => tree.colored_view().is_some(),
-            CemtTreeArtifactStage::Raw => false,
-        };
-        if !valid {
-            return TransformTemplateEncodedArtifactCompositionResponse {
-                artifact: None,
-                diagnostics: vec![Diagnostic {
-                    uri: uri.map(str::to_owned),
-                    code: CONVERSION_OUTPUT_PIPELINE_EXECUTION_CODE.to_owned(),
-                    severity: Severity::Error,
-                    message: "CEM tree writer requires a typed formatted or colored artifact"
-                        .to_owned(),
-                    ..Diagnostic::default()
-                }],
-            };
-        }
-    }
-    compose_transform_template_encoded_text_artifacts(encoded, context, uri)
-}
-
-fn conversion_cem_tree_format_insertion_context(
-    pipeline: &ConversionOutputPipeline,
-) -> TransformTemplateEncodedArtifactInsertionContext {
-    let mut context = TransformTemplateEncodedArtifactInsertionContext::from_encoding_target(
-        &pipeline.cemt_target,
-        Some(pipeline.cemt_produces),
-    );
-    context.formatter_profile = pipeline.cemt_options.formatter_profile.clone();
-    context.mode = Some(pipeline.cemt_options.mode);
-    context.canonical = Some(pipeline.cemt_options.canonical);
-    context.source_map_policy = Some(pipeline.cemt_options.source_map_policy);
-    context
-}
-
-fn conversion_output_pipeline_color_subject_type(
-    produces: TransformTemplateOutputProducedKind,
-) -> &'static str {
-    match produces {
-        TransformTemplateOutputProducedKind::Tokens => "tokens",
-        TransformTemplateOutputProducedKind::CemTree => "cem-tree",
-        TransformTemplateOutputProducedKind::Text => "string",
-        TransformTemplateOutputProducedKind::Bytes => "bytes",
-        TransformTemplateOutputProducedKind::Chunks => "chunks",
-        TransformTemplateOutputProducedKind::Diagnostics => "diagnostics",
     }
 }
 
@@ -17827,6 +15126,65 @@ mod tests {
         document.expect("valid JSON Schema lifecycle AST")
     }
 
+    fn yaml_document(source: &str) -> YamlDocumentAst {
+        let (document, diagnostics) = crate::validation::yaml::yaml_document_ast_from_source_bytes(
+            crate::validation::yaml::YamlSourceValidationRequest {
+                bytes: source.as_bytes(),
+                source_uri: "memory:typed-yaml-output",
+                content_type: Some(YAML_CONTENT_TYPE),
+            },
+        );
+        assert!(diagnostics.is_empty(), "YAML fixture: {diagnostics:?}");
+        document.expect("valid YAML lifecycle AST")
+    }
+
+    fn json_document(source: &str) -> JsonDocumentAst {
+        let (document, diagnostics) = crate::validation::json::json_document_ast_from_source_bytes(
+            crate::validation::json::JsonSourceValidationRequest {
+                bytes: source.as_bytes(),
+                source_uri: "memory:typed-json-output",
+                content_type: Some(JSON_CONTENT_TYPE),
+            },
+        );
+        assert!(
+            diagnostics
+                .iter()
+                .all(|diagnostic| !diagnostic.severity.is_hard_violation()),
+            "JSON fixture: {diagnostics:?}"
+        );
+        document.expect("valid JSON lifecycle AST")
+    }
+
+    fn markdown_document(source: &str) -> MarkdownDocumentAst {
+        let (document, diagnostics) =
+            crate::validation::markdown::markdown_document_ast_from_source_bytes(
+                crate::validation::markdown::MarkdownSourceValidationRequest {
+                    bytes: source.as_bytes(),
+                    source_uri: "memory:typed-markdown-output",
+                    content_type: Some("text/markdown; charset=utf-8"),
+                },
+            );
+        assert!(
+            diagnostics
+                .iter()
+                .all(|diagnostic| !diagnostic.severity.is_hard_violation()),
+            "Markdown fixture: {diagnostics:?}"
+        );
+        document.expect("valid Markdown lifecycle AST")
+    }
+
+    fn csv_document(source: &str, content_type: Option<&str>) -> CsvDocumentAst {
+        let (document, diagnostics) = crate::validation::csv::csv_document_ast_from_source_bytes(
+            crate::validation::csv::CsvSourceValidationRequest {
+                bytes: source.as_bytes(),
+                source_uri: "memory:typed-csv-output",
+                content_type,
+            },
+        );
+        assert!(diagnostics.is_empty(), "CSV fixture: {diagnostics:?}");
+        document.expect("valid CSV lifecycle AST")
+    }
+
     fn execute_test_conversion_cem_tree_output_stage(
         stage: CemTreeCemtOutputStage,
         binding: &TransformTemplateEncodeBinding,
@@ -20595,74 +17953,6 @@ mod tests {
             TRANSFORM_TEMPLATE_ENCODED_ARTIFACT_DOUBLE_ENCODING_CODE
         );
 
-        let mut cemt_identity = TransformTemplateEncodedArtifactIdentity::new(
-            html.pipeline.cemt_produces,
-            html.pipeline.cemt_target.clone(),
-        );
-        cemt_identity.formatter_profile = html
-            .pipeline
-            .cemt_insertion_context
-            .formatter_profile
-            .clone();
-        cemt_identity.color_profile = html.pipeline.cemt_insertion_context.color_profile.clone();
-        cemt_identity.mode = TransformTemplateEncodedArtifactMode::Document;
-        cemt_identity.canonical = true;
-        let cemt_tree = TransformTemplateEncodedArtifact::new(
-            cemt_identity,
-            serde_json::json!({
-                "kind": "cem-tree",
-                "contentType": CEM_ML_CONTENT_TYPE,
-                "schema": CEM_ML_SCHEMA_URI,
-                "category": "cem-tree",
-                "mode": "document",
-                "canonical": true,
-                "formatterProfile": "compact",
-                "formatNodes": [{
-                    "kind": "format-marker",
-                    "name": "cem.format-tree",
-                    "formatterRole": "formatter.boundary",
-                    "formatterProfile": "compact"
-                }, {
-                    "kind": "format-decision",
-                    "name": "line-ending",
-                    "formatterRole": "formatter.line-ending",
-                    "value": "lf",
-                    "formatterProfile": "compact"
-                }],
-                "colored": true,
-                "colorProfile": "classes",
-                "colorNodes": [{
-                    "kind": "color-marker",
-                    "name": "cem.color-tree",
-                    "colorizerRole": "colorizer.boundary",
-                    "colorProfile": "classes"
-                }, {
-                    "kind": "color-decision",
-                    "name": "profile",
-                    "colorizerRole": "colorizer.profile",
-                    "value": "classes",
-                    "colorProfile": "classes"
-                }],
-                "nodes": [{
-                    "kind": "element",
-                    "name": "main",
-                    "colorRole": "syntax.name",
-                    "writerAttributeNodes": [{
-                        "kind": "writer-attribute",
-                        "name": "class",
-                        "value": "cem-color cem-color-syntax-name",
-                        "colorizerOwned": true,
-                        "colorizerRole": "colorizer.writer-attribute",
-                        "colorProfile": "classes"
-                    }],
-                    "children": [{"kind": "text", "value": "Ready"}]
-                }]
-            }),
-        );
-        cemt_tree
-            .validate_insertion(&html.pipeline.cemt_insertion_context)
-            .expect("CEMT pipeline accepts formatted and colored CEM tree");
-
         let mut wrong_category = html.insertion_context.clone();
         wrong_category.category = Some("html-text".to_owned());
         let mismatch = artifact
@@ -21126,7 +18416,7 @@ mod tests {
     }
 
     #[test]
-    fn native_cem_tree_pipeline_retains_typed_colored_overlay_and_writer_parity() {
+    fn native_cem_tree_pipeline_retains_typed_colored_overlay() {
         use crate::transform_artifact::{
             CemtColorOperationKind, CemtColorTarget, CemtNodeColorOperationKind,
             CemtOverlayProvenance, CemtOwnerPath, CemtTreeOwnerRef,
@@ -21170,27 +18460,7 @@ mod tests {
             Some("output"),
             Some("fixture.cem"),
         );
-        let compatibility = execute_conversion_output_pipeline_with_environment(
-            &environment,
-            &pipeline,
-            owner.as_ref().clone().into_cemt_subject(),
-            None,
-            Vec::new(),
-            "runtime-colored-cem-tree",
-            Some("output"),
-            Some("fixture.cem"),
-        );
-
         assert!(typed.diagnostics.is_empty(), "{:?}", typed.diagnostics);
-        assert!(
-            compatibility.diagnostics.is_empty(),
-            "{:?}",
-            compatibility.diagnostics
-        );
-        assert_eq!(
-            typed.output, compatibility.output,
-            "typed overlay writer parity"
-        );
 
         let colored = typed
             .colored_cemt_tree
@@ -21393,7 +18663,7 @@ mod tests {
     }
 
     #[test]
-    fn native_typed_cem_tree_writer_matches_runtime_profiles_and_preserves_maps() {
+    fn native_typed_cem_tree_writer_profiles_preserve_maps() {
         let source_map = SourceMapStack {
             frames: vec![crate::source_map::SourceMapFrame {
                 source_id: SourceId(41),
@@ -21471,49 +18741,10 @@ mod tests {
                 Some(profile),
                 Some("fixture.cem"),
             );
-            let runtime = execute_conversion_output_pipeline_with_environment(
-                &environment,
-                &pipeline,
-                owner.as_ref().clone().into_cemt_subject(),
-                Some(source_map.clone()),
-                Vec::new(),
-                "runtime-writer-profile-matrix",
-                Some(profile),
-                Some("fixture.cem"),
-            );
-
             assert!(
                 typed.diagnostics.is_empty(),
                 "{profile}: {:?}",
                 typed.diagnostics
-            );
-            assert!(
-                runtime.diagnostics.is_empty(),
-                "{profile}: {:?}",
-                runtime.diagnostics
-            );
-            assert_eq!(typed.output, runtime.output, "{profile} writer parity");
-            assert_eq!(
-                typed
-                    .formatted_cem_tree
-                    .as_ref()
-                    .map(|artifact| &artifact.value),
-                runtime
-                    .formatted_cem_tree
-                    .as_ref()
-                    .map(|artifact| &artifact.value),
-                "{profile} formatted public boundary parity"
-            );
-            assert_eq!(
-                typed
-                    .colored_cem_tree
-                    .as_ref()
-                    .map(|artifact| &artifact.value),
-                runtime
-                    .colored_cem_tree
-                    .as_ref()
-                    .map(|artifact| &artifact.value),
-                "{profile} colored public boundary parity"
             );
             assert_eq!(typed.source_map.as_ref(), Some(&source_map), "{profile}");
             assert!(!typed.output_spans.is_empty(), "{profile} output spans");
@@ -21524,124 +18755,6 @@ mod tests {
                     .any(|frame| frame.source_id == SourceId(41))
             }));
         }
-    }
-
-    #[test]
-    fn typed_cem_tree_writer_rejects_raw_and_color_stage_mismatch() {
-        let pipeline = direct_cem_output_pipeline();
-        let binding = TransformTemplateEncodeBinding {
-            function: conversion_cem_tree_format_function_descriptor("compact"),
-            subject_type: "cem-tree".to_owned(),
-            identity: TransformTemplateEncodedArtifactIdentity::from_options(
-                TransformTemplateOutputProducedKind::CemTree,
-                pipeline.cemt_target.clone(),
-                &pipeline.cemt_options,
-            ),
-            options: pipeline.cemt_options.clone(),
-        };
-        let raw = Arc::new(CemtTreeArtifact::raw(
-            Arc::new(CemTreeAstStream::new(Vec::new())),
-            None,
-        ));
-        let raw_error = execute_transform_template_typed_cem_tree_writer(
-            TransformTemplateTypedCemTreeWriterRequest {
-                identity: &binding.identity,
-                artifact: raw,
-                insertion_context: &pipeline.writer_insertion_context,
-            },
-        )
-        .expect_err("raw CEMT artifacts cannot cross the writer boundary");
-        assert!(
-            raw_error.contains("formatted or colored artifact"),
-            "{raw_error}"
-        );
-
-        let formatted_value = serde_json::json!({
-            "kind": "cem-tree",
-            "contentType": CEM_ML_CONTENT_TYPE,
-            "schema": CEM_ML_SCHEMA_URI,
-            "category": "cem-tree",
-            "mode": "document",
-            "canonical": false,
-            "formatterProfile": "compact",
-            "formatNodes": [
-                {
-                    "kind": "format-marker",
-                    "name": "cem.format-tree",
-                    "formatterRole": "formatter.boundary",
-                    "formatterProfile": "compact"
-                },
-                {
-                    "kind": "format-decision",
-                    "name": "line-ending",
-                    "formatterRole": "formatter.line-ending",
-                    "formatterProfile": "compact",
-                    "value": "lf"
-                }
-            ],
-            "nodes": []
-        });
-        let raw = CemtTreeArtifact::raw(Arc::new(CemTreeAstStream::new(Vec::new())), None);
-        let formatted =
-            lower_formatted_cemt_tree_artifact(&raw, &formatted_value, "cem.format-tree")
-                .expect("formatted fixture lowers");
-        let mut color_binding = binding;
-        color_binding.identity.color_profile = Some("terminal".to_owned());
-        let mut color_context = pipeline.writer_insertion_context.clone();
-        color_context.color_profile = Some("terminal".to_owned());
-        let mismatch = execute_transform_template_typed_cem_tree_writer(
-            TransformTemplateTypedCemTreeWriterRequest {
-                identity: &color_binding.identity,
-                artifact: formatted,
-                insertion_context: &color_context,
-            },
-        )
-        .expect_err("formatted artifacts cannot satisfy a colored writer boundary");
-        assert!(mismatch.contains("typed colored artifact"), "{mismatch}");
-    }
-
-    #[test]
-    fn colored_cemt_overlay_rejects_unknown_color_operation_kind() {
-        let raw = Arc::new(CemtTreeArtifact::raw(
-            Arc::new(CemTreeAstStream::new(Vec::new())),
-            None,
-        ));
-        let formatted_value = serde_json::json!({
-            "kind": "cem-tree",
-            "contentType": CEM_ML_CONTENT_TYPE,
-            "schema": CEM_ML_SCHEMA_URI,
-            "category": "cem-tree",
-            "mode": "document",
-            "canonical": false,
-            "formatterProfile": "compact",
-            "formatNodes": [],
-            "nodes": []
-        });
-        let formatted =
-            lower_formatted_cemt_tree_artifact(&raw, &formatted_value, "cem.format-tree")
-                .expect("formatted fixture lowers");
-        let error = lower_colored_cemt_tree_artifact(
-            &formatted,
-            &formatted_value,
-            &serde_json::json!({
-                "colored": true,
-                "colorProfile": "classes",
-                "colorNodes": [{
-                    "kind": "color-extension",
-                    "name": "open-payload",
-                    "colorizerRole": "colorizer.extension"
-                }],
-                "formatNodes": [],
-                "nodes": []
-            }),
-            "cem.color-tree",
-        )
-        .expect_err("unknown color operations cannot enter the typed overlay");
-
-        assert!(
-            error.contains("unsupported kind `color-extension`"),
-            "{error}"
-        );
     }
 
     #[test]
@@ -21711,172 +18824,6 @@ mod tests {
     }
 
     #[test]
-    fn formatted_cemt_node_overlay_rejects_source_owner_mismatch() {
-        let raw = Arc::new(CemtTreeArtifact::raw(
-            Arc::new(CemTreeAstStream::new(vec![CemTreeAstNode::Text {
-                value: "Ready".to_owned(),
-                source: SourceMapStack::default(),
-            }])),
-            None,
-        ));
-        let error = lower_formatted_cemt_tree_artifact(
-            &raw,
-            &serde_json::json!({
-                "kind": "cem-tree",
-                "contentType": CEM_ML_CONTENT_TYPE,
-                "schema": CEM_ML_SCHEMA_URI,
-                "category": "cem-tree",
-                "mode": "document",
-                "canonical": false,
-                "formatterProfile": "compact",
-                "formatNodes": [],
-                "nodes": [{"kind": "element", "name": "wrong"}]
-            }),
-            "cem.format-tree",
-        )
-        .expect_err("formatted source nodes must map to the owning AST");
-
-        assert!(error.contains("owner kind `text`"), "{error}");
-    }
-
-    #[test]
-    fn formatted_cemt_node_overlay_accepts_preserved_source_whitespace() {
-        let owner = Arc::new(CemTreeAstStream::new(vec![
-            CemTreeAstNode::Whitespace {
-                data: "\n".to_owned(),
-                source: SourceMapStack::default(),
-            },
-            CemTreeAstNode::Text {
-                value: "Ready".to_owned(),
-                source: SourceMapStack::default(),
-            },
-        ]));
-        let raw = Arc::new(CemtTreeArtifact::raw(owner.clone(), None));
-        let formatted = lower_formatted_cemt_tree_artifact(
-            &raw,
-            &serde_json::json!({
-                "kind": "cem-tree",
-                "contentType": CEM_ML_CONTENT_TYPE,
-                "schema": CEM_ML_SCHEMA_URI,
-                "category": "cem-tree",
-                "mode": "document",
-                "canonical": false,
-                "formatterProfile": "compact",
-                "formatNodes": [],
-                "nodes": [
-                    {"kind": "whitespace", "data": "\n", "sourceMap": {"frames": []}},
-                    {"kind": "text", "value": "Ready", "sourceMap": {"frames": []}}
-                ]
-            }),
-            "cem.format-tree",
-        )
-        .expect("source whitespace may remain in package formatter output");
-
-        assert!(Arc::ptr_eq(formatted.owner(), &owner));
-        assert!(matches!(
-            formatted
-                .subject()
-                .resolve_owner(&crate::transform_artifact::CemtOwnerPath::root(0)),
-            Some(crate::transform_artifact::CemtTreeOwnerRef::Node(
-                CemTreeAstNode::Whitespace { .. }
-            ))
-        ));
-        assert!(formatted
-            .formatted_overlay()
-            .expect("formatted overlay")
-            .node_operations
-            .is_empty());
-        assert_eq!(
-            formatted
-                .formatted_overlay()
-                .expect("formatted overlay")
-                .retained_node_paths(),
-            &[CemtOwnerPath::root(0), CemtOwnerPath::root(1)]
-        );
-    }
-
-    #[test]
-    fn formatted_cemt_node_overlay_accepts_package_inline_emphasis_layout() {
-        use crate::transform_artifact::{CemtFormatLayout, CemtNodeFormatOperationKind};
-
-        let raw = Arc::new(CemtTreeArtifact::raw(
-            Arc::new(CemTreeAstStream::new(vec![CemTreeAstNode::Element {
-                name: "strong".to_owned(),
-                attributes: Vec::new(),
-                children: Vec::new(),
-                source: SourceMapStack::default(),
-            }])),
-            None,
-        ));
-        let formatted = lower_formatted_cemt_tree_artifact(
-            &raw,
-            &serde_json::json!({
-                "kind": "cem-tree",
-                "contentType": CEM_ML_CONTENT_TYPE,
-                "schema": CEM_ML_SCHEMA_URI,
-                "category": "cem-tree",
-                "mode": "document",
-                "canonical": false,
-                "formatterProfile": "acme.showcase.format-tree",
-                "formatNodes": [],
-                "nodes": [{
-                    "kind": "element",
-                    "name": "strong",
-                    "attributes": [],
-                    "children": [],
-                    "formatLayout": {
-                        "kind": "format-decision",
-                        "formatterRole": "formatter.inline-emphasis",
-                        "value": "inline-emphasis"
-                    }
-                }]
-            }),
-            "acme.showcase.format-tree",
-        )
-        .expect("package formatLayout field supplies the layout decision identity");
-
-        let operation = &formatted
-            .formatted_overlay()
-            .expect("formatted overlay")
-            .node_operations[0];
-        assert_eq!(operation.formatter_role, "formatter.inline-emphasis");
-        assert!(matches!(
-            operation.kind,
-            CemtNodeFormatOperationKind::Layout(CemtFormatLayout::InlineEmphasis)
-        ));
-    }
-
-    #[test]
-    fn formatted_cemt_overlay_lowering_rejects_untyped_decision_values() {
-        let raw = Arc::new(CemtTreeArtifact::raw(
-            Arc::new(CemTreeAstStream::new(Vec::new())),
-            None,
-        ));
-        let error = lower_formatted_cemt_tree_artifact(
-            &raw,
-            &serde_json::json!({
-                "kind": "cem-tree",
-                "contentType": CEM_ML_CONTENT_TYPE,
-                "schema": CEM_ML_SCHEMA_URI,
-                "category": "cem-tree",
-                "mode": "document",
-                "canonical": false,
-                "formatterProfile": "compact",
-                "formatNodes": [{
-                    "kind": "format-decision",
-                    "name": "layout",
-                    "formatterRole": "formatter.layout",
-                    "value": {"layout": "compact"}
-                }]
-            }),
-            "cem.format-tree",
-        )
-        .expect_err("open object-valued formatter decisions must remain evaluator-local");
-
-        assert!(error.contains("requires a string `value`"), "{error}");
-    }
-
-    #[test]
     fn native_cemt_formatter_result_lowers_at_adapter_completion() {
         let owner = Arc::new(CemTreeAstStream::new(Vec::new()));
         let source_map = SourceMapStack::default();
@@ -21902,48 +18849,6 @@ mod tests {
             .expect("native formatter result lowers");
 
         assert_eq!(artifact.stage(), CemtTreeArtifactStage::Formatted);
-        assert!(Arc::ptr_eq(artifact.owner(), &owner));
-        assert_eq!(artifact.source_map(), Some(&source_map));
-    }
-
-    #[test]
-    fn native_cemt_colorizer_result_lowers_at_adapter_completion() {
-        let owner = Arc::new(CemTreeAstStream::new(Vec::new()));
-        let source_map = SourceMapStack::default();
-        let raw = Arc::new(CemtTreeArtifact::raw(
-            owner.clone(),
-            Some(source_map.clone()),
-        ));
-        let formatted_value = serde_json::json!({
-            "kind": "cem-tree",
-            "contentType": CEM_ML_CONTENT_TYPE,
-            "schema": CEM_ML_SCHEMA_URI,
-            "category": "cem-tree",
-            "mode": "document",
-            "canonical": false,
-            "formatterProfile": "compact",
-            "formatNodes": [],
-            "nodes": []
-        });
-        let formatted =
-            lower_formatted_cemt_tree_artifact(&raw, &formatted_value, "cem.format-tree")
-                .expect("formatted fixture lowers");
-        let colored = serde_json::json!({
-            "kind": "cem-tree",
-            "colored": true,
-            "colorProfile": "terminal",
-            "formatNodes": [],
-            "colorNodes": [],
-            "nodes": []
-        });
-
-        let colored = cemt_typed_runtime_value_from_adapter(&colored)
-            .expect("test boundary creates a typed evaluator fixture");
-        let artifact =
-            lower_typed_colored_cemt_tree_artifact(&formatted, colored, "cem.color-tree")
-                .expect("native colorizer result lowers");
-
-        assert_eq!(artifact.stage(), CemtTreeArtifactStage::Colored);
         assert!(Arc::ptr_eq(artifact.owner(), &owner));
         assert_eq!(artifact.source_map(), Some(&source_map));
     }
@@ -22049,7 +18954,7 @@ mod tests {
             .split_once("fn execute_conversion_output_pipeline_from_typed_formatted_artifact(")
             .expect("typed CEMT writer pipeline")
             .1
-            .split_once("fn execute_conversion_output_pipeline_from_formatted_artifact(")
+            .split_once("fn cemt_tree_public_projection(")
             .expect("typed CEMT writer pipeline boundary")
             .0;
         for forbidden in [
@@ -22080,6 +18985,98 @@ mod tests {
         assert!(real_entry
             .contains("execute_conversion_output_pipeline_from_cem_tree_with_environment"));
         assert!(!real_entry.contains("into_cemt_subject"));
+    }
+
+    #[test]
+    fn public_json_cem_tree_projection_is_one_way_after_typed_writer() {
+        let conversion_source = include_str!("conversion.rs");
+        let conversion_production = conversion_source
+            .split_once("#[cfg(test)]\nmod tests")
+            .map(|(production, _)| production)
+            .expect("conversion production source");
+        assert!(!conversion_production.contains("from_public_json"));
+        assert_eq!(
+            conversion_production
+                .matches("TransformTemplateEncodedArtifactPayload::PublicJson(")
+                .count(),
+            2,
+            "conversion owns exactly the materialized and owner-backed public projections"
+        );
+
+        let typed_pipeline = conversion_source
+            .split_once("fn execute_conversion_output_pipeline_from_typed_formatted_artifact(")
+            .and_then(|(_, suffix)| suffix.split_once("fn cemt_tree_public_projection("))
+            .map(|(pipeline, _)| pipeline)
+            .expect("typed CEM-tree pipeline source");
+        for forbidden in [
+            "PublicJson",
+            "to_public_json",
+            "from_public_json",
+            "serde_json::to_",
+        ] {
+            assert!(
+                !typed_pipeline.contains(forbidden),
+                "typed formatter/colorizer/writer handoff must not use `{forbidden}`"
+            );
+        }
+
+        let transform_source = include_str!("transform_template.rs");
+        let transform_production = transform_source
+            .split_once("#[cfg(test)]\nmod tests")
+            .map(|(production, _)| production)
+            .expect("transform-template production source");
+        assert!(!transform_production.contains("from_public_json"));
+        let writer_dispatch = transform_source
+            .split_once("fn transform_template_writer_cem_tree_artifact_to_text(")
+            .and_then(|(_, suffix)| {
+                suffix.split_once("pub(crate) struct TransformTemplateTypedCemTreeWriterRequest")
+            })
+            .map(|(writer, _)| writer)
+            .expect("typed CEM-tree writer dispatch source");
+        assert!(writer_dispatch.contains("PublicJson(_) => Err("));
+        assert!(!writer_dispatch.contains("to_public_json"));
+
+        let fixture_pipeline = transform_source
+            .split_once("fn execute_cemt_formatter_coloring_pipeline(")
+            .and_then(|(_, suffix)| {
+                suffix.split_once("pub(crate) fn render_cemt_formatter_coloring_pipeline_fixture")
+            })
+            .map(|(pipeline, _)| pipeline)
+            .expect("package fixture pipeline source");
+        let writer_position = fixture_pipeline
+            .find("execute_transform_template_typed_cem_tree_writer")
+            .expect("typed fixture writer");
+        let projection_position = fixture_pipeline
+            .find("let formatted = formatted_artifact.to_public_json()")
+            .expect("post-writer public projection");
+        assert!(writer_position < projection_position);
+        assert!(!fixture_pipeline[..writer_position].contains("to_public_json"));
+
+        let real_source = include_str!("real.rs");
+        for (start, end, label) in [
+            (
+                "fn transform_data_artifact_from_output",
+                "fn transform_graph_export_primary",
+                "graph output routing",
+            ),
+            (
+                "fn collect_transform_graph_join",
+                "fn collect_transform_graph_join_metadata",
+                "graph join",
+            ),
+        ] {
+            let section = real_source
+                .split_once(start)
+                .and_then(|(_, suffix)| suffix.split_once(end))
+                .map(|(section, _)| section)
+                .unwrap_or_else(|| panic!("{label} source"));
+            for forbidden in ["to_public_json", "from_public_json", "serde_json::to_"] {
+                assert!(
+                    !section.contains(forbidden),
+                    "{label} must not use `{forbidden}`"
+                );
+            }
+        }
     }
 
     #[test]
@@ -22128,7 +19125,7 @@ mod tests {
 
         let generic_subject = source
             .split_once("impl JsonDocumentOutputSubject for GenericDataJsonDocumentOutputSubject")
-            .and_then(|(_, suffix)| suffix.split_once("#[cfg(test)]"))
+            .and_then(|(_, suffix)| suffix.split_once("pub trait JsonSchemaDocumentOutputSubject"))
             .map(|(implementation, _)| implementation)
             .expect("generic-data JSON output subject implementation");
         assert!(generic_subject
@@ -22167,11 +19164,7 @@ mod tests {
 
         let json_schema_pipeline = source
             .split_once("fn execute_native_json_schema_document_output_pipeline(")
-            .and_then(|(_, suffix)| {
-                suffix.split_once(
-                    "fn execute_test_compatibility_json_schema_document_output_pipeline_with_environment(",
-                )
-            })
+            .and_then(|(_, suffix)| suffix.split_once("fn json_formatter_name_for_scope("))
             .map(|(pipeline, _)| pipeline)
             .expect("native JSON Schema materialized pipeline source");
         for required in [
@@ -22203,7 +19196,9 @@ mod tests {
 
         let json_schema_subject = source
             .split_once("impl JsonSchemaDocumentOutputSubject for JsonSchemaDocumentAst")
-            .and_then(|(_, suffix)| suffix.split_once("#[cfg(test)]"))
+            .and_then(|(_, suffix)| {
+                suffix.split_once("pub fn execute_json_document_output_pipeline_with_environment")
+            })
             .map(|(implementation, _)| implementation)
             .expect("JSON Schema output subject implementation");
         assert!(json_schema_subject
@@ -22311,7 +19306,9 @@ mod tests {
 
         let generic_subject = source
             .split_once("impl CsvDocumentOutputSubject for GenericDataCsvDocumentOutputSubject")
-            .and_then(|(_, suffix)| suffix.split_once("#[cfg(test)]"))
+            .and_then(|(_, suffix)| {
+                suffix.split_once("pub fn execute_csv_document_output_pipeline_with_environment")
+            })
             .map(|(implementation, _)| implementation)
             .expect("generic-data CSV output subject implementation");
         assert!(generic_subject
@@ -22346,9 +19343,7 @@ mod tests {
         }
 
         let csv_validation_source = include_str!("validation/csv.rs");
-        assert!(csv_validation_source
-            .contains("#[cfg(test)]\npub fn generic_data_ast_to_csv_cemt_subject"));
-        assert!(csv_validation_source.contains("#[cfg(test)]\n    pub fn to_cemt_subject"));
+        assert!(!csv_validation_source.contains("generic_data_ast_to_csv_cemt_subject"));
     }
 
     #[test]
@@ -22389,7 +19384,10 @@ mod tests {
 
         let native_subject = source
             .split_once("impl MarkdownDocumentOutputSubject for MarkdownDocumentAst")
-            .and_then(|(_, suffix)| suffix.split_once("#[cfg(test)]"))
+            .and_then(|(_, suffix)| {
+                suffix
+                    .split_once("pub fn execute_markdown_document_output_pipeline_with_environment")
+            })
             .map(|(implementation, _)| implementation)
             .expect("native Markdown output subject implementation");
         assert!(
@@ -22482,7 +19480,7 @@ mod tests {
         let native_subjects = source
             .split_once("impl XmlDocumentOutputSubject for XmlDocumentAst")
             .and_then(|(_, suffix)| {
-                suffix.split_once("#[cfg(test)]\nimpl XmlDocumentOutputSubject for Value")
+                suffix.split_once("pub fn execute_xml_document_output_pipeline_with_environment")
             })
             .map(|(implementations, _)| implementations)
             .expect("native XML-family output subject implementations");
@@ -22725,7 +19723,9 @@ mod tests {
 
         let generic_subject = source
             .split_once("impl YamlDocumentOutputSubject for GenericDataYamlDocumentOutputSubject")
-            .and_then(|(_, suffix)| suffix.split_once("#[cfg(test)]"))
+            .and_then(|(_, suffix)| {
+                suffix.split_once("pub fn execute_yaml_document_output_pipeline_with_environment")
+            })
             .map(|(implementation, _)| implementation)
             .expect("generic-data YAML output subject implementation");
         assert!(generic_subject
@@ -22760,8 +19760,7 @@ mod tests {
         }
 
         let yaml_validation_source = include_str!("validation/yaml.rs");
-        assert!(yaml_validation_source
-            .contains("#[cfg(test)]\npub fn generic_data_ast_to_yaml_cemt_subject"));
+        assert!(!yaml_validation_source.contains("generic_data_ast_to_yaml_cemt_subject"));
         assert!(yaml_validation_source.contains("#[cfg(test)]\n    pub fn to_cemt_subject"));
         assert!(yaml_validation_source
             .contains("#[cfg(test)]\npub fn yaml_stream_value_from_source_bytes"));
@@ -23583,108 +20582,6 @@ mod tests {
         assert!(output.contains("<strong class=\"cem-color cem-color-syntax-keyword\""));
         assert!(output.contains("Ready "));
         assert!(output.contains(">now<"));
-    }
-
-    #[test]
-    fn conversion_output_pipeline_rejects_json_formatted_tree_handoff() {
-        let schema_registry = SchemaRegistry::with_builtin_schemas();
-        let conversion_registry = ConversionRegistry::with_builtin_converters();
-        let environment = ConversionOutputPipelineEnvironment {
-            schema_registry: &schema_registry,
-            conversion_registry: &conversion_registry,
-            package_artifact_reader: None,
-            artifact_cache: None,
-        };
-        let mut pipeline = direct_html_output_pipeline();
-        pipeline.cemt_options.formatter = Some("acme.showcase.format-tree".to_owned());
-        pipeline.cemt_options.formatter_profile = Some("acme.showcase.format-tree".to_owned());
-        pipeline.cemt_options.colorizer = Some("acme.showcase.color-tree".to_owned());
-        pipeline.cemt_options.color_profile = Some("classes".to_owned());
-        pipeline.cemt_insertion_context.formatter_profile =
-            Some("acme.showcase.format-tree".to_owned());
-        pipeline.writer_insertion_context.formatter_profile =
-            Some("acme.showcase.format-tree".to_owned());
-
-        let execution = execute_conversion_output_pipeline_from_formatted_cem_tree_with_environment(
-            &environment,
-            &pipeline,
-            serde_json::json!([
-                {
-                    "kind": "element",
-                    "name": "article",
-                    "children": [
-                        {"kind": "text", "value": "Ready "},
-                        {
-                            "kind": "element",
-                            "name": "strong",
-                            "children": [{"kind": "text", "value": "now"}]
-                        },
-                        {"kind": "text", "value": "."}
-                    ]
-                }
-            ]),
-            None,
-            Vec::new(),
-            "test-converter-formatted-cem-tree",
-            Some("output"),
-            Some("converter.cemt"),
-        );
-
-        assert!(execution.output.is_none());
-        assert_eq!(execution.format_execution, None);
-        assert_eq!(execution.color_execution, None);
-        assert_eq!(execution.diagnostics.len(), 1);
-        assert!(
-            execution.diagnostics[0]
-                .message
-                .contains("requires a typed CEM-tree AST input; explicit JSON must enter through a registered parser"),
-            "{:?}",
-            execution.diagnostics
-        );
-    }
-
-    #[test]
-    fn conversion_output_pipeline_rejects_claimed_formatted_cem_tree_without_formatter_metadata() {
-        let schema_registry = SchemaRegistry::with_builtin_schemas();
-        let conversion_registry = ConversionRegistry::with_builtin_converters();
-        let environment = ConversionOutputPipelineEnvironment {
-            schema_registry: &schema_registry,
-            conversion_registry: &conversion_registry,
-            package_artifact_reader: None,
-            artifact_cache: None,
-        };
-
-        let execution = execute_conversion_output_pipeline_from_formatted_cem_tree_with_environment(
-            &environment,
-            &direct_html_output_pipeline(),
-            serde_json::json!({
-                "kind": "cem-tree",
-                "nodes": [{
-                    "kind": "element",
-                    "name": "main",
-                    "children": [{"kind": "text", "value": "Ready"}]
-                }]
-            }),
-            None,
-            Vec::new(),
-            "test-claimed-formatted-tree",
-            Some("output"),
-            Some("converter.cemt"),
-        );
-
-        assert!(execution.output.is_none());
-        assert!(execution.formatted_cem_tree.is_none());
-        assert_eq!(execution.diagnostics.len(), 1);
-        let diagnostic = &execution.diagnostics[0];
-        assert_eq!(diagnostic.code, CONVERSION_OUTPUT_PIPELINE_EXECUTION_CODE);
-        assert_eq!(diagnostic.severity, Severity::Error);
-        assert!(diagnostic.message.contains(
-            "converter `test-claimed-formatted-tree` could not execute CEMT output pipeline"
-        ));
-        assert!(diagnostic
-            .message
-            .contains("claims formatted CEM tree but omits required formatter metadata"));
-        assert!(diagnostic.message.contains("formatterProfile"));
     }
 
     #[test]
@@ -25131,15 +22028,6 @@ mod tests {
         );
         assert_eq!(formatted["nodes"][0]["name"], "main");
         assert_eq!(formatted["nodes"][0]["children"][0]["value"], "Ready");
-
-        TransformTemplateEncodedArtifact::from_public_json(binding.identity.clone(), formatted)
-            .validate_insertion(
-                &TransformTemplateEncodedArtifactInsertionContext::from_encoding_target(
-                    &request.target,
-                    Some(TransformTemplateOutputProducedKind::CemTree),
-                ),
-            )
-            .expect("direct formatted CEM tree validates");
     }
 
     #[test]
@@ -25658,35 +22546,6 @@ mod tests {
         csv_test_output_span(start, len)["origin"].clone()
     }
 
-    fn yaml_test_output_span(start: u64, len: u32) -> Value {
-        serde_json::json!({
-            "outputRange": {
-                "start": start,
-                "len": len
-            },
-            "origin": {
-                "frames": [{
-                    "source_id": 1,
-                    "span": {
-                        "kind": "Single",
-                        "ranges": {
-                            "start": start,
-                            "len": len
-                        }
-                    },
-                    "transform": {
-                        "kind": "ContentTypeTransform",
-                        "content_type": YAML_CONTENT_TYPE
-                    }
-                }]
-            }
-        })
-    }
-
-    fn yaml_test_source_map(start: u64, len: u32) -> Value {
-        yaml_test_output_span(start, len)["origin"].clone()
-    }
-
     fn json_test_output_span(start: u64, len: u32) -> Value {
         serde_json::json!({
             "outputRange": {
@@ -25716,35 +22575,6 @@ mod tests {
         json_test_output_span(start, len)["origin"].clone()
     }
 
-    fn markdown_test_output_span(start: u64, len: u32) -> Value {
-        serde_json::json!({
-            "outputRange": {
-                "start": start,
-                "len": len
-            },
-            "origin": {
-                "frames": [{
-                    "source_id": 1,
-                    "span": {
-                        "kind": "Single",
-                        "ranges": {
-                            "start": start,
-                            "len": len
-                        }
-                    },
-                    "transform": {
-                        "kind": "ContentTypeTransform",
-                        "content_type": MARKDOWN_CONTENT_TYPE
-                    }
-                }]
-            }
-        })
-    }
-
-    fn markdown_test_source_map(start: u64, len: u32) -> Value {
-        markdown_test_output_span(start, len)["origin"].clone()
-    }
-
     #[test]
     fn builtin_yaml_lifecycle_output_pipeline_formats_typed_ast_without_json_bridge() {
         let schema_registry = SchemaRegistry::with_builtin_schemas();
@@ -25755,52 +22585,7 @@ mod tests {
             package_artifact_reader: None,
             artifact_cache: None,
         };
-        let document = serde_json::json!({
-            "kind": "yaml-stream",
-            "lineEnding": "lf",
-            "documents": [{
-                "index": 0,
-                "root": {
-                    "kind": "mapping",
-                    "mapping": [
-                        {
-                            "index": 0,
-                            "key": {
-                                "kind": "scalar",
-                                "value": "name",
-                                "style": "plain",
-                                "implicitKind": "string",
-                                "sourceMap": yaml_test_source_map(0, 4)
-                            },
-                            "value": {
-                                "kind": "scalar",
-                                "value": "Ada",
-                                "style": "plain",
-                                "implicitKind": "string",
-                                "sourceMap": yaml_test_source_map(6, 3)
-                            }
-                        },
-                        {
-                            "index": 1,
-                            "key": {
-                                "kind": "scalar",
-                                "value": "active",
-                                "style": "plain",
-                                "implicitKind": "string",
-                                "sourceMap": yaml_test_source_map(10, 6)
-                            },
-                            "value": {
-                                "kind": "scalar",
-                                "value": "true",
-                                "style": "plain",
-                                "implicitKind": "boolean",
-                                "sourceMap": yaml_test_source_map(18, 4)
-                            }
-                        }
-                    ]
-                }
-            }]
-        });
+        let document = yaml_document("name: Ada\nactive: true\n");
         let target_scope = ScopeConfig {
             cemt_formatter_profile: Some("tabular".to_owned()),
             ..ScopeConfig::default()
@@ -25846,16 +22631,6 @@ mod tests {
         assert_eq!(formatted.value["contentType"], YAML_CONTENT_TYPE);
         assert_eq!(formatted.value["category"], "yaml-document");
         assert_eq!(formatted.value["formatterProfile"], "tabular");
-        assert_eq!(execution.output_spans.len(), 4);
-        let first_span = &execution.output_spans[0];
-        assert_eq!(first_span.output_range.start, 0);
-        assert_eq!(first_span.output_range.len, 4);
-        let crate::source_map::FrameSpan::Single(first_origin) = first_span.origin.frames[0].span
-        else {
-            panic!("YAML output span should retain a single origin range");
-        };
-        assert_eq!(first_origin.start, 0);
-        assert_eq!(first_origin.len, 4);
     }
 
     #[test]
@@ -25868,46 +22643,7 @@ mod tests {
             package_artifact_reader: None,
             artifact_cache: None,
         };
-        let document = serde_json::json!({
-            "kind": "yaml-stream",
-            "lineEnding": "lf",
-            "directives": [
-                {
-                    "index": 0,
-                    "name": "YAML",
-                    "value": "1.2",
-                    "sourceMap": yaml_test_source_map(0, 9)
-                },
-                {
-                    "index": 1,
-                    "name": "TAG",
-                    "value": "!e! tag:example.com,2026:",
-                    "sourceMap": yaml_test_source_map(10, 34)
-                }
-            ],
-            "documents": [{
-                "index": 0,
-                "sourceMap": yaml_test_source_map(45, 3),
-                "root": {
-                    "kind": "mapping",
-                    "mapping": [{
-                        "index": 0,
-                        "key": {
-                            "kind": "scalar",
-                            "value": "name",
-                            "style": "plain",
-                            "implicitKind": "string"
-                        },
-                        "value": {
-                            "kind": "scalar",
-                            "value": "Ada",
-                            "style": "plain",
-                            "implicitKind": "string"
-                        }
-                    }]
-                }
-            }]
-        });
+        let document = yaml_document("%YAML 1.2\n%TAG !e! tag:example.com,2026:\n---\nname: Ada\n");
         let target_scope = ScopeConfig {
             cemt_formatter_profile: Some("tabular".to_owned()),
             ..ScopeConfig::default()
@@ -25950,57 +22686,7 @@ mod tests {
             package_artifact_reader: None,
             artifact_cache: None,
         };
-        let document = serde_json::json!({
-            "kind": "yaml-stream",
-            "lineEnding": "lf",
-            "comments": [
-                {
-                    "index": 0,
-                    "text": "# header",
-                    "value": "header",
-                    "indent": "",
-                    "placement": "line",
-                    "sourceMap": yaml_test_source_map(0, 8)
-                },
-                {
-                    "index": 1,
-                    "text": "# inline comment",
-                    "value": "inline comment",
-                    "indent": "",
-                    "placement": "inline",
-                    "sourceMap": yaml_test_source_map(20, 16)
-                },
-                {
-                    "index": 2,
-                    "text": "# tail",
-                    "value": "tail",
-                    "indent": "  ",
-                    "placement": "line",
-                    "sourceMap": yaml_test_source_map(40, 6)
-                }
-            ],
-            "documents": [{
-                "index": 0,
-                "root": {
-                    "kind": "mapping",
-                    "mapping": [{
-                        "index": 0,
-                        "key": {
-                            "kind": "scalar",
-                            "value": "name",
-                            "style": "plain",
-                            "implicitKind": "string"
-                        },
-                        "value": {
-                            "kind": "scalar",
-                            "value": "Ada",
-                            "style": "plain",
-                            "implicitKind": "string"
-                        }
-                    }]
-                }
-            }]
-        });
+        let document = yaml_document("# header\n# inline comment\n# tail\nname: Ada\n");
         let target_scope = ScopeConfig {
             cemt_formatter_profile: Some("tabular".to_owned()),
             ..ScopeConfig::default()
@@ -26020,7 +22706,7 @@ mod tests {
         );
         assert_eq!(
             execution.output.as_ref().and_then(Value::as_str),
-            Some("# header\n# inline comment\n  # tail\nname: Ada\n")
+            Some("# header\n# inline comment\n# tail\nname: Ada\n")
         );
         let formatted = execution
             .formatted_cem_tree
@@ -26028,8 +22714,14 @@ mod tests {
             .expect("formatted YAML CEM tree");
         assert_eq!(formatted.value["nodes"][2]["kind"], "yaml.comment");
         assert_eq!(formatted.value["nodes"][2]["role"], "syntax.comment");
-        assert_eq!(formatted.value["nodes"][6]["kind"], "yaml.indent");
-        assert_eq!(formatted.value["nodes"][7]["kind"], "yaml.comment");
+        let comments = formatted.value["nodes"]
+            .as_array()
+            .expect("formatted YAML nodes")
+            .iter()
+            .filter(|node| node["kind"] == "yaml.comment")
+            .map(|node| node["text"].as_str().unwrap_or_default())
+            .collect::<Vec<_>>();
+        assert_eq!(comments, ["# header", "# inline comment", "# tail"]);
     }
 
     #[test]
@@ -26044,7 +22736,7 @@ mod tests {
         };
         let source = b"# header\nname: Ada # inline name\ndetails:\n  # nested\n  role: admin # inline role\n  active: true\n# tail\n";
         let (document, projection_diagnostics) =
-            crate::validation::yaml::yaml_stream_value_from_source_bytes(
+            crate::validation::yaml::yaml_document_ast_from_source_bytes(
                 crate::validation::yaml::YamlSourceValidationRequest {
                     bytes: source,
                     source_uri: "memory://yaml-comment-order.yaml",
@@ -26112,30 +22804,7 @@ mod tests {
             package_artifact_reader: None,
             artifact_cache: None,
         };
-        let document = serde_json::json!({
-            "kind": "yaml-stream",
-            "documents": [{
-                "index": 0,
-                "root": {
-                    "kind": "mapping",
-                    "mapping": [{
-                        "index": 0,
-                        "key": {
-                            "kind": "scalar",
-                            "value": "name",
-                            "style": "plain",
-                            "implicitKind": "string"
-                        },
-                        "value": {
-                            "kind": "scalar",
-                            "value": "Ada",
-                            "style": "plain",
-                            "implicitKind": "string"
-                        }
-                    }]
-                }
-            }]
-        });
+        let document = yaml_document("name: Ada\n");
         let target_scope = ScopeConfig {
             cemt_color_profile: Some("html".to_owned()),
             cemt_formatter_options: BTreeMap::from([("tabSize".to_owned(), "6".to_owned())]),
@@ -26189,68 +22858,7 @@ mod tests {
             package_artifact_reader: None,
             artifact_cache: None,
         };
-        let document = serde_json::json!({
-            "kind": "yaml-stream",
-            "lineEnding": "lf",
-            "documents": [{
-                "index": 0,
-                "root": {
-                    "kind": "mapping",
-                    "mapping": [
-                        {
-                            "index": 0,
-                            "key": {
-                                "kind": "scalar",
-                                "value": "name",
-                                "style": "plain",
-                                "implicitKind": "string"
-                            },
-                            "value": {
-                                "kind": "scalar",
-                                "value": "Ada",
-                                "style": "plain",
-                                "implicitKind": "string"
-                            }
-                        },
-                        {
-                            "index": 1,
-                            "key": {
-                                "kind": "scalar",
-                                "value": "code",
-                                "style": "plain",
-                                "implicitKind": "string"
-                            },
-                            "value": {
-                                "kind": "scalar",
-                                "value": "123",
-                                "style": "plain",
-                                "implicitKind": "string"
-                            }
-                        },
-                        {
-                            "index": 2,
-                            "key": {
-                                "kind": "scalar",
-                                "value": "items",
-                                "style": "plain",
-                                "implicitKind": "string"
-                            },
-                            "value": {
-                                "kind": "sequence",
-                                "sequence": [
-                                    {
-                                        "kind": "scalar",
-                                        "value": "one",
-                                        "style": "plain",
-                                        "implicitKind": "string"
-                                    }
-                                ]
-                            }
-                        }
-                    ]
-                }
-            }]
-        });
+        let document = yaml_document("name: Ada\ncode: \"123\"\nitems:\n  - one\n");
 
         for (profile, tree_profile, layout) in [
             ("compact", "compact", "compact-block-document"),
@@ -26312,31 +22920,7 @@ mod tests {
             package_artifact_reader: None,
             artifact_cache: None,
         };
-        let document = serde_json::json!({
-            "kind": "yaml-stream",
-            "lineEnding": "lf",
-            "documents": [{
-                "index": 0,
-                "root": {
-                    "kind": "mapping",
-                    "mapping": [{
-                        "index": 0,
-                        "key": {
-                            "kind": "scalar",
-                            "value": "name",
-                            "style": "plain",
-                            "implicitKind": "string"
-                        },
-                        "value": {
-                            "kind": "scalar",
-                            "value": "Ada",
-                            "style": "plain",
-                            "implicitKind": "string"
-                        }
-                    }]
-                }
-            }]
-        });
+        let document = yaml_document("name: Ada\n");
 
         for (profile, output, style_key, style_value) in [
             ("terminal", "terminal", "terminalCapability", "auto"),
@@ -26426,15 +23010,6 @@ mod tests {
             "{diagnostics:?}"
         );
         let document = document.expect("typed YAML AST");
-        let compatibility = document.to_cemt_subject();
-        assert_cemt_lowering_value_equivalent_by_name(
-            "yaml",
-            CemtTreeLoweringValue::Typed(CemtEvaluatorValue::borrowed(
-                YamlDocumentCemtSubjectRef::new(&document).evaluator_view(),
-            )),
-            CemtTreeLoweringValue::Compatibility(&compatibility),
-        );
-
         for profile in ["compact", "pretty", "tabular"] {
             let target_scope = ScopeConfig {
                 cemt_formatter_profile: Some(profile.to_owned()),
@@ -26446,23 +23021,11 @@ mod tests {
                 &target_scope,
                 Some("builtin:typed-yaml-output"),
             );
-            let oracle = execute_yaml_document_output_pipeline_with_environment(
-                &environment,
-                compatibility.clone(),
-                &target_scope,
-                Some("builtin:yaml-value-oracle"),
-            );
             assert!(
                 execution.diagnostics.is_empty(),
                 "{profile}: {:?}",
                 execution.diagnostics
             );
-            assert!(
-                oracle.diagnostics.is_empty(),
-                "{profile}: compatibility oracle diagnostics: {:?}",
-                oracle.diagnostics
-            );
-            assert_eq!(execution.output, oracle.output, "{profile} YAML parity");
             let materialized = execution
                 .formatted_materialized_cemt_tree
                 .as_ref()
@@ -26489,7 +23052,7 @@ mod tests {
     }
 
     #[test]
-    fn generic_data_yaml_typed_view_matches_value_oracle_across_document_shapes() {
+    fn generic_data_yaml_typed_view_handles_document_shapes() {
         use crate::validation::json::{
             json_document_ast_from_source_bytes, JsonSourceValidationRequest,
         };
@@ -26527,7 +23090,6 @@ mod tests {
                 "{name}: {diagnostics:?}"
             );
             let ast = document.expect("lossless JSON AST").to_generic_data_ast();
-            let compatibility = generic_data_ast_to_yaml_cemt_subject(&ast);
             let scope = ScopeConfig {
                 cemt_formatter_profile: Some("compact".to_owned()),
                 ..ScopeConfig::default()
@@ -26538,25 +23100,10 @@ mod tests {
                 &scope,
                 Some("builtin:generic-data-yaml-shape"),
             );
-            let oracle = execute_yaml_document_output_pipeline_with_environment(
-                &environment,
-                compatibility,
-                &scope,
-                Some("builtin:generic-data-yaml-value-oracle"),
-            );
             assert!(
                 execution.diagnostics.is_empty(),
                 "{name}: {:?}",
                 execution.diagnostics
-            );
-            assert!(
-                oracle.diagnostics.is_empty(),
-                "{name}: compatibility oracle diagnostics: {:?}",
-                oracle.diagnostics
-            );
-            assert_eq!(
-                execution.output, oracle.output,
-                "{name}: typed/value parity"
             );
             let materialized = execution
                 .formatted_materialized_cemt_tree
@@ -26784,34 +23331,7 @@ mod tests {
             package_artifact_reader: None,
             artifact_cache: None,
         };
-        let document = serde_json::json!({
-            "kind": "json-document",
-            "root": {
-                "kind": "object",
-                "members": [
-                    {
-                        "index": 0,
-                        "name": "name",
-                        "nameLexeme": "\"name\"",
-                        "value": {
-                            "kind": "string",
-                            "value": "Ada",
-                            "lexeme": "\"Ada\""
-                        }
-                    },
-                    {
-                        "index": 1,
-                        "name": "name",
-                        "nameLexeme": "\"name\"",
-                        "value": {
-                            "kind": "string",
-                            "value": "Lin",
-                            "lexeme": "\"Lin\""
-                        }
-                    }
-                ]
-            }
-        });
+        let document = json_document("{\"name\":\"Ada\",\"name\":\"Lin\"}");
         let execution = execute_json_document_output_pipeline_with_environment(
             &environment,
             document,
@@ -26840,22 +23360,7 @@ mod tests {
             package_artifact_reader: None,
             artifact_cache: None,
         };
-        let document = serde_json::json!({
-            "kind": "json-document",
-            "root": {
-                "kind": "object",
-                "members": [{
-                    "index": 0,
-                    "name": "name",
-                    "nameLexeme": "\"name\"",
-                    "value": {
-                        "kind": "string",
-                        "value": "Ada",
-                        "lexeme": "\"Ada\""
-                    }
-                }]
-            }
-        });
+        let document = json_document("{\"name\":\"Ada\"}");
         let target_scope = ScopeConfig {
             cemt_color_profile: Some("html".to_owned()),
             cemt_formatter_options: BTreeMap::from([("tabSize".to_owned(), "6".to_owned())]),
@@ -26977,64 +23482,9 @@ mod tests {
             package_artifact_reader: None,
             artifact_cache: None,
         };
-        let document = serde_json::json!({
-            "kind": "json-document",
-            "lineEnding": "lf",
-            "root": {
-                "kind": "object",
-                "members": [
-                    {
-                        "index": 0,
-                        "name": "name",
-                        "nameLexeme": "\"name\"",
-                        "value": {
-                            "kind": "string",
-                            "value": "Ada",
-                            "lexeme": "\"Ada\""
-                        }
-                    },
-                    {
-                        "index": 1,
-                        "name": "site",
-                        "nameLexeme": "\"site\"",
-                        "value": {
-                            "kind": "object",
-                            "members": [
-                                {
-                                    "index": 0,
-                                    "name": "title",
-                                    "nameLexeme": "\"title\"",
-                                    "value": {
-                                        "kind": "string",
-                                        "value": "CEM Demo",
-                                        "lexeme": "\"CEM Demo\""
-                                    }
-                                }
-                            ]
-                        }
-                    },
-                    {
-                        "index": 2,
-                        "name": "items",
-                        "nameLexeme": "\"items\"",
-                        "value": {
-                            "kind": "array",
-                            "items": [
-                                {
-                                    "kind": "number",
-                                    "lexeme": "1",
-                                    "numberKind": "integer"
-                                },
-                                {
-                                    "kind": "boolean",
-                                    "value": true
-                                }
-                            ]
-                        }
-                    }
-                ]
-            }
-        });
+        let document = json_document(
+            "{\"name\":\"Ada\",\"site\":{\"title\":\"CEM Demo\"},\"items\":[1,true]}\n",
+        );
 
         for (profile, expected_path, tree_profile, layout, expected_output) in [
             (
@@ -27123,44 +23573,7 @@ mod tests {
             package_artifact_reader: None,
             artifact_cache: None,
         };
-        let document = serde_json::json!({
-            "kind": "json-document",
-            "lineEnding": "lf",
-            "root": {
-                "kind": "object",
-                "members": [
-                    {
-                        "index": 0,
-                        "name": "name",
-                        "nameLexeme": "\"name\"",
-                        "value": {
-                            "kind": "string",
-                            "value": "Ada",
-                            "lexeme": "\"Ada\""
-                        }
-                    },
-                    {
-                        "index": 1,
-                        "name": "items",
-                        "nameLexeme": "\"items\"",
-                        "value": {
-                            "kind": "array",
-                            "items": [
-                                {
-                                    "kind": "number",
-                                    "lexeme": "1",
-                                    "numberKind": "integer"
-                                },
-                                {
-                                    "kind": "boolean",
-                                    "value": true
-                                }
-                            ]
-                        }
-                    }
-                ]
-            }
-        });
+        let document = json_document("{\"name\":\"Ada\",\"items\":[1,true]}\n");
         let target_scope = ScopeConfig {
             cemt_formatter_profile: Some("pretty".to_owned()),
             cemt_formatter_options: BTreeMap::from([
@@ -27212,22 +23625,7 @@ mod tests {
             package_artifact_reader: None,
             artifact_cache: None,
         };
-        let document = serde_json::json!({
-            "kind": "json-document",
-            "root": {
-                "kind": "object",
-                "members": [{
-                    "index": 0,
-                    "name": "name",
-                    "nameLexeme": "\"name\"",
-                    "value": {
-                        "kind": "string",
-                        "value": "Ada",
-                        "lexeme": "\"Ada\""
-                    }
-                }]
-            }
-        });
+        let document = json_document("{\"name\":\"Ada\"}");
 
         for (profile, output, style_key, style_value) in [
             ("terminal", "terminal", "terminalCapability", "auto"),
@@ -27299,72 +23697,6 @@ mod tests {
             package_artifact_reader: None,
             artifact_cache: None,
         };
-        let document = serde_json::json!({
-            "kind": "json-schema-document",
-            "contentType": JSON_SCHEMA_CONTENT_TYPE,
-            "schema": JSON_SCHEMA_SCHEMA_URI,
-            "dialect": "https://json-schema.org/draft/2020-12/schema",
-            "json": {
-                "kind": "json-document",
-                "lineEnding": "lf",
-                "root": {
-                    "kind": "object",
-                    "members": [
-                        {
-                            "index": 0,
-                            "name": "$schema",
-                            "nameLexeme": "\"$schema\"",
-                            "value": {
-                                "kind": "string",
-                                "value": "https://json-schema.org/draft/2020-12/schema",
-                                "lexeme": "\"https://json-schema.org/draft/2020-12/schema\""
-                            }
-                        },
-                        {
-                            "index": 1,
-                            "name": "type",
-                            "nameLexeme": "\"type\"",
-                            "value": {
-                                "kind": "string",
-                                "value": "object",
-                                "lexeme": "\"object\""
-                            }
-                        },
-                        {
-                            "index": 2,
-                            "name": "properties",
-                            "nameLexeme": "\"properties\"",
-                            "value": {
-                                "kind": "object",
-                                "members": [
-                                    {
-                                        "index": 0,
-                                        "name": "title",
-                                        "nameLexeme": "\"title\"",
-                                        "value": {
-                                            "kind": "object",
-                                            "members": [
-                                                {
-                                                    "index": 0,
-                                                    "name": "type",
-                                                    "nameLexeme": "\"type\"",
-                                                    "value": {
-                                                        "kind": "string",
-                                                        "value": "string",
-                                                        "lexeme": "\"string\""
-                                                    }
-                                                }
-                                            ]
-                                        }
-                                    }
-                                ]
-                            }
-                        }
-                    ]
-                }
-            }
-        });
-        let compatibility_document = document;
         let document = json_schema_document(
             r#"{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"title":{"type":"string"}}}"#,
         );
@@ -27399,14 +23731,6 @@ mod tests {
                 &target_scope,
                 Some("builtin:json-schema-output"),
             );
-            let compatibility =
-                execute_test_compatibility_json_schema_document_output_pipeline_with_environment(
-                    &environment,
-                    compatibility_document.clone(),
-                    &target_scope,
-                    Some("builtin:json-schema-output-compatibility"),
-                );
-
             assert!(
                 execution.diagnostics.is_empty(),
                 "{profile}: {:?}",
@@ -27426,10 +23750,6 @@ mod tests {
                 ),
                 "{profile}: {:?}",
                 execution.format_execution
-            );
-            assert_eq!(
-                execution.output, compatibility.output,
-                "{profile}: typed and compatibility JSON Schema outputs differ"
             );
             assert_eq!(
                 execution.output.as_ref().and_then(Value::as_str),
@@ -27488,42 +23808,6 @@ mod tests {
             package_artifact_reader: None,
             artifact_cache: None,
         };
-        let document = serde_json::json!({
-            "kind": "json-schema-document",
-            "contentType": JSON_SCHEMA_CONTENT_TYPE,
-            "schema": JSON_SCHEMA_SCHEMA_URI,
-            "dialect": "https://json-schema.org/draft/2020-12/schema",
-            "json": {
-                "kind": "json-document",
-                "lineEnding": "lf",
-                "root": {
-                    "kind": "object",
-                    "members": [
-                        {
-                            "index": 0,
-                            "name": "$schema",
-                            "nameLexeme": "\"$schema\"",
-                            "value": {
-                                "kind": "string",
-                                "value": "https://json-schema.org/draft/2020-12/schema",
-                                "lexeme": "\"https://json-schema.org/draft/2020-12/schema\""
-                            }
-                        },
-                        {
-                            "index": 1,
-                            "name": "type",
-                            "nameLexeme": "\"type\"",
-                            "value": {
-                                "kind": "string",
-                                "value": "object",
-                                "lexeme": "\"object\""
-                            }
-                        }
-                    ]
-                }
-            }
-        });
-        let compatibility_document = document;
         let document = json_schema_document(
             r#"{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object"}"#,
         );
@@ -27542,14 +23826,6 @@ mod tests {
             &target_scope,
             Some("builtin:json-schema-layout-options"),
         );
-        let compatibility =
-            execute_test_compatibility_json_schema_document_output_pipeline_with_environment(
-                &environment,
-                compatibility_document,
-                &target_scope,
-                Some("builtin:json-schema-layout-options-compatibility"),
-            );
-
         assert!(
             execution.diagnostics.is_empty(),
             "{:?}",
@@ -27559,7 +23835,6 @@ mod tests {
             execution.output.as_ref().and_then(Value::as_str),
             Some("{\n    \"$schema\": \"https://json-schema.org/draft/2020-12/schema\",\n    \"type\": \"object\"\n}\n")
         );
-        assert_eq!(execution.output, compatibility.output);
         let formatted = execution
             .formatted_cem_tree
             .as_ref()
@@ -27584,28 +23859,6 @@ mod tests {
             package_artifact_reader: None,
             artifact_cache: None,
         };
-        let _compatibility_document = serde_json::json!({
-            "kind": "json-schema-document",
-            "contentType": JSON_SCHEMA_CONTENT_TYPE,
-            "schema": JSON_SCHEMA_SCHEMA_URI,
-            "dialect": "https://json-schema.org/draft/2020-12/schema",
-            "json": {
-                "kind": "json-document",
-                "root": {
-                    "kind": "object",
-                    "members": [{
-                        "index": 0,
-                        "name": "type",
-                        "nameLexeme": "\"type\"",
-                        "value": {
-                            "kind": "string",
-                            "value": "object",
-                            "lexeme": "\"object\""
-                        }
-                    }]
-                }
-            }
-        });
         let document = json_schema_document(
             r#"{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object"}"#,
         );
@@ -29223,15 +25476,6 @@ mod tests {
             let document = document.unwrap_or_else(|| panic!("{label} typed RELAX NG AST"));
             let view = RelaxNgDocumentCemtSubjectRef::new(&document);
             assert!(std::ptr::eq(view.document(), &document));
-            let compatibility = document.to_cemt_subject();
-            assert_cemt_lowering_value_equivalent_by_name(
-                label,
-                CemtTreeLoweringValue::Typed(CemtEvaluatorValue::borrowed(
-                    view.evaluator_view(),
-                )),
-                CemtTreeLoweringValue::Compatibility(&compatibility),
-            );
-
             let execution = execute_relax_ng_document_output_pipeline_with_environment(
                 &environment,
                 document.clone(),
@@ -29324,15 +25568,6 @@ mod tests {
             });
         assert!(diagnostics.is_empty(), "{diagnostics:?}");
         let document = document.expect("typed Markdown AST");
-        let compatibility = document.to_cemt_subject();
-        assert_cemt_lowering_value_equivalent_by_name(
-            "markdown",
-            CemtTreeLoweringValue::Typed(CemtEvaluatorValue::borrowed(
-                MarkdownDocumentCemtSubjectRef::new(&document).evaluator_view(),
-            )),
-            CemtTreeLoweringValue::Compatibility(&compatibility),
-        );
-
         for profile in ["compact", "pretty", "tabular"] {
             let target_scope = ScopeConfig {
                 cemt_formatter_profile: Some(profile.to_owned()),
@@ -29348,23 +25583,11 @@ mod tests {
                 &target_scope,
                 Some("builtin:typed-markdown-output"),
             );
-            let oracle = execute_markdown_document_output_pipeline_with_environment(
-                &environment,
-                compatibility.clone(),
-                &target_scope,
-                Some("builtin:markdown-value-oracle"),
-            );
             assert!(
                 execution.diagnostics.is_empty(),
                 "{profile}: {:?}",
                 execution.diagnostics
             );
-            assert!(
-                oracle.diagnostics.is_empty(),
-                "{profile}: compatibility oracle diagnostics: {:?}",
-                oracle.diagnostics
-            );
-            assert_eq!(execution.output, oracle.output, "{profile} Markdown parity");
             assert!(
                 execution
                     .output
@@ -29541,26 +25764,11 @@ mod tests {
 
         macro_rules! assert_typed_owner {
             ($label:literal, $document:ident, $view:expr, $spec:expr, $representation:literal) => {{
-                let compatibility = $document.to_cemt_subject();
-                assert_cemt_lowering_value_equivalent_by_name(
-                    $label,
-                    CemtTreeLoweringValue::Typed(CemtEvaluatorValue::borrowed(
-                        $view.evaluator_view(),
-                    )),
-                    CemtTreeLoweringValue::Compatibility(&compatibility),
-                );
                 let execution = execute_xml_family_document_output_pipeline_with_environment(
                     &environment,
                     $document.clone(),
                     &target_scope,
                     Some(concat!("builtin:typed-xml-family-", $label)),
-                    $spec,
-                );
-                let oracle = execute_xml_family_document_output_pipeline_with_environment(
-                    &environment,
-                    compatibility,
-                    &target_scope,
-                    Some(concat!("builtin:value-oracle-", $label)),
                     $spec,
                 );
                 assert!(
@@ -29569,13 +25777,6 @@ mod tests {
                     $label,
                     execution.diagnostics
                 );
-                assert!(
-                    oracle.diagnostics.is_empty(),
-                    "{} oracle: {:?}",
-                    $label,
-                    oracle.diagnostics
-                );
-                assert_eq!(execution.output, oracle.output, "{} output parity", $label);
                 let materialized = execution
                     .formatted_materialized_cemt_tree
                     .as_ref()
@@ -29737,51 +25938,7 @@ mod tests {
             package_artifact_reader: None,
             artifact_cache: None,
         };
-        let document = serde_json::json!({
-            "kind": "markdown-document",
-            "contentType": MARKDOWN_CONTENT_TYPE,
-            "schema": MARKDOWN_SCHEMA_URI,
-            "lineEnding": "lf",
-            "events": [
-                {
-                    "index": 0,
-                    "kind": "start",
-                    "tag": "heading",
-                    "level": 1,
-                    "sourceMap": markdown_test_source_map(0, 1)
-                },
-                {
-                    "index": 1,
-                    "kind": "text",
-                    "text": "Release Notes",
-                    "sourceMap": markdown_test_source_map(2, 13)
-                },
-                {
-                    "index": 2,
-                    "kind": "end",
-                    "tag": "heading",
-                    "sourceMap": markdown_test_source_map(15, 0)
-                },
-                {
-                    "index": 3,
-                    "kind": "start",
-                    "tag": "paragraph",
-                    "sourceMap": markdown_test_source_map(17, 0)
-                },
-                {
-                    "index": 4,
-                    "kind": "text",
-                    "text": "Ready",
-                    "sourceMap": markdown_test_source_map(17, 5)
-                },
-                {
-                    "index": 5,
-                    "kind": "end",
-                    "tag": "paragraph",
-                    "sourceMap": markdown_test_source_map(22, 0)
-                }
-            ]
-        });
+        let document = markdown_document("# Release Notes\n\nReady\n");
 
         for (profile, layout, expected_output) in [
             (
@@ -29872,30 +26029,7 @@ mod tests {
             package_artifact_reader: None,
             artifact_cache: None,
         };
-        let document = serde_json::json!({
-            "kind": "markdown-document",
-            "contentType": MARKDOWN_CONTENT_TYPE,
-            "schema": MARKDOWN_SCHEMA_URI,
-            "lineEnding": "lf",
-            "events": [
-                {
-                    "index": 0,
-                    "kind": "start",
-                    "tag": "heading",
-                    "level": 1
-                },
-                {
-                    "index": 1,
-                    "kind": "text",
-                    "text": "Release Notes"
-                },
-                {
-                    "index": 2,
-                    "kind": "end",
-                    "tag": "heading"
-                }
-            ]
-        });
+        let document = markdown_document("# Release Notes\n");
 
         for (profile, output, style_key, style_value) in [
             ("terminal", "terminal", "terminalCapability", "auto"),
@@ -30151,60 +26285,6 @@ mod tests {
             .collect::<String>()
     }
 
-    fn assert_cemt_lowering_value_equivalent_by_name(
-        path: &str,
-        left: CemtTreeLoweringValue<'_>,
-        right: CemtTreeLoweringValue<'_>,
-    ) {
-        if matches!(
-            (left.kind(), right.kind()),
-            (
-                CemtEvaluatorValueKind::SourceMap,
-                CemtEvaluatorValueKind::Record
-            ) | (
-                CemtEvaluatorValueKind::Record,
-                CemtEvaluatorValueKind::SourceMap
-            )
-        ) {
-            assert_eq!(
-                left.source_map().expect("left source map"),
-                right.source_map().expect("right source map"),
-                "{path}: evaluator source map"
-            );
-            return;
-        }
-        assert_eq!(left.kind(), right.kind(), "{path}: evaluator kind");
-        match left.kind() {
-            CemtEvaluatorValueKind::Record => {
-                let mut left_names = left.field_names().expect("left record fields");
-                let mut right_names = right.field_names().expect("right record fields");
-                left_names.sort();
-                right_names.sort();
-                assert_eq!(left_names, right_names, "{path}: evaluator fields");
-                for name in left_names {
-                    assert_cemt_lowering_value_equivalent_by_name(
-                        &format!("{path}.{name}"),
-                        left.field(&name).expect("left field"),
-                        right.field(&name).expect("right field"),
-                    );
-                }
-            }
-            CemtEvaluatorValueKind::Sequence => {
-                let left = left.sequence().expect("left sequence");
-                let right = right.sequence().expect("right sequence");
-                assert_eq!(left.len(), right.len(), "{path}: evaluator sequence length");
-                for (index, (left, right)) in left.into_iter().zip(right).enumerate() {
-                    assert_cemt_lowering_value_equivalent_by_name(
-                        &format!("{path}.{index}"),
-                        left,
-                        right,
-                    );
-                }
-            }
-            _ => assert!(left.equivalent(&right), "{path}: evaluator value"),
-        }
-    }
-
     fn strip_ansi_codes(input: &str) -> String {
         let mut output = String::new();
         let mut chars = input.chars().peekable();
@@ -30361,31 +26441,6 @@ mod tests {
                 "{profile}"
             );
             assert_eq!(writer_node_text(&formatted), expected_output, "{profile}");
-            let target = TransformTemplateEncodingTarget::new(
-                CSV_CONTENT_TYPE,
-                CSV_SCHEMA_URI,
-                "csv-document",
-            );
-            let mut context =
-                TransformTemplateEncodedArtifactInsertionContext::from_encoding_target(
-                    &target,
-                    Some(TransformTemplateOutputProducedKind::CemTree),
-                );
-            context.formatter_profile = Some(profile.to_owned());
-            context.mode = Some(TransformTemplateEncodedArtifactMode::Document);
-            context.canonical = Some(profile == "compact");
-            context.source_map_policy = Some(TransformTemplateSourceMapPolicy::Generated);
-            let mut identity = TransformTemplateEncodedArtifactIdentity::new(
-                TransformTemplateOutputProducedKind::CemTree,
-                target,
-            );
-            identity.formatter_profile = Some(profile.to_owned());
-            identity.mode = TransformTemplateEncodedArtifactMode::Document;
-            identity.canonical = profile == "compact";
-            identity.source_map_policy = TransformTemplateSourceMapPolicy::Generated;
-            TransformTemplateEncodedArtifact::new(identity, formatted)
-                .validate_insertion(&context)
-                .unwrap_or_else(|error| panic!("{profile} CSV formatter CEM tree: {error:?}"));
             assert!(
                 builtin_schema_package_artifact_source("csv", expected_path)
                     .is_some_and(|source| source.source.contains("{body |")),
@@ -30404,35 +26459,10 @@ mod tests {
             package_artifact_reader: None,
             artifact_cache: None,
         };
-        let table = serde_json::json!({
-            "kind": "csv-table",
-            "rows": [
-                {
-                    "index": 0,
-                    "fields": [
-                        {"index": 0, "value": "id"},
-                        {"index": 1, "value": "name"},
-                        {"index": 2, "value": "total"}
-                    ]
-                },
-                {
-                    "index": 1,
-                    "fields": [
-                        {"index": 0, "value": "123456789"},
-                        {"index": 1, "value": "Alexandria"},
-                        {"index": 2, "value": "123.4567"}
-                    ]
-                },
-                {
-                    "index": 2,
-                    "fields": [
-                        {"index": 0, "value": "42"},
-                        {"index": 1, "value": "Bo"},
-                        {"index": 2, "value": "9.5"}
-                    ]
-                }
-            ]
-        });
+        let table = csv_document(
+            "id,name,total\n123456789,Alexandria,123.4567\n42,Bo,9.5\n",
+            Some(CSV_CONTENT_TYPE),
+        );
         let target_scope = ScopeConfig {
             cemt_formatter_profile: Some("tabular".to_owned()),
             cemt_formatter_options: BTreeMap::from([
@@ -30483,51 +26513,28 @@ mod tests {
             package_artifact_reader: None,
             artifact_cache: None,
         };
-        let base_table = serde_json::json!({
-            "kind": "csv-table",
-            "rows": [
-                {
-                    "index": 0,
-                    "fields": [
-                        {"index": 0, "value": "id"},
-                        {"index": 1, "value": "name"}
-                    ]
-                },
-                {
-                    "index": 1,
-                    "fields": [
-                        {"index": 0, "value": "1"},
-                        {"index": 1, "value": "Ada"}
-                    ]
-                }
-            ]
-        });
-
-        for (name, table, option, expected) in [
+        for (name, source, option, expected) in [
             (
                 "explicit crlf",
-                base_table.clone(),
+                "id,name\n1,Ada\n",
                 "crlf",
                 "id,name\r\n1,Ada\r\n",
             ),
-            ("explicit lf", base_table.clone(), "lf", "id,name\n1,Ada\n"),
+            ("explicit lf", "id,name\n1,Ada\n", "lf", "id,name\n1,Ada\n"),
             (
                 "preserve crlf",
-                serde_json::json!({
-                    "kind": "csv-table",
-                    "lineEnding": "crlf",
-                    "rows": base_table["rows"].clone()
-                }),
+                "id,name\r\n1,Ada\r\n",
                 "preserve",
                 "id,name\r\n1,Ada\r\n",
             ),
             (
                 "preserve fallback",
-                base_table.clone(),
+                "id,name\n1,Ada\n",
                 "preserve",
                 "id,name\n1,Ada\n",
             ),
         ] {
+            let table = csv_document(source, Some(CSV_CONTENT_TYPE));
             let target_scope = ScopeConfig {
                 cemt_formatter_profile: Some("compact".to_owned()),
                 cemt_formatter_options: BTreeMap::from([(
@@ -30585,8 +26592,6 @@ mod tests {
             "{diagnostics:?}"
         );
         let document = document.expect("typed CSV AST");
-        let compatibility = document.to_cemt_subject();
-
         for profile in ["compact", "pretty", "tabular"] {
             let target_scope = ScopeConfig {
                 cemt_formatter_profile: Some(profile.to_owned()),
@@ -30598,18 +26603,11 @@ mod tests {
                 &target_scope,
                 Some("builtin:typed-csv-output"),
             );
-            let oracle = execute_csv_document_output_pipeline_with_environment(
-                &environment,
-                compatibility.clone(),
-                &target_scope,
-                Some("builtin:csv-value-oracle"),
-            );
             assert!(
                 execution.diagnostics.is_empty(),
                 "{profile}: {:?}",
                 execution.diagnostics
             );
-            assert_eq!(execution.output, oracle.output, "{profile} CSV parity");
             if profile == "compact" {
                 assert_eq!(
                     execution.output.as_ref().and_then(Value::as_str),
@@ -30642,8 +26640,7 @@ mod tests {
     }
 
     #[test]
-    fn generic_data_csv_typed_view_matches_value_oracle_across_table_shapes() {
-        use crate::validation::csv::generic_data_ast_to_csv_cemt_subject;
+    fn generic_data_csv_typed_view_handles_table_shapes() {
         use crate::validation::json::{
             json_document_ast_from_source_bytes, JsonSourceValidationRequest,
         };
@@ -30684,12 +26681,7 @@ mod tests {
                 "{name}: {parse_diagnostics:?}"
             );
             let ast = document.expect("lossless JSON AST").to_generic_data_ast();
-            let (oracle, oracle_diagnostics) = generic_data_ast_to_csv_cemt_subject(&ast);
             let (subject, diagnostics) = GenericDataCsvDocumentOutputSubject::new(ast);
-            assert!(
-                oracle_diagnostics.is_empty(),
-                "{name}: {oracle_diagnostics:?}"
-            );
             assert!(diagnostics.is_empty(), "{name}: {diagnostics:?}");
             let scope = ScopeConfig {
                 cemt_formatter_profile: Some("compact".to_owned()),
@@ -30701,25 +26693,10 @@ mod tests {
                 &scope,
                 Some("builtin:generic-data-csv-shape"),
             );
-            let oracle = execute_csv_document_output_pipeline_with_environment(
-                &environment,
-                oracle,
-                &scope,
-                Some("builtin:generic-data-csv-value-oracle"),
-            );
             assert!(
                 execution.diagnostics.is_empty(),
                 "{name}: {:?}",
                 execution.diagnostics
-            );
-            assert!(
-                oracle.diagnostics.is_empty(),
-                "{name}: compatibility oracle diagnostics: {:?}",
-                oracle.diagnostics
-            );
-            assert_eq!(
-                execution.output, oracle.output,
-                "{name}: typed/value parity"
             );
             assert_eq!(
                 execution.output.as_ref().and_then(Value::as_str),
@@ -30853,35 +26830,10 @@ mod tests {
             package_artifact_reader: None,
             artifact_cache: None,
         };
-        let table = serde_json::json!({
-            "kind": "csv-table",
-            "rows": [
-                {
-                    "index": 0,
-                    "fields": [
-                        {"index": 0, "value": "id"},
-                        {"index": 1, "value": "name"},
-                        {"index": 2, "value": "active"}
-                    ]
-                },
-                {
-                    "index": 1,
-                    "fields": [
-                        {"index": 0, "value": "1"},
-                        {"index": 1, "value": "Ada"},
-                        {"index": 2, "value": "true"}
-                    ]
-                },
-                {
-                    "index": 2,
-                    "fields": [
-                        {"index": 0, "value": "2"},
-                        {"index": 1, "value": "Lin"},
-                        {"index": 2, "value": "false"}
-                    ]
-                }
-            ]
-        });
+        let table = csv_document(
+            "id,name,active\n1,Ada,true\n2,Lin,false\n",
+            Some(CSV_CONTENT_TYPE),
+        );
         let terminal_scope = ScopeConfig {
             cemt_formatter_profile: Some("tabular".to_owned()),
             output_color_type: Some("ansi-256".to_owned()),
@@ -31034,26 +26986,7 @@ mod tests {
             package_artifact_reader: None,
             artifact_cache: None,
         };
-        let table = serde_json::json!({
-            "kind": "csv-table",
-            "rows": [{
-                "index": 0,
-                "recordEndingSourceMap": csv_test_source_map(7, 1),
-                "fields": [
-                    {
-                        "index": 0,
-                        "value": "id",
-                        "sourceMap": csv_test_source_map(0, 2)
-                    },
-                    {
-                        "index": 1,
-                        "value": "name",
-                        "delimiterBeforeSourceMap": csv_test_source_map(2, 1),
-                        "sourceMap": csv_test_source_map(3, 4)
-                    }
-                ]
-            }]
-        });
+        let table = csv_document("id,name\n", Some(CSV_CONTENT_TYPE));
         let target_scope = ScopeConfig {
             cemt_formatter_profile: Some("compact".to_owned()),
             ..ScopeConfig::default()
@@ -31093,7 +27026,7 @@ mod tests {
                 .frames
                 .first()
                 .unwrap_or_else(|| panic!("span {index} has origin frame"));
-            assert_eq!(frame.source_id, SourceId(0), "span {index}");
+            assert_eq!(frame.source_id, SourceId(1), "span {index}");
             match frame.span {
                 crate::source_map::FrameSpan::Single(range) => {
                     assert_eq!(range.start, source_start, "span {index}");
@@ -31201,23 +27134,6 @@ mod tests {
                 colored["nodes"][1]["style"][expected_style_key], expected_style_value,
                 "{profile}"
             );
-            let target = TransformTemplateEncodingTarget::new(
-                CSV_CONTENT_TYPE,
-                CSV_SCHEMA_URI,
-                "csv-document",
-            );
-            let mut context =
-                TransformTemplateEncodedArtifactInsertionContext::from_encoding_target(
-                    &target,
-                    Some(TransformTemplateOutputProducedKind::CemTree),
-                );
-            context.formatter_profile = Some("compact".to_owned());
-            context.color_profile = Some(profile.to_owned());
-            context.mode = Some(TransformTemplateEncodedArtifactMode::Document);
-            context.source_map_policy = Some(TransformTemplateSourceMapPolicy::Generated);
-            TransformTemplateEncodedArtifact::from_public_json(binding.identity.clone(), colored)
-                .validate_insertion(&context)
-                .unwrap_or_else(|error| panic!("{profile} CSV colorized CEM tree: {error:?}"));
             assert!(
                 builtin_schema_package_artifact_source("csv", expected_path)
                     .is_some_and(|source| source.source.contains("{body |")),
@@ -31391,15 +27307,6 @@ mod tests {
             colored["nodes"][0]["writerAttributeNodes"][0]["value"],
             "direct-cemt-color"
         );
-
-        TransformTemplateEncodedArtifact::from_public_json(binding.identity.clone(), colored)
-            .validate_insertion(
-                &TransformTemplateEncodedArtifactInsertionContext::from_encoding_target(
-                    &request.target,
-                    Some(TransformTemplateOutputProducedKind::CemTree),
-                ),
-            )
-            .expect("direct colored CEM tree validates");
     }
 
     #[test]
