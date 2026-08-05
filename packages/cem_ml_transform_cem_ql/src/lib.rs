@@ -10,8 +10,8 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::sync::Arc;
 
 use cem_ml::conversion::{
-    execute_conversion_output_pipeline_with_environment, ConversionOutputPipeline,
-    ConversionOutputPipelineEnvironment, ConversionOutputPipelineStage,
+    execute_conversion_output_pipeline_from_typed_cemt_subject_with_environment,
+    ConversionOutputPipeline, ConversionOutputPipelineEnvironment, ConversionOutputPipelineStage,
 };
 use cem_ml::diagnostics::{Diagnostic, Severity};
 use cem_ml::engine::{
@@ -46,9 +46,10 @@ use cem_ml::source_map::{FrameSpan, SourceMapFrame, SourceMapStack, TransformKin
 use cem_ml::tokenizer::cem::CemTokenizer;
 use cem_ml::tokenizer::{SchemaToken, SchemaTokenizer};
 use cem_ml::transform_artifact::{
-    TransformArtifactBody, TransformArtifactCollection, TransformArtifactCollectionMode,
-    TransformArtifactExporter, TransformEncodedArtifact, TransformEncoding,
-    TransformNativeArtifact,
+    CemtEvaluatorNumber, CemtEvaluatorRecordRef, CemtEvaluatorRecordView, CemtEvaluatorSequenceRef,
+    CemtEvaluatorSequenceView, CemtEvaluatorValue, CemtEvaluatorValueRef, TransformArtifactBody,
+    TransformArtifactCollection, TransformArtifactCollectionMode, TransformArtifactExporter,
+    TransformEncodedArtifact, TransformEncoding, TransformNativeArtifact,
 };
 use cem_ml::transform_template::{
     parse_cem_native_template_module_options, parse_transform_template_output_color_type,
@@ -97,6 +98,7 @@ pub const CEM_QL_EXPRESSION_TEMPLATE_ADAPTER_ID: &str = "cem-ql-expression-templ
 pub const XSLT_PARITY_TEMPLATE_ADAPTER_ID: &str = "cem-ql-xslt-parity-template";
 const TRANSFORM_CALL_NODE: &str = "__cem_transform_call";
 const CEM_QL_RESULT_REPRESENTATION_ID: &str = "cem-ql.result-sequence";
+const CEM_QL_SOURCE_TOKEN_AST_REPRESENTATION_ID: &str = "cem-ql.source-token-ast";
 
 #[derive(Debug, Clone, Copy)]
 pub struct CemQlSourceValidationRequest<'a> {
@@ -2144,15 +2146,15 @@ fn convert_cem_ql_source_output(
         package_artifact_reader: None,
         artifact_cache: None,
     };
-    let execution = execute_conversion_output_pipeline_with_environment(
+    let execution = execute_conversion_output_pipeline_from_typed_cemt_subject_with_environment(
         &environment,
         &pipeline,
-        token_tree,
-        Some(cem_ql_source_map(ByteRange::new(
-            0,
-            checked_byte_len(request.input.bytes.len()),
-        ))),
-        Vec::new(),
+        CemtEvaluatorValue::borrowed(CemtEvaluatorValueRef::Record(
+            CemtEvaluatorRecordRef::Package {
+                record: &token_tree,
+            },
+        )),
+        CEM_QL_SOURCE_TOKEN_AST_REPRESENTATION_ID,
         CEM_QL_DIRECT_OUTPUT_CONVERTER_ID,
         Some("cem-ql"),
         Some(&request.input.uri),
@@ -2290,7 +2292,32 @@ fn cem_ql_output_pipeline(
     }
 }
 
-fn cem_ql_source_token_tree(input_uri: &str, source: &str) -> Value {
+#[derive(Debug)]
+struct CemQlSourceTokenTreeAst {
+    input_uri: String,
+    tokens: Vec<CemQlSourceTokenAst>,
+}
+
+#[derive(Debug)]
+struct CemQlSourceTokenAst {
+    input_uri: String,
+    value: CemQlSourceTokenValueAst,
+    source_map: SourceMapStack,
+    output_span: OutputSpan,
+}
+
+#[derive(Debug)]
+struct CemQlSourceTokenValueAst {
+    index: usize,
+    token: Token,
+    lexeme: String,
+    cooked: Option<CemQlCookedTokenAst>,
+}
+
+#[derive(Debug)]
+struct CemQlCookedTokenAst(CookedTokenPayload);
+
+fn cem_ql_source_token_tree(input_uri: &str, source: &str) -> CemQlSourceTokenTreeAst {
     let tokens = Lexer::new(source)
         .scan_all()
         .into_iter()
@@ -2298,72 +2325,217 @@ fn cem_ql_source_token_tree(input_uri: &str, source: &str) -> Value {
         .enumerate()
         .map(|(index, token)| cem_ql_source_token_node(input_uri, source, index, &token))
         .collect::<Vec<_>>();
-    json!({
-        "kind": "cem-ql-source",
-        "contentType": CEM_QL_CONTENT_TYPE,
-        "schema": CEM_QL_SCHEMA_URI,
-        "sourceUri": input_uri,
-        "tokens": tokens,
-    })
+    CemQlSourceTokenTreeAst {
+        input_uri: input_uri.to_owned(),
+        tokens,
+    }
 }
 
-fn cem_ql_source_token_node(input_uri: &str, source: &str, index: usize, token: &Token) -> Value {
+fn cem_ql_source_token_node(
+    input_uri: &str,
+    source: &str,
+    index: usize,
+    token: &Token,
+) -> CemQlSourceTokenAst {
     let lexeme = cem_ql_token_lexeme(source, token);
-    let role = cem_ql_token_role(token.kind);
     let source_map = cem_ql_source_map(token.range);
     let output_span = OutputSpan {
         output_range: ByteRange::new(0, token.range.len),
         origin: source_map.clone(),
     };
-    let mut value = Map::new();
-    value.insert(
-        "tokenKind".to_owned(),
-        Value::String(cem_ql_token_kind_name(token.kind).to_owned()),
-    );
-    value.insert("lexeme".to_owned(), Value::String(lexeme.to_owned()));
-    value.insert(
-        "byteOffset".to_owned(),
-        Value::Number(Number::from(token.range.start)),
-    );
-    value.insert(
-        "byteLength".to_owned(),
-        Value::Number(Number::from(token.range.len)),
-    );
-    value.insert("index".to_owned(), Value::Number(Number::from(index)));
-    value.insert("role".to_owned(), Value::String(role.to_owned()));
-    if let Some(operator) = cem_ql_token_operator(token.kind, lexeme) {
-        value.insert("operator".to_owned(), Value::String(operator.to_owned()));
-        value.insert(
-            "cemQlRole".to_owned(),
-            Value::String(cem_ql_operator_role(operator).to_owned()),
-        );
+    CemQlSourceTokenAst {
+        input_uri: input_uri.to_owned(),
+        value: CemQlSourceTokenValueAst {
+            index,
+            token: token.clone(),
+            lexeme: lexeme.to_owned(),
+            cooked: token.cooked.clone().map(CemQlCookedTokenAst),
+        },
+        source_map,
+        output_span,
     }
-    if token.kind == TokenKind::XPathCompatWord {
-        value.insert("legacy".to_owned(), Value::String(lexeme.to_owned()));
-        value.insert(
-            "diagnostic".to_owned(),
-            Value::String(cem_ql_legacy_diagnostic_code(lexeme).to_owned()),
-        );
-        value.insert(
-            "replacement".to_owned(),
-            Value::String(cem_ql_legacy_replacement(lexeme).to_owned()),
-        );
-    }
-    if let Some(cooked) = token.cooked.as_ref() {
-        value.insert("cooked".to_owned(), cem_ql_cooked_token_value(cooked));
+}
+
+impl CemtEvaluatorRecordView for CemQlSourceTokenTreeAst {
+    fn field_names(&self) -> &'static [&'static str] {
+        &["kind", "contentType", "schema", "sourceUri", "tokens"]
     }
 
-    json!({
-        "kind": cem_ql_token_node_kind(token.kind),
-        "tokenKind": cem_ql_token_kind_name(token.kind),
-        "text": lexeme,
-        "lexeme": lexeme,
-        "role": role,
-        "sourceUri": input_uri,
-        "sourceMap": source_map,
-        "outputSpan": output_span,
-        "value": value,
-    })
+    fn field<'a>(&'a self, name: &str) -> Option<CemtEvaluatorValueRef<'a>> {
+        match name {
+            "kind" => Some(CemtEvaluatorValueRef::String("cem-ql-source")),
+            "contentType" => Some(CemtEvaluatorValueRef::String(CEM_QL_CONTENT_TYPE)),
+            "schema" => Some(CemtEvaluatorValueRef::String(CEM_QL_SCHEMA_URI)),
+            "sourceUri" => Some(CemtEvaluatorValueRef::String(&self.input_uri)),
+            "tokens" => Some(CemtEvaluatorValueRef::Sequence(
+                CemtEvaluatorSequenceRef::Package { sequence: self },
+            )),
+            _ => None,
+        }
+    }
+}
+
+impl CemtEvaluatorSequenceView for CemQlSourceTokenTreeAst {
+    fn len(&self) -> usize {
+        self.tokens.len()
+    }
+
+    fn item<'a>(&'a self, index: usize) -> Option<CemtEvaluatorValueRef<'a>> {
+        self.tokens.get(index).map(|token| {
+            CemtEvaluatorValueRef::Record(CemtEvaluatorRecordRef::Package { record: token })
+        })
+    }
+}
+
+impl CemtEvaluatorRecordView for CemQlSourceTokenAst {
+    fn field_names(&self) -> &'static [&'static str] {
+        &[
+            "kind",
+            "tokenKind",
+            "text",
+            "lexeme",
+            "role",
+            "sourceUri",
+            "sourceMap",
+            "outputSpan",
+            "value",
+        ]
+    }
+
+    fn field<'a>(&'a self, name: &str) -> Option<CemtEvaluatorValueRef<'a>> {
+        match name {
+            "kind" => Some(CemtEvaluatorValueRef::String(cem_ql_token_node_kind(
+                self.value.token.kind,
+            ))),
+            "tokenKind" => Some(CemtEvaluatorValueRef::String(cem_ql_token_kind_name(
+                self.value.token.kind,
+            ))),
+            "text" | "lexeme" => Some(CemtEvaluatorValueRef::String(&self.value.lexeme)),
+            "role" => Some(CemtEvaluatorValueRef::String(cem_ql_token_role(
+                self.value.token.kind,
+            ))),
+            "sourceUri" => Some(CemtEvaluatorValueRef::String(&self.input_uri)),
+            "sourceMap" => Some(CemtEvaluatorValueRef::SourceMap(&self.source_map)),
+            "outputSpan" => Some(CemtEvaluatorValueRef::Record(
+                CemtEvaluatorRecordRef::OutputSpan {
+                    output_span: &self.output_span,
+                },
+            )),
+            "value" => Some(CemtEvaluatorValueRef::Record(
+                CemtEvaluatorRecordRef::Package {
+                    record: &self.value,
+                },
+            )),
+            _ => None,
+        }
+    }
+}
+
+impl CemtEvaluatorRecordView for CemQlSourceTokenValueAst {
+    fn field_names(&self) -> &'static [&'static str] {
+        &[
+            "tokenKind",
+            "lexeme",
+            "byteOffset",
+            "byteLength",
+            "index",
+            "role",
+            "operator",
+            "cemQlRole",
+            "legacy",
+            "diagnostic",
+            "replacement",
+            "cooked",
+        ]
+    }
+
+    fn field<'a>(&'a self, name: &str) -> Option<CemtEvaluatorValueRef<'a>> {
+        let operator = || cem_ql_token_operator(self.token.kind, &self.lexeme);
+        match name {
+            "tokenKind" => Some(CemtEvaluatorValueRef::String(cem_ql_token_kind_name(
+                self.token.kind,
+            ))),
+            "lexeme" => Some(CemtEvaluatorValueRef::String(&self.lexeme)),
+            "byteOffset" => Some(cem_ql_evaluator_u64(self.token.range.start)),
+            "byteLength" => Some(cem_ql_evaluator_u64(u64::from(self.token.range.len))),
+            "index" => Some(cem_ql_evaluator_u64(self.index as u64)),
+            "role" => Some(CemtEvaluatorValueRef::String(cem_ql_token_role(
+                self.token.kind,
+            ))),
+            "operator" => operator().map(CemtEvaluatorValueRef::String),
+            "cemQlRole" => operator()
+                .map(cem_ql_operator_role)
+                .map(CemtEvaluatorValueRef::String),
+            "legacy" if self.token.kind == TokenKind::XPathCompatWord => {
+                Some(CemtEvaluatorValueRef::String(&self.lexeme))
+            }
+            "diagnostic" if self.token.kind == TokenKind::XPathCompatWord => Some(
+                CemtEvaluatorValueRef::String(cem_ql_legacy_diagnostic_code(&self.lexeme)),
+            ),
+            "replacement" if self.token.kind == TokenKind::XPathCompatWord => Some(
+                CemtEvaluatorValueRef::String(cem_ql_legacy_replacement(&self.lexeme)),
+            ),
+            "cooked" => self.cooked.as_ref().map(|cooked| {
+                CemtEvaluatorValueRef::Record(CemtEvaluatorRecordRef::Package { record: cooked })
+            }),
+            _ => None,
+        }
+    }
+}
+
+impl CemtEvaluatorRecordView for CemQlCookedTokenAst {
+    fn field_names(&self) -> &'static [&'static str] {
+        &["kind", "value", "prefix", "local"]
+    }
+
+    fn field<'a>(&'a self, name: &str) -> Option<CemtEvaluatorValueRef<'a>> {
+        match (&self.0, name) {
+            (CookedTokenPayload::Name(_), "kind") => Some(CemtEvaluatorValueRef::String("name")),
+            (CookedTokenPayload::PrefixedName { .. }, "kind") => {
+                Some(CemtEvaluatorValueRef::String("prefixed-name"))
+            }
+            (CookedTokenPayload::StringValue(_), "kind") => {
+                Some(CemtEvaluatorValueRef::String("string"))
+            }
+            (CookedTokenPayload::IntValue(_), "kind") => {
+                Some(CemtEvaluatorValueRef::String("integer"))
+            }
+            (CookedTokenPayload::DecimalValue(_), "kind") => {
+                Some(CemtEvaluatorValueRef::String("decimal"))
+            }
+            (CookedTokenPayload::DoubleValue(_), "kind") => {
+                Some(CemtEvaluatorValueRef::String("double"))
+            }
+            (CookedTokenPayload::BoolValue(_), "kind") => {
+                Some(CemtEvaluatorValueRef::String("boolean"))
+            }
+            (CookedTokenPayload::Name(value), "value")
+            | (CookedTokenPayload::StringValue(value), "value")
+            | (CookedTokenPayload::DecimalValue(value), "value") => {
+                Some(CemtEvaluatorValueRef::String(value))
+            }
+            (CookedTokenPayload::PrefixedName { prefix, .. }, "prefix") => {
+                Some(CemtEvaluatorValueRef::String(prefix))
+            }
+            (CookedTokenPayload::PrefixedName { local, .. }, "local") => {
+                Some(CemtEvaluatorValueRef::String(local))
+            }
+            (CookedTokenPayload::IntValue(value), "value") => Some(CemtEvaluatorValueRef::Number(
+                CemtEvaluatorNumber::integer(*value),
+            )),
+            (CookedTokenPayload::DoubleValue(value), "value") => {
+                CemtEvaluatorNumber::decimal(*value).map(CemtEvaluatorValueRef::Number)
+            }
+            (CookedTokenPayload::BoolValue(value), "value") => {
+                Some(CemtEvaluatorValueRef::Boolean(*value))
+            }
+            _ => None,
+        }
+    }
+}
+
+fn cem_ql_evaluator_u64(value: u64) -> CemtEvaluatorValueRef<'static> {
+    CemtEvaluatorValueRef::Number(CemtEvaluatorNumber::unsigned_integer(value))
 }
 
 fn cem_ql_token_lexeme<'a>(source: &'a str, token: &Token) -> &'a str {
@@ -2381,20 +2553,6 @@ fn cem_ql_source_map(range: ByteRange) -> SourceMapStack {
                 content_type: CEM_QL_CONTENT_TYPE.to_owned(),
             },
         }],
-    }
-}
-
-fn cem_ql_cooked_token_value(cooked: &CookedTokenPayload) -> Value {
-    match cooked {
-        CookedTokenPayload::Name(name) => json!({ "kind": "name", "value": name }),
-        CookedTokenPayload::PrefixedName { prefix, local } => {
-            json!({ "kind": "prefixed-name", "prefix": prefix, "local": local })
-        }
-        CookedTokenPayload::StringValue(value) => json!({ "kind": "string", "value": value }),
-        CookedTokenPayload::IntValue(value) => json!({ "kind": "integer", "value": value }),
-        CookedTokenPayload::DecimalValue(value) => json!({ "kind": "decimal", "value": value }),
-        CookedTokenPayload::DoubleValue(value) => json!({ "kind": "double", "value": value }),
-        CookedTokenPayload::BoolValue(value) => json!({ "kind": "boolean", "value": value }),
     }
 }
 
@@ -3212,10 +3370,6 @@ fn cem_ql_convert_metadata(
 
 fn cem_ql_text_content_hash(bytes: &[u8]) -> String {
     format!("cem-text/1+blake3:{}", blake3::hash(bytes).to_hex())
-}
-
-fn checked_byte_len(len: usize) -> u32 {
-    u32::try_from(len).unwrap_or(u32::MAX)
 }
 
 fn matches_cem_native_identity(identity: &FormatIdentity) -> bool {
@@ -10046,43 +10200,86 @@ value
     }
 
     #[test]
+    fn cem_ql_source_output_source_has_no_json_stage_bridge() {
+        let source = include_str!("lib.rs");
+        let (_, token_tree_source) = source
+            .split_once("fn cem_ql_source_token_tree(")
+            .expect("typed CEM-QL token-tree builder");
+        let (token_tree_source, _) = token_tree_source
+            .split_once("fn cem_ql_token_lexeme")
+            .expect("token-tree builder boundary");
+        assert!(token_tree_source.contains("-> CemQlSourceTokenTreeAst"));
+        assert!(!token_tree_source.contains("-> Value"));
+        assert!(!token_tree_source.contains("json!("));
+
+        let (_, direct_output_source) = source
+            .split_once("fn convert_cem_ql_source_output(")
+            .expect("direct CEM-QL output handler");
+        let (direct_output_source, _) = direct_output_source
+            .split_once("fn cem_ql_output_pipeline(")
+            .expect("direct output handler boundary");
+        assert!(direct_output_source.contains(
+            "execute_conversion_output_pipeline_from_typed_cemt_subject_with_environment"
+        ));
+        assert!(
+            !direct_output_source.contains("execute_conversion_output_pipeline_with_environment(")
+        );
+    }
+
+    #[test]
     fn real_engine_convert_uses_registered_cem_ql_source_output_handler_preserves_token_ranges() {
         let source = "module \"https://example.test/queries/source-token-ranges\"\n\n// comment\ndeclare let label = \"héllo\"\n\nlabel\n";
         let tree = cem_ql_source_token_tree("source-token-ranges.cemql", source);
-        let tokens = tree["tokens"].as_array().expect("tokens array");
+        let root = CemtEvaluatorValueRef::Record(CemtEvaluatorRecordRef::Package { record: &tree });
+        let tokens = root
+            .field("tokens")
+            .and_then(|tokens| tokens.as_sequence().cloned())
+            .expect("borrowed token AST sequence");
         assert!(tokens.iter().any(|token| {
-            token["tokenKind"] == "LineComment" && token["role"] == "syntax.comment"
+            token.field("tokenKind").and_then(|value| value.as_str()) == Some("LineComment")
+                && token.field("role").and_then(|value| value.as_str()) == Some("syntax.comment")
         }));
 
-        let string_token = tokens
+        let string_token_index = tree
+            .tokens
             .iter()
-            .find(|token| token["lexeme"] == "\"héllo\"")
+            .position(|token| token.value.lexeme == "\"héllo\"")
             .expect("string token with non-ASCII payload");
+        let string_token = &tree.tokens[string_token_index];
+        let string_token_view = tokens
+            .item(string_token_index)
+            .expect("borrowed string token view");
         let expected_offset = source.find("\"héllo\"").expect("string lexeme offset") as u64;
         let expected_len = "\"héllo\"".len() as u64;
         assert_eq!(
-            string_token["value"]["byteOffset"].as_u64(),
+            string_token_view
+                .field("value")
+                .and_then(|value| value.field("byteOffset"))
+                .and_then(|value| value.as_number())
+                .and_then(CemtEvaluatorNumber::as_u64),
             Some(expected_offset)
         );
         assert_eq!(
-            string_token["value"]["byteLength"].as_u64(),
+            string_token_view
+                .field("value")
+                .and_then(|value| value.field("byteLength"))
+                .and_then(|value| value.as_number())
+                .and_then(CemtEvaluatorNumber::as_u64),
             Some(expected_len)
         );
+        let evaluator_source_map_value = string_token_view
+            .field("sourceMap")
+            .expect("borrowed token source map");
+        let evaluator_source_map = evaluator_source_map_value
+            .as_source_map()
+            .expect("source-map evaluator value");
+        assert!(std::ptr::eq(evaluator_source_map, &string_token.source_map));
+        assert_eq!(string_token.value.token.range.start, expected_offset);
+        assert_eq!(u64::from(string_token.value.token.range.len), expected_len);
+        assert_eq!(string_token.output_span.origin, string_token.source_map);
         assert_eq!(
-            string_token["sourceMap"]["frames"][0]["span"]["ranges"]["start"].as_u64(),
-            Some(expected_offset)
-        );
-        assert_eq!(
-            string_token["sourceMap"]["frames"][0]["span"]["ranges"]["len"].as_u64(),
-            Some(expected_len)
-        );
-        assert_eq!(
-            string_token["outputSpan"]["origin"]["frames"][0]["span"]["ranges"]["start"].as_u64(),
-            Some(expected_offset)
-        );
-        assert_eq!(
-            string_token["outputSpan"]["origin"]["frames"][0]["span"]["ranges"]["len"].as_u64(),
-            Some(expected_len)
+            string_token.output_span.output_range.len,
+            expected_len as u32
         );
     }
 

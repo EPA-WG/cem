@@ -1230,6 +1230,22 @@ pub struct CemTreeAstWriterTokenMetadata {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub token_kind: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub lexeme: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub index: Option<u64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub role: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub operator: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub cem_ql_role: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub legacy: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub diagnostic: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub replacement: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub document_safe_boundary: Option<bool>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub lexical_safe_boundary: Option<bool>,
@@ -1277,6 +1293,8 @@ pub struct CemTreeAstWriterTokenMetadata {
     pub strict_csv: Option<bool>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub data_preserving: Option<bool>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub source_preserving: Option<bool>,
 }
 
 #[derive(Debug, Clone, PartialEq, Deserialize)]

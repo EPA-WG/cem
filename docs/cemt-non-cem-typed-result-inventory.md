@@ -5,8 +5,10 @@ materialized-tree artifact introduced. Formatter/colorizer/writer paths for
 lossless and generic-data JSON, JSON Schema, CSV, YAML, Markdown, all seven
 XML-family owners, both RELAX NG syntax branches, and the DOM-projection native
 producer now use borrowed evaluators/subjects and typed tree results end to
-end; JSON graph routing is also closed. This inventory is promoted as active
-migration evidence by `docs/todo.md`.
+end. The CEM-QL direct-output bridge also exposes its package-owned token AST
+through the extensible borrowed evaluator contract and enters the typed
+materialized pipeline without a JSON DTO; JSON graph routing is closed. This
+inventory is promoted as active migration evidence by `docs/todo.md`.
 
 ## Existing Typed Baseline
 
@@ -29,6 +31,7 @@ describe every remaining producer.
 | Direct Markdown pipeline                                  | `MarkdownDocumentAst`                                                                                                                             | `CemtMaterializedTreeArtifact` owning ordered `WriterToken` nodes, plus an optional typed color overlay                              | Borrowed evaluator → exact `Arc<CemTreeAstStream>` → overlay → typed stage output and direct writer                                                                       | Closed for the sole production owner; compatibility `Value` subjects and composers are test-only parity oracles.                                                          |
 | XML-family direct pipelines                                | `XmlDocumentAst`, `HtmlDocumentAst`, `CssDocumentAst`, `XhtmlDocumentAst`, `SvgDocumentAst`, `MathMlDocumentAst`, or `XsltStylesheetAst`                                                                          | `CemtMaterializedTreeArtifact` owning ordered `WriterToken` nodes, plus an optional typed color overlay                              | Closed native-owner sum → borrowed evaluator → exact `Arc<CemTreeAstStream>` → overlay → typed stage output and direct writer                                              | Closed for all seven production owners; every compatibility composer family, including XML, is test-only.                                                                  |
 | Relax NG direct pipeline                                    | `RelaxNgDocumentAst`, with XML and compact syntax selecting different formatter/colorizer contracts                                             | `CemtMaterializedTreeArtifact` owning ordered `WriterToken` nodes, plus an optional typed color overlay                              | Borrowed syntax-preserving evaluator → exact `Arc<CemTreeAstStream>` → overlay → typed stage output and direct writer                                                       | Closed for both syntax branches; RELAX NG and nested XML compatibility composers are test-only parity oracles.                                                              |
+| CEM-QL direct-output bridge                                  | Package-owned CEM-QL lexer token AST with exact ranges, cooked values, roles, source maps, and output spans                                      | `CemtMaterializedTreeArtifact` owning ordered `WriterToken` nodes, plus an optional typed color overlay                              | Extensible borrowed package record/sequence view → exact `Arc<CemTreeAstStream>` → optional overlay → typed stage output and direct writer                                  | Closed for production direct text and HTML output; the former token-tree `serde_json::Value` DTO and generic output-pipeline handoff are deleted.                            |
 | Generic CEMT output-function runtime                        | Explicit JSON subject and value bindings                                                                                                        | Any declared CEM-tree formatter/colorizer result                                              | `TransformTemplateOutputFunctionExecution::CemtEvaluator(Value)`                                                                   | The stage is carried by the selected binding while the payload remains untyped. Format-to-color chaining clones the value instead of retaining a typed result artifact.    |
 | Compatibility CEM-tree stage fallback                       | Any primary body other than the native `CemtTreeArtifact` representation                                                                        | Formatter/colorizer evaluator output                                                          | `lower_conversion_cem_tree_output_stage_body` falls back to `CemtOutputArtifact`                                                   | A single value envelope hides whether the result was generated raw, materialized formatted, or materialized colored.                                                       |
 
@@ -213,6 +216,16 @@ operations, returns a formatted `CemtTreeArtifact`, and enters color/writer
 execution through the typed formatted-stage entrypoint. Directive elision is
 tracked by owner path rather than value-shape recovery. The explicit-JSON
 branch remains compatibility-only and never becomes a native owner.
+
+The CEM-QL direct-output bridge now owns `CemQlSourceTokenTreeAst` and exposes
+it through core-owned borrowed package record/sequence traits. Formatter
+execution reads the lexer tokens, cooked values, roles, exact byte ranges,
+source maps, and output spans without constructing `serde_json::Value`; the
+formatter result is lowered immediately into an owned
+`Arc<CemTreeAstStream>`. Color selection either retains that exact owner with a
+typed overlay or skips coloring for the `none` profile, and the materialized
+writer consumes the selected typed artifact directly. Source audits reject a
+return to the former token-tree JSON builder or generic runtime pipeline.
 
 Next, migrate the generic output-function runtime and compatibility CEM-tree
 stage fallback using the same direct owner/view/builder pattern. Only then

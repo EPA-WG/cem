@@ -6132,6 +6132,317 @@ pub fn execute_conversion_output_pipeline_with_environment(
     )
 }
 
+/// Executes the package formatter/colorizer/writer pipeline from a borrowed,
+/// typed evaluator subject.
+///
+/// Package bridges use this entrypoint to expose their native AST directly to
+/// CEMT without serializing it through `serde_json::Value` between stages.
+#[allow(clippy::too_many_arguments)]
+pub fn execute_conversion_output_pipeline_from_typed_cemt_subject_with_environment<'a>(
+    environment: &ConversionOutputPipelineEnvironment<'_>,
+    pipeline: &ConversionOutputPipeline,
+    subject: CemtEvaluatorValue<'a>,
+    input_representation_id: &str,
+    converter_id: &str,
+    diagnostic_node: Option<&str>,
+    diagnostic_uri: Option<&str>,
+) -> ConversionOutputPipelineExecution {
+    let local_artifact_cache = ConversionOutputPipelineArtifactCache::default();
+    let cached_environment = if environment.artifact_cache.is_some() {
+        *environment
+    } else {
+        ConversionOutputPipelineEnvironment {
+            schema_registry: environment.schema_registry,
+            conversion_registry: environment.conversion_registry,
+            package_artifact_reader: environment.package_artifact_reader,
+            artifact_cache: Some(&local_artifact_cache),
+        }
+    };
+    let environment = &cached_environment;
+    let fail = |message: String,
+                format_elapsed_ns: Option<u128>,
+                color_elapsed_ns: Option<u128>,
+                writer_elapsed_ns: Option<u128>| {
+        failed_pipeline_execution(
+            converter_id,
+            diagnostic_node,
+            diagnostic_uri,
+            message,
+            format_elapsed_ns,
+            color_elapsed_ns,
+            writer_elapsed_ns,
+        )
+    };
+
+    if !pipeline
+        .stages
+        .contains(&ConversionOutputPipelineStage::Format)
+    {
+        return fail(
+            "typed CEMT subject pipeline requires a format stage".to_owned(),
+            None,
+            None,
+            None,
+        );
+    }
+    if !pipeline
+        .stages
+        .contains(&ConversionOutputPipelineStage::Writer)
+    {
+        return fail(
+            "typed CEMT subject pipeline requires a writer stage".to_owned(),
+            None,
+            None,
+            None,
+        );
+    }
+
+    let formatter_name = pipeline
+        .cemt_options
+        .formatter
+        .as_deref()
+        .map(str::trim)
+        .filter(|name| !name.is_empty())
+        .unwrap_or(CEM_TREE_FORMAT_CEMT_STAGE_SPEC.function_name);
+    let formatter_profile = pipeline
+        .cemt_options
+        .formatter_profile
+        .as_deref()
+        .map(str::trim)
+        .filter(|profile| !profile.is_empty())
+        .unwrap_or(formatter_name);
+    let (format_stage, format_binding) = match resolve_cemt_output_stage_binding(
+        environment,
+        "typed CEMT subject",
+        CEM_TREE_FORMAT_CEMT_STAGE_SPEC,
+        &pipeline.cemt_target,
+        Some(formatter_profile),
+        Some(formatter_name),
+        &Value::Null,
+        "cem-ast-node",
+        pipeline.cemt_options.clone(),
+    ) {
+        Ok(resolved) => resolved,
+        Err(message) => return fail(message, None, None, None),
+    };
+    let format_started = Instant::now();
+    let format_result = execute_conversion_typed_cemt_output_stage(
+        environment,
+        format_stage,
+        &format_binding,
+        subject,
+    );
+    let format_elapsed_ns = Some(format_started.elapsed().as_nanos());
+    let (formatted_value, format_execution) = match format_result {
+        Ok(output) => output,
+        Err(message) => {
+            return fail(
+                format!(
+                    "CEMT formatter `{}` failed: {message}",
+                    format_binding.function.name
+                ),
+                format_elapsed_ns,
+                None,
+                None,
+            )
+        }
+    };
+    let formatted_artifact = match lower_materialized_writer_token_formatter_result(
+        formatted_value,
+        &pipeline.cemt_target,
+        &format_binding.function.name,
+        formatter_profile,
+        input_representation_id,
+    ) {
+        Ok(artifact) => artifact,
+        Err(message) => {
+            return fail(
+                format!(
+                    "CEMT formatter `{}` failed: {message}",
+                    format_binding.function.name
+                ),
+                format_elapsed_ns,
+                None,
+                None,
+            )
+        }
+    };
+
+    let wants_color = pipeline
+        .stages
+        .contains(&ConversionOutputPipelineStage::Color)
+        && pipeline
+            .cemt_options
+            .color_profile
+            .as_deref()
+            .map(str::trim)
+            .is_none_or(|profile| profile != "none");
+    let mut color_elapsed_ns = None;
+    let (writer_artifact, writer_binding, color_execution, colored_materialized_cemt_tree) =
+        if wants_color {
+            let colorizer_name = pipeline
+                .cemt_options
+                .colorizer
+                .as_deref()
+                .map(str::trim)
+                .filter(|name| !name.is_empty())
+                .unwrap_or(CEM_TREE_COLOR_CEMT_STAGE_SPEC.function_name);
+            let color_profile = pipeline
+                .cemt_options
+                .color_profile
+                .as_deref()
+                .map(str::trim)
+                .filter(|profile| !profile.is_empty())
+                .unwrap_or("terminal");
+            let (color_stage, color_binding) = match resolve_cemt_output_stage_binding(
+                environment,
+                "typed CEMT subject",
+                CEM_TREE_COLOR_CEMT_STAGE_SPEC,
+                &pipeline.cemt_target,
+                Some(color_profile),
+                Some(colorizer_name),
+                &Value::Null,
+                "cem-tree",
+                pipeline.cemt_options.clone(),
+            ) {
+                Ok(resolved) => resolved,
+                Err(message) => return fail(message, format_elapsed_ns, None, None),
+            };
+            let color_started = Instant::now();
+            let color_result = execute_conversion_typed_cemt_output_stage(
+                environment,
+                color_stage,
+                &color_binding,
+                CemtEvaluatorValue::borrowed(formatted_artifact.evaluator_view()),
+            );
+            color_elapsed_ns = Some(color_started.elapsed().as_nanos());
+            let (colored_value, color_execution) = match color_result {
+                Ok(output) => output,
+                Err(message) => {
+                    return fail(
+                        format!(
+                            "CEMT colorizer `{}` failed: {message}",
+                            color_binding.function.name
+                        ),
+                        format_elapsed_ns,
+                        color_elapsed_ns,
+                        None,
+                    )
+                }
+            };
+            let colored_artifact = match lower_materialized_writer_token_colorizer_result(
+                formatted_artifact.as_ref(),
+                colored_value,
+                &color_binding.function.name,
+                color_profile,
+            ) {
+                Ok(artifact) => artifact,
+                Err(message) => {
+                    return fail(
+                        format!(
+                            "CEMT colorizer `{}` failed: {message}",
+                            color_binding.function.name
+                        ),
+                        format_elapsed_ns,
+                        color_elapsed_ns,
+                        None,
+                    )
+                }
+            };
+            (
+                colored_artifact.clone(),
+                color_binding,
+                Some(color_execution),
+                Some(colored_artifact),
+            )
+        } else {
+            (
+                formatted_artifact.clone(),
+                format_binding.clone(),
+                None,
+                None,
+            )
+        };
+
+    let mut writer_context = pipeline.writer_insertion_context.clone();
+    writer_context.formatter_profile = Some(formatter_profile.to_owned());
+    writer_context.color_profile = writer_artifact
+        .color_overlay()
+        .and_then(|overlay| overlay.producer.profile().map(str::to_owned));
+    let mut writer_binding = writer_binding;
+    writer_binding.subject_type = "cem-tree".to_owned();
+    writer_binding.identity.formatter_profile = writer_context.formatter_profile.clone();
+    writer_binding.identity.color_profile = writer_context.color_profile.clone();
+    let materialized_cemt_stage_output = TransformTemplateOutputArtifact {
+        uri: diagnostic_uri.map(str::to_owned),
+        identity: Some(FormatIdentity {
+            content_type: Some(writer_artifact.identity().content_type.clone()),
+            schema: Some(writer_artifact.identity().schema.clone()),
+            ..FormatIdentity::default()
+        }),
+        body: TransformArtifactBody::MaterializedCemtTree(writer_artifact.clone()),
+        source_map: writer_artifact.source_map().cloned(),
+        output_spans: writer_artifact.output_spans().to_vec(),
+    };
+    let writer_started = Instant::now();
+    let writer_result = execute_transform_template_materialized_cemt_writer(
+        TransformTemplateMaterializedCemtWriterRequest {
+            binding: &writer_binding,
+            artifact: writer_artifact,
+            insertion_context: &writer_context,
+        },
+    );
+    let writer_elapsed_ns = Some(writer_started.elapsed().as_nanos());
+    let writer_output = match writer_result {
+        Ok(output) => output,
+        Err(message) => {
+            return fail(
+                format!("materialized CEMT writer failed: {message}"),
+                format_elapsed_ns,
+                color_elapsed_ns,
+                writer_elapsed_ns,
+            )
+        }
+    };
+
+    let formatted_public = materialized_cemt_public_projection(
+        formatted_artifact.as_ref(),
+        &format_binding.identity,
+        "package.layout",
+        "package.role-palette",
+    );
+    let colored_public = colored_materialized_cemt_tree.as_ref().map(|artifact| {
+        materialized_cemt_public_projection(
+            artifact.as_ref(),
+            &writer_binding.identity,
+            "package.layout",
+            "package.role-palette",
+        )
+    });
+    ConversionOutputPipelineExecution {
+        output: Some(
+            writer_output
+                .value
+                .into_public_value()
+                .expect("typed materialized writer text projects to the public response"),
+        ),
+        source_map: writer_output.source_map,
+        output_spans: writer_output.output_spans,
+        format_execution: Some(format_execution),
+        color_execution,
+        format_elapsed_ns,
+        color_elapsed_ns,
+        writer_elapsed_ns,
+        formatted_materialized_cemt_tree: Some(formatted_artifact),
+        colored_materialized_cemt_tree,
+        materialized_cemt_stage_output: Some(materialized_cemt_stage_output),
+        formatted_cem_tree: Some(formatted_public),
+        colored_cem_tree: colored_public,
+        diagnostics: Vec::new(),
+        ..ConversionOutputPipelineExecution::default()
+    }
+}
+
 pub fn execute_conversion_output_pipeline_from_cem_tree_with_environment(
     environment: &ConversionOutputPipelineEnvironment<'_>,
     pipeline: &ConversionOutputPipeline,
@@ -7353,6 +7664,15 @@ fn resolve_cemt_output_stage_binding(
                 && function.name.as_str() == stage.function_name.as_str()
         })
         .cloned()
+        .map(|mut function| {
+            if function.profile.is_none() {
+                function.profile = stage
+                    .function_profile
+                    .clone()
+                    .or_else(|| stage.stage_profile.clone());
+            }
+            function
+        })
         .collect::<Vec<_>>();
     if functions.is_empty() {
         return Err(format!(
@@ -9511,6 +9831,14 @@ fn lower_materialized_writer_token_metadata(
             "localName",
             "namespaceUri",
             "tokenKind",
+            "lexeme",
+            "index",
+            "role",
+            "operator",
+            "cemQlRole",
+            "legacy",
+            "diagnostic",
+            "replacement",
             "documentSafeBoundary",
             "lexicalSafeBoundary",
             "layoutSensitive",
@@ -9535,6 +9863,7 @@ fn lower_materialized_writer_token_metadata(
             "presentationOnly",
             "strictCsv",
             "dataPreserving",
+            "sourcePreserving",
         ],
         &format!("materialized writer token {index} metadata"),
     )?;
@@ -9559,6 +9888,14 @@ fn lower_materialized_writer_token_metadata(
         local_name: optional_typed_cemt_string(value, "localName")?,
         namespace_uri: optional_typed_cemt_string(value, "namespaceUri")?,
         token_kind: optional_typed_cemt_string(value, "tokenKind")?,
+        lexeme: optional_typed_cemt_string(value, "lexeme")?,
+        index: optional_typed_cemt_u64(value, "index")?,
+        role: optional_typed_cemt_string(value, "role")?,
+        operator: optional_typed_cemt_string(value, "operator")?,
+        cem_ql_role: optional_typed_cemt_string(value, "cemQlRole")?,
+        legacy: optional_typed_cemt_string(value, "legacy")?,
+        diagnostic: optional_typed_cemt_string(value, "diagnostic")?,
+        replacement: optional_typed_cemt_string(value, "replacement")?,
         document_safe_boundary: optional_typed_cemt_bool(value, "documentSafeBoundary")?,
         lexical_safe_boundary: optional_typed_cemt_bool(value, "lexicalSafeBoundary")?,
         layout_sensitive: optional_typed_cemt_bool(value, "layoutSensitive")?,
@@ -9587,6 +9924,7 @@ fn lower_materialized_writer_token_metadata(
         presentation_only: optional_typed_cemt_bool(value, "presentationOnly")?,
         strict_csv: optional_typed_cemt_bool(value, "strictCsv")?,
         data_preserving: optional_typed_cemt_bool(value, "dataPreserving")?,
+        source_preserving: optional_typed_cemt_bool(value, "sourcePreserving")?,
     })
 }
 
@@ -9712,9 +10050,9 @@ fn lower_materialized_writer_token_colorizer_result(
         {
             style.color_output = Some(output.as_str().to_owned());
         }
-        let color_role = style.color_role.clone().ok_or_else(|| {
-            format!("materialized colored token {index} requires style.colorRole")
-        })?;
+        let Some(color_role) = style.color_role.clone() else {
+            continue;
+        };
         tokens.push(CemtMaterializedWriterTokenColor {
             target: CemtOwnerPath::root(index),
             color_role,
@@ -24059,19 +24397,40 @@ mod tests {
                     "kind": "cem-ql.keyword",
                     "text": "module",
                     "role": "syntax.keyword",
-                    "value": { "tokenKind": "Module" }
+                    "value": {
+                        "tokenKind": "Module",
+                        "lexeme": "module",
+                        "byteOffset": 0,
+                        "byteLength": 6,
+                        "index": 0,
+                        "role": "syntax.keyword"
+                    }
                 },
                 {
                     "kind": "cem-ql.whitespace",
                     "text": " ",
                     "role": "source.whitespace",
-                    "value": { "tokenKind": "Whitespace" }
+                    "value": {
+                        "tokenKind": "Whitespace",
+                        "lexeme": " ",
+                        "byteOffset": 6,
+                        "byteLength": 1,
+                        "index": 1,
+                        "role": "source.whitespace"
+                    }
                 },
                 {
                     "kind": "cem-ql.string",
                     "text": "\"https://example.test/q\"",
                     "role": "syntax.string",
-                    "value": { "tokenKind": "StringLit" }
+                    "value": {
+                        "tokenKind": "StringLit",
+                        "lexeme": "\"https://example.test/q\"",
+                        "byteOffset": 7,
+                        "byteLength": 24,
+                        "index": 2,
+                        "role": "syntax.string"
+                    }
                 }
             ]
         });

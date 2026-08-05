@@ -1172,6 +1172,16 @@ Remaining dependency-ordered package checklist:
                     now exercises this typed producer; explicit JSON remains a
                     compatibility input only and never becomes the production
                     owner.
+              - [x] Close the CEM-QL direct-output bridge with a package-owned
+                    lexer-token AST exposed through core-owned borrowed
+                    record/sequence views. The formatter now lowers directly
+                    to an owned `Arc<CemTreeAstStream>`, coloring retains that
+                    exact owner through a typed overlay (or is skipped for the
+                    `none` profile), and the materialized writer consumes the
+                    selected artifact without the former token-tree JSON DTO or
+                    generic runtime pipeline. Native text, HTML, line-ending,
+                    diagnostic, range/source-map identity, and source-audit
+                    tests cover the boundary.
       - [x] Define typed raw, formatted, and colored CEM tree envelopes with
             ordered native nodes and lazy evaluator views over the owning AST.
       - [ ] Route formatter, colorizer, writer, graph, and secondary-input
@@ -1234,8 +1244,9 @@ Remaining dependency-ordered package checklist:
 ### Next Work Item
 
 Close the generic CEMT output-function runtime and compatibility CEM-tree stage
-fallback next. Package document pipelines and the DOM-projection producer now
-hand exact AST owners and typed stages directly to their consumers. The two
+fallback next. Package document pipelines, the DOM-projection producer, and
+the CEM-QL direct-output bridge now hand exact AST owners and typed stages
+directly to their consumers. The two
 remaining cross-tier gaps are
 `TransformTemplateOutputFunctionExecution::CemtEvaluator(Value)` for generic
 output functions and `lower_conversion_cem_tree_output_stage_body` falling

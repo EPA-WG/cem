@@ -15,7 +15,7 @@
         @canonical=false
         @deterministic=true
         @streamable=true |
-        {param @name="subject" @type="json" @required=true}
+        {param @name="subject" @type="object" @required=true}
         {body |
             {$ {
                 kind: "cem-tree",
@@ -133,15 +133,37 @@
                         true: $token.outputSpan,
                         false: null
                     }),
-                    value: merge(
-                        match(exists($token.value), {
-                            true: $token.value,
-                            false: {}
-                        }),
-                        {
-                            formatterProfile: $profile
-                        }
-                    )
+                    value: match(exists($token.value), {
+                        true: merge(
+                            merge(
+                                {
+                                    tokenKind: $token.value.tokenKind,
+                                    lexeme: $token.value.lexeme,
+                                    byteOffset: $token.value.byteOffset,
+                                    byteLength: $token.value.byteLength,
+                                    index: $token.value.index,
+                                    role: $token.value.role,
+                                    formatterProfile: $profile
+                                },
+                                match(exists($token.value.operator), {
+                                    true: {
+                                        operator: $token.value.operator,
+                                        cemQlRole: $token.value.cemQlRole
+                                    },
+                                    false: {}
+                                })
+                            ),
+                            match(exists($token.value.legacy), {
+                                true: {
+                                    legacy: $token.value.legacy,
+                                    diagnostic: $token.value.diagnostic,
+                                    replacement: $token.value.replacement
+                                },
+                                false: {}
+                            })
+                        ),
+                        false: { formatterProfile: $profile }
+                    })
                 },
                 match(exists($token.sourceMap), {
                     true: { sourceMap: $token.sourceMap },

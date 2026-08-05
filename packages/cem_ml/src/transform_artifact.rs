@@ -1195,6 +1195,23 @@ pub enum CemtEvaluatorValueRef<'a> {
     OwnedSourceMap(Arc<SourceMapStack>),
 }
 
+/// A borrowed record view implemented by schema/package-owned AST nodes.
+///
+/// This keeps the evaluator extensible without requiring package crates to
+/// serialize their AST into a generic value before executing a CEMT stage.
+pub trait CemtEvaluatorRecordView: fmt::Debug + Send + Sync {
+    fn field_names(&self) -> &'static [&'static str];
+
+    fn field<'a>(&'a self, name: &str) -> Option<CemtEvaluatorValueRef<'a>>;
+}
+
+/// A borrowed sequence view implemented by schema/package-owned AST owners.
+pub trait CemtEvaluatorSequenceView: fmt::Debug + Send + Sync {
+    fn len(&self) -> usize;
+
+    fn item<'a>(&'a self, index: usize) -> Option<CemtEvaluatorValueRef<'a>>;
+}
+
 impl<'a> CemtEvaluatorValueRef<'a> {
     pub fn kind(&self) -> CemtEvaluatorValueKind {
         match self {
@@ -1940,6 +1957,9 @@ where
 
 #[derive(Debug, Clone)]
 pub enum CemtEvaluatorSequenceRef<'a> {
+    Package {
+        sequence: &'a dyn CemtEvaluatorSequenceView,
+    },
     Empty,
     Strings {
         values: &'a [String],
@@ -2130,6 +2150,7 @@ impl<'a> CemtEvaluatorSequenceRef<'a> {
 
     pub fn len(&self) -> usize {
         match self {
+            Self::Package { sequence } => sequence.len(),
             Self::Empty => 0,
             Self::Strings { values } => values.len(),
             Self::CsvParseFacts { facts } => facts.len(),
@@ -2199,6 +2220,7 @@ impl<'a> CemtEvaluatorSequenceRef<'a> {
 
     pub fn item(&self, index: usize) -> Option<CemtEvaluatorValueRef<'a>> {
         match self {
+            Self::Package { sequence } => (*sequence).item(index),
             Self::Empty => None,
             Self::Strings { values } => values
                 .get(index)
@@ -2587,6 +2609,9 @@ fn cemt_evaluator_node_format_sequence_matches(
 
 #[derive(Debug, Clone)]
 pub enum CemtEvaluatorRecordRef<'a> {
+    Package {
+        record: &'a dyn CemtEvaluatorRecordView,
+    },
     CsvDocument {
         document: &'a CsvDocumentAst,
     },
@@ -2873,7 +2898,8 @@ impl<'a> CemtEvaluatorRecordRef<'a> {
             | Self::Attribute { path, .. }
             | Self::FormattedNode { path, .. }
             | Self::FormattedAttribute { path, .. } => Some(path),
-            Self::JsonDocument { .. }
+            Self::Package { .. }
+            | Self::JsonDocument { .. }
             | Self::CsvDocument { .. }
             | Self::CsvSource { .. }
             | Self::CsvEncodingReport { .. }
@@ -2967,7 +2993,8 @@ impl<'a> CemtEvaluatorRecordRef<'a> {
             Self::Attribute { attribute, .. } | Self::FormattedAttribute { attribute, .. } => {
                 Some(CemtTreeOwnerRef::Attribute(attribute))
             }
-            Self::JsonDocument { .. }
+            Self::Package { .. }
+            | Self::JsonDocument { .. }
             | Self::CsvDocument { .. }
             | Self::CsvSource { .. }
             | Self::CsvEncodingReport { .. }
@@ -3083,6 +3110,7 @@ impl<'a> CemtEvaluatorRecordRef<'a> {
 
     pub fn field_names(&self) -> &'static [&'static str] {
         match self {
+            Self::Package { record } => record.field_names(),
             Self::CsvDocument { document } if document.line_ending.is_some() => &[
                 "kind",
                 "source",
@@ -3681,6 +3709,14 @@ impl<'a> CemtEvaluatorRecordRef<'a> {
                 "localName",
                 "namespaceUri",
                 "tokenKind",
+                "lexeme",
+                "index",
+                "role",
+                "operator",
+                "cemQlRole",
+                "legacy",
+                "diagnostic",
+                "replacement",
                 "documentSafeBoundary",
                 "lexicalSafeBoundary",
                 "layoutSensitive",
@@ -3705,6 +3741,7 @@ impl<'a> CemtEvaluatorRecordRef<'a> {
                 "presentationOnly",
                 "strictCsv",
                 "dataPreserving",
+                "sourcePreserving",
             ],
             Self::WriterTokenSourceRange { .. } => &["byteOffset", "byteLength", "line", "column"],
             Self::OutputSpan { .. } => &["outputRange", "origin"],
@@ -3839,6 +3876,7 @@ impl<'a> CemtEvaluatorRecordRef<'a> {
 
     pub fn field(&self, name: &str) -> Option<CemtEvaluatorValueRef<'a>> {
         match self {
+            Self::Package { record } => (*record).field(name),
             Self::CsvDocument { document } => csv_document_evaluator_field(document, name),
             Self::CsvSource { source } => csv_source_evaluator_field(source, name),
             Self::CsvEncodingReport { report } => csv_encoding_report_evaluator_field(report, name),
@@ -7244,6 +7282,22 @@ fn writer_token_metadata_evaluator_field<'a>(
         "tokenKind" => Some(optional_string_evaluator_value(
             metadata.token_kind.as_deref(),
         )),
+        "lexeme" => Some(optional_string_evaluator_value(metadata.lexeme.as_deref())),
+        "index" => Some(optional_u64_evaluator_value(metadata.index)),
+        "role" => Some(optional_string_evaluator_value(metadata.role.as_deref())),
+        "operator" => Some(optional_string_evaluator_value(
+            metadata.operator.as_deref(),
+        )),
+        "cemQlRole" => Some(optional_string_evaluator_value(
+            metadata.cem_ql_role.as_deref(),
+        )),
+        "legacy" => Some(optional_string_evaluator_value(metadata.legacy.as_deref())),
+        "diagnostic" => Some(optional_string_evaluator_value(
+            metadata.diagnostic.as_deref(),
+        )),
+        "replacement" => Some(optional_string_evaluator_value(
+            metadata.replacement.as_deref(),
+        )),
         "documentSafeBoundary" => Some(optional_bool_evaluator_value(
             metadata.document_safe_boundary,
         )),
@@ -7289,6 +7343,7 @@ fn writer_token_metadata_evaluator_field<'a>(
         "presentationOnly" => Some(optional_bool_evaluator_value(metadata.presentation_only)),
         "strictCsv" => Some(optional_bool_evaluator_value(metadata.strict_csv)),
         "dataPreserving" => Some(optional_bool_evaluator_value(metadata.data_preserving)),
+        "sourcePreserving" => Some(optional_bool_evaluator_value(metadata.source_preserving)),
         _ => None,
     }
 }
