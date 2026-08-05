@@ -506,6 +506,502 @@ impl CemtTreeArtifact {
             None => self.subject().evaluator_view(),
         }
     }
+
+    /// Projects the typed tree and its overlays at an explicit public/debug
+    /// boundary. Runtime stages retain `CemtTreeArtifact` ownership and must
+    /// not consume this JSON projection.
+    pub fn to_public_json(&self) -> Result<serde_json::Value, String> {
+        let mut value = CemtEvaluatorValue::borrowed(self.evaluator_view()).to_public_json()?;
+        if let Some(overlay) = self.colored_overlay.as_ref() {
+            let formatted_overlay = self
+                .formatted_overlay
+                .as_ref()
+                .ok_or_else(|| "typed colored CEM-tree has no formatted overlay".to_owned())?;
+            project_cemt_colored_overlay_to_public_json(&mut value, formatted_overlay, overlay)?;
+        }
+        Ok(value)
+    }
+}
+
+fn project_cemt_colored_overlay_to_public_json(
+    tree: &mut serde_json::Value,
+    formatted_overlay: &CemtFormattedTreeOverlay,
+    overlay: &CemtColoredTreeOverlay,
+) -> Result<(), String> {
+    let fields = tree
+        .as_object_mut()
+        .ok_or_else(|| "typed colored CEM-tree public projection must be an object".to_owned())?;
+    fields.insert("colored".to_owned(), serde_json::Value::Bool(true));
+    if let Some(profile) = overlay.producer.color_profile.as_ref() {
+        fields.insert(
+            "colorProfile".to_owned(),
+            serde_json::Value::String(profile.clone()),
+        );
+    }
+    if let Some(style) = overlay
+        .node_operations
+        .iter()
+        .find_map(cemt_node_color_operation_style)
+    {
+        if let Some(output) = style.output {
+            fields.insert(
+                "colorOutput".to_owned(),
+                serde_json::Value::String(output.as_str().to_owned()),
+            );
+        }
+        if let Some(capability) = style.terminal_capability.as_ref() {
+            fields.insert(
+                "terminalCapability".to_owned(),
+                serde_json::Value::String(capability.clone()),
+            );
+        }
+        if let Some(mode) = style.html_mode.as_ref() {
+            fields.insert(
+                "htmlMode".to_owned(),
+                serde_json::Value::String(mode.clone()),
+            );
+        }
+    }
+    fields.insert(
+        "colorNodes".to_owned(),
+        serde_json::Value::Array(
+            overlay
+                .operations
+                .iter()
+                .map(cemt_public_color_operation)
+                .collect::<Result<Vec<_>, _>>()?,
+        ),
+    );
+
+    let mut owner_paths = Vec::new();
+    for operation in &overlay.node_operations {
+        if let CemtColorTarget::Owner(path) = &operation.target {
+            if !owner_paths.contains(path) {
+                owner_paths.push(path.clone());
+            }
+        }
+    }
+    owner_paths.sort_by_key(|path| std::cmp::Reverse(path.steps().len()));
+    for path in owner_paths {
+        let operations = overlay
+            .node_operations
+            .iter()
+            .enumerate()
+            .filter(|(_, operation)| operation.target == CemtColorTarget::Owner(path.clone()))
+            .collect::<Vec<_>>();
+        if !cemt_public_owner_is_retained(formatted_overlay, &path) {
+            continue;
+        }
+        let target =
+            cemt_public_owner_value_mut(tree, formatted_overlay, &path).ok_or_else(|| {
+                format!(
+                    "typed colored CEM-tree public projection could not resolve owner {}",
+                    cemt_owner_path_label(&path)
+                )
+            })?;
+        project_cemt_owner_color_operations(target, &operations)?;
+    }
+
+    for operation in &overlay.node_operations {
+        match operation.target {
+            CemtColorTarget::FormatOperation(index) => {
+                let Some(target) = tree
+                    .get_mut("formatNodes")
+                    .and_then(serde_json::Value::as_array_mut)
+                    .and_then(|operations| operations.get_mut(index))
+                else {
+                    continue;
+                };
+                project_cemt_color_metadata(target, operation)?;
+            }
+            CemtColorTarget::NodeFormatOperation(index) => {
+                let Some(target) =
+                    cemt_public_node_format_operation_value_mut(tree, formatted_overlay, index)
+                else {
+                    continue;
+                };
+                project_cemt_color_metadata(target, operation)?;
+            }
+            CemtColorTarget::Owner(_) => {}
+        }
+    }
+    Ok(())
+}
+
+fn cemt_public_owner_value_mut<'a>(
+    tree: &'a mut serde_json::Value,
+    overlay: &CemtFormattedTreeOverlay,
+    path: &CemtOwnerPath,
+) -> Option<&'a mut serde_json::Value> {
+    let root = cemt_public_formatted_node_index(overlay, None, path.root_index());
+    let mut current = tree.get_mut("nodes")?.as_array_mut()?.get_mut(root)?;
+    let mut owner_path = CemtOwnerPath::root(path.root_index());
+    for step in path.steps() {
+        current = match step {
+            CemtOwnerStep::Child(index) => {
+                let child = cemt_public_formatted_node_index(overlay, Some(&owner_path), *index);
+                owner_path = owner_path.child(*index);
+                current
+                    .get_mut("children")?
+                    .as_array_mut()?
+                    .get_mut(child)?
+            }
+            CemtOwnerStep::Attribute(index) => current
+                .get_mut("attributes")?
+                .as_array_mut()?
+                .get_mut(*index)?,
+        };
+    }
+    Some(current)
+}
+
+fn cemt_public_owner_is_retained(overlay: &CemtFormattedTreeOverlay, path: &CemtOwnerPath) -> bool {
+    let mut node_path = path.clone();
+    if matches!(node_path.steps.last(), Some(CemtOwnerStep::Attribute(_))) {
+        node_path.steps.pop();
+    }
+    overlay.retains_node(&node_path)
+}
+
+fn cemt_public_formatted_node_index(
+    overlay: &CemtFormattedTreeOverlay,
+    parent: Option<&CemtOwnerPath>,
+    original_index: usize,
+) -> usize {
+    let inserted = (0..=original_index)
+        .map(|before_node| {
+            overlay
+                .node_operations
+                .iter()
+                .filter(|operation| {
+                    cemt_evaluator_gap_operation_matches(operation, parent, before_node)
+                })
+                .count()
+        })
+        .sum::<usize>();
+    let retained = (0..original_index)
+        .filter(|index| {
+            let path = match parent {
+                Some(parent) => parent.child(*index),
+                None => CemtOwnerPath::root(*index),
+            };
+            overlay.retains_node(&path)
+        })
+        .count();
+    inserted.saturating_add(retained)
+}
+
+fn cemt_public_node_format_operation_value_mut<'a>(
+    tree: &'a mut serde_json::Value,
+    overlay: &CemtFormattedTreeOverlay,
+    operation_index: usize,
+) -> Option<&'a mut serde_json::Value> {
+    let operation = overlay.node_operations.get(operation_index)?;
+    match (&operation.target, &operation.kind) {
+        (CemtNodeFormatTarget::Owner(path), kind) => {
+            if !cemt_public_owner_is_retained(overlay, path) {
+                return None;
+            }
+            let owner = cemt_public_owner_value_mut(tree, overlay, path)?;
+            let field = match kind {
+                CemtNodeFormatOperationKind::Layout(_) => "formatLayout",
+                CemtNodeFormatOperationKind::BeforeAttributes { .. } => "formatBeforeAttributes",
+                CemtNodeFormatOperationKind::BetweenAttributes { .. } => "formatBetweenAttributes",
+                CemtNodeFormatOperationKind::BeforeAttribute { .. } => "formatBefore",
+                CemtNodeFormatOperationKind::ContentBoundary { .. } => "formatContentBoundary",
+                CemtNodeFormatOperationKind::BeforeClose { .. } => "formatBeforeClose",
+                CemtNodeFormatOperationKind::InsertChild { .. } => return None,
+            };
+            let value = owner.get_mut(field)?;
+            let ordinal = overlay.node_operations[..operation_index]
+                .iter()
+                .filter(|candidate| {
+                    candidate.target == operation.target
+                        && std::mem::discriminant(&candidate.kind)
+                            == std::mem::discriminant(&operation.kind)
+                })
+                .count();
+            match value {
+                serde_json::Value::Array(values) => values.get_mut(ordinal),
+                value if ordinal == 0 => Some(value),
+                _ => None,
+            }
+        }
+        (
+            CemtNodeFormatTarget::RootGap {
+                before_root,
+                ordinal,
+            },
+            CemtNodeFormatOperationKind::InsertChild { .. },
+        ) => {
+            let index = cemt_public_gap_operation_index(overlay, None, *before_root, *ordinal);
+            tree.get_mut("nodes")?.as_array_mut()?.get_mut(index)
+        }
+        (
+            CemtNodeFormatTarget::ChildGap {
+                parent,
+                before_child,
+                ordinal,
+            },
+            CemtNodeFormatOperationKind::InsertChild { .. },
+        ) => {
+            if !cemt_public_owner_is_retained(overlay, parent) {
+                return None;
+            }
+            let parent_value = cemt_public_owner_value_mut(tree, overlay, parent)?;
+            let index =
+                cemt_public_gap_operation_index(overlay, Some(parent), *before_child, *ordinal);
+            parent_value
+                .get_mut("children")?
+                .as_array_mut()?
+                .get_mut(index)
+        }
+        _ => None,
+    }
+}
+
+fn cemt_public_gap_operation_index(
+    overlay: &CemtFormattedTreeOverlay,
+    parent: Option<&CemtOwnerPath>,
+    before_node: usize,
+    ordinal: usize,
+) -> usize {
+    let preceding_insertions = (0..before_node)
+        .map(|index| {
+            overlay
+                .node_operations
+                .iter()
+                .filter(|operation| cemt_evaluator_gap_operation_matches(operation, parent, index))
+                .count()
+        })
+        .sum::<usize>();
+    let retained = (0..before_node)
+        .filter(|index| {
+            let path = match parent {
+                Some(parent) => parent.child(*index),
+                None => CemtOwnerPath::root(*index),
+            };
+            overlay.retains_node(&path)
+        })
+        .count();
+    preceding_insertions
+        .saturating_add(retained)
+        .saturating_add(ordinal)
+}
+
+fn cemt_node_color_operation_style(operation: &CemtNodeColorOperation) -> Option<&CemtColorStyle> {
+    match &operation.kind {
+        CemtNodeColorOperationKind::Role { style, .. }
+        | CemtNodeColorOperationKind::WriterAttribute { style, .. }
+        | CemtNodeColorOperationKind::Wrapper { style, .. }
+        | CemtNodeColorOperationKind::WrapperDecision { style, .. } => style.as_ref(),
+    }
+}
+
+fn project_cemt_owner_color_operations(
+    target: &mut serde_json::Value,
+    operations: &[(usize, &CemtNodeColorOperation)],
+) -> Result<(), String> {
+    let wrapper_index = operations.iter().find_map(|(index, operation)| {
+        matches!(operation.kind, CemtNodeColorOperationKind::Wrapper { .. }).then_some(*index)
+    });
+    let Some(wrapper_index) = wrapper_index else {
+        for (_, operation) in operations {
+            project_cemt_color_metadata(target, operation)?;
+        }
+        return Ok(());
+    };
+
+    let mut source = std::mem::take(target);
+    let wrapper_name = operations
+        .iter()
+        .find_map(|(_, operation)| match &operation.kind {
+            CemtNodeColorOperationKind::Wrapper { name, .. } => Some(name.clone()),
+            _ => None,
+        })
+        .ok_or_else(|| "typed colored CEM-tree wrapper operation is missing a name".to_owned())?;
+    let mut wrapper = serde_json::json!({
+        "kind": "element",
+        "name": wrapper_name,
+        "attributes": [],
+        "children": [],
+        "colorWrapperNodes": []
+    });
+    for (index, operation) in operations {
+        match &operation.kind {
+            CemtNodeColorOperationKind::Wrapper { .. }
+            | CemtNodeColorOperationKind::WrapperDecision { .. } => {
+                wrapper
+                    .get_mut("colorWrapperNodes")
+                    .and_then(serde_json::Value::as_array_mut)
+                    .expect("typed wrapper projection owns a metadata array")
+                    .push(cemt_public_wrapper_operation(operation)?);
+            }
+            _ if *index < wrapper_index => {
+                project_cemt_color_metadata(&mut wrapper, operation)?;
+            }
+            _ => project_cemt_color_metadata(&mut source, operation)?,
+        }
+    }
+    wrapper
+        .get_mut("children")
+        .and_then(serde_json::Value::as_array_mut)
+        .expect("typed wrapper projection owns a children array")
+        .push(source);
+    *target = wrapper;
+    Ok(())
+}
+
+fn project_cemt_color_metadata(
+    target: &mut serde_json::Value,
+    operation: &CemtNodeColorOperation,
+) -> Result<(), String> {
+    let fields = target.as_object_mut().ok_or_else(|| {
+        "typed colored CEM-tree public projection target must be an object".to_owned()
+    })?;
+    match &operation.kind {
+        CemtNodeColorOperationKind::Role { role, style } => {
+            fields.insert(
+                "colorRole".to_owned(),
+                serde_json::Value::String(role.clone()),
+            );
+            if let Some(style) = style {
+                fields.insert("style".to_owned(), cemt_public_color_style(style));
+            }
+        }
+        CemtNodeColorOperationKind::WriterAttribute {
+            name,
+            value,
+            colorizer_role,
+            color_profile,
+            color_role,
+            style,
+        } => {
+            let mut attribute = serde_json::json!({
+                "kind": "writer-attribute",
+                "name": name,
+                "value": value,
+                "colorizerOwned": true,
+                "colorizerRole": colorizer_role,
+                "colorProfile": color_profile,
+            });
+            if let Some(role) = color_role {
+                attribute["colorRole"] = serde_json::Value::String(role.clone());
+            }
+            if let Some(style) = style {
+                attribute["style"] = cemt_public_color_style(style);
+            }
+            cemt_public_insert_provenance(&mut attribute, &operation.provenance)?;
+            fields
+                .entry("writerAttributeNodes".to_owned())
+                .or_insert_with(|| serde_json::Value::Array(Vec::new()))
+                .as_array_mut()
+                .expect("typed writer attribute projection owns an array")
+                .push(attribute);
+        }
+        CemtNodeColorOperationKind::Wrapper { .. }
+        | CemtNodeColorOperationKind::WrapperDecision { .. } => {}
+    }
+    Ok(())
+}
+
+fn cemt_public_color_operation(
+    operation: &CemtColorOperation,
+) -> Result<serde_json::Value, String> {
+    let mut value = serde_json::json!({
+        "kind": match operation.kind {
+            CemtColorOperationKind::Marker => "color-marker",
+            CemtColorOperationKind::Decision { .. } => "color-decision",
+        },
+        "name": operation.name,
+        "colorizerRole": operation.colorizer_role,
+    });
+    if let Some(profile) = operation.color_profile.as_ref() {
+        value["colorProfile"] = serde_json::Value::String(profile.clone());
+    }
+    if let Some(role) = operation.color_role.as_ref() {
+        value["colorRole"] = serde_json::Value::String(role.clone());
+    }
+    if let CemtColorOperationKind::Decision { value: decision } = &operation.kind {
+        value["value"] = serde_json::Value::String(decision.clone());
+    }
+    cemt_public_insert_provenance(&mut value, &operation.provenance)?;
+    Ok(value)
+}
+
+fn cemt_public_wrapper_operation(
+    operation: &CemtNodeColorOperation,
+) -> Result<serde_json::Value, String> {
+    let mut value = match &operation.kind {
+        CemtNodeColorOperationKind::Wrapper {
+            name,
+            colorizer_role,
+            color_profile,
+            color_role,
+            style,
+        } => serde_json::json!({
+            "kind": "color-wrapper",
+            "name": name,
+            "colorizerOwned": true,
+            "colorizerRole": colorizer_role,
+            "colorProfile": color_profile,
+            "colorRole": color_role,
+            "style": style.as_ref().map(cemt_public_color_style),
+        }),
+        CemtNodeColorOperationKind::WrapperDecision {
+            name,
+            value,
+            colorizer_role,
+            color_profile,
+            color_role,
+            style,
+        } => serde_json::json!({
+            "kind": "color-decision",
+            "name": name,
+            "value": value,
+            "colorizerOwned": true,
+            "colorizerRole": colorizer_role,
+            "colorProfile": color_profile,
+            "colorRole": color_role,
+            "style": style.as_ref().map(cemt_public_color_style),
+        }),
+        _ => {
+            return Err(
+                "typed colored CEM-tree wrapper projection received a non-wrapper operation"
+                    .to_owned(),
+            )
+        }
+    };
+    if let Some(fields) = value.as_object_mut() {
+        fields.retain(|_, value| !value.is_null());
+    }
+    cemt_public_insert_provenance(&mut value, &operation.provenance)?;
+    Ok(value)
+}
+
+fn cemt_public_color_style(style: &CemtColorStyle) -> serde_json::Value {
+    let mut value = serde_json::json!({
+        "colorRole": style.color_role,
+        "colorProfile": style.color_profile,
+        "colorOutput": style.output.map(CemtColorOutput::as_str),
+        "terminalCapability": style.terminal_capability,
+        "htmlMode": style.html_mode,
+    });
+    if let Some(fields) = value.as_object_mut() {
+        fields.retain(|_, value| !value.is_null());
+    }
+    value
+}
+
+fn cemt_public_insert_provenance(
+    value: &mut serde_json::Value,
+    provenance: &CemtOverlayProvenance,
+) -> Result<(), String> {
+    let Some(source_map) = cemt_overlay_provenance_source_map(provenance) else {
+        return Ok(());
+    };
+    value["sourceMap"] = serde_json::to_value(source_map).map_err(|error| error.to_string())?;
+    Ok(())
 }
 
 impl TransformNativeArtifact for CemtTreeArtifact {
@@ -1493,6 +1989,81 @@ impl<'a> CemtEvaluatorValue<'a> {
         }
     }
 
+    /// Projects a typed evaluator value at an explicit JSON/export boundary.
+    ///
+    /// Runtime stages must pass `CemtEvaluatorValue` or its owning artifact
+    /// directly. This projection exists only for public responses, debug
+    /// output, and compatibility ingress/egress adapters.
+    pub fn to_public_json(&self) -> Result<serde_json::Value, String> {
+        match self {
+            Self::Null | Self::Borrowed(CemtEvaluatorValueRef::Null) => Ok(serde_json::Value::Null),
+            Self::Boolean(value) => Ok(serde_json::Value::Bool(*value)),
+            Self::Number(value) => cemt_evaluator_number_to_json(*value),
+            Self::String(value) => Ok(serde_json::Value::String(value.to_string())),
+            Self::Sequence(values) => values
+                .iter()
+                .map(Self::to_public_json)
+                .collect::<Result<Vec<_>, _>>()
+                .map(serde_json::Value::Array),
+            Self::Record(_) => self.record_to_public_json(),
+            Self::SourceMap(value) => {
+                serde_json::to_value(value.as_ref()).map_err(|error| error.to_string())
+            }
+            Self::Borrowed(value) => match value {
+                CemtEvaluatorValueRef::Null => Ok(serde_json::Value::Null),
+                CemtEvaluatorValueRef::Boolean(value) => Ok(serde_json::Value::Bool(*value)),
+                CemtEvaluatorValueRef::Number(value) => cemt_evaluator_number_to_json(*value),
+                CemtEvaluatorValueRef::String(value) => {
+                    Ok(serde_json::Value::String((*value).to_owned()))
+                }
+                CemtEvaluatorValueRef::OwnedString(value) => {
+                    Ok(serde_json::Value::String(value.to_string()))
+                }
+                CemtEvaluatorValueRef::StringMap(values) => Ok(serde_json::Value::Object(
+                    values
+                        .iter()
+                        .map(|(name, value)| {
+                            (name.clone(), serde_json::Value::String(value.clone()))
+                        })
+                        .collect(),
+                )),
+                CemtEvaluatorValueRef::Sequence(sequence) => (0..sequence.len())
+                    .map(|index| {
+                        sequence
+                            .item(index)
+                            .map(Self::from_borrowed_ref)
+                            .ok_or_else(|| {
+                                format!("typed evaluator sequence item {index} is unavailable")
+                            })?
+                            .to_public_json()
+                    })
+                    .collect::<Result<Vec<_>, _>>()
+                    .map(serde_json::Value::Array),
+                CemtEvaluatorValueRef::Record(_) => self.record_to_public_json(),
+                CemtEvaluatorValueRef::SourceMap(value) => {
+                    serde_json::to_value(value).map_err(|error| error.to_string())
+                }
+                CemtEvaluatorValueRef::OwnedSourceMap(value) => {
+                    serde_json::to_value(value.as_ref()).map_err(|error| error.to_string())
+                }
+            },
+        }
+    }
+
+    fn record_to_public_json(&self) -> Result<serde_json::Value, String> {
+        self.record_field_names("public JSON projection")
+            .map_err(|error| error.to_string())?
+            .into_iter()
+            .map(|name| {
+                let value = self.field(&name).ok_or_else(|| {
+                    format!("typed evaluator record field `{name}` is unavailable")
+                })?;
+                value.to_public_json().map(|value| (name, value))
+            })
+            .collect::<Result<serde_json::Map<_, _>, _>>()
+            .map(serde_json::Value::Object)
+    }
+
     pub fn as_bool(&self) -> Option<bool> {
         match self {
             Self::Boolean(value) => Some(*value),
@@ -1846,6 +2417,19 @@ impl<'a> CemtEvaluatorValue<'a> {
             }),
         }
     }
+}
+
+fn cemt_evaluator_number_to_json(value: CemtEvaluatorNumber) -> Result<serde_json::Value, String> {
+    let number = if let Some(value) = value.as_i64() {
+        serde_json::Number::from(value)
+    } else if let Some(value) = value.as_u64() {
+        serde_json::Number::from(value)
+    } else {
+        serde_json::Number::from_f64(value.as_f64()).ok_or_else(|| {
+            "typed evaluator public projection received a non-finite number".to_owned()
+        })?
+    };
+    Ok(serde_json::Value::Number(number))
 }
 
 impl<'a> CemtEvaluatorRecord<'a> {
@@ -9977,11 +10561,20 @@ mod tests {
             .split_once("pub enum CemtEvaluatorValueKind")
             .expect("evaluator view contract")
             .1
-            .split_once("pub struct CemtFormattedTreeView")
+            .split_once("pub fn to_public_json")
             .expect("evaluator view contract boundary")
             .0;
 
         assert!(!view_contract.contains("serde_json"));
+
+        let public_projection = source
+            .split_once("pub fn to_public_json")
+            .expect("explicit public projection")
+            .1
+            .split_once("pub fn as_bool")
+            .expect("explicit public projection boundary")
+            .0;
+        assert!(public_projection.contains("serde_json"));
     }
 
     #[test]

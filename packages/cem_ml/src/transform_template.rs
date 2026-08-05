@@ -15,7 +15,7 @@ use crate::interpreter::OutputSpan;
 use crate::parser::builder::CemAstBuilder;
 use crate::parser::document::CemDocument;
 use crate::parser::{AstNodeId, CemAstNode};
-use crate::projection::{CemTreeAstAttribute, CemTreeAstNode};
+use crate::projection::{CemTreeAstAttribute, CemTreeAstNode, CemTreeAstStream};
 use crate::run_config::ScopeConfig;
 use crate::schema::registry::{
     AI_CONTEXT_JSON_CONTENT_TYPE, AI_CONTEXT_SCHEMA_URI, CEM_AST_PROJECTION_CONTENT_TYPE,
@@ -1658,6 +1658,7 @@ fn format_transform_template_selector_list(values: &[String]) -> String {
 pub struct TransformTemplateOutputFunctionRegistry {
     functions: Vec<TransformTemplateOutputFunctionDescriptor>,
     runtime_functions: BTreeMap<String, CemtRuntimeFunction>,
+    module_options: TransformTemplateModuleOptions,
 }
 
 impl TransformTemplateOutputFunctionRegistry {
@@ -1669,6 +1670,7 @@ impl TransformTemplateOutputFunctionRegistry {
         Self {
             functions: options.output_functions.clone(),
             runtime_functions: cemt_runtime_functions_from_module_options(options),
+            module_options: options.clone(),
         }
     }
 
@@ -1676,6 +1678,7 @@ impl TransformTemplateOutputFunctionRegistry {
         if let Some((name, runtime_function)) = cemt_runtime_function_from_descriptor(&function) {
             self.runtime_functions.insert(name, runtime_function);
         }
+        self.module_options.output_functions.push(function.clone());
         self.functions.push(function);
     }
 
@@ -3970,8 +3973,11 @@ impl TransformTemplateColorBinding {
         TransformTemplateEncodedArtifact::from_output_function_result(self.identity.clone(), result)
     }
 
-    pub fn artifact_from_cemt_value(&self, value: Value) -> TransformTemplateEncodedArtifact {
-        TransformTemplateEncodedArtifact::from_cemt_runtime(self.identity.clone(), value)
+    pub fn artifact_from_cem_tree(
+        &self,
+        artifact: Arc<CemtTreeArtifact>,
+    ) -> Result<TransformTemplateEncodedArtifact, String> {
+        TransformTemplateEncodedArtifact::from_cem_tree(self.identity.clone(), artifact)
     }
 
     #[cfg(test)]
@@ -4007,8 +4013,21 @@ impl TransformTemplateEncodeBinding {
         TransformTemplateEncodedArtifact::from_output_function_result(self.identity.clone(), result)
     }
 
-    pub fn artifact_from_cemt_value(&self, value: Value) -> TransformTemplateEncodedArtifact {
-        TransformTemplateEncodedArtifact::from_cemt_runtime(self.identity.clone(), value)
+    pub fn artifact_from_cem_tree(
+        &self,
+        artifact: Arc<CemtTreeArtifact>,
+    ) -> Result<TransformTemplateEncodedArtifact, String> {
+        TransformTemplateEncodedArtifact::from_cem_tree(self.identity.clone(), artifact)
+    }
+
+    pub fn artifact_from_materialized_cem_tree(
+        &self,
+        artifact: Arc<CemtMaterializedTreeArtifact>,
+    ) -> Result<TransformTemplateEncodedArtifact, String> {
+        TransformTemplateEncodedArtifact::from_materialized_cem_tree(
+            self.identity.clone(),
+            artifact,
+        )
     }
 
     #[cfg(test)]
@@ -4028,13 +4047,15 @@ impl TransformTemplateEncodeBinding {
         Ok(artifact)
     }
 
-    pub fn cemt_artifact_with_metadata(
+    #[cfg(test)]
+    pub fn public_cem_tree_artifact_with_metadata(
         &self,
         value: Value,
         source_map: Option<SourceMapStack>,
         output_spans: Vec<OutputSpan>,
     ) -> TransformTemplateEncodedArtifact {
-        let mut artifact = self.artifact_from_cemt_value(value);
+        let mut artifact =
+            TransformTemplateEncodedArtifact::from_public_json(self.identity.clone(), value);
         artifact.source_map = source_map;
         artifact.output_spans = output_spans;
         artifact
@@ -4344,8 +4365,10 @@ impl TransformTemplateEncodeImplementationRegistry {
         subject: &Value,
     ) -> Result<TransformTemplateOutputFunctionExecution, String> {
         if binding.function.produces == TransformTemplateOutputProducedKind::CemTree {
-            self.evaluate_cemt_runtime(binding, subject)
-                .map(TransformTemplateOutputFunctionExecution::CemtEvaluator)
+            return Err(format!(
+                "CEM-tree output function `{}` requires a typed AST producer; the generic JSON implementation registry cannot create an intermediate tree DTO",
+                binding.function.name
+            ));
         } else {
             self.encode_result(binding, subject)
                 .map(TransformTemplateOutputFunctionExecution::Native)
@@ -9537,10 +9560,50 @@ fn transform_template_writer_cem_tree_artifact_to_text(
     artifact: &TransformTemplateEncodedArtifact,
     writer_boundary_context: &TransformTemplateEncodedArtifactInsertionContext,
 ) -> Result<TransformTemplateEncodedArtifact, String> {
+    match &artifact.value {
+        TransformTemplateEncodedArtifactPayload::CemTree(tree) => {
+            execute_transform_template_typed_cem_tree_writer(
+                TransformTemplateTypedCemTreeWriterRequest {
+                    identity: &artifact.identity,
+                    artifact: tree.clone(),
+                    insertion_context: writer_boundary_context,
+                },
+            )
+        }
+        TransformTemplateEncodedArtifactPayload::MaterializedCemTree(tree) => {
+            execute_transform_template_materialized_cemt_writer(
+                TransformTemplateMaterializedCemtWriterRequest {
+                    identity: &artifact.identity,
+                    artifact: tree.clone(),
+                    insertion_context: writer_boundary_context,
+                },
+            )
+        }
+        #[cfg(test)]
+        TransformTemplateEncodedArtifactPayload::PublicJson(_) => {
+            transform_template_writer_public_json_cem_tree_to_text(
+                artifact,
+                writer_boundary_context,
+            )
+        }
+        #[cfg(not(test))]
+        TransformTemplateEncodedArtifactPayload::PublicJson(_) => Err(
+            "public JSON CEM-tree projections cannot re-enter the runtime writer; parse them through a registered AST ingress first"
+                .to_owned(),
+        ),
+        _ => Err("CEM tree envelope is not a typed tree artifact".to_owned()),
+    }
+}
+
+#[cfg(test)]
+fn transform_template_writer_public_json_cem_tree_to_text(
+    artifact: &TransformTemplateEncodedArtifact,
+    writer_boundary_context: &TransformTemplateEncodedArtifactInsertionContext,
+) -> Result<TransformTemplateEncodedArtifact, String> {
     let value = artifact
         .value
-        .as_cemt_runtime_value()
-        .ok_or_else(|| "CEM tree envelope is not a CEMT evaluator tree payload".to_owned())?;
+        .as_public_json_value()
+        .ok_or_else(|| "CEM tree test oracle is not an explicit JSON payload".to_owned())?;
     validate_cem_tree_value(value)
         .map_err(|message| format!("CEM tree envelope is invalid: {message}"))?;
     validate_cem_tree_writer_boundary(artifact, writer_boundary_context)?;
@@ -9577,7 +9640,7 @@ fn transform_template_writer_cem_tree_artifact_to_text(
 }
 
 pub(crate) struct TransformTemplateTypedCemTreeWriterRequest<'a> {
-    pub binding: &'a TransformTemplateEncodeBinding,
+    pub identity: &'a TransformTemplateEncodedArtifactIdentity,
     pub artifact: Arc<CemtTreeArtifact>,
     pub insertion_context: &'a TransformTemplateEncodedArtifactInsertionContext,
 }
@@ -9587,7 +9650,7 @@ pub(crate) fn execute_transform_template_typed_cem_tree_writer(
 ) -> Result<TransformTemplateEncodedArtifact, String> {
     validate_typed_cem_tree_writer_boundary(
         request.artifact.as_ref(),
-        &request.binding.identity,
+        request.identity,
         request.insertion_context,
     )?;
     let rendered = transform_template_typed_cem_tree_to_rendered_text(
@@ -9595,7 +9658,7 @@ pub(crate) fn execute_transform_template_typed_cem_tree_writer(
         request.insertion_context,
     )?;
     let mut identity = transform_template_typed_writer_text_identity_from_context(
-        &request.binding.identity,
+        request.identity,
         request.insertion_context,
     );
     identity.produces = TransformTemplateOutputProducedKind::Text;
@@ -9625,7 +9688,7 @@ pub(crate) fn execute_transform_template_typed_cem_tree_writer(
 }
 
 pub(crate) struct TransformTemplateMaterializedCemtWriterRequest<'a> {
-    pub binding: &'a TransformTemplateEncodeBinding,
+    pub identity: &'a TransformTemplateEncodedArtifactIdentity,
     pub artifact: Arc<CemtMaterializedTreeArtifact>,
     pub insertion_context: &'a TransformTemplateEncodedArtifactInsertionContext,
 }
@@ -9881,9 +9944,9 @@ pub(crate) fn execute_transform_template_materialized_cemt_writer(
             "materialized CEMT writer requires a formatted or colored AST stream".to_owned(),
         );
     }
-    if request.binding.identity.target.content_type != request.artifact.identity().content_type
-        || request.binding.identity.target.schema != request.artifact.identity().schema
-        || request.binding.identity.target.category != request.artifact.identity().category
+    if request.identity.target.content_type != request.artifact.identity().content_type
+        || request.identity.target.schema != request.artifact.identity().schema
+        || request.identity.target.category != request.artifact.identity().category
     {
         return Err("materialized CEMT writer identity does not match its AST stream".to_owned());
     }
@@ -9901,7 +9964,7 @@ pub(crate) fn execute_transform_template_materialized_cemt_writer(
             });
     let color_profile = transform_template_writer_token_color_profile(
         None,
-        &request.binding.identity,
+        request.identity,
         request
             .insertion_context
             .output_color_type
@@ -9962,7 +10025,7 @@ pub(crate) fn execute_transform_template_materialized_cemt_writer(
     }
 
     let mut identity = transform_template_typed_writer_text_identity_from_context(
-        &request.binding.identity,
+        request.identity,
         request.insertion_context,
     );
     identity.produces = TransformTemplateOutputProducedKind::Text;
@@ -10083,14 +10146,15 @@ fn validate_typed_cem_tree_writer_boundary(
     Ok(())
 }
 
+#[cfg(test)]
 fn validate_cem_tree_writer_boundary(
     artifact: &TransformTemplateEncodedArtifact,
     writer_boundary_context: &TransformTemplateEncodedArtifactInsertionContext,
 ) -> Result<(), String> {
     let value = artifact
         .value
-        .as_cemt_runtime_value()
-        .ok_or_else(|| "CEM tree envelope is not a CEMT evaluator tree payload".to_owned())?;
+        .as_public_json_value()
+        .ok_or_else(|| "CEM tree test oracle is not an explicit JSON payload".to_owned())?;
     let identity_formatter_profile =
         trimmed_optional_str(artifact.identity.formatter_profile.as_deref());
     let value_formatter_profile = trimmed_value_string_field(value, "formatterProfile");
@@ -13627,6 +13691,7 @@ where
             let formatted_execution = match execute_transform_template_output_function(
                 &format_binding,
                 &subject,
+                None,
                 &context,
                 &mut encode_impl,
             ) {
@@ -13646,23 +13711,7 @@ where
                     continue;
                 }
             };
-            let formatted_value = match formatted_execution.clone().into_cemt_evaluator_value() {
-                Ok(value) => value,
-                Err(message) => {
-                    diagnostics.push(Diagnostic {
-                        uri: context.uri.map(str::to_owned),
-                        code: TRANSFORM_TEMPLATE_ENCODE_IMPLEMENTATION_FAILED_CODE.to_owned(),
-                        severity: Severity::Error,
-                        message: format!(
-                            "CEMT output function `{}` failed for expression `{}`: {message}",
-                            format_binding.function.name, expression.expression
-                        ),
-                        details: None,
-                        ..Diagnostic::default()
-                    });
-                    continue;
-                }
-            };
+            let formatted_tree = formatted_execution.cem_tree_output().cloned();
             let mut binding = format_binding;
             let mut artifact = match formatted_execution.into_artifact(&binding) {
                 Ok(artifact) => artifact,
@@ -13686,7 +13735,10 @@ where
                 || transform_template_encode_options_request_color(&request.options)
             {
                 let color_request = TransformTemplateEncodeBindingRequest {
-                    subject: formatted_value.clone(),
+                    // Binding resolution uses the declared `cem-tree` subject
+                    // type. The runtime subject is the exact typed formatted
+                    // artifact passed below, never this selector placeholder.
+                    subject: Value::Null,
                     owner: request.owner.clone(),
                     subject_type: Some("cem-tree".to_owned()),
                     target: request.target.clone(),
@@ -13729,7 +13781,8 @@ where
                 };
                 let colored_execution = match execute_transform_template_output_function(
                     &color_binding,
-                    &formatted_value,
+                    &Value::Null,
+                    formatted_tree.as_ref(),
                     &context,
                     &mut encode_impl,
                 ) {
@@ -13816,6 +13869,7 @@ where
         let execution = match execute_transform_template_output_function(
             &binding,
             &subject,
+            None,
             &context,
             &mut encode_impl,
         ) {
@@ -13870,6 +13924,7 @@ where
 fn execute_transform_template_output_function<F>(
     binding: &TransformTemplateEncodeBinding,
     subject: &Value,
+    typed_subject: Option<&TransformTemplateCemTreeOutput>,
     context: &TransformTemplateEncodeEvaluationContext<'_>,
     encode_impl: &mut F,
 ) -> Result<TransformTemplateOutputFunctionExecution, String>
@@ -13879,15 +13934,137 @@ where
         &Value,
     ) -> Result<TransformTemplateOutputFunctionExecution, String>,
 {
+    if binding.function.produces == TransformTemplateOutputProducedKind::CemTree {
+        if let Some(result) = execute_transform_template_typed_cem_tree_output_function(
+            binding,
+            subject,
+            typed_subject,
+            &context.registry.module_options,
+        ) {
+            return result.map(TransformTemplateOutputFunctionExecution::CemTree);
+        }
+        return encode_impl(binding, subject).and_then(|execution| match execution {
+            TransformTemplateOutputFunctionExecution::CemTree(_) => Ok(execution),
+            TransformTemplateOutputFunctionExecution::Native(result) => Err(format!(
+                "CEM-tree output function `{}` returned typed `{}` output instead of a declared tree artifact",
+                binding.function.name,
+                result.produced_kind().as_str()
+            )),
+        });
+    }
     if let Some(result) = execute_transform_template_cemt_body_expression(
         binding,
         subject,
         context.value_bindings,
         &context.registry.runtime_functions,
     ) {
-        return result.map(TransformTemplateOutputFunctionExecution::CemtEvaluator);
+        return result.and_then(|value| {
+            let result = match binding.function.produces {
+                TransformTemplateOutputProducedKind::Text => value
+                    .as_str()
+                    .map(str::to_owned)
+                    .map(TransformTemplateOutputFunctionResult::Text)
+                    .ok_or_else(|| {
+                        format!(
+                            "CEMT output function `{}` declared text but returned {}",
+                            binding.function.name,
+                            json_value_type_name(&value)
+                        )
+                    })?,
+                produces => {
+                    return Err(format!(
+                        "CEMT output function `{}` cannot lower evaluator value output to typed `{}` without an explicit producer",
+                        binding.function.name,
+                        produces.as_str()
+                    ))
+                }
+            };
+            Ok(TransformTemplateOutputFunctionExecution::Native(result))
+        });
     }
     encode_impl(binding, subject)
+}
+
+fn execute_transform_template_typed_cem_tree_output_function(
+    binding: &TransformTemplateEncodeBinding,
+    compatibility_subject: &Value,
+    typed_subject: Option<&TransformTemplateCemTreeOutput>,
+    module_options: &TransformTemplateModuleOptions,
+) -> Option<Result<TransformTemplateCemTreeOutput, String>> {
+    if binding.function.implementation != TransformTemplateOutputFunctionImplementation::Cemt {
+        return None;
+    }
+    let body_expression = binding.function.body_expression.as_deref()?.trim();
+    if cemt_expression_starts_with_call(body_expression, "encode") {
+        return None;
+    }
+
+    Some(match binding.function.kind {
+        TransformTemplateOutputFunctionKind::Format => {
+            if typed_subject.is_some() {
+                return Some(Err(format!(
+                    "CEMT formatter `{}` received an already staged tree; format input must be a declared raw AST",
+                    binding.function.name
+                )));
+            }
+            let owner = match CemTreeAstStream::try_from_cemt_subject(
+                compatibility_subject.clone(),
+            ) {
+                Ok(owner) => Arc::new(owner),
+                Err(error) => {
+                    return Some(Err(format!(
+                        "CEMT formatter `{}` explicit JSON ingress could not parse a raw CEM AST: {error}",
+                        binding.function.name
+                    )))
+                }
+            };
+            let raw = Arc::new(CemtTreeArtifact::raw(owner, None));
+            let Some(result) = execute_transform_template_typed_cemt_body_expression(
+                binding,
+                CemtEvaluatorValue::borrowed(raw.evaluator_view()),
+                module_options,
+            ) else {
+                return None;
+            };
+            result
+                .and_then(|result| {
+                    crate::conversion::lower_typed_formatted_cemt_tree_artifact(
+                        raw.as_ref(),
+                        result,
+                        &binding.function.name,
+                    )
+                })
+                .and_then(TransformTemplateCemTreeOutput::from_tree)
+        }
+        TransformTemplateOutputFunctionKind::Color => {
+            let Some(TransformTemplateCemTreeOutput::Formatted(formatted)) = typed_subject else {
+                return Some(Err(format!(
+                    "CEMT colorizer `{}` requires a declared typed formatted artifact; JSON shape classification is not permitted",
+                    binding.function.name
+                )));
+            };
+            let Some(result) = execute_transform_template_typed_cemt_body_expression(
+                binding,
+                CemtEvaluatorValue::borrowed(formatted.evaluator_view()),
+                module_options,
+            ) else {
+                return None;
+            };
+            result
+                .and_then(|result| {
+                    crate::conversion::lower_typed_colored_cemt_tree_artifact(
+                        formatted.as_ref(),
+                        result,
+                        &binding.function.name,
+                    )
+                })
+                .and_then(TransformTemplateCemTreeOutput::from_tree)
+        }
+        TransformTemplateOutputFunctionKind::Encoding => Err(format!(
+            "CEMT encoder `{}` cannot declare a CEM-tree result without an explicit raw or materialized AST producer",
+            binding.function.name
+        )),
+    })
 }
 
 pub(crate) fn execute_transform_template_encode_binding<F>(
@@ -14991,27 +15168,78 @@ impl TransformTemplateOutputFunctionResult {
     }
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone)]
+pub(crate) enum TransformTemplateCemTreeOutput {
+    Raw(Arc<CemtTreeArtifact>),
+    Formatted(Arc<CemtTreeArtifact>),
+    Colored(Arc<CemtTreeArtifact>),
+    Materialized(Arc<CemtMaterializedTreeArtifact>),
+}
+
+impl TransformTemplateCemTreeOutput {
+    pub(crate) fn from_tree(artifact: Arc<CemtTreeArtifact>) -> Result<Self, String> {
+        match artifact.stage() {
+            CemtTreeArtifactStage::Raw => Ok(Self::Raw(artifact)),
+            CemtTreeArtifactStage::Formatted => Ok(Self::Formatted(artifact)),
+            CemtTreeArtifactStage::Colored => Ok(Self::Colored(artifact)),
+        }
+    }
+
+    pub(crate) fn from_materialized(
+        artifact: Arc<CemtMaterializedTreeArtifact>,
+    ) -> Result<Self, String> {
+        if artifact.stage() == CemtMaterializedTreeStage::Raw {
+            return Err(
+                "materialized CEM-tree output must declare a formatted or colored producer stage"
+                    .to_owned(),
+            );
+        }
+        Ok(Self::Materialized(artifact))
+    }
+
+    pub(crate) fn tree(&self) -> Option<&Arc<CemtTreeArtifact>> {
+        match self {
+            Self::Raw(artifact) | Self::Formatted(artifact) | Self::Colored(artifact) => {
+                Some(artifact)
+            }
+            Self::Materialized(_) => None,
+        }
+    }
+
+    fn into_artifact(
+        self,
+        binding: &TransformTemplateEncodeBinding,
+    ) -> Result<TransformTemplateEncodedArtifact, String> {
+        match self {
+            Self::Raw(artifact) | Self::Formatted(artifact) | Self::Colored(artifact) => {
+                binding.artifact_from_cem_tree(artifact)
+            }
+            Self::Materialized(artifact) => binding.artifact_from_materialized_cem_tree(artifact),
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
 pub(crate) enum TransformTemplateOutputFunctionExecution {
     Native(TransformTemplateOutputFunctionResult),
-    CemtEvaluator(Value),
+    CemTree(TransformTemplateCemTreeOutput),
 }
 
 impl TransformTemplateOutputFunctionExecution {
+    fn cem_tree_output(&self) -> Option<&TransformTemplateCemTreeOutput> {
+        match self {
+            Self::CemTree(output) => Some(output),
+            Self::Native(_) => None,
+        }
+    }
+
     fn into_artifact(
         self,
         binding: &TransformTemplateEncodeBinding,
     ) -> Result<TransformTemplateEncodedArtifact, String> {
         match self {
             Self::Native(result) => binding.artifact_from_result(result),
-            Self::CemtEvaluator(value) => Ok(binding.artifact_from_cemt_value(value)),
-        }
-    }
-
-    pub(crate) fn into_cemt_evaluator_value(self) -> Result<Value, String> {
-        match self {
-            Self::CemtEvaluator(value) => Ok(value),
-            Self::Native(result) => result.into_evaluator_value(),
+            Self::CemTree(result) => result.into_artifact(binding),
         }
     }
 }
@@ -15155,7 +15383,7 @@ fn cemt_typed_runtime_function_from_adapter(
     })
 }
 
-fn cemt_typed_runtime_value_from_adapter(
+pub(crate) fn cemt_typed_runtime_value_from_adapter(
     value: &Value,
 ) -> Result<crate::transform_artifact::CemtEvaluatorValue<'static>, String> {
     use crate::transform_artifact::CemtEvaluatorValue;
@@ -15181,13 +15409,20 @@ fn cemt_typed_runtime_value_from_adapter(
             .map(cemt_typed_runtime_value_from_adapter)
             .collect::<Result<Vec<_>, _>>()
             .map(CemtEvaluatorValue::sequence),
-        Value::Object(fields) => fields
-            .iter()
-            .map(|(name, value)| {
-                cemt_typed_runtime_value_from_adapter(value).map(|value| (name.clone(), value))
-            })
-            .collect::<Result<Vec<_>, _>>()
-            .map(CemtEvaluatorValue::record),
+        Value::Object(fields) => {
+            if fields.len() == 1 && fields.contains_key("frames") {
+                if let Ok(source_map) = serde_json::from_value::<SourceMapStack>(value.clone()) {
+                    return Ok(CemtEvaluatorValue::source_map(source_map));
+                }
+            }
+            fields
+                .iter()
+                .map(|(name, value)| {
+                    cemt_typed_runtime_value_from_adapter(value).map(|value| (name.clone(), value))
+                })
+                .collect::<Result<Vec<_>, _>>()
+                .map(CemtEvaluatorValue::record)
+        }
     }
 }
 
@@ -24618,17 +24853,89 @@ pub struct TransformTemplateEncodedArtifact {
     pub encoded: bool,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(untagged)]
+#[derive(Debug, Clone)]
 pub enum TransformTemplateEncodedArtifactPayload {
     Text(String),
     Bytes(TransformTemplateWriterByteStream),
     Tokens(TransformTemplateWriterTokenStream),
     Chunks(TransformTemplateWriterChunkStream),
     Diagnostics(TransformTemplateWriterDiagnostics),
-    CemtRuntime(Value),
-    #[cfg(test)]
-    TestValue(Value),
+    CemTree(Arc<CemtTreeArtifact>),
+    MaterializedCemTree(Arc<CemtMaterializedTreeArtifact>),
+    /// JSON retained only at an explicit public response or compatibility
+    /// boundary. Runtime stages must not consume this variant.
+    PublicJson(Value),
+}
+
+impl PartialEq for TransformTemplateEncodedArtifactPayload {
+    fn eq(&self, other: &Self) -> bool {
+        match (self, other) {
+            (Self::Text(left), Self::Text(right)) => left == right,
+            (Self::Bytes(left), Self::Bytes(right)) => left == right,
+            (Self::Tokens(left), Self::Tokens(right)) => left == right,
+            (Self::Chunks(left), Self::Chunks(right)) => left == right,
+            (Self::Diagnostics(left), Self::Diagnostics(right)) => left == right,
+            (Self::CemTree(left), Self::CemTree(right)) => Arc::ptr_eq(left, right),
+            (Self::MaterializedCemTree(left), Self::MaterializedCemTree(right)) => {
+                Arc::ptr_eq(left, right)
+            }
+            (Self::PublicJson(left), Self::PublicJson(right)) => left == right,
+            _ => false,
+        }
+    }
+}
+
+impl Serialize for TransformTemplateEncodedArtifactPayload {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        match self {
+            Self::Text(value) => value.serialize(serializer),
+            Self::Bytes(value) => value.serialize(serializer),
+            Self::Tokens(value) => value.serialize(serializer),
+            Self::Chunks(value) => value.serialize(serializer),
+            Self::Diagnostics(value) => value.serialize(serializer),
+            Self::CemTree(artifact) => artifact
+                .to_public_json()
+                .map_err(serde::ser::Error::custom)?
+                .serialize(serializer),
+            Self::MaterializedCemTree(artifact) => {
+                CemtEvaluatorValue::borrowed(artifact.evaluator_view())
+                    .to_public_json()
+                    .map_err(serde::ser::Error::custom)?
+                    .serialize(serializer)
+            }
+            Self::PublicJson(value) => value.serialize(serializer),
+        }
+    }
+}
+
+impl<'de> Deserialize<'de> for TransformTemplateEncodedArtifactPayload {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        #[derive(Deserialize)]
+        #[serde(untagged)]
+        enum BoundaryPayload {
+            Text(String),
+            Bytes(TransformTemplateWriterByteStream),
+            Tokens(TransformTemplateWriterTokenStream),
+            Chunks(TransformTemplateWriterChunkStream),
+            Diagnostics(TransformTemplateWriterDiagnostics),
+            Json(Value),
+        }
+
+        Ok(match BoundaryPayload::deserialize(deserializer)? {
+            BoundaryPayload::Text(value) => Self::Text(value),
+            BoundaryPayload::Bytes(value) => Self::Bytes(value),
+            BoundaryPayload::Tokens(value) => Self::Tokens(value),
+            BoundaryPayload::Chunks(value) => Self::Chunks(value),
+            BoundaryPayload::Diagnostics(value) => Self::Diagnostics(value),
+            BoundaryPayload::Json(value) => Self::PublicJson(value),
+        })
+    }
 }
 
 impl TransformTemplateEncodedArtifactPayload {
@@ -24649,34 +24956,16 @@ impl TransformTemplateEncodedArtifactPayload {
         }
     }
 
-    pub fn as_cemt_runtime_value(&self) -> Option<&Value> {
+    pub fn as_public_json_value(&self) -> Option<&Value> {
         match self {
-            Self::CemtRuntime(value) => Some(value),
-            #[cfg(test)]
-            Self::TestValue(value) => Some(value),
+            Self::PublicJson(value) => Some(value),
             _ => None,
         }
     }
 
     #[cfg(test)]
     pub fn as_runtime_value(&self) -> Option<&Value> {
-        self.as_cemt_runtime_value()
-    }
-
-    pub fn into_cemt_runtime_value(self) -> Result<Value, String> {
-        match self {
-            Self::CemtRuntime(value) => Ok(value),
-            #[cfg(test)]
-            Self::TestValue(value) => Ok(value),
-            value => Err(format!(
-                "typed `{}` output cannot be used as a CEMT evaluator value without an explicit decoder",
-                value.produced_kind().as_str()
-            )),
-        }
-    }
-
-    pub fn to_cemt_runtime_value(&self) -> Result<Value, String> {
-        self.clone().into_cemt_runtime_value()
+        self.as_public_json_value()
     }
 
     pub fn into_public_value(self) -> Result<Value, String> {
@@ -24688,9 +24977,11 @@ impl TransformTemplateEncodedArtifactPayload {
             Self::Diagnostics(stream) => {
                 serde_json::to_value(stream).map_err(|error| error.to_string())
             }
-            Self::CemtRuntime(value) => Ok(value),
-            #[cfg(test)]
-            Self::TestValue(value) => Ok(value),
+            Self::CemTree(artifact) => artifact.to_public_json(),
+            Self::MaterializedCemTree(artifact) => {
+                CemtEvaluatorValue::borrowed(artifact.evaluator_view()).to_public_json()
+            }
+            Self::PublicJson(value) => Ok(value),
         }
     }
 
@@ -24707,23 +24998,18 @@ impl TransformTemplateEncodedArtifactPayload {
 
     pub fn as_object_mut(&mut self) -> Option<&mut serde_json::Map<String, Value>> {
         match self {
-            Self::CemtRuntime(value) => value.as_object_mut(),
-            #[cfg(test)]
-            Self::TestValue(value) => value.as_object_mut(),
+            Self::PublicJson(value) => value.as_object_mut(),
             _ => None,
         }
     }
 
     pub fn get(&self, key: &str) -> Option<&Value> {
-        self.as_cemt_runtime_value()
-            .and_then(|value| value.get(key))
+        self.as_public_json_value().and_then(|value| value.get(key))
     }
 
     pub fn get_mut(&mut self, key: &str) -> Option<&mut Value> {
         match self {
-            Self::CemtRuntime(value) => value.get_mut(key),
-            #[cfg(test)]
-            Self::TestValue(value) => value.get_mut(key),
+            Self::PublicJson(value) => value.get_mut(key),
             _ => None,
         }
     }
@@ -24732,9 +25018,8 @@ impl TransformTemplateEncodedArtifactPayload {
         match self {
             Self::Text(_) => "string",
             Self::Bytes(_) | Self::Tokens(_) | Self::Chunks(_) | Self::Diagnostics(_) => "object",
-            Self::CemtRuntime(value) => json_value_type_name(value),
-            #[cfg(test)]
-            Self::TestValue(value) => json_value_type_name(value),
+            Self::CemTree(_) | Self::MaterializedCemTree(_) => "object",
+            Self::PublicJson(value) => json_value_type_name(value),
         }
     }
 
@@ -24745,9 +25030,9 @@ impl TransformTemplateEncodedArtifactPayload {
             Self::Tokens(_) => TransformTemplateOutputProducedKind::Tokens,
             Self::Chunks(_) => TransformTemplateOutputProducedKind::Chunks,
             Self::Diagnostics(_) => TransformTemplateOutputProducedKind::Diagnostics,
-            Self::CemtRuntime(_) => TransformTemplateOutputProducedKind::CemTree,
-            #[cfg(test)]
-            Self::TestValue(_) => TransformTemplateOutputProducedKind::CemTree,
+            Self::CemTree(_) | Self::MaterializedCemTree(_) | Self::PublicJson(_) => {
+                TransformTemplateOutputProducedKind::CemTree
+            }
         }
     }
 }
@@ -24756,9 +25041,7 @@ impl PartialEq<Value> for TransformTemplateEncodedArtifactPayload {
     fn eq(&self, other: &Value) -> bool {
         match self {
             Self::Text(text) => other.as_str() == Some(text.as_str()),
-            Self::CemtRuntime(value) => value == other,
-            #[cfg(test)]
-            Self::TestValue(value) => value == other,
+            Self::PublicJson(value) => value == other,
             _ => false,
         }
     }
@@ -24767,7 +25050,7 @@ impl PartialEq<Value> for TransformTemplateEncodedArtifactPayload {
 #[cfg(test)]
 impl From<Value> for TransformTemplateEncodedArtifactPayload {
     fn from(value: Value) -> Self {
-        Self::TestValue(value)
+        Self::PublicJson(value)
     }
 }
 
@@ -24776,8 +25059,8 @@ impl std::ops::Index<&str> for TransformTemplateEncodedArtifactPayload {
 
     fn index(&self, index: &str) -> &Self::Output {
         &self
-            .as_cemt_runtime_value()
-            .expect("typed writer payload does not support CEMT evaluator indexing")[index]
+            .as_public_json_value()
+            .expect("typed payload must be projected explicitly before JSON indexing")[index]
     }
 }
 
@@ -24817,11 +25100,11 @@ impl TransformTemplateEncodedArtifact {
                     .map(TransformTemplateEncodedArtifactPayload::Diagnostics)
             }
             TransformTemplateOutputProducedKind::CemTree => Some(
-                TransformTemplateEncodedArtifactPayload::CemtRuntime(value.clone()),
+                TransformTemplateEncodedArtifactPayload::PublicJson(value.clone()),
             ),
             _ => None,
         }
-        .unwrap_or(TransformTemplateEncodedArtifactPayload::TestValue(value));
+        .unwrap_or(TransformTemplateEncodedArtifactPayload::PublicJson(value));
         Self {
             identity,
             value: payload,
@@ -24861,13 +25144,51 @@ impl TransformTemplateEncodedArtifact {
         )
     }
 
-    pub fn from_cemt_runtime(
+    pub fn from_cem_tree(
+        identity: TransformTemplateEncodedArtifactIdentity,
+        artifact: Arc<CemtTreeArtifact>,
+    ) -> Result<Self, String> {
+        if identity.produces != TransformTemplateOutputProducedKind::CemTree {
+            return Err(format!(
+                "typed CEM tree artifact identity declares `{}`",
+                identity.produces.as_str()
+            ));
+        }
+        Ok(Self {
+            identity,
+            source_map: artifact.source_map().cloned(),
+            value: TransformTemplateEncodedArtifactPayload::CemTree(artifact),
+            output_spans: Vec::new(),
+            encoded: true,
+        })
+    }
+
+    pub fn from_materialized_cem_tree(
+        identity: TransformTemplateEncodedArtifactIdentity,
+        artifact: Arc<CemtMaterializedTreeArtifact>,
+    ) -> Result<Self, String> {
+        if identity.produces != TransformTemplateOutputProducedKind::CemTree {
+            return Err(format!(
+                "typed materialized CEM tree artifact identity declares `{}`",
+                identity.produces.as_str()
+            ));
+        }
+        Ok(Self {
+            identity,
+            source_map: artifact.source_map().cloned(),
+            output_spans: artifact.output_spans().to_vec(),
+            value: TransformTemplateEncodedArtifactPayload::MaterializedCemTree(artifact),
+            encoded: true,
+        })
+    }
+
+    pub fn from_public_json(
         identity: TransformTemplateEncodedArtifactIdentity,
         value: Value,
     ) -> Self {
         Self {
             identity,
-            value: TransformTemplateEncodedArtifactPayload::CemtRuntime(value),
+            value: TransformTemplateEncodedArtifactPayload::PublicJson(value),
             source_map: None,
             output_spans: Vec::new(),
             encoded: true,
@@ -24963,6 +25284,22 @@ impl TransformTemplateEncodedArtifact {
         match &self.value {
             TransformTemplateEncodedArtifactPayload::Diagnostics(stream) => {
                 Some(&stream.diagnostics)
+            }
+            _ => None,
+        }
+    }
+
+    pub fn cemt_tree_artifact(&self) -> Option<&Arc<CemtTreeArtifact>> {
+        match &self.value {
+            TransformTemplateEncodedArtifactPayload::CemTree(artifact) => Some(artifact),
+            _ => None,
+        }
+    }
+
+    pub fn materialized_cemt_tree_artifact(&self) -> Option<&Arc<CemtMaterializedTreeArtifact>> {
+        match &self.value {
+            TransformTemplateEncodedArtifactPayload::MaterializedCemTree(artifact) => {
+                Some(artifact)
             }
             _ => None,
         }
@@ -25364,26 +25701,29 @@ fn validate_encoded_artifact_value_shape(
         ) => validate_typed_writer_diagnostics(stream),
         (
             TransformTemplateOutputProducedKind::CemTree,
-            TransformTemplateEncodedArtifactPayload::CemtRuntime(value),
+            TransformTemplateEncodedArtifactPayload::CemTree(_)
+            | TransformTemplateEncodedArtifactPayload::MaterializedCemTree(_),
+        ) => Ok(()),
+        (
+            TransformTemplateOutputProducedKind::CemTree,
+            TransformTemplateEncodedArtifactPayload::PublicJson(value),
         ) => validate_cem_tree_value(value),
-        #[cfg(test)]
-        (produces, TransformTemplateEncodedArtifactPayload::TestValue(value)) => match produces {
-            TransformTemplateOutputProducedKind::Text => value
-                .is_string()
-                .then_some(())
-                .ok_or_else(|| json_value_type_name(value).to_owned()),
-            TransformTemplateOutputProducedKind::Bytes => validate_writer_byte_stream_value(value),
-            TransformTemplateOutputProducedKind::CemTree => validate_cem_tree_value(value),
-            TransformTemplateOutputProducedKind::Tokens => {
-                validate_writer_token_stream_value(value)
-            }
-            TransformTemplateOutputProducedKind::Chunks => {
-                validate_writer_chunk_stream_value(value)
-            }
-            TransformTemplateOutputProducedKind::Diagnostics => {
-                validate_writer_diagnostics_value(value)
-            }
-        },
+        (
+            TransformTemplateOutputProducedKind::Bytes,
+            TransformTemplateEncodedArtifactPayload::PublicJson(value),
+        ) => validate_writer_byte_stream_value(value),
+        (
+            TransformTemplateOutputProducedKind::Tokens,
+            TransformTemplateEncodedArtifactPayload::PublicJson(value),
+        ) => validate_writer_token_stream_value(value),
+        (
+            TransformTemplateOutputProducedKind::Chunks,
+            TransformTemplateEncodedArtifactPayload::PublicJson(value),
+        ) => validate_writer_chunk_stream_value(value),
+        (
+            TransformTemplateOutputProducedKind::Diagnostics,
+            TransformTemplateEncodedArtifactPayload::PublicJson(value),
+        ) => validate_writer_diagnostics_value(value),
         _ => Err(value.value_type_name().to_owned()),
     };
 
@@ -25665,7 +26005,6 @@ fn validate_writer_token_style(value: &Value, field: &str) -> Result<(), String>
     Ok(())
 }
 
-#[cfg(test)]
 fn validate_writer_byte_stream_value(value: &Value) -> Result<(), String> {
     let object = value
         .as_object()
@@ -25690,7 +26029,6 @@ fn validate_writer_byte_stream_value(value: &Value) -> Result<(), String> {
     }
 }
 
-#[cfg(test)]
 fn validate_writer_chunk_stream_value(value: &Value) -> Result<(), String> {
     let chunks = required_writer_array_field(value, "chunks")?;
     for (index, chunk) in chunks.iter().enumerate() {
@@ -25733,7 +26071,6 @@ fn validate_writer_chunk_stream_value(value: &Value) -> Result<(), String> {
     Ok(())
 }
 
-#[cfg(test)]
 fn validate_writer_diagnostics_value(value: &Value) -> Result<(), String> {
     let diagnostics = required_writer_array_field(value, "diagnostics")?;
     for (index, diagnostic) in diagnostics.iter().enumerate() {
@@ -25772,7 +26109,6 @@ fn required_writer_array_field<'a>(
         .ok_or_else(|| format!("missing `{field}` array"))
 }
 
-#[cfg(test)]
 fn validate_writer_byte_array(bytes: &[Value], field: &str) -> Result<(), String> {
     for (index, byte) in bytes.iter().enumerate() {
         if !byte.as_u64().is_some_and(|value| value <= 255) {
@@ -28162,7 +28498,6 @@ fn execute_cemt_formatter_coloring_pipeline(
     let registry =
         TransformTemplateOutputFunctionRegistry::from_module_options(&response.module_options);
     let host_capabilities = BTreeSet::new();
-    let value_bindings = BTreeMap::new();
     let format_request = TransformTemplateEncodeBindingRequest::new(
         source_ast.clone(),
         TransformTemplateEncodingTarget::new(CEM_ML_CONTENT_TYPE, CEM_ML_SCHEMA_URI, "cem-tree"),
@@ -28180,27 +28515,26 @@ fn execute_cemt_formatter_coloring_pipeline(
                 .diagnostic(Some(CEMT_FORMATTER_COLORING_PIPELINE_URI))
                 .message
         })?;
-    let mut reject_fallback = |binding: &TransformTemplateEncodeBinding, _subject: &Value| {
-        Err(format!(
-            "unexpected fallback while generating CEMT fixture for `{}`",
-            binding.function.name
-        ))
-    };
-    let formatted = execute_transform_template_encode_binding(
+    let owner = Arc::new(
+        CemTreeAstStream::try_from_cemt_subject(source_ast.clone())
+            .map_err(|error| format!("fixture CEM-tree ingress failed: {error}"))?,
+    );
+    let raw = Arc::new(CemtTreeArtifact::raw(owner, None));
+    let formatted_value = execute_transform_template_typed_cemt_body_expression(
         &format_binding,
-        &source_ast,
-        &TransformTemplateEncodeEvaluationContext {
-            registry: &registry,
-            value_bindings: &value_bindings,
-            host_capabilities: &host_capabilities,
-            output_color_type: None,
-            uri: Some(CEMT_FORMATTER_COLORING_PIPELINE_URI),
-        },
-        &mut reject_fallback,
+        CemtEvaluatorValue::borrowed(raw.evaluator_view()),
+        &response.module_options,
+    )
+    .ok_or_else(|| "fixture formatter requires a direct typed CEMT body".to_owned())??;
+    let formatted_artifact = crate::conversion::lower_typed_formatted_cemt_tree_artifact(
+        raw.as_ref(),
+        formatted_value,
+        &format_binding.function.name,
     )?;
+    let formatted = formatted_artifact.to_public_json()?;
 
     let color_request = TransformTemplateEncodeBindingRequest::new(
-        formatted.clone(),
+        Value::Null,
         TransformTemplateEncodingTarget::new(CEM_ML_CONTENT_TYPE, CEM_ML_SCHEMA_URI, "cem-tree"),
     )
     .with_subject_type("cem-tree")
@@ -28218,18 +28552,18 @@ fn execute_cemt_formatter_coloring_pipeline(
         })?
         .into_encode_binding();
     let colorizer = color_binding.function.name.clone();
-    let colored = execute_transform_template_encode_binding(
+    let colored_value = execute_transform_template_typed_cemt_body_expression(
         &color_binding,
-        &color_request.subject,
-        &TransformTemplateEncodeEvaluationContext {
-            registry: &registry,
-            value_bindings: &value_bindings,
-            host_capabilities: &host_capabilities,
-            output_color_type: None,
-            uri: Some(CEMT_FORMATTER_COLORING_PIPELINE_URI),
-        },
-        &mut reject_fallback,
+        CemtEvaluatorValue::borrowed(formatted_artifact.evaluator_view()),
+        &response.module_options,
+    )
+    .ok_or_else(|| "fixture colorizer requires a direct typed CEMT body".to_owned())??;
+    let colored_artifact = crate::conversion::lower_typed_colored_cemt_tree_artifact(
+        formatted_artifact.as_ref(),
+        colored_value,
+        &color_binding.function.name,
     )?;
+    let colored = colored_artifact.to_public_json()?;
 
     let writer_context = TransformTemplateEncodedArtifactInsertionContext {
         produces: Some(TransformTemplateOutputProducedKind::Text),
@@ -28246,10 +28580,11 @@ fn execute_cemt_formatter_coloring_pipeline(
         canonical: Some(true),
         source_map_policy: Some(TransformTemplateSourceMapPolicy::Generated),
     };
-    transform_template_writer_cem_tree_artifact_to_text(
-        &color_binding.artifact_from_cemt_value(colored.clone()),
-        &writer_context,
-    )
+    execute_transform_template_typed_cem_tree_writer(TransformTemplateTypedCemTreeWriterRequest {
+        identity: &color_binding.identity,
+        artifact: colored_artifact,
+        insertion_context: &writer_context,
+    })
     .and_then(|artifact| {
         artifact
             .value
@@ -35535,7 +35870,6 @@ mod tests {
         assert!(formatted.get("writerBoundaries").is_none());
 
         let section = &colored["nodes"][0];
-        assert_eq!(colored["writerBoundaries"][0]["stage"], "after-color");
         assert_eq!(section["colorRole"], "syntax.name");
         assert_eq!(
             cem_tree_writer_attribute_value(section, "class"),
@@ -41908,7 +42242,7 @@ mod tests {
     }
 
     #[test]
-    fn evaluate_encode_expressions_runs_formatter_bindings_to_cem_tree() {
+    fn evaluate_encode_expressions_requires_typed_cem_tree_producer() {
         let response = parse_cem_native_template_module_options(
             TransformTemplateModuleParseRequest {
                 template: template_input(
@@ -42002,57 +42336,15 @@ mod tests {
             },
         );
 
-        assert!(
-            evaluated.diagnostics.is_empty(),
-            "{:?}",
-            evaluated.diagnostics
-        );
-        assert_eq!(evaluated.encoded.len(), 1);
-        assert_eq!(executed, vec!["cem.format-tree", "cem.color-tree"]);
-        let evaluated = &evaluated.encoded[0];
-        assert_eq!(evaluated.binding.function.name, "cem.color-tree");
-        assert_eq!(
-            evaluated.artifact.identity.produces,
-            TransformTemplateOutputProducedKind::CemTree
-        );
-        assert_eq!(
-            evaluated.artifact.identity.color_profile.as_deref(),
-            Some("css-custom-properties")
-        );
-        assert_eq!(evaluated.artifact.value["kind"], "cem-tree");
-        assert_eq!(evaluated.artifact.value["colored"], true);
-        assert_eq!(
-            evaluated.artifact.value["formatNodes"][0]["style"]["colorRole"],
-            "source.gutter"
-        );
-        assert_eq!(
-            evaluated.artifact.value["colorNodes"][0]["name"],
-            "cem.color-tree"
-        );
-        assert_eq!(
-            cem_tree_color_decision(
-                evaluated
-                    .artifact
-                    .value
-                    .as_runtime_value()
-                    .expect("colored CEM tree has a runtime payload"),
-                "profile",
-            )["value"],
-            "css-custom-properties"
-        );
-        assert_eq!(evaluated.artifact.value["nodes"][0]["name"], "card");
-        assert_eq!(
-            evaluated.artifact.value["nodes"][0]["style"]["colorRole"],
-            "syntax.name"
-        );
-        assert_eq!(
-            evaluated.artifact.value["nodes"][0]["formatContentBoundary"][1]["style"]["colorRole"],
-            "syntax.raw"
-        );
-        assert_eq!(
-            evaluated.artifact.value["nodes"][0]["formatLayout"]["style"]["colorRole"],
-            "source.gutter"
-        );
+        assert!(evaluated.encoded.is_empty());
+        assert_eq!(executed, vec!["cem.format-tree"]);
+        assert!(evaluated.diagnostics.iter().any(|diagnostic| {
+            diagnostic.code == TRANSFORM_TEMPLATE_ENCODE_IMPLEMENTATION_FAILED_CODE
+                && diagnostic.message.contains("requires a typed AST producer")
+                && diagnostic
+                    .message
+                    .contains("cannot create an intermediate tree DTO")
+        }));
     }
 
     #[test]
@@ -42075,17 +42367,32 @@ mod tests {
       @canonical=true
       @deterministic=true
       @streamable=true |
-      {param @name="subject" @type="object" @required=true}
+      {param @name="subject" @type="array" @required=true}
       {body |
         {$ {
           kind: "cem-tree",
-          formattedBy: "acme.format-tree",
-          nodes: [{
-            kind: "element",
-            name: $subject.name,
-            children: fold($subject.children, [], append($acc, { kind: "text", value: $item.value }))
-          }],
-          formatNodes: [{ kind: "formatter", name: "acme.format-tree" }]
+          contentType: "application/cem",
+          schema: "https://cem.dev/ns/cem-ml/1",
+          category: "cem-tree",
+          mode: "document",
+          canonical: true,
+          formatterProfile: "acme.format-tree",
+          nodes: $subject,
+          formatNodes: [
+            {
+              kind: "format-marker",
+              name: "cem.format-tree",
+              formatterRole: "formatter.boundary",
+              formatterProfile: "acme.format-tree"
+            },
+            {
+              kind: "format-decision",
+              name: "acme.format-tree",
+              formatterRole: "formatter.layout",
+              formatterProfile: "acme.format-tree",
+              value: "typed AST stream"
+            }
+          ]
         } }
       }
   }
@@ -42106,10 +42413,25 @@ mod tests {
       {body |
         {$ set(
           merge($subject, {
-            coloredBy: "acme.color-tree",
-            colorNodes: [{ kind: "colorizer", name: "acme.color-tree" }]
+            colored: true,
+            colorProfile: "none",
+            colorNodes: [
+              {
+                kind: "color-marker",
+                name: "cem.color-tree",
+                colorizerRole: "colorizer.boundary",
+                colorProfile: "none"
+              },
+              {
+                kind: "color-decision",
+                name: "acme.color-tree",
+                colorizerRole: "colorizer.profile",
+                colorProfile: "none",
+                value: "typed AST stream"
+              }
+            ]
           }),
-          "nodes.0.style.colorRole",
+          "nodes.0.colorRole",
           "syntax.name"
         ) }
       }
@@ -42139,8 +42461,10 @@ mod tests {
             "node".to_owned(),
             json!({
                 "ast": {
+                    "kind": "element",
                     "name": "card",
-                    "children": [{"value": "Ready"}]
+                    "attributes": [],
+                    "children": [{"kind": "text", "value": "Ready"}]
                 }
             }),
         );
@@ -42181,29 +42505,18 @@ mod tests {
             evaluated.artifact.identity.color_profile.as_deref(),
             Some("none")
         );
-        assert_eq!(evaluated.artifact.value["formattedBy"], "acme.format-tree");
-        assert_eq!(evaluated.artifact.value["coloredBy"], "acme.color-tree");
-        assert_eq!(evaluated.artifact.value["nodes"][0]["name"], "card");
-        assert_eq!(
-            evaluated.artifact.value["nodes"][0]["children"][0]["value"],
-            "Ready"
-        );
-        assert_eq!(
-            evaluated.artifact.value["nodes"][0]["style"]["colorRole"],
-            "syntax.name"
-        );
-        assert_eq!(
-            evaluated.artifact.value["formatNodes"][0]["name"],
-            "acme.format-tree"
-        );
-        assert_eq!(
-            evaluated.artifact.value["colorNodes"][0]["name"],
-            "acme.color-tree"
-        );
+        let value = evaluated.artifact.value.to_runtime_value();
+        assert_eq!(value["formatterProfile"], "acme.format-tree");
+        assert_eq!(value["colorProfile"], "none");
+        assert_eq!(value["nodes"][0]["name"], "card");
+        assert_eq!(value["nodes"][0]["children"][0]["value"], "Ready");
+        assert_eq!(value["nodes"][0]["colorRole"], "syntax.name");
+        assert_eq!(value["formatNodes"][0]["name"], "cem.format-tree");
+        assert_eq!(value["colorNodes"][1]["name"], "acme.color-tree");
     }
 
     #[test]
-    fn evaluate_encode_expressions_executes_markdown_package_cemt_boundaries() {
+    fn evaluate_encode_expressions_rejects_markdown_json_dto_ingress() {
         let formatter_source =
             crate::schema::package_sources::builtin_schema_package_artifact_source(
                 "markdown",
@@ -42329,52 +42642,15 @@ mod tests {
             },
         );
 
-        assert!(
-            evaluated.diagnostics.is_empty(),
-            "{:?}",
-            evaluated.diagnostics
-        );
+        assert!(evaluated.encoded.is_empty());
         assert!(fallback_calls.is_empty(), "{fallback_calls:?}");
-        assert_eq!(evaluated.encoded.len(), 1);
-        let evaluated = &evaluated.encoded[0];
-        assert_eq!(evaluated.binding.function.name, "markdown.color-document");
-        assert_eq!(
-            evaluated.artifact.identity.produces,
-            TransformTemplateOutputProducedKind::CemTree
-        );
-        assert_eq!(
-            evaluated.artifact.identity.color_profile.as_deref(),
-            Some("html")
-        );
-        assert_eq!(evaluated.artifact.value["kind"], "cem-tree");
-        assert_eq!(evaluated.artifact.value["category"], "markdown-document");
-        assert_eq!(evaluated.artifact.value["formatterProfile"], "pretty");
-        assert_eq!(evaluated.artifact.value["colorProfile"], "html");
-        assert_eq!(
-            evaluated.artifact.value["formatNodes"][0]["name"],
-            "markdown.format-document"
-        );
-        assert_eq!(
-            evaluated.artifact.value["colorNodes"][0]["name"],
-            "markdown.color-document"
-        );
-        let nodes = evaluated.artifact.value["nodes"]
-            .as_array()
-            .expect("Markdown CEM tree nodes");
-        let heading = nodes
-            .iter()
-            .find(|node| node["kind"] == "markdown.heading-marker")
-            .expect("heading marker token");
-        assert_eq!(heading["style"]["colorRole"], "syntax.punctuation");
-        let text = nodes
-            .iter()
-            .find(|node| node["text"] == "Release Notes")
-            .expect("heading text token");
-        assert_eq!(text["style"]["colorRole"], "syntax.text");
-        assert_eq!(
-            text["sourceMap"]["frames"].as_array().map(Vec::len),
-            Some(1)
-        );
+        assert!(evaluated.diagnostics.iter().any(|diagnostic| {
+            diagnostic.code == TRANSFORM_TEMPLATE_ENCODE_IMPLEMENTATION_FAILED_CODE
+                && diagnostic
+                    .message
+                    .contains("explicit JSON ingress could not parse a raw CEM AST")
+                && diagnostic.message.contains("markdown-document")
+        }));
     }
 
     #[test]
@@ -42570,12 +42846,32 @@ mod tests {
       @canonical=true
       @deterministic=true
       @streamable=true |
-      {param @name="subject" @type="object" @required=true}
+      {param @name="subject" @type="array" @required=true}
       {body |
         {$ {
           kind: "cem-tree",
-          nodes: [{ kind: "text", value: $subject.value }],
-          formatNodes: [{ kind: "formatter", name: "acme.format-tree" }]
+          contentType: "application/cem",
+          schema: "https://cem.dev/ns/cem-ml/1",
+          category: "cem-tree",
+          mode: "document",
+          canonical: true,
+          formatterProfile: "acme.format-tree",
+          nodes: $subject,
+          formatNodes: [
+            {
+              kind: "format-marker",
+              name: "cem.format-tree",
+              formatterRole: "formatter.boundary",
+              formatterProfile: "acme.format-tree"
+            },
+            {
+              kind: "format-decision",
+              name: "acme.format-tree",
+              formatterRole: "formatter.layout",
+              formatterProfile: "acme.format-tree",
+              value: "typed AST stream"
+            }
+          ]
         } }
       }
   }
@@ -42595,9 +42891,24 @@ mod tests {
       {param @name="subject" @type="object" @required=true}
       {body |
         {$ merge($subject, {
+          colored: true,
           colorOutput: "terminal",
           colorProfile: "terminal",
-          colorNodes: [{ kind: "colorizer", name: "acme.color-tree", profile: "terminal" }]
+          colorNodes: [
+            {
+              kind: "color-marker",
+              name: "cem.color-tree",
+              colorizerRole: "colorizer.boundary",
+              colorProfile: "terminal"
+            },
+            {
+              kind: "color-decision",
+              name: "acme.color-tree",
+              colorizerRole: "colorizer.profile",
+              colorProfile: "terminal",
+              value: "terminal"
+            }
+          ]
         }) }
       }
   }
@@ -42617,9 +42928,24 @@ mod tests {
       {param @name="subject" @type="object" @required=true}
       {body |
         {$ merge($subject, {
+          colored: true,
           colorOutput: "html",
           colorProfile: "html",
-          colorNodes: [{ kind: "colorizer", name: "acme.color-tree", profile: "html" }]
+          colorNodes: [
+            {
+              kind: "color-marker",
+              name: "cem.color-tree",
+              colorizerRole: "colorizer.boundary",
+              colorProfile: "html"
+            },
+            {
+              kind: "color-decision",
+              name: "acme.color-tree",
+              colorizerRole: "colorizer.profile",
+              colorProfile: "html",
+              value: "html"
+            }
+          ]
         }) }
       }
   }
@@ -42644,7 +42970,10 @@ mod tests {
         let registry =
             TransformTemplateOutputFunctionRegistry::from_module_options(&response.module_options);
         let mut values = BTreeMap::new();
-        values.insert("node".to_owned(), json!({"ast": {"value": "Ready"}}));
+        values.insert(
+            "node".to_owned(),
+            json!({"ast": {"kind": "text", "value": "Ready"}}),
+        );
 
         let evaluated = evaluate_transform_template_encode_expressions(
             &response.module_options.encode_expressions,
@@ -42675,12 +43004,10 @@ mod tests {
             evaluated.artifact.identity.color_profile.as_deref(),
             Some("html")
         );
-        assert_eq!(evaluated.artifact.value["colorOutput"], "html");
-        assert_eq!(
-            evaluated.artifact.value["colorNodes"][0]["name"],
-            "acme.color-tree"
-        );
-        assert_eq!(evaluated.artifact.value["colorNodes"][0]["profile"], "html");
+        let value = evaluated.artifact.value.to_runtime_value();
+        assert_eq!(value["colorProfile"], "html");
+        assert_eq!(value["colorNodes"][1]["name"], "acme.color-tree");
+        assert_eq!(value["colorNodes"][1]["value"], "html");
     }
 
     #[test]
@@ -42705,8 +43032,8 @@ mod tests {
                 uri: Some("templates/runtime-encoding.cemt"),
             },
             |_, _| {
-                Ok(TransformTemplateOutputFunctionExecution::CemtEvaluator(
-                    Value::Null,
+                Ok(TransformTemplateOutputFunctionExecution::Native(
+                    TransformTemplateOutputFunctionResult::Text(String::new()),
                 ))
             },
         );
@@ -42739,8 +43066,8 @@ mod tests {
                 uri: Some("templates/runtime-encoding.cemt"),
             },
             |_, _| {
-                Ok(TransformTemplateOutputFunctionExecution::CemtEvaluator(
-                    Value::Null,
+                Ok(TransformTemplateOutputFunctionExecution::Native(
+                    TransformTemplateOutputFunctionResult::Text(String::new()),
                 ))
             },
         );
@@ -42773,8 +43100,8 @@ mod tests {
                 uri: Some("templates/runtime-encoding.cemt"),
             },
             |_, _| {
-                Ok(TransformTemplateOutputFunctionExecution::CemtEvaluator(
-                    Value::Null,
+                Ok(TransformTemplateOutputFunctionExecution::Native(
+                    TransformTemplateOutputFunctionResult::Text(String::new()),
                 ))
             },
         );

@@ -1,10 +1,15 @@
 # Non-CEM CEMT Typed-Result Inventory
 
 Status: inventory complete; serializer-free typed-result contract selected and
-materialized-tree artifact introduced. Formatter/colorizer/writer paths for
-lossless and generic-data JSON, JSON Schema, CSV, YAML, Markdown, all seven
-XML-family owners, both RELAX NG syntax branches, and the DOM-projection native
-producer now use borrowed evaluators/subjects and typed tree results end to
+materialized-tree artifact introduced. The generic CEMT output-function
+runtime now returns a closed native-or-CEM-tree result, lowers tree results at
+producer completion, and passes typed raw/formatted/colored/materialized
+artifacts directly between formatter, colorizer, and writer. The compatibility
+stage fallback and its generic CEM-tree DTO are deleted.
+Formatter/colorizer/writer paths for lossless and generic-data JSON, JSON
+Schema, CSV, YAML, Markdown, all seven XML-family owners, both RELAX NG syntax
+branches, and the DOM-projection native producer now use borrowed
+evaluators/subjects and typed tree results end to
 end. The CEM-QL direct-output bridge also exposes its package-owned token AST
 through the extensible borrowed evaluator contract and enters the typed
 materialized pipeline without a JSON DTO; JSON graph routing is closed. This
@@ -32,26 +37,26 @@ describe every remaining producer.
 | XML-family direct pipelines                                | `XmlDocumentAst`, `HtmlDocumentAst`, `CssDocumentAst`, `XhtmlDocumentAst`, `SvgDocumentAst`, `MathMlDocumentAst`, or `XsltStylesheetAst`                                                                          | `CemtMaterializedTreeArtifact` owning ordered `WriterToken` nodes, plus an optional typed color overlay                              | Closed native-owner sum → borrowed evaluator → exact `Arc<CemTreeAstStream>` → overlay → typed stage output and direct writer                                              | Closed for all seven production owners; every compatibility composer family, including XML, is test-only.                                                                  |
 | Relax NG direct pipeline                                    | `RelaxNgDocumentAst`, with XML and compact syntax selecting different formatter/colorizer contracts                                             | `CemtMaterializedTreeArtifact` owning ordered `WriterToken` nodes, plus an optional typed color overlay                              | Borrowed syntax-preserving evaluator → exact `Arc<CemTreeAstStream>` → overlay → typed stage output and direct writer                                                       | Closed for both syntax branches; RELAX NG and nested XML compatibility composers are test-only parity oracles.                                                              |
 | CEM-QL direct-output bridge                                  | Package-owned CEM-QL lexer token AST with exact ranges, cooked values, roles, source maps, and output spans                                      | `CemtMaterializedTreeArtifact` owning ordered `WriterToken` nodes, plus an optional typed color overlay                              | Extensible borrowed package record/sequence view → exact `Arc<CemTreeAstStream>` → optional overlay → typed stage output and direct writer                                  | Closed for production direct text and HTML output; the former token-tree `serde_json::Value` DTO and generic output-pipeline handoff are deleted.                            |
-| Generic CEMT output-function runtime                        | Explicit JSON subject and value bindings                                                                                                        | Any declared CEM-tree formatter/colorizer result                                              | `TransformTemplateOutputFunctionExecution::CemtEvaluator(Value)`                                                                   | The stage is carried by the selected binding while the payload remains untyped. Format-to-color chaining clones the value instead of retaining a typed result artifact.    |
-| Compatibility CEM-tree stage fallback                       | Any primary body other than the native `CemtTreeArtifact` representation                                                                        | Formatter/colorizer evaluator output                                                          | `lower_conversion_cem_tree_output_stage_body` falls back to `CemtOutputArtifact`                                                   | A single value envelope hides whether the result was generated raw, materialized formatted, or materialized colored.                                                       |
+| Generic CEMT output-function runtime                        | Borrowed package evaluator values or a typed CEM-tree artifact                                                                                   | Closed native payload or declared raw/formatted/colored/materialized CEM-tree artifact         | Typed result is lowered at producer completion and the exact artifact is passed directly to the next stage                         | Closed. A public-JSON producer cannot claim a CEM-tree runtime result; explicit JSON must enter through a registered parser.                                               |
+| Removed compatibility CEM-tree stage fallback               | Formerly accepted any non-native primary body                                                                                                    | No fallback result                                                                             | The generic DTO fallback and value-shape recovery path are deleted                                                                  | Closed. Undeclared, ambiguous, and public-JSON CEM-tree stage results are rejected at the producer/adapter boundary.                                                       |
 
-Production occurrences of the legacy result envelopes are confined to
-`packages/cem_ml/src/conversion.rs` and
-`packages/cem_ml/src/transform_template.rs`. Test-only `Value` subject
-implementations exercise the same compatibility boundary and must not become a
-production owner variant.
+The legacy `CemtOutputArtifact`, `CemtEvaluator(Value)`, `CemtRuntime(Value)`,
+and `transform_template_output_cemt_subject` cross-tier contracts are deleted.
+Test-only `Value` subjects remain compatibility oracles and must not become a
+production owner variant. `PublicJson` remains valid only for explicit parser,
+public response, debug, and registered JSON-export boundaries.
 
 ## Remaining Consumers
 
 | Consumer                                      | Current behavior                                                                                                          | Typed requirement                                                                                                                              |
 | --------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
-| Conversion parity and direct converter output | `transform_template_output_cemt_subject` downcasts `CemtOutputArtifact` and clones its value.                             | Accept a closed typed tree result and preserve its owner/source-map identity through the output pipeline.                                      |
-| Generic format-to-color chaining              | `evaluate_transform_template_encode_expressions` extracts and clones a formatter value to create the color request.       | Pass the formatted typed artifact directly and expose a typed evaluator view.                                                                  |
-| Compatibility writer                          | `transform_template_writer_cem_tree_artifact_to_text` reads `CemtRuntime(Value)` and validates its shape at the consumer. | Dispatch on a declared typed stage and reject an invalid stage at producer completion.                                                         |
+| Conversion parity and direct converter output | Accepts the closed typed tree result and retains its owner/source-map identity through the output pipeline.               | Keep typed entrypoints as the only successful CEM-tree stage handoff.                                                                           |
+| Generic format-to-color chaining              | Passes the formatted typed artifact directly and exposes its borrowed typed evaluator view.                              | Keep JSON/public projections outside the chaining path.                                                                                         |
+| Typed writer                                  | Dispatches on formatted/colored typed artifacts and rejects raw or stage/profile mismatches before rendering.            | Remove the now-dead compatibility value writer helpers after their remaining test oracles migrate.                                              |
 | Transform graph stage routing                 | The JSON pipeline returns the selected artifact as `TransformTemplateOutputArtifact { body: MaterializedCemtTree(..) }`; `transform_data_artifact_from_output` retains that exact `Arc`. | Apply the same typed stage-output contract to the remaining package producers.                                                                  |
 | Graph joins                                   | A real ordered `TransformArtifactCollection` run retains the JSON data artifact, materialized artifact, owner, and declared child order.          | Keep the closed routing test as a regression gate while migrating the remaining typed tree producers.                                         |
 | Secondary-input and encode-expression binding | JSON secondary-input adapter dispatch receives the exact same data artifact/materialized artifact/owner as the collection; encode-expression bindings still accept only explicit JSON. | Keep native typed bodies at adapter dispatch. Add borrowed evaluator bindings only for a package whose expression contract requires them; never project the body through JSON. |
-| Public conversion boundary                    | `conversion_output_boundary_value` returns JSON values for CEM-tree and extension bodies.                                 | Lower only at an explicit registered exporter/public response boundary, not between formatter, colorizer, writer, or graph stages.             |
+| Public conversion boundary                    | Projects typed tree owners and overlays to JSON only after writer execution for public/debug responses.                  | Keep this one-way projection out of formatter, colorizer, writer, graph, and secondary-input execution.                                         |
 
 ## Contract Assessment
 
@@ -227,8 +232,9 @@ typed overlay or skips coloring for the `none` profile, and the materialized
 writer consumes the selected typed artifact directly. Source audits reject a
 return to the former token-tree JSON builder or generic runtime pipeline.
 
-Next, migrate the generic output-function runtime and compatibility CEM-tree
-stage fallback using the same direct owner/view/builder pattern. Only then
-remove `CemtOutputArtifact`,
-`transform_template_output_cemt_subject`, `CemtEvaluator(Value)`,
-`CemtRuntime(Value)`, and adapter DTO conversions globally.
+Next, delete the remaining legacy `PublicJson` CEM-tree compatibility APIs and
+their value-based runtime/writer helpers. Migrate or remove test-only parity
+oracles that still construct formatted/colored JSON artifacts, keep real JSON
+ingress behind a registered parser, and preserve `PublicJson` only for actual
+JSON/public/debug output. The direct typed formatter → colorizer → writer path
+is now the contract to retain.

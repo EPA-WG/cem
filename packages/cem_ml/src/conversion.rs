@@ -66,9 +66,10 @@ use crate::transform_artifact::{
     XmlFamilyDocumentCemtSubjectRef, YamlDocumentCemtSubjectRef,
     CEMT_MATERIALIZED_TREE_REPRESENTATION_ID, CEMT_TREE_REPRESENTATION_ID,
 };
+#[cfg(test)]
+use crate::transform_template::cemt_typed_runtime_value_from_adapter;
 use crate::transform_template::{
     compose_transform_template_encoded_text_artifacts,
-    evaluate_transform_template_encode_expressions, execute_transform_template_encode_binding,
     execute_transform_template_materialized_cemt_writer,
     execute_transform_template_typed_cem_tree_writer,
     execute_transform_template_typed_cemt_body_expression,
@@ -81,22 +82,21 @@ use crate::transform_template::{
     TransformTemplateCompileRequest, TransformTemplateCompileResponse,
     TransformTemplateCompiledArtifact, TransformTemplateDataArtifact,
     TransformTemplateEncodeBinding, TransformTemplateEncodeBindingRequest,
-    TransformTemplateEncodeEvaluationContext, TransformTemplateEncodeExpression,
-    TransformTemplateEncodeImplementationRegistry, TransformTemplateEncodeOptions,
-    TransformTemplateEncodedArtifact, TransformTemplateEncodedArtifactCompositionResponse,
-    TransformTemplateEncodedArtifactIdentity, TransformTemplateEncodedArtifactInsertionContext,
-    TransformTemplateEncodedArtifactMode, TransformTemplateEncodedArtifactPayload,
-    TransformTemplateEncodingTarget, TransformTemplateEvaluatedEncodeExpression,
-    TransformTemplateHtmlColorMode, TransformTemplateMaterializedCemtWriterRequest,
-    TransformTemplateModuleOptions, TransformTemplateModuleParseRequest,
-    TransformTemplateModulePreflight, TransformTemplateOutputArtifact,
-    TransformTemplateOutputColorSelection, TransformTemplateOutputFunctionDescriptor,
-    TransformTemplateOutputFunctionImplementation, TransformTemplateOutputFunctionKind,
-    TransformTemplateOutputFunctionRegistry, TransformTemplateOutputProducedKind,
-    TransformTemplateRenderRequest, TransformTemplateRenderResponse,
-    TransformTemplateSourceMapPolicy, TransformTemplateTargetSyntaxKind,
-    TransformTemplateTargetSyntaxRules, TransformTemplateTerminalColorCapability,
-    TransformTemplateTypedCemTreeWriterRequest,
+    TransformTemplateEncodeExpression, TransformTemplateEncodeImplementationRegistry,
+    TransformTemplateEncodeOptions, TransformTemplateEncodedArtifact,
+    TransformTemplateEncodedArtifactCompositionResponse, TransformTemplateEncodedArtifactIdentity,
+    TransformTemplateEncodedArtifactInsertionContext, TransformTemplateEncodedArtifactMode,
+    TransformTemplateEncodedArtifactPayload, TransformTemplateEncodingTarget,
+    TransformTemplateEvaluatedEncodeExpression, TransformTemplateHtmlColorMode,
+    TransformTemplateMaterializedCemtWriterRequest, TransformTemplateModuleOptions,
+    TransformTemplateModuleParseRequest, TransformTemplateModulePreflight,
+    TransformTemplateOutputArtifact, TransformTemplateOutputColorSelection,
+    TransformTemplateOutputFunctionDescriptor, TransformTemplateOutputFunctionImplementation,
+    TransformTemplateOutputFunctionKind, TransformTemplateOutputFunctionRegistry,
+    TransformTemplateOutputProducedKind, TransformTemplateRenderRequest,
+    TransformTemplateRenderResponse, TransformTemplateSourceMapPolicy,
+    TransformTemplateTargetSyntaxKind, TransformTemplateTargetSyntaxRules,
+    TransformTemplateTerminalColorCapability, TransformTemplateTypedCemTreeWriterRequest,
     TRANSFORM_TEMPLATE_ENCODED_ARTIFACT_WRITER_ADAPTER_FAILED_CODE,
 };
 use crate::validation::css::CssDocumentAst;
@@ -116,7 +116,6 @@ use crate::validation::xslt::XsltStylesheetAst;
 use crate::validation::yaml::generic_data_ast_to_yaml_cemt_subject;
 use crate::validation::yaml::YamlDocumentAst;
 use serde_json::Value;
-use std::any::Any;
 use std::cell::RefCell;
 use std::collections::{BTreeMap, BTreeSet};
 use std::fmt;
@@ -138,51 +137,6 @@ pub const CONVERSION_OUTPUT_UNSUPPORTED_CATEGORY_CODE: &str =
 pub const CONVERSION_OUTPUT_CONTEXT_MISMATCH_CODE: &str = "cem.converter.output_context_mismatch";
 pub const CONVERSION_OUTPUT_COLOR_PROFILE_UNSAFE_CODE: &str =
     "cem.converter.output_color_profile_unsafe";
-const CEMT_OUTPUT_REPRESENTATION_ID: &str = "cem.cemt-output";
-
-#[derive(Debug, Clone)]
-struct CemtOutputArtifact {
-    value: Value,
-}
-
-impl TransformNativeArtifact for CemtOutputArtifact {
-    fn representation_id(&self) -> &'static str {
-        CEMT_OUTPUT_REPRESENTATION_ID
-    }
-
-    fn source_map(&self) -> Option<&SourceMapStack> {
-        None
-    }
-
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-}
-
-fn cemt_output_body(value: Value) -> TransformArtifactBody {
-    TransformArtifactBody::Extension(Arc::new(CemtOutputArtifact { value }))
-}
-
-pub(crate) fn transform_template_output_cemt_subject(
-    output: &TransformTemplateOutputArtifact,
-) -> Result<Value, String> {
-    match &output.body {
-        TransformArtifactBody::CemTree(stream) => Ok(stream.as_ref().clone().into_cemt_subject()),
-        TransformArtifactBody::Extension(native)
-            if native.representation_id() == CEMT_OUTPUT_REPRESENTATION_ID =>
-        {
-            native
-                .as_any()
-                .downcast_ref::<CemtOutputArtifact>()
-                .map(|artifact| artifact.value.clone())
-                .ok_or_else(|| "CEMT output body type does not match its representation".to_owned())
-        }
-        body => Err(format!(
-            "transform output representation `{}` is not a CEMT tree body",
-            body.representation_id()
-        )),
-    }
-}
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum ConversionImplementation {
     Cemt,
@@ -852,21 +806,22 @@ impl TransformTemplateAdapter for DomProjectionParityCemtAdapter {
                 )
             })?;
         if conversion_dom_projection_parity_target_is_cem_tree(&request) {
-            let tree =
-                conversion_dom_projection_parity_cem_tree_document(&primary, request.target_scope)
-                    .map_err(|message| {
-                        TransformTemplateAdapterError::failed(
-                            self.id(),
-                            TransformTemplateAdapterExecutionPhase::Render,
-                            message,
-                        )
-                    })?;
+            let owner = Arc::new(
+                conversion_dom_projection_parity_cem_tree_stream(&primary).map_err(|message| {
+                    TransformTemplateAdapterError::failed(
+                        self.id(),
+                        TransformTemplateAdapterExecutionPhase::Render,
+                        message,
+                    )
+                })?,
+            );
+            let tree = conversion_dom_projection_formatted_cem_tree(&owner, request.target_scope)?;
             return Ok(TransformTemplateRenderResponse {
                 output: TransformTemplateOutputArtifact {
                     uri: None,
                     identity: request.target.cloned(),
-                    body: cemt_output_body(tree),
-                    source_map: None,
+                    source_map: tree.source_map().cloned(),
+                    body: TransformArtifactBody::Extension(tree),
                     output_spans: Vec::new(),
                 },
                 diagnostics: Vec::new(),
@@ -1356,10 +1311,12 @@ fn conversion_dom_projection_parity_data(node: &Value) -> &str {
         .unwrap_or_default()
 }
 
-fn conversion_dom_projection_parity_cem_tree_document(
+/// Parse the explicit DOM-JSON converter ingress once into its native CEM-tree
+/// stream. Formatter metadata is attached later as a typed overlay; no JSON
+/// envelope is passed between those stages.
+fn conversion_dom_projection_parity_cem_tree_stream(
     input: &Value,
-    target_scope: &ScopeConfig,
-) -> Result<Value, String> {
+) -> Result<CemTreeAstStream, String> {
     let children = conversion_template_input_children(input)?;
     let mut nodes = Vec::new();
     for child in children {
@@ -1367,32 +1324,7 @@ fn conversion_dom_projection_parity_cem_tree_document(
             nodes.push(node);
         }
     }
-    let formatter_profile = conversion_dom_projection_parity_formatter_profile(target_scope);
-    Ok(serde_json::json!({
-        "kind": "cem-tree",
-        "contentType": CEM_ML_CONTENT_TYPE,
-        "schema": CEM_ML_SCHEMA_URI,
-        "category": "cem-tree",
-        "mode": TransformTemplateEncodedArtifactMode::Document.as_str(),
-        "canonical": true,
-        "formatterProfile": formatter_profile,
-        "formatNodes": [
-            {
-                "kind": "format-marker",
-                "name": "cem.format-tree",
-                "formatterRole": "formatter.boundary",
-                "formatterProfile": formatter_profile,
-            },
-            {
-                "kind": "format-decision",
-                "name": "converter-cemt",
-                "formatterRole": "formatter.converter",
-                "formatterProfile": formatter_profile,
-                "value": "converter CEMT produced formatted tree",
-            }
-        ],
-        "nodes": nodes,
-    }))
+    Ok(CemTreeAstStream::new(nodes))
 }
 
 fn conversion_template_input_children(input: &Value) -> Result<&Vec<Value>, String> {
@@ -1424,31 +1356,39 @@ fn conversion_dom_projection_parity_formatter_profile(target_scope: &ScopeConfig
         .to_owned()
 }
 
-fn conversion_dom_projection_parity_cem_tree_node(node: &Value) -> Result<Option<Value>, String> {
+fn conversion_dom_projection_parity_cem_tree_node(
+    node: &Value,
+) -> Result<Option<CemTreeAstNode>, String> {
     let kind = node.get("kind").and_then(Value::as_str).unwrap_or_default();
     match kind {
-        "text" | "whitespace" | "comment" | "cdata" | "raw-text" => Ok(Some(serde_json::json!({
-            "kind": kind,
-            "value": conversion_dom_projection_parity_data(node),
-            "sourceMap": conversion_dom_projection_parity_source_map(node),
-        }))),
+        "text" => Ok(Some(CemTreeAstNode::Text {
+            value: conversion_dom_projection_parity_data(node).to_owned(),
+            source: conversion_dom_projection_parity_source_map(node)?,
+        })),
+        "whitespace" => Ok(Some(CemTreeAstNode::Whitespace {
+            data: conversion_dom_projection_parity_data(node).to_owned(),
+            source: conversion_dom_projection_parity_source_map(node)?,
+        })),
+        "comment" => Ok(Some(CemTreeAstNode::Comment {
+            data: conversion_dom_projection_parity_data(node).to_owned(),
+            source: conversion_dom_projection_parity_source_map(node)?,
+        })),
+        "cdata" => Ok(Some(CemTreeAstNode::Cdata {
+            data: conversion_dom_projection_parity_data(node).to_owned(),
+            source: conversion_dom_projection_parity_source_map(node)?,
+        })),
+        "raw-text" => Ok(Some(CemTreeAstNode::RawText {
+            data: conversion_dom_projection_parity_data(node).to_owned(),
+            source: conversion_dom_projection_parity_source_map(node)?,
+        })),
         "processing-instruction" => {
             let name = conversion_dom_projection_parity_name(node)?;
-            let mut fields = serde_json::Map::new();
-            fields.insert(
-                "kind".to_owned(),
-                Value::String("processing-instruction".to_owned()),
-            );
-            fields.insert("target".to_owned(), Value::String(name.local.to_owned()));
-            fields.insert(
-                "value".to_owned(),
-                Value::String(conversion_dom_projection_parity_data(node).to_owned()),
-            );
-            fields.insert(
-                "sourceMap".to_owned(),
-                conversion_dom_projection_parity_source_map(node),
-            );
-            Ok(Some(Value::Object(fields)))
+            Ok(Some(CemTreeAstNode::ProcessingInstruction {
+                name: name.local.to_owned(),
+                target: name.local.to_owned(),
+                data: conversion_dom_projection_parity_data(node).to_owned(),
+                source: conversion_dom_projection_parity_source_map(node)?,
+            }))
         }
         _ => conversion_dom_projection_parity_cem_tree_element(node),
     }
@@ -1456,24 +1396,10 @@ fn conversion_dom_projection_parity_cem_tree_node(node: &Value) -> Result<Option
 
 fn conversion_dom_projection_parity_cem_tree_element(
     node: &Value,
-) -> Result<Option<Value>, String> {
+) -> Result<Option<CemTreeAstNode>, String> {
     let name = conversion_dom_projection_parity_name(node)?;
     if name.local.starts_with('@') {
         return Ok(None);
-    }
-
-    let mut fields = serde_json::Map::new();
-    fields.insert("kind".to_owned(), Value::String("element".to_owned()));
-    fields.insert("name".to_owned(), Value::String(name.local.to_owned()));
-    fields.insert(
-        "sourceMap".to_owned(),
-        conversion_dom_projection_parity_source_map(node),
-    );
-    if !name.namespace.is_empty() {
-        fields.insert(
-            "namespace".to_owned(),
-            Value::String(name.namespace.to_owned()),
-        );
     }
 
     let attributes = node
@@ -1487,7 +1413,6 @@ fn conversion_dom_projection_parity_cem_tree_element(
         })
         .transpose()?
         .unwrap_or_default();
-    fields.insert("attributes".to_owned(), Value::Array(attributes));
 
     let mut child_nodes = Vec::new();
     if let Some(children) = node.get("children").and_then(Value::as_array) {
@@ -1497,55 +1422,43 @@ fn conversion_dom_projection_parity_cem_tree_element(
             }
         }
     }
-    fields.insert("children".to_owned(), Value::Array(child_nodes));
-    fields.insert(
-        "formatLayout".to_owned(),
-        conversion_dom_projection_parity_format_layout(name.local),
-    );
 
-    Ok(Some(Value::Object(fields)))
+    Ok(Some(CemTreeAstNode::Element {
+        name: name.local.to_owned(),
+        attributes,
+        children: child_nodes,
+        source: conversion_dom_projection_parity_source_map(node)?,
+    }))
 }
 
-fn conversion_dom_projection_parity_cem_tree_attribute(attribute: &Value) -> Result<Value, String> {
+fn conversion_dom_projection_parity_cem_tree_attribute(
+    attribute: &Value,
+) -> Result<CemTreeAstAttribute, String> {
     let name = conversion_dom_projection_parity_name(attribute)?;
-    let mut fields = serde_json::Map::new();
-    fields.insert("kind".to_owned(), Value::String("attribute".to_owned()));
-    fields.insert("name".to_owned(), Value::String(name.local.to_owned()));
-    if !name.namespace.is_empty() {
-        fields.insert(
-            "namespace".to_owned(),
-            Value::String(name.namespace.to_owned()),
-        );
-    }
-    fields.insert(
-        "value".to_owned(),
-        attribute.get("value").cloned().unwrap_or(Value::Null),
-    );
-    fields.insert(
-        "sourceMap".to_owned(),
-        conversion_dom_projection_parity_source_map(attribute),
-    );
-    Ok(Value::Object(fields))
+    let value = match attribute.get("value") {
+        None | Some(Value::Null) => None,
+        Some(Value::String(value)) => Some(value.clone()),
+        Some(_) => {
+            return Err(format!(
+                "DOM projection attribute `{}` value must be a string or null",
+                name.local
+            ))
+        }
+    };
+    Ok(CemTreeAstAttribute {
+        name: name.local.to_owned(),
+        value,
+        source: conversion_dom_projection_parity_source_map(attribute)?,
+    })
 }
 
-fn conversion_dom_projection_parity_format_layout(local_name: &str) -> Value {
-    if local_name == "strong" {
-        serde_json::json!({
-            "kind": "format-decision",
-            "formatterRole": "formatter.inline-emphasis",
-            "value": "inline-emphasis",
-        })
-    } else {
-        serde_json::json!({
-            "kind": "format-decision",
-            "formatterRole": "formatter.layout",
-            "value": "inline",
-        })
+fn conversion_dom_projection_parity_source_map(node: &Value) -> Result<SourceMapStack, String> {
+    match node.get("sourceMap") {
+        None | Some(Value::Null) => Ok(SourceMapStack::default()),
+        Some(source_map) => serde_json::from_value(source_map.clone()).map_err(|error| {
+            format!("DOM projection node contains an invalid source map: {error}")
+        }),
     }
-}
-
-fn conversion_dom_projection_parity_source_map(node: &Value) -> Value {
-    node.get("sourceMap").cloned().unwrap_or(Value::Null)
 }
 
 #[derive(Debug, Clone)]
@@ -2621,8 +2534,23 @@ fn conversion_output_boundary_value(
                 .explicit_json_value()
                 .map_err(|error| error.to_string())
         }
-        TransformArtifactBody::CemTree(_) | TransformArtifactBody::Extension(_) => {
-            transform_template_output_cemt_subject(output)
+        TransformArtifactBody::CemTree(stream) => {
+            CemtEvaluatorValue::borrowed(CemtTreeSubjectRef::new(stream.as_ref()).evaluator_view())
+                .to_public_json()
+        }
+        TransformArtifactBody::MaterializedCemtTree(artifact) => {
+            CemtEvaluatorValue::borrowed(artifact.evaluator_view()).to_public_json()
+        }
+        TransformArtifactBody::Extension(native)
+            if native.representation_id() == CEMT_TREE_REPRESENTATION_ID =>
+        {
+            let artifact = native
+                .as_any()
+                .downcast_ref::<CemtTreeArtifact>()
+                .ok_or_else(|| {
+                    "CEM-tree body type does not match its native representation".to_owned()
+                })?;
+            artifact.to_public_json()
         }
         body => Err(format!(
             "conversion output boundary does not support native representation `{}`",
@@ -3484,48 +3412,14 @@ impl CemTreeCemtOutputAdapter {
                 (TransformArtifactBody::Extension(lowered), None)
             }
             _ => {
-                let evaluator_subject =
-                    request
-                        .primary_input
-                        .explicit_json_value()
-                        .map_err(|error| {
-                            TransformTemplateAdapterError::failed(
-                                self.id(),
-                                TransformTemplateAdapterExecutionPhase::Render,
-                                error.to_string(),
-                            )
-                        })?;
-                let Some(value) = execute_conversion_cem_tree_output_stage_body(
-                    self.stage.clone(),
-                    &request,
-                    binding,
-                    &evaluator_subject,
-                )?
-                else {
-                    return Err(TransformTemplateAdapterError::failed(
-                        self.id(),
-                        TransformTemplateAdapterExecutionPhase::Render,
-                        format!(
-                            "CEMT {} `{}` requires a direct CEMT body",
-                            self.stage.role, self.stage.function_name
-                        ),
-                    ));
-                };
-                let body = lower_conversion_cem_tree_output_stage_body(
-                    self.stage.function_kind,
-                    &self.stage.function_name,
-                    &request.primary_input.body,
-                    &evaluator_subject,
-                    value.clone(),
-                )
-                .map_err(|message| {
-                    TransformTemplateAdapterError::failed(
-                        self.id(),
-                        TransformTemplateAdapterExecutionPhase::Render,
-                        message,
-                    )
-                })?;
-                (body, Some(value))
+                return Err(TransformTemplateAdapterError::failed(
+                    self.id(),
+                    TransformTemplateAdapterExecutionPhase::Render,
+                    format!(
+                        "CEMT {} `{}` requires a typed CEM-tree AST input; explicit JSON must enter through a registered parser",
+                        self.stage.role, self.stage.function_name
+                    ),
+                ));
             }
         };
         let source_map = match &body {
@@ -3733,174 +3627,6 @@ impl TransformTemplateAdapter for CemTreeCemtOutputAdapter {
     }
 }
 
-fn lower_conversion_cem_tree_output_stage_body(
-    function_kind: TransformTemplateOutputFunctionKind,
-    function_name: &str,
-    primary: &TransformArtifactBody,
-    evaluator_subject: &Value,
-    evaluator_value: Value,
-) -> Result<TransformArtifactBody, String> {
-    let TransformArtifactBody::Extension(native) = primary else {
-        return Ok(cemt_output_body(evaluator_value));
-    };
-    if native.representation_id() != CEMT_TREE_REPRESENTATION_ID {
-        return Ok(cemt_output_body(evaluator_value));
-    }
-    let artifact = native
-        .as_any()
-        .downcast_ref::<CemtTreeArtifact>()
-        .ok_or_else(|| "CEMT tree body type does not match its representation".to_owned())?;
-    let lowered = match function_kind {
-        TransformTemplateOutputFunctionKind::Format => {
-            lower_formatted_cemt_tree_artifact(artifact, &evaluator_value, function_name)?
-        }
-        TransformTemplateOutputFunctionKind::Color => lower_colored_cemt_tree_artifact(
-            artifact,
-            evaluator_subject,
-            &evaluator_value,
-            function_name,
-        )?,
-        other => {
-            return Err(format!(
-                "CEMT tree output adapter cannot lower `{other:?}` results"
-            ))
-        }
-    };
-    Ok(TransformArtifactBody::Extension(lowered))
-}
-
-fn execute_conversion_cem_tree_output_stage_body(
-    stage: CemTreeCemtOutputStage,
-    request: &TransformTemplateRenderRequest<'_>,
-    binding: &TransformTemplateEncodeBinding,
-    evaluator_subject: &Value,
-) -> TransformTemplateAdapterResult<Option<Value>> {
-    let primary = evaluator_subject.clone();
-    let expressions = request
-        .compiled
-        .module_options
-        .encode_expressions
-        .iter()
-        .filter(|expression| expression.owner.as_deref() == Some(stage.function_name.as_str()))
-        .cloned()
-        .collect::<Vec<_>>();
-    let registry = TransformTemplateOutputFunctionRegistry::from_module_options(
-        &request.compiled.module_options,
-    );
-    let host_capabilities = BTreeSet::new();
-    let mut value_bindings = BTreeMap::new();
-    value_bindings.insert("subject".to_owned(), primary.clone());
-    let mut reject_encode_facade = |body_binding: &TransformTemplateEncodeBinding,
-                                    _subject: &Value| {
-        Err(format!(
-            "CEMT {} `{}` requires a direct CEMT body; encode(...) facade attempted to dispatch `{}`",
-            stage.role, stage.function_name, body_binding.function.name
-        ))
-    };
-
-    let context = TransformTemplateEncodeEvaluationContext {
-        registry: &registry,
-        value_bindings: &value_bindings,
-        host_capabilities: &host_capabilities,
-        output_color_type: None,
-        uri: Some(request.compiled.template_uri.as_str()),
-    };
-    if binding
-        .function
-        .body_expression
-        .as_deref()
-        .is_some_and(|expression| cemt_output_expression_starts_with_call(expression, "encode"))
-    {
-        let value = execute_transform_template_encode_binding(
-            binding,
-            &primary,
-            &context,
-            &mut reject_encode_facade,
-        )
-        .map_err(|message| {
-            TransformTemplateAdapterError::failed(
-                stage.adapter_id,
-                TransformTemplateAdapterExecutionPhase::Render,
-                message,
-            )
-        })?;
-        return Ok(Some(value));
-    }
-
-    if expressions.is_empty() {
-        if binding.function.body_expression.is_none() {
-            return Ok(None);
-        }
-        let value = execute_transform_template_encode_binding(
-            binding,
-            &primary,
-            &context,
-            &mut reject_encode_facade,
-        )
-        .map_err(|message| {
-            TransformTemplateAdapterError::failed(
-                stage.adapter_id,
-                TransformTemplateAdapterExecutionPhase::Render,
-                message,
-            )
-        })?;
-        return Ok(Some(value));
-    }
-
-    let reject_encode_evaluation = |body_binding: &TransformTemplateEncodeBinding,
-                                    _subject: &Value| {
-        Err(format!(
-            "CEMT {} `{}` requires a direct CEMT body; encode(...) facade attempted to dispatch `{}`",
-            stage.role, stage.function_name, body_binding.function.name
-        ))
-    };
-    let response = evaluate_transform_template_encode_expressions(
-        &expressions,
-        context,
-        reject_encode_evaluation,
-    );
-    if !response.diagnostics.is_empty() {
-        let message = response
-            .diagnostics
-            .iter()
-            .map(|diagnostic| diagnostic.message.as_str())
-            .collect::<Vec<_>>()
-            .join("; ");
-        return Err(TransformTemplateAdapterError::failed(
-            stage.adapter_id,
-            TransformTemplateAdapterExecutionPhase::Render,
-            message,
-        ));
-    }
-    let [evaluated] = response.encoded.as_slice() else {
-        return Err(TransformTemplateAdapterError::failed(
-            stage.adapter_id,
-            TransformTemplateAdapterExecutionPhase::Render,
-            format!(
-                "CEMT {} body for `{}` produced {} encoded artifacts; expected exactly one",
-                stage.role,
-                stage.function_name,
-                response.encoded.len()
-            ),
-        ));
-    };
-
-    Ok(Some(
-        evaluated
-            .artifact
-            .value
-            .clone()
-            .into_cemt_runtime_value()
-            .map_err(|message| {
-                TransformTemplateAdapterError::failed(
-                    stage.adapter_id,
-                    TransformTemplateAdapterExecutionPhase::Render,
-                    message,
-                )
-            })?,
-    ))
-}
-
 fn execute_conversion_cem_tree_format_stage(
     environment: &ConversionOutputPipelineEnvironment<'_>,
     binding: &TransformTemplateEncodeBinding,
@@ -3934,7 +3660,7 @@ fn lower_formatted_cemt_tree_artifact(
     )
 }
 
-fn lower_typed_formatted_cemt_tree_artifact<'a>(
+pub(crate) fn lower_typed_formatted_cemt_tree_artifact<'a>(
     raw: &CemtTreeArtifact,
     formatted: CemtEvaluatorValue<'a>,
     function_name: &str,
@@ -4790,7 +4516,7 @@ fn lower_colored_cemt_tree_artifact(
     )
 }
 
-fn lower_typed_colored_cemt_tree_artifact<'a>(
+pub(crate) fn lower_typed_colored_cemt_tree_artifact<'a>(
     formatted_artifact: &'a CemtTreeArtifact,
     colored: CemtEvaluatorValue<'a>,
     function_name: &str,
@@ -5675,23 +5401,17 @@ fn execute_conversion_cem_tree_color_stage(
     )
 }
 
+#[cfg(test)]
 fn execute_conversion_cem_tree_output_stage(
     environment: &ConversionOutputPipelineEnvironment<'_>,
     stage: CemTreeCemtOutputStage,
     binding: &TransformTemplateEncodeBinding,
     subject: &Value,
 ) -> Result<(Value, ConversionOutputPipelineStageExecution), String> {
-    let (value, _, execution) = execute_conversion_cem_tree_output_stage_with_native_subject(
-        environment,
-        stage,
-        binding,
-        Some(subject),
-        None,
-    )?;
-    Ok((
-        value.ok_or_else(|| "legacy CEMT stage did not return an evaluator value".to_owned())?,
-        execution,
-    ))
+    let subject = cemt_typed_runtime_value_from_adapter(subject)?;
+    let (value, execution) =
+        execute_conversion_typed_cemt_output_stage(environment, stage, binding, subject)?;
+    Ok((value.to_public_json()?, execution))
 }
 
 fn execute_conversion_typed_cemt_output_stage<'a>(
@@ -5738,6 +5458,17 @@ fn execute_conversion_typed_cemt_output_stage<'a>(
         &execution_binding.function,
     ) {
         execution_binding.function = parsed_function;
+    }
+    if stage.function_name != stage.canonical_function_name
+        && execution_binding.function.extends.as_deref() != Some(stage.canonical_function_name)
+    {
+        return Err(format!(
+            "CEMT {} `{}` selected for canonical `{}` must extend `{}`",
+            stage.role,
+            stage.function_name,
+            stage.canonical_function_name,
+            stage.canonical_function_name
+        ));
     }
     validate_cem_tree_cemt_output_stage_helper_resolution(
         &stage,
@@ -6100,12 +5831,12 @@ pub fn cemt_formatter_coloring_pipeline_package_fixture_source() -> Result<Strin
         &source_ast,
         formatted
             .value
-            .as_cemt_runtime_value()
-            .expect("formatted CEM tree has a runtime payload"),
+            .as_public_json_value()
+            .expect("formatted CEM tree has a public projection"),
         colored
             .value
-            .as_cemt_runtime_value()
-            .expect("colored CEM tree has a runtime payload"),
+            .as_public_json_value()
+            .expect("colored CEM tree has a public projection"),
         colorizer,
     )
 }
@@ -6120,10 +5851,26 @@ pub fn execute_conversion_output_pipeline_with_environment(
     diagnostic_node: Option<&str>,
     diagnostic_uri: Option<&str>,
 ) -> ConversionOutputPipelineExecution {
-    execute_conversion_output_pipeline_with_environment_subject(
+    let rendered_stream = match CemTreeAstStream::try_from_cemt_subject(rendered_value) {
+        Ok(stream) => Arc::new(stream),
+        Err(error) => {
+            return failed_pipeline_execution(
+                converter_id,
+                diagnostic_node,
+                diagnostic_uri,
+                format!(
+                    "explicit JSON CEM-tree ingress could not parse a native AST stream: {error}"
+                ),
+                None,
+                None,
+                None,
+            )
+        }
+    };
+    execute_conversion_output_pipeline_from_cem_tree_with_environment(
         environment,
         pipeline,
-        ConversionOutputPipelineSubject::Runtime(rendered_value),
+        rendered_stream,
         rendered_source_map,
         rendered_output_spans,
         converter_id,
@@ -6387,7 +6134,7 @@ pub fn execute_conversion_output_pipeline_from_typed_cemt_subject_with_environme
     let writer_started = Instant::now();
     let writer_result = execute_transform_template_materialized_cemt_writer(
         TransformTemplateMaterializedCemtWriterRequest {
-            binding: &writer_binding,
+            identity: &writer_binding.identity,
             artifact: writer_artifact,
             insertion_context: &writer_context,
         },
@@ -6460,7 +6207,7 @@ pub fn execute_conversion_output_pipeline_from_cem_tree_with_environment(
     let mut execution = execute_conversion_output_pipeline_with_environment_subject(
         environment,
         pipeline,
-        ConversionOutputPipelineSubject::Raw(raw.clone()),
+        raw.clone(),
         rendered_source_map,
         rendered_output_spans,
         converter_id,
@@ -6632,39 +6379,16 @@ fn conversion_typed_formatted_cem_tree_contract_error(
     None
 }
 
-enum ConversionOutputPipelineSubject {
-    Runtime(Value),
-    Raw(Arc<CemtTreeArtifact>),
-}
-
-impl ConversionOutputPipelineSubject {
-    fn compatibility_value(&self) -> Option<&Value> {
-        match self {
-            Self::Runtime(value) => Some(value),
-            Self::Raw(_) => None,
-        }
-    }
-
-    fn native_raw(&self) -> Option<&Arc<CemtTreeArtifact>> {
-        match self {
-            Self::Runtime(_) => None,
-            Self::Raw(artifact) => Some(artifact),
-        }
-    }
-}
-
 fn execute_conversion_output_pipeline_with_environment_subject(
     environment: &ConversionOutputPipelineEnvironment<'_>,
     pipeline: &ConversionOutputPipeline,
-    subject: ConversionOutputPipelineSubject,
-    rendered_source_map: Option<SourceMapStack>,
-    rendered_output_spans: Vec<OutputSpan>,
+    raw: Arc<CemtTreeArtifact>,
+    _rendered_source_map: Option<SourceMapStack>,
+    _rendered_output_spans: Vec<OutputSpan>,
     converter_id: &str,
     diagnostic_node: Option<&str>,
     diagnostic_uri: Option<&str>,
 ) -> ConversionOutputPipelineExecution {
-    let compatibility_value = subject.compatibility_value();
-    let native_subject = subject.native_raw();
     let local_artifact_cache = ConversionOutputPipelineArtifactCache::default();
     let cached_environment = if environment.artifact_cache.is_some() {
         *environment
@@ -6681,12 +6405,10 @@ fn execute_conversion_output_pipeline_with_environment_subject(
     let functions = conversion_cem_tree_output_function_registry(environment, pipeline);
     let implementations = TransformTemplateEncodeImplementationRegistry::with_builtin_encoders();
 
-    let format_request = TransformTemplateEncodeBindingRequest::new(
-        compatibility_value.cloned().unwrap_or(Value::Null),
-        pipeline.cemt_target.clone(),
-    )
-    .with_subject_type("cem-ast-node")
-    .with_options(pipeline.cemt_options.clone());
+    let format_request =
+        TransformTemplateEncodeBindingRequest::new(Value::Null, pipeline.cemt_target.clone())
+            .with_subject_type("cem-ast-node")
+            .with_options(pipeline.cemt_options.clone());
     let format_binding = match functions
         .resolve_format_binding(&format_request, implementations.host_capabilities())
     {
@@ -6703,14 +6425,10 @@ fn execute_conversion_output_pipeline_with_environment_subject(
         }
     };
     let format_started = Instant::now();
-    let format_result = execute_conversion_cem_tree_format_stage(
-        environment,
-        &format_binding,
-        compatibility_value,
-        native_subject,
-    );
+    let format_result =
+        execute_conversion_cem_tree_format_stage(environment, &format_binding, None, Some(&raw));
     let format_elapsed_ns = Some(format_started.elapsed().as_nanos());
-    let (formatted_output, formatted_cemt_tree, format_execution) = match format_result {
+    let (_formatted_output, formatted_cemt_tree, format_execution) = match format_result {
         Ok(output) => output,
         Err(message) => {
             diagnostics.push(output_pipeline_diagnostic(
@@ -6731,68 +6449,34 @@ fn execute_conversion_output_pipeline_with_environment_subject(
         }
     };
     let format_execution = Some(format_execution);
-    if let Some(formatted_cemt_tree) = formatted_cemt_tree {
-        return execute_conversion_output_pipeline_from_typed_formatted_artifact(
-            environment,
-            pipeline,
-            formatted_cemt_tree,
-            format_binding,
-            format_execution,
-            format_elapsed_ns,
-            diagnostics,
-            converter_id,
-            diagnostic_node,
-            diagnostic_uri,
-        );
-    }
-    let Some(formatted_output) = formatted_output else {
+    let Some(formatted_cemt_tree) = formatted_cemt_tree else {
         diagnostics.push(output_pipeline_diagnostic(
             converter_id,
             diagnostic_node,
             diagnostic_uri,
-            "CEMT formatter did not return a compatibility evaluator value".to_owned(),
+            "CEMT formatter did not return a typed formatted AST artifact".to_owned(),
         ));
         return ConversionOutputPipelineExecution {
             output: None,
+            raw_cem_tree: Some(raw),
             diagnostics,
             format_execution,
             format_elapsed_ns,
             ..ConversionOutputPipelineExecution::default()
         };
     };
-    let formatted_artifact = format_binding.cemt_artifact_with_metadata(
-        formatted_output,
-        rendered_source_map,
-        rendered_output_spans,
-    );
-    if let Err(error) = formatted_artifact
-        .validate_insertion(&conversion_cem_tree_format_insertion_context(pipeline))
-    {
-        let mut diagnostic = error.diagnostic(diagnostic_uri);
-        diagnostic.node = diagnostic_node.map(str::to_owned);
-        diagnostics.push(diagnostic);
-        return ConversionOutputPipelineExecution {
-            output: None,
-            diagnostics,
-            format_execution,
-            format_elapsed_ns,
-            ..ConversionOutputPipelineExecution::default()
-        };
-    }
-    let mut execution = execute_conversion_output_pipeline_from_formatted_artifact(
+    execute_conversion_output_pipeline_from_typed_formatted_artifact(
         environment,
         pipeline,
-        formatted_artifact,
-        formatted_cemt_tree.clone(),
+        formatted_cemt_tree,
+        format_binding,
         format_execution,
         format_elapsed_ns,
         diagnostics,
         converter_id,
         diagnostic_node,
         diagnostic_uri,
-    );
-    execution.formatted_cemt_tree = formatted_cemt_tree;
-    execution
+    )
 }
 
 pub fn execute_conversion_output_pipeline_from_formatted_cem_tree_with_environment(
@@ -6933,8 +6617,8 @@ impl CsvDocumentOutputSubject for Value {
         "cem.test-csv-value-oracle"
     }
 
-    fn into_test_compatibility_cemt_subject(self) -> Option<Value> {
-        Some(self)
+    fn native_cemt_subject(&self) -> Option<CemtEvaluatorValue<'_>> {
+        cemt_typed_runtime_value_from_adapter(self).ok()
     }
 }
 
@@ -6960,6 +6644,7 @@ pub fn execute_csv_document_output_pipeline_with_environment(
         }
     };
     let environment = &cached_environment;
+    #[cfg(test)]
     let target =
         TransformTemplateEncodingTarget::new(CSV_CONTENT_TYPE, CSV_SCHEMA_URI, "csv-document");
     let formatter_name = target_scope
@@ -6995,291 +6680,275 @@ pub fn execute_csv_document_output_pipeline_with_environment(
             input_representation_id,
         );
     }
-    let Some(table_subject) = table.into_test_compatibility_cemt_subject() else {
-        return csv_output_pipeline_failed(
-            diagnostic_uri,
-            "CSV output subject does not expose a native evaluator view".to_owned(),
-        );
-    };
-    let format_options = TransformTemplateEncodeOptions {
-        formatter: Some(formatter_name.to_owned()),
-        formatter_profile: Some(formatter_profile.to_owned()),
-        formatter_options: target_scope.cemt_formatter_options.clone(),
-        line_ending: line_ending.clone(),
-        mode: TransformTemplateEncodedArtifactMode::Document,
-        canonical: formatter_profile == "compact",
-        source_map_policy: TransformTemplateSourceMapPolicy::Generated,
-        ..TransformTemplateEncodeOptions::default()
-    };
-    let (format_stage, format_binding) = match resolve_cemt_output_stage_binding(
-        environment,
-        "CSV",
-        CSV_FORMAT_CEMT_STAGE_SPEC,
-        &target,
-        Some(formatter_profile),
-        Some(formatter_name),
-        &table_subject,
-        "csv-document",
-        format_options,
-    ) {
-        Ok(resolved) => resolved,
-        Err(message) => {
-            return csv_output_pipeline_failed(diagnostic_uri, message);
-        }
-    };
-    let format_started = Instant::now();
-    let format_result = execute_conversion_cem_tree_output_stage(
-        environment,
-        format_stage,
-        &format_binding,
-        &table_subject,
+    #[cfg(not(test))]
+    return csv_output_pipeline_failed(
+        diagnostic_uri,
+        "CSV output subject does not expose a native evaluator view".to_owned(),
     );
-    let format_elapsed_ns = Some(format_started.elapsed().as_nanos());
-    let (formatted_output, format_execution) = match format_result {
-        Ok(output) => output,
-        Err(message) => {
-            return csv_output_pipeline_failed_with_timings(
+    #[cfg(test)]
+    {
+        let Some(table_subject) = table.into_test_compatibility_cemt_subject() else {
+            return csv_output_pipeline_failed(
                 diagnostic_uri,
-                format!(
-                    "CEMT formatter `{}` failed: {message}",
-                    format_binding.function.name
-                ),
-                format_elapsed_ns,
-                None,
-                None,
+                "CSV output subject does not expose a native evaluator view".to_owned(),
             );
-        }
-    };
-    let format_execution = Some(format_execution);
-    let formatted_artifact = format_binding.artifact_from_cemt_value(formatted_output);
-    let mut formatted_context =
-        TransformTemplateEncodedArtifactInsertionContext::from_encoding_target(
-            &target,
-            Some(TransformTemplateOutputProducedKind::CemTree),
-        );
-    formatted_context.formatter_profile = Some(formatter_profile.to_owned());
-    formatted_context.mode = Some(TransformTemplateEncodedArtifactMode::Document);
-    formatted_context.canonical = Some(formatter_profile == "compact");
-    formatted_context.source_map_policy = Some(TransformTemplateSourceMapPolicy::Generated);
-    if let Err(error) = formatted_artifact.validate_insertion(&formatted_context) {
-        return csv_output_pipeline_failed_with_timings(
-            diagnostic_uri,
-            error.diagnostic(diagnostic_uri).message,
-            format_elapsed_ns,
-            None,
-            None,
-        );
-    }
-
-    let cemt_color_profile =
-        match csv_cemt_color_profile_for_output(target_scope, output_color_selection.as_ref()) {
-            Ok(profile) => profile,
-            Err(message) => return csv_output_pipeline_failed(diagnostic_uri, message),
         };
-    let wants_color = target_scope
-        .cemt_colorizer
-        .as_deref()
-        .map(str::trim)
-        .is_some_and(|name| !name.is_empty())
-        || cemt_color_profile.is_some()
-        || output_color_selection
-            .as_ref()
-            .is_some_and(csv_output_color_selection_requests_color);
-    let mut color_elapsed_ns = None;
-    let (writer_artifact, color_execution, colored_cem_tree) = if wants_color {
-        let colorizer_name = target_scope
-            .cemt_colorizer
-            .as_deref()
-            .map(str::trim)
-            .filter(|name| !name.is_empty())
-            .unwrap_or(CSV_COLOR_CEMT_STAGE_SPEC.function_name);
-        let color_profile = cemt_color_profile.as_deref().unwrap_or("terminal");
-        let color_options = TransformTemplateEncodeOptions {
-            formatter_options: target_scope.cemt_formatter_options.clone(),
+        let format_options = TransformTemplateEncodeOptions {
+            formatter: Some(formatter_name.to_owned()),
             formatter_profile: Some(formatter_profile.to_owned()),
-            colorizer: Some(colorizer_name.to_owned()),
-            color_profile: Some(color_profile.to_owned()),
+            formatter_options: target_scope.cemt_formatter_options.clone(),
             line_ending: line_ending.clone(),
             mode: TransformTemplateEncodedArtifactMode::Document,
-            canonical: false,
+            canonical: formatter_profile == "compact",
             source_map_policy: TransformTemplateSourceMapPolicy::Generated,
             ..TransformTemplateEncodeOptions::default()
         };
-        let (color_stage, color_binding) = match resolve_cemt_output_stage_binding(
+        let (format_stage, format_binding) = match resolve_cemt_output_stage_binding(
             environment,
             "CSV",
-            CSV_COLOR_CEMT_STAGE_SPEC,
+            CSV_FORMAT_CEMT_STAGE_SPEC,
             &target,
-            Some(color_profile),
-            Some(colorizer_name),
-            formatted_artifact
-                .value
-                .as_cemt_runtime_value()
-                .expect("formatted CEM tree has a runtime payload"),
-            "cem-tree",
-            color_options,
+            Some(formatter_profile),
+            Some(formatter_name),
+            &table_subject,
+            "csv-document",
+            format_options,
         ) {
             Ok(resolved) => resolved,
             Err(message) => {
                 return csv_output_pipeline_failed(diagnostic_uri, message);
             }
         };
-        let color_started = Instant::now();
-        let color_result = execute_conversion_cem_tree_output_stage(
+        let format_started = Instant::now();
+        let format_result = execute_conversion_cem_tree_output_stage(
             environment,
-            color_stage,
-            &color_binding,
-            formatted_artifact
-                .value
-                .as_cemt_runtime_value()
-                .expect("formatted CEM tree has a runtime payload"),
+            format_stage,
+            &format_binding,
+            &table_subject,
         );
-        color_elapsed_ns = Some(color_started.elapsed().as_nanos());
-        let (colored_output, color_execution) = match color_result {
+        let format_elapsed_ns = Some(format_started.elapsed().as_nanos());
+        let (formatted_output, format_execution) = match format_result {
             Ok(output) => output,
             Err(message) => {
                 return csv_output_pipeline_failed_with_timings(
                     diagnostic_uri,
                     format!(
-                        "CEMT colorizer `{}` failed: {message}",
-                        color_binding.function.name
+                        "CEMT formatter `{}` failed: {message}",
+                        format_binding.function.name
                     ),
+                    format_elapsed_ns,
+                    None,
+                    None,
+                );
+            }
+        };
+        let format_execution = Some(format_execution);
+        let formatted_artifact = TransformTemplateEncodedArtifact::from_public_json(
+            format_binding.identity.clone(),
+            formatted_output,
+        );
+        let mut formatted_context =
+            TransformTemplateEncodedArtifactInsertionContext::from_encoding_target(
+                &target,
+                Some(TransformTemplateOutputProducedKind::CemTree),
+            );
+        formatted_context.formatter_profile = Some(formatter_profile.to_owned());
+        formatted_context.mode = Some(TransformTemplateEncodedArtifactMode::Document);
+        formatted_context.canonical = Some(formatter_profile == "compact");
+        formatted_context.source_map_policy = Some(TransformTemplateSourceMapPolicy::Generated);
+        if let Err(error) = formatted_artifact.validate_insertion(&formatted_context) {
+            return csv_output_pipeline_failed_with_timings(
+                diagnostic_uri,
+                error.diagnostic(diagnostic_uri).message,
+                format_elapsed_ns,
+                None,
+                None,
+            );
+        }
+
+        let cemt_color_profile = match csv_cemt_color_profile_for_output(
+            target_scope,
+            output_color_selection.as_ref(),
+        ) {
+            Ok(profile) => profile,
+            Err(message) => return csv_output_pipeline_failed(diagnostic_uri, message),
+        };
+        let wants_color = target_scope
+            .cemt_colorizer
+            .as_deref()
+            .map(str::trim)
+            .is_some_and(|name| !name.is_empty())
+            || cemt_color_profile.is_some()
+            || output_color_selection
+                .as_ref()
+                .is_some_and(csv_output_color_selection_requests_color);
+        let mut color_elapsed_ns = None;
+        let (writer_artifact, color_execution, colored_cem_tree) = if wants_color {
+            let colorizer_name = target_scope
+                .cemt_colorizer
+                .as_deref()
+                .map(str::trim)
+                .filter(|name| !name.is_empty())
+                .unwrap_or(CSV_COLOR_CEMT_STAGE_SPEC.function_name);
+            let color_profile = cemt_color_profile.as_deref().unwrap_or("terminal");
+            let color_options = TransformTemplateEncodeOptions {
+                formatter_options: target_scope.cemt_formatter_options.clone(),
+                formatter_profile: Some(formatter_profile.to_owned()),
+                colorizer: Some(colorizer_name.to_owned()),
+                color_profile: Some(color_profile.to_owned()),
+                line_ending: line_ending.clone(),
+                mode: TransformTemplateEncodedArtifactMode::Document,
+                canonical: false,
+                source_map_policy: TransformTemplateSourceMapPolicy::Generated,
+                ..TransformTemplateEncodeOptions::default()
+            };
+            let (color_stage, color_binding) = match resolve_cemt_output_stage_binding(
+                environment,
+                "CSV",
+                CSV_COLOR_CEMT_STAGE_SPEC,
+                &target,
+                Some(color_profile),
+                Some(colorizer_name),
+                formatted_artifact
+                    .value
+                    .as_public_json_value()
+                    .expect("formatted CEM tree has a runtime payload"),
+                "cem-tree",
+                color_options,
+            ) {
+                Ok(resolved) => resolved,
+                Err(message) => {
+                    return csv_output_pipeline_failed(diagnostic_uri, message);
+                }
+            };
+            let color_started = Instant::now();
+            let color_result = execute_conversion_cem_tree_output_stage(
+                environment,
+                color_stage,
+                &color_binding,
+                formatted_artifact
+                    .value
+                    .as_public_json_value()
+                    .expect("formatted CEM tree has a runtime payload"),
+            );
+            color_elapsed_ns = Some(color_started.elapsed().as_nanos());
+            let (colored_output, color_execution) = match color_result {
+                Ok(output) => output,
+                Err(message) => {
+                    return csv_output_pipeline_failed_with_timings(
+                        diagnostic_uri,
+                        format!(
+                            "CEMT colorizer `{}` failed: {message}",
+                            color_binding.function.name
+                        ),
+                        format_elapsed_ns,
+                        color_elapsed_ns,
+                        None,
+                    );
+                }
+            };
+            let colored_artifact = TransformTemplateEncodedArtifact::from_public_json(
+                color_binding.identity.clone(),
+                colored_output,
+            );
+            let mut colored_context =
+                TransformTemplateEncodedArtifactInsertionContext::from_encoding_target(
+                    &target,
+                    Some(TransformTemplateOutputProducedKind::CemTree),
+                );
+            colored_context.formatter_profile = Some(formatter_profile.to_owned());
+            colored_context.color_profile = Some(color_profile.to_owned());
+            colored_context.mode = Some(TransformTemplateEncodedArtifactMode::Document);
+            colored_context.source_map_policy = Some(TransformTemplateSourceMapPolicy::Generated);
+            if let Err(error) = colored_artifact.validate_insertion(&colored_context) {
+                return csv_output_pipeline_failed_with_timings(
+                    diagnostic_uri,
+                    error.diagnostic(diagnostic_uri).message,
                     format_elapsed_ns,
                     color_elapsed_ns,
                     None,
                 );
             }
+            (
+                colored_artifact.clone(),
+                Some(color_execution),
+                Some(colored_artifact),
+            )
+        } else {
+            (formatted_artifact.clone(), None, None)
         };
-        let colored_artifact = color_binding.artifact_from_cemt_value(colored_output);
-        let mut colored_context =
+
+        let mut writer_context =
             TransformTemplateEncodedArtifactInsertionContext::from_encoding_target(
                 &target,
-                Some(TransformTemplateOutputProducedKind::CemTree),
+                Some(TransformTemplateOutputProducedKind::Text),
             );
-        colored_context.formatter_profile = Some(formatter_profile.to_owned());
-        colored_context.color_profile = Some(color_profile.to_owned());
-        colored_context.mode = Some(TransformTemplateEncodedArtifactMode::Document);
-        colored_context.source_map_policy = Some(TransformTemplateSourceMapPolicy::Generated);
-        if let Err(error) = colored_artifact.validate_insertion(&colored_context) {
-            return csv_output_pipeline_failed_with_timings(
-                diagnostic_uri,
-                error.diagnostic(diagnostic_uri).message,
-                format_elapsed_ns,
-                color_elapsed_ns,
-                None,
-            );
-        }
-        (
-            colored_artifact.clone(),
-            Some(color_execution),
-            Some(colored_artifact),
-        )
-    } else {
-        (formatted_artifact.clone(), None, None)
-    };
-
-    let mut writer_context = TransformTemplateEncodedArtifactInsertionContext::from_encoding_target(
-        &target,
-        Some(TransformTemplateOutputProducedKind::Text),
-    );
-    writer_context.formatter_profile = Some(formatter_profile.to_owned());
-    writer_context.color_profile = writer_artifact.identity.color_profile.clone();
-    writer_context.output_color_type = output_color_selection
-        .as_ref()
-        .map(|selection| selection.output_color_type.clone());
-    if output_color_selection
-        .as_ref()
-        .is_some_and(csv_output_color_selection_is_terminal)
-    {
-        writer_context.color_capability = output_color_selection
+        writer_context.formatter_profile = Some(formatter_profile.to_owned());
+        writer_context.color_profile = writer_artifact.identity.color_profile.clone();
+        writer_context.output_color_type = output_color_selection
             .as_ref()
             .map(|selection| selection.output_color_type.clone());
-    }
-    writer_context.mode = Some(TransformTemplateEncodedArtifactMode::Document);
-    writer_context.source_map_policy = Some(TransformTemplateSourceMapPolicy::Generated);
-    let evaluated = TransformTemplateEvaluatedEncodeExpression {
-        expression: TransformTemplateEncodeExpression {
-            owner: Some("csv-direct-output".to_owned()),
-            expression: "csv-direct-output writer".to_owned(),
-            subject: "csv-document".to_owned(),
-            subject_type: Some("cem-tree".to_owned()),
-            target,
-            options: TransformTemplateEncodeOptions::default(),
-        },
-        subject: writer_artifact
-            .value
-            .to_cemt_runtime_value()
-            .expect("writer input is a CEMT evaluator tree"),
-        binding: TransformTemplateEncodeBinding {
-            function: if wants_color {
-                csv_output_function_descriptor(
-                    CSV_COLOR_CEMT_STAGE_SPEC.function_name,
-                    "csv-document",
-                    "cem-tree",
-                    TransformTemplateOutputFunctionKind::Color,
-                    TransformTemplateOutputProducedKind::CemTree,
-                    writer_artifact.identity.color_profile.clone(),
-                )
-            } else {
-                csv_output_function_descriptor(
-                    CSV_FORMAT_CEMT_STAGE_SPEC.function_name,
-                    "csv-document",
-                    "csv-document",
-                    TransformTemplateOutputFunctionKind::Format,
-                    TransformTemplateOutputProducedKind::CemTree,
-                    Some(formatter_profile.to_owned()),
-                )
-            },
-            subject_type: "cem-tree".to_owned(),
-            identity: writer_artifact.identity.clone(),
-            options: TransformTemplateEncodeOptions::default(),
-        },
-        artifact: writer_artifact,
-    };
-    let writer_started = Instant::now();
-    let mut composition = compose_transform_template_encoded_text_artifacts(
-        &[evaluated],
-        &writer_context,
-        diagnostic_uri,
-    );
-    let writer_elapsed_ns = Some(writer_started.elapsed().as_nanos());
-    if !composition.diagnostics.is_empty() {
-        return ConversionOutputPipelineExecution {
-            output: None,
-            diagnostics: std::mem::take(&mut composition.diagnostics),
-            format_execution,
-            color_execution,
-            format_elapsed_ns,
-            color_elapsed_ns,
-            writer_elapsed_ns,
-            formatted_cem_tree: Some(formatted_artifact),
-            colored_cem_tree,
-            ..ConversionOutputPipelineExecution::default()
-        };
-    }
-    match composition.artifact {
-        Some(mut artifact) => {
-            if output_color_selection
+        if output_color_selection
+            .as_ref()
+            .is_some_and(csv_output_color_selection_is_terminal)
+        {
+            writer_context.color_capability = output_color_selection
                 .as_ref()
-                .is_some_and(csv_output_color_selection_is_html)
-            {
-                csv_wrap_html_preview_artifact(&mut artifact, presentation_options.tab_size);
-            }
-            ConversionOutputPipelineExecution {
-                output: Some(
-                    artifact
-                        .value
-                        .into_public_value()
-                        .expect("composed writer artifact projects to the public response"),
-                ),
-                raw_cem_tree: None,
-                formatted_cemt_tree: None,
-                colored_cemt_tree: None,
-                formatted_materialized_cemt_tree: None,
-                colored_materialized_cemt_tree: None,
-                materialized_cemt_stage_output: None,
-                source_map: artifact.source_map,
-                output_spans: artifact.output_spans,
+                .map(|selection| selection.output_color_type.clone());
+        }
+        writer_context.mode = Some(TransformTemplateEncodedArtifactMode::Document);
+        writer_context.source_map_policy = Some(TransformTemplateSourceMapPolicy::Generated);
+        let evaluated = TransformTemplateEvaluatedEncodeExpression {
+            expression: TransformTemplateEncodeExpression {
+                owner: Some("csv-direct-output".to_owned()),
+                expression: "csv-direct-output writer".to_owned(),
+                subject: "csv-document".to_owned(),
+                subject_type: Some("cem-tree".to_owned()),
+                target,
+                options: TransformTemplateEncodeOptions::default(),
+            },
+            subject: writer_artifact
+                .value
+                .as_public_json_value()
+                .cloned()
+                .expect("writer input is a CEMT evaluator tree"),
+            binding: TransformTemplateEncodeBinding {
+                function: if wants_color {
+                    csv_output_function_descriptor(
+                        CSV_COLOR_CEMT_STAGE_SPEC.function_name,
+                        "csv-document",
+                        "cem-tree",
+                        TransformTemplateOutputFunctionKind::Color,
+                        TransformTemplateOutputProducedKind::CemTree,
+                        writer_artifact.identity.color_profile.clone(),
+                    )
+                } else {
+                    csv_output_function_descriptor(
+                        CSV_FORMAT_CEMT_STAGE_SPEC.function_name,
+                        "csv-document",
+                        "csv-document",
+                        TransformTemplateOutputFunctionKind::Format,
+                        TransformTemplateOutputProducedKind::CemTree,
+                        Some(formatter_profile.to_owned()),
+                    )
+                },
+                subject_type: "cem-tree".to_owned(),
+                identity: writer_artifact.identity.clone(),
+                options: TransformTemplateEncodeOptions::default(),
+            },
+            artifact: writer_artifact,
+        };
+        let writer_started = Instant::now();
+        let mut composition = compose_transform_template_encoded_text_artifacts(
+            &[evaluated],
+            &writer_context,
+            diagnostic_uri,
+        );
+        let writer_elapsed_ns = Some(writer_started.elapsed().as_nanos());
+        if !composition.diagnostics.is_empty() {
+            return ConversionOutputPipelineExecution {
+                output: None,
+                diagnostics: std::mem::take(&mut composition.diagnostics),
                 format_execution,
                 color_execution,
                 format_elapsed_ns,
@@ -7287,20 +6956,54 @@ pub fn execute_csv_document_output_pipeline_with_environment(
                 writer_elapsed_ns,
                 formatted_cem_tree: Some(formatted_artifact),
                 colored_cem_tree,
-                diagnostics: Vec::new(),
-            }
+                ..ConversionOutputPipelineExecution::default()
+            };
         }
-        None => ConversionOutputPipelineExecution {
-            output: None,
-            format_execution,
-            color_execution,
-            format_elapsed_ns,
-            color_elapsed_ns,
-            writer_elapsed_ns,
-            formatted_cem_tree: Some(formatted_artifact),
-            colored_cem_tree,
-            ..ConversionOutputPipelineExecution::default()
-        },
+        match composition.artifact {
+            Some(mut artifact) => {
+                if output_color_selection
+                    .as_ref()
+                    .is_some_and(csv_output_color_selection_is_html)
+                {
+                    csv_wrap_html_preview_artifact(&mut artifact, presentation_options.tab_size);
+                }
+                ConversionOutputPipelineExecution {
+                    output: Some(
+                        artifact
+                            .value
+                            .into_public_value()
+                            .expect("composed writer artifact projects to the public response"),
+                    ),
+                    raw_cem_tree: None,
+                    formatted_cemt_tree: None,
+                    colored_cemt_tree: None,
+                    formatted_materialized_cemt_tree: None,
+                    colored_materialized_cemt_tree: None,
+                    materialized_cemt_stage_output: None,
+                    source_map: artifact.source_map,
+                    output_spans: artifact.output_spans,
+                    format_execution,
+                    color_execution,
+                    format_elapsed_ns,
+                    color_elapsed_ns,
+                    writer_elapsed_ns,
+                    formatted_cem_tree: Some(formatted_artifact),
+                    colored_cem_tree,
+                    diagnostics: Vec::new(),
+                }
+            }
+            None => ConversionOutputPipelineExecution {
+                output: None,
+                format_execution,
+                color_execution,
+                format_elapsed_ns,
+                color_elapsed_ns,
+                writer_elapsed_ns,
+                formatted_cem_tree: Some(formatted_artifact),
+                colored_cem_tree,
+                ..ConversionOutputPipelineExecution::default()
+            },
+        }
     }
 }
 
@@ -7556,7 +7259,7 @@ fn execute_native_csv_document_output_pipeline(
     let writer_started = Instant::now();
     let writer_result = execute_transform_template_materialized_cemt_writer(
         TransformTemplateMaterializedCemtWriterRequest {
-            binding: &writer_binding,
+            identity: &writer_binding.identity,
             artifact: writer_artifact,
             insertion_context: &writer_context,
         },
@@ -7976,8 +7679,8 @@ impl YamlDocumentOutputSubject for Value {
         "cem.test-yaml-value-oracle"
     }
 
-    fn into_test_compatibility_cemt_subject(self) -> Option<Value> {
-        Some(self)
+    fn native_cemt_subject(&self) -> Option<CemtEvaluatorValue<'_>> {
+        cemt_typed_runtime_value_from_adapter(self).ok()
     }
 }
 
@@ -8034,312 +7737,301 @@ pub fn execute_yaml_document_output_pipeline_with_environment(
             input_representation_id,
         );
     }
-    let Some(document_subject) = document.into_test_compatibility_cemt_subject() else {
-        return yaml_output_pipeline_failed(
-            diagnostic_uri,
-            "YAML output subject does not expose a native evaluator view".to_owned(),
-        );
-    };
-    let target =
-        TransformTemplateEncodingTarget::new(YAML_CONTENT_TYPE, YAML_SCHEMA_URI, "yaml-document");
-    let format_options = TransformTemplateEncodeOptions {
-        formatter: Some(formatter_name.clone()),
-        formatter_profile: Some(formatter_profile.clone()),
-        formatter_options: target_scope.cemt_formatter_options.clone(),
-        line_ending: line_ending.clone(),
-        mode: TransformTemplateEncodedArtifactMode::Document,
-        canonical: formatter_profile == "compact",
-        source_map_policy: TransformTemplateSourceMapPolicy::Generated,
-        ..TransformTemplateEncodeOptions::default()
-    };
-    let (format_stage, format_binding) = match resolve_cemt_output_stage_binding(
-        environment,
-        "YAML",
-        YAML_FORMAT_CEMT_STAGE_SPEC,
-        &target,
-        Some(formatter_profile.as_str()),
-        Some(formatter_name.as_str()),
-        &document_subject,
-        "yaml-document",
-        format_options,
-    ) {
-        Ok(resolved) => resolved,
-        Err(message) => return yaml_output_pipeline_failed(diagnostic_uri, message),
-    };
-    let format_started = Instant::now();
-    let format_result = execute_conversion_cem_tree_output_stage(
-        environment,
-        format_stage,
-        &format_binding,
-        &document_subject,
+    #[cfg(not(test))]
+    return yaml_output_pipeline_failed(
+        diagnostic_uri,
+        "YAML output subject does not expose a native evaluator view".to_owned(),
     );
-    let format_elapsed_ns = Some(format_started.elapsed().as_nanos());
-    let (formatted_output, format_execution) = match format_result {
-        Ok(output) => output,
-        Err(message) => {
-            return yaml_output_pipeline_failed_with_timings(
+    #[cfg(test)]
+    {
+        let Some(document_subject) = document.into_test_compatibility_cemt_subject() else {
+            return yaml_output_pipeline_failed(
                 diagnostic_uri,
-                format!(
-                    "CEMT formatter `{}` failed: {message}",
-                    format_binding.function.name
-                ),
-                format_elapsed_ns,
-                None,
-                None,
+                "YAML output subject does not expose a native evaluator view".to_owned(),
             );
-        }
-    };
-    let format_execution = Some(format_execution);
-    let formatted_artifact = format_binding.artifact_from_cemt_value(formatted_output);
-    let mut formatted_context =
-        TransformTemplateEncodedArtifactInsertionContext::from_encoding_target(
-            &target,
-            Some(TransformTemplateOutputProducedKind::CemTree),
-        );
-    formatted_context.formatter_profile = formatted_artifact
-        .identity
-        .formatter_profile
-        .clone()
-        .or_else(|| Some(formatter_profile.clone()));
-    formatted_context.mode = Some(TransformTemplateEncodedArtifactMode::Document);
-    formatted_context.canonical = Some(formatter_profile == "compact");
-    formatted_context.source_map_policy = Some(TransformTemplateSourceMapPolicy::Generated);
-    if let Err(error) = formatted_artifact.validate_insertion(&formatted_context) {
-        return yaml_output_pipeline_failed_with_timings(
-            diagnostic_uri,
-            error.diagnostic(diagnostic_uri).message,
-            format_elapsed_ns,
-            None,
-            None,
-        );
-    }
-
-    let cemt_color_profile =
-        match yaml_cemt_color_profile_for_output(target_scope, output_color_selection.as_ref()) {
-            Ok(profile) => profile,
-            Err(message) => return yaml_output_pipeline_failed(diagnostic_uri, message),
         };
-    let wants_color = target_scope
-        .cemt_colorizer
-        .as_deref()
-        .map(str::trim)
-        .is_some_and(|name| !name.is_empty())
-        || cemt_color_profile.is_some()
-        || output_color_selection
-            .as_ref()
-            .is_some_and(yaml_output_color_selection_requests_color);
-    let mut color_elapsed_ns = None;
-    let (writer_artifact, color_execution, colored_cem_tree) = if wants_color {
-        let colorizer_name = target_scope
-            .cemt_colorizer
-            .as_deref()
-            .map(str::trim)
-            .filter(|name| !name.is_empty())
-            .unwrap_or(YAML_COLOR_CEMT_STAGE_SPEC.function_name);
-        let color_profile = cemt_color_profile.as_deref().unwrap_or("terminal");
-        let color_options = TransformTemplateEncodeOptions {
+        let target = TransformTemplateEncodingTarget::new(
+            YAML_CONTENT_TYPE,
+            YAML_SCHEMA_URI,
+            "yaml-document",
+        );
+        let format_options = TransformTemplateEncodeOptions {
+            formatter: Some(formatter_name.clone()),
+            formatter_profile: Some(formatter_profile.clone()),
             formatter_options: target_scope.cemt_formatter_options.clone(),
-            formatter_profile: formatted_artifact
-                .identity
-                .formatter_profile
-                .clone()
-                .or_else(|| Some(formatter_profile.clone())),
-            colorizer: Some(colorizer_name.to_owned()),
-            color_profile: Some(color_profile.to_owned()),
             line_ending: line_ending.clone(),
             mode: TransformTemplateEncodedArtifactMode::Document,
-            canonical: false,
+            canonical: formatter_profile == "compact",
             source_map_policy: TransformTemplateSourceMapPolicy::Generated,
             ..TransformTemplateEncodeOptions::default()
         };
-        let (color_stage, color_binding) = match resolve_cemt_output_stage_binding(
+        let (format_stage, format_binding) = match resolve_cemt_output_stage_binding(
             environment,
             "YAML",
-            YAML_COLOR_CEMT_STAGE_SPEC,
+            YAML_FORMAT_CEMT_STAGE_SPEC,
             &target,
-            Some(color_profile),
-            Some(colorizer_name),
-            formatted_artifact
-                .value
-                .as_cemt_runtime_value()
-                .expect("formatted CEM tree has a runtime payload"),
-            "cem-tree",
-            color_options,
+            Some(formatter_profile.as_str()),
+            Some(formatter_name.as_str()),
+            &document_subject,
+            "yaml-document",
+            format_options,
         ) {
             Ok(resolved) => resolved,
             Err(message) => return yaml_output_pipeline_failed(diagnostic_uri, message),
         };
-        let color_started = Instant::now();
-        let color_result = execute_conversion_cem_tree_output_stage(
+        let format_started = Instant::now();
+        let format_result = execute_conversion_cem_tree_output_stage(
             environment,
-            color_stage,
-            &color_binding,
-            formatted_artifact
-                .value
-                .as_cemt_runtime_value()
-                .expect("formatted CEM tree has a runtime payload"),
+            format_stage,
+            &format_binding,
+            &document_subject,
         );
-        color_elapsed_ns = Some(color_started.elapsed().as_nanos());
-        let (colored_output, color_execution) = match color_result {
+        let format_elapsed_ns = Some(format_started.elapsed().as_nanos());
+        let (formatted_output, format_execution) = match format_result {
             Ok(output) => output,
             Err(message) => {
                 return yaml_output_pipeline_failed_with_timings(
                     diagnostic_uri,
                     format!(
-                        "CEMT colorizer `{}` failed: {message}",
-                        color_binding.function.name
+                        "CEMT formatter `{}` failed: {message}",
+                        format_binding.function.name
                     ),
+                    format_elapsed_ns,
+                    None,
+                    None,
+                );
+            }
+        };
+        let format_execution = Some(format_execution);
+        let formatted_artifact = TransformTemplateEncodedArtifact::from_public_json(
+            format_binding.identity.clone(),
+            formatted_output,
+        );
+        let mut formatted_context =
+            TransformTemplateEncodedArtifactInsertionContext::from_encoding_target(
+                &target,
+                Some(TransformTemplateOutputProducedKind::CemTree),
+            );
+        formatted_context.formatter_profile = formatted_artifact
+            .identity
+            .formatter_profile
+            .clone()
+            .or_else(|| Some(formatter_profile.clone()));
+        formatted_context.mode = Some(TransformTemplateEncodedArtifactMode::Document);
+        formatted_context.canonical = Some(formatter_profile == "compact");
+        formatted_context.source_map_policy = Some(TransformTemplateSourceMapPolicy::Generated);
+        if let Err(error) = formatted_artifact.validate_insertion(&formatted_context) {
+            return yaml_output_pipeline_failed_with_timings(
+                diagnostic_uri,
+                error.diagnostic(diagnostic_uri).message,
+                format_elapsed_ns,
+                None,
+                None,
+            );
+        }
+
+        let cemt_color_profile =
+            match yaml_cemt_color_profile_for_output(target_scope, output_color_selection.as_ref())
+            {
+                Ok(profile) => profile,
+                Err(message) => return yaml_output_pipeline_failed(diagnostic_uri, message),
+            };
+        let wants_color = target_scope
+            .cemt_colorizer
+            .as_deref()
+            .map(str::trim)
+            .is_some_and(|name| !name.is_empty())
+            || cemt_color_profile.is_some()
+            || output_color_selection
+                .as_ref()
+                .is_some_and(yaml_output_color_selection_requests_color);
+        let mut color_elapsed_ns = None;
+        let (writer_artifact, color_execution, colored_cem_tree) = if wants_color {
+            let colorizer_name = target_scope
+                .cemt_colorizer
+                .as_deref()
+                .map(str::trim)
+                .filter(|name| !name.is_empty())
+                .unwrap_or(YAML_COLOR_CEMT_STAGE_SPEC.function_name);
+            let color_profile = cemt_color_profile.as_deref().unwrap_or("terminal");
+            let color_options = TransformTemplateEncodeOptions {
+                formatter_options: target_scope.cemt_formatter_options.clone(),
+                formatter_profile: formatted_artifact
+                    .identity
+                    .formatter_profile
+                    .clone()
+                    .or_else(|| Some(formatter_profile.clone())),
+                colorizer: Some(colorizer_name.to_owned()),
+                color_profile: Some(color_profile.to_owned()),
+                line_ending: line_ending.clone(),
+                mode: TransformTemplateEncodedArtifactMode::Document,
+                canonical: false,
+                source_map_policy: TransformTemplateSourceMapPolicy::Generated,
+                ..TransformTemplateEncodeOptions::default()
+            };
+            let (color_stage, color_binding) = match resolve_cemt_output_stage_binding(
+                environment,
+                "YAML",
+                YAML_COLOR_CEMT_STAGE_SPEC,
+                &target,
+                Some(color_profile),
+                Some(colorizer_name),
+                formatted_artifact
+                    .value
+                    .as_public_json_value()
+                    .expect("formatted CEM tree has a runtime payload"),
+                "cem-tree",
+                color_options,
+            ) {
+                Ok(resolved) => resolved,
+                Err(message) => return yaml_output_pipeline_failed(diagnostic_uri, message),
+            };
+            let color_started = Instant::now();
+            let color_result = execute_conversion_cem_tree_output_stage(
+                environment,
+                color_stage,
+                &color_binding,
+                formatted_artifact
+                    .value
+                    .as_public_json_value()
+                    .expect("formatted CEM tree has a runtime payload"),
+            );
+            color_elapsed_ns = Some(color_started.elapsed().as_nanos());
+            let (colored_output, color_execution) = match color_result {
+                Ok(output) => output,
+                Err(message) => {
+                    return yaml_output_pipeline_failed_with_timings(
+                        diagnostic_uri,
+                        format!(
+                            "CEMT colorizer `{}` failed: {message}",
+                            color_binding.function.name
+                        ),
+                        format_elapsed_ns,
+                        color_elapsed_ns,
+                        None,
+                    );
+                }
+            };
+            let colored_artifact = TransformTemplateEncodedArtifact::from_public_json(
+                color_binding.identity.clone(),
+                colored_output,
+            );
+            let mut colored_context =
+                TransformTemplateEncodedArtifactInsertionContext::from_encoding_target(
+                    &target,
+                    Some(TransformTemplateOutputProducedKind::CemTree),
+                );
+            colored_context.formatter_profile = colored_artifact
+                .identity
+                .formatter_profile
+                .clone()
+                .or_else(|| Some(formatter_profile.clone()));
+            colored_context.color_profile = Some(color_profile.to_owned());
+            colored_context.mode = Some(TransformTemplateEncodedArtifactMode::Document);
+            colored_context.source_map_policy = Some(TransformTemplateSourceMapPolicy::Generated);
+            if let Err(error) = colored_artifact.validate_insertion(&colored_context) {
+                return yaml_output_pipeline_failed_with_timings(
+                    diagnostic_uri,
+                    error.diagnostic(diagnostic_uri).message,
                     format_elapsed_ns,
                     color_elapsed_ns,
                     None,
                 );
             }
+            (
+                colored_artifact.clone(),
+                Some(color_execution),
+                Some(colored_artifact),
+            )
+        } else {
+            (formatted_artifact.clone(), None, None)
         };
-        let colored_artifact = color_binding.artifact_from_cemt_value(colored_output);
-        let mut colored_context =
+
+        let wrap_html_output = output_color_selection
+            .as_ref()
+            .is_some_and(yaml_output_color_selection_is_html)
+            || writer_artifact.identity.color_profile.as_deref() == Some("html");
+        let mut writer_context =
             TransformTemplateEncodedArtifactInsertionContext::from_encoding_target(
                 &target,
-                Some(TransformTemplateOutputProducedKind::CemTree),
+                Some(TransformTemplateOutputProducedKind::Text),
             );
-        colored_context.formatter_profile = colored_artifact
+        writer_context.formatter_profile = writer_artifact
             .identity
             .formatter_profile
             .clone()
             .or_else(|| Some(formatter_profile.clone()));
-        colored_context.color_profile = Some(color_profile.to_owned());
-        colored_context.mode = Some(TransformTemplateEncodedArtifactMode::Document);
-        colored_context.source_map_policy = Some(TransformTemplateSourceMapPolicy::Generated);
-        if let Err(error) = colored_artifact.validate_insertion(&colored_context) {
-            return yaml_output_pipeline_failed_with_timings(
-                diagnostic_uri,
-                error.diagnostic(diagnostic_uri).message,
-                format_elapsed_ns,
-                color_elapsed_ns,
-                None,
-            );
-        }
-        (
-            colored_artifact.clone(),
-            Some(color_execution),
-            Some(colored_artifact),
-        )
-    } else {
-        (formatted_artifact.clone(), None, None)
-    };
-
-    let wrap_html_output = output_color_selection
-        .as_ref()
-        .is_some_and(yaml_output_color_selection_is_html)
-        || writer_artifact.identity.color_profile.as_deref() == Some("html");
-    let mut writer_context = TransformTemplateEncodedArtifactInsertionContext::from_encoding_target(
-        &target,
-        Some(TransformTemplateOutputProducedKind::Text),
-    );
-    writer_context.formatter_profile = writer_artifact
-        .identity
-        .formatter_profile
-        .clone()
-        .or_else(|| Some(formatter_profile.clone()));
-    writer_context.color_profile = writer_artifact.identity.color_profile.clone();
-    writer_context.output_color_type = output_color_selection
-        .as_ref()
-        .map(|selection| selection.output_color_type.clone());
-    if output_color_selection
-        .as_ref()
-        .is_some_and(yaml_output_color_selection_is_terminal)
-    {
-        writer_context.color_capability = output_color_selection
+        writer_context.color_profile = writer_artifact.identity.color_profile.clone();
+        writer_context.output_color_type = output_color_selection
             .as_ref()
             .map(|selection| selection.output_color_type.clone());
-    }
-    writer_context.mode = Some(TransformTemplateEncodedArtifactMode::Document);
-    writer_context.source_map_policy = Some(TransformTemplateSourceMapPolicy::Generated);
-    let evaluated = TransformTemplateEvaluatedEncodeExpression {
-        expression: TransformTemplateEncodeExpression {
-            owner: Some("yaml-direct-output".to_owned()),
-            expression: "yaml-direct-output writer".to_owned(),
-            subject: "yaml-document".to_owned(),
-            subject_type: Some("cem-tree".to_owned()),
-            target,
-            options: TransformTemplateEncodeOptions::default(),
-        },
-        subject: writer_artifact
-            .value
-            .to_cemt_runtime_value()
-            .expect("writer input is a CEMT evaluator tree"),
-        binding: TransformTemplateEncodeBinding {
-            function: yaml_output_function_descriptor(
-                if color_execution.is_some() {
-                    YAML_COLOR_CEMT_STAGE_SPEC.function_name
-                } else {
-                    YAML_FORMAT_CEMT_STAGE_SPEC.function_name
-                },
-                "yaml-document",
-                if color_execution.is_some() {
-                    "cem-tree"
-                } else {
-                    "yaml-document"
-                },
-                if color_execution.is_some() {
-                    TransformTemplateOutputFunctionKind::Color
-                } else {
-                    TransformTemplateOutputFunctionKind::Format
-                },
-                TransformTemplateOutputProducedKind::CemTree,
-                writer_artifact
-                    .identity
-                    .color_profile
-                    .clone()
-                    .or_else(|| writer_artifact.identity.formatter_profile.clone())
-                    .or_else(|| Some(formatter_profile.clone())),
-            ),
-            subject_type: "cem-tree".to_owned(),
-            identity: writer_artifact.identity.clone(),
-            options: TransformTemplateEncodeOptions::default(),
-        },
-        artifact: writer_artifact,
-    };
-    let writer_started = Instant::now();
-    let mut composition = compose_transform_template_encoded_text_artifacts(
-        &[evaluated],
-        &writer_context,
-        diagnostic_uri,
-    );
-    let writer_elapsed_ns = Some(writer_started.elapsed().as_nanos());
-    if !composition.diagnostics.is_empty() {
-        return ConversionOutputPipelineExecution {
-            output: None,
-            diagnostics: std::mem::take(&mut composition.diagnostics),
-            format_execution,
-            color_execution,
-            format_elapsed_ns,
-            color_elapsed_ns,
-            writer_elapsed_ns,
-            formatted_cem_tree: Some(formatted_artifact),
-            colored_cem_tree,
-            ..ConversionOutputPipelineExecution::default()
-        };
-    }
-    match composition.artifact {
-        Some(mut artifact) => {
-            if wrap_html_output {
-                yaml_wrap_html_preview_artifact(&mut artifact, presentation_options.tab_size);
-            }
-            ConversionOutputPipelineExecution {
-                output: Some(
-                    artifact
-                        .value
-                        .into_public_value()
-                        .expect("composed writer artifact projects to the public response"),
+        if output_color_selection
+            .as_ref()
+            .is_some_and(yaml_output_color_selection_is_terminal)
+        {
+            writer_context.color_capability = output_color_selection
+                .as_ref()
+                .map(|selection| selection.output_color_type.clone());
+        }
+        writer_context.mode = Some(TransformTemplateEncodedArtifactMode::Document);
+        writer_context.source_map_policy = Some(TransformTemplateSourceMapPolicy::Generated);
+        let evaluated = TransformTemplateEvaluatedEncodeExpression {
+            expression: TransformTemplateEncodeExpression {
+                owner: Some("yaml-direct-output".to_owned()),
+                expression: "yaml-direct-output writer".to_owned(),
+                subject: "yaml-document".to_owned(),
+                subject_type: Some("cem-tree".to_owned()),
+                target,
+                options: TransformTemplateEncodeOptions::default(),
+            },
+            subject: writer_artifact
+                .value
+                .as_public_json_value()
+                .cloned()
+                .expect("writer input is a CEMT evaluator tree"),
+            binding: TransformTemplateEncodeBinding {
+                function: yaml_output_function_descriptor(
+                    if color_execution.is_some() {
+                        YAML_COLOR_CEMT_STAGE_SPEC.function_name
+                    } else {
+                        YAML_FORMAT_CEMT_STAGE_SPEC.function_name
+                    },
+                    "yaml-document",
+                    if color_execution.is_some() {
+                        "cem-tree"
+                    } else {
+                        "yaml-document"
+                    },
+                    if color_execution.is_some() {
+                        TransformTemplateOutputFunctionKind::Color
+                    } else {
+                        TransformTemplateOutputFunctionKind::Format
+                    },
+                    TransformTemplateOutputProducedKind::CemTree,
+                    writer_artifact
+                        .identity
+                        .color_profile
+                        .clone()
+                        .or_else(|| writer_artifact.identity.formatter_profile.clone())
+                        .or_else(|| Some(formatter_profile.clone())),
                 ),
-                raw_cem_tree: None,
-                formatted_cemt_tree: None,
-                colored_cemt_tree: None,
-                formatted_materialized_cemt_tree: None,
-                colored_materialized_cemt_tree: None,
-                materialized_cemt_stage_output: None,
-                source_map: artifact.source_map,
-                output_spans: artifact.output_spans,
+                subject_type: "cem-tree".to_owned(),
+                identity: writer_artifact.identity.clone(),
+                options: TransformTemplateEncodeOptions::default(),
+            },
+            artifact: writer_artifact,
+        };
+        let writer_started = Instant::now();
+        let mut composition = compose_transform_template_encoded_text_artifacts(
+            &[evaluated],
+            &writer_context,
+            diagnostic_uri,
+        );
+        let writer_elapsed_ns = Some(writer_started.elapsed().as_nanos());
+        if !composition.diagnostics.is_empty() {
+            return ConversionOutputPipelineExecution {
+                output: None,
+                diagnostics: std::mem::take(&mut composition.diagnostics),
                 format_execution,
                 color_execution,
                 format_elapsed_ns,
@@ -8347,20 +8039,51 @@ pub fn execute_yaml_document_output_pipeline_with_environment(
                 writer_elapsed_ns,
                 formatted_cem_tree: Some(formatted_artifact),
                 colored_cem_tree,
-                diagnostics: Vec::new(),
-            }
+                ..ConversionOutputPipelineExecution::default()
+            };
         }
-        None => ConversionOutputPipelineExecution {
-            output: None,
-            format_execution,
-            color_execution,
-            format_elapsed_ns,
-            color_elapsed_ns,
-            writer_elapsed_ns,
-            formatted_cem_tree: Some(formatted_artifact),
-            colored_cem_tree,
-            ..ConversionOutputPipelineExecution::default()
-        },
+        match composition.artifact {
+            Some(mut artifact) => {
+                if wrap_html_output {
+                    yaml_wrap_html_preview_artifact(&mut artifact, presentation_options.tab_size);
+                }
+                ConversionOutputPipelineExecution {
+                    output: Some(
+                        artifact
+                            .value
+                            .into_public_value()
+                            .expect("composed writer artifact projects to the public response"),
+                    ),
+                    raw_cem_tree: None,
+                    formatted_cemt_tree: None,
+                    colored_cemt_tree: None,
+                    formatted_materialized_cemt_tree: None,
+                    colored_materialized_cemt_tree: None,
+                    materialized_cemt_stage_output: None,
+                    source_map: artifact.source_map,
+                    output_spans: artifact.output_spans,
+                    format_execution,
+                    color_execution,
+                    format_elapsed_ns,
+                    color_elapsed_ns,
+                    writer_elapsed_ns,
+                    formatted_cem_tree: Some(formatted_artifact),
+                    colored_cem_tree,
+                    diagnostics: Vec::new(),
+                }
+            }
+            None => ConversionOutputPipelineExecution {
+                output: None,
+                format_execution,
+                color_execution,
+                format_elapsed_ns,
+                color_elapsed_ns,
+                writer_elapsed_ns,
+                formatted_cem_tree: Some(formatted_artifact),
+                colored_cem_tree,
+                ..ConversionOutputPipelineExecution::default()
+            },
+        }
     }
 }
 
@@ -8616,7 +8339,7 @@ fn execute_native_yaml_document_output_pipeline(
     let writer_started = Instant::now();
     let writer_result = execute_transform_template_materialized_cemt_writer(
         TransformTemplateMaterializedCemtWriterRequest {
-            binding: &writer_binding,
+            identity: &writer_binding.identity,
             artifact: writer_artifact,
             insertion_context: &writer_context,
         },
@@ -8953,8 +8676,8 @@ impl JsonDocumentOutputSubject for Value {
         self.get("lineEnding").and_then(Value::as_str)
     }
 
-    fn into_test_compatibility_cemt_subject(self) -> Option<Value> {
-        Some(self)
+    fn native_cemt_subject(&self) -> Option<CemtEvaluatorValue<'_>> {
+        cemt_typed_runtime_value_from_adapter(self).ok()
     }
 }
 
@@ -8992,8 +8715,8 @@ impl JsonSchemaDocumentOutputSubject for Value {
             .or_else(|| self.get("lineEnding").and_then(Value::as_str))
     }
 
-    fn into_test_compatibility_cemt_subject(self) -> Option<Value> {
-        Some(self)
+    fn native_cemt_subject(&self) -> Option<CemtEvaluatorValue<'_>> {
+        cemt_typed_runtime_value_from_adapter(self).ok()
     }
 }
 
@@ -9048,315 +8771,301 @@ pub fn execute_json_document_output_pipeline_with_environment(
             line_ending,
         );
     }
-    let Some(document_subject) = document.into_test_compatibility_cemt_subject() else {
-        return json_output_pipeline_failed(
-            diagnostic_uri,
-            "JSON output subject does not expose a native evaluator view".to_owned(),
-        );
-    };
-    let target = TransformTemplateEncodingTarget::new(
-        JSON_CONTENT_TYPE,
-        JSON_VALUE_SCHEMA_URI,
-        "json-document",
+    #[cfg(not(test))]
+    return json_output_pipeline_failed(
+        diagnostic_uri,
+        "JSON output subject does not expose a native evaluator view".to_owned(),
     );
-    let format_options = TransformTemplateEncodeOptions {
-        formatter: Some(formatter_name.clone()),
-        formatter_profile: Some(formatter_profile.clone()),
-        formatter_options: target_scope.cemt_formatter_options.clone(),
-        line_ending: line_ending.clone(),
-        mode: TransformTemplateEncodedArtifactMode::Document,
-        canonical: formatter_profile == "compact",
-        source_map_policy: TransformTemplateSourceMapPolicy::Generated,
-        ..TransformTemplateEncodeOptions::default()
-    };
-    let (format_stage, format_binding) = match resolve_cemt_output_stage_binding(
-        environment,
-        "JSON",
-        JSON_FORMAT_CEMT_STAGE_SPEC,
-        &target,
-        Some(formatter_profile.as_str()),
-        Some(formatter_name.as_str()),
-        &document_subject,
-        "json-document",
-        format_options,
-    ) {
-        Ok(resolved) => resolved,
-        Err(message) => return json_output_pipeline_failed(diagnostic_uri, message),
-    };
-    let format_started = Instant::now();
-    let format_result = execute_conversion_cem_tree_output_stage(
-        environment,
-        format_stage,
-        &format_binding,
-        &document_subject,
-    );
-    let format_elapsed_ns = Some(format_started.elapsed().as_nanos());
-    let (formatted_output, format_execution) = match format_result {
-        Ok(output) => output,
-        Err(message) => {
-            return json_output_pipeline_failed_with_timings(
+    #[cfg(test)]
+    {
+        let Some(document_subject) = document.into_test_compatibility_cemt_subject() else {
+            return json_output_pipeline_failed(
                 diagnostic_uri,
-                format!(
-                    "CEMT formatter `{}` failed: {message}",
-                    format_binding.function.name
-                ),
-                format_elapsed_ns,
-                None,
-                None,
+                "JSON output subject does not expose a native evaluator view".to_owned(),
             );
-        }
-    };
-    let format_execution = Some(format_execution);
-    let formatted_artifact = format_binding.artifact_from_cemt_value(formatted_output);
-    let mut formatted_context =
-        TransformTemplateEncodedArtifactInsertionContext::from_encoding_target(
-            &target,
-            Some(TransformTemplateOutputProducedKind::CemTree),
-        );
-    formatted_context.formatter_profile = formatted_artifact
-        .identity
-        .formatter_profile
-        .clone()
-        .or_else(|| Some(formatter_profile.clone()));
-    formatted_context.mode = Some(TransformTemplateEncodedArtifactMode::Document);
-    formatted_context.canonical = Some(formatter_profile == "compact");
-    formatted_context.source_map_policy = Some(TransformTemplateSourceMapPolicy::Generated);
-    if let Err(error) = formatted_artifact.validate_insertion(&formatted_context) {
-        return json_output_pipeline_failed_with_timings(
-            diagnostic_uri,
-            error.diagnostic(diagnostic_uri).message,
-            format_elapsed_ns,
-            None,
-            None,
-        );
-    }
-
-    let cemt_color_profile =
-        match json_cemt_color_profile_for_output(target_scope, output_color_selection.as_ref()) {
-            Ok(profile) => profile,
-            Err(message) => return json_output_pipeline_failed(diagnostic_uri, message),
         };
-    let wants_color = target_scope
-        .cemt_colorizer
-        .as_deref()
-        .map(str::trim)
-        .is_some_and(|name| !name.is_empty())
-        || cemt_color_profile.is_some()
-        || output_color_selection
-            .as_ref()
-            .is_some_and(json_output_color_selection_requests_color);
-    let mut color_elapsed_ns = None;
-    let (writer_artifact, color_execution, colored_cem_tree) = if wants_color {
-        let colorizer_name = target_scope
-            .cemt_colorizer
-            .as_deref()
-            .map(str::trim)
-            .filter(|name| !name.is_empty())
-            .unwrap_or(JSON_COLOR_CEMT_STAGE_SPEC.function_name);
-        let color_profile = cemt_color_profile.as_deref().unwrap_or("terminal");
-        let color_options = TransformTemplateEncodeOptions {
+        let target = TransformTemplateEncodingTarget::new(
+            JSON_CONTENT_TYPE,
+            JSON_VALUE_SCHEMA_URI,
+            "json-document",
+        );
+        let format_options = TransformTemplateEncodeOptions {
+            formatter: Some(formatter_name.clone()),
+            formatter_profile: Some(formatter_profile.clone()),
             formatter_options: target_scope.cemt_formatter_options.clone(),
-            formatter_profile: formatted_artifact
-                .identity
-                .formatter_profile
-                .clone()
-                .or_else(|| Some(formatter_profile.clone())),
-            colorizer: Some(colorizer_name.to_owned()),
-            color_profile: Some(color_profile.to_owned()),
             line_ending: line_ending.clone(),
             mode: TransformTemplateEncodedArtifactMode::Document,
-            canonical: false,
+            canonical: formatter_profile == "compact",
             source_map_policy: TransformTemplateSourceMapPolicy::Generated,
             ..TransformTemplateEncodeOptions::default()
         };
-        let (color_stage, color_binding) = match resolve_cemt_output_stage_binding(
+        let (format_stage, format_binding) = match resolve_cemt_output_stage_binding(
             environment,
             "JSON",
-            JSON_COLOR_CEMT_STAGE_SPEC,
+            JSON_FORMAT_CEMT_STAGE_SPEC,
             &target,
-            Some(color_profile),
-            Some(colorizer_name),
-            formatted_artifact
-                .value
-                .as_cemt_runtime_value()
-                .expect("formatted CEM tree has a runtime payload"),
-            "cem-tree",
-            color_options,
+            Some(formatter_profile.as_str()),
+            Some(formatter_name.as_str()),
+            &document_subject,
+            "json-document",
+            format_options,
         ) {
             Ok(resolved) => resolved,
             Err(message) => return json_output_pipeline_failed(diagnostic_uri, message),
         };
-        let color_started = Instant::now();
-        let color_result = execute_conversion_cem_tree_output_stage(
+        let format_started = Instant::now();
+        let format_result = execute_conversion_cem_tree_output_stage(
             environment,
-            color_stage,
-            &color_binding,
-            formatted_artifact
-                .value
-                .as_cemt_runtime_value()
-                .expect("formatted CEM tree has a runtime payload"),
+            format_stage,
+            &format_binding,
+            &document_subject,
         );
-        color_elapsed_ns = Some(color_started.elapsed().as_nanos());
-        let (colored_output, color_execution) = match color_result {
+        let format_elapsed_ns = Some(format_started.elapsed().as_nanos());
+        let (formatted_output, format_execution) = match format_result {
             Ok(output) => output,
             Err(message) => {
                 return json_output_pipeline_failed_with_timings(
                     diagnostic_uri,
                     format!(
-                        "CEMT colorizer `{}` failed: {message}",
-                        color_binding.function.name
+                        "CEMT formatter `{}` failed: {message}",
+                        format_binding.function.name
                     ),
+                    format_elapsed_ns,
+                    None,
+                    None,
+                );
+            }
+        };
+        let format_execution = Some(format_execution);
+        let formatted_artifact = TransformTemplateEncodedArtifact::from_public_json(
+            format_binding.identity.clone(),
+            formatted_output,
+        );
+        let mut formatted_context =
+            TransformTemplateEncodedArtifactInsertionContext::from_encoding_target(
+                &target,
+                Some(TransformTemplateOutputProducedKind::CemTree),
+            );
+        formatted_context.formatter_profile = formatted_artifact
+            .identity
+            .formatter_profile
+            .clone()
+            .or_else(|| Some(formatter_profile.clone()));
+        formatted_context.mode = Some(TransformTemplateEncodedArtifactMode::Document);
+        formatted_context.canonical = Some(formatter_profile == "compact");
+        formatted_context.source_map_policy = Some(TransformTemplateSourceMapPolicy::Generated);
+        if let Err(error) = formatted_artifact.validate_insertion(&formatted_context) {
+            return json_output_pipeline_failed_with_timings(
+                diagnostic_uri,
+                error.diagnostic(diagnostic_uri).message,
+                format_elapsed_ns,
+                None,
+                None,
+            );
+        }
+
+        let cemt_color_profile =
+            match json_cemt_color_profile_for_output(target_scope, output_color_selection.as_ref())
+            {
+                Ok(profile) => profile,
+                Err(message) => return json_output_pipeline_failed(diagnostic_uri, message),
+            };
+        let wants_color = target_scope
+            .cemt_colorizer
+            .as_deref()
+            .map(str::trim)
+            .is_some_and(|name| !name.is_empty())
+            || cemt_color_profile.is_some()
+            || output_color_selection
+                .as_ref()
+                .is_some_and(json_output_color_selection_requests_color);
+        let mut color_elapsed_ns = None;
+        let (writer_artifact, color_execution, colored_cem_tree) = if wants_color {
+            let colorizer_name = target_scope
+                .cemt_colorizer
+                .as_deref()
+                .map(str::trim)
+                .filter(|name| !name.is_empty())
+                .unwrap_or(JSON_COLOR_CEMT_STAGE_SPEC.function_name);
+            let color_profile = cemt_color_profile.as_deref().unwrap_or("terminal");
+            let color_options = TransformTemplateEncodeOptions {
+                formatter_options: target_scope.cemt_formatter_options.clone(),
+                formatter_profile: formatted_artifact
+                    .identity
+                    .formatter_profile
+                    .clone()
+                    .or_else(|| Some(formatter_profile.clone())),
+                colorizer: Some(colorizer_name.to_owned()),
+                color_profile: Some(color_profile.to_owned()),
+                line_ending: line_ending.clone(),
+                mode: TransformTemplateEncodedArtifactMode::Document,
+                canonical: false,
+                source_map_policy: TransformTemplateSourceMapPolicy::Generated,
+                ..TransformTemplateEncodeOptions::default()
+            };
+            let (color_stage, color_binding) = match resolve_cemt_output_stage_binding(
+                environment,
+                "JSON",
+                JSON_COLOR_CEMT_STAGE_SPEC,
+                &target,
+                Some(color_profile),
+                Some(colorizer_name),
+                formatted_artifact
+                    .value
+                    .as_public_json_value()
+                    .expect("formatted CEM tree has a runtime payload"),
+                "cem-tree",
+                color_options,
+            ) {
+                Ok(resolved) => resolved,
+                Err(message) => return json_output_pipeline_failed(diagnostic_uri, message),
+            };
+            let color_started = Instant::now();
+            let color_result = execute_conversion_cem_tree_output_stage(
+                environment,
+                color_stage,
+                &color_binding,
+                formatted_artifact
+                    .value
+                    .as_public_json_value()
+                    .expect("formatted CEM tree has a runtime payload"),
+            );
+            color_elapsed_ns = Some(color_started.elapsed().as_nanos());
+            let (colored_output, color_execution) = match color_result {
+                Ok(output) => output,
+                Err(message) => {
+                    return json_output_pipeline_failed_with_timings(
+                        diagnostic_uri,
+                        format!(
+                            "CEMT colorizer `{}` failed: {message}",
+                            color_binding.function.name
+                        ),
+                        format_elapsed_ns,
+                        color_elapsed_ns,
+                        None,
+                    );
+                }
+            };
+            let colored_artifact = TransformTemplateEncodedArtifact::from_public_json(
+                color_binding.identity.clone(),
+                colored_output,
+            );
+            let mut colored_context =
+                TransformTemplateEncodedArtifactInsertionContext::from_encoding_target(
+                    &target,
+                    Some(TransformTemplateOutputProducedKind::CemTree),
+                );
+            colored_context.formatter_profile = colored_artifact
+                .identity
+                .formatter_profile
+                .clone()
+                .or_else(|| Some(formatter_profile.clone()));
+            colored_context.color_profile = Some(color_profile.to_owned());
+            colored_context.mode = Some(TransformTemplateEncodedArtifactMode::Document);
+            colored_context.source_map_policy = Some(TransformTemplateSourceMapPolicy::Generated);
+            if let Err(error) = colored_artifact.validate_insertion(&colored_context) {
+                return json_output_pipeline_failed_with_timings(
+                    diagnostic_uri,
+                    error.diagnostic(diagnostic_uri).message,
                     format_elapsed_ns,
                     color_elapsed_ns,
                     None,
                 );
             }
+            (
+                colored_artifact.clone(),
+                Some(color_execution),
+                Some(colored_artifact),
+            )
+        } else {
+            (formatted_artifact.clone(), None, None)
         };
-        let colored_artifact = color_binding.artifact_from_cemt_value(colored_output);
-        let mut colored_context =
+
+        let wrap_html_output = output_color_selection
+            .as_ref()
+            .is_some_and(json_output_color_selection_is_html)
+            || writer_artifact.identity.color_profile.as_deref() == Some("html");
+        let mut writer_context =
             TransformTemplateEncodedArtifactInsertionContext::from_encoding_target(
                 &target,
-                Some(TransformTemplateOutputProducedKind::CemTree),
+                Some(TransformTemplateOutputProducedKind::Text),
             );
-        colored_context.formatter_profile = colored_artifact
+        writer_context.formatter_profile = writer_artifact
             .identity
             .formatter_profile
             .clone()
             .or_else(|| Some(formatter_profile.clone()));
-        colored_context.color_profile = Some(color_profile.to_owned());
-        colored_context.mode = Some(TransformTemplateEncodedArtifactMode::Document);
-        colored_context.source_map_policy = Some(TransformTemplateSourceMapPolicy::Generated);
-        if let Err(error) = colored_artifact.validate_insertion(&colored_context) {
-            return json_output_pipeline_failed_with_timings(
-                diagnostic_uri,
-                error.diagnostic(diagnostic_uri).message,
-                format_elapsed_ns,
-                color_elapsed_ns,
-                None,
-            );
-        }
-        (
-            colored_artifact.clone(),
-            Some(color_execution),
-            Some(colored_artifact),
-        )
-    } else {
-        (formatted_artifact.clone(), None, None)
-    };
-
-    let wrap_html_output = output_color_selection
-        .as_ref()
-        .is_some_and(json_output_color_selection_is_html)
-        || writer_artifact.identity.color_profile.as_deref() == Some("html");
-    let mut writer_context = TransformTemplateEncodedArtifactInsertionContext::from_encoding_target(
-        &target,
-        Some(TransformTemplateOutputProducedKind::Text),
-    );
-    writer_context.formatter_profile = writer_artifact
-        .identity
-        .formatter_profile
-        .clone()
-        .or_else(|| Some(formatter_profile.clone()));
-    writer_context.color_profile = writer_artifact.identity.color_profile.clone();
-    writer_context.output_color_type = output_color_selection
-        .as_ref()
-        .map(|selection| selection.output_color_type.clone());
-    if output_color_selection
-        .as_ref()
-        .is_some_and(json_output_color_selection_is_terminal)
-    {
-        writer_context.color_capability = output_color_selection
+        writer_context.color_profile = writer_artifact.identity.color_profile.clone();
+        writer_context.output_color_type = output_color_selection
             .as_ref()
             .map(|selection| selection.output_color_type.clone());
-    }
-    writer_context.mode = Some(TransformTemplateEncodedArtifactMode::Document);
-    writer_context.source_map_policy = Some(TransformTemplateSourceMapPolicy::Generated);
-    let evaluated = TransformTemplateEvaluatedEncodeExpression {
-        expression: TransformTemplateEncodeExpression {
-            owner: Some("json-direct-output".to_owned()),
-            expression: "json-direct-output writer".to_owned(),
-            subject: "json-document".to_owned(),
-            subject_type: Some("cem-tree".to_owned()),
-            target,
-            options: TransformTemplateEncodeOptions::default(),
-        },
-        subject: writer_artifact
-            .value
-            .to_cemt_runtime_value()
-            .expect("writer input is a CEMT evaluator tree"),
-        binding: TransformTemplateEncodeBinding {
-            function: json_output_function_descriptor(
-                if color_execution.is_some() {
-                    JSON_COLOR_CEMT_STAGE_SPEC.function_name
-                } else {
-                    JSON_FORMAT_CEMT_STAGE_SPEC.function_name
-                },
-                "json-document",
-                if color_execution.is_some() {
-                    "cem-tree"
-                } else {
-                    "json-document"
-                },
-                if color_execution.is_some() {
-                    TransformTemplateOutputFunctionKind::Color
-                } else {
-                    TransformTemplateOutputFunctionKind::Format
-                },
-                TransformTemplateOutputProducedKind::CemTree,
-                writer_artifact
-                    .identity
-                    .color_profile
-                    .clone()
-                    .or_else(|| writer_artifact.identity.formatter_profile.clone())
-                    .or_else(|| Some(formatter_profile.clone())),
-            ),
-            subject_type: "cem-tree".to_owned(),
-            identity: writer_artifact.identity.clone(),
-            options: TransformTemplateEncodeOptions::default(),
-        },
-        artifact: writer_artifact,
-    };
-    let writer_started = Instant::now();
-    let mut composition = compose_transform_template_encoded_text_artifacts(
-        &[evaluated],
-        &writer_context,
-        diagnostic_uri,
-    );
-    let writer_elapsed_ns = Some(writer_started.elapsed().as_nanos());
-    if !composition.diagnostics.is_empty() {
-        return ConversionOutputPipelineExecution {
-            output: None,
-            diagnostics: std::mem::take(&mut composition.diagnostics),
-            format_execution,
-            color_execution,
-            format_elapsed_ns,
-            color_elapsed_ns,
-            writer_elapsed_ns,
-            formatted_cem_tree: Some(formatted_artifact),
-            colored_cem_tree,
-            ..ConversionOutputPipelineExecution::default()
-        };
-    }
-    match composition.artifact {
-        Some(mut artifact) => {
-            if wrap_html_output {
-                json_wrap_html_preview_artifact(&mut artifact, presentation_options.tab_size);
-            }
-            ConversionOutputPipelineExecution {
-                output: Some(
-                    artifact
-                        .value
-                        .into_public_value()
-                        .expect("composed writer artifact projects to the public response"),
+        if output_color_selection
+            .as_ref()
+            .is_some_and(json_output_color_selection_is_terminal)
+        {
+            writer_context.color_capability = output_color_selection
+                .as_ref()
+                .map(|selection| selection.output_color_type.clone());
+        }
+        writer_context.mode = Some(TransformTemplateEncodedArtifactMode::Document);
+        writer_context.source_map_policy = Some(TransformTemplateSourceMapPolicy::Generated);
+        let evaluated = TransformTemplateEvaluatedEncodeExpression {
+            expression: TransformTemplateEncodeExpression {
+                owner: Some("json-direct-output".to_owned()),
+                expression: "json-direct-output writer".to_owned(),
+                subject: "json-document".to_owned(),
+                subject_type: Some("cem-tree".to_owned()),
+                target,
+                options: TransformTemplateEncodeOptions::default(),
+            },
+            subject: writer_artifact
+                .value
+                .as_public_json_value()
+                .cloned()
+                .expect("writer input is a CEMT evaluator tree"),
+            binding: TransformTemplateEncodeBinding {
+                function: json_output_function_descriptor(
+                    if color_execution.is_some() {
+                        JSON_COLOR_CEMT_STAGE_SPEC.function_name
+                    } else {
+                        JSON_FORMAT_CEMT_STAGE_SPEC.function_name
+                    },
+                    "json-document",
+                    if color_execution.is_some() {
+                        "cem-tree"
+                    } else {
+                        "json-document"
+                    },
+                    if color_execution.is_some() {
+                        TransformTemplateOutputFunctionKind::Color
+                    } else {
+                        TransformTemplateOutputFunctionKind::Format
+                    },
+                    TransformTemplateOutputProducedKind::CemTree,
+                    writer_artifact
+                        .identity
+                        .color_profile
+                        .clone()
+                        .or_else(|| writer_artifact.identity.formatter_profile.clone())
+                        .or_else(|| Some(formatter_profile.clone())),
                 ),
-                raw_cem_tree: None,
-                formatted_cemt_tree: None,
-                colored_cemt_tree: None,
-                formatted_materialized_cemt_tree: None,
-                colored_materialized_cemt_tree: None,
-                materialized_cemt_stage_output: None,
-                source_map: artifact.source_map,
-                output_spans: artifact.output_spans,
+                subject_type: "cem-tree".to_owned(),
+                identity: writer_artifact.identity.clone(),
+                options: TransformTemplateEncodeOptions::default(),
+            },
+            artifact: writer_artifact,
+        };
+        let writer_started = Instant::now();
+        let mut composition = compose_transform_template_encoded_text_artifacts(
+            &[evaluated],
+            &writer_context,
+            diagnostic_uri,
+        );
+        let writer_elapsed_ns = Some(writer_started.elapsed().as_nanos());
+        if !composition.diagnostics.is_empty() {
+            return ConversionOutputPipelineExecution {
+                output: None,
+                diagnostics: std::mem::take(&mut composition.diagnostics),
                 format_execution,
                 color_execution,
                 format_elapsed_ns,
@@ -9364,20 +9073,51 @@ pub fn execute_json_document_output_pipeline_with_environment(
                 writer_elapsed_ns,
                 formatted_cem_tree: Some(formatted_artifact),
                 colored_cem_tree,
-                diagnostics: Vec::new(),
-            }
+                ..ConversionOutputPipelineExecution::default()
+            };
         }
-        None => ConversionOutputPipelineExecution {
-            output: None,
-            format_execution,
-            color_execution,
-            format_elapsed_ns,
-            color_elapsed_ns,
-            writer_elapsed_ns,
-            formatted_cem_tree: Some(formatted_artifact),
-            colored_cem_tree,
-            ..ConversionOutputPipelineExecution::default()
-        },
+        match composition.artifact {
+            Some(mut artifact) => {
+                if wrap_html_output {
+                    json_wrap_html_preview_artifact(&mut artifact, presentation_options.tab_size);
+                }
+                ConversionOutputPipelineExecution {
+                    output: Some(
+                        artifact
+                            .value
+                            .into_public_value()
+                            .expect("composed writer artifact projects to the public response"),
+                    ),
+                    raw_cem_tree: None,
+                    formatted_cemt_tree: None,
+                    colored_cemt_tree: None,
+                    formatted_materialized_cemt_tree: None,
+                    colored_materialized_cemt_tree: None,
+                    materialized_cemt_stage_output: None,
+                    source_map: artifact.source_map,
+                    output_spans: artifact.output_spans,
+                    format_execution,
+                    color_execution,
+                    format_elapsed_ns,
+                    color_elapsed_ns,
+                    writer_elapsed_ns,
+                    formatted_cem_tree: Some(formatted_artifact),
+                    colored_cem_tree,
+                    diagnostics: Vec::new(),
+                }
+            }
+            None => ConversionOutputPipelineExecution {
+                output: None,
+                format_execution,
+                color_execution,
+                format_elapsed_ns,
+                color_elapsed_ns,
+                writer_elapsed_ns,
+                formatted_cem_tree: Some(formatted_artifact),
+                colored_cem_tree,
+                ..ConversionOutputPipelineExecution::default()
+            },
+        }
     }
 }
 
@@ -9617,7 +9357,7 @@ fn execute_native_json_document_output_pipeline(
     let writer_started = Instant::now();
     let writer_result = execute_transform_template_materialized_cemt_writer(
         TransformTemplateMaterializedCemtWriterRequest {
-            binding: &writer_binding,
+            identity: &writer_binding.identity,
             artifact: writer_artifact,
             insertion_context: &writer_context,
         },
@@ -10164,7 +9904,14 @@ fn optional_typed_cemt_source_map(
         None | Some(CemtEvaluatorValue::Null) => Ok(None),
         Some(value) if value.kind() == CemtEvaluatorValueKind::Null => Ok(None),
         Some(value) => value.as_source_map().cloned().map(Some).ok_or_else(|| {
-            format!("materialized writer token {index} field `{field}` must be a source map")
+            let fields = value
+                .record_field_names("source-map diagnostic")
+                .map(|fields| format!(" with fields {fields:?}"))
+                .unwrap_or_default();
+            format!(
+                "materialized writer token {index} field `{field}` must be a source map, got {}{fields}",
+                value.kind().as_str()
+            )
         }),
     }
 }
@@ -10299,7 +10046,7 @@ fn materialized_cemt_public_projection(
     }
     TransformTemplateEncodedArtifact {
         identity: identity.clone(),
-        value: TransformTemplateEncodedArtifactPayload::CemtRuntime(tree),
+        value: TransformTemplateEncodedArtifactPayload::PublicJson(tree),
         source_map: artifact.source_map().cloned(),
         output_spans: artifact.output_spans().to_vec(),
         encoded: true,
@@ -10617,7 +10364,7 @@ fn execute_native_json_schema_document_output_pipeline(
     let writer_started = Instant::now();
     let writer_result = execute_transform_template_materialized_cemt_writer(
         TransformTemplateMaterializedCemtWriterRequest {
-            binding: &writer_binding,
+            identity: &writer_binding.identity,
             artifact: writer_artifact,
             insertion_context: &writer_context,
         },
@@ -10774,7 +10521,10 @@ fn execute_test_compatibility_json_schema_document_output_pipeline_with_environm
         }
     };
     let format_execution = Some(format_execution);
-    let formatted_artifact = format_binding.artifact_from_cemt_value(formatted_output);
+    let formatted_artifact = TransformTemplateEncodedArtifact::from_public_json(
+        format_binding.identity.clone(),
+        formatted_output,
+    );
     let mut formatted_context =
         TransformTemplateEncodedArtifactInsertionContext::from_encoding_target(
             &target,
@@ -10847,7 +10597,7 @@ fn execute_test_compatibility_json_schema_document_output_pipeline_with_environm
             Some(colorizer_name),
             formatted_artifact
                 .value
-                .as_cemt_runtime_value()
+                .as_public_json_value()
                 .expect("formatted CEM tree has a runtime payload"),
             "cem-tree",
             color_options,
@@ -10862,7 +10612,7 @@ fn execute_test_compatibility_json_schema_document_output_pipeline_with_environm
             &color_binding,
             formatted_artifact
                 .value
-                .as_cemt_runtime_value()
+                .as_public_json_value()
                 .expect("formatted CEM tree has a runtime payload"),
         );
         color_elapsed_ns = Some(color_started.elapsed().as_nanos());
@@ -10881,7 +10631,10 @@ fn execute_test_compatibility_json_schema_document_output_pipeline_with_environm
                 );
             }
         };
-        let colored_artifact = color_binding.artifact_from_cemt_value(colored_output);
+        let colored_artifact = TransformTemplateEncodedArtifact::from_public_json(
+            color_binding.identity.clone(),
+            colored_output,
+        );
         let mut colored_context =
             TransformTemplateEncodedArtifactInsertionContext::from_encoding_target(
                 &target,
@@ -10951,7 +10704,8 @@ fn execute_test_compatibility_json_schema_document_output_pipeline_with_environm
         },
         subject: writer_artifact
             .value
-            .to_cemt_runtime_value()
+            .as_public_json_value()
+            .cloned()
             .expect("writer input is a CEMT evaluator tree"),
         binding: TransformTemplateEncodeBinding {
             function: json_schema_output_function_descriptor(
@@ -11505,8 +11259,8 @@ impl MarkdownDocumentOutputSubject for Value {
         "cem.test-markdown-value-oracle"
     }
 
-    fn into_test_compatibility_cemt_subject(self) -> Option<Value> {
-        Some(self)
+    fn native_cemt_subject(&self) -> Option<CemtEvaluatorValue<'_>> {
+        cemt_typed_runtime_value_from_adapter(self).ok()
     }
 }
 
@@ -11563,316 +11317,302 @@ pub fn execute_markdown_document_output_pipeline_with_environment(
             input_representation_id,
         );
     }
-    let Some(document_subject) = document.into_test_compatibility_cemt_subject() else {
-        return markdown_output_pipeline_failed(
-            diagnostic_uri,
-            "Markdown output subject does not expose a native evaluator view".to_owned(),
-        );
-    };
-    let target = TransformTemplateEncodingTarget::new(
-        MARKDOWN_CONTENT_TYPE,
-        MARKDOWN_SCHEMA_URI,
-        "markdown-document",
+    #[cfg(not(test))]
+    return markdown_output_pipeline_failed(
+        diagnostic_uri,
+        "Markdown output subject does not expose a native evaluator view".to_owned(),
     );
-    let format_options = TransformTemplateEncodeOptions {
-        formatter: Some(formatter_name.clone()),
-        formatter_profile: Some(formatter_profile.clone()),
-        formatter_options: target_scope.cemt_formatter_options.clone(),
-        line_ending: line_ending.clone(),
-        mode: TransformTemplateEncodedArtifactMode::Document,
-        canonical: formatter_profile == "compact",
-        source_map_policy: TransformTemplateSourceMapPolicy::Generated,
-        ..TransformTemplateEncodeOptions::default()
-    };
-    let (format_stage, format_binding) = match resolve_cemt_output_stage_binding(
-        environment,
-        "Markdown",
-        MARKDOWN_FORMAT_CEMT_STAGE_SPEC,
-        &target,
-        Some(formatter_profile.as_str()),
-        Some(formatter_name.as_str()),
-        &document_subject,
-        "markdown-document",
-        format_options,
-    ) {
-        Ok(resolved) => resolved,
-        Err(message) => return markdown_output_pipeline_failed(diagnostic_uri, message),
-    };
-    let format_started = Instant::now();
-    let format_result = execute_conversion_cem_tree_output_stage(
-        environment,
-        format_stage,
-        &format_binding,
-        &document_subject,
-    );
-    let format_elapsed_ns = Some(format_started.elapsed().as_nanos());
-    let (formatted_output, format_execution) = match format_result {
-        Ok(output) => output,
-        Err(message) => {
-            return markdown_output_pipeline_failed_with_timings(
+    #[cfg(test)]
+    {
+        let Some(document_subject) = document.into_test_compatibility_cemt_subject() else {
+            return markdown_output_pipeline_failed(
                 diagnostic_uri,
-                format!(
-                    "CEMT formatter `{}` failed: {message}",
-                    format_binding.function.name
-                ),
-                format_elapsed_ns,
-                None,
-                None,
+                "Markdown output subject does not expose a native evaluator view".to_owned(),
             );
-        }
-    };
-    let format_execution = Some(format_execution);
-    let formatted_artifact = format_binding.artifact_from_cemt_value(formatted_output);
-    let mut formatted_context =
-        TransformTemplateEncodedArtifactInsertionContext::from_encoding_target(
-            &target,
-            Some(TransformTemplateOutputProducedKind::CemTree),
-        );
-    formatted_context.formatter_profile = formatted_artifact
-        .identity
-        .formatter_profile
-        .clone()
-        .or_else(|| Some(formatter_profile.clone()));
-    formatted_context.mode = Some(TransformTemplateEncodedArtifactMode::Document);
-    formatted_context.canonical = Some(formatter_profile == "compact");
-    formatted_context.source_map_policy = Some(TransformTemplateSourceMapPolicy::Generated);
-    if let Err(error) = formatted_artifact.validate_insertion(&formatted_context) {
-        return markdown_output_pipeline_failed_with_timings(
-            diagnostic_uri,
-            error.diagnostic(diagnostic_uri).message,
-            format_elapsed_ns,
-            None,
-            None,
-        );
-    }
-
-    let cemt_color_profile =
-        match markdown_cemt_color_profile_for_output(target_scope, output_color_selection.as_ref())
-        {
-            Ok(profile) => profile,
-            Err(message) => return markdown_output_pipeline_failed(diagnostic_uri, message),
         };
-    let wants_color = target_scope
-        .cemt_colorizer
-        .as_deref()
-        .map(str::trim)
-        .is_some_and(|name| !name.is_empty())
-        || cemt_color_profile.is_some()
-        || output_color_selection
-            .as_ref()
-            .is_some_and(markdown_output_color_selection_requests_color);
-    let mut color_elapsed_ns = None;
-    let (writer_artifact, color_execution, colored_cem_tree) = if wants_color {
-        let colorizer_name = target_scope
-            .cemt_colorizer
-            .as_deref()
-            .map(str::trim)
-            .filter(|name| !name.is_empty())
-            .unwrap_or(MARKDOWN_COLOR_CEMT_STAGE_SPEC.function_name);
-        let color_profile = cemt_color_profile.as_deref().unwrap_or("terminal");
-        let color_options = TransformTemplateEncodeOptions {
+        let target = TransformTemplateEncodingTarget::new(
+            MARKDOWN_CONTENT_TYPE,
+            MARKDOWN_SCHEMA_URI,
+            "markdown-document",
+        );
+        let format_options = TransformTemplateEncodeOptions {
+            formatter: Some(formatter_name.clone()),
+            formatter_profile: Some(formatter_profile.clone()),
             formatter_options: target_scope.cemt_formatter_options.clone(),
-            formatter_profile: formatted_artifact
-                .identity
-                .formatter_profile
-                .clone()
-                .or_else(|| Some(formatter_profile.clone())),
-            colorizer: Some(colorizer_name.to_owned()),
-            color_profile: Some(color_profile.to_owned()),
             line_ending: line_ending.clone(),
             mode: TransformTemplateEncodedArtifactMode::Document,
-            canonical: false,
+            canonical: formatter_profile == "compact",
             source_map_policy: TransformTemplateSourceMapPolicy::Generated,
             ..TransformTemplateEncodeOptions::default()
         };
-        let (color_stage, color_binding) = match resolve_cemt_output_stage_binding(
+        let (format_stage, format_binding) = match resolve_cemt_output_stage_binding(
             environment,
             "Markdown",
-            MARKDOWN_COLOR_CEMT_STAGE_SPEC,
+            MARKDOWN_FORMAT_CEMT_STAGE_SPEC,
             &target,
-            Some(color_profile),
-            Some(colorizer_name),
-            formatted_artifact
-                .value
-                .as_cemt_runtime_value()
-                .expect("formatted CEM tree has a runtime payload"),
-            "cem-tree",
-            color_options,
+            Some(formatter_profile.as_str()),
+            Some(formatter_name.as_str()),
+            &document_subject,
+            "markdown-document",
+            format_options,
         ) {
             Ok(resolved) => resolved,
             Err(message) => return markdown_output_pipeline_failed(diagnostic_uri, message),
         };
-        let color_started = Instant::now();
-        let color_result = execute_conversion_cem_tree_output_stage(
+        let format_started = Instant::now();
+        let format_result = execute_conversion_cem_tree_output_stage(
             environment,
-            color_stage,
-            &color_binding,
-            formatted_artifact
-                .value
-                .as_cemt_runtime_value()
-                .expect("formatted CEM tree has a runtime payload"),
+            format_stage,
+            &format_binding,
+            &document_subject,
         );
-        color_elapsed_ns = Some(color_started.elapsed().as_nanos());
-        let (colored_output, color_execution) = match color_result {
+        let format_elapsed_ns = Some(format_started.elapsed().as_nanos());
+        let (formatted_output, format_execution) = match format_result {
             Ok(output) => output,
             Err(message) => {
                 return markdown_output_pipeline_failed_with_timings(
                     diagnostic_uri,
                     format!(
-                        "CEMT colorizer `{}` failed: {message}",
-                        color_binding.function.name
+                        "CEMT formatter `{}` failed: {message}",
+                        format_binding.function.name
                     ),
+                    format_elapsed_ns,
+                    None,
+                    None,
+                );
+            }
+        };
+        let format_execution = Some(format_execution);
+        let formatted_artifact = TransformTemplateEncodedArtifact::from_public_json(
+            format_binding.identity.clone(),
+            formatted_output,
+        );
+        let mut formatted_context =
+            TransformTemplateEncodedArtifactInsertionContext::from_encoding_target(
+                &target,
+                Some(TransformTemplateOutputProducedKind::CemTree),
+            );
+        formatted_context.formatter_profile = formatted_artifact
+            .identity
+            .formatter_profile
+            .clone()
+            .or_else(|| Some(formatter_profile.clone()));
+        formatted_context.mode = Some(TransformTemplateEncodedArtifactMode::Document);
+        formatted_context.canonical = Some(formatter_profile == "compact");
+        formatted_context.source_map_policy = Some(TransformTemplateSourceMapPolicy::Generated);
+        if let Err(error) = formatted_artifact.validate_insertion(&formatted_context) {
+            return markdown_output_pipeline_failed_with_timings(
+                diagnostic_uri,
+                error.diagnostic(diagnostic_uri).message,
+                format_elapsed_ns,
+                None,
+                None,
+            );
+        }
+
+        let cemt_color_profile = match markdown_cemt_color_profile_for_output(
+            target_scope,
+            output_color_selection.as_ref(),
+        ) {
+            Ok(profile) => profile,
+            Err(message) => return markdown_output_pipeline_failed(diagnostic_uri, message),
+        };
+        let wants_color = target_scope
+            .cemt_colorizer
+            .as_deref()
+            .map(str::trim)
+            .is_some_and(|name| !name.is_empty())
+            || cemt_color_profile.is_some()
+            || output_color_selection
+                .as_ref()
+                .is_some_and(markdown_output_color_selection_requests_color);
+        let mut color_elapsed_ns = None;
+        let (writer_artifact, color_execution, colored_cem_tree) = if wants_color {
+            let colorizer_name = target_scope
+                .cemt_colorizer
+                .as_deref()
+                .map(str::trim)
+                .filter(|name| !name.is_empty())
+                .unwrap_or(MARKDOWN_COLOR_CEMT_STAGE_SPEC.function_name);
+            let color_profile = cemt_color_profile.as_deref().unwrap_or("terminal");
+            let color_options = TransformTemplateEncodeOptions {
+                formatter_options: target_scope.cemt_formatter_options.clone(),
+                formatter_profile: formatted_artifact
+                    .identity
+                    .formatter_profile
+                    .clone()
+                    .or_else(|| Some(formatter_profile.clone())),
+                colorizer: Some(colorizer_name.to_owned()),
+                color_profile: Some(color_profile.to_owned()),
+                line_ending: line_ending.clone(),
+                mode: TransformTemplateEncodedArtifactMode::Document,
+                canonical: false,
+                source_map_policy: TransformTemplateSourceMapPolicy::Generated,
+                ..TransformTemplateEncodeOptions::default()
+            };
+            let (color_stage, color_binding) = match resolve_cemt_output_stage_binding(
+                environment,
+                "Markdown",
+                MARKDOWN_COLOR_CEMT_STAGE_SPEC,
+                &target,
+                Some(color_profile),
+                Some(colorizer_name),
+                formatted_artifact
+                    .value
+                    .as_public_json_value()
+                    .expect("formatted CEM tree has a runtime payload"),
+                "cem-tree",
+                color_options,
+            ) {
+                Ok(resolved) => resolved,
+                Err(message) => return markdown_output_pipeline_failed(diagnostic_uri, message),
+            };
+            let color_started = Instant::now();
+            let color_result = execute_conversion_cem_tree_output_stage(
+                environment,
+                color_stage,
+                &color_binding,
+                formatted_artifact
+                    .value
+                    .as_public_json_value()
+                    .expect("formatted CEM tree has a runtime payload"),
+            );
+            color_elapsed_ns = Some(color_started.elapsed().as_nanos());
+            let (colored_output, color_execution) = match color_result {
+                Ok(output) => output,
+                Err(message) => {
+                    return markdown_output_pipeline_failed_with_timings(
+                        diagnostic_uri,
+                        format!(
+                            "CEMT colorizer `{}` failed: {message}",
+                            color_binding.function.name
+                        ),
+                        format_elapsed_ns,
+                        color_elapsed_ns,
+                        None,
+                    );
+                }
+            };
+            let colored_artifact = TransformTemplateEncodedArtifact::from_public_json(
+                color_binding.identity.clone(),
+                colored_output,
+            );
+            let mut colored_context =
+                TransformTemplateEncodedArtifactInsertionContext::from_encoding_target(
+                    &target,
+                    Some(TransformTemplateOutputProducedKind::CemTree),
+                );
+            colored_context.formatter_profile = colored_artifact
+                .identity
+                .formatter_profile
+                .clone()
+                .or_else(|| Some(formatter_profile.clone()));
+            colored_context.color_profile = Some(color_profile.to_owned());
+            colored_context.mode = Some(TransformTemplateEncodedArtifactMode::Document);
+            colored_context.source_map_policy = Some(TransformTemplateSourceMapPolicy::Generated);
+            if let Err(error) = colored_artifact.validate_insertion(&colored_context) {
+                return markdown_output_pipeline_failed_with_timings(
+                    diagnostic_uri,
+                    error.diagnostic(diagnostic_uri).message,
                     format_elapsed_ns,
                     color_elapsed_ns,
                     None,
                 );
             }
+            (
+                colored_artifact.clone(),
+                Some(color_execution),
+                Some(colored_artifact),
+            )
+        } else {
+            (formatted_artifact.clone(), None, None)
         };
-        let colored_artifact = color_binding.artifact_from_cemt_value(colored_output);
-        let mut colored_context =
+
+        let wrap_html_output = output_color_selection
+            .as_ref()
+            .is_some_and(markdown_output_color_selection_is_html)
+            || writer_artifact.identity.color_profile.as_deref() == Some("html");
+        let mut writer_context =
             TransformTemplateEncodedArtifactInsertionContext::from_encoding_target(
                 &target,
-                Some(TransformTemplateOutputProducedKind::CemTree),
+                Some(TransformTemplateOutputProducedKind::Text),
             );
-        colored_context.formatter_profile = colored_artifact
+        writer_context.formatter_profile = writer_artifact
             .identity
             .formatter_profile
             .clone()
             .or_else(|| Some(formatter_profile.clone()));
-        colored_context.color_profile = Some(color_profile.to_owned());
-        colored_context.mode = Some(TransformTemplateEncodedArtifactMode::Document);
-        colored_context.source_map_policy = Some(TransformTemplateSourceMapPolicy::Generated);
-        if let Err(error) = colored_artifact.validate_insertion(&colored_context) {
-            return markdown_output_pipeline_failed_with_timings(
-                diagnostic_uri,
-                error.diagnostic(diagnostic_uri).message,
-                format_elapsed_ns,
-                color_elapsed_ns,
-                None,
-            );
-        }
-        (
-            colored_artifact.clone(),
-            Some(color_execution),
-            Some(colored_artifact),
-        )
-    } else {
-        (formatted_artifact.clone(), None, None)
-    };
-
-    let wrap_html_output = output_color_selection
-        .as_ref()
-        .is_some_and(markdown_output_color_selection_is_html)
-        || writer_artifact.identity.color_profile.as_deref() == Some("html");
-    let mut writer_context = TransformTemplateEncodedArtifactInsertionContext::from_encoding_target(
-        &target,
-        Some(TransformTemplateOutputProducedKind::Text),
-    );
-    writer_context.formatter_profile = writer_artifact
-        .identity
-        .formatter_profile
-        .clone()
-        .or_else(|| Some(formatter_profile.clone()));
-    writer_context.color_profile = writer_artifact.identity.color_profile.clone();
-    writer_context.output_color_type = output_color_selection
-        .as_ref()
-        .map(|selection| selection.output_color_type.clone());
-    if output_color_selection
-        .as_ref()
-        .is_some_and(markdown_output_color_selection_is_terminal)
-    {
-        writer_context.color_capability = output_color_selection
+        writer_context.color_profile = writer_artifact.identity.color_profile.clone();
+        writer_context.output_color_type = output_color_selection
             .as_ref()
             .map(|selection| selection.output_color_type.clone());
-    }
-    writer_context.mode = Some(TransformTemplateEncodedArtifactMode::Document);
-    writer_context.source_map_policy = Some(TransformTemplateSourceMapPolicy::Generated);
-    let evaluated = TransformTemplateEvaluatedEncodeExpression {
-        expression: TransformTemplateEncodeExpression {
-            owner: Some("markdown-direct-output".to_owned()),
-            expression: "markdown-direct-output writer".to_owned(),
-            subject: "markdown-document".to_owned(),
-            subject_type: Some("cem-tree".to_owned()),
-            target,
-            options: TransformTemplateEncodeOptions::default(),
-        },
-        subject: writer_artifact
-            .value
-            .to_cemt_runtime_value()
-            .expect("writer input is a CEMT evaluator tree"),
-        binding: TransformTemplateEncodeBinding {
-            function: markdown_output_function_descriptor(
-                if color_execution.is_some() {
-                    MARKDOWN_COLOR_CEMT_STAGE_SPEC.function_name
-                } else {
-                    MARKDOWN_FORMAT_CEMT_STAGE_SPEC.function_name
-                },
-                "markdown-document",
-                if color_execution.is_some() {
-                    "cem-tree"
-                } else {
-                    "markdown-document"
-                },
-                if color_execution.is_some() {
-                    TransformTemplateOutputFunctionKind::Color
-                } else {
-                    TransformTemplateOutputFunctionKind::Format
-                },
-                TransformTemplateOutputProducedKind::CemTree,
-                writer_artifact
-                    .identity
-                    .color_profile
-                    .clone()
-                    .or_else(|| writer_artifact.identity.formatter_profile.clone())
-                    .or_else(|| Some(formatter_profile.clone())),
-            ),
-            subject_type: "cem-tree".to_owned(),
-            identity: writer_artifact.identity.clone(),
-            options: TransformTemplateEncodeOptions::default(),
-        },
-        artifact: writer_artifact,
-    };
-    let writer_started = Instant::now();
-    let mut composition = compose_transform_template_encoded_text_artifacts(
-        &[evaluated],
-        &writer_context,
-        diagnostic_uri,
-    );
-    let writer_elapsed_ns = Some(writer_started.elapsed().as_nanos());
-    if !composition.diagnostics.is_empty() {
-        return ConversionOutputPipelineExecution {
-            output: None,
-            diagnostics: std::mem::take(&mut composition.diagnostics),
-            format_execution,
-            color_execution,
-            format_elapsed_ns,
-            color_elapsed_ns,
-            writer_elapsed_ns,
-            formatted_cem_tree: Some(formatted_artifact),
-            colored_cem_tree,
-            ..ConversionOutputPipelineExecution::default()
-        };
-    }
-    match composition.artifact {
-        Some(mut artifact) => {
-            if wrap_html_output {
-                markdown_wrap_html_preview_artifact(&mut artifact, presentation_options.tab_size);
-            }
-            ConversionOutputPipelineExecution {
-                output: Some(
-                    artifact
-                        .value
-                        .into_public_value()
-                        .expect("composed writer artifact projects to the public response"),
+        if output_color_selection
+            .as_ref()
+            .is_some_and(markdown_output_color_selection_is_terminal)
+        {
+            writer_context.color_capability = output_color_selection
+                .as_ref()
+                .map(|selection| selection.output_color_type.clone());
+        }
+        writer_context.mode = Some(TransformTemplateEncodedArtifactMode::Document);
+        writer_context.source_map_policy = Some(TransformTemplateSourceMapPolicy::Generated);
+        let evaluated = TransformTemplateEvaluatedEncodeExpression {
+            expression: TransformTemplateEncodeExpression {
+                owner: Some("markdown-direct-output".to_owned()),
+                expression: "markdown-direct-output writer".to_owned(),
+                subject: "markdown-document".to_owned(),
+                subject_type: Some("cem-tree".to_owned()),
+                target,
+                options: TransformTemplateEncodeOptions::default(),
+            },
+            subject: writer_artifact
+                .value
+                .as_public_json_value()
+                .cloned()
+                .expect("writer input is a CEMT evaluator tree"),
+            binding: TransformTemplateEncodeBinding {
+                function: markdown_output_function_descriptor(
+                    if color_execution.is_some() {
+                        MARKDOWN_COLOR_CEMT_STAGE_SPEC.function_name
+                    } else {
+                        MARKDOWN_FORMAT_CEMT_STAGE_SPEC.function_name
+                    },
+                    "markdown-document",
+                    if color_execution.is_some() {
+                        "cem-tree"
+                    } else {
+                        "markdown-document"
+                    },
+                    if color_execution.is_some() {
+                        TransformTemplateOutputFunctionKind::Color
+                    } else {
+                        TransformTemplateOutputFunctionKind::Format
+                    },
+                    TransformTemplateOutputProducedKind::CemTree,
+                    writer_artifact
+                        .identity
+                        .color_profile
+                        .clone()
+                        .or_else(|| writer_artifact.identity.formatter_profile.clone())
+                        .or_else(|| Some(formatter_profile.clone())),
                 ),
-                raw_cem_tree: None,
-                formatted_cemt_tree: None,
-                colored_cemt_tree: None,
-                formatted_materialized_cemt_tree: None,
-                colored_materialized_cemt_tree: None,
-                materialized_cemt_stage_output: None,
-                source_map: artifact.source_map,
-                output_spans: artifact.output_spans,
+                subject_type: "cem-tree".to_owned(),
+                identity: writer_artifact.identity.clone(),
+                options: TransformTemplateEncodeOptions::default(),
+            },
+            artifact: writer_artifact,
+        };
+        let writer_started = Instant::now();
+        let mut composition = compose_transform_template_encoded_text_artifacts(
+            &[evaluated],
+            &writer_context,
+            diagnostic_uri,
+        );
+        let writer_elapsed_ns = Some(writer_started.elapsed().as_nanos());
+        if !composition.diagnostics.is_empty() {
+            return ConversionOutputPipelineExecution {
+                output: None,
+                diagnostics: std::mem::take(&mut composition.diagnostics),
                 format_execution,
                 color_execution,
                 format_elapsed_ns,
@@ -11880,20 +11620,54 @@ pub fn execute_markdown_document_output_pipeline_with_environment(
                 writer_elapsed_ns,
                 formatted_cem_tree: Some(formatted_artifact),
                 colored_cem_tree,
-                diagnostics: Vec::new(),
-            }
+                ..ConversionOutputPipelineExecution::default()
+            };
         }
-        None => ConversionOutputPipelineExecution {
-            output: None,
-            format_execution,
-            color_execution,
-            format_elapsed_ns,
-            color_elapsed_ns,
-            writer_elapsed_ns,
-            formatted_cem_tree: Some(formatted_artifact),
-            colored_cem_tree,
-            ..ConversionOutputPipelineExecution::default()
-        },
+        match composition.artifact {
+            Some(mut artifact) => {
+                if wrap_html_output {
+                    markdown_wrap_html_preview_artifact(
+                        &mut artifact,
+                        presentation_options.tab_size,
+                    );
+                }
+                ConversionOutputPipelineExecution {
+                    output: Some(
+                        artifact
+                            .value
+                            .into_public_value()
+                            .expect("composed writer artifact projects to the public response"),
+                    ),
+                    raw_cem_tree: None,
+                    formatted_cemt_tree: None,
+                    colored_cemt_tree: None,
+                    formatted_materialized_cemt_tree: None,
+                    colored_materialized_cemt_tree: None,
+                    materialized_cemt_stage_output: None,
+                    source_map: artifact.source_map,
+                    output_spans: artifact.output_spans,
+                    format_execution,
+                    color_execution,
+                    format_elapsed_ns,
+                    color_elapsed_ns,
+                    writer_elapsed_ns,
+                    formatted_cem_tree: Some(formatted_artifact),
+                    colored_cem_tree,
+                    diagnostics: Vec::new(),
+                }
+            }
+            None => ConversionOutputPipelineExecution {
+                output: None,
+                format_execution,
+                color_execution,
+                format_elapsed_ns,
+                color_elapsed_ns,
+                writer_elapsed_ns,
+                formatted_cem_tree: Some(formatted_artifact),
+                colored_cem_tree,
+                ..ConversionOutputPipelineExecution::default()
+            },
+        }
     }
 }
 
@@ -12153,7 +11927,7 @@ fn execute_native_markdown_document_output_pipeline(
     let writer_started = Instant::now();
     let writer_result = execute_transform_template_materialized_cemt_writer(
         TransformTemplateMaterializedCemtWriterRequest {
-            binding: &writer_binding,
+            identity: &writer_binding.identity,
             artifact: writer_artifact,
             insertion_context: &writer_context,
         },
@@ -12574,8 +12348,8 @@ impl XmlDocumentOutputSubject for Value {
         "cem.test-xml-family-value-oracle"
     }
 
-    fn into_test_compatibility_cemt_subject(self) -> Option<Value> {
-        Some(self)
+    fn native_cemt_subject(&self) -> Option<CemtEvaluatorValue<'_>> {
+        cemt_typed_runtime_value_from_adapter(self).ok()
     }
 }
 
@@ -12985,6 +12759,7 @@ fn execute_xml_family_document_output_pipeline_with_environment(
         }
     };
     let environment = &cached_environment;
+    #[cfg(test)]
     let format_options = pipeline.cemt_options.clone();
     if let Some(document_subject) = document.native_cemt_subject() {
         return execute_native_xml_family_document_output_pipeline(
@@ -12999,87 +12774,105 @@ fn execute_xml_family_document_output_pipeline_with_environment(
             input_representation_id,
         );
     }
-    let Some(document_subject) = document.into_test_compatibility_cemt_subject() else {
-        return xml_family_output_pipeline_failed(
-            diagnostic_uri,
-            format!(
-                "{} output subject does not expose a native evaluator view",
-                spec.label
-            ),
-            spec,
-        );
-    };
-    let (format_stage, format_binding) = match resolve_cemt_output_stage_binding(
-        environment,
-        spec.label,
-        spec.formatter,
-        &pipeline.cemt_target,
-        Some(formatter_profile),
-        Some(formatter_name),
-        &document_subject,
-        spec.subject_kind,
-        format_options,
-    ) {
-        Ok(resolved) => resolved,
-        Err(message) => return xml_family_output_pipeline_failed(diagnostic_uri, message, spec),
-    };
-    let resolved_formatter_profile = format_binding
-        .identity
-        .formatter_profile
-        .clone()
-        .unwrap_or_else(|| formatter_profile.to_owned());
-    pipeline.cemt_options.formatter_profile = Some(resolved_formatter_profile.clone());
-    pipeline.cemt_insertion_context.formatter_profile = Some(resolved_formatter_profile.clone());
-    pipeline.writer_insertion_context.formatter_profile = Some(resolved_formatter_profile);
-    let format_started = Instant::now();
-    let format_result = execute_conversion_cem_tree_output_stage(
-        environment,
-        format_stage,
-        &format_binding,
-        &document_subject,
+    #[cfg(not(test))]
+    return xml_family_output_pipeline_failed(
+        diagnostic_uri,
+        format!(
+            "{} output subject does not expose a native evaluator view",
+            spec.label
+        ),
+        spec,
     );
-    let format_elapsed_ns = Some(format_started.elapsed().as_nanos());
-    let (formatted_output, format_execution) = match format_result {
-        Ok(output) => output,
-        Err(message) => {
-            return xml_family_output_pipeline_failed_with_timings(
+    #[cfg(test)]
+    {
+        let Some(document_subject) = document.into_test_compatibility_cemt_subject() else {
+            return xml_family_output_pipeline_failed(
                 diagnostic_uri,
                 format!(
-                    "CEMT formatter `{}` failed: {message}",
-                    format_binding.function.name
+                    "{} output subject does not expose a native evaluator view",
+                    spec.label
                 ),
+                spec,
+            );
+        };
+        let (format_stage, format_binding) = match resolve_cemt_output_stage_binding(
+            environment,
+            spec.label,
+            spec.formatter,
+            &pipeline.cemt_target,
+            Some(formatter_profile),
+            Some(formatter_name),
+            &document_subject,
+            spec.subject_kind,
+            format_options,
+        ) {
+            Ok(resolved) => resolved,
+            Err(message) => {
+                return xml_family_output_pipeline_failed(diagnostic_uri, message, spec)
+            }
+        };
+        let resolved_formatter_profile = format_binding
+            .identity
+            .formatter_profile
+            .clone()
+            .unwrap_or_else(|| formatter_profile.to_owned());
+        pipeline.cemt_options.formatter_profile = Some(resolved_formatter_profile.clone());
+        pipeline.cemt_insertion_context.formatter_profile =
+            Some(resolved_formatter_profile.clone());
+        pipeline.writer_insertion_context.formatter_profile = Some(resolved_formatter_profile);
+        let format_started = Instant::now();
+        let format_result = execute_conversion_cem_tree_output_stage(
+            environment,
+            format_stage,
+            &format_binding,
+            &document_subject,
+        );
+        let format_elapsed_ns = Some(format_started.elapsed().as_nanos());
+        let (formatted_output, format_execution) = match format_result {
+            Ok(output) => output,
+            Err(message) => {
+                return xml_family_output_pipeline_failed_with_timings(
+                    diagnostic_uri,
+                    format!(
+                        "CEMT formatter `{}` failed: {message}",
+                        format_binding.function.name
+                    ),
+                    format_elapsed_ns,
+                    None,
+                    None,
+                    spec,
+                )
+            }
+        };
+        let formatted_artifact = TransformTemplateEncodedArtifact::from_public_json(
+            format_binding.identity.clone(),
+            formatted_output,
+        );
+        if let Err(error) = formatted_artifact
+            .validate_insertion(&conversion_cem_tree_format_insertion_context(&pipeline))
+        {
+            return xml_family_output_pipeline_failed_with_timings(
+                diagnostic_uri,
+                error.diagnostic(diagnostic_uri).message,
                 format_elapsed_ns,
                 None,
                 None,
                 spec,
-            )
+            );
         }
-    };
-    let formatted_artifact = format_binding.artifact_from_cemt_value(formatted_output);
-    if let Err(error) = formatted_artifact
-        .validate_insertion(&conversion_cem_tree_format_insertion_context(&pipeline))
-    {
-        return xml_family_output_pipeline_failed_with_timings(
-            diagnostic_uri,
-            error.diagnostic(diagnostic_uri).message,
+        execute_conversion_output_pipeline_from_formatted_artifact(
+            environment,
+            &pipeline,
+            formatted_artifact,
+            None,
+            Some(format_execution),
             format_elapsed_ns,
-            None,
-            None,
-            spec,
-        );
+            Vec::new(),
+            spec.converter_id,
+            Some(spec.diagnostic_node),
+            diagnostic_uri,
+        )
     }
-    execute_conversion_output_pipeline_from_formatted_artifact(
-        environment,
-        &pipeline,
-        formatted_artifact,
-        None,
-        Some(format_execution),
-        format_elapsed_ns,
-        Vec::new(),
-        spec.converter_id,
-        Some(spec.diagnostic_node),
-        diagnostic_uri,
-    )
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -13293,7 +13086,7 @@ fn execute_native_xml_family_document_output_pipeline(
     let writer_started = Instant::now();
     let writer_result = execute_transform_template_materialized_cemt_writer(
         TransformTemplateMaterializedCemtWriterRequest {
-            binding: &writer_binding,
+            identity: &writer_binding.identity,
             artifact: writer_artifact,
             insertion_context: &pipeline.writer_insertion_context,
         },
@@ -13644,7 +13437,7 @@ fn conversion_output_pipeline_formatted_cem_tree_artifact(
             pipeline.cemt_target.clone(),
             &pipeline.cemt_options,
         ),
-        value: TransformTemplateEncodedArtifactPayload::CemtRuntime(
+        value: TransformTemplateEncodedArtifactPayload::PublicJson(
             conversion_output_pipeline_formatted_cem_tree_value(pipeline, value),
         ),
         source_map,
@@ -13882,6 +13675,7 @@ fn execute_conversion_output_pipeline_from_typed_formatted_artifact(
 ) -> ConversionOutputPipelineExecution {
     let functions = conversion_cem_tree_output_function_registry(environment, pipeline);
     let implementations = TransformTemplateEncodeImplementationRegistry::with_builtin_encoders();
+    let formatted_identity = format_binding.identity.clone();
     let (writer_binding, writer_cemt_tree, color_execution, color_elapsed_ns, colored_cemt_tree) =
         if conversion_output_pipeline_should_skip_color_stage(pipeline) {
             (
@@ -13980,7 +13774,7 @@ fn execute_conversion_output_pipeline_from_typed_formatted_artifact(
     let writer_started = Instant::now();
     let writer_result = execute_transform_template_typed_cem_tree_writer(
         TransformTemplateTypedCemTreeWriterRequest {
-            binding: &writer_binding,
+            identity: &writer_binding.identity,
             artifact: writer_cemt_tree,
             insertion_context: &pipeline.writer_insertion_context,
         },
@@ -14013,6 +13807,10 @@ fn execute_conversion_output_pipeline_from_typed_formatted_artifact(
             };
         }
     };
+    let formatted_public = cemt_tree_public_projection(&formatted_cemt_tree, &formatted_identity);
+    let colored_public = colored_cemt_tree
+        .as_ref()
+        .map(|tree| cemt_tree_public_projection(tree, &writer_binding.identity));
     ConversionOutputPipelineExecution {
         output: Some(
             artifact
@@ -14033,9 +13831,26 @@ fn execute_conversion_output_pipeline_from_typed_formatted_artifact(
         format_elapsed_ns,
         color_elapsed_ns,
         writer_elapsed_ns,
-        formatted_cem_tree: None,
-        colored_cem_tree: None,
+        formatted_cem_tree: Some(formatted_public),
+        colored_cem_tree: colored_public,
         diagnostics,
+    }
+}
+
+fn cemt_tree_public_projection(
+    artifact: &Arc<CemtTreeArtifact>,
+    identity: &TransformTemplateEncodedArtifactIdentity,
+) -> TransformTemplateEncodedArtifact {
+    TransformTemplateEncodedArtifact {
+        identity: identity.clone(),
+        value: TransformTemplateEncodedArtifactPayload::PublicJson(
+            artifact
+                .to_public_json()
+                .expect("typed CEM-tree public projection is infallible"),
+        ),
+        source_map: artifact.source_map().cloned(),
+        output_spans: Vec::new(),
+        encoded: true,
     }
 }
 
@@ -14089,7 +13904,8 @@ fn execute_conversion_output_pipeline_from_formatted_artifact(
         let color_request = TransformTemplateEncodeBindingRequest::new(
             formatted_artifact
                 .value
-                .to_cemt_runtime_value()
+                .as_public_json_value()
+                .cloned()
                 .expect("formatted CEM tree has a CEMT evaluator payload"),
             pipeline.cemt_target.clone(),
         )
@@ -14123,7 +13939,7 @@ fn execute_conversion_output_pipeline_from_formatted_artifact(
             Some(
                 formatted_artifact
                     .value
-                    .as_cemt_runtime_value()
+                    .as_public_json_value()
                     .expect("formatted CEM tree has a runtime payload"),
             ),
             formatted_cemt_tree.as_ref(),
@@ -14173,11 +13989,12 @@ fn execute_conversion_output_pipeline_from_formatted_artifact(
                 ..ConversionOutputPipelineExecution::default()
             };
         };
-        let colored_artifact = color_binding.cemt_artifact_with_metadata(
+        let mut colored_artifact = TransformTemplateEncodedArtifact::from_public_json(
+            color_binding.identity.clone(),
             colored_output,
-            formatted_artifact.source_map.clone(),
-            formatted_artifact.output_spans.clone(),
         );
+        colored_artifact.source_map = formatted_artifact.source_map.clone();
+        colored_artifact.output_spans = formatted_artifact.output_spans.clone();
         if let Err(error) = colored_artifact.validate_insertion(&pipeline.cemt_insertion_context) {
             let mut diagnostic = error.diagnostic(diagnostic_uri);
             diagnostic.node = diagnostic_node.map(str::to_owned);
@@ -14217,7 +14034,8 @@ fn execute_conversion_output_pipeline_from_formatted_artifact(
         },
         subject: writer_artifact
             .value
-            .to_cemt_runtime_value()
+            .as_public_json_value()
+            .cloned()
             .expect("writer input is a CEMT evaluator tree"),
         binding: writer_binding,
         artifact: writer_artifact,
@@ -19155,8 +18973,8 @@ mod tests {
 
     #[test]
     fn dom_projection_cemt_adapter_builds_formatted_cem_tree_envelope() {
-        let tree = conversion_dom_projection_parity_cem_tree_document(
-            &serde_json::json!({
+        let owner = Arc::new(
+            conversion_dom_projection_parity_cem_tree_stream(&serde_json::json!({
                 "children": [{
                     "kind": "element",
                     "name": "article",
@@ -19169,7 +18987,11 @@ mod tests {
                         }
                     ]
                 }]
-            }),
+            }))
+            .expect("DOM JSON boundary parses into a typed stream"),
+        );
+        let tree = conversion_dom_projection_formatted_cem_tree(
+            &owner,
             &ScopeConfig {
                 cemt_formatter_profile: Some("acme.showcase.format-tree".to_owned()),
                 ..ScopeConfig::default()
@@ -19177,33 +18999,31 @@ mod tests {
         )
         .expect("DOM CEMT adapter tree");
 
-        assert_eq!(tree["kind"], "cem-tree");
-        assert_eq!(tree["contentType"], CEM_ML_CONTENT_TYPE);
-        assert_eq!(tree["schema"], CEM_ML_SCHEMA_URI);
-        assert_eq!(tree["category"], "cem-tree");
-        assert_eq!(tree["mode"], "document");
-        assert_eq!(tree["canonical"], true);
-        assert_eq!(tree["formatterProfile"], "acme.showcase.format-tree");
-        assert_eq!(tree["formatNodes"][0]["name"], "cem.format-tree");
-        assert_eq!(tree["formatNodes"][1]["name"], "converter-cemt");
+        assert!(Arc::ptr_eq(tree.owner(), &owner));
+        assert_eq!(tree.stage(), CemtTreeArtifactStage::Formatted);
+        let overlay = tree.formatted_overlay().expect("typed formatter overlay");
+        assert_eq!(overlay.envelope.content_type, CEM_ML_CONTENT_TYPE);
+        assert_eq!(overlay.envelope.schema, CEM_ML_SCHEMA_URI);
+        assert_eq!(overlay.envelope.category, "cem-tree");
+        assert_eq!(overlay.envelope.mode, CemtTreeEnvelopeMode::Document);
+        assert!(overlay.envelope.canonical);
         assert_eq!(
-            tree["formatNodes"][1]["formatterProfile"],
-            "acme.showcase.format-tree"
+            overlay.producer.formatter_profile.as_deref(),
+            Some("acme.showcase.format-tree")
         );
-        assert_eq!(tree["nodes"][0]["sourceMap"], Value::Null);
-        assert_eq!(tree["nodes"][0]["attributes"], Value::Array(vec![]));
-        assert_eq!(
-            tree["nodes"][0]["formatLayout"]["formatterRole"],
-            "formatter.layout"
-        );
-        assert_eq!(
-            tree["nodes"][0]["children"][1]["formatLayout"]["formatterRole"],
-            "formatter.inline-emphasis"
-        );
-        assert_eq!(
-            tree["nodes"][0]["children"][1]["children"][0]["sourceMap"],
-            Value::Null
-        );
+        assert_eq!(overlay.operations[0].name, "cem.format-tree");
+        assert_eq!(overlay.operations[1].name, "converter-cemt");
+        assert_eq!(owner.as_nodes()[0].source_map(), &SourceMapStack::default());
+        assert!(owner.as_nodes()[0].attributes().is_empty());
+        assert!(overlay.node_operations.iter().any(|operation| {
+            operation.target == CemtNodeFormatTarget::Owner(CemtOwnerPath::root(0))
+                && operation.kind == CemtNodeFormatOperationKind::Layout(CemtFormatLayout::Inline)
+        }));
+        assert!(overlay.node_operations.iter().any(|operation| {
+            operation.target == CemtNodeFormatTarget::Owner(CemtOwnerPath::root(0).child(1))
+                && operation.kind
+                    == CemtNodeFormatOperationKind::Layout(CemtFormatLayout::InlineEmphasis)
+        }));
     }
 
     #[test]
@@ -21673,8 +21493,28 @@ mod tests {
                 runtime.diagnostics
             );
             assert_eq!(typed.output, runtime.output, "{profile} writer parity");
-            assert!(typed.formatted_cem_tree.is_none(), "{profile}");
-            assert!(typed.colored_cem_tree.is_none(), "{profile}");
+            assert_eq!(
+                typed
+                    .formatted_cem_tree
+                    .as_ref()
+                    .map(|artifact| &artifact.value),
+                runtime
+                    .formatted_cem_tree
+                    .as_ref()
+                    .map(|artifact| &artifact.value),
+                "{profile} formatted public boundary parity"
+            );
+            assert_eq!(
+                typed
+                    .colored_cem_tree
+                    .as_ref()
+                    .map(|artifact| &artifact.value),
+                runtime
+                    .colored_cem_tree
+                    .as_ref()
+                    .map(|artifact| &artifact.value),
+                "{profile} colored public boundary parity"
+            );
             assert_eq!(typed.source_map.as_ref(), Some(&source_map), "{profile}");
             assert!(!typed.output_spans.is_empty(), "{profile} output spans");
             assert!(typed.output_spans.iter().all(|span| {
@@ -21705,7 +21545,7 @@ mod tests {
         ));
         let raw_error = execute_transform_template_typed_cem_tree_writer(
             TransformTemplateTypedCemTreeWriterRequest {
-                binding: &binding,
+                identity: &binding.identity,
                 artifact: raw,
                 insertion_context: &pipeline.writer_insertion_context,
             },
@@ -21751,7 +21591,7 @@ mod tests {
         color_context.color_profile = Some("terminal".to_owned());
         let mismatch = execute_transform_template_typed_cem_tree_writer(
             TransformTemplateTypedCemTreeWriterRequest {
-                binding: &color_binding,
+                identity: &color_binding.identity,
                 artifact: formatted,
                 insertion_context: &color_context,
             },
@@ -22044,7 +21884,6 @@ mod tests {
             owner.clone(),
             Some(source_map.clone()),
         ));
-        let primary = TransformArtifactBody::Extension(raw);
         let formatted = serde_json::json!({
             "kind": "cem-tree",
             "contentType": CEM_ML_CONTENT_TYPE,
@@ -22057,21 +21896,10 @@ mod tests {
             "nodes": []
         });
 
-        let body = lower_conversion_cem_tree_output_stage_body(
-            TransformTemplateOutputFunctionKind::Format,
-            "cem.format-tree",
-            &primary,
-            &formatted,
-            formatted.clone(),
-        )
-        .expect("native formatter result lowers");
-        let TransformArtifactBody::Extension(native) = body else {
-            panic!("native formatter result must remain a typed extension body");
-        };
-        let artifact = native
-            .as_any()
-            .downcast_ref::<CemtTreeArtifact>()
-            .expect("formatter result is a typed CEMT tree");
+        let formatted = cemt_typed_runtime_value_from_adapter(&formatted)
+            .expect("test boundary creates a typed evaluator fixture");
+        let artifact = lower_typed_formatted_cemt_tree_artifact(&raw, formatted, "cem.format-tree")
+            .expect("native formatter result lowers");
 
         assert_eq!(artifact.stage(), CemtTreeArtifactStage::Formatted);
         assert!(Arc::ptr_eq(artifact.owner(), &owner));
@@ -22100,7 +21928,6 @@ mod tests {
         let formatted =
             lower_formatted_cemt_tree_artifact(&raw, &formatted_value, "cem.format-tree")
                 .expect("formatted fixture lowers");
-        let primary = TransformArtifactBody::Extension(formatted);
         let colored = serde_json::json!({
             "kind": "cem-tree",
             "colored": true,
@@ -22110,21 +21937,11 @@ mod tests {
             "nodes": []
         });
 
-        let body = lower_conversion_cem_tree_output_stage_body(
-            TransformTemplateOutputFunctionKind::Color,
-            "cem.color-tree",
-            &primary,
-            &formatted_value,
-            colored,
-        )
-        .expect("native colorizer result lowers");
-        let TransformArtifactBody::Extension(native) = body else {
-            panic!("native colorizer result must remain a typed extension body");
-        };
-        let artifact = native
-            .as_any()
-            .downcast_ref::<CemtTreeArtifact>()
-            .expect("colorizer result is a typed CEMT tree");
+        let colored = cemt_typed_runtime_value_from_adapter(&colored)
+            .expect("test boundary creates a typed evaluator fixture");
+        let artifact =
+            lower_typed_colored_cemt_tree_artifact(&formatted, colored, "cem.color-tree")
+                .expect("native colorizer result lowers");
 
         assert_eq!(artifact.stage(), CemtTreeArtifactStage::Colored);
         assert!(Arc::ptr_eq(artifact.owner(), &owner));
@@ -22138,11 +21955,13 @@ mod tests {
             .split_once("pub fn execute_conversion_output_pipeline_from_cem_tree_with_environment")
             .expect("typed CEM tree pipeline entrypoint")
             .1
-            .split_once("enum ConversionOutputPipelineSubject")
+            .split_once(
+                "pub fn execute_conversion_output_pipeline_from_typed_formatted_cem_tree_with_environment",
+            )
             .expect("typed entrypoint boundary")
             .0;
         assert!(typed_entry.contains("CemtTreeArtifact::raw"));
-        assert!(typed_entry.contains("ConversionOutputPipelineSubject::Raw(raw.clone())"));
+        assert!(typed_entry.contains("raw.clone(),"));
         assert!(!typed_entry.contains("TransformTemplateDataArtifact::explicit_json"));
         assert!(!typed_entry.contains("serde_json"));
         assert!(!typed_entry.contains("into_cemt_subject"));
@@ -23767,7 +23586,7 @@ mod tests {
     }
 
     #[test]
-    fn conversion_output_pipeline_colors_converter_formatted_cem_tree() {
+    fn conversion_output_pipeline_rejects_json_formatted_tree_handoff() {
         let schema_registry = SchemaRegistry::with_builtin_schemas();
         let conversion_registry = ConversionRegistry::with_builtin_converters();
         let environment = ConversionOutputPipelineEnvironment {
@@ -23811,50 +23630,17 @@ mod tests {
             Some("converter.cemt"),
         );
 
+        assert!(execution.output.is_none());
+        assert_eq!(execution.format_execution, None);
+        assert_eq!(execution.color_execution, None);
+        assert_eq!(execution.diagnostics.len(), 1);
         assert!(
-            execution.diagnostics.is_empty(),
+            execution.diagnostics[0]
+                .message
+                .contains("requires a typed CEM-tree AST input; explicit JSON must enter through a registered parser"),
             "{:?}",
             execution.diagnostics
         );
-        assert_eq!(execution.format_execution, None);
-        assert_eq!(
-            execution.color_execution,
-            Some(ConversionOutputPipelineStageExecution::CemtAdapter {
-                adapter_id: CEM_TREE_COLOR_CEMT_ADAPTER_ID.to_owned(),
-                function_name: "acme.showcase.color-tree".to_owned(),
-                body_function_name: Some("acme.showcase.color-tree".to_owned()),
-                fallback_function_name: None,
-            })
-        );
-        let formatted = execution
-            .formatted_cem_tree
-            .as_ref()
-            .expect("formatted converter CEM tree is retained");
-        assert_eq!(formatted.value["kind"], "cem-tree");
-        assert_eq!(
-            formatted.value["formatterProfile"],
-            "acme.showcase.format-tree"
-        );
-        assert_eq!(formatted.value["nodes"][0]["sourceMap"], Value::Null);
-        assert_eq!(
-            formatted.value["nodes"][0]["attributes"],
-            Value::Array(vec![])
-        );
-        assert!(formatted.value["formatNodes"]
-            .as_array()
-            .expect("format nodes")
-            .iter()
-            .any(|node| node.get("name").and_then(Value::as_str) == Some("converter-cemt")));
-
-        let output = execution
-            .output
-            .as_ref()
-            .and_then(Value::as_str)
-            .expect("writer output text");
-        assert!(output.contains("<article"));
-        assert!(output.contains("cem-color-syntax-name"));
-        assert!(output.contains("<strong class=\"cem-color cem-color-syntax-keyword\""));
-        assert!(output.contains(">now<"));
     }
 
     #[test]
@@ -23912,8 +23698,6 @@ mod tests {
         assert!(fixture.contains(r#"@color-profile="classes""#));
         assert!(fixture.contains(r#"@value="formatted tree before writer""#));
         assert!(fixture.contains(r#"@value="colored tree before writer""#));
-        assert!(fixture.contains(r#"@stage="after-color""#));
-        assert!(fixture.contains(r#"@value="writer consumes colored CEM tree""#));
         assert!(fixture.contains(r#"@colorizer-role="colorizer.queued-edit""#));
         assert!(fixture.contains(r#"@value="queued edit replay before writer""#));
         assert!(fixture.contains(r#"@value="cem-color cem-color-syntax-keyword""#));
@@ -24477,16 +24261,18 @@ mod tests {
                 writer_insertion_context: writer_context,
                 writer_produces: TransformTemplateOutputProducedKind::Text,
             };
-            let execution = execute_conversion_output_pipeline_with_environment(
-                &environment,
-                &pipeline,
-                subject.clone(),
-                None,
-                Vec::new(),
-                "cem-ql-test-output",
-                Some("cem-ql"),
-                None,
-            );
+            let typed_subject = cemt_typed_runtime_value_from_adapter(&subject)
+                .expect("explicit CEM-QL fixture ingress creates a typed evaluator subject");
+            let execution =
+                execute_conversion_output_pipeline_from_typed_cemt_subject_with_environment(
+                    &environment,
+                    &pipeline,
+                    typed_subject,
+                    "cem.cem-ql-source-ast",
+                    "cem-ql-test-output",
+                    Some("cem-ql"),
+                    None,
+                );
             assert!(
                 execution.diagnostics.is_empty(),
                 "{:?}",
@@ -24499,13 +24285,7 @@ mod tests {
                     .map(|artifact| &artifact.value["formatterProfile"]),
                 Some(&Value::String(profile.to_owned()))
             );
-            assert_eq!(
-                execution
-                    .colored_cem_tree
-                    .as_ref()
-                    .map(|artifact| &artifact.value["colorProfile"]),
-                Some(&Value::String("none".to_owned()))
-            );
+            assert!(execution.colored_cem_tree.is_none());
             assert_eq!(
                 execution.output.as_ref().and_then(Value::as_str),
                 Some("module \"https://example.test/q\"\n")
@@ -25352,8 +25132,7 @@ mod tests {
         assert_eq!(formatted["nodes"][0]["name"], "main");
         assert_eq!(formatted["nodes"][0]["children"][0]["value"], "Ready");
 
-        binding
-            .artifact_from_cemt_value(formatted)
+        TransformTemplateEncodedArtifact::from_public_json(binding.identity.clone(), formatted)
             .validate_insertion(
                 &TransformTemplateEncodedArtifactInsertionContext::from_encoding_target(
                     &request.target,
@@ -25431,7 +25210,9 @@ mod tests {
         let error = execute_test_conversion_cem_tree_output_stage(stage, &binding, &subject)
             .expect_err("output stage without direct body is rejected");
 
-        assert!(error.contains("CEMT formatter `cem.format-tree` requires a direct CEMT body"));
+        assert!(
+            error.contains("CEMT formatter `cem.format-tree` requires a direct typed CEMT body")
+        );
         assert!(!error.contains("fallback implementation"));
     }
 
@@ -25508,8 +25289,10 @@ mod tests {
         let error = execute_test_conversion_cem_tree_output_stage(stage, &binding, &subject)
             .expect_err("legacy encode facade body is rejected");
 
-        assert!(error.contains("CEMT formatter `cem.format-tree` requires a direct CEMT body"));
-        assert!(error.contains("encode(...) facade attempted to dispatch `cem.format-tree`"));
+        assert!(
+            error.contains("CEMT formatter `cem.format-tree` requires a direct typed CEMT body")
+        );
+        assert!(!error.contains("fallback implementation"));
     }
 
     #[test]
@@ -31432,8 +31215,7 @@ mod tests {
             context.color_profile = Some(profile.to_owned());
             context.mode = Some(TransformTemplateEncodedArtifactMode::Document);
             context.source_map_policy = Some(TransformTemplateSourceMapPolicy::Generated);
-            binding
-                .artifact_from_cemt_value(colored)
+            TransformTemplateEncodedArtifact::from_public_json(binding.identity.clone(), colored)
                 .validate_insertion(&context)
                 .unwrap_or_else(|error| panic!("{profile} CSV colorized CEM tree: {error:?}"));
             assert!(
@@ -31610,8 +31392,7 @@ mod tests {
             "direct-cemt-color"
         );
 
-        binding
-            .artifact_from_cemt_value(colored)
+        TransformTemplateEncodedArtifact::from_public_json(binding.identity.clone(), colored)
             .validate_insertion(
                 &TransformTemplateEncodedArtifactInsertionContext::from_encoding_target(
                     &request.target,

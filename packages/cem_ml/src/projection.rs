@@ -25,7 +25,7 @@ use crate::tokenizer::cem::CemTokenizer;
 use crate::tokenizer::html::HtmlTokenizer;
 use crate::tokenizer::xml::XmlTokenizer;
 use crate::tokenizer::SchemaTokenizer;
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Deserializer, Serialize};
 use serde_json::{json, Value};
 use std::collections::BTreeMap;
 use std::sync::Arc;
@@ -1147,7 +1147,11 @@ impl CemTreeAstStream {
 pub struct CemTreeAstAttribute {
     pub name: String,
     pub value: Option<String>,
-    #[serde(rename = "sourceMap", default)]
+    #[serde(
+        rename = "sourceMap",
+        default,
+        deserialize_with = "deserialize_cem_tree_source_map"
+    )]
     pub source: SourceMapStack,
 }
 
@@ -1301,52 +1305,96 @@ pub struct CemTreeAstWriterTokenMetadata {
 #[serde(tag = "kind", rename_all = "kebab-case")]
 pub enum CemTreeAstNode {
     Document {
+        #[serde(default)]
         children: Vec<CemTreeAstNode>,
-        #[serde(rename = "sourceMap", default)]
+        #[serde(
+            rename = "sourceMap",
+            default,
+            deserialize_with = "deserialize_cem_tree_source_map"
+        )]
         source: SourceMapStack,
     },
     Element {
         name: String,
+        #[serde(default)]
         attributes: Vec<CemTreeAstAttribute>,
+        #[serde(default)]
         children: Vec<CemTreeAstNode>,
-        #[serde(rename = "sourceMap", default)]
+        #[serde(
+            rename = "sourceMap",
+            default,
+            deserialize_with = "deserialize_cem_tree_source_map"
+        )]
         source: SourceMapStack,
     },
     Text {
         value: String,
-        #[serde(rename = "sourceMap", default)]
+        #[serde(
+            rename = "sourceMap",
+            default,
+            deserialize_with = "deserialize_cem_tree_source_map"
+        )]
         source: SourceMapStack,
     },
     Whitespace {
+        #[serde(alias = "value")]
         data: String,
-        #[serde(rename = "sourceMap", default)]
+        #[serde(
+            rename = "sourceMap",
+            default,
+            deserialize_with = "deserialize_cem_tree_source_map"
+        )]
         source: SourceMapStack,
     },
     Comment {
+        #[serde(alias = "value")]
         data: String,
-        #[serde(rename = "sourceMap", default)]
+        #[serde(
+            rename = "sourceMap",
+            default,
+            deserialize_with = "deserialize_cem_tree_source_map"
+        )]
         source: SourceMapStack,
     },
     ProcessingInstruction {
         name: String,
         target: String,
+        #[serde(alias = "value")]
         data: String,
-        #[serde(rename = "sourceMap", default)]
+        #[serde(
+            rename = "sourceMap",
+            default,
+            deserialize_with = "deserialize_cem_tree_source_map"
+        )]
         source: SourceMapStack,
     },
     Cdata {
+        #[serde(alias = "value")]
         data: String,
-        #[serde(rename = "sourceMap", default)]
+        #[serde(
+            rename = "sourceMap",
+            default,
+            deserialize_with = "deserialize_cem_tree_source_map"
+        )]
         source: SourceMapStack,
     },
     RawText {
+        #[serde(alias = "value")]
         data: String,
-        #[serde(rename = "sourceMap", default)]
+        #[serde(
+            rename = "sourceMap",
+            default,
+            deserialize_with = "deserialize_cem_tree_source_map"
+        )]
         source: SourceMapStack,
     },
     Error {
         code: String,
-        #[serde(rename = "sourceMap", default)]
+        #[serde(
+            rename = "sourceMap",
+            default,
+            deserialize_with = "deserialize_cem_tree_source_map"
+        )]
         source: SourceMapStack,
     },
     WriterToken {
@@ -1360,9 +1408,20 @@ pub enum CemTreeAstNode {
         metadata: Box<CemTreeAstWriterTokenMetadata>,
         #[serde(rename = "outputSpan", default)]
         output_span: Option<OutputSpan>,
-        #[serde(rename = "sourceMap", default)]
+        #[serde(
+            rename = "sourceMap",
+            default,
+            deserialize_with = "deserialize_cem_tree_source_map"
+        )]
         source: SourceMapStack,
     },
+}
+
+fn deserialize_cem_tree_source_map<'de, D>(deserializer: D) -> Result<SourceMapStack, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    Option::<SourceMapStack>::deserialize(deserializer).map(Option::unwrap_or_default)
 }
 
 impl CemTreeAstNode {

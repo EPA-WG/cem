@@ -929,7 +929,7 @@ Remaining dependency-ordered package checklist:
           add a source audit against generic JSON conversion.
     - [x] Restore native CEM-QL transform, expression, secondary-input, and
           graph behavior, then pass CEM-QL/core lint, test, and WASM gates.
-    - [ ] Replace the transitional CEMT value boundary with package-owned typed
+    - [x] Replace the transitional CEMT value boundary with package-owned typed
           tree-envelope and writer-payload contracts.
       - [x] Add red tests for CEM tree `Arc` identity, formatter/colorizer
             metadata and source maps, ordered writer tokens/chunks, and explicit
@@ -959,14 +959,14 @@ Remaining dependency-ordered package checklist:
             per-node layout, boundary, attribute-spacing, close, and child-gap
             formatter operations; expose lazy owner-plus-overlay views without
             copying source AST nodes.
-      - [ ] Make CEMT/native output-function implementations return typed
+      - [x] Make CEMT/native output-function implementations return typed
             payloads directly; remove runtime-value classification and the
             remaining byte-encoder serialization at the evaluator boundary.
         - [x] Return native text, byte, token, chunk, and diagnostic results
               through a closed enum, validate the declared/returned kind at
               the producer boundary, and remove binary-encoder JSON
               serialization.
-        - [ ] Lower CEMT evaluator tree results immediately into package-owned
+        - [x] Lower CEMT evaluator tree results immediately into package-owned
               typed artifacts; remove `CemtEvaluator(Value)` and
               `CemtRuntime(Value)` from cross-tier handoffs.
           - [x] Lower CEM-ML `cem.format-tree` and `cem.color-tree` results at
@@ -1015,7 +1015,7 @@ Remaining dependency-ordered package checklist:
               - [x] Pass focused, full, lint, native, WASM, CEMT fixture,
                     converter-parity, and CLI e2e gates for the native CEM
                     formatter/colorizer switch.
-          - [ ] Give non-CEM CEMT tree producers package-owned typed result
+          - [x] Give non-CEM CEMT tree producers package-owned typed result
                 artifacts, then remove `CemtEvaluator(Value)` globally.
             - [x] Inventory remaining producers, consumers, owner models,
                   stages, graph/secondary-input routing, and provenance gaps in
@@ -1182,13 +1182,29 @@ Remaining dependency-ordered package checklist:
                     generic runtime pipeline. Native text, HTML, line-ending,
                     diagnostic, range/source-map identity, and source-audit
                     tests cover the boundary.
+              - [x] Close the generic output-function runtime with a native or
+                    typed CEM-tree result enum. Formatter and colorizer tree
+                    results now lower at producer completion into declared
+                    raw, formatted, colored, or materialized artifacts; the
+                    exact typed artifact is passed to the next stage, and a
+                    public-JSON producer is rejected as CEM-tree ingress.
+              - [x] Delete `CemtOutputArtifact`,
+                    `transform_template_output_cemt_subject`,
+                    `CemtEvaluator(Value)`, `CemtRuntime(Value)`, the generic
+                    stage fallback, and writer-boundary DTO assertions from
+                    cross-tier execution. Typed tree overlays project to JSON
+                    only at the explicit public/debug response boundary.
       - [x] Define typed raw, formatted, and colored CEM tree envelopes with
             ordered native nodes and lazy evaluator views over the owning AST.
-      - [ ] Route formatter, colorizer, writer, graph, and secondary-input
+      - [x] Route formatter, colorizer, writer, graph, and secondary-input
             boundaries through typed CEMT artifacts; remove
             `CemtOutputArtifact`, `transform_template_output_cemt_subject`, and
-            adapter DTO value conversion.
-      - [ ] Add CEMT source audits and pass focused package, core, converter
+            their generic adapter DTO value conversion.
+      - [ ] Delete legacy `PublicJson` CEM-tree compatibility entrypoints,
+            normalizers, runtime registry hooks, and value-based writer helpers;
+            migrate or remove their test-only parity oracles while retaining
+            `PublicJson` for actual JSON/public/debug boundaries.
+      - [x] Add CEMT source audits and pass focused package, core, converter
             parity, CLI e2e, lint, native build/test, and WASM gates.
   - [ ] Represent JSON input internally with a lossless `JsonDocumentAst` and
         `JsonValueAst`, not `serde_json::Value`, preserving duplicate members,
@@ -1243,41 +1259,41 @@ Remaining dependency-ordered package checklist:
 
 ### Next Work Item
 
-Close the generic CEMT output-function runtime and compatibility CEM-tree stage
-fallback next. Package document pipelines, the DOM-projection producer, and
-the CEM-QL direct-output bridge now hand exact AST owners and typed stages
-directly to their consumers. The two
-remaining cross-tier gaps are
-`TransformTemplateOutputFunctionExecution::CemtEvaluator(Value)` for generic
-output functions and `lower_conversion_cem_tree_output_stage_body` falling
-back to `CemtOutputArtifact` for non-native compatibility subjects.
+Delete the remaining legacy `PublicJson` CEM-tree compatibility surface next.
+The generic output-function runtime, package document pipelines,
+DOM-projection producer, and CEM-QL direct-output bridge now hand exact AST
+owners and declared typed stages directly to their consumers. The named
+cross-tier DTO/result envelopes and compatibility stage fallback are gone.
+What remains is old compatibility code that can still construct a formatted or
+colored CEM tree as `PublicJson`, plus its value-based normalizers, runtime
+registry hooks, writer helpers, and test-only parity oracles.
 
 Implement the next slice in this order:
 
-1. Add source-audit and behavior tests that enumerate every remaining producer
-   and consumer of `CemtEvaluator(Value)`, `CemtRuntime(Value)`,
-   `CemtOutputArtifact`, and `transform_template_output_cemt_subject`. Distinguish
-   explicit public JSON/export compatibility from internal stage handoffs.
-2. Replace the generic output-function execution result with a closed typed
-   result enum. CEM-tree results must lower at producer completion into a
-   declared raw, formatted, colored, or materialized artifact while text,
-   bytes, tokens, chunks, and diagnostics keep their existing typed payloads.
-3. Pass the typed formatted artifact directly into color execution and the
-   selected formatted/colored artifact directly into the writer and graph
-   stage body. Preserve exact owner `Arc`, source maps, output spans, producer
-   identity, profiles, and insertion-context validation.
-4. Replace `lower_conversion_cem_tree_output_stage_body`'s compatibility
-   fallback with explicit typed lowering at the adapter boundary. Reject
-   ambiguous/non-declared tree stages there rather than classifying value
-   shape at the next consumer.
-5. Route any surviving explicit JSON compatibility subject through its
-   registered lifecycle parser/export edge or keep it test-only. Then delete
-   `CemtOutputArtifact`, `transform_template_output_cemt_subject`, and obsolete
-   runtime-value envelopes once the source audit reports no production users.
-6. Run focused generic output-function and compatibility tests, DOM/converter
-   parity, conversion manifest/rules, CLI e2e, core lint/build/test, and WASM
-   gates. Keep final HTML/XML/text/JSON encoding only at registered public
-   writer/export boundaries.
+1. Add a source audit that classifies every
+   `TransformTemplateEncodedArtifactPayload::PublicJson` construction and every
+   `from_public_json` call as a real JSON/public/debug boundary or a prohibited
+   CEM-tree compatibility handoff.
+2. Remove
+   `execute_conversion_output_pipeline_from_formatted_cem_tree_with_environment`,
+   `execute_conversion_output_pipeline_from_formatted_artifact`, its formatted
+   tree normalizer/shape classifier, and any caller that attempts to resume a
+   CEM-tree runtime stage from JSON. Keep the typed formatted-artifact
+   entrypoint as the sole successful continuation API.
+3. Migrate or delete the `#[cfg(test)]` XML-family and package parity oracles
+   that still compose formatter/colorizer results as `Value`. Fixtures that
+   intentionally begin as JSON must use the registered lifecycle parser once,
+   before formatter execution.
+4. Delete the now-unused `TransformTemplateCemtRuntimeImplementation`
+   evaluation hook and the legacy value-based CEM-tree writer/render helpers.
+   Preserve the typed writer and explicit text/bytes/tokens/chunks/diagnostics
+   payload variants.
+5. Strengthen source audits so formatter → colorizer → writer, graph, join, and
+   secondary-input paths cannot call `to_public_json`, `from_public_json`, or a
+   serializer. Allow the one-way typed overlay projection only after writer
+   execution for public/debug output.
+6. Run focused compatibility and source-audit tests, DOM/converter parity,
+   conversion manifest/rules, CLI e2e, core lint/build/test, and WASM gates.
 
 ## Current Verification Commands
 

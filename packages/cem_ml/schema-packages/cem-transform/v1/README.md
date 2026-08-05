@@ -577,7 +577,7 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
         @canonical=true
         @deterministic=true
         @streamable=true |
-        {param @name="subject" @type="json" @required=true}
+        {param @name="subject" @type="any" @required=true}
         {body |
             {$ appendFormatNode(
                 {
@@ -853,10 +853,10 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
     }
     {nodes |
         {article |
-            {format-layout @kind="format-decision" @value="inline" @formatter-role="formatter.layout"}
+            {format-layout @kind="format-decision" @name="layout" @value="inline" @formatter-role="formatter.layout"}
             {text | Ready }
             {strong |
-                {format-layout @kind="format-decision" @value="inline-emphasis" @formatter-role="formatter.inline-emphasis"}
+                {format-layout @kind="format-decision" @name="layout" @value="inline-emphasis" @formatter-role="formatter.inline-emphasis"}
                 {text | now}
             }
             {text | .}
@@ -880,14 +880,11 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
     {color-nodes |
         {color-marker @name="cem.color-tree" @color-profile="classes" @colorizer-role="colorizer.boundary"}
         {color-decision @name="showcase" @value="colored tree before writer" @colorizer-role="colorizer.showcase"}
-        {color-decision @name="queued-edit" @value="queued edit replay before writer" @color-profile="classes" @colorizer-owned=true @colorizer-role="colorizer.queued-edit"}
-    }
-    {writer-boundaries |
-        {writer-boundary @stage="after-color" @value="writer consumes colored CEM tree"}
+        {color-decision @name="queued-edit" @value="queued edit replay before writer" @color-profile="classes" @colorizer-role="colorizer.queued-edit"}
     }
     {nodes |
         {article @color-role="syntax.name" |
-            {format-layout @kind="format-decision" @value="inline" @formatter-role="formatter.layout"}
+            {format-layout @kind="format-decision" @name="layout" @value="inline" @formatter-role="formatter.layout"}
             {style @color-role="syntax.name" @color-profile="classes"}
             {writer-attribute @name="class" @value="cem-color cem-color-syntax-name" @color-profile="classes" @colorizer-owned=true @colorizer-role="colorizer.writer-attribute"}
             {span @color-role="syntax.string" |
@@ -898,7 +895,7 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
                 {text | Ready }
             }
             {strong @color-role="syntax.keyword" |
-                {format-layout @kind="format-decision" @value="inline-emphasis" @formatter-role="formatter.inline-emphasis"}
+                {format-layout @kind="format-decision" @name="layout" @value="inline-emphasis" @formatter-role="formatter.inline-emphasis"}
                 {style @color-role="syntax.keyword" @color-profile="classes"}
                 {writer-attribute @name="class" @value="cem-color cem-color-syntax-keyword" @color-profile="classes" @colorizer-owned=true @colorizer-role="colorizer.writer-attribute"}
                 {span @color-role="syntax.keyword" |
