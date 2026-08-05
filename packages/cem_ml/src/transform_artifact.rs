@@ -1879,6 +1879,12 @@ pub enum CemtEvaluatorValue<'a> {
     Boolean(bool),
     Number(CemtEvaluatorNumber),
     String(Arc<str>),
+    /// A borrowed JSON data value backed by the lifecycle-owned lossless AST.
+    ///
+    /// Unlike a decoded JSON object projection, this retains duplicate object
+    /// members, source order, exact string/number lexemes, ranges, and source
+    /// maps until an explicit public/export boundary requests a projection.
+    Json(&'a JsonValueAst),
     Sequence(Arc<[CemtEvaluatorValue<'a>]>),
     Record(Arc<CemtEvaluatorRecord<'a>>),
     SourceMap(Arc<SourceMapStack>),
@@ -1954,6 +1960,33 @@ impl<'a> CemtEvaluatorValue<'a> {
         Self::String(value.into())
     }
 
+    pub fn json(value: &'a JsonValueAst) -> Self {
+        Self::Json(value)
+    }
+
+    pub fn json_ast(&self) -> Option<&'a JsonValueAst> {
+        match self {
+            Self::Json(value) => Some(value),
+            _ => None,
+        }
+    }
+
+    pub fn json_lexeme(&self) -> Option<&'a str> {
+        match self {
+            Self::Json(JsonValueAst::String { lexeme, .. })
+            | Self::Json(JsonValueAst::Number { lexeme, .. }) => Some(lexeme),
+            _ => None,
+        }
+    }
+
+    pub fn json_source_range(&self) -> Option<JsonSourceRange> {
+        self.json_ast().map(JsonValueAst::range)
+    }
+
+    pub fn json_source_map(&self) -> Option<SourceMapStack> {
+        self.json_source_range().map(JsonSourceRange::source_map)
+    }
+
     pub fn sequence(values: impl IntoIterator<Item = Self>) -> Self {
         Self::Sequence(values.into_iter().collect::<Vec<_>>().into())
     }
@@ -1982,6 +2015,7 @@ impl<'a> CemtEvaluatorValue<'a> {
             Self::Boolean(_) => CemtEvaluatorValueKind::Boolean,
             Self::Number(_) => CemtEvaluatorValueKind::Number,
             Self::String(_) => CemtEvaluatorValueKind::String,
+            Self::Json(value) => json_evaluator_value_kind(value),
             Self::Sequence(_) => CemtEvaluatorValueKind::Sequence,
             Self::Record(_) => CemtEvaluatorValueKind::Record,
             Self::SourceMap(_) => CemtEvaluatorValueKind::SourceMap,
@@ -2000,6 +2034,7 @@ impl<'a> CemtEvaluatorValue<'a> {
             Self::Boolean(value) => Ok(serde_json::Value::Bool(*value)),
             Self::Number(value) => cemt_evaluator_number_to_json(*value),
             Self::String(value) => Ok(serde_json::Value::String(value.to_string())),
+            Self::Json(value) => json_ast_value_to_public_json(value),
             Self::Sequence(values) => values
                 .iter()
                 .map(Self::to_public_json)
@@ -2067,6 +2102,7 @@ impl<'a> CemtEvaluatorValue<'a> {
     pub fn as_bool(&self) -> Option<bool> {
         match self {
             Self::Boolean(value) => Some(*value),
+            Self::Json(JsonValueAst::Boolean { value, .. }) => Some(*value),
             Self::Borrowed(value) => value.as_bool(),
             _ => None,
         }
@@ -2075,6 +2111,7 @@ impl<'a> CemtEvaluatorValue<'a> {
     pub fn as_number(&self) -> Option<CemtEvaluatorNumber> {
         match self {
             Self::Number(value) => Some(*value),
+            Self::Json(JsonValueAst::Number { lexeme, .. }) => json_number_evaluator_value(lexeme),
             Self::Borrowed(value) => value.as_number(),
             _ => None,
         }
@@ -2083,6 +2120,7 @@ impl<'a> CemtEvaluatorValue<'a> {
     pub fn as_str(&self) -> Option<&str> {
         match self {
             Self::String(value) => Some(value),
+            Self::Json(JsonValueAst::String { value, .. }) => Some(value),
             Self::Borrowed(value) => value.as_str(),
             _ => None,
         }
@@ -2114,6 +2152,11 @@ impl<'a> CemtEvaluatorValue<'a> {
     pub fn field(&self, name: &str) -> Option<Self> {
         match self {
             Self::Record(record) => record.field(name),
+            Self::Json(JsonValueAst::Object { members, .. }) => members
+                .iter()
+                .rev()
+                .find(|member| member.name == name)
+                .map(|member| Self::Json(&member.value)),
             Self::Borrowed(CemtEvaluatorValueRef::Record(record)) => {
                 record.field(name).map(Self::from_borrowed_ref)
             }
@@ -2127,6 +2170,7 @@ impl<'a> CemtEvaluatorValue<'a> {
     pub fn item(&self, index: usize) -> Option<Self> {
         match self {
             Self::Sequence(values) => values.get(index).cloned(),
+            Self::Json(JsonValueAst::Array { items, .. }) => items.get(index).map(Self::Json),
             Self::Borrowed(CemtEvaluatorValueRef::Sequence(sequence)) => {
                 sequence.item(index).map(Self::from_borrowed_ref)
             }
@@ -2157,6 +2201,9 @@ impl<'a> CemtEvaluatorValue<'a> {
         match self {
             Self::Null | Self::Borrowed(CemtEvaluatorValueRef::Null) => Ok(0),
             Self::String(value) => Ok(value.chars().count()),
+            Self::Json(JsonValueAst::String { value, .. }) => Ok(value.chars().count()),
+            Self::Json(JsonValueAst::Array { items, .. }) => Ok(items.len()),
+            Self::Json(JsonValueAst::Object { members, .. }) => Ok(members.len()),
             Self::Sequence(values) => Ok(values.len()),
             Self::Record(record) => Ok(record.len()),
             Self::Borrowed(CemtEvaluatorValueRef::String(value)) => Ok(value.chars().count()),
@@ -2168,6 +2215,10 @@ impl<'a> CemtEvaluatorValue<'a> {
                 .filter(|name| value.field(name).is_some())
                 .count()),
             Self::Borrowed(CemtEvaluatorValueRef::StringMap(values)) => Ok(values.len()),
+            Self::Json(_) => Err(CemtEvaluatorValueAccessError::UnsupportedOperation {
+                operation: "length",
+                actual: self.kind(),
+            }),
             _ => Err(CemtEvaluatorValueAccessError::UnsupportedOperation {
                 operation: "length",
                 actual: self.kind(),
@@ -2326,6 +2377,14 @@ impl<'a> CemtEvaluatorValue<'a> {
                 fields: BTreeMap::new(),
                 removed_fields: BTreeSet::new(),
             },
+            Self::Json(JsonValueAst::Object { members, .. }) => CemtEvaluatorRecord {
+                native_base: None,
+                fields: members
+                    .iter()
+                    .map(|member| (member.name.clone(), Self::Json(&member.value)))
+                    .collect(),
+                removed_fields: BTreeSet::new(),
+            },
             _ => {
                 return Err(CemtEvaluatorValueAccessError::UnsupportedOperation {
                     operation: "set",
@@ -2348,6 +2407,14 @@ impl<'a> CemtEvaluatorValue<'a> {
             Self::Borrowed(CemtEvaluatorValueRef::Record(record)) => CemtEvaluatorRecord {
                 native_base: Some(record.clone()),
                 fields: BTreeMap::new(),
+                removed_fields: BTreeSet::new(),
+            },
+            Self::Json(JsonValueAst::Object { members, .. }) => CemtEvaluatorRecord {
+                native_base: None,
+                fields: members
+                    .iter()
+                    .map(|member| (member.name.clone(), Self::Json(&member.value)))
+                    .collect(),
                 removed_fields: BTreeSet::new(),
             },
             _ => {
@@ -2386,6 +2453,9 @@ impl<'a> CemtEvaluatorValue<'a> {
     ) -> Result<Vec<Self>, CemtEvaluatorValueAccessError> {
         match self {
             Self::Sequence(values) => Ok(values.iter().cloned().collect()),
+            Self::Json(JsonValueAst::Array { items, .. }) => {
+                Ok(items.iter().map(Self::Json).collect())
+            }
             Self::Borrowed(CemtEvaluatorValueRef::Sequence(sequence)) => {
                 Ok(sequence.iter().map(Self::from_borrowed_ref).collect())
             }
@@ -2402,6 +2472,9 @@ impl<'a> CemtEvaluatorValue<'a> {
     ) -> Result<Vec<String>, CemtEvaluatorValueAccessError> {
         match self {
             Self::Record(record) => Ok(record.field_names()),
+            Self::Json(JsonValueAst::Object { members, .. }) => {
+                Ok(members.iter().map(|member| member.name.clone()).collect())
+            }
             Self::Borrowed(CemtEvaluatorValueRef::Record(record)) => Ok(record
                 .field_names()
                 .iter()
@@ -2430,6 +2503,60 @@ fn cemt_evaluator_number_to_json(value: CemtEvaluatorNumber) -> Result<serde_jso
         })?
     };
     Ok(serde_json::Value::Number(number))
+}
+
+fn json_evaluator_value_kind(value: &JsonValueAst) -> CemtEvaluatorValueKind {
+    match value {
+        JsonValueAst::Null { .. } => CemtEvaluatorValueKind::Null,
+        JsonValueAst::Boolean { .. } => CemtEvaluatorValueKind::Boolean,
+        JsonValueAst::Number { .. } => CemtEvaluatorValueKind::Number,
+        JsonValueAst::String { .. } => CemtEvaluatorValueKind::String,
+        JsonValueAst::Array { .. } => CemtEvaluatorValueKind::Sequence,
+        JsonValueAst::Object { .. } => CemtEvaluatorValueKind::Record,
+    }
+}
+
+fn json_number_evaluator_value(lexeme: &str) -> Option<CemtEvaluatorNumber> {
+    if !lexeme.contains(['.', 'e', 'E']) {
+        if let Ok(value) = lexeme.parse::<i64>() {
+            return Some(CemtEvaluatorNumber::integer(value));
+        }
+        if let Ok(value) = lexeme.parse::<u64>() {
+            return Some(CemtEvaluatorNumber::unsigned_integer(value));
+        }
+    }
+    lexeme
+        .parse::<f64>()
+        .ok()
+        .and_then(CemtEvaluatorNumber::decimal)
+}
+
+fn json_ast_value_to_public_json(value: &JsonValueAst) -> Result<serde_json::Value, String> {
+    match value {
+        JsonValueAst::Object { members, .. } => {
+            let mut object = serde_json::Map::new();
+            for member in members {
+                object.insert(
+                    member.name.clone(),
+                    json_ast_value_to_public_json(&member.value)?,
+                );
+            }
+            Ok(serde_json::Value::Object(object))
+        }
+        JsonValueAst::Array { items, .. } => items
+            .iter()
+            .map(json_ast_value_to_public_json)
+            .collect::<Result<Vec<_>, _>>()
+            .map(serde_json::Value::Array),
+        JsonValueAst::String { value, .. } => Ok(serde_json::Value::String(value.clone())),
+        JsonValueAst::Number { lexeme, .. } => {
+            serde_json::from_str::<serde_json::Value>(lexeme).map_err(|error| {
+                format!("lossless JSON number `{lexeme}` cannot cross the public JSON boundary: {error}")
+            })
+        }
+        JsonValueAst::Boolean { value, .. } => Ok(serde_json::Value::Bool(*value)),
+        JsonValueAst::Null { .. } => Ok(serde_json::Value::Null),
+    }
 }
 
 impl<'a> CemtEvaluatorRecord<'a> {
@@ -8399,32 +8526,6 @@ impl TransformDataArtifact {
         Self::encoded(artifact_id, uri, identity, TransformEncoding::Json, bytes)
     }
 
-    pub fn explicit_json_bytes(&self) -> Result<&[u8], TransformArtifactAccessError> {
-        let TransformArtifactBody::Encoded(encoded) = &self.body else {
-            return Err(TransformArtifactAccessError::UnsupportedRepresentation {
-                expected: "explicit encoded JSON",
-                actual: self.body.representation_id(),
-            });
-        };
-        if encoded.encoding != TransformEncoding::Json
-            || !identity_has_json_content_type(&encoded.identity)
-        {
-            return Err(TransformArtifactAccessError::UnsupportedRepresentation {
-                expected: "explicit encoded JSON",
-                actual: self.body.representation_id(),
-            });
-        }
-        Ok(encoded.bytes.as_ref())
-    }
-
-    pub fn explicit_json_value(&self) -> Result<serde_json::Value, TransformArtifactAccessError> {
-        serde_json::from_slice(self.explicit_json_bytes()?).map_err(|error| {
-            TransformArtifactAccessError::InvalidJson {
-                message: error.to_string(),
-            }
-        })
-    }
-
     pub fn encoded_text(&self) -> Result<&str, TransformArtifactAccessError> {
         let TransformArtifactBody::Encoded(encoded) = &self.body else {
             return Err(TransformArtifactAccessError::UnsupportedRepresentation {
@@ -8699,6 +8800,43 @@ mod tests {
             "JSON fixture diagnostics: {diagnostics:?}"
         );
         Arc::new(document.expect("lossless JSON document AST"))
+    }
+
+    #[test]
+    fn json_data_evaluator_borrows_lossless_values_without_collapsing_members() {
+        let owner =
+            json_document_owner(r#"{"n":1.00e+2,"escaped":"a\nb","items":[{"id":1}],"n":2}"#);
+        let root = owner.root.as_ref().expect("JSON root");
+        let value = CemtEvaluatorValue::json(root);
+
+        assert!(std::ptr::eq(value.json_ast().expect("borrowed root"), root));
+        assert_eq!(value.kind(), CemtEvaluatorValueKind::Record);
+        assert_eq!(value.length().expect("ordered member length"), 4);
+        assert_eq!(
+            value
+                .record_field_names("JSON member names")
+                .expect("member names"),
+            vec!["n", "escaped", "items", "n"]
+        );
+
+        let last_n = value.field("n").expect("last declaration wins lookup");
+        assert_eq!(last_n.json_lexeme(), Some("2"));
+        assert_eq!(
+            last_n.as_number().and_then(|number| number.as_i64()),
+            Some(2)
+        );
+        assert!(last_n.json_source_range().is_some());
+        assert!(last_n.json_source_map().is_some());
+
+        let escaped = value.field("escaped").expect("escaped string");
+        assert_eq!(escaped.as_str(), Some("a\nb"));
+        assert_eq!(escaped.json_lexeme(), Some(r#""a\nb""#));
+
+        let item = value
+            .resolve_path("items.0.id")
+            .expect("nested array/object path");
+        assert_eq!(item.json_lexeme(), Some("1"));
+        assert!(matches!(item.json_ast(), Some(JsonValueAst::Number { .. })));
     }
 
     #[test]

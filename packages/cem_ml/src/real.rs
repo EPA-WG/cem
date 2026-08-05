@@ -82,36 +82,36 @@ use crate::tokenizer::html::HtmlTokenizer;
 use crate::tokenizer::xml::XmlTokenizer;
 use crate::tokenizer::SchemaTokenizer;
 use crate::transform_artifact::{
-    CemtTreeArtifact, TransformArtifactBody, TransformArtifactCollection,
-    TransformArtifactCollectionItem, TransformArtifactCollectionMode, TransformEncodedArtifact,
-    TransformEncoding,
+    CemtEvaluatorBindings, CemtEvaluatorValue, CemtTreeArtifact, CemtTreeSubjectRef,
+    TransformArtifactBody, TransformArtifactCollection, TransformArtifactCollectionItem,
+    TransformArtifactCollectionMode, TransformEncodedArtifact, TransformEncoding,
 };
 use crate::transform_config::{
     parse_transform_graph_config, TransformGraphParseRequest, TRANSFORM_CONFIG_SCHEMA_URI,
 };
 use crate::transform_template::{
-    compose_transform_template_encoded_text_artifacts,
-    evaluate_transform_template_encode_expressions, parse_cem_native_template_module_options,
+    apply_transform_template_typed_let_bindings, compose_transform_template_encoded_text_artifacts,
+    evaluate_transform_template_typed_encode_expressions, parse_cem_native_template_module_options,
     parse_transform_template_output_color_type, transform_template_call_argument_is_dynamic,
     transform_template_encode_html_attribute, transform_template_encode_html_text,
     transform_template_encode_options_line_ending_data,
-    transform_template_ensure_text_ends_with_newline, try_apply_transform_template_let_bindings,
-    TransformTemplateAdapter, TransformTemplateAdapterLookup, TransformTemplateCompileRequest,
+    transform_template_ensure_text_ends_with_newline, TransformTemplateAdapter,
+    TransformTemplateAdapterLookup, TransformTemplateCompileRequest,
     TransformTemplateCompiledArtifact, TransformTemplateDataArtifact,
-    TransformTemplateEncodeBinding, TransformTemplateEncodeEvaluationContext,
-    TransformTemplateEncodeExpression, TransformTemplateEncodeOptions,
-    TransformTemplateEncodedArtifact, TransformTemplateEncodedArtifactIdentity,
-    TransformTemplateEncodedArtifactInsertionContext, TransformTemplateEncodedArtifactMode,
-    TransformTemplateEncodingTarget, TransformTemplateEvaluatedEncodeExpression,
-    TransformTemplateModuleCacheKey, TransformTemplateModuleDependencyKind,
-    TransformTemplateModuleImport, TransformTemplateModuleOptions,
-    TransformTemplateModuleParamDeclaration, TransformTemplateModuleParamType,
-    TransformTemplateModuleParseRequest, TransformTemplateModulePreflight,
-    TransformTemplateModuleVisibility, TransformTemplateOutputArtifact,
-    TransformTemplateOutputColorSelection, TransformTemplateOutputFunctionKind,
-    TransformTemplateOutputFunctionRegistry, TransformTemplateOutputProducedKind,
-    TransformTemplateRenderRequest, TransformTemplateResolvedModule,
-    TransformTemplateSourceMapPolicy, TransformTemplateWriterToken,
+    TransformTemplateEncodeBinding, TransformTemplateEncodeExpression,
+    TransformTemplateEncodeOptions, TransformTemplateEncodedArtifact,
+    TransformTemplateEncodedArtifactIdentity, TransformTemplateEncodedArtifactInsertionContext,
+    TransformTemplateEncodedArtifactMode, TransformTemplateEncodingTarget,
+    TransformTemplateEvaluatedEncodeExpression, TransformTemplateModuleCacheKey,
+    TransformTemplateModuleDependencyKind, TransformTemplateModuleImport,
+    TransformTemplateModuleOptions, TransformTemplateModuleParamDeclaration,
+    TransformTemplateModuleParamType, TransformTemplateModuleParseRequest,
+    TransformTemplateModulePreflight, TransformTemplateModuleVisibility,
+    TransformTemplateOutputArtifact, TransformTemplateOutputColorSelection,
+    TransformTemplateOutputFunctionKind, TransformTemplateOutputFunctionRegistry,
+    TransformTemplateOutputProducedKind, TransformTemplateRenderRequest,
+    TransformTemplateResolvedModule, TransformTemplateSourceMapPolicy,
+    TransformTemplateTypedEncodeEvaluationContext, TransformTemplateWriterToken,
     TransformTemplateWriterTokenStream, CEM_TEMPLATE_IMPORT_DENIED_CODE,
     CEM_TEMPLATE_IMPORT_UNRESOLVED_CODE, TRANSFORM_TEMPLATE_CALL_UNKNOWN_CODE,
     TRANSFORM_TEMPLATE_ENTRYPOINT_NOT_PUBLIC_CODE, TRANSFORM_TEMPLATE_IMPORT_ALIAS_DUPLICATE_CODE,
@@ -7970,9 +7970,9 @@ fn apply_render_encode_expressions(
             return;
         }
     };
-    let mut evaluated = evaluate_transform_template_encode_expressions(
+    let mut evaluated = evaluate_transform_template_typed_encode_expressions(
         &spec.compiled.module_options.encode_expressions,
-        TransformTemplateEncodeEvaluationContext {
+        TransformTemplateTypedEncodeEvaluationContext {
             registry: &registry,
             value_bindings: &value_bindings,
             host_capabilities: spec
@@ -7985,7 +7985,7 @@ fn apply_render_encode_expressions(
         |binding, subject| {
             spec.context
                 .transform_template_encode_registry
-                .execute(binding, subject)
+                .execute_typed(binding, subject)
         },
     );
 
@@ -8015,32 +8015,77 @@ fn apply_render_encode_expressions(
     }
 }
 
-fn transform_template_render_value_bindings(
-    spec: &TransformStageRenderSpec<'_>,
-) -> Result<BTreeMap<String, Value>, String> {
-    let mut value_bindings = BTreeMap::new();
-    let primary = spec
-        .primary_input
-        .explicit_json_value()
-        .map_err(|error| error.to_string())?;
-    value_bindings.insert(spec.primary_input.artifact_id.clone(), primary.clone());
-    value_bindings.entry("input".to_owned()).or_insert(primary);
-
-    for (name, artifact) in spec.secondary_inputs {
-        let value = artifact
-            .explicit_json_value()
-            .map_err(|error| error.to_string())?;
-        value_bindings.insert(name.clone(), value.clone());
-        value_bindings.insert(artifact.artifact_id.clone(), value);
+fn transform_template_render_value_bindings<'a>(
+    spec: &'a TransformStageRenderSpec<'a>,
+) -> Result<CemtEvaluatorBindings<'a>, String> {
+    let mut value_bindings = CemtEvaluatorBindings::default();
+    let primary = transform_template_ast_binding(spec.primary_input)?;
+    value_bindings.bind(&spec.primary_input.artifact_id, primary.clone());
+    if value_bindings.value("input").is_none() {
+        value_bindings.bind("input", primary);
     }
 
-    try_apply_transform_template_let_bindings(
+    for (name, artifact) in spec.secondary_inputs {
+        let value = transform_template_ast_binding(artifact)?;
+        value_bindings.bind(name, value.clone());
+        value_bindings.bind(&artifact.artifact_id, value);
+    }
+
+    apply_transform_template_typed_let_bindings(
         &mut value_bindings,
-        &spec.compiled.module_options.let_bindings,
+        &spec.compiled.module_options,
         spec.compiled.entrypoint.name.as_deref(),
     )?;
 
     Ok(value_bindings)
+}
+
+fn transform_template_ast_binding<'a>(
+    artifact: &'a TransformTemplateDataArtifact,
+) -> Result<CemtEvaluatorValue<'a>, String> {
+    match &artifact.body {
+        TransformArtifactBody::Lifecycle(stream) => {
+            let LoadedInputAstStream::JsonDocument(document) = stream.as_ref() else {
+                return Err(format!(
+                    "transform data artifact `{}` lifecycle AST `{}` does not yet expose a transform-template evaluator view",
+                    artifact.artifact_id,
+                    artifact.body.representation_id()
+                ));
+            };
+            document
+                .root
+                .as_ref()
+                .map(CemtEvaluatorValue::json)
+                .ok_or_else(|| {
+                    format!(
+                        "transform data artifact `{}` JSON document has no root value",
+                        artifact.artifact_id
+                    )
+                })
+        }
+        TransformArtifactBody::CemTree(stream) => Ok(CemtEvaluatorValue::borrowed(
+            CemtTreeSubjectRef::new(stream.as_ref()).evaluator_view(),
+        )),
+        TransformArtifactBody::MaterializedCemtTree(tree) => Ok(CemtEvaluatorValue::borrowed(
+            tree.evaluator_view(),
+        )),
+        TransformArtifactBody::Extension(native) => native
+            .as_any()
+            .downcast_ref::<CemtTreeArtifact>()
+            .map(|tree| CemtEvaluatorValue::borrowed(tree.evaluator_view()))
+            .ok_or_else(|| {
+                format!(
+                    "transform data artifact `{}` native AST `{}` does not expose a transform-template evaluator view",
+                    artifact.artifact_id,
+                    native.representation_id()
+                )
+            }),
+        body => Err(format!(
+            "transform data artifact `{}` requires a typed AST evaluator binding, got `{}`",
+            artifact.artifact_id,
+            body.representation_id()
+        )),
+    }
 }
 
 fn transform_template_render_insertion_context(
@@ -11707,22 +11752,44 @@ mod tests {
         }
     }
 
-    fn explicit_json_test_artifact(
+    fn lifecycle_json_test_artifact(
         artifact_id: &str,
         uri: Option<&str>,
         value: Value,
     ) -> TransformTemplateDataArtifact {
-        TransformTemplateDataArtifact::explicit_json(
+        let bytes = serde_json::to_vec(&value).expect("test JSON bytes");
+        lifecycle_json_bytes_test_artifact(artifact_id, uri, &bytes)
+    }
+
+    fn lifecycle_json_bytes_test_artifact(
+        artifact_id: &str,
+        uri: Option<&str>,
+        bytes: &[u8],
+    ) -> TransformTemplateDataArtifact {
+        let (document, diagnostics) =
+            json_document_ast_from_source_bytes(JsonSourceValidationRequest {
+                bytes,
+                source_uri: uri.unwrap_or("memory://test-data.json"),
+                content_type: Some(JSON_CONTENT_TYPE),
+            });
+        assert!(
+            !diagnostics
+                .iter()
+                .any(|diagnostic| diagnostic.severity.is_hard_violation()),
+            "{diagnostics:?}"
+        );
+        TransformTemplateDataArtifact::new(
             artifact_id,
             uri.map(str::to_owned),
-            FormatIdentity {
+            Some(FormatIdentity {
                 content_type: Some(JSON_CONTENT_TYPE.to_owned()),
                 schema: Some(crate::schema::registry::JSON_VALUE_SCHEMA_URI.to_owned()),
                 ..FormatIdentity::default()
-            },
-            &value,
+            }),
+            TransformArtifactBody::Lifecycle(Arc::new(LoadedInputAstStream::JsonDocument(
+                document.expect("test lifecycle JSON document"),
+            ))),
         )
-        .expect("test data has explicit JSON identity")
     }
 
     fn encoded_text_test_artifact(
@@ -11741,15 +11808,26 @@ mod tests {
         .expect("test text artifact encoding")
     }
 
-    fn assert_unmigrated_cemt_rejects_native_tree(response: &ConvertResponse) {
+    fn assert_cemt_requires_formatted_tree_output(
+        response: &ConvertResponse,
+        representation_id: &str,
+    ) {
         assert_eq!(response.primary, Value::Null);
         assert!(response.diagnostics.iter().any(|diagnostic| {
-            diagnostic.code == TransformTemplateAdapterError::FAILED_CODE
-                && diagnostic.severity == Severity::Fatal
-                && diagnostic.message.contains("cem.tree-ast")
+            diagnostic.code == crate::conversion_output::CONVERSION_OUTPUT_PIPELINE_EXECUTION_CODE
+                && diagnostic.severity == Severity::Error
                 && diagnostic
                     .message
-                    .contains("expected explicit encoded JSON")
+                    .contains(&format!("converter returned `{representation_id}`"))
+                && diagnostic
+                    .message
+                    .contains("instead of a typed formatted CEM tree")
+        }));
+        assert!(response.diagnostics.iter().all(|diagnostic| {
+            !diagnostic
+                .message
+                .contains("lifecycle-owned JSON AST binding")
+                && !diagnostic.message.contains("explicit encoded JSON")
         }));
         assert!(response
             .diagnostics
@@ -11802,6 +11880,194 @@ mod tests {
             members[0].range.start.byte_offset,
             members[1].range.start.byte_offset
         );
+    }
+
+    #[test]
+    fn transform_render_bindings_borrow_primary_secondary_and_let_json_ast_values() {
+        let primary = lifecycle_json_bytes_test_artifact(
+            "primary",
+            Some("memory://primary.json"),
+            br#"{"n":1.00e+2,"n":2,"escaped":"a\nb"}"#,
+        );
+        let secondary = Arc::new(lifecycle_json_bytes_test_artifact(
+            "secondary-artifact",
+            Some("memory://secondary.json"),
+            br#"{"items":[{"id":7}]}"#,
+        ));
+        let secondary_inputs = BTreeMap::from([("lookup".to_owned(), Arc::clone(&secondary))]);
+        let mut module_options = TransformTemplateModuleOptions::default();
+        module_options.let_bindings.push(
+            crate::transform_template::TransformTemplateModuleLetBinding {
+                owner_entrypoint: Some("main".to_owned()),
+                name: "selected".to_owned(),
+                value_type: TransformTemplateModuleParamType::Number,
+                nullable: false,
+                value: Value::Null,
+                expression: Some("$input.n".to_owned()),
+            },
+        );
+        let compiled = TransformTemplateCompiledArtifact::new(
+            "test-adapter",
+            TransformTemplateKind::CemNative,
+            "memory://binding.cemt",
+            None,
+            TransformTemplateEntrypoint::named("main"),
+            Value::Null,
+        )
+        .with_module_options(module_options);
+        let context = ctx();
+        let adapter: Arc<dyn TransformTemplateAdapter> = Arc::new(ReadyCemtHtmlExportAdapter);
+        let target_scope = ScopeConfig::default();
+        let spec = TransformStageRenderSpec {
+            context: &context,
+            adapter: &adapter,
+            compiled: &compiled,
+            primary_input: &primary,
+            secondary_inputs: &secondary_inputs,
+            target: None,
+            target_scope: &target_scope,
+            execution_policy: TransformExecutionPolicy::default(),
+            diagnostic_uri: "memory://binding.cemt",
+            diagnostic_node: None,
+        };
+
+        let bindings = transform_template_render_value_bindings(&spec).expect("typed bindings");
+        let TransformArtifactBody::Lifecycle(primary_owner) = &primary.body else {
+            panic!("primary lifecycle owner");
+        };
+        let LoadedInputAstStream::JsonDocument(primary_document) = primary_owner.as_ref() else {
+            panic!("primary JSON owner");
+        };
+        let primary_root = primary_document.root.as_ref().expect("primary root");
+        for name in ["input", "primary"] {
+            assert!(std::ptr::eq(
+                bindings
+                    .value(name)
+                    .and_then(CemtEvaluatorValue::json_ast)
+                    .expect("primary binding root"),
+                primary_root
+            ));
+        }
+        let selected = bindings.value("selected").expect("typed let binding");
+        assert_eq!(selected.json_lexeme(), Some("2"));
+        assert!(selected.json_source_range().is_some());
+        assert!(selected.json_source_map().is_some());
+
+        let TransformArtifactBody::Lifecycle(secondary_owner) = &secondary.body else {
+            panic!("secondary lifecycle owner");
+        };
+        let LoadedInputAstStream::JsonDocument(secondary_document) = secondary_owner.as_ref()
+        else {
+            panic!("secondary JSON owner");
+        };
+        let secondary_root = secondary_document.root.as_ref().expect("secondary root");
+        for name in ["lookup", "secondary-artifact"] {
+            assert!(std::ptr::eq(
+                bindings
+                    .value(name)
+                    .and_then(CemtEvaluatorValue::json_ast)
+                    .expect("secondary binding root"),
+                secondary_root
+            ));
+        }
+        assert_eq!(
+            bindings
+                .resolve_path("lookup.items.0.id")
+                .and_then(|value| value.json_lexeme().map(str::to_owned))
+                .as_deref(),
+            Some("7")
+        );
+    }
+
+    #[test]
+    fn transform_render_binding_borrows_cem_tree_stream_without_projection() {
+        let owner = Arc::new(projection::CemTreeAstStream::new(vec![
+            projection::CemTreeAstNode::Element {
+                name: "article".to_owned(),
+                attributes: Vec::new(),
+                children: Vec::new(),
+                source: SourceMapStack::default(),
+            },
+        ]));
+        let primary = TransformTemplateDataArtifact::new(
+            "primary",
+            Some("memory://primary.cem".to_owned()),
+            Some(FormatIdentity {
+                content_type: Some(CEM_AST_PROJECTION_CONTENT_TYPE.to_owned()),
+                schema: Some(CEM_AST_PROJECTION_SCHEMA_URI.to_owned()),
+                ..FormatIdentity::default()
+            }),
+            TransformArtifactBody::CemTree(Arc::clone(&owner)),
+        );
+        let compiled = TransformTemplateCompiledArtifact::new(
+            "test-adapter",
+            TransformTemplateKind::CemNative,
+            "memory://binding.cemt",
+            None,
+            TransformTemplateEntrypoint::implicit(),
+            Value::Null,
+        );
+        let context = ctx();
+        let adapter: Arc<dyn TransformTemplateAdapter> = Arc::new(ReadyCemtHtmlExportAdapter);
+        let secondary_inputs = BTreeMap::new();
+        let target_scope = ScopeConfig::default();
+        let spec = TransformStageRenderSpec {
+            context: &context,
+            adapter: &adapter,
+            compiled: &compiled,
+            primary_input: &primary,
+            secondary_inputs: &secondary_inputs,
+            target: None,
+            target_scope: &target_scope,
+            execution_policy: TransformExecutionPolicy::default(),
+            diagnostic_uri: "memory://binding.cemt",
+            diagnostic_node: None,
+        };
+
+        let bindings = transform_template_render_value_bindings(&spec).expect("typed bindings");
+        let node = bindings
+            .value("input")
+            .and_then(|value| value.item(0))
+            .expect("borrowed CEM tree node");
+        assert_eq!(
+            node.field("kind")
+                .and_then(|value| value.as_str().map(str::to_owned)),
+            Some("element".to_owned())
+        );
+        let Some(crate::transform_artifact::CemtEvaluatorRecordRef::Node {
+            node: borrowed, ..
+        }) = node.native_record()
+        else {
+            panic!("expected a borrowed native CEM tree node");
+        };
+        assert!(std::ptr::eq(*borrowed, &owner.as_nodes()[0]));
+    }
+
+    #[test]
+    fn transform_render_binding_source_has_no_json_dto_or_serializer_handoff() {
+        let source = include_str!("real.rs");
+        let route = source
+            .split_once("fn transform_template_render_value_bindings")
+            .expect("typed render binding route")
+            .1
+            .split_once("fn transform_template_render_insertion_context")
+            .expect("typed render binding route boundary")
+            .0;
+        assert!(route.contains("CemtEvaluatorBindings"));
+        assert!(route.contains("LoadedInputAstStream::JsonDocument"));
+        assert!(route.contains("CemtTreeSubjectRef"));
+        for forbidden in [
+            "explicit_json_value",
+            "serde_json",
+            "to_public_json",
+            "to_json_value",
+            "to_cemt_subject",
+        ] {
+            assert!(
+                !route.contains(forbidden),
+                "typed render binding route must not cross `{forbidden}`"
+            );
+        }
     }
 
     #[test]
@@ -12436,16 +12702,50 @@ mod tests {
                 ));
             }
 
-            let primary = request
-                .primary_input
-                .explicit_json_value()
-                .map_err(|error| {
-                    TransformTemplateAdapterError::failed(
+            let input_kind = match &request.primary_input.body {
+                TransformArtifactBody::CemTree(primary) => primary
+                    .as_nodes()
+                    .first()
+                    .map(projection::CemTreeAstNode::kind)
+                    .ok_or_else(|| {
+                        TransformTemplateAdapterError::failed(
+                            self.id(),
+                            TransformTemplateAdapterExecutionPhase::Render,
+                            "converter template input AST stream was empty",
+                        )
+                    })?,
+                TransformArtifactBody::Lifecycle(stream) => {
+                    let LoadedInputAstStream::JsonDocument(document) = stream.as_ref() else {
+                        return Err(TransformTemplateAdapterError::failed(
+                            self.id(),
+                            TransformTemplateAdapterExecutionPhase::Render,
+                            "test converter lifecycle input is not a JSON AST stream",
+                        ));
+                    };
+                    document
+                        .root
+                        .as_ref()
+                        .map(CemtEvaluatorValue::json)
+                        .map(|value| value.kind().as_str())
+                        .ok_or_else(|| {
+                            TransformTemplateAdapterError::failed(
+                                self.id(),
+                                TransformTemplateAdapterExecutionPhase::Render,
+                                "converter template JSON AST stream has no root",
+                            )
+                        })?
+                }
+                body => {
+                    return Err(TransformTemplateAdapterError::failed(
                         self.id(),
                         TransformTemplateAdapterExecutionPhase::Render,
-                        error.to_string(),
-                    )
-                })?;
+                        format!(
+                            "test converter requires a direct AST stream, got `{}`",
+                            body.representation_id()
+                        ),
+                    ));
+                }
+            };
 
             if request.target.is_some_and(|target| {
                 target.content_type.as_deref().is_some_and(|content_type| {
@@ -12453,6 +12753,20 @@ mod tests {
                         == crate::schema::registry::CEM_ML_CONTENT_TYPE
                 })
             }) {
+                let TransformArtifactBody::CemTree(primary) = &request.primary_input.body else {
+                    return Err(TransformTemplateAdapterError::failed(
+                        self.id(),
+                        TransformTemplateAdapterExecutionPhase::Render,
+                        "test CEM-tree target requires a direct CEM AST stream",
+                    ));
+                };
+                let first_node = primary.as_nodes().first().ok_or_else(|| {
+                    TransformTemplateAdapterError::failed(
+                        self.id(),
+                        TransformTemplateAdapterExecutionPhase::Render,
+                        "converter template input AST stream was empty",
+                    )
+                })?;
                 if template_text.contains("adapter-output-pipeline-fail") {
                     let output = TransformTemplateOutputArtifact::encoded_text(
                         None,
@@ -12476,28 +12790,15 @@ mod tests {
                     });
                 }
 
-                let input_nodes = primary.as_array().ok_or_else(|| {
-                    TransformTemplateAdapterError::failed(
-                        self.id(),
-                        TransformTemplateAdapterExecutionPhase::Render,
-                        "converter template input was not a CEM AST stream array",
-                    )
-                })?;
-                let first_node = input_nodes.first().ok_or_else(|| {
-                    TransformTemplateAdapterError::failed(
-                        self.id(),
-                        TransformTemplateAdapterExecutionPhase::Render,
-                        "converter template input AST stream was empty",
-                    )
-                })?;
-                let source_content_type = first_node["sourceMap"]["frames"]
-                    .as_array()
-                    .and_then(|frames| {
-                        frames.iter().find_map(|frame| {
-                            (frame["transform"]["kind"] == "ContentTypeTransform")
-                                .then(|| frame["transform"]["content_type"].as_str())
-                                .flatten()
-                        })
+                let source_content_type = first_node
+                    .source_map()
+                    .frames
+                    .iter()
+                    .find_map(|frame| match &frame.transform {
+                        crate::source_map::TransformKind::ContentTypeTransform { content_type } => {
+                            Some(content_type.as_str())
+                        }
+                        _ => None,
                     })
                     .unwrap_or("missing-source-content-type");
                 let input_content_type = request
@@ -12508,26 +12809,21 @@ mod tests {
                     .unwrap_or("missing-input-content-type");
                 let input_summary = format!(
                     "{}:{}:{}",
-                    first_node["kind"].as_str().unwrap_or("missing-kind"),
+                    first_node.kind(),
                     input_content_type,
                     source_content_type
                 );
 
-                let tree = projection::CemTreeAstStream::try_from_cemt_subject(json!([{
-                    "kind": "element",
-                    "name": "cemt-ready",
-                    "children": [{
-                        "kind": "text",
-                        "value": input_summary
-                    }]
-                }]))
-                .map_err(|error| {
-                    TransformTemplateAdapterError::failed(
-                        self.id(),
-                        TransformTemplateAdapterExecutionPhase::Render,
-                        error.to_string(),
-                    )
-                })?;
+                let tree =
+                    projection::CemTreeAstStream::new(vec![projection::CemTreeAstNode::Element {
+                        name: "cemt-ready".to_owned(),
+                        attributes: Vec::new(),
+                        children: vec![projection::CemTreeAstNode::Text {
+                            value: input_summary,
+                            source: SourceMapStack::default(),
+                        }],
+                        source: SourceMapStack::default(),
+                    }]);
                 return Ok(TransformTemplateRenderResponse {
                     output: TransformTemplateOutputArtifact {
                         uri: None,
@@ -12541,10 +12837,7 @@ mod tests {
             }
 
             let identity = request.target.cloned().unwrap_or_default();
-            let content = format!(
-                "<direct-ready>{}</direct-ready>",
-                primary["kind"].as_str().unwrap_or("unknown")
-            );
+            let content = format!("<direct-ready>{input_kind}</direct-ready>");
             let output = if identity
                 .content_type
                 .as_deref()
@@ -12994,7 +13287,7 @@ mod tests {
         .expect("template compiles");
         assert_eq!(compiled.module_options.let_bindings.len(), 1);
         let primary_input =
-            explicit_json_test_artifact("input", None, json!({"title": "Hello <CEM> & friends"}));
+            lifecycle_json_test_artifact("input", None, json!({"title": "Hello <CEM> & friends"}));
         let secondary_inputs = BTreeMap::new();
         let target = FormatIdentity {
             content_type: Some("text/html".to_owned()),
@@ -13095,7 +13388,7 @@ mod tests {
         .expect("template compiles");
         assert!(diagnostics.is_empty(), "{diagnostics:?}");
         let primary_input =
-            explicit_json_test_artifact("input", None, json!({"title": "Hello CEM"}));
+            lifecycle_json_test_artifact("input", None, json!({"title": "Hello CEM"}));
         let secondary_inputs = BTreeMap::new();
         let target = FormatIdentity {
             content_type: Some("text/html".to_owned()),
@@ -13197,7 +13490,7 @@ mod tests {
         )
         .expect("template compiles");
         let primary_input =
-            explicit_json_test_artifact("input", None, json!({"title": "Hello CEM"}));
+            lifecycle_json_test_artifact("input", None, json!({"title": "Hello CEM"}));
         let secondary_inputs = BTreeMap::new();
         let target = FormatIdentity {
             content_type: Some("text/html".to_owned()),
@@ -13305,7 +13598,7 @@ mod tests {
         )
         .expect("template compiles");
         let primary_input =
-            explicit_json_test_artifact("input", None, json!({"title": "Hello & CEM"}));
+            lifecycle_json_test_artifact("input", None, json!({"title": "Hello & CEM"}));
         let secondary_inputs = BTreeMap::new();
         let target = FormatIdentity {
             content_type: Some("text/html".to_owned()),
@@ -13389,7 +13682,7 @@ mod tests {
         )
         .expect("template compiles");
         let primary_input =
-            explicit_json_test_artifact("input", None, json!({"items": ["Hello", 2, true]}));
+            lifecycle_json_test_artifact("input", None, json!({"items": ["Hello", 2, true]}));
         let secondary_inputs = BTreeMap::new();
         let target = FormatIdentity {
             content_type: Some(crate::schema::registry::JSON_CONTENT_TYPE.to_owned()),
@@ -13497,7 +13790,7 @@ mod tests {
         )
         .expect("template compiles");
         let primary_input =
-            explicit_json_test_artifact("input", None, json!({"items": ["Hello"], "name": "CEM"}));
+            lifecycle_json_test_artifact("input", None, json!({"items": ["Hello"], "name": "CEM"}));
         let secondary_inputs = BTreeMap::new();
         let target = FormatIdentity {
             content_type: Some(crate::schema::registry::JSON_CONTENT_TYPE.to_owned()),
@@ -13581,7 +13874,7 @@ mod tests {
         )
         .expect("template compiles");
         let primary_input =
-            explicit_json_test_artifact("input", None, json!({"items": ["Hello", 2, true]}));
+            lifecycle_json_test_artifact("input", None, json!({"items": ["Hello", 2, true]}));
         let secondary_inputs = BTreeMap::new();
         let target = FormatIdentity {
             content_type: Some(crate::schema::registry::JSON_CONTENT_TYPE.to_owned()),
@@ -13665,7 +13958,7 @@ mod tests {
         )
         .expect("template compiles");
         let primary_input =
-            explicit_json_test_artifact("input", None, json!({"first": "a", "second": "b"}));
+            lifecycle_json_test_artifact("input", None, json!({"first": "a", "second": "b"}));
         let secondary_inputs = BTreeMap::new();
         let target = FormatIdentity {
             content_type: Some(crate::schema::registry::JSON_CONTENT_TYPE.to_owned()),
@@ -13748,7 +14041,7 @@ mod tests {
             &mut diagnostics,
         )
         .expect("template compiles");
-        let primary_input = explicit_json_test_artifact(
+        let primary_input = lifecycle_json_test_artifact(
             "input",
             None,
             json!({"title": "Hello <CEM> & \"friends\""}),
@@ -13848,7 +14141,7 @@ mod tests {
             &mut diagnostics,
         )
         .expect("template compiles");
-        let primary_input = explicit_json_test_artifact(
+        let primary_input = lifecycle_json_test_artifact(
             "input",
             None,
             json!({"title": "Line 1\nLine 2 <CEM> & friends"}),
@@ -13936,7 +14229,7 @@ mod tests {
         )
         .expect("template compiles");
         let primary_input =
-            explicit_json_test_artifact("input", None, json!({"first": "a", "second": "b"}));
+            lifecycle_json_test_artifact("input", None, json!({"first": "a", "second": "b"}));
         let secondary_inputs = BTreeMap::new();
         let target = FormatIdentity {
             content_type: Some(crate::schema::registry::XML_CONTENT_TYPE.to_owned()),
@@ -14031,7 +14324,7 @@ mod tests {
         )
         .expect("template compiles");
         let primary_input =
-            explicit_json_test_artifact("input", None, json!({"title": "Hello & CEM"}));
+            lifecycle_json_test_artifact("input", None, json!({"title": "Hello & CEM"}));
         let secondary_inputs = BTreeMap::new();
         let target = FormatIdentity {
             content_type: Some(crate::schema::registry::XML_CONTENT_TYPE.to_owned()),
@@ -18787,7 +19080,7 @@ mod tests {
     }
 
     #[test]
-    fn convert_html_ready_cemt_rejects_unmigrated_native_tree_ingress() {
+    fn convert_html_ready_cemt_accepts_direct_tree_ingress_before_formatted_output_requirement() {
         let req = ConvertRequest {
             input: input(b"@doc cem-ml 1\n{p | Hi}", "in.cem"),
             to_format: LayerFormat::Html,
@@ -18803,7 +19096,7 @@ mod tests {
 
         let resp = RealCemMlEngine::new().convert(req).unwrap();
 
-        assert_unmigrated_cemt_rejects_native_tree(&resp);
+        assert_cemt_requires_formatted_tree_output(&resp, "cem.tree-ast");
     }
 
     #[test]
@@ -18887,7 +19180,7 @@ mod tests {
 
         let resp = RealCemMlEngine::new().convert(req).unwrap();
 
-        assert_unmigrated_cemt_rejects_native_tree(&resp);
+        assert_cemt_requires_formatted_tree_output(&resp, "cem.encoded");
     }
 
     #[test]

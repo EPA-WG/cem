@@ -791,69 +791,14 @@ impl TransformTemplateAdapter for DomProjectionParityCemtAdapter {
             });
         }
 
-        let primary = request
-            .primary_input
-            .explicit_json_value()
-            .map_err(|error| {
-                TransformTemplateAdapterError::failed(
-                    self.id(),
-                    TransformTemplateAdapterExecutionPhase::Render,
-                    error.to_string(),
-                )
-            })?;
-        if conversion_dom_projection_parity_target_is_cem_tree(&request) {
-            let owner = Arc::new(
-                conversion_dom_projection_parity_cem_tree_stream(&primary).map_err(|message| {
-                    TransformTemplateAdapterError::failed(
-                        self.id(),
-                        TransformTemplateAdapterExecutionPhase::Render,
-                        message,
-                    )
-                })?,
-            );
-            let tree = conversion_dom_projection_formatted_cem_tree(&owner, request.target_scope)?;
-            return Ok(TransformTemplateRenderResponse {
-                output: TransformTemplateOutputArtifact {
-                    uri: None,
-                    identity: request.target.cloned(),
-                    source_map: tree.source_map().cloned(),
-                    body: TransformArtifactBody::Extension(tree),
-                    output_spans: Vec::new(),
-                },
-                diagnostics: Vec::new(),
-            });
-        }
-
-        let output = conversion_dom_projection_parity_output(&request).map_err(|message| {
-            TransformTemplateAdapterError::failed(
-                self.id(),
-                TransformTemplateAdapterExecutionPhase::Render,
-                message,
-            )
-        })?;
-        let rendered = conversion_render_dom_projection_parity_document(&primary, output).map_err(
-            |message| {
-                TransformTemplateAdapterError::failed(
-                    self.id(),
-                    TransformTemplateAdapterExecutionPhase::Render,
-                    message,
-                )
-            },
-        )?;
-
-        let identity = request.target.cloned().unwrap_or_default();
-        let output = TransformTemplateOutputArtifact::encoded_text(None, identity, rendered)
-            .map_err(|error| {
-                TransformTemplateAdapterError::failed(
-                    self.id(),
-                    TransformTemplateAdapterExecutionPhase::Render,
-                    error.to_string(),
-                )
-            })?;
-        Ok(TransformTemplateRenderResponse {
-            output,
-            diagnostics: Vec::new(),
-        })
+        Err(TransformTemplateAdapterError::failed(
+            self.id(),
+            TransformTemplateAdapterExecutionPhase::Render,
+            format!(
+                "DOM projection converter requires a typed CEM tree input, got `{}`; explicit JSON compatibility ingress is not permitted",
+                request.primary_input.body.representation_id()
+            ),
+        ))
     }
 }
 
@@ -1034,18 +979,6 @@ fn conversion_dom_projection_parity_output(
     }
 }
 
-fn conversion_render_dom_projection_parity_document(
-    input: &Value,
-    output: ConversionDomProjectionParityOutput,
-) -> Result<String, String> {
-    let children = conversion_template_input_children(input)?;
-    let mut rendered = String::new();
-    for child in children {
-        conversion_render_dom_projection_parity_node(child, output, &mut rendered)?;
-    }
-    Ok(rendered)
-}
-
 fn conversion_render_dom_projection_parity_cem_tree(
     input: &CemTreeAstStream,
     output: ConversionDomProjectionParityOutput,
@@ -1162,180 +1095,6 @@ fn conversion_render_dom_projection_parity_cem_tree_attribute(
     rendered.push('"');
 }
 
-fn conversion_render_dom_projection_parity_node(
-    node: &Value,
-    output: ConversionDomProjectionParityOutput,
-    rendered: &mut String,
-) -> Result<(), String> {
-    match node.get("kind").and_then(Value::as_str).unwrap_or_default() {
-        "element" => conversion_render_dom_projection_parity_element(node, output, rendered),
-        "text" => {
-            conversion_escape_text_into(rendered, conversion_dom_projection_parity_data(node));
-            Ok(())
-        }
-        "whitespace" => {
-            rendered.push_str(conversion_dom_projection_parity_data(node));
-            Ok(())
-        }
-        "comment" => {
-            rendered.push_str("<!--");
-            rendered.push_str(conversion_dom_projection_parity_data(node));
-            rendered.push_str("-->");
-            Ok(())
-        }
-        "cdata" if output == ConversionDomProjectionParityOutput::Xml => {
-            rendered.push_str("<![CDATA[");
-            rendered.push_str(conversion_dom_projection_parity_data(node));
-            rendered.push_str("]]>");
-            Ok(())
-        }
-        "processing-instruction" if output == ConversionDomProjectionParityOutput::Xml => {
-            let target = node
-                .get("name")
-                .or_else(|| node.get("target"))
-                .and_then(Value::as_str)
-                .unwrap_or_default();
-            rendered.push_str("<?");
-            rendered.push_str(target);
-            let data = conversion_dom_projection_parity_data(node);
-            if !data.is_empty() {
-                rendered.push(' ');
-                rendered.push_str(data);
-            }
-            rendered.push_str("?>");
-            Ok(())
-        }
-        "raw-text" if output == ConversionDomProjectionParityOutput::Html => {
-            rendered.push_str(conversion_dom_projection_parity_data(node));
-            Ok(())
-        }
-        _ => Ok(()),
-    }
-}
-
-fn conversion_render_dom_projection_parity_element(
-    node: &Value,
-    output: ConversionDomProjectionParityOutput,
-    rendered: &mut String,
-) -> Result<(), String> {
-    let name = conversion_dom_projection_parity_name(node)?;
-    if name.local.starts_with('@') {
-        return Ok(());
-    }
-    rendered.push('<');
-    conversion_push_dom_projection_parity_name(rendered, &name);
-    if let Some(attributes) = node.get("attributes").and_then(Value::as_array) {
-        for attribute in attributes {
-            conversion_render_dom_projection_parity_attribute(attribute, output, rendered)?;
-        }
-    }
-    rendered.push('>');
-    if let Some(children) = node.get("children").and_then(Value::as_array) {
-        for child in children {
-            conversion_render_dom_projection_parity_node(child, output, rendered)?;
-        }
-    }
-    rendered.push_str("</");
-    conversion_push_dom_projection_parity_name(rendered, &name);
-    rendered.push('>');
-    Ok(())
-}
-
-fn conversion_render_dom_projection_parity_attribute(
-    attribute: &Value,
-    output: ConversionDomProjectionParityOutput,
-    rendered: &mut String,
-) -> Result<(), String> {
-    let name = conversion_dom_projection_parity_name(attribute)?;
-    rendered.push(' ');
-    conversion_push_dom_projection_parity_name(rendered, &name);
-    match (output, attribute.get("value")) {
-        (ConversionDomProjectionParityOutput::Html, Some(Value::Null) | None) => Ok(()),
-        (_, value) => {
-            rendered.push_str("=\"");
-            if let Some(value) = value.and_then(Value::as_str) {
-                match output {
-                    ConversionDomProjectionParityOutput::Html => {
-                        conversion_escape_html_attribute_into(rendered, value);
-                    }
-                    ConversionDomProjectionParityOutput::Xml => {
-                        conversion_escape_xml_attribute_into(rendered, value);
-                    }
-                }
-            }
-            rendered.push('"');
-            Ok(())
-        }
-    }
-}
-
-#[derive(Debug)]
-struct ConversionDomProjectionParityName<'a> {
-    namespace: &'a str,
-    local: &'a str,
-}
-
-fn conversion_dom_projection_parity_name(
-    node: &Value,
-) -> Result<ConversionDomProjectionParityName<'_>, String> {
-    let local = node
-        .get("name")
-        .and_then(Value::as_str)
-        .ok_or_else(|| "DOM projection node is missing a name".to_owned())?;
-    let namespace = node
-        .get("namespace")
-        .and_then(Value::as_str)
-        .unwrap_or_default();
-    Ok(ConversionDomProjectionParityName { namespace, local })
-}
-
-fn conversion_push_dom_projection_parity_name(
-    rendered: &mut String,
-    name: &ConversionDomProjectionParityName<'_>,
-) {
-    if !name.namespace.is_empty() {
-        rendered.push_str(name.namespace);
-        rendered.push(':');
-    }
-    rendered.push_str(name.local);
-}
-
-fn conversion_dom_projection_parity_data(node: &Value) -> &str {
-    node.get("data")
-        .or_else(|| node.get("value"))
-        .and_then(Value::as_str)
-        .unwrap_or_default()
-}
-
-/// Parse the explicit DOM-JSON converter ingress once into its native CEM-tree
-/// stream. Formatter metadata is attached later as a typed overlay; no JSON
-/// envelope is passed between those stages.
-fn conversion_dom_projection_parity_cem_tree_stream(
-    input: &Value,
-) -> Result<CemTreeAstStream, String> {
-    let children = conversion_template_input_children(input)?;
-    let mut nodes = Vec::new();
-    for child in children {
-        if let Some(node) = conversion_dom_projection_parity_cem_tree_node(child)? {
-            nodes.push(node);
-        }
-    }
-    Ok(CemTreeAstStream::new(nodes))
-}
-
-fn conversion_template_input_children(input: &Value) -> Result<&Vec<Value>, String> {
-    if let Some(nodes) = input.as_array() {
-        return Ok(nodes);
-    }
-    input
-        .get("children")
-        .and_then(Value::as_array)
-        .ok_or_else(|| {
-            "converter template input must be a CEM AST stream array or contain a children array"
-                .to_owned()
-        })
-}
-
 fn conversion_dom_projection_parity_formatter_profile(target_scope: &ScopeConfig) -> String {
     target_scope
         .cemt_formatter_profile
@@ -1350,111 +1109,6 @@ fn conversion_dom_projection_parity_formatter_profile(target_scope: &ScopeConfig
         })
         .unwrap_or("compact")
         .to_owned()
-}
-
-fn conversion_dom_projection_parity_cem_tree_node(
-    node: &Value,
-) -> Result<Option<CemTreeAstNode>, String> {
-    let kind = node.get("kind").and_then(Value::as_str).unwrap_or_default();
-    match kind {
-        "text" => Ok(Some(CemTreeAstNode::Text {
-            value: conversion_dom_projection_parity_data(node).to_owned(),
-            source: conversion_dom_projection_parity_source_map(node)?,
-        })),
-        "whitespace" => Ok(Some(CemTreeAstNode::Whitespace {
-            data: conversion_dom_projection_parity_data(node).to_owned(),
-            source: conversion_dom_projection_parity_source_map(node)?,
-        })),
-        "comment" => Ok(Some(CemTreeAstNode::Comment {
-            data: conversion_dom_projection_parity_data(node).to_owned(),
-            source: conversion_dom_projection_parity_source_map(node)?,
-        })),
-        "cdata" => Ok(Some(CemTreeAstNode::Cdata {
-            data: conversion_dom_projection_parity_data(node).to_owned(),
-            source: conversion_dom_projection_parity_source_map(node)?,
-        })),
-        "raw-text" => Ok(Some(CemTreeAstNode::RawText {
-            data: conversion_dom_projection_parity_data(node).to_owned(),
-            source: conversion_dom_projection_parity_source_map(node)?,
-        })),
-        "processing-instruction" => {
-            let name = conversion_dom_projection_parity_name(node)?;
-            Ok(Some(CemTreeAstNode::ProcessingInstruction {
-                name: name.local.to_owned(),
-                target: name.local.to_owned(),
-                data: conversion_dom_projection_parity_data(node).to_owned(),
-                source: conversion_dom_projection_parity_source_map(node)?,
-            }))
-        }
-        _ => conversion_dom_projection_parity_cem_tree_element(node),
-    }
-}
-
-fn conversion_dom_projection_parity_cem_tree_element(
-    node: &Value,
-) -> Result<Option<CemTreeAstNode>, String> {
-    let name = conversion_dom_projection_parity_name(node)?;
-    if name.local.starts_with('@') {
-        return Ok(None);
-    }
-
-    let attributes = node
-        .get("attributes")
-        .and_then(Value::as_array)
-        .map(|attributes| {
-            attributes
-                .iter()
-                .map(conversion_dom_projection_parity_cem_tree_attribute)
-                .collect::<Result<Vec<_>, _>>()
-        })
-        .transpose()?
-        .unwrap_or_default();
-
-    let mut child_nodes = Vec::new();
-    if let Some(children) = node.get("children").and_then(Value::as_array) {
-        for child in children {
-            if let Some(child_node) = conversion_dom_projection_parity_cem_tree_node(child)? {
-                child_nodes.push(child_node);
-            }
-        }
-    }
-
-    Ok(Some(CemTreeAstNode::Element {
-        name: name.local.to_owned(),
-        attributes,
-        children: child_nodes,
-        source: conversion_dom_projection_parity_source_map(node)?,
-    }))
-}
-
-fn conversion_dom_projection_parity_cem_tree_attribute(
-    attribute: &Value,
-) -> Result<CemTreeAstAttribute, String> {
-    let name = conversion_dom_projection_parity_name(attribute)?;
-    let value = match attribute.get("value") {
-        None | Some(Value::Null) => None,
-        Some(Value::String(value)) => Some(value.clone()),
-        Some(_) => {
-            return Err(format!(
-                "DOM projection attribute `{}` value must be a string or null",
-                name.local
-            ))
-        }
-    };
-    Ok(CemTreeAstAttribute {
-        name: name.local.to_owned(),
-        value,
-        source: conversion_dom_projection_parity_source_map(attribute)?,
-    })
-}
-
-fn conversion_dom_projection_parity_source_map(node: &Value) -> Result<SourceMapStack, String> {
-    match node.get("sourceMap") {
-        None | Some(Value::Null) => Ok(SourceMapStack::default()),
-        Some(source_map) => serde_json::from_value(source_map.clone()).map_err(|error| {
-            format!("DOM projection node contains an invalid source map: {error}")
-        }),
-    }
 }
 
 #[derive(Debug, Clone)]
@@ -16331,23 +15985,26 @@ mod tests {
 
     #[test]
     fn dom_projection_cemt_adapter_builds_formatted_cem_tree_envelope() {
-        let owner = Arc::new(
-            conversion_dom_projection_parity_cem_tree_stream(&serde_json::json!({
-                "children": [{
-                    "kind": "element",
-                    "name": "article",
-                    "children": [
-                        {"kind": "text", "value": "Ready "},
-                        {
-                            "kind": "element",
-                            "name": "strong",
-                            "children": [{"kind": "text", "value": "now"}]
-                        }
-                    ]
-                }]
-            }))
-            .expect("DOM JSON boundary parses into a typed stream"),
-        );
+        let owner = Arc::new(CemTreeAstStream::new(vec![CemTreeAstNode::Element {
+            name: "article".to_owned(),
+            attributes: Vec::new(),
+            children: vec![
+                CemTreeAstNode::Text {
+                    value: "Ready ".to_owned(),
+                    source: SourceMapStack::default(),
+                },
+                CemTreeAstNode::Element {
+                    name: "strong".to_owned(),
+                    attributes: Vec::new(),
+                    children: vec![CemTreeAstNode::Text {
+                        value: "now".to_owned(),
+                        source: SourceMapStack::default(),
+                    }],
+                    source: SourceMapStack::default(),
+                },
+            ],
+            source: SourceMapStack::default(),
+        }]));
         let tree = conversion_dom_projection_formatted_cem_tree(
             &owner,
             &ScopeConfig {
@@ -16556,8 +16213,8 @@ mod tests {
             .split_once("if let TransformArtifactBody::CemTree(primary)")
             .expect("DOM native adapter branch")
             .1
-            .split_once("let primary = request")
-            .expect("DOM compatibility branch boundary")
+            .split_once("fn conversion_dom_projection_formatted_cem_tree(")
+            .expect("DOM adapter implementation boundary")
             .0;
         for required in [
             "conversion_dom_projection_formatted_cem_tree",

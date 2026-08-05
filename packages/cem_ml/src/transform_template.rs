@@ -4271,6 +4271,20 @@ impl TransformTemplateEncodeImplementationRegistry {
                 .map(TransformTemplateOutputFunctionExecution::Native)
         }
     }
+
+    /// Crosses the explicit host-encoder boundary from the typed evaluator.
+    ///
+    /// Runtime stages retain borrowed/native values up to this point. Legacy
+    /// host encoders still declare a public `serde_json::Value` contract, so
+    /// projection is intentionally confined to this export boundary.
+    pub(crate) fn execute_typed(
+        &self,
+        binding: &TransformTemplateEncodeBinding,
+        subject: &CemtEvaluatorValue<'_>,
+    ) -> Result<TransformTemplateOutputFunctionExecution, String> {
+        let boundary_subject = subject.to_public_json()?;
+        self.execute(binding, &boundary_subject)
+    }
 }
 
 fn builtin_html_text_encoder(
@@ -7079,6 +7093,15 @@ pub struct TransformTemplateEncodeEvaluationContext<'a> {
     pub host_capabilities: &'a BTreeSet<String>,
     pub output_color_type: Option<&'a str>,
     pub uri: Option<&'a str>,
+}
+
+#[derive(Debug, Clone)]
+pub(crate) struct TransformTemplateTypedEncodeEvaluationContext<'value, 'registry> {
+    pub registry: &'registry TransformTemplateOutputFunctionRegistry,
+    pub value_bindings: &'registry CemtEvaluatorBindings<'value>,
+    pub host_capabilities: &'registry BTreeSet<String>,
+    pub output_color_type: Option<&'registry str>,
+    pub uri: Option<&'registry str>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -9985,6 +10008,403 @@ fn json_value_type_name(value: &Value) -> &'static str {
     }
 }
 
+pub(crate) fn evaluate_transform_template_typed_encode_expressions<'value, F>(
+    expressions: &[TransformTemplateEncodeExpression],
+    context: TransformTemplateTypedEncodeEvaluationContext<'value, '_>,
+    mut encode_impl: F,
+) -> TransformTemplateEncodeEvaluationResponse
+where
+    F: FnMut(
+        &TransformTemplateEncodeBinding,
+        &CemtEvaluatorValue<'value>,
+    ) -> Result<TransformTemplateOutputFunctionExecution, String>,
+{
+    let mut encoded = Vec::new();
+    let mut diagnostics = Vec::new();
+
+    for expression in expressions {
+        let subject = match resolve_cemt_typed_runtime_expression(
+            &expression.subject,
+            context.value_bindings,
+            &context.registry.module_options,
+        ) {
+            Ok(Some(subject)) => subject,
+            Ok(None) => {
+                diagnostics.push(Diagnostic {
+                    uri: context.uri.map(str::to_owned),
+                    code: TRANSFORM_TEMPLATE_ENCODE_SUBJECT_UNRESOLVED_CODE.to_owned(),
+                    severity: Severity::Error,
+                    message: format!(
+                        "CEMT encode subject expression `{}` could not be resolved",
+                        expression.subject
+                    ),
+                    details: None,
+                    ..Diagnostic::default()
+                });
+                continue;
+            }
+            Err(message) => {
+                diagnostics.push(Diagnostic {
+                    uri: context.uri.map(str::to_owned),
+                    code: TRANSFORM_TEMPLATE_ENCODE_SUBJECT_UNRESOLVED_CODE.to_owned(),
+                    severity: Severity::Error,
+                    message: format!(
+                        "CEMT encode subject expression `{}` failed: {message}",
+                        expression.subject
+                    ),
+                    details: None,
+                    ..Diagnostic::default()
+                });
+                continue;
+            }
+        };
+
+        // Binding selection and legacy host encoders are the declared output
+        // boundary. The complete binding plane above remains typed/borrowed.
+        let boundary_subject = match subject.to_public_json() {
+            Ok(subject) => subject,
+            Err(message) => {
+                diagnostics.push(Diagnostic {
+                    uri: context.uri.map(str::to_owned),
+                    code: TRANSFORM_TEMPLATE_ENCODE_IMPLEMENTATION_FAILED_CODE.to_owned(),
+                    severity: Severity::Error,
+                    message: format!(
+                        "CEMT encode subject expression `{}` cannot cross the host encoder boundary: {message}",
+                        expression.subject
+                    ),
+                    details: None,
+                    ..Diagnostic::default()
+                });
+                continue;
+            }
+        };
+        let mut request = expression.binding_request(boundary_subject.clone());
+        if let Err(diagnostic) =
+            resolve_typed_encode_request_runtime_values(&mut request, &context, expression)
+        {
+            diagnostics.push(diagnostic);
+            continue;
+        }
+        let format_first = request.requires_format_binding();
+        if !format_first && request.requires_color_binding() {
+            if let Some(output_color_type) = context.output_color_type {
+                match parse_transform_template_output_color_type(output_color_type) {
+                    Ok(selection) => selection.apply_to_request(&mut request),
+                    Err(message) => {
+                        diagnostics.push(Diagnostic {
+                            uri: context.uri.map(str::to_owned),
+                            code: TRANSFORM_TEMPLATE_COLOR_PROFILE_INVALID_CODE.to_owned(),
+                            severity: Severity::Error,
+                            message,
+                            ..Diagnostic::default()
+                        });
+                        continue;
+                    }
+                }
+            }
+        }
+
+        if format_first {
+            let format_binding = match context
+                .registry
+                .resolve_format_binding(&request, context.host_capabilities)
+            {
+                Ok(binding) => binding,
+                Err(error) => {
+                    diagnostics.push(error.diagnostic(context.uri));
+                    continue;
+                }
+            };
+            let formatted_execution = match execute_transform_template_typed_output_function(
+                &format_binding,
+                &subject,
+                None,
+                &context,
+                &mut encode_impl,
+            ) {
+                Ok(value) => value,
+                Err(message) => {
+                    diagnostics.push(typed_encode_implementation_diagnostic(
+                        expression,
+                        &format_binding,
+                        context.uri,
+                        message,
+                    ));
+                    continue;
+                }
+            };
+            let formatted_tree = formatted_execution.cem_tree_output().cloned();
+            let mut binding = format_binding;
+            let mut artifact = match formatted_execution.into_artifact(&binding) {
+                Ok(artifact) => artifact,
+                Err(message) => {
+                    diagnostics.push(typed_encode_implementation_diagnostic(
+                        expression,
+                        &binding,
+                        context.uri,
+                        message,
+                    ));
+                    continue;
+                }
+            };
+
+            if request.requires_color_binding()
+                || transform_template_encode_options_request_color(&request.options)
+            {
+                let mut color_request = TransformTemplateEncodeBindingRequest {
+                    subject: Value::Null,
+                    owner: request.owner.clone(),
+                    subject_type: Some("cem-tree".to_owned()),
+                    target: request.target.clone(),
+                    options: request.options.clone(),
+                };
+                if let Some(output_color_type) = context.output_color_type {
+                    match parse_transform_template_output_color_type(output_color_type) {
+                        Ok(selection) => {
+                            if let Some(color_profile) =
+                                transform_template_cem_tree_color_profile_for_output_selection(
+                                    &selection,
+                                )
+                            {
+                                color_request.options.color_profile =
+                                    Some(color_profile.to_owned());
+                            }
+                        }
+                        Err(message) => {
+                            diagnostics.push(Diagnostic {
+                                uri: context.uri.map(str::to_owned),
+                                code: TRANSFORM_TEMPLATE_COLOR_PROFILE_INVALID_CODE.to_owned(),
+                                severity: Severity::Error,
+                                message,
+                                ..Diagnostic::default()
+                            });
+                            continue;
+                        }
+                    }
+                }
+                let color_binding = match context
+                    .registry
+                    .resolve_color_binding(&color_request, context.host_capabilities)
+                {
+                    Ok(binding) => binding.into_encode_binding(),
+                    Err(error) => {
+                        diagnostics.push(error.diagnostic(context.uri));
+                        continue;
+                    }
+                };
+                let colored_execution = match execute_transform_template_typed_output_function(
+                    &color_binding,
+                    &CemtEvaluatorValue::Null,
+                    formatted_tree.as_ref(),
+                    &context,
+                    &mut encode_impl,
+                ) {
+                    Ok(value) => value,
+                    Err(message) => {
+                        diagnostics.push(typed_encode_implementation_diagnostic(
+                            expression,
+                            &color_binding,
+                            context.uri,
+                            message,
+                        ));
+                        continue;
+                    }
+                };
+                binding = color_binding;
+                artifact = match colored_execution.into_artifact(&binding) {
+                    Ok(artifact) => artifact,
+                    Err(message) => {
+                        diagnostics.push(typed_encode_implementation_diagnostic(
+                            expression,
+                            &binding,
+                            context.uri,
+                            message,
+                        ));
+                        continue;
+                    }
+                };
+            }
+
+            encoded.push(TransformTemplateEvaluatedEncodeExpression {
+                expression: expression.clone(),
+                subject: boundary_subject,
+                binding,
+                artifact,
+            });
+            continue;
+        }
+
+        let binding = if request.requires_color_binding() {
+            match context
+                .registry
+                .resolve_color_binding(&request, context.host_capabilities)
+            {
+                Ok(binding) => binding.into_encode_binding(),
+                Err(error) => {
+                    diagnostics.push(error.diagnostic(context.uri));
+                    continue;
+                }
+            }
+        } else if request.requires_format_binding() {
+            match context
+                .registry
+                .resolve_format_binding(&request, context.host_capabilities)
+            {
+                Ok(binding) => binding,
+                Err(error) => {
+                    diagnostics.push(error.diagnostic(context.uri));
+                    continue;
+                }
+            }
+        } else {
+            match context
+                .registry
+                .resolve_encode_binding(&request, context.host_capabilities)
+            {
+                Ok(binding) => binding,
+                Err(error) => {
+                    diagnostics.push(error.diagnostic(context.uri));
+                    continue;
+                }
+            }
+        };
+
+        let execution = match execute_transform_template_typed_output_function(
+            &binding,
+            &subject,
+            None,
+            &context,
+            &mut encode_impl,
+        ) {
+            Ok(value) => value,
+            Err(message) => {
+                diagnostics.push(typed_encode_implementation_diagnostic(
+                    expression,
+                    &binding,
+                    context.uri,
+                    message,
+                ));
+                continue;
+            }
+        };
+        let artifact = match execution.into_artifact(&binding) {
+            Ok(artifact) => artifact,
+            Err(message) => {
+                diagnostics.push(typed_encode_implementation_diagnostic(
+                    expression,
+                    &binding,
+                    context.uri,
+                    message,
+                ));
+                continue;
+            }
+        };
+        encoded.push(TransformTemplateEvaluatedEncodeExpression {
+            expression: expression.clone(),
+            subject: boundary_subject,
+            binding,
+            artifact,
+        });
+    }
+
+    TransformTemplateEncodeEvaluationResponse {
+        encoded,
+        diagnostics,
+    }
+}
+
+fn typed_encode_implementation_diagnostic(
+    expression: &TransformTemplateEncodeExpression,
+    binding: &TransformTemplateEncodeBinding,
+    uri: Option<&str>,
+    message: String,
+) -> Diagnostic {
+    Diagnostic {
+        uri: uri.map(str::to_owned),
+        code: TRANSFORM_TEMPLATE_ENCODE_IMPLEMENTATION_FAILED_CODE.to_owned(),
+        severity: Severity::Error,
+        message: format!(
+            "CEMT output function `{}` failed for expression `{}`: {message}",
+            binding.function.name, expression.expression
+        ),
+        details: None,
+        ..Diagnostic::default()
+    }
+}
+
+fn execute_transform_template_typed_output_function<'value, F>(
+    binding: &TransformTemplateEncodeBinding,
+    subject: &CemtEvaluatorValue<'value>,
+    typed_subject: Option<&TransformTemplateCemTreeOutput>,
+    context: &TransformTemplateTypedEncodeEvaluationContext<'value, '_>,
+    encode_impl: &mut F,
+) -> Result<TransformTemplateOutputFunctionExecution, String>
+where
+    F: FnMut(
+        &TransformTemplateEncodeBinding,
+        &CemtEvaluatorValue<'value>,
+    ) -> Result<TransformTemplateOutputFunctionExecution, String>,
+{
+    if binding.function.produces == TransformTemplateOutputProducedKind::CemTree {
+        if binding.function.kind == TransformTemplateOutputFunctionKind::Format
+            && typed_subject.is_none()
+        {
+            return Err(format!(
+                "CEMT formatter `{}` requires a declared typed CEM-tree input; JSON compatibility projection is not permitted",
+                binding.function.name
+            ));
+        }
+        if let Some(result) = execute_transform_template_typed_cem_tree_output_function(
+            binding,
+            &Value::Null,
+            typed_subject,
+            &context.registry.module_options,
+        ) {
+            return result.map(TransformTemplateOutputFunctionExecution::CemTree);
+        }
+        return encode_impl(binding, subject).and_then(|execution| match execution {
+            TransformTemplateOutputFunctionExecution::CemTree(_) => Ok(execution),
+            TransformTemplateOutputFunctionExecution::Native(result) => Err(format!(
+                "CEM-tree output function `{}` returned typed `{}` output instead of a declared tree artifact",
+                binding.function.name,
+                result.produced_kind().as_str()
+            )),
+        });
+    }
+    if let Some(result) = execute_transform_template_typed_cemt_body_expression_with_bindings(
+        binding,
+        subject.clone(),
+        &context.registry.module_options,
+        Some(context.value_bindings),
+    ) {
+        return result.and_then(|value| {
+            let result = match binding.function.produces {
+                TransformTemplateOutputProducedKind::Text => value
+                    .as_str()
+                    .map(str::to_owned)
+                    .map(TransformTemplateOutputFunctionResult::Text)
+                    .ok_or_else(|| {
+                        format!(
+                            "CEMT output function `{}` declared text but returned {}",
+                            binding.function.name,
+                            value.kind().as_str()
+                        )
+                    })?,
+                produces => {
+                    return Err(format!(
+                        "CEMT output function `{}` cannot lower typed evaluator output to `{}` without an explicit producer",
+                        binding.function.name,
+                        produces.as_str()
+                    ))
+                }
+            };
+            Ok(TransformTemplateOutputFunctionExecution::Native(result))
+        });
+    }
+    encode_impl(binding, subject)
+}
+
+#[cfg(test)]
 pub(crate) fn evaluate_transform_template_encode_expressions<F>(
     expressions: &[TransformTemplateEncodeExpression],
     context: TransformTemplateEncodeEvaluationContext<'_>,
@@ -10290,6 +10710,7 @@ where
     }
 }
 
+#[cfg(test)]
 fn execute_transform_template_output_function<F>(
     binding: &TransformTemplateEncodeBinding,
     subject: &Value,
@@ -10436,6 +10857,7 @@ fn execute_transform_template_typed_cem_tree_output_function(
     })
 }
 
+#[cfg(test)]
 fn execute_transform_template_cemt_body_expression(
     binding: &TransformTemplateEncodeBinding,
     subject: &Value,
@@ -10473,6 +10895,7 @@ fn execute_transform_template_cemt_body_expression(
     )
 }
 
+#[cfg(test)]
 fn cemt_runtime_bind_output_function_params(
     binding: &TransformTemplateEncodeBinding,
     subject: &Value,
@@ -10532,6 +10955,7 @@ fn cemt_runtime_clone_bindings_excluding_names(
         .collect()
 }
 
+#[cfg(test)]
 fn cemt_runtime_bind_output_contract_metadata(
     binding: &TransformTemplateEncodeBinding,
     scoped_bindings: &mut BTreeMap<String, Value>,
@@ -10606,6 +11030,7 @@ fn cemt_runtime_bind_output_contract_metadata(
     }
 }
 
+#[cfg(test)]
 fn cemt_nested_string_options_value(options: &BTreeMap<String, String>) -> Value {
     let mut root = serde_json::Map::new();
     for (key, value) in options {
@@ -10633,6 +11058,142 @@ fn cemt_nested_string_options_value(options: &BTreeMap<String, String>) -> Value
     Value::Object(root)
 }
 
+fn resolve_typed_encode_request_runtime_values(
+    request: &mut TransformTemplateEncodeBindingRequest,
+    context: &TransformTemplateTypedEncodeEvaluationContext<'_, '_>,
+    expression: &TransformTemplateEncodeExpression,
+) -> Result<(), Diagnostic> {
+    resolve_typed_runtime_string_field(
+        &mut request.subject_type,
+        "subjectType",
+        context,
+        expression,
+    )?;
+    resolve_typed_runtime_required_string_field(
+        &mut request.target.content_type,
+        "contentType",
+        context,
+        expression,
+    )?;
+    resolve_typed_runtime_required_string_field(
+        &mut request.target.schema,
+        "schema",
+        context,
+        expression,
+    )?;
+    resolve_typed_runtime_required_string_field(
+        &mut request.target.category,
+        "category",
+        context,
+        expression,
+    )?;
+    resolve_typed_runtime_string_field(
+        &mut request.target.context,
+        "context",
+        context,
+        expression,
+    )?;
+    for (field, label) in [
+        (&mut request.options.encoder, "encoder"),
+        (&mut request.options.formatter, "formatter"),
+        (&mut request.options.colorizer, "colorizer"),
+        (&mut request.options.profile, "profile"),
+        (&mut request.options.formatter_profile, "formatterProfile"),
+        (&mut request.options.color_profile, "colorProfile"),
+        (&mut request.options.charset, "charset"),
+        (&mut request.options.line_ending, "lineEnding"),
+        (&mut request.options.quote_policy, "quote"),
+        (&mut request.options.ordering, "ordering"),
+        (&mut request.options.wrap_column, "wrapColumn"),
+        (&mut request.options.indent, "indent"),
+        (&mut request.options.tab_size, "tabSize"),
+        (&mut request.options.namespace_policy, "namespacePolicy"),
+        (
+            &mut request.options.namespace_placement,
+            "namespacePlacement",
+        ),
+        (&mut request.options.binary_framing, "binaryFraming"),
+    ] {
+        resolve_typed_runtime_string_field(field, label, context, expression)?;
+    }
+    Ok(())
+}
+
+fn resolve_typed_runtime_required_string_field(
+    field: &mut String,
+    label: &str,
+    context: &TransformTemplateTypedEncodeEvaluationContext<'_, '_>,
+    expression: &TransformTemplateEncodeExpression,
+) -> Result<(), Diagnostic> {
+    *field = resolve_typed_runtime_string_value(field, label, context, expression)?;
+    Ok(())
+}
+
+fn resolve_typed_runtime_string_field(
+    field: &mut Option<String>,
+    label: &str,
+    context: &TransformTemplateTypedEncodeEvaluationContext<'_, '_>,
+    expression: &TransformTemplateEncodeExpression,
+) -> Result<(), Diagnostic> {
+    let Some(value) = field.as_deref() else {
+        return Ok(());
+    };
+    *field = Some(resolve_typed_runtime_string_value(
+        value, label, context, expression,
+    )?);
+    Ok(())
+}
+
+fn resolve_typed_runtime_string_value(
+    value: &str,
+    label: &str,
+    context: &TransformTemplateTypedEncodeEvaluationContext<'_, '_>,
+    expression: &TransformTemplateEncodeExpression,
+) -> Result<String, Diagnostic> {
+    if !cemt_runtime_expression_is_dynamic(value) {
+        return Ok(value.to_owned());
+    }
+    let resolved = resolve_cemt_typed_runtime_expression(
+        value,
+        context.value_bindings,
+        &context.registry.module_options,
+    )
+    .map_err(|message| encode_runtime_value_diagnostic(context.uri, expression, message))?
+    .ok_or_else(|| {
+        encode_runtime_value_diagnostic(
+            context.uri,
+            expression,
+            format!("CEMT encode `{label}` value `{value}` could not be resolved"),
+        )
+    })?;
+
+    if let Some(value) = resolved.as_str() {
+        return Ok(value.to_owned());
+    }
+    if let Some(value) = resolved.as_bool() {
+        return Ok(value.to_string());
+    }
+    if let Some(value) = resolved.as_number() {
+        return Ok(value.key_string());
+    }
+    if resolved.kind() == crate::transform_artifact::CemtEvaluatorValueKind::Null {
+        return Err(encode_runtime_value_diagnostic(
+            context.uri,
+            expression,
+            format!("CEMT encode `{label}` value `{value}` resolved to null"),
+        ));
+    }
+    Err(encode_runtime_value_diagnostic(
+        context.uri,
+        expression,
+        format!(
+            "CEMT encode `{label}` value `{value}` resolved to {} but requires a scalar string value",
+            resolved.kind().as_str()
+        ),
+    ))
+}
+
+#[cfg(test)]
 fn resolve_encode_request_runtime_values(
     request: &mut TransformTemplateEncodeBindingRequest,
     value_bindings: &BTreeMap<String, Value>,
@@ -10789,6 +11350,7 @@ fn resolve_encode_request_runtime_values(
     Ok(())
 }
 
+#[cfg(test)]
 fn resolve_runtime_required_string_field(
     field: &mut String,
     label: &str,
@@ -10801,6 +11363,7 @@ fn resolve_runtime_required_string_field(
     Ok(())
 }
 
+#[cfg(test)]
 fn resolve_runtime_string_field(
     field: &mut Option<String>,
     label: &str,
@@ -10816,6 +11379,7 @@ fn resolve_runtime_string_field(
     Ok(())
 }
 
+#[cfg(test)]
 fn resolve_runtime_string_value(
     value: &str,
     label: &str,
@@ -11757,6 +12321,20 @@ pub(crate) fn execute_transform_template_typed_cemt_body_expression<'a>(
     subject: CemtEvaluatorValue<'a>,
     module_options: &TransformTemplateModuleOptions,
 ) -> Option<Result<CemtEvaluatorValue<'a>, String>> {
+    execute_transform_template_typed_cemt_body_expression_with_bindings(
+        binding,
+        subject,
+        module_options,
+        None,
+    )
+}
+
+fn execute_transform_template_typed_cemt_body_expression_with_bindings<'a>(
+    binding: &TransformTemplateEncodeBinding,
+    subject: CemtEvaluatorValue<'a>,
+    module_options: &TransformTemplateModuleOptions,
+    base_bindings: Option<&CemtEvaluatorBindings<'a>>,
+) -> Option<Result<CemtEvaluatorValue<'a>, String>> {
     if binding.function.implementation != TransformTemplateOutputFunctionImplementation::Cemt {
         return None;
     }
@@ -11769,14 +12347,16 @@ pub(crate) fn execute_transform_template_typed_cemt_body_expression<'a>(
         Ok(functions) => functions,
         Err(message) => return Some(Err(message)),
     };
-    let mut bindings = CemtEvaluatorBindings::default();
-    if let Err(message) = apply_cemt_typed_runtime_module_let_bindings(
-        &mut bindings,
-        module_options,
-        Some(binding.function.name.as_str()),
-        &functions,
-    ) {
-        return Some(Err(message));
+    let mut bindings = base_bindings.cloned().unwrap_or_default();
+    if base_bindings.is_none() {
+        if let Err(message) = apply_cemt_typed_runtime_module_let_bindings(
+            &mut bindings,
+            module_options,
+            Some(binding.function.name.as_str()),
+            &functions,
+        ) {
+            return Some(Err(message));
+        }
     }
     cemt_typed_runtime_bind_output_contract_metadata(binding, &mut bindings);
     bindings.bind("subject", subject.clone());
@@ -11871,6 +12451,26 @@ fn apply_cemt_typed_runtime_module_let_bindings<'a>(
         bindings.bind(&binding.name, value);
     }
     Ok(())
+}
+
+pub(crate) fn apply_transform_template_typed_let_bindings<'a>(
+    bindings: &mut CemtEvaluatorBindings<'a>,
+    options: &TransformTemplateModuleOptions,
+    owner_entrypoint: Option<&str>,
+) -> Result<(), String> {
+    let functions = cemt_typed_runtime_functions_from_module_options(options)?;
+    apply_cemt_typed_runtime_module_let_bindings(bindings, options, owner_entrypoint, &functions)
+}
+
+pub(crate) fn resolve_cemt_typed_runtime_expression<'a>(
+    expression: &str,
+    bindings: &CemtEvaluatorBindings<'a>,
+    options: &TransformTemplateModuleOptions,
+) -> Result<Option<CemtEvaluatorValue<'a>>, String> {
+    let functions = cemt_typed_runtime_functions_from_module_options(options)?;
+    cemt_typed_runtime::resolve_cemt_typed_expression_with_functions(
+        expression, bindings, &functions,
+    )
 }
 
 fn cemt_typed_runtime_bind_output_contract_metadata<'a>(
@@ -12158,9 +12758,9 @@ mod cemt_typed_runtime {
             TransformTemplateModuleParamType::Object => {
                 value.kind() == CemtEvaluatorValueKind::Record
             }
-            // Explicit JSON artifacts need a content-typed evaluator variant before
-            // they can cross this native boundary.
-            TransformTemplateModuleParamType::Json => false,
+            TransformTemplateModuleParamType::Json => {
+                value.kind() != CemtEvaluatorValueKind::SourceMap
+            }
         }
     }
 
@@ -15510,6 +16110,7 @@ fn resolve_encode_subject_expression_with_functions(
     .flatten()
 }
 
+#[cfg(test)]
 fn resolve_encode_subject_expression_with_binding(
     expression: &str,
     value_bindings: &BTreeMap<String, Value>,
@@ -26744,7 +27345,7 @@ mod tests {
         );
         assert!(scoped.value("input").is_some());
 
-        let json_error = cemt_bind_typed_runtime_params(
+        let json_scoped = cemt_bind_typed_runtime_params(
             "render-card",
             "subject",
             CemtEvaluatorValue::record([("kind", CemtEvaluatorValue::string("element"))]),
@@ -26757,10 +27358,12 @@ mod tests {
             }],
             &bindings,
         )
-        .expect_err("native AST records are not explicit JSON artifacts");
+        .expect("JSON contracts accept typed evaluator records without a decoded DTO");
         assert_eq!(
-            json_error,
-            "CEMT function `render-card` param `subject` expected json, got object"
+            json_scoped
+                .resolve_path("subject.kind")
+                .and_then(|value| value.as_str().map(str::to_owned)),
+            Some("element".to_owned())
         );
     }
 
@@ -38587,6 +39190,35 @@ mod tests {
     #[derive(Debug)]
     struct RuntimeAdapter;
 
+    fn test_data_artifact_public_json(
+        artifact: &TransformTemplateDataArtifact,
+    ) -> Result<Value, String> {
+        match &artifact.body {
+            TransformArtifactBody::Lifecycle(stream) => {
+                let crate::lifecycle::LoadedInputAstStream::JsonDocument(document) =
+                    stream.as_ref()
+                else {
+                    return Err("test artifact lifecycle body is not JSON".to_owned());
+                };
+                document
+                    .root
+                    .as_ref()
+                    .map(CemtEvaluatorValue::json)
+                    .ok_or_else(|| "test JSON document has no root".to_owned())?
+                    .to_public_json()
+            }
+            TransformArtifactBody::Encoded(encoded)
+                if encoded.encoding == TransformEncoding::Json =>
+            {
+                serde_json::from_slice(encoded.bytes.as_ref()).map_err(|error| error.to_string())
+            }
+            body => Err(format!(
+                "test artifact cannot project `{}` to public JSON",
+                body.representation_id()
+            )),
+        }
+    }
+
     impl TransformTemplateAdapter for RuntimeAdapter {
         fn id(&self) -> &'static str {
             "runtime-cem-native-template"
@@ -38632,14 +39264,12 @@ mod tests {
             &self,
             request: TransformTemplateRenderRequest<'_>,
         ) -> TransformTemplateAdapterResult<TransformTemplateRenderResponse> {
-            let primary = request
-                .primary_input
-                .explicit_json_value()
-                .map_err(|error| {
+            let primary =
+                test_data_artifact_public_json(request.primary_input).map_err(|error| {
                     TransformTemplateAdapterError::failed(
                         self.id(),
                         TransformTemplateAdapterExecutionPhase::Render,
-                        error.to_string(),
+                        error,
                     )
                 })?;
             let value = json!({

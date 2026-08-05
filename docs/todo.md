@@ -1222,12 +1222,19 @@ Remaining dependency-ordered package checklist:
           source positions, and last-declaration alias semantics. A source
           audit forbids serializer, public projection, or DTO conversion in
           both the loader and its AST traversal.
-    - [ ] Replace transform-template primary, secondary, parameter, and let
-          JSON `Value` bindings with borrowed evaluator views over the owning
-          lifecycle `JsonDocumentAst`/`JsonValueAst`.
-    - [ ] Remove the DOM-projection adapter's explicit JSON compatibility
+    - [x] Replace transform-template primary, secondary, and let JSON `Value`
+          bindings with borrowed evaluator views over the owning lifecycle
+          `JsonDocumentAst`/`JsonValueAst`. Encode-expression evaluation now
+          uses the typed binding scope, CEM-tree inputs retain their native AST
+          evaluator view, duplicate members and exact lexemes survive, and the
+          data-input decoded JSON accessors plus production legacy evaluator
+          are removed.
+    - [ ] Retain normalized transform-template parameters in an owner-backed
+          typed binding scope without introducing another JSON-shaped DTO.
+    - [x] Remove the DOM-projection adapter's explicit JSON compatibility
           ingress and restrict decoded JSON output access to explicit public
-          export boundaries.
+          export boundaries. The adapter and its typed-envelope test now start
+          from `CemTreeAstStream` directly.
   - [x] Make transform outputs typed native artifacts or explicit encoded
         artifacts, enforce encoding/content-type agreement, and require encoded
         input to pass through a lifecycle parser edge before AST consumption.
@@ -1278,35 +1285,33 @@ Remaining dependency-ordered package checklist:
 
 ### Next Work Item
 
-Replace the transform-template JSON binding plane next. Lifecycle loading and
-root `moduleMap` ingestion now retain `JsonDocumentAst`/`JsonValueAst`, but
-`transform_template_render_value_bindings` still calls
-`explicit_json_value()` for primary and secondary graph artifacts before
-let/encode evaluation. That is the next prohibited inter-layer handoff in the
-JSON route audit.
+Remove the remaining evaluator-to-encoder `Value` projection next. Primary,
+secondary, artifact-id, and let bindings now use borrowed AST evaluator views,
+but `TransformTemplateEncodeBindingRequest.subject`, the registered host
+encoder trait, and `TransformTemplateEvaluatedEncodeExpression.subject` still
+form a legacy decoded-value boundary.
 
 Implement the next slice in this order:
 
-1. Introduce a borrowed transform-template binding value that can reference an
-   owning `Arc<LoadedInputAstStream::JsonDocument>` and expose ordered object
-   members, arrays, exact string/number lexemes, scalar values, ranges, and
-   source maps without a `serde_json::Value` projection.
-2. Change primary, named secondary, artifact-id, parameter, and let bindings to
-   use that typed value. Expression-created scalars and collections may be
-   owned typed evaluator values, but must not be serialized and reparsed.
-3. Route explicitly encoded JSON through `LifecycleRegistry` exactly once at
-   ingress, then retain that `Arc` through graph, join, secondary-input, and
-   encode-expression evaluation. Reject non-lifecycle JSON with a typed
-   boundary diagnostic.
-4. Preserve duplicate-member order and lookup semantics deliberately; add
-   tests for `1.00e+2`, escaped strings, nested arrays/objects, warnings,
-   ranges, source maps, and `Arc::ptr_eq` identity across primary and secondary
-   bindings.
-5. Delete the data-input use of `explicit_json_value`, strengthen the source
-   audit for the binding route, and then remove the DOM-projection adapter's
-   explicit JSON compatibility branch if no typed caller remains.
-6. Run focused transform tests, JSON and JSON Schema package verifies,
+1. Replace binding-request subject-shape inference with typed evaluator kind
+   and declared/native representation metadata; registry selection must not
+   need a decoded subject payload.
+2. Change registered encoder execution to accept `CemtEvaluatorValue` or an
+   owning native artifact directly. Remove the `execute_typed` compatibility
+   projection instead of moving it to another helper.
+3. Delete the decoded `subject` snapshot from evaluated encode responses, or
+   replace it with non-payload metadata used by diagnostics and insertion
+   validation. Keep public JSON projection only in explicit export/report APIs.
+4. Add source audits and behavior tests proving duplicate members, exact
+   number/string lexemes, ranges, maps, and native owner identity reach the
+   selected encoder unchanged.
+5. Run focused transform tests, JSON and JSON Schema package verifies,
    converter parity, CLI e2e, core lint/test, and WASM gates.
+
+After that slice, stop for the parameter/collection ownership decision.
+Compile-request parameters currently have no render-time owner, and collection
+join modes do not yet specify evaluator shapes for `collect`, `groupBy`,
+`matchBy`, or `zip`; neither contract should be guessed from a JSON DTO.
 
 ## Current Verification Commands
 

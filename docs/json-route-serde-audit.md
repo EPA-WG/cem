@@ -16,7 +16,7 @@ diagnostic-details/public-response model.
 | WASM/API response, report, trace, cache, and public/debug projection helpers | Public, observability, or storage boundary | Serialization is the declared boundary representation, not an inter-layer AST handoff. |
 | Import-map parse/rewrite/pretty-print in `real::apply_importmap_rewrite` | Explicit embedded JSON ingress and export | This is boundary-owned today, but remains scheduled for lossless AST editing so duplicate/order diagnostics survive the HTML JSON island. |
 
-## Removed in this slice
+## Removed
 
 `real::load_root_module_map` previously used
 `serde_json::from_slice::<Value>` and traversed `serde_json::Map`. It now parses
@@ -25,26 +25,38 @@ once with `json_document_ast_from_source_bytes` and traverses ordered
 order, source ranges, and last-declaration alias semantics survive without a
 `Value`, serializer, DTO, or re-parser handoff.
 
+The transform-template render binding plane now borrows the lifecycle-owned
+`JsonValueAst` root through `CemtEvaluatorValue::Json`. Primary, named
+secondary, artifact-id, and let bindings retain ordered members, duplicate
+names, exact string/number lexemes, ranges, source maps, and AST identity.
+Typed CEM-tree inputs use their native evaluator view on the same route. The
+data-input `explicit_json_value`/`explicit_json_bytes` accessors and the legacy
+production encode evaluator are gone; expression-created scalars and
+collections remain typed evaluator values.
+
+`conversion::DomProjectionParityCemtAdapter::render` now accepts only a typed
+`CemTreeAstStream`. Its JSON compatibility ingress and JSON-to-tree fixture
+helpers were deleted, and its formatter path retains the native stream owner.
+
 ## Remaining prohibited internal handoffs
 
-1. `real::transform_template_render_value_bindings` calls
-   `TransformTemplateDataArtifact::explicit_json_value` for primary and
-   secondary graph inputs, collapsing the lifecycle JSON AST before let/encode
-   evaluation.
-2. `conversion::DomProjectionParityCemtAdapter::render` retains an explicit
-   JSON compatibility ingress after its typed `CemTreeAstStream` path. The
-   compatibility branch should be deleted once its remaining callers are
-   confirmed typed.
-3. `TransformDataArtifact::explicit_json_value` and
-   `TransformTemplateOutputArtifact::explicit_json_value` expose generic
-   decoded values. The output accessor is allowed only at explicit public
-   export; the data-input accessor must disappear with the typed evaluator
-   migration.
-4. JSON-typed transform-template parameters and let/encode bindings still enter
-   the legacy `BTreeMap<String, Value>` evaluator. They need a borrowed value
-   contract over `JsonDocumentAst`/`JsonValueAst`, with owned typed scalars only
-   for expression-created values.
+1. `TransformTemplateEncodeBindingRequest.subject`,
+   `TransformTemplateEvaluatedEncodeExpression.subject`, and the registered
+   host encoder trait are still `Value`-based. The typed evaluator currently
+   projects a subject at that legacy output boundary for binding selection and
+   host execution. Binding selection needs typed subject metadata, registered
+   encoders need to consume `CemtEvaluatorValue` or an owning native artifact,
+   and the evaluation response must stop retaining a decoded subject snapshot.
+2. Compile-request parameters still arrive as `BTreeMap<String, Value>` and the
+   normalized parameter values are not retained by
+   `TransformTemplateCompiledArtifact`, so render cannot add them to the typed
+   binding scope. Their owner/lifetime contract must be selected before adding
+   them; introducing another JSON-shaped DTO is not permitted.
+3. Collection joins retain typed child artifacts, but `collect`, `groupBy`,
+   `matchBy`, and `zip` do not yet define the evaluator shape and identity rules
+   needed to expose those children as transform-template bindings. Do not infer
+   those semantics from a JSON projection.
 
-The next slice should address items 1 and 4 together: routing primary,
-secondary, and let-bound JSON through borrowed AST evaluator views without
-creating a parallel JSON-shaped DTO.
+The next unambiguous slice is item 1: make encoder binding selection,
+execution, and evaluation responses typed end to end. Parameter ownership and
+collection binding shapes remain explicit design points after that slice.
