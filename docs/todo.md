@@ -7,7 +7,7 @@ history.
 
 ## Immediate Goal
 
-Current active slice: generic data AST stream bridge alignment.
+Current active slice: strict native CEMT transform boundary.
 
 ### Immediate: CSV Source Import To Internal AST Stream
 
@@ -1162,6 +1162,16 @@ Remaining dependency-ordered package checklist:
                     consumes it without a serialized DTO. RELAX NG and XML
                     subject composers are test-only parity oracles, enforced
                     by evaluator parity, `Arc::ptr_eq`, and source-audit tests.
+              - [x] Close the native `DomProjectionParityCemtAdapter` branch.
+                    It now borrows `CemtTreeSubjectRef`, retains the exact input
+                    `Arc<CemTreeAstStream>` and node/attribute source maps,
+                    builds typed retained-node and layout operations, returns
+                    an owner-backed formatted `CemtTreeArtifact`, and enters
+                    the colorizer/writer route without `Value`,
+                    `CemtOutputArtifact`, or shape recovery. Converter parity
+                    now exercises this typed producer; explicit JSON remains a
+                    compatibility input only and never becomes the production
+                    owner.
       - [x] Define typed raw, formatted, and colored CEM tree envelopes with
             ordered native nodes and lazy evaluator views over the owning AST.
       - [ ] Route formatter, colorizer, writer, graph, and secondary-input
@@ -1223,44 +1233,40 @@ Remaining dependency-ordered package checklist:
 
 ### Next Work Item
 
-Close the DOM-projection CEMT adapter next. The package document pipelines,
-including RELAX NG, now use borrowed AST views and typed materialized results.
-`DomProjectionParityCemtAdapter` is the next production producer that still
-clones a native `CemTreeAstStream` into a CEMT/JSON subject, constructs its
-formatted tree as `serde_json::Value`, wraps that value in `CemtOutputArtifact`,
-and asks the downstream output pipeline to rediscover the tree shape. Its
-explicit-JSON render branch is used by parity fixtures and must not become a
-native production owner.
+Close the generic CEMT output-function runtime and compatibility CEM-tree stage
+fallback next. Package document pipelines and the DOM-projection producer now
+hand exact AST owners and typed stages directly to their consumers. The two
+remaining cross-tier gaps are
+`TransformTemplateOutputFunctionExecution::CemtEvaluator(Value)` for generic
+output functions and `lower_conversion_cem_tree_output_stage_body` falling
+back to `CemtOutputArtifact` for non-native compatibility subjects.
 
 Implement the next slice in this order:
 
-1. Add red tests that exercise the native `TransformArtifactBody::CemTree`
-   branch and assert exact input-owner/source-map identity through generated
-   formatted output. Add a source audit that rejects `into_cemt_subject`,
-   `serde_json`, `CemtOutputArtifact`, and shape-based stage recovery in that
-   production branch.
-2. Make production rendering accept the borrowed `CemtTreeSubjectRef` directly.
-   Confine the explicit-JSON DOM branch to parity fixtures (or route any future
-   external JSON input through its registered parser edge before adapter
-   execution); do not add JSON as a native owner variant.
-3. Replace `conversion_dom_projection_parity_cem_tree_document` and its
-   recursive `Value` builders with a typed builder that constructs one owned
-   `Arc<CemTreeAstStream>` plus typed format operations from the borrowed source
-   nodes and attributes, preserving source-map stacks without cloning the input
-   into a DTO.
-4. Return the generated tree as a declared typed artifact/stage body and feed
-   it directly to the formatter/colorizer/writer route. Keep HTML/XML encoded
-   text creation only at the final public output boundary.
-5. Update the parity executor to compare the typed producer against the existing
-   Rust HTML/XML oracles, including attributes, namespaces, text, whitespace,
-   comments, processing instructions, CDATA, raw text, errors, source maps, and
-   `compact`/`pretty`/`tabular` formatting metadata.
-6. Run the DOM parity fixtures, conversion manifest/rule tests, converter
-   parity, core lint/build/test, CLI e2e, and WASM gates. Once green, continue
-   with the generic CEMT output-function runtime and compatibility stage
-   fallback before deleting `CemtOutputArtifact`,
-   `transform_template_output_cemt_subject`, `CemtEvaluator(Value)`, and
-   `CemtRuntime(Value)` globally.
+1. Add source-audit and behavior tests that enumerate every remaining producer
+   and consumer of `CemtEvaluator(Value)`, `CemtRuntime(Value)`,
+   `CemtOutputArtifact`, and `transform_template_output_cemt_subject`. Distinguish
+   explicit public JSON/export compatibility from internal stage handoffs.
+2. Replace the generic output-function execution result with a closed typed
+   result enum. CEM-tree results must lower at producer completion into a
+   declared raw, formatted, colored, or materialized artifact while text,
+   bytes, tokens, chunks, and diagnostics keep their existing typed payloads.
+3. Pass the typed formatted artifact directly into color execution and the
+   selected formatted/colored artifact directly into the writer and graph
+   stage body. Preserve exact owner `Arc`, source maps, output spans, producer
+   identity, profiles, and insertion-context validation.
+4. Replace `lower_conversion_cem_tree_output_stage_body`'s compatibility
+   fallback with explicit typed lowering at the adapter boundary. Reject
+   ambiguous/non-declared tree stages there rather than classifying value
+   shape at the next consumer.
+5. Route any surviving explicit JSON compatibility subject through its
+   registered lifecycle parser/export edge or keep it test-only. Then delete
+   `CemtOutputArtifact`, `transform_template_output_cemt_subject`, and obsolete
+   runtime-value envelopes once the source audit reports no production users.
+6. Run focused generic output-function and compatibility tests, DOM/converter
+   parity, conversion manifest/rules, CLI e2e, core lint/build/test, and WASM
+   gates. Keep final HTML/XML/text/JSON encoding only at registered public
+   writer/export boundaries.
 
 ## Current Verification Commands
 

@@ -11,7 +11,7 @@ use crate::conversion::{
     conversion_package_artifacts_from_validated_schema_package_manifest,
     direct_cem_output_pipeline, direct_html_output_pipeline, direct_xml_output_pipeline,
     execute_conversion_output_pipeline_from_cem_tree_with_environment,
-    execute_conversion_output_pipeline_from_formatted_cem_tree_with_environment,
+    execute_conversion_output_pipeline_from_typed_formatted_cem_tree_with_environment,
     execute_css_document_output_pipeline_with_environment,
     execute_csv_document_output_pipeline_with_environment,
     execute_html_document_output_pipeline_with_environment,
@@ -24,8 +24,8 @@ use crate::conversion::{
     execute_xhtml_document_output_pipeline_with_environment,
     execute_xml_document_output_pipeline_with_environment,
     execute_xslt_stylesheet_output_pipeline_with_environment,
-    execute_yaml_document_output_pipeline_with_environment, transform_template_output_cemt_subject,
-    ConversionExecution, ConversionOutputPipeline, ConversionOutputPipelineEnvironment,
+    execute_yaml_document_output_pipeline_with_environment, ConversionExecution,
+    ConversionOutputPipeline, ConversionOutputPipelineEnvironment,
     ConversionPackageArtifactDescriptor, ConversionPackageArtifactRead, ConversionRegistry,
     ConversionRustFallbackDescriptor, GenericDataCsvDocumentOutputSubject,
     GenericDataJsonDocumentOutputSubject, GenericDataYamlDocumentOutputSubject,
@@ -82,8 +82,9 @@ use crate::tokenizer::html::HtmlTokenizer;
 use crate::tokenizer::xml::XmlTokenizer;
 use crate::tokenizer::SchemaTokenizer;
 use crate::transform_artifact::{
-    TransformArtifactBody, TransformArtifactCollection, TransformArtifactCollectionItem,
-    TransformArtifactCollectionMode, TransformEncodedArtifact, TransformEncoding,
+    CemtTreeArtifact, TransformArtifactBody, TransformArtifactCollection,
+    TransformArtifactCollectionItem, TransformArtifactCollectionMode, TransformEncodedArtifact,
+    TransformEncoding,
 };
 use crate::transform_config::{
     parse_transform_graph_config, TransformGraphParseRequest, TRANSFORM_CONFIG_SCHEMA_URI,
@@ -510,33 +511,38 @@ fn render_export_conversion_template(
 
     let output = if let Some(pipeline) = conversion.output_pipeline.as_ref() {
         let output_uri = output.uri.clone();
-        let cemt_subject = match transform_template_output_cemt_subject(&output) {
-            Ok(subject) => subject,
-            Err(message) => {
-                local_diagnostics.push(Diagnostic {
-                    uri: Some(template_input.uri.clone()),
-                    code: crate::conversion_output::CONVERSION_OUTPUT_PIPELINE_EXECUTION_CODE
-                        .to_owned(),
-                    severity: Severity::Error,
-                    message,
-                    ..Diagnostic::default()
-                });
-                return publish_converter_cemt_diagnostics(
-                    conversion,
-                    "CEMT output pipeline requires a typed CEM tree",
-                    local_diagnostics,
-                    diagnostics,
-                );
-            }
+        let formatted_cemt_tree = match &output.body {
+            TransformArtifactBody::Extension(native) => native
+                .as_any()
+                .downcast_ref::<CemtTreeArtifact>()
+                .map(|artifact| Arc::new(artifact.clone())),
+            _ => None,
+        };
+        let Some(formatted_cemt_tree) = formatted_cemt_tree else {
+            local_diagnostics.push(Diagnostic {
+                uri: Some(template_input.uri.clone()),
+                code: crate::conversion_output::CONVERSION_OUTPUT_PIPELINE_EXECUTION_CODE
+                    .to_owned(),
+                severity: Severity::Error,
+                message: format!(
+                    "converter returned `{}` instead of a typed formatted CEM tree",
+                    output.body.representation_id()
+                ),
+                ..Diagnostic::default()
+            });
+            return publish_converter_cemt_diagnostics(
+                conversion,
+                "CEMT output pipeline requires a typed CEM tree",
+                local_diagnostics,
+                diagnostics,
+            );
         };
         let pipeline = cemt_output_pipeline_for_scope(pipeline.clone(), target_scope);
         let pipeline_execution =
-            execute_conversion_output_pipeline_from_formatted_cem_tree_with_context(
+            execute_conversion_output_pipeline_from_typed_formatted_cem_tree_with_context(
                 context,
                 &pipeline,
-                cemt_subject,
-                output.source_map,
-                output.output_spans,
+                formatted_cemt_tree,
                 &conversion.converter_id,
                 Some("output"),
                 Some(&template_input.uri),
@@ -793,12 +799,10 @@ fn execute_cem_tree_output_pipeline_with_context(
     )
 }
 
-fn execute_conversion_output_pipeline_from_formatted_cem_tree_with_context(
+fn execute_conversion_output_pipeline_from_typed_formatted_cem_tree_with_context(
     context: &EngineContext,
     pipeline: &ConversionOutputPipeline,
-    formatted_value: Value,
-    formatted_source_map: Option<SourceMapStack>,
-    formatted_output_spans: Vec<OutputSpan>,
+    formatted_cemt_tree: Arc<CemtTreeArtifact>,
     converter_id: &str,
     diagnostic_node: Option<&str>,
     diagnostic_uri: Option<&str>,
@@ -813,12 +817,10 @@ fn execute_conversion_output_pipeline_from_formatted_cem_tree_with_context(
         package_artifact_reader: Some(&package_artifact_reader),
         artifact_cache: None,
     };
-    execute_conversion_output_pipeline_from_formatted_cem_tree_with_environment(
+    execute_conversion_output_pipeline_from_typed_formatted_cem_tree_with_environment(
         &environment,
         pipeline,
-        formatted_value,
-        formatted_source_map,
-        formatted_output_spans,
+        formatted_cemt_tree,
         converter_id,
         diagnostic_node,
         diagnostic_uri,
@@ -18592,6 +18594,13 @@ mod tests {
             scheduler_scope_id: 0,
         };
         let resp = RealCemMlEngine::new().convert(req).unwrap();
+        assert!(
+            resp.diagnostics
+                .iter()
+                .all(|diagnostic| !diagnostic.severity.is_hard_violation()),
+            "unexpected hard diagnostics: {:?}",
+            resp.diagnostics
+        );
         assert_eq!(resp.primary["kind"], "html");
         assert_eq!(
             resp.primary["content"],
@@ -18600,13 +18609,6 @@ mod tests {
                 "<span class=\"cem-color cem-color-syntax-string\" ",
                 "data-role=\"syntax.string\">Hi</span></p>\n"
             )
-        );
-        assert!(
-            resp.diagnostics
-                .iter()
-                .all(|diagnostic| !diagnostic.severity.is_hard_violation()),
-            "unexpected hard diagnostics: {:?}",
-            resp.diagnostics
         );
     }
 
@@ -19285,15 +19287,16 @@ mod tests {
                     {
                         kind: "color-decision",
                         name: "external-colorizer",
+                        value: "external-override",
                         colorizerRole: "colorizer.external-override",
                         colorProfile: "classes"
                     }
                 ],
                 nodes: map($subject.nodes, match($item.kind, {
-                    element: {
-                        kind: $item.kind,
-                        name: "external-widget",
-                        writerAttributeNodes: [
+                    element: set(
+                        $item,
+                        "writerAttributeNodes",
+                        [
                             {
                                 kind: "writer-attribute",
                                 name: "class",
@@ -19310,9 +19313,8 @@ mod tests {
                                 colorizerOwned: true,
                                 colorizerRole: "colorizer.writer-attribute"
                             }
-                        ],
-                        children: []
-                    },
+                        ]
+                    ),
                     default: $item
                 }))
             } }
@@ -19368,13 +19370,17 @@ mod tests {
 
         let resp = RealCemMlEngine::new().convert(req).unwrap();
 
-        assert_eq!(resp.primary["kind"], "html");
         assert!(
             resp.diagnostics
                 .iter()
                 .all(|diagnostic| !diagnostic.severity.is_hard_violation()),
             "unexpected hard diagnostics: {:?}",
             resp.diagnostics
+        );
+        assert_eq!(resp.primary["kind"], "html");
+        assert_eq!(
+            resp.primary["content"],
+            "<main class=\"external-package-color\" data-package-stage=\"external-cemt\"></main>\n"
         );
     }
 

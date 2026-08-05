@@ -33,8 +33,7 @@ use crate::schema::package_sources::{
 use crate::schema::registry::{
     content_type_essence, SchemaContentTypeRole, SchemaDescriptor, SchemaRegistry,
     CEM_AST_JSON_PROJECTION_CONTENT_TYPE, CEM_AST_PROJECTION_CONTENT_TYPE,
-    CEM_AST_PROJECTION_SCHEMA_URI, CEM_DOM_JSON_PROJECTION_CONTENT_TYPE,
-    CEM_DOM_PROJECTION_CONTENT_TYPE, CEM_DOM_PROJECTION_SCHEMA_URI,
+    CEM_AST_PROJECTION_SCHEMA_URI, CEM_DOM_PROJECTION_CONTENT_TYPE, CEM_DOM_PROJECTION_SCHEMA_URI,
     CEM_EVENTS_PROJECTION_SCHEMA_URI, CEM_ML_CONTENT_TYPE, CEM_ML_SCHEMA_URI, CEM_QL_SCHEMA_URI,
     CEM_TRANSFORM_CONTENT_TYPE, CEM_TRANSFORM_SCHEMA_URI, CSS_CONTENT_TYPE, CSS_SCHEMA_URI,
     CSV_CONTENT_TYPE, CSV_SCHEMA_URI, HTML_CONTENT_TYPE, HTML_SCHEMA_URI, JSON_CONTENT_TYPE,
@@ -60,7 +59,7 @@ use crate::transform_artifact::{
     CemtNodeColorOperationKind, CemtNodeFormatOperation, CemtNodeFormatOperationKind,
     CemtNodeFormatTarget, CemtOverlayProducer, CemtOverlayProvenance, CemtOwnerPath,
     CemtTreeArtifact, CemtTreeArtifactStage, CemtTreeEnvelopeMetadata, CemtTreeEnvelopeMode,
-    CsvDocumentCemtSubjectRef, GenericDataCsvDocumentCemtSubjectRef,
+    CemtTreeSubjectRef, CsvDocumentCemtSubjectRef, GenericDataCsvDocumentCemtSubjectRef,
     GenericDataJsonDocumentCemtSubjectRef, GenericDataYamlDocumentCemtSubjectRef,
     JsonDocumentCemtSubjectRef, JsonSchemaDocumentCemtSubjectRef, MarkdownDocumentCemtSubjectRef,
     RelaxNgDocumentCemtSubjectRef, TransformArtifactBody, TransformNativeArtifact,
@@ -797,23 +796,14 @@ impl TransformTemplateAdapter for DomProjectionParityCemtAdapter {
     ) -> TransformTemplateAdapterResult<TransformTemplateRenderResponse> {
         if let TransformArtifactBody::CemTree(primary) = &request.primary_input.body {
             if conversion_dom_projection_parity_target_is_cem_tree(&request) {
-                let tree = conversion_dom_projection_parity_cem_tree_document(
-                    &primary.as_ref().clone().into_cemt_subject(),
-                    request.target_scope,
-                )
-                .map_err(|message| {
-                    TransformTemplateAdapterError::failed(
-                        self.id(),
-                        TransformTemplateAdapterExecutionPhase::Render,
-                        message,
-                    )
-                })?;
+                let tree =
+                    conversion_dom_projection_formatted_cem_tree(primary, request.target_scope)?;
                 return Ok(TransformTemplateRenderResponse {
                     output: TransformTemplateOutputArtifact {
                         uri: None,
                         identity: request.target.cloned(),
-                        body: cemt_output_body(tree),
-                        source_map: None,
+                        source_map: tree.source_map().cloned(),
+                        body: TransformArtifactBody::Extension(tree),
                         output_spans: Vec::new(),
                     },
                     diagnostics: Vec::new(),
@@ -914,6 +904,140 @@ impl TransformTemplateAdapter for DomProjectionParityCemtAdapter {
             diagnostics: Vec::new(),
         })
     }
+}
+
+fn conversion_dom_projection_formatted_cem_tree(
+    owner: &Arc<CemTreeAstStream>,
+    target_scope: &ScopeConfig,
+) -> TransformTemplateAdapterResult<Arc<CemtTreeArtifact>> {
+    let subject = CemtTreeSubjectRef::new(owner.as_ref());
+    let formatter_profile = conversion_dom_projection_parity_formatter_profile(target_scope);
+    let producer_function = "converter-cemt";
+    let provenance = || CemtOverlayProvenance::Generated {
+        function_name: producer_function.to_owned(),
+        source_map: None,
+    };
+    let mut retained_node_paths = Vec::new();
+    let mut node_operations = Vec::new();
+    conversion_dom_projection_collect_typed_format_operations(
+        subject.nodes(),
+        None,
+        &mut retained_node_paths,
+        &mut node_operations,
+    )
+    .map_err(|message| {
+        TransformTemplateAdapterError::failed(
+            "dom-projection-parity-cemt",
+            TransformTemplateAdapterExecutionPhase::Render,
+            message,
+        )
+    })?;
+
+    Ok(Arc::new(CemtTreeArtifact::formatted(
+        Arc::clone(owner),
+        None,
+        CemtFormattedTreeOverlay {
+            envelope: CemtTreeEnvelopeMetadata {
+                content_type: CEM_ML_CONTENT_TYPE.to_owned(),
+                schema: CEM_ML_SCHEMA_URI.to_owned(),
+                category: "cem-tree".to_owned(),
+                mode: CemtTreeEnvelopeMode::Document,
+                canonical: true,
+            },
+            producer: CemtOverlayProducer {
+                function_name: producer_function.to_owned(),
+                formatter_profile: Some(formatter_profile.clone()),
+            },
+            operations: vec![
+                CemtFormatOperation {
+                    name: "cem.format-tree".to_owned(),
+                    formatter_role: "formatter.boundary".to_owned(),
+                    formatter_profile: Some(formatter_profile.clone()),
+                    color_role: None,
+                    kind: CemtFormatOperationKind::Marker,
+                    provenance: provenance(),
+                },
+                CemtFormatOperation {
+                    name: producer_function.to_owned(),
+                    formatter_role: "formatter.converter".to_owned(),
+                    formatter_profile: Some(formatter_profile),
+                    color_role: None,
+                    kind: CemtFormatOperationKind::Decision {
+                        value: "converter CEMT produced formatted tree".to_owned(),
+                    },
+                    provenance: provenance(),
+                },
+            ],
+            retained_node_paths,
+            node_operations,
+        },
+    )))
+}
+
+fn conversion_dom_projection_collect_typed_format_operations(
+    nodes: &[CemTreeAstNode],
+    parent: Option<&CemtOwnerPath>,
+    retained_node_paths: &mut Vec<CemtOwnerPath>,
+    node_operations: &mut Vec<CemtNodeFormatOperation>,
+) -> Result<(), String> {
+    for (index, node) in nodes.iter().enumerate() {
+        let path = match parent {
+            Some(parent) => parent.child(index),
+            None => CemtOwnerPath::root(index),
+        };
+        if node
+            .name()
+            .is_some_and(|name| name.trim_start().starts_with('@'))
+        {
+            continue;
+        }
+        if let CemTreeAstNode::Error { code, .. } = node {
+            return Err(format!(
+                "DOM projection converter cannot format error node `{code}`"
+            ));
+        }
+        if matches!(node, CemTreeAstNode::WriterToken { .. }) {
+            return Err("DOM projection converter cannot consume writer-token input".to_owned());
+        }
+
+        retained_node_paths.push(path.clone());
+        if let CemTreeAstNode::Element { name, children, .. } = node {
+            let layout = if name == "strong" {
+                CemtFormatLayout::InlineEmphasis
+            } else {
+                CemtFormatLayout::Inline
+            };
+            node_operations.push(CemtNodeFormatOperation {
+                target: CemtNodeFormatTarget::Owner(path.clone()),
+                producer_function: "converter-cemt".to_owned(),
+                formatter_role: if layout == CemtFormatLayout::InlineEmphasis {
+                    "formatter.inline-emphasis".to_owned()
+                } else {
+                    "formatter.layout".to_owned()
+                },
+                color_role: None,
+                kind: CemtNodeFormatOperationKind::Layout(layout),
+                provenance: CemtOverlayProvenance::Generated {
+                    function_name: "converter-cemt".to_owned(),
+                    source_map: None,
+                },
+            });
+            conversion_dom_projection_collect_typed_format_operations(
+                children,
+                Some(&path),
+                retained_node_paths,
+                node_operations,
+            )?;
+        } else if let CemTreeAstNode::Document { children, .. } = node {
+            conversion_dom_projection_collect_typed_format_operations(
+                children,
+                Some(&path),
+                retained_node_paths,
+                node_operations,
+            )?;
+        }
+    }
+    Ok(())
 }
 
 fn conversion_dom_projection_parity_target_is_cem_tree(
@@ -2368,23 +2492,22 @@ fn execute_cemt_template_parity_fixture(
         };
     }
 
-    let input = match conversion_dom_projection_fixture_json_output(fixture) {
+    let input = match conversion_dom_projection_fixture_cem_tree_output(fixture) {
         Ok(input) => input,
         Err(message) => {
             return conversion_parity_fixture_execution_error(descriptor, fixture, message);
         }
     };
-    let primary_input = TransformTemplateDataArtifact::explicit_json(
+    let primary_input = TransformTemplateDataArtifact::new(
         "input",
         None,
-        FormatIdentity {
-            content_type: Some(CEM_DOM_JSON_PROJECTION_CONTENT_TYPE.to_owned()),
-            schema: Some(CEM_DOM_PROJECTION_SCHEMA_URI.to_owned()),
+        Some(FormatIdentity {
+            content_type: Some(CEM_AST_PROJECTION_CONTENT_TYPE.to_owned()),
+            schema: Some(CEM_AST_PROJECTION_SCHEMA_URI.to_owned()),
             ..FormatIdentity::default()
-        },
-        &input,
-    )
-    .expect("DOM parity fixture has explicit JSON projection identity");
+        }),
+        TransformArtifactBody::CemTree(input),
+    );
     let secondary_inputs = BTreeMap::new();
     let final_target = FormatIdentity {
         content_type: Some(descriptor.to.content_type.clone()),
@@ -2431,17 +2554,26 @@ fn execute_cemt_template_parity_fixture(
     {
         None
     } else if let Some(contract) = contract.as_ref() {
-        let cemt_subject = match transform_template_output_cemt_subject(&render_response.output) {
-            Ok(subject) => subject,
-            Err(message) => {
-                return conversion_parity_fixture_execution_error(descriptor, fixture, message);
-            }
+        let formatted_cemt_tree = match &render_response.output.body {
+            TransformArtifactBody::Extension(native) => native
+                .as_any()
+                .downcast_ref::<CemtTreeArtifact>()
+                .map(|artifact| Arc::new(artifact.clone())),
+            _ => None,
         };
-        let pipeline_execution = execute_conversion_output_pipeline(
+        let Some(formatted_cemt_tree) = formatted_cemt_tree else {
+            return conversion_parity_fixture_execution_error(
+                descriptor,
+                fixture,
+                format!(
+                    "CEMT converter returned `{}` instead of a typed formatted CEM tree",
+                    render_response.output.body.representation_id()
+                ),
+            );
+        };
+        let pipeline_execution = execute_conversion_output_pipeline_from_typed_formatted_cem_tree(
             &contract.pipeline,
-            cemt_subject,
-            render_response.output.source_map,
-            render_response.output.output_spans,
+            formatted_cemt_tree,
             &descriptor.id,
             Some(&fixture.id),
             None,
@@ -4811,8 +4943,13 @@ fn lower_cemt_colored_node_sequence(
             ));
         }
         if is_cemt_formatter_owned_fragment(formatted_node) {
-            let before_owner = next_cemt_renderable_owner_index(owner_nodes, owner_cursor)
-                .unwrap_or(owner_nodes.len());
+            let before_owner = next_cemt_retained_owner_index(
+                owner_nodes,
+                owner_cursor,
+                parent_path,
+                formatted_overlay,
+            )
+            .unwrap_or(owner_nodes.len());
             if current_gap == Some(before_owner) {
                 gap_ordinal = gap_ordinal.saturating_add(1);
             } else {
@@ -4857,8 +4994,19 @@ fn lower_cemt_colored_node_sequence(
             .field("kind")
             .and_then(|value| value.string())
             .ok_or_else(|| format!("formatted CEMT tree node {index} requires `kind`"))?;
-        let owner_index = next_cemt_source_owner_index(owner_nodes, owner_cursor, &formatted_kind)
-            .ok_or_else(|| format!("colored CEMT tree node {index} has no source owner"))?;
+        let owner_index = next_cemt_retained_owner_index(
+            owner_nodes,
+            owner_cursor,
+            parent_path,
+            formatted_overlay,
+        )
+        .ok_or_else(|| format!("colored CEMT tree node {index} has no retained source owner"))?;
+        if owner_nodes[owner_index].kind() != formatted_kind {
+            return Err(format!(
+                "colored CEMT tree node {index} kind `{formatted_kind}` does not match retained owner kind `{}`",
+                owner_nodes[owner_index].kind()
+            ));
+        }
         owner_cursor = owner_index.saturating_add(1);
         current_gap = None;
         gap_ordinal = 0;
@@ -4879,13 +5027,34 @@ fn lower_cemt_colored_node_sequence(
         )?;
     }
 
-    if let Some(owner_index) = next_cemt_renderable_owner_index(owner_nodes, owner_cursor) {
+    if let Some(owner_index) =
+        next_cemt_retained_owner_index(owner_nodes, owner_cursor, parent_path, formatted_overlay)
+    {
         return Err(format!(
-            "colored CEMT tree omitted source owner {} at structural index {owner_index}",
+            "colored CEMT tree omitted retained source owner {} at structural index {owner_index}",
             owner_nodes[owner_index].kind()
         ));
     }
     Ok(())
+}
+
+fn next_cemt_retained_owner_index(
+    owner_nodes: &[CemTreeAstNode],
+    start: usize,
+    parent_path: Option<&CemtOwnerPath>,
+    overlay: &CemtFormattedTreeOverlay,
+) -> Option<usize> {
+    owner_nodes
+        .iter()
+        .enumerate()
+        .skip(start)
+        .find_map(|(index, _)| {
+            let path = match parent_path {
+                Some(parent) => parent.child(index),
+                None => CemtOwnerPath::root(index),
+            };
+            overlay.retains_node(&path).then_some(index)
+        })
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -4909,15 +5078,18 @@ fn lower_cemt_colored_source_node(
         operations,
     )?;
     let formatted_fields = formatted;
-    if colored_fields
+    let colored_kind = colored_fields
         .field("kind")
-        .and_then(|value| value.string())
-        .as_deref()
-        != Some(owner.kind())
-    {
+        .and_then(|value| value.string());
+    if colored_kind.as_deref() != Some(owner.kind()) {
+        let formatted_kind = formatted_fields
+            .field("kind")
+            .and_then(|value| value.string());
         return Err(format!(
-            "colored CEMT tree source node {node_index} does not match owner kind `{}`",
-            owner.kind()
+            "colored CEMT tree source node {node_index} kind `{:?}` (formatted `{:?}`) does not match owner kind `{}`",
+            colored_kind,
+            formatted_kind,
+            owner.kind(),
         ));
     }
     if colored_fields
@@ -5986,6 +6158,167 @@ pub fn execute_conversion_output_pipeline_from_cem_tree_with_environment(
     );
     execution.raw_cem_tree = Some(raw);
     execution
+}
+
+pub fn execute_conversion_output_pipeline_from_typed_formatted_cem_tree_with_environment(
+    environment: &ConversionOutputPipelineEnvironment<'_>,
+    pipeline: &ConversionOutputPipeline,
+    formatted_cemt_tree: Arc<CemtTreeArtifact>,
+    converter_id: &str,
+    diagnostic_node: Option<&str>,
+    diagnostic_uri: Option<&str>,
+) -> ConversionOutputPipelineExecution {
+    let local_artifact_cache = ConversionOutputPipelineArtifactCache::default();
+    let cached_environment = if environment.artifact_cache.is_some() {
+        *environment
+    } else {
+        ConversionOutputPipelineEnvironment {
+            schema_registry: environment.schema_registry,
+            conversion_registry: environment.conversion_registry,
+            package_artifact_reader: environment.package_artifact_reader,
+            artifact_cache: Some(&local_artifact_cache),
+        }
+    };
+    let environment = &cached_environment;
+    let mut diagnostics = Vec::new();
+    if let Some(message) =
+        conversion_typed_formatted_cem_tree_contract_error(pipeline, formatted_cemt_tree.as_ref())
+    {
+        diagnostics.push(output_pipeline_diagnostic(
+            converter_id,
+            diagnostic_node,
+            diagnostic_uri,
+            message,
+        ));
+        return ConversionOutputPipelineExecution {
+            formatted_cemt_tree: Some(formatted_cemt_tree),
+            diagnostics,
+            ..ConversionOutputPipelineExecution::default()
+        };
+    }
+
+    let functions = conversion_cem_tree_output_function_registry(environment, pipeline);
+    let implementations = TransformTemplateEncodeImplementationRegistry::with_builtin_encoders();
+    let format_request =
+        TransformTemplateEncodeBindingRequest::new(Value::Null, pipeline.cemt_target.clone())
+            .with_subject_type("cem-ast-node")
+            .with_options(pipeline.cemt_options.clone());
+    let format_binding = match functions
+        .resolve_format_binding(&format_request, implementations.host_capabilities())
+    {
+        Ok(binding) => binding,
+        Err(error) => {
+            let mut diagnostic = error.diagnostic(diagnostic_uri);
+            diagnostic.node = diagnostic_node.map(str::to_owned);
+            diagnostics.push(diagnostic);
+            return ConversionOutputPipelineExecution {
+                formatted_cemt_tree: Some(formatted_cemt_tree),
+                diagnostics,
+                ..ConversionOutputPipelineExecution::default()
+            };
+        }
+    };
+    let producer = formatted_cemt_tree
+        .formatted_overlay()
+        .expect("typed formatted contract was validated")
+        .producer
+        .function_name
+        .clone();
+    execute_conversion_output_pipeline_from_typed_formatted_artifact(
+        environment,
+        pipeline,
+        formatted_cemt_tree,
+        format_binding,
+        Some(ConversionOutputPipelineStageExecution::CemtAdapter {
+            adapter_id: converter_id.to_owned(),
+            function_name: producer.clone(),
+            body_function_name: Some(producer),
+            fallback_function_name: None,
+        }),
+        None,
+        diagnostics,
+        converter_id,
+        diagnostic_node,
+        diagnostic_uri,
+    )
+}
+
+pub fn execute_conversion_output_pipeline_from_typed_formatted_cem_tree(
+    pipeline: &ConversionOutputPipeline,
+    formatted_cemt_tree: Arc<CemtTreeArtifact>,
+    converter_id: &str,
+    diagnostic_node: Option<&str>,
+    diagnostic_uri: Option<&str>,
+) -> ConversionOutputPipelineExecution {
+    let schema_registry = SchemaRegistry::with_builtin_schemas();
+    let conversion_registry = ConversionRegistry::with_builtin_converters();
+    let environment = ConversionOutputPipelineEnvironment {
+        schema_registry: &schema_registry,
+        conversion_registry: &conversion_registry,
+        package_artifact_reader: None,
+        artifact_cache: None,
+    };
+    execute_conversion_output_pipeline_from_typed_formatted_cem_tree_with_environment(
+        &environment,
+        pipeline,
+        formatted_cemt_tree,
+        converter_id,
+        diagnostic_node,
+        diagnostic_uri,
+    )
+}
+
+fn conversion_typed_formatted_cem_tree_contract_error(
+    pipeline: &ConversionOutputPipeline,
+    artifact: &CemtTreeArtifact,
+) -> Option<String> {
+    if artifact.stage() != CemtTreeArtifactStage::Formatted {
+        return Some("converter output must be a typed formatted CEM tree artifact".to_owned());
+    }
+    let overlay = artifact
+        .formatted_overlay()
+        .expect("formatted CEM tree stage has an overlay");
+    let envelope = &overlay.envelope;
+    if envelope.content_type != pipeline.cemt_target.content_type
+        || envelope.schema != pipeline.cemt_target.schema
+        || envelope.category != pipeline.cemt_target.category
+    {
+        return Some(format!(
+            "typed formatted CEM tree target `{}` / `{}` / `{}` does not match output pipeline target `{}` / `{}` / `{}`",
+            envelope.content_type,
+            envelope.schema,
+            envelope.category,
+            pipeline.cemt_target.content_type,
+            pipeline.cemt_target.schema,
+            pipeline.cemt_target.category,
+        ));
+    }
+    let expected_profile = pipeline
+        .cemt_options
+        .formatter_profile
+        .as_deref()
+        .map(str::trim)
+        .filter(|profile| !profile.is_empty());
+    if expected_profile != overlay.producer.formatter_profile.as_deref() {
+        return Some(format!(
+            "typed formatted CEM tree formatter profile `{:?}` does not match output pipeline profile `{:?}`",
+            overlay.producer.formatter_profile, expected_profile,
+        ));
+    }
+    if !overlay.operations.iter().any(|operation| {
+        operation.name == "cem.format-tree" && operation.kind == CemtFormatOperationKind::Marker
+    }) {
+        return Some(
+            "typed formatted CEM tree has no `cem.format-tree` formatter marker".to_owned(),
+        );
+    }
+    if !overlay.operations.iter().any(|operation| {
+        matches!(operation.kind, CemtFormatOperationKind::Decision { .. })
+            && operation.formatter_role.starts_with("formatter.")
+    }) {
+        return Some("typed formatted CEM tree has no formatter decision operation".to_owned());
+    }
+    None
 }
 
 enum ConversionOutputPipelineSubject {
@@ -13993,6 +14326,105 @@ fn conversion_dom_projection_fixture_json_output(
     Ok(conversion_decoded_dom_json(&document))
 }
 
+fn conversion_dom_projection_fixture_cem_tree_output(
+    fixture: &ConversionParityFixture,
+) -> Result<Arc<CemTreeAstStream>, String> {
+    let bytes = conversion_parity_fixture_input_bytes(fixture)?;
+    let document = conversion_decode_dom_binary_projection(&bytes)?;
+    Ok(Arc::new(conversion_decoded_dom_cem_tree(&document)))
+}
+
+fn conversion_decoded_dom_cem_tree(document: &ConversionDecodedDomDocument) -> CemTreeAstStream {
+    CemTreeAstStream::new(
+        document
+            .root_children
+            .iter()
+            .filter_map(|node_id| conversion_decoded_dom_cem_tree_node(document, *node_id))
+            .collect(),
+    )
+}
+
+fn conversion_decoded_dom_cem_tree_node(
+    document: &ConversionDecodedDomDocument,
+    node_id: u32,
+) -> Option<CemTreeAstNode> {
+    let source = SourceMapStack::default();
+    Some(match document.nodes.get(&node_id)? {
+        ConversionDecodedDomNode::Element {
+            name,
+            attributes,
+            children,
+        } => {
+            let mut attributes = attributes
+                .iter()
+                .filter_map(|attribute_id| match document.nodes.get(attribute_id) {
+                    Some(ConversionDecodedDomNode::Attribute { name, value }) => {
+                        Some(CemTreeAstAttribute {
+                            name: conversion_decoded_name(name),
+                            value: value.clone(),
+                            source: SourceMapStack::default(),
+                        })
+                    }
+                    _ => None,
+                })
+                .collect::<Vec<_>>();
+            attributes.sort_by(|left, right| left.name.cmp(&right.name));
+            CemTreeAstNode::Element {
+                name: conversion_decoded_name(name),
+                attributes,
+                children: children
+                    .iter()
+                    .filter_map(|child_id| {
+                        conversion_decoded_dom_cem_tree_node(document, *child_id)
+                    })
+                    .collect(),
+                source,
+            }
+        }
+        ConversionDecodedDomNode::Attribute { .. } => return None,
+        ConversionDecodedDomNode::Text(value) => CemTreeAstNode::Text {
+            value: value.clone(),
+            source,
+        },
+        ConversionDecodedDomNode::Whitespace(data) => CemTreeAstNode::Whitespace {
+            data: data.clone(),
+            source,
+        },
+        ConversionDecodedDomNode::Comment(data) => CemTreeAstNode::Comment {
+            data: data.clone(),
+            source,
+        },
+        ConversionDecodedDomNode::ProcessingInstruction { target, data } => {
+            CemTreeAstNode::ProcessingInstruction {
+                name: target.clone(),
+                target: target.clone(),
+                data: data.clone(),
+                source,
+            }
+        }
+        ConversionDecodedDomNode::Cdata(data) => CemTreeAstNode::Cdata {
+            data: data.clone(),
+            source,
+        },
+        ConversionDecodedDomNode::RawText(data) => CemTreeAstNode::RawText {
+            data: data.clone(),
+            source,
+        },
+        ConversionDecodedDomNode::Error => CemTreeAstNode::Error {
+            code: "cem.dom.error".to_owned(),
+            source,
+        },
+    })
+}
+
+fn conversion_decoded_name(name: &ConversionDecodedName) -> String {
+    if name.namespace.is_empty() {
+        name.local.clone()
+    } else {
+        format!("{}:{}", name.namespace, name.local)
+    }
+}
+
 fn conversion_parity_fixture_input_bytes(
     fixture: &ConversionParityFixture,
 ) -> Result<Vec<u8>, String> {
@@ -18368,6 +18800,16 @@ mod tests {
         let executor =
             CemtTemplateParityFixtureExecutor::new(env!("CARGO_MANIFEST_DIR"), &template_adapters);
 
+        let cemt_execution = executor.execute_conversion_parity_fixture(
+            html_contract.cemt,
+            fixtures.first().expect("declared fixture"),
+        );
+        assert!(
+            cemt_execution.diagnostics.is_empty(),
+            "{:?}",
+            cemt_execution.diagnostics
+        );
+
         let diagnostics = evaluate_conversion_parity_fixtures(html_contract, &fixtures, &executor);
 
         assert!(diagnostics.is_empty(), "{diagnostics:?}");
@@ -18424,6 +18866,235 @@ mod tests {
             tree["nodes"][0]["children"][1]["children"][0]["sourceMap"],
             Value::Null
         );
+    }
+
+    #[test]
+    fn dom_projection_native_adapter_retains_owner_maps_and_typed_layout() {
+        let source_map = SourceMapStack {
+            frames: vec![crate::source_map::SourceMapFrame {
+                source_id: SourceId(73),
+                span: crate::source_map::FrameSpan::Single(crate::source::ByteRange::new(4, 18)),
+                transform: crate::source_map::TransformKind::CemAstBuilder,
+            }],
+        };
+        let owner = Arc::new(CemTreeAstStream::new(vec![CemTreeAstNode::Element {
+            name: "article".to_owned(),
+            attributes: vec![CemTreeAstAttribute {
+                name: "id".to_owned(),
+                value: Some("ready".to_owned()),
+                source: source_map.clone(),
+            }],
+            children: vec![CemTreeAstNode::Element {
+                name: "strong".to_owned(),
+                attributes: Vec::new(),
+                children: vec![CemTreeAstNode::Text {
+                    value: "Ready".to_owned(),
+                    source: source_map.clone(),
+                }],
+                source: source_map.clone(),
+            }],
+            source: source_map.clone(),
+        }]));
+
+        let artifact = conversion_dom_projection_formatted_cem_tree(
+            &owner,
+            &ScopeConfig {
+                cemt_formatter_profile: Some("pretty".to_owned()),
+                ..ScopeConfig::default()
+            },
+        )
+        .expect("native DOM projection result");
+
+        assert!(Arc::ptr_eq(artifact.owner(), &owner));
+        assert_eq!(artifact.stage(), CemtTreeArtifactStage::Formatted);
+        assert_eq!(artifact.subject().nodes()[0].source_map(), &source_map);
+        assert_eq!(
+            artifact.subject().nodes()[0].attributes()[0].source,
+            source_map
+        );
+        assert_eq!(
+            artifact
+                .evaluator_view()
+                .resolve_path("nodes.0.kind")
+                .and_then(|value| value.as_str()),
+            Some("element")
+        );
+        let overlay = artifact.formatted_overlay().expect("typed format overlay");
+        assert_eq!(
+            overlay.producer.formatter_profile.as_deref(),
+            Some("pretty")
+        );
+        assert!(overlay.retains_node(&CemtOwnerPath::root(0)));
+        assert!(overlay.retains_node(&CemtOwnerPath::root(0).child(0)));
+        assert!(overlay.node_operations.iter().any(|operation| {
+            operation.target == CemtNodeFormatTarget::Owner(CemtOwnerPath::root(0).child(0))
+                && operation.kind
+                    == CemtNodeFormatOperationKind::Layout(CemtFormatLayout::InlineEmphasis)
+        }));
+    }
+
+    #[test]
+    fn dom_projection_native_adapter_preserves_supported_node_semantics() {
+        let source_map = SourceMapStack {
+            frames: vec![crate::source_map::SourceMapFrame {
+                source_id: SourceId(74),
+                span: crate::source_map::FrameSpan::Single(crate::source::ByteRange::new(8, 12)),
+                transform: crate::source_map::TransformKind::CemAstBuilder,
+            }],
+        };
+        let owner = Arc::new(CemTreeAstStream::new(vec![
+            CemTreeAstNode::Element {
+                name: "@doc".to_owned(),
+                attributes: Vec::new(),
+                children: Vec::new(),
+                source: source_map.clone(),
+            },
+            CemTreeAstNode::Whitespace {
+                data: " ".to_owned(),
+                source: source_map.clone(),
+            },
+            CemTreeAstNode::Comment {
+                data: "note".to_owned(),
+                source: source_map.clone(),
+            },
+            CemTreeAstNode::ProcessingInstruction {
+                name: "build".to_owned(),
+                target: "build".to_owned(),
+                data: "ready".to_owned(),
+                source: source_map.clone(),
+            },
+            CemTreeAstNode::Cdata {
+                data: "<raw>".to_owned(),
+                source: source_map.clone(),
+            },
+            CemTreeAstNode::RawText {
+                data: "const ready = true;".to_owned(),
+                source: source_map.clone(),
+            },
+            CemTreeAstNode::Element {
+                name: "svg:circle".to_owned(),
+                attributes: vec![CemTreeAstAttribute {
+                    name: "xml:lang".to_owned(),
+                    value: Some("en".to_owned()),
+                    source: source_map.clone(),
+                }],
+                children: vec![CemTreeAstNode::Text {
+                    value: "ready".to_owned(),
+                    source: source_map.clone(),
+                }],
+                source: source_map.clone(),
+            },
+        ]));
+
+        let artifact = conversion_dom_projection_formatted_cem_tree(
+            &owner,
+            &ScopeConfig {
+                cemt_formatter_profile: Some("tabular".to_owned()),
+                ..ScopeConfig::default()
+            },
+        )
+        .expect("supported DOM nodes remain typed");
+        let overlay = artifact.formatted_overlay().expect("typed format overlay");
+
+        assert!(Arc::ptr_eq(artifact.owner(), &owner));
+        assert!(!overlay.retains_node(&CemtOwnerPath::root(0)));
+        for index in 1..owner.as_nodes().len() {
+            assert!(overlay.retains_node(&CemtOwnerPath::root(index)));
+            assert_eq!(artifact.subject().nodes()[index].source_map(), &source_map);
+        }
+        assert_eq!(
+            overlay.producer.formatter_profile.as_deref(),
+            Some("tabular")
+        );
+        assert_eq!(
+            conversion_render_dom_projection_parity_cem_tree(
+                owner.as_ref(),
+                ConversionDomProjectionParityOutput::Html,
+            )
+            .expect("HTML oracle"),
+            " <!--note-->const ready = true;<svg:circle xml:lang=\"en\">ready</svg:circle>"
+        );
+        assert_eq!(
+            conversion_render_dom_projection_parity_cem_tree(
+                owner.as_ref(),
+                ConversionDomProjectionParityOutput::Xml,
+            )
+            .expect("XML oracle"),
+            " <!--note--><?build ready?><![CDATA[<raw>]]><svg:circle xml:lang=\"en\">ready</svg:circle>"
+        );
+
+        let error_owner = Arc::new(CemTreeAstStream::new(vec![CemTreeAstNode::Error {
+            code: "cem.dom.invalid".to_owned(),
+            source: source_map,
+        }]));
+        let error =
+            conversion_dom_projection_formatted_cem_tree(&error_owner, &ScopeConfig::default())
+                .expect_err("DOM error nodes remain explicit adapter failures");
+        assert!(error.to_string().contains("cem.dom.invalid"));
+    }
+
+    #[test]
+    fn dom_projection_native_adapter_has_no_serialized_stage_boundary() {
+        let source = include_str!("conversion.rs");
+        let native_branch = source
+            .split_once("if let TransformArtifactBody::CemTree(primary)")
+            .expect("DOM native adapter branch")
+            .1
+            .split_once("let primary = request")
+            .expect("DOM compatibility branch boundary")
+            .0;
+        for required in [
+            "conversion_dom_projection_formatted_cem_tree",
+            "TransformArtifactBody::Extension(tree)",
+        ] {
+            assert!(native_branch.contains(required), "missing `{required}`");
+        }
+        for forbidden in [
+            "into_cemt_subject",
+            "serde_json",
+            "CemtOutputArtifact",
+            "cemt_output_body",
+            "conversion_dom_projection_parity_cem_tree_document",
+        ] {
+            assert!(
+                !native_branch.contains(forbidden),
+                "native DOM adapter must not use `{forbidden}`"
+            );
+        }
+
+        let typed_builder = source
+            .split_once("fn conversion_dom_projection_formatted_cem_tree(")
+            .expect("typed DOM result builder")
+            .1
+            .split_once("fn conversion_dom_projection_parity_target_is_cem_tree")
+            .expect("typed DOM result builder boundary")
+            .0;
+        for forbidden in [
+            "Value",
+            "serde_json",
+            "into_cemt_subject",
+            "to_cemt_subject",
+        ] {
+            assert!(
+                !typed_builder.contains(forbidden),
+                "typed DOM result builder must not use `{forbidden}`"
+            );
+        }
+
+        let real_source = include_str!("real.rs");
+        let production_handoff = real_source
+            .split_once("fn render_export_conversion_template(")
+            .expect("production DOM render handoff")
+            .1
+            .split_once("fn select_converter_template_adapter(")
+            .expect("production DOM render handoff boundary")
+            .0;
+        assert!(production_handoff.contains(
+            "execute_conversion_output_pipeline_from_typed_formatted_cem_tree_with_context"
+        ));
+        assert!(!production_handoff.contains("transform_template_output_cemt_subject"));
+        assert!(!production_handoff
+            .contains("execute_conversion_output_pipeline_from_formatted_cem_tree_with_context"));
     }
 
     #[test]
@@ -21245,7 +21916,7 @@ mod tests {
             .expect("real-engine CEM tree entrypoint")
             .1
             .split_once(
-                "fn execute_conversion_output_pipeline_from_formatted_cem_tree_with_context",
+                "fn execute_conversion_output_pipeline_from_typed_formatted_cem_tree_with_context",
             )
             .expect("real-engine entrypoint boundary")
             .0;

@@ -3,9 +3,9 @@
 Status: inventory complete; serializer-free typed-result contract selected and
 materialized-tree artifact introduced. Formatter/colorizer/writer paths for
 lossless and generic-data JSON, JSON Schema, CSV, YAML, Markdown, all seven
-XML-family owners, and both RELAX NG syntax branches now use borrowed
-evaluators, the materialized writer-token stream, and typed color overlay end
-to end; JSON graph routing is also closed. This inventory is promoted as active
+XML-family owners, both RELAX NG syntax branches, and the DOM-projection native
+producer now use borrowed evaluators/subjects and typed tree results end to
+end; JSON graph routing is also closed. This inventory is promoted as active
 migration evidence by `docs/todo.md`.
 
 ## Existing Typed Baseline
@@ -23,7 +23,6 @@ describe every remaining producer.
 
 | Producer family                                             | Input owner before execution                                                                                                                    | Current result                                                                                | Current handoff                                                                                                                    | Ownership/provenance gap                                                                                                                                                   |
 | ----------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| DOM-projection parity adapter                               | Either `Arc<CemTreeAstStream>` or an explicit JSON DOM projection                                                                               | A newly generated raw CEM tree                                                                | `CemtOutputArtifact { value: Value }`                                                                                              | The generated tree has no typed result owner; the JSON-input branch has no package-native owner and currently emits no source map.                                         |
 | Lossless, generic-data JSON, and JSON Schema pipelines     | `JsonDocumentAst`, `GenericDataDocumentAst`, or `JsonSchemaDocumentAst`                                                                          | `CemtMaterializedTreeArtifact` owning ordered `WriterToken` nodes, plus an optional typed color overlay                               | Borrowed evaluator → exact `Arc<CemTreeAstStream>` → overlay → direct writer and typed stage output; real JSON graph collection/secondary routing retains the exact artifact and owner `Arc` | All production JSON and JSON Schema formatter, colorizer, writer, and stage handoffs are closed; production serializers are deleted and compatibility subjects remain test-only.          |
 | Direct CSV pipeline                                        | `CsvDocumentAst` or a borrowed CSV-contract view over `GenericDataDocumentAst`                                                                    | `CemtMaterializedTreeArtifact` owning ordered `WriterToken` nodes, plus an optional typed color overlay                              | Borrowed evaluator → exact `Arc<CemTreeAstStream>` → overlay → typed stage output and direct writer                                                                       | Closed for both production owners; compatibility `Value` subjects and composers are test-only parity oracles.                                                             |
 | Direct YAML pipeline                                      | `YamlDocumentAst` or a borrowed YAML-contract view over `GenericDataDocumentAst`                                                                  | `CemtMaterializedTreeArtifact` owning ordered `WriterToken` nodes, plus an optional typed color overlay                              | Borrowed evaluator → exact `Arc<CemTreeAstStream>` → overlay → typed stage output and direct writer                                                                       | Closed for both production owners; compatibility `Value` subjects and composers are test-only parity oracles.                                                             |
@@ -207,15 +206,16 @@ an owner-path overlay, the selected artifact is the typed stage body, and the
 direct writer consumes it. RELAX NG and nested XML compatibility composers are
 test-only parity oracles.
 
-Next, close `DomProjectionParityCemtAdapter`. Its native CEM-tree branch still
-clones the input stream into a CEMT/JSON subject, recursively builds a formatted
-tree as `Value`, wraps it in `CemtOutputArtifact`, and relies on downstream
-shape recovery. Production rendering should borrow the native stream, build a
-typed result owner directly, and retain that result through the stage/writer
-boundary. The explicit-JSON branch should remain confined to parity fixtures or
-enter through a registered parser edge; it must not become a native owner.
+`DomProjectionParityCemtAdapter` is now closed for native production input. It
+borrows `CemtTreeSubjectRef`, retains the exact input
+`Arc<CemTreeAstStream>` and source maps, adds typed retained-node/layout
+operations, returns a formatted `CemtTreeArtifact`, and enters color/writer
+execution through the typed formatted-stage entrypoint. Directive elision is
+tracked by owner path rather than value-shape recovery. The explicit-JSON
+branch remains compatibility-only and never becomes a native owner.
 
-Migrate every remaining producer using the same direct owner/view/builder
-pattern. Only then remove `CemtOutputArtifact`,
+Next, migrate the generic output-function runtime and compatibility CEM-tree
+stage fallback using the same direct owner/view/builder pattern. Only then
+remove `CemtOutputArtifact`,
 `transform_template_output_cemt_subject`, `CemtEvaluator(Value)`,
 `CemtRuntime(Value)`, and adapter DTO conversions globally.

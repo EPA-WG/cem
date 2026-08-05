@@ -870,6 +870,10 @@ pub struct CemtTreeSubjectRef<'a> {
 }
 
 impl<'a> CemtTreeSubjectRef<'a> {
+    pub fn new(owner: &'a CemTreeAstStream) -> Self {
+        Self { owner }
+    }
+
     pub fn stream(self) -> &'a CemTreeAstStream {
         self.owner
     }
