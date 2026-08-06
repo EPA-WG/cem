@@ -29,6 +29,12 @@ mediate between internal layers.
         target native and WASM; and route documents, collections, unparsed text,
         environment, time, randomness, recursion, cancellation, and work budgets
         through explicit CEM resolver/safety capabilities.
+    - [x] Establish the first native evaluator slice: retain the exact lifecycle
+          XML AST owner and typed node handle in context/results, execute package
+          AST literals, variables, context items, and child/name-test paths
+          directly, reject unsupported semantics deterministically, and prove no
+          serializer, projection DTO, source reparse, or replacement tree enters
+          the evaluator boundary.
   - [ ] Wire the native evaluator through the `transform` command and expose
         explicit CEM-QL, CEMT, and XSLT invocation adapters without reparsing
         source text, constructing an evaluator-owned replacement XML tree, or

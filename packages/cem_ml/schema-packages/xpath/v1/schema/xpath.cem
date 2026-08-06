@@ -159,6 +159,7 @@
         {constraint @kind="xpath-evaluator-resource-access" @target="evaluator-capabilities" @diagnostic="cem.xpath.evaluator_capability_mismatch" @behavior="xpath-evaluation-report-fact" @fact-kind="evaluator-capability-mismatch" @policy="doc collection unparsed-text and URI collection reads flow exclusively through the CEM resolver registry and policy"}
         {constraint @kind="xpath-evaluator-runtime-targets" @target="execution-target" @diagnostic="cem.xpath.evaluator_capability_mismatch" @behavior="xpath-evaluation-report-fact" @fact-kind="evaluator-capability-mismatch" @policy="native and wasm32-unknown-unknown targets are required before registration"}
         {constraint @kind="xpath-evaluator-result-items" @target="result-item-kind" @diagnostic="cem.xpath.evaluator_capability_mismatch" @behavior="xpath-evaluation-report-fact" @fact-kind="evaluator-capability-mismatch" @policy="node atomic map array and function result items are supported"}
+        {constraint @kind="xpath-evaluation-feature-support" @target="syntax-ast" @diagnostic="cem.xpath.evaluation_unsupported" @behavior="xpath-evaluation-report-fact" @fact-kind="evaluation-unsupported" @policy="staged evaluator slices reject unimplemented XPath semantics deterministically without reparsing or projection"}
         {constraint @kind="xpath-result-item-order" @target="sequence" @diagnostic="cem.xpath.result_artifact_invalid" @behavior="xpath-evaluation-report-fact" @fact-kind="result-artifact-invalid" @policy="sequence and array member child order is the XPath data model order; map entry order is deterministic artifact order without changing unordered map semantics"}
         {constraint @kind="xpath-result-node-identity" @target="node-item" @diagnostic="cem.xpath.result_artifact_invalid" @behavior="xpath-evaluation-report-fact" @fact-kind="result-artifact-invalid" @policy="node items retain source and node identity instead of serializing through XML text"}
         {constraint @kind="xpath-result-atomic-type" @target="atomic-item" @diagnostic="cem.xpath.result_artifact_invalid" @behavior="xpath-evaluation-report-fact" @fact-kind="result-artifact-invalid" @policy="atomic items retain the XPath type and lexical value without JSON numeric coercion"}
@@ -180,6 +181,11 @@
         {diagnostic @code="cem.xpath.source_map_unavailable" @severity="info"}
         {diagnostic @code="cem.xpath.event_lifecycle_invalid" @severity="error"}
         {diagnostic @code="cem.xpath.evaluator_capability_mismatch" @severity="fatal"}
+        {diagnostic @code="cem.xpath.evaluation_ast_missing" @severity="error"}
+        {diagnostic @code="cem.xpath.evaluation_unsupported" @severity="error"}
+        {diagnostic @code="cem.xpath.context_item_missing" @severity="error"}
+        {diagnostic @code="cem.xpath.context_item_native_node_required" @severity="error"}
+        {diagnostic @code="cem.xpath.variable_unbound" @severity="error"}
         {diagnostic @code="cem.xpath.result_artifact_invalid" @severity="fatal"}
         {diagnostic @code="cem.xpath.result_type_mismatch" @severity="error"}
         {diagnostic @code="cem.xpath.policy_mismatch" @severity="fatal"}

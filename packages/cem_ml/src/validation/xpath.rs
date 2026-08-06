@@ -5,6 +5,7 @@ mod syntax;
 pub use syntax::*;
 
 use crate::diagnostics::{Diagnostic, Severity};
+use crate::lifecycle::LoadedInputAstStream;
 use crate::resolver::{ResolverPolicy, ResolverRegistry};
 use crate::schema::document_model::compile_schema_document_model;
 use crate::schema::package_sources::builtin_schema_package_source;
@@ -15,10 +16,11 @@ pub use crate::schema::registry::{
 use crate::source::line_index::LineIndex;
 use crate::source::{ByteRange, SourceId};
 use crate::source_map::{FrameSpan, SourceMapFrame, SourceMapStack, TransformKind};
+use crate::validation::xml::{XmlDocumentAst, XmlEventAst, XmlEventKind};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use std::collections::{BTreeMap, BTreeSet};
-use std::sync::OnceLock;
+use std::sync::{Arc, OnceLock};
 #[cfg(test)]
 use xee_xpath_ast::ast as xee_ast;
 #[cfg(test)]
@@ -377,6 +379,293 @@ pub enum XPathResultNodeKind {
     Namespace,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum XPathNativeNodeHandle {
+    XmlDocument,
+    XmlEvent { event_index: usize },
+}
+
+#[derive(Clone)]
+pub struct XPathNativeNode {
+    owner: Arc<LoadedInputAstStream>,
+    handle: XPathNativeNodeHandle,
+}
+
+impl std::fmt::Debug for XPathNativeNode {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter
+            .debug_struct("XPathNativeNode")
+            .field("owner", &Arc::as_ptr(&self.owner))
+            .field("handle", &self.handle)
+            .finish()
+    }
+}
+
+impl PartialEq for XPathNativeNode {
+    fn eq(&self, other: &Self) -> bool {
+        Arc::ptr_eq(&self.owner, &other.owner) && self.handle == other.handle
+    }
+}
+
+impl Eq for XPathNativeNode {}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum XPathNativeNodeError {
+    OwnerIsNotXml,
+    XmlEventMissing { event_index: usize },
+    XmlEventIsNotNode { event_index: usize },
+}
+
+impl std::fmt::Display for XPathNativeNodeError {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::OwnerIsNotXml => write!(formatter, "XPath native node owner is not an XML AST"),
+            Self::XmlEventMissing { event_index } => {
+                write!(formatter, "XML event `{event_index}` does not exist")
+            }
+            Self::XmlEventIsNotNode { event_index } => write!(
+                formatter,
+                "XML event `{event_index}` does not represent an XPath node"
+            ),
+        }
+    }
+}
+
+impl std::error::Error for XPathNativeNodeError {}
+
+impl XPathNativeNode {
+    pub fn xml_document(owner: Arc<LoadedInputAstStream>) -> Result<Self, XPathNativeNodeError> {
+        if !matches!(owner.as_ref(), LoadedInputAstStream::XmlDocument(_)) {
+            return Err(XPathNativeNodeError::OwnerIsNotXml);
+        }
+        Ok(Self {
+            owner,
+            handle: XPathNativeNodeHandle::XmlDocument,
+        })
+    }
+
+    pub fn xml_event(
+        owner: Arc<LoadedInputAstStream>,
+        event_index: usize,
+    ) -> Result<Self, XPathNativeNodeError> {
+        let LoadedInputAstStream::XmlDocument(document) = owner.as_ref() else {
+            return Err(XPathNativeNodeError::OwnerIsNotXml);
+        };
+        let event = document
+            .events
+            .get(event_index)
+            .ok_or(XPathNativeNodeError::XmlEventMissing { event_index })?;
+        if xpath_xml_event_node_kind(event.kind).is_none() {
+            return Err(XPathNativeNodeError::XmlEventIsNotNode { event_index });
+        }
+        Ok(Self {
+            owner,
+            handle: XPathNativeNodeHandle::XmlEvent { event_index },
+        })
+    }
+
+    pub fn owner(&self) -> &Arc<LoadedInputAstStream> {
+        &self.owner
+    }
+
+    pub fn handle(&self) -> XPathNativeNodeHandle {
+        self.handle
+    }
+
+    pub fn source_map(&self) -> SourceMapStack {
+        match self.handle {
+            XPathNativeNodeHandle::XmlDocument => SourceMapStack {
+                frames: vec![SourceMapFrame {
+                    source_id: SourceId(1),
+                    span: FrameSpan::Single(ByteRange::new(
+                        0,
+                        u32::try_from(self.xml_document_ast().source.byte_length)
+                            .unwrap_or(u32::MAX),
+                    )),
+                    transform: TransformKind::ContentTypeTransform {
+                        content_type: self.xml_document_ast().source.media_type.clone(),
+                    },
+                }],
+            },
+            XPathNativeNodeHandle::XmlEvent { event_index } => self
+                .xml_document_ast()
+                .events
+                .get(event_index)
+                .expect("validated XPath XML event handle")
+                .source_range
+                .source_map(),
+        }
+    }
+
+    fn xml_document_ast(&self) -> &XmlDocumentAst {
+        let LoadedInputAstStream::XmlDocument(document) = self.owner.as_ref() else {
+            unreachable!("XPathNativeNode constructors validate XML owners")
+        };
+        document
+    }
+
+    fn xml_event_ast(&self) -> Option<&XmlEventAst> {
+        let XPathNativeNodeHandle::XmlEvent { event_index } = self.handle else {
+            return None;
+        };
+        self.xml_document_ast().events.get(event_index)
+    }
+
+    fn document_root(&self) -> Self {
+        Self {
+            owner: Arc::clone(&self.owner),
+            handle: XPathNativeNodeHandle::XmlDocument,
+        }
+    }
+
+    fn child_nodes(&self) -> Vec<Self> {
+        let document = self.xml_document_ast();
+        let (start_index, child_depth, closing_depth) = match self.handle {
+            XPathNativeNodeHandle::XmlDocument => (0, 0, None),
+            XPathNativeNodeHandle::XmlEvent { event_index } => {
+                let Some(event) = document.events.get(event_index) else {
+                    return Vec::new();
+                };
+                if event.kind != XmlEventKind::StartElement {
+                    return Vec::new();
+                }
+                (
+                    event_index.saturating_add(1),
+                    event.depth.saturating_add(1),
+                    Some(event.depth),
+                )
+            }
+        };
+
+        let mut children = Vec::new();
+        for event in document.events.iter().skip(start_index) {
+            if closing_depth
+                .is_some_and(|depth| event.kind == XmlEventKind::EndElement && event.depth == depth)
+            {
+                break;
+            }
+            if event.depth != child_depth || xpath_xml_event_node_kind(event.kind).is_none() {
+                continue;
+            }
+            if let Ok(node) = Self::xml_event(Arc::clone(&self.owner), event.index) {
+                children.push(node);
+            }
+        }
+        children
+    }
+
+    fn result_node_kind(&self) -> XPathResultNodeKind {
+        match self.handle {
+            XPathNativeNodeHandle::XmlDocument => XPathResultNodeKind::Document,
+            XPathNativeNodeHandle::XmlEvent { .. } => xpath_xml_event_node_kind(
+                self.xml_event_ast()
+                    .expect("validated XPath XML event handle")
+                    .kind,
+            )
+            .expect("validated XPath XML event node kind"),
+        }
+    }
+
+    fn source_range(&self) -> XPathSourceRange {
+        match self.handle {
+            XPathNativeNodeHandle::XmlDocument => {
+                XPathSourceRange::new(1, 1, 0, self.xml_document_ast().source.byte_length as u64)
+            }
+            XPathNativeNodeHandle::XmlEvent { .. } => {
+                let range = self
+                    .xml_event_ast()
+                    .expect("validated XPath XML event handle")
+                    .source_range;
+                XPathSourceRange::new(
+                    range.start.line,
+                    range.start.column,
+                    range.start.byte_offset,
+                    range.byte_length,
+                )
+            }
+        }
+    }
+
+    fn node_id(&self) -> String {
+        match self.handle {
+            XPathNativeNodeHandle::XmlDocument => "xml:document".to_owned(),
+            XPathNativeNodeHandle::XmlEvent { event_index } => {
+                format!("xml:event:{event_index}")
+            }
+        }
+    }
+
+    fn expanded_name(&self) -> Option<String> {
+        let event = self.xml_event_ast()?;
+        let local_name = event.local_name.as_deref()?;
+        Some(match event.namespace_uri.as_deref() {
+            Some(namespace_uri) => format!("{{{namespace_uri}}}{local_name}"),
+            None => local_name.to_owned(),
+        })
+    }
+
+    fn matches_node_test(&self, node_test: &XPathNodeTest) -> bool {
+        match node_test {
+            XPathNodeTest::Name(name_test) => {
+                let Some(event) = self.xml_event_ast() else {
+                    return false;
+                };
+                if !matches!(
+                    event.kind,
+                    XmlEventKind::StartElement | XmlEventKind::EmptyElement
+                ) {
+                    return false;
+                }
+                match name_test {
+                    XPathNameTest::Name(name) => {
+                        event.local_name.as_deref() == Some(name.local_name.as_str())
+                            && event.namespace_uri.as_deref() == name.namespace_uri.as_deref()
+                    }
+                    XPathNameTest::Any => true,
+                    XPathNameTest::AnyNamespace { local_name } => {
+                        event.local_name.as_deref() == Some(local_name.as_str())
+                    }
+                    XPathNameTest::Namespace { namespace_uri } => {
+                        event.namespace_uri.as_deref() == Some(namespace_uri.as_str())
+                    }
+                }
+            }
+            XPathNodeTest::Kind { kind, .. } => match kind {
+                XPathKindTest::Document => self.result_node_kind() == XPathResultNodeKind::Document,
+                XPathKindTest::Element | XPathKindTest::SchemaElement => {
+                    self.result_node_kind() == XPathResultNodeKind::Element
+                }
+                XPathKindTest::Attribute | XPathKindTest::SchemaAttribute => {
+                    self.result_node_kind() == XPathResultNodeKind::Attribute
+                }
+                XPathKindTest::ProcessingInstruction => {
+                    self.result_node_kind() == XPathResultNodeKind::ProcessingInstruction
+                }
+                XPathKindTest::Comment => self.result_node_kind() == XPathResultNodeKind::Comment,
+                XPathKindTest::Text => self.result_node_kind() == XPathResultNodeKind::Text,
+                XPathKindTest::NamespaceNode => {
+                    self.result_node_kind() == XPathResultNodeKind::Namespace
+                }
+                XPathKindTest::AnyNode => true,
+            },
+        }
+    }
+}
+
+fn xpath_xml_event_node_kind(kind: XmlEventKind) -> Option<XPathResultNodeKind> {
+    match kind {
+        XmlEventKind::StartElement | XmlEventKind::EmptyElement => {
+            Some(XPathResultNodeKind::Element)
+        }
+        XmlEventKind::Text | XmlEventKind::Cdata | XmlEventKind::EntityReference => {
+            Some(XPathResultNodeKind::Text)
+        }
+        XmlEventKind::Comment => Some(XPathResultNodeKind::Comment),
+        XmlEventKind::ProcessingInstruction => Some(XPathResultNodeKind::ProcessingInstruction),
+        XmlEventKind::Declaration | XmlEventKind::EndElement | XmlEventKind::Doctype => None,
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct XPathMapEntry {
@@ -408,6 +697,8 @@ pub enum XPathResultItem {
         #[serde(default, skip_serializing_if = "Option::is_none")]
         source_range: Option<XPathSourceRange>,
         source_map: SourceMapStack,
+        #[serde(skip)]
+        native_node: Option<XPathNativeNode>,
     },
     Atomic {
         value: XPathAtomicValue,
@@ -433,6 +724,31 @@ pub enum XPathResultItem {
 }
 
 impl XPathResultItem {
+    pub fn from_native_node(native_node: XPathNativeNode) -> Self {
+        let source_map = native_node.source_map();
+        let source_id = source_map
+            .frames
+            .first()
+            .map_or(0, |frame| frame.source_id.0);
+        Self::Node {
+            node_kind: native_node.result_node_kind(),
+            source_id,
+            source_uri: native_node.xml_document_ast().source.uri.clone(),
+            node_id: native_node.node_id(),
+            expanded_name: native_node.expanded_name(),
+            source_range: Some(native_node.source_range()),
+            source_map,
+            native_node: Some(native_node),
+        }
+    }
+
+    pub fn native_node(&self) -> Option<&XPathNativeNode> {
+        match self {
+            Self::Node { native_node, .. } => native_node.as_ref(),
+            _ => None,
+        }
+    }
+
     pub fn kind(&self) -> XPathResultItemKind {
         match self {
             Self::Node { .. } => XPathResultItemKind::Node,
@@ -490,6 +806,403 @@ pub trait XPathEvaluatorAdapter: Send + Sync {
         &self,
         request: XPathEvaluationRequest<'_>,
     ) -> Result<XPathResultArtifact, Vec<Diagnostic>>;
+}
+
+#[derive(Debug, Clone)]
+pub struct CemXPathEvaluator {
+    capabilities: XPathEvaluatorCapabilities,
+}
+
+impl Default for CemXPathEvaluator {
+    fn default() -> Self {
+        Self {
+            capabilities: XPathEvaluatorCapabilities::required("cem.xpath.native", "0.1.0"),
+        }
+    }
+}
+
+impl XPathEvaluatorAdapter for CemXPathEvaluator {
+    fn capabilities(&self) -> &XPathEvaluatorCapabilities {
+        &self.capabilities
+    }
+
+    fn evaluate(
+        &self,
+        request: XPathEvaluationRequest<'_>,
+    ) -> Result<XPathResultArtifact, Vec<Diagnostic>> {
+        let Some(syntax) = request.expression.syntax_ast.as_ref() else {
+            return Err(vec![xpath_evaluation_diagnostic(
+                request.expression,
+                "cem.xpath.evaluation_ast_missing",
+                "XPath evaluation requires the package-owned typed syntax AST",
+                None,
+            )]);
+        };
+        let sequence = xpath_evaluate_expression_sequence(
+            request.expression,
+            &syntax.root,
+            request.context_item.as_ref(),
+            &request.variable_bindings,
+        )
+        .map_err(|error| vec![error.into_diagnostic(request.expression)])?;
+        let artifact = XPathResultArtifact {
+            content_type: XPATH_RESULT_CONTENT_TYPE.to_owned(),
+            schema_uri: XPATH_SCHEMA_URI.to_owned(),
+            xpath_version: "3.1".to_owned(),
+            grammar_version: XPATH_GRAMMAR_VERSION.to_owned(),
+            evaluator: XPathEvaluatorIdentity {
+                evaluator_id: self.capabilities.evaluator_id.clone(),
+                evaluator_version: self.capabilities.evaluator_version.clone(),
+            },
+            expression_uri: request.expression.source.uri.clone(),
+            static_context: request.static_context,
+            resolver_policy_stamp: request.resolver_policy.cache_stamp(),
+            safety_policy_stamp: request.safety_policy_stamp.to_owned(),
+            expected_result: request.expected_result,
+            sequence,
+            source_map: syntax.root.source_range.source_map(
+                request.expression.attachment.source_id(),
+                request.expression.source.media_type.as_str(),
+            ),
+        };
+        let violations = validate_xpath_result_artifact(&artifact, &self.capabilities);
+        if violations.is_empty() {
+            Ok(artifact)
+        } else {
+            Err(violations
+                .into_iter()
+                .map(|violation| {
+                    xpath_evaluation_diagnostic(
+                        request.expression,
+                        "cem.xpath.result_artifact_invalid",
+                        violation.message,
+                        None,
+                    )
+                })
+                .collect())
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+struct XPathEvaluationError {
+    code: &'static str,
+    message: String,
+    source_range: Option<XPathSourceRange>,
+}
+
+impl XPathEvaluationError {
+    fn unsupported(message: impl Into<String>, source_range: XPathSourceRange) -> Self {
+        Self {
+            code: "cem.xpath.evaluation_unsupported",
+            message: message.into(),
+            source_range: Some(source_range),
+        }
+    }
+
+    fn into_diagnostic(self, expression: &XPathExpressionAst) -> Diagnostic {
+        xpath_evaluation_diagnostic(expression, self.code, self.message, self.source_range)
+    }
+}
+
+fn xpath_evaluation_diagnostic(
+    expression: &XPathExpressionAst,
+    code: impl Into<String>,
+    message: impl Into<String>,
+    source_range: Option<XPathSourceRange>,
+) -> Diagnostic {
+    let source_range = source_range.or_else(|| {
+        expression
+            .syntax_ast
+            .as_ref()
+            .map(|syntax| syntax.root.source_range)
+    });
+    Diagnostic {
+        uri: Some(expression.source.uri.clone()),
+        line: source_range.map(|range| range.start.line),
+        column: source_range.map(|range| range.start.column),
+        byte_offset: source_range.map(|range| range.start.byte_offset),
+        code: code.into(),
+        severity: Severity::Error,
+        message: message.into(),
+        source_map: source_range.map(|range| {
+            range.source_map(
+                expression.attachment.source_id(),
+                expression.source.media_type.as_str(),
+            )
+        }),
+        ..Diagnostic::default()
+    }
+}
+
+fn xpath_evaluate_expression_sequence(
+    expression: &XPathExpressionAst,
+    sequence: &XPathExpressionSequence,
+    context_item: Option<&XPathResultItem>,
+    variable_bindings: &BTreeMap<String, XPathResultSequence>,
+) -> Result<XPathResultSequence, XPathEvaluationError> {
+    let mut items = Vec::new();
+    for node in &sequence.expressions {
+        items.extend(xpath_evaluate_expression_node(
+            expression,
+            node,
+            context_item,
+            variable_bindings,
+        )?);
+    }
+    Ok(XPathResultSequence {
+        sequence_type: xpath_result_sequence_type(&items),
+        items,
+    })
+}
+
+fn xpath_evaluate_expression_node(
+    expression: &XPathExpressionAst,
+    node: &XPathExpressionNode,
+    context_item: Option<&XPathResultItem>,
+    variable_bindings: &BTreeMap<String, XPathResultSequence>,
+) -> Result<Vec<XPathResultItem>, XPathEvaluationError> {
+    match &node.expression {
+        XPathExpression::Path(path) => {
+            xpath_evaluate_path(expression, path, context_item, variable_bindings)
+        }
+        XPathExpression::Binary { operator, .. } => Err(XPathEvaluationError::unsupported(
+            format!("XPath operator `{operator:?}` is outside the first native evaluator slice"),
+            node.source_range,
+        )),
+        XPathExpression::For { .. } => Err(XPathEvaluationError::unsupported(
+            "XPath for expressions are outside the first native evaluator slice",
+            node.source_range,
+        )),
+        XPathExpression::Unsupported { production } => Err(XPathEvaluationError::unsupported(
+            format!("XPath production `{production}` is not executable yet"),
+            node.source_range,
+        )),
+    }
+}
+
+fn xpath_evaluate_path(
+    expression: &XPathExpressionAst,
+    path: &XPathPathExpression,
+    context_item: Option<&XPathResultItem>,
+    variable_bindings: &BTreeMap<String, XPathResultSequence>,
+) -> Result<Vec<XPathResultItem>, XPathEvaluationError> {
+    if path.root == XPathPathRoot::RootedDescendant {
+        return Err(XPathEvaluationError::unsupported(
+            "rooted descendant paths are outside the first native evaluator slice",
+            path.source_range,
+        ));
+    }
+
+    let mut current = if path.root == XPathPathRoot::Rooted {
+        let context_node = xpath_context_native_node(context_item, path.source_range)?;
+        vec![XPathResultItem::from_native_node(
+            context_node.document_root(),
+        )]
+    } else {
+        Vec::new()
+    };
+
+    for (index, step) in path.steps.iter().enumerate() {
+        match &step.step {
+            XPathStep::Axis {
+                axis,
+                node_test,
+                predicates,
+            } => {
+                if !predicates.is_empty() {
+                    return Err(XPathEvaluationError::unsupported(
+                        "XPath predicates are outside the first native evaluator slice",
+                        step.source_range,
+                    ));
+                }
+                if current.is_empty() && path.root == XPathPathRoot::Relative && index == 0 {
+                    current.push(context_item.cloned().ok_or_else(|| XPathEvaluationError {
+                        code: "cem.xpath.context_item_missing",
+                        message: "relative XPath path requires a context item".to_owned(),
+                        source_range: Some(step.source_range),
+                    })?);
+                }
+                current = xpath_evaluate_axis(*axis, node_test, current, step.source_range)?;
+            }
+            XPathStep::Primary(primary) => {
+                current = xpath_evaluate_primary(
+                    expression,
+                    primary,
+                    context_item,
+                    variable_bindings,
+                    step.source_range,
+                )?;
+            }
+            XPathStep::Postfix { primary, postfixes } => {
+                if !postfixes.is_empty() {
+                    return Err(XPathEvaluationError::unsupported(
+                        "XPath postfix expressions are outside the first native evaluator slice",
+                        step.source_range,
+                    ));
+                }
+                current = xpath_evaluate_primary(
+                    expression,
+                    primary,
+                    context_item,
+                    variable_bindings,
+                    step.source_range,
+                )?;
+            }
+        }
+    }
+    Ok(current)
+}
+
+fn xpath_evaluate_primary(
+    expression: &XPathExpressionAst,
+    primary: &XPathPrimaryExpression,
+    context_item: Option<&XPathResultItem>,
+    variable_bindings: &BTreeMap<String, XPathResultSequence>,
+    source_range: XPathSourceRange,
+) -> Result<Vec<XPathResultItem>, XPathEvaluationError> {
+    match primary {
+        XPathPrimaryExpression::Literal(literal) => Ok(vec![XPathResultItem::Atomic {
+            value: XPathAtomicValue {
+                type_name: match literal.kind {
+                    XPathLiteralKind::Integer => "xs:integer",
+                    XPathLiteralKind::Decimal => "xs:decimal",
+                    XPathLiteralKind::Double => "xs:double",
+                    XPathLiteralKind::String => "xs:string",
+                }
+                .to_owned(),
+                lexical_value: match literal.kind {
+                    XPathLiteralKind::String => literal.value.clone(),
+                    _ => literal.lexical.clone(),
+                },
+                namespace_uri: None,
+                local_name: None,
+            },
+            source_map: source_range.source_map(
+                expression.attachment.source_id(),
+                expression.source.media_type.as_str(),
+            ),
+        }]),
+        XPathPrimaryExpression::VariableReference(name) => variable_bindings
+            .get(name.lexical.as_str())
+            .or_else(|| variable_bindings.get(name.local_name.as_str()))
+            .map(|sequence| sequence.items.clone())
+            .ok_or_else(|| XPathEvaluationError {
+                code: "cem.xpath.variable_unbound",
+                message: format!("XPath variable `${}` is not bound", name.lexical),
+                source_range: Some(name.source_range),
+            }),
+        XPathPrimaryExpression::Parenthesized(None) => Ok(Vec::new()),
+        XPathPrimaryExpression::Parenthesized(Some(sequence)) => {
+            xpath_evaluate_expression_sequence(
+                expression,
+                sequence,
+                context_item,
+                variable_bindings,
+            )
+            .map(|sequence| sequence.items)
+        }
+        XPathPrimaryExpression::ContextItem => context_item
+            .cloned()
+            .map(|item| vec![item])
+            .ok_or_else(|| XPathEvaluationError {
+                code: "cem.xpath.context_item_missing",
+                message: "XPath context item is not available".to_owned(),
+                source_range: Some(source_range),
+            }),
+        XPathPrimaryExpression::FunctionCall { name, .. } => {
+            Err(XPathEvaluationError::unsupported(
+                format!(
+                    "XPath function call `{}` is outside the first native evaluator slice",
+                    name.lexical
+                ),
+                source_range,
+            ))
+        }
+        XPathPrimaryExpression::MapConstructor { .. } => Err(XPathEvaluationError::unsupported(
+            "XPath map constructors are outside the first native evaluator slice",
+            source_range,
+        )),
+        XPathPrimaryExpression::ArrayConstructor(_) => Err(XPathEvaluationError::unsupported(
+            "XPath array constructors are outside the first native evaluator slice",
+            source_range,
+        )),
+        XPathPrimaryExpression::Unsupported { production } => {
+            Err(XPathEvaluationError::unsupported(
+                format!("XPath production `{production}` is not executable yet"),
+                source_range,
+            ))
+        }
+    }
+}
+
+fn xpath_context_native_node(
+    context_item: Option<&XPathResultItem>,
+    source_range: XPathSourceRange,
+) -> Result<&XPathNativeNode, XPathEvaluationError> {
+    context_item
+        .and_then(XPathResultItem::native_node)
+        .ok_or_else(|| XPathEvaluationError {
+            code: "cem.xpath.context_item_native_node_required",
+            message: "XPath path evaluation requires a native AST node context".to_owned(),
+            source_range: Some(source_range),
+        })
+}
+
+fn xpath_evaluate_axis(
+    axis: XPathAxis,
+    node_test: &XPathNodeTest,
+    input: Vec<XPathResultItem>,
+    source_range: XPathSourceRange,
+) -> Result<Vec<XPathResultItem>, XPathEvaluationError> {
+    let mut output = Vec::new();
+    for item in input {
+        let native_node = item.native_node().ok_or_else(|| XPathEvaluationError {
+            code: "cem.xpath.context_item_native_node_required",
+            message: "XPath axis evaluation requires native AST node items".to_owned(),
+            source_range: Some(source_range),
+        })?;
+        match axis {
+            XPathAxis::Child => output.extend(
+                native_node
+                    .child_nodes()
+                    .into_iter()
+                    .filter(|node| node.matches_node_test(node_test))
+                    .map(XPathResultItem::from_native_node),
+            ),
+            XPathAxis::SelfAxis => {
+                if native_node.matches_node_test(node_test) {
+                    output.push(item);
+                }
+            }
+            _ => {
+                return Err(XPathEvaluationError::unsupported(
+                    format!("XPath axis `{axis:?}` is outside the first native evaluator slice"),
+                    source_range,
+                ));
+            }
+        }
+    }
+    Ok(output)
+}
+
+fn xpath_result_sequence_type(items: &[XPathResultItem]) -> String {
+    match items {
+        [] => "empty-sequence()".to_owned(),
+        [XPathResultItem::Atomic { value, .. }] => value.type_name.clone(),
+        [XPathResultItem::Node { .. }] => "node()".to_owned(),
+        [XPathResultItem::Map { .. }] => "map(*)".to_owned(),
+        [XPathResultItem::Array { .. }] => "array(*)".to_owned(),
+        [XPathResultItem::Function { .. }] => "function(*)".to_owned(),
+        items
+            if items
+                .iter()
+                .all(|item| matches!(item, XPathResultItem::Node { .. })) =>
+        {
+            "node()*".to_owned()
+        }
+        _ => "item()*".to_owned(),
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -2641,6 +3354,7 @@ mod tests {
                     expanded_name: Some("{urn:catalog}book".to_owned()),
                     source_range: Some(XPathSourceRange::new(2, 3, 18, 24)),
                     source_map: result_source_map(9, 18),
+                    native_node: None,
                 },
                 XPathResultItem::Atomic {
                     value: XPathAtomicValue {
@@ -2805,6 +3519,166 @@ mod tests {
     }
 
     #[test]
+    fn xpath_native_evaluator_retains_lifecycle_xml_owner_node_identity_and_source_map() {
+        use crate::lifecycle::LoadedInputAstStream;
+        use crate::validation::xml::{
+            xml_document_ast_from_source_bytes, XmlSourceValidationRequest,
+        };
+        use std::sync::Arc;
+
+        let source = br#"<catalog><book id="a">Alpha</book><book id="b">Beta</book></catalog>"#;
+        let (document, diagnostics) =
+            xml_document_ast_from_source_bytes(XmlSourceValidationRequest {
+                bytes: source,
+                source_uri: "memory://catalog.xml",
+                content_type: Some("application/xml"),
+            });
+        assert!(diagnostics.is_empty(), "{diagnostics:?}");
+        let owner = Arc::new(LoadedInputAstStream::XmlDocument(
+            document.expect("typed XML document"),
+        ));
+        let context_node =
+            XPathNativeNode::xml_document(Arc::clone(&owner)).expect("native XML document node");
+        let expression = parse("/catalog/book");
+        let resolver_registry = ResolverRegistry::new();
+        let resolver_policy = ResolverPolicy::new();
+        let evaluator = CemXPathEvaluator::default();
+
+        let result = evaluator
+            .evaluate(XPathEvaluationRequest {
+                expression: &expression,
+                context_item: Some(XPathResultItem::from_native_node(context_node)),
+                variable_bindings: BTreeMap::new(),
+                static_context: XPathStaticContext::default(),
+                expected_result: None,
+                resolver_registry: &resolver_registry,
+                resolver_policy: &resolver_policy,
+                safety_policy_stamp: "xpath-safety/1;pure",
+            })
+            .expect("native path evaluation");
+
+        assert_eq!(result.sequence.items.len(), 2);
+        for item in &result.sequence.items {
+            let XPathResultItem::Node {
+                node_kind,
+                expanded_name,
+                source_map,
+                native_node,
+                ..
+            } = item
+            else {
+                panic!("expected native XML node result: {item:?}");
+            };
+            assert_eq!(*node_kind, XPathResultNodeKind::Element);
+            assert_eq!(expanded_name.as_deref(), Some("book"));
+            assert!(!source_map.frames.is_empty());
+            let native_node = native_node.as_ref().expect("native owner reference");
+            assert!(Arc::ptr_eq(native_node.owner(), &owner));
+            assert!(matches!(
+                native_node.handle(),
+                XPathNativeNodeHandle::XmlEvent { .. }
+            ));
+            assert_eq!(native_node.source_map(), *source_map);
+        }
+    }
+
+    #[test]
+    fn xpath_native_evaluator_uses_package_ast_for_literals_variables_and_context() {
+        let expression = parse("$prefix, ., 42, 'native'");
+        let resolver_registry = ResolverRegistry::new();
+        let resolver_policy = ResolverPolicy::new();
+        let context = XPathResultItem::Atomic {
+            value: XPathAtomicValue {
+                type_name: "xs:string".to_owned(),
+                lexical_value: "context".to_owned(),
+                namespace_uri: None,
+                local_name: None,
+            },
+            source_map: result_source_map(9, 2),
+        };
+        let variables = BTreeMap::from([(
+            "prefix".to_owned(),
+            XPathResultSequence {
+                sequence_type: "xs:string".to_owned(),
+                items: vec![XPathResultItem::Atomic {
+                    value: XPathAtomicValue {
+                        type_name: "xs:string".to_owned(),
+                        lexical_value: "variable".to_owned(),
+                        namespace_uri: None,
+                        local_name: None,
+                    },
+                    source_map: result_source_map(9, 1),
+                }],
+            },
+        )]);
+
+        let result = CemXPathEvaluator::default()
+            .evaluate(XPathEvaluationRequest {
+                expression: &expression,
+                context_item: Some(context),
+                variable_bindings: variables,
+                static_context: XPathStaticContext::default(),
+                expected_result: None,
+                resolver_registry: &resolver_registry,
+                resolver_policy: &resolver_policy,
+                safety_policy_stamp: "xpath-safety/1;pure",
+            })
+            .expect("native scalar evaluation");
+
+        let lexical_values = result
+            .sequence
+            .items
+            .iter()
+            .map(|item| match item {
+                XPathResultItem::Atomic { value, .. } => value.lexical_value.as_str(),
+                _ => panic!("expected atomic result: {item:?}"),
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(lexical_values, ["variable", "context", "42", "native"]);
+    }
+
+    #[test]
+    fn xpath_native_evaluator_rejects_unsupported_semantics_without_projection() {
+        let expression = parse("1 + 2");
+        let resolver_registry = ResolverRegistry::new();
+        let resolver_policy = ResolverPolicy::new();
+        let diagnostics = CemXPathEvaluator::default()
+            .evaluate(XPathEvaluationRequest {
+                expression: &expression,
+                context_item: None,
+                variable_bindings: BTreeMap::new(),
+                static_context: XPathStaticContext::default(),
+                expected_result: None,
+                resolver_registry: &resolver_registry,
+                resolver_policy: &resolver_policy,
+                safety_policy_stamp: "xpath-safety/1;pure",
+            })
+            .expect_err("operators are outside the first evaluator slice");
+        assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
+        assert_eq!(diagnostics[0].code, "cem.xpath.evaluation_unsupported");
+
+        let source = include_str!("xpath.rs");
+        let evaluator = source
+            .split_once("pub struct CemXPathEvaluator")
+            .expect("native evaluator source boundary")
+            .1
+            .split_once("pub fn validate_xpath_evaluator_capabilities")
+            .expect("native evaluator source boundary")
+            .0;
+        for forbidden in [
+            "serde_json",
+            "to_cemt_subject",
+            "source_text",
+            "xml_document_ast_from_source_bytes",
+        ] {
+            assert!(
+                !evaluator.contains(forbidden),
+                "native evaluator must not cross `{forbidden}`"
+            );
+        }
+    }
+
+    #[test]
     fn xpath_schema_declares_evaluation_result_and_capability_contracts() {
         let source = builtin_schema_package_source(XPATH_PACKAGE_ID)
             .expect("XPath package source")
@@ -2839,6 +3713,7 @@ mod tests {
             "xpath-evaluator-package-ast",
             "xpath-evaluator-resource-access",
             "xpath-evaluator-runtime-targets",
+            "xpath-evaluation-feature-support",
             "xpath-result-item-order",
             "xpath-result-node-identity",
             "xpath-result-function-scope",
@@ -2847,6 +3722,18 @@ mod tests {
             assert!(
                 model.constraints.contains_key(contract),
                 "XPath schema must own `{contract}`"
+            );
+        }
+        for diagnostic in [
+            "cem.xpath.evaluation_ast_missing",
+            "cem.xpath.evaluation_unsupported",
+            "cem.xpath.context_item_missing",
+            "cem.xpath.context_item_native_node_required",
+            "cem.xpath.variable_unbound",
+        ] {
+            assert!(
+                model.diagnostics.contains_key(diagnostic),
+                "XPath schema must own `{diagnostic}`"
             );
         }
     }

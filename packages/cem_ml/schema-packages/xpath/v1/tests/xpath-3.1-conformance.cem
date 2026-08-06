@@ -59,10 +59,10 @@
     }
     {conformance-slice
         @id="paths-and-node-tests"
-        @status="planned"
+        @status="partial"
         @qt3-status="unmapped"
         @spec-sections="XPath 3.1 sections 3.2, 3.3"
-        @gap="No evaluator over native XML AST node identities, axes, predicates, or node tests"
+        @gap="The first evaluator slice traverses child and self axes with name and kind tests over exact native XML AST owners, but remaining axes, predicates, XML-family owners, node ordering, and QT3 mapping are incomplete"
         @todo="xpath-native-path-evaluator"
     }
     {conformance-slice
@@ -123,10 +123,10 @@
     }
     {conformance-slice
         @id="xdm-results-and-serialization"
-        @status="contract-only"
+        @status="partial"
         @qt3-status="unmapped"
         @spec-sections="XDM 3.1 and explicit serialization edges"
-        @gap="Typed ordered result contracts exist, but evaluation and explicit XML, JSON, CEM, and text exporters are not registered"
+        @gap="Native evaluation now produces typed ordered scalar and node results that retain lifecycle AST owners, and JSON export is registered explicitly; full XDM semantics plus XML, CEM, and text exporters remain incomplete"
         @todo="xpath-xdm-results"
     }
 }

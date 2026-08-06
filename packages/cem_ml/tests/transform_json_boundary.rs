@@ -10,6 +10,7 @@ const REAL_SOURCE: &str = include_str!("../src/real.rs");
 const ARTIFACT_SOURCE: &str = include_str!("../src/transform_artifact.rs");
 const PROJECTION_SOURCE: &str = include_str!("../src/projection.rs");
 const TEMPLATE_SOURCE: &str = include_str!("../src/transform_template.rs");
+const XPATH_SOURCE: &str = include_str!("../src/validation/xpath.rs");
 const CEM_QL_ADAPTER_SOURCE: &str = include_str!("../../cem_ml_transform_cem_ql/src/lib.rs");
 
 #[derive(Debug)]
@@ -90,6 +91,14 @@ const JSON_BOUNDARY_ALLOWLIST: &[JsonBoundaryRegion] = &[
         source: ARTIFACT_SOURCE,
         start: "impl CemtEvaluatorRecordView for TransformArtifactCollection",
         end: "pub enum TransformEncoding",
+        expected_operations: NO_JSON_OPERATIONS,
+    },
+    JsonBoundaryRegion {
+        id: "xpath-native-evaluator",
+        class: "serializer-free-native-route",
+        source: XPATH_SOURCE,
+        start: "pub struct CemXPathEvaluator",
+        end: "pub fn validate_xpath_evaluator_capabilities",
         expected_operations: NO_JSON_OPERATIONS,
     },
     JsonBoundaryRegion {

@@ -111,18 +111,27 @@ evaluator-owned replacement tree, or project input/results through JSON. The
 strict native-AST transform data-plane migration tracked in `docs/todo.md` is a
 prerequisite for registering XPath execution.
 
-The current slice also defines `XPathEvaluationRequest`,
+The current implementation defines `XPathEvaluationRequest`,
 `XPathEvaluatorCapabilities`, and `XPathResultArtifact`. Result sequences retain
 XPath order across node, atomic, map, array, function, and mixed items. Node
-items retain source/node identity, atomic values retain type plus lexical value,
-and function items are evaluator-scoped handles rather than serialized closures.
-Every artifact and item carries an origin-first source map, and the result keeps
-the static context plus resolver and safety policy stamps.
+items retain the exact lifecycle AST owner plus a typed node handle alongside
+source/node identity, atomic values retain type plus lexical value, and function
+items are evaluator-scoped handles rather than serialized closures. Every
+artifact and item carries an origin-first source map, and the result keeps the
+static context plus resolver and safety policy stamps.
+
+The first native evaluator slice executes literals, variables, context items,
+expression sequences, and child/self paths with name or kind tests directly over
+the package-owned XPath AST and lifecycle-owned XML event AST. Unsupported
+operators, axes, predicates, functions, and constructors fail with a stable
+schema-owned diagnostic. The evaluator does not read expression source text,
+project through CEMT or JSON, reparse XML, or construct a replacement tree.
 
 The result media type is intentionally distinct from expression source and does
 not enter the XPath source parser. XML, JSON, CEM, and text serialization remain
 explicit downstream conversion edges. No evaluator or executable transform
-adapter is registered yet.
+adapter is registered yet; the native evaluator foundation remains package-local
+until the remaining execution contract is ready for `transform` registration.
 
 ## Formatter And Colorizer Profiles
 
@@ -148,9 +157,10 @@ evaluator cannot read ambient process or host state.
 `yarn nx run cem_ml_schema_package_xpath_v1:verify` validates the schema-package
 manifest and fixture expectations, runs lossless lexer/parser, schema-diagnostic
 handoff, lifecycle loading, no-fallback validation, and host-attachment tests,
-verifies the full-destination conformance matrix, mixed result artifacts and
-evaluator capability rejection, verifies embedded catalog identity, and checks
-that README examples use fenced XPath source with no SVG fallback.
+verifies the full-destination conformance matrix, native evaluator owner/path and
+scalar semantics, mixed result artifacts and evaluator capability rejection,
+verifies embedded catalog identity, and checks that README examples use fenced
+XPath source with no SVG fallback.
 `yarn nx run cem_ml:build:wasm` verifies that the CEM-owned scanner and parser
 remain compatible with the browser WASM target.
 
