@@ -2873,7 +2873,7 @@ mod tests {
             top_level_example_paths("xslt"),
             "xslt top-level examples must be discoverable from package.cem"
         );
-        assert_eq!(examples.len(), 10);
+        assert_eq!(examples.len(), 11);
         assert!(examples
             .iter()
             .all(|example| example.schema == XSLT_SCHEMA_URI));
@@ -2890,6 +2890,12 @@ mod tests {
                 "text/xsl",
                 SchemaPackageExampleExpectedResult::Pass,
                 None,
+            ),
+            (
+                "profile-semantics-characterization",
+                XSLT_CONTENT_TYPE,
+                SchemaPackageExampleExpectedResult::Pass,
+                Some("legacy_xslt.unsupported_construct"),
             ),
             (
                 "legacy-custom-element-stylesheet",

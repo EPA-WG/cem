@@ -24879,6 +24879,106 @@ mod tests {
     }
 
     #[test]
+    fn builtin_xslt_profile_characterization_records_current_lexical_baseline() {
+        let schema_registry = SchemaRegistry::with_builtin_schemas();
+        let conversion_registry = ConversionRegistry::with_builtin_converters();
+        let environment = ConversionOutputPipelineEnvironment {
+            schema_registry: &schema_registry,
+            conversion_registry: &conversion_registry,
+            package_artifact_reader: None,
+            artifact_cache: None,
+        };
+        let source = include_bytes!(
+            "../schema-packages/xslt/v1/examples/profile-semantics-characterization.xsl"
+        );
+        let (stylesheet, diagnostics) =
+            crate::validation::xslt::xslt_stylesheet_ast_from_source_bytes(
+                crate::validation::xslt::XsltSourceValidationRequest {
+                    bytes: source,
+                    source_uri: "builtin:xslt-profile-characterization",
+                    content_type: Some(XSLT_CONTENT_TYPE),
+                },
+            );
+        assert!(
+            diagnostics
+                .iter()
+                .all(|diagnostic| !diagnostic.severity.is_hard_violation()),
+            "{diagnostics:?}"
+        );
+
+        for (profile, artifact_profile) in [
+            ("compact", "compact"),
+            ("pretty", "xml.pretty"),
+            ("tabular", "tabular"),
+        ] {
+            let execution = execute_xslt_stylesheet_output_pipeline_with_environment(
+                &environment,
+                stylesheet
+                    .clone()
+                    .expect("typed XSLT characterization fixture"),
+                &ScopeConfig {
+                    cemt_formatter_profile: Some(profile.to_owned()),
+                    ..ScopeConfig::default()
+                },
+                Some("builtin:xslt-profile-characterization"),
+            );
+            assert!(
+                execution.diagnostics.is_empty(),
+                "{profile}: {:?}",
+                execution.diagnostics
+            );
+            assert_eq!(
+                execution.output.as_ref().and_then(Value::as_str),
+                Some(std::str::from_utf8(source).expect("UTF-8 fixture")),
+                "{profile} currently preserves the complete lexical stylesheet"
+            );
+            let formatted = execution
+                .formatted_cem_tree
+                .as_ref()
+                .unwrap_or_else(|| panic!("{profile} formatted tree"));
+            assert_eq!(formatted.value["formatterProfile"], artifact_profile);
+            assert_eq!(
+                formatted.value["formatNodes"][1]["value"]["layout"],
+                format!("lexical-lossless-{profile}")
+            );
+            let nodes = formatted.value["nodes"]
+                .as_array()
+                .unwrap_or_else(|| panic!("{profile} writer tokens"));
+            assert_eq!(
+                nodes
+                    .iter()
+                    .skip(2)
+                    .filter_map(|node| node["text"].as_str())
+                    .collect::<String>(),
+                std::str::from_utf8(source).expect("UTF-8 fixture")
+            );
+            for needle in [
+                "/catalog/item[@active = true()]",
+                "@visible and $mode = 'full'",
+                "item-{@id}",
+                "{$label}",
+                "  fixed text  ",
+                "<![CDATA[foreign <text> & exact]]>",
+            ] {
+                assert!(
+                    nodes.iter().any(|node| node["text"]
+                        .as_str()
+                        .is_some_and(|text| text.contains(needle))),
+                    "{profile} must retain `{needle}` in a source-backed token"
+                );
+            }
+            assert!(nodes.iter().skip(2).all(|node| {
+                node["sourceMap"]["frames"]
+                    .as_array()
+                    .is_some_and(|frames| !frames.is_empty())
+                    && node["outputSpan"]["origin"]["frames"]
+                        .as_array()
+                        .is_some_and(|frames| !frames.is_empty())
+            }));
+        }
+    }
+
+    #[test]
     fn builtin_xslt_colorizer_profiles_execute_package_cemt_assets() {
         let schema_registry = SchemaRegistry::with_builtin_schemas();
         let conversion_registry = ConversionRegistry::with_builtin_converters();

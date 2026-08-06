@@ -129,6 +129,15 @@
     }
 
     {example
+        @id="profile-semantics-characterization"
+        @path="examples/profile-semantics-characterization.xsl"
+        @content-type="application/xslt+xml"
+        @schema="https://cem.dev/ns/transform/xslt/1"
+        @expected-result="pass"
+        @expected-diagnostics="legacy_xslt.unsupported_construct"
+    }
+
+    {example
         @id="legacy-custom-element-stylesheet"
         @path="examples/legacy-custom-element-stylesheet.xsl"
         @content-type="custom-element-xslt"

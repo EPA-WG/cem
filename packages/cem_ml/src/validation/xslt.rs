@@ -1595,6 +1595,113 @@ mod tests {
     }
 
     #[test]
+    fn xslt_profile_characterization_fixture_preserves_native_construct_matrix() {
+        let source = include_str!(
+            "../../schema-packages/xslt/v1/examples/profile-semantics-characterization.xsl"
+        );
+        let (stylesheet, diagnostics) =
+            xslt_stylesheet_ast_from_source_bytes(XsltSourceValidationRequest {
+                bytes: source.as_bytes(),
+                source_uri: "profile-semantics-characterization.xsl",
+                content_type: Some(XSLT_CONTENT_TYPE),
+            });
+        assert!(
+            diagnostics
+                .iter()
+                .all(|diagnostic| !diagnostic.severity.is_hard_violation()),
+            "{diagnostics:?}"
+        );
+        assert!(has_code(&diagnostics, "legacy_xslt.unsupported_construct"));
+
+        let stylesheet = stylesheet.expect("typed XSLT characterization fixture");
+        assert_eq!(stylesheet.version.as_deref(), Some("3.0"));
+        let events = &stylesheet.xml_document.events;
+        assert_eq!(
+            events
+                .iter()
+                .map(|event| event.lexeme.as_str())
+                .collect::<String>(),
+            source
+        );
+        assert!(events.iter().all(|event| {
+            event.source_range.byte_length > 0 && !event.source_range.source_map().frames.is_empty()
+        }));
+
+        let event = |qualified_name: &str| {
+            events
+                .iter()
+                .find(|event| event.qualified_name.as_deref() == Some(qualified_name))
+                .unwrap_or_else(|| panic!("missing `{qualified_name}` event"))
+        };
+        fn attribute<'a>(event: &'a XmlEventAst, qualified_name: &str) -> &'a XmlAttributeAst {
+            event
+                .attributes
+                .iter()
+                .find(|attribute| attribute.qualified_name == qualified_name)
+                .unwrap_or_else(|| panic!("missing `{qualified_name}` attribute"))
+        }
+
+        let root = event("xsl:stylesheet");
+        assert_eq!(root.namespace_uri.as_deref(), Some(XSLT_NAMESPACE_URI));
+        assert_eq!(attribute(root, "extension-element-prefixes").value, "ext");
+        let template = event("xsl:template");
+        assert_eq!(
+            attribute(template, "match").value,
+            "/catalog/item[@active = true()]"
+        );
+        let condition = event("xsl:if");
+        assert_eq!(
+            attribute(condition, "test").value,
+            "@visible and $mode = 'full'"
+        );
+        let literal = event("ui:card");
+        assert_eq!(literal.namespace_uri.as_deref(), Some("urn:example:ui"));
+        assert_eq!(attribute(literal, "class").value, "item-{@id}");
+        assert_eq!(attribute(literal, "data-label").value, "{$label}");
+        assert_eq!(
+            event("xsl:text").namespace_uri.as_deref(),
+            Some(XSLT_NAMESPACE_URI)
+        );
+        assert_eq!(
+            event("ext:widget").namespace_uri.as_deref(),
+            Some("urn:example:ext")
+        );
+        assert!(events
+            .iter()
+            .any(|event| event.kind == XmlEventKind::Comment
+                && event.lexeme == "<!-- formatter characterization -->"));
+        assert!(events.iter().any(|event| {
+            event.kind == XmlEventKind::Cdata
+                && event.lexeme == "<![CDATA[foreign <text> & exact]]>"
+        }));
+
+        for xpath in [
+            "/catalog/item[@active = true()]",
+            "@visible and $mode = 'full'",
+            "normalize-space(title)",
+        ] {
+            assert!(stylesheet.facts.iter().any(|fact| {
+                fact.kind == XsltFactKind::XPathObserved && fact.value.as_deref() == Some(xpath)
+            }));
+        }
+        for namespace in ["urn:example:ui", "urn:example:ext"] {
+            assert!(stylesheet.facts.iter().any(|fact| {
+                fact.kind == XsltFactKind::LiteralResultObserved
+                    && fact.value.as_deref() == Some(namespace)
+            }));
+        }
+
+        let legacy_fragment = include_str!(
+            "../../schema-packages/xslt/v1/examples/legacy-custom-element-fragment.html"
+        );
+        assert!(validate(legacy_fragment, "custom-element-xslt").is_empty());
+        assert!(has_code(
+            &validate(legacy_fragment, XSLT_CONTENT_TYPE),
+            "cem.xslt.root_not_stylesheet"
+        ));
+    }
+
+    #[test]
     fn xslt_source_validator_reports_schema_bound_uri_and_extension_facts() {
         for (source, code) in [
             (

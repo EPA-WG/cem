@@ -1264,10 +1264,10 @@ Remaining dependency-ordered package checklist:
   - [x] Register explicit DOM, event-stream, and XPath-result JSON exporters
         only after the native data-plane migration passes all gates.
 - [ ] Polish XSLT formatter and colorizer profile semantics on the dedicated
-      `XsltDocumentAst` path.
+      `XsltStylesheetAst` path.
   - [ ] Reuse the shared typed XML-family markup-token helper while keeping
         XSLT layout and role policy package-local.
-  - [ ] Characterize stylesheet/module namespaces, XPath attributes, attribute
+  - [x] Characterize stylesheet/module namespaces, XPath attributes, attribute
         value templates, `xsl:text`, literal result elements, comments, CDATA,
         extension namespaces, and legacy custom-element syntax.
   - [ ] Define distinct deterministic `compact`, `pretty`, and `tabular`
@@ -1407,10 +1407,10 @@ exporter layers.
 
 ### Next Work Item — XSLT Formatter and Colorizer Profile Semantics
 
-Polish the dedicated `XsltDocumentAst` output path without weakening its native
+Polish the dedicated `XsltStylesheetAst` output path without weakening its native
 ownership or lexical-preservation guarantees:
 
-- [ ] Characterize the current XSLT AST and package-owned CEMT path with red
+- [x] Characterize the current XSLT AST and package-owned CEMT path with red
       fixtures covering stylesheet/module namespaces, XPath-bearing
       attributes, AVTs, `xsl:text`, literal result elements, comments, CDATA,
       extension namespaces, and legacy custom-element syntax.
@@ -1426,6 +1426,16 @@ ownership or lexical-preservation guarantees:
 The first slice is characterization only. If existing package behavior and
 fixtures do not determine a layout rule for an ambiguous XSLT construct, stop
 at that decision point rather than inventing new profile semantics.
+
+Characterization is complete in
+`docs/xslt-profile-semantics-characterization.md`. The native owner and lexical
+preservation contracts are determined, but the repository does not define the
+observable layout, role, profile-name, or Markdown-output choices required for
+the next implementation slice. The characterization also closes a validator
+routing leak that compiled XSLT AVTs as CEM-QL; explicit XSLT identity now keeps
+those lexical expressions solely in the native XSLT stream. The recommended
+profile policy is recorded in the characterization note; work is stopped at
+that explicit decision point before changing production output.
 
 ## Current Verification Commands
 

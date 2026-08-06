@@ -23,7 +23,7 @@ use cem_ml::engine::{
 use cem_ml::interpreter::OutputSpan;
 use cem_ml::legacy_custom_element::{
     convert_template_source, LegacyConversionDiagnostic, TEMPLATE_CONTENT_TYPES,
-    UNSUPPORTED_CONSTRUCT_CODE, UNSUPPORTED_FUNCTION_CODE,
+    UNSUPPORTED_CONSTRUCT_CODE, UNSUPPORTED_FUNCTION_CODE, XSLT_TEMPLATE_CONTENT_TYPES,
 };
 use cem_ml::lifecycle::LoadedInputAstStream;
 use cem_ml::parser::document::CemDocument;
@@ -39,7 +39,7 @@ use cem_ml::schema::document_model::{
 };
 use cem_ml::schema::registry::{
     CEM_ML_CONTENT_TYPE, CEM_ML_SCHEMA_URI, CEM_QL_CONTENT_TYPE, CEM_QL_SCHEMA_URI,
-    HTML_CONTENT_TYPE, HTML_SCHEMA_URI,
+    HTML_CONTENT_TYPE, HTML_SCHEMA_URI, XSLT_SCHEMA_URI,
 };
 use cem_ml::source::{ByteRange, BytesSource, SourceId};
 use cem_ml::source_map::{FrameSpan, SourceMapFrame, SourceMapStack, TransformKind};
@@ -2814,6 +2814,9 @@ pub fn validate_cem_ql_template_embedding_source_bytes(
     if cem_ql_template_identity_is_schema_definition(request.identity) {
         return Vec::new();
     }
+    if cem_ql_template_identity_is_xslt(request.identity) {
+        return Vec::new();
+    }
     validate_raw_template_embedding_source_bytes(request)
 }
 
@@ -2930,6 +2933,16 @@ fn cem_ql_template_identity_is_schema_definition(
                 content_type_essence(content_type).as_str(),
                 cem_ml::schema::registry::CEM_SCHEMA_CONTENT_TYPE
             )
+        })
+}
+
+fn cem_ql_template_identity_is_xslt(identity: CemQlTemplateEmbeddingIdentity<'_>) -> bool {
+    identity
+        .schema
+        .is_some_and(|schema| schema.trim() == XSLT_SCHEMA_URI)
+        || identity.content_type.is_some_and(|content_type| {
+            let content_type = content_type_essence(content_type);
+            XSLT_TEMPLATE_CONTENT_TYPES.contains(&content_type.as_str())
         })
 }
 
@@ -6041,6 +6054,39 @@ count + 1"#,
             diagnostics.is_empty(),
             "HTML inputs produce no cem-ql template diagnostics; got {diagnostics:?}"
         );
+    }
+
+    #[test]
+    fn template_embedding_validator_leaves_xslt_avts_to_the_xslt_ast() {
+        let source = br#"<xsl:stylesheet xmlns:xsl="http://www.w3.org/1999/XSL/Transform" version="3.0"><xsl:template match="/"><card class="item-{$label}"/></xsl:template></xsl:stylesheet>"#;
+
+        for identity in [
+            CemQlTemplateEmbeddingIdentity {
+                content_type: Some("application/xslt+xml; charset=UTF-8"),
+                schema: None,
+            },
+            CemQlTemplateEmbeddingIdentity {
+                content_type: Some(CEM_ML_CONTENT_TYPE),
+                schema: Some(XSLT_SCHEMA_URI),
+            },
+            CemQlTemplateEmbeddingIdentity {
+                content_type: Some("custom-element-xslt"),
+                schema: None,
+            },
+        ] {
+            let diagnostics = validate_cem_ql_template_embedding_source_bytes(
+                CemQlTemplateEmbeddingValidationRequest {
+                    bytes: source,
+                    from_format: InputFormat::Cem,
+                    source_uri: Some("stylesheet.xsl"),
+                    identity,
+                },
+            );
+            assert!(
+                diagnostics.is_empty(),
+                "XSLT AVTs belong to the native XSLT stream: {diagnostics:?}"
+            );
+        }
     }
 
     #[test]

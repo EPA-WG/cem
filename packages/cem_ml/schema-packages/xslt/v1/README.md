@@ -177,6 +177,51 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
 ```
 
 <details>
+<summary>profile-semantics-characterization</summary>
+
+- Source: [`examples/profile-semantics-characterization.xsl`](./examples/profile-semantics-characterization.xsl)
+- Content type: `application/xslt+xml`
+- Schema: `https://cem.dev/ns/transform/xslt/1`
+- Expected result: `pass`
+- Expected diagnostics: `legacy_xslt.unsupported_construct`
+- README rendering: fenced `xml` source
+
+```bash
+dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
+  uri=packages/cem_ml/schema-packages/xslt/v1/examples/profile-semantics-characterization.xsl,contentType=application/xslt+xml,schema=https://cem.dev/ns/transform/xslt/1 \
+  --to-content-type application/xslt+xml --to-schema https://cem.dev/ns/transform/xslt/1 \
+  --cemt-formatter-profile tabular --cemt-color-profile html
+```
+
+</details>
+
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- formatter characterization -->
+<xsl:stylesheet
+  xmlns:xsl="http://www.w3.org/1999/XSL/Transform"
+  xmlns:ui="urn:example:ui"
+  xmlns:ext="urn:example:ext"
+  extension-element-prefixes="ext"
+  exclude-result-prefixes="ext"
+  version="3.0">
+  <xsl:mode name="profile"/>
+  <xsl:param name="mode" select="'full'"/>
+  <xsl:param name="label" select="'Profile'"/>
+  <xsl:template match="/catalog/item[@active = true()]" mode="profile">
+    <ui:card class="item-{@id}" data-label="{$label}">
+      <xsl:if test="@visible and $mode = 'full'">
+        <xsl:text>  fixed text  </xsl:text>
+        <![CDATA[foreign <text> & exact]]>
+        <xsl:value-of select="normalize-space(title)"/>
+        <ext:widget ext:mode="{$mode}">literal extension text</ext:widget>
+      </xsl:if>
+    </ui:card>
+  </xsl:template>
+</xsl:stylesheet>
+```
+
+<details>
 <summary>legacy-custom-element-stylesheet</summary>
 
 - Source: [`examples/legacy-custom-element-stylesheet.xsl`](./examples/legacy-custom-element-stylesheet.xsl)
