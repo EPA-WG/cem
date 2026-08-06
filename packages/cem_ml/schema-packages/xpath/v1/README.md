@@ -99,7 +99,7 @@ XSLT. Entity-free XPath-bearing XSLT attributes now carry the package AST, exact
 attribute-value range, owning XML event identity, and inherited namespace
 context directly. Attribute value template segmentation and entity-decoded XML
 token-range projection remain the next XSLT fusion slice; the generic XML AST
-already owns the decoded scalar-to-source map.
+already owns the decoded scalar-to-source map and strict boundary projection.
 
 ## Transformation Boundary
 
@@ -179,9 +179,10 @@ remain compatible with the browser WASM target.
 
 - Implement a CEM-owned XPath 3.1 compiler/evaluator and prove native/WASM AST
   consumption through CEM-only resolver and safety capabilities.
-- Project XPath token ranges through the generic entity-decoded XML attribute
-  source map, segment XSLT AVTs, and associate those remaining expression ASTs
-  with exact source ranges.
+- Define the XPath parser's typed source-range remapping input, project token
+  and diagnostic ranges through the generic entity-decoded XML attribute map,
+  segment XSLT AVTs, and associate those remaining expression ASTs with exact
+  source ranges.
 - Define schema-owned context and variable bindings, then add CEM-QL, CEMT, and
   XSLT XPath invocation adapters.
 - Define grammar-aware formatting before making profile output differ.

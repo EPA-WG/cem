@@ -39,11 +39,13 @@ tree, or later source reparse mediates this association.
 Attribute value templates and attributes containing XML entity references remain
 lexical at the XSLT-to-XPath fusion boundary. The generic XML AST now supplies
 their entity-decoded value and exact decoded-scalar-to-source spans directly,
-without an XSLT overlay. The next slice must project XPath token ranges through
-that map and define typed AVT segmentation before these expressions can be
-fused without corrupting source identity. The source lifecycle does not execute
-embedded expressions; explicit transform-template execution continues through
-the existing bounded XSLT parity capability.
+without an XSLT overlay. That typed map now projects scalar-aligned ranges and
+zero-length boundaries while rejecting invalid offsets. The next slice must
+define how the XPath parser accepts that typed remapping capability, then define
+typed AVT segmentation before these expressions can be fused without corrupting
+source identity. The source lifecycle does not execute embedded expressions;
+explicit transform-template execution continues through the existing bounded
+XSLT parity capability.
 
 ## Parser Facts And Diagnostics
 

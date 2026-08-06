@@ -418,8 +418,75 @@ pub struct XmlAttributeAst {
     /// This is absent when the lexical value contains an unresolved or invalid
     /// reference; no external entity resolver is consulted.
     pub entity_decoded_value: Option<String>,
-    /// One monotonic source span per UTF-8 scalar in `entity_decoded_value`.
-    pub entity_decoded_source_map: Vec<XmlAttributeValueSourceSpan>,
+    /// Boundary-aware projection from `entity_decoded_value` to the original
+    /// lexical XML attribute value. This is absent whenever decoding fails.
+    pub entity_decoded_source_map: Option<XmlAttributeValueSourceMap>,
+}
+
+/// Projects scalar-aligned decoded XML attribute ranges to original source.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct XmlAttributeValueSourceMap {
+    decoded_byte_length: u64,
+    source_range: XmlSourceRange,
+    boundaries: Vec<XmlAttributeValueSourceBoundary>,
+    spans: Vec<XmlAttributeValueSourceSpan>,
+}
+
+impl XmlAttributeValueSourceMap {
+    pub fn decoded_byte_length(&self) -> u64 {
+        self.decoded_byte_length
+    }
+
+    pub fn source_range(&self) -> XmlSourceRange {
+        self.source_range
+    }
+
+    pub fn boundaries(&self) -> &[XmlAttributeValueSourceBoundary] {
+        &self.boundaries
+    }
+
+    pub fn spans(&self) -> &[XmlAttributeValueSourceSpan] {
+        &self.spans
+    }
+
+    /// Projects a decoded UTF-8 scalar boundary to its original XML position.
+    /// Interior scalar bytes and positions outside the decoded value fail closed.
+    pub fn project_boundary(&self, decoded_byte_offset: u64) -> Option<XmlSourcePosition> {
+        if decoded_byte_offset > self.decoded_byte_length {
+            return None;
+        }
+        let index = self
+            .boundaries
+            .binary_search_by_key(&decoded_byte_offset, |boundary| {
+                boundary.decoded_byte_offset
+            })
+            .ok()?;
+        Some(self.boundaries[index].source_position)
+    }
+
+    /// Projects a scalar-aligned decoded byte range to the smallest contiguous
+    /// original XML source range containing the represented lexical material.
+    pub fn project_range(&self, decoded_range: ByteRange) -> Option<XmlSourceRange> {
+        let decoded_end = decoded_range
+            .start
+            .checked_add(u64::from(decoded_range.len))?;
+        if decoded_end > self.decoded_byte_length {
+            return None;
+        }
+        let start = self.project_boundary(decoded_range.start)?;
+        let end = self.project_boundary(decoded_end)?;
+        Some(XmlSourceRange {
+            start,
+            byte_length: end.byte_offset.checked_sub(start.byte_offset)?,
+        })
+    }
+}
+
+/// One scalar boundary shared by adjacent decoded/source spans.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct XmlAttributeValueSourceBoundary {
+    pub decoded_byte_offset: u64,
+    pub source_position: XmlSourcePosition,
 }
 
 /// Maps one decoded UTF-8 scalar back to its exact lexical XML source span.
@@ -1219,7 +1286,7 @@ fn project_xml_start_event(
                 value,
                 value_source_range: None,
                 entity_decoded_value: None,
-                entity_decoded_source_map: Vec::new(),
+                entity_decoded_source_map: None,
             }
         })
         .collect::<Vec<_>>();
@@ -1278,7 +1345,7 @@ fn xml_attach_attribute_value_sources(event: &mut XmlEventAst) {
             xml_entity_decode_attribute_value(&lexical.value, lexical.source_range)
         {
             attribute.entity_decoded_value = Some(decoded);
-            attribute.entity_decoded_source_map = source_map;
+            attribute.entity_decoded_source_map = Some(source_map);
         }
     }
 }
@@ -1322,9 +1389,13 @@ fn xml_lexical_attribute_values(event: &XmlEventAst) -> Vec<XmlLexicalAttributeV
 fn xml_entity_decode_attribute_value(
     lexical_value: &str,
     value_source_range: XmlSourceRange,
-) -> Option<(String, Vec<XmlAttributeValueSourceSpan>)> {
+) -> Option<(String, XmlAttributeValueSourceMap)> {
     let mut decoded = String::new();
-    let mut source_map = Vec::new();
+    let mut spans = Vec::new();
+    let mut boundaries = vec![XmlAttributeValueSourceBoundary {
+        decoded_byte_offset: 0,
+        source_position: value_source_range.start,
+    }];
     let mut source_offset = 0usize;
 
     while source_offset < lexical_value.len() {
@@ -1342,7 +1413,7 @@ fn xml_entity_decode_attribute_value(
 
         let decoded_start = decoded.len();
         decoded.push(scalar);
-        source_map.push(XmlAttributeValueSourceSpan {
+        spans.push(XmlAttributeValueSourceSpan {
             decoded_byte_range: ByteRange::new(
                 decoded_start as u64,
                 u32::try_from(scalar.len_utf8()).ok()?,
@@ -1354,10 +1425,30 @@ fn xml_entity_decode_attribute_value(
                 source_end,
             ),
         });
+        boundaries.push(XmlAttributeValueSourceBoundary {
+            decoded_byte_offset: decoded.len() as u64,
+            source_position: xml_source_range_within(
+                value_source_range,
+                lexical_value,
+                source_end,
+                source_end,
+            )
+            .start,
+        });
         source_offset = source_end;
     }
 
-    Some((decoded, source_map))
+    Some((
+        decoded,
+        XmlAttributeValueSourceMap {
+            decoded_byte_length: boundaries
+                .last()
+                .map_or(0, |boundary| boundary.decoded_byte_offset),
+            source_range: value_source_range,
+            boundaries,
+            spans,
+        },
+    ))
 }
 
 fn xml_decode_attribute_entity_reference(reference: &str) -> Option<char> {
@@ -1760,7 +1851,14 @@ mod tests {
             .expect("entity-decoded value");
         let mut decoded_cursor = 0u64;
         let mut source_cursor = value_range.start.byte_offset;
-        for span in &attribute.entity_decoded_source_map {
+        let source_map = attribute
+            .entity_decoded_source_map
+            .as_ref()
+            .expect("decoded attribute source map");
+        assert_eq!(source_map.decoded_byte_length(), decoded.len() as u64);
+        assert_eq!(source_map.source_range(), value_range);
+        assert_eq!(source_map.boundaries().len(), source_map.spans().len() + 1);
+        for span in source_map.spans() {
             assert_eq!(span.decoded_byte_range.start, decoded_cursor);
             assert!(span.source_range.start.byte_offset >= source_cursor);
             decoded_cursor = span.decoded_byte_range.end();
@@ -1777,8 +1875,8 @@ mod tests {
             ('💡', "💡"),
         ] {
             let decoded_offset = decoded.find(decoded_scalar).expect("decoded scalar") as u64;
-            let span = attribute
-                .entity_decoded_source_map
+            let span = source_map
+                .spans()
                 .iter()
                 .find(|span| span.decoded_byte_range.start == decoded_offset)
                 .expect("decoded scalar source span");
@@ -1786,6 +1884,108 @@ mod tests {
             let end = start + span.source_range.byte_length as usize;
             assert_eq!(&source[start..end], source_lexeme);
         }
+    }
+
+    #[test]
+    fn xml_attribute_value_source_map_projects_exact_scalar_boundaries() {
+        let source = "<root\n  select=\"price &lt; 10 and &#x1F4B0;\"\n/>\n";
+        let (document, diagnostics) =
+            xml_document_ast_from_source_bytes(XmlSourceValidationRequest {
+                bytes: source.as_bytes(),
+                source_uri: "fixture.xml",
+                content_type: Some(XML_CONTENT_TYPE),
+            });
+
+        assert!(diagnostics.is_empty(), "{diagnostics:?}");
+        let document = document.expect("typed XML document");
+        let attribute = &document.events[0].attributes[0];
+        let decoded = attribute
+            .entity_decoded_value
+            .as_deref()
+            .expect("entity-decoded value");
+        let source_map = attribute
+            .entity_decoded_source_map
+            .as_ref()
+            .expect("typed decoded attribute source map");
+
+        let project = |decoded_lexeme: &str| {
+            let start = decoded.find(decoded_lexeme).expect("decoded lexeme") as u64;
+            source_map
+                .project_range(ByteRange::new(
+                    start,
+                    u32::try_from(decoded_lexeme.len()).expect("test range length"),
+                ))
+                .expect("projected XML source range")
+        };
+        let source_slice = |range: XmlSourceRange| {
+            let start = range.start.byte_offset as usize;
+            &source[start..start + range.byte_length as usize]
+        };
+
+        assert_eq!(source_slice(project("price")), "price");
+        assert_eq!(source_slice(project("< 10")), "&lt; 10");
+        assert_eq!(source_slice(project("💰")), "&#x1F4B0;");
+        assert_eq!(
+            source_map.project_range(ByteRange::new(
+                0,
+                u32::try_from(decoded.len()).expect("decoded test length"),
+            )),
+            attribute.value_source_range
+        );
+
+        let entity_decoded_start = decoded.find('<').expect("decoded entity") as u64;
+        let entity_source_start = source.find("&lt;").expect("entity source") as u64;
+        assert_eq!(
+            source_map
+                .project_range(ByteRange::new(entity_decoded_start, 0))
+                .expect("position before entity")
+                .start
+                .byte_offset,
+            entity_source_start
+        );
+        assert_eq!(
+            source_map
+                .project_range(ByteRange::new(entity_decoded_start + 1, 0))
+                .expect("position after entity")
+                .start
+                .byte_offset,
+            entity_source_start + "&lt;".len() as u64
+        );
+
+        let emoji_start = decoded.find('💰').expect("decoded emoji") as u64;
+        assert_eq!(
+            source_map.project_range(ByteRange::new(emoji_start + 1, 0)),
+            None,
+            "an interior UTF-8 byte is not a scalar boundary"
+        );
+        assert_eq!(
+            source_map.project_range(ByteRange::new(decoded.len() as u64 + 1, 0)),
+            None,
+            "an out-of-bounds position must fail closed"
+        );
+    }
+
+    #[test]
+    fn xml_empty_attribute_value_source_map_projects_its_only_boundary() {
+        let source = r#"<root value=""/>"#;
+        let (document, diagnostics) =
+            xml_document_ast_from_source_bytes(XmlSourceValidationRequest {
+                bytes: source.as_bytes(),
+                source_uri: "fixture.xml",
+                content_type: Some(XML_CONTENT_TYPE),
+            });
+
+        assert!(diagnostics.is_empty(), "{diagnostics:?}");
+        let document = document.expect("typed XML document");
+        let attribute = &document.events[0].attributes[0];
+        let source_map = attribute
+            .entity_decoded_source_map
+            .as_ref()
+            .expect("empty decoded attribute source map");
+        assert_eq!(
+            source_map.project_range(ByteRange::new(0, 0)),
+            attribute.value_source_range
+        );
     }
 
     #[test]
@@ -1804,7 +2004,7 @@ mod tests {
         assert_eq!(attribute.value, "known &amp; unresolved &example;");
         assert!(attribute.value_source_range.is_some());
         assert_eq!(attribute.entity_decoded_value, None);
-        assert!(attribute.entity_decoded_source_map.is_empty());
+        assert!(attribute.entity_decoded_source_map.is_none());
     }
 
     #[test]
@@ -1827,6 +2027,17 @@ mod tests {
             assert!(
                 !mapping.contains(forbidden),
                 "XML attribute mapping must not contain `{forbidden}`"
+            );
+        }
+        let source_map_contract = source
+            .split("pub struct XmlAttributeValueSourceMap")
+            .nth(1)
+            .and_then(|source| source.split("impl XmlAttributeAst").next())
+            .expect("typed XML attribute source-map contract region");
+        for forbidden in ["serde", "Serialize", "Deserialize", "serde_json"] {
+            assert!(
+                !source_map_contract.contains(forbidden),
+                "XML attribute source-map contract must not contain `{forbidden}`"
             );
         }
     }

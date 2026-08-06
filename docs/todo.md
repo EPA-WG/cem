@@ -57,6 +57,9 @@ mediate between internal layers.
           range, entity-decoded value, and monotonic decoded-byte-to-source
           spans so XML-family consumers can retain original source identity
           without a serializer or format-specific mapping overlay.
+    - [x] Wrap decoded XML attribute spans in a boundary-aware typed source map
+          that projects scalar-aligned ranges and zero-length positions back to
+          exact original source ranges while invalid boundaries fail closed.
   - [ ] Add deterministic compact/pretty/tabular and
         terminal/HTML/Markdown profiles that preserve lexical islands and source
         maps, then run package, converter-parity, CLI e2e, WASM, and core release

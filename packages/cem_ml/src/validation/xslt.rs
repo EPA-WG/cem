@@ -1842,7 +1842,10 @@ mod tests {
             .find(|attribute| attribute.qualified_name == "select")
             .expect("entity-bearing select attribute");
         assert_eq!(select.entity_decoded_value.as_deref(), Some("price < 10"));
-        assert!(!select.entity_decoded_source_map.is_empty());
+        assert!(select
+            .entity_decoded_source_map
+            .as_ref()
+            .is_some_and(|source_map| !source_map.spans().is_empty()));
         assert!(stylesheet.facts.iter().any(|fact| {
             fact.kind == XsltFactKind::XPathObserved
                 && fact.value.as_deref() == Some("price &lt; 10")

@@ -30,7 +30,8 @@ The schema describes XML resources as a namespace-aware document model:
 - elements and attributes preserve qualified names, expanded namespace identity,
   lexical order, and source offsets when available; each mapped attribute also
   retains its exact raw value range, built-in/numeric entity-decoded value, and
-  one monotonic original-source span per decoded UTF-8 scalar;
+  one monotonic original-source span per decoded UTF-8 scalar plus exact
+  decoded/source boundary positions;
 - text, CDATA, comments, processing instructions, and entity references remain
   explicit nodes;
 - DTD and external entity material is preserved as declarations but external
@@ -73,6 +74,8 @@ depth, byte ranges, line/column coordinates, and source-map stacks. Attribute
 values remain lexically lossless while a parallel typed value and scalar map
 decode only built-in and numeric references. Unresolved references fail closed:
 the raw value and range remain available, but no decoded value is synthesized.
+The typed map projects only scalar-aligned decoded ranges and zero-length
+boundaries; interior UTF-8 bytes and out-of-bounds positions fail closed.
 
 The parser emits neutral facts. Constraints in `schema/xml.cem` bind those facts
 to package-owned diagnostic codes and severities for parse errors, unsupported
