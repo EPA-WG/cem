@@ -1737,7 +1737,7 @@ impl TransformTemplateAdapter for CemQlExpressionTransformTemplateAdapter {
                 .module_preflight
                 .cache_key
                 .as_ref()
-                .and_then(|cache_key| serde_json::to_string(cache_key).ok()),
+                .map(|cache_key| cache_key.resolver_policy_stamp()),
         );
         let compiled = match compile_expression(source, &context) {
             Ok(compiled) => compiled,
@@ -5035,7 +5035,7 @@ impl QueryItemView for TransformCollectionQueryView {
 
     fn fields(&self) -> Option<Vec<(String, Vec<Item>)>> {
         Some(
-            ["kind", "mode", "count", "items"]
+            ["kind", "mode", "count", "bindings", "items"]
                 .into_iter()
                 .map(|name| (name.to_owned(), self.field(name).unwrap_or_default()))
                 .collect(),
@@ -5049,6 +5049,7 @@ impl QueryItemView for TransformCollectionQueryView {
             "count" => vec![Item::Atomic(AtomValue::Integer(
                 i64::try_from(self.collection.items.len()).unwrap_or(i64::MAX),
             ))],
+            "bindings" => string_map_record_items(&self.collection.bindings),
             "items" => vec![Item::Array(
                 self.collection
                     .items
@@ -5098,8 +5099,12 @@ impl QueryItemView for TransformCollectionItemQueryView {
                 "artifactId",
                 "uri",
                 "destination",
+                "target",
+                "bindings",
                 "artifact",
                 "primary",
+                "sourceMap",
+                "outputSpans",
             ]
             .into_iter()
             .map(|name| (name.to_owned(), self.field(name).unwrap_or_default()))
@@ -5114,11 +5119,262 @@ impl QueryItemView for TransformCollectionItemQueryView {
             "artifactId" => atom_items(item.artifact.artifact_id.clone()),
             "uri" => optional_atom_items(item.artifact.uri.as_deref()),
             "destination" => optional_atom_items(item.destination.as_deref()),
+            "target" => item
+                .target
+                .as_ref()
+                .map(|_| {
+                    vec![Item::native(TransformCollectionTargetQueryView {
+                        collection: Arc::clone(&self.collection),
+                        item_index: self.index,
+                    })]
+                })
+                .unwrap_or_else(null_items),
+            "bindings" => string_map_record_items(&item.bindings),
             "artifact" | "primary" => artifact_query_stream(&item.artifact)
                 .map(|stream| stream.items)
                 .unwrap_or_default(),
+            "sourceMap" => item
+                .source_map
+                .as_ref()
+                .map(|_| {
+                    vec![Item::native(TransformCollectionSourceMapQueryView {
+                        collection: Arc::clone(&self.collection),
+                        item_index: self.index,
+                        owner: TransformCollectionSourceMapOwner::Item,
+                    })]
+                })
+                .unwrap_or_else(null_items),
+            "outputSpans" => vec![Item::Array(
+                item.output_spans
+                    .iter()
+                    .enumerate()
+                    .map(|(span_index, _)| {
+                        Item::native(TransformCollectionOutputSpanQueryView {
+                            collection: Arc::clone(&self.collection),
+                            item_index: self.index,
+                            span_index,
+                        })
+                    })
+                    .collect(),
+            )],
             _ => Vec::new(),
         })
+    }
+
+    fn source_map(&self) -> Option<SourceMapStack> {
+        self.collection
+            .items
+            .get(self.index)
+            .and_then(|item| item.source_map.clone())
+    }
+}
+
+#[derive(Debug, Clone)]
+struct TransformCollectionTargetQueryView {
+    collection: Arc<TransformArtifactCollection>,
+    item_index: usize,
+}
+
+impl TransformCollectionTargetQueryView {
+    fn target(&self) -> Option<&FormatIdentity> {
+        self.collection.items.get(self.item_index)?.target.as_ref()
+    }
+}
+
+impl QueryItemView for TransformCollectionTargetQueryView {
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+
+    fn representation_id(&self) -> &'static str {
+        "cem.ql.transform-format-identity-view"
+    }
+
+    fn identity(&self) -> String {
+        format!(
+            "{:p}:item:{}:target",
+            Arc::as_ptr(&self.collection),
+            self.item_index
+        )
+    }
+
+    fn kind(&self) -> QueryItemViewKind {
+        QueryItemViewKind::Record
+    }
+
+    fn fields(&self) -> Option<Vec<(String, Vec<Item>)>> {
+        Some(
+            [
+                "contentType",
+                "schema",
+                "defaultNamespace",
+                "namespaces",
+                "baseUri",
+            ]
+            .into_iter()
+            .map(|name| (name.to_owned(), self.field(name).unwrap_or_default()))
+            .collect(),
+        )
+    }
+
+    fn field(&self, name: &str) -> Option<Vec<Item>> {
+        let target = self.target()?;
+        Some(match name {
+            "contentType" => optional_atom_items(target.content_type.as_deref()),
+            "schema" => optional_atom_items(target.schema.as_deref()),
+            "defaultNamespace" => optional_atom_items(target.default_namespace.as_deref()),
+            "namespaces" => string_map_record_items(&target.namespaces),
+            "baseUri" => optional_atom_items(target.base_uri.as_deref()),
+            _ => Vec::new(),
+        })
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+enum TransformCollectionSourceMapOwner {
+    Item,
+    OutputSpan(usize),
+}
+
+#[derive(Debug, Clone)]
+struct TransformCollectionSourceMapQueryView {
+    collection: Arc<TransformArtifactCollection>,
+    item_index: usize,
+    owner: TransformCollectionSourceMapOwner,
+}
+
+impl TransformCollectionSourceMapQueryView {
+    fn source_map_ref(&self) -> Option<&SourceMapStack> {
+        let item = self.collection.items.get(self.item_index)?;
+        match self.owner {
+            TransformCollectionSourceMapOwner::Item => item.source_map.as_ref(),
+            TransformCollectionSourceMapOwner::OutputSpan(span_index) => {
+                item.output_spans.get(span_index).map(|span| &span.origin)
+            }
+        }
+    }
+}
+
+impl QueryItemView for TransformCollectionSourceMapQueryView {
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+
+    fn representation_id(&self) -> &'static str {
+        "cem.ql.transform-source-map-view"
+    }
+
+    fn identity(&self) -> String {
+        let owner = match self.owner {
+            TransformCollectionSourceMapOwner::Item => "item".to_owned(),
+            TransformCollectionSourceMapOwner::OutputSpan(index) => {
+                format!("output-span:{index}")
+            }
+        };
+        format!(
+            "{:p}:item:{}:source-map:{owner}",
+            Arc::as_ptr(&self.collection),
+            self.item_index
+        )
+    }
+
+    fn kind(&self) -> QueryItemViewKind {
+        QueryItemViewKind::Record
+    }
+
+    fn fields(&self) -> Option<Vec<(String, Vec<Item>)>> {
+        Some(
+            ["kind", "frameCount"]
+                .into_iter()
+                .map(|name| (name.to_owned(), self.field(name).unwrap_or_default()))
+                .collect(),
+        )
+    }
+
+    fn field(&self, name: &str) -> Option<Vec<Item>> {
+        let source_map = self.source_map_ref()?;
+        Some(match name {
+            "kind" => atom_items("source-map"),
+            "frameCount" => integer_items(source_map.frames.len() as u64),
+            _ => Vec::new(),
+        })
+    }
+
+    fn source_map(&self) -> Option<SourceMapStack> {
+        self.source_map_ref().cloned()
+    }
+}
+
+#[derive(Debug, Clone)]
+struct TransformCollectionOutputSpanQueryView {
+    collection: Arc<TransformArtifactCollection>,
+    item_index: usize,
+    span_index: usize,
+}
+
+impl TransformCollectionOutputSpanQueryView {
+    fn output_span(&self) -> Option<&OutputSpan> {
+        self.collection
+            .items
+            .get(self.item_index)?
+            .output_spans
+            .get(self.span_index)
+    }
+}
+
+impl QueryItemView for TransformCollectionOutputSpanQueryView {
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+
+    fn representation_id(&self) -> &'static str {
+        "cem.ql.transform-output-span-view"
+    }
+
+    fn identity(&self) -> String {
+        format!(
+            "{:p}:item:{}:output-span:{}",
+            Arc::as_ptr(&self.collection),
+            self.item_index,
+            self.span_index
+        )
+    }
+
+    fn kind(&self) -> QueryItemViewKind {
+        QueryItemViewKind::Record
+    }
+
+    fn fields(&self) -> Option<Vec<(String, Vec<Item>)>> {
+        Some(
+            ["outputRange", "origin"]
+                .into_iter()
+                .map(|name| (name.to_owned(), self.field(name).unwrap_or_default()))
+                .collect(),
+        )
+    }
+
+    fn field(&self, name: &str) -> Option<Vec<Item>> {
+        let span = self.output_span()?;
+        Some(match name {
+            "outputRange" => vec![Item::Record(BTreeMap::from([
+                ("start".to_owned(), integer_items(span.output_range.start)),
+                (
+                    "length".to_owned(),
+                    integer_items(u64::from(span.output_range.len)),
+                ),
+                ("end".to_owned(), integer_items(span.output_range.end())),
+            ]))],
+            "origin" => vec![Item::native(TransformCollectionSourceMapQueryView {
+                collection: Arc::clone(&self.collection),
+                item_index: self.item_index,
+                owner: TransformCollectionSourceMapOwner::OutputSpan(self.span_index),
+            })],
+            _ => Vec::new(),
+        })
+    }
+
+    fn source_map(&self) -> Option<SourceMapStack> {
+        self.output_span().map(|span| span.origin.clone())
     }
 }
 
@@ -5134,6 +5390,25 @@ fn optional_atom_items(value: Option<&str>) -> Vec<Item> {
     vec![value
         .map(|value| Item::Atomic(AtomValue::String(value.to_owned())))
         .unwrap_or(Item::Atomic(AtomValue::Null))]
+}
+
+fn null_items() -> Vec<Item> {
+    vec![Item::Atomic(AtomValue::Null)]
+}
+
+fn integer_items(value: u64) -> Vec<Item> {
+    vec![Item::Atomic(AtomValue::Integer(
+        i64::try_from(value).unwrap_or(i64::MAX),
+    ))]
+}
+
+fn string_map_record_items(values: &BTreeMap<String, String>) -> Vec<Item> {
+    vec![Item::Record(
+        values
+            .iter()
+            .map(|(name, value)| (name.clone(), atom_items(value.clone())))
+            .collect(),
+    )]
 }
 
 #[derive(Debug, Clone)]
@@ -6235,17 +6510,31 @@ count + 1"#,
             }),
             TransformArtifactBody::CemDocument(Arc::clone(&document)),
         ));
+        let item_source_map = SourceMapStack {
+            frames: vec![SourceMapFrame {
+                source_id: SourceId(7),
+                span: FrameSpan::Single(ByteRange::new(11, 5)),
+                transform: TransformKind::InterpreterRender,
+            }],
+        };
         let collection = Arc::new(TransformArtifactCollection {
             mode: TransformArtifactCollectionMode::Collect,
-            bindings: BTreeMap::new(),
+            bindings: BTreeMap::from([("count".to_owned(), "1".to_owned())]),
             items: vec![TransformArtifactCollectionItem {
                 input_name: "primary".to_owned(),
-                destination: None,
-                target: None,
-                bindings: BTreeMap::new(),
+                destination: Some("dist/main.html".to_owned()),
+                target: Some(FormatIdentity {
+                    content_type: Some(HTML_CONTENT_TYPE.to_owned()),
+                    schema: Some(HTML_SCHEMA_URI.to_owned()),
+                    ..FormatIdentity::default()
+                }),
+                bindings: BTreeMap::from([("slug".to_owned(), "main".to_owned())]),
                 artifact: Arc::clone(&child),
-                source_map: None,
-                output_spans: Vec::new(),
+                source_map: Some(item_source_map.clone()),
+                output_spans: vec![OutputSpan {
+                    output_range: ByteRange::new(3, 4),
+                    origin: item_source_map.clone(),
+                }],
             }],
         });
         let artifact = TransformTemplateDataArtifact::new(
@@ -6262,6 +6551,13 @@ count + 1"#,
             .and_then(|view| view.downcast_ref::<TransformCollectionQueryView>())
             .expect("collection remains a native view");
         assert!(Arc::ptr_eq(&collection_view.collection, &collection));
+        assert_eq!(
+            collection_view.field("bindings"),
+            Some(string_map_record_items(&BTreeMap::from([(
+                "count".to_owned(),
+                "1".to_owned(),
+            )])))
+        );
 
         let items = root
             .view()
@@ -6273,6 +6569,65 @@ count + 1"#,
             .and_then(|view| view.downcast_ref::<TransformCollectionItemQueryView>())
             .expect("collection item remains a native view");
         assert!(Arc::ptr_eq(&item_view.collection, &collection));
+        assert_eq!(
+            item_view.field("bindings"),
+            Some(string_map_record_items(&BTreeMap::from([(
+                "slug".to_owned(),
+                "main".to_owned(),
+            )])))
+        );
+        assert_eq!(item_view.source_map(), Some(item_source_map.clone()));
+
+        let target = item_view.field("target").expect("typed target identity");
+        let target_view = target[0]
+            .view()
+            .and_then(|view| view.downcast_ref::<TransformCollectionTargetQueryView>())
+            .expect("target remains a native identity view");
+        assert!(std::ptr::eq(
+            target_view.target().expect("target owner"),
+            collection.items[0]
+                .target
+                .as_ref()
+                .expect("collection target")
+        ));
+        assert_eq!(
+            target_view.field("contentType"),
+            Some(atom_items(HTML_CONTENT_TYPE))
+        );
+
+        let source_map = item_view.field("sourceMap").expect("typed source map");
+        let source_map_view = source_map[0]
+            .view()
+            .and_then(|view| view.downcast_ref::<TransformCollectionSourceMapQueryView>())
+            .expect("source map remains a native provenance view");
+        assert!(std::ptr::eq(
+            source_map_view.source_map_ref().expect("source map owner"),
+            collection.items[0]
+                .source_map
+                .as_ref()
+                .expect("collection item source map")
+        ));
+
+        let output_spans = item_view
+            .field("outputSpans")
+            .and_then(|items| items.first().and_then(Item::members))
+            .expect("typed output spans");
+        let output_span_view = output_spans[0]
+            .view()
+            .and_then(|view| view.downcast_ref::<TransformCollectionOutputSpanQueryView>())
+            .expect("output span remains a native provenance view");
+        assert!(std::ptr::eq(
+            output_span_view.output_span().expect("output span owner"),
+            &collection.items[0].output_spans[0]
+        ));
+        assert_eq!(
+            output_span_view.field("outputRange"),
+            Some(vec![Item::Record(BTreeMap::from([
+                ("start".to_owned(), integer_items(3)),
+                ("length".to_owned(), integer_items(4)),
+                ("end".to_owned(), integer_items(7)),
+            ]))])
+        );
 
         let artifact = item_view.field("artifact").expect("typed child artifact");
         let child_view = artifact[0]
@@ -6282,6 +6637,100 @@ count + 1"#,
         assert!(Arc::ptr_eq(&child_view.document, &document));
         assert!(Arc::ptr_eq(&collection.items[0].artifact, &child));
         assert_eq!(item_view.field("primary"), item_view.field("artifact"));
+    }
+
+    #[test]
+    fn cql_collection_modes_preserve_order_cardinality_and_owner_identity() {
+        for mode in [
+            TransformArtifactCollectionMode::Collect,
+            TransformArtifactCollectionMode::GroupBy,
+            TransformArtifactCollectionMode::MatchBy,
+            TransformArtifactCollectionMode::Zip,
+        ] {
+            let first_document = Arc::new(document_from_cem("{first}"));
+            let second_document = Arc::new(document_from_cem("{second}"));
+            let first = Arc::new(TransformTemplateDataArtifact::new(
+                "first",
+                Some("memory:first.cem".to_owned()),
+                None,
+                TransformArtifactBody::CemDocument(Arc::clone(&first_document)),
+            ));
+            let second = Arc::new(TransformTemplateDataArtifact::new(
+                "second",
+                Some("memory:second.cem".to_owned()),
+                None,
+                TransformArtifactBody::CemDocument(Arc::clone(&second_document)),
+            ));
+            let collection = Arc::new(TransformArtifactCollection {
+                mode,
+                bindings: BTreeMap::from([
+                    ("count".to_owned(), "2".to_owned()),
+                    ("key".to_owned(), mode.as_str().to_owned()),
+                ]),
+                items: vec![
+                    TransformArtifactCollectionItem {
+                        input_name: "secondary".to_owned(),
+                        destination: None,
+                        target: None,
+                        bindings: BTreeMap::new(),
+                        artifact: Arc::clone(&second),
+                        source_map: None,
+                        output_spans: Vec::new(),
+                    },
+                    TransformArtifactCollectionItem {
+                        input_name: "primary".to_owned(),
+                        destination: None,
+                        target: None,
+                        bindings: BTreeMap::new(),
+                        artifact: Arc::clone(&first),
+                        source_map: None,
+                        output_spans: Vec::new(),
+                    },
+                ],
+            });
+            let artifact = TransformTemplateDataArtifact::new(
+                format!("{}-collection", mode.as_str()),
+                None,
+                None,
+                TransformArtifactBody::Collection(Arc::clone(&collection)),
+            );
+
+            let stream = artifact_query_stream(&artifact).expect("collection mode is queryable");
+            let root = stream.items.first().expect("collection root");
+            let view = root
+                .view()
+                .and_then(|view| view.downcast_ref::<TransformCollectionQueryView>())
+                .expect("borrowed collection view");
+            assert!(Arc::ptr_eq(&view.collection, &collection));
+            assert_eq!(view.field("mode"), Some(atom_items(mode.as_str())));
+            assert_eq!(
+                view.field("count"),
+                Some(vec![Item::Atomic(AtomValue::Integer(2))])
+            );
+            let items = view
+                .field("items")
+                .and_then(|items| items.first().and_then(Item::members))
+                .expect("ordered collection items");
+            let input_names = items
+                .iter()
+                .map(|item| {
+                    item.view()
+                        .and_then(|view| view.field("inputName"))
+                        .and_then(|items| items.first().and_then(Item::atom))
+                })
+                .collect::<Vec<_>>();
+            assert_eq!(
+                input_names,
+                vec![
+                    Some(AtomValue::String("secondary".to_owned())),
+                    Some(AtomValue::String("primary".to_owned())),
+                ],
+                "{} item order",
+                mode.as_str()
+            );
+            assert!(Arc::ptr_eq(&collection.items[0].artifact, &second));
+            assert!(Arc::ptr_eq(&collection.items[1].artifact, &first));
+        }
     }
 
     #[test]
@@ -11275,6 +11724,188 @@ if greeting == "Hello" {
             response.artifacts[0].primary,
             Value::String("<section>collection:2</section>".to_owned())
         );
+    }
+
+    #[test]
+    fn real_engine_routes_all_collection_modes_into_cem_ql_without_json_ingress() {
+        for (index, (mode, mode_name)) in [
+            (TransformGraphJoinMode::Collect, "collect"),
+            (TransformGraphJoinMode::GroupBy, "group-by"),
+            (TransformGraphJoinMode::MatchBy, "match-by"),
+            (TransformGraphJoinMode::Zip, "zip"),
+        ]
+        .into_iter()
+        .enumerate()
+        {
+            let base_scope = u32::try_from(index).unwrap_or_default() * 20 + 100;
+            let cem_identity = FormatIdentity {
+                content_type: Some(CEM_ML_CONTENT_TYPE.to_owned()),
+                schema: Some(CEM_ML_SCHEMA_URI.to_owned()),
+                ..FormatIdentity::default()
+            };
+            let json_target = FormatIdentity {
+                content_type: Some(cem_ml::schema::registry::JSON_CONTENT_TYPE.to_owned()),
+                schema: Some(cem_ml::schema::registry::JSON_VALUE_SCHEMA_URI.to_owned()),
+                ..FormatIdentity::default()
+            };
+            let request = TransformGraphRequest {
+                imports: vec![TransformGraphImport {
+                    id: "source".to_owned(),
+                    input: EngineInput {
+                        uri: format!("memory:{mode_name}.cem"),
+                        bytes: b"{p @id=source}".to_vec(),
+                        from_format: None,
+                        identity: Some(cem_identity.clone()),
+                        root_scope: ScopeConfig::default(),
+                    },
+                    scheduler_scope_id: base_scope,
+                }],
+                joins: vec![TransformGraphJoin {
+                    id: "collection".to_owned(),
+                    mode,
+                    input_names: vec!["secondary".to_owned(), "primary".to_owned()],
+                    inputs: vec![
+                        TransformGraphJoinInput {
+                            input_name: "secondary".to_owned(),
+                            artifact_id: "second".to_owned(),
+                            bindings: BTreeMap::from([("position".to_owned(), "0".to_owned())]),
+                            destination: Some("dist/second.html".to_owned()),
+                            target: Some(FormatIdentity {
+                                content_type: Some(HTML_CONTENT_TYPE.to_owned()),
+                                ..FormatIdentity::default()
+                            }),
+                        },
+                        TransformGraphJoinInput {
+                            input_name: "primary".to_owned(),
+                            artifact_id: "first".to_owned(),
+                            bindings: BTreeMap::from([("position".to_owned(), "1".to_owned())]),
+                            destination: Some("dist/first.html".to_owned()),
+                            target: Some(FormatIdentity {
+                                content_type: Some(HTML_CONTENT_TYPE.to_owned()),
+                                ..FormatIdentity::default()
+                            }),
+                        },
+                    ],
+                    bindings: BTreeMap::from([
+                        ("count".to_owned(), "2".to_owned()),
+                        ("key".to_owned(), mode_name.to_owned()),
+                    ]),
+                    scheduler_scope_id: base_scope + 5,
+                }],
+                stages: vec![
+                    TransformGraphStage {
+                        id: "first".to_owned(),
+                        template: TemplateInput {
+                            uri: "first.cem".to_owned(),
+                            bytes: b"{first}".to_vec(),
+                            identity: Some(cem_identity.clone()),
+                            root_scope: ScopeConfig::default(),
+                        },
+                        template_kind: TransformTemplateKind::CemNative,
+                        template_entrypoint: TransformTemplateEntrypoint::implicit(),
+                        params: BTreeMap::new(),
+                        execution_policy: TransformExecutionPolicy::default(),
+                        target: None,
+                        primary_input: "source".to_owned(),
+                        secondary_inputs: BTreeMap::new(),
+                        scheduler_scope_ids: TransformStageSchedulerScopeIds {
+                            template_load: base_scope + 1,
+                            execution: base_scope + 2,
+                        },
+                    },
+                    TransformGraphStage {
+                        id: "second".to_owned(),
+                        template: TemplateInput {
+                            uri: "second.cem".to_owned(),
+                            bytes: b"{second}".to_vec(),
+                            identity: Some(cem_identity),
+                            root_scope: ScopeConfig::default(),
+                        },
+                        template_kind: TransformTemplateKind::CemNative,
+                        template_entrypoint: TransformTemplateEntrypoint::implicit(),
+                        params: BTreeMap::new(),
+                        execution_policy: TransformExecutionPolicy::default(),
+                        target: None,
+                        primary_input: "source".to_owned(),
+                        secondary_inputs: BTreeMap::new(),
+                        scheduler_scope_ids: TransformStageSchedulerScopeIds {
+                            template_load: base_scope + 3,
+                            execution: base_scope + 4,
+                        },
+                    },
+                    TransformGraphStage {
+                        id: "result".to_owned(),
+                        template: TemplateInput {
+                            uri: "result.cem-ql".to_owned(),
+                            bytes: b"input.bindings.key".to_vec(),
+                            identity: Some(FormatIdentity {
+                                content_type: Some(
+                                    cem_ml::schema::registry::CEM_QL_EXPRESSION_CONTENT_TYPE
+                                        .to_owned(),
+                                ),
+                                schema: Some(
+                                    cem_ml::schema::registry::CEM_QL_EXPRESSION_SCHEMA_URI
+                                        .to_owned(),
+                                ),
+                                ..FormatIdentity::default()
+                            }),
+                            root_scope: ScopeConfig::default(),
+                        },
+                        template_kind: TransformTemplateKind::CemQlExpression,
+                        template_entrypoint: TransformTemplateEntrypoint::implicit(),
+                        params: BTreeMap::new(),
+                        execution_policy: TransformExecutionPolicy {
+                            runtime_phase: TransformRuntimePhase::CemQlExpression,
+                            ..TransformExecutionPolicy::default()
+                        },
+                        target: Some(json_target.clone()),
+                        primary_input: "collection".to_owned(),
+                        secondary_inputs: BTreeMap::new(),
+                        scheduler_scope_ids: TransformStageSchedulerScopeIds {
+                            template_load: base_scope + 6,
+                            execution: base_scope + 7,
+                        },
+                    },
+                ],
+                importmap_rewrites: Vec::new(),
+                exports: vec![TransformGraphExport {
+                    id: "result-json".to_owned(),
+                    input: "result".to_owned(),
+                    destination: Some(format!("dist/{mode_name}.json")),
+                    target: Some(json_target),
+                    target_scope: ScopeConfig::default(),
+                    style_policy: Default::default(),
+                    scheduler_scope_id: base_scope + 8,
+                }],
+                edges: Vec::new(),
+                preserve_source_offsets: false,
+                context: engine_context_with_cem_ql_template_adapter(),
+                execution_policy: TransformExecutionPolicy::default(),
+            };
+
+            let response = RealCemMlEngine::new()
+                .transform_graph(request)
+                .unwrap_or_else(|error| panic!("{mode_name} graph failed: {error:?}"));
+            assert!(
+                response.diagnostics.is_empty(),
+                "{mode_name}: {:?}",
+                response.diagnostics
+            );
+            assert_eq!(response.artifacts.len(), 1, "{mode_name}");
+            assert_eq!(
+                response.artifacts[0].primary,
+                json!({
+                    "diagnostics": [],
+                    "error": null,
+                    "items": [{
+                        "kind": "atomic",
+                        "type": "string",
+                        "value": mode_name,
+                    }],
+                }),
+                "{mode_name} CEM-QL result"
+            );
+        }
     }
 
     #[test]

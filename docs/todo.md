@@ -1258,7 +1258,7 @@ Remaining dependency-ordered package checklist:
           typed output bodies without a generic JSON graph round trip.
     - [x] Add output-boundary source audits and pass focused, core, CLI, lint,
           native build/test, and WASM gates.
-  - [ ] Add source audits and native/WASM behavior gates proving that only
+  - [x] Add source audits and native/WASM behavior gates proving that only
         registered JSON or `+json` conversion edges can serialize JSON and that
         graph collections preserve typed child order and identity.
   - [ ] Register explicit DOM, event-stream, and XPath-result JSON exporters
@@ -1349,23 +1349,49 @@ Remaining dependency-ordered package checklist:
       prove lossless JSON lexemes/duplicate members plus CEM-tree owner identity
       cross the collection boundary without serialization.
 
-### Next Work Item — JSON Serialization and Collection Boundary Gate
+### Completed: JSON Serialization and Collection Boundary Gate
 
 Close the remaining native-data-plane verification item with one auditable
 allowlist and native/WASM behavior matrix:
 
-- [ ] Inventory every production `serde_json` encode/decode call reachable from
+- [x] Inventory every production `serde_json` encode/decode call reachable from
       transform load, graph routing, joins, template adapters, encoders, and
       exporters; classify each as an explicitly identified JSON/`+json`
       lifecycle or public/export boundary, and fail the source audit for any
       unregistered intermediate serialization.
-- [ ] Exercise `collect`, `group-by`, `match-by`, and `zip` through graph routing
+- [x] Exercise `collect`, `group-by`, `match-by`, and `zip` through graph routing
       into CEMT and CEM-QL, asserting stable ordering/cardinality, collection
       and item metadata, child `Arc`/AST identity, provenance, strict zip
       mismatch, and rejection of encoded children without a parser edge.
-- [ ] Run focused adapter checks followed by CEM-QL/core lint, test, CLI e2e,
+- [x] Run focused adapter checks followed by CEM-QL/core lint, test, CLI e2e,
       converter parity, and native/WASM gates; then mark the parent source-audit
       checklist item complete.
+
+The enforceable allowlist now distinguishes serializer-free native routes from
+explicit lifecycle, registered-exporter, and public-export boundaries. The
+CEM-QL cache policy and Markdown writer-token handoff no longer serialize
+intermediate values. Four-mode CEMT/CEM-QL matrices prove ordering,
+cardinality, native child ownership, target metadata, source maps, and output
+spans survive direct graph routing.
+
+### Next Work Item — Explicit Native Projection Exporters
+
+Register the remaining JSON projection edges without reopening a generic JSON
+transform data plane:
+
+- [ ] Define distinct registered exporter representations and target identities
+      for DOM projections, event streams, and XPath results, including the
+      exact JSON and `+json` media types each exporter accepts.
+- [ ] Make each exporter consume its borrowed native typed body directly and
+      encode only after explicit target negotiation; do not add a generic
+      `Value` fallback, shape classifier, or serializer between graph and
+      exporter layers.
+- [ ] Preserve native owner, source-map, and output-span identity until the
+      final encoding boundary. Add negative coverage for implicit JSON routes,
+      mismatched non-JSON targets, and missing exporter registration.
+- [ ] Add focused representation/exporter tests and source-audit entries, then
+      run CEM-QL/core lint and tests, CLI converter parity/e2e, and native/WASM
+      gates before marking the exporter and parent migration items complete.
 
 ## Current Verification Commands
 

@@ -63,7 +63,9 @@
                 "{projectRoot}/Cargo.toml",
                 "{projectRoot}/grammar/tree-sitter-cem/**/*",
                 "{workspaceRoot}/packages/custom-element/material/components/**/*.html",
-                "{workspaceRoot}/packages/custom-element/test-fixtures/legacy-compat-manifest.json"
+                "{workspaceRoot}/packages/custom-element/test-fixtures/legacy-compat-manifest.json",
+                "{workspaceRoot}/packages/cem_ml_transform_cem_ql/src/lib.rs",
+                "{workspaceRoot}/packages/cem_ml_cli/src/dispatch.rs"
             ],
             "configurations": {
                 "production": {

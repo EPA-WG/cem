@@ -82,9 +82,10 @@ use crate::tokenizer::html::HtmlTokenizer;
 use crate::tokenizer::xml::XmlTokenizer;
 use crate::tokenizer::SchemaTokenizer;
 use crate::transform_artifact::{
-    CemtEvaluatorBindings, CemtEvaluatorValue, CemtTreeArtifact, CemtTreeSubjectRef,
-    TransformArtifactBody, TransformArtifactCollection, TransformArtifactCollectionItem,
-    TransformArtifactCollectionMode, TransformEncodedArtifact, TransformEncoding,
+    CemtEvaluatorBindings, CemtEvaluatorValue, CemtEvaluatorValueKind, CemtTreeArtifact,
+    CemtTreeSubjectRef, TransformArtifactBody, TransformArtifactCollection,
+    TransformArtifactCollectionItem, TransformArtifactCollectionMode, TransformEncodedArtifact,
+    TransformEncoding,
 };
 use crate::transform_config::{
     parse_transform_graph_config, TransformGraphParseRequest, TRANSFORM_CONFIG_SCHEMA_URI,
@@ -113,13 +114,13 @@ use crate::transform_template::{
     TransformTemplateParameterArena, TransformTemplateRenderRequest,
     TransformTemplateResolvedModule, TransformTemplateSourceMapPolicy,
     TransformTemplateTypedEncodeEvaluationContext, TransformTemplateWriterToken,
-    TransformTemplateWriterTokenStream, CEM_TEMPLATE_IMPORT_DENIED_CODE,
-    CEM_TEMPLATE_IMPORT_UNRESOLVED_CODE, TRANSFORM_TEMPLATE_CALL_UNKNOWN_CODE,
-    TRANSFORM_TEMPLATE_ENTRYPOINT_NOT_PUBLIC_CODE, TRANSFORM_TEMPLATE_IMPORT_ALIAS_DUPLICATE_CODE,
-    TRANSFORM_TEMPLATE_IMPORT_CYCLE_CODE, TRANSFORM_TEMPLATE_IMPORT_DEPTH_CODE,
-    TRANSFORM_TEMPLATE_INCLUDE_RESERVED_CODE, TRANSFORM_TEMPLATE_LET_EXPR_INVALID_CODE,
-    TRANSFORM_TEMPLATE_PARAM_DUPLICATE_ALIAS_CODE, TRANSFORM_TEMPLATE_PARAM_REQUIRED_CODE,
-    TRANSFORM_TEMPLATE_PARAM_TYPE_CODE, TRANSFORM_TEMPLATE_PARAM_UNKNOWN_CODE,
+    CEM_TEMPLATE_IMPORT_DENIED_CODE, CEM_TEMPLATE_IMPORT_UNRESOLVED_CODE,
+    TRANSFORM_TEMPLATE_CALL_UNKNOWN_CODE, TRANSFORM_TEMPLATE_ENTRYPOINT_NOT_PUBLIC_CODE,
+    TRANSFORM_TEMPLATE_IMPORT_ALIAS_DUPLICATE_CODE, TRANSFORM_TEMPLATE_IMPORT_CYCLE_CODE,
+    TRANSFORM_TEMPLATE_IMPORT_DEPTH_CODE, TRANSFORM_TEMPLATE_INCLUDE_RESERVED_CODE,
+    TRANSFORM_TEMPLATE_LET_EXPR_INVALID_CODE, TRANSFORM_TEMPLATE_PARAM_DUPLICATE_ALIAS_CODE,
+    TRANSFORM_TEMPLATE_PARAM_REQUIRED_CODE, TRANSFORM_TEMPLATE_PARAM_TYPE_CODE,
+    TRANSFORM_TEMPLATE_PARAM_UNKNOWN_CODE,
 };
 use crate::validation::css::CssDocumentAst;
 use crate::validation::csv::CsvDocumentAst;
@@ -6566,10 +6567,6 @@ fn markdown_generated_html_output(
     let color_capability =
         markdown_html_color_capability(target_scope, output_color_type.as_deref());
     let tokens = markdown_html_source_writer_tokens(&source);
-    let token_value = serde_json::to_value(TransformTemplateWriterTokenStream {
-        tokens: tokens.clone(),
-    })
-    .unwrap_or_else(|_| json!({"tokens": []}));
     let mut identity = TransformTemplateEncodedArtifactIdentity::new(
         TransformTemplateOutputProducedKind::Tokens,
         target.clone(),
@@ -6617,7 +6614,10 @@ fn markdown_generated_html_output(
             target: target.clone(),
             options: TransformTemplateEncodeOptions::default(),
         },
-        subject_metadata: TransformTemplateEncodeSubjectMetadata::from(token_value),
+        subject_metadata: TransformTemplateEncodeSubjectMetadata::declared(
+            CemtEvaluatorValueKind::Record,
+            "cem.writer-token-stream/1",
+        ),
         binding,
         artifact,
     };
@@ -11134,7 +11134,7 @@ mod tests {
         TransformTemplateAdapterCapability, TransformTemplateAdapterError,
         TransformTemplateAdapterExecutionPhase, TransformTemplateAdapterRegistry,
         TransformTemplateAdapterResult, TransformTemplateCompileResponse,
-        TransformTemplateRenderResponse,
+        TransformTemplateRenderResponse, TransformTemplateWriterTokenStream,
     };
     use std::any::Any;
     use std::sync::Mutex;
@@ -12506,6 +12506,175 @@ mod tests {
         };
         assert!(Arc::ptr_eq(&first_stream, joined_first));
         assert!(Arc::ptr_eq(&second_stream, joined_second));
+    }
+
+    #[test]
+    fn transform_collection_modes_route_ordered_identity_and_provenance_into_cemt() {
+        let first_owner = Arc::new(projection::CemTreeAstStream::new(vec![
+            projection::CemTreeAstNode::Element {
+                name: "first".to_owned(),
+                attributes: Vec::new(),
+                children: Vec::new(),
+                source: test_source_map_stack(10, 3),
+            },
+        ]));
+        let second_owner = Arc::new(projection::CemTreeAstStream::new(vec![
+            projection::CemTreeAstNode::Element {
+                name: "second".to_owned(),
+                attributes: Vec::new(),
+                children: Vec::new(),
+                source: test_source_map_stack(20, 4),
+            },
+        ]));
+        let first = Arc::new(TransformTemplateDataArtifact::new(
+            "first",
+            Some("memory:first.cem".to_owned()),
+            None,
+            TransformArtifactBody::CemTree(Arc::clone(&first_owner)),
+        ));
+        let second = Arc::new(TransformTemplateDataArtifact::new(
+            "second",
+            Some("memory:second.cem".to_owned()),
+            None,
+            TransformArtifactBody::CemTree(Arc::clone(&second_owner)),
+        ));
+        let artifacts = BTreeMap::from([
+            ("first".to_owned(), Arc::clone(&first)),
+            ("second".to_owned(), Arc::clone(&second)),
+        ]);
+        let first_source_map = test_source_map_stack(100, 7);
+        let second_source_map = test_source_map_stack(200, 8);
+        let artifact_metadata = BTreeMap::from([
+            (
+                "first".to_owned(),
+                TransformOutputMetadata {
+                    source_map: Some(first_source_map.clone()),
+                    output_spans: vec![test_output_span(1, 2, 100)],
+                    raw_content: None,
+                },
+            ),
+            (
+                "second".to_owned(),
+                TransformOutputMetadata {
+                    source_map: Some(second_source_map.clone()),
+                    output_spans: vec![test_output_span(4, 3, 200)],
+                    raw_content: None,
+                },
+            ),
+        ]);
+
+        for mode in [
+            TransformGraphJoinMode::Collect,
+            TransformGraphJoinMode::GroupBy,
+            TransformGraphJoinMode::MatchBy,
+            TransformGraphJoinMode::Zip,
+        ] {
+            let mode_name = match mode {
+                TransformGraphJoinMode::Collect => "collect",
+                TransformGraphJoinMode::GroupBy => "group-by",
+                TransformGraphJoinMode::MatchBy => "match-by",
+                TransformGraphJoinMode::Zip => "zip",
+            };
+            let join = TransformGraphJoin {
+                id: format!("{mode_name}-joined"),
+                mode,
+                input_names: vec!["secondary".to_owned(), "primary".to_owned()],
+                inputs: vec![
+                    TransformGraphJoinInput {
+                        input_name: "secondary".to_owned(),
+                        artifact_id: "second".to_owned(),
+                        bindings: BTreeMap::from([("position".to_owned(), "0".to_owned())]),
+                        destination: Some("dist/second.html".to_owned()),
+                        target: Some(FormatIdentity {
+                            content_type: Some(HTML_CONTENT_TYPE.to_owned()),
+                            ..FormatIdentity::default()
+                        }),
+                    },
+                    TransformGraphJoinInput {
+                        input_name: "primary".to_owned(),
+                        artifact_id: "first".to_owned(),
+                        bindings: BTreeMap::from([("position".to_owned(), "1".to_owned())]),
+                        destination: Some("dist/first.html".to_owned()),
+                        target: Some(FormatIdentity {
+                            content_type: Some(HTML_CONTENT_TYPE.to_owned()),
+                            ..FormatIdentity::default()
+                        }),
+                    },
+                ],
+                bindings: BTreeMap::from([
+                    ("count".to_owned(), "2".to_owned()),
+                    ("key".to_owned(), mode_name.to_owned()),
+                ]),
+                scheduler_scope_id: 1,
+            };
+
+            let joined = collect_transform_graph_join(&join, &artifacts, &artifact_metadata);
+            let TransformArtifactBody::Collection(collection) = &joined.body else {
+                panic!("{mode_name} must route a typed collection");
+            };
+            assert_eq!(collection.mode.as_str(), mode_name);
+            assert_eq!(collection.items.len(), 2);
+            assert!(Arc::ptr_eq(&collection.items[0].artifact, &second));
+            assert!(Arc::ptr_eq(&collection.items[1].artifact, &first));
+            assert_eq!(
+                collection.items[0].source_map,
+                Some(second_source_map.clone())
+            );
+            assert_eq!(
+                collection.items[1].source_map,
+                Some(first_source_map.clone())
+            );
+
+            let binding = transform_template_ast_binding(&joined)
+                .unwrap_or_else(|error| panic!("{mode_name} CEMT binding failed: {error}"));
+            assert_eq!(
+                binding
+                    .field("mode")
+                    .and_then(|value| value.as_str().map(str::to_owned))
+                    .as_deref(),
+                Some(mode_name)
+            );
+            assert_eq!(
+                binding
+                    .resolve_path("items.0.inputName")
+                    .and_then(|value| value.as_str().map(str::to_owned))
+                    .as_deref(),
+                Some("secondary")
+            );
+            assert_eq!(
+                binding
+                    .resolve_path("items.1.inputName")
+                    .and_then(|value| value.as_str().map(str::to_owned))
+                    .as_deref(),
+                Some("primary")
+            );
+            assert_eq!(
+                binding
+                    .resolve_path("items.0.outputSpans.0.outputRange.start")
+                    .and_then(|value| value.as_number())
+                    .and_then(crate::transform_artifact::CemtEvaluatorNumber::as_u64),
+                Some(4)
+            );
+            assert_eq!(
+                binding
+                    .resolve_path("items.1.outputSpans.0.outputRange.start")
+                    .and_then(|value| value.as_number())
+                    .and_then(crate::transform_artifact::CemtEvaluatorNumber::as_u64),
+                Some(1)
+            );
+
+            let second_node = binding
+                .resolve_path("items.0.artifact.0")
+                .expect("second borrowed child AST");
+            let Some(crate::transform_artifact::CemtEvaluatorRecordRef::Node {
+                node: borrowed_second,
+                ..
+            }) = second_node.native_record()
+            else {
+                panic!("{mode_name} second child must remain a native node");
+            };
+            assert!(std::ptr::eq(*borrowed_second, &second_owner.as_nodes()[0]));
+        }
     }
 
     #[test]

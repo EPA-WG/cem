@@ -25412,6 +25412,15 @@ impl TransformTemplateModuleCacheKey {
         self.parameter_hash = parameter_hash.into();
         self
     }
+
+    /// Returns the native resolver-policy identity used by downstream compilers.
+    ///
+    /// The cache key is already a typed cross-layer contract. Passing its debug
+    /// identity avoids encoding it as JSON merely to transport it to another
+    /// compiler layer; changes to any key field still invalidate the stamp.
+    pub fn resolver_policy_stamp(&self) -> String {
+        format!("cem.transform-template.module-cache-key/1:{self:?}")
+    }
 }
 
 #[derive(Clone, Serialize, Deserialize)]
@@ -40127,6 +40136,16 @@ mod tests {
         assert_eq!(json["executionPolicy"]["failurePolicy"], "fail-fast");
         assert_eq!(json["dependencyGraphHash"], "sha256:dependency-graph");
         assert_eq!(json["parameterHash"], "sha256:parameters");
+        let stamp = key.resolver_policy_stamp();
+        assert!(stamp.starts_with("cem.transform-template.module-cache-key/1:"));
+        assert!(stamp.contains("sha256:dependency-graph"));
+        assert!(stamp.contains("sha256:parameters"));
+        assert_ne!(
+            stamp,
+            key.clone()
+                .with_parameter_hash("sha256:other-parameters")
+                .resolver_policy_stamp()
+        );
     }
 
     #[test]
