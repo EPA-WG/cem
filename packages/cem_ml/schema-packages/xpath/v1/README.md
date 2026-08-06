@@ -101,7 +101,7 @@ the next integration slice.
 ## Transformation Boundary
 
 XPath is a transformation language peer to CEM-QL, CEMT, and XSLT. The package
-owns parsing and static syntax; the CEM-ML `transform` path will own execution
+owns parsing and static syntax; the CEM-ML `transform` path owns execution
 planning. Hosts may supply context items and bindings, but must not implement a
 private parser, evaluator, or external-resource resolver.
 
@@ -127,11 +127,19 @@ operators, axes, predicates, functions, and constructors fail with a stable
 schema-owned diagnostic. The evaluator does not read expression source text,
 project through CEMT or JSON, reparse XML, or construct a replacement tree.
 
+The standalone executable adapter is registered for XPath template identities.
+It compiles template source once at the lifecycle/compile boundary, evaluates a
+primary lifecycle-owned XML document AST as the context item, and returns the
+typed `XPathResultArtifact`. The `transform` command invokes the registered JSON
+result exporter only after native evaluation completes. Parameters, named
+entrypoints, secondary inputs, and non-XML input AST families are rejected until
+their context and XDM binding contracts are defined.
+
 The result media type is intentionally distinct from expression source and does
 not enter the XPath source parser. XML, JSON, CEM, and text serialization remain
-explicit downstream conversion edges. No evaluator or executable transform
-adapter is registered yet; the native evaluator foundation remains package-local
-until the remaining execution contract is ready for `transform` registration.
+explicit downstream conversion edges. CEM-QL, CEMT, and XSLT invocation adapters
+remain unregistered pending schema-owned call, context, and variable-binding
+semantics.
 
 ## Formatter And Colorizer Profiles
 
@@ -158,20 +166,20 @@ evaluator cannot read ambient process or host state.
 manifest and fixture expectations, runs lossless lexer/parser, schema-diagnostic
 handoff, lifecycle loading, no-fallback validation, and host-attachment tests,
 verifies the full-destination conformance matrix, native evaluator owner/path and
-scalar semantics, mixed result artifacts and evaluator capability rejection,
-verifies embedded catalog identity, and checks that README examples use fenced
-XPath source with no SVG fallback.
+scalar semantics, standalone transform routing, mixed result artifacts and
+evaluator capability rejection, verifies embedded catalog identity, and checks
+that README examples use fenced XPath source with no SVG fallback.
 `yarn nx run cem_ml:build:wasm` verifies that the CEM-owned scanner and parser
 remain compatible with the browser WASM target.
 
 ## Tracked Incomplete Work
 
-- Remove the implicit JSON transform boundary before executable XPath work.
 - Implement a CEM-owned XPath 3.1 compiler/evaluator and prove native/WASM AST
   consumption through CEM-only resolver and safety capabilities.
 - Segment XSLT XPath attributes and AVTs, then associate their ASTs with exact
   XML attribute-value ranges.
-- Add standalone transformation execution and CEM-QL/CEMT/XSLT adapters.
+- Define schema-owned context and variable bindings, then add CEM-QL, CEMT, and
+  XSLT XPath invocation adapters.
 - Define grammar-aware formatting before making profile output differ.
 
 ## Examples

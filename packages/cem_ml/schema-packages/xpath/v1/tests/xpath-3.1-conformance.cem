@@ -107,10 +107,10 @@
     }
     {conformance-slice
         @id="dynamic-context-and-resources"
-        @status="contract-only"
+        @status="partial"
         @qt3-status="unmapped"
         @spec-sections="XPath 3.1 section 2.1.2 and Functions and Operators resource functions"
-        @gap="Resolver and safety contracts exist, but deterministic context injection and resource functions are not executable"
+        @gap="Standalone transform execution injects the exact lifecycle XML document context plus explicit resolver and safety capabilities, but parameter-to-XDM bindings, host invocation contexts, additional input AST families, and resource functions are incomplete"
         @todo="xpath-dynamic-context"
     }
     {conformance-slice
@@ -126,7 +126,7 @@
         @status="partial"
         @qt3-status="unmapped"
         @spec-sections="XDM 3.1 and explicit serialization edges"
-        @gap="Native evaluation now produces typed ordered scalar and node results that retain lifecycle AST owners, and JSON export is registered explicitly; full XDM semantics plus XML, CEM, and text exporters remain incomplete"
+        @gap="Native transform evaluation now produces typed ordered scalar and node results that retain lifecycle AST owners, and JSON export runs only through the registered result exporter; full XDM semantics plus XML, CEM, and text exporters remain incomplete"
         @todo="xpath-xdm-results"
     }
 }

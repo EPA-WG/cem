@@ -7988,14 +7988,20 @@ fn render_transform_stage(
     spec: TransformStageRenderSpec<'_>,
     diagnostics: &mut Vec<Diagnostic>,
 ) -> Option<TransformTemplateOutputArtifact> {
-    match spec.adapter.render(TransformTemplateRenderRequest {
-        compiled: spec.compiled,
-        primary_input: spec.primary_input,
-        secondary_inputs: spec.secondary_inputs,
-        target: spec.target,
-        target_scope: spec.target_scope,
-        execution_policy: spec.execution_policy,
-    }) {
+    match spec.adapter.render_with_runtime(
+        TransformTemplateRenderRequest {
+            compiled: spec.compiled,
+            primary_input: spec.primary_input,
+            secondary_inputs: spec.secondary_inputs,
+            target: spec.target,
+            target_scope: spec.target_scope,
+            execution_policy: spec.execution_policy,
+        },
+        crate::transform_template::TransformTemplateRuntimeContext {
+            resolver_registry: &spec.context.resolver_registry,
+            resolver_policy: &spec.context.resolver_policy,
+        },
+    ) {
         Ok(mut response) => {
             annotate_transform_stage_diagnostics(&mut response.diagnostics, spec.diagnostic_node);
             diagnostics.append(&mut response.diagnostics);
@@ -12444,6 +12450,72 @@ mod tests {
                 && event.prefix.as_deref() == Some("p")
                 && event.namespace_uri.as_deref() == Some("urn:p")
         }));
+    }
+
+    #[test]
+    fn transform_executes_xpath_over_native_xml_and_exports_only_at_result_boundary() {
+        let target = FormatIdentity {
+            content_type: Some(crate::schema::registry::XPATH_RESULT_CONTENT_TYPE.to_owned()),
+            schema: Some(XPATH_SCHEMA_URI.to_owned()),
+            ..FormatIdentity::default()
+        };
+        let request = TransformRequest {
+            data: identified_input(
+                b"<catalog><book/><book/></catalog>",
+                "memory://catalog.xml",
+                XML_CONTENT_TYPE,
+                XML_SCHEMA_URI,
+            ),
+            template: TemplateInput {
+                uri: "memory://books.xpath".to_owned(),
+                bytes: b"/catalog/book".to_vec(),
+                identity: Some(FormatIdentity {
+                    content_type: Some(XPATH_CONTENT_TYPE.to_owned()),
+                    schema: Some(XPATH_SCHEMA_URI.to_owned()),
+                    ..FormatIdentity::default()
+                }),
+                root_scope: ScopeConfig::default(),
+            },
+            template_kind: TransformTemplateKind::XPath,
+            template_entrypoint: TransformTemplateEntrypoint::implicit(),
+            params: BTreeMap::new(),
+            preserve_source_offsets: true,
+            context: EngineContext::default(),
+            target: Some(target.clone()),
+            target_scope: ScopeConfig {
+                default_content_type: target.content_type.clone(),
+                schema: target.schema.clone(),
+                ..ScopeConfig::default()
+            },
+            scheduler_scope_ids: TransformSchedulerScopeIds {
+                data_load: 1,
+                template_load: 2,
+                execution: 3,
+                output: 4,
+            },
+            execution_policy: TransformExecutionPolicy {
+                runtime_phase: TransformRuntimePhase::XPath,
+                ..TransformExecutionPolicy::default()
+            },
+        };
+
+        let response = RealCemMlEngine::new()
+            .transform(request)
+            .expect("standalone XPath transform execution");
+        assert!(
+            !response
+                .diagnostics
+                .iter()
+                .any(|diagnostic| diagnostic.severity.is_hard_violation()),
+            "{:?}",
+            response.diagnostics
+        );
+        let items = response.primary["sequence"]["items"]
+            .as_array()
+            .expect("explicit XPath result JSON items");
+        assert_eq!(items.len(), 2);
+        assert!(items.iter().all(|item| item["kind"] == "node"));
+        assert!(response.source_map.is_some());
     }
 
     #[test]

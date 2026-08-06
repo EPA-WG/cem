@@ -202,6 +202,7 @@ pub enum TransformTemplateKind {
     Xslt,
     CemNative,
     CemQlExpression,
+    XPath,
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
@@ -212,6 +213,7 @@ pub enum TransformRuntimePhase {
     CemNativeModules,
     CemQlExpression,
     XsltParity,
+    XPath,
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
@@ -574,11 +576,12 @@ fn validate_transform_execution_policy(policy: &TransformExecutionPolicy) -> Vec
             | TransformRuntimePhase::CemNativeModules
             | TransformRuntimePhase::CemQlExpression
             | TransformRuntimePhase::XsltParity
+            | TransformRuntimePhase::XPath
     ) {
         diagnostics.push(transform_runtime_diagnostic(
             None,
             "cem.transform_runtime.phase_unsupported",
-            "transform runtime currently supports only the `cem-ql-fragment`, `cem-native-modules`, `cem-ql-expression`, and `xslt-parity` phases",
+            "transform runtime currently supports only the `cem-ql-fragment`, `cem-native-modules`, `cem-ql-expression`, `xslt-parity`, and `xpath` phases",
         ));
     }
     if policy.cardinality != TransformCardinalityMode::OneToOne {
@@ -654,6 +657,17 @@ fn validate_transform_stage_runtime_contract(
             ),
         ));
     }
+    if policy.runtime_phase == TransformRuntimePhase::XPath
+        && template_kind != TransformTemplateKind::XPath
+    {
+        diagnostics.push(transform_runtime_diagnostic(
+            uri,
+            "cem.transform_runtime.template_kind_unsupported",
+            format!(
+                "transform stage `{stage_id}` uses `{template_kind:?}` template kind; the XPath phase supports only XPath templates"
+            ),
+        ));
+    }
     if policy.runtime_phase == TransformRuntimePhase::CemQlFragment
         && !template_entrypoint.is_implicit()
     {
@@ -676,12 +690,30 @@ fn validate_transform_stage_runtime_contract(
             ),
         ));
     }
+    if policy.runtime_phase == TransformRuntimePhase::XPath && !template_entrypoint.is_implicit() {
+        diagnostics.push(transform_runtime_diagnostic(
+            uri,
+            "cem.transform_runtime.entrypoint_unsupported",
+            format!(
+                "transform stage `{stage_id}` declares a named template entrypoint; XPath transforms use the expression root as the implicit entrypoint"
+            ),
+        ));
+    }
     if policy.runtime_phase == TransformRuntimePhase::CemQlFragment && !params.is_empty() {
         diagnostics.push(transform_runtime_diagnostic(
             uri,
             "cem.transform_runtime.params_unsupported",
             format!(
                 "transform stage `{stage_id}` declares params; template params are reserved for the native module layer"
+            ),
+        ));
+    }
+    if policy.runtime_phase == TransformRuntimePhase::XPath && !params.is_empty() {
+        diagnostics.push(transform_runtime_diagnostic(
+            uri,
+            "cem.transform_runtime.params_unsupported",
+            format!(
+                "transform stage `{stage_id}` declares params; XPath parameter-to-XDM bindings are not defined for the standalone transform slice"
             ),
         ));
     }
@@ -1310,6 +1342,11 @@ mod tests {
             schema: Some(crate::schema::registry::XSLT_SCHEMA_URI.to_owned()),
             ..FormatIdentity::default()
         };
+        let xpath = FormatIdentity {
+            content_type: Some(crate::schema::registry::XPATH_CONTENT_TYPE.to_owned()),
+            schema: Some(crate::schema::registry::XPATH_SCHEMA_URI.to_owned()),
+            ..FormatIdentity::default()
+        };
 
         assert_eq!(
             classify_transform_template_identity(&xslt),
@@ -1342,6 +1379,10 @@ mod tests {
         assert_eq!(
             classify_transform_template_identity(&xslt_schema),
             Ok(TransformTemplateKind::Xslt)
+        );
+        assert_eq!(
+            classify_transform_template_identity(&xpath),
+            Ok(TransformTemplateKind::XPath)
         );
     }
 
@@ -1493,6 +1534,41 @@ mod tests {
         };
 
         assert!(validate_transform_request_runtime_contract(&request).is_empty());
+    }
+
+    #[test]
+    fn transform_runtime_contract_accepts_standalone_xpath_and_rejects_unbound_surfaces() {
+        let mut request = TransformRequest {
+            data: engine_input("data.xml", "application/xml"),
+            template: template_input("books.xpath", crate::schema::registry::XPATH_CONTENT_TYPE),
+            template_kind: TransformTemplateKind::XPath,
+            template_entrypoint: TransformTemplateEntrypoint::implicit(),
+            params: BTreeMap::new(),
+            preserve_source_offsets: true,
+            context: EngineContext::default(),
+            target: None,
+            target_scope: ScopeConfig::default(),
+            scheduler_scope_ids: TransformSchedulerScopeIds::default(),
+            execution_policy: TransformExecutionPolicy {
+                runtime_phase: TransformRuntimePhase::XPath,
+                ..TransformExecutionPolicy::default()
+            },
+        };
+        assert!(validate_transform_request_runtime_contract(&request).is_empty());
+
+        request.template_entrypoint = TransformTemplateEntrypoint::named("main");
+        request
+            .params
+            .insert("limit".to_owned(), serde_json::json!(2));
+        let diagnostics = validate_transform_request_runtime_contract(&request);
+        assert!(has_diagnostic(
+            &diagnostics,
+            "cem.transform_runtime.entrypoint_unsupported"
+        ));
+        assert!(has_diagnostic(
+            &diagnostics,
+            "cem.transform_runtime.params_unsupported"
+        ));
     }
 
     #[test]

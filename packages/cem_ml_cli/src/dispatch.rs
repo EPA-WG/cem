@@ -1442,6 +1442,9 @@ fn transform_execution_policy_for(
                 policy.runtime_phase = eng::TransformRuntimePhase::CemNativeModules;
             }
         }
+        eng::TransformTemplateKind::XPath => {
+            policy.runtime_phase = eng::TransformRuntimePhase::XPath;
+        }
     }
     policy
 }
@@ -1454,6 +1457,14 @@ fn validate_transform_template_module_surface(
     if template_kind == eng::TransformTemplateKind::CemQlExpression && !entrypoint.is_implicit() {
         return Err(CliRequestError::Usage(
             "transform --template-entrypoint is not supported for CEM-QL expression transforms"
+                .into(),
+        ));
+    }
+    if template_kind == eng::TransformTemplateKind::XPath
+        && (!entrypoint.is_implicit() || !params.is_empty())
+    {
+        return Err(CliRequestError::Usage(
+            "XPath transforms currently require the implicit expression entrypoint and do not accept params"
                 .into(),
         ));
     }
@@ -10973,6 +10984,41 @@ mod tests {
             request.template.root_scope.default_content_type.as_deref(),
             Some("text/cem-ml")
         );
+    }
+
+    #[test]
+    fn transform_request_helper_accepts_xpath_template_identity() {
+        let data = write_fixture(
+            "transform-helper-xpath-data.xml",
+            "<catalog><book/><book/></catalog>",
+        );
+        let template = write_fixture("transform-helper-books.xpath", "/catalog/book");
+        let parsed = parse_cli(&[
+            "transform",
+            data.to_str().unwrap(),
+            "--data-content-type",
+            "application/xml",
+            "--template",
+            template.to_str().unwrap(),
+            "--template-content-type",
+            cem_ml::schema::registry::XPATH_CONTENT_TYPE,
+            "--to-content-type",
+            cem_ml::schema::registry::XPATH_RESULT_CONTENT_TYPE,
+        ]);
+        let cli::Command::Transform(args) = parsed.command else {
+            panic!("expected transform command");
+        };
+        let request = match transform_request_from_args(&eng::EngineContext::default(), &args) {
+            Ok(request) => request,
+            Err(_) => panic!("transform request helper should accept XPath templates"),
+        };
+
+        assert_eq!(request.template_kind, eng::TransformTemplateKind::XPath);
+        assert_eq!(
+            request.execution_policy.runtime_phase,
+            eng::TransformRuntimePhase::XPath
+        );
+        assert_eq!(request.template.bytes, b"/catalog/book");
     }
 
     #[test]

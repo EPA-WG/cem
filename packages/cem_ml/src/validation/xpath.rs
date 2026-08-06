@@ -5,6 +5,7 @@ mod syntax;
 pub use syntax::*;
 
 use crate::diagnostics::{Diagnostic, Severity};
+use crate::engine::{FormatIdentity, TransformTemplateKind};
 use crate::lifecycle::LoadedInputAstStream;
 use crate::resolver::{ResolverPolicy, ResolverRegistry};
 use crate::schema::document_model::compile_schema_document_model;
@@ -16,6 +17,15 @@ pub use crate::schema::registry::{
 use crate::source::line_index::LineIndex;
 use crate::source::{ByteRange, SourceId};
 use crate::source_map::{FrameSpan, SourceMapFrame, SourceMapStack, TransformKind};
+use crate::transform_artifact::TransformArtifactBody;
+use crate::transform_template::{
+    TransformTemplateAdapter, TransformTemplateAdapterCapability, TransformTemplateAdapterError,
+    TransformTemplateAdapterExecutionPhase, TransformTemplateAdapterResult,
+    TransformTemplateCompileRequest, TransformTemplateCompileResponse,
+    TransformTemplateCompiledArtifact, TransformTemplateOutputArtifact,
+    TransformTemplateRenderRequest, TransformTemplateRenderResponse,
+    TransformTemplateRuntimeContext,
+};
 use crate::validation::xml::{XmlDocumentAst, XmlEventAst, XmlEventKind};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
@@ -881,6 +891,199 @@ impl XPathEvaluatorAdapter for CemXPathEvaluator {
                 })
                 .collect())
         }
+    }
+}
+
+pub const XPATH_TRANSFORM_TEMPLATE_ADAPTER_ID: &str = "cem.xpath-transform-template";
+
+#[derive(Debug, Clone, Default)]
+pub struct XPathTransformTemplateAdapter;
+
+#[derive(Debug, Clone)]
+struct XPathCompiledTransformPayload {
+    expression: Arc<XPathExpressionAst>,
+    static_context: XPathStaticContext,
+}
+
+impl TransformTemplateAdapter for XPathTransformTemplateAdapter {
+    fn id(&self) -> &'static str {
+        XPATH_TRANSFORM_TEMPLATE_ADAPTER_ID
+    }
+
+    fn kind(&self) -> TransformTemplateKind {
+        TransformTemplateKind::XPath
+    }
+
+    fn capability(&self) -> TransformTemplateAdapterCapability {
+        TransformTemplateAdapterCapability::Executable
+    }
+
+    fn matches_template(&self, identity: &FormatIdentity) -> bool {
+        identity
+            .content_type
+            .as_deref()
+            .map(content_type_essence)
+            .is_some_and(|content_type| {
+                matches!(content_type.as_str(), XPATH_CONTENT_TYPE | "text/xpath")
+            })
+            || identity.schema.as_deref() == Some(XPATH_SCHEMA_URI)
+    }
+
+    fn compile(
+        &self,
+        request: TransformTemplateCompileRequest<'_>,
+    ) -> TransformTemplateAdapterResult<TransformTemplateCompileResponse> {
+        if !request.entrypoint.is_implicit() {
+            return Err(TransformTemplateAdapterError::failed(
+                self.id(),
+                TransformTemplateAdapterExecutionPhase::Compile,
+                "XPath transforms use the expression root as the implicit entrypoint",
+            ));
+        }
+        if !request.params.is_empty() {
+            return Err(TransformTemplateAdapterError::failed(
+                self.id(),
+                TransformTemplateAdapterExecutionPhase::Compile,
+                "XPath parameter-to-XDM bindings are not defined for the standalone transform slice",
+            ));
+        }
+
+        let expression = Arc::new(xpath_expression_ast_from_source_bytes(
+            XPathSourceRequest {
+                bytes: &request.template.bytes,
+                source_uri: &request.template.uri,
+                content_type: request
+                    .template
+                    .identity
+                    .as_ref()
+                    .and_then(|identity| identity.content_type.as_deref()),
+            },
+            XPathAttachment::Standalone { source_id: 1 },
+        ));
+        let diagnostics = validate_xpath_expression_ast(
+            expression.as_ref(),
+            &XPathSchemaContractCatalog::from_builtin(),
+        );
+        let static_context = request
+            .template
+            .identity
+            .as_ref()
+            .map(|identity| XPathStaticContext {
+                namespaces: identity.namespaces.clone(),
+                default_element_namespace: identity.default_namespace.clone(),
+                default_function_namespace: None,
+                variable_bindings: BTreeMap::new(),
+                function_bindings: BTreeMap::new(),
+            })
+            .unwrap_or_default();
+
+        Ok(TransformTemplateCompileResponse {
+            artifact: TransformTemplateCompiledArtifact::new(
+                self.id(),
+                self.kind(),
+                request.template.uri.clone(),
+                request.template.identity.clone(),
+                request.entrypoint.clone(),
+                Value::Null,
+            )
+            .with_parameters(request.params.clone())
+            .with_native_payload(XPathCompiledTransformPayload {
+                expression,
+                static_context,
+            }),
+            diagnostics,
+        })
+    }
+
+    fn render_with_runtime(
+        &self,
+        request: TransformTemplateRenderRequest<'_>,
+        runtime: TransformTemplateRuntimeContext<'_>,
+    ) -> TransformTemplateAdapterResult<TransformTemplateRenderResponse> {
+        if !request.secondary_inputs.is_empty() {
+            return Err(TransformTemplateAdapterError::failed(
+                self.id(),
+                TransformTemplateAdapterExecutionPhase::Render,
+                "secondary XPath transform inputs require an explicit context or variable binding contract",
+            ));
+        }
+        if !request.compiled.parameters().is_empty() {
+            return Err(TransformTemplateAdapterError::failed(
+                self.id(),
+                TransformTemplateAdapterExecutionPhase::Render,
+                "XPath parameter-to-XDM bindings are not defined for the standalone transform slice",
+            ));
+        }
+        let payload = request
+            .compiled
+            .native_payload::<XPathCompiledTransformPayload>()
+            .ok_or_else(|| {
+                TransformTemplateAdapterError::failed(
+                    self.id(),
+                    TransformTemplateAdapterExecutionPhase::Render,
+                    "compiled XPath template is missing its package-owned expression AST",
+                )
+            })?;
+        let TransformArtifactBody::Lifecycle(owner) = &request.primary_input.body else {
+            return Err(TransformTemplateAdapterError::failed(
+                self.id(),
+                TransformTemplateAdapterExecutionPhase::Render,
+                format!(
+                    "XPath standalone transforms require a lifecycle XML AST, got `{}`",
+                    request.primary_input.body.representation_id()
+                ),
+            ));
+        };
+        let context_node = XPathNativeNode::xml_document(Arc::clone(owner)).map_err(|error| {
+            TransformTemplateAdapterError::failed(
+                self.id(),
+                TransformTemplateAdapterExecutionPhase::Render,
+                error.to_string(),
+            )
+        })?;
+        let safety_policy_stamp = format!(
+            "cem.xpath.transform-safety/1;phase={:?};scope-policy={}",
+            request.execution_policy.runtime_phase,
+            request.target_scope.policy.as_deref().unwrap_or("default")
+        );
+        let result = CemXPathEvaluator::default()
+            .evaluate(XPathEvaluationRequest {
+                expression: payload.expression.as_ref(),
+                context_item: Some(XPathResultItem::from_native_node(context_node)),
+                variable_bindings: BTreeMap::new(),
+                static_context: payload.static_context.clone(),
+                expected_result: None,
+                resolver_registry: runtime.resolver_registry,
+                resolver_policy: runtime.resolver_policy,
+                safety_policy_stamp: &safety_policy_stamp,
+            })
+            .map_err(|diagnostics| {
+                TransformTemplateAdapterError::failed(
+                    self.id(),
+                    TransformTemplateAdapterExecutionPhase::Render,
+                    diagnostics
+                        .iter()
+                        .map(|diagnostic| format!("{}: {}", diagnostic.code, diagnostic.message))
+                        .collect::<Vec<_>>()
+                        .join("; "),
+                )
+            })?;
+        let source_map = result.source_map.clone();
+        let identity = request.target.cloned().unwrap_or_else(|| FormatIdentity {
+            content_type: Some(XPATH_RESULT_CONTENT_TYPE.to_owned()),
+            schema: Some(XPATH_SCHEMA_URI.to_owned()),
+            ..FormatIdentity::default()
+        });
+
+        Ok(TransformTemplateRenderResponse {
+            output: TransformTemplateOutputArtifact::new(
+                request.primary_input.uri.clone(),
+                Some(identity),
+                TransformArtifactBody::XPathResult(Arc::new(result)),
+            )
+            .with_metadata(Some(source_map), Vec::new()),
+            diagnostics: Vec::new(),
+        })
     }
 }
 
@@ -3675,6 +3878,123 @@ mod tests {
                 !evaluator.contains(forbidden),
                 "native evaluator must not cross `{forbidden}`"
             );
+        }
+    }
+
+    #[test]
+    fn xpath_transform_adapter_routes_lifecycle_xml_owner_to_typed_result_without_projection() {
+        use crate::engine::{
+            FormatIdentity, TemplateInput, TransformExecutionPolicy, TransformRuntimePhase,
+            TransformTemplateEntrypoint, TransformTemplateKind,
+        };
+        use crate::lifecycle::LoadedInputAstStream;
+        use crate::resolver::{ResolverPolicy, ResolverRegistry};
+        use crate::run_config::ScopeConfig;
+        use crate::schema::registry::{XML_CONTENT_TYPE, XML_SCHEMA_URI};
+        use crate::transform_artifact::{TransformArtifactBody, TransformDataArtifact};
+        use crate::transform_template::{
+            TransformTemplateAdapter, TransformTemplateCompileRequest,
+            TransformTemplateModuleOptions, TransformTemplateModulePreflight,
+            TransformTemplateParameterArena, TransformTemplateRenderRequest,
+            TransformTemplateRuntimeContext,
+        };
+        use crate::validation::xml::{
+            xml_document_ast_from_source_bytes, XmlSourceValidationRequest,
+        };
+        use std::sync::Arc;
+
+        let (document, diagnostics) =
+            xml_document_ast_from_source_bytes(XmlSourceValidationRequest {
+                bytes: b"<catalog><book/><book/></catalog>",
+                source_uri: "memory://catalog.xml",
+                content_type: Some(XML_CONTENT_TYPE),
+            });
+        assert!(diagnostics.is_empty(), "{diagnostics:?}");
+        let owner = Arc::new(LoadedInputAstStream::XmlDocument(
+            document.expect("typed XML document"),
+        ));
+        let template = TemplateInput {
+            uri: "memory://books.xpath".to_owned(),
+            bytes: b"/catalog/book".to_vec(),
+            identity: Some(FormatIdentity {
+                content_type: Some(XPATH_CONTENT_TYPE.to_owned()),
+                schema: Some(XPATH_SCHEMA_URI.to_owned()),
+                ..FormatIdentity::default()
+            }),
+            root_scope: ScopeConfig::default(),
+        };
+        let params = TransformTemplateParameterArena::default();
+        let entrypoint = TransformTemplateEntrypoint::implicit();
+        let execution_policy = TransformExecutionPolicy {
+            runtime_phase: TransformRuntimePhase::XPath,
+            ..TransformExecutionPolicy::default()
+        };
+        let adapter = XPathTransformTemplateAdapter::default();
+        assert_eq!(adapter.kind(), TransformTemplateKind::XPath);
+        let compiled = adapter
+            .compile(TransformTemplateCompileRequest {
+                template: &template,
+                entrypoint: &entrypoint,
+                params: &params,
+                data_bindings: &["input".to_owned()],
+                module_options: TransformTemplateModuleOptions::default(),
+                module_preflight: TransformTemplateModulePreflight::default(),
+                execution_policy,
+            })
+            .expect("XPath transform compile");
+        assert!(
+            compiled.diagnostics.is_empty(),
+            "{:?}",
+            compiled.diagnostics
+        );
+
+        let primary_input = TransformDataArtifact::new(
+            "input",
+            Some("memory://catalog.xml".to_owned()),
+            Some(FormatIdentity {
+                content_type: Some(XML_CONTENT_TYPE.to_owned()),
+                schema: Some(XML_SCHEMA_URI.to_owned()),
+                ..FormatIdentity::default()
+            }),
+            TransformArtifactBody::Lifecycle(Arc::clone(&owner)),
+        );
+        let secondary_inputs = BTreeMap::new();
+        let target_scope = ScopeConfig::default();
+        let target = FormatIdentity {
+            content_type: Some(XPATH_RESULT_CONTENT_TYPE.to_owned()),
+            schema: Some(XPATH_SCHEMA_URI.to_owned()),
+            ..FormatIdentity::default()
+        };
+        let resolver_registry = ResolverRegistry::new();
+        let resolver_policy = ResolverPolicy::new();
+        let rendered = adapter
+            .render_with_runtime(
+                TransformTemplateRenderRequest {
+                    compiled: &compiled.artifact,
+                    primary_input: &primary_input,
+                    secondary_inputs: &secondary_inputs,
+                    target: Some(&target),
+                    target_scope: &target_scope,
+                    execution_policy,
+                },
+                TransformTemplateRuntimeContext {
+                    resolver_registry: &resolver_registry,
+                    resolver_policy: &resolver_policy,
+                },
+            )
+            .expect("XPath transform render");
+        assert!(
+            rendered.diagnostics.is_empty(),
+            "{:?}",
+            rendered.diagnostics
+        );
+        let TransformArtifactBody::XPathResult(result) = rendered.output.body else {
+            panic!("XPath transform must return a typed XPath result artifact")
+        };
+        assert_eq!(result.sequence.items.len(), 2);
+        for item in &result.sequence.items {
+            let native_node = item.native_node().expect("native XPath result node");
+            assert!(Arc::ptr_eq(native_node.owner(), &owner));
         }
     }
 

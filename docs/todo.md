@@ -39,6 +39,12 @@ mediate between internal layers.
         explicit CEM-QL, CEMT, and XSLT invocation adapters without reparsing
         source text, constructing an evaluator-owned replacement XML tree, or
         projecting AST or result values through JSON.
+    - [x] Register the standalone XPath transform slice: compile XPath source
+          once into the package-owned AST, evaluate the primary lifecycle XML
+          owner as the document context, retain native node identity in the
+          typed XPath result artifact, export JSON only through the registered
+          result exporter, and reject parameters, secondary inputs, and
+          unsupported input AST families until their binding contracts exist.
   - [ ] Fuse parsed XPath streams into XSLT XPath-bearing attributes and AVT
         expression segments while retaining an independently addressable XPath
         AST associated with the owning XML event or subtree node.

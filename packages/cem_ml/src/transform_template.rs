@@ -16,6 +16,7 @@ use crate::parser::builder::CemAstBuilder;
 use crate::parser::document::CemDocument;
 use crate::parser::{AstNodeId, CemAstNode};
 use crate::projection::{CemTreeAstAttribute, CemTreeAstNode, CemTreeAstStream};
+use crate::resolver::{ResolverPolicy, ResolverRegistry};
 use crate::run_config::ScopeConfig;
 use crate::schema::registry::{
     AI_CONTEXT_JSON_CONTENT_TYPE, AI_CONTEXT_SCHEMA_URI, CEM_AST_PROJECTION_CONTENT_TYPE,
@@ -25543,6 +25544,12 @@ pub struct TransformTemplateRenderRequest<'a> {
     pub execution_policy: TransformExecutionPolicy,
 }
 
+#[derive(Debug, Clone, Copy)]
+pub struct TransformTemplateRuntimeContext<'a> {
+    pub resolver_registry: &'a ResolverRegistry,
+    pub resolver_policy: &'a ResolverPolicy,
+}
+
 #[derive(Debug, Clone)]
 pub struct TransformTemplateOutputArtifact {
     pub uri: Option<String>,
@@ -25857,6 +25864,15 @@ pub trait TransformTemplateAdapter: Send + Sync {
             TransformTemplateAdapterExecutionPhase::Render,
         ))
     }
+
+    fn render_with_runtime(
+        &self,
+        request: TransformTemplateRenderRequest<'_>,
+        runtime: TransformTemplateRuntimeContext<'_>,
+    ) -> TransformTemplateAdapterResult<TransformTemplateRenderResponse> {
+        let _ = runtime;
+        self.render(request)
+    }
 }
 
 #[derive(Clone, Default)]
@@ -25904,6 +25920,7 @@ impl TransformTemplateAdapterRegistry {
             &[CEM_QL_EXPRESSION_SCHEMA_URI],
             &[],
         ));
+        registry.register(crate::validation::xpath::XPathTransformTemplateAdapter);
         registry.register(StaticTransformTemplateAdapter::new(
             "xslt-template",
             TransformTemplateKind::Xslt,
