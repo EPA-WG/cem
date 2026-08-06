@@ -49,8 +49,8 @@ use cem_ml::transform_artifact::{
     CemtEvaluatorNumber, CemtEvaluatorRecordRef, CemtEvaluatorRecordView, CemtEvaluatorSequenceRef,
     CemtEvaluatorSequenceView, CemtEvaluatorValue, CemtEvaluatorValueKind, CemtEvaluatorValueRef,
     TransformArtifactBody, TransformArtifactCollection, TransformArtifactCollectionMode,
-    TransformArtifactExporter, TransformEncodedArtifact, TransformEncoding,
-    TransformNativeArtifact,
+    TransformArtifactExportRequest, TransformArtifactExporter, TransformEncodedArtifact,
+    TransformEncoding, TransformNativeArtifact,
 };
 use cem_ml::transform_template::{
     parse_cem_native_template_module_options, parse_transform_template_output_color_type,
@@ -186,13 +186,12 @@ impl TransformArtifactExporter for CemQlJsonResultExporter {
 
     fn export(
         &self,
-        body: &TransformArtifactBody,
-        target: &FormatIdentity,
+        request: TransformArtifactExportRequest<'_>,
     ) -> Result<Arc<TransformEncodedArtifact>, String> {
-        let TransformArtifactBody::Extension(native) = body else {
+        let TransformArtifactBody::Extension(native) = request.body else {
             return Err(format!(
                 "expected native `{CEM_QL_RESULT_REPRESENTATION_ID}` body, got `{}`",
-                body.representation_id()
+                request.body.representation_id()
             ));
         };
         let result = native
@@ -203,7 +202,7 @@ impl TransformArtifactExporter for CemQlJsonResultExporter {
             })?;
         let bytes = serde_json::to_vec(&item_stream_json(&result.stream))
             .map_err(|error| format!("CEM-QL result JSON encoding failed: {error}"))?;
-        TransformEncodedArtifact::new(target.clone(), TransformEncoding::Json, bytes)
+        TransformEncodedArtifact::new(request.target.clone(), TransformEncoding::Json, bytes)
             .map(Arc::new)
             .map_err(|error| error.to_string())
     }

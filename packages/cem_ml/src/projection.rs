@@ -25,7 +25,8 @@ use crate::tokenizer::cem::CemTokenizer;
 use crate::tokenizer::html::HtmlTokenizer;
 use crate::tokenizer::xml::XmlTokenizer;
 use crate::tokenizer::SchemaTokenizer;
-use serde::{Deserialize, Deserializer, Serialize};
+use serde::ser::{SerializeMap, SerializeSeq};
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use serde_json::{json, Value};
 use std::collections::BTreeMap;
 use std::sync::Arc;
@@ -1059,6 +1060,249 @@ fn hex_encode(bytes: &[u8]) -> String {
 ///   ]
 /// }
 /// ```
+#[derive(Debug, Clone, Copy)]
+pub struct DomJsonProjectionRef<'a> {
+    document: &'a CemDocument,
+}
+
+impl<'a> DomJsonProjectionRef<'a> {
+    pub fn new(document: &'a CemDocument) -> Self {
+        Self { document }
+    }
+
+    pub fn document(self) -> &'a CemDocument {
+        self.document
+    }
+}
+
+impl Serialize for DomJsonProjectionRef<'_> {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        let Some(CemAstNode::Document {
+            root_children,
+            source,
+            ..
+        }) = self.document.root()
+        else {
+            return serializer.serialize_none();
+        };
+        let mut document = serializer.serialize_map(Some(3))?;
+        document.serialize_entry("kind", "document")?;
+        document.serialize_entry(
+            "children",
+            &DomJsonChildrenRef {
+                document: self.document,
+                node_ids: root_children,
+            },
+        )?;
+        document.serialize_entry("sourceMap", source)?;
+        document.end()
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+struct DomJsonChildrenRef<'a> {
+    document: &'a CemDocument,
+    node_ids: &'a [AstNodeId],
+}
+
+impl Serialize for DomJsonChildrenRef<'_> {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        let child_count = self
+            .node_ids
+            .iter()
+            .filter(|node_id| {
+                self.document
+                    .get(**node_id)
+                    .is_some_and(|node| !matches!(node, CemAstNode::Attribute { .. }))
+            })
+            .count();
+        let mut children = serializer.serialize_seq(Some(child_count))?;
+        for node_id in self.node_ids {
+            let Some(node) = self.document.get(*node_id) else {
+                continue;
+            };
+            if matches!(node, CemAstNode::Attribute { .. }) {
+                continue;
+            }
+            children.serialize_element(&DomJsonNodeRef {
+                document: self.document,
+                node,
+            })?;
+        }
+        children.end()
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+struct DomJsonAttributesRef<'a> {
+    document: &'a CemDocument,
+    node_ids: &'a [AstNodeId],
+}
+
+impl Serialize for DomJsonAttributesRef<'_> {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        let attribute_count = self
+            .node_ids
+            .iter()
+            .filter(|node_id| {
+                matches!(
+                    self.document.get(**node_id),
+                    Some(CemAstNode::Attribute { .. })
+                )
+            })
+            .count();
+        let mut attributes = serializer.serialize_seq(Some(attribute_count))?;
+        for node_id in self.node_ids {
+            let Some(CemAstNode::Attribute {
+                expanded_name,
+                value,
+                source,
+                ..
+            }) = self.document.get(*node_id)
+            else {
+                continue;
+            };
+            attributes.serialize_element(&DomJsonAttributeRef {
+                expanded_name,
+                value,
+                source,
+            })?;
+        }
+        attributes.end()
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+struct DomJsonAttributeRef<'a> {
+    expanded_name: &'a ExpandedName,
+    value: &'a Option<String>,
+    source: &'a SourceMapStack,
+}
+
+impl Serialize for DomJsonAttributeRef<'_> {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        let mut attribute = serializer.serialize_map(Some(4))?;
+        attribute.serialize_entry("name", &self.expanded_name.local_name)?;
+        attribute.serialize_entry("namespace", &self.expanded_name.namespace_uri)?;
+        attribute.serialize_entry("value", self.value)?;
+        attribute.serialize_entry("sourceMap", self.source)?;
+        attribute.end()
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+struct DomJsonNodeRef<'a> {
+    document: &'a CemDocument,
+    node: &'a CemAstNode,
+}
+
+impl Serialize for DomJsonNodeRef<'_> {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        match self.node {
+            CemAstNode::Document { root_children, .. } => {
+                let mut node = serializer.serialize_map(Some(2))?;
+                node.serialize_entry("kind", "document")?;
+                node.serialize_entry(
+                    "children",
+                    &DomJsonChildrenRef {
+                        document: self.document,
+                        node_ids: root_children,
+                    },
+                )?;
+                node.end()
+            }
+            CemAstNode::Element {
+                expanded_name,
+                attributes,
+                children,
+                source,
+                ..
+            } => {
+                let mut node = serializer.serialize_map(Some(7))?;
+                node.serialize_entry("kind", "element")?;
+                node.serialize_entry("name", &expanded_name.local_name)?;
+                node.serialize_entry("namespace", &expanded_name.namespace_uri)?;
+                node.serialize_entry(
+                    "attributes",
+                    &DomJsonAttributesRef {
+                        document: self.document,
+                        node_ids: attributes,
+                    },
+                )?;
+                node.serialize_entry(
+                    "children",
+                    &DomJsonChildrenRef {
+                        document: self.document,
+                        node_ids: children,
+                    },
+                )?;
+                node.serialize_entry("byteRange", &stack_origin(source))?;
+                node.serialize_entry("sourceMap", source)?;
+                node.end()
+            }
+            CemAstNode::Text { data, source, .. }
+            | CemAstNode::Whitespace { data, source, .. }
+            | CemAstNode::Comment { data, source, .. }
+            | CemAstNode::Cdata { data, source, .. }
+            | CemAstNode::RawText { data, source, .. } => {
+                let kind = match self.node {
+                    CemAstNode::Text { .. } => "text",
+                    CemAstNode::Whitespace { .. } => "whitespace",
+                    CemAstNode::Comment { .. } => "comment",
+                    CemAstNode::Cdata { .. } => "cdata",
+                    CemAstNode::RawText { .. } => "raw-text",
+                    _ => unreachable!(),
+                };
+                let mut node = serializer.serialize_map(Some(4))?;
+                node.serialize_entry("kind", kind)?;
+                node.serialize_entry("data", data)?;
+                node.serialize_entry("byteRange", &stack_origin(source))?;
+                node.serialize_entry("sourceMap", source)?;
+                node.end()
+            }
+            CemAstNode::ProcessingInstruction {
+                target,
+                data,
+                source,
+                ..
+            } => {
+                let mut node = serializer.serialize_map(Some(6))?;
+                node.serialize_entry("kind", "processing-instruction")?;
+                node.serialize_entry("name", target)?;
+                node.serialize_entry("target", target)?;
+                node.serialize_entry("data", data)?;
+                node.serialize_entry("byteRange", &stack_origin(source))?;
+                node.serialize_entry("sourceMap", source)?;
+                node.end()
+            }
+            CemAstNode::Error { code, source, .. } => {
+                let mut node = serializer.serialize_map(Some(4))?;
+                node.serialize_entry("kind", "error")?;
+                node.serialize_entry("code", code)?;
+                node.serialize_entry("byteRange", &stack_origin(source))?;
+                node.serialize_entry("sourceMap", source)?;
+                node.end()
+            }
+            CemAstNode::Attribute { .. } => serializer.serialize_none(),
+        }
+    }
+}
+
 pub fn dom_json(doc: &CemDocument) -> Value {
     match doc.root() {
         Some(CemAstNode::Document {
@@ -1937,6 +2181,171 @@ pub fn ast_stream(doc: &CemDocument, source_content_type: Option<&str>) -> CemTr
 /// ```
 pub fn events_json(input: &[u8]) -> Value {
     events_json_as(input, InputFormat::Cem)
+}
+
+#[derive(Debug, Clone)]
+pub struct NormalizedEventStream {
+    events: Vec<NormalizedEvent>,
+}
+
+impl NormalizedEventStream {
+    pub fn new(events: Vec<NormalizedEvent>) -> Self {
+        Self { events }
+    }
+
+    pub fn from_source(input: &[u8], from_format: InputFormat) -> Self {
+        let source = BytesSource::new(SourceId(1), input.to_vec());
+        let events = match from_format {
+            InputFormat::Cem => collect_normalized_events(CemTokenizer::from_source(source)),
+            InputFormat::Html => collect_normalized_events(HtmlTokenizer::from_source(source)),
+            InputFormat::Xml => collect_normalized_events(XmlTokenizer::from_source(source)),
+        };
+        Self::new(events)
+    }
+
+    pub fn as_events(&self) -> &[NormalizedEvent] {
+        &self.events
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct EventsJsonProjectionRef<'a> {
+    stream: &'a NormalizedEventStream,
+}
+
+impl<'a> EventsJsonProjectionRef<'a> {
+    pub fn new(stream: &'a NormalizedEventStream) -> Self {
+        Self { stream }
+    }
+
+    pub fn stream(self) -> &'a NormalizedEventStream {
+        self.stream
+    }
+}
+
+impl Serialize for EventsJsonProjectionRef<'_> {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        let mut events = serializer.serialize_seq(Some(self.stream.events.len()))?;
+        for event in &self.stream.events {
+            events.serialize_element(&EventJsonProjectionRef { event })?;
+        }
+        events.end()
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+struct EventJsonProjectionRef<'a> {
+    event: &'a NormalizedEvent,
+}
+
+impl Serialize for EventJsonProjectionRef<'_> {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        match self.event {
+            NormalizedEvent::OpenScope {
+                name, byte_range, ..
+            }
+            | NormalizedEvent::CloseScope {
+                name, byte_range, ..
+            }
+            | NormalizedEvent::Name { name, byte_range } => {
+                let kind = match self.event {
+                    NormalizedEvent::OpenScope { .. } => "open",
+                    NormalizedEvent::CloseScope { .. } => "close",
+                    NormalizedEvent::Name { .. } => "name",
+                    _ => unreachable!(),
+                };
+                let mut event = serializer.serialize_map(Some(3))?;
+                event.serialize_entry("kind", kind)?;
+                event.serialize_entry("name", &name.lexical_name)?;
+                event.serialize_entry("byteRange", byte_range)?;
+                event.end()
+            }
+            NormalizedEvent::Value { value, byte_range } => {
+                let mut event = serializer.serialize_map(Some(3))?;
+                event.serialize_entry("kind", "value")?;
+                event.serialize_entry("value", &ScalarJsonProjectionRef { value })?;
+                event.serialize_entry("byteRange", byte_range)?;
+                event.end()
+            }
+            NormalizedEvent::Trivia {
+                kind,
+                data,
+                byte_range,
+            } => {
+                let mut event = serializer.serialize_map(Some(4))?;
+                event.serialize_entry("kind", "trivia")?;
+                event.serialize_entry(
+                    "trivia",
+                    match kind {
+                        TriviaKind::Whitespace => "whitespace",
+                        TriviaKind::Comment => "comment",
+                    },
+                )?;
+                event.serialize_entry("data", data)?;
+                event.serialize_entry("byteRange", byte_range)?;
+                event.end()
+            }
+            NormalizedEvent::ProcessingInstruction {
+                target,
+                data,
+                byte_range,
+            } => {
+                let mut event = serializer.serialize_map(Some(4))?;
+                event.serialize_entry("kind", "processing-instruction")?;
+                event.serialize_entry("target", target)?;
+                event.serialize_entry("data", data)?;
+                event.serialize_entry("byteRange", byte_range)?;
+                event.end()
+            }
+            NormalizedEvent::Separator { byte_range, .. } => {
+                let mut event = serializer.serialize_map(Some(2))?;
+                event.serialize_entry("kind", "separator")?;
+                event.serialize_entry("byteRange", byte_range)?;
+                event.end()
+            }
+            NormalizedEvent::ModeSwitch { content_type, .. } => {
+                let mut event = serializer.serialize_map(Some(2))?;
+                event.serialize_entry("kind", "mode-switch")?;
+                event.serialize_entry("contentType", content_type)?;
+                event.end()
+            }
+            NormalizedEvent::Error {
+                code, byte_range, ..
+            } => {
+                let mut event = serializer.serialize_map(Some(3))?;
+                event.serialize_entry("kind", "error")?;
+                event.serialize_entry("code", code)?;
+                event.serialize_entry("byteRange", byte_range)?;
+                event.end()
+            }
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+struct ScalarJsonProjectionRef<'a> {
+    value: &'a ScalarValue,
+}
+
+impl Serialize for ScalarJsonProjectionRef<'_> {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        match self.value {
+            ScalarValue::Text(value) => serializer.serialize_str(value),
+            ScalarValue::Int(value) => serializer.serialize_i64(*value),
+            ScalarValue::Float(value) => serializer.serialize_f64(*value),
+            ScalarValue::Bool(value) => serializer.serialize_bool(*value),
+            ScalarValue::Null => serializer.serialize_none(),
+        }
+    }
 }
 
 pub fn events_json_as(input: &[u8], from_format: InputFormat) -> Value {

@@ -895,7 +895,7 @@ Remaining dependency-ordered package checklist:
   - [ ] Add deterministic compact/pretty/tabular and terminal/HTML/Markdown
         profiles that preserve lexical islands and source maps, then run package,
         converter-parity, CLI e2e, WASM, and core release gates.
-- [ ] Eliminate the implicit JSON transform data plane using Option C from
+- [x] Eliminate the implicit JSON transform data plane using Option C from
       `docs/transform-boundary-native-ast-decision.tmp.md`; this item is listed
       after XPath for roadmap grouping but must complete before XPath execution
       is registered.
@@ -1217,7 +1217,7 @@ Remaining dependency-ordered package checklist:
           and output spans without a serializer or DTO boundary. CEM-QL uses
           the same canonical mode names and exposes `artifact` as the preferred
           child field while retaining `primary` as a compatibility alias.
-  - [ ] Represent JSON input internally with a lossless `JsonDocumentAst` and
+  - [x] Represent JSON input internally with a lossless `JsonDocumentAst` and
         `JsonValueAst`, not `serde_json::Value`, preserving duplicate members,
         number lexemes, source ranges, diagnostics, and source maps.
     - [x] Classify the production JSON-route serde boundaries and record the
@@ -1261,7 +1261,7 @@ Remaining dependency-ordered package checklist:
   - [x] Add source audits and native/WASM behavior gates proving that only
         registered JSON or `+json` conversion edges can serialize JSON and that
         graph collections preserve typed child order and identity.
-  - [ ] Register explicit DOM, event-stream, and XPath-result JSON exporters
+  - [x] Register explicit DOM, event-stream, and XPath-result JSON exporters
         only after the native data-plane migration passes all gates.
 - [ ] Polish XSLT formatter and colorizer profile semantics on the dedicated
       `XsltDocumentAst` path.
@@ -1374,24 +1374,58 @@ intermediate values. Four-mode CEMT/CEM-QL matrices prove ordering,
 cardinality, native child ownership, target metadata, source maps, and output
 spans survive direct graph routing.
 
-### Next Work Item — Explicit Native Projection Exporters
+### Completed: Explicit Native Projection Exporters
 
-Register the remaining JSON projection edges without reopening a generic JSON
-transform data plane:
+The remaining JSON projection edges are registered without reopening a generic
+JSON transform data plane:
 
-- [ ] Define distinct registered exporter representations and target identities
+- [x] Define distinct registered exporter representations and target identities
       for DOM projections, event streams, and XPath results, including the
       exact JSON and `+json` media types each exporter accepts.
-- [ ] Make each exporter consume its borrowed native typed body directly and
+- [x] Make each exporter consume its borrowed native typed body directly and
       encode only after explicit target negotiation; do not add a generic
       `Value` fallback, shape classifier, or serializer between graph and
       exporter layers.
-- [ ] Preserve native owner, source-map, and output-span identity until the
+- [x] Preserve native owner, source-map, and output-span identity until the
       final encoding boundary. Add negative coverage for implicit JSON routes,
       mismatched non-JSON targets, and missing exporter registration.
-- [ ] Add focused representation/exporter tests and source-audit entries, then
+- [x] Add focused representation/exporter tests and source-audit entries, then
       run CEM-QL/core lint and tests, CLI converter parity/e2e, and native/WASM
       gates before marking the exporter and parent migration items complete.
+
+DOM projections, normalized event streams, and XPath results now have distinct
+native body and representation identities. The default engine registry owns
+their explicit exporters. DOM and event JSON is written by borrowed serializers
+over the native owners, while XPath results are encoded directly from their
+typed result owner. Each exporter accepts its vendor `+json` media type or
+`application/json` only when paired with the matching schema; implicit targets,
+non-JSON targets, schema mismatches, and absent registration are rejected.
+Registry dispatch retains the exact body, source-map, and output-span references
+through the final encoding call, and source audits prohibit a generic `Value`,
+compatibility projection, serializer DTO, or fallback between graph and
+exporter layers.
+
+### Next Work Item — XSLT Formatter and Colorizer Profile Semantics
+
+Polish the dedicated `XsltDocumentAst` output path without weakening its native
+ownership or lexical-preservation guarantees:
+
+- [ ] Characterize the current XSLT AST and package-owned CEMT path with red
+      fixtures covering stylesheet/module namespaces, XPath-bearing
+      attributes, AVTs, `xsl:text`, literal result elements, comments, CDATA,
+      extension namespaces, and legacy custom-element syntax.
+- [ ] Reuse the shared typed XML-family markup-token helper while keeping XSLT
+      layout, role, and color policy package-local.
+- [ ] Define deterministic `compact`, `pretty`, and `tabular` layouts that
+      preserve XPath, AVT, text, and foreign lexical islands. Preserve
+      token-level source maps and leave formatter-generated layout unmapped.
+- [ ] Verify formatter options and plain, terminal, HTML, and Markdown parity,
+      then run focused XSLT/package tests, core tests and lint, converter parity,
+      CLI e2e, and native/WASM gates.
+
+The first slice is characterization only. If existing package behavior and
+fixtures do not determine a layout rule for an ambiguous XSLT construct, stop
+at that decision point rather than inventing new profile semantics.
 
 ## Current Verification Commands
 

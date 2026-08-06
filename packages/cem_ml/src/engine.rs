@@ -161,7 +161,8 @@ impl Default for EngineContext {
             template_adapter_registry,
             transform_template_encode_registry:
                 TransformTemplateEncodeImplementationRegistry::with_builtin_encoders(),
-            transform_artifact_exporter_registry: TransformArtifactExporterRegistry::default(),
+            transform_artifact_exporter_registry:
+                TransformArtifactExporterRegistry::with_builtin_exporters(),
             schema_behavior_evaluator: None,
             convert_request_handlers: Vec::new(),
         }

@@ -4,14 +4,18 @@ use crate::lifecycle::LoadedInputAstStream;
 use crate::parser::document::CemDocument;
 use crate::projection::{
     CemTreeAstAttribute, CemTreeAstNode, CemTreeAstStream, CemTreeAstWriterTokenMetadata,
-    CemTreeAstWriterTokenSourceRange, CemTreeAstWriterTokenStyle,
+    CemTreeAstWriterTokenSourceRange, CemTreeAstWriterTokenStyle, DomJsonProjectionRef,
+    EventsJsonProjectionRef, NormalizedEventStream,
 };
 use crate::schema::registry::{
-    content_type_essence, CSS_CONTENT_TYPE, CSS_SCHEMA_URI, HTML_CONTENT_TYPE, HTML_SCHEMA_URI,
-    JSON_CONTENT_TYPE, JSON_SCHEMA_CONTENT_TYPE, JSON_SCHEMA_SCHEMA_URI, MARKDOWN_CONTENT_TYPE,
-    MARKDOWN_SCHEMA_URI, MATHML_NAMESPACE_URI, MATHML_SCHEMA_URI, RELAX_NG_SCHEMA_URI,
-    SVG_CONTENT_TYPE, SVG_NAMESPACE_URI, SVG_SCHEMA_URI, XHTML_CONTENT_TYPE, XHTML_SCHEMA_URI,
-    XML_CONTENT_TYPE, XML_SCHEMA_URI, XSLT_SCHEMA_URI, YAML_CONTENT_TYPE, YAML_SCHEMA_URI,
+    content_type_essence, CEM_DOM_JSON_PROJECTION_CONTENT_TYPE, CEM_DOM_PROJECTION_SCHEMA_URI,
+    CEM_EVENTS_JSON_PROJECTION_CONTENT_TYPE, CEM_EVENTS_PROJECTION_SCHEMA_URI, CSS_CONTENT_TYPE,
+    CSS_SCHEMA_URI, HTML_CONTENT_TYPE, HTML_SCHEMA_URI, JSON_CONTENT_TYPE,
+    JSON_SCHEMA_CONTENT_TYPE, JSON_SCHEMA_SCHEMA_URI, MARKDOWN_CONTENT_TYPE, MARKDOWN_SCHEMA_URI,
+    MATHML_NAMESPACE_URI, MATHML_SCHEMA_URI, RELAX_NG_SCHEMA_URI, SVG_CONTENT_TYPE,
+    SVG_NAMESPACE_URI, SVG_SCHEMA_URI, XHTML_CONTENT_TYPE, XHTML_SCHEMA_URI, XML_CONTENT_TYPE,
+    XML_SCHEMA_URI, XPATH_RESULT_CONTENT_TYPE, XPATH_SCHEMA_URI, XSLT_SCHEMA_URI,
+    YAML_CONTENT_TYPE, YAML_SCHEMA_URI,
 };
 use crate::source::{ByteRange, SourceId};
 use crate::source_map::{FrameSpan, SourceMapFrame, SourceMapStack, TransformKind};
@@ -67,6 +71,9 @@ use std::sync::Arc;
 
 pub const CEMT_TREE_REPRESENTATION_ID: &str = "cem.cemt-tree";
 pub const CEMT_MATERIALIZED_TREE_REPRESENTATION_ID: &str = "cem.cemt-materialized-tree";
+pub const DOM_PROJECTION_REPRESENTATION_ID: &str = "cem.dom-projection";
+pub const EVENT_STREAM_REPRESENTATION_ID: &str = "cem.event-stream";
+pub const XPATH_RESULT_REPRESENTATION_ID: &str = "cem.xpath-result";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[non_exhaustive]
@@ -8619,6 +8626,8 @@ impl TransformDataArtifact {
                 .map(CemtTreeArtifact::evaluator_view),
             TransformArtifactBody::CemDocument(_)
             | TransformArtifactBody::GenericData(_)
+            | TransformArtifactBody::DomProjection(_)
+            | TransformArtifactBody::EventStream(_)
             | TransformArtifactBody::XPathResult(_)
             | TransformArtifactBody::Encoded(_) => None,
         }
@@ -8632,6 +8641,8 @@ pub enum TransformArtifactBody {
     GenericData(Arc<GenericDataDocumentAst>),
     CemTree(Arc<CemTreeAstStream>),
     MaterializedCemtTree(Arc<CemtMaterializedTreeArtifact>),
+    DomProjection(Arc<CemDocument>),
+    EventStream(Arc<NormalizedEventStream>),
     XPathResult(Arc<XPathResultArtifact>),
     Collection(Arc<TransformArtifactCollection>),
     Extension(Arc<dyn TransformNativeArtifact>),
@@ -8646,7 +8657,9 @@ impl TransformArtifactBody {
             Self::GenericData(_) => "cem.generic-data-ast",
             Self::CemTree(_) => "cem.tree-ast",
             Self::MaterializedCemtTree(_) => CEMT_MATERIALIZED_TREE_REPRESENTATION_ID,
-            Self::XPathResult(_) => "cem.xpath-result",
+            Self::DomProjection(_) => DOM_PROJECTION_REPRESENTATION_ID,
+            Self::EventStream(_) => EVENT_STREAM_REPRESENTATION_ID,
+            Self::XPathResult(_) => XPATH_RESULT_REPRESENTATION_ID,
             Self::Collection(_) => "cem.transform-collection",
             Self::Extension(artifact) => artifact.representation_id(),
             Self::Encoded(_) => "cem.encoded",
@@ -8673,9 +8686,16 @@ pub trait TransformArtifactExporter: Send + Sync {
     fn representation_id(&self) -> &'static str;
     fn export(
         &self,
-        body: &TransformArtifactBody,
-        target: &FormatIdentity,
+        request: TransformArtifactExportRequest<'_>,
     ) -> Result<Arc<TransformEncodedArtifact>, String>;
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct TransformArtifactExportRequest<'a> {
+    pub body: &'a TransformArtifactBody,
+    pub target: &'a FormatIdentity,
+    pub source_map: Option<&'a SourceMapStack>,
+    pub output_spans: &'a [OutputSpan],
 }
 
 #[derive(Clone, Default)]
@@ -8684,6 +8704,14 @@ pub struct TransformArtifactExporterRegistry {
 }
 
 impl TransformArtifactExporterRegistry {
+    pub fn with_builtin_exporters() -> Self {
+        let mut registry = Self::default();
+        registry.register(DomProjectionJsonExporter);
+        registry.register(EventStreamJsonExporter);
+        registry.register(XPathResultJsonExporter);
+        registry
+    }
+
     pub fn register(&mut self, exporter: impl TransformArtifactExporter + 'static) {
         self.exporters
             .insert(exporter.representation_id(), Arc::new(exporter));
@@ -8694,18 +8722,184 @@ impl TransformArtifactExporterRegistry {
         body: &TransformArtifactBody,
         target: &FormatIdentity,
     ) -> Result<Arc<TransformEncodedArtifact>, String> {
-        let representation_id = body.representation_id();
+        self.export_with_metadata(TransformArtifactExportRequest {
+            body,
+            target,
+            source_map: None,
+            output_spans: &[],
+        })
+    }
+
+    pub fn export_with_metadata(
+        &self,
+        request: TransformArtifactExportRequest<'_>,
+    ) -> Result<Arc<TransformEncodedArtifact>, String> {
+        let representation_id = request.body.representation_id();
         let exporter = self.exporters.get(representation_id).ok_or_else(|| {
             format!(
                 "no transform artifact exporter is registered for native representation `{representation_id}`"
             )
         })?;
-        exporter.export(body, target).map_err(|message| {
+        exporter.export(request).map_err(|message| {
             format!(
                 "transform artifact exporter `{}` failed for `{representation_id}`: {message}",
                 exporter.id()
             )
         })
+    }
+}
+
+fn projection_json_target_matches(
+    target: &FormatIdentity,
+    vendor_content_type: &str,
+    schema_uri: &str,
+) -> bool {
+    let schema_matches = target.schema.as_deref() == Some(schema_uri);
+    match target.content_type.as_deref().map(content_type_essence) {
+        Some(content_type) if content_type == vendor_content_type => {
+            target.schema.is_none() || schema_matches
+        }
+        Some(content_type) if content_type == JSON_CONTENT_TYPE => schema_matches,
+        _ => false,
+    }
+}
+
+fn projection_json_target_error(
+    exporter_id: &str,
+    target: &FormatIdentity,
+    vendor_content_type: &str,
+    schema_uri: &str,
+) -> String {
+    format!(
+        "{exporter_id} target must use `{vendor_content_type}`, or `application/json` with schema `{schema_uri}`; got content type `{}` and schema `{}`",
+        target.content_type.as_deref().unwrap_or("none"),
+        target.schema.as_deref().unwrap_or("none")
+    )
+}
+
+#[derive(Debug, Clone, Default)]
+struct DomProjectionJsonExporter;
+
+impl TransformArtifactExporter for DomProjectionJsonExporter {
+    fn id(&self) -> &'static str {
+        "cem.dom-projection-json"
+    }
+
+    fn representation_id(&self) -> &'static str {
+        DOM_PROJECTION_REPRESENTATION_ID
+    }
+
+    fn export(
+        &self,
+        request: TransformArtifactExportRequest<'_>,
+    ) -> Result<Arc<TransformEncodedArtifact>, String> {
+        if !projection_json_target_matches(
+            request.target,
+            CEM_DOM_JSON_PROJECTION_CONTENT_TYPE,
+            CEM_DOM_PROJECTION_SCHEMA_URI,
+        ) {
+            return Err(projection_json_target_error(
+                self.id(),
+                request.target,
+                CEM_DOM_JSON_PROJECTION_CONTENT_TYPE,
+                CEM_DOM_PROJECTION_SCHEMA_URI,
+            ));
+        }
+        let TransformArtifactBody::DomProjection(document) = request.body else {
+            return Err(format!(
+                "expected native `{DOM_PROJECTION_REPRESENTATION_ID}` body, got `{}`",
+                request.body.representation_id()
+            ));
+        };
+        let bytes = serde_json::to_vec(&DomJsonProjectionRef::new(document.as_ref()))
+            .map_err(|error| format!("DOM projection JSON encoding failed: {error}"))?;
+        TransformEncodedArtifact::new(request.target.clone(), TransformEncoding::Json, bytes)
+            .map(Arc::new)
+            .map_err(|error| error.to_string())
+    }
+}
+
+#[derive(Debug, Clone, Default)]
+struct EventStreamJsonExporter;
+
+impl TransformArtifactExporter for EventStreamJsonExporter {
+    fn id(&self) -> &'static str {
+        "cem.event-stream-json"
+    }
+
+    fn representation_id(&self) -> &'static str {
+        EVENT_STREAM_REPRESENTATION_ID
+    }
+
+    fn export(
+        &self,
+        request: TransformArtifactExportRequest<'_>,
+    ) -> Result<Arc<TransformEncodedArtifact>, String> {
+        if !projection_json_target_matches(
+            request.target,
+            CEM_EVENTS_JSON_PROJECTION_CONTENT_TYPE,
+            CEM_EVENTS_PROJECTION_SCHEMA_URI,
+        ) {
+            return Err(projection_json_target_error(
+                self.id(),
+                request.target,
+                CEM_EVENTS_JSON_PROJECTION_CONTENT_TYPE,
+                CEM_EVENTS_PROJECTION_SCHEMA_URI,
+            ));
+        }
+        let TransformArtifactBody::EventStream(stream) = request.body else {
+            return Err(format!(
+                "expected native `{EVENT_STREAM_REPRESENTATION_ID}` body, got `{}`",
+                request.body.representation_id()
+            ));
+        };
+        let bytes = serde_json::to_vec(&EventsJsonProjectionRef::new(stream.as_ref()))
+            .map_err(|error| format!("event stream JSON encoding failed: {error}"))?;
+        TransformEncodedArtifact::new(request.target.clone(), TransformEncoding::Json, bytes)
+            .map(Arc::new)
+            .map_err(|error| error.to_string())
+    }
+}
+
+#[derive(Debug, Clone, Default)]
+struct XPathResultJsonExporter;
+
+impl TransformArtifactExporter for XPathResultJsonExporter {
+    fn id(&self) -> &'static str {
+        "cem.xpath-result-json"
+    }
+
+    fn representation_id(&self) -> &'static str {
+        XPATH_RESULT_REPRESENTATION_ID
+    }
+
+    fn export(
+        &self,
+        request: TransformArtifactExportRequest<'_>,
+    ) -> Result<Arc<TransformEncodedArtifact>, String> {
+        if !projection_json_target_matches(
+            request.target,
+            XPATH_RESULT_CONTENT_TYPE,
+            XPATH_SCHEMA_URI,
+        ) {
+            return Err(projection_json_target_error(
+                self.id(),
+                request.target,
+                XPATH_RESULT_CONTENT_TYPE,
+                XPATH_SCHEMA_URI,
+            ));
+        }
+        let TransformArtifactBody::XPathResult(result) = request.body else {
+            return Err(format!(
+                "expected native `{XPATH_RESULT_REPRESENTATION_ID}` body, got `{}`",
+                request.body.representation_id()
+            ));
+        };
+        let bytes = serde_json::to_vec(result.as_ref())
+            .map_err(|error| format!("XPath result JSON encoding failed: {error}"))?;
+        TransformEncodedArtifact::new(request.target.clone(), TransformEncoding::Json, bytes)
+            .map(Arc::new)
+            .map_err(|error| error.to_string())
     }
 }
 
@@ -10998,5 +11192,333 @@ mod tests {
             error,
             TransformEncodedArtifactError::JsonEncodingRequired { .. }
         ));
+    }
+
+    fn projection_test_document() -> Arc<CemDocument> {
+        use crate::events::cem::CemEventNormalizer;
+        use crate::parser::builder::CemAstBuilder;
+        use crate::source::BytesSource;
+        use crate::tokenizer::cem::CemTokenizer;
+
+        let source = BytesSource::new(SourceId(41), br#"{main @id=root |hello}"#.to_vec());
+        Arc::new(
+            CemAstBuilder::new(CemEventNormalizer::new(CemTokenizer::from_source(source))).build(),
+        )
+    }
+
+    fn projection_json_target(content_type: &str, schema: Option<&str>) -> FormatIdentity {
+        FormatIdentity {
+            content_type: Some(content_type.to_owned()),
+            schema: schema.map(str::to_owned),
+            ..FormatIdentity::default()
+        }
+    }
+
+    fn test_xpath_result_artifact() -> Arc<XPathResultArtifact> {
+        use crate::schema::registry::{XPATH_RESULT_CONTENT_TYPE, XPATH_SCHEMA_URI};
+        use crate::validation::xpath::{
+            XPathAtomicValue, XPathEvaluatorIdentity, XPathResultItem, XPathResultSequence,
+            XPathStaticContext, XPATH_GRAMMAR_VERSION,
+        };
+
+        Arc::new(XPathResultArtifact {
+            content_type: XPATH_RESULT_CONTENT_TYPE.to_owned(),
+            schema_uri: XPATH_SCHEMA_URI.to_owned(),
+            xpath_version: "3.1".to_owned(),
+            grammar_version: XPATH_GRAMMAR_VERSION.to_owned(),
+            evaluator: XPathEvaluatorIdentity {
+                evaluator_id: "test.xpath".to_owned(),
+                evaluator_version: "1.0.0".to_owned(),
+            },
+            expression_uri: "memory:projection-export.xpath".to_owned(),
+            static_context: XPathStaticContext::default(),
+            resolver_policy_stamp: "resolver-policy/1;test".to_owned(),
+            safety_policy_stamp: "xpath-safety/1;pure".to_owned(),
+            expected_result: None,
+            sequence: XPathResultSequence {
+                sequence_type: "xs:string".to_owned(),
+                items: vec![XPathResultItem::Atomic {
+                    value: XPathAtomicValue {
+                        type_name: "xs:string".to_owned(),
+                        lexical_value: "native".to_owned(),
+                        namespace_uri: None,
+                        local_name: None,
+                    },
+                    source_map: SourceMapStack::default(),
+                }],
+            },
+            source_map: SourceMapStack::default(),
+        })
+    }
+
+    #[test]
+    fn builtin_projection_exporters_encode_borrowed_native_owners_only_for_registered_json_targets()
+    {
+        use crate::engine::InputFormat;
+        use crate::projection::{events_json_as, NormalizedEventStream};
+        use crate::schema::registry::{
+            CEM_DOM_JSON_PROJECTION_CONTENT_TYPE, CEM_DOM_PROJECTION_SCHEMA_URI,
+            CEM_EVENTS_JSON_PROJECTION_CONTENT_TYPE, CEM_EVENTS_PROJECTION_SCHEMA_URI,
+            XPATH_RESULT_CONTENT_TYPE, XPATH_SCHEMA_URI,
+        };
+
+        let document = projection_test_document();
+        let event_stream = Arc::new(NormalizedEventStream::from_source(
+            br#"{main @id=root |hello}"#,
+            InputFormat::Cem,
+        ));
+        let xpath_result = test_xpath_result_artifact();
+        let context = crate::engine::EngineContext::default();
+        let registry = &context.transform_artifact_exporter_registry;
+
+        let cases = [
+            (
+                TransformArtifactBody::DomProjection(Arc::clone(&document)),
+                CEM_DOM_JSON_PROJECTION_CONTENT_TYPE,
+                CEM_DOM_PROJECTION_SCHEMA_URI,
+            ),
+            (
+                TransformArtifactBody::EventStream(Arc::clone(&event_stream)),
+                CEM_EVENTS_JSON_PROJECTION_CONTENT_TYPE,
+                CEM_EVENTS_PROJECTION_SCHEMA_URI,
+            ),
+            (
+                TransformArtifactBody::XPathResult(Arc::clone(&xpath_result)),
+                XPATH_RESULT_CONTENT_TYPE,
+                XPATH_SCHEMA_URI,
+            ),
+        ];
+
+        for (body, vendor_content_type, schema) in cases {
+            for target in [
+                projection_json_target(vendor_content_type, Some(schema)),
+                projection_json_target(JSON_CONTENT_TYPE, Some(schema)),
+            ] {
+                let encoded = registry
+                    .export(&body, &target)
+                    .unwrap_or_else(|error| panic!("{}: {error}", body.representation_id()));
+                assert_eq!(encoded.encoding, TransformEncoding::Json);
+                assert_eq!(encoded.identity, target);
+                let value: serde_json::Value =
+                    serde_json::from_slice(encoded.bytes.as_ref()).expect("exported JSON");
+                assert!(!value.is_null(), "{}", body.representation_id());
+            }
+
+            for target in [
+                projection_json_target(JSON_CONTENT_TYPE, None),
+                projection_json_target("application/xml", Some(schema)),
+                projection_json_target(vendor_content_type, Some("https://cem.dev/ns/wrong/1")),
+            ] {
+                let error = registry
+                    .export(&body, &target)
+                    .expect_err("implicit, non-JSON, and mismatched targets must be rejected");
+                assert!(error.contains("target"), "{error}");
+            }
+        }
+
+        let dom_encoded = registry
+            .export(
+                &TransformArtifactBody::DomProjection(Arc::clone(&document)),
+                &projection_json_target(
+                    CEM_DOM_JSON_PROJECTION_CONTENT_TYPE,
+                    Some(CEM_DOM_PROJECTION_SCHEMA_URI),
+                ),
+            )
+            .expect("DOM projection export");
+        assert_eq!(
+            serde_json::from_slice::<serde_json::Value>(dom_encoded.bytes.as_ref())
+                .expect("DOM export JSON"),
+            crate::projection::dom_json(document.as_ref())
+        );
+
+        let events_encoded = registry
+            .export(
+                &TransformArtifactBody::EventStream(Arc::clone(&event_stream)),
+                &projection_json_target(
+                    CEM_EVENTS_JSON_PROJECTION_CONTENT_TYPE,
+                    Some(CEM_EVENTS_PROJECTION_SCHEMA_URI),
+                ),
+            )
+            .expect("event stream export");
+        assert_eq!(
+            serde_json::from_slice::<serde_json::Value>(events_encoded.bytes.as_ref())
+                .expect("events export JSON"),
+            events_json_as(br#"{main @id=root |hello}"#, InputFormat::Cem)
+        );
+
+        let xpath_encoded = registry
+            .export(
+                &TransformArtifactBody::XPathResult(Arc::clone(&xpath_result)),
+                &projection_json_target(XPATH_RESULT_CONTENT_TYPE, Some(XPATH_SCHEMA_URI)),
+            )
+            .expect("XPath result export");
+        assert_eq!(
+            serde_json::from_slice::<serde_json::Value>(xpath_encoded.bytes.as_ref())
+                .expect("XPath export JSON"),
+            serde_json::to_value(xpath_result.as_ref()).expect("XPath parity JSON")
+        );
+
+        let TransformArtifactBody::DomProjection(routed_document) =
+            TransformArtifactBody::DomProjection(Arc::clone(&document))
+        else {
+            unreachable!()
+        };
+        assert!(Arc::ptr_eq(&routed_document, &document));
+        let TransformArtifactBody::EventStream(routed_events) =
+            TransformArtifactBody::EventStream(Arc::clone(&event_stream))
+        else {
+            unreachable!()
+        };
+        assert!(Arc::ptr_eq(&routed_events, &event_stream));
+        let TransformArtifactBody::XPathResult(routed_xpath) =
+            TransformArtifactBody::XPathResult(Arc::clone(&xpath_result))
+        else {
+            unreachable!()
+        };
+        assert!(Arc::ptr_eq(&routed_xpath, &xpath_result));
+    }
+
+    #[derive(Clone)]
+    struct ExportMetadataProbe {
+        seen: Arc<std::sync::Mutex<Option<(usize, usize, usize)>>>,
+    }
+
+    impl TransformArtifactExporter for ExportMetadataProbe {
+        fn id(&self) -> &'static str {
+            "test.export-metadata-probe"
+        }
+
+        fn representation_id(&self) -> &'static str {
+            DOM_PROJECTION_REPRESENTATION_ID
+        }
+
+        fn export(
+            &self,
+            request: TransformArtifactExportRequest<'_>,
+        ) -> Result<Arc<TransformEncodedArtifact>, String> {
+            *self.seen.lock().expect("probe lock") = Some((
+                request.body as *const TransformArtifactBody as usize,
+                request
+                    .source_map
+                    .map(|source_map| source_map as *const SourceMapStack as usize)
+                    .unwrap_or_default(),
+                request.output_spans.as_ptr() as usize,
+            ));
+            TransformEncodedArtifact::new(
+                request.target.clone(),
+                TransformEncoding::Json,
+                b"{}".to_vec(),
+            )
+            .map(Arc::new)
+            .map_err(|error| error.to_string())
+        }
+    }
+
+    #[test]
+    fn exporter_registry_borrows_body_source_map_and_output_spans_without_reconstruction() {
+        let body = TransformArtifactBody::DomProjection(projection_test_document());
+        let source_map = SourceMapStack::default();
+        let output_spans = vec![OutputSpan {
+            output_range: ByteRange::new(7, 3),
+            origin: SourceMapStack::default(),
+        }];
+        let seen = Arc::new(std::sync::Mutex::new(None));
+        let mut registry = TransformArtifactExporterRegistry::default();
+        registry.register(ExportMetadataProbe {
+            seen: Arc::clone(&seen),
+        });
+        let target = projection_json_target(
+            crate::schema::registry::CEM_DOM_JSON_PROJECTION_CONTENT_TYPE,
+            Some(crate::schema::registry::CEM_DOM_PROJECTION_SCHEMA_URI),
+        );
+
+        registry
+            .export_with_metadata(TransformArtifactExportRequest {
+                body: &body,
+                target: &target,
+                source_map: Some(&source_map),
+                output_spans: &output_spans,
+            })
+            .expect("probe export");
+
+        assert_eq!(
+            *seen.lock().expect("probe lock"),
+            Some((
+                &body as *const TransformArtifactBody as usize,
+                &source_map as *const SourceMapStack as usize,
+                output_spans.as_ptr() as usize,
+            ))
+        );
+    }
+
+    #[test]
+    fn unregistered_projection_exporter_fails_without_generic_fallback() {
+        let body = TransformArtifactBody::DomProjection(projection_test_document());
+        let target = projection_json_target(
+            crate::schema::registry::CEM_DOM_JSON_PROJECTION_CONTENT_TYPE,
+            Some(crate::schema::registry::CEM_DOM_PROJECTION_SCHEMA_URI),
+        );
+        let error = TransformArtifactExporterRegistry::default()
+            .export(&body, &target)
+            .expect_err("missing registration must fail");
+        assert!(error.contains(DOM_PROJECTION_REPRESENTATION_ID));
+        assert!(!error.contains("fallback"));
+    }
+
+    #[test]
+    fn native_projection_exporters_have_no_generic_value_or_compatibility_projection_bridge() {
+        let source = include_str!("transform_artifact.rs");
+        let exporters = source
+            .split_once("struct DomProjectionJsonExporter;")
+            .expect("native projection exporters")
+            .1
+            .split_once("impl fmt::Debug for TransformArtifactExporterRegistry")
+            .expect("native projection exporter boundary")
+            .0;
+        for required in [
+            "DomJsonProjectionRef::new(document.as_ref())",
+            "EventsJsonProjectionRef::new(stream.as_ref())",
+            "serde_json::to_vec(result.as_ref())",
+            "projection_json_target_matches",
+        ] {
+            assert!(
+                exporters.contains(required),
+                "native exporter must retain `{required}`"
+            );
+        }
+        for forbidden in [
+            "serde_json::Value",
+            "serde_json::to_value",
+            "serde_json::from_value",
+            "dom_json(",
+            "events_json",
+            "to_public_json",
+        ] {
+            assert!(
+                !exporters.contains(forbidden),
+                "native exporter must not cross `{forbidden}`"
+            );
+        }
+
+        let real_source = include_str!("real.rs");
+        let export_route = real_source
+            .split_once("fn transform_artifact_export_primary")
+            .expect("transform export route")
+            .1
+            .split_once("fn transform_graph_target_is_css")
+            .expect("transform export route boundary")
+            .0;
+        for required in ["export_with_metadata", "source_map", "output_spans"] {
+            assert!(
+                export_route.contains(required),
+                "final exporter route must borrow `{required}`"
+            );
+        }
+        for forbidden in ["to_value", "from_value", "dom_json", "events_json"] {
+            assert!(
+                !export_route.contains(forbidden),
+                "final exporter route must not reconstruct `{forbidden}`"
+            );
+        }
     }
 }

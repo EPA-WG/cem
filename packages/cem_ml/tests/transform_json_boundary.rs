@@ -8,6 +8,7 @@ use std::collections::BTreeMap;
 
 const REAL_SOURCE: &str = include_str!("../src/real.rs");
 const ARTIFACT_SOURCE: &str = include_str!("../src/transform_artifact.rs");
+const PROJECTION_SOURCE: &str = include_str!("../src/projection.rs");
 const TEMPLATE_SOURCE: &str = include_str!("../src/transform_template.rs");
 const CEM_QL_ADAPTER_SOURCE: &str = include_str!("../../cem_ml_transform_cem_ql/src/lib.rs");
 
@@ -32,6 +33,7 @@ const TO_VALUE_ONCE: &[(&str, usize)] = &[("to_value", 1)];
 const TO_VALUE_TWICE: &[(&str, usize)] = &[("to_value", 2)];
 const TO_VALUE_THREE_TIMES: &[(&str, usize)] = &[("to_value", 3)];
 const TO_VEC_ONCE: &[(&str, usize)] = &[("to_vec", 1)];
+const TO_VEC_THREE_TIMES: &[(&str, usize)] = &[("to_vec", 3)];
 
 const JSON_BOUNDARY_ALLOWLIST: &[JsonBoundaryRegion] = &[
     JsonBoundaryRegion {
@@ -79,7 +81,7 @@ const JSON_BOUNDARY_ALLOWLIST: &[JsonBoundaryRegion] = &[
         class: "serializer-free-native-route",
         source: ARTIFACT_SOURCE,
         start: "pub fn cemt_evaluator_view",
-        end: "pub enum TransformArtifactCollectionMode",
+        end: "pub enum TransformArtifactBody",
         expected_operations: NO_JSON_OPERATIONS,
     },
     JsonBoundaryRegion {
@@ -217,6 +219,30 @@ const JSON_BOUNDARY_ALLOWLIST: &[JsonBoundaryRegion] = &[
         start: "impl TransformArtifactExporter for CemQlJsonResultExporter",
         end: "struct SchemaBehaviorCandidate",
         expected_operations: TO_VEC_ONCE,
+    },
+    JsonBoundaryRegion {
+        id: "native-projection-json-exporters",
+        class: "registered-exporter-boundary",
+        source: ARTIFACT_SOURCE,
+        start: "struct DomProjectionJsonExporter;",
+        end: "impl fmt::Debug for TransformArtifactExporterRegistry",
+        expected_operations: TO_VEC_THREE_TIMES,
+    },
+    JsonBoundaryRegion {
+        id: "dom-projection-borrowed-serializer",
+        class: "serializer-free-native-route",
+        source: PROJECTION_SOURCE,
+        start: "pub struct DomJsonProjectionRef",
+        end: "pub fn dom_json",
+        expected_operations: NO_JSON_OPERATIONS,
+    },
+    JsonBoundaryRegion {
+        id: "event-stream-borrowed-serializer",
+        class: "serializer-free-native-route",
+        source: PROJECTION_SOURCE,
+        start: "pub struct NormalizedEventStream",
+        end: "pub fn events_json_as",
+        expected_operations: NO_JSON_OPERATIONS,
     },
     JsonBoundaryRegion {
         id: "module-cache-native-policy-stamp",

@@ -84,8 +84,8 @@ use crate::tokenizer::SchemaTokenizer;
 use crate::transform_artifact::{
     CemtEvaluatorBindings, CemtEvaluatorValue, CemtEvaluatorValueKind, CemtTreeArtifact,
     CemtTreeSubjectRef, TransformArtifactBody, TransformArtifactCollection,
-    TransformArtifactCollectionItem, TransformArtifactCollectionMode, TransformEncodedArtifact,
-    TransformEncoding,
+    TransformArtifactCollectionItem, TransformArtifactCollectionMode,
+    TransformArtifactExportRequest, TransformEncodedArtifact, TransformEncoding,
 };
 use crate::transform_config::{
     parse_transform_graph_config, TransformGraphParseRequest, TRANSFORM_CONFIG_SCHEMA_URI,
@@ -2649,7 +2649,13 @@ fn transform_graph_export_primary(
         }
     }
 
-    let primary = transform_artifact_export_primary(context, artifact, target)?;
+    let primary = transform_artifact_export_primary(
+        context,
+        artifact,
+        target,
+        metadata.source_map.as_ref(),
+        &metadata.output_spans,
+    )?;
     Ok((
         primary,
         metadata.source_map.clone(),
@@ -2661,6 +2667,8 @@ fn transform_artifact_export_primary(
     context: &EngineContext,
     artifact: &TransformTemplateDataArtifact,
     target: Option<&FormatIdentity>,
+    source_map: Option<&SourceMapStack>,
+    output_spans: &[OutputSpan],
 ) -> Result<Value, String> {
     let encoded = match &artifact.body {
         TransformArtifactBody::Encoded(encoded) => Arc::clone(encoded),
@@ -2673,7 +2681,12 @@ fn transform_artifact_export_primary(
             })?;
             context
                 .transform_artifact_exporter_registry
-                .export(body, target)?
+                .export_with_metadata(TransformArtifactExportRequest {
+                    body,
+                    target,
+                    source_map,
+                    output_spans,
+                })?
         }
     };
 
@@ -10411,6 +10424,8 @@ impl CemMlEngine for RealCemMlEngine {
             &request.context,
             &output_artifact,
             request.target.as_ref().or(rendered.identity.as_ref()),
+            rendered.source_map.as_ref(),
+            &rendered.output_spans,
         ) {
             Ok(primary) => primary,
             Err(message) => {
