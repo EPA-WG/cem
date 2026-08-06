@@ -916,7 +916,7 @@ Remaining dependency-ordered package checklist:
         through `load_transform_data_artifact`, graph routing, joins, and
         adapter dispatch instead of calling `projection::dom_json` or an
         equivalent serializer.
-  - [ ] Migrate CEM-QL, CEMT, and XSLT adapters to typed or lazy native AST
+  - [x] Migrate CEM-QL, CEMT, and XSLT adapters to typed or lazy native AST
         views; remove generic `value_to_stream`, `to_cemt_subject`, and
         `to_json` tier ingress and keep JSON-to-query conversion only for
         explicitly identified JSON AST input.
@@ -1211,6 +1211,12 @@ Remaining dependency-ordered package checklist:
             colorizer, writer, graph, join, and secondary-input handoffs.
       - [x] Add CEMT source audits and pass focused package, core, converter
             parity, CLI e2e, lint, native build/test, and WASM gates.
+    - [x] Expose graph collections to CEMT as borrowed native record/sequence
+          views over `TransformArtifactCollection`, retaining ordered item
+          metadata, child AST identity, target identity, bindings, source maps,
+          and output spans without a serializer or DTO boundary. CEM-QL uses
+          the same canonical mode names and exposes `artifact` as the preferred
+          child field while retaining `primary` as a compatibility alias.
   - [ ] Represent JSON input internally with a lossless `JsonDocumentAst` and
         `JsonValueAst`, not `serde_json::Value`, preserving duplicate members,
         number lexemes, source ranges, diagnostics, and source maps.
@@ -1320,36 +1326,46 @@ Remaining dependency-ordered package checklist:
       into their module-local owned evaluator values rather than borrowing a
       root parameter owner.
 
-### Next Work Item — Collection Evaluator Shape Decision Required
+### Completed: Native Collection Evaluator Contract
 
-Choose the native evaluator contract for graph collection modes before making
-collections visible to CEMT expressions. `TransformArtifactCollection` already
-owns ordered child `Arc<TransformDataArtifact>` values plus input name,
-destination, target identity, bindings, source map, and output spans; the next
-slice must expose borrowed views over that owner, not copy those fields into a
-JSON-shaped DTO.
+- [x] Expose every collection as one borrowed record with `kind`, canonical
+      `mode`, typed `count`, join `bindings`, and an ordered borrowed `items`
+      sequence. Each item is a record with `inputName`, artifact identity/URI,
+      destination, typed target identity, item bindings, direct borrowed child
+      `artifact`, item source map, and ordered output spans.
+- [x] Ratify the existing deterministic graph semantics as the public native
+      contract: `collect` retains declared order; `group-by` requires keys,
+      retains duplicates, and emits lexicographically ordered groups;
+      `match-by` is a primary-domain grouped-left match that retains duplicates
+      flat, permits unmatched primary keys, and discards secondary-only keys;
+      and `zip` requires equal lengths and rejects mismatch.
+- [x] Keep input aliases and join bindings as explicit record fields rather
+      than ambient lexical variables. Collection, item-wrapper, and child AST
+      identities remain distinct; child owners are never reconstructed, and
+      source maps/output spans remain item-local rather than being falsely
+      merged across sources.
+- [x] Validate nested children recursively at CEMT binding time, reject encoded
+      children until an explicit lifecycle parser edge creates their AST, and
+      prove lossless JSON lexemes/duplicate members plus CEM-tree owner identity
+      cross the collection boundary without serialization.
 
-The decision must define:
+### Next Work Item — JSON Serialization and Collection Boundary Gate
 
-1. whether `collect` evaluates as the ordered child sequence itself or as item
-   records that retain routing metadata alongside each borrowed child value;
-2. the key derivation and stable ordering for `groupBy`, including duplicate
-   keys and missing keys;
-3. the cardinality, unmatched-side representation, and duplicate-match policy
-   for `matchBy`;
-4. whether `zip` truncates, pads with typed null, or rejects length mismatch,
-   and how tuple positions retain input aliases;
-5. which identities belong to the collection, item wrapper, and child AST,
-   and how item/child source maps and output spans are exposed without merging
-   away provenance; and
-6. whether join-level and input-level binding aliases are fields, lexical
-   bindings, or both, including collision diagnostics.
+Close the remaining native-data-plane verification item with one auditable
+allowlist and native/WASM behavior matrix:
 
-Recommended starting point for the decision is one borrowed native collection
-view with mode-specific sequence/record projections and item records that keep
-metadata separate from a direct borrowed `artifact` evaluator field. The exact
-`groupBy`, `matchBy`, and `zip` cardinality policies remain a semantic choice;
-do not implement them by inheriting behavior from a JSON projection.
+- [ ] Inventory every production `serde_json` encode/decode call reachable from
+      transform load, graph routing, joins, template adapters, encoders, and
+      exporters; classify each as an explicitly identified JSON/`+json`
+      lifecycle or public/export boundary, and fail the source audit for any
+      unregistered intermediate serialization.
+- [ ] Exercise `collect`, `group-by`, `match-by`, and `zip` through graph routing
+      into CEMT and CEM-QL, asserting stable ordering/cardinality, collection
+      and item metadata, child `Arc`/AST identity, provenance, strict zip
+      mismatch, and rejection of encoded children without a parser edge.
+- [ ] Run focused adapter checks followed by CEM-QL/core lint, test, CLI e2e,
+      converter parity, and native/WASM gates; then mark the parent source-audit
+      checklist item complete.
 
 ## Current Verification Commands
 

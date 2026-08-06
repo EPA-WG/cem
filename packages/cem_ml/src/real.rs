@@ -8129,6 +8129,25 @@ fn transform_template_ast_binding<'a>(
         TransformArtifactBody::MaterializedCemtTree(tree) => Ok(CemtEvaluatorValue::borrowed(
             tree.evaluator_view(),
         )),
+        TransformArtifactBody::Collection(collection) => {
+            for item in &collection.items {
+                transform_template_ast_binding(item.artifact.as_ref()).map_err(|message| {
+                    format!(
+                        "transform collection `{}` input `{}` cannot expose child `{}`: {message}",
+                        artifact.artifact_id, item.input_name, item.artifact.artifact_id
+                    )
+                })?;
+            }
+            artifact
+                .cemt_evaluator_view()
+                .map(CemtEvaluatorValue::borrowed)
+                .ok_or_else(|| {
+                    format!(
+                        "transform data artifact `{}` collection has no typed evaluator view",
+                        artifact.artifact_id
+                    )
+                })
+        }
         TransformArtifactBody::Extension(native) => native
             .as_any()
             .downcast_ref::<CemtTreeArtifact>()
@@ -12104,6 +12123,246 @@ mod tests {
     }
 
     #[test]
+    fn transform_render_collection_binding_borrows_items_metadata_and_child_ast() {
+        let owner = Arc::new(projection::CemTreeAstStream::new(vec![
+            projection::CemTreeAstNode::Element {
+                name: "article".to_owned(),
+                attributes: Vec::new(),
+                children: Vec::new(),
+                source: SourceMapStack::default(),
+            },
+        ]));
+        let child = Arc::new(TransformTemplateDataArtifact::new(
+            "child",
+            Some("memory://child.cem".to_owned()),
+            Some(FormatIdentity {
+                content_type: Some(CEM_AST_PROJECTION_CONTENT_TYPE.to_owned()),
+                schema: Some(CEM_AST_PROJECTION_SCHEMA_URI.to_owned()),
+                ..FormatIdentity::default()
+            }),
+            TransformArtifactBody::CemTree(Arc::clone(&owner)),
+        ));
+        let item_source_map = SourceMapStack::default();
+        let collection = Arc::new(TransformArtifactCollection {
+            mode: TransformArtifactCollectionMode::GroupBy,
+            bindings: BTreeMap::from([
+                ("count".to_owned(), "1".to_owned()),
+                ("key".to_owned(), "news".to_owned()),
+            ]),
+            items: vec![TransformArtifactCollectionItem {
+                input_name: "primary".to_owned(),
+                destination: Some("dist/news.html".to_owned()),
+                target: Some(FormatIdentity {
+                    content_type: Some("text/html".to_owned()),
+                    schema: Some("https://example.test/html".to_owned()),
+                    ..FormatIdentity::default()
+                }),
+                bindings: BTreeMap::from([("slug".to_owned(), "news".to_owned())]),
+                artifact: Arc::clone(&child),
+                source_map: Some(item_source_map.clone()),
+                output_spans: vec![OutputSpan {
+                    output_range: crate::source::ByteRange::new(4, 7),
+                    origin: item_source_map,
+                }],
+            }],
+        });
+        let primary = TransformTemplateDataArtifact::new(
+            "joined",
+            Some("memory://joined".to_owned()),
+            None,
+            TransformArtifactBody::Collection(Arc::clone(&collection)),
+        );
+        let compiled = TransformTemplateCompiledArtifact::new(
+            "test-adapter",
+            TransformTemplateKind::CemNative,
+            "memory://binding.cemt",
+            None,
+            TransformTemplateEntrypoint::implicit(),
+            Value::Null,
+        );
+        let context = ctx();
+        let adapter: Arc<dyn TransformTemplateAdapter> = Arc::new(ReadyCemtHtmlExportAdapter);
+        let secondary_inputs = BTreeMap::new();
+        let target_scope = ScopeConfig::default();
+        let spec = TransformStageRenderSpec {
+            context: &context,
+            adapter: &adapter,
+            compiled: &compiled,
+            primary_input: &primary,
+            secondary_inputs: &secondary_inputs,
+            target: None,
+            target_scope: &target_scope,
+            execution_policy: TransformExecutionPolicy::default(),
+            diagnostic_uri: "memory://binding.cemt",
+            diagnostic_node: None,
+        };
+
+        let bindings = transform_template_render_value_bindings(&spec).expect("typed bindings");
+        let collection_value = bindings.value("input").expect("collection binding");
+        assert_eq!(
+            collection_value
+                .field("mode")
+                .and_then(|value| value.as_str().map(str::to_owned))
+                .as_deref(),
+            Some("group-by")
+        );
+        assert_eq!(
+            collection_value
+                .resolve_path("bindings.key")
+                .and_then(|value| value.as_str().map(str::to_owned))
+                .as_deref(),
+            Some("news")
+        );
+        let Some(crate::transform_artifact::CemtEvaluatorRecordRef::Package { record }) =
+            collection_value.native_record()
+        else {
+            panic!("expected borrowed collection record");
+        };
+        assert!(std::ptr::addr_eq(
+            *record,
+            collection.as_ref() as &dyn crate::transform_artifact::CemtEvaluatorRecordView
+        ));
+
+        let item = collection_value
+            .resolve_path("items.0")
+            .expect("borrowed collection item");
+        assert_eq!(
+            item.field("inputName")
+                .and_then(|value| value.as_str().map(str::to_owned))
+                .as_deref(),
+            Some("primary")
+        );
+        assert_eq!(
+            item.resolve_path("target.contentType")
+                .and_then(|value| value.as_str().map(str::to_owned))
+                .as_deref(),
+            Some("text/html")
+        );
+        assert_eq!(
+            item.resolve_path("bindings.slug")
+                .and_then(|value| value.as_str().map(str::to_owned))
+                .as_deref(),
+            Some("news")
+        );
+        assert_eq!(
+            item.resolve_path("outputSpans.0.outputRange.start")
+                .and_then(|value| value.as_number())
+                .and_then(crate::transform_artifact::CemtEvaluatorNumber::as_u64),
+            Some(4)
+        );
+        assert!(item
+            .field("sourceMap")
+            .and_then(|value| value.as_source_map().cloned())
+            .is_some());
+
+        let node = item
+            .field("artifact")
+            .and_then(|value| value.item(0))
+            .expect("borrowed child CEM AST node");
+        let Some(crate::transform_artifact::CemtEvaluatorRecordRef::Node {
+            node: borrowed, ..
+        }) = node.native_record()
+        else {
+            panic!("expected borrowed native child CEM tree node");
+        };
+        assert!(std::ptr::eq(*borrowed, &owner.as_nodes()[0]));
+        assert!(Arc::ptr_eq(&collection.items[0].artifact, &child));
+    }
+
+    #[test]
+    fn transform_collection_binding_borrows_lossless_json_child_without_projection() {
+        let child = Arc::new(lifecycle_json_bytes_test_artifact(
+            "child",
+            Some("memory://child.json"),
+            br#"{"n":1.00e+2,"n":2}"#,
+        ));
+        let collection = Arc::new(TransformArtifactCollection {
+            mode: TransformArtifactCollectionMode::Collect,
+            bindings: BTreeMap::from([("count".to_owned(), "1".to_owned())]),
+            items: vec![TransformArtifactCollectionItem {
+                input_name: "primary".to_owned(),
+                destination: None,
+                target: None,
+                bindings: BTreeMap::new(),
+                artifact: Arc::clone(&child),
+                source_map: None,
+                output_spans: Vec::new(),
+            }],
+        });
+        let artifact = TransformTemplateDataArtifact::new(
+            "joined",
+            None,
+            None,
+            TransformArtifactBody::Collection(collection),
+        );
+
+        let value = transform_template_ast_binding(&artifact).expect("typed collection binding");
+        let nested = value
+            .resolve_path("items.0.artifact.n")
+            .expect("lossless JSON child field");
+        assert_eq!(nested.json_lexeme(), Some("2"));
+        let TransformArtifactBody::Lifecycle(owner) = &child.body else {
+            panic!("child lifecycle owner");
+        };
+        let LoadedInputAstStream::JsonDocument(document) = owner.as_ref() else {
+            panic!("child JSON owner");
+        };
+        let JsonValueAst::Object { members, .. } = document.root.as_ref().expect("child JSON root")
+        else {
+            panic!("child JSON object");
+        };
+        assert!(std::ptr::eq(
+            nested.json_ast().expect("borrowed JSON value"),
+            &members[1].value
+        ));
+        assert_eq!(members[0].name, members[1].name);
+        assert!(matches!(
+            &members[0].value,
+            JsonValueAst::Number { lexeme, .. } if lexeme == "1.00e+2"
+        ));
+    }
+
+    #[test]
+    fn transform_collection_binding_rejects_unparsed_encoded_child() {
+        let child = Arc::new(
+            TransformTemplateDataArtifact::encoded(
+                "encoded-child",
+                Some("memory://child.txt".to_owned()),
+                FormatIdentity {
+                    content_type: Some("text/plain".to_owned()),
+                    ..FormatIdentity::default()
+                },
+                TransformEncoding::Text,
+                b"not an AST".as_slice(),
+            )
+            .expect("encoded test artifact"),
+        );
+        let artifact = TransformTemplateDataArtifact::new(
+            "joined",
+            None,
+            None,
+            TransformArtifactBody::Collection(Arc::new(TransformArtifactCollection {
+                mode: TransformArtifactCollectionMode::Collect,
+                bindings: BTreeMap::new(),
+                items: vec![TransformArtifactCollectionItem {
+                    input_name: "primary".to_owned(),
+                    destination: None,
+                    target: None,
+                    bindings: BTreeMap::new(),
+                    artifact: child,
+                    source_map: None,
+                    output_spans: Vec::new(),
+                }],
+            })),
+        );
+
+        let error = transform_template_ast_binding(&artifact)
+            .expect_err("encoded collection children require an explicit parser edge");
+        assert!(error.contains("encoded-child"), "{error}");
+        assert!(error.contains("cem.encoded"), "{error}");
+    }
+
+    #[test]
     fn transform_render_binding_source_has_no_json_dto_or_serializer_handoff() {
         let source = include_str!("real.rs");
         let route = source
@@ -12116,6 +12375,8 @@ mod tests {
         assert!(route.contains("CemtEvaluatorBindings"));
         assert!(route.contains("LoadedInputAstStream::JsonDocument"));
         assert!(route.contains("CemtTreeSubjectRef"));
+        assert!(route.contains("TransformArtifactBody::Collection"));
+        assert!(route.contains("cemt_evaluator_view"));
         for forbidden in [
             "explicit_json_value",
             "serde_json",

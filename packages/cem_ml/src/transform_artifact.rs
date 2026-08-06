@@ -1686,6 +1686,8 @@ pub enum CemtEvaluatorValueRef<'a> {
     Number(CemtEvaluatorNumber),
     String(&'a str),
     OwnedString(Arc<str>),
+    /// A borrowed lossless JSON value owned by a lifecycle AST stream.
+    Json(&'a JsonValueAst),
     StringMap(&'a BTreeMap<String, String>),
     Sequence(CemtEvaluatorSequenceRef<'a>),
     Record(CemtEvaluatorRecordRef<'a>),
@@ -1717,6 +1719,7 @@ impl<'a> CemtEvaluatorValueRef<'a> {
             Self::Boolean(_) => CemtEvaluatorValueKind::Boolean,
             Self::Number(_) => CemtEvaluatorValueKind::Number,
             Self::String(_) | Self::OwnedString(_) => CemtEvaluatorValueKind::String,
+            Self::Json(value) => json_evaluator_value_kind(value),
             Self::StringMap(_) => CemtEvaluatorValueKind::Record,
             Self::Sequence(_) => CemtEvaluatorValueKind::Sequence,
             Self::Record(_) => CemtEvaluatorValueKind::Record,
@@ -1726,7 +1729,7 @@ impl<'a> CemtEvaluatorValueRef<'a> {
 
     pub fn as_bool(&self) -> Option<bool> {
         match self {
-            Self::Boolean(value) => Some(*value),
+            Self::Boolean(value) | Self::Json(JsonValueAst::Boolean { value, .. }) => Some(*value),
             _ => None,
         }
     }
@@ -1734,6 +1737,7 @@ impl<'a> CemtEvaluatorValueRef<'a> {
     pub fn as_number(&self) -> Option<CemtEvaluatorNumber> {
         match self {
             Self::Number(value) => Some(*value),
+            Self::Json(JsonValueAst::Number { lexeme, .. }) => json_number_evaluator_value(lexeme),
             _ => None,
         }
     }
@@ -1741,6 +1745,7 @@ impl<'a> CemtEvaluatorValueRef<'a> {
     pub fn as_str(&self) -> Option<&'a str> {
         match self {
             Self::String(value) => Some(value),
+            Self::Json(JsonValueAst::String { value, .. }) => Some(value),
             _ => None,
         }
     }
@@ -1778,13 +1783,21 @@ impl<'a> CemtEvaluatorValueRef<'a> {
     pub fn field(&self, name: &str) -> Option<Self> {
         match self {
             Self::Record(record) => record.field(name),
+            Self::Json(JsonValueAst::Object { members, .. }) => members
+                .iter()
+                .rev()
+                .find(|member| member.name == name)
+                .map(|member| Self::Json(&member.value)),
             Self::StringMap(values) => values.get(name).map(|value| Self::String(value)),
             _ => None,
         }
     }
 
     pub fn item(&self, index: usize) -> Option<Self> {
-        self.as_sequence()?.item(index)
+        match self {
+            Self::Json(JsonValueAst::Array { items, .. }) => items.get(index).map(Self::Json),
+            _ => self.as_sequence()?.item(index),
+        }
     }
 
     pub fn resolve_path(mut self, path: &str) -> Option<Self> {
@@ -1802,6 +1815,14 @@ impl<'a> CemtEvaluatorValueRef<'a> {
                     CemtEvaluatorValueRef::String(values.get(segment)?.as_str())
                 }
                 Self::Sequence(sequence) => sequence.item(segment.parse::<usize>().ok()?)?,
+                Self::Json(JsonValueAst::Object { members, .. }) => members
+                    .iter()
+                    .rev()
+                    .find(|member| member.name == segment)
+                    .map(|member| Self::Json(&member.value))?,
+                Self::Json(JsonValueAst::Array { items, .. }) => {
+                    Self::Json(items.get(segment.parse::<usize>().ok()?)?)
+                }
                 _ => return None,
             };
         }
@@ -1938,6 +1959,7 @@ impl<'a> CemtEvaluatorValue<'a> {
     fn from_borrowed_ref(value: CemtEvaluatorValueRef<'a>) -> Self {
         match value {
             CemtEvaluatorValueRef::OwnedString(value) => Self::String(value),
+            CemtEvaluatorValueRef::Json(value) => Self::Json(value),
             value => Self::Borrowed(value),
         }
     }
@@ -2056,6 +2078,7 @@ impl<'a> CemtEvaluatorValue<'a> {
                 CemtEvaluatorValueRef::OwnedString(value) => {
                     Ok(serde_json::Value::String(value.to_string()))
                 }
+                CemtEvaluatorValueRef::Json(value) => json_ast_value_to_public_json(value),
                 CemtEvaluatorValueRef::StringMap(values) => Ok(serde_json::Value::Object(
                     values
                         .iter()
@@ -2822,6 +2845,9 @@ pub enum CemtEvaluatorSequenceRef<'a> {
         owner: CemtOwnerPath,
         kind: CemtEvaluatorNodeFormatSequenceKind,
     },
+    OutputSpans {
+        output_spans: &'a [OutputSpan],
+    },
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -2938,6 +2964,7 @@ impl<'a> CemtEvaluatorSequenceRef<'a> {
                     cemt_evaluator_node_format_sequence_matches(operation, owner, *kind)
                 })
                 .count(),
+            Self::OutputSpans { output_spans } => output_spans.len(),
         }
     }
 
@@ -3183,6 +3210,9 @@ impl<'a> CemtEvaluatorSequenceRef<'a> {
                         index,
                     })
                 }),
+            Self::OutputSpans { output_spans } => output_spans.get(index).map(|output_span| {
+                CemtEvaluatorValueRef::Record(CemtEvaluatorRecordRef::OutputSpan { output_span })
+            }),
         }
     }
 
@@ -8561,6 +8591,38 @@ impl TransformDataArtifact {
             }
         })
     }
+
+    /// Borrows the package-owned AST view used by native CEMT evaluation.
+    ///
+    /// This is deliberately a view over the artifact owner: it never encodes,
+    /// serializes, reparses, or constructs a generic intermediary value.
+    pub fn cemt_evaluator_view(&self) -> Option<CemtEvaluatorValueRef<'_>> {
+        match &self.body {
+            TransformArtifactBody::Lifecycle(stream) => match stream.as_ref() {
+                LoadedInputAstStream::JsonDocument(document) => {
+                    document.root.as_ref().map(CemtEvaluatorValueRef::Json)
+                }
+                _ => None,
+            },
+            TransformArtifactBody::CemTree(stream) => {
+                Some(CemtTreeSubjectRef::new(stream.as_ref()).evaluator_view())
+            }
+            TransformArtifactBody::MaterializedCemtTree(tree) => Some(tree.evaluator_view()),
+            TransformArtifactBody::Collection(collection) => Some(CemtEvaluatorValueRef::Record(
+                CemtEvaluatorRecordRef::Package {
+                    record: collection.as_ref(),
+                },
+            )),
+            TransformArtifactBody::Extension(native) => native
+                .as_any()
+                .downcast_ref::<CemtTreeArtifact>()
+                .map(CemtTreeArtifact::evaluator_view),
+            TransformArtifactBody::CemDocument(_)
+            | TransformArtifactBody::GenericData(_)
+            | TransformArtifactBody::XPathResult(_)
+            | TransformArtifactBody::Encoded(_) => None,
+        }
+    }
 }
 
 #[derive(Clone)]
@@ -8667,6 +8729,17 @@ pub enum TransformArtifactCollectionMode {
     Zip,
 }
 
+impl TransformArtifactCollectionMode {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Collect => "collect",
+            Self::GroupBy => "group-by",
+            Self::MatchBy => "match-by",
+            Self::Zip => "zip",
+        }
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct TransformArtifactCollection {
     pub mode: TransformArtifactCollectionMode,
@@ -8683,6 +8756,125 @@ pub struct TransformArtifactCollectionItem {
     pub artifact: Arc<TransformDataArtifact>,
     pub source_map: Option<SourceMapStack>,
     pub output_spans: Vec<OutputSpan>,
+}
+
+impl CemtEvaluatorRecordView for TransformArtifactCollection {
+    fn field_names(&self) -> &'static [&'static str] {
+        &["kind", "mode", "count", "bindings", "items"]
+    }
+
+    fn field<'a>(&'a self, name: &str) -> Option<CemtEvaluatorValueRef<'a>> {
+        match name {
+            "kind" => Some(CemtEvaluatorValueRef::String("collection")),
+            "mode" => Some(CemtEvaluatorValueRef::String(self.mode.as_str())),
+            "count" => Some(CemtEvaluatorValueRef::Number(
+                CemtEvaluatorNumber::unsigned_integer(
+                    u64::try_from(self.items.len()).unwrap_or(u64::MAX),
+                ),
+            )),
+            "bindings" => Some(CemtEvaluatorValueRef::StringMap(&self.bindings)),
+            "items" => Some(CemtEvaluatorValueRef::Sequence(
+                CemtEvaluatorSequenceRef::Package { sequence: self },
+            )),
+            _ => None,
+        }
+    }
+}
+
+impl CemtEvaluatorSequenceView for TransformArtifactCollection {
+    fn len(&self) -> usize {
+        self.items.len()
+    }
+
+    fn item<'a>(&'a self, index: usize) -> Option<CemtEvaluatorValueRef<'a>> {
+        self.items.get(index).map(|item| {
+            CemtEvaluatorValueRef::Record(CemtEvaluatorRecordRef::Package { record: item })
+        })
+    }
+}
+
+impl CemtEvaluatorRecordView for TransformArtifactCollectionItem {
+    fn field_names(&self) -> &'static [&'static str] {
+        &[
+            "inputName",
+            "artifactId",
+            "uri",
+            "destination",
+            "target",
+            "bindings",
+            "artifact",
+            "sourceMap",
+            "outputSpans",
+        ]
+    }
+
+    fn field<'a>(&'a self, name: &str) -> Option<CemtEvaluatorValueRef<'a>> {
+        match name {
+            "inputName" => Some(CemtEvaluatorValueRef::String(&self.input_name)),
+            "artifactId" => Some(CemtEvaluatorValueRef::String(&self.artifact.artifact_id)),
+            "uri" => Some(match self.artifact.uri.as_deref() {
+                Some(uri) => CemtEvaluatorValueRef::String(uri),
+                None => CemtEvaluatorValueRef::Null,
+            }),
+            "destination" => Some(match self.destination.as_deref() {
+                Some(destination) => CemtEvaluatorValueRef::String(destination),
+                None => CemtEvaluatorValueRef::Null,
+            }),
+            "target" => Some(match self.target.as_ref() {
+                Some(target) => CemtEvaluatorValueRef::Record(CemtEvaluatorRecordRef::Package {
+                    record: target,
+                }),
+                None => CemtEvaluatorValueRef::Null,
+            }),
+            "bindings" => Some(CemtEvaluatorValueRef::StringMap(&self.bindings)),
+            "artifact" => self.artifact.cemt_evaluator_view(),
+            "sourceMap" => Some(match self.source_map.as_ref() {
+                Some(source_map) => CemtEvaluatorValueRef::SourceMap(source_map),
+                None => CemtEvaluatorValueRef::Null,
+            }),
+            "outputSpans" => Some(CemtEvaluatorValueRef::Sequence(
+                CemtEvaluatorSequenceRef::OutputSpans {
+                    output_spans: &self.output_spans,
+                },
+            )),
+            _ => None,
+        }
+    }
+}
+
+impl CemtEvaluatorRecordView for FormatIdentity {
+    fn field_names(&self) -> &'static [&'static str] {
+        &[
+            "contentType",
+            "schema",
+            "defaultNamespace",
+            "namespaces",
+            "baseUri",
+        ]
+    }
+
+    fn field<'a>(&'a self, name: &str) -> Option<CemtEvaluatorValueRef<'a>> {
+        match name {
+            "contentType" => Some(match self.content_type.as_deref() {
+                Some(content_type) => CemtEvaluatorValueRef::String(content_type),
+                None => CemtEvaluatorValueRef::Null,
+            }),
+            "schema" => Some(match self.schema.as_deref() {
+                Some(schema) => CemtEvaluatorValueRef::String(schema),
+                None => CemtEvaluatorValueRef::Null,
+            }),
+            "defaultNamespace" => Some(match self.default_namespace.as_deref() {
+                Some(namespace) => CemtEvaluatorValueRef::String(namespace),
+                None => CemtEvaluatorValueRef::Null,
+            }),
+            "namespaces" => Some(CemtEvaluatorValueRef::StringMap(&self.namespaces)),
+            "baseUri" => Some(match self.base_uri.as_deref() {
+                Some(base_uri) => CemtEvaluatorValueRef::String(base_uri),
+                None => CemtEvaluatorValueRef::Null,
+            }),
+            _ => None,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -10729,6 +10921,42 @@ mod tests {
             .expect("explicit public projection boundary")
             .0;
         assert!(public_projection.contains("serde_json"));
+    }
+
+    #[test]
+    fn transform_collection_evaluator_view_has_no_serializer_or_dto_boundary() {
+        let source = include_str!("transform_artifact.rs");
+        let collection_view = source
+            .split_once("impl CemtEvaluatorRecordView for TransformArtifactCollection")
+            .expect("collection evaluator view")
+            .1
+            .split_once("pub enum TransformEncoding")
+            .expect("collection evaluator view boundary")
+            .0;
+
+        for required in [
+            "CemtEvaluatorSequenceRef::Package",
+            "CemtEvaluatorRecordRef::Package",
+            "cemt_evaluator_view",
+            "CemtEvaluatorSequenceRef::OutputSpans",
+        ] {
+            assert!(
+                collection_view.contains(required),
+                "collection evaluator view must retain `{required}`"
+            );
+        }
+        for forbidden in [
+            "serde_json",
+            "to_public_json",
+            "to_json",
+            "serialize",
+            "deserialize",
+        ] {
+            assert!(
+                !collection_view.contains(forbidden),
+                "collection evaluator view must not cross `{forbidden}`"
+            );
+        }
     }
 
     #[test]

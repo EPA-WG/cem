@@ -5092,21 +5092,29 @@ impl QueryItemView for TransformCollectionItemQueryView {
 
     fn fields(&self) -> Option<Vec<(String, Vec<Item>)>> {
         Some(
-            ["input", "artifactId", "uri", "destination", "primary"]
-                .into_iter()
-                .map(|name| (name.to_owned(), self.field(name).unwrap_or_default()))
-                .collect(),
+            [
+                "inputName",
+                "input",
+                "artifactId",
+                "uri",
+                "destination",
+                "artifact",
+                "primary",
+            ]
+            .into_iter()
+            .map(|name| (name.to_owned(), self.field(name).unwrap_or_default()))
+            .collect(),
         )
     }
 
     fn field(&self, name: &str) -> Option<Vec<Item>> {
         let item = self.collection.items.get(self.index)?;
         Some(match name {
-            "input" => atom_items(item.input_name.clone()),
+            "inputName" | "input" => atom_items(item.input_name.clone()),
             "artifactId" => atom_items(item.artifact.artifact_id.clone()),
             "uri" => optional_atom_items(item.artifact.uri.as_deref()),
             "destination" => optional_atom_items(item.destination.as_deref()),
-            "primary" => artifact_query_stream(&item.artifact)
+            "artifact" | "primary" => artifact_query_stream(&item.artifact)
                 .map(|stream| stream.items)
                 .unwrap_or_default(),
             _ => Vec::new(),
@@ -5115,12 +5123,7 @@ impl QueryItemView for TransformCollectionItemQueryView {
 }
 
 fn collection_mode_name(mode: TransformArtifactCollectionMode) -> &'static str {
-    match mode {
-        TransformArtifactCollectionMode::Collect => "collect",
-        TransformArtifactCollectionMode::GroupBy => "group-by",
-        TransformArtifactCollectionMode::MatchBy => "match-by",
-        TransformArtifactCollectionMode::Zip => "zip",
-    }
+    mode.as_str()
 }
 
 fn atom_items(value: impl Into<String>) -> Vec<Item> {
@@ -6271,13 +6274,14 @@ count + 1"#,
             .expect("collection item remains a native view");
         assert!(Arc::ptr_eq(&item_view.collection, &collection));
 
-        let primary = item_view.field("primary").expect("typed child artifact");
-        let child_view = primary[0]
+        let artifact = item_view.field("artifact").expect("typed child artifact");
+        let child_view = artifact[0]
             .view()
             .and_then(|view| view.downcast_ref::<CemDocumentQueryView>())
             .expect("child remains a native CEM view");
         assert!(Arc::ptr_eq(&child_view.document, &document));
         assert!(Arc::ptr_eq(&collection.items[0].artifact, &child));
+        assert_eq!(item_view.field("primary"), item_view.field("artifact"));
     }
 
     #[test]
