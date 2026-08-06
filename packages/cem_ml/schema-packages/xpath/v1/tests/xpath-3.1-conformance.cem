@@ -43,11 +43,11 @@
 
     {conformance-slice
         @id="syntax-and-static-context"
-        @status="transitional"
+        @status="partial"
         @qt3-status="unmapped"
         @spec-sections="XPath 3.1 sections 2, 3.1"
-        @gap="Lossless tokens and the public syntax AST are package-owned, but the parser implementation still has a transitional Xee runtime dependency"
-        @todo="xpath-native-parser"
+        @gap="The CEM-owned lossless scanner and recursive-descent parser are production-owned and Xee is test-only, but remaining XPath 3.1 grammar and static-context productions are not yet fully covered or mapped to QT3"
+        @todo="xpath-compiler-evaluator"
     }
     {conformance-slice
         @id="expressions-and-control-flow"

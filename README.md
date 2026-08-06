@@ -38,6 +38,8 @@ artifacts as the CSS generator pages.
 - [Documentation index](docs/index.md) — canonical map of every CEM doc, report, and example.
 - [Roadmap](roadmap.md) — product/module sequencing and delivery phases.
 - [Todo](docs/todo.md) — current execution checklist.
+- [Completed todo history](docs/archive/todo-completed.md) — archived execution
+  rationale and verification evidence.
 - [`cem-element` design](docs/cem-element-design.md) — successor substrate for `@epa-wg/custom-element`: data
   islands, event wiring, render loop, follow-up adoption sequencing, and parity gates.
 - [Token export architecture](packages/cem-theme/docs/token-export.md)

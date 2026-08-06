@@ -6,6 +6,8 @@ This index links the active project, release, and token workflow documents.
 
 - [Roadmap](../roadmap.md) — product/module sequencing and major delivery phases.
 - [Todo](./todo.md) — remaining execution tasks only.
+- [Completed todo history](./archive/todo-completed.md) — searchable execution
+  rationale, constraints, and verification evidence archived from the active checklist.
 - [CEM ML library plan](./cem-ml-library-plan.md) — Rust parser/runtime ownership for canonical CEM-ML plus XML/HTML
   parity responsibilities.
 - [CEM ML acceptance criteria](./cem-ml-ac.md) — testable AC for the parser, schema, mutations, and plugin runtime.
