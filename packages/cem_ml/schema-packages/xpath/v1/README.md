@@ -95,8 +95,10 @@ an attachment envelope containing:
 
 This allows an XPath tree to be attached to an XML document or AST subtree and
 also fused into an owning XSLT stream without transferring grammar ownership to
-XSLT. Attribute value template segmentation and XSLT attachment are tracked as
-the next integration slice.
+XSLT. Entity-free XPath-bearing XSLT attributes now carry the package AST, exact
+attribute-value range, owning XML event identity, and inherited namespace
+context directly. Attribute value template segmentation and entity-decoded XML
+source mapping remain the next XSLT fusion slice.
 
 ## Transformation Boundary
 
@@ -176,8 +178,8 @@ remain compatible with the browser WASM target.
 
 - Implement a CEM-owned XPath 3.1 compiler/evaluator and prove native/WASM AST
   consumption through CEM-only resolver and safety capabilities.
-- Segment XSLT XPath attributes and AVTs, then associate their ASTs with exact
-  XML attribute-value ranges.
+- Segment XSLT AVTs and add entity-decoded XML attribute source mapping, then
+  associate those remaining expression ASTs with exact source ranges.
 - Define schema-owned context and variable bindings, then add CEM-QL, CEMT, and
   XSLT XPath invocation adapters.
 - Define grammar-aware formatting before making profile output differ.

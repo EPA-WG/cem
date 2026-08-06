@@ -28,12 +28,20 @@ qualified element and attribute names, namespace bindings, stylesheet version,
 top-level declarations and templates, literal result elements, XPath-bearing
 attribute text, source ranges, source maps, and source line ending.
 
-XPath and attribute value templates remain lexical source values in the current
-XSLT stream. XPath grammar and AST ownership belongs to the independent
-[`xpath/v1`](../../xpath/v1/README.md) package; the next integration slice will
-associate parsed XPath ASTs with exact XSLT attribute-value ranges. The source
-lifecycle does not parse or execute them. Explicit transform-template execution
-continues through the existing bounded XSLT parity capability.
+Entity-free XPath-bearing attributes on XSLT instruction nodes are parsed once
+into independently addressable `XPathExpressionAst` values owned by the
+[`xpath/v1`](../../xpath/v1/README.md) package. Each expression retains its exact
+attribute-value range, owning XML event and attribute identity, inherited
+namespace bindings, and `xpath-default-namespace`. XPath diagnostics continue
+to be schema-owned by the XPath package. No JSON projection, replacement XML
+tree, or later source reparse mediates this association.
+
+Attribute value templates and attributes containing XML entity references remain
+lexical source values. They require AVT segmentation plus decoded-to-source
+offset mapping from the XML AST before they can be fused without corrupting
+source identity. The source lifecycle does not execute embedded expressions;
+explicit transform-template execution continues through the existing bounded
+XSLT parity capability.
 
 ## Parser Facts And Diagnostics
 

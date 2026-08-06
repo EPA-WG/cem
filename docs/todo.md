@@ -48,6 +48,11 @@ mediate between internal layers.
   - [ ] Fuse parsed XPath streams into XSLT XPath-bearing attributes and AVT
         expression segments while retaining an independently addressable XPath
         AST associated with the owning XML event or subtree node.
+    - [x] Fuse entity-free XPath-bearing attributes on XSLT instruction nodes
+          into package-owned XPath ASTs with exact host byte ranges, owning XML
+          event identity, and inherited static namespace context; keep AVT
+          segmentation and entity-decoded source mapping explicit follow-up
+          work rather than introducing a text, JSON, or replacement-tree bridge.
   - [ ] Add deterministic compact/pretty/tabular and
         terminal/HTML/Markdown profiles that preserve lexical islands and source
         maps, then run package, converter-parity, CLI e2e, WASM, and core release

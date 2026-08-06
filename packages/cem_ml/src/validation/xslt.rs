@@ -7,8 +7,15 @@ use crate::schema::registry::{
 use crate::source::{ByteRange, SourceId};
 use crate::source_map::{FrameSpan, SourceMapFrame, SourceMapStack, TransformKind};
 use crate::validation::xml::{
-    xml_document_ast_from_source_bytes, XmlAttributeAst, XmlDocumentAst, XmlEventAst, XmlEventKind,
-    XmlParseFactKind, XmlSourceRange, XmlSourceValidationRequest,
+    xml_document_ast_from_source_bytes, xml_event_markup_tokens, XmlAttributeAst, XmlDocumentAst,
+    XmlEventAst, XmlEventKind, XmlMarkupTokenKind, XmlParseFactKind, XmlSourceRange,
+    XmlSourceValidationRequest,
+};
+use crate::validation::xpath::{
+    validate_xpath_expression_ast, xpath_expression_ast_from_source_bytes, XPathAttachment,
+    XPathEvaluationPhase, XPathExpressionAst, XPathHostAttachment, XPathHostNodeKind,
+    XPathHostOwner, XPathSchemaContractCatalog, XPathSourceRange, XPathSourceRequest,
+    XPathStaticContext, XPATH_CONTENT_TYPE,
 };
 use serde_json::{json, Value};
 use std::collections::BTreeMap;
@@ -30,7 +37,15 @@ pub struct XsltStylesheetAst {
     pub xml_document: XmlDocumentAst,
     pub version: Option<String>,
     pub facts: Vec<XsltFact>,
+    pub xpath_expressions: Vec<XsltXPathExpressionAst>,
     pub line_ending: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct XsltXPathExpressionAst {
+    pub event_index: usize,
+    pub attribute_name: String,
+    pub expression: XPathExpressionAst,
 }
 
 impl XsltStylesheetAst {
@@ -241,21 +256,181 @@ pub fn xslt_stylesheet_ast_from_source_bytes(
         return (None, Vec::new());
     };
     let (version, facts) = xslt_facts(&xml_document);
-    let diagnostics = xslt_fact_diagnostics(
+    let xpath_expressions = xslt_xpath_expressions(&xml_document);
+    let mut diagnostics = xslt_fact_diagnostics(
         request.source_uri,
         &xml_document.source.media_type,
         &facts,
         XsltSchemaContractCatalog::from_builtin(),
     );
+    diagnostics.extend(xpath_expressions.iter().flat_map(|embedded| {
+        validate_xpath_expression_ast(
+            &embedded.expression,
+            XPathSchemaContractCatalog::from_builtin(),
+        )
+    }));
     let line_ending = xml_document.line_ending.clone();
     (
         Some(XsltStylesheetAst {
             xml_document,
             version,
             facts,
+            xpath_expressions,
             line_ending,
         }),
         diagnostics,
+    )
+}
+
+fn xslt_xpath_expressions(document: &XmlDocumentAst) -> Vec<XsltXPathExpressionAst> {
+    let mut expressions = Vec::new();
+    let mut static_contexts = Vec::<XPathStaticContext>::new();
+
+    for event in &document.events {
+        if !matches!(
+            event.kind,
+            XmlEventKind::StartElement | XmlEventKind::EmptyElement
+        ) {
+            continue;
+        }
+        static_contexts.truncate(event.depth);
+        let mut static_context =
+            static_contexts
+                .last()
+                .cloned()
+                .unwrap_or_else(|| XPathStaticContext {
+                    namespaces: BTreeMap::from([(
+                        "xml".to_owned(),
+                        "http://www.w3.org/XML/1998/namespace".to_owned(),
+                    )]),
+                    ..XPathStaticContext::default()
+                });
+        xslt_extend_xpath_static_context(event, &mut static_context);
+        if event.kind == XmlEventKind::StartElement {
+            static_contexts.push(static_context.clone());
+        }
+
+        if event.namespace_uri.as_deref() != Some(XSLT_NAMESPACE_URI) {
+            continue;
+        }
+        let lexical_values = xslt_lexical_attribute_values(event);
+        for (attribute, lexical) in event.attributes.iter().zip(lexical_values) {
+            if attribute.qualified_name != lexical.qualified_name
+                || !xslt_is_xpath_attribute(&attribute.local_name)
+                || attribute.value.trim().is_empty()
+                || attribute.value != lexical.value
+                || lexical.value.contains('&')
+            {
+                continue;
+            }
+            let expression_range = xpath_range_from_xml(lexical.source_range);
+            let owner_range = xpath_range_from_xml(event.source_range);
+            let expression = xpath_expression_ast_from_source_bytes(
+                XPathSourceRequest {
+                    bytes: attribute.value.as_bytes(),
+                    source_uri: &document.source.uri,
+                    content_type: Some(XPATH_CONTENT_TYPE),
+                },
+                XPathAttachment::Host(XPathHostAttachment {
+                    owner: XPathHostOwner {
+                        source_id: 1,
+                        source_uri: document.source.uri.clone(),
+                        content_type: Some(document.source.content_type.clone()),
+                        schema_uri: Some(XSLT_SCHEMA_URI.to_owned()),
+                        node_kind: XPathHostNodeKind::XsltAttribute,
+                        node_id: Some(format!(
+                            "event:{}@{}",
+                            event.index, attribute.qualified_name
+                        )),
+                        source_range: owner_range,
+                    },
+                    expression_range,
+                    static_context: static_context.clone(),
+                    expected_result: None,
+                    evaluation_phase: XPathEvaluationPhase::Transform,
+                    resolver_policy_stamp: None,
+                    safety_policy_stamp: None,
+                }),
+            );
+            expressions.push(XsltXPathExpressionAst {
+                event_index: event.index,
+                attribute_name: attribute.qualified_name.clone(),
+                expression,
+            });
+        }
+    }
+    expressions
+}
+
+fn xslt_extend_xpath_static_context(event: &XmlEventAst, static_context: &mut XPathStaticContext) {
+    for attribute in &event.attributes {
+        if attribute.qualified_name == "xmlns" {
+            static_context
+                .namespaces
+                .insert(String::new(), attribute.value.clone());
+        } else if attribute.prefix.as_deref() == Some("xmlns") {
+            static_context
+                .namespaces
+                .insert(attribute.local_name.clone(), attribute.value.clone());
+        }
+        if attribute.local_name == "xpath-default-namespace"
+            && (event.namespace_uri.as_deref() == Some(XSLT_NAMESPACE_URI)
+                || attribute.namespace_uri.as_deref() == Some(XSLT_NAMESPACE_URI))
+        {
+            static_context.default_element_namespace = Some(attribute.value.clone());
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct XsltLexicalAttributeValue {
+    qualified_name: String,
+    value: String,
+    source_range: XmlSourceRange,
+}
+
+fn xslt_lexical_attribute_values(event: &XmlEventAst) -> Vec<XsltLexicalAttributeValue> {
+    let mut values = Vec::new();
+    let mut qualified_name = None;
+    for token in xml_event_markup_tokens(event) {
+        match token.kind {
+            XmlMarkupTokenKind::AttributeName => qualified_name = Some(token.text),
+            XmlMarkupTokenKind::AttributeValue => {
+                let Some(name) = qualified_name.take() else {
+                    continue;
+                };
+                let bytes = token.text.as_bytes();
+                if bytes.len() < 2
+                    || !matches!(bytes[0], b'\'' | b'\"')
+                    || bytes.last() != Some(&bytes[0])
+                {
+                    continue;
+                }
+                values.push(XsltLexicalAttributeValue {
+                    qualified_name: name,
+                    value: token.text[1..token.text.len() - 1].to_owned(),
+                    source_range: XmlSourceRange {
+                        start: crate::validation::xml::XmlSourcePosition {
+                            line: token.source_range.start.line,
+                            column: token.source_range.start.column.saturating_add(1),
+                            byte_offset: token.source_range.start.byte_offset.saturating_add(1),
+                        },
+                        byte_length: token.source_range.byte_length.saturating_sub(2),
+                    },
+                });
+            }
+            _ => {}
+        }
+    }
+    values
+}
+
+fn xpath_range_from_xml(range: XmlSourceRange) -> XPathSourceRange {
+    XPathSourceRange::new(
+        range.start.line,
+        range.start.column,
+        range.start.byte_offset,
+        range.byte_length,
     )
 }
 
@@ -1592,6 +1767,144 @@ mod tests {
             subject["events"][0]["sourceMap"]["frames"][0]["transform"]["content_type"],
             json!(XSLT_TEXT_CONTENT_TYPE)
         );
+    }
+
+    #[test]
+    fn xslt_ast_fuses_xpath_attribute_ast_with_exact_owner_range_and_namespace_context() {
+        let source = r#"<xsl:stylesheet xmlns:xsl="http://www.w3.org/1999/XSL/Transform" xmlns:catalog="urn:catalog" version="3.0" xpath-default-namespace="urn:default">
+  <xsl:template match="/">
+    <xsl:value-of select="catalog:book/title"/>
+    <card select="literal-result-attribute"/>
+  </xsl:template>
+</xsl:stylesheet>
+"#;
+        let (stylesheet, diagnostics) =
+            xslt_stylesheet_ast_from_source_bytes(XsltSourceValidationRequest {
+                bytes: source.as_bytes(),
+                source_uri: "memory://catalog.xsl",
+                content_type: Some(XSLT_CONTENT_TYPE),
+            });
+        assert!(diagnostics.is_empty(), "{diagnostics:?}");
+        let stylesheet = stylesheet.expect("typed XSLT stylesheet");
+        let embedded = stylesheet
+            .xpath_expressions
+            .iter()
+            .find(|embedded| embedded.attribute_name == "select")
+            .expect("typed select XPath expression");
+
+        assert_eq!(
+            embedded.expression.source_text.as_deref(),
+            Some("catalog:book/title")
+        );
+        assert!(embedded.expression.syntax_ast.is_some());
+        let crate::validation::xpath::XPathAttachment::Host(host) = &embedded.expression.attachment
+        else {
+            panic!("XSLT XPath expression must retain a typed host attachment")
+        };
+        assert_eq!(
+            host.owner.node_kind,
+            crate::validation::xpath::XPathHostNodeKind::XsltAttribute
+        );
+        assert_eq!(host.owner.node_id.as_deref(), Some("event:4@select"));
+        assert_eq!(host.owner.source_uri, "memory://catalog.xsl");
+        assert_eq!(host.owner.content_type.as_deref(), Some(XSLT_CONTENT_TYPE));
+        assert_eq!(host.owner.schema_uri.as_deref(), Some(XSLT_SCHEMA_URI));
+        assert_eq!(
+            host.static_context
+                .namespaces
+                .get("catalog")
+                .map(String::as_str),
+            Some("urn:catalog")
+        );
+        assert_eq!(
+            host.static_context.default_element_namespace.as_deref(),
+            Some("urn:default")
+        );
+
+        let start = host.expression_range.start.byte_offset as usize;
+        let end = start + host.expression_range.byte_length as usize;
+        assert_eq!(&source[start..end], "catalog:book/title");
+        assert_eq!(
+            embedded.expression.tokens[0].source_range.start,
+            host.expression_range.start
+        );
+        assert_eq!(embedded.event_index, 4);
+        assert_eq!(stylesheet.xpath_expressions.len(), 2);
+    }
+
+    #[test]
+    fn xslt_embedded_xpath_diagnostics_are_schema_owned_and_entity_mapped_values_stay_lexical() {
+        let malformed = r#"<xsl:stylesheet xmlns:xsl="http://www.w3.org/1999/XSL/Transform" version="3.0">
+  <xsl:template match="/"><xsl:value-of select="catalog["/></xsl:template>
+</xsl:stylesheet>
+"#;
+        let (stylesheet, diagnostics) =
+            xslt_stylesheet_ast_from_source_bytes(XsltSourceValidationRequest {
+                bytes: malformed.as_bytes(),
+                source_uri: "memory://malformed.xsl",
+                content_type: Some(XSLT_CONTENT_TYPE),
+            });
+        let stylesheet = stylesheet.expect("typed malformed XSLT stylesheet");
+        assert!(stylesheet.xpath_expressions.iter().any(|embedded| embedded
+            .expression
+            .source_text
+            .as_deref()
+            == Some("catalog[")));
+        let expression_start = malformed.find("catalog[").expect("expression offset") as u64;
+        let expression_end = expression_start + "catalog[".len() as u64;
+        assert!(
+            diagnostics.iter().any(|diagnostic| {
+                diagnostic.code.starts_with("cem.xpath.")
+                    && diagnostic.byte_offset.is_some_and(|offset| {
+                        offset >= expression_start && offset <= expression_end
+                    })
+            }),
+            "{diagnostics:?}"
+        );
+
+        let entity_mapped = r#"<xsl:stylesheet xmlns:xsl="http://www.w3.org/1999/XSL/Transform" version="3.0">
+  <xsl:template match="/"><xsl:value-of select="price &lt; 10"/></xsl:template>
+</xsl:stylesheet>
+"#;
+        let (stylesheet, diagnostics) =
+            xslt_stylesheet_ast_from_source_bytes(XsltSourceValidationRequest {
+                bytes: entity_mapped.as_bytes(),
+                source_uri: "memory://entity-mapped.xsl",
+                content_type: Some(XSLT_CONTENT_TYPE),
+            });
+        assert!(diagnostics.is_empty(), "{diagnostics:?}");
+        let stylesheet = stylesheet.expect("typed entity-mapped XSLT stylesheet");
+        assert!(!stylesheet
+            .xpath_expressions
+            .iter()
+            .any(|embedded| embedded.attribute_name == "select"));
+        assert!(stylesheet.facts.iter().any(|fact| {
+            fact.kind == XsltFactKind::XPathObserved
+                && fact.value.as_deref() == Some("price &lt; 10")
+        }));
+    }
+
+    #[test]
+    fn xslt_xpath_fusion_source_has_no_serialized_or_replacement_tree_bridge() {
+        let source = include_str!("xslt.rs");
+        let fusion = source
+            .split("fn xslt_xpath_expressions")
+            .nth(1)
+            .and_then(|source| source.split("fn xslt_facts").next())
+            .expect("XSLT XPath fusion implementation region");
+        for forbidden in [
+            "serde_json",
+            "to_value",
+            "from_value",
+            "serialize",
+            "deserialize",
+            "replacement_tree",
+        ] {
+            assert!(
+                !fusion.contains(forbidden),
+                "XSLT XPath fusion must not contain `{forbidden}`"
+            );
+        }
     }
 
     #[test]
