@@ -24803,9 +24803,7 @@ mod tests {
             package_artifact_reader: None,
             artifact_cache: None,
         };
-        let source = br#"<?xml version="1.0" encoding="UTF-8"?>
-<xsl:stylesheet xmlns:xsl="http://www.w3.org/1999/XSL/Transform" version="1.0"><xsl:template match="/"><main><xsl:value-of select="catalog/title"/></main></xsl:template></xsl:stylesheet>
-"#;
+        let source = br#"<?xml version="1.0" encoding="UTF-8"?><xsl:stylesheet xmlns:xsl="http://www.w3.org/1999/XSL/Transform" version="1.0"><xsl:template match="/"><main><xsl:value-of select="catalog/title"/></main></xsl:template></xsl:stylesheet>"#;
         let (stylesheet, diagnostics) =
             crate::validation::xslt::xslt_stylesheet_ast_from_source_bytes(
                 crate::validation::xslt::XsltSourceValidationRequest {
@@ -24816,10 +24814,22 @@ mod tests {
             );
         assert!(diagnostics.is_empty(), "{diagnostics:?}");
 
-        for (profile, artifact_profile) in [
-            ("compact", "compact"),
-            ("pretty", "xml.pretty"),
-            ("tabular", "tabular"),
+        for (profile, expected_layout, expected_output) in [
+            (
+                "compact",
+                "structural-compact",
+                "<?xml version=\"1.0\" encoding=\"UTF-8\"?><xsl:stylesheet xmlns:xsl=\"http://www.w3.org/1999/XSL/Transform\" version=\"1.0\"><xsl:template match=\"/\"><main><xsl:value-of select=\"catalog/title\"/></main></xsl:template></xsl:stylesheet>\n",
+            ),
+            (
+                "pretty",
+                "structural-pretty",
+                "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<xsl:stylesheet xmlns:xsl=\"http://www.w3.org/1999/XSL/Transform\" version=\"1.0\">\n    <xsl:template match=\"/\">\n        <main><xsl:value-of select=\"catalog/title\"/></main>\n    </xsl:template>\n</xsl:stylesheet>\n",
+            ),
+            (
+                "tabular",
+                "attribute-tabular",
+                "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<xsl:stylesheet\n    xmlns:xsl=\"http://www.w3.org/1999/XSL/Transform\"\n    version=\"1.0\">\n    <xsl:template\n        match=\"/\">\n        <main><xsl:value-of select=\"catalog/title\"/></main>\n    </xsl:template>\n</xsl:stylesheet>\n",
+            ),
         ] {
             let target_scope = ScopeConfig {
                 cemt_formatter_profile: Some(profile.to_owned()),
@@ -24853,7 +24863,7 @@ mod tests {
             );
             assert_eq!(
                 execution.output.as_ref().and_then(Value::as_str),
-                Some(std::str::from_utf8(source).unwrap()),
+                Some(expected_output),
                 "{profile}"
             );
             let formatted = execution
@@ -24863,23 +24873,52 @@ mod tests {
             assert_eq!(formatted.value["contentType"], XSLT_CONTENT_TYPE);
             assert_eq!(formatted.value["schema"], XSLT_SCHEMA_URI);
             assert_eq!(formatted.value["category"], "xslt-stylesheet");
-            assert_eq!(formatted.value["formatterProfile"], artifact_profile);
+            assert_eq!(formatted.value["formatterProfile"], profile);
             assert_eq!(
                 formatted.value["formatNodes"][1]["value"]["layout"],
-                format!("lexical-lossless-{profile}")
+                expected_layout
             );
             assert!(formatted.value["nodes"]
                 .as_array()
                 .is_some_and(|nodes| nodes.iter().any(|node| {
-                    node["kind"] == "xslt.empty-element"
+                    node["kind"] == "xslt.markup-element-name"
                         && node["value"]["qualifiedName"] == "xsl:value-of"
                         && node["sourceMap"] != Value::Null
                 })));
         }
+
+        let execution = execute_xslt_stylesheet_output_pipeline_with_environment(
+            &environment,
+            stylesheet.expect("XSLT stylesheet"),
+            &ScopeConfig {
+                cemt_formatter_profile: Some("pretty".to_owned()),
+                cemt_formatter_options: BTreeMap::from([
+                    ("indent".to_owned(), "\t".to_owned()),
+                    ("lineEnding".to_owned(), "crlf".to_owned()),
+                    ("tabSize".to_owned(), "4".to_owned()),
+                ]),
+                ..ScopeConfig::default()
+            },
+            Some("builtin:xslt-output-crlf"),
+        );
+        assert!(
+            execution.diagnostics.is_empty(),
+            "{:?}",
+            execution.diagnostics
+        );
+        let output = execution.output.as_ref().and_then(Value::as_str).unwrap();
+        assert!(output.contains("\r\n\t<xsl:template"), "{output:?}");
+        assert!(output.ends_with("\r\n"), "{output:?}");
+        assert!(!output.replace("\r\n", "").contains('\n'), "{output:?}");
+        assert_eq!(
+            execution.formatted_cem_tree.as_ref().unwrap().value["formatNodes"][1]["value"]
+                ["tabSize"],
+            4
+        );
     }
 
     #[test]
-    fn builtin_xslt_profile_characterization_records_current_lexical_baseline() {
+    fn builtin_xslt_profile_semantics_preserve_lexical_islands_and_source_maps() {
         let schema_registry = SchemaRegistry::with_builtin_schemas();
         let conversion_registry = ConversionRegistry::with_builtin_converters();
         let environment = ConversionOutputPipelineEnvironment {
@@ -24906,10 +24945,19 @@ mod tests {
             "{diagnostics:?}"
         );
 
-        for (profile, artifact_profile) in [
-            ("compact", "compact"),
-            ("pretty", "xml.pretty"),
-            ("tabular", "tabular"),
+        let source_text = std::str::from_utf8(source).expect("UTF-8 fixture");
+        let foreign_start = source_text.find("<ui:card").expect("foreign subtree start");
+        let foreign_end = source_text
+            .find("    </ui:card>")
+            .map(|end| end + "    </ui:card>".len())
+            .expect("foreign subtree end");
+        let foreign_subtree = &source_text[foreign_start..foreign_end];
+        let mut outputs = Vec::new();
+
+        for (profile, expected_layout) in [
+            ("compact", "structural-compact"),
+            ("pretty", "structural-pretty"),
+            ("tabular", "attribute-tabular"),
         ] {
             let execution = execute_xslt_stylesheet_output_pipeline_with_environment(
                 &environment,
@@ -24927,31 +24975,28 @@ mod tests {
                 "{profile}: {:?}",
                 execution.diagnostics
             );
-            assert_eq!(
-                execution.output.as_ref().and_then(Value::as_str),
-                Some(std::str::from_utf8(source).expect("UTF-8 fixture")),
-                "{profile} currently preserves the complete lexical stylesheet"
+            let output = execution
+                .output
+                .as_ref()
+                .and_then(Value::as_str)
+                .unwrap_or_else(|| panic!("{profile} output"));
+            outputs.push(output.to_owned());
+            assert!(
+                output.contains(foreign_subtree),
+                "{profile} must preserve the complete foreign lexical subtree"
             );
             let formatted = execution
                 .formatted_cem_tree
                 .as_ref()
                 .unwrap_or_else(|| panic!("{profile} formatted tree"));
-            assert_eq!(formatted.value["formatterProfile"], artifact_profile);
+            assert_eq!(formatted.value["formatterProfile"], profile);
             assert_eq!(
                 formatted.value["formatNodes"][1]["value"]["layout"],
-                format!("lexical-lossless-{profile}")
+                expected_layout
             );
             let nodes = formatted.value["nodes"]
                 .as_array()
                 .unwrap_or_else(|| panic!("{profile} writer tokens"));
-            assert_eq!(
-                nodes
-                    .iter()
-                    .skip(2)
-                    .filter_map(|node| node["text"].as_str())
-                    .collect::<String>(),
-                std::str::from_utf8(source).expect("UTF-8 fixture")
-            );
             for needle in [
                 "/catalog/item[@active = true()]",
                 "@visible and $mode = 'full'",
@@ -24961,21 +25006,26 @@ mod tests {
                 "<![CDATA[foreign <text> & exact]]>",
             ] {
                 assert!(
-                    nodes.iter().any(|node| node["text"]
-                        .as_str()
-                        .is_some_and(|text| text.contains(needle))),
-                    "{profile} must retain `{needle}` in a source-backed token"
+                    output.contains(needle),
+                    "{profile} must retain `{needle}` byte-for-byte"
                 );
             }
-            assert!(nodes.iter().skip(2).all(|node| {
+            assert!(nodes.iter().skip(2).any(|node| {
+                node["kind"] == "xslt.layout"
+                    && node["sourceMap"] == Value::Null
+                    && node["outputSpan"] == Value::Null
+            }), "{profile} generated layout must be unmapped");
+            assert!(nodes.iter().skip(2).filter(|node| node["kind"] != "xslt.layout").all(|node| {
                 node["sourceMap"]["frames"]
                     .as_array()
                     .is_some_and(|frames| !frames.is_empty())
                     && node["outputSpan"]["origin"]["frames"]
                         .as_array()
                         .is_some_and(|frames| !frames.is_empty())
-            }));
+            }), "{profile} lexical tokens must retain source maps");
         }
+        assert_ne!(outputs[0], outputs[1], "compact and pretty must be distinct");
+        assert_ne!(outputs[1], outputs[2], "pretty and tabular must be distinct");
     }
 
     #[test]
@@ -24998,6 +25048,14 @@ mod tests {
                 },
             );
         assert!(diagnostics.is_empty(), "{diagnostics:?}");
+        let plain = execute_xslt_stylesheet_output_pipeline_with_environment(
+            &environment,
+            stylesheet.clone().expect("XSLT stylesheet"),
+            &ScopeConfig::default(),
+            Some("builtin:xslt-plain-output"),
+        );
+        assert!(plain.diagnostics.is_empty(), "{:?}", plain.diagnostics);
+        let plain_output = plain.output.as_ref().and_then(Value::as_str).unwrap();
 
         for (profile, style_key, style_value) in [
             ("terminal", "terminalCapability", "auto"),
@@ -25028,6 +25086,42 @@ mod tests {
             assert_eq!(colored.value["category"], "xslt-stylesheet");
             assert_eq!(colored.value["colorProfile"], profile);
             assert_eq!(colored.value["nodes"][2]["style"][style_key], style_value);
+            for (kind, role) in [
+                ("xslt.markup-delimiter", "syntax.punctuation"),
+                ("xslt.markup-element-name", "syntax.name"),
+                ("xslt.markup-attribute-name", "syntax.attribute"),
+                ("xslt.markup-attribute-value", "syntax.string"),
+            ] {
+                let token = colored.value["nodes"]
+                    .as_array()
+                    .and_then(|nodes| nodes.iter().find(|node| node["kind"] == kind))
+                    .unwrap_or_else(|| panic!("{profile} {kind} token"));
+                assert_eq!(token["role"], role, "{profile} {kind}");
+                assert_eq!(token["style"]["colorRole"], role, "{profile} {kind}");
+                assert_eq!(token["style"][style_key], style_value, "{profile} {kind}");
+            }
+            assert_eq!(
+                writer_node_text(
+                    colored
+                        .value
+                        .as_runtime_value()
+                        .expect("colored CEM tree has a runtime payload"),
+                ),
+                plain_output.strip_suffix('\n').unwrap_or(plain_output)
+            );
+            let output = execution.output.as_ref().and_then(Value::as_str).unwrap();
+            let visible = match profile {
+                "terminal" => strip_ansi_codes(output),
+                "html" | "md" => {
+                    colored_markup_text_content(output.strip_suffix('\n').unwrap_or(output))
+                }
+                _ => unreachable!(),
+            };
+            assert_eq!(
+                visible.trim_end_matches(['\r', '\n']),
+                plain_output.trim_end_matches(['\r', '\n']),
+                "{profile}"
+            );
         }
     }
 

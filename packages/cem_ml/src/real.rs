@@ -17868,8 +17868,16 @@ mod tests {
             let primary_bytes = resp.primary_bytes.as_ref().expect("XSLT primary bytes");
             assert_eq!(primary_bytes.content_type, content_type);
             assert_eq!(primary_bytes.schema.as_deref(), Some(XSLT_SCHEMA_URI));
-            let mut expected = stylesheet.to_vec();
-            expected.push(b'\n');
+            let expected = br#"<?xml version="1.0"?>
+<xsl:stylesheet
+    xmlns:xsl="http://www.w3.org/1999/XSL/Transform"
+    version="1.0">
+    <xsl:template
+        match="/">
+        <main><xsl:value-of select="catalog/title"/></main>
+    </xsl:template>
+</xsl:stylesheet>
+"#;
             assert_eq!(primary_bytes.bytes, expected);
             assert_eq!(resp.primary["kind"], "document");
             assert_eq!(resp.primary["contentType"], content_type);

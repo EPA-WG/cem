@@ -14,7 +14,8 @@ use crate::schema::registry::{
     JSON_SCHEMA_CONTENT_TYPE, JSON_SCHEMA_SCHEMA_URI, MARKDOWN_CONTENT_TYPE, MARKDOWN_SCHEMA_URI,
     MATHML_NAMESPACE_URI, MATHML_SCHEMA_URI, RELAX_NG_SCHEMA_URI, SVG_CONTENT_TYPE,
     SVG_NAMESPACE_URI, SVG_SCHEMA_URI, XHTML_CONTENT_TYPE, XHTML_SCHEMA_URI, XML_CONTENT_TYPE,
-    XML_SCHEMA_URI, XPATH_RESULT_CONTENT_TYPE, XPATH_SCHEMA_URI, XSLT_SCHEMA_URI,
+    XML_SCHEMA_URI, XPATH_RESULT_CONTENT_TYPE, XPATH_SCHEMA_URI, XSLT_NAMESPACE_URI,
+    XSLT_SCHEMA_URI,
     YAML_CONTENT_TYPE, YAML_SCHEMA_URI,
 };
 use crate::source::{ByteRange, SourceId};
@@ -1471,6 +1472,7 @@ pub enum XmlFamilyDocumentCemtSubjectRef<'a> {
 pub enum XmlFamilyMarkupPackage {
     Svg,
     MathMl,
+    Xslt,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -6317,6 +6319,7 @@ fn xml_backed_event_evaluator_field<'a>(
     let markup_package = match document {
         XmlFamilyDocumentCemtSubjectRef::Svg(_) => Some(XmlFamilyMarkupPackage::Svg),
         XmlFamilyDocumentCemtSubjectRef::MathMl(_) => Some(XmlFamilyMarkupPackage::MathMl),
+        XmlFamilyDocumentCemtSubjectRef::Xslt(_) => Some(XmlFamilyMarkupPackage::Xslt),
         _ => None,
     };
     match name {
@@ -6689,16 +6692,18 @@ fn xml_family_element_requires_lexical_layout(
             local_name,
             "mi" | "mn" | "mo" | "mtext" | "ms" | "annotation" | "annotation-xml"
         ),
+        XmlFamilyMarkupPackage::Xslt => {
+            local_name == "text"
+                && event.namespace_uri.as_deref() == Some(XSLT_NAMESPACE_URI)
+        }
     };
     let expected_namespace = match package {
         XmlFamilyMarkupPackage::Svg => SVG_NAMESPACE_URI,
         XmlFamilyMarkupPackage::MathMl => MATHML_NAMESPACE_URI,
+        XmlFamilyMarkupPackage::Xslt => XSLT_NAMESPACE_URI,
     };
     name_requires_layout
-        || event
-            .namespace_uri
-            .as_deref()
-            .is_some_and(|namespace| namespace != expected_namespace)
+        || event.namespace_uri.as_deref() != Some(expected_namespace)
         || event.attributes.iter().any(|attribute| {
             attribute.qualified_name == "xml:space" && attribute.value == "preserve"
         })

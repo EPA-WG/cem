@@ -1263,19 +1263,20 @@ Remaining dependency-ordered package checklist:
         graph collections preserve typed child order and identity.
   - [x] Register explicit DOM, event-stream, and XPath-result JSON exporters
         only after the native data-plane migration passes all gates.
-- [ ] Polish XSLT formatter and colorizer profile semantics on the dedicated
+- [x] Polish XSLT formatter and colorizer profile semantics on the dedicated
       `XsltStylesheetAst` path.
-  - [ ] Reuse the shared typed XML-family markup-token helper while keeping
+  - [x] Reuse the shared typed XML-family markup-token helper while keeping
         XSLT layout and role policy package-local.
   - [x] Characterize stylesheet/module namespaces, XPath attributes, attribute
         value templates, `xsl:text`, literal result elements, comments, CDATA,
         extension namespaces, and legacy custom-element syntax.
-  - [ ] Define distinct deterministic `compact`, `pretty`, and `tabular`
+  - [x] Define distinct deterministic `compact`, `pretty`, and `tabular`
         layouts without rewriting XPath, AVT, text, or foreign lexical islands.
-  - [ ] Preserve token-level source maps, leave generated layout unmapped,
+  - [x] Preserve token-level source maps, leave generated layout unmapped,
         honor formatter options, and verify terminal/HTML/Markdown parity.
-  - [ ] Run the XSLT package, converter parity, CLI e2e, and core gates.
-- [ ] cleanup completed items in todo.md
+  - [x] Run the XSLT package, converter parity, CLI e2e, and core gates.
+- [ ] Clean up completed items in `docs/todo.md` while preserving durable
+      constraints, verification evidence, and useful implementation history.
 
 ### Deferred: Phase 3 Custom-Element Runtime
 
@@ -1405,7 +1406,7 @@ through the final encoding call, and source audits prohibit a generic `Value`,
 compatibility projection, serializer DTO, or fallback between graph and
 exporter layers.
 
-### Next Work Item — XSLT Formatter and Colorizer Profile Semantics
+### Completed Work Item — XSLT Formatter and Colorizer Profile Semantics
 
 Polish the dedicated `XsltStylesheetAst` output path without weakening its native
 ownership or lexical-preservation guarantees:
@@ -1414,28 +1415,42 @@ ownership or lexical-preservation guarantees:
       fixtures covering stylesheet/module namespaces, XPath-bearing
       attributes, AVTs, `xsl:text`, literal result elements, comments, CDATA,
       extension namespaces, and legacy custom-element syntax.
-- [ ] Reuse the shared typed XML-family markup-token helper while keeping XSLT
+- [x] Reuse the shared typed XML-family markup-token helper while keeping XSLT
       layout, role, and color policy package-local.
-- [ ] Define deterministic `compact`, `pretty`, and `tabular` layouts that
+- [x] Define deterministic `compact`, `pretty`, and `tabular` layouts that
       preserve XPath, AVT, text, and foreign lexical islands. Preserve
       token-level source maps and leave formatter-generated layout unmapped.
-- [ ] Verify formatter options and plain, terminal, HTML, and Markdown parity,
+- [x] Verify formatter options and plain, terminal, HTML, and Markdown parity,
       then run focused XSLT/package tests, core tests and lint, converter parity,
       CLI e2e, and native/WASM gates.
 
-The first slice is characterization only. If existing package behavior and
-fixtures do not determine a layout rule for an ambiguous XSLT construct, stop
-at that decision point rather than inventing new profile semantics.
-
 Characterization is complete in
-`docs/xslt-profile-semantics-characterization.md`. The native owner and lexical
-preservation contracts are determined, but the repository does not define the
-observable layout, role, profile-name, or Markdown-output choices required for
-the next implementation slice. The characterization also closes a validator
-routing leak that compiled XSLT AVTs as CEM-QL; explicit XSLT identity now keeps
-those lexical expressions solely in the native XSLT stream. The recommended
-profile policy is recorded in the characterization note; work is stopped at
-that explicit decision point before changing production output.
+`docs/xslt-profile-semantics-characterization.md`, and its recommended profile
+policy was accepted. The implementation reuses the borrowed XML-family token
+view without inserting a serializer or DTO, keeps policy in the XSLT package,
+preserves XSLT/foreign lexical islands, and retains `xml.pretty` only as the
+registry-required selector alias while emitting profile `pretty`.
+
+### Next Work Item — Clean Up Completed Todo History
+
+Reduce this file to active and deferred work without losing the constraints and
+evidence that future changes still need:
+
+- inventory completed top-level work clusters and separate durable architecture
+  rules, verification commands, and cross-references from historical execution
+  detail;
+- preserve durable material in its authoritative design or contributor document
+  and update references before moving any history;
+- archive completed execution narratives in a dedicated history document, then
+  leave concise completion links in this file;
+- run documentation links, schema-package structure, and any todo-specific
+  source-audit gates after the move.
+
+The decision boundary is whether completed narratives should be archived or
+deleted and left only in Git history. The recommendation is a dedicated archive:
+it keeps the active todo readable while retaining searchable rationale and test
+evidence. Stop before moving content until that archive policy and destination
+are accepted.
 
 ## Current Verification Commands
 

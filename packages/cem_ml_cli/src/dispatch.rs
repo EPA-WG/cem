@@ -22781,7 +22781,7 @@ declare let broken = 1 +
     }
 
     #[test]
-    fn convert_standard_xslt_media_types_preserves_stylesheet_and_final_newline() {
+    fn convert_standard_xslt_media_types_applies_tabular_profile_and_final_newline() {
         let source = r#"<?xml version="1.0"?><xsl:stylesheet xmlns:xsl="http://www.w3.org/1999/XSL/Transform" version="1.0"><xsl:template match="/"><main><xsl:value-of select="catalog/title"/></main></xsl:template></xsl:stylesheet>"#;
         for content_type in [
             cem_ml::schema::registry::XSLT_CONTENT_TYPE,
@@ -22815,7 +22815,17 @@ declare let broken = 1 +
             );
 
             assert_eq!(outcome.exit_code, EXIT_OK, "{content_type}: {stderr}");
-            assert_eq!(stdout, format!("{source}\n"), "{content_type}");
+            let expected = r#"<?xml version="1.0"?>
+<xsl:stylesheet
+    xmlns:xsl="http://www.w3.org/1999/XSL/Transform"
+    version="1.0">
+    <xsl:template
+        match="/">
+        <main><xsl:value-of select="catalog/title"/></main>
+    </xsl:template>
+</xsl:stylesheet>
+"#;
+            assert_eq!(stdout, expected, "{content_type}");
             assert!(!stderr.contains("cem.lifecycle.adapter_unsupported"));
         }
     }

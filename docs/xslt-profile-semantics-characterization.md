@@ -1,7 +1,7 @@
 # XSLT Formatter and Colorizer Profile Characterization
 
-Status: characterization complete; profile semantics require an explicit
-decision before implementation.
+Status: recommended profile policy accepted, implemented, and covered by the
+native XSLT output contracts.
 
 ## Native boundary
 
@@ -34,10 +34,11 @@ tokenizer format. Explicit standard or compatibility XSLT content/schema
 identity now leaves those expressions exclusively in the XSLT AST. A focused
 CEM-QL bridge test and schema-owned CLI example gate enforce that ownership.
 
-## Current formatter behavior
+## Characterized formatter behavior
 
-The public profiles are `compact`, `pretty`, and `tabular`. The pretty artifact
-currently resolves to internal metadata value `xml.pretty`. All three profiles:
+Before this implementation, the public profiles were `compact`, `pretty`, and
+`tabular`, while the pretty artifact resolved to internal metadata value
+`xml.pretty`. All three profiles:
 
 - emit two generated, unmapped formatter marker/decision tokens;
 - then emit one source-mapped writer token for each XML event;
@@ -45,31 +46,42 @@ currently resolves to internal metadata value `xml.pretty`. All three profiles:
 - produce byte-identical lexical stylesheet output;
 - differ only in formatter profile and `lexical-lossless-*` layout metadata.
 
-The shared typed `xml_event_markup_tokens` helper already splits element
+The shared typed `xml_event_markup_tokens` helper splits element
 delimiters, names, whitespace, attribute names, equals signs, and attribute
-values with token-level ranges. The borrowed XML-family evaluator currently
-exposes those markup tokens and layout flags only for SVG and MathML. XSLT does
-not yet select that helper, so element attributes are colored as part of one
-`syntax.name` event token rather than by token role.
+values with token-level ranges.
 
-## Current colorizer behavior
+## Implemented formatter and colorizer behavior
+
+XSLT now selects the shared borrowed XML-family token and safe-layout view from
+its native `XsltStylesheetAst`; the XSLT package still owns all formatting and
+color policy. The formatter implements distinct `structural-compact`,
+`structural-pretty`, and `attribute-tabular` layouts. It treats `xsl:text`,
+mixed/non-whitespace content, CDATA/entity content, and every non-XSLT namespace
+subtree (including no-namespace literal result elements) as lexical islands.
+XPath and AVT attribute-value tokens therefore retain their exact bytes.
+
+The emitted formatter profile is `pretty`; the public CEMT function keeps the
+registry's canonical `xml.pretty` selector as the required compatibility alias
+and passes `pretty` to the package helper. Configured indentation, line ending,
+and tab-size metadata are honored. Lexical markup tokens retain token-level
+source maps and output origins; formatter-generated whitespace is explicitly
+unmapped.
 
 The terminal, HTML, and `md` CEMT wrappers attach typed style overlays to the
-same formatted owner. Roles are currently event-level: declaration and
-processing-instruction use `syntax.keyword`; element events use `syntax.name`;
-text uses `syntax.text`; CDATA and entity references use `syntax.string`; and
-comments use `syntax.comment`.
+same formatted owner. XML markup token roles distinguish punctuation, element
+names, attribute names, and attribute values. Event roles remain the baseline
+for declarations, processing instructions, text, CDATA/entities, and comments.
 
 Terminal and HTML have explicit writer output selections. The `md` profile
-currently records a span/class overlay, but the shared output-color selector
-has no Markdown target and therefore writes plain text. “Markdown parity” is
-not yet defined as either a typed-overlay contract or a Markdown-encoded writer
-surface.
+records a span/class overlay, while the shared output-color selector writes
+plain text. Tests verify that terminal, HTML, and Markdown-visible text matches
+the uncolored writer output.
 
-## Decision required
+## Accepted decision
 
-The package README explicitly says stylesheet-aware reflow is not yet defined,
-and no existing fixture selects rules for the following behavior:
+The characterization found no pre-existing package rule for the following
+behavior, so implementation paused until the recommended policy below was
+accepted:
 
 1. Whether `compact` removes only structural whitespace or also normalizes
    markup spacing.
@@ -85,7 +97,7 @@ and no existing fixture selects rules for the following behavior:
 6. Whether `md` remains a style-overlay alias with plain output or gains a
    first-class Markdown writer target.
 
-## Recommended policy
+## Accepted policy
 
 Use the established SVG/MathML structural formatter as the mechanical baseline,
 with XSLT-owned policy:
@@ -108,6 +120,7 @@ with XSLT-owned policy:
 - Treat `md` as typed overlay metadata with plain writer output for this slice;
   schedule Markdown encoding separately rather than silently inventing it.
 
-Implementation must not start until this policy—or an alternative—is accepted,
-because adopting it changes observable bytes, source-map segmentation, profile
-identity, and color-role contracts.
+The accepted policy changes observable bytes, source-map segmentation, profile
+identity, and color-role contracts. Focused contracts cover those changes, the
+schema-package fixture covers lexical islands, and the full package/core/CLI
+gates prevent drift across the native pipeline.
