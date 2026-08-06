@@ -316,9 +316,13 @@ fn xslt_xpath_expressions(document: &XmlDocumentAst) -> Vec<XsltXPathExpressionA
             let Some(value_source_range) = attribute.value_source_range else {
                 continue;
             };
-            if !xslt_is_xpath_attribute(&attribute.local_name)
-                || attribute.value.trim().is_empty()
-                || attribute.value.contains('&')
+            let (Some(expression_text), Some(source_range_projector)) = (
+                attribute.entity_decoded_value.as_deref(),
+                attribute.entity_decoded_source_map.as_ref(),
+            ) else {
+                continue;
+            };
+            if !xslt_is_xpath_attribute(&attribute.local_name) || expression_text.trim().is_empty()
             {
                 continue;
             }
@@ -326,9 +330,10 @@ fn xslt_xpath_expressions(document: &XmlDocumentAst) -> Vec<XsltXPathExpressionA
             let owner_range = xpath_range_from_xml(event.source_range);
             let expression = xpath_expression_ast_from_source_bytes(
                 XPathSourceRequest {
-                    bytes: attribute.value.as_bytes(),
+                    bytes: expression_text.as_bytes(),
                     source_uri: &document.source.uri,
                     content_type: Some(XPATH_CONTENT_TYPE),
+                    source_range_projector: Some(source_range_projector),
                 },
                 XPathAttachment::Host(XPathHostAttachment {
                     owner: XPathHostOwner {
@@ -1789,7 +1794,8 @@ mod tests {
     }
 
     #[test]
-    fn xslt_embedded_xpath_diagnostics_are_schema_owned_and_entity_mapped_values_stay_lexical() {
+    fn xslt_embedded_xpath_diagnostics_are_schema_owned_and_entity_values_fuse_with_original_ranges(
+    ) {
         let malformed = r#"<xsl:stylesheet xmlns:xsl="http://www.w3.org/1999/XSL/Transform" version="3.0">
   <xsl:template match="/"><xsl:value-of select="catalog["/></xsl:template>
 </xsl:stylesheet>
@@ -1830,10 +1836,11 @@ mod tests {
             });
         assert!(diagnostics.is_empty(), "{diagnostics:?}");
         let stylesheet = stylesheet.expect("typed entity-mapped XSLT stylesheet");
-        assert!(!stylesheet
+        let embedded = stylesheet
             .xpath_expressions
             .iter()
-            .any(|embedded| embedded.attribute_name == "select"));
+            .find(|embedded| embedded.attribute_name == "select")
+            .expect("entity-bearing select XPath expression");
         let select = stylesheet
             .xml_document
             .events
@@ -1846,10 +1853,69 @@ mod tests {
             .entity_decoded_source_map
             .as_ref()
             .is_some_and(|source_map| !source_map.spans().is_empty()));
+        assert_eq!(
+            embedded.expression.source_text.as_deref(),
+            Some("price < 10")
+        );
+        let less_than = embedded
+            .expression
+            .tokens
+            .iter()
+            .find(|token| token.lexeme == "<")
+            .expect("entity-decoded less-than token");
+        let token_start = less_than.source_range.start.byte_offset as usize;
+        let token_end = token_start + less_than.source_range.byte_length as usize;
+        assert_eq!(&entity_mapped[token_start..token_end], "&lt;");
+        let expression_range = xpath_range_from_xml(select.value_source_range.unwrap());
+        assert_eq!(
+            embedded
+                .expression
+                .syntax_ast
+                .as_ref()
+                .expect("entity-decoded XPath syntax")
+                .root
+                .source_range,
+            expression_range
+        );
+        assert_eq!(
+            embedded.expression.events[0].source_range.start,
+            expression_range.start
+        );
+        assert_eq!(
+            embedded
+                .expression
+                .events
+                .last()
+                .unwrap()
+                .source_range
+                .start
+                .byte_offset,
+            expression_range.start.byte_offset + expression_range.byte_length
+        );
         assert!(stylesheet.facts.iter().any(|fact| {
             fact.kind == XsltFactKind::XPathObserved
                 && fact.value.as_deref() == Some("price &lt; 10")
         }));
+
+        let entity_malformed = r#"<xsl:stylesheet xmlns:xsl="http://www.w3.org/1999/XSL/Transform" version="3.0">
+  <xsl:template match="/"><xsl:value-of select="price &lt; ("/></xsl:template>
+</xsl:stylesheet>
+"#;
+        let (stylesheet, diagnostics) =
+            xslt_stylesheet_ast_from_source_bytes(XsltSourceValidationRequest {
+                bytes: entity_malformed.as_bytes(),
+                source_uri: "memory://entity-malformed.xsl",
+                content_type: Some(XSLT_CONTENT_TYPE),
+            });
+        assert!(stylesheet.is_some());
+        let open_paren = entity_malformed.rfind('(').expect("malformed delimiter") as u64;
+        assert!(
+            diagnostics.iter().any(|diagnostic| {
+                diagnostic.code == "cem.xpath.unclosed_delimiter"
+                    && diagnostic.byte_offset == Some(open_paren)
+            }),
+            "{diagnostics:?}"
+        );
     }
 
     #[test]

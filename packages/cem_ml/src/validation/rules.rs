@@ -2862,6 +2862,7 @@ fn validate_schema_package_example_source_bytes(
                 bytes,
                 source_uri,
                 content_type: Some(content_type),
+                source_range_projector: None,
             }));
         }
     };

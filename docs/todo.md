@@ -60,6 +60,10 @@ mediate between internal layers.
     - [x] Wrap decoded XML attribute spans in a boundary-aware typed source map
           that projects scalar-aligned ranges and zero-length positions back to
           exact original source ranges while invalid boundaries fail closed.
+    - [x] Thread a shared typed source-range projector through XPath's single
+          scan/parse and fuse entity-decoded whole XPath attributes directly
+          into XSLT, preserving original ranges on tokens, events, syntax,
+          facts, and diagnostics without a serializer or post-parse rewrite.
   - [ ] Add deterministic compact/pretty/tabular and
         terminal/HTML/Markdown profiles that preserve lexical islands and source
         maps, then run package, converter-parity, CLI e2e, WASM, and core release

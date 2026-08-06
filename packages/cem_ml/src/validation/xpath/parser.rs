@@ -3,10 +3,9 @@ use super::{
     XPathArrayConstructor, XPathAttachment, XPathAxis, XPathBinaryOperator, XPathExpression,
     XPathExpressionNode, XPathExpressionSequence, XPathKindTest, XPathLiteral, XPathLiteralKind,
     XPathMapConstructorEntry, XPathName, XPathNameTest, XPathNodeTest, XPathPathExpression,
-    XPathPathRoot, XPathPostfixExpression, XPathPrimaryExpression, XPathSourcePosition,
-    XPathSourceRange, XPathStep, XPathStepNode, XPathSyntaxAst,
+    XPathPathRoot, XPathPostfixExpression, XPathPrimaryExpression, XPathSourceRange,
+    XPathSourceRangeResolver, XPathStep, XPathStepNode, XPathSyntaxAst,
 };
-use crate::source::line_index::LineIndex;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(super) enum XPathParseErrorKind {
@@ -56,16 +55,14 @@ enum XPathNameUse {
 pub(super) fn parse_xpath(
     source: &str,
     tokens: &[XPathLexicalToken<'_>],
-    line_index: &LineIndex,
-    origin: XPathSourcePosition,
+    range_resolver: &XPathSourceRangeResolver,
     attachment: &XPathAttachment,
 ) -> Result<XPathSyntaxAst, XPathParseError> {
     XPathParser {
         tokens,
         raw_index: 0,
         source_len: source.len(),
-        line_index,
-        origin,
+        range_resolver,
         attachment,
     }
     .parse()
@@ -75,8 +72,7 @@ struct XPathParser<'tokens, 'source, 'context> {
     tokens: &'tokens [XPathLexicalToken<'source>],
     raw_index: usize,
     source_len: usize,
-    line_index: &'context LineIndex,
-    origin: XPathSourcePosition,
+    range_resolver: &'context XPathSourceRangeResolver,
     attachment: &'context XPathAttachment,
 }
 
@@ -899,27 +895,19 @@ impl<'tokens, 'source, 'context> XPathParser<'tokens, 'source, 'context> {
     }
 
     fn node_start(&self, node: &XPathExpressionNode) -> usize {
-        node.source_range
-            .start
-            .byte_offset
-            .saturating_sub(self.origin.byte_offset) as usize
+        self.range_resolver.decoded_start(node.source_range)
     }
 
     fn node_end(&self, node: &XPathExpressionNode) -> usize {
-        self.node_start(node)
-            .saturating_add(node.source_range.byte_length as usize)
+        self.range_resolver.decoded_end(node.source_range)
     }
 
     fn range_end(&self, range: XPathSourceRange) -> usize {
-        range
-            .start
-            .byte_offset
-            .saturating_sub(self.origin.byte_offset) as usize
-            + range.byte_length as usize
+        self.range_resolver.decoded_end(range)
     }
 
     fn range(&self, start: usize, end: usize) -> XPathSourceRange {
-        XPathSourceRange::from_offsets(self.line_index, self.origin, start, end)
+        self.range_resolver.range(start, end)
     }
 
     fn lexical_between(&self, start: usize, end: usize) -> String {

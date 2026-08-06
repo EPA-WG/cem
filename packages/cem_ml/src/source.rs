@@ -38,6 +38,49 @@ impl ByteRange {
     }
 }
 
+/// A position in the original source returned by a typed range projector.
+///
+/// This contract intentionally has no serialization representation: it is a
+/// native capability passed directly between parsing layers.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct SourceProjectionPosition {
+    pub line: u32,
+    pub column: u32,
+    pub byte_offset: u64,
+}
+
+/// A contiguous range in the original source returned by a typed projector.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct SourceProjectionRange {
+    pub start: SourceProjectionPosition,
+    pub byte_length: u64,
+}
+
+/// Native source-boundary projection shared by parser layers.
+///
+/// Implementations must return a position for every valid scalar boundary in
+/// the transformed UTF-8 stream and `None` for interior scalar bytes or
+/// positions outside that stream. Projected byte offsets must be monotonic.
+pub trait SourceRangeProjector: std::fmt::Debug + Send + Sync {
+    fn project_boundary(&self, decoded_byte_offset: u64) -> Option<SourceProjectionPosition>;
+}
+
+/// Projects both scalar-aligned boundaries of a transformed byte range.
+pub fn project_source_range(
+    projector: &dyn SourceRangeProjector,
+    decoded_range: ByteRange,
+) -> Option<SourceProjectionRange> {
+    let decoded_end = decoded_range
+        .start
+        .checked_add(u64::from(decoded_range.len))?;
+    let start = projector.project_boundary(decoded_range.start)?;
+    let end = projector.project_boundary(decoded_end)?;
+    Some(SourceProjectionRange {
+        start,
+        byte_length: end.byte_offset.checked_sub(start.byte_offset)?,
+    })
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
 pub enum Encoding {

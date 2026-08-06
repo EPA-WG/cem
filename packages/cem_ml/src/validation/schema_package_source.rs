@@ -55,6 +55,7 @@ fn validate_xpath_schema_package_source(
             bytes: request.bytes,
             source_uri: request.source_uri,
             content_type: request.content_type,
+            source_range_projector: None,
         },
         xpath::XPathAttachment::Standalone {
             source_id: SourceId(1).0,

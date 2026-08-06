@@ -839,6 +839,7 @@ impl LifecycleAdapter for XPathAdapter {
                 bytes: &input.bytes,
                 source_uri: &input.uri,
                 content_type: Some(content_type),
+                source_range_projector: None,
             },
             XPathAttachment::Standalone { source_id: 1 },
         );

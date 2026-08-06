@@ -3,7 +3,9 @@ use crate::schema::document_model::compile_schema_document_model;
 use crate::schema::package_sources::builtin_schema_package_source;
 use crate::schema::registry::{content_type_essence, XML_CONTENT_TYPE, XML_SCHEMA_URI};
 use crate::source::line_index::LineIndex;
-use crate::source::{ByteRange, SourceId};
+use crate::source::{
+    project_source_range, ByteRange, SourceId, SourceProjectionPosition, SourceRangeProjector,
+};
 use crate::source_map::{FrameSpan, SourceMapFrame, SourceMapStack, TransformKind};
 use serde_json::json;
 #[cfg(test)]
@@ -467,17 +469,26 @@ impl XmlAttributeValueSourceMap {
     /// Projects a scalar-aligned decoded byte range to the smallest contiguous
     /// original XML source range containing the represented lexical material.
     pub fn project_range(&self, decoded_range: ByteRange) -> Option<XmlSourceRange> {
-        let decoded_end = decoded_range
-            .start
-            .checked_add(u64::from(decoded_range.len))?;
-        if decoded_end > self.decoded_byte_length {
-            return None;
-        }
-        let start = self.project_boundary(decoded_range.start)?;
-        let end = self.project_boundary(decoded_end)?;
+        let projected = project_source_range(self, decoded_range)?;
         Some(XmlSourceRange {
-            start,
-            byte_length: end.byte_offset.checked_sub(start.byte_offset)?,
+            start: XmlSourcePosition {
+                line: projected.start.line,
+                column: projected.start.column,
+                byte_offset: projected.start.byte_offset,
+            },
+            byte_length: projected.byte_length,
+        })
+    }
+}
+
+impl SourceRangeProjector for XmlAttributeValueSourceMap {
+    fn project_boundary(&self, decoded_byte_offset: u64) -> Option<SourceProjectionPosition> {
+        XmlAttributeValueSourceMap::project_boundary(self, decoded_byte_offset).map(|position| {
+            SourceProjectionPosition {
+                line: position.line,
+                column: position.column,
+                byte_offset: position.byte_offset,
+            }
         })
     }
 }

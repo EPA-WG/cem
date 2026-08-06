@@ -15,7 +15,7 @@ pub use crate::schema::registry::{
     XPATH_CONTENT_TYPE, XPATH_RESULT_CONTENT_TYPE, XPATH_SCHEMA_URI,
 };
 use crate::source::line_index::LineIndex;
-use crate::source::{ByteRange, SourceId};
+use crate::source::{ByteRange, SourceId, SourceRangeProjector};
 use crate::source_map::{FrameSpan, SourceMapFrame, SourceMapStack, TransformKind};
 use crate::transform_artifact::TransformArtifactBody;
 use crate::transform_template::{
@@ -47,6 +47,10 @@ pub struct XPathSourceRequest<'a> {
     pub bytes: &'a [u8],
     pub source_uri: &'a str,
     pub content_type: Option<&'a str>,
+    /// Optional native projection from these UTF-8 bytes to an owning source.
+    /// The scanner and parser consume it directly; no serialized range bridge
+    /// or post-parse AST rewrite is performed.
+    pub source_range_projector: Option<&'a dyn SourceRangeProjector>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -132,6 +136,112 @@ impl XPathSourceRange {
                 },
             }],
         }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct XPathSourceBoundary {
+    decoded_byte_offset: usize,
+    source_position: XPathSourcePosition,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(super) struct XPathSourceRangeResolver {
+    boundaries: Vec<XPathSourceBoundary>,
+}
+
+impl XPathSourceRangeResolver {
+    fn new(
+        source: &str,
+        line_index: &LineIndex,
+        origin: XPathSourcePosition,
+        projector: Option<&dyn SourceRangeProjector>,
+    ) -> Option<Self> {
+        let mut decoded_boundaries = source
+            .char_indices()
+            .map(|(offset, _)| offset)
+            .collect::<Vec<_>>();
+        if decoded_boundaries.last().copied() != Some(source.len()) {
+            decoded_boundaries.push(source.len());
+        }
+        let boundaries = decoded_boundaries
+            .into_iter()
+            .map(|decoded_byte_offset| {
+                let source_position = if let Some(projector) = projector {
+                    let projected = projector.project_boundary(decoded_byte_offset as u64)?;
+                    XPathSourcePosition {
+                        line: projected.line,
+                        column: projected.column,
+                        byte_offset: projected.byte_offset,
+                    }
+                } else {
+                    XPathSourceRange::from_offsets(
+                        line_index,
+                        origin,
+                        decoded_byte_offset,
+                        decoded_byte_offset,
+                    )
+                    .start
+                };
+                Some(XPathSourceBoundary {
+                    decoded_byte_offset,
+                    source_position,
+                })
+            })
+            .collect::<Option<Vec<_>>>()?;
+        if boundaries.windows(2).any(|pair| {
+            pair[0].decoded_byte_offset >= pair[1].decoded_byte_offset
+                || pair[0].source_position.byte_offset >= pair[1].source_position.byte_offset
+        }) {
+            return None;
+        }
+        Some(Self { boundaries })
+    }
+
+    pub(super) fn range(&self, start: usize, end: usize) -> XPathSourceRange {
+        let start_position = self.boundary_for_decoded_offset(start);
+        let end_position = self.boundary_for_decoded_offset(end);
+        XPathSourceRange {
+            start: start_position,
+            byte_length: end_position
+                .byte_offset
+                .checked_sub(start_position.byte_offset)
+                .expect("prevalidated XPath source boundaries are monotonic"),
+        }
+    }
+
+    pub(super) fn decoded_start(&self, range: XPathSourceRange) -> usize {
+        self.decoded_offset_for_source_byte(range.start.byte_offset)
+    }
+
+    pub(super) fn decoded_end(&self, range: XPathSourceRange) -> usize {
+        self.decoded_offset_for_source_byte(
+            range
+                .start
+                .byte_offset
+                .checked_add(range.byte_length)
+                .expect("XPath source range end must fit in u64"),
+        )
+    }
+
+    fn boundary_for_decoded_offset(&self, decoded_byte_offset: usize) -> XPathSourcePosition {
+        let index = self
+            .boundaries
+            .binary_search_by_key(&decoded_byte_offset, |boundary| {
+                boundary.decoded_byte_offset
+            })
+            .expect("XPath parser ranges must end on UTF-8 scalar boundaries");
+        self.boundaries[index].source_position
+    }
+
+    fn decoded_offset_for_source_byte(&self, source_byte_offset: u64) -> usize {
+        let index = self
+            .boundaries
+            .binary_search_by_key(&source_byte_offset, |boundary| {
+                boundary.source_position.byte_offset
+            })
+            .expect("XPath AST ranges must retain projected scalar boundaries");
+        self.boundaries[index].decoded_byte_offset
     }
 }
 
@@ -957,6 +1067,7 @@ impl TransformTemplateAdapter for XPathTransformTemplateAdapter {
                     .identity
                     .as_ref()
                     .and_then(|identity| identity.content_type.as_deref()),
+                source_range_projector: None,
             },
             XPathAttachment::Standalone { source_id: 1 },
         ));
@@ -1968,12 +2079,14 @@ pub fn xpath_expression_ast_from_source_bytes(
                 syntax_ast: None,
                 facts: vec![XPathFact {
                     kind: XPathFactKind::InvalidUtf8,
-                    source_range: Some(XPathSourceRange::from_offsets(
-                        &line_index,
-                        origin,
-                        start,
-                        end.min(request.bytes.len()),
-                    )),
+                    source_range: request.source_range_projector.is_none().then(|| {
+                        XPathSourceRange::from_offsets(
+                            &line_index,
+                            origin,
+                            start,
+                            end.min(request.bytes.len()),
+                        )
+                    }),
                     message: format!("XPath source must be valid UTF-8: {error}"),
                     value: Some(start.to_string()),
                 }],
@@ -1984,22 +2097,45 @@ pub fn xpath_expression_ast_from_source_bytes(
     };
 
     let line_index = LineIndex::from_utf8(source_text);
+    let Some(range_resolver) = XPathSourceRangeResolver::new(
+        source_text,
+        &line_index,
+        origin,
+        request.source_range_projector,
+    ) else {
+        return XPathExpressionAst {
+            source,
+            source_text: Some(source_text.to_owned()),
+            tokens: Vec::new(),
+            events: Vec::new(),
+            syntax_ast: None,
+            facts: vec![XPathFact {
+                kind: XPathFactKind::SourceMapUnavailable,
+                source_range: None,
+                message: "XPath source projector does not cover every UTF-8 scalar boundary"
+                    .to_owned(),
+                value: None,
+            }],
+            attachment,
+            line_ending: detect_line_ending_style_bytes(request.bytes).map(str::to_owned),
+        };
+    };
     let lexical_tokens = lexer::xpath_lexical_tokens(source_text);
-    let mut tokens = xpath_lossless_tokens(source_text, &lexical_tokens, &line_index, origin);
+    let mut tokens = xpath_lossless_tokens(source_text, &lexical_tokens, &range_resolver);
     let mut facts = xpath_delimiter_facts(&mut tokens);
     if let XPathAttachment::Host(host) = &attachment {
+        let projected_expression_range = range_resolver.range(0, source_text.len());
         facts.push(XPathFact {
             kind: XPathFactKind::HostAssociationObserved,
-            source_range: Some(XPathSourceRange::from_offsets(
-                &line_index,
-                origin,
-                0,
-                source_text.len(),
-            )),
+            source_range: Some(projected_expression_range),
             message: "XPath expression is associated with a host AST node".to_owned(),
             value: Some("host".to_owned()),
         });
-        facts.extend(xpath_host_attachment_facts(request, host));
+        facts.extend(xpath_host_attachment_facts(
+            request,
+            host,
+            projected_expression_range,
+        ));
     }
     facts.extend(xpath_external_resource_facts(&tokens, &attachment));
 
@@ -2021,22 +2157,11 @@ pub fn xpath_expression_ast_from_source_bytes(
     let syntax_ast = if has_lexical_error {
         None
     } else {
-        match parser::parse_xpath(
-            source_text,
-            &lexical_tokens,
-            &line_index,
-            origin,
-            &attachment,
-        ) {
+        match parser::parse_xpath(source_text, &lexical_tokens, &range_resolver, &attachment) {
             Ok(syntax_ast) => {
                 facts.push(XPathFact {
                     kind: XPathFactKind::Parsed,
-                    source_range: Some(XPathSourceRange::from_offsets(
-                        &line_index,
-                        origin,
-                        0,
-                        source_text.len(),
-                    )),
+                    source_range: Some(range_resolver.range(0, source_text.len())),
                     message: "XPath 3.1 expression parsed successfully".to_owned(),
                     value: Some("xpath-3.1".to_owned()),
                 });
@@ -2053,12 +2178,7 @@ pub fn xpath_expression_ast_from_source_bytes(
                 };
                 facts.push(XPathFact {
                     kind,
-                    source_range: Some(XPathSourceRange::from_offsets(
-                        &line_index,
-                        origin,
-                        start,
-                        end,
-                    )),
+                    source_range: Some(range_resolver.range(start, end)),
                     message: error.message(),
                     value: Some(format!("{error:?}")),
                 });
@@ -2067,7 +2187,7 @@ pub fn xpath_expression_ast_from_source_bytes(
         }
     };
 
-    let events = xpath_ast_events(&tokens, &line_index, origin, source_text.len());
+    let events = xpath_ast_events(&tokens, &range_resolver, source_text.len());
     facts.extend(xpath_stream_invariant_facts(&tokens, &events));
     XPathExpressionAst {
         source,
@@ -2084,17 +2204,17 @@ pub fn xpath_expression_ast_from_source_bytes(
 fn xpath_host_attachment_facts(
     request: XPathSourceRequest<'_>,
     host: &XPathHostAttachment,
+    projected_expression_range: XPathSourceRange,
 ) -> Vec<XPathFact> {
     let expression_start = host.expression_range.start.byte_offset;
     let expression_end = expression_start.saturating_add(host.expression_range.byte_length);
     let owner_start = host.owner.source_range.start.byte_offset;
     let owner_end = owner_start.saturating_add(host.owner.source_range.byte_length);
     let mut failures = Vec::new();
-    if host.expression_range.byte_length != request.bytes.len() as u64 {
+    if host.expression_range != projected_expression_range {
         failures.push(format!(
-            "expression range length {} does not match {} source bytes",
-            host.expression_range.byte_length,
-            request.bytes.len()
+            "expression range {:?} does not match projected source range {:?}",
+            host.expression_range, projected_expression_range
         ));
     }
     if expression_start < owner_start || expression_end > owner_end {
@@ -2214,8 +2334,7 @@ fn xpath_stream_invariant_facts(
 
 fn xpath_ast_events(
     tokens: &[XPathTokenAst],
-    line_index: &LineIndex,
-    origin: XPathSourcePosition,
+    range_resolver: &XPathSourceRangeResolver,
     source_len: usize,
 ) -> Vec<XPathAstEvent> {
     let mut events = Vec::with_capacity(tokens.len() + 2);
@@ -2224,7 +2343,7 @@ fn xpath_ast_events(
         kind: XPathAstEventKind::StartExpression,
         token_index: None,
         depth: 0,
-        source_range: XPathSourceRange::from_offsets(line_index, origin, 0, 0),
+        source_range: range_resolver.range(0, 0),
     });
     events.extend(tokens.iter().map(|token| XPathAstEvent {
         index: token.index + 1,
@@ -2238,7 +2357,7 @@ fn xpath_ast_events(
         kind: XPathAstEventKind::EndExpression,
         token_index: None,
         depth: 0,
-        source_range: XPathSourceRange::from_offsets(line_index, origin, source_len, source_len),
+        source_range: range_resolver.range(source_len, source_len),
     });
     events
 }
@@ -2246,15 +2365,13 @@ fn xpath_ast_events(
 fn xpath_lossless_tokens(
     source: &str,
     lexical_tokens: &[lexer::XPathLexicalToken<'_>],
-    line_index: &LineIndex,
-    origin: XPathSourcePosition,
+    range_resolver: &XPathSourceRangeResolver,
 ) -> Vec<XPathTokenAst> {
     let mut tokens = Vec::new();
     for token in lexical_tokens {
         xpath_push_token(
             source,
-            line_index,
-            origin,
+            range_resolver,
             token.start,
             token.end,
             token.kind.presentation_kind(),
@@ -2266,8 +2383,7 @@ fn xpath_lossless_tokens(
 
 fn xpath_push_token(
     source: &str,
-    line_index: &LineIndex,
-    origin: XPathSourcePosition,
+    range_resolver: &XPathSourceRangeResolver,
     start: usize,
     end: usize,
     kind: XPathTokenKind,
@@ -2281,7 +2397,7 @@ fn xpath_push_token(
         kind,
         lexeme: source[start..end].to_owned(),
         depth: 0,
-        source_range: XPathSourceRange::from_offsets(line_index, origin, start, end),
+        source_range: range_resolver.range(start, end),
     });
 }
 
@@ -3073,6 +3189,37 @@ fn detect_line_ending_style_bytes(source: &[u8]) -> Option<&'static str> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::source::{SourceProjectionPosition, SourceRangeProjector};
+
+    #[derive(Debug)]
+    struct ExpandingEntityProjector;
+
+    impl SourceRangeProjector for ExpandingEntityProjector {
+        fn project_boundary(&self, decoded_byte_offset: u64) -> Option<SourceProjectionPosition> {
+            if decoded_byte_offset > 10 {
+                return None;
+            }
+            let expansion = u64::from(decoded_byte_offset > 6) * 3;
+            Some(SourceProjectionPosition {
+                line: 3,
+                column: 15 + u32::try_from(decoded_byte_offset + expansion).ok()?,
+                byte_offset: 42 + decoded_byte_offset + expansion,
+            })
+        }
+    }
+
+    #[derive(Debug)]
+    struct IncompleteProjector;
+
+    impl SourceRangeProjector for IncompleteProjector {
+        fn project_boundary(&self, decoded_byte_offset: u64) -> Option<SourceProjectionPosition> {
+            (decoded_byte_offset != 6).then_some(SourceProjectionPosition {
+                line: 1,
+                column: u32::try_from(decoded_byte_offset).ok()?.saturating_add(1),
+                byte_offset: decoded_byte_offset,
+            })
+        }
+    }
 
     fn parse_cem_contract(source: &str) -> crate::parser::document::CemDocument {
         let source = crate::source::BytesSource::new(SourceId(91), source.as_bytes().to_vec());
@@ -3137,6 +3284,7 @@ mod tests {
                 bytes: source.as_bytes(),
                 source_uri: "memory://expression.xpath",
                 content_type: Some(XPATH_CONTENT_TYPE),
+                source_range_projector: None,
             },
             XPathAttachment::Standalone { source_id: 7 },
         )
@@ -3146,6 +3294,102 @@ mod tests {
         parse(source)
             .syntax_ast
             .unwrap_or_else(|| panic!("expected parsed XPath syntax for `{source}`"))
+    }
+
+    #[test]
+    fn xpath_single_parse_projects_every_native_ast_range_to_original_source() {
+        let source = "price < 10";
+        let projector = ExpandingEntityProjector;
+        let expression_range = XPathSourceRange::new(3, 15, 42, 13);
+        let ast = xpath_expression_ast_from_source_bytes(
+            XPathSourceRequest {
+                bytes: source.as_bytes(),
+                source_uri: "memory://stylesheet.xsl",
+                content_type: Some(XPATH_CONTENT_TYPE),
+                source_range_projector: Some(&projector),
+            },
+            XPathAttachment::Host(XPathHostAttachment {
+                owner: XPathHostOwner {
+                    source_id: 11,
+                    source_uri: "memory://stylesheet.xsl".to_owned(),
+                    content_type: Some("application/xslt+xml".to_owned()),
+                    schema_uri: Some("https://cem.dev/ns/transform/xslt/1".to_owned()),
+                    node_kind: XPathHostNodeKind::XsltAttribute,
+                    node_id: Some("event:4@select".to_owned()),
+                    source_range: XPathSourceRange::new(3, 7, 34, 30),
+                },
+                expression_range,
+                static_context: XPathStaticContext::default(),
+                expected_result: None,
+                evaluation_phase: XPathEvaluationPhase::Transform,
+                resolver_policy_stamp: None,
+                safety_policy_stamp: None,
+            }),
+        );
+
+        let less_than = ast
+            .tokens
+            .iter()
+            .find(|token| token.lexeme == "<")
+            .expect("projected less-than token");
+        assert_eq!(less_than.source_range, XPathSourceRange::new(3, 21, 48, 4));
+        assert_eq!(
+            ast.tokens
+                .iter()
+                .find(|token| token.lexeme == " " && token.source_range.start.byte_offset > 48)
+                .expect("whitespace after expanded entity")
+                .source_range
+                .start
+                .byte_offset,
+            52
+        );
+        assert_eq!(
+            ast.syntax_ast
+                .as_ref()
+                .expect("projected syntax AST")
+                .root
+                .source_range,
+            expression_range
+        );
+        assert_eq!(
+            ast.events.first().unwrap().source_range.start.byte_offset,
+            42
+        );
+        assert_eq!(
+            ast.events.last().unwrap().source_range.start.byte_offset,
+            55
+        );
+        assert!(ast.facts.iter().any(|fact| {
+            fact.kind == XPathFactKind::HostAssociationObserved
+                && fact.source_range == Some(expression_range)
+        }));
+        assert!(!ast
+            .facts
+            .iter()
+            .any(|fact| fact.kind == XPathFactKind::SourceMapUnavailable));
+    }
+
+    #[test]
+    fn xpath_incomplete_projector_fails_closed_before_scanning() {
+        let source = "price < 10";
+        let projector = IncompleteProjector;
+        let ast = xpath_expression_ast_from_source_bytes(
+            XPathSourceRequest {
+                bytes: source.as_bytes(),
+                source_uri: "memory://projected.xpath",
+                content_type: Some(XPATH_CONTENT_TYPE),
+                source_range_projector: Some(&projector),
+            },
+            XPathAttachment::Standalone { source_id: 7 },
+        );
+
+        assert_eq!(ast.source_text.as_deref(), Some(source));
+        assert!(ast.tokens.is_empty());
+        assert!(ast.events.is_empty());
+        assert!(ast.syntax_ast.is_none());
+        assert_eq!(ast.facts.len(), 1);
+        assert_eq!(ast.facts[0].kind, XPathFactKind::SourceMapUnavailable);
+        assert_eq!(ast.facts[0].source_range, None);
     }
 
     fn xee_lexical_projection(source: &str) -> Vec<(XPathTokenKind, String)> {
@@ -3169,17 +3413,18 @@ mod tests {
         let line_index = LineIndex::from_utf8(source);
         let attachment = XPathAttachment::Standalone { source_id: 7 };
         let tokens = lexer::xpath_lexical_tokens(source);
-        parser::parse_xpath(
+        let range_resolver = XPathSourceRangeResolver::new(
             source,
-            &tokens,
             &line_index,
             XPathSourcePosition {
                 line: 1,
                 column: 1,
                 byte_offset: 0,
             },
-            &attachment,
+            None,
         )
+        .expect("standalone XPath range resolver");
+        parser::parse_xpath(source, &tokens, &range_resolver, &attachment)
     }
 
     fn xee_parser_syntax(source: &str) -> XPathSyntaxAst {
@@ -4412,6 +4657,7 @@ mod tests {
                 bytes: expression.as_bytes(),
                 source_uri: "memory://stylesheet.xsl",
                 content_type: Some(XPATH_CONTENT_TYPE),
+                source_range_projector: None,
             },
             attachment,
         );
@@ -4677,6 +4923,7 @@ mod tests {
             bytes: source.as_bytes(),
             source_uri: "memory://unknown-prefix.xpath",
             content_type: Some("text/xpath; charset=utf-8"),
+            source_range_projector: None,
         });
         let diagnostic = diagnostics
             .iter()
@@ -4712,6 +4959,7 @@ mod tests {
             bytes: b"doc(\"catalog.xml\")/catalog",
             source_uri: "memory://external.xpath",
             content_type: Some(XPATH_CONTENT_TYPE),
+            source_range_projector: None,
         });
 
         assert!(diagnostics.iter().any(|diagnostic| {
@@ -4745,6 +4993,7 @@ mod tests {
                 bytes: expression.as_bytes(),
                 source_uri: "memory://stylesheet.xsl",
                 content_type: Some(XPATH_CONTENT_TYPE),
+                source_range_projector: None,
             },
             attachment,
         );
@@ -4764,6 +5013,7 @@ mod tests {
                 bytes: &[b'/', 0xff, b'x'],
                 source_uri: "memory://invalid.xpath",
                 content_type: Some(XPATH_CONTENT_TYPE),
+                source_range_projector: None,
             },
             XPathAttachment::Standalone { source_id: 3 },
         );
