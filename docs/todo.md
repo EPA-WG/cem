@@ -53,6 +53,10 @@ mediate between internal layers.
           event identity, and inherited static namespace context; keep AVT
           segmentation and entity-decoded source mapping explicit follow-up
           work rather than introducing a text, JSON, or replacement-tree bridge.
+    - [x] Extend the generic `XmlAttributeAst` with its exact lexical value
+          range, entity-decoded value, and monotonic decoded-byte-to-source
+          spans so XML-family consumers can retain original source identity
+          without a serializer or format-specific mapping overlay.
   - [ ] Add deterministic compact/pretty/tabular and
         terminal/HTML/Markdown profiles that preserve lexical islands and source
         maps, then run package, converter-parity, CLI e2e, WASM, and core release

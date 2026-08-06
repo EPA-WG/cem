@@ -365,9 +365,18 @@ fn xml_push_markup_token(
 }
 
 fn xml_lexeme_range(event: &XmlEventAst, start: usize, end: usize) -> XmlSourceRange {
-    let prefix = &event.lexeme[..start];
-    let mut line = event.source_range.start.line;
-    let mut column = event.source_range.start.column;
+    xml_source_range_within(event.source_range, &event.lexeme, start, end)
+}
+
+fn xml_source_range_within(
+    outer_range: XmlSourceRange,
+    source: &str,
+    start: usize,
+    end: usize,
+) -> XmlSourceRange {
+    let prefix = &source[..start];
+    let mut line = outer_range.start.line;
+    let mut column = outer_range.start.column;
     let mut chars = prefix.chars().peekable();
     while let Some(ch) = chars.next() {
         match ch {
@@ -389,7 +398,7 @@ fn xml_lexeme_range(event: &XmlEventAst, start: usize, end: usize) -> XmlSourceR
         start: XmlSourcePosition {
             line,
             column,
-            byte_offset: event.source_range.start.byte_offset + start as u64,
+            byte_offset: outer_range.start.byte_offset + start as u64,
         },
         byte_length: (end - start) as u64,
     }
@@ -401,7 +410,23 @@ pub struct XmlAttributeAst {
     pub local_name: String,
     pub prefix: Option<String>,
     pub namespace_uri: Option<String>,
+    /// Exact source lexeme between the attribute's quotes.
     pub value: String,
+    /// Absolute source range for `value`, excluding the quotes.
+    pub value_source_range: Option<XmlSourceRange>,
+    /// Built-in and numeric XML references decoded to Unicode scalars.
+    /// This is absent when the lexical value contains an unresolved or invalid
+    /// reference; no external entity resolver is consulted.
+    pub entity_decoded_value: Option<String>,
+    /// One monotonic source span per UTF-8 scalar in `entity_decoded_value`.
+    pub entity_decoded_source_map: Vec<XmlAttributeValueSourceSpan>,
+}
+
+/// Maps one decoded UTF-8 scalar back to its exact lexical XML source span.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct XmlAttributeValueSourceSpan {
+    pub decoded_byte_range: ByteRange,
+    pub source_range: XmlSourceRange,
 }
 
 impl XmlAttributeAst {
@@ -1192,6 +1217,9 @@ fn project_xml_start_event(
                 prefix,
                 namespace_uri: (!namespace_uri.is_empty()).then_some(namespace_uri),
                 value,
+                value_source_range: None,
+                entity_decoded_value: None,
+                entity_decoded_source_map: Vec::new(),
             }
         })
         .collect::<Vec<_>>();
@@ -1214,7 +1242,7 @@ fn xml_element_event(
         .get(prefix.as_deref().unwrap_or_default())
         .filter(|value| !value.is_empty())
         .cloned();
-    XmlEventAst {
+    let mut event = XmlEventAst {
         index,
         kind,
         depth,
@@ -1227,7 +1255,136 @@ fn xml_element_event(
         whitespace_only: false,
         lexeme,
         source_range,
+    };
+    xml_attach_attribute_value_sources(&mut event);
+    event
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct XmlLexicalAttributeValue {
+    qualified_name: String,
+    value: String,
+    source_range: XmlSourceRange,
+}
+
+fn xml_attach_attribute_value_sources(event: &mut XmlEventAst) {
+    let lexical_values = xml_lexical_attribute_values(event);
+    for (attribute, lexical) in event.attributes.iter_mut().zip(lexical_values) {
+        if attribute.qualified_name != lexical.qualified_name || attribute.value != lexical.value {
+            continue;
+        }
+        attribute.value_source_range = Some(lexical.source_range);
+        if let Some((decoded, source_map)) =
+            xml_entity_decode_attribute_value(&lexical.value, lexical.source_range)
+        {
+            attribute.entity_decoded_value = Some(decoded);
+            attribute.entity_decoded_source_map = source_map;
+        }
     }
+}
+
+fn xml_lexical_attribute_values(event: &XmlEventAst) -> Vec<XmlLexicalAttributeValue> {
+    let mut values = Vec::new();
+    let mut qualified_name = None;
+    for token in xml_event_markup_tokens(event) {
+        match token.kind {
+            XmlMarkupTokenKind::AttributeName => qualified_name = Some(token.text),
+            XmlMarkupTokenKind::AttributeValue => {
+                let Some(name) = qualified_name.take() else {
+                    continue;
+                };
+                let bytes = token.text.as_bytes();
+                if bytes.len() < 2
+                    || !matches!(bytes[0], b'\'' | b'"')
+                    || bytes.last() != Some(&bytes[0])
+                {
+                    continue;
+                }
+                values.push(XmlLexicalAttributeValue {
+                    qualified_name: name,
+                    value: token.text[1..token.text.len() - 1].to_owned(),
+                    source_range: XmlSourceRange {
+                        start: XmlSourcePosition {
+                            line: token.source_range.start.line,
+                            column: token.source_range.start.column.saturating_add(1),
+                            byte_offset: token.source_range.start.byte_offset.saturating_add(1),
+                        },
+                        byte_length: token.source_range.byte_length.saturating_sub(2),
+                    },
+                });
+            }
+            _ => {}
+        }
+    }
+    values
+}
+
+fn xml_entity_decode_attribute_value(
+    lexical_value: &str,
+    value_source_range: XmlSourceRange,
+) -> Option<(String, Vec<XmlAttributeValueSourceSpan>)> {
+    let mut decoded = String::new();
+    let mut source_map = Vec::new();
+    let mut source_offset = 0usize;
+
+    while source_offset < lexical_value.len() {
+        let (scalar, source_end) = if lexical_value.as_bytes()[source_offset] == b'&' {
+            let reference_end = lexical_value[source_offset + 1..].find(';')? + source_offset + 2;
+            let reference = &lexical_value[source_offset + 1..reference_end - 1];
+            (
+                xml_decode_attribute_entity_reference(reference)?,
+                reference_end,
+            )
+        } else {
+            let scalar = lexical_value[source_offset..].chars().next()?;
+            (scalar, source_offset + scalar.len_utf8())
+        };
+
+        let decoded_start = decoded.len();
+        decoded.push(scalar);
+        source_map.push(XmlAttributeValueSourceSpan {
+            decoded_byte_range: ByteRange::new(
+                decoded_start as u64,
+                u32::try_from(scalar.len_utf8()).ok()?,
+            ),
+            source_range: xml_source_range_within(
+                value_source_range,
+                lexical_value,
+                source_offset,
+                source_end,
+            ),
+        });
+        source_offset = source_end;
+    }
+
+    Some((decoded, source_map))
+}
+
+fn xml_decode_attribute_entity_reference(reference: &str) -> Option<char> {
+    match reference {
+        "amp" => Some('&'),
+        "lt" => Some('<'),
+        "gt" => Some('>'),
+        "apos" => Some('\''),
+        "quot" => Some('"'),
+        _ => {
+            let code_point = if let Some(hex) = reference.strip_prefix("#x") {
+                u32::from_str_radix(hex, 16).ok()?
+            } else if let Some(decimal) = reference.strip_prefix('#') {
+                decimal.parse::<u32>().ok()?
+            } else {
+                return None;
+            };
+            xml_code_point_is_valid(code_point).then(|| char::from_u32(code_point))?
+        }
+    }
+}
+
+fn xml_code_point_is_valid(code_point: u32) -> bool {
+    matches!(
+        code_point,
+        0x9 | 0xA | 0xD | 0x20..=0xD7FF | 0xE000..=0xFFFD | 0x10000..=0x10FFFF
+    )
 }
 
 fn xml_value_event(
@@ -1566,6 +1723,112 @@ mod tests {
         assert!(document.to_cemt_subject()["events"]
             .as_array()
             .is_some_and(|events| !events.is_empty()));
+    }
+
+    #[test]
+    fn xml_attribute_ast_retains_entity_decoded_value_and_exact_source_spans() {
+        let source = "<root\n  select=\"A &lt; B &#x1F4B0; &#8364; &amp; 💡\"\n/>\n";
+        let (document, diagnostics) =
+            xml_document_ast_from_source_bytes(XmlSourceValidationRequest {
+                bytes: source.as_bytes(),
+                source_uri: "fixture.xml",
+                content_type: Some(XML_CONTENT_TYPE),
+            });
+
+        assert!(diagnostics.is_empty(), "{diagnostics:?}");
+        let document = document.expect("typed XML document");
+        let attribute = document.events[0]
+            .attributes
+            .iter()
+            .find(|attribute| attribute.qualified_name == "select")
+            .expect("select attribute");
+        assert_eq!(attribute.value, "A &lt; B &#x1F4B0; &#8364; &amp; 💡");
+        assert_eq!(
+            attribute.entity_decoded_value.as_deref(),
+            Some("A < B 💰 € & 💡")
+        );
+
+        let value_range = attribute.value_source_range.expect("value source range");
+        let value_start = value_range.start.byte_offset as usize;
+        let value_end = value_start + value_range.byte_length as usize;
+        assert_eq!(&source[value_start..value_end], attribute.value);
+        assert_eq!(value_range.start.line, 2);
+
+        let decoded = attribute
+            .entity_decoded_value
+            .as_deref()
+            .expect("entity-decoded value");
+        let mut decoded_cursor = 0u64;
+        let mut source_cursor = value_range.start.byte_offset;
+        for span in &attribute.entity_decoded_source_map {
+            assert_eq!(span.decoded_byte_range.start, decoded_cursor);
+            assert!(span.source_range.start.byte_offset >= source_cursor);
+            decoded_cursor = span.decoded_byte_range.end();
+            source_cursor = span.source_range.start.byte_offset + span.source_range.byte_length;
+        }
+        assert_eq!(decoded_cursor, decoded.len() as u64);
+        assert_eq!(source_cursor, value_end as u64);
+
+        for (decoded_scalar, source_lexeme) in [
+            ('<', "&lt;"),
+            ('💰', "&#x1F4B0;"),
+            ('€', "&#8364;"),
+            ('&', "&amp;"),
+            ('💡', "💡"),
+        ] {
+            let decoded_offset = decoded.find(decoded_scalar).expect("decoded scalar") as u64;
+            let span = attribute
+                .entity_decoded_source_map
+                .iter()
+                .find(|span| span.decoded_byte_range.start == decoded_offset)
+                .expect("decoded scalar source span");
+            let start = span.source_range.start.byte_offset as usize;
+            let end = start + span.source_range.byte_length as usize;
+            assert_eq!(&source[start..end], source_lexeme);
+        }
+    }
+
+    #[test]
+    fn xml_attribute_ast_keeps_unresolved_entities_lexical_without_a_decoded_map() {
+        let source = r#"<root value="known &amp; unresolved &example;"/>"#;
+        let (document, diagnostics) =
+            xml_document_ast_from_source_bytes(XmlSourceValidationRequest {
+                bytes: source.as_bytes(),
+                source_uri: "fixture.xml",
+                content_type: Some(XML_CONTENT_TYPE),
+            });
+
+        assert!(has_code(&diagnostics, "cem.xml.external_entity_rejected"));
+        let document = document.expect("typed XML document with rejected entity fact");
+        let attribute = &document.events[0].attributes[0];
+        assert_eq!(attribute.value, "known &amp; unresolved &example;");
+        assert!(attribute.value_source_range.is_some());
+        assert_eq!(attribute.entity_decoded_value, None);
+        assert!(attribute.entity_decoded_source_map.is_empty());
+    }
+
+    #[test]
+    fn xml_attribute_mapping_source_has_no_serialized_or_format_specific_bridge() {
+        let source = include_str!("xml.rs");
+        let mapping = source
+            .split("fn xml_attach_attribute_value_sources")
+            .nth(1)
+            .and_then(|source| source.split("fn xml_value_event").next())
+            .expect("generic XML attribute mapping implementation region");
+        for forbidden in [
+            "serde_json",
+            "to_value",
+            "from_value",
+            "serialize",
+            "deserialize",
+            "replacement_tree",
+            "xslt",
+        ] {
+            assert!(
+                !mapping.contains(forbidden),
+                "XML attribute mapping must not contain `{forbidden}`"
+            );
+        }
     }
 
     #[test]

@@ -7,9 +7,8 @@ use crate::schema::registry::{
 use crate::source::{ByteRange, SourceId};
 use crate::source_map::{FrameSpan, SourceMapFrame, SourceMapStack, TransformKind};
 use crate::validation::xml::{
-    xml_document_ast_from_source_bytes, xml_event_markup_tokens, XmlAttributeAst, XmlDocumentAst,
-    XmlEventAst, XmlEventKind, XmlMarkupTokenKind, XmlParseFactKind, XmlSourceRange,
-    XmlSourceValidationRequest,
+    xml_document_ast_from_source_bytes, XmlAttributeAst, XmlDocumentAst, XmlEventAst, XmlEventKind,
+    XmlParseFactKind, XmlSourceRange, XmlSourceValidationRequest,
 };
 use crate::validation::xpath::{
     validate_xpath_expression_ast, xpath_expression_ast_from_source_bytes, XPathAttachment,
@@ -313,17 +312,17 @@ fn xslt_xpath_expressions(document: &XmlDocumentAst) -> Vec<XsltXPathExpressionA
         if event.namespace_uri.as_deref() != Some(XSLT_NAMESPACE_URI) {
             continue;
         }
-        let lexical_values = xslt_lexical_attribute_values(event);
-        for (attribute, lexical) in event.attributes.iter().zip(lexical_values) {
-            if attribute.qualified_name != lexical.qualified_name
-                || !xslt_is_xpath_attribute(&attribute.local_name)
+        for attribute in &event.attributes {
+            let Some(value_source_range) = attribute.value_source_range else {
+                continue;
+            };
+            if !xslt_is_xpath_attribute(&attribute.local_name)
                 || attribute.value.trim().is_empty()
-                || attribute.value != lexical.value
-                || lexical.value.contains('&')
+                || attribute.value.contains('&')
             {
                 continue;
             }
-            let expression_range = xpath_range_from_xml(lexical.source_range);
+            let expression_range = xpath_range_from_xml(value_source_range);
             let owner_range = xpath_range_from_xml(event.source_range);
             let expression = xpath_expression_ast_from_source_bytes(
                 XPathSourceRequest {
@@ -380,49 +379,6 @@ fn xslt_extend_xpath_static_context(event: &XmlEventAst, static_context: &mut XP
             static_context.default_element_namespace = Some(attribute.value.clone());
         }
     }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-struct XsltLexicalAttributeValue {
-    qualified_name: String,
-    value: String,
-    source_range: XmlSourceRange,
-}
-
-fn xslt_lexical_attribute_values(event: &XmlEventAst) -> Vec<XsltLexicalAttributeValue> {
-    let mut values = Vec::new();
-    let mut qualified_name = None;
-    for token in xml_event_markup_tokens(event) {
-        match token.kind {
-            XmlMarkupTokenKind::AttributeName => qualified_name = Some(token.text),
-            XmlMarkupTokenKind::AttributeValue => {
-                let Some(name) = qualified_name.take() else {
-                    continue;
-                };
-                let bytes = token.text.as_bytes();
-                if bytes.len() < 2
-                    || !matches!(bytes[0], b'\'' | b'\"')
-                    || bytes.last() != Some(&bytes[0])
-                {
-                    continue;
-                }
-                values.push(XsltLexicalAttributeValue {
-                    qualified_name: name,
-                    value: token.text[1..token.text.len() - 1].to_owned(),
-                    source_range: XmlSourceRange {
-                        start: crate::validation::xml::XmlSourcePosition {
-                            line: token.source_range.start.line,
-                            column: token.source_range.start.column.saturating_add(1),
-                            byte_offset: token.source_range.start.byte_offset.saturating_add(1),
-                        },
-                        byte_length: token.source_range.byte_length.saturating_sub(2),
-                    },
-                });
-            }
-            _ => {}
-        }
-    }
-    values
 }
 
 fn xpath_range_from_xml(range: XmlSourceRange) -> XPathSourceRange {
@@ -1878,6 +1834,15 @@ mod tests {
             .xpath_expressions
             .iter()
             .any(|embedded| embedded.attribute_name == "select"));
+        let select = stylesheet
+            .xml_document
+            .events
+            .iter()
+            .flat_map(|event| &event.attributes)
+            .find(|attribute| attribute.qualified_name == "select")
+            .expect("entity-bearing select attribute");
+        assert_eq!(select.entity_decoded_value.as_deref(), Some("price < 10"));
+        assert!(!select.entity_decoded_source_map.is_empty());
         assert!(stylesheet.facts.iter().any(|fact| {
             fact.kind == XsltFactKind::XPathObserved
                 && fact.value.as_deref() == Some("price &lt; 10")

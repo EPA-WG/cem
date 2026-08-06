@@ -37,11 +37,13 @@ to be schema-owned by the XPath package. No JSON projection, replacement XML
 tree, or later source reparse mediates this association.
 
 Attribute value templates and attributes containing XML entity references remain
-lexical source values. They require AVT segmentation plus decoded-to-source
-offset mapping from the XML AST before they can be fused without corrupting
-source identity. The source lifecycle does not execute embedded expressions;
-explicit transform-template execution continues through the existing bounded
-XSLT parity capability.
+lexical at the XSLT-to-XPath fusion boundary. The generic XML AST now supplies
+their entity-decoded value and exact decoded-scalar-to-source spans directly,
+without an XSLT overlay. The next slice must project XPath token ranges through
+that map and define typed AVT segmentation before these expressions can be
+fused without corrupting source identity. The source lifecycle does not execute
+embedded expressions; explicit transform-template execution continues through
+the existing bounded XSLT parity capability.
 
 ## Parser Facts And Diagnostics
 

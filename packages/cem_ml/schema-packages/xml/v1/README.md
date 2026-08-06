@@ -28,7 +28,9 @@ The schema describes XML resources as a namespace-aware document model:
 - documents preserve XML declaration, MIME charset, XML version, standalone
   state, root element, optional doctype, and source identity;
 - elements and attributes preserve qualified names, expanded namespace identity,
-  lexical order, and source offsets when available;
+  lexical order, and source offsets when available; each mapped attribute also
+  retains its exact raw value range, built-in/numeric entity-decoded value, and
+  one monotonic original-source span per decoded UTF-8 scalar;
 - text, CDATA, comments, processing instructions, and entity references remain
   explicit nodes;
 - DTD and external entity material is preserved as declarations but external
@@ -67,7 +69,10 @@ charset, XML declaration encoding, and decoder status. Its typed event stream
 preserves declaration, start/empty/end element, text, CDATA, comment,
 processing-instruction, doctype, and entity-reference lexemes. Element events
 carry qualified/local names, prefixes, resolved namespace URIs, attributes,
-depth, byte ranges, line/column coordinates, and source-map stacks.
+depth, byte ranges, line/column coordinates, and source-map stacks. Attribute
+values remain lexically lossless while a parallel typed value and scalar map
+decode only built-in and numeric references. Unresolved references fail closed:
+the raw value and range remain available, but no decoded value is synthesized.
 
 The parser emits neutral facts. Constraints in `schema/xml.cem` bind those facts
 to package-owned diagnostic codes and severities for parse errors, unsupported

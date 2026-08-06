@@ -110,7 +110,7 @@
         @status="partial"
         @qt3-status="unmapped"
         @spec-sections="XPath 3.1 section 2.1.2 and Functions and Operators resource functions"
-        @gap="Standalone transform execution injects the exact lifecycle XML document context plus explicit resolver and safety capabilities, and entity-free XSLT XPath attributes retain inherited static namespace context; parameter-to-XDM bindings, executable host invocation contexts, AVT and entity-decoded mapping, additional input AST families, and resource functions are incomplete"
+        @gap="Standalone transform execution injects the exact lifecycle XML document context plus explicit resolver and safety capabilities, entity-free XSLT XPath attributes retain inherited static namespace context, and the generic XML AST retains entity-decoded attribute source spans; parameter-to-XDM bindings, executable host invocation contexts, XPath token projection through those spans, AVT segmentation, additional input AST families, and resource functions are incomplete"
         @todo="xpath-dynamic-context"
     }
     {conformance-slice
