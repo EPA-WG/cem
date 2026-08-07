@@ -45,6 +45,14 @@ pub enum XPathExpression {
         input: Box<XPathExpressionNode>,
         mappings: Vec<XPathExpressionNode>,
     },
+    TreatAs {
+        operand: Box<XPathExpressionNode>,
+        sequence_type: XPathSequenceType,
+    },
+    InstanceOf {
+        operand: Box<XPathExpressionNode>,
+        sequence_type: XPathSequenceType,
+    },
     For {
         binding: XPathName,
         binding_expression: Box<XPathExpressionNode>,
@@ -81,6 +89,68 @@ pub enum XPathQuantifier {
 pub enum XPathUnaryOperator {
     Plus,
     Minus,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum XPathSequenceType {
+    Empty {
+        source_range: XPathSourceRange,
+    },
+    Item {
+        item_type: XPathSequenceItemType,
+        occurrence: XPathOccurrenceIndicator,
+        source_range: XPathSourceRange,
+    },
+}
+
+impl XPathSequenceType {
+    pub fn source_range(&self) -> XPathSourceRange {
+        match self {
+            Self::Empty { source_range } | Self::Item { source_range, .. } => *source_range,
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum XPathSequenceItemType {
+    AnyItem {
+        source_range: XPathSourceRange,
+    },
+    Atomic(XPathName),
+    Kind {
+        kind: XPathKindTest,
+        lexical: String,
+        source_range: XPathSourceRange,
+    },
+    Parenthesized {
+        item_type: Box<XPathSequenceItemType>,
+        source_range: XPathSourceRange,
+    },
+    Unsupported {
+        production: String,
+        lexical: String,
+        source_range: XPathSourceRange,
+    },
+}
+
+impl XPathSequenceItemType {
+    pub fn source_range(&self) -> XPathSourceRange {
+        match self {
+            Self::AnyItem { source_range }
+            | Self::Kind { source_range, .. }
+            | Self::Parenthesized { source_range, .. }
+            | Self::Unsupported { source_range, .. } => *source_range,
+            Self::Atomic(name) => name.source_range,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum XPathOccurrenceIndicator {
+    ExactlyOne,
+    ZeroOrOne,
+    ZeroOrMore,
+    OneOrMore,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -283,6 +353,9 @@ pub enum XPathSyntaxNodeKind {
     UnaryExpression,
     BinaryExpression,
     SimpleMapExpression,
+    TreatAsExpression,
+    InstanceOfExpression,
+    SequenceType,
     ForExpression,
     LetExpression,
     IfExpression,
@@ -313,6 +386,9 @@ impl XPathSyntaxNodeKind {
             Self::UnaryExpression => "unary-expression",
             Self::BinaryExpression => "binary-expression",
             Self::SimpleMapExpression => "simple-map-expression",
+            Self::TreatAsExpression => "treat-as-expression",
+            Self::InstanceOfExpression => "instance-of-expression",
+            Self::SequenceType => "sequence-type",
             Self::ForExpression => "for-expression",
             Self::LetExpression => "let-expression",
             Self::IfExpression => "if-expression",
@@ -393,6 +469,8 @@ impl XPathExpressionNode {
             XPathExpression::Unary { .. } => XPathSyntaxNodeKind::UnaryExpression,
             XPathExpression::Binary { .. } => XPathSyntaxNodeKind::BinaryExpression,
             XPathExpression::SimpleMap { .. } => XPathSyntaxNodeKind::SimpleMapExpression,
+            XPathExpression::TreatAs { .. } => XPathSyntaxNodeKind::TreatAsExpression,
+            XPathExpression::InstanceOf { .. } => XPathSyntaxNodeKind::InstanceOfExpression,
             XPathExpression::For { .. } => XPathSyntaxNodeKind::ForExpression,
             XPathExpression::Let { .. } => XPathSyntaxNodeKind::LetExpression,
             XPathExpression::If { .. } => XPathSyntaxNodeKind::IfExpression,
@@ -416,6 +494,22 @@ impl XPathExpressionNode {
                     for mapping in mappings {
                         mapping.emit_events(depth, events);
                     }
+                }
+                XPathExpression::TreatAs {
+                    operand,
+                    sequence_type,
+                }
+                | XPathExpression::InstanceOf {
+                    operand,
+                    sequence_type,
+                } => {
+                    operand.emit_events(depth, events);
+                    emit_leaf(
+                        XPathSyntaxNodeKind::SequenceType,
+                        sequence_type.source_range(),
+                        depth,
+                        events,
+                    );
                 }
                 XPathExpression::For {
                     binding,

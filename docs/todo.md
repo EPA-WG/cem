@@ -161,6 +161,16 @@ mediate between internal layers.
           the existing dynamic postfix-call form, keep their execution
           fail-closed until function items exist, and avoid a dedicated arrow
           AST, serialization, or an intermediate DTO.
+    - [x] Establish the CEM-owned XPath sequence-type matcher and execute
+          `instance of` and `treat as` directly: model `empty-sequence()`,
+          `item()`, parenthesized item types, supported atomic EQNames,
+          unconstrained native node-kind tests, and `?`/`*`/`+` occurrence
+          indicators with exact ranges and grammar precedence; match native
+          cardinality, atomic subtype, and retained node-kind identity; return
+          typed booleans or original treated items without rewriting source maps
+          or owners; and reject unsupported atomic, constrained/schema-aware,
+          function, map, and array types before operand evaluation without
+          parsing derived result-type strings or crossing a serialized boundary.
   - [x] Wire the native evaluator through the `transform` command and expose
         explicit CEM-QL, CEMT, and XSLT invocation adapters without reparsing
         source text, constructing an evaluator-owned replacement XML tree, or

@@ -78,7 +78,7 @@
         @status="partial"
         @qt3-status="unmapped"
         @spec-sections="XPath 3.1 sections 2.5, 2.6, 3.16 through 3.18"
-        @gap="The native comparison kernel executes supported primitive atomic values, untyped conversion, and numeric promotion; derived atomic types, general casting syntax, sequence-type matching, promotion outside comparisons, and QT3 mapping remain incomplete"
+        @gap="CEM-owned typed sequence types retain empty-sequence(), item(), parenthesized item types, supported XML Schema atomic EQNames, unconstrained native node-kind tests, occurrence indicators, and exact ranges. Native instance of and treat as execute cardinality, supported atomic subtype, generic-item, and retained node-kind matching without parsing result display strings; successful treats preserve original items and unsupported atomic, constrained/schema-aware, function, map, or array declarations fail before operands. Derived atomic families, cast as and castable as conversion, constrained and higher-order type matching, promotion outside comparisons, and QT3 mapping remain incomplete"
         @todo="xpath-type-system"
     }
     {conformance-slice

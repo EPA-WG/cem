@@ -1891,6 +1891,48 @@ fn xpath_evaluate_expression_node(
                 value,
             )])
         }
+        XPathExpression::InstanceOf {
+            operand,
+            sequence_type,
+        } => {
+            xpath_validate_sequence_type_supported(sequence_type)?;
+            let operand_items = xpath_evaluate_expression_node(
+                expression,
+                operand,
+                focus,
+                variable_bindings,
+                evaluation_limits,
+            )?;
+            Ok(vec![xpath_boolean_result_item(
+                expression,
+                node.source_range,
+                xpath_sequence_matches_type(&operand_items, sequence_type),
+            )])
+        }
+        XPathExpression::TreatAs {
+            operand,
+            sequence_type,
+        } => {
+            xpath_validate_sequence_type_supported(sequence_type)?;
+            let operand_items = xpath_evaluate_expression_node(
+                expression,
+                operand,
+                focus,
+                variable_bindings,
+                evaluation_limits,
+            )?;
+            if !xpath_sequence_matches_type(&operand_items, sequence_type) {
+                return Err(XPathEvaluationError::dynamic(
+                    "cem.xpath.treat_type_error",
+                    format!(
+                        "XPath treat expression does not match `{}`",
+                        xpath_sequence_type_display(sequence_type)
+                    ),
+                    node.source_range,
+                ));
+            }
+            Ok(operand_items)
+        }
         XPathExpression::Binary {
             operator,
             left,
@@ -2343,6 +2385,180 @@ fn xpath_evaluate_expression_node(
     }?;
     evaluation_limits.enforce_sequence_items(items.len(), node.source_range)?;
     Ok(items)
+}
+
+fn xpath_validate_sequence_type_supported(
+    sequence_type: &XPathSequenceType,
+) -> Result<(), XPathEvaluationError> {
+    let XPathSequenceType::Item { item_type, .. } = sequence_type else {
+        return Ok(());
+    };
+    xpath_validate_sequence_item_type_supported(item_type)
+        .map_err(|message| XPathEvaluationError::unsupported(message, sequence_type.source_range()))
+}
+
+fn xpath_validate_sequence_item_type_supported(
+    item_type: &XPathSequenceItemType,
+) -> Result<(), String> {
+    match item_type {
+        XPathSequenceItemType::AnyItem { .. } => Ok(()),
+        XPathSequenceItemType::Atomic(name)
+            if name.namespace_uri.as_deref() == Some("http://www.w3.org/2001/XMLSchema")
+                && matches!(
+                    name.local_name.as_str(),
+                    "anyAtomicType"
+                        | "numeric"
+                        | "untypedAtomic"
+                        | "string"
+                        | "boolean"
+                        | "integer"
+                        | "decimal"
+                        | "float"
+                        | "double"
+                        | "anyURI"
+                ) =>
+        {
+            Ok(())
+        }
+        XPathSequenceItemType::Atomic(name) => Err(format!(
+            "XPath atomic or union type `{}` is outside the native sequence-type matcher",
+            XPathExpandedName::from_syntax_name(name).display()
+        )),
+        XPathSequenceItemType::Kind { kind, .. }
+            if !matches!(
+                kind,
+                XPathKindTest::SchemaElement | XPathKindTest::SchemaAttribute
+            ) =>
+        {
+            Ok(())
+        }
+        XPathSequenceItemType::Kind { lexical, .. } => Err(format!(
+            "XPath schema-aware kind test `{lexical}` is outside the native sequence-type matcher"
+        )),
+        XPathSequenceItemType::Parenthesized { item_type, .. } => {
+            xpath_validate_sequence_item_type_supported(item_type)
+        }
+        XPathSequenceItemType::Unsupported {
+            production,
+            lexical,
+            ..
+        } => Err(format!(
+            "XPath sequence item type `{lexical}` uses unsupported production `{production}`"
+        )),
+    }
+}
+
+fn xpath_sequence_matches_type(
+    items: &[XPathResultItem],
+    sequence_type: &XPathSequenceType,
+) -> bool {
+    match sequence_type {
+        XPathSequenceType::Empty { .. } => items.is_empty(),
+        XPathSequenceType::Item {
+            item_type,
+            occurrence,
+            ..
+        } => {
+            let cardinality_matches = match occurrence {
+                XPathOccurrenceIndicator::ExactlyOne => items.len() == 1,
+                XPathOccurrenceIndicator::ZeroOrOne => items.len() <= 1,
+                XPathOccurrenceIndicator::ZeroOrMore => true,
+                XPathOccurrenceIndicator::OneOrMore => !items.is_empty(),
+            };
+            cardinality_matches
+                && items
+                    .iter()
+                    .all(|item| xpath_item_matches_sequence_item_type(item, item_type))
+        }
+    }
+}
+
+fn xpath_item_matches_sequence_item_type(
+    item: &XPathResultItem,
+    item_type: &XPathSequenceItemType,
+) -> bool {
+    match item_type {
+        XPathSequenceItemType::AnyItem { .. } => true,
+        XPathSequenceItemType::Atomic(name) => match item {
+            XPathResultItem::Atomic { value, .. } => xpath_atomic_value_matches_type(value, name),
+            _ => false,
+        },
+        XPathSequenceItemType::Kind { kind, .. } => match item {
+            XPathResultItem::Node { node_kind, .. } => match kind {
+                XPathKindTest::Document => *node_kind == XPathResultNodeKind::Document,
+                XPathKindTest::Element => *node_kind == XPathResultNodeKind::Element,
+                XPathKindTest::Attribute => *node_kind == XPathResultNodeKind::Attribute,
+                XPathKindTest::ProcessingInstruction => {
+                    *node_kind == XPathResultNodeKind::ProcessingInstruction
+                }
+                XPathKindTest::Comment => *node_kind == XPathResultNodeKind::Comment,
+                XPathKindTest::Text => *node_kind == XPathResultNodeKind::Text,
+                XPathKindTest::NamespaceNode => *node_kind == XPathResultNodeKind::Namespace,
+                XPathKindTest::AnyNode => true,
+                XPathKindTest::SchemaElement | XPathKindTest::SchemaAttribute => false,
+            },
+            _ => false,
+        },
+        XPathSequenceItemType::Parenthesized { item_type, .. } => {
+            xpath_item_matches_sequence_item_type(item, item_type)
+        }
+        XPathSequenceItemType::Unsupported { .. } => false,
+    }
+}
+
+fn xpath_atomic_value_matches_type(value: &XPathAtomicValue, expected: &XPathName) -> bool {
+    debug_assert_eq!(
+        expected.namespace_uri.as_deref(),
+        Some("http://www.w3.org/2001/XMLSchema")
+    );
+    match expected.local_name.as_str() {
+        "anyAtomicType" => true,
+        "numeric" => matches!(
+            value.type_name.as_str(),
+            "xs:integer" | "xs:decimal" | "xs:float" | "xs:double"
+        ),
+        "decimal" => matches!(value.type_name.as_str(), "xs:integer" | "xs:decimal"),
+        "integer" => value.type_name == "xs:integer",
+        "untypedAtomic" => value.type_name == "xs:untypedAtomic",
+        "string" => value.type_name == "xs:string",
+        "boolean" => value.type_name == "xs:boolean",
+        "float" => value.type_name == "xs:float",
+        "double" => value.type_name == "xs:double",
+        "anyURI" => value.type_name == "xs:anyURI",
+        _ => false,
+    }
+}
+
+fn xpath_sequence_type_display(sequence_type: &XPathSequenceType) -> String {
+    match sequence_type {
+        XPathSequenceType::Empty { .. } => "empty-sequence()".to_owned(),
+        XPathSequenceType::Item {
+            item_type,
+            occurrence,
+            ..
+        } => {
+            let mut display = xpath_sequence_item_type_display(item_type);
+            display.push_str(match occurrence {
+                XPathOccurrenceIndicator::ExactlyOne => "",
+                XPathOccurrenceIndicator::ZeroOrOne => "?",
+                XPathOccurrenceIndicator::ZeroOrMore => "*",
+                XPathOccurrenceIndicator::OneOrMore => "+",
+            });
+            display
+        }
+    }
+}
+
+fn xpath_sequence_item_type_display(item_type: &XPathSequenceItemType) -> String {
+    match item_type {
+        XPathSequenceItemType::AnyItem { .. } => "item()".to_owned(),
+        XPathSequenceItemType::Atomic(name) => name.lexical.clone(),
+        XPathSequenceItemType::Kind { lexical, .. }
+        | XPathSequenceItemType::Unsupported { lexical, .. } => lexical.clone(),
+        XPathSequenceItemType::Parenthesized { item_type, .. } => {
+            format!("({})", xpath_sequence_item_type_display(item_type))
+        }
+    }
 }
 
 fn xpath_evaluate_path(
@@ -7125,6 +7341,131 @@ mod tests {
     }
 
     #[test]
+    fn xpath_cem_parser_models_sequence_types_and_matching_operator_precedence() {
+        let source = "1 instance of xs:integer";
+        let syntax = cem_parser_syntax(source).expect("typed instance-of expression");
+        let expression = &syntax.root.expressions[0];
+        let XPathExpression::InstanceOf {
+            operand,
+            sequence_type,
+        } = &expression.expression
+        else {
+            panic!("instance-of must have a typed AST node: {syntax:?}");
+        };
+        assert!(matches!(operand.expression, XPathExpression::Path(_)));
+        let XPathSequenceType::Item {
+            item_type: XPathSequenceItemType::Atomic(name),
+            occurrence: XPathOccurrenceIndicator::ExactlyOne,
+            source_range,
+        } = sequence_type
+        else {
+            panic!("instance-of must retain its atomic sequence type: {sequence_type:?}");
+        };
+        assert_eq!(name.lexical, "xs:integer");
+        assert_eq!(
+            name.namespace_uri.as_deref(),
+            Some("http://www.w3.org/2001/XMLSchema")
+        );
+        let type_start = source.find("xs:integer").expect("atomic type");
+        assert_eq!(
+            *source_range,
+            XPathSourceRange::new(1, 1 + type_start as u32, type_start as u64, 10)
+        );
+        assert_eq!(
+            expression.source_range,
+            XPathSourceRange::new(1, 1, 0, source.len() as u64)
+        );
+
+        let empty_source = "() treat as empty-sequence()";
+        let empty = cem_parser_syntax(empty_source).expect("typed empty sequence");
+        let XPathExpression::TreatAs { sequence_type, .. } = &empty.root.expressions[0].expression
+        else {
+            panic!("treat-as must have a typed AST node: {empty:?}");
+        };
+        let XPathSequenceType::Empty { source_range } = sequence_type else {
+            panic!("empty-sequence() must be retained directly: {sequence_type:?}");
+        };
+        let empty_start = empty_source
+            .find("empty-sequence")
+            .expect("empty sequence type");
+        assert_eq!(
+            *source_range,
+            XPathSourceRange::new(
+                1,
+                1 + empty_start as u32,
+                empty_start as u64,
+                "empty-sequence()".len() as u64,
+            )
+        );
+
+        let many = cem_parser_syntax("(1, 2) instance of item()+")
+            .expect("item type with occurrence indicator");
+        let XPathExpression::InstanceOf { sequence_type, .. } =
+            &many.root.expressions[0].expression
+        else {
+            panic!("expected typed instance-of expression: {many:?}");
+        };
+        assert!(matches!(
+            sequence_type,
+            XPathSequenceType::Item {
+                item_type: XPathSequenceItemType::AnyItem { .. },
+                occurrence: XPathOccurrenceIndicator::OneOrMore,
+                ..
+            }
+        ));
+
+        let node = cem_parser_syntax("/root instance of node()*")
+            .expect("node kind test with occurrence indicator");
+        let XPathExpression::InstanceOf { sequence_type, .. } =
+            &node.root.expressions[0].expression
+        else {
+            panic!("expected typed node instance-of expression: {node:?}");
+        };
+        assert!(matches!(
+            sequence_type,
+            XPathSequenceType::Item {
+                item_type: XPathSequenceItemType::Kind {
+                    kind: XPathKindTest::AnyNode,
+                    ..
+                },
+                occurrence: XPathOccurrenceIndicator::ZeroOrMore,
+                ..
+            }
+        ));
+
+        let nested = cem_parser_syntax(
+            "1 => count() treat as xs:integer instance of xs:decimal and false()",
+        )
+        .expect("matching operator precedence");
+        let XPathExpression::Binary {
+            operator: XPathBinaryOperator::And,
+            left,
+            ..
+        } = &nested.root.expressions[0].expression
+        else {
+            panic!("logical and must remain outside matching operators: {nested:?}");
+        };
+        let XPathExpression::InstanceOf { operand, .. } = &left.expression else {
+            panic!("instance-of must bind more tightly than and: {left:?}");
+        };
+        let XPathExpression::TreatAs { operand, .. } = &operand.expression else {
+            panic!("treat-as must bind inside instance-of: {operand:?}");
+        };
+        assert!(matches!(operand.expression, XPathExpression::Path(_)));
+
+        for invalid in [
+            "1 instance xs:integer",
+            "1 treat xs:integer",
+            "1 instance of empty-sequence()*",
+        ] {
+            assert!(
+                cem_parser_syntax(invalid).is_err(),
+                "`{invalid}` must remain a typed parse failure"
+            );
+        }
+    }
+
+    #[test]
     fn xpath_cem_parser_lowers_eqname_and_wildcard_name_tests() {
         let source = "/Q{urn:catalog}catalog/*:book/Q{urn:app}*";
         let syntax = cem_parser_syntax(source).expect("EQName and wildcard path");
@@ -10996,6 +11337,146 @@ mod tests {
             diagnostics[0].code,
             "cem.xpath.sequence_item_limit_exceeded"
         );
+    }
+
+    #[test]
+    fn xpath_native_evaluator_matches_and_treats_typed_sequences_without_projection() {
+        let assert_boolean = |source: &str, expected: bool| {
+            let result = evaluate_for_test(source, None, BTreeMap::new())
+                .unwrap_or_else(|diagnostics| panic!("`{source}` failed: {diagnostics:?}"));
+            let [XPathResultItem::Atomic { value, source_map }] = result.sequence.items.as_slice()
+            else {
+                panic!("`{source}` did not return one atomic item: {result:?}");
+            };
+            assert_eq!(value.type_name, "xs:boolean", "`{source}`");
+            assert_eq!(value.lexical_value, expected.to_string(), "`{source}`");
+            assert_eq!(
+                source_map.frames[0].span,
+                FrameSpan::Single(ByteRange::new(0, source.len() as u32)),
+                "`{source}`"
+            );
+        };
+
+        for source in [
+            "1 instance of xs:integer",
+            "1 instance of xs:decimal",
+            "1 instance of xs:numeric",
+            "1 instance of xs:anyAtomicType",
+            "1 instance of item()",
+            "() instance of empty-sequence()",
+            "() instance of item()?",
+            "(1, 2) instance of xs:integer+",
+            "(1, 'two') instance of item()+",
+            "1 instance of (xs:integer)",
+        ] {
+            assert_boolean(source, true);
+        }
+        for source in [
+            "1 instance of empty-sequence()",
+            "() instance of item()",
+            "(1, 2) instance of xs:integer",
+            "'one' instance of xs:integer",
+            "1e0 instance of xs:decimal",
+        ] {
+            assert_boolean(source, false);
+        }
+
+        let retained = singleton_test_binding("xs:integer", "7");
+        let retained_source_map = retained.items[0].source_map().clone();
+        let treated = evaluate_for_test(
+            "$value treat as xs:integer",
+            None,
+            BTreeMap::from([(XPathExpandedName::unqualified("value"), retained)]),
+        )
+        .expect("a successful treat returns the original native item");
+        let [XPathResultItem::Atomic { value, source_map }] = treated.sequence.items.as_slice()
+        else {
+            panic!("treat-as did not retain its atomic item: {treated:?}");
+        };
+        assert_eq!(value.lexical_value, "7");
+        assert_eq!(*source_map, retained_source_map);
+
+        for source in [
+            "(1, 2) treat as xs:integer?",
+            "'one' treat as xs:integer",
+            "1 treat as empty-sequence()",
+        ] {
+            let diagnostics = evaluate_for_test(source, None, BTreeMap::new())
+                .expect_err("a failed treat must report its native type error");
+            assert_eq!(diagnostics[0].code, "cem.xpath.treat_type_error");
+            assert_eq!(diagnostics[0].byte_offset, Some(0), "`{source}`");
+            assert_eq!(
+                diagnostics[0]
+                    .source_map
+                    .as_ref()
+                    .expect("treat diagnostic source map")
+                    .frames[0]
+                    .span,
+                FrameSpan::Single(ByteRange::new(0, source.len() as u32)),
+                "`{source}`"
+            );
+        }
+
+        for source in [
+            "$missing instance of xs:date",
+            "$missing treat as element(root)",
+            "$missing instance of map(*)",
+        ] {
+            let diagnostics = evaluate_for_test(source, None, BTreeMap::new())
+                .expect_err("unsupported sequence types must resolve before operand evaluation");
+            assert_eq!(diagnostics[0].code, "cem.xpath.evaluation_unsupported");
+            assert_ne!(diagnostics[0].code, "cem.xpath.variable_unbound");
+            assert!(
+                diagnostics[0].byte_offset.unwrap_or_default() > 0,
+                "`{source}`"
+            );
+        }
+
+        use crate::validation::xml::{
+            xml_document_ast_from_source_bytes, XmlSourceValidationRequest,
+        };
+        let xml = br#"<root a="x">text<!--comment--><?target data?></root>"#;
+        let (document, diagnostics) =
+            xml_document_ast_from_source_bytes(XmlSourceValidationRequest {
+                bytes: xml,
+                source_uri: "memory://sequence-types.xml",
+                content_type: Some("application/xml"),
+            });
+        assert!(diagnostics.is_empty(), "{diagnostics:?}");
+        let owner = Arc::new(LoadedInputAstStream::XmlDocument(
+            document.expect("typed XML document"),
+        ));
+        let context_node =
+            XPathNativeNode::xml_document(Arc::clone(&owner)).expect("native XML document node");
+        let context_item = || XPathResultItem::from_native_node(context_node.clone());
+        for source in [
+            ". instance of document-node()",
+            "/root instance of element()",
+            "/root/@a instance of attribute()",
+            "/root/text() instance of text()+",
+            "/root/comment() instance of comment()",
+            "/root/processing-instruction() instance of processing-instruction()",
+            "/root instance of node()",
+        ] {
+            let result = evaluate_for_test(source, Some(context_item()), BTreeMap::new())
+                .unwrap_or_else(|diagnostics| panic!("`{source}` failed: {diagnostics:?}"));
+            let [XPathResultItem::Atomic { value, .. }] = result.sequence.items.as_slice() else {
+                panic!("`{source}` did not return one boolean: {result:?}");
+            };
+            assert_eq!(value.lexical_value, "true", "`{source}`");
+        }
+
+        let treated_node = evaluate_for_test(
+            "/root treat as element()",
+            Some(context_item()),
+            BTreeMap::new(),
+        )
+        .expect("a successful node treat retains native ownership");
+        let [node] = treated_node.sequence.items.as_slice() else {
+            panic!("node treat did not return one item: {treated_node:?}");
+        };
+        let native_node = node.native_node().expect("retained native node");
+        assert!(Arc::ptr_eq(native_node.owner(), &owner));
     }
 
     #[test]

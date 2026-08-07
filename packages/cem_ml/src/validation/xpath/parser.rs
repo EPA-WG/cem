@@ -2,10 +2,10 @@ use super::lexer::{XPathLexicalToken, XPathLexicalTokenKind};
 use super::{
     XPathArrayConstructor, XPathAttachment, XPathAxis, XPathBinaryOperator, XPathExpression,
     XPathExpressionNode, XPathExpressionSequence, XPathKindTest, XPathLiteral, XPathLiteralKind,
-    XPathMapConstructorEntry, XPathName, XPathNameTest, XPathNodeTest, XPathPathExpression,
-    XPathPathRoot, XPathPostfixExpression, XPathPrimaryExpression, XPathQuantifier,
-    XPathSourceRange, XPathSourceRangeResolver, XPathStep, XPathStepNode, XPathSyntaxAst,
-    XPathUnaryOperator,
+    XPathMapConstructorEntry, XPathName, XPathNameTest, XPathNodeTest, XPathOccurrenceIndicator,
+    XPathPathExpression, XPathPathRoot, XPathPostfixExpression, XPathPrimaryExpression,
+    XPathQuantifier, XPathSequenceItemType, XPathSequenceType, XPathSourceRange,
+    XPathSourceRangeResolver, XPathStep, XPathStepNode, XPathSyntaxAst, XPathUnaryOperator,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -48,6 +48,7 @@ enum XPathNameUse {
     Element,
     Attribute,
     Function,
+    Type,
     Variable,
 }
 
@@ -279,7 +280,7 @@ impl<'tokens, 'source, 'context> XPathParser<'tokens, 'source, 'context> {
         &mut self,
         minimum_precedence: u8,
     ) -> Result<XPathExpressionNode, XPathParseError> {
-        let mut left = self.parse_arrow_expression()?;
+        let mut left = self.parse_instance_of_expression()?;
         loop {
             let Some((operator, precedence)) = self.peek_binary_operator() else {
                 break;
@@ -301,6 +302,180 @@ impl<'tokens, 'source, 'context> XPathParser<'tokens, 'source, 'context> {
             };
         }
         Ok(left)
+    }
+
+    fn parse_instance_of_expression(&mut self) -> Result<XPathExpressionNode, XPathParseError> {
+        let operand = self.parse_treat_expression()?;
+        if self.consume_if("instance").is_none() {
+            return Ok(operand);
+        }
+        self.expect("of")?;
+        let sequence_type = self.parse_sequence_type()?;
+        let start = self.node_start(&operand);
+        let end = self
+            .previous_semantic()
+            .map_or(start, |(_, token)| token.end);
+        Ok(XPathExpressionNode {
+            expression: XPathExpression::InstanceOf {
+                operand: Box::new(operand),
+                sequence_type,
+            },
+            source_range: self.range(start, end),
+        })
+    }
+
+    fn parse_treat_expression(&mut self) -> Result<XPathExpressionNode, XPathParseError> {
+        let operand = self.parse_arrow_expression()?;
+        if self.consume_if("treat").is_none() {
+            return Ok(operand);
+        }
+        self.expect("as")?;
+        let sequence_type = self.parse_sequence_type()?;
+        let start = self.node_start(&operand);
+        let end = self
+            .previous_semantic()
+            .map_or(start, |(_, token)| token.end);
+        Ok(XPathExpressionNode {
+            expression: XPathExpression::TreatAs {
+                operand: Box::new(operand),
+                sequence_type,
+            },
+            source_range: self.range(start, end),
+        })
+    }
+
+    fn parse_sequence_type(&mut self) -> Result<XPathSequenceType, XPathParseError> {
+        let Some((_, token)) = self.peek() else {
+            return Err(self.syntax_error(&["sequence type"]));
+        };
+        if token.lexeme == "empty-sequence"
+            && self.peek_nth(1).is_some_and(|(_, next)| next.lexeme == "(")
+        {
+            let (_, start) = self.next().expect("peeked empty sequence type");
+            self.expect("(")?;
+            let (_, end) = self.expect(")")?;
+            return Ok(XPathSequenceType::Empty {
+                source_range: self.range(start.start, end.end),
+            });
+        }
+
+        let start = token.start;
+        let item_type = self.parse_sequence_item_type()?;
+        let occurrence = match self.peek().map(|(_, token)| token.lexeme) {
+            Some("?") => {
+                self.next();
+                XPathOccurrenceIndicator::ZeroOrOne
+            }
+            Some("*") => {
+                self.next();
+                XPathOccurrenceIndicator::ZeroOrMore
+            }
+            Some("+") => {
+                self.next();
+                XPathOccurrenceIndicator::OneOrMore
+            }
+            _ => XPathOccurrenceIndicator::ExactlyOne,
+        };
+        let end = self
+            .previous_semantic()
+            .map_or(start, |(_, token)| token.end);
+        Ok(XPathSequenceType::Item {
+            item_type,
+            occurrence,
+            source_range: self.range(start, end),
+        })
+    }
+
+    fn parse_sequence_item_type(&mut self) -> Result<XPathSequenceItemType, XPathParseError> {
+        let Some((_, token)) = self.peek() else {
+            return Err(self.syntax_error(&["item type"]));
+        };
+
+        if token.lexeme == "(" {
+            let (_, start) = self.next().expect("peeked parenthesized item type");
+            let item_type = self.parse_sequence_item_type()?;
+            let (_, end) = self.expect(")")?;
+            return Ok(XPathSequenceItemType::Parenthesized {
+                item_type: Box::new(item_type),
+                source_range: self.range(start.start, end.end),
+            });
+        }
+
+        if token.lexeme == "item" && self.peek_nth(1).is_some_and(|(_, next)| next.lexeme == "(") {
+            let (_, start) = self.next().expect("peeked item type");
+            self.expect("(")?;
+            let (_, end) = self.expect(")")?;
+            return Ok(XPathSequenceItemType::AnyItem {
+                source_range: self.range(start.start, end.end),
+            });
+        }
+
+        if let Some(kind) = self.peek_kind_test() {
+            let (_, start) = self.next().expect("peeked kind test item type");
+            self.expect("(")?;
+            let constrained = self.consume_if(")").is_none();
+            let end = if constrained {
+                self.consume_balanced_until(")")?;
+                self.expect(")")?.1
+            } else {
+                self.previous_semantic()
+                    .expect("consumed empty kind test close")
+                    .1
+            };
+            let source_range = self.range(start.start, end.end);
+            let lexical = self.lexical_between(start.start, end.end);
+            if constrained
+                || matches!(
+                    kind,
+                    XPathKindTest::SchemaElement | XPathKindTest::SchemaAttribute
+                )
+            {
+                return Ok(XPathSequenceItemType::Unsupported {
+                    production: if constrained {
+                        "constrained-kind-test"
+                    } else {
+                        "schema-aware-kind-test"
+                    }
+                    .to_owned(),
+                    lexical,
+                    source_range,
+                });
+            }
+            return Ok(XPathSequenceItemType::Kind {
+                kind,
+                lexical,
+                source_range,
+            });
+        }
+
+        if matches!(token.lexeme, "function" | "map" | "array")
+            && self.peek_nth(1).is_some_and(|(_, next)| next.lexeme == "(")
+        {
+            let (_, start) = self.next().expect("peeked higher-order item type");
+            let production = format!("{}-test", start.lexeme);
+            self.expect("(")?;
+            self.consume_balanced_until(")")?;
+            let (_, mut end) = self.expect(")")?;
+            if start.lexeme == "function" && self.consume_if("as").is_some() {
+                self.parse_sequence_type()?;
+                end = self
+                    .previous_semantic()
+                    .expect("parsed function return sequence type")
+                    .1;
+            }
+            return Ok(XPathSequenceItemType::Unsupported {
+                production,
+                lexical: self.lexical_between(start.start, end.end),
+                source_range: self.range(start.start, end.end),
+            });
+        }
+
+        let (token_index, token) = self.next().expect("peeked atomic item type");
+        if !is_name_token(token) {
+            return Err(self.syntax_error_at(token_index, token, &["item type"]));
+        }
+        self.resolve_name(token_index, token, XPathNameUse::Type)
+            .map(XPathSequenceItemType::Atomic)
     }
 
     fn parse_arrow_expression(&mut self) -> Result<XPathExpressionNode, XPathParseError> {
@@ -975,12 +1150,12 @@ impl<'tokens, 'source, 'context> XPathParser<'tokens, 'source, 'context> {
             XPathAttachment::Standalone { .. } => None,
         };
         match name_use {
-            XPathNameUse::Element => {
-                static_context.and_then(|context| context.default_element_namespace.clone())
-            }
             XPathNameUse::Function => static_context
                 .and_then(|context| context.default_function_namespace.clone())
                 .or_else(|| Some("http://www.w3.org/2005/xpath-functions".to_owned())),
+            XPathNameUse::Element | XPathNameUse::Type => {
+                static_context.and_then(|context| context.default_element_namespace.clone())
+            }
             XPathNameUse::Attribute | XPathNameUse::Variable => None,
         }
     }
@@ -1265,8 +1440,6 @@ fn unsupported_suffix_production(lexeme: &str) -> Option<&'static str> {
     match lexeme {
         "cast" => Some("cast-expression"),
         "castable" => Some("castable-expression"),
-        "treat" => Some("treat-expression"),
-        "instance" => Some("instance-of-expression"),
         _ => None,
     }
 }

@@ -58,15 +58,18 @@ source-fidelity artifact. XSLT, CEMT, and CEM-QL fusion consumes a derived
 start/end syntax event stream rather than weakening the primary AST into a
 generic property bag. The current parser slice represents rooted and relative
 paths, axes, node tests, predicates, simple maps, variables, binary operators,
-function calls, arrow expressions, maps, arrays, typed names/literals, and
-host-adjusted ranges directly. Simple-map grammar nodes retain one input path
-and an ordered vector of mapping paths rather than masquerading as generic
-binary operators. Their balanced syntax events expose each path child in source
-order. Named arrows lower canonically to ordinary function calls with the left
-operand inserted as argument zero; variable and parenthesized specifiers lower
-to the existing postfix dynamic-call form. This preserves authored token
-fidelity without adding an arrow-only public AST variant. The runtime parser and
-public syntax module have no Xee, serde, Xot, or JSON representation dependency.
+function calls, arrow expressions, matching type operators, maps, arrays, typed
+names/literals, and host-adjusted ranges directly. Typed sequence types retain
+`empty-sequence()`, `item()`, atomic EQNames, unconstrained node-kind tests,
+parenthesized item types, occurrence indicators, and exact ranges. Simple-map
+grammar nodes retain one input path and an ordered vector of mapping paths
+rather than masquerading as generic binary operators. Their balanced syntax
+events expose each path child in source order. Named arrows lower canonically to
+ordinary function calls with the left operand inserted as argument zero;
+variable and parenthesized specifiers lower to the existing postfix dynamic-call
+form. This preserves authored token fidelity without adding an arrow-only public
+AST variant. The runtime parser and public syntax module have no Xee, serde,
+Xot, or JSON representation dependency.
 
 The lifecycle stream emits one zero-width `start-expression` event, one event
 for each lossless token, and one zero-width `end-expression` event. Token events
@@ -182,6 +185,17 @@ evaluated-work budgets. Named arrow expressions execute through the same
 dispatcher after canonical lowering, including left-to-right chains and normal
 operator precedence. Dynamic arrow specifiers retain their typed postfix-call
 shape but remain fail-closed until native function items are executable.
+Typed `instance of` and `treat as` expressions follow their grammar precedence
+between arrow expressions and set operators. Their CEM-owned sequence types
+match cardinality, supported native atomic identity and subtype relationships,
+generic items, and retained XML node kinds directly. `instance of` returns a
+typed boolean with the full expression source map; a successful `treat as`
+returns the original items without changing source maps or native owners, while
+a mismatch reports the expression range. Unsupported atomic types,
+constrained or schema-aware kind tests, and function/map/array types fail before
+operand evaluation. Matching never parses the derived `sequence_type` display
+string from a result artifact. `cast as` and `castable as` remain explicit
+conversion follow-up work.
 Typed `for` expressions accept one or more comma-separated bindings. The parser
 lowers later bindings into nested typed `For` nodes with dependent lexical
 scope, preserving the complete source range on the outer node and each
@@ -207,8 +221,8 @@ tuples, short-circuits decisive results, and preserves vacuous empty-binding
 truth, outer focus, shadowing, native owners, exact diagnostics, and
 evaluated-work sequence-item budgets. The XPath 3.1 control-flow expression
 slice is otherwise executable; XQuery-only switch and typeswitch inputs remain
-explicit fail-closed exclusions. Other atomic families, remaining functions,
-constructors, dynamic function calls, and lookups fail with a stable
+explicit fail-closed exclusions. Other atomic families, casting, remaining
+functions, constructors, dynamic function calls, and lookups fail with a stable
 schema-owned diagnostic. The evaluator does not read expression source text,
 project through CEMT or JSON, reparse XML, or construct a replacement tree.
 
