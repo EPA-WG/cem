@@ -46,6 +46,13 @@ mediate between internal layers.
           preceding-sibling axes; reverse-axis predicate focus; postfix filter
           predicates; and native `position()`/`last()` focus functions, while
           leaving the optional namespace axis and atomic coercions explicit.
+    - [x] Establish the exact native atomic comparison kernel: represent
+          integers and decimals with unbounded normalized coefficient/scale
+          values; atomize retained XML nodes without projection; implement
+          XPath 3.1 general and value comparisons across supported string,
+          URI, boolean, untyped, decimal, float, and double values; and preserve
+          cardinality, coercion, promotion, NaN, and source-map semantics
+          without a serializer or intermediate DTO.
   - [ ] Wire the native evaluator through the `transform` command and expose
         explicit CEM-QL, CEMT, and XSLT invocation adapters without reparsing
         source text, constructing an evaluator-owned replacement XML tree, or

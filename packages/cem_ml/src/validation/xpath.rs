@@ -29,6 +29,7 @@ use crate::transform_template::{
 use crate::validation::xml::{XmlAttributeAst, XmlDocumentAst, XmlEventAst, XmlEventKind};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
+use std::cmp::Ordering;
 use std::collections::{BTreeMap, BTreeSet};
 use std::sync::{Arc, OnceLock};
 #[cfg(test)]
@@ -1621,26 +1622,30 @@ fn xpath_evaluate_expression_node(
             xpath_evaluate_path(expression, path, focus, variable_bindings)
         }
         XPathExpression::Binary {
-            operator: XPathBinaryOperator::GeneralEqual,
+            operator,
             left,
             right,
-        } => {
+        } if xpath_comparison_operator(*operator).is_some() => {
             let left = xpath_evaluate_expression_node(expression, left, focus, variable_bindings)?;
             let right =
                 xpath_evaluate_expression_node(expression, right, focus, variable_bindings)?;
-            let value = xpath_general_equal(&left, &right, node.source_range)?;
-            Ok(vec![XPathResultItem::Atomic {
-                value: XPathAtomicValue {
-                    type_name: "xs:boolean".to_owned(),
-                    lexical_value: value.to_string(),
-                    namespace_uri: None,
-                    local_name: None,
-                },
-                source_map: node.source_range.source_map(
-                    expression.attachment.source_id(),
-                    expression.source.media_type.as_str(),
-                ),
-            }])
+            let (mode, relation) = xpath_comparison_operator(*operator)
+                .expect("comparison operator guard resolves comparison semantics");
+            let value = match mode {
+                XPathComparisonMode::General => Some(xpath_general_compare(
+                    &left,
+                    &right,
+                    relation,
+                    node.source_range,
+                )?),
+                XPathComparisonMode::Value => {
+                    xpath_value_compare(&left, &right, relation, node.source_range)?
+                }
+            };
+            Ok(value
+                .map(|value| xpath_boolean_result_item(expression, node.source_range, value))
+                .into_iter()
+                .collect())
         }
         XPathExpression::Binary { operator, .. } => Err(XPathEvaluationError::unsupported(
             format!("XPath operator `{operator:?}` is outside the first native evaluator slice"),
@@ -2044,9 +2049,16 @@ fn xpath_numeric_equals_position(
     source_range: XPathSourceRange,
 ) -> Result<Option<bool>, XPathEvaluationError> {
     let result = match value.type_name.as_str() {
-        "xs:integer" => xpath_decimal_equals_position(&value.lexical_value, position, false),
-        "xs:decimal" => xpath_decimal_equals_position(&value.lexical_value, position, true),
-        "xs:double" | "xs:float" => {
+        "xs:integer" => XPathExactDecimal::parse(&value.lexical_value, false).map(|number| {
+            number.compare(&XPathExactDecimal::from_usize(position)) == Ordering::Equal
+        }),
+        "xs:decimal" => XPathExactDecimal::parse(&value.lexical_value, true).map(|number| {
+            number.compare(&XPathExactDecimal::from_usize(position)) == Ordering::Equal
+        }),
+        "xs:float" => {
+            xpath_parse_float(&value.lexical_value).map(|number| number == position as f32)
+        }
+        "xs:double" => {
             xpath_parse_double(&value.lexical_value).map(|number| number == position as f64)
         }
         _ => return Ok(None),
@@ -2064,48 +2076,21 @@ fn xpath_numeric_equals_position(
     Ok(Some(result))
 }
 
-fn xpath_decimal_equals_position(
-    lexical: &str,
-    position: usize,
-    allow_fraction: bool,
-) -> Option<bool> {
-    let (negative, unsigned) = match lexical.as_bytes().first() {
-        Some(b'-') => (true, &lexical[1..]),
-        Some(b'+') => (false, &lexical[1..]),
-        _ => (false, lexical),
-    };
-    let mut parts = unsigned.split('.');
-    let integer = parts.next()?;
-    let fraction = parts.next();
-    if parts.next().is_some()
-        || fraction.is_some_and(|_| !allow_fraction)
-        || (integer.is_empty() && fraction.is_none_or(str::is_empty))
-        || !integer.bytes().all(|byte| byte.is_ascii_digit())
-        || fraction.is_some_and(|digits| !digits.bytes().all(|byte| byte.is_ascii_digit()))
-    {
-        return None;
+fn xpath_parse_float(lexical: &str) -> Option<f32> {
+    match lexical.trim() {
+        "INF" => Some(f32::INFINITY),
+        "-INF" => Some(f32::NEG_INFINITY),
+        "NaN" => Some(f32::NAN),
+        lexical => lexical.parse::<f32>().ok(),
     }
-    if fraction.is_some_and(|digits| !digits.bytes().all(|byte| byte == b'0')) {
-        return Some(false);
-    }
-    let normalized = integer.trim_start_matches('0');
-    let normalized = if normalized.is_empty() {
-        "0"
-    } else {
-        normalized
-    };
-    if negative {
-        return Some(position == 0 && normalized == "0");
-    }
-    Some(normalized == position.to_string())
 }
 
 fn xpath_parse_double(lexical: &str) -> Option<f64> {
-    match lexical {
+    match lexical.trim() {
         "INF" => Some(f64::INFINITY),
         "-INF" => Some(f64::NEG_INFINITY),
         "NaN" => Some(f64::NAN),
-        _ => lexical.parse::<f64>().ok(),
+        lexical => lexical.parse::<f64>().ok(),
     }
 }
 
@@ -2140,8 +2125,8 @@ fn xpath_effective_boolean_value(
             )),
         },
         "xs:string" | "xs:anyURI" | "xs:untypedAtomic" => Ok(!value.lexical_value.is_empty()),
-        "xs:integer" => xpath_decimal_equals_position(&value.lexical_value, 0, false)
-            .map(|is_zero| !is_zero)
+        "xs:integer" => XPathExactDecimal::parse(&value.lexical_value, false)
+            .map(|number| !number.is_zero())
             .ok_or_else(|| {
                 XPathEvaluationError::dynamic(
                     "cem.xpath.numeric_value_invalid",
@@ -2152,8 +2137,8 @@ fn xpath_effective_boolean_value(
                     source_range,
                 )
             }),
-        "xs:decimal" => xpath_decimal_equals_position(&value.lexical_value, 0, true)
-            .map(|is_zero| !is_zero)
+        "xs:decimal" => XPathExactDecimal::parse(&value.lexical_value, true)
+            .map(|number| !number.is_zero())
             .ok_or_else(|| {
                 XPathEvaluationError::dynamic(
                     "cem.xpath.numeric_value_invalid",
@@ -2164,7 +2149,19 @@ fn xpath_effective_boolean_value(
                     source_range,
                 )
             }),
-        "xs:double" | "xs:float" => xpath_parse_double(&value.lexical_value)
+        "xs:float" => xpath_parse_float(&value.lexical_value)
+            .map(|number| number != 0.0 && !number.is_nan())
+            .ok_or_else(|| {
+                XPathEvaluationError::dynamic(
+                    "cem.xpath.numeric_value_invalid",
+                    format!(
+                        "XPath numeric value `{}` is not a valid {}",
+                        value.lexical_value, value.type_name
+                    ),
+                    source_range,
+                )
+            }),
+        "xs:double" => xpath_parse_double(&value.lexical_value)
             .map(|number| number != 0.0 && !number.is_nan())
             .ok_or_else(|| {
                 XPathEvaluationError::dynamic(
@@ -2188,37 +2185,302 @@ fn xpath_effective_boolean_value(
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum XPathStringComparisonKind {
-    String,
-    UntypedAtomic,
+enum XPathComparisonMode {
+    Value,
+    General,
 }
 
-fn xpath_general_equal(
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum XPathComparisonRelation {
+    Equal,
+    NotEqual,
+    LessThan,
+    LessThanOrEqual,
+    GreaterThan,
+    GreaterThanOrEqual,
+}
+
+fn xpath_comparison_operator(
+    operator: XPathBinaryOperator,
+) -> Option<(XPathComparisonMode, XPathComparisonRelation)> {
+    let comparison = match operator {
+        XPathBinaryOperator::ValueEqual => {
+            (XPathComparisonMode::Value, XPathComparisonRelation::Equal)
+        }
+        XPathBinaryOperator::ValueNotEqual => (
+            XPathComparisonMode::Value,
+            XPathComparisonRelation::NotEqual,
+        ),
+        XPathBinaryOperator::ValueLessThan => (
+            XPathComparisonMode::Value,
+            XPathComparisonRelation::LessThan,
+        ),
+        XPathBinaryOperator::ValueLessThanOrEqual => (
+            XPathComparisonMode::Value,
+            XPathComparisonRelation::LessThanOrEqual,
+        ),
+        XPathBinaryOperator::ValueGreaterThan => (
+            XPathComparisonMode::Value,
+            XPathComparisonRelation::GreaterThan,
+        ),
+        XPathBinaryOperator::ValueGreaterThanOrEqual => (
+            XPathComparisonMode::Value,
+            XPathComparisonRelation::GreaterThanOrEqual,
+        ),
+        XPathBinaryOperator::GeneralEqual => {
+            (XPathComparisonMode::General, XPathComparisonRelation::Equal)
+        }
+        XPathBinaryOperator::GeneralNotEqual => (
+            XPathComparisonMode::General,
+            XPathComparisonRelation::NotEqual,
+        ),
+        XPathBinaryOperator::GeneralLessThan => (
+            XPathComparisonMode::General,
+            XPathComparisonRelation::LessThan,
+        ),
+        XPathBinaryOperator::GeneralLessThanOrEqual => (
+            XPathComparisonMode::General,
+            XPathComparisonRelation::LessThanOrEqual,
+        ),
+        XPathBinaryOperator::GeneralGreaterThan => (
+            XPathComparisonMode::General,
+            XPathComparisonRelation::GreaterThan,
+        ),
+        XPathBinaryOperator::GeneralGreaterThanOrEqual => (
+            XPathComparisonMode::General,
+            XPathComparisonRelation::GreaterThanOrEqual,
+        ),
+        _ => return None,
+    };
+    Some(comparison)
+}
+
+fn xpath_boolean_result_item(
+    expression: &XPathExpressionAst,
+    source_range: XPathSourceRange,
+    value: bool,
+) -> XPathResultItem {
+    XPathResultItem::Atomic {
+        value: XPathAtomicValue {
+            type_name: "xs:boolean".to_owned(),
+            lexical_value: value.to_string(),
+            namespace_uri: None,
+            local_name: None,
+        },
+        source_map: source_range.source_map(
+            expression.attachment.source_id(),
+            expression.source.media_type.as_str(),
+        ),
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct XPathExactDecimal {
+    negative: bool,
+    coefficient: Vec<u8>,
+    scale: usize,
+}
+
+impl XPathExactDecimal {
+    fn parse(lexical: &str, allow_fraction: bool) -> Option<Self> {
+        let lexical = lexical.trim();
+        let (negative, unsigned) = match lexical.as_bytes().first() {
+            Some(b'-') => (true, &lexical[1..]),
+            Some(b'+') => (false, &lexical[1..]),
+            _ => (false, lexical),
+        };
+        if unsigned.is_empty() {
+            return None;
+        }
+        let mut parts = unsigned.split('.');
+        let integer = parts.next()?;
+        let fraction = parts.next();
+        if parts.next().is_some()
+            || fraction.is_some_and(|_| !allow_fraction)
+            || (integer.is_empty() && fraction.is_none_or(str::is_empty))
+            || !integer.bytes().all(|byte| byte.is_ascii_digit())
+            || fraction.is_some_and(|digits| !digits.bytes().all(|byte| byte.is_ascii_digit()))
+        {
+            return None;
+        }
+
+        let fraction = fraction.unwrap_or("").trim_end_matches('0');
+        let scale = fraction.len();
+        let mut coefficient = integer
+            .bytes()
+            .chain(fraction.bytes())
+            .map(|byte| byte.saturating_sub(b'0'))
+            .skip_while(|digit| *digit == 0)
+            .collect::<Vec<_>>();
+        if coefficient.is_empty() {
+            coefficient.push(0);
+            return Some(Self {
+                negative: false,
+                coefficient,
+                scale: 0,
+            });
+        }
+        Some(Self {
+            negative,
+            coefficient,
+            scale,
+        })
+    }
+
+    fn from_usize(value: usize) -> Self {
+        Self::parse(&value.to_string(), false).expect("usize has a valid integer representation")
+    }
+
+    fn is_zero(&self) -> bool {
+        self.coefficient == [0]
+    }
+
+    fn compare(&self, other: &Self) -> Ordering {
+        if self.negative != other.negative {
+            return if self.negative {
+                Ordering::Less
+            } else {
+                Ordering::Greater
+            };
+        }
+        let magnitude = self.compare_magnitude(other);
+        if self.negative {
+            magnitude.reverse()
+        } else {
+            magnitude
+        }
+    }
+
+    fn compare_magnitude(&self, other: &Self) -> Ordering {
+        let common_scale = self.scale.max(other.scale);
+        let left_length = self
+            .coefficient
+            .len()
+            .saturating_add(common_scale.saturating_sub(self.scale));
+        let right_length = other
+            .coefficient
+            .len()
+            .saturating_add(common_scale.saturating_sub(other.scale));
+        match left_length.cmp(&right_length) {
+            Ordering::Equal => {}
+            ordering => return ordering,
+        }
+        for index in 0..left_length {
+            let left = self.coefficient.get(index).copied().unwrap_or(0);
+            let right = other.coefficient.get(index).copied().unwrap_or(0);
+            match left.cmp(&right) {
+                Ordering::Equal => {}
+                ordering => return ordering,
+            }
+        }
+        Ordering::Equal
+    }
+
+    fn to_lexical(&self) -> String {
+        let sign_length = usize::from(self.negative);
+        let decimal_overhead = usize::from(self.scale > 0).saturating_add(
+            self.scale
+                .saturating_sub(self.coefficient.len())
+                .saturating_add(1),
+        );
+        let mut lexical = String::with_capacity(
+            sign_length
+                .saturating_add(self.coefficient.len())
+                .saturating_add(decimal_overhead),
+        );
+        if self.negative {
+            lexical.push('-');
+        }
+        if self.scale == 0 {
+            for digit in &self.coefficient {
+                lexical.push(char::from(b'0'.saturating_add(*digit)));
+            }
+            return lexical;
+        }
+        if self.coefficient.len() > self.scale {
+            let integer_length = self.coefficient.len().saturating_sub(self.scale);
+            for (index, digit) in self.coefficient.iter().enumerate() {
+                if index == integer_length {
+                    lexical.push('.');
+                }
+                lexical.push(char::from(b'0'.saturating_add(*digit)));
+            }
+        } else {
+            lexical.push_str("0.");
+            for _ in 0..self.scale.saturating_sub(self.coefficient.len()) {
+                lexical.push('0');
+            }
+            for digit in &self.coefficient {
+                lexical.push(char::from(b'0'.saturating_add(*digit)));
+            }
+        }
+        lexical
+    }
+}
+
+#[derive(Debug, Clone)]
+enum XPathComparableAtomic {
+    Untyped(String),
+    String(String),
+    Boolean(bool),
+    Decimal(XPathExactDecimal),
+    Float(f32),
+    Double(f64),
+}
+
+impl XPathComparableAtomic {
+    fn is_numeric(&self) -> bool {
+        matches!(self, Self::Decimal(_) | Self::Float(_) | Self::Double(_))
+    }
+
+    fn type_name(&self) -> &'static str {
+        match self {
+            Self::Untyped(_) => "xs:untypedAtomic",
+            Self::String(_) => "xs:string",
+            Self::Boolean(_) => "xs:boolean",
+            Self::Decimal(_) => "xs:decimal",
+            Self::Float(_) => "xs:float",
+            Self::Double(_) => "xs:double",
+        }
+    }
+}
+
+fn xpath_value_compare(
     left: &[XPathResultItem],
     right: &[XPathResultItem],
+    relation: XPathComparisonRelation,
+    source_range: XPathSourceRange,
+) -> Result<Option<bool>, XPathEvaluationError> {
+    let mut left = xpath_atomize_sequence(left, source_range)?;
+    let mut right = xpath_atomize_sequence(right, source_range)?;
+    if left.is_empty() || right.is_empty() {
+        return Ok(None);
+    }
+    if left.len() != 1 || right.len() != 1 {
+        return Err(XPathEvaluationError::dynamic(
+            "cem.xpath.value_comparison_cardinality",
+            "XPath value comparison operands must atomize to zero or one value",
+            source_range,
+        ));
+    }
+    let left = xpath_untyped_to_string(left.pop().expect("singleton value operand"));
+    let right = xpath_untyped_to_string(right.pop().expect("singleton value operand"));
+    xpath_compare_atomic(&left, &right, relation, source_range).map(Some)
+}
+
+fn xpath_general_compare(
+    left: &[XPathResultItem],
+    right: &[XPathResultItem],
+    relation: XPathComparisonRelation,
     source_range: XPathSourceRange,
 ) -> Result<bool, XPathEvaluationError> {
-    for left_item in left {
-        let (left_kind, left_value) = xpath_atomized_string(left_item, source_range)?;
-        for right_item in right {
-            let (right_kind, right_value) = xpath_atomized_string(right_item, source_range)?;
-            if matches!(
-                (left_kind, right_kind),
-                (
-                    XPathStringComparisonKind::String,
-                    XPathStringComparisonKind::String
-                ) | (
-                    XPathStringComparisonKind::String,
-                    XPathStringComparisonKind::UntypedAtomic
-                ) | (
-                    XPathStringComparisonKind::UntypedAtomic,
-                    XPathStringComparisonKind::String
-                ) | (
-                    XPathStringComparisonKind::UntypedAtomic,
-                    XPathStringComparisonKind::UntypedAtomic
-                )
-            ) && left_value == right_value
-            {
+    let left = xpath_atomize_sequence(left, source_range)?;
+    let right = xpath_atomize_sequence(right, source_range)?;
+    for left_value in &left {
+        for right_value in &right {
+            let (left_value, right_value) =
+                xpath_prepare_general_pair(left_value.clone(), right_value.clone(), source_range)?;
+            if xpath_compare_atomic(&left_value, &right_value, relation, source_range)? {
                 return Ok(true);
             }
         }
@@ -2226,44 +2488,278 @@ fn xpath_general_equal(
     Ok(false)
 }
 
-fn xpath_atomized_string(
+fn xpath_atomize_sequence(
+    items: &[XPathResultItem],
+    source_range: XPathSourceRange,
+) -> Result<Vec<XPathComparableAtomic>, XPathEvaluationError> {
+    items
+        .iter()
+        .map(|item| xpath_atomize_item(item, source_range))
+        .collect()
+}
+
+fn xpath_atomize_item(
     item: &XPathResultItem,
     source_range: XPathSourceRange,
-) -> Result<(XPathStringComparisonKind, String), XPathEvaluationError> {
+) -> Result<XPathComparableAtomic, XPathEvaluationError> {
     match item {
         XPathResultItem::Node {
             native_node: Some(node),
             ..
-        } => Ok((XPathStringComparisonKind::UntypedAtomic, node.string_value())),
+        } => Ok(XPathComparableAtomic::Untyped(node.string_value())),
         XPathResultItem::Node { .. } => Err(XPathEvaluationError::dynamic(
             "cem.xpath.native_node_missing",
             "XPath node atomization requires its retained native node handle",
             source_range,
         )),
-        XPathResultItem::Atomic { value, .. } => match value.type_name.as_str() {
-            "xs:string" => Ok((
-                XPathStringComparisonKind::String,
-                value.lexical_value.clone(),
-            )),
-            "xs:untypedAtomic" => Ok((
-                XPathStringComparisonKind::UntypedAtomic,
-                value.lexical_value.clone(),
-            )),
-            _ => Err(XPathEvaluationError::unsupported(
-                format!(
-                    "XPath general equality for `{}` is outside the exact untyped/string comparison slice",
-                    value.type_name
-                ),
-                source_range,
-            )),
-        },
+        XPathResultItem::Atomic { value, .. } => xpath_comparable_atomic(value, source_range),
         item => Err(XPathEvaluationError::unsupported(
             format!(
-                "XPath general equality cannot atomize result item kind `{:?}` yet",
+                "XPath atomization for result item kind `{:?}` is outside the native atomic slice",
                 item.kind()
             ),
             source_range,
         )),
+    }
+}
+
+fn xpath_comparable_atomic(
+    value: &XPathAtomicValue,
+    source_range: XPathSourceRange,
+) -> Result<XPathComparableAtomic, XPathEvaluationError> {
+    let invalid = || {
+        XPathEvaluationError::dynamic(
+            "cem.xpath.atomic_value_invalid",
+            format!(
+                "XPath atomic value `{}` is not valid for `{}`",
+                value.lexical_value, value.type_name
+            ),
+            source_range,
+        )
+    };
+    match value.type_name.as_str() {
+        "xs:untypedAtomic" => Ok(XPathComparableAtomic::Untyped(value.lexical_value.clone())),
+        "xs:string" | "xs:anyURI" => Ok(XPathComparableAtomic::String(value.lexical_value.clone())),
+        "xs:boolean" => xpath_parse_boolean(&value.lexical_value)
+            .map(XPathComparableAtomic::Boolean)
+            .ok_or_else(invalid),
+        "xs:integer" => XPathExactDecimal::parse(&value.lexical_value, false)
+            .map(XPathComparableAtomic::Decimal)
+            .ok_or_else(invalid),
+        "xs:decimal" => XPathExactDecimal::parse(&value.lexical_value, true)
+            .map(XPathComparableAtomic::Decimal)
+            .ok_or_else(invalid),
+        "xs:float" => xpath_parse_float(&value.lexical_value)
+            .map(XPathComparableAtomic::Float)
+            .ok_or_else(invalid),
+        "xs:double" => xpath_parse_double(&value.lexical_value)
+            .map(XPathComparableAtomic::Double)
+            .ok_or_else(invalid),
+        _ => Err(XPathEvaluationError::unsupported(
+            format!(
+                "XPath comparison for atomic type `{}` is outside the native atomic slice",
+                value.type_name
+            ),
+            source_range,
+        )),
+    }
+}
+
+fn xpath_prepare_general_pair(
+    mut left: XPathComparableAtomic,
+    mut right: XPathComparableAtomic,
+    source_range: XPathSourceRange,
+) -> Result<(XPathComparableAtomic, XPathComparableAtomic), XPathEvaluationError> {
+    if let (
+        XPathComparableAtomic::Untyped(left_value),
+        XPathComparableAtomic::Untyped(right_value),
+    ) = (&left, &right)
+    {
+        return Ok((
+            XPathComparableAtomic::String(left_value.clone()),
+            XPathComparableAtomic::String(right_value.clone()),
+        ));
+    }
+    if let XPathComparableAtomic::Untyped(value) = &left {
+        left = xpath_cast_untyped_for_general(value, &right, source_range)?;
+    }
+    if let XPathComparableAtomic::Untyped(value) = &right {
+        right = xpath_cast_untyped_for_general(value, &left, source_range)?;
+    }
+    Ok((left, right))
+}
+
+fn xpath_cast_untyped_for_general(
+    value: &str,
+    other: &XPathComparableAtomic,
+    source_range: XPathSourceRange,
+) -> Result<XPathComparableAtomic, XPathEvaluationError> {
+    let cast_invalid = || {
+        XPathEvaluationError::dynamic(
+            "cem.xpath.atomic_cast_invalid",
+            format!(
+                "XPath untyped atomic value `{value}` cannot be cast for comparison with `{}`",
+                other.type_name()
+            ),
+            source_range,
+        )
+    };
+    match other {
+        XPathComparableAtomic::String(_) => Ok(XPathComparableAtomic::String(value.to_owned())),
+        XPathComparableAtomic::Boolean(_) => xpath_parse_boolean(value)
+            .map(XPathComparableAtomic::Boolean)
+            .ok_or_else(cast_invalid),
+        other if other.is_numeric() => xpath_parse_double(value)
+            .map(XPathComparableAtomic::Double)
+            .ok_or_else(cast_invalid),
+        XPathComparableAtomic::Untyped(_) => {
+            unreachable!("two untyped general-comparison operands are converted together")
+        }
+        _ => Err(cast_invalid()),
+    }
+}
+
+fn xpath_untyped_to_string(value: XPathComparableAtomic) -> XPathComparableAtomic {
+    match value {
+        XPathComparableAtomic::Untyped(value) => XPathComparableAtomic::String(value),
+        value => value,
+    }
+}
+
+fn xpath_compare_atomic(
+    left: &XPathComparableAtomic,
+    right: &XPathComparableAtomic,
+    relation: XPathComparisonRelation,
+    source_range: XPathSourceRange,
+) -> Result<bool, XPathEvaluationError> {
+    match (left, right) {
+        (XPathComparableAtomic::String(left), XPathComparableAtomic::String(right)) => {
+            Ok(xpath_ordering_matches(left.cmp(right), relation))
+        }
+        (XPathComparableAtomic::Boolean(left), XPathComparableAtomic::Boolean(right)) => {
+            Ok(xpath_ordering_matches(left.cmp(right), relation))
+        }
+        (left, right) if left.is_numeric() && right.is_numeric() => {
+            xpath_compare_numeric(left, right, relation, source_range)
+        }
+        _ => Err(XPathEvaluationError::dynamic(
+            "cem.xpath.comparison_type_error",
+            format!(
+                "XPath comparison does not define a relationship between `{}` and `{}`",
+                left.type_name(),
+                right.type_name()
+            ),
+            source_range,
+        )),
+    }
+}
+
+fn xpath_compare_numeric(
+    left: &XPathComparableAtomic,
+    right: &XPathComparableAtomic,
+    relation: XPathComparisonRelation,
+    source_range: XPathSourceRange,
+) -> Result<bool, XPathEvaluationError> {
+    if matches!(left, XPathComparableAtomic::Double(_))
+        || matches!(right, XPathComparableAtomic::Double(_))
+    {
+        let left = xpath_numeric_as_double(left, source_range)?;
+        let right = xpath_numeric_as_double(right, source_range)?;
+        return Ok(xpath_double_matches(left, right, relation));
+    }
+    if matches!(left, XPathComparableAtomic::Float(_))
+        || matches!(right, XPathComparableAtomic::Float(_))
+    {
+        let left = xpath_numeric_as_float(left, source_range)?;
+        let right = xpath_numeric_as_float(right, source_range)?;
+        return Ok(xpath_float_matches(left, right, relation));
+    }
+    let (XPathComparableAtomic::Decimal(left), XPathComparableAtomic::Decimal(right)) =
+        (left, right)
+    else {
+        unreachable!("numeric comparison ranks exhaust supported numeric values")
+    };
+    Ok(xpath_ordering_matches(left.compare(right), relation))
+}
+
+fn xpath_numeric_as_double(
+    value: &XPathComparableAtomic,
+    source_range: XPathSourceRange,
+) -> Result<f64, XPathEvaluationError> {
+    match value {
+        XPathComparableAtomic::Double(value) => Ok(*value),
+        XPathComparableAtomic::Float(value) => Ok(f64::from(*value)),
+        XPathComparableAtomic::Decimal(value) => xpath_parse_double(&value.to_lexical())
+            .ok_or_else(|| xpath_numeric_promotion_error(value, "xs:double", source_range)),
+        _ => unreachable!("numeric conversion requires a numeric atomic value"),
+    }
+}
+
+fn xpath_numeric_as_float(
+    value: &XPathComparableAtomic,
+    source_range: XPathSourceRange,
+) -> Result<f32, XPathEvaluationError> {
+    match value {
+        XPathComparableAtomic::Float(value) => Ok(*value),
+        XPathComparableAtomic::Decimal(value) => xpath_parse_float(&value.to_lexical())
+            .ok_or_else(|| xpath_numeric_promotion_error(value, "xs:float", source_range)),
+        _ => unreachable!("float promotion accepts decimal or float values"),
+    }
+}
+
+fn xpath_numeric_promotion_error(
+    value: &XPathExactDecimal,
+    target_type: &str,
+    source_range: XPathSourceRange,
+) -> XPathEvaluationError {
+    XPathEvaluationError::dynamic(
+        "cem.xpath.numeric_promotion_invalid",
+        format!(
+            "XPath decimal value `{}` cannot be promoted to `{target_type}`",
+            value.to_lexical()
+        ),
+        source_range,
+    )
+}
+
+fn xpath_ordering_matches(ordering: Ordering, relation: XPathComparisonRelation) -> bool {
+    match relation {
+        XPathComparisonRelation::Equal => ordering == Ordering::Equal,
+        XPathComparisonRelation::NotEqual => ordering != Ordering::Equal,
+        XPathComparisonRelation::LessThan => ordering == Ordering::Less,
+        XPathComparisonRelation::LessThanOrEqual => ordering != Ordering::Greater,
+        XPathComparisonRelation::GreaterThan => ordering == Ordering::Greater,
+        XPathComparisonRelation::GreaterThanOrEqual => ordering != Ordering::Less,
+    }
+}
+
+fn xpath_float_matches(left: f32, right: f32, relation: XPathComparisonRelation) -> bool {
+    match relation {
+        XPathComparisonRelation::Equal => left == right,
+        XPathComparisonRelation::NotEqual => left != right,
+        XPathComparisonRelation::LessThan => left < right,
+        XPathComparisonRelation::LessThanOrEqual => left <= right,
+        XPathComparisonRelation::GreaterThan => left > right,
+        XPathComparisonRelation::GreaterThanOrEqual => left >= right,
+    }
+}
+
+fn xpath_double_matches(left: f64, right: f64, relation: XPathComparisonRelation) -> bool {
+    match relation {
+        XPathComparisonRelation::Equal => left == right,
+        XPathComparisonRelation::NotEqual => left != right,
+        XPathComparisonRelation::LessThan => left < right,
+        XPathComparisonRelation::LessThanOrEqual => left <= right,
+        XPathComparisonRelation::GreaterThan => left > right,
+        XPathComparisonRelation::GreaterThanOrEqual => left >= right,
+    }
+}
+
+fn xpath_parse_boolean(lexical: &str) -> Option<bool> {
+    match lexical.trim() {
+        "true" | "1" => Some(true),
+        "false" | "0" => Some(false),
+        _ => None,
     }
 }
 
@@ -4114,6 +4610,45 @@ mod tests {
         )
     }
 
+    fn evaluate_for_test(
+        source: &str,
+        context_item: Option<XPathResultItem>,
+        variable_bindings: BTreeMap<String, XPathResultSequence>,
+    ) -> Result<XPathResultArtifact, Vec<Diagnostic>> {
+        let expression = parse(source);
+        let resolver_registry = ResolverRegistry::new();
+        let resolver_policy = ResolverPolicy::new();
+        CemXPathEvaluator::default().evaluate(XPathEvaluationRequest {
+            expression: &expression,
+            context_item,
+            variable_bindings,
+            static_context: XPathStaticContext::default(),
+            expected_result: None,
+            resolver_registry: &resolver_registry,
+            resolver_policy: &resolver_policy,
+            safety_policy_stamp: "xpath-safety/1;pure",
+        })
+    }
+
+    fn atomic_test_item(type_name: &str, lexical_value: &str) -> XPathResultItem {
+        XPathResultItem::Atomic {
+            value: XPathAtomicValue {
+                type_name: type_name.to_owned(),
+                lexical_value: lexical_value.to_owned(),
+                namespace_uri: None,
+                local_name: None,
+            },
+            source_map: result_source_map(9, 1),
+        }
+    }
+
+    fn singleton_test_binding(type_name: &str, lexical_value: &str) -> XPathResultSequence {
+        XPathResultSequence {
+            sequence_type: type_name.to_owned(),
+            items: vec![atomic_test_item(type_name, lexical_value)],
+        }
+    }
+
     fn parsed_syntax(source: &str) -> XPathSyntaxAst {
         parse(source)
             .syntax_ast
@@ -5197,6 +5732,178 @@ mod tests {
     }
 
     #[test]
+    fn xpath_native_evaluator_compares_exact_atomic_values_without_bounded_numbers() {
+        let assert_boolean = |source: &str, expected: bool| {
+            let result = evaluate_for_test(source, None, BTreeMap::new())
+                .unwrap_or_else(|diagnostics| panic!("`{source}` failed: {diagnostics:?}"));
+            let [XPathResultItem::Atomic { value, source_map }] = result.sequence.items.as_slice()
+            else {
+                panic!("`{source}` did not return one atomic value: {result:?}");
+            };
+            assert_eq!(value.type_name, "xs:boolean", "`{source}`");
+            assert_eq!(value.lexical_value, expected.to_string(), "`{source}`");
+            assert!(!source_map.frames.is_empty(), "`{source}`");
+        };
+
+        for (source, expected) in [
+            (
+                "999999999999999999999999999999999999 = 999999999999999999999999999999999999",
+                true,
+            ),
+            (
+                "999999999999999999999999999999999999 < 1000000000000000000000000000000000000",
+                true,
+            ),
+            ("1.20 eq 1.2", true),
+            ("1.0000000000000000000000001 gt 1.0", true),
+            ("1 = 1.0", true),
+            ("1 = 1e0", true),
+            ("'alpha' lt 'beta'", true),
+            ("(1, 2) = (2, 3)", true),
+            ("(1, 2) != (2, 3)", true),
+            ("(1, 2) = 3", false),
+        ] {
+            assert_boolean(source, expected);
+        }
+
+        let empty = evaluate_for_test("() eq 1", None, BTreeMap::new())
+            .expect("an empty value-comparison operand returns the empty sequence");
+        assert!(empty.sequence.items.is_empty());
+
+        let diagnostics = evaluate_for_test("(1, 2) eq 1", None, BTreeMap::new())
+            .expect_err("value comparisons require singleton atomized operands");
+        assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
+        assert_eq!(
+            diagnostics[0].code,
+            "cem.xpath.value_comparison_cardinality"
+        );
+    }
+
+    #[test]
+    fn xpath_native_evaluator_applies_typed_promotion_and_untyped_atomization() {
+        use crate::lifecycle::LoadedInputAstStream;
+        use crate::validation::xml::{
+            xml_document_ast_from_source_bytes, XmlSourceValidationRequest,
+        };
+        use std::sync::Arc;
+
+        let source = br#"<root><n>2</n><n>10</n><flag>true</flag><bad>not-a-number</bad></root>"#;
+        let (document, diagnostics) =
+            xml_document_ast_from_source_bytes(XmlSourceValidationRequest {
+                bytes: source,
+                source_uri: "memory://atomic-values.xml",
+                content_type: Some("application/xml"),
+            });
+        assert!(diagnostics.is_empty(), "{diagnostics:?}");
+        let owner = Arc::new(LoadedInputAstStream::XmlDocument(
+            document.expect("typed XML document"),
+        ));
+        let context_node = XPathNativeNode::xml_document(owner).expect("native XML document node");
+
+        let variables = BTreeMap::from([
+            (
+                "truth".to_owned(),
+                singleton_test_binding("xs:boolean", "true"),
+            ),
+            (
+                "falsehood".to_owned(),
+                singleton_test_binding("xs:boolean", "false"),
+            ),
+            (
+                "float".to_owned(),
+                singleton_test_binding("xs:float", "0.1"),
+            ),
+            (
+                "double".to_owned(),
+                singleton_test_binding("xs:double", "0.1"),
+            ),
+            (
+                "decimal".to_owned(),
+                singleton_test_binding("xs:decimal", "0.1"),
+            ),
+            (
+                "negative".to_owned(),
+                singleton_test_binding(
+                    "xs:decimal",
+                    "-999999999999999999999999999999999999.00000000000000000001",
+                ),
+            ),
+            ("nan".to_owned(), singleton_test_binding("xs:double", "NaN")),
+            (
+                "uri".to_owned(),
+                singleton_test_binding("xs:anyURI", "urn:example"),
+            ),
+            (
+                "string".to_owned(),
+                singleton_test_binding("xs:string", "urn:example"),
+            ),
+        ]);
+
+        let assert_boolean = |xpath_source: &str, expected: bool| {
+            let result = evaluate_for_test(
+                xpath_source,
+                Some(XPathResultItem::from_native_node(context_node.clone())),
+                variables.clone(),
+            )
+            .unwrap_or_else(|diagnostics| panic!("`{xpath_source}` failed: {diagnostics:?}"));
+            let [XPathResultItem::Atomic { value, .. }] = result.sequence.items.as_slice() else {
+                panic!("`{xpath_source}` did not return one atomic value: {result:?}");
+            };
+            assert_eq!(value.type_name, "xs:boolean", "`{xpath_source}`");
+            assert_eq!(
+                value.lexical_value,
+                expected.to_string(),
+                "`{xpath_source}`"
+            );
+        };
+
+        for (xpath_source, expected) in [
+            ("/root/n = 2", true),
+            ("/root/n < 3", true),
+            ("/root/n = '10'", true),
+            ("/root/n[1] = /root/n[2]", false),
+            ("/root/n[1] eq '2'", true),
+            ("/root/flag = $truth", true),
+            ("$falsehood lt $truth", true),
+            ("$float eq $decimal", true),
+            ("$float eq $double", false),
+            ("$negative lt 0", true),
+            ("$nan eq $nan", false),
+            ("$nan ne $nan", true),
+            ("$uri eq $string", true),
+        ] {
+            assert_boolean(xpath_source, expected);
+        }
+
+        let diagnostics = evaluate_for_test(
+            "/root/n eq 2",
+            Some(XPathResultItem::from_native_node(context_node.clone())),
+            variables.clone(),
+        )
+        .expect_err("value comparison rejects a multi-value atomized operand");
+        assert_eq!(
+            diagnostics[0].code,
+            "cem.xpath.value_comparison_cardinality"
+        );
+
+        let diagnostics = evaluate_for_test(
+            "/root/n[1] eq 2",
+            Some(XPathResultItem::from_native_node(context_node.clone())),
+            variables.clone(),
+        )
+        .expect_err("value comparison casts untyped atomic values to strings");
+        assert_eq!(diagnostics[0].code, "cem.xpath.comparison_type_error");
+
+        let diagnostics = evaluate_for_test(
+            "/root/bad = 2",
+            Some(XPathResultItem::from_native_node(context_node)),
+            variables,
+        )
+        .expect_err("general comparison must report an invalid untyped numeric cast");
+        assert_eq!(diagnostics[0].code, "cem.xpath.atomic_cast_invalid");
+    }
+
+    #[test]
     fn xpath_native_evaluator_rejects_unsupported_semantics_without_projection() {
         let expression = parse("1 + 2");
         let resolver_registry = ResolverRegistry::new();
@@ -5213,22 +5920,6 @@ mod tests {
                 safety_policy_stamp: "xpath-safety/1;pure",
             })
             .expect_err("operators are outside the first evaluator slice");
-        assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
-        assert_eq!(diagnostics[0].code, "cem.xpath.evaluation_unsupported");
-
-        let expression = parse("1 = 1");
-        let diagnostics = CemXPathEvaluator::default()
-            .evaluate(XPathEvaluationRequest {
-                expression: &expression,
-                context_item: None,
-                variable_bindings: BTreeMap::new(),
-                static_context: XPathStaticContext::default(),
-                expected_result: None,
-                resolver_registry: &resolver_registry,
-                resolver_policy: &resolver_policy,
-                safety_policy_stamp: "xpath-safety/1;pure",
-            })
-            .expect_err("numeric general equality requires the wider type-system slice");
         assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
         assert_eq!(diagnostics[0].code, "cem.xpath.evaluation_unsupported");
 

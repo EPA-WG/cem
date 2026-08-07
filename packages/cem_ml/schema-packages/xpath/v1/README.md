@@ -132,14 +132,19 @@ including reverse order for ancestor and preceding axes, before path results are
 identity-deduplicated and returned in document order. Postfix filter predicates
 preserve their base sequence order. Both predicate forms implement numeric
 position filtering and XPath effective-boolean-value rules, with native
-`position()` and `last()` focus functions. General `=` is exact for the
-currently supported untyped XML and string values, including entity-decoded
-attribute values. The optional, deprecated namespace axis remains an explicit
-host-language omission. Unsupported operators, other functions, constructors,
-dynamic function calls, lookups, and wider comparison coercions fail with a
-stable schema-owned diagnostic. The evaluator does not read expression source
-text, project through CEMT or JSON, reparse XML, or construct a replacement
-tree.
+`position()` and `last()` focus functions. A native atomic kernel represents
+integer and decimal values as unbounded normalized coefficient/scale values and
+executes all general and value comparison operators for supported strings,
+URIs, booleans, untyped XML values, integers, decimals, floats, and doubles.
+Comparisons atomize retained XML nodes directly, distinguish existential general
+comparison from singleton value comparison, apply untyped conversion and
+numeric promotion rules, preserve IEEE NaN behavior, and report cardinality or
+cast errors with expression source maps. The optional, deprecated namespace
+axis remains an explicit host-language omission. Unsupported node, logical,
+arithmetic, range, and set operators, other atomic families, functions,
+constructors, dynamic function calls, and lookups fail with a stable
+schema-owned diagnostic. The evaluator does not read expression source text,
+project through CEMT or JSON, reparse XML, or construct a replacement tree.
 
 The standalone executable adapter is registered for XPath template identities.
 It compiles template source once at the lifecycle/compile boundary, evaluates a

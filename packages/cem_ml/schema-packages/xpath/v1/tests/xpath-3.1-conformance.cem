@@ -70,15 +70,15 @@
         @status="partial"
         @qt3-status="unmapped"
         @spec-sections="XPath 3.1 sections 3.4 through 3.7"
-        @gap="General equality is exact for supported untyped XML and string values, including node atomization and existential sequence comparison; wider general-comparison coercions plus value, node, arithmetic, range, and set operators are incomplete"
+        @gap="All general and value comparison operators execute for supported string, URI, boolean, untyped XML, integer, decimal, float, and double values with direct node atomization, exact unbounded decimal comparison, existential or singleton cardinality, untyped conversion, numeric promotion, and NaN semantics. Other atomic families plus node, logical, arithmetic, range, and set operators and QT3 mapping remain incomplete"
         @todo="xpath-operators"
     }
     {conformance-slice
         @id="type-system"
-        @status="contract-only"
+        @status="partial"
         @qt3-status="unmapped"
         @spec-sections="XPath 3.1 sections 2.5, 2.6, 3.16 through 3.18"
-        @gap="Result type contracts exist, but sequence types, casting, promotion, and matching are not executable"
+        @gap="The native comparison kernel executes supported primitive atomic values, untyped conversion, and numeric promotion; derived atomic types, general casting syntax, sequence-type matching, promotion outside comparisons, and QT3 mapping remain incomplete"
         @todo="xpath-type-system"
     }
     {conformance-slice
@@ -102,7 +102,7 @@
         @status="partial"
         @qt3-status="unmapped"
         @spec-sections="Functions and Operators 3.1"
-        @gap="The native focus functions position() and last() are implemented; the remaining standard function library, wider operator semantics, and QT3 mapping are incomplete"
+        @gap="The native focus functions position() and last() plus supported general and value comparison operator mappings are implemented; the remaining standard function library, non-comparison operators, other atomic families, and QT3 mapping are incomplete"
         @todo="xpath-functions-operators"
     }
     {conformance-slice
