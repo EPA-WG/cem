@@ -51,6 +51,11 @@ enum XPathNameUse {
     Variable,
 }
 
+enum XPathArrowFunctionSpecifier {
+    Static(XPathName),
+    Dynamic(XPathPrimaryExpression),
+}
+
 /// Parses an already scanned XPath token stream. Source text is accepted only
 /// for its byte length; this parser never tokenizes or slices it.
 pub(super) fn parse_xpath(
@@ -274,7 +279,7 @@ impl<'tokens, 'source, 'context> XPathParser<'tokens, 'source, 'context> {
         &mut self,
         minimum_precedence: u8,
     ) -> Result<XPathExpressionNode, XPathParseError> {
-        let mut left = self.parse_unary_expression()?;
+        let mut left = self.parse_arrow_expression()?;
         loop {
             let Some((operator, precedence)) = self.peek_binary_operator() else {
                 break;
@@ -296,6 +301,70 @@ impl<'tokens, 'source, 'context> XPathParser<'tokens, 'source, 'context> {
             };
         }
         Ok(left)
+    }
+
+    fn parse_arrow_expression(&mut self) -> Result<XPathExpressionNode, XPathParseError> {
+        let mut expression = self.parse_unary_expression()?;
+        while self.consume_if("=>").is_some() {
+            let specifier = self.parse_arrow_function_specifier()?;
+            self.expect("(")?;
+            let mut arguments = self.parse_argument_list_after_open()?;
+            let start = self.node_start(&expression);
+            arguments.insert(0, expression);
+            let end = self
+                .previous_semantic()
+                .map_or(start, |(_, token)| token.end);
+            let source_range = self.range(start, end);
+            let step = match specifier {
+                XPathArrowFunctionSpecifier::Static(name) => {
+                    XPathStep::Primary(XPathPrimaryExpression::FunctionCall { name, arguments })
+                }
+                XPathArrowFunctionSpecifier::Dynamic(primary) => XPathStep::Postfix {
+                    primary,
+                    postfixes: vec![XPathPostfixExpression::ArgumentList(arguments)],
+                },
+            };
+            expression = XPathExpressionNode {
+                expression: XPathExpression::Path(XPathPathExpression {
+                    root: XPathPathRoot::Relative,
+                    steps: vec![XPathStepNode { step, source_range }],
+                    source_range,
+                }),
+                source_range,
+            };
+        }
+        Ok(expression)
+    }
+
+    fn parse_arrow_function_specifier(
+        &mut self,
+    ) -> Result<XPathArrowFunctionSpecifier, XPathParseError> {
+        let Some((token_index, token)) = self.next() else {
+            return Err(self.syntax_error(&["arrow function specifier"]));
+        };
+        if token.lexeme == "$" {
+            let (name_index, name_token) = self.expect_name("variable name")?;
+            return self
+                .resolve_name(name_index, name_token, XPathNameUse::Variable)
+                .map(XPathPrimaryExpression::VariableReference)
+                .map(XPathArrowFunctionSpecifier::Dynamic);
+        }
+        if token.lexeme == "(" {
+            let primary = if self.consume_if(")").is_some() {
+                XPathPrimaryExpression::Parenthesized(None)
+            } else {
+                let expression = self.parse_expression_sequence()?;
+                self.expect(")")?;
+                XPathPrimaryExpression::Parenthesized(Some(Box::new(expression)))
+            };
+            return Ok(XPathArrowFunctionSpecifier::Dynamic(primary));
+        }
+        if is_name_token(token) {
+            return self
+                .resolve_name(token_index, token, XPathNameUse::Function)
+                .map(XPathArrowFunctionSpecifier::Static);
+        }
+        Err(self.syntax_error_at(token_index, token, &["arrow function specifier"]))
     }
 
     fn parse_unary_expression(&mut self) -> Result<XPathExpressionNode, XPathParseError> {
@@ -1194,7 +1263,6 @@ fn binary_operator(lexeme: &str) -> Option<(XPathBinaryOperator, u8)> {
 
 fn unsupported_suffix_production(lexeme: &str) -> Option<&'static str> {
     match lexeme {
-        "=>" => Some("arrow-expression"),
         "cast" => Some("cast-expression"),
         "castable" => Some("castable-expression"),
         "treat" => Some("treat-expression"),

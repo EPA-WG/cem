@@ -58,12 +58,15 @@ source-fidelity artifact. XSLT, CEMT, and CEM-QL fusion consumes a derived
 start/end syntax event stream rather than weakening the primary AST into a
 generic property bag. The current parser slice represents rooted and relative
 paths, axes, node tests, predicates, simple maps, variables, binary operators,
-function calls, maps, arrays, typed names/literals, and host-adjusted ranges
-directly. Simple-map grammar nodes retain one input path and an ordered vector
-of mapping paths rather than masquerading as generic binary operators. Their
-balanced syntax events expose each path child in source order. The runtime
-parser and public syntax module have no Xee, serde, Xot, or JSON representation
-dependency.
+function calls, arrow expressions, maps, arrays, typed names/literals, and
+host-adjusted ranges directly. Simple-map grammar nodes retain one input path
+and an ordered vector of mapping paths rather than masquerading as generic
+binary operators. Their balanced syntax events expose each path child in source
+order. Named arrows lower canonically to ordinary function calls with the left
+operand inserted as argument zero; variable and parenthesized specifiers lower
+to the existing postfix dynamic-call form. This preserves authored token
+fidelity without adding an arrow-only public AST variant. The runtime parser and
+public syntax module have no Xee, serde, Xot, or JSON representation dependency.
 
 The lifecycle stream emits one zero-width `start-expression` event, one event
 for each lossless token, and one zero-width `end-expression` event. Token events
@@ -169,6 +172,16 @@ nodes, duplicates, and input order remain intact. An empty stage skips every
 remaining mapping path. Operand diagnostics retain their exact path ranges,
 while evaluated intermediate and final sequences enforce `xpathItems` budgets;
 the evaluator never serializes or reconstructs a mapped item.
+Native function calls resolve one supported signature by expanded QName and
+arity before evaluating arguments. The dispatcher executes the focus functions
+`fn:position()` and `fn:last()` plus the pure sequence functions `fn:count()`,
+`fn:exists()`, `fn:empty()`, `fn:boolean()`, and `fn:not()`, preserving native
+focus, effective-boolean-value rules, exact result and argument source maps,
+namespace isolation, deterministic unsupported-signature diagnostics, and
+evaluated-work budgets. Named arrow expressions execute through the same
+dispatcher after canonical lowering, including left-to-right chains and normal
+operator precedence. Dynamic arrow specifiers retain their typed postfix-call
+shape but remain fail-closed until native function items are executable.
 Typed `for` expressions accept one or more comma-separated bindings. The parser
 lowers later bindings into nested typed `For` nodes with dependent lexical
 scope, preserving the complete source range on the outer node and each
@@ -194,7 +207,7 @@ tuples, short-circuits decisive results, and preserves vacuous empty-binding
 truth, outer focus, shadowing, native owners, exact diagnostics, and
 evaluated-work sequence-item budgets. The XPath 3.1 control-flow expression
 slice is otherwise executable; XQuery-only switch and typeswitch inputs remain
-explicit fail-closed exclusions. Other atomic families, functions,
+explicit fail-closed exclusions. Other atomic families, remaining functions,
 constructors, dynamic function calls, and lookups fail with a stable
 schema-owned diagnostic. The evaluator does not read expression source text,
 project through CEMT or JSON, reparse XML, or construct a replacement tree.

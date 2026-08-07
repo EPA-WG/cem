@@ -2571,48 +2571,15 @@ fn xpath_evaluate_primary(
                 message: "XPath context item is not available".to_owned(),
                 source_range: Some(source_range),
             }),
-        XPathPrimaryExpression::FunctionCall { name, arguments }
-            if name.namespace_uri.as_deref() == Some("http://www.w3.org/2005/xpath-functions")
-                && arguments.is_empty()
-                && matches!(name.local_name.as_str(), "position" | "last") =>
-        {
-            if focus.context_item.is_none() {
-                return Err(XPathEvaluationError::dynamic(
-                    "cem.xpath.context_item_missing",
-                    format!(
-                        "XPath focus function `{}` requires an available focus",
-                        name.lexical
-                    ),
-                    source_range,
-                ));
-            }
-            let value = match name.local_name.as_str() {
-                "position" => focus.position,
-                "last" => focus.size,
-                _ => unreachable!("guard restricts native focus functions"),
-            };
-            Ok(vec![XPathResultItem::Atomic {
-                value: XPathAtomicValue {
-                    type_name: "xs:integer".to_owned(),
-                    lexical_value: value.to_string(),
-                    namespace_uri: None,
-                    local_name: None,
-                },
-                source_map: source_range.source_map(
-                    expression.attachment.source_id(),
-                    expression.source.media_type.as_str(),
-                ),
-            }])
-        }
-        XPathPrimaryExpression::FunctionCall { name, .. } => {
-            Err(XPathEvaluationError::unsupported(
-                format!(
-                    "XPath function call `{}` is outside the native evaluator slice",
-                    name.lexical
-                ),
-                source_range,
-            ))
-        }
+        XPathPrimaryExpression::FunctionCall { name, arguments } => xpath_evaluate_function_call(
+            expression,
+            name,
+            arguments,
+            focus,
+            variable_bindings,
+            evaluation_limits,
+            source_range,
+        ),
         XPathPrimaryExpression::MapConstructor { .. } => Err(XPathEvaluationError::unsupported(
             "XPath map constructors are outside the first native evaluator slice",
             source_range,
@@ -2628,6 +2595,121 @@ fn xpath_evaluate_primary(
             ))
         }
     }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum XPathNativeFunction {
+    Position,
+    Last,
+    Count,
+    Exists,
+    Empty,
+    Boolean,
+    Not,
+}
+
+fn xpath_native_function(name: &XPathName, arity: usize) -> Option<XPathNativeFunction> {
+    if name.namespace_uri.as_deref() != Some("http://www.w3.org/2005/xpath-functions") {
+        return None;
+    }
+    match (name.local_name.as_str(), arity) {
+        ("position", 0) => Some(XPathNativeFunction::Position),
+        ("last", 0) => Some(XPathNativeFunction::Last),
+        ("count", 1) => Some(XPathNativeFunction::Count),
+        ("exists", 1) => Some(XPathNativeFunction::Exists),
+        ("empty", 1) => Some(XPathNativeFunction::Empty),
+        ("boolean", 1) => Some(XPathNativeFunction::Boolean),
+        ("not", 1) => Some(XPathNativeFunction::Not),
+        _ => None,
+    }
+}
+
+fn xpath_evaluate_function_call(
+    expression: &XPathExpressionAst,
+    name: &XPathName,
+    arguments: &[XPathExpressionNode],
+    focus: XPathFocus<'_>,
+    variable_bindings: &XPathVariableBindings,
+    evaluation_limits: XPathEvaluationLimits,
+    source_range: XPathSourceRange,
+) -> Result<Vec<XPathResultItem>, XPathEvaluationError> {
+    let expanded_name = XPathExpandedName::from_syntax_name(name);
+    let Some(function) = xpath_native_function(name, arguments.len()) else {
+        return Err(XPathEvaluationError::unsupported(
+            format!(
+                "XPath function `{}` with arity {} is outside the native evaluator slice",
+                expanded_name.display(),
+                arguments.len()
+            ),
+            source_range,
+        ));
+    };
+
+    if matches!(
+        function,
+        XPathNativeFunction::Position | XPathNativeFunction::Last
+    ) {
+        if focus.context_item.is_none() {
+            return Err(XPathEvaluationError::dynamic(
+                "cem.xpath.context_item_missing",
+                format!(
+                    "XPath focus function `{}` requires an available focus",
+                    name.lexical
+                ),
+                source_range,
+            ));
+        }
+        let value = match function {
+            XPathNativeFunction::Position => focus.position,
+            XPathNativeFunction::Last => focus.size,
+            _ => unreachable!("focus function guard restricts native dispatch"),
+        };
+        return Ok(vec![xpath_numeric_result_item(
+            expression,
+            source_range,
+            XPathComparableAtomic::Integer(XPathExactDecimal::from_usize(value)),
+        )]);
+    }
+
+    let argument = arguments
+        .first()
+        .expect("resolved sequence functions have one argument");
+    let items = xpath_evaluate_expression_node(
+        expression,
+        argument,
+        focus,
+        variable_bindings,
+        evaluation_limits,
+    )?;
+    let result = match function {
+        XPathNativeFunction::Count => xpath_numeric_result_item(
+            expression,
+            source_range,
+            XPathComparableAtomic::Integer(XPathExactDecimal::from_usize(items.len())),
+        ),
+        XPathNativeFunction::Exists => {
+            xpath_boolean_result_item(expression, source_range, !items.is_empty())
+        }
+        XPathNativeFunction::Empty => {
+            xpath_boolean_result_item(expression, source_range, items.is_empty())
+        }
+        XPathNativeFunction::Boolean | XPathNativeFunction::Not => {
+            let value = xpath_effective_boolean_value(&items, argument.source_range)?;
+            xpath_boolean_result_item(
+                expression,
+                source_range,
+                if function == XPathNativeFunction::Not {
+                    !value
+                } else {
+                    value
+                },
+            )
+        }
+        XPathNativeFunction::Position | XPathNativeFunction::Last => {
+            unreachable!("focus functions return before argument evaluation")
+        }
+    };
+    Ok(vec![result])
 }
 
 fn xpath_context_native_node(
@@ -6949,6 +7031,100 @@ mod tests {
     }
 
     #[test]
+    fn xpath_cem_parser_canonically_lowers_arrow_calls_without_an_arrow_ast() {
+        let source = "(1, 2) => fn:count()";
+        let syntax = cem_parser_syntax(source).expect("named arrow expression");
+        assert_eq!(syntax, xee_parser_syntax(source));
+        let call = &syntax.root.expressions[0];
+        assert_eq!(
+            call.source_range,
+            XPathSourceRange::new(1, 1, 0, source.len() as u64)
+        );
+        let XPathExpression::Path(path) = &call.expression else {
+            panic!("named arrows must lower to a static function-call path: {syntax:?}");
+        };
+        let [XPathStepNode {
+            step: XPathStep::Primary(XPathPrimaryExpression::FunctionCall { name, arguments }),
+            source_range,
+        }] = path.steps.as_slice()
+        else {
+            panic!("named arrow did not lower to one function-call step: {path:?}");
+        };
+        assert_eq!(*source_range, call.source_range);
+        assert_eq!(name.lexical, "fn:count");
+        assert_eq!(
+            name.namespace_uri.as_deref(),
+            Some("http://www.w3.org/2005/xpath-functions")
+        );
+        assert_eq!(arguments.len(), 1);
+        assert_eq!(
+            arguments[0].source_range,
+            XPathSourceRange::new(1, 1, 0, "(1, 2)".len() as u64)
+        );
+
+        let chained_source = "(1, 2) => count() => boolean()";
+        let chained = cem_parser_syntax(chained_source).expect("chained named arrows");
+        let XPathExpression::Path(chained_path) = &chained.root.expressions[0].expression else {
+            panic!("outer arrow call must be a path: {chained:?}");
+        };
+        let XPathStep::Primary(XPathPrimaryExpression::FunctionCall {
+            name: outer_name,
+            arguments: outer_arguments,
+        }) = &chained_path.steps[0].step
+        else {
+            panic!("outer arrow call must be static: {chained_path:?}");
+        };
+        assert_eq!(outer_name.local_name, "boolean");
+        assert_eq!(outer_arguments.len(), 1);
+        let inner_end = chained_source
+            .find(" => boolean")
+            .expect("second arrow suffix");
+        assert_eq!(
+            outer_arguments[0].source_range,
+            XPathSourceRange::new(1, 1, 0, inner_end as u64)
+        );
+        let XPathExpression::Path(inner_path) = &outer_arguments[0].expression else {
+            panic!("inner arrow call must remain a typed path");
+        };
+        assert!(matches!(
+            inner_path.steps[0].step,
+            XPathStep::Primary(XPathPrimaryExpression::FunctionCall {
+                ref name,
+                ..
+            }) if name.local_name == "count"
+        ));
+
+        for dynamic_source in ["1 => $f(2)", "1 => ($f)(2)"] {
+            let dynamic = cem_parser_syntax(dynamic_source)
+                .unwrap_or_else(|error| panic!("`{dynamic_source}` failed: {error:?}"));
+            assert_eq!(dynamic, xee_parser_syntax(dynamic_source));
+            let XPathExpression::Path(dynamic_path) = &dynamic.root.expressions[0].expression
+            else {
+                panic!("dynamic arrow must lower to a path: {dynamic:?}");
+            };
+            let XPathStep::Postfix { postfixes, .. } = &dynamic_path.steps[0].step else {
+                panic!("dynamic arrow must lower to a postfix call: {dynamic_path:?}");
+            };
+            let [XPathPostfixExpression::ArgumentList(arguments)] = postfixes.as_slice() else {
+                panic!("dynamic arrow must contain one argument list: {postfixes:?}");
+            };
+            assert_eq!(arguments.len(), 2);
+            assert_eq!(arguments[0].source_range, XPathSourceRange::new(1, 1, 0, 1));
+        }
+
+        let additive = cem_parser_syntax("1 => count() + 1").expect("arrow precedence");
+        let XPathExpression::Binary {
+            operator: XPathBinaryOperator::Add,
+            left,
+            ..
+        } = &additive.root.expressions[0].expression
+        else {
+            panic!("arrow expressions must bind more tightly than addition: {additive:?}");
+        };
+        assert!(matches!(left.expression, XPathExpression::Path(_)));
+    }
+
+    #[test]
     fn xpath_cem_parser_lowers_eqname_and_wildcard_name_tests() {
         let source = "/Q{urn:catalog}catalog/*:book/Q{urn:app}*";
         let syntax = cem_parser_syntax(source).expect("EQName and wildcard path");
@@ -10751,6 +10927,113 @@ mod tests {
             diagnostics[0].code,
             "cem.xpath.sequence_item_limit_exceeded"
         );
+    }
+
+    #[test]
+    fn xpath_native_function_dispatch_executes_pure_sequence_functions() {
+        let assert_atomic = |source: &str, expected_type: &str, expected_value: &str| {
+            let result = evaluate_for_test(source, None, BTreeMap::new())
+                .unwrap_or_else(|diagnostics| panic!("`{source}` failed: {diagnostics:?}"));
+            let [XPathResultItem::Atomic { value, source_map }] = result.sequence.items.as_slice()
+            else {
+                panic!("`{source}` did not return one atomic item: {result:?}");
+            };
+            assert_eq!(value.type_name, expected_type, "`{source}`");
+            assert_eq!(value.lexical_value, expected_value, "`{source}`");
+            assert_eq!(
+                source_map.frames[0].span,
+                FrameSpan::Single(ByteRange::new(0, source.len() as u32)),
+                "`{source}`"
+            );
+        };
+
+        for (source, expected_type, expected_value) in [
+            ("count(())", "xs:integer", "0"),
+            ("fn:count((1, 2, 3))", "xs:integer", "3"),
+            ("exists(())", "xs:boolean", "false"),
+            ("fn:exists((1, 2))", "xs:boolean", "true"),
+            ("empty(())", "xs:boolean", "true"),
+            ("empty(1)", "xs:boolean", "false"),
+            ("boolean('')", "xs:boolean", "false"),
+            ("boolean('value')", "xs:boolean", "true"),
+            ("not(0)", "xs:boolean", "true"),
+            ("not(1)", "xs:boolean", "false"),
+        ] {
+            assert_atomic(source, expected_type, expected_value);
+        }
+
+        let source = "boolean((1, 2))";
+        let diagnostics = evaluate_for_test(source, None, BTreeMap::new())
+            .expect_err("boolean() must apply the native EBV error contract");
+        let argument_start = source.find("(1, 2)").expect("boolean argument");
+        assert_eq!(
+            diagnostics[0].code,
+            "cem.xpath.effective_boolean_value_type_error"
+        );
+        assert_eq!(diagnostics[0].byte_offset, Some(argument_start as u64));
+        assert_eq!(
+            diagnostics[0]
+                .source_map
+                .as_ref()
+                .expect("boolean argument diagnostic source map")
+                .frames[0]
+                .span,
+            FrameSpan::Single(ByteRange::new(argument_start as u64, "(1, 2)".len() as u32,))
+        );
+
+        for source in ["Q{urn:not-functions}count((1, 2))", "count(1, $missing)"] {
+            let diagnostics = evaluate_for_test(source, None, BTreeMap::new())
+                .expect_err("unknown expanded names or arities must fail before arguments run");
+            assert_eq!(diagnostics[0].code, "cem.xpath.evaluation_unsupported");
+            assert_eq!(diagnostics[0].byte_offset, Some(0), "`{source}`");
+            assert!(diagnostics[0].message.contains("arity"), "`{source}`");
+        }
+
+        let diagnostics =
+            evaluate_for_test_with_limit("count((1, 2, 3))", None, BTreeMap::new(), Some(2))
+                .expect_err("function arguments enforce evaluated sequence-item budgets");
+        assert_eq!(
+            diagnostics[0].code,
+            "cem.xpath.sequence_item_limit_exceeded"
+        );
+    }
+
+    #[test]
+    fn xpath_native_evaluator_executes_named_arrows_and_rejects_dynamic_calls() {
+        for (source, expected_type, expected_value) in [
+            ("(1, 2, 3) => count()", "xs:integer", "3"),
+            ("() => exists()", "xs:boolean", "false"),
+            ("(1, 2) => count() => boolean()", "xs:boolean", "true"),
+            ("1 => count() + 1", "xs:integer", "2"),
+        ] {
+            let result = evaluate_for_test(source, None, BTreeMap::new())
+                .unwrap_or_else(|diagnostics| panic!("`{source}` failed: {diagnostics:?}"));
+            let [XPathResultItem::Atomic { value, source_map }] = result.sequence.items.as_slice()
+            else {
+                panic!("`{source}` did not return one atomic item: {result:?}");
+            };
+            assert_eq!(value.type_name, expected_type, "`{source}`");
+            assert_eq!(value.lexical_value, expected_value, "`{source}`");
+            assert_eq!(
+                source_map.frames[0].span,
+                FrameSpan::Single(ByteRange::new(0, source.len() as u32)),
+                "`{source}`"
+            );
+        }
+
+        let source = "1 => $f()";
+        let diagnostics = evaluate_for_test(
+            source,
+            None,
+            BTreeMap::from([(
+                XPathExpandedName::unqualified("f"),
+                singleton_test_binding("xs:string", "not-a-function"),
+            )]),
+        )
+        .expect_err("dynamic arrow invocation remains fail-closed until function items execute");
+        assert_eq!(diagnostics[0].code, "cem.xpath.evaluation_unsupported");
+        assert_eq!(diagnostics[0].byte_offset, Some(0));
+        assert!(diagnostics[0].message.contains("dynamic function calls"));
     }
 
     #[test]

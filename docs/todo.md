@@ -147,6 +147,20 @@ mediate between internal layers.
           maps, exact diagnostics, duplicates, and evaluated intermediate/output
           `xpathItems` budgets; and avoid serialization, a DTO, or a replacement
           tree.
+    - [x] Establish native XPath function dispatch keyed by expanded QName and
+          arity: route `position`, `last`, `count`, `exists`, `empty`, `boolean`,
+          and `not` through one dispatcher; resolve a supported signature before
+          argument evaluation; preserve focus, effective-boolean-value, exact
+          result and argument source maps, namespace isolation, deterministic
+          unsupported-signature diagnostics, and evaluated-work `xpathItems`
+          budgets; and avoid serialization or an intermediate DTO.
+    - [x] Execute named XPath arrow expressions through canonical function-call
+          lowering: insert the left operand as argument zero, fold chains from
+          left to right with exact prefix and outer ranges, and preserve normal
+          grammar precedence. Lower variable and parenthesized specifiers into
+          the existing dynamic postfix-call form, keep their execution
+          fail-closed until function items exist, and avoid a dedicated arrow
+          AST, serialization, or an intermediate DTO.
   - [x] Wire the native evaluator through the `transform` command and expose
         explicit CEM-QL, CEMT, and XSLT invocation adapters without reparsing
         source text, constructing an evaluator-owned replacement XML tree, or

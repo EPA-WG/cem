@@ -86,7 +86,7 @@
         @status="contract-only"
         @qt3-status="unmapped"
         @spec-sections="XPath 3.1 sections 3.1.5, 3.1.6"
-        @gap="Function result handles exist, but named references, inline functions, partial application, and dynamic calls are not executable"
+        @gap="Named arrow expressions lower canonically to executable static function calls with their left operand inserted as argument zero. Variable and parenthesized arrow specifiers lower to typed postfix dynamic calls but remain fail-closed; named references, inline functions, partial application, and dynamic function-item execution are not implemented"
         @todo="xpath-function-items"
     }
     {conformance-slice
@@ -102,7 +102,7 @@
         @status="partial"
         @qt3-status="unmapped"
         @spec-sections="Functions and Operators 3.1"
-        @gap="The native focus functions position() and last() plus supported general, value-comparison, and logical operator mappings are implemented; the remaining standard function library, non-comparison operators, other atomic families, and QT3 mapping are incomplete"
+        @gap="One expanded-QName-and-arity dispatcher executes the native focus functions position() and last() plus the pure sequence functions count(), exists(), empty(), boolean(), and not() with native EBV, source maps, namespace isolation, deterministic unsupported signatures, and evaluated-work budgets. Supported general, value-comparison, and logical operator mappings are also implemented; the remaining standard function library, non-comparison operators, other atomic families, and QT3 mapping are incomplete"
         @todo="xpath-functions-operators"
     }
     {conformance-slice
