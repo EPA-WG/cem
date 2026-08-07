@@ -32,6 +32,10 @@ pub struct XPathExpressionNode {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum XPathExpression {
     Path(XPathPathExpression),
+    Unary {
+        operator: XPathUnaryOperator,
+        operand: Box<XPathExpressionNode>,
+    },
     Binary {
         operator: XPathBinaryOperator,
         left: Box<XPathExpressionNode>,
@@ -45,6 +49,12 @@ pub enum XPathExpression {
     Unsupported {
         production: String,
     },
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum XPathUnaryOperator {
+    Plus,
+    Minus,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -244,6 +254,7 @@ impl XPathSyntaxEventKind {
 pub enum XPathSyntaxNodeKind {
     ExpressionSequence,
     PathExpression,
+    UnaryExpression,
     BinaryExpression,
     ForExpression,
     UnsupportedExpression,
@@ -269,6 +280,7 @@ impl XPathSyntaxNodeKind {
         match self {
             Self::ExpressionSequence => "expression-sequence",
             Self::PathExpression => "path-expression",
+            Self::UnaryExpression => "unary-expression",
             Self::BinaryExpression => "binary-expression",
             Self::ForExpression => "for-expression",
             Self::UnsupportedExpression => "unsupported-expression",
@@ -344,6 +356,7 @@ impl XPathExpressionNode {
     fn emit_events(&self, depth: usize, events: &mut Vec<XPathSyntaxEvent>) {
         let kind = match &self.expression {
             XPathExpression::Path(_) => XPathSyntaxNodeKind::PathExpression,
+            XPathExpression::Unary { .. } => XPathSyntaxNodeKind::UnaryExpression,
             XPathExpression::Binary { .. } => XPathSyntaxNodeKind::BinaryExpression,
             XPathExpression::For { .. } => XPathSyntaxNodeKind::ForExpression,
             XPathExpression::Unsupported { .. } => XPathSyntaxNodeKind::UnsupportedExpression,
@@ -355,6 +368,7 @@ impl XPathExpressionNode {
             events,
             |depth, events| match &self.expression {
                 XPathExpression::Path(path) => path.emit_children(depth, events),
+                XPathExpression::Unary { operand, .. } => operand.emit_events(depth, events),
                 XPathExpression::Binary { left, right, .. } => {
                     left.emit_events(depth, events);
                     right.emit_events(depth, events);

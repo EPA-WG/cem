@@ -4,7 +4,7 @@ use super::{
     XPathExpressionNode, XPathExpressionSequence, XPathKindTest, XPathLiteral, XPathLiteralKind,
     XPathMapConstructorEntry, XPathName, XPathNameTest, XPathNodeTest, XPathPathExpression,
     XPathPathRoot, XPathPostfixExpression, XPathPrimaryExpression, XPathSourceRange,
-    XPathSourceRangeResolver, XPathStep, XPathStepNode, XPathSyntaxAst,
+    XPathSourceRangeResolver, XPathStep, XPathStepNode, XPathSyntaxAst, XPathUnaryOperator,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -112,7 +112,6 @@ impl<'tokens, 'source, 'context> XPathParser<'tokens, 'source, 'context> {
             "some" | "every" => self.parse_unsupported_expression("quantified-expression"),
             "switch" => self.parse_unsupported_expression("switch-expression"),
             "typeswitch" => self.parse_unsupported_expression("typeswitch-expression"),
-            "+" | "-" => self.parse_unsupported_expression("unary-expression"),
             _ => {
                 let start = token.start;
                 let expression = self.parse_binary_expression(1)?;
@@ -150,7 +149,7 @@ impl<'tokens, 'source, 'context> XPathParser<'tokens, 'source, 'context> {
         &mut self,
         minimum_precedence: u8,
     ) -> Result<XPathExpressionNode, XPathParseError> {
-        let mut left = self.parse_path_expression()?;
+        let mut left = self.parse_unary_expression()?;
         loop {
             let Some((operator, precedence)) = self.peek_binary_operator() else {
                 break;
@@ -172,6 +171,32 @@ impl<'tokens, 'source, 'context> XPathParser<'tokens, 'source, 'context> {
             };
         }
         Ok(left)
+    }
+
+    fn parse_unary_expression(&mut self) -> Result<XPathExpressionNode, XPathParseError> {
+        let mut operators = Vec::new();
+        while let Some((_, token)) = self.peek() {
+            let operator = match token.lexeme {
+                "+" => XPathUnaryOperator::Plus,
+                "-" => XPathUnaryOperator::Minus,
+                _ => break,
+            };
+            let (_, token) = self.next().expect("peeked unary operator");
+            operators.push((operator, token.start));
+        }
+
+        let mut operand = self.parse_path_expression()?;
+        let end = self.node_end(&operand);
+        for (operator, start) in operators.into_iter().rev() {
+            operand = XPathExpressionNode {
+                expression: XPathExpression::Unary {
+                    operator,
+                    operand: Box::new(operand),
+                },
+                source_range: self.range(start, end),
+            };
+        }
+        Ok(operand)
     }
 
     fn parse_path_expression(&mut self) -> Result<XPathExpressionNode, XPathParseError> {

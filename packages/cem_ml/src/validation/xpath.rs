@@ -1737,6 +1737,23 @@ fn xpath_evaluate_expression_node(
         XPathExpression::Path(path) => {
             xpath_evaluate_path(expression, path, focus, variable_bindings)
         }
+        XPathExpression::Unary { operator, operand } => {
+            let operand_items =
+                xpath_evaluate_expression_node(expression, operand, focus, variable_bindings)?;
+            let Some(value) = xpath_arithmetic_operand(&operand_items, operand.source_range)?
+            else {
+                return Ok(Vec::new());
+            };
+            let value = match operator {
+                XPathUnaryOperator::Plus => value,
+                XPathUnaryOperator::Minus => xpath_numeric_negate(value),
+            };
+            Ok(vec![xpath_numeric_result_item(
+                expression,
+                node.source_range,
+                value,
+            )])
+        }
         XPathExpression::Binary {
             operator,
             left,
@@ -1781,6 +1798,41 @@ fn xpath_evaluate_expression_node(
             value.push_str(&left_value);
             value.push_str(&right_value);
             Ok(vec![xpath_string_result_item(
+                expression,
+                node.source_range,
+                value,
+            )])
+        }
+        XPathExpression::Binary {
+            operator,
+            left,
+            right,
+        } if matches!(
+            operator,
+            XPathBinaryOperator::Add
+                | XPathBinaryOperator::Subtract
+                | XPathBinaryOperator::Multiply
+        ) =>
+        {
+            let left_items =
+                xpath_evaluate_expression_node(expression, left, focus, variable_bindings)?;
+            let Some(left_value) = xpath_arithmetic_operand(&left_items, left.source_range)? else {
+                return Ok(Vec::new());
+            };
+            let right_items =
+                xpath_evaluate_expression_node(expression, right, focus, variable_bindings)?;
+            let Some(right_value) = xpath_arithmetic_operand(&right_items, right.source_range)?
+            else {
+                return Ok(Vec::new());
+            };
+            let value = xpath_numeric_binary(
+                left_value,
+                right_value,
+                *operator,
+                left.source_range,
+                right.source_range,
+            )?;
+            Ok(vec![xpath_numeric_result_item(
                 expression,
                 node.source_range,
                 value,
@@ -2646,6 +2698,34 @@ fn xpath_string_result_item(
     }
 }
 
+fn xpath_numeric_result_item(
+    expression: &XPathExpressionAst,
+    source_range: XPathSourceRange,
+    value: XPathComparableAtomic,
+) -> XPathResultItem {
+    let type_name = value.type_name().to_owned();
+    let lexical_value = match value {
+        XPathComparableAtomic::Integer(value) | XPathComparableAtomic::Decimal(value) => {
+            value.to_lexical()
+        }
+        XPathComparableAtomic::Float(value) => xpath_float_string_value(value),
+        XPathComparableAtomic::Double(value) => xpath_double_string_value(value),
+        _ => unreachable!("numeric result items require native numeric values"),
+    };
+    XPathResultItem::Atomic {
+        value: XPathAtomicValue {
+            type_name,
+            lexical_value,
+            namespace_uri: None,
+            local_name: None,
+        },
+        source_map: source_range.source_map(
+            expression.attachment.source_id(),
+            expression.source.media_type.as_str(),
+        ),
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct XPathExactDecimal {
     negative: bool,
@@ -2748,6 +2828,166 @@ impl XPathExactDecimal {
         Ordering::Equal
     }
 
+    fn negated(&self) -> Self {
+        let mut value = self.clone();
+        if !value.is_zero() {
+            value.negative = !value.negative;
+        }
+        value
+    }
+
+    fn add(&self, other: &Self) -> Self {
+        let common_scale = self.scale.max(other.scale);
+        let left = self.coefficient_at_scale(common_scale);
+        let right = other.coefficient_at_scale(common_scale);
+        if self.negative == other.negative {
+            return Self::from_parts(
+                self.negative,
+                Self::add_magnitudes(&left, &right),
+                common_scale,
+            );
+        }
+        match self.compare_magnitude(other) {
+            Ordering::Equal => Self::from_parts(false, vec![0], 0),
+            Ordering::Greater => Self::from_parts(
+                self.negative,
+                Self::subtract_magnitudes(&left, &right),
+                common_scale,
+            ),
+            Ordering::Less => Self::from_parts(
+                other.negative,
+                Self::subtract_magnitudes(&right, &left),
+                common_scale,
+            ),
+        }
+    }
+
+    fn subtract(&self, other: &Self) -> Self {
+        self.add(&other.negated())
+    }
+
+    fn multiply(&self, other: &Self) -> Self {
+        if self.is_zero() || other.is_zero() {
+            return Self::from_parts(false, vec![0], 0);
+        }
+        let product_length = self
+            .coefficient
+            .len()
+            .checked_add(other.coefficient.len())
+            .expect("combined decimal coefficient length fits usize");
+        let mut products = vec![0_u64; product_length];
+        for (left_index, left) in self.coefficient.iter().copied().enumerate() {
+            for (right_index, right) in other.coefficient.iter().copied().enumerate() {
+                let product_index = left_index
+                    .checked_add(right_index)
+                    .and_then(|index| index.checked_add(1))
+                    .expect("decimal product index fits its allocated coefficient");
+                products[product_index] = products[product_index]
+                    .checked_add(u64::from(left) * u64::from(right))
+                    .expect("decimal digit products fit u64");
+            }
+        }
+        for index in (1..products.len()).rev() {
+            let carry = products[index] / 10;
+            products[index] %= 10;
+            products[index - 1] = products[index - 1]
+                .checked_add(carry)
+                .expect("decimal multiplication carry fits u64");
+        }
+        let coefficient = products
+            .into_iter()
+            .map(|digit| u8::try_from(digit).expect("base-ten multiplication normalizes digits"))
+            .collect();
+        Self::from_parts(
+            self.negative != other.negative,
+            coefficient,
+            self.scale
+                .checked_add(other.scale)
+                .expect("combined decimal scale fits usize"),
+        )
+    }
+
+    fn coefficient_at_scale(&self, scale: usize) -> Vec<u8> {
+        let mut coefficient = self.coefficient.clone();
+        coefficient.extend(std::iter::repeat_n(0, scale.saturating_sub(self.scale)));
+        coefficient
+    }
+
+    fn add_magnitudes(left: &[u8], right: &[u8]) -> Vec<u8> {
+        let mut left_index = left.len();
+        let mut right_index = right.len();
+        let mut carry = 0_u8;
+        let mut reversed = Vec::with_capacity(left.len().max(right.len()).saturating_add(1));
+        while left_index > 0 || right_index > 0 || carry > 0 {
+            let left_digit = if left_index > 0 {
+                left_index -= 1;
+                left[left_index]
+            } else {
+                0
+            };
+            let right_digit = if right_index > 0 {
+                right_index -= 1;
+                right[right_index]
+            } else {
+                0
+            };
+            let sum = left_digit + right_digit + carry;
+            reversed.push(sum % 10);
+            carry = sum / 10;
+        }
+        reversed.reverse();
+        reversed
+    }
+
+    fn subtract_magnitudes(left: &[u8], right: &[u8]) -> Vec<u8> {
+        let mut left_index = left.len();
+        let mut right_index = right.len();
+        let mut borrow = 0_i16;
+        let mut reversed = Vec::with_capacity(left.len());
+        while left_index > 0 {
+            left_index -= 1;
+            let right_digit = if right_index > 0 {
+                right_index -= 1;
+                i16::from(right[right_index])
+            } else {
+                0
+            };
+            let mut difference = i16::from(left[left_index]) - borrow - right_digit;
+            if difference < 0 {
+                difference += 10;
+                borrow = 1;
+            } else {
+                borrow = 0;
+            }
+            reversed
+                .push(u8::try_from(difference).expect("base-ten subtraction produces one digit"));
+        }
+        debug_assert_eq!(right_index, 0);
+        debug_assert_eq!(borrow, 0);
+        reversed.reverse();
+        reversed
+    }
+
+    fn from_parts(negative: bool, mut coefficient: Vec<u8>, mut scale: usize) -> Self {
+        let Some(first_nonzero) = coefficient.iter().position(|digit| *digit != 0) else {
+            return Self {
+                negative: false,
+                coefficient: vec![0],
+                scale: 0,
+            };
+        };
+        coefficient.drain(..first_nonzero);
+        while scale > 0 && coefficient.last() == Some(&0) {
+            coefficient.pop();
+            scale -= 1;
+        }
+        Self {
+            negative,
+            coefficient,
+            scale,
+        }
+    }
+
     fn to_lexical(&self) -> String {
         let sign_length = usize::from(self.negative);
         let decimal_overhead = usize::from(self.scale > 0).saturating_add(
@@ -2795,6 +3035,7 @@ enum XPathComparableAtomic {
     Untyped(String),
     String(String),
     Boolean(bool),
+    Integer(XPathExactDecimal),
     Decimal(XPathExactDecimal),
     Float(f32),
     Double(f64),
@@ -2802,7 +3043,10 @@ enum XPathComparableAtomic {
 
 impl XPathComparableAtomic {
     fn is_numeric(&self) -> bool {
-        matches!(self, Self::Decimal(_) | Self::Float(_) | Self::Double(_))
+        matches!(
+            self,
+            Self::Integer(_) | Self::Decimal(_) | Self::Float(_) | Self::Double(_)
+        )
     }
 
     fn type_name(&self) -> &'static str {
@@ -2810,6 +3054,7 @@ impl XPathComparableAtomic {
             Self::Untyped(_) => "xs:untypedAtomic",
             Self::String(_) => "xs:string",
             Self::Boolean(_) => "xs:boolean",
+            Self::Integer(_) => "xs:integer",
             Self::Decimal(_) => "xs:decimal",
             Self::Float(_) => "xs:float",
             Self::Double(_) => "xs:double",
@@ -2870,6 +3115,115 @@ fn xpath_atomize_sequence(
         .collect()
 }
 
+fn xpath_arithmetic_operand(
+    items: &[XPathResultItem],
+    source_range: XPathSourceRange,
+) -> Result<Option<XPathComparableAtomic>, XPathEvaluationError> {
+    let mut values = xpath_atomize_sequence(items, source_range)?;
+    match values.len() {
+        0 => return Ok(None),
+        1 => {}
+        _ => {
+            return Err(XPathEvaluationError::dynamic(
+                "cem.xpath.arithmetic_cardinality",
+                "XPath arithmetic operands must atomize to zero or one value",
+                source_range,
+            ));
+        }
+    }
+    let value = values.pop().expect("singleton arithmetic operand");
+    match value {
+        XPathComparableAtomic::Untyped(lexical) => xpath_parse_double(&lexical)
+            .map(XPathComparableAtomic::Double)
+            .map(Some)
+            .ok_or_else(|| {
+                XPathEvaluationError::dynamic(
+                    "cem.xpath.arithmetic_cast_invalid",
+                    format!(
+                        "XPath untyped atomic value `{lexical}` cannot be cast to xs:double for arithmetic"
+                    ),
+                    source_range,
+                )
+            }),
+        value if value.is_numeric() => Ok(Some(value)),
+        value => Err(XPathEvaluationError::dynamic(
+            "cem.xpath.arithmetic_type_error",
+            format!(
+                "XPath arithmetic requires numeric operands, found `{}`",
+                value.type_name()
+            ),
+            source_range,
+        )),
+    }
+}
+
+fn xpath_numeric_negate(value: XPathComparableAtomic) -> XPathComparableAtomic {
+    match value {
+        XPathComparableAtomic::Integer(value) => XPathComparableAtomic::Integer(value.negated()),
+        XPathComparableAtomic::Decimal(value) => XPathComparableAtomic::Decimal(value.negated()),
+        XPathComparableAtomic::Float(value) => XPathComparableAtomic::Float(-value),
+        XPathComparableAtomic::Double(value) => XPathComparableAtomic::Double(-value),
+        _ => unreachable!("numeric unary operations require native numeric values"),
+    }
+}
+
+fn xpath_numeric_binary(
+    left: XPathComparableAtomic,
+    right: XPathComparableAtomic,
+    operator: XPathBinaryOperator,
+    left_source_range: XPathSourceRange,
+    right_source_range: XPathSourceRange,
+) -> Result<XPathComparableAtomic, XPathEvaluationError> {
+    if matches!(left, XPathComparableAtomic::Double(_))
+        || matches!(right, XPathComparableAtomic::Double(_))
+    {
+        let left = xpath_numeric_as_double(&left, left_source_range)?;
+        let right = xpath_numeric_as_double(&right, right_source_range)?;
+        let value = match operator {
+            XPathBinaryOperator::Add => left + right,
+            XPathBinaryOperator::Subtract => left - right,
+            XPathBinaryOperator::Multiply => left * right,
+            _ => unreachable!("native arithmetic guard restricts binary operators"),
+        };
+        return Ok(XPathComparableAtomic::Double(value));
+    }
+    if matches!(left, XPathComparableAtomic::Float(_))
+        || matches!(right, XPathComparableAtomic::Float(_))
+    {
+        let left = xpath_numeric_as_float(&left, left_source_range)?;
+        let right = xpath_numeric_as_float(&right, right_source_range)?;
+        let value = match operator {
+            XPathBinaryOperator::Add => left + right,
+            XPathBinaryOperator::Subtract => left - right,
+            XPathBinaryOperator::Multiply => left * right,
+            _ => unreachable!("native arithmetic guard restricts binary operators"),
+        };
+        return Ok(XPathComparableAtomic::Float(value));
+    }
+
+    let result_is_decimal = matches!(left, XPathComparableAtomic::Decimal(_))
+        || matches!(right, XPathComparableAtomic::Decimal(_));
+    let left = match left {
+        XPathComparableAtomic::Integer(value) | XPathComparableAtomic::Decimal(value) => value,
+        _ => unreachable!("exact arithmetic requires integer or decimal left operand"),
+    };
+    let right = match right {
+        XPathComparableAtomic::Integer(value) | XPathComparableAtomic::Decimal(value) => value,
+        _ => unreachable!("exact arithmetic requires integer or decimal right operand"),
+    };
+    let value = match operator {
+        XPathBinaryOperator::Add => left.add(&right),
+        XPathBinaryOperator::Subtract => left.subtract(&right),
+        XPathBinaryOperator::Multiply => left.multiply(&right),
+        _ => unreachable!("native arithmetic guard restricts binary operators"),
+    };
+    Ok(if result_is_decimal {
+        XPathComparableAtomic::Decimal(value)
+    } else {
+        XPathComparableAtomic::Integer(value)
+    })
+}
+
 fn xpath_string_concat_operand(
     items: &[XPathResultItem],
     source_range: XPathSourceRange,
@@ -2892,7 +3246,9 @@ fn xpath_atomic_string_value(value: XPathComparableAtomic) -> String {
     match value {
         XPathComparableAtomic::Untyped(value) | XPathComparableAtomic::String(value) => value,
         XPathComparableAtomic::Boolean(value) => value.to_string(),
-        XPathComparableAtomic::Decimal(value) => value.to_lexical(),
+        XPathComparableAtomic::Integer(value) | XPathComparableAtomic::Decimal(value) => {
+            value.to_lexical()
+        }
         XPathComparableAtomic::Float(value) => xpath_float_string_value(value),
         XPathComparableAtomic::Double(value) => xpath_double_string_value(value),
     }
@@ -3065,7 +3421,7 @@ fn xpath_comparable_atomic(
             .map(XPathComparableAtomic::Boolean)
             .ok_or_else(invalid),
         "xs:integer" => XPathExactDecimal::parse(&value.lexical_value, false)
-            .map(XPathComparableAtomic::Decimal)
+            .map(XPathComparableAtomic::Integer)
             .ok_or_else(invalid),
         "xs:decimal" => XPathExactDecimal::parse(&value.lexical_value, true)
             .map(XPathComparableAtomic::Decimal)
@@ -3195,10 +3551,13 @@ fn xpath_compare_numeric(
         let right = xpath_numeric_as_float(right, source_range)?;
         return Ok(xpath_float_matches(left, right, relation));
     }
-    let (XPathComparableAtomic::Decimal(left), XPathComparableAtomic::Decimal(right)) =
-        (left, right)
-    else {
-        unreachable!("numeric comparison ranks exhaust supported numeric values")
+    let left = match left {
+        XPathComparableAtomic::Integer(value) | XPathComparableAtomic::Decimal(value) => value,
+        _ => unreachable!("numeric comparison ranks exhaust supported left values"),
+    };
+    let right = match right {
+        XPathComparableAtomic::Integer(value) | XPathComparableAtomic::Decimal(value) => value,
+        _ => unreachable!("numeric comparison ranks exhaust supported right values"),
     };
     Ok(xpath_ordering_matches(left.compare(right), relation))
 }
@@ -3210,8 +3569,10 @@ fn xpath_numeric_as_double(
     match value {
         XPathComparableAtomic::Double(value) => Ok(*value),
         XPathComparableAtomic::Float(value) => Ok(f64::from(*value)),
-        XPathComparableAtomic::Decimal(value) => xpath_parse_double(&value.to_lexical())
-            .ok_or_else(|| xpath_numeric_promotion_error(value, "xs:double", source_range)),
+        XPathComparableAtomic::Integer(value) | XPathComparableAtomic::Decimal(value) => {
+            xpath_parse_double(&value.to_lexical())
+                .ok_or_else(|| xpath_numeric_promotion_error(value, "xs:double", source_range))
+        }
         _ => unreachable!("numeric conversion requires a numeric atomic value"),
     }
 }
@@ -3222,8 +3583,10 @@ fn xpath_numeric_as_float(
 ) -> Result<f32, XPathEvaluationError> {
     match value {
         XPathComparableAtomic::Float(value) => Ok(*value),
-        XPathComparableAtomic::Decimal(value) => xpath_parse_float(&value.to_lexical())
-            .ok_or_else(|| xpath_numeric_promotion_error(value, "xs:float", source_range)),
+        XPathComparableAtomic::Integer(value) | XPathComparableAtomic::Decimal(value) => {
+            xpath_parse_float(&value.to_lexical())
+                .ok_or_else(|| xpath_numeric_promotion_error(value, "xs:float", source_range))
+        }
         _ => unreachable!("float promotion accepts decimal or float values"),
     }
 }
@@ -3236,7 +3599,7 @@ fn xpath_numeric_promotion_error(
     XPathEvaluationError::dynamic(
         "cem.xpath.numeric_promotion_invalid",
         format!(
-            "XPath decimal value `{}` cannot be promoted to `{target_type}`",
+            "XPath exact numeric value `{}` cannot be promoted to `{target_type}`",
             value.to_lexical()
         ),
         source_range,
@@ -4459,6 +4822,41 @@ impl<'a> XPathSyntaxLowerer<'a> {
                 return lowered;
             }
         }
+        if let xee_ast::ExprSingle::Apply(xee_ast::ApplyExpr {
+            path_expr,
+            operator: xee_ast::ApplyOperator::Unary(operators),
+        }) = &expression.value
+        {
+            let (path_start, _) =
+                self.path_bounds(path_expr, expression.span.start, expression.span.end);
+            let operator_starts =
+                lexer::xpath_lexical_tokens(self.slice(expression.span.start, path_start))
+                    .into_iter()
+                    .filter(|token| matches!(token.lexeme, "+" | "-"))
+                    .map(|token| expression.span.start.saturating_add(token.start))
+                    .collect::<Vec<_>>();
+            debug_assert_eq!(operators.len(), operator_starts.len());
+            let mut operand =
+                self.lower_path_node(path_expr, expression.span.start, expression.span.end);
+            for (index, operator) in operators.iter().enumerate().rev() {
+                let start = operator_starts
+                    .get(index)
+                    .copied()
+                    .unwrap_or(expression.span.start);
+                operand = XPathExpressionNode {
+                    expression: XPathExpression::Unary {
+                        operator: match operator {
+                            xee_ast::UnaryOperator::Plus => XPathUnaryOperator::Plus,
+                            xee_ast::UnaryOperator::Minus => XPathUnaryOperator::Minus,
+                        },
+                        operand: Box::new(operand),
+                    },
+                    source_range: self.range(start, expression.span.end),
+                };
+            }
+            operand.source_range = source_range;
+            return operand;
+        }
         let expression = match &expression.value {
             xee_ast::ExprSingle::Path(path) => XPathExpression::Path(self.lower_path(
                 path,
@@ -5464,6 +5862,49 @@ mod tests {
                 ..
             }
         ));
+    }
+
+    #[test]
+    fn xpath_cem_parser_models_unary_arithmetic_before_binary_precedence() {
+        let source = "-+1 * -(2 + 3)";
+        let syntax = cem_parser_syntax(source).expect("unary arithmetic expression");
+        assert_eq!(syntax, xee_parser_syntax(source));
+        let XPathExpression::Binary {
+            operator: XPathBinaryOperator::Multiply,
+            left,
+            right,
+        } = &syntax.root.expressions[0].expression
+        else {
+            panic!("unary signs must be modeled inside multiplicative precedence: {syntax:?}");
+        };
+        let XPathExpression::Unary {
+            operator: XPathUnaryOperator::Minus,
+            operand: left_operand,
+        } = &left.expression
+        else {
+            panic!("expected leading unary minus: {left:?}");
+        };
+        assert_eq!(left.source_range, XPathSourceRange::new(1, 1, 0, 3));
+        assert!(matches!(
+            left_operand.expression,
+            XPathExpression::Unary {
+                operator: XPathUnaryOperator::Plus,
+                ..
+            }
+        ));
+        assert_eq!(left_operand.source_range, XPathSourceRange::new(1, 2, 1, 2));
+        assert!(matches!(
+            right.expression,
+            XPathExpression::Unary {
+                operator: XPathUnaryOperator::Minus,
+                ..
+            }
+        ));
+        assert_eq!(right.source_range, XPathSourceRange::new(1, 7, 6, 8));
+        assert_eq!(
+            syntax.root.expressions[0].source_range,
+            XPathSourceRange::new(1, 1, 0, source.len() as u64)
+        );
     }
 
     #[test]
@@ -7157,6 +7598,217 @@ mod tests {
     }
 
     #[test]
+    fn xpath_native_evaluator_executes_type_preserving_arithmetic_without_projection() {
+        use crate::lifecycle::LoadedInputAstStream;
+        use crate::validation::xml::{
+            xml_document_ast_from_source_bytes, XmlSourceValidationRequest,
+        };
+        use std::sync::Arc;
+
+        let (document, diagnostics) =
+            xml_document_ast_from_source_bytes(XmlSourceValidationRequest {
+                bytes: br#"<root><n>2.5</n><m>3</m><bad>not-a-number</bad></root>"#,
+                source_uri: "memory://arithmetic-context.xml",
+                content_type: Some("application/xml"),
+            });
+        assert!(diagnostics.is_empty(), "{diagnostics:?}");
+        let owner = Arc::new(LoadedInputAstStream::XmlDocument(
+            document.expect("typed XML document"),
+        ));
+        let context_node = XPathNativeNode::xml_document(owner).expect("native XML document node");
+        let context_item = || XPathResultItem::from_native_node(context_node.clone());
+        let bindings = BTreeMap::from([
+            (
+                XPathExpandedName::unqualified("float"),
+                singleton_test_binding("xs:float", "1.5"),
+            ),
+            (
+                XPathExpandedName::unqualified("decimal"),
+                singleton_test_binding("xs:decimal", "2.25"),
+            ),
+            (
+                XPathExpandedName::unqualified("negative-zero"),
+                singleton_test_binding("xs:double", "-0"),
+            ),
+            (
+                XPathExpandedName::unqualified("infinity"),
+                singleton_test_binding("xs:float", "INF"),
+            ),
+            (
+                XPathExpandedName::unqualified("nan"),
+                singleton_test_binding("xs:double", "NaN"),
+            ),
+        ]);
+
+        let assert_atomic = |source: &str, expected_type: &str, expected_lexical: &str| {
+            let result = evaluate_for_test(source, Some(context_item()), bindings.clone())
+                .unwrap_or_else(|diagnostics| panic!("`{source}` failed: {diagnostics:?}"));
+            let [XPathResultItem::Atomic { value, source_map }] = result.sequence.items.as_slice()
+            else {
+                panic!("`{source}` did not return one atomic value: {result:?}");
+            };
+            assert_eq!(result.sequence.sequence_type, expected_type, "`{source}`");
+            assert_eq!(value.type_name, expected_type, "`{source}`");
+            assert_eq!(value.lexical_value, expected_lexical, "`{source}`");
+            assert_eq!(source_map.frames.len(), 1, "`{source}`");
+            assert_eq!(source_map.frames[0].source_id, SourceId(7), "`{source}`");
+            assert_eq!(
+                source_map.frames[0].span,
+                FrameSpan::Single(ByteRange::new(0, source.len() as u32)),
+                "`{source}`"
+            );
+        };
+
+        for (source, expected_type, expected_lexical) in [
+            ("1 + 2", "xs:integer", "3"),
+            (
+                "999999999999999999999999999999999999 + 1",
+                "xs:integer",
+                "1000000000000000000000000000000000000",
+            ),
+            ("10 - 3 - 2", "xs:integer", "5"),
+            ("99 * 99", "xs:integer", "9801"),
+            ("-5 + 5", "xs:integer", "0"),
+            ("1 + 2.50", "xs:decimal", "3.5"),
+            ("2.5 - 4", "xs:decimal", "-1.5"),
+            ("1.20 * 3.0", "xs:decimal", "3.6"),
+            ("0.001 + 1000", "xs:decimal", "1000.001"),
+            ("0.001 - 1000", "xs:decimal", "-999.999"),
+            ("-0.001 + 1000", "xs:decimal", "999.999"),
+            ("1.2 * 0.03", "xs:decimal", "0.036"),
+            ("-1.2 * -3", "xs:decimal", "3.6"),
+            ("1e0 + 2", "xs:double", "3"),
+            ("$float + $decimal", "xs:float", "3.75"),
+            ("$float * 2e0", "xs:double", "3"),
+            ("$negative-zero * 2", "xs:double", "-0"),
+            ("$infinity - $infinity", "xs:float", "NaN"),
+            ("$nan + 1", "xs:double", "NaN"),
+            ("+1", "xs:integer", "1"),
+            ("--1", "xs:integer", "1"),
+            ("-+1.25", "xs:decimal", "-1.25"),
+            ("-$float", "xs:float", "-1.5"),
+            ("-$negative-zero", "xs:double", "0"),
+            ("-$infinity", "xs:float", "-INF"),
+            ("-$nan", "xs:double", "NaN"),
+            ("-2 * 3 + 10", "xs:integer", "4"),
+            ("1 - -2", "xs:integer", "3"),
+            ("2 * -3", "xs:integer", "-6"),
+            ("-(2 * 3 + 10)", "xs:integer", "-16"),
+            ("/root/n + /root/m", "xs:double", "5.5"),
+        ] {
+            assert_atomic(source, expected_type, expected_lexical);
+        }
+
+        for source in ["() + $missing", "1 * ()", "-()"] {
+            let result = evaluate_for_test(source, Some(context_item()), BTreeMap::new())
+                .unwrap_or_else(|diagnostics| panic!("`{source}` failed: {diagnostics:?}"));
+            assert!(result.sequence.items.is_empty(), "`{source}`: {result:?}");
+            assert_eq!(
+                result.sequence.sequence_type, "empty-sequence()",
+                "`{source}`"
+            );
+        }
+
+        let many = XPathResultSequence {
+            sequence_type: "xs:integer+".to_owned(),
+            items: vec![
+                atomic_test_item("xs:integer", "1"),
+                atomic_test_item("xs:integer", "2"),
+            ],
+        };
+        for (source, variable_bindings, expected_offset, expected_length) in [
+            ("(1, 2) + 3", BTreeMap::new(), 0, 6),
+            ("1 + (2, 3)", BTreeMap::new(), 4, 6),
+            (
+                "-$many",
+                BTreeMap::from([(XPathExpandedName::unqualified("many"), many)]),
+                1,
+                5,
+            ),
+        ] {
+            let diagnostics = evaluate_for_test(source, Some(context_item()), variable_bindings)
+                .expect_err("arithmetic operands must atomize to zero or one value");
+            assert_eq!(diagnostics[0].code, "cem.xpath.arithmetic_cardinality");
+            assert_eq!(
+                diagnostics[0].byte_offset,
+                Some(expected_offset),
+                "`{source}`"
+            );
+            assert_eq!(
+                diagnostics[0]
+                    .source_map
+                    .as_ref()
+                    .expect("arithmetic cardinality source map")
+                    .frames[0]
+                    .span,
+                FrameSpan::Single(ByteRange::new(expected_offset, expected_length)),
+                "`{source}`"
+            );
+        }
+
+        let boolean_binding = BTreeMap::from([(
+            XPathExpandedName::unqualified("boolean"),
+            singleton_test_binding("xs:boolean", "true"),
+        )]);
+        for (source, variable_bindings, expected_offset, expected_length) in [
+            ("'x' + 1", BTreeMap::new(), 0, 3),
+            ("1 * $boolean", boolean_binding, 4, 8),
+            ("-'x'", BTreeMap::new(), 1, 3),
+        ] {
+            let diagnostics = evaluate_for_test(source, Some(context_item()), variable_bindings)
+                .expect_err("arithmetic operands must be numeric");
+            assert_eq!(diagnostics[0].code, "cem.xpath.arithmetic_type_error");
+            assert_eq!(
+                diagnostics[0].byte_offset,
+                Some(expected_offset),
+                "`{source}`"
+            );
+            assert_eq!(
+                diagnostics[0]
+                    .source_map
+                    .as_ref()
+                    .expect("arithmetic type source map")
+                    .frames[0]
+                    .span,
+                FrameSpan::Single(ByteRange::new(expected_offset, expected_length)),
+                "`{source}`"
+            );
+        }
+
+        let diagnostics = evaluate_for_test("/root/bad + 1", Some(context_item()), BTreeMap::new())
+            .expect_err("untyped arithmetic operands must cast to xs:double");
+        assert_eq!(diagnostics[0].code, "cem.xpath.arithmetic_cast_invalid");
+        assert_eq!(diagnostics[0].byte_offset, Some(0));
+
+        let root = context_node
+            .child_nodes()
+            .into_iter()
+            .next()
+            .expect("context document element");
+        let mut detached_node = XPathResultItem::from_native_node(
+            root.child_nodes()
+                .into_iter()
+                .next()
+                .expect("context numeric element"),
+        );
+        let XPathResultItem::Node { native_node, .. } = &mut detached_node else {
+            unreachable!("native nodes create XPath node result items")
+        };
+        *native_node = None;
+        let detached_bindings = BTreeMap::from([(
+            XPathExpandedName::unqualified("detached"),
+            XPathResultSequence {
+                sequence_type: "node()".to_owned(),
+                items: vec![detached_node],
+            },
+        )]);
+        let diagnostics = evaluate_for_test("$detached + 1", None, detached_bindings)
+            .expect_err("arithmetic node atomization requires retained native handles");
+        assert_eq!(diagnostics[0].code, "cem.xpath.native_node_missing");
+        assert_eq!(diagnostics[0].byte_offset, Some(0));
+    }
+
+    #[test]
     fn xpath_native_evaluator_applies_typed_promotion_and_untyped_atomization() {
         use crate::lifecycle::LoadedInputAstStream;
         use crate::validation::xml::{
@@ -7285,7 +7937,7 @@ mod tests {
 
     #[test]
     fn xpath_native_evaluator_rejects_unsupported_semantics_without_projection() {
-        let expression = parse("1 + 2");
+        let expression = parse("1 div 2");
         let resolver_registry = ResolverRegistry::new();
         let resolver_policy = ResolverPolicy::new();
         let diagnostics = CemXPathEvaluator::default()
@@ -7299,7 +7951,7 @@ mod tests {
                 resolver_policy: &resolver_policy,
                 safety_policy_stamp: "xpath-safety/1;pure",
             })
-            .expect_err("operators are outside the first evaluator slice");
+            .expect_err("division remains outside the type-preserving arithmetic slice");
         assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
         assert_eq!(diagnostics[0].code, "cem.xpath.evaluation_unsupported");
 

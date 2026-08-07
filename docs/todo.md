@@ -73,6 +73,12 @@ mediate between internal layers.
           operands as zero-length strings, cast supported native atomic values
           to `xs:string` with XPath 3.1 lexical rules, retain exact result and
           operand source maps, and never introduce a serializer or DTO.
+    - [x] Establish the type-preserving native arithmetic core: model unary
+          signs in the owned expression AST; execute unary `+`/`-` and binary
+          `+`/`-`/`*` over optional-singleton atomized operands; preserve exact
+          integer/decimal values, XPath numeric promotion, IEEE float/double
+          behavior, and exact source maps; and keep division and range budget
+          policy as explicit follow-up work without a serializer or DTO.
   - [ ] Wire the native evaluator through the `transform` command and expose
         explicit CEM-QL, CEMT, and XSLT invocation adapters without reparsing
         source text, constructing an evaluator-owned replacement XML tree, or
