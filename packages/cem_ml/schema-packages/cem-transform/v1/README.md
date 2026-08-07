@@ -107,6 +107,14 @@ reparse input, convert a generic CEMT value, or project bindings/results through
 JSON or another DTO. Missing typed bindings fail with
 `cem.transform.xpath_binding_unresolved` before evaluation.
 
+Hosts can select an XPath-backed CEMT function explicitly by its exact compiled
+function name through `invoke_transform_template_xpath_function`. The host
+supplies the same native binding arena used by the lower-level invocation
+adapter, and the dispatch result is a `TransformArtifactBody::XPathResult` that
+retains the evaluator's typed result artifact and native node ownership. This
+entrypoint does not infer aliases from renderer primary or secondary inputs,
+fall back to a generic CEMT function body, or define authored CEMT call syntax.
+
 ## Output Artifacts
 
 The package declares CEMT formatter and colorizer artifacts in `package.cem`.

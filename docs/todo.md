@@ -75,6 +75,11 @@ mediate between internal layers.
           bindings, invoke the CEMT adapter directly, and return the typed XPath
           result artifact without a string parser, generic CEMT value bridge,
           serializer, DTO, or replacement tree at runtime.
+    - [x] Add the explicit host-selected CEMT XPath function entrypoint: resolve
+          one compiled XPath body by exact function name, require the host to
+          populate every declared native XDM binding without implicit renderer
+          aliases, and return the typed XPath artifact body without entering the
+          generic CEMT evaluator or an authored call-syntax lane.
   - [x] Fuse parsed XPath streams into XSLT XPath-bearing attributes and AVT
         expression segments while retaining an independently addressable XPath
         AST associated with the owning XML event or subtree node.

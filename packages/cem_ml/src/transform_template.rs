@@ -26025,6 +26025,45 @@ pub struct TransformTemplateRuntimeContext<'a> {
     pub resolver_policy: &'a ResolverPolicy,
 }
 
+pub fn invoke_transform_template_xpath_function(
+    compiled: &TransformTemplateCompiledArtifact,
+    function_name: &str,
+    host_bindings: &TransformTemplateXPathHostBindings,
+    runtime: TransformTemplateRuntimeContext<'_>,
+) -> Result<TransformArtifactBody, Vec<Diagnostic>> {
+    let mut candidates = compiled
+        .module_options
+        .xpath_invocations
+        .iter()
+        .filter(|invocation| invocation.owner_function == function_name);
+    let Some(invocation) = candidates.next() else {
+        return Err(vec![Diagnostic {
+            uri: Some(compiled.template_uri.clone()),
+            code: TRANSFORM_TEMPLATE_XPATH_INVOCATION_INVALID_CODE.to_owned(),
+            severity: Severity::Error,
+            message: format!(
+                "host-selected CEMT function `{function_name}` has no compiled XPath body"
+            ),
+            ..Diagnostic::default()
+        }]);
+    };
+    if candidates.next().is_some() {
+        return Err(vec![Diagnostic {
+            uri: Some(compiled.template_uri.clone()),
+            code: TRANSFORM_TEMPLATE_XPATH_INVOCATION_INVALID_CODE.to_owned(),
+            severity: Severity::Error,
+            message: format!(
+                "host-selected CEMT function `{function_name}` has multiple compiled XPath bodies"
+            ),
+            source_map: Some(invocation.source_map.clone()),
+            ..Diagnostic::default()
+        }]);
+    }
+
+    invoke_transform_template_xpath(invocation, host_bindings, runtime)
+        .map(|result| TransformArtifactBody::XPathResult(Arc::new(result)))
+}
+
 pub fn invoke_transform_template_xpath(
     invocation: &TransformTemplateXPathInvocation,
     host_bindings: &TransformTemplateXPathHostBindings,
@@ -33578,6 +33617,155 @@ mod tests {
             native_node.as_ref().expect("retained native node").owner(),
             &owner
         ));
+    }
+
+    #[test]
+    fn cemt_xpath_function_dispatch_selects_compiled_body_and_returns_typed_artifact() {
+        use crate::lifecycle::LoadedInputAstStream;
+        use crate::validation::xml::{
+            xml_document_ast_from_source_bytes, XmlSourceValidationRequest,
+        };
+        use crate::validation::xpath::{XPathNativeNode, XPathResultItem};
+
+        let template_source = r#"@doc cem-ml 1
+@ns transform = "https://cem.dev/ns/transform/cem/1"
+@default transform
+
+{module |
+  {function @name="acme.identity-node" @returns="any" |
+    {body |
+      {xpath @context="document" @sequence-type="node()" |
+        {expression | . }
+      }
+    }
+  }
+}"#;
+        let parsed =
+            parse_cem_native_template_module_options(TransformTemplateModuleParseRequest {
+                template: template_input(
+                    "memory://xpath-function-dispatch.cemt",
+                    template_source,
+                    Some(FormatIdentity {
+                        content_type: Some(CEM_TRANSFORM_CONTENT_TYPE.to_owned()),
+                        schema: Some(CEM_TRANSFORM_SCHEMA_URI.to_owned()),
+                        ..FormatIdentity::default()
+                    }),
+                ),
+            });
+        assert!(parsed.diagnostics.is_empty(), "{:?}", parsed.diagnostics);
+        let compiled = TransformTemplateCompiledArtifact::new(
+            "cem-native-template",
+            TransformTemplateKind::CemNative,
+            "memory://xpath-function-dispatch.cemt",
+            Some(FormatIdentity {
+                content_type: Some(CEM_TRANSFORM_CONTENT_TYPE.to_owned()),
+                schema: Some(CEM_TRANSFORM_SCHEMA_URI.to_owned()),
+                ..FormatIdentity::default()
+            }),
+            TransformTemplateEntrypoint::implicit(),
+            Value::Null,
+        )
+        .with_module_options(parsed.module_options);
+
+        let (document, diagnostics) =
+            xml_document_ast_from_source_bytes(XmlSourceValidationRequest {
+                bytes: br#"<root><n>retained</n></root>"#,
+                source_uri: "memory://dispatch-context.xml",
+                content_type: Some("application/xml"),
+            });
+        assert!(diagnostics.is_empty(), "{diagnostics:?}");
+        let owner = Arc::new(LoadedInputAstStream::XmlDocument(
+            document.expect("typed XML document"),
+        ));
+        let host_bindings = TransformTemplateXPathHostBindings {
+            context_items: BTreeMap::from([(
+                "document".to_owned(),
+                XPathResultItem::from_native_node(
+                    XPathNativeNode::xml_document(Arc::clone(&owner))
+                        .expect("native XML document node"),
+                ),
+            )]),
+            variable_sequences: BTreeMap::new(),
+        };
+        let resolver_registry = ResolverRegistry::new();
+        let resolver_policy = ResolverPolicy::new();
+        let body = invoke_transform_template_xpath_function(
+            &compiled,
+            "acme.identity-node",
+            &host_bindings,
+            TransformTemplateRuntimeContext {
+                resolver_registry: &resolver_registry,
+                resolver_policy: &resolver_policy,
+            },
+        )
+        .expect("host-selected CEMT XPath function dispatches its compiled body");
+        let TransformArtifactBody::XPathResult(result) = body else {
+            panic!("CEMT XPath function must return a typed XPath artifact body");
+        };
+        let [XPathResultItem::Node { native_node, .. }] = result.sequence.items.as_slice() else {
+            panic!("expected one native XPath node result: {result:?}");
+        };
+        assert!(Arc::ptr_eq(
+            native_node.as_ref().expect("retained native node").owner(),
+            &owner
+        ));
+    }
+
+    #[test]
+    fn cemt_xpath_function_dispatch_rejects_non_xpath_function_without_runtime_bridge() {
+        let compiled = TransformTemplateCompiledArtifact::new(
+            "cem-native-template",
+            TransformTemplateKind::CemNative,
+            "memory://xpath-function-missing.cemt",
+            Some(FormatIdentity {
+                content_type: Some(CEM_TRANSFORM_CONTENT_TYPE.to_owned()),
+                schema: Some(CEM_TRANSFORM_SCHEMA_URI.to_owned()),
+                ..FormatIdentity::default()
+            }),
+            TransformTemplateEntrypoint::implicit(),
+            Value::Null,
+        );
+        let resolver_registry = ResolverRegistry::new();
+        let resolver_policy = ResolverPolicy::new();
+        let diagnostics = invoke_transform_template_xpath_function(
+            &compiled,
+            "acme.generic-body",
+            &TransformTemplateXPathHostBindings::default(),
+            TransformTemplateRuntimeContext {
+                resolver_registry: &resolver_registry,
+                resolver_policy: &resolver_policy,
+            },
+        )
+        .expect_err("host-selected dispatch must require a compiled XPath body");
+        assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
+        assert_eq!(
+            diagnostics[0].code,
+            TRANSFORM_TEMPLATE_XPATH_INVOCATION_INVALID_CODE
+        );
+        assert!(diagnostics[0]
+            .message
+            .contains("has no compiled XPath body"));
+
+        let source = include_str!("transform_template.rs");
+        let runtime = source
+            .split_once("pub fn invoke_transform_template_xpath_function")
+            .expect("host-selected CEMT XPath dispatch boundary")
+            .1
+            .split_once("pub fn invoke_transform_template_xpath(")
+            .expect("host-selected CEMT XPath dispatch boundary")
+            .0;
+        for forbidden in [
+            "serde_json",
+            "CemtEvaluatorValue",
+            "source_text",
+            "xpath_expression_ast_from_source_bytes",
+            "xml_document_ast_from_source_bytes",
+        ] {
+            assert!(
+                !runtime.contains(forbidden),
+                "CEMT XPath dispatch must not cross `{forbidden}`"
+            );
+        }
     }
 
     #[test]
