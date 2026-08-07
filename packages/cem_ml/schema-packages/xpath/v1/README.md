@@ -170,11 +170,16 @@ same nested source-range convention for comma-separated bindings, but bind each
 complete sequence once and evaluate each return once, including after an empty
 binding. Later bindings see earlier sequences while lexical shadowing, outer
 focus, native owners, item source maps, exact diagnostics, and sequence-item
-budgets remain intact. Conditional, quantified, and other control-flow forms
-remain incomplete. Other atomic families, functions, constructors, dynamic
-function calls, and lookups fail with a stable schema-owned diagnostic. The
-evaluator does not read expression source text, project through CEMT or JSON,
-reparse XML, or construct a replacement tree.
+budgets remain intact. Typed conditional expressions retain an owned expression
+sequence for the condition and typed nodes for both branches. Evaluation applies
+the native effective-boolean-value rules once, evaluates exactly one branch with
+the unchanged focus and bindings, and preserves its native owners, item source
+maps, exact diagnostics, and sequence-item budget behavior; unselected work is
+not evaluated. Quantified and other control-flow forms remain incomplete. Other
+atomic families, functions, constructors, dynamic function calls, and lookups
+fail with a stable schema-owned diagnostic. The evaluator does not read
+expression source text, project through CEMT or JSON, reparse XML, or construct a
+replacement tree.
 
 The standalone executable adapter is registered for XPath template identities.
 It compiles template source once at the lifecycle/compile boundary, evaluates a

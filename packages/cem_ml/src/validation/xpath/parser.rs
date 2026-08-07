@@ -108,7 +108,7 @@ impl<'tokens, 'source, 'context> XPathParser<'tokens, 'source, 'context> {
         match token.lexeme {
             "for" => self.parse_for_expression(),
             "let" => self.parse_let_expression(),
-            "if" => self.parse_unsupported_expression("if-expression"),
+            "if" => self.parse_if_expression(),
             "some" | "every" => self.parse_unsupported_expression("quantified-expression"),
             "switch" => self.parse_unsupported_expression("switch-expression"),
             "typeswitch" => self.parse_unsupported_expression("typeswitch-expression"),
@@ -201,6 +201,27 @@ impl<'tokens, 'source, 'context> XPathParser<'tokens, 'source, 'context> {
         }
 
         Ok(return_expression)
+    }
+
+    fn parse_if_expression(&mut self) -> Result<XPathExpressionNode, XPathParseError> {
+        let (_, start_token) = self.expect("if")?;
+        self.expect("(")?;
+        let condition = self.parse_expression_sequence()?;
+        self.expect(")")?;
+        self.expect("then")?;
+        let then_expression = self.parse_expression_single()?;
+        self.expect("else")?;
+        let else_expression = self.parse_expression_single()?;
+        let end = self.node_end(&else_expression);
+
+        Ok(XPathExpressionNode {
+            expression: XPathExpression::If {
+                condition: Box::new(condition),
+                then_expression: Box::new(then_expression),
+                else_expression: Box::new(else_expression),
+            },
+            source_range: self.range(start_token.start, end),
+        })
     }
 
     fn parse_binary_expression(

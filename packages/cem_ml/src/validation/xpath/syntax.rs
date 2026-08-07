@@ -51,6 +51,11 @@ pub enum XPathExpression {
         binding_expression: Box<XPathExpressionNode>,
         return_expression: Box<XPathExpressionNode>,
     },
+    If {
+        condition: Box<XPathExpressionSequence>,
+        then_expression: Box<XPathExpressionNode>,
+        else_expression: Box<XPathExpressionNode>,
+    },
     Unsupported {
         production: String,
     },
@@ -263,6 +268,7 @@ pub enum XPathSyntaxNodeKind {
     BinaryExpression,
     ForExpression,
     LetExpression,
+    IfExpression,
     UnsupportedExpression,
     AxisStep,
     PrimaryStep,
@@ -290,6 +296,7 @@ impl XPathSyntaxNodeKind {
             Self::BinaryExpression => "binary-expression",
             Self::ForExpression => "for-expression",
             Self::LetExpression => "let-expression",
+            Self::IfExpression => "if-expression",
             Self::UnsupportedExpression => "unsupported-expression",
             Self::AxisStep => "axis-step",
             Self::PrimaryStep => "primary-step",
@@ -367,6 +374,7 @@ impl XPathExpressionNode {
             XPathExpression::Binary { .. } => XPathSyntaxNodeKind::BinaryExpression,
             XPathExpression::For { .. } => XPathSyntaxNodeKind::ForExpression,
             XPathExpression::Let { .. } => XPathSyntaxNodeKind::LetExpression,
+            XPathExpression::If { .. } => XPathSyntaxNodeKind::IfExpression,
             XPathExpression::Unsupported { .. } => XPathSyntaxNodeKind::UnsupportedExpression,
         };
         emit_node(
@@ -399,6 +407,15 @@ impl XPathExpressionNode {
                     );
                     binding_expression.emit_events(depth, events);
                     return_expression.emit_events(depth, events);
+                }
+                XPathExpression::If {
+                    condition,
+                    then_expression,
+                    else_expression,
+                } => {
+                    condition.emit_events(depth, events);
+                    then_expression.emit_events(depth, events);
+                    else_expression.emit_events(depth, events);
                 }
                 XPathExpression::Unsupported { .. } => {}
             },

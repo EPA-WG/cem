@@ -2232,6 +2232,32 @@ fn xpath_evaluate_expression_node(
                 evaluation_limits,
             )
         }
+        XPathExpression::If {
+            condition,
+            then_expression,
+            else_expression,
+        } => {
+            let condition_items = xpath_evaluate_expression_sequence(
+                expression,
+                condition,
+                focus,
+                variable_bindings,
+                evaluation_limits,
+            )?;
+            let condition_value =
+                xpath_effective_boolean_value(&condition_items.items, condition.source_range)?;
+            xpath_evaluate_expression_node(
+                expression,
+                if condition_value {
+                    then_expression
+                } else {
+                    else_expression
+                },
+                focus,
+                variable_bindings,
+                evaluation_limits,
+            )
+        }
         XPathExpression::Unsupported { production } => Err(XPathEvaluationError::unsupported(
             format!("XPath production `{production}` is not executable yet"),
             node.source_range,
@@ -5698,8 +5724,10 @@ impl<'a> XPathSyntaxLowerer<'a> {
             xee_ast::ExprSingle::Apply(_) => XPathExpression::Unsupported {
                 production: "apply-expression".to_owned(),
             },
-            xee_ast::ExprSingle::If(_) => XPathExpression::Unsupported {
-                production: "if-expression".to_owned(),
+            xee_ast::ExprSingle::If(if_expression) => XPathExpression::If {
+                condition: Box::new(self.lower_expr_s(&if_expression.condition)),
+                then_expression: Box::new(self.lower_expr_single(&if_expression.then)),
+                else_expression: Box::new(self.lower_expr_single(&if_expression.else_)),
             },
             xee_ast::ExprSingle::Quantified(_) => XPathExpression::Unsupported {
                 production: "quantified-expression".to_owned(),
@@ -7016,6 +7044,84 @@ mod tests {
             .map(|event| event.source_range)
             .collect::<Vec<_>>();
         assert_eq!(let_ranges, [outer_range, inner_range]);
+    }
+
+    #[test]
+    fn xpath_syntax_ast_lowers_conditional_expressions_with_exact_child_ranges() {
+        let source = "if ($condition) then $left else $right";
+        assert_eq!(
+            cem_parser_syntax(source).expect("typed conditional expression"),
+            xee_parser_syntax(source)
+        );
+
+        let syntax = parsed_syntax(source);
+        let expression = &syntax.root.expressions[0];
+        assert_eq!(
+            expression.source_range,
+            XPathSourceRange::new(1, 1, 0, source.len() as u64)
+        );
+        let XPathExpression::If {
+            condition,
+            then_expression,
+            else_expression,
+        } = &expression.expression
+        else {
+            panic!("expected a typed conditional expression");
+        };
+
+        let condition_start = source.find("$condition").expect("condition expression");
+        assert_eq!(
+            condition.source_range,
+            XPathSourceRange::new(
+                1,
+                condition_start as u32 + 1,
+                condition_start as u64,
+                "$condition".len() as u64,
+            )
+        );
+        let then_start = source.find("$left").expect("then expression");
+        assert_eq!(
+            then_expression.source_range,
+            XPathSourceRange::new(
+                1,
+                then_start as u32 + 1,
+                then_start as u64,
+                "$left".len() as u64,
+            )
+        );
+        let else_start = source.find("$right").expect("else expression");
+        assert_eq!(
+            else_expression.source_range,
+            XPathSourceRange::new(
+                1,
+                else_start as u32 + 1,
+                else_start as u64,
+                "$right".len() as u64,
+            )
+        );
+        assert!(matches!(
+            condition.expressions[0].expression,
+            XPathExpression::Path(_)
+        ));
+        assert!(matches!(
+            then_expression.expression,
+            XPathExpression::Path(_)
+        ));
+        assert!(matches!(
+            else_expression.expression,
+            XPathExpression::Path(_)
+        ));
+
+        let conditional_ranges = syntax
+            .events
+            .iter()
+            .filter(|event| {
+                event.kind == XPathSyntaxEventKind::StartNode
+                    && event.node_kind == XPathSyntaxNodeKind::IfExpression
+            })
+            .map(|event| event.source_range)
+            .collect::<Vec<_>>();
+        assert_eq!(conditional_ranges, [expression.source_range]);
     }
 
     #[test]
@@ -9972,8 +10078,140 @@ mod tests {
     }
 
     #[test]
+    fn xpath_native_evaluator_executes_conditional_expressions_lazily_with_ebv() {
+        use crate::lifecycle::LoadedInputAstStream;
+        use crate::validation::xml::{
+            xml_document_ast_from_source_bytes, XmlSourceValidationRequest,
+        };
+        use std::sync::Arc;
+
+        for (source, expected) in [
+            ("if (1 = 1) then 'then' else $missing", "then"),
+            ("if (()) then $missing else 'else'", "else"),
+            (
+                "if (1 = 1) then if (1 = 2) then $missing else 'nested' else $missing",
+                "nested",
+            ),
+        ] {
+            let result = evaluate_for_test(source, None, BTreeMap::new())
+                .unwrap_or_else(|diagnostics| panic!("`{source}` failed: {diagnostics:?}"));
+            let [XPathResultItem::Atomic { value, source_map }] = result.sequence.items.as_slice()
+            else {
+                panic!("`{source}` did not return one atomic value: {result:?}");
+            };
+            assert_eq!(value.type_name, "xs:string", "`{source}`");
+            assert_eq!(value.lexical_value, expected, "`{source}`");
+            let expected_start = source.rfind(expected).expect("selected branch literal") - 1;
+            assert_eq!(
+                source_map.frames[0].span,
+                FrameSpan::Single(ByteRange::new(
+                    expected_start as u64,
+                    (expected.len() + 2) as u32,
+                )),
+                "`{source}`"
+            );
+        }
+
+        let focus = evaluate_for_test(
+            "if (1 = 1) then position() else 0",
+            Some(atomic_test_item("xs:integer", "7")),
+            BTreeMap::new(),
+        )
+        .expect("conditional branch evaluation retains the outer focus");
+        let [XPathResultItem::Atomic { value, .. }] = focus.sequence.items.as_slice() else {
+            panic!("conditional focus result was not one atomic item: {focus:?}");
+        };
+        assert_eq!(value.lexical_value, "1");
+
+        let (document, diagnostics) =
+            xml_document_ast_from_source_bytes(XmlSourceValidationRequest {
+                bytes: br#"<root><n>1</n><n>2</n></root>"#,
+                source_uri: "memory://conditional-context.xml",
+                content_type: Some("application/xml"),
+            });
+        assert!(diagnostics.is_empty(), "{diagnostics:?}");
+        let owner = Arc::new(LoadedInputAstStream::XmlDocument(
+            document.expect("typed XML document"),
+        ));
+        let context_node =
+            XPathNativeNode::xml_document(Arc::clone(&owner)).expect("native XML document node");
+        let nodes = evaluate_for_test(
+            "if (/root/n) then /root/n else $missing",
+            Some(XPathResultItem::from_native_node(context_node)),
+            BTreeMap::new(),
+        )
+        .expect("a node sequence has true EBV and retains native owners in the selected branch");
+        assert_eq!(nodes.sequence.items.len(), 2);
+        for item in &nodes.sequence.items {
+            let native_node = item
+                .native_node()
+                .expect("conditional expression returns retained native XML nodes");
+            assert!(Arc::ptr_eq(native_node.owner(), &owner));
+        }
+
+        let source = "if ((1, 2)) then 1 else 0";
+        let diagnostics = evaluate_for_test(source, None, BTreeMap::new())
+            .expect_err("conditional expressions require a defined effective boolean value");
+        let condition_start = source.find("(1, 2)").expect("condition expression");
+        assert_eq!(
+            diagnostics[0].code,
+            "cem.xpath.effective_boolean_value_type_error"
+        );
+        assert_eq!(diagnostics[0].byte_offset, Some(condition_start as u64));
+        assert_eq!(
+            diagnostics[0]
+                .source_map
+                .as_ref()
+                .expect("conditional EBV diagnostic source map")
+                .frames[0]
+                .span,
+            FrameSpan::Single(ByteRange::new(
+                condition_start as u64,
+                "(1, 2)".len() as u32
+            ))
+        );
+
+        let source = "if (1 = 2) then 0 else $missing";
+        let diagnostics = evaluate_for_test(source, None, BTreeMap::new())
+            .expect_err("the selected conditional branch must be evaluated");
+        let missing_start = source.find("missing").expect("missing variable name");
+        assert_eq!(diagnostics[0].code, "cem.xpath.variable_unbound");
+        assert_eq!(diagnostics[0].byte_offset, Some(missing_start as u64));
+        assert_eq!(
+            diagnostics[0]
+                .source_map
+                .as_ref()
+                .expect("selected branch diagnostic source map")
+                .frames[0]
+                .span,
+            FrameSpan::Single(ByteRange::new(missing_start as u64, 7))
+        );
+
+        let within_budget = evaluate_for_test_with_limit(
+            "if (1 = 1) then 1 else (1, 2, 3)",
+            None,
+            BTreeMap::new(),
+            Some(2),
+        )
+        .expect("an unselected branch does not consume the sequence-item budget");
+        assert_eq!(within_budget.sequence.items.len(), 1);
+
+        let diagnostics = evaluate_for_test_with_limit(
+            "if (1 = 1) then (1, 2, 3) else 0",
+            None,
+            BTreeMap::new(),
+            Some(2),
+        )
+        .expect_err("a selected branch enforces the sequence-item budget");
+        assert_eq!(
+            diagnostics[0].code,
+            "cem.xpath.sequence_item_limit_exceeded"
+        );
+    }
+
+    #[test]
     fn xpath_native_evaluator_rejects_unsupported_semantics_without_projection() {
-        let expression = parse("if (true()) then 1 else 2");
+        let expression = parse("some $x in (1, 2) satisfies $x = 2");
         let resolver_registry = ResolverRegistry::new();
         let resolver_policy = ResolverPolicy::new();
         let diagnostics = CemXPathEvaluator::default()
@@ -9988,10 +10226,10 @@ mod tests {
                 evaluation_limits: XPathEvaluationLimits::default(),
                 safety_policy_stamp: "xpath-safety/1;pure",
             })
-            .expect_err("if expressions remain outside the native evaluator slice");
+            .expect_err("quantified expressions remain outside the native evaluator slice");
         assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
         assert_eq!(diagnostics[0].code, "cem.xpath.evaluation_unsupported");
-        assert!(diagnostics[0].message.contains("if-expression"));
+        assert!(diagnostics[0].message.contains("quantified-expression"));
 
         let source = include_str!("xpath.rs");
         let evaluator = source

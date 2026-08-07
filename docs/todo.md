@@ -121,6 +121,13 @@ mediate between internal layers.
           lexical shadowing, outer focus, native owners, item source maps, and
           exact diagnostics; and enforce `xpathItems` budgets without
           serialization, a DTO, or a replacement tree.
+    - [x] Execute typed XPath conditional expressions directly: model the
+          condition as an owned expression sequence and both branches as typed
+          expression nodes; evaluate the condition once through native
+          effective-boolean-value rules; execute exactly one branch; preserve
+          outer focus, native owners, item source maps, and exact condition and
+          branch diagnostics; enforce `xpathItems` budgets only for evaluated
+          work; and avoid serialization, a DTO, or a replacement tree.
   - [x] Wire the native evaluator through the `transform` command and expose
         explicit CEM-QL, CEMT, and XSLT invocation adapters without reparsing
         source text, constructing an evaluator-owned replacement XML tree, or

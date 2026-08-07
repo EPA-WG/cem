@@ -54,7 +54,7 @@
         @status="partial"
         @qt3-status="unmapped"
         @spec-sections="XPath 3.1 sections 3.8 through 3.14"
-        @gap="Typed for expressions accept comma-separated bindings lowered into nested typed nodes with dependent lexical scope, Cartesian binding order, exact outer and binding-suffix ranges, retained native owners and source maps, empty-binding short-circuiting, and cumulative sequence-item budgets. Typed let expressions use the same nested range and dependent-scope model while binding complete sequences once and evaluating returns once even for empty bindings. Conditional, quantified, and other control-flow forms plus QT3 mapping remain incomplete"
+        @gap="Typed for expressions accept comma-separated bindings lowered into nested typed nodes with dependent lexical scope, Cartesian binding order, exact outer and binding-suffix ranges, retained native owners and source maps, empty-binding short-circuiting, and cumulative sequence-item budgets. Typed let expressions use the same nested range and dependent-scope model while binding complete sequences once and evaluating returns once even for empty bindings. Typed conditional expressions retain an owned condition sequence, apply native effective-boolean-value rules once, and evaluate exactly one typed branch while preserving focus, bindings, native owners, source maps, exact diagnostics, and evaluated-work budgets. Quantified and other control-flow forms plus QT3 mapping remain incomplete"
         @todo="xpath-control-flow"
     }
     {conformance-slice
