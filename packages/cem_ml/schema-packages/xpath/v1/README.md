@@ -183,10 +183,14 @@ arity before evaluating arguments. The dispatcher executes the focus functions
 `fn:exists()`, `fn:empty()`, `fn:boolean()`, and `fn:not()`, preserving native
 focus, effective-boolean-value rules, exact result and argument source maps,
 namespace isolation, deterministic unsupported-signature diagnostics, and
-evaluated-work budgets. Named arrow expressions execute through the same
-dispatcher after canonical lowering, including left-to-right chains and normal
-operator precedence. Dynamic arrow specifiers retain their typed postfix-call
-shape but remain fail-closed until native function items are executable.
+evaluated-work budgets. The same dispatcher executes zero-argument `fn:true()`
+and `fn:false()` as focus-independent typed constants with full-call source
+maps. Named arrow expressions execute through the dispatcher after canonical
+lowering, including left-to-right chains and normal operator precedence; an
+arrow into a zero-argument constant fails arity resolution before its inserted
+operand runs. Dynamic arrow specifiers retain their typed postfix-call shape but
+remain fail-closed until native function items are executable.
+
 Typed `instance of` and `treat as` expressions follow their grammar precedence
 between arrow expressions and set operators. Their CEM-owned sequence types
 match cardinality, supported native atomic identity and subtype relationships,

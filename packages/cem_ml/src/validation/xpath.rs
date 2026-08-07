@@ -3321,6 +3321,8 @@ enum XPathNativeFunction {
     Empty,
     Boolean,
     Not,
+    True,
+    False,
     AtomicConstructor(&'static str),
 }
 
@@ -3350,6 +3352,8 @@ fn xpath_native_function(name: &XPathName, arity: usize) -> Option<XPathNativeFu
         ("empty", 1) => Some(XPathNativeFunction::Empty),
         ("boolean", 1) => Some(XPathNativeFunction::Boolean),
         ("not", 1) => Some(XPathNativeFunction::Not),
+        ("true", 0) => Some(XPathNativeFunction::True),
+        ("false", 0) => Some(XPathNativeFunction::False),
         _ => None,
     }
 }
@@ -3398,6 +3402,17 @@ fn xpath_evaluate_function_call(
             expression,
             source_range,
             XPathComparableAtomic::Integer(XPathExactDecimal::from_usize(value)),
+        )]);
+    }
+
+    if matches!(
+        function,
+        XPathNativeFunction::True | XPathNativeFunction::False
+    ) {
+        return Ok(vec![xpath_boolean_result_item(
+            expression,
+            source_range,
+            function == XPathNativeFunction::True,
         )]);
     }
 
@@ -3462,6 +3477,9 @@ fn xpath_evaluate_function_call(
         }
         XPathNativeFunction::AtomicConstructor(_) => {
             unreachable!("atomic constructors return after argument evaluation")
+        }
+        XPathNativeFunction::True | XPathNativeFunction::False => {
+            unreachable!("boolean constants return before argument evaluation")
         }
     };
     Ok(vec![result])
@@ -11935,6 +11953,13 @@ mod tests {
             ("boolean('value')", "xs:boolean", "true"),
             ("not(0)", "xs:boolean", "true"),
             ("not(1)", "xs:boolean", "false"),
+            ("true()", "xs:boolean", "true"),
+            ("fn:false()", "xs:boolean", "false"),
+            (
+                "Q{http://www.w3.org/2005/xpath-functions}true()",
+                "xs:boolean",
+                "true",
+            ),
         ] {
             assert_atomic(source, expected_type, expected_value);
         }
@@ -11958,7 +11983,12 @@ mod tests {
             FrameSpan::Single(ByteRange::new(argument_start as u64, "(1, 2)".len() as u32,))
         );
 
-        for source in ["Q{urn:not-functions}count((1, 2))", "count(1, $missing)"] {
+        for source in [
+            "Q{urn:not-functions}count((1, 2))",
+            "count(1, $missing)",
+            "true($missing)",
+            "$missing => fn:false()",
+        ] {
             let diagnostics = evaluate_for_test(source, None, BTreeMap::new())
                 .expect_err("unknown expanded names or arities must fail before arguments run");
             assert_eq!(diagnostics[0].code, "cem.xpath.evaluation_unsupported");

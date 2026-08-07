@@ -194,6 +194,12 @@ mediate between internal layers.
           work budgets; and keep abstract, derived, namespace-sensitive,
           schema-defined, list, and union constructors fail-closed without a
           serializer, duplicate conversion path, or intermediate DTO.
+    - [x] Complete the native XPath boolean constant function signatures:
+          dispatch unprefixed, `fn:`-prefixed, and EQName `true()` and `false()`
+          calls by expanded QName and zero arity; return typed booleans with
+          full-call source maps without requiring focus or evaluating arguments;
+          reject wrong arities before direct or arrow-lowered operands run; and
+          avoid a special parser form, serializer, or intermediate DTO.
   - [x] Wire the native evaluator through the `transform` command and expose
         explicit CEM-QL, CEMT, and XSLT invocation adapters without reparsing
         source text, constructing an evaluator-owned replacement XML tree, or
