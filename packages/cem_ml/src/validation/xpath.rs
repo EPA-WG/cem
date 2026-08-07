@@ -1668,6 +1668,42 @@ impl XPathInvocationAdapter for CemtXPathInvocationAdapter {
     }
 }
 
+#[derive(Debug, Clone, Default)]
+pub struct XsltXPathInvocationAdapter;
+
+impl XPathInvocationAdapter for XsltXPathInvocationAdapter {
+    fn host(&self) -> XPathInvocationHost {
+        XPathInvocationHost::Xslt
+    }
+
+    fn invoke(
+        &self,
+        request: XPathEvaluationRequest<'_>,
+    ) -> Result<XPathResultArtifact, Vec<Diagnostic>> {
+        let attachment_matches = matches!(
+            &request.expression.attachment,
+            XPathAttachment::Host(host)
+                if host.owner.node_kind == XPathHostNodeKind::XsltAttribute
+        );
+        if request.invocation_host != self.host() || !attachment_matches {
+            return Err(vec![xpath_evaluation_diagnostic(
+                request.expression,
+                "cem.xpath.invocation_host_mismatch",
+                format!(
+                    "XPath {} invocation requires an XSLT-owned typed attribute expression",
+                    self.host().as_str()
+                ),
+                request
+                    .expression
+                    .syntax_ast
+                    .as_ref()
+                    .map(|syntax| syntax.root.source_range),
+            )]);
+        }
+        CemXPathEvaluator::default().evaluate(request)
+    }
+}
+
 #[derive(Debug, Clone)]
 struct XPathEvaluationError {
     code: &'static str,
@@ -7209,6 +7245,217 @@ mod tests {
             assert!(
                 !adapter.contains(forbidden),
                 "CEMT XPath invocation must not cross `{forbidden}`"
+            );
+        }
+    }
+
+    #[test]
+    fn xpath_xslt_invocation_uses_fused_ast_native_context_and_expanded_qname_bindings() {
+        use crate::lifecycle::LoadedInputAstStream;
+        use crate::schema::registry::XSLT_CONTENT_TYPE;
+        use crate::validation::xml::{
+            xml_document_ast_from_source_bytes, XmlSourceValidationRequest,
+        };
+        use crate::validation::xslt::{
+            xslt_stylesheet_ast_from_source_bytes, XsltAttributeValueTemplateSegmentAst,
+            XsltSourceValidationRequest,
+        };
+        use std::sync::Arc;
+
+        let stylesheet_source = r#"<xsl:stylesheet xmlns:xsl="http://www.w3.org/1999/XSL/Transform" xmlns:vars="urn:cem:variables" version="3.0">
+  <xsl:template match="/">
+    <xsl:value-of select="$vars:limit = /root/n, /root/n[$vars:index]"/>
+    <card title="selected-{/root/n[$vars:index]}"/>
+  </xsl:template>
+</xsl:stylesheet>
+"#;
+        let (stylesheet, diagnostics) =
+            xslt_stylesheet_ast_from_source_bytes(XsltSourceValidationRequest {
+                bytes: stylesheet_source.as_bytes(),
+                source_uri: "memory://host-invocation.xsl",
+                content_type: Some(XSLT_CONTENT_TYPE),
+            });
+        assert!(diagnostics.is_empty(), "{diagnostics:?}");
+        let stylesheet = stylesheet.expect("typed XSLT stylesheet");
+        let select = stylesheet
+            .xpath_expressions
+            .iter()
+            .find(|embedded| embedded.attribute_name == "select")
+            .expect("fused XSLT select expression");
+        let avt_expression = stylesheet
+            .attribute_value_templates
+            .iter()
+            .find(|avt| avt.attribute_name == "title")
+            .and_then(|avt| {
+                avt.segments.iter().find_map(|segment| match segment {
+                    XsltAttributeValueTemplateSegmentAst::Expression { expression, .. } => {
+                        Some(expression.as_ref())
+                    }
+                    _ => None,
+                })
+            })
+            .expect("fused XSLT AVT expression");
+
+        let source = br#"<root><n>2</n><n>10</n></root>"#;
+        let (document, diagnostics) =
+            xml_document_ast_from_source_bytes(XmlSourceValidationRequest {
+                bytes: source,
+                source_uri: "memory://xslt-context.xml",
+                content_type: Some("application/xml"),
+            });
+        assert!(diagnostics.is_empty(), "{diagnostics:?}");
+        let owner = Arc::new(LoadedInputAstStream::XmlDocument(
+            document.expect("typed XML document"),
+        ));
+        let context_item = XPathResultItem::from_native_node(
+            XPathNativeNode::xml_document(Arc::clone(&owner)).expect("native document node"),
+        );
+        let variable_bindings = BTreeMap::from([
+            (
+                XPathExpandedName::new(Some("urn:cem:variables"), "limit"),
+                singleton_test_binding("xs:integer", "2"),
+            ),
+            (
+                XPathExpandedName::new(Some("urn:cem:variables"), "index"),
+                singleton_test_binding("xs:integer", "2"),
+            ),
+        ]);
+        let resolver_registry = ResolverRegistry::new();
+        let resolver_policy = ResolverPolicy::new();
+
+        let invoke = |expression: &XPathExpressionAst| {
+            let XPathAttachment::Host(host) = &expression.attachment else {
+                panic!("fused XSLT XPath expression must retain its host attachment")
+            };
+            XsltXPathInvocationAdapter::default().invoke(XPathEvaluationRequest {
+                invocation_host: XPathInvocationHost::Xslt,
+                expression,
+                dynamic_context: XPathDynamicContext {
+                    context_item: Some(context_item.clone()),
+                    variable_bindings: variable_bindings.clone(),
+                },
+                static_context: host.static_context.clone(),
+                expected_result: host.expected_result.clone(),
+                resolver_registry: &resolver_registry,
+                resolver_policy: &resolver_policy,
+                evaluation_limits: XPathEvaluationLimits {
+                    max_sequence_items: Some(2),
+                },
+                safety_policy_stamp: "xpath-safety/1;xslt-transform",
+            })
+        };
+
+        let result = invoke(&select.expression)
+            .expect("XSLT invokes the fused select AST over typed host bindings");
+        let [XPathResultItem::Atomic { value, .. }, XPathResultItem::Node { native_node, .. }] =
+            result.sequence.items.as_slice()
+        else {
+            panic!("expected boolean and native node result: {result:?}");
+        };
+        assert_eq!(value.type_name, "xs:boolean");
+        assert_eq!(value.lexical_value, "true");
+        assert_eq!(result.invocation_host, XPathInvocationHost::Xslt);
+        assert_eq!(result.expression_uri, "memory://host-invocation.xsl");
+        assert!(result.safety_policy_stamp.contains("xpath-items=2"));
+        let XPathAttachment::Host(select_host) = &select.expression.attachment else {
+            panic!("fused XSLT select must retain its host attachment")
+        };
+        assert_eq!(
+            result.source_map.frames[0].span,
+            FrameSpan::Single(ByteRange::new(
+                select_host.expression_range.start.byte_offset,
+                u32::try_from(select_host.expression_range.byte_length)
+                    .expect("XSLT select range length fits u32"),
+            ))
+        );
+        assert!(Arc::ptr_eq(
+            native_node.as_ref().expect("native result node").owner(),
+            &owner
+        ));
+
+        let avt_result = invoke(avt_expression)
+            .expect("XSLT invokes a fused AVT expression through the same typed adapter");
+        let [XPathResultItem::Node { native_node, .. }] = avt_result.sequence.items.as_slice()
+        else {
+            panic!("expected one native AVT result node: {avt_result:?}");
+        };
+        let XPathAttachment::Host(avt_host) = &avt_expression.attachment else {
+            panic!("fused XSLT AVT expression must retain its host attachment")
+        };
+        assert_eq!(
+            avt_result.source_map.frames[0].span,
+            FrameSpan::Single(ByteRange::new(
+                avt_host.expression_range.start.byte_offset,
+                u32::try_from(avt_host.expression_range.byte_length)
+                    .expect("XSLT AVT range length fits u32"),
+            ))
+        );
+        assert!(Arc::ptr_eq(
+            native_node
+                .as_ref()
+                .expect("native AVT result node")
+                .owner(),
+            &owner
+        ));
+
+        let diagnostics = XsltXPathInvocationAdapter::default()
+            .invoke(XPathEvaluationRequest {
+                invocation_host: XPathInvocationHost::Cemt,
+                expression: &select.expression,
+                dynamic_context: XPathDynamicContext {
+                    context_item: Some(context_item),
+                    variable_bindings,
+                },
+                static_context: select_host.static_context.clone(),
+                expected_result: select_host.expected_result.clone(),
+                resolver_registry: &resolver_registry,
+                resolver_policy: &resolver_policy,
+                evaluation_limits: XPathEvaluationLimits::default(),
+                safety_policy_stamp: "xpath-safety/1;xslt-transform",
+            })
+            .expect_err("an XSLT-owned AST cannot be invoked as a different host language");
+        assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
+        assert_eq!(diagnostics[0].code, "cem.xpath.invocation_host_mismatch");
+    }
+
+    #[test]
+    fn xpath_xslt_invocation_rejects_non_xslt_owners_and_runtime_bridges() {
+        let expression = parse("1");
+        let resolver_registry = ResolverRegistry::new();
+        let resolver_policy = ResolverPolicy::new();
+        let diagnostics = XsltXPathInvocationAdapter::default()
+            .invoke(XPathEvaluationRequest {
+                invocation_host: XPathInvocationHost::Xslt,
+                expression: &expression,
+                dynamic_context: XPathDynamicContext::default(),
+                static_context: XPathStaticContext::default(),
+                expected_result: None,
+                resolver_registry: &resolver_registry,
+                resolver_policy: &resolver_policy,
+                evaluation_limits: XPathEvaluationLimits::default(),
+                safety_policy_stamp: "xpath-safety/1;xslt-transform",
+            })
+            .expect_err("an XSLT adapter only accepts XSLT-owned XPath attributes");
+        assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
+        assert_eq!(diagnostics[0].code, "cem.xpath.invocation_host_mismatch");
+
+        let source = include_str!("xpath.rs");
+        let adapter = source
+            .split_once("pub struct XsltXPathInvocationAdapter")
+            .expect("XSLT XPath adapter source boundary")
+            .1
+            .split_once("struct XPathEvaluationError")
+            .expect("XSLT XPath adapter source boundary")
+            .0;
+        for forbidden in [
+            "serde_json",
+            "source_text",
+            "xpath_expression_ast_from_source_bytes",
+            "xml_document_ast_from_source_bytes",
+        ] {
+            assert!(
+                !adapter.contains(forbidden),
+                "XSLT XPath invocation must not cross `{forbidden}`"
             );
         }
     }

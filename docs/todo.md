@@ -127,6 +127,12 @@ mediate between internal layers.
           populate every declared native XDM binding without implicit renderer
           aliases, and return the typed XPath artifact body without entering the
           generic CEMT evaluator or an authored call-syntax lane.
+    - [x] Expose the XSLT XPath invocation adapter: consume the XPath AST already
+          fused into an XSLT expression attribute or AVT segment, require typed
+          XSLT host ownership, evaluate a separate retained native XML context
+          with expanded-QName variable bindings, preserve result owner and
+          source-map identity, and reject host mismatches without reparsing or a
+          serializer, JSON projection, DTO, or replacement tree.
   - [x] Fuse parsed XPath streams into XSLT XPath-bearing attributes and AVT
         expression segments while retaining an independently addressable XPath
         AST associated with the owning XML event or subtree node.
