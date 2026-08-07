@@ -165,11 +165,16 @@ scope, preserving the complete source range on the outer node and each
 results in Cartesian binding order without replacing the outer focus and
 enforces the cumulative sequence-item budget. Empty binding sequences skip all
 dependent bindings and the return clause; lexical shadowing, native node owners,
-item source maps, and diagnostics remain intact. `let`, conditional, quantified,
-and other control-flow forms remain incomplete. Other atomic families,
-functions, constructors, dynamic function calls, and lookups fail with a stable
-schema-owned diagnostic. The evaluator does not read expression source text,
-project through CEMT or JSON, reparse XML, or construct a replacement tree.
+item source maps, and diagnostics remain intact. Typed `let` expressions use the
+same nested source-range convention for comma-separated bindings, but bind each
+complete sequence once and evaluate each return once, including after an empty
+binding. Later bindings see earlier sequences while lexical shadowing, outer
+focus, native owners, item source maps, exact diagnostics, and sequence-item
+budgets remain intact. Conditional, quantified, and other control-flow forms
+remain incomplete. Other atomic families, functions, constructors, dynamic
+function calls, and lookups fail with a stable schema-owned diagnostic. The
+evaluator does not read expression source text, project through CEMT or JSON,
+reparse XML, or construct a replacement tree.
 
 The standalone executable adapter is registered for XPath template identities.
 It compiles template source once at the lifecycle/compile boundary, evaluates a
@@ -228,7 +233,8 @@ evaluator cannot read ambient process or host state.
 manifest and fixture expectations, runs lossless lexer/parser, schema-diagnostic
 handoff, lifecycle loading, no-fallback validation, and host-attachment tests,
 verifies the full-destination conformance matrix, native evaluator owner/path,
-scalar, dependent `for` binding, logical-EBV, and short-circuit semantics,
+scalar, dependent `for` and full-sequence `let` binding, logical-EBV, and
+short-circuit semantics,
 standalone transform routing,
 mixed result artifacts and evaluator capability rejection, verifies embedded
 catalog identity, and checks that README examples use fenced XPath source with

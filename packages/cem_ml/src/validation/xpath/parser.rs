@@ -107,7 +107,7 @@ impl<'tokens, 'source, 'context> XPathParser<'tokens, 'source, 'context> {
         };
         match token.lexeme {
             "for" => self.parse_for_expression(),
-            "let" => self.parse_unsupported_expression("let-expression"),
+            "let" => self.parse_let_expression(),
             "if" => self.parse_unsupported_expression("if-expression"),
             "some" | "every" => self.parse_unsupported_expression("quantified-expression"),
             "switch" => self.parse_unsupported_expression("switch-expression"),
@@ -153,6 +153,45 @@ impl<'tokens, 'source, 'context> XPathParser<'tokens, 'source, 'context> {
             };
             return_expression = XPathExpressionNode {
                 expression: XPathExpression::For {
+                    binding,
+                    binding_expression: Box::new(binding_expression),
+                    return_expression: Box::new(return_expression),
+                },
+                source_range: self.range(start, end),
+            };
+        }
+
+        Ok(return_expression)
+    }
+
+    fn parse_let_expression(&mut self) -> Result<XPathExpressionNode, XPathParseError> {
+        let (_, start_token) = self.expect("let")?;
+        let mut bindings = Vec::new();
+        loop {
+            let (_, binding_start) = self.expect("$")?;
+            let (name_index, name_token) = self.expect_name("variable name")?;
+            let binding = self.resolve_name(name_index, name_token, XPathNameUse::Variable)?;
+            self.expect(":=")?;
+            let binding_expression = self.parse_expression_single()?;
+            bindings.push((binding_start.start, binding, binding_expression));
+            if self.consume_if(",").is_none() {
+                break;
+            }
+        }
+        self.expect("return")?;
+        let mut return_expression = self.parse_expression_single()?;
+        let end = self.node_end(&return_expression);
+
+        for (index, (binding_start, binding, binding_expression)) in
+            bindings.into_iter().enumerate().rev()
+        {
+            let start = if index == 0 {
+                start_token.start
+            } else {
+                binding_start
+            };
+            return_expression = XPathExpressionNode {
+                expression: XPathExpression::Let {
                     binding,
                     binding_expression: Box::new(binding_expression),
                     return_expression: Box::new(return_expression),

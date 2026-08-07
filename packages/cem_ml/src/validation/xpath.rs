@@ -2204,6 +2204,34 @@ fn xpath_evaluate_expression_node(
             }
             Ok(items)
         }
+        XPathExpression::Let {
+            binding,
+            binding_expression,
+            return_expression,
+        } => {
+            let binding_items = xpath_evaluate_expression_node(
+                expression,
+                binding_expression,
+                focus,
+                variable_bindings,
+                evaluation_limits,
+            )?;
+            let mut scoped_bindings = variable_bindings.clone();
+            scoped_bindings.insert(
+                XPathExpandedName::from_syntax_name(binding),
+                XPathResultSequence {
+                    sequence_type: xpath_result_sequence_type(&binding_items),
+                    items: binding_items,
+                },
+            );
+            xpath_evaluate_expression_node(
+                expression,
+                return_expression,
+                focus,
+                &scoped_bindings,
+                evaluation_limits,
+            )
+        }
         XPathExpression::Unsupported { production } => Err(XPathEvaluationError::unsupported(
             format!("XPath production `{production}` is not executable yet"),
             node.source_range,
@@ -5662,11 +5690,13 @@ impl<'a> XPathSyntaxLowerer<'a> {
                 binding_expression: Box::new(self.lower_expr_single(&for_expression.var_expr)),
                 return_expression: Box::new(self.lower_expr_single(&for_expression.return_expr)),
             },
+            xee_ast::ExprSingle::Let(let_expression) => XPathExpression::Let {
+                binding: self.lower_name_s(&let_expression.var_name, XPathNameUse::Variable),
+                binding_expression: Box::new(self.lower_expr_single(&let_expression.var_expr)),
+                return_expression: Box::new(self.lower_expr_single(&let_expression.return_expr)),
+            },
             xee_ast::ExprSingle::Apply(_) => XPathExpression::Unsupported {
                 production: "apply-expression".to_owned(),
-            },
-            xee_ast::ExprSingle::Let(_) => XPathExpression::Unsupported {
-                production: "let-expression".to_owned(),
             },
             xee_ast::ExprSingle::If(_) => XPathExpression::Unsupported {
                 production: "if-expression".to_owned(),
@@ -6799,19 +6829,7 @@ mod tests {
     }
 
     #[test]
-    fn xpath_cem_parser_retains_unmodeled_xpath_as_typed_ranged_nodes() {
-        let source = "let $x := 1 return $x";
-        let syntax = cem_parser_syntax(source).expect("recognized unsupported production");
-        assert!(matches!(
-            syntax.root.expressions[0].expression,
-            XPathExpression::Unsupported { ref production }
-                if production == "let-expression"
-        ));
-        assert_eq!(
-            syntax.root.expressions[0].source_range,
-            XPathSourceRange::new(1, 1, 0, source.len() as u64)
-        );
-
+    fn xpath_cem_parser_retains_unmodeled_primaries_as_typed_ranged_nodes() {
         let inline = "function($x) { $x }";
         let syntax = cem_parser_syntax(inline).expect("recognized inline-function production");
         assert_eq!(syntax, xee_parser_syntax(inline));
@@ -6927,6 +6945,77 @@ mod tests {
             .map(|event| event.source_range)
             .collect::<Vec<_>>();
         assert_eq!(for_ranges, [outer_range, inner_range]);
+    }
+
+    #[test]
+    fn xpath_syntax_ast_lowers_comma_separated_let_bindings_into_nested_nodes() {
+        let single = "let $x := 1 return $x";
+        assert_eq!(
+            cem_parser_syntax(single).expect("typed single let expression"),
+            xee_parser_syntax(single)
+        );
+
+        let source = "let $x := (1, 2), $y := ($x, 3) return $y";
+        let syntax = parsed_syntax(source);
+        let outer_range = XPathSourceRange::new(1, 1, 0, source.len() as u64);
+        let inner_start = source.find("$y").expect("second binding");
+        let inner_range = XPathSourceRange::new(
+            1,
+            inner_start as u32 + 1,
+            inner_start as u64,
+            (source.len() - inner_start) as u64,
+        );
+
+        let outer = &syntax.root.expressions[0];
+        assert_eq!(outer.source_range, outer_range);
+        let XPathExpression::Let {
+            binding,
+            binding_expression,
+            return_expression,
+        } = &outer.expression
+        else {
+            panic!("expected outer let binding");
+        };
+        assert_eq!(binding.lexical, "x");
+        assert_eq!(binding.source_range, XPathSourceRange::new(1, 6, 5, 1));
+        assert!(matches!(
+            binding_expression.expression,
+            XPathExpression::Path(_)
+        ));
+
+        assert_eq!(return_expression.source_range, inner_range);
+        let XPathExpression::Let {
+            binding,
+            binding_expression,
+            return_expression,
+        } = &return_expression.expression
+        else {
+            panic!("expected nested let binding");
+        };
+        assert_eq!(binding.lexical, "y");
+        assert_eq!(
+            binding.source_range,
+            XPathSourceRange::new(1, inner_start as u32 + 2, inner_start as u64 + 1, 1)
+        );
+        assert!(matches!(
+            binding_expression.expression,
+            XPathExpression::Path(_)
+        ));
+        assert!(matches!(
+            return_expression.expression,
+            XPathExpression::Path(_)
+        ));
+
+        let let_ranges = syntax
+            .events
+            .iter()
+            .filter(|event| {
+                event.kind == XPathSyntaxEventKind::StartNode
+                    && event.node_kind == XPathSyntaxNodeKind::LetExpression
+            })
+            .map(|event| event.source_range)
+            .collect::<Vec<_>>();
+        assert_eq!(let_ranges, [outer_range, inner_range]);
     }
 
     #[test]
@@ -9727,8 +9816,164 @@ mod tests {
     }
 
     #[test]
+    fn xpath_native_evaluator_executes_let_expressions_with_full_sequence_bindings() {
+        use crate::lifecycle::LoadedInputAstStream;
+        use crate::validation::xml::{
+            xml_document_ast_from_source_bytes, XmlSourceValidationRequest,
+        };
+        use std::sync::Arc;
+
+        let source = "let $x := (1, 2) return $x";
+        let result = evaluate_for_test(
+            source,
+            None,
+            BTreeMap::from([(
+                XPathExpandedName::unqualified("x"),
+                singleton_test_binding("xs:integer", "99"),
+            )]),
+        )
+        .expect("let binding shadows the outer variable with its complete sequence");
+        let values = result
+            .sequence
+            .items
+            .iter()
+            .map(|item| match item {
+                XPathResultItem::Atomic { value, .. } => value.lexical_value.as_str(),
+                item => panic!("let binding returned non-atomic item: {item:?}"),
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(values, ["1", "2"]);
+        assert_eq!(result.sequence.sequence_type, "xs:integer+");
+        let spans = result
+            .sequence
+            .items
+            .iter()
+            .map(|item| match item {
+                XPathResultItem::Atomic { source_map, .. } => source_map.frames[0].span.clone(),
+                item => panic!("let binding returned non-atomic item: {item:?}"),
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(
+            spans,
+            [
+                FrameSpan::Single(ByteRange::new(11, 1)),
+                FrameSpan::Single(ByteRange::new(14, 1)),
+            ]
+        );
+
+        let (document, diagnostics) =
+            xml_document_ast_from_source_bytes(XmlSourceValidationRequest {
+                bytes: br#"<root><n>1</n><n>2</n></root>"#,
+                source_uri: "memory://let-context.xml",
+                content_type: Some("application/xml"),
+            });
+        assert!(diagnostics.is_empty(), "{diagnostics:?}");
+        let owner = Arc::new(LoadedInputAstStream::XmlDocument(
+            document.expect("typed XML document"),
+        ));
+        let context_node =
+            XPathNativeNode::xml_document(Arc::clone(&owner)).expect("native XML document node");
+        let nodes = evaluate_for_test(
+            "let $nodes := /root/n return $nodes",
+            Some(XPathResultItem::from_native_node(context_node)),
+            BTreeMap::new(),
+        )
+        .expect("let binding retains complete native node sequences");
+        assert_eq!(nodes.sequence.items.len(), 2);
+        for item in &nodes.sequence.items {
+            let native_node = item
+                .native_node()
+                .expect("let expression returns retained native XML nodes");
+            assert!(Arc::ptr_eq(native_node.owner(), &owner));
+        }
+
+        let dependent = evaluate_for_test(
+            "let $x := (1, 2), $y := ($x, 3) return $y",
+            None,
+            BTreeMap::new(),
+        )
+        .expect("later let bindings see complete earlier binding sequences");
+        let dependent_values = dependent
+            .sequence
+            .items
+            .iter()
+            .map(|item| match item {
+                XPathResultItem::Atomic { value, .. } => value.lexical_value.as_str(),
+                item => panic!("dependent let binding returned non-atomic item: {item:?}"),
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(dependent_values, ["1", "2", "3"]);
+
+        let empty_dependent =
+            evaluate_for_test("let $x := (), $y := 1 return $y", None, BTreeMap::new())
+                .expect("an empty let binding does not skip later bindings");
+        let empty_dependent_values = empty_dependent
+            .sequence
+            .items
+            .iter()
+            .map(|item| match item {
+                XPathResultItem::Atomic { value, .. } => value.lexical_value.as_str(),
+                item => panic!("empty-dependent let returned non-atomic item: {item:?}"),
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(empty_dependent_values, ["1"]);
+
+        let focus = evaluate_for_test(
+            "let $x := (1, 2) return position()",
+            Some(atomic_test_item("xs:integer", "7")),
+            BTreeMap::new(),
+        )
+        .expect("let bindings evaluate the return once without replacing focus");
+        let focus_values = focus
+            .sequence
+            .items
+            .iter()
+            .map(|item| match item {
+                XPathResultItem::Atomic { value, .. } => value.lexical_value.as_str(),
+                item => panic!("let focus returned non-atomic item: {item:?}"),
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(focus_values, ["1"]);
+
+        let source = "let $x := () return $missing";
+        let diagnostics = evaluate_for_test(source, None, BTreeMap::new())
+            .expect_err("an empty let binding still evaluates the return clause once");
+        let missing_start = source.find("missing").expect("missing variable name");
+        assert_eq!(diagnostics[0].code, "cem.xpath.variable_unbound");
+        assert_eq!(diagnostics[0].byte_offset, Some(missing_start as u64));
+        assert_eq!(
+            diagnostics[0]
+                .source_map
+                .as_ref()
+                .expect("let return diagnostic source map")
+                .frames[0]
+                .span,
+            FrameSpan::Single(ByteRange::new(missing_start as u64, 7))
+        );
+
+        let source = "let $x := (1, 2) return ($x, $x)";
+        let diagnostics = evaluate_for_test_with_limit(source, None, BTreeMap::new(), Some(3))
+            .expect_err("let return sequences enforce the configured item budget");
+        let return_start = source.rfind("$x, $x").expect("return sequence");
+        assert_eq!(
+            diagnostics[0].code,
+            "cem.xpath.sequence_item_limit_exceeded"
+        );
+        assert_eq!(diagnostics[0].byte_offset, Some(return_start as u64));
+        assert_eq!(
+            diagnostics[0]
+                .source_map
+                .as_ref()
+                .expect("let budget diagnostic source map")
+                .frames[0]
+                .span,
+            FrameSpan::Single(ByteRange::new(return_start as u64, "$x, $x".len() as u32))
+        );
+    }
+
+    #[test]
     fn xpath_native_evaluator_rejects_unsupported_semantics_without_projection() {
-        let expression = parse("let $x := 1 return $x");
+        let expression = parse("if (true()) then 1 else 2");
         let resolver_registry = ResolverRegistry::new();
         let resolver_policy = ResolverPolicy::new();
         let diagnostics = CemXPathEvaluator::default()
@@ -9743,10 +9988,10 @@ mod tests {
                 evaluation_limits: XPathEvaluationLimits::default(),
                 safety_policy_stamp: "xpath-safety/1;pure",
             })
-            .expect_err("let expressions remain outside the native evaluator slice");
+            .expect_err("if expressions remain outside the native evaluator slice");
         assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
         assert_eq!(diagnostics[0].code, "cem.xpath.evaluation_unsupported");
-        assert!(diagnostics[0].message.contains("let-expression"));
+        assert!(diagnostics[0].message.contains("if-expression"));
 
         let source = include_str!("xpath.rs");
         let evaluator = source

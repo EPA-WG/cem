@@ -113,6 +113,14 @@ mediate between internal layers.
           dependent work after an empty binding; preserve native owners, item
           source maps, and diagnostics; and enforce cumulative `xpathItems`
           budgets without a new AST variant, serialization, or a DTO.
+    - [x] Execute typed XPath `let` expressions directly: lower one or more
+          comma-separated bindings into nested typed `Let` nodes with complete
+          outer and `$binding`-suffix ranges; evaluate and bind each complete
+          sequence once; expose earlier sequences to dependent later bindings;
+          evaluate each return exactly once even for an empty binding; preserve
+          lexical shadowing, outer focus, native owners, item source maps, and
+          exact diagnostics; and enforce `xpathItems` budgets without
+          serialization, a DTO, or a replacement tree.
   - [x] Wire the native evaluator through the `transform` command and expose
         explicit CEM-QL, CEMT, and XSLT invocation adapters without reparsing
         source text, constructing an evaluator-owned replacement XML tree, or

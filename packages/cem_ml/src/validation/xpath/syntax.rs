@@ -46,6 +46,11 @@ pub enum XPathExpression {
         binding_expression: Box<XPathExpressionNode>,
         return_expression: Box<XPathExpressionNode>,
     },
+    Let {
+        binding: XPathName,
+        binding_expression: Box<XPathExpressionNode>,
+        return_expression: Box<XPathExpressionNode>,
+    },
     Unsupported {
         production: String,
     },
@@ -257,6 +262,7 @@ pub enum XPathSyntaxNodeKind {
     UnaryExpression,
     BinaryExpression,
     ForExpression,
+    LetExpression,
     UnsupportedExpression,
     AxisStep,
     PrimaryStep,
@@ -283,6 +289,7 @@ impl XPathSyntaxNodeKind {
             Self::UnaryExpression => "unary-expression",
             Self::BinaryExpression => "binary-expression",
             Self::ForExpression => "for-expression",
+            Self::LetExpression => "let-expression",
             Self::UnsupportedExpression => "unsupported-expression",
             Self::AxisStep => "axis-step",
             Self::PrimaryStep => "primary-step",
@@ -359,6 +366,7 @@ impl XPathExpressionNode {
             XPathExpression::Unary { .. } => XPathSyntaxNodeKind::UnaryExpression,
             XPathExpression::Binary { .. } => XPathSyntaxNodeKind::BinaryExpression,
             XPathExpression::For { .. } => XPathSyntaxNodeKind::ForExpression,
+            XPathExpression::Let { .. } => XPathSyntaxNodeKind::LetExpression,
             XPathExpression::Unsupported { .. } => XPathSyntaxNodeKind::UnsupportedExpression,
         };
         emit_node(
@@ -374,6 +382,11 @@ impl XPathExpressionNode {
                     right.emit_events(depth, events);
                 }
                 XPathExpression::For {
+                    binding,
+                    binding_expression,
+                    return_expression,
+                }
+                | XPathExpression::Let {
                     binding,
                     binding_expression,
                     return_expression,
