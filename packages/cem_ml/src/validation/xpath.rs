@@ -3321,9 +3321,24 @@ enum XPathNativeFunction {
     Empty,
     Boolean,
     Not,
+    AtomicConstructor(&'static str),
 }
 
 fn xpath_native_function(name: &XPathName, arity: usize) -> Option<XPathNativeFunction> {
+    if name.namespace_uri.as_deref() == Some("http://www.w3.org/2001/XMLSchema") && arity == 1 {
+        let target = match name.local_name.as_str() {
+            "untypedAtomic" => "untypedAtomic",
+            "string" => "string",
+            "boolean" => "boolean",
+            "integer" => "integer",
+            "decimal" => "decimal",
+            "float" => "float",
+            "double" => "double",
+            "anyURI" => "anyURI",
+            _ => return None,
+        };
+        return Some(XPathNativeFunction::AtomicConstructor(target));
+    }
     if name.namespace_uri.as_deref() != Some("http://www.w3.org/2005/xpath-functions") {
         return None;
     }
@@ -3377,7 +3392,7 @@ fn xpath_evaluate_function_call(
         let value = match function {
             XPathNativeFunction::Position => focus.position,
             XPathNativeFunction::Last => focus.size,
-            _ => unreachable!("focus function guard restricts native dispatch"),
+            _ => unreachable!("focus-function guard restricts native dispatch"),
         };
         return Ok(vec![xpath_numeric_result_item(
             expression,
@@ -3396,6 +3411,28 @@ fn xpath_evaluate_function_call(
         variable_bindings,
         evaluation_limits,
     )?;
+    if let XPathNativeFunction::AtomicConstructor(target) = function {
+        debug_assert_eq!(name.local_name, target);
+        let atomized = xpath_atomize_cast_sequence(&items, source_range)?;
+        let single_type = XPathSingleType {
+            type_name: name.clone(),
+            allows_empty: true,
+            source_range: name.source_range,
+        };
+        return match xpath_cast_atomized_sequence(atomized, &single_type) {
+            Ok(Some(value)) => Ok(vec![xpath_atomic_result_item(
+                expression,
+                source_range,
+                value,
+            )]),
+            Ok(None) => Ok(Vec::new()),
+            Err(failure) => Err(XPathEvaluationError::dynamic(
+                failure.diagnostic_code(),
+                failure.message,
+                source_range,
+            )),
+        };
+    }
     let result = match function {
         XPathNativeFunction::Count => xpath_numeric_result_item(
             expression,
@@ -3422,6 +3459,9 @@ fn xpath_evaluate_function_call(
         }
         XPathNativeFunction::Position | XPathNativeFunction::Last => {
             unreachable!("focus functions return before argument evaluation")
+        }
+        XPathNativeFunction::AtomicConstructor(_) => {
+            unreachable!("atomic constructors return after argument evaluation")
         }
     };
     Ok(vec![result])
@@ -12300,6 +12340,137 @@ mod tests {
         .expect("retained nodes atomize before casting");
         let [XPathResultItem::Atomic { value, .. }] = result.sequence.items.as_slice() else {
             panic!("node cast did not return one atomic item: {result:?}");
+        };
+        assert_eq!(value.type_name, "xs:integer");
+        assert_eq!(value.lexical_value, "42");
+    }
+
+    #[test]
+    fn xpath_native_constructor_functions_reuse_closed_atomic_matrix_without_projection() {
+        let assert_atomic = |source: &str, expected_type: &str, expected_value: &str| {
+            let result = evaluate_for_test(source, None, BTreeMap::new())
+                .unwrap_or_else(|diagnostics| panic!("`{source}` failed: {diagnostics:?}"));
+            let [XPathResultItem::Atomic { value, source_map }] = result.sequence.items.as_slice()
+            else {
+                panic!("`{source}` did not return one atomic item: {result:?}");
+            };
+            assert_eq!(value.type_name, expected_type, "`{source}`");
+            assert_eq!(value.lexical_value, expected_value, "`{source}`");
+            assert_eq!(
+                source_map.frames[0].span,
+                FrameSpan::Single(ByteRange::new(0, source.len() as u32)),
+                "`{source}`"
+            );
+        };
+
+        for (source, expected_type, expected_value) in [
+            ("xs:untypedAtomic(7)", "xs:untypedAtomic", "7"),
+            ("xs:string(7)", "xs:string", "7"),
+            ("xs:boolean(' true ')", "xs:boolean", "true"),
+            ("xs:integer(-3.75)", "xs:integer", "-3"),
+            ("xs:decimal('1.25')", "xs:decimal", "1.25"),
+            ("xs:float((1 eq 1))", "xs:float", "1"),
+            ("xs:double('+INF')", "xs:double", "INF"),
+            ("xs:anyURI('  urn:test  ')", "xs:anyURI", "urn:test"),
+            (
+                "Q{http://www.w3.org/2001/XMLSchema}integer('42')",
+                "xs:integer",
+                "42",
+            ),
+            ("'42' => xs:integer()", "xs:integer", "42"),
+        ] {
+            assert_atomic(source, expected_type, expected_value);
+        }
+
+        let empty = evaluate_for_test("xs:string(())", None, BTreeMap::new())
+            .expect("atomic constructors return empty for an empty argument");
+        assert!(empty.sequence.items.is_empty());
+
+        for source in ["xs:integer('no')", "xs:string((1, 2))"] {
+            let diagnostics = evaluate_for_test(source, None, BTreeMap::new())
+                .expect_err("constructor conversion failures must retain the cast contract");
+            assert!(
+                matches!(
+                    diagnostics[0].code.as_str(),
+                    "cem.xpath.cast_invalid" | "cem.xpath.cast_cardinality"
+                ),
+                "`{source}`: {diagnostics:?}"
+            );
+            assert_eq!(diagnostics[0].byte_offset, Some(0), "`{source}`");
+            assert_eq!(
+                diagnostics[0]
+                    .source_map
+                    .as_ref()
+                    .expect("constructor diagnostic source map")
+                    .frames[0]
+                    .span,
+                FrameSpan::Single(ByteRange::new(0, source.len() as u32)),
+                "`{source}`"
+            );
+        }
+
+        for source in [
+            "xs:date($missing)",
+            "xs:anyAtomicType($missing)",
+            "xs:integer($missing, 1)",
+            "Q{urn:not-schema}integer($missing)",
+        ] {
+            let diagnostics = evaluate_for_test(source, None, BTreeMap::new())
+                .expect_err("unsupported constructor signatures must resolve before arguments run");
+            assert_eq!(diagnostics[0].code, "cem.xpath.evaluation_unsupported");
+            assert_ne!(diagnostics[0].code, "cem.xpath.variable_unbound");
+            assert_eq!(diagnostics[0].byte_offset, Some(0), "`{source}`");
+        }
+
+        let diagnostics = evaluate_for_test("xs:integer($missing)", None, BTreeMap::new())
+            .expect_err("supported constructors must propagate argument evaluation errors");
+        assert_eq!(diagnostics[0].code, "cem.xpath.variable_unbound");
+
+        let diagnostics =
+            evaluate_for_test_with_limit("xs:string((1, 2))", None, BTreeMap::new(), Some(1))
+                .expect_err("constructor arguments must enforce evaluated sequence-item budgets");
+        assert_eq!(
+            diagnostics[0].code,
+            "cem.xpath.sequence_item_limit_exceeded"
+        );
+
+        let map_binding = XPathResultSequence {
+            sequence_type: "map(*)".to_owned(),
+            items: vec![XPathResultItem::Map {
+                entries: Vec::new(),
+                source_map: result_source_map(9, 1),
+            }],
+        };
+        let diagnostics = evaluate_for_test(
+            "xs:string($value)",
+            None,
+            BTreeMap::from([(XPathExpandedName::unqualified("value"), map_binding)]),
+        )
+        .expect_err("constructor atomization errors must propagate");
+        assert_eq!(diagnostics[0].code, "cem.xpath.evaluation_unsupported");
+
+        use crate::validation::xml::{
+            xml_document_ast_from_source_bytes, XmlSourceValidationRequest,
+        };
+        let (document, diagnostics) =
+            xml_document_ast_from_source_bytes(XmlSourceValidationRequest {
+                bytes: br#"<root> 42 </root>"#,
+                source_uri: "memory://constructor-functions.xml",
+                content_type: Some("application/xml"),
+            });
+        assert!(diagnostics.is_empty(), "{diagnostics:?}");
+        let owner = Arc::new(LoadedInputAstStream::XmlDocument(
+            document.expect("typed XML document"),
+        ));
+        let context_node = XPathNativeNode::xml_document(owner).expect("native XML document node");
+        let result = evaluate_for_test(
+            "xs:integer(/root)",
+            Some(XPathResultItem::from_native_node(context_node)),
+            BTreeMap::new(),
+        )
+        .expect("constructor function conversion atomizes retained nodes");
+        let [XPathResultItem::Atomic { value, .. }] = result.sequence.items.as_slice() else {
+            panic!("node constructor did not return one atomic item: {result:?}");
         };
         assert_eq!(value.type_name, "xs:integer");
         assert_eq!(value.lexical_value, "42");

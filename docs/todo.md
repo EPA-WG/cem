@@ -184,6 +184,16 @@ mediate between internal layers.
           operand and atomization errors; and reject abstract, derived,
           namespace-sensitive, schema-defined, list, and union targets without a
           serializer, derived result-type parser, or intermediate DTO.
+    - [x] Execute the matching closed XML Schema constructor-function slice:
+          resolve one-argument expanded QNames for `xs:untypedAtomic`, string,
+          boolean, integer, decimal, float, double, and anyURI before argument
+          evaluation; reuse the native optional cast atomization and conversion
+          kernel for direct calls and named arrows; return empty for an empty
+          argument; preserve full-call result and conversion source maps, native
+          owners, exact numeric/lexical behavior, argument errors, and evaluated
+          work budgets; and keep abstract, derived, namespace-sensitive,
+          schema-defined, list, and union constructors fail-closed without a
+          serializer, duplicate conversion path, or intermediate DTO.
   - [x] Wire the native evaluator through the `transform` command and expose
         explicit CEM-QL, CEMT, and XSLT invocation adapters without reparsing
         source text, constructing an evaluator-owned replacement XML tree, or

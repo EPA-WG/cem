@@ -78,7 +78,7 @@
         @status="partial"
         @qt3-status="unmapped"
         @spec-sections="XPath 3.1 sections 2.5, 2.6, and 3.14"
-        @gap="CEM-owned typed sequence and single types retain empty-sequence(), item(), parenthesized item types, supported XML Schema atomic EQNames, unconstrained native node-kind tests, occurrence/optional-empty indicators, grammar precedence, and exact ranges. Native instance of and treat as execute cardinality, supported atomic subtype, generic-item, and retained node-kind matching without parsing result display strings; successful treats preserve original items and unsupported atomic, constrained/schema-aware, function, map, or array declarations fail before operands. Native cast as and castable as atomize retained nodes and execute the closed untypedAtomic/string/boolean/integer/decimal/float/double/anyURI primitive matrix with exact numeric, lexical, source-map, cardinality, error-propagation, and pre-operand target-validation semantics. Derived atomic families, constrained and higher-order type matching, namespace-sensitive/schema/list/union casting, promotion outside comparisons, and QT3 mapping remain incomplete"
+        @gap="CEM-owned typed sequence and single types retain empty-sequence(), item(), parenthesized item types, supported XML Schema atomic EQNames, unconstrained native node-kind tests, occurrence/optional-empty indicators, grammar precedence, and exact ranges. Native instance of and treat as execute cardinality, supported atomic subtype, generic-item, and retained node-kind matching without parsing result display strings; successful treats preserve original items and unsupported atomic, constrained/schema-aware, function, map, or array declarations fail before operands. Native cast as and castable as plus the matching one-argument XML Schema constructor functions atomize retained nodes and execute the closed untypedAtomic/string/boolean/integer/decimal/float/double/anyURI primitive matrix with exact numeric, lexical, source-map, cardinality, error-propagation, and pre-operand/signature-validation semantics. Derived atomic families, constrained and higher-order type matching, namespace-sensitive/schema/list/union casting and constructors, promotion outside comparisons, and QT3 mapping remain incomplete"
         @todo="xpath-type-system"
     }
     {conformance-slice
@@ -94,7 +94,7 @@
         @status="contract-only"
         @qt3-status="unmapped"
         @spec-sections="XPath 3.1 sections 3.11, 3.12"
-        @gap="Typed result artifacts exist, but constructors, lookup, and map or array function semantics are not executable"
+        @gap="Typed result artifacts exist, but map and array constructors, lookup, and map or array function semantics are not executable"
         @todo="xpath-maps-arrays"
     }
     {conformance-slice
@@ -102,7 +102,7 @@
         @status="partial"
         @qt3-status="unmapped"
         @spec-sections="Functions and Operators 3.1"
-        @gap="One expanded-QName-and-arity dispatcher executes the native focus functions position() and last() plus the pure sequence functions count(), exists(), empty(), boolean(), and not() with native EBV, source maps, namespace isolation, deterministic unsupported signatures, and evaluated-work budgets. Supported general, value-comparison, and logical operator mappings are also implemented; the remaining standard function library, non-comparison operators, other atomic families, and QT3 mapping are incomplete"
+        @gap="One expanded-QName-and-arity dispatcher executes the native focus functions position() and last(), the pure sequence functions count(), exists(), empty(), boolean(), and not(), and the one-argument XML Schema constructor functions for the closed untypedAtomic/string/boolean/integer/decimal/float/double/anyURI matrix with native atomization, conversion, empty-input, EBV, source-map, namespace-isolation, deterministic unsupported-signature, and evaluated-work semantics. Supported general, value-comparison, and logical operator mappings are also implemented; the remaining standard function library, non-comparison operators, other atomic families and constructors, and QT3 mapping are incomplete"
         @todo="xpath-functions-operators"
     }
     {conformance-slice

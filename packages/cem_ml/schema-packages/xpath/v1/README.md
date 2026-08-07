@@ -213,6 +213,16 @@ namespace-sensitive, schema-defined, list, and union targets remain fail-closed,
 and casting never parses result display strings or crosses a serialized
 boundary.
 
+The expanded-QName-and-arity function dispatcher also recognizes the matching
+one-argument XML Schema constructor functions for those eight concrete atomic
+types. Direct and named-arrow calls reuse the optional cast atomization and
+conversion kernel, so empty arguments return empty, retained nodes atomize
+without projection, and exact numeric, lexical, cardinality, diagnostic, and
+full-call source-map behavior stays identical to `cast as Target?`. Unsupported
+constructor names and arities resolve before argument evaluation. Abstract,
+derived, namespace-sensitive, schema-defined, list, and union constructors
+remain fail-closed.
+
 Typed `for` expressions accept one or more comma-separated bindings. The parser
 lowers later bindings into nested typed `For` nodes with dependent lexical
 scope, preserving the complete source range on the outer node and each
@@ -239,9 +249,10 @@ truth, outer focus, shadowing, native owners, exact diagnostics, and
 evaluated-work sequence-item budgets. The XPath 3.1 control-flow expression
 slice is otherwise executable; XQuery-only switch and typeswitch inputs remain
 explicit fail-closed exclusions. Other atomic families, remaining functions,
-constructors, dynamic function calls, and lookups fail with a stable schema-owned
-diagnostic. The evaluator does not read expression source text, project through
-CEMT or JSON, reparse XML, or construct a replacement tree.
+other constructor functions, dynamic function calls, and lookups fail with a
+stable schema-owned diagnostic. The evaluator does not read expression source
+text, project through CEMT or JSON, reparse XML, or construct a replacement
+tree.
 
 The standalone executable adapter is registered for XPath template identities.
 It compiles template source once at the lifecycle/compile boundary, evaluates a
