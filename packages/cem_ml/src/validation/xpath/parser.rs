@@ -3,8 +3,9 @@ use super::{
     XPathArrayConstructor, XPathAttachment, XPathAxis, XPathBinaryOperator, XPathExpression,
     XPathExpressionNode, XPathExpressionSequence, XPathKindTest, XPathLiteral, XPathLiteralKind,
     XPathMapConstructorEntry, XPathName, XPathNameTest, XPathNodeTest, XPathPathExpression,
-    XPathPathRoot, XPathPostfixExpression, XPathPrimaryExpression, XPathSourceRange,
-    XPathSourceRangeResolver, XPathStep, XPathStepNode, XPathSyntaxAst, XPathUnaryOperator,
+    XPathPathRoot, XPathPostfixExpression, XPathPrimaryExpression, XPathQuantifier,
+    XPathSourceRange, XPathSourceRangeResolver, XPathStep, XPathStepNode, XPathSyntaxAst,
+    XPathUnaryOperator,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -109,7 +110,7 @@ impl<'tokens, 'source, 'context> XPathParser<'tokens, 'source, 'context> {
             "for" => self.parse_for_expression(),
             "let" => self.parse_let_expression(),
             "if" => self.parse_if_expression(),
-            "some" | "every" => self.parse_unsupported_expression("quantified-expression"),
+            "some" | "every" => self.parse_quantified_expression(),
             "switch" => self.parse_unsupported_expression("switch-expression"),
             "typeswitch" => self.parse_unsupported_expression("typeswitch-expression"),
             _ => {
@@ -222,6 +223,51 @@ impl<'tokens, 'source, 'context> XPathParser<'tokens, 'source, 'context> {
             },
             source_range: self.range(start_token.start, end),
         })
+    }
+
+    fn parse_quantified_expression(&mut self) -> Result<XPathExpressionNode, XPathParseError> {
+        let (_, start_token) = self.next().expect("peeked quantified expression");
+        let quantifier = match start_token.lexeme {
+            "some" => XPathQuantifier::Some,
+            "every" => XPathQuantifier::Every,
+            _ => unreachable!("quantified parser is selected only for some or every"),
+        };
+        let mut bindings = Vec::new();
+        loop {
+            let (_, binding_start) = self.expect("$")?;
+            let (name_index, name_token) = self.expect_name("variable name")?;
+            let binding = self.resolve_name(name_index, name_token, XPathNameUse::Variable)?;
+            self.expect("in")?;
+            let binding_expression = self.parse_expression_single()?;
+            bindings.push((binding_start.start, binding, binding_expression));
+            if self.consume_if(",").is_none() {
+                break;
+            }
+        }
+        self.expect("satisfies")?;
+        let mut satisfies_expression = self.parse_expression_single()?;
+        let end = self.node_end(&satisfies_expression);
+
+        for (index, (binding_start, binding, binding_expression)) in
+            bindings.into_iter().enumerate().rev()
+        {
+            let start = if index == 0 {
+                start_token.start
+            } else {
+                binding_start
+            };
+            satisfies_expression = XPathExpressionNode {
+                expression: XPathExpression::Quantified {
+                    quantifier,
+                    binding,
+                    binding_expression: Box::new(binding_expression),
+                    satisfies_expression: Box::new(satisfies_expression),
+                },
+                source_range: self.range(start, end),
+            };
+        }
+
+        Ok(satisfies_expression)
     }
 
     fn parse_binary_expression(

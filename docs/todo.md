@@ -128,6 +128,15 @@ mediate between internal layers.
           outer focus, native owners, item source maps, and exact condition and
           branch diagnostics; enforce `xpathItems` budgets only for evaluated
           work; and avoid serialization, a DTO, or a replacement tree.
+    - [x] Execute typed XPath `some` and `every` expressions directly: lower
+          comma-separated bindings into nested same-quantifier nodes with
+          complete outer and `$binding`-suffix ranges; bind each item as an
+          expanded-QName singleton in dependent lexical scope and Cartesian
+          order; apply native effective-boolean-value rules to required
+          `satisfies` tuples; short-circuit decisive results; preserve vacuous
+          empty-binding truth, outer focus, shadowing, native owners, exact
+          source maps and diagnostics, and evaluated-work `xpathItems` budgets;
+          and avoid serialization, a DTO, or a replacement tree.
   - [x] Wire the native evaluator through the `transform` command and expose
         explicit CEM-QL, CEMT, and XSLT invocation adapters without reparsing
         source text, constructing an evaluator-owned replacement XML tree, or

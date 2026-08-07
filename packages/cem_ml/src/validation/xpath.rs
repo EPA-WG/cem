@@ -2258,6 +2258,56 @@ fn xpath_evaluate_expression_node(
                 evaluation_limits,
             )
         }
+        XPathExpression::Quantified {
+            quantifier,
+            binding,
+            binding_expression,
+            satisfies_expression,
+        } => {
+            let binding_items = xpath_evaluate_expression_node(
+                expression,
+                binding_expression,
+                focus,
+                variable_bindings,
+                evaluation_limits,
+            )?;
+            let binding_name = XPathExpandedName::from_syntax_name(binding);
+            let mut scoped_bindings = variable_bindings.clone();
+            let mut result = matches!(quantifier, XPathQuantifier::Every);
+            for binding_item in binding_items {
+                let sequence_type = xpath_result_sequence_type(std::slice::from_ref(&binding_item));
+                scoped_bindings.insert(
+                    binding_name.clone(),
+                    XPathResultSequence {
+                        sequence_type,
+                        items: vec![binding_item],
+                    },
+                );
+                let satisfies_items = xpath_evaluate_expression_node(
+                    expression,
+                    satisfies_expression,
+                    focus,
+                    &scoped_bindings,
+                    evaluation_limits,
+                )?;
+                let satisfies_value = xpath_effective_boolean_value(
+                    &satisfies_items,
+                    satisfies_expression.source_range,
+                )?;
+                if matches!(
+                    (quantifier, satisfies_value),
+                    (XPathQuantifier::Some, true) | (XPathQuantifier::Every, false)
+                ) {
+                    result = satisfies_value;
+                    break;
+                }
+            }
+            Ok(vec![xpath_boolean_result_item(
+                expression,
+                node.source_range,
+                result,
+            )])
+        }
         XPathExpression::Unsupported { production } => Err(XPathEvaluationError::unsupported(
             format!("XPath production `{production}` is not executable yet"),
             node.source_range,
@@ -5729,8 +5779,18 @@ impl<'a> XPathSyntaxLowerer<'a> {
                 then_expression: Box::new(self.lower_expr_single(&if_expression.then)),
                 else_expression: Box::new(self.lower_expr_single(&if_expression.else_)),
             },
-            xee_ast::ExprSingle::Quantified(_) => XPathExpression::Unsupported {
-                production: "quantified-expression".to_owned(),
+            xee_ast::ExprSingle::Quantified(quantified_expression) => XPathExpression::Quantified {
+                quantifier: match quantified_expression.quantifier {
+                    xee_ast::Quantifier::Some => XPathQuantifier::Some,
+                    xee_ast::Quantifier::Every => XPathQuantifier::Every,
+                },
+                binding: self.lower_name_s(&quantified_expression.var_name, XPathNameUse::Variable),
+                binding_expression: Box::new(
+                    self.lower_expr_single(&quantified_expression.var_expr),
+                ),
+                satisfies_expression: Box::new(
+                    self.lower_expr_single(&quantified_expression.satisfies_expr),
+                ),
             },
         };
         XPathExpressionNode {
@@ -7044,6 +7104,85 @@ mod tests {
             .map(|event| event.source_range)
             .collect::<Vec<_>>();
         assert_eq!(let_ranges, [outer_range, inner_range]);
+    }
+
+    #[test]
+    fn xpath_syntax_ast_lowers_quantified_bindings_into_nested_typed_nodes() {
+        let single = "some $x in (1, 2) satisfies $x = 2";
+        assert_eq!(
+            cem_parser_syntax(single).expect("typed single quantified expression"),
+            xee_parser_syntax(single)
+        );
+
+        let source = "every $x in (1, 2), $y in ($x, $x + 10) satisfies $y >= $x";
+        let syntax = parsed_syntax(source);
+        let outer_range = XPathSourceRange::new(1, 1, 0, source.len() as u64);
+        let inner_start = source.find("$y").expect("second binding");
+        let inner_range = XPathSourceRange::new(
+            1,
+            inner_start as u32 + 1,
+            inner_start as u64,
+            (source.len() - inner_start) as u64,
+        );
+
+        let outer = &syntax.root.expressions[0];
+        assert_eq!(outer.source_range, outer_range);
+        let XPathExpression::Quantified {
+            quantifier,
+            binding,
+            binding_expression,
+            satisfies_expression,
+        } = &outer.expression
+        else {
+            panic!("expected outer quantified binding");
+        };
+        assert_eq!(*quantifier, XPathQuantifier::Every);
+        assert_eq!(binding.lexical, "x");
+        let outer_name_start = source.find("$x").expect("first binding") + 1;
+        assert_eq!(
+            binding.source_range,
+            XPathSourceRange::new(1, outer_name_start as u32 + 1, outer_name_start as u64, 1,)
+        );
+        assert!(matches!(
+            binding_expression.expression,
+            XPathExpression::Path(_)
+        ));
+
+        assert_eq!(satisfies_expression.source_range, inner_range);
+        let XPathExpression::Quantified {
+            quantifier,
+            binding,
+            binding_expression,
+            satisfies_expression,
+        } = &satisfies_expression.expression
+        else {
+            panic!("expected nested quantified binding");
+        };
+        assert_eq!(*quantifier, XPathQuantifier::Every);
+        assert_eq!(binding.lexical, "y");
+        assert_eq!(
+            binding.source_range,
+            XPathSourceRange::new(1, inner_start as u32 + 2, inner_start as u64 + 1, 1)
+        );
+        assert!(matches!(
+            binding_expression.expression,
+            XPathExpression::Path(_)
+        ));
+        assert!(matches!(
+            satisfies_expression.expression,
+            XPathExpression::Binary { .. }
+        ));
+
+        let quantified_ranges = syntax
+            .events
+            .iter()
+            .filter(|event| {
+                event.kind == XPathSyntaxEventKind::StartNode
+                    && event.node_kind == XPathSyntaxNodeKind::QuantifiedExpression
+            })
+            .map(|event| event.source_range)
+            .collect::<Vec<_>>();
+        assert_eq!(quantified_ranges, [outer_range, inner_range]);
     }
 
     #[test]
@@ -10210,8 +10349,158 @@ mod tests {
     }
 
     #[test]
+    fn xpath_native_evaluator_executes_quantified_expressions_with_short_circuiting() {
+        use crate::lifecycle::LoadedInputAstStream;
+        use crate::validation::xml::{
+            xml_document_ast_from_source_bytes, XmlSourceValidationRequest,
+        };
+        use std::sync::Arc;
+
+        for (source, expected) in [
+            ("some $x in (1, 2) satisfies $x = 2", true),
+            ("every $x in (1, 2) satisfies $x >= 1", true),
+            ("some $x in () satisfies $missing", false),
+            ("every $x in () satisfies $missing", true),
+            ("some $x in (1, 2), $y in ($x + 10) satisfies $y = 12", true),
+            (
+                "every $x in (1, 2), $y in ($x, $x + 10) satisfies $y >= $x",
+                true,
+            ),
+            ("some $x in (1, 2) satisfies $x = 1 or $missing", true),
+            ("every $x in (1, 2) satisfies $x = 2 and $missing", false),
+            ("some $x in 1, $y in () satisfies $missing", false),
+            ("every $x in 1, $y in () satisfies $missing", true),
+        ] {
+            let result = evaluate_for_test(source, None, BTreeMap::new())
+                .unwrap_or_else(|diagnostics| panic!("`{source}` failed: {diagnostics:?}"));
+            let [XPathResultItem::Atomic { value, source_map }] = result.sequence.items.as_slice()
+            else {
+                panic!("`{source}` did not return one atomic value: {result:?}");
+            };
+            assert_eq!(value.type_name, "xs:boolean", "`{source}`");
+            assert_eq!(value.lexical_value, expected.to_string(), "`{source}`");
+            assert_eq!(
+                source_map.frames[0].span,
+                FrameSpan::Single(ByteRange::new(0, source.len() as u32)),
+                "`{source}`"
+            );
+        }
+
+        let shadowed = evaluate_for_test(
+            "some $x in (1, 2) satisfies $x = 2",
+            None,
+            BTreeMap::from([(
+                XPathExpandedName::unqualified("x"),
+                singleton_test_binding("xs:integer", "99"),
+            )]),
+        )
+        .expect("quantified bindings shadow outer variables lexically");
+        let [XPathResultItem::Atomic { value, .. }] = shadowed.sequence.items.as_slice() else {
+            panic!("quantified shadowing result was not one atomic item: {shadowed:?}");
+        };
+        assert_eq!(value.lexical_value, "true");
+
+        let focus = evaluate_for_test(
+            "every $x in (1, 2) satisfies position() = 1",
+            Some(atomic_test_item("xs:integer", "7")),
+            BTreeMap::new(),
+        )
+        .expect("quantified binding evaluation retains the outer focus");
+        let [XPathResultItem::Atomic { value, .. }] = focus.sequence.items.as_slice() else {
+            panic!("quantified focus result was not one atomic item: {focus:?}");
+        };
+        assert_eq!(value.lexical_value, "true");
+
+        let (document, diagnostics) =
+            xml_document_ast_from_source_bytes(XmlSourceValidationRequest {
+                bytes: br#"<root><n>1</n><n>2</n></root>"#,
+                source_uri: "memory://quantified-context.xml",
+                content_type: Some("application/xml"),
+            });
+        assert!(diagnostics.is_empty(), "{diagnostics:?}");
+        let owner = Arc::new(LoadedInputAstStream::XmlDocument(
+            document.expect("typed XML document"),
+        ));
+        let context_node =
+            XPathNativeNode::xml_document(Arc::clone(&owner)).expect("native XML document node");
+        let retained = evaluate_for_test(
+            "some $n in /root/n satisfies $n is /root/n[2]",
+            Some(XPathResultItem::from_native_node(context_node)),
+            BTreeMap::new(),
+        )
+        .expect("quantified variables retain native node identity");
+        let [XPathResultItem::Atomic { value, .. }] = retained.sequence.items.as_slice() else {
+            panic!("quantified native-node result was not one atomic item: {retained:?}");
+        };
+        assert_eq!(value.lexical_value, "true");
+
+        let source = "some $x in 1 satisfies (1, 2)";
+        let diagnostics = evaluate_for_test(source, None, BTreeMap::new())
+            .expect_err("quantified satisfies expressions require a defined EBV");
+        let satisfies_start = source.find("(1, 2)").expect("satisfies expression");
+        assert_eq!(
+            diagnostics[0].code,
+            "cem.xpath.effective_boolean_value_type_error"
+        );
+        assert_eq!(diagnostics[0].byte_offset, Some(satisfies_start as u64));
+        assert_eq!(
+            diagnostics[0]
+                .source_map
+                .as_ref()
+                .expect("quantified EBV diagnostic source map")
+                .frames[0]
+                .span,
+            FrameSpan::Single(ByteRange::new(
+                satisfies_start as u64,
+                "(1, 2)".len() as u32,
+            ))
+        );
+
+        let source = "some $x in (1, 2) satisfies $x = 3 or $missing";
+        let diagnostics = evaluate_for_test(source, None, BTreeMap::new())
+            .expect_err("a required quantified candidate must be evaluated");
+        let missing_start = source.find("missing").expect("missing variable name");
+        assert_eq!(diagnostics[0].code, "cem.xpath.variable_unbound");
+        assert_eq!(diagnostics[0].byte_offset, Some(missing_start as u64));
+        assert_eq!(
+            diagnostics[0]
+                .source_map
+                .as_ref()
+                .expect("quantified candidate diagnostic source map")
+                .frames[0]
+                .span,
+            FrameSpan::Single(ByteRange::new(missing_start as u64, 7))
+        );
+
+        let within_budget = evaluate_for_test_with_limit(
+            "some $x in (1, 2), $y in if ($x = 1) then 1 else (1, 2, 3) satisfies $y = 1",
+            None,
+            BTreeMap::new(),
+            Some(2),
+        )
+        .expect("short-circuited quantified tuples do not consume item budgets");
+        let [XPathResultItem::Atomic { value, .. }] = within_budget.sequence.items.as_slice()
+        else {
+            panic!("quantified budget result was not one atomic item: {within_budget:?}");
+        };
+        assert_eq!(value.lexical_value, "true");
+
+        let diagnostics = evaluate_for_test_with_limit(
+            "some $x in 2, $y in (1, 2, 3) satisfies $y = 1",
+            None,
+            BTreeMap::new(),
+            Some(2),
+        )
+        .expect_err("an evaluated quantified binding enforces the item budget");
+        assert_eq!(
+            diagnostics[0].code,
+            "cem.xpath.sequence_item_limit_exceeded"
+        );
+    }
+
+    #[test]
     fn xpath_native_evaluator_rejects_unsupported_semantics_without_projection() {
-        let expression = parse("some $x in (1, 2) satisfies $x = 2");
+        let expression = parse("switch (1) case 1 return 'one' default return 'other'");
         let resolver_registry = ResolverRegistry::new();
         let resolver_policy = ResolverPolicy::new();
         let diagnostics = CemXPathEvaluator::default()
@@ -10226,10 +10515,10 @@ mod tests {
                 evaluation_limits: XPathEvaluationLimits::default(),
                 safety_policy_stamp: "xpath-safety/1;pure",
             })
-            .expect_err("quantified expressions remain outside the native evaluator slice");
+            .expect_err("XQuery switch expressions remain outside the XPath evaluator contract");
         assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
         assert_eq!(diagnostics[0].code, "cem.xpath.evaluation_unsupported");
-        assert!(diagnostics[0].message.contains("quantified-expression"));
+        assert!(diagnostics[0].message.contains("switch-expression"));
 
         let source = include_str!("xpath.rs");
         let evaluator = source

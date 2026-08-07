@@ -175,11 +175,18 @@ sequence for the condition and typed nodes for both branches. Evaluation applies
 the native effective-boolean-value rules once, evaluates exactly one branch with
 the unchanged focus and bindings, and preserves its native owners, item source
 maps, exact diagnostics, and sequence-item budget behavior; unselected work is
-not evaluated. Quantified and other control-flow forms remain incomplete. Other
-atomic families, functions, constructors, dynamic function calls, and lookups
-fail with a stable schema-owned diagnostic. The evaluator does not read
-expression source text, project through CEMT or JSON, reparse XML, or construct a
-replacement tree.
+not evaluated. Typed `some` and `every` expressions lower comma-separated
+bindings into nested same-quantifier nodes with dependent lexical scope and
+exact outer and binding-suffix ranges. Evaluation binds each item as a retained
+singleton, applies native effective-boolean-value rules to required `satisfies`
+tuples, short-circuits decisive results, and preserves vacuous empty-binding
+truth, outer focus, shadowing, native owners, exact diagnostics, and
+evaluated-work sequence-item budgets. The XPath 3.1 control-flow expression
+slice is otherwise executable; XQuery-only switch and typeswitch inputs remain
+explicit fail-closed exclusions. Other atomic families, functions,
+constructors, dynamic function calls, and lookups fail with a stable
+schema-owned diagnostic. The evaluator does not read expression source text,
+project through CEMT or JSON, reparse XML, or construct a replacement tree.
 
 The standalone executable adapter is registered for XPath template identities.
 It compiles template source once at the lifecycle/compile boundary, evaluates a

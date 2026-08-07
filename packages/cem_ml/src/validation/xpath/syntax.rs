@@ -56,9 +56,21 @@ pub enum XPathExpression {
         then_expression: Box<XPathExpressionNode>,
         else_expression: Box<XPathExpressionNode>,
     },
+    Quantified {
+        quantifier: XPathQuantifier,
+        binding: XPathName,
+        binding_expression: Box<XPathExpressionNode>,
+        satisfies_expression: Box<XPathExpressionNode>,
+    },
     Unsupported {
         production: String,
     },
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum XPathQuantifier {
+    Some,
+    Every,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -269,6 +281,7 @@ pub enum XPathSyntaxNodeKind {
     ForExpression,
     LetExpression,
     IfExpression,
+    QuantifiedExpression,
     UnsupportedExpression,
     AxisStep,
     PrimaryStep,
@@ -297,6 +310,7 @@ impl XPathSyntaxNodeKind {
             Self::ForExpression => "for-expression",
             Self::LetExpression => "let-expression",
             Self::IfExpression => "if-expression",
+            Self::QuantifiedExpression => "quantified-expression",
             Self::UnsupportedExpression => "unsupported-expression",
             Self::AxisStep => "axis-step",
             Self::PrimaryStep => "primary-step",
@@ -375,6 +389,7 @@ impl XPathExpressionNode {
             XPathExpression::For { .. } => XPathSyntaxNodeKind::ForExpression,
             XPathExpression::Let { .. } => XPathSyntaxNodeKind::LetExpression,
             XPathExpression::If { .. } => XPathSyntaxNodeKind::IfExpression,
+            XPathExpression::Quantified { .. } => XPathSyntaxNodeKind::QuantifiedExpression,
             XPathExpression::Unsupported { .. } => XPathSyntaxNodeKind::UnsupportedExpression,
         };
         emit_node(
@@ -416,6 +431,21 @@ impl XPathExpressionNode {
                     condition.emit_events(depth, events);
                     then_expression.emit_events(depth, events);
                     else_expression.emit_events(depth, events);
+                }
+                XPathExpression::Quantified {
+                    binding,
+                    binding_expression,
+                    satisfies_expression,
+                    ..
+                } => {
+                    emit_leaf(
+                        XPathSyntaxNodeKind::VariableReference,
+                        binding.source_range,
+                        depth,
+                        events,
+                    );
+                    binding_expression.emit_events(depth, events);
+                    satisfies_expression.emit_events(depth, events);
                 }
                 XPathExpression::Unsupported { .. } => {}
             },
