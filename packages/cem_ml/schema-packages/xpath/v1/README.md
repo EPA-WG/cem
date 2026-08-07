@@ -150,12 +150,18 @@ for nodes in the same owner. Empty operands propagate the empty sequence,
 operand failures retain operand ranges, and node-shaped values without their
 native handles are rejected rather than reconstructed. Cross-owner node
 ordering remains explicitly unsupported until the host defines a stable
-multi-document order. The optional, deprecated namespace axis remains an
-explicit host-language omission. Unsupported arithmetic, range, and set
-operators, other atomic families, functions, constructors, dynamic function
-calls, and lookups fail with a stable schema-owned diagnostic. The evaluator
-does not read expression source text, project through CEMT or JSON, reparse XML,
-or construct a replacement tree.
+multi-document order. The `union`/`|`, `intersect`, and `except` operators
+likewise consume retained node sequences directly, reject non-node or detached
+operands, perform membership and duplicate elimination by exact native node
+identity, and return same-owner results in document order with each node's
+original source map. A set result that would span owners is rejected until that
+same stable multi-document order exists; cross-owner intersection or difference
+still succeeds when its result is empty or belongs to one owner. The optional,
+deprecated namespace axis remains an explicit host-language omission.
+Unsupported arithmetic and range operators, other atomic families, functions,
+constructors, dynamic function calls, and lookups fail with a stable
+schema-owned diagnostic. The evaluator does not read expression source text,
+project through CEMT or JSON, reparse XML, or construct a replacement tree.
 
 The standalone executable adapter is registered for XPath template identities.
 It compiles template source once at the lifecycle/compile boundary, evaluates a

@@ -1769,6 +1769,43 @@ fn xpath_evaluate_expression_node(
             operator,
             left,
             right,
+        } if xpath_set_operator(*operator).is_some() => {
+            let left_items =
+                xpath_evaluate_expression_node(expression, left, focus, variable_bindings)?;
+            xpath_validate_set_operand(&left_items, left.source_range)?;
+            let right_items =
+                xpath_evaluate_expression_node(expression, right, focus, variable_bindings)?;
+            xpath_validate_set_operand(&right_items, right.source_range)?;
+            let set_operator = xpath_set_operator(*operator)
+                .expect("set-operator guard resolves native set semantics");
+            let items = match set_operator {
+                XPathSetOperator::Union => left_items
+                    .into_iter()
+                    .chain(right_items)
+                    .collect::<Vec<_>>(),
+                XPathSetOperator::Intersect => left_items
+                    .into_iter()
+                    .filter(|left_item| {
+                        right_items.iter().any(|right_item| {
+                            xpath_result_nodes_are_identical(left_item, right_item)
+                        })
+                    })
+                    .collect(),
+                XPathSetOperator::Except => left_items
+                    .into_iter()
+                    .filter(|left_item| {
+                        !right_items.iter().any(|right_item| {
+                            xpath_result_nodes_are_identical(left_item, right_item)
+                        })
+                    })
+                    .collect(),
+            };
+            xpath_normalize_set_results(items, node.source_range)
+        }
+        XPathExpression::Binary {
+            operator,
+            left,
+            right,
         } if xpath_node_comparison_operator(*operator).is_some() => {
             let left_items =
                 xpath_evaluate_expression_node(expression, left, focus, variable_bindings)?;
@@ -2378,6 +2415,59 @@ enum XPathNodeComparison {
     Is,
     Precedes,
     Follows,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum XPathSetOperator {
+    Union,
+    Intersect,
+    Except,
+}
+
+fn xpath_set_operator(operator: XPathBinaryOperator) -> Option<XPathSetOperator> {
+    match operator {
+        XPathBinaryOperator::Union => Some(XPathSetOperator::Union),
+        XPathBinaryOperator::Intersect => Some(XPathSetOperator::Intersect),
+        XPathBinaryOperator::Except => Some(XPathSetOperator::Except),
+        _ => None,
+    }
+}
+
+fn xpath_validate_set_operand(
+    items: &[XPathResultItem],
+    source_range: XPathSourceRange,
+) -> Result<(), XPathEvaluationError> {
+    for item in items {
+        match item {
+            XPathResultItem::Node {
+                native_node: Some(_),
+                ..
+            } => {}
+            XPathResultItem::Node {
+                native_node: None, ..
+            } => {
+                return Err(XPathEvaluationError::dynamic(
+                    "cem.xpath.native_node_missing",
+                    "XPath set operators require retained native node handles",
+                    source_range,
+                ));
+            }
+            _ => {
+                return Err(XPathEvaluationError::dynamic(
+                    "cem.xpath.set_operator_operand",
+                    "XPath set operator operands must contain only nodes",
+                    source_range,
+                ));
+            }
+        }
+    }
+    Ok(())
+}
+
+fn xpath_result_nodes_are_identical(left: &XPathResultItem, right: &XPathResultItem) -> bool {
+    left.native_node()
+        .zip(right.native_node())
+        .is_some_and(|(left, right)| left == right)
 }
 
 fn xpath_node_comparison_operator(operator: XPathBinaryOperator) -> Option<XPathNodeComparison> {
@@ -3060,6 +3150,31 @@ fn xpath_normalize_node_results(
             .is_some_and(|(right, left)| right == left)
     });
     Ok(items)
+}
+
+fn xpath_normalize_set_results(
+    items: Vec<XPathResultItem>,
+    source_range: XPathSourceRange,
+) -> Result<Vec<XPathResultItem>, XPathEvaluationError> {
+    let mut owner: Option<&Arc<LoadedInputAstStream>> = None;
+    for item in &items {
+        let node = item.native_node().ok_or_else(|| {
+            XPathEvaluationError::dynamic(
+                "cem.xpath.native_node_missing",
+                "XPath set result ordering requires retained native node handles",
+                source_range,
+            )
+        })?;
+        if owner.is_some_and(|owner| !Arc::ptr_eq(owner, node.owner())) {
+            return Err(XPathEvaluationError::dynamic(
+                "cem.xpath.node_order_cross_owner_unsupported",
+                "XPath set results spanning distinct AST owners require a stable host document-order policy",
+                source_range,
+            ));
+        }
+        owner = Some(node.owner());
+    }
+    xpath_normalize_node_results(items, source_range)
 }
 
 fn xpath_result_sequence_type(items: &[XPathResultItem]) -> String {
@@ -6493,6 +6608,190 @@ mod tests {
             .expect_err("node comparison requires retained native node handles");
         assert_eq!(diagnostics[0].code, "cem.xpath.native_node_missing");
         assert_eq!(diagnostics[0].byte_offset, Some(0));
+    }
+
+    #[test]
+    fn xpath_native_evaluator_combines_retained_node_sequences_with_set_operators() {
+        use crate::lifecycle::LoadedInputAstStream;
+        use crate::validation::xml::{
+            xml_document_ast_from_source_bytes, XmlSourceValidationRequest,
+        };
+        use std::sync::Arc;
+
+        let native_document = |source_uri: &'static str| {
+            let (document, diagnostics) =
+                xml_document_ast_from_source_bytes(XmlSourceValidationRequest {
+                    bytes: br#"<root id="r"><a id="1"/><b/><a id="2"/></root>"#,
+                    source_uri,
+                    content_type: Some("application/xml"),
+                });
+            assert!(diagnostics.is_empty(), "{diagnostics:?}");
+            let owner = Arc::new(LoadedInputAstStream::XmlDocument(
+                document.expect("typed XML document"),
+            ));
+            XPathNativeNode::xml_document(owner).expect("native XML document node")
+        };
+        let context_node = native_document("memory://set-operator-context.xml");
+        let context_item = || XPathResultItem::from_native_node(context_node.clone());
+
+        let assert_nodes =
+            |source: &str, variable_bindings: XPathVariableBindings, expected_names: &[&str]| {
+                let result = evaluate_for_test(source, Some(context_item()), variable_bindings)
+                    .unwrap_or_else(|diagnostics| panic!("`{source}` failed: {diagnostics:?}"));
+                let names = result
+                    .sequence
+                    .items
+                    .iter()
+                    .map(|item| match item {
+                        XPathResultItem::Node {
+                            expanded_name,
+                            source_map,
+                            native_node: Some(_),
+                            ..
+                        } => {
+                            assert!(!source_map.frames.is_empty(), "`{source}`");
+                            assert_eq!(source_map.frames[0].source_id, SourceId(1), "`{source}`");
+                            expanded_name.as_deref().expect("named test node")
+                        }
+                        _ => panic!("`{source}` returned a non-native node item: {item:?}"),
+                    })
+                    .collect::<Vec<_>>();
+                assert_eq!(names, expected_names, "`{source}`");
+                assert_eq!(
+                    result.sequence.sequence_type,
+                    if expected_names.len() == 1 {
+                        "node()"
+                    } else if expected_names.is_empty() {
+                        "empty-sequence()"
+                    } else {
+                        "node()*"
+                    },
+                    "`{source}`"
+                );
+                let order = result
+                    .sequence
+                    .items
+                    .iter()
+                    .map(|item| {
+                        item.native_node()
+                            .expect("set results retain native nodes")
+                            .document_order_key()
+                    })
+                    .collect::<Vec<_>>();
+                assert!(order.windows(2).all(|pair| pair[0] < pair[1]), "`{source}`");
+            };
+
+        for (source, expected_names) in [
+            ("/root/b | /root/a", &["a", "b", "a"][..]),
+            ("/root/b union /root/a", &["a", "b", "a"][..]),
+            ("/root/a union /root/a[1]", &["a", "a"][..]),
+            ("/root/* intersect /root/a", &["a", "a"][..]),
+            ("/root/* except /root/a", &["b"][..]),
+            ("/root/@id | /root/*", &["id", "a", "b", "a"][..]),
+            ("/root/a | /root/b intersect /root/a", &["a", "a"][..]),
+            ("/root/missing | /root/b", &["b"][..]),
+            ("/root/* intersect /root/missing", &[][..]),
+            ("/root/missing except /root/*", &[][..]),
+        ] {
+            assert_nodes(source, BTreeMap::new(), expected_names);
+        }
+
+        let root = context_node
+            .child_nodes()
+            .into_iter()
+            .next()
+            .expect("context document element");
+        let children = root.child_nodes();
+        let mixed_bindings = BTreeMap::from([(
+            XPathExpandedName::unqualified("mixed"),
+            XPathResultSequence {
+                sequence_type: "node()*".to_owned(),
+                items: vec![
+                    XPathResultItem::from_native_node(children[2].clone()),
+                    XPathResultItem::from_native_node(children[0].clone()),
+                    XPathResultItem::from_native_node(children[2].clone()),
+                ],
+            },
+        )]);
+        assert_nodes("$mixed union ()", mixed_bindings, &["a", "a"]);
+
+        for (source, expected_offset, expected_length) in [
+            ("1 union /root/a", 0, 1),
+            ("/root/a intersect (1, 2)", 18, 6),
+            ("/root/a except 'value'", 15, 7),
+        ] {
+            let diagnostics = evaluate_for_test(source, Some(context_item()), BTreeMap::new())
+                .expect_err("set operators require node-only operands");
+            assert_eq!(diagnostics[0].code, "cem.xpath.set_operator_operand");
+            assert_eq!(
+                diagnostics[0].byte_offset,
+                Some(expected_offset),
+                "`{source}`"
+            );
+            let source_map = diagnostics[0]
+                .source_map
+                .as_ref()
+                .expect("set operand diagnostic source map");
+            assert_eq!(
+                source_map.frames[0].span,
+                FrameSpan::Single(ByteRange::new(expected_offset, expected_length)),
+                "`{source}`"
+            );
+        }
+
+        let mut detached_node = XPathResultItem::from_native_node(children[0].clone());
+        let XPathResultItem::Node { native_node, .. } = &mut detached_node else {
+            unreachable!("native nodes create XPath node result items")
+        };
+        *native_node = None;
+        let detached_bindings = BTreeMap::from([(
+            XPathExpandedName::unqualified("detached"),
+            XPathResultSequence {
+                sequence_type: "node()".to_owned(),
+                items: vec![detached_node],
+            },
+        )]);
+        let diagnostics = evaluate_for_test(
+            "$detached union /root/a",
+            Some(context_item()),
+            detached_bindings,
+        )
+        .expect_err("set operators require retained native node handles");
+        assert_eq!(diagnostics[0].code, "cem.xpath.native_node_missing");
+        assert_eq!(diagnostics[0].byte_offset, Some(0));
+
+        let foreign_document = native_document("memory://set-operator-foreign.xml");
+        let foreign_root = foreign_document
+            .child_nodes()
+            .into_iter()
+            .next()
+            .expect("foreign document element");
+        let foreign_bindings = BTreeMap::from([(
+            XPathExpandedName::unqualified("foreign"),
+            XPathResultSequence {
+                sequence_type: "node()".to_owned(),
+                items: vec![XPathResultItem::from_native_node(foreign_root)],
+            },
+        )]);
+        let diagnostics = evaluate_for_test(
+            "/root/a | $foreign",
+            Some(context_item()),
+            foreign_bindings.clone(),
+        )
+        .expect_err("a multi-owner union requires stable host document order");
+        assert_eq!(
+            diagnostics[0].code,
+            "cem.xpath.node_order_cross_owner_unsupported"
+        );
+        assert_eq!(diagnostics[0].byte_offset, Some(0));
+
+        assert_nodes("/root/a intersect $foreign", foreign_bindings.clone(), &[]);
+        assert_nodes(
+            "/root/a except $foreign",
+            foreign_bindings.clone(),
+            &["a", "a"],
+        );
+        assert_nodes("/root/missing union $foreign", foreign_bindings, &["root"]);
     }
 
     #[test]

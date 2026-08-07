@@ -63,6 +63,11 @@ mediate between internal layers.
           enforce optional-singleton node operands with exact operand source
           maps, preserve empty-sequence propagation, and reject cross-owner
           ordering until the host defines a stable multi-document order.
+    - [x] Execute XPath `union`/`|`, `intersect`, and `except` directly on
+          retained native node sequences: enforce node-only operands, preserve
+          identity deduplication and same-owner document order, retain native
+          source maps, and reject only results that need undefined cross-owner
+          ordering rather than introducing a serializer or synthetic tree.
   - [ ] Wire the native evaluator through the `transform` command and expose
         explicit CEM-QL, CEMT, and XSLT invocation adapters without reparsing
         source text, constructing an evaluator-owned replacement XML tree, or
