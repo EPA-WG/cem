@@ -79,6 +79,13 @@ mediate between internal layers.
           integer/decimal values, XPath numeric promotion, IEEE float/double
           behavior, and exact source maps; and keep division and range budget
           policy as explicit follow-up work without a serializer or DTO.
+    - [x] Establish the typed XPath sequence-item budget and native range
+          operator: promote inherited `xpathItems` scope budgets into evaluator
+          limits with no hidden default; require an explicit limit for `to`;
+          apply function conversion to `xs:integer?`; materialize exact,
+          inclusive integer sequences only within the limit; preserve source
+          maps and deterministic diagnostics; and thread the limit through
+          standalone and host invocation paths without serialization or a DTO.
   - [ ] Wire the native evaluator through the `transform` command and expose
         explicit CEM-QL, CEMT, and XSLT invocation adapters without reparsing
         source text, constructing an evaluator-owned replacement XML tree, or

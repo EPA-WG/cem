@@ -126,6 +126,16 @@ impl ScopeConfig {
             || identity.base_uri.is_some())
         .then_some(identity)
     }
+
+    pub fn xpath_items_budget(&self) -> Result<Option<u64>, String> {
+        let mut budget = None;
+        for (field, value) in &self.budgets {
+            if normalize_key(field) == "xpathitems" {
+                budget = Some(parse_u64_budget_value(field, value)?);
+            }
+        }
+        Ok(budget)
+    }
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
@@ -491,6 +501,8 @@ pub struct NormalizedBudgets {
     pub plugin_ms: Option<u64>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub memory_bytes: Option<u64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub xpath_items: Option<u64>,
     #[serde(default)]
     pub unknown: Vec<NormalizedBudgetEntry>,
     #[serde(default)]
@@ -1106,6 +1118,14 @@ fn normalized_policy_and_budgets(
                 }
                 Err(message) => diagnostics.push(budget_invalid_diagnostic(
                     message, base_uri, &field_path,
+                )),
+            },
+            "xpathitems" => match parse_u64_budget_value(field, value) {
+                Ok(value) => budgets.xpath_items = Some(value),
+                Err(message) => diagnostics.push(budget_invalid_diagnostic(
+                    message,
+                    base_uri,
+                    &field_path,
                 )),
             },
             "pluginms" | "plugintimebudgetms" => match parse_u64_budget_value(field, value) {
@@ -3580,6 +3600,7 @@ mod tests {
                                 "ioStreams": "4",
                                 "memoryBytes": "1024",
                                 "pluginMs": "20",
+                                "xpathItems": "8",
                                 "overflow": "spill-to-parent",
                                 "parseMs": "5",
                                 "validateTimeBudgetMs": "7",
@@ -3606,6 +3627,7 @@ mod tests {
         assert_eq!(scope.budgets.validate_ms, Some(7));
         assert_eq!(scope.budgets.memory_bytes, Some(1024));
         assert_eq!(scope.budgets.plugin_ms, Some(20));
+        assert_eq!(scope.budgets.xpath_items, Some(8));
         assert_eq!(scope.budgets.unknown.len(), 1);
         assert!(has_field_path(
             &plan.diagnostics,
@@ -3633,6 +3655,7 @@ mod tests {
                             "moduleMap": "",
                             "budgets": {
                                 "parseMs": "not-a-number",
+                                "xpathItems": "not-a-number",
                                 "overflow": "explode"
                             }
                         }
@@ -3657,6 +3680,7 @@ mod tests {
         assert!(paths.contains(&"inputs[0].rootScope.namespaces.1bad".to_owned()));
         assert!(paths.contains(&"inputs[0].rootScope.versionPins.core".to_owned()));
         assert!(paths.contains(&"inputs[0].rootScope.budgets.parseMs".to_owned()));
+        assert!(paths.contains(&"inputs[0].rootScope.budgets.xpathItems".to_owned()));
         assert!(paths.contains(&"inputs[0].rootScope.budgets.overflow".to_owned()));
         assert!(paths.contains(&"resolvers[0].uriPrefix".to_owned()));
         assert!(paths.contains(&"resolvers[0].localRoot".to_owned()));

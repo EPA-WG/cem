@@ -48,11 +48,11 @@ use crate::transform_artifact::{
 use crate::validation::json::JsonValueAst;
 use crate::validation::xpath::{
     xpath_expression_ast_from_source_bytes, CemtXPathInvocationAdapter, XPathAttachment,
-    XPathDynamicContext, XPathEvaluationPhase, XPathEvaluationRequest, XPathExpandedName,
-    XPathExpectedResult, XPathExpressionAst, XPathHostAttachment, XPathHostNodeKind,
-    XPathHostOwner, XPathInvocationAdapter, XPathInvocationHost, XPathResultArtifact,
-    XPathResultItem, XPathResultSequence, XPathSchemaContractCatalog, XPathSourceRange,
-    XPathSourceRequest, XPathStaticContext, XPathVariableBindings,
+    XPathDynamicContext, XPathEvaluationLimits, XPathEvaluationPhase, XPathEvaluationRequest,
+    XPathExpandedName, XPathExpectedResult, XPathExpressionAst, XPathHostAttachment,
+    XPathHostNodeKind, XPathHostOwner, XPathInvocationAdapter, XPathInvocationHost,
+    XPathResultArtifact, XPathResultItem, XPathResultSequence, XPathSchemaContractCatalog,
+    XPathSourceRange, XPathSourceRequest, XPathStaticContext, XPathVariableBindings,
 };
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -26029,6 +26029,7 @@ pub fn invoke_transform_template_xpath_function(
     compiled: &TransformTemplateCompiledArtifact,
     function_name: &str,
     host_bindings: &TransformTemplateXPathHostBindings,
+    evaluation_limits: XPathEvaluationLimits,
     runtime: TransformTemplateRuntimeContext<'_>,
 ) -> Result<TransformArtifactBody, Vec<Diagnostic>> {
     let mut candidates = compiled
@@ -26060,13 +26061,14 @@ pub fn invoke_transform_template_xpath_function(
         }]);
     }
 
-    invoke_transform_template_xpath(invocation, host_bindings, runtime)
+    invoke_transform_template_xpath(invocation, host_bindings, evaluation_limits, runtime)
         .map(|result| TransformArtifactBody::XPathResult(Arc::new(result)))
 }
 
 pub fn invoke_transform_template_xpath(
     invocation: &TransformTemplateXPathInvocation,
     host_bindings: &TransformTemplateXPathHostBindings,
+    evaluation_limits: XPathEvaluationLimits,
     runtime: TransformTemplateRuntimeContext<'_>,
 ) -> Result<XPathResultArtifact, Vec<Diagnostic>> {
     let mut diagnostics = Vec::new();
@@ -26113,6 +26115,7 @@ pub fn invoke_transform_template_xpath(
         expected_result: Some(invocation.expected_result.clone()),
         resolver_registry: runtime.resolver_registry,
         resolver_policy: runtime.resolver_policy,
+        evaluation_limits,
         safety_policy_stamp: "xpath-safety/1;cemt-authored-slot",
     })
 }
@@ -33604,12 +33607,16 @@ mod tests {
         let result = invoke_transform_template_xpath(
             invocation,
             &host_bindings,
+            XPathEvaluationLimits {
+                max_sequence_items: Some(1),
+            },
             TransformTemplateRuntimeContext {
                 resolver_registry: &resolver_registry,
                 resolver_policy: &resolver_policy,
             },
         )
         .expect("CEMT invokes the compiled XPath body directly");
+        assert!(result.safety_policy_stamp.contains("xpath-items=1"));
         let [XPathResultItem::Node { native_node, .. }] = result.sequence.items.as_slice() else {
             panic!("expected one native XPath node result: {result:?}");
         };
@@ -33693,6 +33700,7 @@ mod tests {
             &compiled,
             "acme.identity-node",
             &host_bindings,
+            XPathEvaluationLimits::default(),
             TransformTemplateRuntimeContext {
                 resolver_registry: &resolver_registry,
                 resolver_policy: &resolver_policy,
@@ -33731,6 +33739,7 @@ mod tests {
             &compiled,
             "acme.generic-body",
             &TransformTemplateXPathHostBindings::default(),
+            XPathEvaluationLimits::default(),
             TransformTemplateRuntimeContext {
                 resolver_registry: &resolver_registry,
                 resolver_policy: &resolver_policy,
@@ -33812,6 +33821,7 @@ mod tests {
         let diagnostics = invoke_transform_template_xpath(
             invocation,
             &TransformTemplateXPathHostBindings::default(),
+            XPathEvaluationLimits::default(),
             TransformTemplateRuntimeContext {
                 resolver_registry: &resolver_registry,
                 resolver_policy: &resolver_policy,

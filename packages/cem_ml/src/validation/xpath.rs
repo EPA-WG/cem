@@ -1277,6 +1277,43 @@ pub struct XPathDynamicContext {
     pub variable_bindings: XPathVariableBindings,
 }
 
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct XPathEvaluationLimits {
+    pub max_sequence_items: Option<u64>,
+}
+
+impl XPathEvaluationLimits {
+    fn enforce_sequence_items(
+        self,
+        item_count: usize,
+        source_range: XPathSourceRange,
+    ) -> Result<(), XPathEvaluationError> {
+        let item_count = u64::try_from(item_count).expect("usize item count fits u64");
+        if self
+            .max_sequence_items
+            .is_some_and(|max_items| item_count > max_items)
+        {
+            return Err(XPathEvaluationError::dynamic(
+                "cem.xpath.sequence_item_limit_exceeded",
+                format!(
+                    "XPath sequence materialized {item_count} items, exceeding the configured xpathItems limit of {}",
+                    self.max_sequence_items
+                        .expect("item limit guard requires a configured limit")
+                ),
+                source_range,
+            ));
+        }
+        Ok(())
+    }
+
+    fn stamp(self, safety_policy_stamp: &str) -> String {
+        self.max_sequence_items.map_or_else(
+            || safety_policy_stamp.to_owned(),
+            |max_items| format!("{safety_policy_stamp};xpath-items={max_items}"),
+        )
+    }
+}
+
 pub struct XPathEvaluationRequest<'a> {
     pub invocation_host: XPathInvocationHost,
     pub expression: &'a XPathExpressionAst,
@@ -1285,6 +1322,7 @@ pub struct XPathEvaluationRequest<'a> {
     pub expected_result: Option<XPathExpectedResult>,
     pub resolver_registry: &'a ResolverRegistry,
     pub resolver_policy: &'a ResolverPolicy,
+    pub evaluation_limits: XPathEvaluationLimits,
     pub safety_policy_stamp: &'a str,
 }
 
@@ -1332,6 +1370,7 @@ impl XPathEvaluatorAdapter for CemXPathEvaluator {
             &syntax.root,
             XPathFocus::outer(request.dynamic_context.context_item.as_ref()),
             &request.dynamic_context.variable_bindings,
+            request.evaluation_limits,
         )
         .map_err(|error| vec![error.into_diagnostic(request.expression)])?;
         let artifact = XPathResultArtifact {
@@ -1347,7 +1386,7 @@ impl XPathEvaluatorAdapter for CemXPathEvaluator {
             expression_uri: request.expression.source.uri.clone(),
             static_context: request.static_context,
             resolver_policy_stamp: request.resolver_policy.cache_stamp(),
-            safety_policy_stamp: request.safety_policy_stamp.to_owned(),
+            safety_policy_stamp: request.evaluation_limits.stamp(request.safety_policy_stamp),
             expected_result: request.expected_result,
             sequence,
             source_map: syntax.root.source_range.source_map(
@@ -1527,6 +1566,18 @@ impl TransformTemplateAdapter for XPathTransformTemplateAdapter {
             request.execution_policy.runtime_phase,
             request.target_scope.policy.as_deref().unwrap_or("default")
         );
+        let evaluation_limits = XPathEvaluationLimits {
+            max_sequence_items: request
+                .target_scope
+                .xpath_items_budget()
+                .map_err(|message| {
+                    TransformTemplateAdapterError::failed(
+                        self.id(),
+                        TransformTemplateAdapterExecutionPhase::Render,
+                        message,
+                    )
+                })?,
+        };
         let result = CemXPathEvaluator::default()
             .evaluate(XPathEvaluationRequest {
                 invocation_host: XPathInvocationHost::StandaloneTransform,
@@ -1539,6 +1590,7 @@ impl TransformTemplateAdapter for XPathTransformTemplateAdapter {
                 expected_result: None,
                 resolver_registry: runtime.resolver_registry,
                 resolver_policy: runtime.resolver_policy,
+                evaluation_limits,
                 safety_policy_stamp: &safety_policy_stamp,
             })
             .map_err(|diagnostics| {
@@ -1709,6 +1761,7 @@ fn xpath_evaluate_expression_sequence(
     sequence: &XPathExpressionSequence,
     focus: XPathFocus<'_>,
     variable_bindings: &XPathVariableBindings,
+    evaluation_limits: XPathEvaluationLimits,
 ) -> Result<XPathResultSequence, XPathEvaluationError> {
     debug_assert!(focus.position <= focus.size);
     debug_assert_eq!(focus.context_item.is_some(), focus.size > 0);
@@ -1719,7 +1772,9 @@ fn xpath_evaluate_expression_sequence(
             node,
             focus,
             variable_bindings,
+            evaluation_limits,
         )?);
+        evaluation_limits.enforce_sequence_items(items.len(), sequence.source_range)?;
     }
     Ok(XPathResultSequence {
         sequence_type: xpath_result_sequence_type(&items),
@@ -1732,14 +1787,24 @@ fn xpath_evaluate_expression_node(
     node: &XPathExpressionNode,
     focus: XPathFocus<'_>,
     variable_bindings: &XPathVariableBindings,
+    evaluation_limits: XPathEvaluationLimits,
 ) -> Result<Vec<XPathResultItem>, XPathEvaluationError> {
-    match &node.expression {
-        XPathExpression::Path(path) => {
-            xpath_evaluate_path(expression, path, focus, variable_bindings)
-        }
+    let items = match &node.expression {
+        XPathExpression::Path(path) => xpath_evaluate_path(
+            expression,
+            path,
+            focus,
+            variable_bindings,
+            evaluation_limits,
+        ),
         XPathExpression::Unary { operator, operand } => {
-            let operand_items =
-                xpath_evaluate_expression_node(expression, operand, focus, variable_bindings)?;
+            let operand_items = xpath_evaluate_expression_node(
+                expression,
+                operand,
+                focus,
+                variable_bindings,
+                evaluation_limits,
+            )?;
             let Some(value) = xpath_arithmetic_operand(&operand_items, operand.source_range)?
             else {
                 return Ok(Vec::new());
@@ -1759,8 +1824,13 @@ fn xpath_evaluate_expression_node(
             left,
             right,
         } if matches!(operator, XPathBinaryOperator::And | XPathBinaryOperator::Or) => {
-            let left_items =
-                xpath_evaluate_expression_node(expression, left, focus, variable_bindings)?;
+            let left_items = xpath_evaluate_expression_node(
+                expression,
+                left,
+                focus,
+                variable_bindings,
+                evaluation_limits,
+            )?;
             let left_value = xpath_effective_boolean_value(&left_items, left.source_range)?;
             let value = match operator {
                 XPathBinaryOperator::And if !left_value => false,
@@ -1771,6 +1841,7 @@ fn xpath_evaluate_expression_node(
                         right,
                         focus,
                         variable_bindings,
+                        evaluation_limits,
                     )?;
                     xpath_effective_boolean_value(&right_items, right.source_range)?
                 }
@@ -1787,11 +1858,21 @@ fn xpath_evaluate_expression_node(
             left,
             right,
         } => {
-            let left_items =
-                xpath_evaluate_expression_node(expression, left, focus, variable_bindings)?;
+            let left_items = xpath_evaluate_expression_node(
+                expression,
+                left,
+                focus,
+                variable_bindings,
+                evaluation_limits,
+            )?;
             let left_value = xpath_string_concat_operand(&left_items, left.source_range)?;
-            let right_items =
-                xpath_evaluate_expression_node(expression, right, focus, variable_bindings)?;
+            let right_items = xpath_evaluate_expression_node(
+                expression,
+                right,
+                focus,
+                variable_bindings,
+                evaluation_limits,
+            )?;
             let right_value = xpath_string_concat_operand(&right_items, right.source_range)?;
             let mut value =
                 String::with_capacity(left_value.len().saturating_add(right_value.len()));
@@ -1807,6 +1888,46 @@ fn xpath_evaluate_expression_node(
             operator,
             left,
             right,
+        } if *operator == XPathBinaryOperator::Range => {
+            let Some(max_sequence_items) = evaluation_limits.max_sequence_items else {
+                return Err(XPathEvaluationError::dynamic(
+                    "cem.xpath.range_budget_required",
+                    "XPath range evaluation requires an explicit xpathItems limit",
+                    node.source_range,
+                ));
+            };
+            let left_items = xpath_evaluate_expression_node(
+                expression,
+                left,
+                focus,
+                variable_bindings,
+                evaluation_limits,
+            )?;
+            let Some(left_value) = xpath_range_operand(&left_items, left.source_range)? else {
+                return Ok(Vec::new());
+            };
+            let right_items = xpath_evaluate_expression_node(
+                expression,
+                right,
+                focus,
+                variable_bindings,
+                evaluation_limits,
+            )?;
+            let Some(right_value) = xpath_range_operand(&right_items, right.source_range)? else {
+                return Ok(Vec::new());
+            };
+            xpath_integer_range(
+                expression,
+                node.source_range,
+                left_value,
+                right_value,
+                max_sequence_items,
+            )
+        }
+        XPathExpression::Binary {
+            operator,
+            left,
+            right,
         } if matches!(
             operator,
             XPathBinaryOperator::Add
@@ -1814,13 +1935,23 @@ fn xpath_evaluate_expression_node(
                 | XPathBinaryOperator::Multiply
         ) =>
         {
-            let left_items =
-                xpath_evaluate_expression_node(expression, left, focus, variable_bindings)?;
+            let left_items = xpath_evaluate_expression_node(
+                expression,
+                left,
+                focus,
+                variable_bindings,
+                evaluation_limits,
+            )?;
             let Some(left_value) = xpath_arithmetic_operand(&left_items, left.source_range)? else {
                 return Ok(Vec::new());
             };
-            let right_items =
-                xpath_evaluate_expression_node(expression, right, focus, variable_bindings)?;
+            let right_items = xpath_evaluate_expression_node(
+                expression,
+                right,
+                focus,
+                variable_bindings,
+                evaluation_limits,
+            )?;
             let Some(right_value) = xpath_arithmetic_operand(&right_items, right.source_range)?
             else {
                 return Ok(Vec::new());
@@ -1843,11 +1974,21 @@ fn xpath_evaluate_expression_node(
             left,
             right,
         } if xpath_set_operator(*operator).is_some() => {
-            let left_items =
-                xpath_evaluate_expression_node(expression, left, focus, variable_bindings)?;
+            let left_items = xpath_evaluate_expression_node(
+                expression,
+                left,
+                focus,
+                variable_bindings,
+                evaluation_limits,
+            )?;
             xpath_validate_set_operand(&left_items, left.source_range)?;
-            let right_items =
-                xpath_evaluate_expression_node(expression, right, focus, variable_bindings)?;
+            let right_items = xpath_evaluate_expression_node(
+                expression,
+                right,
+                focus,
+                variable_bindings,
+                evaluation_limits,
+            )?;
             xpath_validate_set_operand(&right_items, right.source_range)?;
             let set_operator = xpath_set_operator(*operator)
                 .expect("set-operator guard resolves native set semantics");
@@ -1880,10 +2021,20 @@ fn xpath_evaluate_expression_node(
             left,
             right,
         } if xpath_node_comparison_operator(*operator).is_some() => {
-            let left_items =
-                xpath_evaluate_expression_node(expression, left, focus, variable_bindings)?;
-            let right_items =
-                xpath_evaluate_expression_node(expression, right, focus, variable_bindings)?;
+            let left_items = xpath_evaluate_expression_node(
+                expression,
+                left,
+                focus,
+                variable_bindings,
+                evaluation_limits,
+            )?;
+            let right_items = xpath_evaluate_expression_node(
+                expression,
+                right,
+                focus,
+                variable_bindings,
+                evaluation_limits,
+            )?;
             let left_node = xpath_node_comparison_operand(&left_items, left.source_range)?;
             let right_node = xpath_node_comparison_operand(&right_items, right.source_range)?;
             let value = match (left_node, right_node) {
@@ -1906,9 +2057,20 @@ fn xpath_evaluate_expression_node(
             left,
             right,
         } if xpath_comparison_operator(*operator).is_some() => {
-            let left = xpath_evaluate_expression_node(expression, left, focus, variable_bindings)?;
-            let right =
-                xpath_evaluate_expression_node(expression, right, focus, variable_bindings)?;
+            let left = xpath_evaluate_expression_node(
+                expression,
+                left,
+                focus,
+                variable_bindings,
+                evaluation_limits,
+            )?;
+            let right = xpath_evaluate_expression_node(
+                expression,
+                right,
+                focus,
+                variable_bindings,
+                evaluation_limits,
+            )?;
             let (mode, relation) = xpath_comparison_operator(*operator)
                 .expect("comparison operator guard resolves comparison semantics");
             let value = match mode {
@@ -1939,7 +2101,9 @@ fn xpath_evaluate_expression_node(
             format!("XPath production `{production}` is not executable yet"),
             node.source_range,
         )),
-    }
+    }?;
+    evaluation_limits.enforce_sequence_items(items.len(), node.source_range)?;
+    Ok(items)
 }
 
 fn xpath_evaluate_path(
@@ -1947,6 +2111,7 @@ fn xpath_evaluate_path(
     path: &XPathPathExpression,
     focus: XPathFocus<'_>,
     variable_bindings: &XPathVariableBindings,
+    evaluation_limits: XPathEvaluationLimits,
 ) -> Result<Vec<XPathResultItem>, XPathEvaluationError> {
     let mut current = match path.root {
         XPathPathRoot::Relative => Vec::new(),
@@ -1996,6 +2161,7 @@ fn xpath_evaluate_path(
                         predicates,
                         candidates,
                         variable_bindings,
+                        evaluation_limits,
                     )?);
                 }
                 current = xpath_normalize_node_results(combined, step.source_range)?;
@@ -2007,6 +2173,7 @@ fn xpath_evaluate_path(
                         primary,
                         focus,
                         variable_bindings,
+                        evaluation_limits,
                         step.source_range,
                     )?;
                 } else {
@@ -2018,6 +2185,7 @@ fn xpath_evaluate_path(
                             primary,
                             XPathFocus::item(item, position.saturating_add(1), size),
                             variable_bindings,
+                            evaluation_limits,
                             step.source_range,
                         )?);
                     }
@@ -2032,6 +2200,7 @@ fn xpath_evaluate_path(
                         postfixes,
                         focus,
                         variable_bindings,
+                        evaluation_limits,
                         step.source_range,
                     )?;
                 } else {
@@ -2044,6 +2213,7 @@ fn xpath_evaluate_path(
                             postfixes,
                             XPathFocus::item(item, position.saturating_add(1), size),
                             variable_bindings,
+                            evaluation_limits,
                             step.source_range,
                         )?);
                     }
@@ -2061,10 +2231,17 @@ fn xpath_evaluate_postfix(
     postfixes: &[XPathPostfixExpression],
     focus: XPathFocus<'_>,
     variable_bindings: &XPathVariableBindings,
+    evaluation_limits: XPathEvaluationLimits,
     source_range: XPathSourceRange,
 ) -> Result<Vec<XPathResultItem>, XPathEvaluationError> {
-    let mut current =
-        xpath_evaluate_primary(expression, primary, focus, variable_bindings, source_range)?;
+    let mut current = xpath_evaluate_primary(
+        expression,
+        primary,
+        focus,
+        variable_bindings,
+        evaluation_limits,
+        source_range,
+    )?;
     for postfix in postfixes {
         match postfix {
             XPathPostfixExpression::Predicate(predicate) => {
@@ -2073,6 +2250,7 @@ fn xpath_evaluate_postfix(
                     std::slice::from_ref(predicate),
                     current,
                     variable_bindings,
+                    evaluation_limits,
                 )?;
             }
             XPathPostfixExpression::ArgumentList(_) => {
@@ -2097,6 +2275,7 @@ fn xpath_evaluate_primary(
     primary: &XPathPrimaryExpression,
     focus: XPathFocus<'_>,
     variable_bindings: &XPathVariableBindings,
+    evaluation_limits: XPathEvaluationLimits,
     source_range: XPathSourceRange,
 ) -> Result<Vec<XPathResultItem>, XPathEvaluationError> {
     match primary {
@@ -2135,8 +2314,14 @@ fn xpath_evaluate_primary(
             }),
         XPathPrimaryExpression::Parenthesized(None) => Ok(Vec::new()),
         XPathPrimaryExpression::Parenthesized(Some(sequence)) => {
-            xpath_evaluate_expression_sequence(expression, sequence, focus, variable_bindings)
-                .map(|sequence| sequence.items)
+            xpath_evaluate_expression_sequence(
+                expression,
+                sequence,
+                focus,
+                variable_bindings,
+                evaluation_limits,
+            )
+            .map(|sequence| sequence.items)
         }
         XPathPrimaryExpression::ContextItem => focus
             .context_item
@@ -2288,6 +2473,7 @@ fn xpath_apply_predicates(
     predicates: &[XPathExpressionSequence],
     mut input: Vec<XPathResultItem>,
     variable_bindings: &XPathVariableBindings,
+    evaluation_limits: XPathEvaluationLimits,
 ) -> Result<Vec<XPathResultItem>, XPathEvaluationError> {
     for predicate in predicates {
         let size = input.len();
@@ -2299,6 +2485,7 @@ fn xpath_apply_predicates(
                 predicate,
                 predicate_focus,
                 variable_bindings,
+                evaluation_limits,
             )?;
             if xpath_predicate_truth_value(
                 &result.items,
@@ -2783,6 +2970,21 @@ impl XPathExactDecimal {
         Self::parse(&value.to_string(), false).expect("usize has a valid integer representation")
     }
 
+    fn from_u64(value: u64) -> Self {
+        Self::parse(&value.to_string(), false).expect("u64 has a valid integer representation")
+    }
+
+    fn to_u64(&self) -> Option<u64> {
+        if self.negative || self.scale != 0 {
+            return None;
+        }
+        self.coefficient.iter().try_fold(0_u64, |value, digit| {
+            value
+                .checked_mul(10)
+                .and_then(|value| value.checked_add(u64::from(*digit)))
+        })
+    }
+
     fn is_zero(&self) -> bool {
         self.coefficient == [0]
     }
@@ -3155,6 +3357,100 @@ fn xpath_arithmetic_operand(
             source_range,
         )),
     }
+}
+
+fn xpath_range_operand(
+    items: &[XPathResultItem],
+    source_range: XPathSourceRange,
+) -> Result<Option<XPathExactDecimal>, XPathEvaluationError> {
+    let mut values = xpath_atomize_sequence(items, source_range)?;
+    match values.len() {
+        0 => return Ok(None),
+        1 => {}
+        _ => {
+            return Err(XPathEvaluationError::dynamic(
+                "cem.xpath.range_cardinality",
+                "XPath range operands must convert to zero or one xs:integer value",
+                source_range,
+            ));
+        }
+    }
+    match values.pop().expect("singleton range operand") {
+        XPathComparableAtomic::Integer(value) => Ok(Some(value)),
+        XPathComparableAtomic::Untyped(lexical) => XPathExactDecimal::parse(&lexical, false)
+            .map(Some)
+            .ok_or_else(|| {
+                XPathEvaluationError::dynamic(
+                    "cem.xpath.range_cast_invalid",
+                    format!(
+                        "XPath untyped atomic value `{lexical}` cannot be cast to xs:integer for a range"
+                    ),
+                    source_range,
+                )
+            }),
+        value => Err(XPathEvaluationError::dynamic(
+            "cem.xpath.range_type_error",
+            format!(
+                "XPath range operands require xs:integer? function conversion, found `{}`",
+                value.type_name()
+            ),
+            source_range,
+        )),
+    }
+}
+
+fn xpath_integer_range(
+    expression: &XPathExpressionAst,
+    source_range: XPathSourceRange,
+    first: XPathExactDecimal,
+    last: XPathExactDecimal,
+    max_sequence_items: u64,
+) -> Result<Vec<XPathResultItem>, XPathEvaluationError> {
+    if first.compare(&last) == Ordering::Greater {
+        return Ok(Vec::new());
+    }
+
+    let one = XPathExactDecimal::from_u64(1);
+    let item_count = last.subtract(&first).add(&one);
+    let limit = XPathExactDecimal::from_u64(max_sequence_items);
+    if item_count.compare(&limit) == Ordering::Greater {
+        return Err(XPathEvaluationError::dynamic(
+            "cem.xpath.sequence_item_limit_exceeded",
+            format!(
+                "XPath range requires {} items, exceeding the configured xpathItems limit of {max_sequence_items}",
+                item_count.to_lexical()
+            ),
+            source_range,
+        ));
+    }
+    let item_count = item_count
+        .to_u64()
+        .expect("range size no larger than a u64 limit fits u64");
+    let item_count = usize::try_from(item_count).map_err(|_| {
+        XPathEvaluationError::dynamic(
+            "cem.xpath.sequence_capacity_exceeded",
+            "XPath range size exceeds this runtime target's addressable sequence capacity",
+            source_range,
+        )
+    })?;
+    let mut items = Vec::new();
+    items.try_reserve_exact(item_count).map_err(|_| {
+        XPathEvaluationError::dynamic(
+            "cem.xpath.sequence_capacity_exceeded",
+            "XPath range allocation exceeds the available runtime sequence capacity",
+            source_range,
+        )
+    })?;
+    let mut value = first;
+    for _ in 0..item_count {
+        items.push(xpath_numeric_result_item(
+            expression,
+            source_range,
+            XPathComparableAtomic::Integer(value.clone()),
+        ));
+        value = value.add(&one);
+    }
+    Ok(items)
 }
 
 fn xpath_numeric_negate(value: XPathComparableAtomic) -> XPathComparableAtomic {
@@ -3737,6 +4033,13 @@ fn xpath_result_sequence_type(items: &[XPathResultItem]) -> String {
         [XPathResultItem::Map { .. }] => "map(*)".to_owned(),
         [XPathResultItem::Array { .. }] => "array(*)".to_owned(),
         [XPathResultItem::Function { .. }] => "function(*)".to_owned(),
+        [XPathResultItem::Atomic { value: first, .. }, rest @ ..]
+            if rest.iter().all(|item| {
+                matches!(item, XPathResultItem::Atomic { value, .. } if value.type_name == first.type_name)
+            }) =>
+        {
+            format!("{}+", first.type_name)
+        }
         items
             if items
                 .iter()
@@ -5559,6 +5862,15 @@ mod tests {
         context_item: Option<XPathResultItem>,
         variable_bindings: XPathVariableBindings,
     ) -> Result<XPathResultArtifact, Vec<Diagnostic>> {
+        evaluate_for_test_with_limit(source, context_item, variable_bindings, None)
+    }
+
+    fn evaluate_for_test_with_limit(
+        source: &str,
+        context_item: Option<XPathResultItem>,
+        variable_bindings: XPathVariableBindings,
+        max_sequence_items: Option<u64>,
+    ) -> Result<XPathResultArtifact, Vec<Diagnostic>> {
         let expression = parse(source);
         let resolver_registry = ResolverRegistry::new();
         let resolver_policy = ResolverPolicy::new();
@@ -5573,6 +5885,7 @@ mod tests {
             expected_result: None,
             resolver_registry: &resolver_registry,
             resolver_policy: &resolver_policy,
+            evaluation_limits: XPathEvaluationLimits { max_sequence_items },
             safety_policy_stamp: "xpath-safety/1;pure",
         })
     }
@@ -6306,6 +6619,7 @@ mod tests {
             expected_result: None,
             resolver_registry: &resolver_registry,
             resolver_policy: &resolver_policy,
+            evaluation_limits: XPathEvaluationLimits::default(),
             safety_policy_stamp: "xpath-safety/1;pure",
         };
 
@@ -6401,6 +6715,9 @@ mod tests {
                 expected_result: None,
                 resolver_registry: &resolver_registry,
                 resolver_policy: &resolver_policy,
+                evaluation_limits: XPathEvaluationLimits {
+                    max_sequence_items: Some(2),
+                },
                 safety_policy_stamp: "xpath-safety/1;cemt-render",
             })
             .expect("CEMT invokes the native evaluator over typed bindings");
@@ -6413,6 +6730,7 @@ mod tests {
         assert_eq!(value.type_name, "xs:boolean");
         assert_eq!(value.lexical_value, "true");
         assert_eq!(result.invocation_host, XPathInvocationHost::Cemt);
+        assert!(result.safety_policy_stamp.contains("xpath-items=2"));
         assert!(Arc::ptr_eq(
             native_node.as_ref().expect("native result node").owner(),
             &owner
@@ -6439,6 +6757,7 @@ mod tests {
                 expected_result: None,
                 resolver_registry: &resolver_registry,
                 resolver_policy: &resolver_policy,
+                evaluation_limits: XPathEvaluationLimits::default(),
                 safety_policy_stamp: "xpath-safety/1;cemt-render",
             })
             .expect_err("a CEMT adapter only accepts CEMT-owned XPath AST slots");
@@ -6491,6 +6810,7 @@ mod tests {
                 expected_result: None,
                 resolver_registry: &resolver_registry,
                 resolver_policy: &resolver_policy,
+                evaluation_limits: XPathEvaluationLimits::default(),
                 safety_policy_stamp: "xpath-safety/1;cemt-render",
             })
             .expect_err("lexical binding keys do not alias expanded QNames");
@@ -6556,6 +6876,7 @@ mod tests {
                 expected_result: None,
                 resolver_registry: &resolver_registry,
                 resolver_policy: &resolver_policy,
+                evaluation_limits: XPathEvaluationLimits::default(),
                 safety_policy_stamp: "xpath-safety/1;pure",
             })
             .expect("native path evaluation");
@@ -6626,6 +6947,7 @@ mod tests {
                     expected_result: None,
                     resolver_registry: &resolver_registry,
                     resolver_policy: &resolver_policy,
+                    evaluation_limits: XPathEvaluationLimits::default(),
                     safety_policy_stamp: "xpath-safety/1;pure",
                 })
                 .unwrap_or_else(|diagnostics| panic!("`{source}` failed: {diagnostics:?}"));
@@ -6693,6 +7015,7 @@ mod tests {
                     expected_result: None,
                     resolver_registry: &resolver_registry,
                     resolver_policy: &resolver_policy,
+                    evaluation_limits: XPathEvaluationLimits::default(),
                     safety_policy_stamp: "xpath-safety/1;pure",
                 })
                 .unwrap_or_else(|diagnostics| panic!("`{source}` failed: {diagnostics:?}"))
@@ -6792,6 +7115,7 @@ mod tests {
                     expected_result: None,
                     resolver_registry: &resolver_registry,
                     resolver_policy: &resolver_policy,
+                    evaluation_limits: XPathEvaluationLimits::default(),
                     safety_policy_stamp: "xpath-safety/1;pure",
                 })
                 .unwrap_or_else(|diagnostics| panic!("`{xpath_source}` failed: {diagnostics:?}"));
@@ -6876,6 +7200,7 @@ mod tests {
                 expected_result: None,
                 resolver_registry: &resolver_registry,
                 resolver_policy: &resolver_policy,
+                evaluation_limits: XPathEvaluationLimits::default(),
                 safety_policy_stamp: "xpath-safety/1;pure",
             })
             .expect_err("the optional namespace axis remains unsupported");
@@ -6926,6 +7251,7 @@ mod tests {
                 expected_result: None,
                 resolver_registry: &resolver_registry,
                 resolver_policy: &resolver_policy,
+                evaluation_limits: XPathEvaluationLimits::default(),
                 safety_policy_stamp: "xpath-safety/1;pure",
             })
             .expect("native scalar evaluation");
@@ -7809,6 +8135,138 @@ mod tests {
     }
 
     #[test]
+    fn xpath_native_evaluator_materializes_exact_integer_ranges_with_typed_item_limits() {
+        use crate::lifecycle::LoadedInputAstStream;
+        use crate::validation::xml::{
+            xml_document_ast_from_source_bytes, XmlSourceValidationRequest,
+        };
+        use std::sync::Arc;
+
+        let (document, diagnostics) =
+            xml_document_ast_from_source_bytes(XmlSourceValidationRequest {
+                bytes: br#"<root><start>999999999999999999999999</start><end>1000000000000000000000001</end><bad>x</bad></root>"#,
+                source_uri: "memory://range-context.xml",
+                content_type: Some("application/xml"),
+            });
+        assert!(diagnostics.is_empty(), "{diagnostics:?}");
+        let owner = Arc::new(LoadedInputAstStream::XmlDocument(
+            document.expect("typed XML document"),
+        ));
+        let context_node = XPathNativeNode::xml_document(owner).expect("native XML document node");
+        let context_item = || XPathResultItem::from_native_node(context_node.clone());
+
+        for (source, limit, expected) in [
+            ("1 to 3", 3, vec!["1", "2", "3"]),
+            ("1 + 1 to 2 * 2", 3, vec!["2", "3", "4"]),
+            ("(-2) to 1", 4, vec!["-2", "-1", "0", "1"]),
+            ("1 to 1", 1, vec!["1"]),
+            ("3 to 1", 1, Vec::new()),
+            ("() to $missing", 0, Vec::new()),
+            (
+                "/root/start to /root/end",
+                3,
+                vec![
+                    "999999999999999999999999",
+                    "1000000000000000000000000",
+                    "1000000000000000000000001",
+                ],
+            ),
+        ] {
+            let result = evaluate_for_test_with_limit(
+                source,
+                Some(context_item()),
+                BTreeMap::new(),
+                Some(limit),
+            )
+            .unwrap_or_else(|diagnostics| panic!("`{source}` failed: {diagnostics:?}"));
+            let actual = result
+                .sequence
+                .items
+                .iter()
+                .map(|item| match item {
+                    XPathResultItem::Atomic { value, source_map } => {
+                        assert_eq!(value.type_name, "xs:integer", "`{source}`");
+                        assert_eq!(source_map.frames[0].source_id, SourceId(7), "`{source}`");
+                        assert_eq!(
+                            source_map.frames[0].span,
+                            FrameSpan::Single(ByteRange::new(0, source.len() as u32)),
+                            "`{source}`"
+                        );
+                        value.lexical_value.as_str()
+                    }
+                    item => panic!("`{source}` returned non-integer item: {item:?}"),
+                })
+                .collect::<Vec<_>>();
+            assert_eq!(actual, expected, "`{source}`");
+            assert_eq!(
+                result.sequence.sequence_type,
+                if expected.is_empty() {
+                    "empty-sequence()"
+                } else if expected.len() == 1 {
+                    "xs:integer"
+                } else {
+                    "xs:integer+"
+                },
+                "`{source}`"
+            );
+        }
+
+        for (source, limit, expected_code, expected_offset, expected_length) in [
+            ("1 to 3", None, "cem.xpath.range_budget_required", 0, 6),
+            (
+                "1 to 3",
+                Some(2),
+                "cem.xpath.sequence_item_limit_exceeded",
+                0,
+                6,
+            ),
+            ("(1, 2) to 3", Some(3), "cem.xpath.range_cardinality", 0, 6),
+            ("1 to (2, 3)", Some(3), "cem.xpath.range_cardinality", 5, 6),
+            ("1.0 to 3", Some(3), "cem.xpath.range_type_error", 0, 3),
+            ("'1' to 3", Some(3), "cem.xpath.range_type_error", 0, 3),
+            (
+                "/root/bad to 3",
+                Some(3),
+                "cem.xpath.range_cast_invalid",
+                0,
+                9,
+            ),
+        ] {
+            let diagnostics =
+                evaluate_for_test_with_limit(source, Some(context_item()), BTreeMap::new(), limit)
+                    .expect_err("invalid or over-budget range must fail deterministically");
+            assert_eq!(diagnostics[0].code, expected_code, "`{source}`");
+            assert_eq!(
+                diagnostics[0].byte_offset,
+                Some(expected_offset),
+                "`{source}`"
+            );
+            assert_eq!(
+                diagnostics[0]
+                    .source_map
+                    .as_ref()
+                    .expect("range diagnostic source map")
+                    .frames[0]
+                    .span,
+                FrameSpan::Single(ByteRange::new(expected_offset, expected_length)),
+                "`{source}`"
+            );
+        }
+
+        let diagnostics = evaluate_for_test_with_limit(
+            "(1 to 2, 3 to 4)",
+            Some(context_item()),
+            BTreeMap::new(),
+            Some(3),
+        )
+        .expect_err("combined expression sequence must obey the same typed limit");
+        assert_eq!(
+            diagnostics[0].code,
+            "cem.xpath.sequence_item_limit_exceeded"
+        );
+    }
+
+    #[test]
     fn xpath_native_evaluator_applies_typed_promotion_and_untyped_atomization() {
         use crate::lifecycle::LoadedInputAstStream;
         use crate::validation::xml::{
@@ -7949,6 +8407,7 @@ mod tests {
                 expected_result: None,
                 resolver_registry: &resolver_registry,
                 resolver_policy: &resolver_policy,
+                evaluation_limits: XPathEvaluationLimits::default(),
                 safety_policy_stamp: "xpath-safety/1;pure",
             })
             .expect_err("division remains outside the type-preserving arithmetic slice");
@@ -8054,7 +8513,10 @@ mod tests {
             TransformArtifactBody::Lifecycle(Arc::clone(&owner)),
         );
         let secondary_inputs = BTreeMap::new();
-        let target_scope = ScopeConfig::default();
+        let target_scope = ScopeConfig {
+            budgets: BTreeMap::from([("xpathItems".to_owned(), "2".to_owned())]),
+            ..ScopeConfig::default()
+        };
         let target = FormatIdentity {
             content_type: Some(XPATH_RESULT_CONTENT_TYPE.to_owned()),
             schema: Some(XPATH_SCHEMA_URI.to_owned()),
@@ -8087,10 +8549,36 @@ mod tests {
             panic!("XPath transform must return a typed XPath result artifact")
         };
         assert_eq!(result.sequence.items.len(), 2);
+        assert!(result.safety_policy_stamp.contains("xpath-items=2"));
         for item in &result.sequence.items {
             let native_node = item.native_node().expect("native XPath result node");
             assert!(Arc::ptr_eq(native_node.owner(), &owner));
         }
+
+        let constrained_scope = ScopeConfig {
+            budgets: BTreeMap::from([("xpathItems".to_owned(), "1".to_owned())]),
+            ..ScopeConfig::default()
+        };
+        let error = adapter
+            .render_with_runtime(
+                TransformTemplateRenderRequest {
+                    compiled: &compiled.artifact,
+                    primary_input: &primary_input,
+                    secondary_inputs: &secondary_inputs,
+                    target: Some(&target),
+                    target_scope: &constrained_scope,
+                    execution_policy,
+                },
+                TransformTemplateRuntimeContext {
+                    resolver_registry: &resolver_registry,
+                    resolver_policy: &resolver_policy,
+                },
+            )
+            .expect_err("standalone XPath transform must inherit its typed item limit");
+        assert!(
+            format!("{error:?}").contains("cem.xpath.sequence_item_limit_exceeded"),
+            "{error:?}"
+        );
     }
 
     #[test]
