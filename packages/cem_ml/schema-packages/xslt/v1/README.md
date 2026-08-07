@@ -41,9 +41,38 @@ mediates this association.
 
 Schema-owned attribute-value constraints classify values as literals, whole
 XPath expressions, XSLT patterns, or attribute value templates. The current
-bounded selector catalog separates the supported instruction attributes and
-classifies non-XSLT attributes on literal result elements as AVTs. Each such AVT
-is segmented into typed literal, expression, empty-expression, or error nodes.
+selector catalog separates whole expressions and patterns from the complete
+XSLT 3.0 instruction AVT matrix and classifies non-XSLT attributes on literal
+result elements as AVTs. The instruction matrix contains the 59 attributes on
+15 elements whose values are braced in the XSLT 3.0 element syntax summaries:
+
+- `xsl:evaluate`: `base-uri`, `schema-aware`
+- `xsl:element`: `name`, `namespace`
+- `xsl:attribute`: `name`, `namespace`, `separator`
+- `xsl:value-of`: `separator`
+- `xsl:processing-instruction`: `name`
+- `xsl:namespace`: `name`
+- `xsl:number`: `format`, `lang`, `letter-value`, `ordinal`, `start-at`,
+  `grouping-separator`, `grouping-size`
+- `xsl:sort`: `lang`, `order`, `collation`, `stable`, `case-order`, `data-type`
+- `xsl:for-each-group`: `collation`
+- `xsl:merge-key`: `lang`, `order`, `collation`, `case-order`, `data-type`
+- `xsl:analyze-string`: `regex`, `flags`
+- `xsl:source-document`: `href`
+- `xsl:message`: `terminate`, `error-code`
+- `xsl:assert`: `error-code`
+- `xsl:result-document`: `format`, `href`, `method`, `allow-duplicate-names`,
+  `build-tree`, `byte-order-mark`, `cdata-section-elements`, `doctype-public`,
+  `doctype-system`, `encoding`, `escape-uri-attributes`, `html-version`,
+  `include-content-type`, `indent`, `item-separator`,
+  `json-node-output-method`, `media-type`, `normalization-form`,
+  `omit-xml-declaration`, `parameter-document`, `standalone`,
+  `suppress-indentation`, `undeclare-prefixes`, `output-version`
+
+Fixed lexical neighbors such as `xsl:output@method`,
+`xsl:result-document@use-character-maps`, and XSLT control attributes on literal
+result elements remain outside AVT parsing. Each selected AVT is segmented into
+typed literal, expression, empty-expression, or error nodes.
 Literal nodes retain their exact XML lexeme and their effective value after
 doubled-brace expansion. Expression nodes directly own the single
 `XPathExpressionAst` parse plus enclosure and expression-content ranges; a

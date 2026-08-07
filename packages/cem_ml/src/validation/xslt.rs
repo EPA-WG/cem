@@ -2433,6 +2433,225 @@ mod tests {
     }
 
     #[test]
+    fn xslt_30_instruction_avt_matrix_is_complete_contextual_and_directly_owned() {
+        const INSTRUCTION_AVTS: &[(&str, &[&str])] = &[
+            ("evaluate", &["base-uri", "schema-aware"]),
+            ("element", &["name", "namespace"]),
+            ("attribute", &["name", "namespace", "separator"]),
+            ("value-of", &["separator"]),
+            ("processing-instruction", &["name"]),
+            ("namespace", &["name"]),
+            (
+                "number",
+                &[
+                    "format",
+                    "lang",
+                    "letter-value",
+                    "ordinal",
+                    "start-at",
+                    "grouping-separator",
+                    "grouping-size",
+                ],
+            ),
+            (
+                "sort",
+                &[
+                    "lang",
+                    "order",
+                    "collation",
+                    "stable",
+                    "case-order",
+                    "data-type",
+                ],
+            ),
+            ("for-each-group", &["collation"]),
+            (
+                "merge-key",
+                &["lang", "order", "collation", "case-order", "data-type"],
+            ),
+            ("analyze-string", &["regex", "flags"]),
+            ("source-document", &["href"]),
+            ("message", &["terminate", "error-code"]),
+            ("assert", &["error-code"]),
+            (
+                "result-document",
+                &[
+                    "format",
+                    "href",
+                    "method",
+                    "allow-duplicate-names",
+                    "build-tree",
+                    "byte-order-mark",
+                    "cdata-section-elements",
+                    "doctype-public",
+                    "doctype-system",
+                    "encoding",
+                    "escape-uri-attributes",
+                    "html-version",
+                    "include-content-type",
+                    "indent",
+                    "item-separator",
+                    "json-node-output-method",
+                    "media-type",
+                    "normalization-form",
+                    "omit-xml-declaration",
+                    "parameter-document",
+                    "standalone",
+                    "suppress-indentation",
+                    "undeclare-prefixes",
+                    "output-version",
+                ],
+            ),
+        ];
+
+        let expected_selectors = INSTRUCTION_AVTS
+            .iter()
+            .flat_map(|(element, attributes)| {
+                attributes
+                    .iter()
+                    .map(move |attribute| format!("xsl:{element}@{attribute}"))
+            })
+            .collect::<std::collections::BTreeSet<_>>();
+        assert_eq!(expected_selectors.len(), 59);
+
+        let catalog = XsltSchemaContractCatalog::from_builtin();
+        let actual_selectors = catalog
+            .attribute_value_grammar_rules
+            .iter()
+            .filter(|rule| {
+                rule.grammar == XsltAttributeValueGrammar::AttributeValueTemplate
+                    && rule.element_selector.starts_with("xsl:")
+            })
+            .map(|rule| format!("{}@{}", rule.element_selector, rule.attribute_selector))
+            .collect::<std::collections::BTreeSet<_>>();
+        assert_eq!(actual_selectors, expected_selectors);
+
+        let mut source = String::from(
+            r#"<xsl:stylesheet xmlns:xsl="http://www.w3.org/1999/XSL/Transform" xmlns:demo="urn:demo" version="3.0">
+  <xsl:template name="literal-{@id}" match="/">
+"#,
+        );
+        for (element, attributes) in INSTRUCTION_AVTS {
+            source.push_str("    <xsl:");
+            source.push_str(element);
+            for attribute in *attributes {
+                source.push(' ');
+                source.push_str(attribute);
+                source.push_str("=\"pre-{@id}-post\"");
+            }
+            source.push_str("/>\n");
+        }
+        source.push_str(
+            r#"    <xsl:output method="xml" encoding="UTF-8" use-character-maps="demo:map"/>
+    <card xsl:expand-text="yes"/>
+  </xsl:template>
+</xsl:stylesheet>
+"#,
+        );
+
+        let (stylesheet, diagnostics) =
+            xslt_stylesheet_ast_from_source_bytes(XsltSourceValidationRequest {
+                bytes: source.as_bytes(),
+                source_uri: "memory://xslt-30-instruction-avt-matrix.xsl",
+                content_type: Some(XSLT_CONTENT_TYPE),
+            });
+        assert!(
+            diagnostics
+                .iter()
+                .all(|diagnostic| !diagnostic.code.starts_with("cem.xpath.")),
+            "{diagnostics:?}"
+        );
+        let stylesheet = stylesheet.expect("typed XSLT 3.0 AVT matrix stylesheet");
+        let instruction_avts = stylesheet
+            .attribute_value_templates
+            .iter()
+            .filter(|avt| {
+                stylesheet
+                    .xml_document
+                    .events
+                    .get(avt.event_index)
+                    .is_some_and(|event| event.namespace_uri.as_deref() == Some(XSLT_NAMESPACE_URI))
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(instruction_avts.len(), expected_selectors.len());
+
+        for (element, attributes) in INSTRUCTION_AVTS {
+            let event = stylesheet
+                .xml_document
+                .events
+                .iter()
+                .find(|event| {
+                    event.namespace_uri.as_deref() == Some(XSLT_NAMESPACE_URI)
+                        && event.local_name.as_deref() == Some(*element)
+                })
+                .unwrap_or_else(|| panic!("xsl:{element} event"));
+            for attribute_name in *attributes {
+                let attribute = event
+                    .attributes
+                    .iter()
+                    .find(|attribute| attribute.local_name == *attribute_name)
+                    .unwrap_or_else(|| panic!("xsl:{element}@{attribute_name}"));
+                assert_eq!(
+                    catalog.attribute_value_grammar(event, attribute),
+                    XsltAttributeValueGrammar::AttributeValueTemplate,
+                    "xsl:{element}@{attribute_name}"
+                );
+                let avt = instruction_avts
+                    .iter()
+                    .find(|avt| {
+                        avt.event_index == event.index && avt.attribute_name == *attribute_name
+                    })
+                    .unwrap_or_else(|| panic!("xsl:{element}@{attribute_name} AVT AST"));
+                assert!(matches!(
+                    avt.segments.as_slice(),
+                    [
+                        XsltAttributeValueTemplateSegmentAst::Literal { effective, .. },
+                        XsltAttributeValueTemplateSegmentAst::Expression { expression, .. },
+                        XsltAttributeValueTemplateSegmentAst::Literal { effective: trailing, .. },
+                    ] if effective == "pre-"
+                        && expression.source_text.as_deref() == Some("@id")
+                        && trailing == "-post"
+                ));
+            }
+        }
+
+        let grammar = |element: &str, attribute_name: &str| {
+            let event = stylesheet
+                .xml_document
+                .events
+                .iter()
+                .find(|event| event.local_name.as_deref() == Some(element))
+                .unwrap_or_else(|| panic!("{element} event"));
+            let attribute = event
+                .attributes
+                .iter()
+                .find(|attribute| attribute.local_name == attribute_name)
+                .unwrap_or_else(|| panic!("{element}@{attribute_name}"));
+            catalog.attribute_value_grammar(event, attribute)
+        };
+        assert_eq!(
+            grammar("template", "name"),
+            XsltAttributeValueGrammar::Literal
+        );
+        assert_eq!(
+            grammar("output", "method"),
+            XsltAttributeValueGrammar::Literal
+        );
+        assert_eq!(
+            grammar("output", "encoding"),
+            XsltAttributeValueGrammar::Literal
+        );
+        assert_eq!(
+            grammar("output", "use-character-maps"),
+            XsltAttributeValueGrammar::Literal
+        );
+        assert_eq!(
+            grammar("card", "expand-text"),
+            XsltAttributeValueGrammar::Literal
+        );
+    }
+
+    #[test]
     fn xslt_literal_result_avts_segment_and_fuse_xpath_with_exact_source_identity() {
         let source = r#"<xsl:stylesheet xmlns:xsl="http://www.w3.org/1999/XSL/Transform" xmlns:c="urn:catalog" version="3.0">
   <xsl:template match="/">

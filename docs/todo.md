@@ -45,7 +45,7 @@ mediate between internal layers.
           typed XPath result artifact, export JSON only through the registered
           result exporter, and reject parameters, secondary inputs, and
           unsupported input AST families until their binding contracts exist.
-  - [ ] Fuse parsed XPath streams into XSLT XPath-bearing attributes and AVT
+  - [x] Fuse parsed XPath streams into XSLT XPath-bearing attributes and AVT
         expression segments while retaining an independently addressable XPath
         AST associated with the owning XML event or subtree node.
     - [x] Fuse entity-free XPath-bearing attributes on XSLT instruction nodes
@@ -72,6 +72,12 @@ mediate between internal layers.
           expression once into its directly owned XPath AST; and project escaped
           braces, nested XPath braces, comments, strings, and entity-decoded
           subranges to exact XML coordinates without a serializer or reparse.
+    - [x] Cover the complete XSLT 3.0 instruction AVT matrix—59 attributes
+          across 15 elements—in schema-owned contextual selectors; prove the
+          selector set exactly against a normative contract fixture; and route
+          every selected value through the existing directly owned AVT/XPath
+          AST path while fixed, expression, pattern, and XSLT control attributes
+          remain outside it.
   - [ ] Add deterministic compact/pretty/tabular and
         terminal/HTML/Markdown profiles that preserve lexical islands and source
         maps, then run package, converter-parity, CLI e2e, WASM, and core release
