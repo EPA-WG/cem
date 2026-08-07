@@ -53,6 +53,11 @@ mediate between internal layers.
           URI, boolean, untyped, decimal, float, and double values; and preserve
           cardinality, coercion, promotion, NaN, and source-map semantics
           without a serializer or intermediate DTO.
+    - [x] Execute XPath `and` and `or` directly on the owned expression AST:
+          apply the existing effective-boolean-value kernel to each required
+          operand, short-circuit deterministically from left to right, retain
+          expression source maps on typed boolean results and operand errors,
+          and never evaluate a skipped branch or cross a serialized boundary.
   - [ ] Wire the native evaluator through the `transform` command and expose
         explicit CEM-QL, CEMT, and XSLT invocation adapters without reparsing
         source text, constructing an evaluator-owned replacement XML tree, or

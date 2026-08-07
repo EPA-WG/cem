@@ -1741,6 +1741,34 @@ fn xpath_evaluate_expression_node(
             operator,
             left,
             right,
+        } if matches!(operator, XPathBinaryOperator::And | XPathBinaryOperator::Or) => {
+            let left_items =
+                xpath_evaluate_expression_node(expression, left, focus, variable_bindings)?;
+            let left_value = xpath_effective_boolean_value(&left_items, left.source_range)?;
+            let value = match operator {
+                XPathBinaryOperator::And if !left_value => false,
+                XPathBinaryOperator::Or if left_value => true,
+                XPathBinaryOperator::And | XPathBinaryOperator::Or => {
+                    let right_items = xpath_evaluate_expression_node(
+                        expression,
+                        right,
+                        focus,
+                        variable_bindings,
+                    )?;
+                    xpath_effective_boolean_value(&right_items, right.source_range)?
+                }
+                _ => unreachable!("logical operator guard restricts native evaluation"),
+            };
+            Ok(vec![xpath_boolean_result_item(
+                expression,
+                node.source_range,
+                value,
+            )])
+        }
+        XPathExpression::Binary {
+            operator,
+            left,
+            right,
         } if xpath_comparison_operator(*operator).is_some() => {
             let left = xpath_evaluate_expression_node(expression, left, focus, variable_bindings)?;
             let right =
@@ -6120,6 +6148,91 @@ mod tests {
             diagnostics[0].code,
             "cem.xpath.value_comparison_cardinality"
         );
+    }
+
+    #[test]
+    fn xpath_native_evaluator_executes_logical_operators_with_ebv_and_short_circuiting() {
+        use crate::lifecycle::LoadedInputAstStream;
+        use crate::validation::xml::{
+            xml_document_ast_from_source_bytes, XmlSourceValidationRequest,
+        };
+        use std::sync::Arc;
+
+        let (document, diagnostics) =
+            xml_document_ast_from_source_bytes(XmlSourceValidationRequest {
+                bytes: br#"<root><n/></root>"#,
+                source_uri: "memory://logical-context.xml",
+                content_type: Some("application/xml"),
+            });
+        assert!(diagnostics.is_empty(), "{diagnostics:?}");
+        let owner = Arc::new(LoadedInputAstStream::XmlDocument(
+            document.expect("typed XML document"),
+        ));
+        let context_node = XPathNativeNode::xml_document(owner).expect("native XML document node");
+
+        let assert_boolean = |source: &str, expected: bool| {
+            let result = evaluate_for_test(
+                source,
+                Some(XPathResultItem::from_native_node(context_node.clone())),
+                BTreeMap::new(),
+            )
+            .unwrap_or_else(|diagnostics| panic!("`{source}` failed: {diagnostics:?}"));
+            let [XPathResultItem::Atomic { value, source_map }] = result.sequence.items.as_slice()
+            else {
+                panic!("`{source}` did not return one atomic value: {result:?}");
+            };
+            assert_eq!(value.type_name, "xs:boolean", "`{source}`");
+            assert_eq!(value.lexical_value, expected.to_string(), "`{source}`");
+            assert_eq!(source_map.frames.len(), 1, "`{source}`");
+            assert_eq!(source_map.frames[0].source_id, SourceId(7), "`{source}`");
+            assert_eq!(
+                source_map.frames[0].span,
+                FrameSpan::Single(ByteRange::new(0, source.len() as u32)),
+                "`{source}`"
+            );
+        };
+
+        for (source, expected) in [
+            ("1 = 1 and 2 = 2", true),
+            ("1 = 1 and 2 = 3", false),
+            ("1 = 2 or 2 = 2", true),
+            ("1 = 2 or 2 = 3", false),
+            ("/root/n and 'non-empty'", true),
+            ("/root/m or ''", false),
+            ("1 = 2 and $missing", false),
+            ("1 = 1 or $missing", true),
+        ] {
+            assert_boolean(source, expected);
+        }
+
+        for source in ["1 = 1 and $missing", "1 = 2 or $missing"] {
+            let diagnostics = evaluate_for_test(
+                source,
+                Some(XPathResultItem::from_native_node(context_node.clone())),
+                BTreeMap::new(),
+            )
+            .expect_err("a required logical operand must be evaluated");
+            assert_eq!(diagnostics[0].code, "cem.xpath.variable_unbound");
+            assert_eq!(
+                diagnostics[0].byte_offset,
+                Some(source.find("missing").expect("missing variable offset") as u64),
+                "`{source}`"
+            );
+        }
+
+        for source in ["(1, 2) and 1 = 1", "1 = 2 or (1, 2)"] {
+            let diagnostics = evaluate_for_test(
+                source,
+                Some(XPathResultItem::from_native_node(context_node.clone())),
+                BTreeMap::new(),
+            )
+            .expect_err("logical operands require a defined effective boolean value");
+            assert_eq!(
+                diagnostics[0].code,
+                "cem.xpath.effective_boolean_value_type_error"
+            );
+            assert!(diagnostics[0].source_map.is_some(), "`{source}`");
+        }
     }
 
     #[test]

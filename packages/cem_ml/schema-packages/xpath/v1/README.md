@@ -132,19 +132,23 @@ including reverse order for ancestor and preceding axes, before path results are
 identity-deduplicated and returned in document order. Postfix filter predicates
 preserve their base sequence order. Both predicate forms implement numeric
 position filtering and XPath effective-boolean-value rules, with native
-`position()` and `last()` focus functions. A native atomic kernel represents
-integer and decimal values as unbounded normalized coefficient/scale values and
-executes all general and value comparison operators for supported strings,
-URIs, booleans, untyped XML values, integers, decimals, floats, and doubles.
+`position()` and `last()` focus functions. Logical `and` and `or` apply that
+same EBV kernel directly to AST operand results, evaluate left to right, skip a
+right operand when the left result determines the answer, and retain the full
+logical-expression source map on the typed boolean result. A native atomic
+kernel represents integer and decimal values as unbounded normalized
+coefficient/scale values and executes all general and value comparison
+operators for supported strings, URIs, booleans, untyped XML values, integers,
+decimals, floats, and doubles.
 Comparisons atomize retained XML nodes directly, distinguish existential general
 comparison from singleton value comparison, apply untyped conversion and
 numeric promotion rules, preserve IEEE NaN behavior, and report cardinality or
 cast errors with expression source maps. The optional, deprecated namespace
-axis remains an explicit host-language omission. Unsupported node, logical,
-arithmetic, range, and set operators, other atomic families, functions,
-constructors, dynamic function calls, and lookups fail with a stable
-schema-owned diagnostic. The evaluator does not read expression source text,
-project through CEMT or JSON, reparse XML, or construct a replacement tree.
+axis remains an explicit host-language omission. Unsupported node, arithmetic,
+range, and set operators, other atomic families, functions, constructors,
+dynamic function calls, and lookups fail with a stable schema-owned diagnostic.
+The evaluator does not read expression source text, project through CEMT or
+JSON, reparse XML, or construct a replacement tree.
 
 The standalone executable adapter is registered for XPath template identities.
 It compiles template source once at the lifecycle/compile boundary, evaluates a
@@ -201,10 +205,11 @@ evaluator cannot read ambient process or host state.
 `yarn nx run cem_ml_schema_package_xpath_v1:verify` validates the schema-package
 manifest and fixture expectations, runs lossless lexer/parser, schema-diagnostic
 handoff, lifecycle loading, no-fallback validation, and host-attachment tests,
-verifies the full-destination conformance matrix, native evaluator owner/path and
-scalar semantics, standalone transform routing, mixed result artifacts and
-evaluator capability rejection, verifies embedded catalog identity, and checks
-that README examples use fenced XPath source with no SVG fallback.
+verifies the full-destination conformance matrix, native evaluator owner/path,
+scalar, logical-EBV, and short-circuit semantics, standalone transform routing,
+mixed result artifacts and evaluator capability rejection, verifies embedded
+catalog identity, and checks that README examples use fenced XPath source with
+no SVG fallback.
 `yarn nx run cem_ml:build:wasm` verifies that the CEM-owned scanner and parser
 remain compatible with the browser WASM target.
 
