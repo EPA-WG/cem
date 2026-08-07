@@ -64,6 +64,9 @@ mediate between internal layers.
           scan/parse and fuse entity-decoded whole XPath attributes directly
           into XSLT, preserving original ranges on tokens, events, syntax,
           facts, and diagnostics without a serializer or post-parse rewrite.
+    - [x] Replace XSLT's hardcoded attribute-name test with schema-owned typed
+          value-grammar rules that distinguish XPath expressions, XSLT
+          patterns, AVTs, and literals before AVT segmentation begins.
   - [ ] Add deterministic compact/pretty/tabular and
         terminal/HTML/Markdown profiles that preserve lexical islands and source
         maps, then run package, converter-parity, CLI e2e, WASM, and core release

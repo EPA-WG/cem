@@ -22,6 +22,10 @@ use std::sync::OnceLock;
 
 const XSLT_PACKAGE_ID: &str = "xslt";
 const XSLT_FACT_BEHAVIOR: &str = "xslt-report-fact";
+const XSLT_ATTRIBUTE_VALUE_DEFAULT_GRAMMAR: &str = "xslt-attribute-value-default-grammar";
+const XSLT_XPATH_EXPRESSION_ATTRIBUTES: &str = "xslt-xpath-expression-attributes";
+const XSLT_PATTERN_ATTRIBUTES: &str = "xslt-pattern-attributes";
+const XSLT_AVT_ATTRIBUTES: &str = "xslt-avt-attributes";
 pub const XSLT_TEXT_CONTENT_TYPE: &str = "text/xsl";
 
 #[derive(Debug, Clone, Copy)]
@@ -45,6 +49,68 @@ pub struct XsltXPathExpressionAst {
     pub event_index: usize,
     pub attribute_name: String,
     pub expression: XPathExpressionAst,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum XsltAttributeValueGrammar {
+    Literal,
+    XPathExpression,
+    XsltPattern,
+    AttributeValueTemplate,
+}
+
+impl XsltAttributeValueGrammar {
+    fn from_schema_value(value: &str) -> Option<Self> {
+        match value.trim() {
+            "literal" => Some(Self::Literal),
+            "xpath-expression" => Some(Self::XPathExpression),
+            "xslt-pattern" => Some(Self::XsltPattern),
+            "attribute-value-template" => Some(Self::AttributeValueTemplate),
+            _ => None,
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct XsltAttributeValueGrammarRule {
+    element_selector: String,
+    attribute_selector: String,
+    grammar: XsltAttributeValueGrammar,
+}
+
+impl XsltAttributeValueGrammarRule {
+    fn from_schema_selector(selector: &str, grammar: XsltAttributeValueGrammar) -> Option<Self> {
+        let (element_selector, attribute_selector) = selector.rsplit_once('@')?;
+        if element_selector.is_empty() || attribute_selector.is_empty() {
+            return None;
+        }
+        Some(Self {
+            element_selector: element_selector.to_owned(),
+            attribute_selector: attribute_selector.to_owned(),
+            grammar,
+        })
+    }
+
+    fn matches(&self, event: &XmlEventAst, attribute: &XmlAttributeAst) -> bool {
+        if self.attribute_selector != "*" && self.attribute_selector != attribute.local_name {
+            return false;
+        }
+        match self.element_selector.as_str() {
+            "*" => true,
+            "xsl:*" => event.namespace_uri.as_deref() == Some(XSLT_NAMESPACE_URI),
+            "literal-result" => {
+                event.namespace_uri.as_deref() != Some(XSLT_NAMESPACE_URI)
+                    && attribute.qualified_name != "xmlns"
+                    && attribute.prefix.as_deref() != Some("xmlns")
+                    && attribute.namespace_uri.as_deref() != Some(XSLT_NAMESPACE_URI)
+            }
+            selector if selector.starts_with("xsl:") => {
+                event.namespace_uri.as_deref() == Some(XSLT_NAMESPACE_URI)
+                    && event.local_name.as_deref() == selector.strip_prefix("xsl:")
+            }
+            selector => event.local_name.as_deref() == Some(selector),
+        }
+    }
 }
 
 impl XsltStylesheetAst {
@@ -114,6 +180,8 @@ pub enum XsltFactKind {
     TemplateObserved,
     LiteralResultObserved,
     XPathObserved,
+    PatternObserved,
+    AttributeValueTemplateObserved,
     BrowserEnginePolicyObserved,
     DoctypeObserved,
 }
@@ -145,6 +213,8 @@ impl XsltFactKind {
             Self::TemplateObserved => "template-observed",
             Self::LiteralResultObserved => "literal-result-observed",
             Self::XPathObserved => "xpath-observed",
+            Self::PatternObserved => "pattern-observed",
+            Self::AttributeValueTemplateObserved => "attribute-value-template-observed",
             Self::BrowserEnginePolicyObserved => "browser-engine-policy-observed",
             Self::DoctypeObserved => "doctype-observed",
         }
@@ -183,6 +253,8 @@ struct XsltDiagnosticBinding {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct XsltSchemaContractCatalog {
     fact_bindings: BTreeMap<String, XsltDiagnosticBinding>,
+    default_attribute_value_grammar: XsltAttributeValueGrammar,
+    attribute_value_grammar_rules: Vec<XsltAttributeValueGrammarRule>,
 }
 
 impl XsltSchemaContractCatalog {
@@ -222,11 +294,58 @@ impl XsltSchemaContractCatalog {
                 ))
             })
             .collect();
-        Self { fact_bindings }
+        let default_attribute_value_grammar = model
+            .constraint(XSLT_ATTRIBUTE_VALUE_DEFAULT_GRAMMAR)
+            .and_then(|constraint| constraint.value.as_deref())
+            .and_then(XsltAttributeValueGrammar::from_schema_value)
+            .unwrap_or(XsltAttributeValueGrammar::Literal);
+        let attribute_value_grammar_rules = [
+            (
+                XSLT_XPATH_EXPRESSION_ATTRIBUTES,
+                XsltAttributeValueGrammar::XPathExpression,
+            ),
+            (
+                XSLT_PATTERN_ATTRIBUTES,
+                XsltAttributeValueGrammar::XsltPattern,
+            ),
+            (
+                XSLT_AVT_ATTRIBUTES,
+                XsltAttributeValueGrammar::AttributeValueTemplate,
+            ),
+        ]
+        .into_iter()
+        .flat_map(|(constraint_kind, grammar)| {
+            model
+                .constraint(constraint_kind)
+                .and_then(|constraint| constraint.value.as_deref())
+                .into_iter()
+                .flat_map(str::split_ascii_whitespace)
+                .filter_map(move |selector| {
+                    XsltAttributeValueGrammarRule::from_schema_selector(selector, grammar)
+                })
+        })
+        .collect();
+        Self {
+            fact_bindings,
+            default_attribute_value_grammar,
+            attribute_value_grammar_rules,
+        }
     }
 
     fn binding_for_fact(&self, kind: XsltFactKind) -> Option<&XsltDiagnosticBinding> {
         self.fact_bindings.get(kind.as_str())
+    }
+
+    pub fn attribute_value_grammar(
+        &self,
+        event: &XmlEventAst,
+        attribute: &XmlAttributeAst,
+    ) -> XsltAttributeValueGrammar {
+        self.attribute_value_grammar_rules
+            .iter()
+            .find(|rule| rule.matches(event, attribute))
+            .map(|rule| rule.grammar)
+            .unwrap_or(self.default_attribute_value_grammar)
     }
 }
 
@@ -254,13 +373,14 @@ pub fn xslt_stylesheet_ast_from_source_bytes(
     let Some(xml_document) = xml_document else {
         return (None, Vec::new());
     };
-    let (version, facts) = xslt_facts(&xml_document);
-    let xpath_expressions = xslt_xpath_expressions(&xml_document);
+    let contracts = XsltSchemaContractCatalog::from_builtin();
+    let (version, facts) = xslt_facts(&xml_document, contracts);
+    let xpath_expressions = xslt_xpath_expressions(&xml_document, contracts);
     let mut diagnostics = xslt_fact_diagnostics(
         request.source_uri,
         &xml_document.source.media_type,
         &facts,
-        XsltSchemaContractCatalog::from_builtin(),
+        contracts,
     );
     diagnostics.extend(xpath_expressions.iter().flat_map(|embedded| {
         validate_xpath_expression_ast(
@@ -281,7 +401,10 @@ pub fn xslt_stylesheet_ast_from_source_bytes(
     )
 }
 
-fn xslt_xpath_expressions(document: &XmlDocumentAst) -> Vec<XsltXPathExpressionAst> {
+fn xslt_xpath_expressions(
+    document: &XmlDocumentAst,
+    contracts: &XsltSchemaContractCatalog,
+) -> Vec<XsltXPathExpressionAst> {
     let mut expressions = Vec::new();
     let mut static_contexts = Vec::<XPathStaticContext>::new();
 
@@ -322,7 +445,9 @@ fn xslt_xpath_expressions(document: &XmlDocumentAst) -> Vec<XsltXPathExpressionA
             ) else {
                 continue;
             };
-            if !xslt_is_xpath_attribute(&attribute.local_name) || expression_text.trim().is_empty()
+            if contracts.attribute_value_grammar(event, attribute)
+                != XsltAttributeValueGrammar::XPathExpression
+                || expression_text.trim().is_empty()
             {
                 continue;
             }
@@ -395,7 +520,10 @@ fn xpath_range_from_xml(range: XmlSourceRange) -> XPathSourceRange {
     )
 }
 
-fn xslt_facts(document: &XmlDocumentAst) -> (Option<String>, Vec<XsltFact>) {
+fn xslt_facts(
+    document: &XmlDocumentAst,
+    contracts: &XsltSchemaContractCatalog,
+) -> (Option<String>, Vec<XsltFact>) {
     let mut facts = document
         .parse_facts
         .iter()
@@ -621,19 +749,42 @@ fn xslt_facts(document: &XmlDocumentAst) -> (Option<String>, Vec<XsltFact>) {
             }
         }
 
-        for attribute in event.attributes.iter().filter(|attribute| {
-            xslt_is_xpath_attribute(&attribute.local_name) && !attribute.value.trim().is_empty()
-        }) {
+        for attribute in event
+            .attributes
+            .iter()
+            .filter(|attribute| !attribute.value.trim().is_empty())
+        {
+            let grammar = contracts.attribute_value_grammar(event, attribute);
+            let (kind, grammar_label) = match grammar {
+                XsltAttributeValueGrammar::Literal => continue,
+                XsltAttributeValueGrammar::XPathExpression => {
+                    (XsltFactKind::XPathObserved, "XPath expression")
+                }
+                XsltAttributeValueGrammar::XsltPattern => {
+                    (XsltFactKind::PatternObserved, "XSLT pattern")
+                }
+                XsltAttributeValueGrammar::AttributeValueTemplate => (
+                    XsltFactKind::AttributeValueTemplateObserved,
+                    "attribute value template",
+                ),
+            };
             facts.push(XsltFact {
-                kind: XsltFactKind::XPathObserved,
-                source_range: range,
+                kind,
+                source_range: attribute.value_source_range.or(range),
                 message: format!(
-                    "XSLT XPath-bearing attribute `{}` was preserved lexically",
-                    attribute.qualified_name
+                    "XSLT {grammar_label} attribute `{}` was classified by the schema package",
+                    attribute.qualified_name,
                 ),
                 value: Some(attribute.value.clone()),
             });
-            if !external_uri_reported && xslt_expression_uses_external_document(&attribute.value) {
+            let is_expression_or_pattern = matches!(
+                grammar,
+                XsltAttributeValueGrammar::XPathExpression | XsltAttributeValueGrammar::XsltPattern
+            );
+            if is_expression_or_pattern
+                && !external_uri_reported
+                && xslt_expression_uses_external_document(&attribute.value)
+            {
                 external_uri_reported = true;
                 facts.push(XsltFact {
                     kind: XsltFactKind::ExternalUriRejected,
@@ -643,7 +794,8 @@ fn xslt_facts(document: &XmlDocumentAst) -> (Option<String>, Vec<XsltFact>) {
                     value: Some(attribute.value.clone()),
                 });
             }
-            if !unsupported_construct_reported
+            if is_expression_or_pattern
+                && !unsupported_construct_reported
                 && xslt_expression_uses_extension_function(&attribute.value)
             {
                 unsupported_construct_reported = true;
@@ -703,22 +855,6 @@ fn xslt_event_requires_external_uri_policy(event: &XmlEventAst) -> bool {
         Some("include" | "import" | "result-document")
     ) && xslt_attribute(event, "href")
         .is_some_and(|attribute| xslt_uri_requires_policy(&attribute.value))
-}
-
-fn xslt_is_xpath_attribute(local_name: &str) -> bool {
-    matches!(
-        local_name,
-        "select"
-            | "test"
-            | "match"
-            | "use"
-            | "count"
-            | "from"
-            | "group-by"
-            | "group-adjacent"
-            | "group-starting-with"
-            | "group-ending-with"
-    )
 }
 
 fn xslt_expression_uses_extension_function(value: &str) -> bool {
@@ -1790,7 +1926,92 @@ mod tests {
             host.expression_range.start
         );
         assert_eq!(embedded.event_index, 4);
-        assert_eq!(stylesheet.xpath_expressions.len(), 2);
+        assert_eq!(stylesheet.xpath_expressions.len(), 1);
+        assert!(!stylesheet
+            .xpath_expressions
+            .iter()
+            .any(|embedded| { embedded.attribute_name == "match" }));
+    }
+
+    #[test]
+    fn xslt_attribute_value_grammar_is_schema_owned_contextual_and_typed() {
+        let source = r#"<xsl:stylesheet xmlns:xsl="http://www.w3.org/1999/XSL/Transform" version="3.0">
+  <xsl:template name="main" match="/">
+    <xsl:value-of select="@title"/>
+    <card title="{@title}"/>
+  </xsl:template>
+</xsl:stylesheet>
+"#;
+        let (stylesheet, diagnostics) =
+            xslt_stylesheet_ast_from_source_bytes(XsltSourceValidationRequest {
+                bytes: source.as_bytes(),
+                source_uri: "memory://attribute-grammars.xsl",
+                content_type: Some(XSLT_CONTENT_TYPE),
+            });
+        assert!(diagnostics.is_empty(), "{diagnostics:?}");
+        let stylesheet = stylesheet.expect("typed XSLT stylesheet");
+        let catalog = XsltSchemaContractCatalog::from_builtin();
+        let grammar = |element: &str, attribute: &str| {
+            let event = stylesheet
+                .xml_document
+                .events
+                .iter()
+                .find(|event| event.local_name.as_deref() == Some(element))
+                .unwrap_or_else(|| panic!("{element} event"));
+            let attribute = event
+                .attributes
+                .iter()
+                .find(|candidate| candidate.local_name == attribute)
+                .unwrap_or_else(|| panic!("{element}@{attribute}"));
+            catalog.attribute_value_grammar(event, attribute)
+        };
+
+        assert_eq!(
+            grammar("value-of", "select"),
+            XsltAttributeValueGrammar::XPathExpression
+        );
+        assert_eq!(
+            grammar("template", "match"),
+            XsltAttributeValueGrammar::XsltPattern
+        );
+        assert_eq!(
+            grammar("card", "title"),
+            XsltAttributeValueGrammar::AttributeValueTemplate
+        );
+        assert_eq!(
+            grammar("template", "name"),
+            XsltAttributeValueGrammar::Literal
+        );
+        assert!(stylesheet
+            .facts
+            .iter()
+            .any(|fact| fact.kind == XsltFactKind::PatternObserved));
+        assert!(stylesheet
+            .facts
+            .iter()
+            .any(|fact| fact.kind == XsltFactKind::AttributeValueTemplateObserved));
+
+        let schema_source = builtin_schema_package_source(XSLT_PACKAGE_ID)
+            .expect("XSLT schema source")
+            .schema_source
+            .replace("xsl:*@select ", "");
+        let changed_catalog = XsltSchemaContractCatalog::from_schema_source(&schema_source);
+        let value_of = stylesheet
+            .xml_document
+            .events
+            .iter()
+            .find(|event| event.local_name.as_deref() == Some("value-of"))
+            .expect("value-of event");
+        let select = value_of
+            .attributes
+            .iter()
+            .find(|attribute| attribute.local_name == "select")
+            .expect("select attribute");
+        assert_eq!(
+            changed_catalog.attribute_value_grammar(value_of, select),
+            XsltAttributeValueGrammar::Literal,
+            "changing schema metadata must change classification without a Rust name branch"
+        );
     }
 
     #[test]
@@ -1921,6 +2142,15 @@ mod tests {
     #[test]
     fn xslt_xpath_fusion_source_has_no_serialized_or_replacement_tree_bridge() {
         let source = include_str!("xslt.rs");
+        assert!(
+            !source.contains(concat!("fn xslt_is_", "xpath_attribute")),
+            "XSLT attribute grammar must remain schema-owned"
+        );
+        let classification = source
+            .split("impl XsltSchemaContractCatalog")
+            .nth(1)
+            .and_then(|source| source.split("pub fn validate_xslt_source_bytes").next())
+            .expect("XSLT schema contract classification region");
         let fusion = source
             .split("fn xslt_xpath_expressions")
             .nth(1)
@@ -1934,6 +2164,10 @@ mod tests {
             "deserialize",
             "replacement_tree",
         ] {
+            assert!(
+                !classification.contains(forbidden),
+                "XSLT schema classification must not contain `{forbidden}`"
+            );
             assert!(
                 !fusion.contains(forbidden),
                 "XSLT XPath fusion must not contain `{forbidden}`"
@@ -2022,11 +2256,11 @@ mod tests {
                 && event.lexeme == "<![CDATA[foreign <text> & exact]]>"
         }));
 
-        for xpath in [
-            "/catalog/item[@active = true()]",
-            "@visible and $mode = 'full'",
-            "normalize-space(title)",
-        ] {
+        assert!(stylesheet.facts.iter().any(|fact| {
+            fact.kind == XsltFactKind::PatternObserved
+                && fact.value.as_deref() == Some("/catalog/item[@active = true()]")
+        }));
+        for xpath in ["@visible and $mode = 'full'", "normalize-space(title)"] {
             assert!(stylesheet.facts.iter().any(|fact| {
                 fact.kind == XsltFactKind::XPathObserved && fact.value.as_deref() == Some(xpath)
             }));

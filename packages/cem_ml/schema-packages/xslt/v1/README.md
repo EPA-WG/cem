@@ -28,24 +28,26 @@ qualified element and attribute names, namespace bindings, stylesheet version,
 top-level declarations and templates, literal result elements, XPath-bearing
 attribute text, source ranges, source maps, and source line ending.
 
-Entity-free XPath-bearing attributes on XSLT instruction nodes are parsed once
-into independently addressable `XPathExpressionAst` values owned by the
+Whole XPath expression attributes on XSLT instruction nodes are parsed once into
+independently addressable `XPathExpressionAst` values owned by the
 [`xpath/v1`](../../xpath/v1/README.md) package. Each expression retains its exact
 attribute-value range, owning XML event and attribute identity, inherited
-namespace bindings, and `xpath-default-namespace`. XPath diagnostics continue
-to be schema-owned by the XPath package. No JSON projection, replacement XML
-tree, or later source reparse mediates this association.
+namespace bindings, and `xpath-default-namespace`. Entity-decoded expressions
+use the generic XML AST's typed decoded-scalar-to-source map during that single
+parse, so tokens, syntax, facts, and diagnostics keep original XML coordinates.
+XPath diagnostics continue to be schema-owned by the XPath package. No JSON
+projection, replacement XML tree, source reparse, or post-parse range rewrite
+mediates this association.
 
-Attribute value templates and attributes containing XML entity references remain
-lexical at the XSLT-to-XPath fusion boundary. The generic XML AST now supplies
-their entity-decoded value and exact decoded-scalar-to-source spans directly,
-without an XSLT overlay. That typed map now projects scalar-aligned ranges and
-zero-length boundaries while rejecting invalid offsets. The next slice must
-define how the XPath parser accepts that typed remapping capability, then define
-typed AVT segmentation before these expressions can be fused without corrupting
-source identity. The source lifecycle does not execute embedded expressions;
-explicit transform-template execution continues through the existing bounded
-XSLT parity capability.
+Schema-owned attribute-value constraints classify values as literals, whole
+XPath expressions, XSLT patterns, or attribute value templates. The current
+bounded selector catalog separates the supported instruction attributes and
+classifies non-XSLT attributes on literal result elements as AVTs. Patterns stay
+lexical typed facts until a package-owned pattern parser is registered, and AVTs
+stay lexical typed facts until their segment AST is defined; neither is
+misrepresented as a whole XPath expression. The source lifecycle does not
+execute embedded expressions. Explicit transform-template execution continues
+through the existing bounded XSLT parity capability.
 
 ## Parser Facts And Diagnostics
 
