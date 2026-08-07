@@ -54,7 +54,7 @@
         @status="partial"
         @qt3-status="unmapped"
         @spec-sections="XPath 3.1 sections 3.8 through 3.14"
-        @gap="Typed single-binding for expressions execute their binding sequence once, bind each item through the expanded-QName variable arena with lexical shadowing, concatenate return results in order without changing focus, preserve native owners and source maps, skip returns for empty bindings, and enforce the cumulative sequence-item budget. Comma-separated for bindings, let, conditional, quantified, and other control-flow forms plus QT3 mapping remain incomplete"
+        @gap="Typed for expressions accept comma-separated bindings lowered into nested typed nodes with dependent lexical scope, Cartesian binding order, exact outer and binding-suffix ranges, retained native owners and source maps, empty-binding short-circuiting, and cumulative sequence-item budgets. Let, conditional, quantified, and other control-flow forms plus QT3 mapping remain incomplete"
         @todo="xpath-control-flow"
     }
     {conformance-slice

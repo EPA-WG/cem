@@ -105,8 +105,14 @@ mediate between internal layers.
           singleton with lexical shadowing, concatenate return results in order
           without changing the outer focus, preserve native owners and exact
           source maps, skip returns for an empty binding sequence, and enforce
-          the cumulative `xpathItems` limit without serialization or a DTO;
-          leave comma-separated binding grammar as explicit follow-up work.
+          the cumulative `xpathItems` limit without serialization or a DTO.
+    - [x] Lower comma-separated XPath `for` bindings into nested typed `For`
+          nodes: retain the complete expression range on the outer node and the
+          `$binding`-through-return suffix on each inner node; evaluate later
+          bindings in dependent lexical scope and Cartesian binding order; skip
+          dependent work after an empty binding; preserve native owners, item
+          source maps, and diagnostics; and enforce cumulative `xpathItems`
+          budgets without a new AST variant, serialization, or a DTO.
   - [x] Wire the native evaluator through the `transform` command and expose
         explicit CEM-QL, CEMT, and XSLT invocation adapters without reparsing
         source text, constructing an evaluator-owned replacement XML tree, or

@@ -6869,6 +6869,67 @@ mod tests {
     }
 
     #[test]
+    fn xpath_syntax_ast_lowers_comma_separated_for_bindings_into_nested_nodes() {
+        let source = "for $x in (1, 2), $y in ($x, $x + 10) return $y";
+        let syntax = parsed_syntax(source);
+        let outer_range = XPathSourceRange::new(1, 1, 0, source.len() as u64);
+        let inner_start = source.find("$y").expect("second binding");
+        let inner_range = XPathSourceRange::new(
+            1,
+            inner_start as u32 + 1,
+            inner_start as u64,
+            (source.len() - inner_start) as u64,
+        );
+
+        let outer = &syntax.root.expressions[0];
+        assert_eq!(outer.source_range, outer_range);
+        let XPathExpression::For {
+            binding,
+            return_expression,
+            ..
+        } = &outer.expression
+        else {
+            panic!("expected outer for binding");
+        };
+        assert_eq!(binding.lexical, "x");
+        assert_eq!(binding.source_range, XPathSourceRange::new(1, 6, 5, 1));
+
+        assert_eq!(return_expression.source_range, inner_range);
+        let XPathExpression::For {
+            binding,
+            binding_expression,
+            return_expression,
+        } = &return_expression.expression
+        else {
+            panic!("expected nested for binding");
+        };
+        assert_eq!(binding.lexical, "y");
+        assert_eq!(
+            binding.source_range,
+            XPathSourceRange::new(1, inner_start as u32 + 2, inner_start as u64 + 1, 1)
+        );
+        assert!(matches!(
+            binding_expression.expression,
+            XPathExpression::Path(_)
+        ));
+        assert!(matches!(
+            return_expression.expression,
+            XPathExpression::Path(_)
+        ));
+
+        let for_ranges = syntax
+            .events
+            .iter()
+            .filter(|event| {
+                event.kind == XPathSyntaxEventKind::StartNode
+                    && event.node_kind == XPathSyntaxNodeKind::ForExpression
+            })
+            .map(|event| event.source_range)
+            .collect::<Vec<_>>();
+        assert_eq!(for_ranges, [outer_range, inner_range]);
+    }
+
+    #[test]
     fn xpath_syntax_ast_lowers_map_and_array_constructors() {
         let source = "map { \"titles\": array { /catalog/book/title/string() }, \"count\": count(/catalog/book) }";
         let syntax = parsed_syntax(source);
@@ -9578,8 +9639,34 @@ mod tests {
             .collect::<Vec<_>>();
         assert_eq!(shadowed_values, ["1", "2"]);
 
+        let dependent = evaluate_for_test(
+            "for $x in (1, 2), $y in ($x, $x + 10) return $y",
+            None,
+            BTreeMap::new(),
+        )
+        .expect("comma-separated bindings evaluate as dependent nested loops");
+        let dependent_values = dependent
+            .sequence
+            .items
+            .iter()
+            .map(|item| match item {
+                XPathResultItem::Atomic { value, .. } => value.lexical_value.as_str(),
+                item => panic!("dependent for binding returned non-atomic item: {item:?}"),
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(dependent_values, ["1", "11", "2", "12"]);
+
         let empty = evaluate_for_test("for $item in () return $missing", None, BTreeMap::new())
             .expect("an empty binding sequence does not evaluate the return clause");
+        assert!(empty.sequence.items.is_empty());
+        assert_eq!(empty.sequence.sequence_type, "empty-sequence()");
+
+        let empty = evaluate_for_test(
+            "for $x in (), $y in $missing return $y",
+            None,
+            BTreeMap::new(),
+        )
+        .expect("an empty outer binding skips dependent bindings and the return clause");
         assert!(empty.sequence.items.is_empty());
         assert_eq!(empty.sequence.sequence_type, "empty-sequence()");
 
@@ -9603,6 +9690,24 @@ mod tests {
                 .frames[0]
                 .span,
             FrameSpan::Single(ByteRange::new(0, 41))
+        );
+
+        let source = "for $x in (1, 2), $y in ($x, $x) return $y";
+        let diagnostics = evaluate_for_test_with_limit(source, None, BTreeMap::new(), Some(3))
+            .expect_err("nested for bindings enforce the outer cumulative item budget");
+        assert_eq!(
+            diagnostics[0].code,
+            "cem.xpath.sequence_item_limit_exceeded"
+        );
+        assert_eq!(diagnostics[0].byte_offset, Some(0));
+        assert_eq!(
+            diagnostics[0]
+                .source_map
+                .as_ref()
+                .expect("nested for budget diagnostic source map")
+                .frames[0]
+                .span,
+            FrameSpan::Single(ByteRange::new(0, source.len() as u32))
         );
 
         let diagnostics =
