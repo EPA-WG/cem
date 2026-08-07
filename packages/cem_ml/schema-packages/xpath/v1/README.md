@@ -172,9 +172,10 @@ The result media type is intentionally distinct from expression source and does
 not enter the XPath source parser. XML, JSON, CEM, and text serialization remain
 explicit downstream conversion edges. CEM-QL and XSLT invocation adapters
 remain unregistered. CEMT has both the typed adapter boundary and the authored
-schema form. Automatic dispatch from the general CEMT renderer remains pending
-a native XDM binding arena; that dispatch must consume the compiled invocation
-descriptor rather than introduce a generic-value or serialization bridge.
+schema form. Its explicit host-selected dispatcher resolves one compiled XPath
+body by exact function name, consumes only the native XDM binding arena, and
+returns the typed XPath artifact body. It does not infer renderer input aliases
+or introduce a generic-value or serialization bridge.
 
 ## Formatter And Colorizer Profiles
 
@@ -211,9 +212,8 @@ remain compatible with the browser WASM target.
 
 - Implement a CEM-owned XPath 3.1 compiler/evaluator and prove native/WASM AST
   consumption through CEM-only resolver and safety capabilities.
-- Wire compiled CEMT XPath body descriptors into general CEMT function dispatch
-  through a native XDM binding arena, then add CEM-QL and XSLT XPath invocation
-  adapters without introducing generic-value or serialization bridges.
+- Add CEM-QL and XSLT XPath invocation adapters without introducing
+  generic-value or serialization bridges.
 - Define grammar-aware formatting before making profile output differ.
 
 ## Examples
