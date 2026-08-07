@@ -160,17 +160,21 @@ context item separate from variables, and keys variable sequences by expanded
 namespace URI plus local name. The first host adapter is CEMT: it accepts only
 an AST attached to a `cemt-expression-slot`, passes native node and atomic
 sequences directly to the evaluator, and preserves resolver, safety, owner, and
-source-map identity. It does not parse an expression string, map a CEMT/JSON
-record into XDM, or add authored CEMT syntax. Choosing that public call syntax
-remains a separate schema decision because existing CEM-native expression slots
-are CEM-QL-owned.
+source-map identity. The CEM transform schema now owns a dedicated authored
+`xpath` function-body form, separate from existing CEM-QL-owned expression
+slots. Lowering compiles its `expression` child once into the attached XPath
+AST, resolves declared namespace prefixes statically, and records explicit
+context and expanded-QName variable mappings. Runtime invocation accepts only
+native XPath items and sequences; it does not parse an expression string or map
+a CEMT/JSON record into XDM.
 
 The result media type is intentionally distinct from expression source and does
 not enter the XPath source parser. XML, JSON, CEM, and text serialization remain
 explicit downstream conversion edges. CEM-QL and XSLT invocation adapters
-remain unregistered. CEMT has the typed programmatic adapter boundary, while
-its authored call syntax remains unregistered pending an explicit schema
-contract.
+remain unregistered. CEMT has both the typed adapter boundary and the authored
+schema form. Automatic dispatch from the general CEMT renderer remains pending
+a native XDM binding arena; that dispatch must consume the compiled invocation
+descriptor rather than introduce a generic-value or serialization bridge.
 
 ## Formatter And Colorizer Profiles
 
@@ -207,8 +211,9 @@ remain compatible with the browser WASM target.
 
 - Implement a CEM-owned XPath 3.1 compiler/evaluator and prove native/WASM AST
   consumption through CEM-only resolver and safety capabilities.
-- Choose an authored CEMT XPath call syntax without changing its CEM-QL-owned
-  expression slots, then add CEM-QL and XSLT XPath invocation adapters.
+- Wire compiled CEMT XPath body descriptors into general CEMT function dispatch
+  through a native XDM binding arena, then add CEM-QL and XSLT XPath invocation
+  adapters without introducing generic-value or serialization bridges.
 - Define grammar-aware formatting before making profile output differ.
 
 ## Examples

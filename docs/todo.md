@@ -69,6 +69,12 @@ mediate between internal layers.
           sequences, and preserve resolver, safety, owner, and source-map
           identity without parsing expression strings or projecting bindings
           through JSON; leave authored CEMT call syntax explicitly undecided.
+    - [x] Add the schema-owned CEMT XPath body form: fuse its typed expression
+          child once into a CEMT-owned XPath AST, map explicit context and
+          expanded-QName variable declarations only from native XPath host
+          bindings, invoke the CEMT adapter directly, and return the typed XPath
+          result artifact without a string parser, generic CEMT value bridge,
+          serializer, DTO, or replacement tree at runtime.
   - [x] Fuse parsed XPath streams into XSLT XPath-bearing attributes and AVT
         expression segments while retaining an independently addressable XPath
         AST associated with the owning XML event or subtree node.

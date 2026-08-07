@@ -45,6 +45,8 @@ attribute contracts and the diagnostic codes for transform-specific policy:
 - `cem.transform.function_identity_missing`
 - `cem.transform.function_capability_missing`
 - `cem.transform.function_shadowed_standard`
+- `cem.transform.xpath_invocation_invalid`
+- `cem.transform.xpath_binding_unresolved`
 - `cem.transform_template.let_expr_invalid`
 
 Current incomplete boundary: most transform declaration validation is still
@@ -61,6 +63,49 @@ template expression slots and delegates expression syntax, parse facts, type
 facts, evaluator IR, and expression diagnostics to the shared CEM-QL expression
 schema owned by `cem-ql/v1`. Transform-owned diagnostics remain for transform
 function declaration contracts and output producer policy.
+
+CEMT additionally owns an explicit XPath function-body form. This is a sibling
+of the existing dollar-expression body, not a reinterpretation of a CEM-QL
+slot:
+
+```cem
+@doc cem-ml 1
+@ns transform = "https://cem.dev/ns/transform/cem/1"
+@ns vars = "urn:cem:variables"
+@default transform
+
+{module |
+    {function @name="acme.select-by-index" @returns="any" |
+        {body |
+            {xpath @context="document" @sequence-type="node()" |
+                {variable
+                    @binding="index"
+                    @namespace-uri="urn:cem:variables"
+                    @local-name="index"}
+                {expression | /root/n[$vars:index] }
+            }
+        }
+    }
+}
+```
+
+Each function has exactly one executable body form. The `xpath` form declares
+an optional named context binding, zero or more named host bindings mapped to
+expanded XPath variable names, and a required result sequence type with
+optional cardinality bounds. Namespace prefixes used by the expression come
+from the CEMT module's schema namespace declarations; variable declarations use
+namespace URI plus local name so the runtime boundary never depends on a
+prefix spelling.
+
+The expression child is a lexical island compiled once into a CEMT-owned
+`XPathExpressionAst` during template lowering. Its typed invocation descriptor
+is retained in the compiled module. `invoke_transform_template_xpath` accepts
+only native `XPathResultItem` context bindings and `XPathResultSequence`
+variable bindings, invokes the XPath evaluator directly, and returns a typed
+`XPathResultArtifact`. Runtime invocation does not read expression source,
+reparse input, convert a generic CEMT value, or project bindings/results through
+JSON or another DTO. Missing typed bindings fail with
+`cem.transform.xpath_binding_unresolved` before evaluation.
 
 ## Output Artifacts
 

@@ -3492,6 +3492,9 @@ fn lower_transform_template_module_options(
     module_options
         .output_functions
         .extend(overlay_options.output_functions);
+    module_options
+        .xpath_invocations
+        .extend(overlay_options.xpath_invocations);
     module_options.limits = overlay_options.limits;
     Some(module_options)
 }

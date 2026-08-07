@@ -10,6 +10,7 @@
     {uses |
         {use @schema="https://cem.dev/ns/schema/1" @as="schema"}
         {use @schema="https://cem.dev/ns/template/cem-native/1" @as="template"}
+        {use @schema="https://cem.dev/ns/query/xpath/1" @as="xpath"}
     }
 
     {content-types |
@@ -34,6 +35,9 @@
         {element @name="encoding-function" @required-attributes="name category subject produces content-type schema canonical streamable" @optional-attributes="visibility implementation profile extends capability deterministic trusted fallback" @children="param body"}
         {element @name="format-function" @required-attributes="name category subject produces content-type schema canonical streamable" @optional-attributes="visibility implementation profile extends capability deterministic trusted fallback" @children="param body"}
         {element @name="color-function" @required-attributes="name category subject produces content-type schema canonical streamable" @optional-attributes="visibility implementation profile extends capability deterministic trusted fallback" @children="param body"}
+        {element @name="xpath" @required-attributes="sequence-type" @optional-attributes="context min-items max-items" @children="variable* expression"}
+        {element @name="variable" @required-attributes="binding local-name" @optional-attributes="namespace-uri"}
+        {element @name="expression" @children="text"}
     }
 
     {attributes |
@@ -70,6 +74,13 @@
         {attribute @name="deterministic" @type="schema:boolean"}
         {attribute @name="trusted" @type="schema:boolean"}
         {attribute @name="fallback" @type="schema:identifier"}
+        {attribute @name="context" @type="schema:identifier"}
+        {attribute @name="binding" @type="schema:identifier"}
+        {attribute @name="namespace-uri" @type="schema:uri"}
+        {attribute @name="local-name" @type="schema:identifier"}
+        {attribute @name="sequence-type" @type="schema:string"}
+        {attribute @name="min-items" @type="schema:integer"}
+        {attribute @name="max-items" @type="schema:integer"}
     }
 
     {constraints |
@@ -82,6 +93,9 @@
         {constraint @kind="function-output-identity-required" @target="encoding-function format-function color-function" @policy="required"}
         {constraint @kind="native-external-function-capability-required" @target="encoding-function format-function color-function" @policy="when implementation is native or external"}
         {constraint @kind="let-value-or-expression" @target="let" @policy="exactly one of value, expr, or expression is required"}
+        {constraint @kind="xpath-body-form-exclusive" @target="xpath" @diagnostic="cem.transform.xpath_invocation_invalid" @policy="a CEMT function body contains exactly one executable dollar expression or XPath form"}
+        {constraint @kind="xpath-body-expression-owned" @target="expression" @diagnostic="cem.transform.xpath_invocation_invalid" @policy="the lexical island is compiled once into a CEMT-owned XPath AST before runtime"}
+        {constraint @kind="xpath-body-native-bindings" @target="variable" @diagnostic="cem.transform.xpath_binding_unresolved" @policy="context and variable host bindings must already be native XPath items and sequences; generic CEMT and JSON values are not binding inputs"}
     }
 
     {diagnostics |
@@ -94,11 +108,14 @@
         {diagnostic @code="cem.transform.function_capability_missing" @severity="error"}
         {diagnostic @code="cem.transform.function_shadowed_standard" @severity="error"}
         {diagnostic @code="cem.transform_template.let_expr_invalid" @severity="fatal"}
+        {diagnostic @code="cem.transform.xpath_invocation_invalid" @severity="error"}
+        {diagnostic @code="cem.transform.xpath_binding_unresolved" @severity="error"}
     }
 
     {open-content |
         {accept @kind="template-output-element" @policy="delegate-to-target-schema"}
         {accept @kind="template-output-attribute" @policy="delegate-to-target-schema"}
         {accept @kind="template-expression" @policy="delegate-to-cem-ql-expression-schema"}
+        {accept @kind="xpath-expression" @policy="delegate-to-xpath-expression-schema through the schema-owned xpath body form"}
     }
 }

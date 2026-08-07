@@ -29,8 +29,9 @@ use crate::schema::registry::{
     JSON_VALUE_SCHEMA_URI, MARKDOWN_CONTENT_TYPE, MARKDOWN_SCHEMA_URI, MATHML_CONTENT_TYPE,
     MATHML_SCHEMA_URI, RELAX_NG_COMPACT_CONTENT_TYPE, RELAX_NG_SCHEMA_URI, SVG_CONTENT_TYPE,
     SVG_SCHEMA_URI, XHTML_CONTENT_TYPE, XHTML_SCHEMA_URI, XML_CONTENT_TYPE, XML_SCHEMA_URI,
-    XSLT_CONTENT_TYPE, XSLT_SCHEMA_URI, YAML_CONTENT_TYPE, YAML_SCHEMA_URI,
+    XPATH_CONTENT_TYPE, XSLT_CONTENT_TYPE, XSLT_SCHEMA_URI, YAML_CONTENT_TYPE, YAML_SCHEMA_URI,
 };
+use crate::source::line_index::LineIndex;
 use crate::source::{ByteRange, BytesSource, SourceId};
 use crate::source_map::{FrameSpan, SourceMapFrame, SourceMapStack, TransformKind};
 use crate::tokenizer::cem::CemTokenizer;
@@ -45,6 +46,14 @@ use crate::transform_artifact::{
     TransformNativeArtifact,
 };
 use crate::validation::json::JsonValueAst;
+use crate::validation::xpath::{
+    xpath_expression_ast_from_source_bytes, CemtXPathInvocationAdapter, XPathAttachment,
+    XPathDynamicContext, XPathEvaluationPhase, XPathEvaluationRequest, XPathExpandedName,
+    XPathExpectedResult, XPathExpressionAst, XPathHostAttachment, XPathHostNodeKind,
+    XPathHostOwner, XPathInvocationAdapter, XPathInvocationHost, XPathResultArtifact,
+    XPathResultItem, XPathResultSequence, XPathSchemaContractCatalog, XPathSourceRange,
+    XPathSourceRequest, XPathStaticContext, XPathVariableBindings,
+};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::any::Any;
@@ -349,6 +358,10 @@ pub const TRANSFORM_TEMPLATE_DECLARATION_DUPLICATE_CODE: &str =
     "cem.transform_template.declaration_duplicate";
 pub const TRANSFORM_TEMPLATE_DECLARATION_INVALID_CODE: &str =
     "cem.transform_template.declaration_invalid";
+pub const TRANSFORM_TEMPLATE_XPATH_INVOCATION_INVALID_CODE: &str =
+    "cem.transform.xpath_invocation_invalid";
+pub const TRANSFORM_TEMPLATE_XPATH_BINDING_UNRESOLVED_CODE: &str =
+    "cem.transform.xpath_binding_unresolved";
 pub const TRANSFORM_TEMPLATE_OUTPUT_FUNCTION_NAME_UNQUALIFIED_CODE: &str =
     "cem.transform_template.output_function_name_unqualified";
 pub const TRANSFORM_TEMPLATE_OUTPUT_FUNCTION_STANDARD_SHADOW_CODE: &str =
@@ -523,6 +536,30 @@ pub struct TransformTemplateModuleFunctionDeclaration {
     pub body_declared: bool,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub body_expression: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TransformTemplateXPathVariableBinding {
+    pub host_binding: String,
+    pub expanded_name: XPathExpandedName,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TransformTemplateXPathInvocation {
+    pub id: String,
+    pub owner_function: String,
+    pub context_binding: Option<String>,
+    pub variable_bindings: Vec<TransformTemplateXPathVariableBinding>,
+    pub expected_result: XPathExpectedResult,
+    pub static_context: XPathStaticContext,
+    pub expression: Arc<XPathExpressionAst>,
+    pub source_map: SourceMapStack,
+}
+
+#[derive(Debug, Clone, Default)]
+pub struct TransformTemplateXPathHostBindings {
+    pub context_items: BTreeMap<String, XPathResultItem>,
+    pub variable_sequences: BTreeMap<String, XPathResultSequence>,
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
@@ -23933,6 +23970,8 @@ pub struct TransformTemplateModuleOptions {
     pub functions: Vec<TransformTemplateModuleFunctionDeclaration>,
     #[serde(default)]
     pub output_functions: Vec<TransformTemplateOutputFunctionDescriptor>,
+    #[serde(skip, default)]
+    pub xpath_invocations: Vec<TransformTemplateXPathInvocation>,
     #[serde(default)]
     pub limits: TransformTemplateModuleLimits,
 }
@@ -23947,6 +23986,7 @@ impl TransformTemplateModuleOptions {
             && self.encode_expressions.is_empty()
             && self.functions.is_empty()
             && self.output_functions.is_empty()
+            && self.xpath_invocations.is_empty()
             && self.limits == TransformTemplateModuleLimits::default()
     }
 }
@@ -23956,14 +23996,21 @@ pub fn parse_cem_native_template_module_options(
 ) -> TransformTemplateModuleParseResponse {
     let explicit_template_schema = template_has_native_module_schema(&request.template);
     let explicit_transform_schema = template_has_transform_module_schema(&request.template);
-    let mut tokenizer =
-        CemTokenizer::from_source(BytesSource::new(SourceId(1), request.template.bytes));
+    let mut tokenizer = CemTokenizer::from_source(BytesSource::new(
+        SourceId(1),
+        request.template.bytes.clone(),
+    ));
     let tokenizer_diagnostics = tokenizer.take_diagnostics();
     let normalizer = CemEventNormalizer::new(tokenizer);
     let document = CemAstBuilder::new(normalizer).build();
+    let static_namespaces =
+        template_static_namespaces(&document, request.template.identity.as_ref());
     let mut parser = NativeTemplateModuleLowerer {
         document: &document,
         template_uri: request.template.uri.as_str(),
+        template_bytes: request.template.bytes.as_slice(),
+        template_identity: request.template.identity.as_ref(),
+        static_namespaces,
         options: TransformTemplateModuleOptions::default(),
         call_source_maps: Vec::new(),
         diagnostics: Vec::new(),
@@ -24015,9 +24062,59 @@ fn template_has_transform_module_schema(template: &TemplateInput) -> bool {
     })
 }
 
+fn template_static_namespaces(
+    document: &CemDocument,
+    identity: Option<&FormatIdentity>,
+) -> BTreeMap<String, String> {
+    let mut namespaces = identity
+        .map(|identity| identity.namespaces.clone())
+        .unwrap_or_default();
+    let Some(CemAstNode::Document { root_children, .. }) = document.root() else {
+        return namespaces;
+    };
+    for child in root_children {
+        if template_element_name(document, *child) != Some("@ns") {
+            continue;
+        }
+        let Some(body) = template_expression_body(document, *child) else {
+            continue;
+        };
+        let Some((prefix, uri)) = transform_template_parse_ns_body(&body) else {
+            continue;
+        };
+        namespaces.insert(prefix, uri);
+    }
+    namespaces
+}
+
+fn transform_template_parse_ns_body(body: &str) -> Option<(String, String)> {
+    let (prefix, uri) = body.split_once('=')?;
+    let prefix = prefix.trim();
+    let uri = uri.trim();
+    let uri = if uri.len() >= 2
+        && ((uri.starts_with('"') && uri.ends_with('"'))
+            || (uri.starts_with('\'') && uri.ends_with('\'')))
+    {
+        &uri[1..uri.len() - 1]
+    } else {
+        uri
+    };
+    (!prefix.is_empty() && !uri.is_empty()).then(|| (prefix.to_owned(), uri.to_owned()))
+}
+
+fn transform_template_xpath_expanded_name(name: &XPathExpandedName) -> String {
+    name.namespace_uri
+        .as_deref()
+        .map(|namespace_uri| format!("Q{{{namespace_uri}}}{}", name.local_name))
+        .unwrap_or_else(|| name.local_name.clone())
+}
+
 struct NativeTemplateModuleLowerer<'a> {
     document: &'a CemDocument,
     template_uri: &'a str,
+    template_bytes: &'a [u8],
+    template_identity: Option<&'a FormatIdentity>,
+    static_namespaces: BTreeMap<String, String>,
     options: TransformTemplateModuleOptions,
     call_source_maps: Vec<Option<SourceMapStack>>,
     diagnostics: Vec<Diagnostic>,
@@ -24247,6 +24344,8 @@ impl NativeTemplateModuleLowerer<'_> {
         let mut params = Vec::new();
         let mut body_declared = false;
         let mut body_expression = None;
+        let mut body_xpath_declared = false;
+        let xpath_invocation_start = self.options.xpath_invocations.len();
         for child in children {
             let Some(child_name) = template_element_name(self.document, *child) else {
                 continue;
@@ -24262,6 +24361,8 @@ impl NativeTemplateModuleLowerer<'_> {
                 "body" => {
                     body_declared = true;
                     body_expression = self.runtime_body_expression(*child, element_name, &name);
+                    body_xpath_declared =
+                        self.lower_runtime_xpath_body(*child, element_name, &name);
                 }
                 other => self.push_diag(
                     TRANSFORM_TEMPLATE_DECLARATION_UNSUPPORTED_CODE,
@@ -24269,10 +24370,23 @@ impl NativeTemplateModuleLowerer<'_> {
                 ),
             }
         }
-        if !body_declared || body_expression.is_none() {
+        if body_expression.is_some() && body_xpath_declared {
+            self.options
+                .xpath_invocations
+                .truncate(xpath_invocation_start);
+            self.push_diag(
+                TRANSFORM_TEMPLATE_XPATH_INVOCATION_INVALID_CODE,
+                format!(
+                    "CEMT `{element_name}` `{name}` body must contain exactly one executable `$` or `xpath` form"
+                ),
+            );
+        }
+        if !body_declared || (body_expression.is_none() && !body_xpath_declared) {
             self.push_diag(
                 TRANSFORM_TEMPLATE_DECLARATION_REQUIRED_CODE,
-                format!("CEMT `{element_name}` `{name}` requires one executable body expression"),
+                format!(
+                    "CEMT `{element_name}` `{name}` requires one executable `$` or `xpath` body form"
+                ),
             );
         }
 
@@ -24387,6 +24501,8 @@ impl NativeTemplateModuleLowerer<'_> {
         let mut params = Vec::new();
         let mut body_declared = false;
         let mut body_expression = None;
+        let mut body_xpath_declared = false;
+        let xpath_invocation_start = self.options.xpath_invocations.len();
         for child in children {
             let Some(child_name) = template_element_name(self.document, *child) else {
                 continue;
@@ -24402,6 +24518,8 @@ impl NativeTemplateModuleLowerer<'_> {
                 "body" => {
                     body_declared = true;
                     body_expression = self.runtime_body_expression(*child, element_name, &name);
+                    body_xpath_declared =
+                        self.lower_runtime_xpath_body(*child, element_name, &name);
                     if body_expression.as_deref().is_some_and(|expression| {
                         cemt_expression_starts_with_call(expression, "encode")
                     }) {
@@ -24413,6 +24531,17 @@ impl NativeTemplateModuleLowerer<'_> {
                     format!("`{element_name}` declarations cannot contain `{other}`"),
                 ),
             }
+        }
+        if body_expression.is_some() && body_xpath_declared {
+            self.options
+                .xpath_invocations
+                .truncate(xpath_invocation_start);
+            self.push_diag(
+                TRANSFORM_TEMPLATE_XPATH_INVOCATION_INVALID_CODE,
+                format!(
+                    "CEMT `{element_name}` `{name}` body must contain exactly one executable `$` or `xpath` form"
+                ),
+            );
         }
 
         self.options
@@ -24459,6 +24588,326 @@ impl NativeTemplateModuleLowerer<'_> {
             );
         }
         expressions.into_iter().next()
+    }
+
+    fn lower_runtime_xpath_body(
+        &mut self,
+        body_id: AstNodeId,
+        element_name: &str,
+        function_name: &str,
+    ) -> bool {
+        let slots = self.collect_runtime_xpath_slots(body_id);
+        if slots.len() > 1 {
+            self.push_diag(
+                TRANSFORM_TEMPLATE_XPATH_INVOCATION_INVALID_CODE,
+                format!(
+                    "CEMT `{element_name}` `{function_name}` body must contain at most one executable `xpath` form"
+                ),
+            );
+            return true;
+        }
+        let Some(slot_id) = slots.first().copied() else {
+            return false;
+        };
+        self.lower_xpath_invocation(slot_id, function_name);
+        true
+    }
+
+    fn collect_runtime_xpath_slots(&self, node_id: AstNodeId) -> Vec<AstNodeId> {
+        let Some(CemAstNode::Element { children, .. }) = self.document.get(node_id) else {
+            return Vec::new();
+        };
+        if template_element_name(self.document, node_id) == Some("xpath") {
+            return vec![node_id];
+        }
+        let mut slots = Vec::new();
+        for child in children {
+            slots.extend(self.collect_runtime_xpath_slots(*child));
+        }
+        slots
+    }
+
+    fn lower_xpath_invocation(&mut self, xpath_id: AstNodeId, function_name: &str) {
+        let attrs = template_collect_attrs(self.document, xpath_id);
+        let Some(sequence_type) = required_attr(&attrs, "sequence-type") else {
+            self.push_diag(
+                TRANSFORM_TEMPLATE_XPATH_INVOCATION_INVALID_CODE,
+                format!("CEMT `xpath` body in `{function_name}` requires `@sequence-type`"),
+            );
+            return;
+        };
+        let min_items = self.parse_xpath_cardinality_attr(&attrs, function_name, "min-items");
+        let max_items = self.parse_xpath_cardinality_attr(&attrs, function_name, "max-items");
+        if min_items
+            .zip(max_items)
+            .is_some_and(|(minimum, maximum)| minimum > maximum)
+        {
+            self.push_diag(
+                TRANSFORM_TEMPLATE_XPATH_INVOCATION_INVALID_CODE,
+                format!(
+                    "CEMT `xpath` body in `{function_name}` requires `@min-items` less than or equal to `@max-items`"
+                ),
+            );
+            return;
+        }
+
+        let Some(CemAstNode::Element { children, .. }) = self.document.get(xpath_id) else {
+            return;
+        };
+        let children = children.clone();
+        let mut expression_ids = Vec::new();
+        let mut variable_bindings = Vec::new();
+        let mut expanded_names = BTreeSet::new();
+        for child in children {
+            let Some(child_name) = template_element_name(self.document, child) else {
+                continue;
+            };
+            match child_name {
+                "expression" => expression_ids.push(child),
+                "variable" => {
+                    if let Some(binding) = self.parse_xpath_variable_binding(child, function_name) {
+                        if !expanded_names.insert(binding.expanded_name.clone()) {
+                            self.push_diag(
+                                TRANSFORM_TEMPLATE_XPATH_INVOCATION_INVALID_CODE,
+                                format!(
+                                    "CEMT `xpath` body in `{function_name}` declares expanded variable `{}` more than once",
+                                    transform_template_xpath_expanded_name(&binding.expanded_name)
+                                ),
+                            );
+                        } else {
+                            variable_bindings.push(binding);
+                        }
+                    }
+                }
+                other => self.push_diag(
+                    TRANSFORM_TEMPLATE_XPATH_INVOCATION_INVALID_CODE,
+                    format!(
+                        "CEMT `xpath` body in `{function_name}` cannot contain `{other}`; use `variable` and one `expression` child"
+                    ),
+                ),
+            }
+        }
+        let [expression_id] = expression_ids.as_slice() else {
+            self.push_diag(
+                TRANSFORM_TEMPLATE_XPATH_INVOCATION_INVALID_CODE,
+                format!(
+                    "CEMT `xpath` body in `{function_name}` requires exactly one `expression` child"
+                ),
+            );
+            return;
+        };
+        let Some((expression_bytes, expression_range)) =
+            self.xpath_expression_source(*expression_id, function_name)
+        else {
+            return;
+        };
+        let Some(source_map) = template_node_source_map(self.document, xpath_id) else {
+            self.push_diag(
+                TRANSFORM_TEMPLATE_XPATH_INVOCATION_INVALID_CODE,
+                format!("CEMT `xpath` body in `{function_name}` has no native source map"),
+            );
+            return;
+        };
+        let Some(owner_byte_range) = template_subtree_byte_range(self.document, xpath_id) else {
+            self.push_diag(
+                TRANSFORM_TEMPLATE_XPATH_INVOCATION_INVALID_CODE,
+                format!("CEMT `xpath` body in `{function_name}` has no source byte range"),
+            );
+            return;
+        };
+        let source_id = source_map
+            .current()
+            .map(|frame| frame.source_id.0)
+            .unwrap_or(1);
+        let owner_range = self.xpath_source_range(owner_byte_range);
+        let expected_result = XPathExpectedResult {
+            sequence_type,
+            min_items,
+            max_items,
+        };
+        let mut static_context = XPathStaticContext {
+            namespaces: self.static_namespaces.clone(),
+            ..XPathStaticContext::default()
+        };
+        static_context.variable_bindings = variable_bindings
+            .iter()
+            .map(|binding| {
+                (
+                    transform_template_xpath_expanded_name(&binding.expanded_name),
+                    "item()*".to_owned(),
+                )
+            })
+            .collect();
+        let invocation_id = format!("{function_name}#xpath");
+        let attachment = XPathAttachment::Host(XPathHostAttachment {
+            owner: XPathHostOwner {
+                source_id,
+                source_uri: self.template_uri.to_owned(),
+                content_type: self
+                    .template_identity
+                    .and_then(|identity| identity.content_type.clone())
+                    .or_else(|| Some(CEM_TRANSFORM_CONTENT_TYPE.to_owned())),
+                schema_uri: self
+                    .template_identity
+                    .and_then(|identity| identity.schema.clone())
+                    .or_else(|| Some(CEM_TRANSFORM_SCHEMA_URI.to_owned())),
+                node_kind: XPathHostNodeKind::CemtExpressionSlot,
+                node_id: Some(invocation_id.clone()),
+                source_range: owner_range,
+            },
+            expression_range,
+            static_context: static_context.clone(),
+            expected_result: Some(expected_result.clone()),
+            evaluation_phase: XPathEvaluationPhase::Render,
+            resolver_policy_stamp: Some("resolver:cemt-runtime".to_owned()),
+            safety_policy_stamp: Some("xpath-safety/1;cemt-authored-slot".to_owned()),
+        });
+        let expression = xpath_expression_ast_from_source_bytes(
+            XPathSourceRequest {
+                bytes: &expression_bytes,
+                source_uri: self.template_uri,
+                content_type: Some(XPATH_CONTENT_TYPE),
+                source_range_projector: None,
+            },
+            attachment,
+        );
+        let mut diagnostics = crate::validation::xpath::validate_xpath_expression_ast(
+            &expression,
+            XPathSchemaContractCatalog::from_builtin(),
+        );
+        let parsed = expression.syntax_ast.is_some();
+        self.diagnostics.append(&mut diagnostics);
+        if !parsed {
+            return;
+        }
+        self.options
+            .xpath_invocations
+            .push(TransformTemplateXPathInvocation {
+                id: invocation_id,
+                owner_function: function_name.to_owned(),
+                context_binding: optional_trimmed_attr(&attrs, "context"),
+                variable_bindings,
+                expected_result,
+                static_context,
+                expression: Arc::new(expression),
+                source_map,
+            });
+    }
+
+    fn parse_xpath_cardinality_attr(
+        &mut self,
+        attrs: &BTreeMap<(String, String), Option<String>>,
+        function_name: &str,
+        attr_name: &str,
+    ) -> Option<usize> {
+        let value = optional_trimmed_attr(attrs, attr_name)?;
+        match value.parse::<usize>() {
+            Ok(value) => Some(value),
+            Err(_) => {
+                self.push_diag(
+                    TRANSFORM_TEMPLATE_XPATH_INVOCATION_INVALID_CODE,
+                    format!(
+                        "CEMT `xpath` body in `{function_name}` has invalid `@{attr_name}` value `{value}`"
+                    ),
+                );
+                None
+            }
+        }
+    }
+
+    fn parse_xpath_variable_binding(
+        &mut self,
+        variable_id: AstNodeId,
+        function_name: &str,
+    ) -> Option<TransformTemplateXPathVariableBinding> {
+        let attrs = template_collect_attrs(self.document, variable_id);
+        let Some(host_binding) = required_attr(&attrs, "binding") else {
+            self.push_diag(
+                TRANSFORM_TEMPLATE_XPATH_INVOCATION_INVALID_CODE,
+                format!("CEMT XPath `variable` in `{function_name}` requires `@binding`"),
+            );
+            return None;
+        };
+        let Some(local_name) = required_attr(&attrs, "local-name") else {
+            self.push_diag(
+                TRANSFORM_TEMPLATE_XPATH_INVOCATION_INVALID_CODE,
+                format!("CEMT XPath `variable` in `{function_name}` requires `@local-name`"),
+            );
+            return None;
+        };
+        self.reject_decl_children(variable_id, "variable");
+        Some(TransformTemplateXPathVariableBinding {
+            host_binding,
+            expanded_name: XPathExpandedName::new(
+                optional_trimmed_attr(&attrs, "namespace-uri"),
+                local_name,
+            ),
+        })
+    }
+
+    fn xpath_expression_source(
+        &mut self,
+        expression_id: AstNodeId,
+        function_name: &str,
+    ) -> Option<(Vec<u8>, XPathSourceRange)> {
+        let Some(CemAstNode::Element { children, .. }) = self.document.get(expression_id) else {
+            return None;
+        };
+        let mut ranges = Vec::new();
+        for child in children {
+            match self.document.get(*child) {
+                Some(CemAstNode::Text { source, .. })
+                | Some(CemAstNode::Whitespace { source, .. })
+                | Some(CemAstNode::RawText { source, .. }) => {
+                    if let Some(range) = source_map_byte_range(source) {
+                        ranges.push(range);
+                    }
+                }
+                Some(_) => self.push_diag(
+                    TRANSFORM_TEMPLATE_XPATH_INVOCATION_INVALID_CODE,
+                    format!(
+                        "CEMT XPath `expression` in `{function_name}` must contain one text lexical island"
+                    ),
+                ),
+                None => {}
+            }
+        }
+        let start = ranges.iter().map(|range| range.start).min()?;
+        let end = ranges.iter().map(|range| range.end()).max()?;
+        let start_index = usize::try_from(start).ok()?;
+        let end_index = usize::try_from(end).ok()?;
+        let raw = self.template_bytes.get(start_index..end_index)?;
+        let text = std::str::from_utf8(raw).ok()?;
+        let leading = text.len().saturating_sub(text.trim_start().len());
+        let trimmed = text.trim();
+        if trimmed.is_empty() {
+            self.push_diag(
+                TRANSFORM_TEMPLATE_XPATH_INVOCATION_INVALID_CODE,
+                format!("CEMT XPath `expression` in `{function_name}` must not be empty"),
+            );
+            return None;
+        }
+        let expression_start = start.saturating_add(leading as u64);
+        let position = LineIndex::from_bytes_lossy(self.template_bytes).project(expression_start);
+        Some((
+            trimmed.as_bytes().to_vec(),
+            XPathSourceRange::new(
+                position.line,
+                position.column,
+                expression_start,
+                trimmed.len() as u64,
+            ),
+        ))
+    }
+
+    fn xpath_source_range(&self, range: ByteRange) -> XPathSourceRange {
+        let position = LineIndex::from_bytes_lossy(self.template_bytes).project(range.start);
+        XPathSourceRange::new(
+            position.line,
+            position.column,
+            range.start,
+            u64::from(range.len),
+        )
     }
 
     fn collect_runtime_body_expressions(&self, node_id: AstNodeId) -> Vec<String> {
@@ -25220,6 +25669,32 @@ fn source_map_byte_range(source_map: &SourceMapStack) -> Option<ByteRange> {
     })
 }
 
+fn template_subtree_byte_range(doc: &CemDocument, node_id: AstNodeId) -> Option<ByteRange> {
+    let node = doc.get(node_id)?;
+    let mut ranges = template_node_source_map(doc, node_id)
+        .and_then(|source_map| source_map_byte_range(&source_map))
+        .into_iter()
+        .collect::<Vec<_>>();
+    if let CemAstNode::Element {
+        attributes,
+        children,
+        ..
+    } = node
+    {
+        for descendant in attributes.iter().chain(children) {
+            if let Some(range) = template_subtree_byte_range(doc, *descendant) {
+                ranges.push(range);
+            }
+        }
+    }
+    let start = ranges.iter().map(|range| range.start).min()?;
+    let end = ranges.iter().map(|range| range.end()).max()?;
+    Some(ByteRange::new(
+        start,
+        u32::try_from(end.saturating_sub(start)).unwrap_or(u32::MAX),
+    ))
+}
+
 fn template_expression_body(doc: &CemDocument, node_id: AstNodeId) -> Option<String> {
     let Some(CemAstNode::Element { children, .. }) = doc.get(node_id) else {
         return None;
@@ -25548,6 +26023,96 @@ pub struct TransformTemplateRenderRequest<'a> {
 pub struct TransformTemplateRuntimeContext<'a> {
     pub resolver_registry: &'a ResolverRegistry,
     pub resolver_policy: &'a ResolverPolicy,
+}
+
+pub fn invoke_transform_template_xpath(
+    invocation: &TransformTemplateXPathInvocation,
+    host_bindings: &TransformTemplateXPathHostBindings,
+    runtime: TransformTemplateRuntimeContext<'_>,
+) -> Result<XPathResultArtifact, Vec<Diagnostic>> {
+    let mut diagnostics = Vec::new();
+    let context_item = invocation.context_binding.as_deref().and_then(|binding| {
+        host_bindings
+            .context_items
+            .get(binding)
+            .cloned()
+            .or_else(|| {
+                diagnostics.push(transform_template_xpath_binding_diagnostic(
+                    invocation, "context", binding,
+                ));
+                None
+            })
+    });
+    let mut variable_bindings = XPathVariableBindings::new();
+    for declaration in &invocation.variable_bindings {
+        let Some(sequence) = host_bindings
+            .variable_sequences
+            .get(&declaration.host_binding)
+            .cloned()
+        else {
+            diagnostics.push(transform_template_xpath_binding_diagnostic(
+                invocation,
+                "variable",
+                &declaration.host_binding,
+            ));
+            continue;
+        };
+        variable_bindings.insert(declaration.expanded_name.clone(), sequence);
+    }
+    if !diagnostics.is_empty() {
+        return Err(diagnostics);
+    }
+
+    CemtXPathInvocationAdapter.invoke(XPathEvaluationRequest {
+        invocation_host: XPathInvocationHost::Cemt,
+        expression: invocation.expression.as_ref(),
+        dynamic_context: XPathDynamicContext {
+            context_item,
+            variable_bindings,
+        },
+        static_context: invocation.static_context.clone(),
+        expected_result: Some(invocation.expected_result.clone()),
+        resolver_registry: runtime.resolver_registry,
+        resolver_policy: runtime.resolver_policy,
+        safety_policy_stamp: "xpath-safety/1;cemt-authored-slot",
+    })
+}
+
+fn transform_template_xpath_binding_diagnostic(
+    invocation: &TransformTemplateXPathInvocation,
+    binding_kind: &str,
+    binding: &str,
+) -> Diagnostic {
+    let (line, column, byte_offset) = match &invocation.expression.attachment {
+        XPathAttachment::Host(host) => (
+            Some(host.expression_range.start.line),
+            Some(host.expression_range.start.column),
+            Some(host.expression_range.start.byte_offset),
+        ),
+        XPathAttachment::Standalone { .. } => (None, None, None),
+    };
+    Diagnostic {
+        uri: Some(invocation.expression.source.uri.clone()),
+        line,
+        column,
+        byte_offset,
+        code: TRANSFORM_TEMPLATE_XPATH_BINDING_UNRESOLVED_CODE.to_owned(),
+        severity: Severity::Error,
+        message: format!(
+            "CEMT XPath {} `{}` requires typed host {binding_kind} binding `{binding}`",
+            invocation.id, invocation.owner_function
+        ),
+        details: Some(serde_json::json!({
+            "cemtXPath": {
+                "invocation": invocation.id,
+                "ownerFunction": invocation.owner_function,
+                "bindingKind": binding_kind,
+                "binding": binding,
+            }
+        })),
+        source_map: Some(invocation.source_map.clone()),
+        ..Diagnostic::default()
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -27533,6 +28098,7 @@ mod tests {
             encode_expressions: Vec::new(),
             functions: Vec::new(),
             output_functions: Vec::new(),
+            xpath_invocations: Vec::new(),
             limits: TransformTemplateModuleLimits::default(),
         };
 
@@ -32878,6 +33444,275 @@ mod tests {
                 ]
             }))
         );
+    }
+
+    #[test]
+    fn cemt_xpath_body_compiles_once_and_invokes_with_native_host_bindings() {
+        use crate::lifecycle::LoadedInputAstStream;
+        use crate::validation::xml::{
+            xml_document_ast_from_source_bytes, XmlSourceValidationRequest,
+        };
+        use crate::validation::xpath::{
+            XPathAtomicValue, XPathExpandedName, XPathResultItem, XPathResultSequence,
+        };
+
+        let template_source = r#"@doc cem-ml 1
+@ns transform = "https://cem.dev/ns/transform/cem/1"
+@ns vars = "urn:cem:variables"
+@default transform
+
+{module |
+  {function @name="acme.pick-node" @returns="any" |
+    {body |
+      {xpath @context="document" @sequence-type="node()" |
+        {variable @binding="index" @namespace-uri="urn:cem:variables" @local-name="index"}
+        {expression | /root/n[$vars:index] }
+      }
+    }
+  }
+}"#;
+        let response =
+            parse_cem_native_template_module_options(TransformTemplateModuleParseRequest {
+                template: template_input(
+                    "memory://xpath-body.cemt",
+                    template_source,
+                    Some(FormatIdentity {
+                        content_type: Some(CEM_TRANSFORM_CONTENT_TYPE.to_owned()),
+                        schema: Some(CEM_TRANSFORM_SCHEMA_URI.to_owned()),
+                        ..FormatIdentity::default()
+                    }),
+                ),
+            });
+        assert!(
+            response.diagnostics.is_empty(),
+            "{:?}",
+            response.diagnostics
+        );
+        let function = response
+            .module_options
+            .functions
+            .iter()
+            .find(|function| function.name == "acme.pick-node")
+            .expect("CEMT XPath function");
+        assert!(function.body_expression.is_none());
+        let invocation = response
+            .module_options
+            .xpath_invocations
+            .iter()
+            .find(|invocation| invocation.owner_function == function.name)
+            .expect("owned XPath body invocation");
+        assert_eq!(invocation.context_binding.as_deref(), Some("document"));
+        assert_eq!(invocation.variable_bindings.len(), 1);
+        assert_eq!(
+            invocation.variable_bindings[0].expanded_name,
+            XPathExpandedName::new(Some("urn:cem:variables"), "index")
+        );
+        let expression = invocation.expression.as_ref();
+        assert_eq!(
+            expression.source_text.as_deref(),
+            Some("/root/n[$vars:index]")
+        );
+        assert!(expression.syntax_ast.is_some(), "{:?}", expression.facts);
+        let expression_offset = template_source
+            .find("/root/n[$vars:index]")
+            .expect("XPath source offset") as u64;
+        assert_eq!(
+            expression
+                .tokens
+                .first()
+                .expect("first token")
+                .source_range
+                .start
+                .byte_offset,
+            expression_offset
+        );
+
+        let xml_source = br#"<root><n>first</n><n>second</n></root>"#;
+        let (document, diagnostics) =
+            xml_document_ast_from_source_bytes(XmlSourceValidationRequest {
+                bytes: xml_source,
+                source_uri: "memory://context.xml",
+                content_type: Some("application/xml"),
+            });
+        assert!(diagnostics.is_empty(), "{diagnostics:?}");
+        let owner = Arc::new(LoadedInputAstStream::XmlDocument(
+            document.expect("typed XML document"),
+        ));
+        let context_item = XPathResultItem::from_native_node(
+            crate::validation::xpath::XPathNativeNode::xml_document(Arc::clone(&owner))
+                .expect("native XML document node"),
+        );
+        let host_bindings = TransformTemplateXPathHostBindings {
+            context_items: BTreeMap::from([("document".to_owned(), context_item)]),
+            variable_sequences: BTreeMap::from([(
+                "index".to_owned(),
+                XPathResultSequence {
+                    sequence_type: "xs:integer".to_owned(),
+                    items: vec![XPathResultItem::Atomic {
+                        value: XPathAtomicValue {
+                            type_name: "xs:integer".to_owned(),
+                            lexical_value: "2".to_owned(),
+                            namespace_uri: None,
+                            local_name: None,
+                        },
+                        source_map: SourceMapStack::default(),
+                    }],
+                },
+            )]),
+        };
+        let resolver_registry = ResolverRegistry::new();
+        let resolver_policy = ResolverPolicy::new();
+        let result = invoke_transform_template_xpath(
+            invocation,
+            &host_bindings,
+            TransformTemplateRuntimeContext {
+                resolver_registry: &resolver_registry,
+                resolver_policy: &resolver_policy,
+            },
+        )
+        .expect("CEMT invokes the compiled XPath body directly");
+        let [XPathResultItem::Node { native_node, .. }] = result.sequence.items.as_slice() else {
+            panic!("expected one native XPath node result: {result:?}");
+        };
+        assert!(Arc::ptr_eq(
+            native_node.as_ref().expect("retained native node").owner(),
+            &owner
+        ));
+    }
+
+    #[test]
+    fn cemt_xpath_body_rejects_missing_typed_bindings_and_runtime_bridges() {
+        let template_source = r#"@doc cem-ml 1
+@ns transform = "https://cem.dev/ns/transform/cem/1"
+@ns vars = "urn:cem:variables"
+@default transform
+
+{module |
+  {function @name="acme.requires-bindings" @returns="any" |
+    {body |
+      {xpath @context="document" @sequence-type="item()*" |
+        {variable @binding="limit" @namespace-uri="urn:cem:variables" @local-name="limit"}
+        {expression | $vars:limit }
+      }
+    }
+  }
+}"#;
+        let response =
+            parse_cem_native_template_module_options(TransformTemplateModuleParseRequest {
+                template: template_input(
+                    "memory://xpath-bindings.cemt",
+                    template_source,
+                    Some(FormatIdentity {
+                        content_type: Some(CEM_TRANSFORM_CONTENT_TYPE.to_owned()),
+                        schema: Some(CEM_TRANSFORM_SCHEMA_URI.to_owned()),
+                        ..FormatIdentity::default()
+                    }),
+                ),
+            });
+        assert!(
+            response.diagnostics.is_empty(),
+            "{:?}",
+            response.diagnostics
+        );
+        let invocation = response
+            .module_options
+            .xpath_invocations
+            .first()
+            .expect("compiled XPath body");
+        let resolver_registry = ResolverRegistry::new();
+        let resolver_policy = ResolverPolicy::new();
+        let diagnostics = invoke_transform_template_xpath(
+            invocation,
+            &TransformTemplateXPathHostBindings::default(),
+            TransformTemplateRuntimeContext {
+                resolver_registry: &resolver_registry,
+                resolver_policy: &resolver_policy,
+            },
+        )
+        .expect_err("declared native bindings are required");
+        assert_eq!(diagnostics.len(), 2, "{diagnostics:?}");
+        assert!(diagnostics
+            .iter()
+            .all(|diagnostic| diagnostic.code == "cem.transform.xpath_binding_unresolved"));
+
+        let source = include_str!("transform_template.rs");
+        let runtime = source
+            .split_once("pub fn invoke_transform_template_xpath")
+            .expect("typed CEMT XPath runtime boundary")
+            .1
+            .split_once("fn transform_template_xpath_binding_diagnostic")
+            .expect("typed CEMT XPath runtime boundary")
+            .0;
+        for forbidden in [
+            "serde_json",
+            "CemtEvaluatorValue",
+            "source_text",
+            "xpath_expression_ast_from_source_bytes",
+            "xml_document_ast_from_source_bytes",
+        ] {
+            assert!(
+                !runtime.contains(forbidden),
+                "CEMT XPath runtime must not cross `{forbidden}`"
+            );
+        }
+    }
+
+    #[test]
+    fn cemt_xpath_body_rejects_mixed_or_missing_executable_forms() {
+        for (name, body) in [
+            (
+                "mixed",
+                r#"{$ true }
+      {xpath @sequence-type="item()" |
+        {expression | true() }
+      }"#,
+            ),
+            ("missing-expression", r#"{xpath @sequence-type="item()"}"#),
+            (
+                "multiple",
+                r#"{xpath @sequence-type="item()" |
+        {expression | true() }
+      }
+      {xpath @sequence-type="item()" |
+        {expression | false() }
+      }"#,
+            ),
+        ] {
+            let source = format!(
+                r#"@doc cem-ml 1
+@ns transform = "https://cem.dev/ns/transform/cem/1"
+@default transform
+
+{{module |
+  {{function @name="acme.{name}" @returns="any" |
+    {{body |
+      {body}
+    }}
+  }}
+}}"#
+            );
+            let response =
+                parse_cem_native_template_module_options(TransformTemplateModuleParseRequest {
+                    template: template_input(
+                        &format!("memory://xpath-{name}.cemt"),
+                        &source,
+                        Some(FormatIdentity {
+                            content_type: Some(CEM_TRANSFORM_CONTENT_TYPE.to_owned()),
+                            schema: Some(CEM_TRANSFORM_SCHEMA_URI.to_owned()),
+                            ..FormatIdentity::default()
+                        }),
+                    ),
+                });
+
+            assert!(
+                response.diagnostics.iter().any(|diagnostic| {
+                    diagnostic.code == TRANSFORM_TEMPLATE_XPATH_INVOCATION_INVALID_CODE
+                }),
+                "{name}: {:?}",
+                response.diagnostics
+            );
+            assert!(response.module_options.xpath_invocations.is_empty());
+        }
     }
 
     #[test]

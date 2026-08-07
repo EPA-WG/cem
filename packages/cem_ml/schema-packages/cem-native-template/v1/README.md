@@ -99,13 +99,12 @@ expression nodes, and attribute-value template spans are recognized as
 expression-bearing slots. This audit classification does not change existing
 render behavior for literal `@with:*` values.
 
-The XPath package exposes a typed programmatic CEMT invocation adapter for an
-already parsed, CEMT-owned XPath AST plus native context and expanded-QName XDM
-bindings. That adapter is an inter-package runtime boundary, not new authored
-syntax: this package continues to delegate its current expression slots to
-CEM-QL. A future textual XPath call form requires an explicit schema revision
-and must not reinterpret JSON or generic CEMT values as an intermediate XDM
-DTO.
+The CEM transform package now owns a dedicated authored `xpath` function-body
+form backed by the XPath package's typed invocation adapter. That syntax does
+not belong to this base template package and does not alter these CEM-QL-owned
+expression slots. The transform form carries an already parsed, CEMT-owned
+XPath AST plus native context and expanded-QName XDM bindings; it never
+reinterprets JSON or generic CEMT values as an intermediate XDM DTO.
 
 ## Output Artifacts
 
