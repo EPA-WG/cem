@@ -4,7 +4,7 @@ use super::{
     XPathExpressionNode, XPathExpressionSequence, XPathKindTest, XPathLiteral, XPathLiteralKind,
     XPathMapConstructorEntry, XPathName, XPathNameTest, XPathNodeTest, XPathOccurrenceIndicator,
     XPathPathExpression, XPathPathRoot, XPathPostfixExpression, XPathPrimaryExpression,
-    XPathQuantifier, XPathSequenceItemType, XPathSequenceType, XPathSourceRange,
+    XPathQuantifier, XPathSequenceItemType, XPathSequenceType, XPathSingleType, XPathSourceRange,
     XPathSourceRangeResolver, XPathStep, XPathStepNode, XPathSyntaxAst, XPathUnaryOperator,
 };
 
@@ -119,16 +119,7 @@ impl<'tokens, 'source, 'context> XPathParser<'tokens, 'source, 'context> {
             "some" | "every" => self.parse_quantified_expression(),
             "switch" => self.parse_unsupported_expression("switch-expression"),
             "typeswitch" => self.parse_unsupported_expression("typeswitch-expression"),
-            _ => {
-                let start = token.start;
-                let expression = self.parse_binary_expression(1)?;
-                if let Some((_, suffix)) = self.peek() {
-                    if let Some(production) = unsupported_suffix_production(suffix.lexeme) {
-                        return self.parse_unsupported_from(start, production);
-                    }
-                }
-                Ok(expression)
-            }
+            _ => self.parse_binary_expression(1),
         }
     }
 
@@ -325,7 +316,7 @@ impl<'tokens, 'source, 'context> XPathParser<'tokens, 'source, 'context> {
     }
 
     fn parse_treat_expression(&mut self) -> Result<XPathExpressionNode, XPathParseError> {
-        let operand = self.parse_arrow_expression()?;
+        let operand = self.parse_castable_expression()?;
         if self.consume_if("treat").is_none() {
             return Ok(operand);
         }
@@ -341,6 +332,65 @@ impl<'tokens, 'source, 'context> XPathParser<'tokens, 'source, 'context> {
                 sequence_type,
             },
             source_range: self.range(start, end),
+        })
+    }
+
+    fn parse_castable_expression(&mut self) -> Result<XPathExpressionNode, XPathParseError> {
+        let operand = self.parse_cast_expression()?;
+        if self.consume_if("castable").is_none() {
+            return Ok(operand);
+        }
+        self.expect("as")?;
+        let single_type = self.parse_single_type()?;
+        let start = self.node_start(&operand);
+        let end = self
+            .previous_semantic()
+            .map_or(start, |(_, token)| token.end);
+        Ok(XPathExpressionNode {
+            expression: XPathExpression::CastableAs {
+                operand: Box::new(operand),
+                single_type,
+            },
+            source_range: self.range(start, end),
+        })
+    }
+
+    fn parse_cast_expression(&mut self) -> Result<XPathExpressionNode, XPathParseError> {
+        let operand = self.parse_arrow_expression()?;
+        if self.consume_if("cast").is_none() {
+            return Ok(operand);
+        }
+        self.expect("as")?;
+        let single_type = self.parse_single_type()?;
+        let start = self.node_start(&operand);
+        let end = self
+            .previous_semantic()
+            .map_or(start, |(_, token)| token.end);
+        Ok(XPathExpressionNode {
+            expression: XPathExpression::CastAs {
+                operand: Box::new(operand),
+                single_type,
+            },
+            source_range: self.range(start, end),
+        })
+    }
+
+    fn parse_single_type(&mut self) -> Result<XPathSingleType, XPathParseError> {
+        let (token_index, token) = self
+            .next()
+            .ok_or_else(|| self.syntax_error(&["type name"]))?;
+        if !is_name_token(token) {
+            return Err(self.syntax_error_at(token_index, token, &["type name"]));
+        }
+        let type_name = self.resolve_name(token_index, token, XPathNameUse::Type)?;
+        let allows_empty = self.consume_if("?").is_some();
+        let end = self
+            .previous_semantic()
+            .map_or(token.end, |(_, token)| token.end);
+        Ok(XPathSingleType {
+            type_name,
+            allows_empty,
+            source_range: self.range(token.start, end),
         })
     }
 
@@ -1434,14 +1484,6 @@ fn binary_operator(lexeme: &str) -> Option<(XPathBinaryOperator, u8)> {
         _ => return None,
     };
     Some((operator, precedence))
-}
-
-fn unsupported_suffix_production(lexeme: &str) -> Option<&'static str> {
-    match lexeme {
-        "cast" => Some("cast-expression"),
-        "castable" => Some("castable-expression"),
-        _ => None,
-    }
 }
 
 fn normalize_integer(lexical: &str) -> String {

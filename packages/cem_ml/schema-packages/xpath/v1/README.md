@@ -58,10 +58,12 @@ source-fidelity artifact. XSLT, CEMT, and CEM-QL fusion consumes a derived
 start/end syntax event stream rather than weakening the primary AST into a
 generic property bag. The current parser slice represents rooted and relative
 paths, axes, node tests, predicates, simple maps, variables, binary operators,
-function calls, arrow expressions, matching type operators, maps, arrays, typed
+function calls, arrow expressions, type operators, maps, arrays, typed
 names/literals, and host-adjusted ranges directly. Typed sequence types retain
 `empty-sequence()`, `item()`, atomic EQNames, unconstrained node-kind tests,
-parenthesized item types, occurrence indicators, and exact ranges. Simple-map
+parenthesized item types, occurrence indicators, and exact ranges. Typed single
+types retain their resolved atomic EQName, optional-empty indicator, and exact
+range for `cast as` and `castable as`. Simple-map
 grammar nodes retain one input path and an ordered vector of mapping paths
 rather than masquerading as generic binary operators. Their balanced syntax
 events expose each path child in source order. Named arrows lower canonically to
@@ -194,8 +196,23 @@ returns the original items without changing source maps or native owners, while
 a mismatch reports the expression range. Unsupported atomic types,
 constrained or schema-aware kind tests, and function/map/array types fail before
 operand evaluation. Matching never parses the derived `sequence_type` display
-string from a result artifact. `cast as` and `castable as` remain explicit
-conversion follow-up work.
+string from a result artifact.
+
+Typed `cast as` and `castable as` expressions use a closed native conversion
+matrix for `xs:untypedAtomic`, `xs:string`, `xs:boolean`, `xs:integer`,
+`xs:decimal`, `xs:float`, `xs:double`, and `xs:anyURI`. Targets resolve before
+operand evaluation. Retained nodes atomize directly; empty operands follow the
+single type's optional indicator; multi-item operands fail conversion; numeric
+values preserve unbounded integer/decimal behavior and deterministic exact
+binary-float-to-decimal conversion; and string-derived values follow XML
+whitespace and supported lexical rules. `cast as` returns a newly typed atomic
+item with the full expression source map or reports the full expression range.
+`castable as` returns false for cardinality or conversion failure, while operand
+evaluation and atomization errors remain errors. Abstract, derived,
+namespace-sensitive, schema-defined, list, and union targets remain fail-closed,
+and casting never parses result display strings or crosses a serialized
+boundary.
+
 Typed `for` expressions accept one or more comma-separated bindings. The parser
 lowers later bindings into nested typed `For` nodes with dependent lexical
 scope, preserving the complete source range on the outer node and each
@@ -221,10 +238,10 @@ tuples, short-circuits decisive results, and preserves vacuous empty-binding
 truth, outer focus, shadowing, native owners, exact diagnostics, and
 evaluated-work sequence-item budgets. The XPath 3.1 control-flow expression
 slice is otherwise executable; XQuery-only switch and typeswitch inputs remain
-explicit fail-closed exclusions. Other atomic families, casting, remaining
-functions, constructors, dynamic function calls, and lookups fail with a stable
-schema-owned diagnostic. The evaluator does not read expression source text,
-project through CEMT or JSON, reparse XML, or construct a replacement tree.
+explicit fail-closed exclusions. Other atomic families, remaining functions,
+constructors, dynamic function calls, and lookups fail with a stable schema-owned
+diagnostic. The evaluator does not read expression source text, project through
+CEMT or JSON, reparse XML, or construct a replacement tree.
 
 The standalone executable adapter is registered for XPath template identities.
 It compiles template source once at the lifecycle/compile boundary, evaluates a

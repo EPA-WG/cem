@@ -171,6 +171,19 @@ mediate between internal layers.
           or owners; and reject unsupported atomic, constrained/schema-aware,
           function, map, and array types before operand evaluation without
           parsing derived result-type strings or crossing a serialized boundary.
+    - [x] Execute typed XPath `cast as` and `castable as` through a closed native
+          atomic conversion matrix: model `SingleType` EQNames and optional-empty
+          indicators with exact ranges and grammar precedence; validate the eight
+          concrete `xs:untypedAtomic`, string, boolean, integer, decimal, float,
+          double, and anyURI targets before operand evaluation; atomize retained
+          nodes and singleton atomic values directly; preserve exact unbounded
+          integer/decimal values, deterministic binary-float conversion, XML
+          whitespace and lexical rules, primitive source/target restrictions,
+          full-expression result maps, and optional-empty behavior; return false
+          from `castable as` only for cast/cardinality failure while propagating
+          operand and atomization errors; and reject abstract, derived,
+          namespace-sensitive, schema-defined, list, and union targets without a
+          serializer, derived result-type parser, or intermediate DTO.
   - [x] Wire the native evaluator through the `transform` command and expose
         explicit CEM-QL, CEMT, and XSLT invocation adapters without reparsing
         source text, constructing an evaluator-owned replacement XML tree, or

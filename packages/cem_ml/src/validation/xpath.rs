@@ -1891,6 +1891,52 @@ fn xpath_evaluate_expression_node(
                 value,
             )])
         }
+        XPathExpression::CastAs {
+            operand,
+            single_type,
+        } => {
+            xpath_validate_single_type_supported(single_type)?;
+            let operand_items = xpath_evaluate_expression_node(
+                expression,
+                operand,
+                focus,
+                variable_bindings,
+                evaluation_limits,
+            )?;
+            let atomized = xpath_atomize_cast_sequence(&operand_items, node.source_range)?;
+            match xpath_cast_atomized_sequence(atomized, single_type) {
+                Ok(Some(value)) => Ok(vec![xpath_atomic_result_item(
+                    expression,
+                    node.source_range,
+                    value,
+                )]),
+                Ok(None) => Ok(Vec::new()),
+                Err(failure) => Err(XPathEvaluationError::dynamic(
+                    failure.diagnostic_code(),
+                    failure.message,
+                    node.source_range,
+                )),
+            }
+        }
+        XPathExpression::CastableAs {
+            operand,
+            single_type,
+        } => {
+            xpath_validate_single_type_supported(single_type)?;
+            let operand_items = xpath_evaluate_expression_node(
+                expression,
+                operand,
+                focus,
+                variable_bindings,
+                evaluation_limits,
+            )?;
+            let atomized = xpath_atomize_cast_sequence(&operand_items, node.source_range)?;
+            Ok(vec![xpath_boolean_result_item(
+                expression,
+                node.source_range,
+                xpath_cast_atomized_sequence(atomized, single_type).is_ok(),
+            )])
+        }
         XPathExpression::InstanceOf {
             operand,
             sequence_type,
@@ -2385,6 +2431,459 @@ fn xpath_evaluate_expression_node(
     }?;
     evaluation_limits.enforce_sequence_items(items.len(), node.source_range)?;
     Ok(items)
+}
+
+fn xpath_validate_single_type_supported(
+    single_type: &XPathSingleType,
+) -> Result<(), XPathEvaluationError> {
+    let name = &single_type.type_name;
+    if name.namespace_uri.as_deref() == Some("http://www.w3.org/2001/XMLSchema")
+        && matches!(
+            name.local_name.as_str(),
+            "untypedAtomic"
+                | "string"
+                | "boolean"
+                | "integer"
+                | "decimal"
+                | "float"
+                | "double"
+                | "anyURI"
+        )
+    {
+        return Ok(());
+    }
+    Err(XPathEvaluationError::unsupported(
+        format!(
+            "XPath cast target `{}` is outside the closed native atomic conversion matrix",
+            XPathExpandedName::from_syntax_name(name).display()
+        ),
+        single_type.source_range,
+    ))
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum XPathCastFailureKind {
+    Cardinality,
+    Conversion,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct XPathCastFailure {
+    kind: XPathCastFailureKind,
+    message: String,
+}
+
+impl XPathCastFailure {
+    fn cardinality(message: impl Into<String>) -> Self {
+        Self {
+            kind: XPathCastFailureKind::Cardinality,
+            message: message.into(),
+        }
+    }
+
+    fn conversion(message: impl Into<String>) -> Self {
+        Self {
+            kind: XPathCastFailureKind::Conversion,
+            message: message.into(),
+        }
+    }
+
+    fn diagnostic_code(&self) -> &'static str {
+        match self.kind {
+            XPathCastFailureKind::Cardinality => "cem.xpath.cast_cardinality",
+            XPathCastFailureKind::Conversion => "cem.xpath.cast_invalid",
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+enum XPathCastAtomic {
+    Untyped(String),
+    String(String),
+    AnyUri(String),
+    Boolean(bool),
+    Integer(XPathExactDecimal),
+    Decimal(XPathExactDecimal),
+    Float(f32),
+    Double(f64),
+}
+
+impl XPathCastAtomic {
+    fn type_name(&self) -> &'static str {
+        match self {
+            Self::Untyped(_) => "xs:untypedAtomic",
+            Self::String(_) => "xs:string",
+            Self::AnyUri(_) => "xs:anyURI",
+            Self::Boolean(_) => "xs:boolean",
+            Self::Integer(_) => "xs:integer",
+            Self::Decimal(_) => "xs:decimal",
+            Self::Float(_) => "xs:float",
+            Self::Double(_) => "xs:double",
+        }
+    }
+
+    fn into_string_value(self) -> String {
+        match self {
+            Self::Untyped(value) | Self::String(value) | Self::AnyUri(value) => value,
+            Self::Boolean(value) => value.to_string(),
+            Self::Integer(value) | Self::Decimal(value) => value.to_lexical(),
+            Self::Float(value) => xpath_float_string_value(value),
+            Self::Double(value) => xpath_double_string_value(value),
+        }
+    }
+}
+
+fn xpath_atomize_cast_sequence(
+    items: &[XPathResultItem],
+    source_range: XPathSourceRange,
+) -> Result<Vec<XPathCastAtomic>, XPathEvaluationError> {
+    items
+        .iter()
+        .map(|item| xpath_atomize_cast_item(item, source_range))
+        .collect()
+}
+
+fn xpath_atomize_cast_item(
+    item: &XPathResultItem,
+    source_range: XPathSourceRange,
+) -> Result<XPathCastAtomic, XPathEvaluationError> {
+    match item {
+        XPathResultItem::Node {
+            native_node: Some(node),
+            ..
+        } => Ok(XPathCastAtomic::Untyped(node.string_value())),
+        XPathResultItem::Node { .. } => Err(XPathEvaluationError::dynamic(
+            "cem.xpath.native_node_missing",
+            "XPath node atomization requires its retained native node handle",
+            source_range,
+        )),
+        XPathResultItem::Atomic { value, .. } => {
+            let comparable = xpath_comparable_atomic(value, source_range)?;
+            Ok(match (value.type_name.as_str(), comparable) {
+                ("xs:untypedAtomic", XPathComparableAtomic::Untyped(value)) => {
+                    XPathCastAtomic::Untyped(value)
+                }
+                ("xs:string", XPathComparableAtomic::String(value)) => {
+                    XPathCastAtomic::String(value)
+                }
+                ("xs:anyURI", XPathComparableAtomic::String(value)) => {
+                    XPathCastAtomic::AnyUri(value)
+                }
+                ("xs:boolean", XPathComparableAtomic::Boolean(value)) => {
+                    XPathCastAtomic::Boolean(value)
+                }
+                ("xs:integer", XPathComparableAtomic::Integer(value)) => {
+                    XPathCastAtomic::Integer(value)
+                }
+                ("xs:decimal", XPathComparableAtomic::Decimal(value)) => {
+                    XPathCastAtomic::Decimal(value)
+                }
+                ("xs:float", XPathComparableAtomic::Float(value)) => XPathCastAtomic::Float(value),
+                ("xs:double", XPathComparableAtomic::Double(value)) => {
+                    XPathCastAtomic::Double(value)
+                }
+                _ => unreachable!("native cast atomization preserves its validated source type"),
+            })
+        }
+        item => Err(XPathEvaluationError::unsupported(
+            format!(
+                "XPath atomization for result item kind `{:?}` is outside the native atomic slice",
+                item.kind()
+            ),
+            source_range,
+        )),
+    }
+}
+
+fn xpath_cast_atomized_sequence(
+    mut values: Vec<XPathCastAtomic>,
+    single_type: &XPathSingleType,
+) -> Result<Option<XPathAtomicValue>, XPathCastFailure> {
+    match values.len() {
+        0 if single_type.allows_empty => return Ok(None),
+        0 => {
+            return Err(XPathCastFailure::cardinality(format!(
+                "XPath cast to `{}` requires one atomized value; the operand is empty",
+                single_type.type_name.lexical
+            )))
+        }
+        1 => {}
+        count => {
+            return Err(XPathCastFailure::cardinality(format!(
+                "XPath cast to `{}` requires zero or one atomized value; found {count}",
+                single_type.type_name.lexical
+            )))
+        }
+    }
+    let value = values.pop().expect("singleton cast operand");
+    xpath_cast_atomic(value, single_type.type_name.local_name.as_str()).map(Some)
+}
+
+fn xpath_cast_atomic(
+    value: XPathCastAtomic,
+    target: &str,
+) -> Result<XPathAtomicValue, XPathCastFailure> {
+    let source_type = value.type_name();
+    let converted = match target {
+        "string" => XPathCastAtomic::String(value.into_string_value()),
+        "untypedAtomic" => XPathCastAtomic::Untyped(value.into_string_value()),
+        "anyURI" => match value {
+            XPathCastAtomic::Untyped(value)
+            | XPathCastAtomic::String(value)
+            | XPathCastAtomic::AnyUri(value) => {
+                XPathCastAtomic::AnyUri(xpath_collapse_xml_whitespace(&value))
+            }
+            _ => return Err(xpath_cast_unsupported_pair(source_type, target)),
+        },
+        "boolean" => match value {
+            XPathCastAtomic::Boolean(value) => XPathCastAtomic::Boolean(value),
+            XPathCastAtomic::Integer(value) | XPathCastAtomic::Decimal(value) => {
+                XPathCastAtomic::Boolean(!value.is_zero())
+            }
+            XPathCastAtomic::Float(value) => {
+                XPathCastAtomic::Boolean(value != 0.0 && !value.is_nan())
+            }
+            XPathCastAtomic::Double(value) => {
+                XPathCastAtomic::Boolean(value != 0.0 && !value.is_nan())
+            }
+            XPathCastAtomic::Untyped(value) | XPathCastAtomic::String(value) => {
+                let lexical = xpath_collapse_xml_whitespace(&value);
+                XPathCastAtomic::Boolean(
+                    xpath_parse_boolean(&lexical)
+                        .ok_or_else(|| xpath_cast_invalid_lexical(source_type, target, &value))?,
+                )
+            }
+            XPathCastAtomic::AnyUri(_) => {
+                return Err(xpath_cast_unsupported_pair(source_type, target))
+            }
+        },
+        "integer" => match value {
+            XPathCastAtomic::Integer(value) => XPathCastAtomic::Integer(value),
+            XPathCastAtomic::Decimal(value) => XPathCastAtomic::Integer(value.truncated()),
+            XPathCastAtomic::Float(value) => XPathCastAtomic::Integer(
+                xpath_exact_decimal_from_f64(f64::from(value))
+                    .map(|value| value.truncated())
+                    .ok_or_else(|| xpath_cast_non_finite(source_type, target))?,
+            ),
+            XPathCastAtomic::Double(value) => XPathCastAtomic::Integer(
+                xpath_exact_decimal_from_f64(value)
+                    .map(|value| value.truncated())
+                    .ok_or_else(|| xpath_cast_non_finite(source_type, target))?,
+            ),
+            XPathCastAtomic::Boolean(value) => {
+                XPathCastAtomic::Integer(XPathExactDecimal::from_u64(u64::from(value)))
+            }
+            XPathCastAtomic::Untyped(value) | XPathCastAtomic::String(value) => {
+                let lexical = xpath_collapse_xml_whitespace(&value);
+                XPathCastAtomic::Integer(
+                    XPathExactDecimal::parse(&lexical, false)
+                        .ok_or_else(|| xpath_cast_invalid_lexical(source_type, target, &value))?,
+                )
+            }
+            XPathCastAtomic::AnyUri(_) => {
+                return Err(xpath_cast_unsupported_pair(source_type, target))
+            }
+        },
+        "decimal" => match value {
+            XPathCastAtomic::Integer(value) | XPathCastAtomic::Decimal(value) => {
+                XPathCastAtomic::Decimal(value)
+            }
+            XPathCastAtomic::Float(value) => XPathCastAtomic::Decimal(
+                xpath_exact_decimal_from_f64(f64::from(value))
+                    .ok_or_else(|| xpath_cast_non_finite(source_type, target))?,
+            ),
+            XPathCastAtomic::Double(value) => XPathCastAtomic::Decimal(
+                xpath_exact_decimal_from_f64(value)
+                    .ok_or_else(|| xpath_cast_non_finite(source_type, target))?,
+            ),
+            XPathCastAtomic::Boolean(value) => {
+                XPathCastAtomic::Decimal(XPathExactDecimal::from_u64(u64::from(value)))
+            }
+            XPathCastAtomic::Untyped(value) | XPathCastAtomic::String(value) => {
+                let lexical = xpath_collapse_xml_whitespace(&value);
+                XPathCastAtomic::Decimal(
+                    XPathExactDecimal::parse(&lexical, true)
+                        .ok_or_else(|| xpath_cast_invalid_lexical(source_type, target, &value))?,
+                )
+            }
+            XPathCastAtomic::AnyUri(_) => {
+                return Err(xpath_cast_unsupported_pair(source_type, target))
+            }
+        },
+        "float" => match value {
+            XPathCastAtomic::Float(value) => XPathCastAtomic::Float(value),
+            XPathCastAtomic::Double(value) => XPathCastAtomic::Float(value as f32),
+            XPathCastAtomic::Integer(value) | XPathCastAtomic::Decimal(value) => {
+                XPathCastAtomic::Float(
+                    value
+                        .to_lexical()
+                        .parse::<f32>()
+                        .map_err(|_| xpath_cast_numeric_overflow(source_type, target))?,
+                )
+            }
+            XPathCastAtomic::Boolean(value) => {
+                XPathCastAtomic::Float(if value { 1.0 } else { 0.0 })
+            }
+            XPathCastAtomic::Untyped(value) | XPathCastAtomic::String(value) => {
+                let lexical = xpath_collapse_xml_whitespace(&value);
+                XPathCastAtomic::Float(
+                    xpath_parse_cast_float(&lexical)
+                        .ok_or_else(|| xpath_cast_invalid_lexical(source_type, target, &value))?,
+                )
+            }
+            XPathCastAtomic::AnyUri(_) => {
+                return Err(xpath_cast_unsupported_pair(source_type, target))
+            }
+        },
+        "double" => match value {
+            XPathCastAtomic::Double(value) => XPathCastAtomic::Double(value),
+            XPathCastAtomic::Float(value) => XPathCastAtomic::Double(f64::from(value)),
+            XPathCastAtomic::Integer(value) | XPathCastAtomic::Decimal(value) => {
+                XPathCastAtomic::Double(
+                    value
+                        .to_lexical()
+                        .parse::<f64>()
+                        .map_err(|_| xpath_cast_numeric_overflow(source_type, target))?,
+                )
+            }
+            XPathCastAtomic::Boolean(value) => {
+                XPathCastAtomic::Double(if value { 1.0 } else { 0.0 })
+            }
+            XPathCastAtomic::Untyped(value) | XPathCastAtomic::String(value) => {
+                let lexical = xpath_collapse_xml_whitespace(&value);
+                XPathCastAtomic::Double(
+                    xpath_parse_cast_double(&lexical)
+                        .ok_or_else(|| xpath_cast_invalid_lexical(source_type, target, &value))?,
+                )
+            }
+            XPathCastAtomic::AnyUri(_) => {
+                return Err(xpath_cast_unsupported_pair(source_type, target))
+            }
+        },
+        _ => unreachable!("single type target was validated before operand evaluation"),
+    };
+    let type_name = converted.type_name().to_owned();
+    Ok(XPathAtomicValue {
+        type_name,
+        lexical_value: converted.into_string_value(),
+        namespace_uri: None,
+        local_name: None,
+    })
+}
+
+fn xpath_cast_unsupported_pair(source: &str, target: &str) -> XPathCastFailure {
+    XPathCastFailure::conversion(format!(
+        "XPath casting from `{source}` to `xs:{target}` is outside the supported primitive conversion matrix"
+    ))
+}
+
+fn xpath_cast_invalid_lexical(source: &str, target: &str, lexical: &str) -> XPathCastFailure {
+    XPathCastFailure::conversion(format!(
+        "XPath `{source}` value `{lexical}` is not a valid lexical form for `xs:{target}`"
+    ))
+}
+
+fn xpath_cast_non_finite(source: &str, target: &str) -> XPathCastFailure {
+    XPathCastFailure::conversion(format!(
+        "XPath non-finite `{source}` value cannot be cast to `xs:{target}`"
+    ))
+}
+
+fn xpath_cast_numeric_overflow(source: &str, target: &str) -> XPathCastFailure {
+    XPathCastFailure::conversion(format!(
+        "XPath `{source}` value cannot be represented as `xs:{target}`"
+    ))
+}
+
+fn xpath_collapse_xml_whitespace(value: &str) -> String {
+    value
+        .split([' ', '\t', '\r', '\n'])
+        .filter(|part| !part.is_empty())
+        .collect::<Vec<_>>()
+        .join(" ")
+}
+
+fn xpath_parse_cast_float(lexical: &str) -> Option<f32> {
+    xpath_is_cast_floating_lexical(lexical).then(|| xpath_parse_float(lexical))?
+}
+
+fn xpath_parse_cast_double(lexical: &str) -> Option<f64> {
+    xpath_is_cast_floating_lexical(lexical).then(|| xpath_parse_double(lexical))?
+}
+
+fn xpath_is_cast_floating_lexical(lexical: &str) -> bool {
+    if matches!(lexical, "INF" | "+INF" | "-INF" | "NaN") {
+        return true;
+    }
+    let mut parts = lexical.split(['e', 'E']);
+    let Some(mantissa) = parts.next() else {
+        return false;
+    };
+    let exponent = parts.next();
+    if parts.next().is_some() || !xpath_is_cast_decimal_mantissa(mantissa) {
+        return false;
+    }
+    exponent.is_none_or(|exponent| {
+        let exponent = exponent.strip_prefix(['+', '-']).unwrap_or(exponent);
+        !exponent.is_empty() && exponent.bytes().all(|byte| byte.is_ascii_digit())
+    })
+}
+
+fn xpath_is_cast_decimal_mantissa(lexical: &str) -> bool {
+    let lexical = lexical.strip_prefix(['+', '-']).unwrap_or(lexical);
+    let mut parts = lexical.split('.');
+    let integer = parts.next().unwrap_or_default();
+    let fraction = parts.next();
+    if parts.next().is_some()
+        || !integer.bytes().all(|byte| byte.is_ascii_digit())
+        || fraction.is_some_and(|digits| !digits.bytes().all(|byte| byte.is_ascii_digit()))
+    {
+        return false;
+    }
+    !integer.is_empty() || fraction.is_some_and(|digits| !digits.is_empty())
+}
+
+fn xpath_exact_decimal_from_f64(value: f64) -> Option<XPathExactDecimal> {
+    if !value.is_finite() {
+        return None;
+    }
+    if value == 0.0 {
+        return Some(XPathExactDecimal::from_u64(0));
+    }
+    let bits = value.to_bits();
+    let negative = bits >> 63 != 0;
+    let encoded_exponent = i32::try_from((bits >> 52) & 0x7ff).ok()?;
+    let fraction = bits & ((1_u64 << 52) - 1);
+    let (mantissa, binary_exponent) = if encoded_exponent == 0 {
+        (fraction, -1074)
+    } else {
+        (
+            fraction | (1_u64 << 52),
+            encoded_exponent.saturating_sub(1023).saturating_sub(52),
+        )
+    };
+    let mut decimal = XPathExactDecimal::from_u64(mantissa);
+    if binary_exponent >= 0 {
+        let two = XPathExactDecimal::from_u64(2);
+        for _ in 0..usize::try_from(binary_exponent).ok()? {
+            decimal = decimal.multiply(&two);
+        }
+        return Some(XPathExactDecimal::from_parts(
+            negative,
+            decimal.coefficient,
+            0,
+        ));
+    }
+    let scale = usize::try_from(binary_exponent.unsigned_abs()).ok()?;
+    let five = XPathExactDecimal::from_u64(5);
+    for _ in 0..scale {
+        decimal = decimal.multiply(&five);
+    }
+    Some(XPathExactDecimal::from_parts(
+        negative,
+        decimal.coefficient,
+        scale,
+    ))
 }
 
 fn xpath_validate_sequence_type_supported(
@@ -3085,7 +3584,7 @@ fn xpath_numeric_equals_position(
 
 fn xpath_parse_float(lexical: &str) -> Option<f32> {
     match lexical.trim() {
-        "INF" => Some(f32::INFINITY),
+        "INF" | "+INF" => Some(f32::INFINITY),
         "-INF" => Some(f32::NEG_INFINITY),
         "NaN" => Some(f32::NAN),
         lexical => lexical.parse::<f32>().ok(),
@@ -3094,7 +3593,7 @@ fn xpath_parse_float(lexical: &str) -> Option<f32> {
 
 fn xpath_parse_double(lexical: &str) -> Option<f64> {
     match lexical.trim() {
-        "INF" => Some(f64::INFINITY),
+        "INF" | "+INF" => Some(f64::INFINITY),
         "-INF" => Some(f64::NEG_INFINITY),
         "NaN" => Some(f64::NAN),
         lexical => lexical.parse::<f64>().ok(),
@@ -3403,6 +3902,20 @@ fn xpath_boolean_result_item(
     }
 }
 
+fn xpath_atomic_result_item(
+    expression: &XPathExpressionAst,
+    source_range: XPathSourceRange,
+    value: XPathAtomicValue,
+) -> XPathResultItem {
+    XPathResultItem::Atomic {
+        value,
+        source_map: source_range.source_map(
+            expression.attachment.source_id(),
+            expression.source.media_type.as_str(),
+        ),
+    }
+}
+
 fn xpath_string_result_item(
     expression: &XPathExpressionAst,
     source_range: XPathSourceRange,
@@ -3514,6 +4027,21 @@ impl XPathExactDecimal {
 
     fn from_u64(value: u64) -> Self {
         Self::parse(&value.to_string(), false).expect("u64 has a valid integer representation")
+    }
+
+    fn truncated(&self) -> Self {
+        if self.scale == 0 {
+            return self.clone();
+        }
+        let integer_length = self.coefficient.len().saturating_sub(self.scale);
+        if integer_length == 0 {
+            return Self::from_u64(0);
+        }
+        Self::from_parts(
+            self.negative,
+            self.coefficient[..integer_length].to_vec(),
+            0,
+        )
     }
 
     fn to_u64(&self) -> Option<u64> {
@@ -7457,6 +7985,74 @@ mod tests {
             "1 instance xs:integer",
             "1 treat xs:integer",
             "1 instance of empty-sequence()*",
+        ] {
+            assert!(
+                cem_parser_syntax(invalid).is_err(),
+                "`{invalid}` must remain a typed parse failure"
+            );
+        }
+    }
+
+    #[test]
+    fn xpath_cem_parser_models_single_types_and_casting_operator_precedence() {
+        let source = "1 cast as xs:string?";
+        let syntax = cem_parser_syntax(source).expect("typed cast expression");
+        let expression = &syntax.root.expressions[0];
+        let XPathExpression::CastAs {
+            operand,
+            single_type,
+        } = &expression.expression
+        else {
+            panic!("cast-as must have a typed AST node: {syntax:?}");
+        };
+        assert!(matches!(operand.expression, XPathExpression::Path(_)));
+        assert_eq!(single_type.type_name.lexical, "xs:string");
+        assert_eq!(
+            single_type.type_name.namespace_uri.as_deref(),
+            Some("http://www.w3.org/2001/XMLSchema")
+        );
+        assert!(single_type.allows_empty);
+        let type_start = source.find("xs:string").expect("single type");
+        assert_eq!(
+            single_type.source_range,
+            XPathSourceRange::new(1, 1 + type_start as u32, type_start as u64, 10)
+        );
+        assert_eq!(
+            expression.source_range,
+            XPathSourceRange::new(1, 1, 0, source.len() as u64)
+        );
+
+        let nested = cem_parser_syntax(
+            "1 => count() cast as xs:string castable as xs:boolean treat as xs:boolean instance of xs:boolean and true()",
+        )
+        .expect("casting operator precedence");
+        let XPathExpression::Binary {
+            operator: XPathBinaryOperator::And,
+            left,
+            ..
+        } = &nested.root.expressions[0].expression
+        else {
+            panic!("logical and must remain outside type operators: {nested:?}");
+        };
+        let XPathExpression::InstanceOf { operand, .. } = &left.expression else {
+            panic!("instance-of must remain outside treat-as: {left:?}");
+        };
+        let XPathExpression::TreatAs { operand, .. } = &operand.expression else {
+            panic!("treat-as must remain outside castable-as: {operand:?}");
+        };
+        let XPathExpression::CastableAs { operand, .. } = &operand.expression else {
+            panic!("castable-as must remain outside cast-as: {operand:?}");
+        };
+        let XPathExpression::CastAs { operand, .. } = &operand.expression else {
+            panic!("cast-as must remain outside arrow: {operand:?}");
+        };
+        assert!(matches!(operand.expression, XPathExpression::Path(_)));
+
+        for invalid in [
+            "1 cast xs:string",
+            "1 castable xs:string",
+            "1 cast as item()",
+            "1 cast as xs:string*",
         ] {
             assert!(
                 cem_parser_syntax(invalid).is_err(),
@@ -11477,6 +12073,236 @@ mod tests {
         };
         let native_node = node.native_node().expect("retained native node");
         assert!(Arc::ptr_eq(native_node.owner(), &owner));
+    }
+
+    #[test]
+    fn xpath_native_evaluator_casts_closed_atomic_matrix_without_projection() {
+        let assert_atomic = |source: &str, expected_type: &str, expected_value: &str| {
+            let result = evaluate_for_test(source, None, BTreeMap::new())
+                .unwrap_or_else(|diagnostics| panic!("`{source}` failed: {diagnostics:?}"));
+            let [XPathResultItem::Atomic { value, source_map }] = result.sequence.items.as_slice()
+            else {
+                panic!("`{source}` did not return one atomic item: {result:?}");
+            };
+            assert_eq!(value.type_name, expected_type, "`{source}`");
+            assert_eq!(value.lexical_value, expected_value, "`{source}`");
+            assert_eq!(
+                source_map.frames[0].span,
+                FrameSpan::Single(ByteRange::new(0, source.len() as u32)),
+                "`{source}`"
+            );
+        };
+
+        for (source, expected_type, expected_value) in [
+            ("7 cast as xs:string", "xs:string", "7"),
+            ("7 cast as xs:untypedAtomic", "xs:untypedAtomic", "7"),
+            ("'  urn:test  ' cast as xs:anyURI", "xs:anyURI", "urn:test"),
+            ("' true ' cast as xs:boolean", "xs:boolean", "true"),
+            ("0 cast as xs:boolean", "xs:boolean", "false"),
+            ("2 cast as xs:boolean", "xs:boolean", "true"),
+            ("(1 eq 1) cast as xs:integer", "xs:integer", "1"),
+            ("-3.75 cast as xs:integer", "xs:integer", "-3"),
+            ("' 42 ' cast as xs:integer", "xs:integer", "42"),
+            ("1 cast as xs:decimal", "xs:decimal", "1"),
+            ("'1.25' cast as xs:decimal", "xs:decimal", "1.25"),
+            ("(1 eq 1) cast as xs:float", "xs:float", "1"),
+            ("(1 eq 2) cast as xs:double", "xs:double", "0"),
+            ("'+INF' cast as xs:double", "xs:double", "INF"),
+        ] {
+            assert_atomic(source, expected_type, expected_value);
+        }
+
+        let one = XPathExactDecimal::from_u64(1);
+        let decimal = XPathExactDecimal::parse("1.5", true).expect("exact decimal test value");
+        for (source, allowed_targets) in [
+            (
+                XPathCastAtomic::Untyped("1".to_owned()),
+                [true, true, true, true, true, true, true, true],
+            ),
+            (
+                XPathCastAtomic::String("1".to_owned()),
+                [true, true, true, true, true, true, true, true],
+            ),
+            (
+                XPathCastAtomic::AnyUri("urn:test".to_owned()),
+                [true, true, false, false, false, false, false, true],
+            ),
+            (
+                XPathCastAtomic::Boolean(true),
+                [true, true, true, true, true, true, true, false],
+            ),
+            (
+                XPathCastAtomic::Integer(one.clone()),
+                [true, true, true, true, true, true, true, false],
+            ),
+            (
+                XPathCastAtomic::Decimal(decimal),
+                [true, true, true, true, true, true, true, false],
+            ),
+            (
+                XPathCastAtomic::Float(1.5),
+                [true, true, true, true, true, true, true, false],
+            ),
+            (
+                XPathCastAtomic::Double(1.5),
+                [true, true, true, true, true, true, true, false],
+            ),
+        ] {
+            for (target, allowed) in [
+                "string",
+                "untypedAtomic",
+                "boolean",
+                "integer",
+                "decimal",
+                "float",
+                "double",
+                "anyURI",
+            ]
+            .into_iter()
+            .zip(allowed_targets)
+            {
+                assert_eq!(
+                    xpath_cast_atomic(source.clone(), target).is_ok(),
+                    allowed,
+                    "{} to xs:{target}",
+                    source.type_name()
+                );
+            }
+        }
+
+        let double_decimal = evaluate_for_test(
+            "$value cast as xs:decimal",
+            None,
+            BTreeMap::from([(
+                XPathExpandedName::unqualified("value"),
+                singleton_test_binding("xs:double", "0.5"),
+            )]),
+        )
+        .expect("finite binary values convert exactly to the unbounded decimal representation");
+        let [XPathResultItem::Atomic { value, .. }] = double_decimal.sequence.items.as_slice()
+        else {
+            panic!("double-to-decimal cast did not return an atomic item: {double_decimal:?}");
+        };
+        assert_eq!(value.type_name, "xs:decimal");
+        assert_eq!(value.lexical_value, "0.5");
+
+        for (source, expected) in [
+            ("'42' castable as xs:integer", true),
+            ("'not-a-number' castable as xs:integer", false),
+            ("(1, 2) castable as xs:string", false),
+            ("() castable as xs:string?", true),
+            ("() castable as xs:string", false),
+            ("1 castable as xs:anyURI", false),
+            ("'inf' castable as xs:double", false),
+        ] {
+            let result = evaluate_for_test(source, None, BTreeMap::new())
+                .unwrap_or_else(|diagnostics| panic!("`{source}` failed: {diagnostics:?}"));
+            let [XPathResultItem::Atomic { value, source_map }] = result.sequence.items.as_slice()
+            else {
+                panic!("`{source}` did not return one boolean: {result:?}");
+            };
+            assert_eq!(value.type_name, "xs:boolean", "`{source}`");
+            assert_eq!(value.lexical_value, expected.to_string(), "`{source}`");
+            assert_eq!(
+                source_map.frames[0].span,
+                FrameSpan::Single(ByteRange::new(0, source.len() as u32)),
+                "`{source}`"
+            );
+        }
+
+        let empty = evaluate_for_test("() cast as xs:string?", None, BTreeMap::new())
+            .expect("an optional single type accepts the empty sequence");
+        assert!(empty.sequence.items.is_empty());
+
+        for source in [
+            "'no' cast as xs:integer",
+            "(1, 2) cast as xs:string",
+            "() cast as xs:string",
+            "1 cast as xs:anyURI",
+        ] {
+            let diagnostics = evaluate_for_test(source, None, BTreeMap::new())
+                .expect_err("an invalid cast must report its native conversion error");
+            assert!(
+                matches!(
+                    diagnostics[0].code.as_str(),
+                    "cem.xpath.cast_invalid" | "cem.xpath.cast_cardinality"
+                ),
+                "`{source}`: {diagnostics:?}"
+            );
+            assert_eq!(diagnostics[0].byte_offset, Some(0), "`{source}`");
+            assert_eq!(
+                diagnostics[0]
+                    .source_map
+                    .as_ref()
+                    .expect("cast diagnostic source map")
+                    .frames[0]
+                    .span,
+                FrameSpan::Single(ByteRange::new(0, source.len() as u32)),
+                "`{source}`"
+            );
+        }
+
+        for source in [
+            "$missing cast as xs:date",
+            "$missing castable as xs:numeric",
+            "$missing cast as xs:anyAtomicType",
+        ] {
+            let diagnostics = evaluate_for_test(source, None, BTreeMap::new())
+                .expect_err("unsupported targets must resolve before operand evaluation");
+            assert_eq!(diagnostics[0].code, "cem.xpath.evaluation_unsupported");
+            assert_ne!(diagnostics[0].code, "cem.xpath.variable_unbound");
+            assert!(
+                diagnostics[0].byte_offset.unwrap_or_default() > 0,
+                "`{source}`"
+            );
+        }
+
+        let diagnostics =
+            evaluate_for_test("$missing castable as xs:string", None, BTreeMap::new())
+                .expect_err("castable must propagate operand evaluation errors");
+        assert_eq!(diagnostics[0].code, "cem.xpath.variable_unbound");
+
+        let map_binding = XPathResultSequence {
+            sequence_type: "map(*)".to_owned(),
+            items: vec![XPathResultItem::Map {
+                entries: Vec::new(),
+                source_map: result_source_map(9, 1),
+            }],
+        };
+        let diagnostics = evaluate_for_test(
+            "$value castable as xs:string",
+            None,
+            BTreeMap::from([(XPathExpandedName::unqualified("value"), map_binding)]),
+        )
+        .expect_err("castable must propagate atomization errors");
+        assert_eq!(diagnostics[0].code, "cem.xpath.evaluation_unsupported");
+
+        use crate::validation::xml::{
+            xml_document_ast_from_source_bytes, XmlSourceValidationRequest,
+        };
+        let xml = br#"<root> 42 </root>"#;
+        let (document, diagnostics) =
+            xml_document_ast_from_source_bytes(XmlSourceValidationRequest {
+                bytes: xml,
+                source_uri: "memory://casting.xml",
+                content_type: Some("application/xml"),
+            });
+        assert!(diagnostics.is_empty(), "{diagnostics:?}");
+        let owner = Arc::new(LoadedInputAstStream::XmlDocument(
+            document.expect("typed XML document"),
+        ));
+        let context_node = XPathNativeNode::xml_document(owner).expect("native XML document node");
+        let result = evaluate_for_test(
+            "/root cast as xs:integer",
+            Some(XPathResultItem::from_native_node(context_node)),
+            BTreeMap::new(),
+        )
+        .expect("retained nodes atomize before casting");
+        let [XPathResultItem::Atomic { value, .. }] = result.sequence.items.as_slice() else {
+            panic!("node cast did not return one atomic item: {result:?}");
+        };
+        assert_eq!(value.type_name, "xs:integer");
+        assert_eq!(value.lexical_value, "42");
     }
 
     #[test]

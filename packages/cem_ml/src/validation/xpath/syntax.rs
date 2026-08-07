@@ -45,6 +45,14 @@ pub enum XPathExpression {
         input: Box<XPathExpressionNode>,
         mappings: Vec<XPathExpressionNode>,
     },
+    CastAs {
+        operand: Box<XPathExpressionNode>,
+        single_type: XPathSingleType,
+    },
+    CastableAs {
+        operand: Box<XPathExpressionNode>,
+        single_type: XPathSingleType,
+    },
     TreatAs {
         operand: Box<XPathExpressionNode>,
         sequence_type: XPathSequenceType,
@@ -89,6 +97,13 @@ pub enum XPathQuantifier {
 pub enum XPathUnaryOperator {
     Plus,
     Minus,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct XPathSingleType {
+    pub type_name: XPathName,
+    pub allows_empty: bool,
+    pub source_range: XPathSourceRange,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -353,6 +368,9 @@ pub enum XPathSyntaxNodeKind {
     UnaryExpression,
     BinaryExpression,
     SimpleMapExpression,
+    CastExpression,
+    CastableExpression,
+    SingleType,
     TreatAsExpression,
     InstanceOfExpression,
     SequenceType,
@@ -386,6 +404,9 @@ impl XPathSyntaxNodeKind {
             Self::UnaryExpression => "unary-expression",
             Self::BinaryExpression => "binary-expression",
             Self::SimpleMapExpression => "simple-map-expression",
+            Self::CastExpression => "cast-expression",
+            Self::CastableExpression => "castable-expression",
+            Self::SingleType => "single-type",
             Self::TreatAsExpression => "treat-as-expression",
             Self::InstanceOfExpression => "instance-of-expression",
             Self::SequenceType => "sequence-type",
@@ -469,6 +490,8 @@ impl XPathExpressionNode {
             XPathExpression::Unary { .. } => XPathSyntaxNodeKind::UnaryExpression,
             XPathExpression::Binary { .. } => XPathSyntaxNodeKind::BinaryExpression,
             XPathExpression::SimpleMap { .. } => XPathSyntaxNodeKind::SimpleMapExpression,
+            XPathExpression::CastAs { .. } => XPathSyntaxNodeKind::CastExpression,
+            XPathExpression::CastableAs { .. } => XPathSyntaxNodeKind::CastableExpression,
             XPathExpression::TreatAs { .. } => XPathSyntaxNodeKind::TreatAsExpression,
             XPathExpression::InstanceOf { .. } => XPathSyntaxNodeKind::InstanceOfExpression,
             XPathExpression::For { .. } => XPathSyntaxNodeKind::ForExpression,
@@ -494,6 +517,22 @@ impl XPathExpressionNode {
                     for mapping in mappings {
                         mapping.emit_events(depth, events);
                     }
+                }
+                XPathExpression::CastAs {
+                    operand,
+                    single_type,
+                }
+                | XPathExpression::CastableAs {
+                    operand,
+                    single_type,
+                } => {
+                    operand.emit_events(depth, events);
+                    emit_leaf(
+                        XPathSyntaxNodeKind::SingleType,
+                        single_type.source_range,
+                        depth,
+                        events,
+                    );
                 }
                 XPathExpression::TreatAs {
                     operand,
