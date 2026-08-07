@@ -143,12 +143,19 @@ decimals, floats, and doubles.
 Comparisons atomize retained XML nodes directly, distinguish existential general
 comparison from singleton value comparison, apply untyped conversion and
 numeric promotion rules, preserve IEEE NaN behavior, and report cardinality or
-cast errors with expression source maps. The optional, deprecated namespace
-axis remains an explicit host-language omission. Unsupported node, arithmetic,
-range, and set operators, other atomic families, functions, constructors,
-dynamic function calls, and lookups fail with a stable schema-owned diagnostic.
-The evaluator does not read expression source text, project through CEMT or
-JSON, reparse XML, or construct a replacement tree.
+cast errors with expression source maps. Node comparisons require
+optional-singleton retained native nodes: `is` compares exact AST-owner and node
+handle identity, while `<<` and `>>` compare the existing document-order keys
+for nodes in the same owner. Empty operands propagate the empty sequence,
+operand failures retain operand ranges, and node-shaped values without their
+native handles are rejected rather than reconstructed. Cross-owner node
+ordering remains explicitly unsupported until the host defines a stable
+multi-document order. The optional, deprecated namespace axis remains an
+explicit host-language omission. Unsupported arithmetic, range, and set
+operators, other atomic families, functions, constructors, dynamic function
+calls, and lookups fail with a stable schema-owned diagnostic. The evaluator
+does not read expression source text, project through CEMT or JSON, reparse XML,
+or construct a replacement tree.
 
 The standalone executable adapter is registered for XPath template identities.
 It compiles template source once at the lifecycle/compile boundary, evaluates a

@@ -58,6 +58,11 @@ mediate between internal layers.
           operand, short-circuit deterministically from left to right, retain
           expression source maps on typed boolean results and operand errors,
           and never evaluate a skipped branch or cross a serialized boundary.
+    - [x] Execute XPath node comparisons directly on retained native node
+          identity: implement `is` across owners and same-owner `<<`/`>>`,
+          enforce optional-singleton node operands with exact operand source
+          maps, preserve empty-sequence propagation, and reject cross-owner
+          ordering until the host defines a stable multi-document order.
   - [ ] Wire the native evaluator through the `transform` command and expose
         explicit CEM-QL, CEMT, and XSLT invocation adapters without reparsing
         source text, constructing an evaluator-owned replacement XML tree, or

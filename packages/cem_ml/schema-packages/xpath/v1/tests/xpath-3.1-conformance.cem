@@ -70,7 +70,7 @@
         @status="partial"
         @qt3-status="unmapped"
         @spec-sections="XPath 3.1 sections 3.4 through 3.7"
-        @gap="All general and value comparison operators execute for supported string, URI, boolean, untyped XML, integer, decimal, float, and double values with direct node atomization, exact unbounded decimal comparison, existential or singleton cardinality, untyped conversion, numeric promotion, and NaN semantics. Logical and/or execute with typed EBV and deterministic left-to-right short-circuiting. Other atomic families plus node, arithmetic, range, and set operators and QT3 mapping remain incomplete"
+        @gap="All general and value comparison operators execute for supported string, URI, boolean, untyped XML, integer, decimal, float, and double values with direct node atomization, exact unbounded decimal comparison, existential or singleton cardinality, untyped conversion, numeric promotion, and NaN semantics. Logical and/or execute with typed EBV and deterministic left-to-right short-circuiting. Node identity comparisons execute across retained owners, and node-order comparisons execute within one retained owner; stable cross-owner ordering remains undefined. Other atomic families plus arithmetic, range, and set operators and QT3 mapping remain incomplete"
         @todo="xpath-operators"
     }
     {conformance-slice

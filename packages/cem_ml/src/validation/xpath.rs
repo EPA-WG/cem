@@ -1769,6 +1769,32 @@ fn xpath_evaluate_expression_node(
             operator,
             left,
             right,
+        } if xpath_node_comparison_operator(*operator).is_some() => {
+            let left_items =
+                xpath_evaluate_expression_node(expression, left, focus, variable_bindings)?;
+            let right_items =
+                xpath_evaluate_expression_node(expression, right, focus, variable_bindings)?;
+            let left_node = xpath_node_comparison_operand(&left_items, left.source_range)?;
+            let right_node = xpath_node_comparison_operand(&right_items, right.source_range)?;
+            let value = match (left_node, right_node) {
+                (Some(left_node), Some(right_node)) => Some(xpath_compare_nodes(
+                    left_node,
+                    right_node,
+                    xpath_node_comparison_operator(*operator)
+                        .expect("node-comparison operator guard resolves semantics"),
+                    node.source_range,
+                )?),
+                _ => None,
+            };
+            Ok(value
+                .map(|value| xpath_boolean_result_item(expression, node.source_range, value))
+                .into_iter()
+                .collect())
+        }
+        XPathExpression::Binary {
+            operator,
+            left,
+            right,
         } if xpath_comparison_operator(*operator).is_some() => {
             let left = xpath_evaluate_expression_node(expression, left, focus, variable_bindings)?;
             let right =
@@ -2345,6 +2371,75 @@ enum XPathComparisonRelation {
     LessThanOrEqual,
     GreaterThan,
     GreaterThanOrEqual,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum XPathNodeComparison {
+    Is,
+    Precedes,
+    Follows,
+}
+
+fn xpath_node_comparison_operator(operator: XPathBinaryOperator) -> Option<XPathNodeComparison> {
+    match operator {
+        XPathBinaryOperator::NodeIs => Some(XPathNodeComparison::Is),
+        XPathBinaryOperator::NodePrecedes => Some(XPathNodeComparison::Precedes),
+        XPathBinaryOperator::NodeFollows => Some(XPathNodeComparison::Follows),
+        _ => None,
+    }
+}
+
+fn xpath_node_comparison_operand(
+    items: &[XPathResultItem],
+    source_range: XPathSourceRange,
+) -> Result<Option<&XPathNativeNode>, XPathEvaluationError> {
+    match items {
+        [] => Ok(None),
+        [XPathResultItem::Node {
+            native_node: Some(native_node),
+            ..
+        }] => Ok(Some(native_node)),
+        [XPathResultItem::Node {
+            native_node: None, ..
+        }] => Err(XPathEvaluationError::dynamic(
+            "cem.xpath.native_node_missing",
+            "XPath node comparison requires retained native node handles",
+            source_range,
+        )),
+        [_] => Err(XPathEvaluationError::dynamic(
+            "cem.xpath.node_comparison_operand",
+            "XPath node comparison operands must contain a node",
+            source_range,
+        )),
+        _ => Err(XPathEvaluationError::dynamic(
+            "cem.xpath.node_comparison_operand",
+            "XPath node comparison operands must contain zero or one node",
+            source_range,
+        )),
+    }
+}
+
+fn xpath_compare_nodes(
+    left: &XPathNativeNode,
+    right: &XPathNativeNode,
+    comparison: XPathNodeComparison,
+    source_range: XPathSourceRange,
+) -> Result<bool, XPathEvaluationError> {
+    if comparison == XPathNodeComparison::Is {
+        return Ok(left == right);
+    }
+    if !Arc::ptr_eq(left.owner(), right.owner()) {
+        return Err(XPathEvaluationError::dynamic(
+            "cem.xpath.node_order_cross_owner_unsupported",
+            "XPath node ordering across distinct AST owners requires a stable host document-order policy",
+            source_range,
+        ));
+    }
+    Ok(match comparison {
+        XPathNodeComparison::Precedes => left.document_order_key() < right.document_order_key(),
+        XPathNodeComparison::Follows => left.document_order_key() > right.document_order_key(),
+        XPathNodeComparison::Is => unreachable!("node identity returns before ordering"),
+    })
 }
 
 fn xpath_comparison_operator(
@@ -6233,6 +6328,171 @@ mod tests {
             );
             assert!(diagnostics[0].source_map.is_some(), "`{source}`");
         }
+    }
+
+    #[test]
+    fn xpath_native_evaluator_compares_retained_node_identity_and_document_order() {
+        use crate::lifecycle::LoadedInputAstStream;
+        use crate::validation::xml::{
+            xml_document_ast_from_source_bytes, XmlSourceValidationRequest,
+        };
+        use std::sync::Arc;
+
+        let native_document = |source_uri: &'static str| {
+            let (document, diagnostics) =
+                xml_document_ast_from_source_bytes(XmlSourceValidationRequest {
+                    bytes: br#"<root id="r"><item id="a"/><item id="b"/></root>"#,
+                    source_uri,
+                    content_type: Some("application/xml"),
+                });
+            assert!(diagnostics.is_empty(), "{diagnostics:?}");
+            let owner = Arc::new(LoadedInputAstStream::XmlDocument(
+                document.expect("typed XML document"),
+            ));
+            XPathNativeNode::xml_document(owner).expect("native XML document node")
+        };
+        let context_node = native_document("memory://node-comparison-context.xml");
+
+        let assert_boolean = |source: &str, expected: bool| {
+            let result = evaluate_for_test(
+                source,
+                Some(XPathResultItem::from_native_node(context_node.clone())),
+                BTreeMap::new(),
+            )
+            .unwrap_or_else(|diagnostics| panic!("`{source}` failed: {diagnostics:?}"));
+            let [XPathResultItem::Atomic { value, source_map }] = result.sequence.items.as_slice()
+            else {
+                panic!("`{source}` did not return one atomic value: {result:?}");
+            };
+            assert_eq!(value.type_name, "xs:boolean", "`{source}`");
+            assert_eq!(value.lexical_value, expected.to_string(), "`{source}`");
+            assert_eq!(source_map.frames.len(), 1, "`{source}`");
+            assert_eq!(source_map.frames[0].source_id, SourceId(7), "`{source}`");
+            assert_eq!(
+                source_map.frames[0].span,
+                FrameSpan::Single(ByteRange::new(0, source.len() as u32)),
+                "`{source}`"
+            );
+        };
+
+        for (source, expected) in [
+            ("/root/item[1] is /root/item[1]", true),
+            ("/root/item[1] is /root/item[2]", false),
+            ("/root/@id << /root/item[1]", true),
+            ("/root/item[1] << /root/item[2]", true),
+            ("/root/item[2] << /root/item[1]", false),
+            ("/root/item[1] << /root/item[1]", false),
+            ("/root/item[2] >> /root/item[1]", true),
+            ("/root/item[1] >> /root/item[2]", false),
+            ("/root/item[1] >> /root/item[1]", false),
+        ] {
+            assert_boolean(source, expected);
+        }
+
+        for source in [
+            "/root/missing is /root/item[1]",
+            "/root/item[1] << /root/missing",
+            "/root/missing >> /root/missing",
+        ] {
+            let result = evaluate_for_test(
+                source,
+                Some(XPathResultItem::from_native_node(context_node.clone())),
+                BTreeMap::new(),
+            )
+            .unwrap_or_else(|diagnostics| panic!("`{source}` failed: {diagnostics:?}"));
+            assert!(result.sequence.items.is_empty(), "`{source}`: {result:?}");
+            assert_eq!(
+                result.sequence.sequence_type, "empty-sequence()",
+                "`{source}`"
+            );
+        }
+
+        for (source, expected_offset, expected_length) in [
+            ("/root/item is /root/item[1]", 0, 10),
+            ("/root/item[1] is /root/item", 17, 10),
+            ("1 is /root/item[1]", 0, 1),
+        ] {
+            let diagnostics = evaluate_for_test(
+                source,
+                Some(XPathResultItem::from_native_node(context_node.clone())),
+                BTreeMap::new(),
+            )
+            .expect_err("node comparisons require optional-singleton node operands");
+            assert_eq!(diagnostics[0].code, "cem.xpath.node_comparison_operand");
+            assert_eq!(diagnostics[0].byte_offset, Some(expected_offset));
+            let source_map = diagnostics[0]
+                .source_map
+                .as_ref()
+                .expect("node comparison diagnostic source map");
+            assert_eq!(
+                source_map.frames[0].span,
+                FrameSpan::Single(ByteRange::new(expected_offset as u64, expected_length))
+            );
+        }
+
+        let foreign_node = native_document("memory://node-comparison-foreign.xml");
+        let foreign_root = foreign_node
+            .child_nodes()
+            .into_iter()
+            .next()
+            .expect("foreign document element");
+        let bindings = BTreeMap::from([(
+            XPathExpandedName::unqualified("foreign"),
+            XPathResultSequence {
+                sequence_type: "node()".to_owned(),
+                items: vec![XPathResultItem::from_native_node(foreign_root)],
+            },
+        )]);
+
+        let identity = evaluate_for_test(
+            "/root is $foreign",
+            Some(XPathResultItem::from_native_node(context_node.clone())),
+            bindings.clone(),
+        )
+        .expect("nodes from distinct owners cannot be identical");
+        let [XPathResultItem::Atomic { value, .. }] = identity.sequence.items.as_slice() else {
+            panic!("cross-owner identity did not return one atomic value: {identity:?}");
+        };
+        assert_eq!(value.type_name, "xs:boolean");
+        assert_eq!(value.lexical_value, "false");
+
+        for source in ["/root << $foreign", "/root >> $foreign"] {
+            let diagnostics = evaluate_for_test(
+                source,
+                Some(XPathResultItem::from_native_node(context_node.clone())),
+                bindings.clone(),
+            )
+            .expect_err("cross-owner ordering requires a stable host order");
+            assert_eq!(
+                diagnostics[0].code,
+                "cem.xpath.node_order_cross_owner_unsupported"
+            );
+            assert_eq!(diagnostics[0].byte_offset, Some(0), "`{source}`");
+            assert!(diagnostics[0].source_map.is_some(), "`{source}`");
+        }
+
+        let mut detached_node = XPathResultItem::from_native_node(
+            context_node
+                .child_nodes()
+                .into_iter()
+                .next()
+                .expect("context document element"),
+        );
+        let XPathResultItem::Node { native_node, .. } = &mut detached_node else {
+            unreachable!("native nodes create XPath node result items")
+        };
+        *native_node = None;
+        let detached_bindings = BTreeMap::from([(
+            XPathExpandedName::unqualified("detached"),
+            XPathResultSequence {
+                sequence_type: "node()".to_owned(),
+                items: vec![detached_node],
+            },
+        )]);
+        let diagnostics = evaluate_for_test("$detached is $detached", None, detached_bindings)
+            .expect_err("node comparison requires retained native node handles");
+        assert_eq!(diagnostics[0].code, "cem.xpath.native_node_missing");
+        assert_eq!(diagnostics[0].byte_offset, Some(0));
     }
 
     #[test]
