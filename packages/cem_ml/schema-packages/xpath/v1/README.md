@@ -95,11 +95,12 @@ an attachment envelope containing:
 
 This allows an XPath tree to be attached to an XML document or AST subtree and
 also fused into an owning XSLT stream without transferring grammar ownership to
-XSLT. Entity-free XPath-bearing XSLT attributes now carry the package AST, exact
+XSLT. Whole-expression attributes and every schema-classified literal-result or
+XSLT 3.0 instruction AVT expression directly own the package AST, exact
 attribute-value range, owning XML event identity, and inherited namespace
-context directly. Attribute value template segmentation and entity-decoded XML
-token-range projection remain the next XSLT fusion slice; the generic XML AST
-already owns the decoded scalar-to-source map and strict boundary projection.
+context. Their single parse views the generic XML AST's decoded
+scalar-to-source map, so entity-decoded tokens and diagnostics retain original
+XML coordinates without a serializer, replacement tree, or range rewrite.
 
 ## Transformation Boundary
 
@@ -111,8 +112,8 @@ private parser, evaluator, or external-resource resolver.
 Execution will consume the package-owned AST and existing CEM XML AST/event
 streams directly. It must not reparse source text, copy XML into Xot or another
 evaluator-owned replacement tree, or project input/results through JSON. The
-strict native-AST transform data-plane migration tracked in `docs/todo.md` is a
-prerequisite for registering XPath execution.
+strict native-AST transform data-plane contract tracked in `docs/todo.md` is
+enforced by the registered standalone execution path.
 
 The current implementation defines `XPathEvaluationRequest`,
 `XPathEvaluatorCapabilities`, and `XPathResultArtifact`. Result sequences retain
@@ -179,10 +180,6 @@ remain compatible with the browser WASM target.
 
 - Implement a CEM-owned XPath 3.1 compiler/evaluator and prove native/WASM AST
   consumption through CEM-only resolver and safety capabilities.
-- Define the XPath parser's typed source-range remapping input, project token
-  and diagnostic ranges through the generic entity-decoded XML attribute map,
-  segment XSLT AVTs, and associate those remaining expression ASTs with exact
-  source ranges.
 - Define schema-owned context and variable bindings, then add CEM-QL, CEMT, and
   XSLT XPath invocation adapters.
 - Define grammar-aware formatting before making profile output differ.
