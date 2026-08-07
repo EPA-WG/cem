@@ -124,12 +124,19 @@ items are evaluator-scoped handles rather than serialized closures. Every
 artifact and item carries an origin-first source map, and the result keeps the
 static context plus resolver and safety policy stamps.
 
-The first native evaluator slice executes literals, variables, context items,
-expression sequences, and child/self paths with name or kind tests directly over
-the package-owned XPath AST and lifecycle-owned XML event AST. Unsupported
-operators, axes, predicates, functions, and constructors fail with a stable
-schema-owned diagnostic. The evaluator does not read expression source text,
-project through CEMT or JSON, reparse XML, or construct a replacement tree.
+The native evaluator slices execute literals, variables, context items,
+expression sequences, rooted-descendant paths, and attribute, child, parent,
+descendant, descendant-or-self, and self axes with name or kind tests directly
+over the package-owned XPath AST and lifecycle-owned XML event AST. Step
+predicates receive their native item/position/size focus and implement numeric
+position filtering plus XPath effective-boolean-value rules. General `=` is
+exact for the currently supported untyped XML and string values, including
+entity-decoded attribute values. Node path results are deduplicated by retained
+node identity and returned in document order. Unsupported axes, operators,
+postfix expressions, functions, constructors, and wider comparison coercions
+fail with a stable schema-owned diagnostic. The evaluator does not read
+expression source text, project through CEMT or JSON, reparse XML, or construct
+a replacement tree.
 
 The standalone executable adapter is registered for XPath template identities.
 It compiles template source once at the lifecycle/compile boundary, evaluates a

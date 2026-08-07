@@ -35,6 +35,12 @@ mediate between internal layers.
           directly, reject unsupported semantics deterministically, and prove no
           serializer, projection DTO, source reparse, or replacement tree enters
           the evaluator boundary.
+    - [x] Extend the native evaluator over the retained lifecycle XML owner with
+          attribute, parent, descendant, and descendant-or-self axes; path-result
+          identity deduplication and document ordering; predicate item/position/
+          size focus; numeric and effective-boolean-value filtering; and exact
+          untyped/string general equality, without a serializer, DTO, source
+          reparse, or evaluator-owned replacement tree.
   - [ ] Wire the native evaluator through the `transform` command and expose
         explicit CEM-QL, CEMT, and XSLT invocation adapters without reparsing
         source text, constructing an evaluator-owned replacement XML tree, or
