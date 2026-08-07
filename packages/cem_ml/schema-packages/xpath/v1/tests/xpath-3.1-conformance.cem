@@ -62,7 +62,7 @@
         @status="partial"
         @qt3-status="unmapped"
         @spec-sections="XPath 3.1 sections 3.2, 3.3"
-        @gap="The evaluator traverses attribute, child, parent, descendant, descendant-or-self, and self axes over exact native XML AST owners; applies step predicates with item, position, and size focus, numeric position filtering, and effective boolean value; and returns identity-deduplicated document-ordered node paths. Remaining axes, postfix filter expressions, non-XML-family owners, and QT3 mapping are incomplete"
+        @gap="The evaluator traverses every non-namespace axis over exact native XML AST owners; applies forward- and reverse-axis predicate focus plus order-preserving postfix filters with numeric position and effective boolean value rules; and returns identity-deduplicated document-ordered node paths. The optional deprecated namespace axis is an explicit host-language omission; non-XML-family owners and QT3 mapping remain incomplete"
         @todo="xpath-native-path-evaluator"
     }
     {conformance-slice
@@ -99,10 +99,10 @@
     }
     {conformance-slice
         @id="functions-and-operators"
-        @status="planned"
+        @status="partial"
         @qt3-status="unmapped"
         @spec-sections="Functions and Operators 3.1"
-        @gap="The standard function library and operator semantics have not been implemented or mapped to QT3"
+        @gap="The native focus functions position() and last() are implemented; the remaining standard function library, wider operator semantics, and QT3 mapping are incomplete"
         @todo="xpath-functions-operators"
     }
     {conformance-slice
@@ -110,7 +110,7 @@
         @status="partial"
         @qt3-status="unmapped"
         @spec-sections="XPath 3.1 section 2.1.2 and Functions and Operators resource functions"
-        @gap="Standalone transform execution injects the exact lifecycle XML document context plus explicit resolver and safety capabilities, and step predicates carry item, position, and size focus; all schema-classified XSLT whole-expression attributes and literal-result or instruction AVTs directly own their XPath AST, inherited static namespace context, and exact entity-decoded XML source projection; parameter-to-XDM bindings, executable host invocation contexts, additional input AST families, focus functions, and resource functions are incomplete"
+        @gap="Standalone transform execution injects the exact lifecycle XML document context plus explicit resolver and safety capabilities; step and filter predicates carry item, position, and size focus consumed by native position() and last(); all schema-classified XSLT whole-expression attributes and literal-result or instruction AVTs directly own their XPath AST, inherited static namespace context, and exact entity-decoded XML source projection. Parameter-to-XDM bindings, executable host invocation contexts, additional input AST families, and resource functions remain incomplete"
         @todo="xpath-dynamic-context"
     }
     {conformance-slice

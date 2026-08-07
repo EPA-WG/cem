@@ -41,6 +41,11 @@ mediate between internal layers.
           size focus; numeric and effective-boolean-value filtering; and exact
           untyped/string general equality, without a serializer, DTO, source
           reparse, or evaluator-owned replacement tree.
+    - [x] Complete retained-owner structural navigation with ancestor,
+          ancestor-or-self, following, following-sibling, preceding, and
+          preceding-sibling axes; reverse-axis predicate focus; postfix filter
+          predicates; and native `position()`/`last()` focus functions, while
+          leaving the optional namespace axis and atomic coercions explicit.
   - [ ] Wire the native evaluator through the `transform` command and expose
         explicit CEM-QL, CEMT, and XSLT invocation adapters without reparsing
         source text, constructing an evaluator-owned replacement XML tree, or
