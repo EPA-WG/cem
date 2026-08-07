@@ -1933,6 +1933,7 @@ fn xpath_evaluate_expression_node(
             XPathBinaryOperator::Add
                 | XPathBinaryOperator::Subtract
                 | XPathBinaryOperator::Multiply
+                | XPathBinaryOperator::Divide
                 | XPathBinaryOperator::IntegerDivide
                 | XPathBinaryOperator::Modulo
         ) =>
@@ -2923,6 +2924,11 @@ struct XPathExactDecimal {
     scale: usize,
 }
 
+// XPath 3.1 leaves decimal division precision and rounding implementation-defined.
+// CEM preserves terminating quotients exactly and rounds repeating quotients to
+// the XSD 1.0 minimum of 18 significant digits using round-half-even.
+const XPATH_DECIMAL_DIVISION_PRECISION: usize = 18;
+
 impl XPathExactDecimal {
     fn parse(lexical: &str, allow_fraction: bool) -> Option<Self> {
         let lexical = lexical.trim();
@@ -3121,6 +3127,140 @@ impl XPathExactDecimal {
         Self::from_parts(negative, Self::divide_magnitudes(&dividend, &divisor), 0)
     }
 
+    fn divide(&self, divisor: &Self, precision: usize) -> Self {
+        debug_assert!(!divisor.is_zero());
+        debug_assert!(precision > 0);
+        if self.is_zero() {
+            return Self::from_parts(false, vec![0], 0);
+        }
+        if Self::ratio_has_terminating_decimal(&self.coefficient, &divisor.coefficient) {
+            self.terminating_quotient(divisor)
+        } else {
+            self.rounded_quotient(divisor, precision)
+        }
+    }
+
+    fn ratio_has_terminating_decimal(numerator: &[u8], denominator: &[u8]) -> bool {
+        let mut denominator = denominator.to_vec();
+        while Self::divide_magnitude_if_exact(&mut denominator, 2) {}
+        while Self::divide_magnitude_if_exact(&mut denominator, 5) {}
+        denominator == [1]
+            || Self::divide_magnitudes_with_remainder(numerator, &denominator).1 == [0]
+    }
+
+    fn terminating_quotient(&self, divisor: &Self) -> Self {
+        let (mut coefficient, mut remainder) =
+            Self::divide_magnitudes_with_remainder(&self.coefficient, &divisor.coefficient);
+        let mut fractional_digits = 0_usize;
+        while remainder != [0] {
+            remainder.push(0);
+            let (digit, next_remainder) =
+                Self::divide_magnitudes_with_remainder(&remainder, &divisor.coefficient);
+            debug_assert_eq!(digit.len(), 1);
+            coefficient.push(digit[0]);
+            fractional_digits = fractional_digits
+                .checked_add(1)
+                .expect("terminating decimal scale fits usize");
+            remainder = next_remainder;
+        }
+        Self::from_quotient_parts(
+            self.negative != divisor.negative,
+            coefficient,
+            fractional_digits,
+            self.scale,
+            divisor.scale,
+        )
+    }
+
+    fn rounded_quotient(&self, divisor: &Self, precision: usize) -> Self {
+        let (mut digits, mut remainder) =
+            Self::divide_magnitudes_with_remainder(&self.coefficient, &divisor.coefficient);
+        let decimal_position = digits.len();
+        let mut significant_start = (digits != [0]).then_some(0_usize);
+        let mut significant_digits = significant_start.map_or(0, |_| digits.len());
+        while significant_digits <= precision {
+            remainder.push(0);
+            let (digit, next_remainder) =
+                Self::divide_magnitudes_with_remainder(&remainder, &divisor.coefficient);
+            debug_assert_eq!(digit.len(), 1);
+            let digit = digit[0];
+            digits.push(digit);
+            remainder = next_remainder;
+            if significant_start.is_none() && digit != 0 {
+                significant_start = Some(digits.len().saturating_sub(1));
+            }
+            if significant_start.is_some() {
+                significant_digits = significant_digits
+                    .checked_add(1)
+                    .expect("decimal significant digit count fits usize");
+            }
+        }
+
+        let significant_start = significant_start.expect("non-zero quotient has a first digit");
+        let guard_index = significant_start
+            .checked_add(precision)
+            .expect("decimal guard position fits usize");
+        let guard_digit = digits[guard_index];
+        let sticky = digits[guard_index.saturating_add(1)..]
+            .iter()
+            .any(|digit| *digit != 0)
+            || remainder != [0];
+        let mut coefficient = digits[significant_start..guard_index].to_vec();
+        let round_up = guard_digit > 5
+            || (guard_digit == 5
+                && (sticky || coefficient.last().is_some_and(|digit| digit % 2 != 0)));
+        if round_up {
+            let mut carry = true;
+            for digit in coefficient.iter_mut().rev() {
+                if *digit == 9 {
+                    *digit = 0;
+                } else {
+                    *digit += 1;
+                    carry = false;
+                    break;
+                }
+            }
+            if carry {
+                coefficient.insert(0, 1);
+            }
+        }
+
+        let positive_power = decimal_position
+            .checked_add(divisor.scale)
+            .expect("decimal quotient power fits usize");
+        let negative_power = guard_index
+            .checked_add(self.scale)
+            .expect("decimal quotient scale fits usize");
+        if positive_power >= negative_power {
+            coefficient.extend(std::iter::repeat_n(0, positive_power - negative_power));
+            Self::from_parts(self.negative != divisor.negative, coefficient, 0)
+        } else {
+            Self::from_parts(
+                self.negative != divisor.negative,
+                coefficient,
+                negative_power - positive_power,
+            )
+        }
+    }
+
+    fn from_quotient_parts(
+        negative: bool,
+        mut coefficient: Vec<u8>,
+        fractional_digits: usize,
+        dividend_scale: usize,
+        divisor_scale: usize,
+    ) -> Self {
+        let scale = fractional_digits
+            .checked_add(dividend_scale)
+            .expect("decimal quotient scale fits usize");
+        if scale >= divisor_scale {
+            Self::from_parts(negative, coefficient, scale - divisor_scale)
+        } else {
+            coefficient.extend(std::iter::repeat_n(0, divisor_scale - scale));
+            Self::from_parts(negative, coefficient, 0)
+        }
+    }
+
     fn coefficient_at_scale(&self, scale: usize) -> Vec<u8> {
         let mut coefficient = self.coefficient.clone();
         coefficient.extend(std::iter::repeat_n(0, scale.saturating_sub(self.scale)));
@@ -3183,6 +3323,10 @@ impl XPathExactDecimal {
     }
 
     fn divide_magnitudes(dividend: &[u8], divisor: &[u8]) -> Vec<u8> {
+        Self::divide_magnitudes_with_remainder(dividend, divisor).0
+    }
+
+    fn divide_magnitudes_with_remainder(dividend: &[u8], divisor: &[u8]) -> (Vec<u8>, Vec<u8>) {
         debug_assert!(divisor.iter().any(|digit| *digit != 0));
         let mut quotient = Vec::with_capacity(dividend.len());
         let mut remainder = vec![0];
@@ -3205,7 +3349,33 @@ impl XPathExactDecimal {
             quotient.push(quotient_digit);
         }
         Self::normalize_magnitude(&mut quotient);
-        quotient
+        (quotient, remainder)
+    }
+
+    fn divide_magnitude_if_exact(value: &mut Vec<u8>, divisor: u8) -> bool {
+        let (quotient, remainder) = Self::divide_magnitude_by_digit(value, divisor);
+        if remainder != 0 {
+            return false;
+        }
+        *value = quotient;
+        true
+    }
+
+    fn divide_magnitude_by_digit(value: &[u8], divisor: u8) -> (Vec<u8>, u8) {
+        debug_assert!(divisor != 0);
+        let mut quotient = Vec::with_capacity(value.len());
+        let mut remainder = 0_u8;
+        for digit in value {
+            let dividend = u16::from(remainder) * 10 + u16::from(*digit);
+            quotient.push(
+                u8::try_from(dividend / u16::from(divisor))
+                    .expect("single decimal quotient digit fits u8"),
+            );
+            remainder = u8::try_from(dividend % u16::from(divisor))
+                .expect("single decimal remainder fits u8");
+        }
+        Self::normalize_magnitude(&mut quotient);
+        (quotient, remainder)
     }
 
     fn compare_digit_magnitudes(left: &[u8], right: &[u8]) -> Ordering {
@@ -3544,6 +3714,7 @@ fn xpath_numeric_binary(
             XPathBinaryOperator::Add => left + right,
             XPathBinaryOperator::Subtract => left - right,
             XPathBinaryOperator::Multiply => left * right,
+            XPathBinaryOperator::Divide => left / right,
             XPathBinaryOperator::Modulo => left % right,
             _ => unreachable!("native arithmetic guard restricts binary operators"),
         };
@@ -3568,6 +3739,7 @@ fn xpath_numeric_binary(
             XPathBinaryOperator::Add => left + right,
             XPathBinaryOperator::Subtract => left - right,
             XPathBinaryOperator::Multiply => left * right,
+            XPathBinaryOperator::Divide => left / right,
             XPathBinaryOperator::Modulo => left % right,
             _ => unreachable!("native arithmetic guard restricts binary operators"),
         };
@@ -3586,7 +3758,9 @@ fn xpath_numeric_binary(
     };
     if matches!(
         operator,
-        XPathBinaryOperator::IntegerDivide | XPathBinaryOperator::Modulo
+        XPathBinaryOperator::Divide
+            | XPathBinaryOperator::IntegerDivide
+            | XPathBinaryOperator::Modulo
     ) && right.is_zero()
     {
         return Err(xpath_arithmetic_division_by_zero(right_source_range));
@@ -3595,6 +3769,11 @@ fn xpath_numeric_binary(
         XPathBinaryOperator::Add => left.add(&right),
         XPathBinaryOperator::Subtract => left.subtract(&right),
         XPathBinaryOperator::Multiply => left.multiply(&right),
+        XPathBinaryOperator::Divide => {
+            return Ok(XPathComparableAtomic::Decimal(
+                left.divide(&right, XPATH_DECIMAL_DIVISION_PRECISION),
+            ));
+        }
         XPathBinaryOperator::IntegerDivide => {
             return Ok(XPathComparableAtomic::Integer(
                 left.truncating_integer_quotient(&right),
@@ -3698,7 +3877,7 @@ fn xpath_truncated_float_to_integer(
 fn xpath_arithmetic_division_by_zero(source_range: XPathSourceRange) -> XPathEvaluationError {
     XPathEvaluationError::dynamic(
         "cem.xpath.arithmetic_division_by_zero",
-        "err:FOAR0001: XPath integer division and exact numeric modulo reject a zero divisor",
+        "err:FOAR0001: XPath exact numeric division, integer division, and modulo reject a zero divisor",
         source_range,
     )
 }
@@ -8553,6 +8732,180 @@ mod tests {
     }
 
     #[test]
+    fn xpath_native_evaluator_executes_div_with_deterministic_decimal_precision() {
+        use crate::lifecycle::LoadedInputAstStream;
+        use crate::validation::xml::{
+            xml_document_ast_from_source_bytes, XmlSourceValidationRequest,
+        };
+        use std::sync::Arc;
+
+        let (document, diagnostics) =
+            xml_document_ast_from_source_bytes(XmlSourceValidationRequest {
+                bytes: br#"<root><n>8</n><bad>not-a-number</bad></root>"#,
+                source_uri: "memory://division-context.xml",
+                content_type: Some("application/xml"),
+            });
+        assert!(diagnostics.is_empty(), "{diagnostics:?}");
+        let owner = Arc::new(LoadedInputAstStream::XmlDocument(
+            document.expect("typed XML document"),
+        ));
+        let context_node = XPathNativeNode::xml_document(owner).expect("native XML document node");
+        let context_item = || XPathResultItem::from_native_node(context_node.clone());
+        let bindings = BTreeMap::from([
+            (
+                XPathExpandedName::unqualified("float"),
+                singleton_test_binding("xs:float", "31"),
+            ),
+            (
+                XPathExpandedName::unqualified("double"),
+                singleton_test_binding("xs:double", "-3.5"),
+            ),
+            (
+                XPathExpandedName::unqualified("negative-zero"),
+                singleton_test_binding("xs:double", "-0"),
+            ),
+            (
+                XPathExpandedName::unqualified("infinity"),
+                singleton_test_binding("xs:float", "INF"),
+            ),
+            (
+                XPathExpandedName::unqualified("nan"),
+                singleton_test_binding("xs:double", "NaN"),
+            ),
+        ]);
+
+        let assert_atomic = |source: &str, expected_type: &str, expected_lexical: &str| {
+            let result = evaluate_for_test(source, Some(context_item()), bindings.clone())
+                .unwrap_or_else(|diagnostics| panic!("`{source}` failed: {diagnostics:?}"));
+            let [XPathResultItem::Atomic { value, source_map }] = result.sequence.items.as_slice()
+            else {
+                panic!("`{source}` did not return one atomic value: {result:?}");
+            };
+            assert_eq!(result.sequence.sequence_type, expected_type, "`{source}`");
+            assert_eq!(value.type_name, expected_type, "`{source}`");
+            assert_eq!(value.lexical_value, expected_lexical, "`{source}`");
+            assert_eq!(source_map.frames.len(), 1, "`{source}`");
+            assert_eq!(source_map.frames[0].source_id, SourceId(7), "`{source}`");
+            assert_eq!(
+                source_map.frames[0].span,
+                FrameSpan::Single(ByteRange::new(0, source.len() as u32)),
+                "`{source}`"
+            );
+        };
+
+        for (source, expected_type, expected_lexical) in [
+            ("10 div 4", "xs:decimal", "2.5"),
+            ("1 div 8", "xs:decimal", "0.125"),
+            ("3 div 6", "xs:decimal", "0.5"),
+            ("0.03 div 0.6", "xs:decimal", "0.05"),
+            ("1 div 3", "xs:decimal", "0.333333333333333333"),
+            ("2 div 3", "xs:decimal", "0.666666666666666667"),
+            ("1 div 6", "xs:decimal", "0.166666666666666667"),
+            ("-1 div 6", "xs:decimal", "-0.166666666666666667"),
+            (
+                "123456789012345678901234567890 div 1",
+                "xs:decimal",
+                "123456789012345678901234567890",
+            ),
+            (
+                "1 div 1099511627776",
+                "xs:decimal",
+                "0.0000000000009094947017729282379150390625",
+            ),
+            (
+                "100000000000000000000 div 3",
+                "xs:decimal",
+                "33333333333333333300",
+            ),
+            (
+                "2999999999999999999 div 3",
+                "xs:decimal",
+                "1000000000000000000",
+            ),
+            (
+                "1 div 300000000000000000000",
+                "xs:decimal",
+                "0.00000000000000000000333333333333333333",
+            ),
+            ("-0.0 div 3", "xs:decimal", "0"),
+            ("$float div 2", "xs:float", "15.5"),
+            ("$double div 2", "xs:double", "-1.75"),
+            ("3e0 div 0.0", "xs:double", "INF"),
+            ("-3e0 div 0.0", "xs:double", "-INF"),
+            ("3e0 div $negative-zero", "xs:double", "-INF"),
+            ("$negative-zero div 3", "xs:double", "-0"),
+            ("$negative-zero div $negative-zero", "xs:double", "NaN"),
+            ("$infinity div $infinity", "xs:float", "NaN"),
+            ("$nan div 2", "xs:double", "NaN"),
+            ("/root/n div 3", "xs:double", "2.6666666666666665"),
+            ("10 - 6 div 2", "xs:decimal", "7"),
+        ] {
+            assert_atomic(source, expected_type, expected_lexical);
+        }
+
+        for source in ["() div $missing", "1 div ()"] {
+            let result = evaluate_for_test(source, Some(context_item()), BTreeMap::new())
+                .unwrap_or_else(|diagnostics| panic!("`{source}` failed: {diagnostics:?}"));
+            assert!(result.sequence.items.is_empty(), "`{source}`: {result:?}");
+            assert_eq!(
+                result.sequence.sequence_type, "empty-sequence()",
+                "`{source}`"
+            );
+        }
+
+        for (source, expected_offset, expected_length) in [("1 div 0", 6, 1), ("1.0 div 0.0", 8, 3)]
+        {
+            let diagnostics = evaluate_for_test(source, Some(context_item()), bindings.clone())
+                .expect_err("exact numeric division by zero must fail deterministically");
+            assert_eq!(
+                diagnostics[0].code, "cem.xpath.arithmetic_division_by_zero",
+                "`{source}`"
+            );
+            assert!(diagnostics[0].message.contains("err:FOAR0001"));
+            assert_eq!(
+                diagnostics[0].byte_offset,
+                Some(expected_offset),
+                "`{source}`"
+            );
+            assert_eq!(
+                diagnostics[0]
+                    .source_map
+                    .as_ref()
+                    .expect("division diagnostic source map")
+                    .frames[0]
+                    .span,
+                FrameSpan::Single(ByteRange::new(expected_offset, expected_length)),
+                "`{source}`"
+            );
+        }
+
+        for (source, expected_code, expected_offset, expected_length) in [
+            ("(1, 2) div 3", "cem.xpath.arithmetic_cardinality", 0, 6),
+            ("'x' div 2", "cem.xpath.arithmetic_type_error", 0, 3),
+            ("/root/bad div 2", "cem.xpath.arithmetic_cast_invalid", 0, 9),
+        ] {
+            let diagnostics = evaluate_for_test(source, Some(context_item()), BTreeMap::new())
+                .expect_err("invalid div operands must retain arithmetic diagnostics");
+            assert_eq!(diagnostics[0].code, expected_code, "`{source}`");
+            assert_eq!(
+                diagnostics[0].byte_offset,
+                Some(expected_offset),
+                "`{source}`"
+            );
+            assert_eq!(
+                diagnostics[0]
+                    .source_map
+                    .as_ref()
+                    .expect("division operand diagnostic source map")
+                    .frames[0]
+                    .span,
+                FrameSpan::Single(ByteRange::new(expected_offset, expected_length)),
+                "`{source}`"
+            );
+        }
+    }
+
+    #[test]
     fn xpath_native_evaluator_materializes_exact_integer_ranges_with_typed_item_limits() {
         use crate::lifecycle::LoadedInputAstStream;
         use crate::validation::xml::{
@@ -8813,7 +9166,7 @@ mod tests {
 
     #[test]
     fn xpath_native_evaluator_rejects_unsupported_semantics_without_projection() {
-        let expression = parse("1 div 2");
+        let expression = parse("let $x := 1 return $x");
         let resolver_registry = ResolverRegistry::new();
         let resolver_policy = ResolverPolicy::new();
         let diagnostics = CemXPathEvaluator::default()
@@ -8828,9 +9181,10 @@ mod tests {
                 evaluation_limits: XPathEvaluationLimits::default(),
                 safety_policy_stamp: "xpath-safety/1;pure",
             })
-            .expect_err("division remains outside the type-preserving arithmetic slice");
+            .expect_err("let expressions remain outside the native evaluator slice");
         assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
         assert_eq!(diagnostics[0].code, "cem.xpath.evaluation_unsupported");
+        assert!(diagnostics[0].message.contains("let-expression"));
 
         let source = include_str!("xpath.rs");
         let evaluator = source

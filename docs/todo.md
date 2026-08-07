@@ -93,6 +93,13 @@ mediate between internal layers.
           signed-zero behavior; report FOAR0001/FOAR0002-class failures with
           exact source maps; and leave decimal `div` precision policy explicit
           without introducing serialization or an intermediate DTO.
+    - [x] Execute XPath `div` directly on typed numeric values: preserve exact
+          terminating integer/decimal quotients, round repeating quotients to
+          18 significant digits with round-half-even, retain IEEE float/double
+          NaN, infinity, and signed-zero behavior, return `xs:decimal` for exact
+          numeric division, and report exact-numeric zero divisors with
+          FOAR0001-class source maps without serialization or an intermediate
+          DTO.
   - [ ] Wire the native evaluator through the `transform` command and expose
         explicit CEM-QL, CEMT, and XSLT invocation adapters without reparsing
         source text, constructing an evaluator-owned replacement XML tree, or
