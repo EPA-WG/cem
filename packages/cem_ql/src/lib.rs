@@ -22,6 +22,7 @@ pub mod stdlib;
 pub mod template;
 pub mod transport;
 pub mod types;
+pub mod xpath;
 
 #[cfg(test)]
 mod tests {

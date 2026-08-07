@@ -100,7 +100,7 @@ mediate between internal layers.
           numeric division, and report exact-numeric zero divisors with
           FOAR0001-class source maps without serialization or an intermediate
           DTO.
-  - [ ] Wire the native evaluator through the `transform` command and expose
+  - [x] Wire the native evaluator through the `transform` command and expose
         explicit CEM-QL, CEMT, and XSLT invocation adapters without reparsing
         source text, constructing an evaluator-owned replacement XML tree, or
         projecting AST or result values through JSON.
@@ -133,6 +133,12 @@ mediate between internal layers.
           with expanded-QName variable bindings, preserve result owner and
           source-map identity, and reject host mismatches without reparsing or a
           serializer, JSON projection, DTO, or replacement tree.
+    - [x] Expose the schema-owned CEM-QL XPath expression slot and invocation
+          adapter: compile a `slot-kind=xpath` lexical island once into a
+          CEM-QL-owned XPath AST with exact slot provenance, accept only a native
+          context item and expanded-QName XPath sequences, preserve result node
+          and source-map identity, and reject non-CEM-QL owners without a
+          CEM-QL `ItemStream`, JSON, serializer, DTO, or replacement-tree bridge.
   - [x] Fuse parsed XPath streams into XSLT XPath-bearing attributes and AVT
         expression segments while retaining an independently addressable XPath
         AST associated with the owning XML event or subtree node.

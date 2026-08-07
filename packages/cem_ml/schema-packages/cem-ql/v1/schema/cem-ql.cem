@@ -1,6 +1,7 @@
 @doc cem-ml 1
 @ns schema = "https://cem.dev/ns/schema/1"
 @ns cemml = "https://cem.dev/ns/cem-ml/1"
+@ns xpath = "https://cem.dev/ns/query/xpath/1"
 @default schema
 
 {schema @name="cem-ql" @namespace="https://cem.dev/ns/query/cem-ql/1" @version="1.0.0" |
@@ -11,6 +12,7 @@
     {uses |
         {use @schema="https://cem.dev/ns/schema/1" @as="schema"}
         {use @schema="https://cem.dev/ns/cem-ml/1" @as="cemml"}
+        {use @schema="https://cem.dev/ns/query/xpath/1" @as="xpath"}
     }
 
     {content-types |
@@ -142,6 +144,8 @@
         {constraint @kind="standalone-expression-data-binding-required" @target="expression-binding" @diagnostic="cem.ql.data_binding_missing" @behavior="cem-ql-expression-report-fact" @fact-kind="data-binding-missing" @policy="referenced data bindings must be present unless the type profile declares them optional"}
         {constraint @kind="standalone-expression-result-type" @target="expression-result" @diagnostic="cem.ql.result_type_mismatch" @behavior="cem-ql-expression-report-fact" @fact-kind="result-type-mismatch" @policy="typed expression result must match the requested output type and nullability"}
         {constraint @kind="standalone-expression-host-capability-policy" @target="expression-resource" @diagnostic="cem.ql.host_capability_denied" @behavior="cem-ql-expression-report-fact" @fact-kind="host-capability-denied" @policy="resource-sensitive helpers require explicit host capability policy before evaluation"}
+        {constraint @kind="xpath-expression-slot-owned" @target="expression-slot" @policy="slot-kind xpath compiles its lexical island once into a CEM-QL-owned XPath AST and delegates grammar and evaluation to the XPath schema"}
+        {constraint @kind="xpath-expression-slot-native-bindings" @target="expression-slot" @policy="CEM-QL XPath invocation accepts only a native XPath context item and expanded-QName XPath sequences without a CEM-QL ItemStream or JSON bridge"}
         {constraint @kind="artifact-hash-required" @target="artifact" @diagnostic="cem.ql.artifact_hash_mismatch" @behavior="cem-ql-artifact-report-fact" @fact-kind="artifact-hash-mismatch" @policy="artifact hash covers the full identity envelope and IR bytes"}
         {constraint @kind="artifact-source-identity-validated" @target="artifact" @diagnostic="cem.ql.artifact_hash_mismatch" @behavior="cem-ql-artifact-report-fact" @fact-kind="artifact-source-mismatch" @policy="source URI and source byte hash must match the active source context when provided"}
         {constraint @kind="artifact-policy-stamps-validated" @target="artifact" @diagnostic="cem.cc.policy_mismatch" @behavior="cem-ql-artifact-report-fact" @fact-kind="policy-mismatch" @policy="import policy stdlib overlay type profile cache mode and source-map mode must match the active compile context on load"}
@@ -172,5 +176,6 @@
     {open-content |
         {accept @kind="query-extension" @policy="reject-unless-declared"}
         {accept @kind="compiled-artifact-section" @policy="reject-unless-declared"}
+        {accept @kind="xpath-expression" @policy="delegate-to-https://cem.dev/ns/query/xpath/1 through a slot-kind xpath expression-slot"}
     }
 }

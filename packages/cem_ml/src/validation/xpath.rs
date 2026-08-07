@@ -1669,6 +1669,42 @@ impl XPathInvocationAdapter for CemtXPathInvocationAdapter {
 }
 
 #[derive(Debug, Clone, Default)]
+pub struct CemQlXPathInvocationAdapter;
+
+impl XPathInvocationAdapter for CemQlXPathInvocationAdapter {
+    fn host(&self) -> XPathInvocationHost {
+        XPathInvocationHost::CemQl
+    }
+
+    fn invoke(
+        &self,
+        request: XPathEvaluationRequest<'_>,
+    ) -> Result<XPathResultArtifact, Vec<Diagnostic>> {
+        let attachment_matches = matches!(
+            &request.expression.attachment,
+            XPathAttachment::Host(host)
+                if host.owner.node_kind == XPathHostNodeKind::CemQlExpressionSlot
+        );
+        if request.invocation_host != self.host() || !attachment_matches {
+            return Err(vec![xpath_evaluation_diagnostic(
+                request.expression,
+                "cem.xpath.invocation_host_mismatch",
+                format!(
+                    "XPath {} invocation requires a CEM-QL-owned typed expression slot",
+                    self.host().as_str()
+                ),
+                request
+                    .expression
+                    .syntax_ast
+                    .as_ref()
+                    .map(|syntax| syntax.root.source_range),
+            )]);
+        }
+        CemXPathEvaluator::default().evaluate(request)
+    }
+}
+
+#[derive(Debug, Clone, Default)]
 pub struct XsltXPathInvocationAdapter;
 
 impl XPathInvocationAdapter for XsltXPathInvocationAdapter {

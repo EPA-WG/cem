@@ -104,6 +104,14 @@ source range while the CEM-QL diagnostic remains the expression diagnostic.
 helper implementations and user-defined overload semantics remain separate
 runtime work.
 
+The schema also owns the explicit `slot-kind=xpath` host boundary. The CEM-QL
+crate compiles that slot's lexical island once into an independently
+addressable `XPathExpressionAst` attached to the CEM-QL slot path and source
+range. Runtime invocation accepts only a native XPath context item and
+expanded-QName XPath sequences, then returns the typed XPath result artifact;
+it does not reinterpret XPath as CEM-QL syntax or bridge through `ItemStream`,
+JSON, serialized XML, or a replacement tree.
+
 Contract-only fixtures live under
 [`examples/expression-contract/`](examples/expression-contract/). They are not
 manifest-declared package examples because they document the broader expression

@@ -174,25 +174,26 @@ their context and XDM binding contracts are defined.
 Host invocation now uses one typed request contract that names the host
 language, carries the already parsed `XPathExpressionAst`, keeps the native
 context item separate from variables, and keys variable sequences by expanded
-namespace URI plus local name. The first host adapter is CEMT: it accepts only
-an AST attached to a `cemt-expression-slot`, passes native node and atomic
-sequences directly to the evaluator, and preserves resolver, safety, owner, and
-source-map identity. The CEM transform schema now owns a dedicated authored
-`xpath` function-body form, separate from existing CEM-QL-owned expression
-slots. Lowering compiles its `expression` child once into the attached XPath
-AST, resolves declared namespace prefixes statically, and records explicit
-context and expanded-QName variable mappings. Runtime invocation accepts only
-native XPath items and sequences; it does not parse an expression string or map
-a CEMT/JSON record into XDM.
+namespace URI plus local name. CEMT, CEM-QL, and XSLT adapters each accept only
+an AST attached to their typed owner kind, pass native node and atomic sequences
+directly to the evaluator, and preserve resolver, safety, owner, and source-map
+identity. The CEM transform schema owns a dedicated authored `xpath`
+function-body form. The CEM-QL schema owns an explicit `slot-kind=xpath`
+programmatic expression slot, and the CEM-QL crate compiles its lexical island
+once before invocation. XSLT consumes the XPath ASTs already fused into direct
+expression attributes and AVT segments. None of these runtime adapters parses
+an expression string or maps a CEMT, CEM-QL `ItemStream`, or JSON value into
+XDM.
 
 The result media type is intentionally distinct from expression source and does
 not enter the XPath source parser. XML, JSON, CEM, and text serialization remain
-explicit downstream conversion edges. CEM-QL and XSLT invocation adapters
-remain unregistered. CEMT has both the typed adapter boundary and the authored
-schema form. Its explicit host-selected dispatcher resolves one compiled XPath
-body by exact function name, consumes only the native XDM binding arena, and
-returns the typed XPath artifact body. It does not infer renderer input aliases
-or introduce a generic-value or serialization bridge.
+explicit downstream conversion edges. CEMT has both the typed adapter boundary
+and the authored schema form. Its explicit host-selected dispatcher resolves
+one compiled XPath body by exact function name, consumes only the native XDM
+binding arena, and returns the typed XPath artifact body. CEM-QL exposes the
+same native boundary through its schema-owned XPath slot API; XSLT exposes it
+for fused attribute and AVT ASTs. No adapter infers renderer input aliases or
+introduces a generic-value or serialization bridge.
 
 ## Formatter And Colorizer Profiles
 
@@ -225,13 +226,14 @@ catalog identity, and checks that README examples use fenced XPath source with
 no SVG fallback.
 `yarn nx run cem_ml:build:wasm` verifies that the CEM-owned scanner and parser
 remain compatible with the browser WASM target.
+`yarn nx run cem_ql:test` verifies that CEM-QL XPath slots compile once, retain
+CEM-QL ownership and source ranges, invoke native XDM bindings, preserve result
+node identity, and reject non-CEM-QL AST owners and runtime value bridges.
 
 ## Tracked Incomplete Work
 
 - Implement a CEM-owned XPath 3.1 compiler/evaluator and prove native/WASM AST
   consumption through CEM-only resolver and safety capabilities.
-- Add CEM-QL and XSLT XPath invocation adapters without introducing
-  generic-value or serialization bridges.
 - Define grammar-aware formatting before making profile output differ.
 
 ## Examples
