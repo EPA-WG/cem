@@ -57,10 +57,13 @@ maps, arrays, and function items. The lossless token stream remains a separate
 source-fidelity artifact. XSLT, CEMT, and CEM-QL fusion consumes a derived
 start/end syntax event stream rather than weakening the primary AST into a
 generic property bag. The current parser slice represents rooted and relative
-paths, axes, node tests, predicates, variables, binary operators, function
-calls, maps, arrays, typed names/literals, and host-adjusted ranges directly.
-Its balanced syntax events are derived from that tree. The runtime parser and
-public syntax module have no Xee, serde, Xot, or JSON representation dependency.
+paths, axes, node tests, predicates, simple maps, variables, binary operators,
+function calls, maps, arrays, typed names/literals, and host-adjusted ranges
+directly. Simple-map grammar nodes retain one input path and an ordered vector
+of mapping paths rather than masquerading as generic binary operators. Their
+balanced syntax events expose each path child in source order. The runtime
+parser and public syntax module have no Xee, serde, Xot, or JSON representation
+dependency.
 
 The lifecycle stream emits one zero-width `start-expression` event, one event
 for each lossless token, and one zero-width `end-expression` event. Token events
@@ -158,6 +161,14 @@ original source map. A set result that would span owners is rejected until that
 same stable multi-document order exists; cross-owner intersection or difference
 still succeeds when its result is empty or belongs to one owner. The optional,
 deprecated namespace axis remains an explicit host-language omission.
+Typed simple-map expressions execute each mapping path once per item from the
+previous stage with that stage's item, position, and size focus. Stage results
+are concatenated left to right without the node-only checks, identity
+deduplication, or document sorting required by `/`, so atomic values, native
+nodes, duplicates, and input order remain intact. An empty stage skips every
+remaining mapping path. Operand diagnostics retain their exact path ranges,
+while evaluated intermediate and final sequences enforce `xpathItems` budgets;
+the evaluator never serializes or reconstructs a mapped item.
 Typed `for` expressions accept one or more comma-separated bindings. The parser
 lowers later bindings into nested typed `For` nodes with dependent lexical
 scope, preserving the complete source range on the outer node and each

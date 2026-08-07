@@ -137,6 +137,16 @@ mediate between internal layers.
           empty-binding truth, outer focus, shadowing, native owners, exact
           source maps and diagnostics, and evaluated-work `xpathItems` budgets;
           and avoid serialization, a DTO, or a replacement tree.
+    - [x] Execute typed XPath simple-map (`!`) expressions directly: model each
+          grammar node as one input path plus an ordered vector of mapping
+          paths; preserve its tighter-than-unary precedence and exact parent and
+          operand ranges; evaluate each stage left to right with item, position,
+          and size focus; concatenate results without path normalization,
+          identity deduplication, or document sorting; skip all remaining work
+          after an empty stage; preserve bindings, native owners, item source
+          maps, exact diagnostics, duplicates, and evaluated intermediate/output
+          `xpathItems` budgets; and avoid serialization, a DTO, or a replacement
+          tree.
   - [x] Wire the native evaluator through the `transform` command and expose
         explicit CEM-QL, CEMT, and XSLT invocation adapters without reparsing
         source text, constructing an evaluator-owned replacement XML tree, or

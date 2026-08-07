@@ -2308,6 +2308,34 @@ fn xpath_evaluate_expression_node(
                 result,
             )])
         }
+        XPathExpression::SimpleMap { input, mappings } => {
+            let mut current = xpath_evaluate_expression_node(
+                expression,
+                input,
+                focus,
+                variable_bindings,
+                evaluation_limits,
+            )?;
+            for mapping in mappings {
+                if current.is_empty() {
+                    break;
+                }
+                let size = current.len();
+                let mut mapped = Vec::new();
+                for (position, item) in current.iter().enumerate() {
+                    mapped.extend(xpath_evaluate_expression_node(
+                        expression,
+                        mapping,
+                        XPathFocus::item(item, position.saturating_add(1), size),
+                        variable_bindings,
+                        evaluation_limits,
+                    )?);
+                    evaluation_limits.enforce_sequence_items(mapped.len(), node.source_range)?;
+                }
+                current = mapped;
+            }
+            Ok(current)
+        }
         XPathExpression::Unsupported { production } => Err(XPathEvaluationError::unsupported(
             format!("XPath production `{production}` is not executable yet"),
             node.source_range,
@@ -5742,6 +5770,28 @@ impl<'a> XPathSyntaxLowerer<'a> {
             operand.source_range = source_range;
             return operand;
         }
+        if let xee_ast::ExprSingle::Apply(xee_ast::ApplyExpr {
+            path_expr,
+            operator: xee_ast::ApplyOperator::SimpleMap(mapping_paths),
+        }) = &expression.value
+        {
+            return XPathExpressionNode {
+                expression: XPathExpression::SimpleMap {
+                    input: Box::new(self.lower_path_node(
+                        path_expr,
+                        expression.span.start,
+                        expression.span.end,
+                    )),
+                    mappings: mapping_paths
+                        .iter()
+                        .map(|path| {
+                            self.lower_path_node(path, expression.span.start, expression.span.end)
+                        })
+                        .collect(),
+                },
+                source_range,
+            };
+        }
         let expression = match &expression.value {
             xee_ast::ExprSingle::Path(path) => XPathExpression::Path(self.lower_path(
                 path,
@@ -6814,6 +6864,88 @@ mod tests {
             syntax.root.expressions[0].source_range,
             XPathSourceRange::new(1, 1, 0, source.len() as u64)
         );
+    }
+
+    #[test]
+    fn xpath_syntax_ast_models_simple_map_as_ordered_path_stages() {
+        let source = "(1, 2) ! (. * position()) ! last()";
+        let syntax = cem_parser_syntax(source).expect("typed simple-map expression");
+        assert_eq!(syntax, xee_parser_syntax(source));
+
+        let expression = &syntax.root.expressions[0];
+        assert_eq!(
+            expression.source_range,
+            XPathSourceRange::new(1, 1, 0, source.len() as u64)
+        );
+        let XPathExpression::SimpleMap { input, mappings } = &expression.expression else {
+            panic!("expected one typed simple-map expression: {syntax:?}");
+        };
+        assert_eq!(
+            input.source_range,
+            XPathSourceRange::new(1, 1, 0, "(1, 2)".len() as u64)
+        );
+        assert_eq!(mappings.len(), 2);
+        let first_mapping = "(. * position())";
+        let first_start = source.find(first_mapping).expect("first mapping path");
+        assert_eq!(
+            mappings[0].source_range,
+            XPathSourceRange::new(
+                1,
+                first_start as u32 + 1,
+                first_start as u64,
+                first_mapping.len() as u64,
+            )
+        );
+        let second_mapping = "last()";
+        let second_start = source.rfind(second_mapping).expect("second mapping path");
+        assert_eq!(
+            mappings[1].source_range,
+            XPathSourceRange::new(
+                1,
+                second_start as u32 + 1,
+                second_start as u64,
+                second_mapping.len() as u64,
+            )
+        );
+
+        let direct_path_ranges = syntax
+            .events
+            .iter()
+            .filter(|event| {
+                event.kind == XPathSyntaxEventKind::StartNode
+                    && event.node_kind == XPathSyntaxNodeKind::PathExpression
+                    && event.depth == 2
+            })
+            .map(|event| event.source_range)
+            .collect::<Vec<_>>();
+        assert_eq!(
+            direct_path_ranges,
+            [
+                input.source_range,
+                mappings[0].source_range,
+                mappings[1].source_range,
+            ]
+        );
+
+        let unary = cem_parser_syntax("-1 ! .").expect("unary simple-map expression");
+        let XPathExpression::Unary { operand, .. } = &unary.root.expressions[0].expression else {
+            panic!("unary signs must wrap the complete simple-map expression: {unary:?}");
+        };
+        assert!(matches!(
+            operand.expression,
+            XPathExpression::SimpleMap { .. }
+        ));
+
+        let additive = cem_parser_syntax("1 ! . + 2").expect("additive simple-map expression");
+        let XPathExpression::Binary {
+            operator: XPathBinaryOperator::Add,
+            left,
+            ..
+        } = &additive.root.expressions[0].expression
+        else {
+            panic!("simple map must bind more tightly than addition: {additive:?}");
+        };
+        assert!(matches!(left.expression, XPathExpression::SimpleMap { .. }));
     }
 
     #[test]
@@ -10492,6 +10624,129 @@ mod tests {
             Some(2),
         )
         .expect_err("an evaluated quantified binding enforces the item budget");
+        assert_eq!(
+            diagnostics[0].code,
+            "cem.xpath.sequence_item_limit_exceeded"
+        );
+    }
+
+    #[test]
+    fn xpath_native_evaluator_executes_simple_maps_with_stage_focus_and_order() {
+        use crate::lifecycle::LoadedInputAstStream;
+        use crate::validation::xml::{
+            xml_document_ast_from_source_bytes, XmlSourceValidationRequest,
+        };
+        use std::sync::Arc;
+
+        let assert_atomic_values = |source: &str, expected: &[&str]| {
+            let result = evaluate_for_test(source, None, BTreeMap::new())
+                .unwrap_or_else(|diagnostics| panic!("`{source}` failed: {diagnostics:?}"));
+            let actual = result
+                .sequence
+                .items
+                .iter()
+                .map(|item| match item {
+                    XPathResultItem::Atomic { value, .. } => value.lexical_value.as_str(),
+                    _ => panic!("`{source}` returned a non-atomic item: {item:?}"),
+                })
+                .collect::<Vec<_>>();
+            assert_eq!(actual, expected, "`{source}`");
+        };
+
+        assert_atomic_values("(1, 2, 3) ! (. * 2)", &["2", "4", "6"]);
+        assert_atomic_values("(10, 20, 30) ! position()", &["1", "2", "3"]);
+        assert_atomic_values("(10, 20, 30) ! last()", &["3", "3", "3"]);
+        assert_atomic_values("(1, 2) ! (., . + 10) ! (. * 2)", &["2", "22", "4", "24"]);
+
+        let with_binding = evaluate_for_test(
+            "(1, 2) ! (. + $delta)",
+            None,
+            BTreeMap::from([(
+                XPathExpandedName::unqualified("delta"),
+                singleton_test_binding("xs:integer", "5"),
+            )]),
+        )
+        .expect("simple-map stages retain outer variable bindings");
+        assert_eq!(
+            with_binding
+                .sequence
+                .items
+                .iter()
+                .map(|item| match item {
+                    XPathResultItem::Atomic { value, .. } => value.lexical_value.as_str(),
+                    _ => panic!("simple-map binding result was not atomic: {item:?}"),
+                })
+                .collect::<Vec<_>>(),
+            ["6", "7"]
+        );
+
+        let empty = evaluate_for_test_with_limit(
+            "() ! $missing ! $also_missing",
+            None,
+            BTreeMap::new(),
+            Some(0),
+        )
+        .expect("an empty simple-map input skips every later stage");
+        assert!(empty.sequence.items.is_empty());
+
+        let xml = br#"<root><n>1</n><n>2</n></root>"#;
+        let (document, diagnostics) =
+            xml_document_ast_from_source_bytes(XmlSourceValidationRequest {
+                bytes: xml,
+                source_uri: "memory://simple-map-context.xml",
+                content_type: Some("application/xml"),
+            });
+        assert!(diagnostics.is_empty(), "{diagnostics:?}");
+        let owner = Arc::new(LoadedInputAstStream::XmlDocument(
+            document.expect("typed XML document"),
+        ));
+        let context_node =
+            XPathNativeNode::xml_document(Arc::clone(&owner)).expect("native XML document node");
+        let mapped_nodes = evaluate_for_test(
+            "/root/n ! (., .)",
+            Some(XPathResultItem::from_native_node(context_node)),
+            BTreeMap::new(),
+        )
+        .expect("simple maps preserve node identity, duplicates, and input order");
+        let handles = mapped_nodes
+            .sequence
+            .items
+            .iter()
+            .map(|item| {
+                let native_node = item.native_node().expect("mapped native node");
+                assert!(Arc::ptr_eq(native_node.owner(), &owner));
+                native_node.handle()
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(handles.len(), 4);
+        assert_eq!(handles[0], handles[1]);
+        assert_eq!(handles[2], handles[3]);
+        assert_ne!(handles[0], handles[2]);
+
+        let source = "1 ! $missing";
+        let diagnostics = evaluate_for_test(source, None, BTreeMap::new())
+            .expect_err("a required simple-map stage must be evaluated");
+        let missing_start = source.find("missing").expect("missing variable name");
+        assert_eq!(diagnostics[0].code, "cem.xpath.variable_unbound");
+        assert_eq!(diagnostics[0].byte_offset, Some(missing_start as u64));
+        assert_eq!(
+            diagnostics[0]
+                .source_map
+                .as_ref()
+                .expect("simple-map diagnostic source map")
+                .frames[0]
+                .span,
+            FrameSpan::Single(ByteRange::new(missing_start as u64, 7))
+        );
+
+        let within_budget =
+            evaluate_for_test_with_limit("(1, 2) ! .", None, BTreeMap::new(), Some(2))
+                .expect("simple-map input and output fit the configured item budget");
+        assert_eq!(within_budget.sequence.items.len(), 2);
+
+        let diagnostics =
+            evaluate_for_test_with_limit("(1, 2) ! (., .) ! .[1]", None, BTreeMap::new(), Some(3))
+                .expect_err("an oversized intermediate simple-map stage enforces the item budget");
         assert_eq!(
             diagnostics[0].code,
             "cem.xpath.sequence_item_limit_exceeded"

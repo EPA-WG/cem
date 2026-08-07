@@ -41,6 +41,10 @@ pub enum XPathExpression {
         left: Box<XPathExpressionNode>,
         right: Box<XPathExpressionNode>,
     },
+    SimpleMap {
+        input: Box<XPathExpressionNode>,
+        mappings: Vec<XPathExpressionNode>,
+    },
     For {
         binding: XPathName,
         binding_expression: Box<XPathExpressionNode>,
@@ -278,6 +282,7 @@ pub enum XPathSyntaxNodeKind {
     PathExpression,
     UnaryExpression,
     BinaryExpression,
+    SimpleMapExpression,
     ForExpression,
     LetExpression,
     IfExpression,
@@ -307,6 +312,7 @@ impl XPathSyntaxNodeKind {
             Self::PathExpression => "path-expression",
             Self::UnaryExpression => "unary-expression",
             Self::BinaryExpression => "binary-expression",
+            Self::SimpleMapExpression => "simple-map-expression",
             Self::ForExpression => "for-expression",
             Self::LetExpression => "let-expression",
             Self::IfExpression => "if-expression",
@@ -386,6 +392,7 @@ impl XPathExpressionNode {
             XPathExpression::Path(_) => XPathSyntaxNodeKind::PathExpression,
             XPathExpression::Unary { .. } => XPathSyntaxNodeKind::UnaryExpression,
             XPathExpression::Binary { .. } => XPathSyntaxNodeKind::BinaryExpression,
+            XPathExpression::SimpleMap { .. } => XPathSyntaxNodeKind::SimpleMapExpression,
             XPathExpression::For { .. } => XPathSyntaxNodeKind::ForExpression,
             XPathExpression::Let { .. } => XPathSyntaxNodeKind::LetExpression,
             XPathExpression::If { .. } => XPathSyntaxNodeKind::IfExpression,
@@ -403,6 +410,12 @@ impl XPathExpressionNode {
                 XPathExpression::Binary { left, right, .. } => {
                     left.emit_events(depth, events);
                     right.emit_events(depth, events);
+                }
+                XPathExpression::SimpleMap { input, mappings } => {
+                    input.emit_events(depth, events);
+                    for mapping in mappings {
+                        mapping.emit_events(depth, events);
+                    }
                 }
                 XPathExpression::For {
                     binding,

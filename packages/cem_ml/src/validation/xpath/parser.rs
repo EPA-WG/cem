@@ -310,7 +310,7 @@ impl<'tokens, 'source, 'context> XPathParser<'tokens, 'source, 'context> {
             operators.push((operator, token.start));
         }
 
-        let mut operand = self.parse_path_expression()?;
+        let mut operand = self.parse_simple_map_expression()?;
         let end = self.node_end(&operand);
         for (operator, start) in operators.into_iter().rev() {
             operand = XPathExpressionNode {
@@ -322,6 +322,26 @@ impl<'tokens, 'source, 'context> XPathParser<'tokens, 'source, 'context> {
             };
         }
         Ok(operand)
+    }
+
+    fn parse_simple_map_expression(&mut self) -> Result<XPathExpressionNode, XPathParseError> {
+        let input = self.parse_path_expression()?;
+        let start = self.node_start(&input);
+        let mut mappings = Vec::new();
+        while self.consume_if("!").is_some() {
+            mappings.push(self.parse_path_expression()?);
+        }
+        let Some(last_mapping) = mappings.last() else {
+            return Ok(input);
+        };
+        let end = self.node_end(last_mapping);
+        Ok(XPathExpressionNode {
+            expression: XPathExpression::SimpleMap {
+                input: Box::new(input),
+                mappings,
+            },
+            source_range: self.range(start, end),
+        })
     }
 
     fn parse_path_expression(&mut self) -> Result<XPathExpressionNode, XPathParseError> {
@@ -1174,7 +1194,6 @@ fn binary_operator(lexeme: &str) -> Option<(XPathBinaryOperator, u8)> {
 
 fn unsupported_suffix_production(lexeme: &str) -> Option<&'static str> {
     match lexeme {
-        "!" => Some("simple-map-expression"),
         "=>" => Some("arrow-expression"),
         "cast" => Some("cast-expression"),
         "castable" => Some("castable-expression"),

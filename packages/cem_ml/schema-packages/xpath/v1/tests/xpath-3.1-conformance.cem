@@ -62,7 +62,7 @@
         @status="partial"
         @qt3-status="unmapped"
         @spec-sections="XPath 3.1 sections 3.2, 3.3"
-        @gap="The evaluator traverses every non-namespace axis over exact native XML AST owners; applies forward- and reverse-axis predicate focus plus order-preserving postfix filters with numeric position and effective boolean value rules; and returns identity-deduplicated document-ordered node paths. The optional deprecated namespace axis is an explicit host-language omission; non-XML-family owners and QT3 mapping remain incomplete"
+        @gap="The evaluator traverses every non-namespace axis over exact native XML AST owners; applies forward- and reverse-axis predicate focus plus order-preserving postfix filters with numeric position and effective boolean value rules; and returns identity-deduplicated document-ordered node paths. Typed simple maps retain one input path plus ordered mapping paths, execute each stage with item, position, and size focus, concatenate atomic or native-node results without path normalization, preserve duplicates and input order, skip remaining paths after an empty stage, and enforce evaluated intermediate/output budgets. The optional deprecated namespace axis is an explicit host-language omission; non-XML-family owners and QT3 mapping remain incomplete"
         @todo="xpath-native-path-evaluator"
     }
     {conformance-slice
