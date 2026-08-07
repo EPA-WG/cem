@@ -154,11 +154,23 @@ result exporter only after native evaluation completes. Parameters, named
 entrypoints, secondary inputs, and non-XML input AST families are rejected until
 their context and XDM binding contracts are defined.
 
+Host invocation now uses one typed request contract that names the host
+language, carries the already parsed `XPathExpressionAst`, keeps the native
+context item separate from variables, and keys variable sequences by expanded
+namespace URI plus local name. The first host adapter is CEMT: it accepts only
+an AST attached to a `cemt-expression-slot`, passes native node and atomic
+sequences directly to the evaluator, and preserves resolver, safety, owner, and
+source-map identity. It does not parse an expression string, map a CEMT/JSON
+record into XDM, or add authored CEMT syntax. Choosing that public call syntax
+remains a separate schema decision because existing CEM-native expression slots
+are CEM-QL-owned.
+
 The result media type is intentionally distinct from expression source and does
 not enter the XPath source parser. XML, JSON, CEM, and text serialization remain
-explicit downstream conversion edges. CEM-QL, CEMT, and XSLT invocation adapters
-remain unregistered pending schema-owned call, context, and variable-binding
-semantics.
+explicit downstream conversion edges. CEM-QL and XSLT invocation adapters
+remain unregistered. CEMT has the typed programmatic adapter boundary, while
+its authored call syntax remains unregistered pending an explicit schema
+contract.
 
 ## Formatter And Colorizer Profiles
 
@@ -195,8 +207,8 @@ remain compatible with the browser WASM target.
 
 - Implement a CEM-owned XPath 3.1 compiler/evaluator and prove native/WASM AST
   consumption through CEM-only resolver and safety capabilities.
-- Define schema-owned context and variable bindings, then add CEM-QL, CEMT, and
-  XSLT XPath invocation adapters.
+- Choose an authored CEMT XPath call syntax without changing its CEM-QL-owned
+  expression slots, then add CEM-QL and XSLT XPath invocation adapters.
 - Define grammar-aware formatting before making profile output differ.
 
 ## Examples

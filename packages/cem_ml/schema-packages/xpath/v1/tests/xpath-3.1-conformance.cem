@@ -110,7 +110,7 @@
         @status="partial"
         @qt3-status="unmapped"
         @spec-sections="XPath 3.1 section 2.1.2 and Functions and Operators resource functions"
-        @gap="Standalone transform execution injects the exact lifecycle XML document context plus explicit resolver and safety capabilities; step and filter predicates carry item, position, and size focus consumed by native position() and last(); all schema-classified XSLT whole-expression attributes and literal-result or instruction AVTs directly own their XPath AST, inherited static namespace context, and exact entity-decoded XML source projection. Parameter-to-XDM bindings, executable host invocation contexts, additional input AST families, and resource functions remain incomplete"
+        @gap="Standalone transform execution injects the exact lifecycle XML document context plus explicit resolver and safety capabilities; the shared host request carries an already parsed AST, a separate native context item, and expanded-QName typed sequence bindings, and the programmatic CEMT adapter enforces CEMT AST ownership without serialization or reparse. Step and filter predicates carry item, position, and size focus consumed by native position() and last(); all schema-classified XSLT whole-expression attributes and literal-result or instruction AVTs directly own their XPath AST, inherited static namespace context, and exact entity-decoded XML source projection. Authored CEMT call syntax, CEM-QL and XSLT evaluator invocation, additional input AST families, and resource functions remain incomplete"
         @todo="xpath-dynamic-context"
     }
     {conformance-slice

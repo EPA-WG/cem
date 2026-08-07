@@ -401,6 +401,66 @@ pub struct XPathExpectedResult {
     pub max_items: Option<usize>,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct XPathExpandedName {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub namespace_uri: Option<String>,
+    pub local_name: String,
+}
+
+impl XPathExpandedName {
+    pub fn new(namespace_uri: Option<impl Into<String>>, local_name: impl Into<String>) -> Self {
+        Self {
+            namespace_uri: namespace_uri.map(Into::into),
+            local_name: local_name.into(),
+        }
+    }
+
+    pub fn unqualified(local_name: impl Into<String>) -> Self {
+        Self {
+            namespace_uri: None,
+            local_name: local_name.into(),
+        }
+    }
+
+    fn from_syntax_name(name: &XPathName) -> Self {
+        Self {
+            namespace_uri: name.namespace_uri.clone(),
+            local_name: name.local_name.clone(),
+        }
+    }
+
+    fn display(&self) -> String {
+        self.namespace_uri
+            .as_deref()
+            .map(|namespace_uri| format!("Q{{{namespace_uri}}}{}", self.local_name))
+            .unwrap_or_else(|| self.local_name.clone())
+    }
+}
+
+pub type XPathVariableBindings = BTreeMap<XPathExpandedName, XPathResultSequence>;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum XPathInvocationHost {
+    StandaloneTransform,
+    Cemt,
+    CemQl,
+    Xslt,
+}
+
+impl XPathInvocationHost {
+    fn as_str(self) -> &'static str {
+        match self {
+            Self::StandaloneTransform => "standalone-transform",
+            Self::Cemt => "cemt",
+            Self::CemQl => "cem-ql",
+            Self::Xslt => "xslt",
+        }
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
 pub enum XPathResultItemKind {
@@ -1199,6 +1259,7 @@ pub struct XPathResultArtifact {
     pub schema_uri: String,
     pub xpath_version: String,
     pub grammar_version: String,
+    pub invocation_host: XPathInvocationHost,
     pub evaluator: XPathEvaluatorIdentity,
     pub expression_uri: String,
     pub static_context: XPathStaticContext,
@@ -1210,10 +1271,16 @@ pub struct XPathResultArtifact {
     pub source_map: SourceMapStack,
 }
 
-pub struct XPathEvaluationRequest<'a> {
-    pub expression: &'a XPathExpressionAst,
+#[derive(Debug, Clone, Default)]
+pub struct XPathDynamicContext {
     pub context_item: Option<XPathResultItem>,
-    pub variable_bindings: BTreeMap<String, XPathResultSequence>,
+    pub variable_bindings: XPathVariableBindings,
+}
+
+pub struct XPathEvaluationRequest<'a> {
+    pub invocation_host: XPathInvocationHost,
+    pub expression: &'a XPathExpressionAst,
+    pub dynamic_context: XPathDynamicContext,
     pub static_context: XPathStaticContext,
     pub expected_result: Option<XPathExpectedResult>,
     pub resolver_registry: &'a ResolverRegistry,
@@ -1263,8 +1330,8 @@ impl XPathEvaluatorAdapter for CemXPathEvaluator {
         let sequence = xpath_evaluate_expression_sequence(
             request.expression,
             &syntax.root,
-            XPathFocus::outer(request.context_item.as_ref()),
-            &request.variable_bindings,
+            XPathFocus::outer(request.dynamic_context.context_item.as_ref()),
+            &request.dynamic_context.variable_bindings,
         )
         .map_err(|error| vec![error.into_diagnostic(request.expression)])?;
         let artifact = XPathResultArtifact {
@@ -1272,6 +1339,7 @@ impl XPathEvaluatorAdapter for CemXPathEvaluator {
             schema_uri: XPATH_SCHEMA_URI.to_owned(),
             xpath_version: "3.1".to_owned(),
             grammar_version: XPATH_GRAMMAR_VERSION.to_owned(),
+            invocation_host: request.invocation_host,
             evaluator: XPathEvaluatorIdentity {
                 evaluator_id: self.capabilities.evaluator_id.clone(),
                 evaluator_version: self.capabilities.evaluator_version.clone(),
@@ -1461,9 +1529,12 @@ impl TransformTemplateAdapter for XPathTransformTemplateAdapter {
         );
         let result = CemXPathEvaluator::default()
             .evaluate(XPathEvaluationRequest {
+                invocation_host: XPathInvocationHost::StandaloneTransform,
                 expression: payload.expression.as_ref(),
-                context_item: Some(XPathResultItem::from_native_node(context_node)),
-                variable_bindings: BTreeMap::new(),
+                dynamic_context: XPathDynamicContext {
+                    context_item: Some(XPathResultItem::from_native_node(context_node)),
+                    variable_bindings: BTreeMap::new(),
+                },
                 static_context: payload.static_context.clone(),
                 expected_result: None,
                 resolver_registry: runtime.resolver_registry,
@@ -1497,6 +1568,51 @@ impl TransformTemplateAdapter for XPathTransformTemplateAdapter {
             .with_metadata(Some(source_map), Vec::new()),
             diagnostics: Vec::new(),
         })
+    }
+}
+
+pub trait XPathInvocationAdapter: Send + Sync {
+    fn host(&self) -> XPathInvocationHost;
+
+    fn invoke(
+        &self,
+        request: XPathEvaluationRequest<'_>,
+    ) -> Result<XPathResultArtifact, Vec<Diagnostic>>;
+}
+
+#[derive(Debug, Clone, Default)]
+pub struct CemtXPathInvocationAdapter;
+
+impl XPathInvocationAdapter for CemtXPathInvocationAdapter {
+    fn host(&self) -> XPathInvocationHost {
+        XPathInvocationHost::Cemt
+    }
+
+    fn invoke(
+        &self,
+        request: XPathEvaluationRequest<'_>,
+    ) -> Result<XPathResultArtifact, Vec<Diagnostic>> {
+        let attachment_matches = matches!(
+            &request.expression.attachment,
+            XPathAttachment::Host(host)
+                if host.owner.node_kind == XPathHostNodeKind::CemtExpressionSlot
+        );
+        if request.invocation_host != self.host() || !attachment_matches {
+            return Err(vec![xpath_evaluation_diagnostic(
+                request.expression,
+                "cem.xpath.invocation_host_mismatch",
+                format!(
+                    "XPath {} invocation requires a CEMT-owned typed expression slot",
+                    self.host().as_str()
+                ),
+                request
+                    .expression
+                    .syntax_ast
+                    .as_ref()
+                    .map(|syntax| syntax.root.source_range),
+            )]);
+        }
+        CemXPathEvaluator::default().evaluate(request)
     }
 }
 
@@ -1592,7 +1708,7 @@ fn xpath_evaluate_expression_sequence(
     expression: &XPathExpressionAst,
     sequence: &XPathExpressionSequence,
     focus: XPathFocus<'_>,
-    variable_bindings: &BTreeMap<String, XPathResultSequence>,
+    variable_bindings: &XPathVariableBindings,
 ) -> Result<XPathResultSequence, XPathEvaluationError> {
     debug_assert!(focus.position <= focus.size);
     debug_assert_eq!(focus.context_item.is_some(), focus.size > 0);
@@ -1615,7 +1731,7 @@ fn xpath_evaluate_expression_node(
     expression: &XPathExpressionAst,
     node: &XPathExpressionNode,
     focus: XPathFocus<'_>,
-    variable_bindings: &BTreeMap<String, XPathResultSequence>,
+    variable_bindings: &XPathVariableBindings,
 ) -> Result<Vec<XPathResultItem>, XPathEvaluationError> {
     match &node.expression {
         XPathExpression::Path(path) => {
@@ -1666,7 +1782,7 @@ fn xpath_evaluate_path(
     expression: &XPathExpressionAst,
     path: &XPathPathExpression,
     focus: XPathFocus<'_>,
-    variable_bindings: &BTreeMap<String, XPathResultSequence>,
+    variable_bindings: &XPathVariableBindings,
 ) -> Result<Vec<XPathResultItem>, XPathEvaluationError> {
     let mut current = match path.root {
         XPathPathRoot::Relative => Vec::new(),
@@ -1780,7 +1896,7 @@ fn xpath_evaluate_postfix(
     primary: &XPathPrimaryExpression,
     postfixes: &[XPathPostfixExpression],
     focus: XPathFocus<'_>,
-    variable_bindings: &BTreeMap<String, XPathResultSequence>,
+    variable_bindings: &XPathVariableBindings,
     source_range: XPathSourceRange,
 ) -> Result<Vec<XPathResultItem>, XPathEvaluationError> {
     let mut current =
@@ -1816,7 +1932,7 @@ fn xpath_evaluate_primary(
     expression: &XPathExpressionAst,
     primary: &XPathPrimaryExpression,
     focus: XPathFocus<'_>,
-    variable_bindings: &BTreeMap<String, XPathResultSequence>,
+    variable_bindings: &XPathVariableBindings,
     source_range: XPathSourceRange,
 ) -> Result<Vec<XPathResultItem>, XPathEvaluationError> {
     match primary {
@@ -1842,12 +1958,15 @@ fn xpath_evaluate_primary(
             ),
         }]),
         XPathPrimaryExpression::VariableReference(name) => variable_bindings
-            .get(name.lexical.as_str())
-            .or_else(|| variable_bindings.get(name.local_name.as_str()))
+            .get(&XPathExpandedName::from_syntax_name(name))
             .map(|sequence| sequence.items.clone())
             .ok_or_else(|| XPathEvaluationError {
                 code: "cem.xpath.variable_unbound",
-                message: format!("XPath variable `${}` is not bound", name.lexical),
+                message: format!(
+                    "XPath variable `${}` ({}) is not bound",
+                    name.lexical,
+                    XPathExpandedName::from_syntax_name(name).display()
+                ),
                 source_range: Some(name.source_range),
             }),
         XPathPrimaryExpression::Parenthesized(None) => Ok(Vec::new()),
@@ -2004,7 +2123,7 @@ fn xpath_apply_predicates(
     expression: &XPathExpressionAst,
     predicates: &[XPathExpressionSequence],
     mut input: Vec<XPathResultItem>,
-    variable_bindings: &BTreeMap<String, XPathResultSequence>,
+    variable_bindings: &XPathVariableBindings,
 ) -> Result<Vec<XPathResultItem>, XPathEvaluationError> {
     for predicate in predicates {
         let size = input.len();
@@ -4613,15 +4732,18 @@ mod tests {
     fn evaluate_for_test(
         source: &str,
         context_item: Option<XPathResultItem>,
-        variable_bindings: BTreeMap<String, XPathResultSequence>,
+        variable_bindings: XPathVariableBindings,
     ) -> Result<XPathResultArtifact, Vec<Diagnostic>> {
         let expression = parse(source);
         let resolver_registry = ResolverRegistry::new();
         let resolver_policy = ResolverPolicy::new();
         CemXPathEvaluator::default().evaluate(XPathEvaluationRequest {
+            invocation_host: XPathInvocationHost::StandaloneTransform,
             expression: &expression,
-            context_item,
-            variable_bindings,
+            dynamic_context: XPathDynamicContext {
+                context_item,
+                variable_bindings,
+            },
             static_context: XPathStaticContext::default(),
             expected_result: None,
             resolver_registry: &resolver_registry,
@@ -5225,6 +5347,7 @@ mod tests {
             schema_uri: XPATH_SCHEMA_URI.to_owned(),
             xpath_version: "3.1".to_owned(),
             grammar_version: XPATH_GRAMMAR_VERSION.to_owned(),
+            invocation_host: XPathInvocationHost::StandaloneTransform,
             evaluator: XPathEvaluatorIdentity {
                 evaluator_id: "test.xpath".to_owned(),
                 evaluator_version: "1.0.0".to_owned(),
@@ -5248,6 +5371,7 @@ mod tests {
         );
         let value = serde_json::to_value(&artifact).expect("result artifact serializes");
         assert_eq!(value["contentType"], XPATH_RESULT_CONTENT_TYPE);
+        assert_eq!(value["invocationHost"], "standalone-transform");
         assert_eq!(value["evaluator"]["evaluatorId"], "test.xpath");
         assert_eq!(value["evaluator"]["evaluatorVersion"], "1.0.0");
         assert_eq!(value["sequence"]["items"][0]["kind"], "node");
@@ -5307,9 +5431,9 @@ mod tests {
         let resolver_registry = ResolverRegistry::new();
         let resolver_policy = ResolverPolicy::new();
         let request = XPathEvaluationRequest {
+            invocation_host: XPathInvocationHost::StandaloneTransform,
             expression: &expression,
-            context_item: None,
-            variable_bindings: BTreeMap::new(),
+            dynamic_context: XPathDynamicContext::default(),
             static_context: XPathStaticContext::default(),
             expected_result: None,
             resolver_registry: &resolver_registry,
@@ -5323,6 +5447,207 @@ mod tests {
             resolver_policy.cache_stamp()
         );
         assert!(std::ptr::eq(request.resolver_registry, &resolver_registry));
+    }
+
+    #[test]
+    fn xpath_cemt_invocation_uses_owned_ast_native_context_and_expanded_qname_bindings() {
+        use crate::lifecycle::LoadedInputAstStream;
+        use crate::validation::xml::{
+            xml_document_ast_from_source_bytes, XmlSourceValidationRequest,
+        };
+        use std::sync::Arc;
+
+        let source = br#"<root><n>2</n><n>10</n></root>"#;
+        let (document, diagnostics) =
+            xml_document_ast_from_source_bytes(XmlSourceValidationRequest {
+                bytes: source,
+                source_uri: "memory://cemt-context.xml",
+                content_type: Some("application/xml"),
+            });
+        assert!(diagnostics.is_empty(), "{diagnostics:?}");
+        let owner = Arc::new(LoadedInputAstStream::XmlDocument(
+            document.expect("typed XML document"),
+        ));
+        let context_item = XPathResultItem::from_native_node(
+            XPathNativeNode::xml_document(Arc::clone(&owner)).expect("native document node"),
+        );
+
+        let expression_source = "$vars:limit = /root/n, /root/n[$vars:index]";
+        let expression_range = XPathSourceRange::new(4, 12, 96, expression_source.len() as u64);
+        let static_context = XPathStaticContext {
+            namespaces: BTreeMap::from([("vars".to_owned(), "urn:cem:variables".to_owned())]),
+            variable_bindings: BTreeMap::from([
+                ("vars:limit".to_owned(), "xs:integer".to_owned()),
+                ("vars:index".to_owned(), "xs:integer".to_owned()),
+            ]),
+            ..XPathStaticContext::default()
+        };
+        let expression = xpath_expression_ast_from_source_bytes(
+            XPathSourceRequest {
+                bytes: expression_source.as_bytes(),
+                source_uri: "memory://formatter.cemt",
+                content_type: Some(XPATH_CONTENT_TYPE),
+                source_range_projector: None,
+            },
+            XPathAttachment::Host(XPathHostAttachment {
+                owner: XPathHostOwner {
+                    source_id: 41,
+                    source_uri: "memory://formatter.cemt".to_owned(),
+                    content_type: Some("application/vnd.cem.transform+cem".to_owned()),
+                    schema_uri: Some("https://cem.dev/ns/transform/cem/1".to_owned()),
+                    node_kind: XPathHostNodeKind::CemtExpressionSlot,
+                    node_id: Some("function:catalog@select".to_owned()),
+                    source_range: XPathSourceRange::new(4, 1, 80, 64),
+                },
+                expression_range,
+                static_context: static_context.clone(),
+                expected_result: None,
+                evaluation_phase: XPathEvaluationPhase::Render,
+                resolver_policy_stamp: Some("resolver:none".to_owned()),
+                safety_policy_stamp: Some("xpath:pure".to_owned()),
+            }),
+        );
+        assert!(expression.syntax_ast.is_some(), "{:?}", expression.facts);
+
+        let variable_bindings = BTreeMap::from([
+            (
+                XPathExpandedName::new(Some("urn:cem:variables"), "limit"),
+                singleton_test_binding("xs:integer", "2"),
+            ),
+            (
+                XPathExpandedName::new(Some("urn:cem:variables"), "index"),
+                singleton_test_binding("xs:integer", "2"),
+            ),
+        ]);
+        let resolver_registry = ResolverRegistry::new();
+        let resolver_policy = ResolverPolicy::new();
+        let result = CemtXPathInvocationAdapter::default()
+            .invoke(XPathEvaluationRequest {
+                invocation_host: XPathInvocationHost::Cemt,
+                expression: &expression,
+                dynamic_context: XPathDynamicContext {
+                    context_item: Some(context_item),
+                    variable_bindings,
+                },
+                static_context,
+                expected_result: None,
+                resolver_registry: &resolver_registry,
+                resolver_policy: &resolver_policy,
+                safety_policy_stamp: "xpath-safety/1;cemt-render",
+            })
+            .expect("CEMT invokes the native evaluator over typed bindings");
+
+        let [XPathResultItem::Atomic { value, .. }, XPathResultItem::Node { native_node, .. }] =
+            result.sequence.items.as_slice()
+        else {
+            panic!("expected boolean and native node result: {result:?}");
+        };
+        assert_eq!(value.type_name, "xs:boolean");
+        assert_eq!(value.lexical_value, "true");
+        assert_eq!(result.invocation_host, XPathInvocationHost::Cemt);
+        assert!(Arc::ptr_eq(
+            native_node.as_ref().expect("native result node").owner(),
+            &owner
+        ));
+    }
+
+    #[test]
+    fn xpath_cemt_invocation_rejects_non_cemt_owners_and_lexical_binding_fallbacks() {
+        let expression = parse("$vars:item");
+        let resolver_registry = ResolverRegistry::new();
+        let resolver_policy = ResolverPolicy::new();
+        let diagnostics = CemtXPathInvocationAdapter::default()
+            .invoke(XPathEvaluationRequest {
+                invocation_host: XPathInvocationHost::Cemt,
+                expression: &expression,
+                dynamic_context: XPathDynamicContext {
+                    context_item: None,
+                    variable_bindings: BTreeMap::from([(
+                        XPathExpandedName::unqualified("vars:item"),
+                        singleton_test_binding("xs:string", "not-an-expanded-name"),
+                    )]),
+                },
+                static_context: XPathStaticContext::default(),
+                expected_result: None,
+                resolver_registry: &resolver_registry,
+                resolver_policy: &resolver_policy,
+                safety_policy_stamp: "xpath-safety/1;cemt-render",
+            })
+            .expect_err("a CEMT adapter only accepts CEMT-owned XPath AST slots");
+        assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
+        assert_eq!(diagnostics[0].code, "cem.xpath.invocation_host_mismatch");
+
+        let variable_source = "$vars:item";
+        let static_context = XPathStaticContext {
+            namespaces: BTreeMap::from([("vars".to_owned(), "urn:cem:variables".to_owned())]),
+            variable_bindings: BTreeMap::from([("vars:item".to_owned(), "xs:string".to_owned())]),
+            ..XPathStaticContext::default()
+        };
+        let expression = xpath_expression_ast_from_source_bytes(
+            XPathSourceRequest {
+                bytes: variable_source.as_bytes(),
+                source_uri: "memory://binding.cemt",
+                content_type: Some(XPATH_CONTENT_TYPE),
+                source_range_projector: None,
+            },
+            XPathAttachment::Host(XPathHostAttachment {
+                owner: XPathHostOwner {
+                    source_id: 42,
+                    source_uri: "memory://binding.cemt".to_owned(),
+                    content_type: Some("application/vnd.cem.transform+cem".to_owned()),
+                    schema_uri: Some("https://cem.dev/ns/transform/cem/1".to_owned()),
+                    node_kind: XPathHostNodeKind::CemtExpressionSlot,
+                    node_id: Some("function:binding@select".to_owned()),
+                    source_range: XPathSourceRange::new(1, 1, 0, variable_source.len() as u64),
+                },
+                expression_range: XPathSourceRange::new(1, 1, 0, variable_source.len() as u64),
+                static_context: static_context.clone(),
+                expected_result: None,
+                evaluation_phase: XPathEvaluationPhase::Render,
+                resolver_policy_stamp: Some("resolver:none".to_owned()),
+                safety_policy_stamp: Some("xpath:pure".to_owned()),
+            }),
+        );
+        let diagnostics = CemtXPathInvocationAdapter::default()
+            .invoke(XPathEvaluationRequest {
+                invocation_host: XPathInvocationHost::Cemt,
+                expression: &expression,
+                dynamic_context: XPathDynamicContext {
+                    context_item: None,
+                    variable_bindings: BTreeMap::from([(
+                        XPathExpandedName::unqualified("vars:item"),
+                        singleton_test_binding("xs:string", "not-an-expanded-name"),
+                    )]),
+                },
+                static_context,
+                expected_result: None,
+                resolver_registry: &resolver_registry,
+                resolver_policy: &resolver_policy,
+                safety_policy_stamp: "xpath-safety/1;cemt-render",
+            })
+            .expect_err("lexical binding keys do not alias expanded QNames");
+        assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
+        assert_eq!(diagnostics[0].code, "cem.xpath.variable_unbound");
+
+        let source = include_str!("xpath.rs");
+        let adapter = source
+            .split_once("pub struct CemtXPathInvocationAdapter")
+            .expect("CEMT XPath adapter source boundary")
+            .1
+            .split_once("struct XPathEvaluationError")
+            .expect("CEMT XPath adapter source boundary")
+            .0;
+        for forbidden in [
+            "serde_json",
+            "source_text",
+            "xpath_expression_ast_from_source_bytes",
+            "xml_document_ast_from_source_bytes",
+        ] {
+            assert!(
+                !adapter.contains(forbidden),
+                "CEMT XPath invocation must not cross `{forbidden}`"
+            );
+        }
     }
 
     #[test]
@@ -5353,9 +5678,12 @@ mod tests {
 
         let result = evaluator
             .evaluate(XPathEvaluationRequest {
+                invocation_host: XPathInvocationHost::StandaloneTransform,
                 expression: &expression,
-                context_item: Some(XPathResultItem::from_native_node(context_node)),
-                variable_bindings: BTreeMap::new(),
+                dynamic_context: XPathDynamicContext {
+                    context_item: Some(XPathResultItem::from_native_node(context_node)),
+                    variable_bindings: BTreeMap::new(),
+                },
                 static_context: XPathStaticContext::default(),
                 expected_result: None,
                 resolver_registry: &resolver_registry,
@@ -5420,9 +5748,12 @@ mod tests {
             let expression = parse(source);
             let result = CemXPathEvaluator::default()
                 .evaluate(XPathEvaluationRequest {
+                    invocation_host: XPathInvocationHost::StandaloneTransform,
                     expression: &expression,
-                    context_item: Some(XPathResultItem::from_native_node(context_node.clone())),
-                    variable_bindings: BTreeMap::new(),
+                    dynamic_context: XPathDynamicContext {
+                        context_item: Some(XPathResultItem::from_native_node(context_node.clone())),
+                        variable_bindings: BTreeMap::new(),
+                    },
                     static_context: XPathStaticContext::default(),
                     expected_result: None,
                     resolver_registry: &resolver_registry,
@@ -5484,9 +5815,12 @@ mod tests {
             let expression = parse(source);
             CemXPathEvaluator::default()
                 .evaluate(XPathEvaluationRequest {
+                    invocation_host: XPathInvocationHost::StandaloneTransform,
                     expression: &expression,
-                    context_item: Some(XPathResultItem::from_native_node(context_node.clone())),
-                    variable_bindings: BTreeMap::new(),
+                    dynamic_context: XPathDynamicContext {
+                        context_item: Some(XPathResultItem::from_native_node(context_node.clone())),
+                        variable_bindings: BTreeMap::new(),
+                    },
                     static_context: XPathStaticContext::default(),
                     expected_result: None,
                     resolver_registry: &resolver_registry,
@@ -5580,9 +5914,12 @@ mod tests {
             let expression = parse(xpath_source);
             let result = CemXPathEvaluator::default()
                 .evaluate(XPathEvaluationRequest {
+                    invocation_host: XPathInvocationHost::StandaloneTransform,
                     expression: &expression,
-                    context_item: Some(XPathResultItem::from_native_node(context_node.clone())),
-                    variable_bindings: BTreeMap::new(),
+                    dynamic_context: XPathDynamicContext {
+                        context_item: Some(XPathResultItem::from_native_node(context_node.clone())),
+                        variable_bindings: BTreeMap::new(),
+                    },
                     static_context: XPathStaticContext::default(),
                     expected_result: None,
                     resolver_registry: &resolver_registry,
@@ -5661,9 +5998,12 @@ mod tests {
         let resolver_policy = ResolverPolicy::new();
         let diagnostics = CemXPathEvaluator::default()
             .evaluate(XPathEvaluationRequest {
+                invocation_host: XPathInvocationHost::StandaloneTransform,
                 expression: &expression,
-                context_item: Some(XPathResultItem::from_native_node(context_node)),
-                variable_bindings: BTreeMap::new(),
+                dynamic_context: XPathDynamicContext {
+                    context_item: Some(XPathResultItem::from_native_node(context_node)),
+                    variable_bindings: BTreeMap::new(),
+                },
                 static_context: XPathStaticContext::default(),
                 expected_result: None,
                 resolver_registry: &resolver_registry,
@@ -5691,7 +6031,7 @@ mod tests {
             source_map: result_source_map(9, 2),
         };
         let variables = BTreeMap::from([(
-            "prefix".to_owned(),
+            XPathExpandedName::unqualified("prefix"),
             XPathResultSequence {
                 sequence_type: "xs:string".to_owned(),
                 items: vec![XPathResultItem::Atomic {
@@ -5708,9 +6048,12 @@ mod tests {
 
         let result = CemXPathEvaluator::default()
             .evaluate(XPathEvaluationRequest {
+                invocation_host: XPathInvocationHost::StandaloneTransform,
                 expression: &expression,
-                context_item: Some(context),
-                variable_bindings: variables,
+                dynamic_context: XPathDynamicContext {
+                    context_item: Some(context),
+                    variable_bindings: variables,
+                },
                 static_context: XPathStaticContext::default(),
                 expected_result: None,
                 resolver_registry: &resolver_registry,
@@ -5802,39 +6145,42 @@ mod tests {
 
         let variables = BTreeMap::from([
             (
-                "truth".to_owned(),
+                XPathExpandedName::unqualified("truth"),
                 singleton_test_binding("xs:boolean", "true"),
             ),
             (
-                "falsehood".to_owned(),
+                XPathExpandedName::unqualified("falsehood"),
                 singleton_test_binding("xs:boolean", "false"),
             ),
             (
-                "float".to_owned(),
+                XPathExpandedName::unqualified("float"),
                 singleton_test_binding("xs:float", "0.1"),
             ),
             (
-                "double".to_owned(),
+                XPathExpandedName::unqualified("double"),
                 singleton_test_binding("xs:double", "0.1"),
             ),
             (
-                "decimal".to_owned(),
+                XPathExpandedName::unqualified("decimal"),
                 singleton_test_binding("xs:decimal", "0.1"),
             ),
             (
-                "negative".to_owned(),
+                XPathExpandedName::unqualified("negative"),
                 singleton_test_binding(
                     "xs:decimal",
                     "-999999999999999999999999999999999999.00000000000000000001",
                 ),
             ),
-            ("nan".to_owned(), singleton_test_binding("xs:double", "NaN")),
             (
-                "uri".to_owned(),
+                XPathExpandedName::unqualified("nan"),
+                singleton_test_binding("xs:double", "NaN"),
+            ),
+            (
+                XPathExpandedName::unqualified("uri"),
                 singleton_test_binding("xs:anyURI", "urn:example"),
             ),
             (
-                "string".to_owned(),
+                XPathExpandedName::unqualified("string"),
                 singleton_test_binding("xs:string", "urn:example"),
             ),
         ]);
@@ -5910,9 +6256,9 @@ mod tests {
         let resolver_policy = ResolverPolicy::new();
         let diagnostics = CemXPathEvaluator::default()
             .evaluate(XPathEvaluationRequest {
+                invocation_host: XPathInvocationHost::StandaloneTransform,
                 expression: &expression,
-                context_item: None,
-                variable_bindings: BTreeMap::new(),
+                dynamic_context: XPathDynamicContext::default(),
                 static_context: XPathStaticContext::default(),
                 expected_result: None,
                 resolver_registry: &resolver_registry,
@@ -6088,15 +6434,23 @@ mod tests {
         }
         let result = model.elements.get("result-artifact").unwrap();
         assert!(result.required_attributes.contains("content-type"));
+        assert!(result.required_attributes.contains("host-language"));
         assert!(result.required_attributes.contains("evaluator-id"));
         assert!(result.required_attributes.contains("resolver-policy-stamp"));
         assert!(result.required_attributes.contains("safety-policy-stamp"));
         assert!(result.child_elements.contains("sequence"));
+        let request = model.elements.get("evaluation-request").unwrap();
+        assert!(request.required_attributes.contains("host-language"));
+        let variable_value = model.elements.get("variable-value").unwrap();
+        assert!(variable_value.optional_attributes.contains("namespace-uri"));
+        assert!(variable_value.optional_attributes.contains("local-name"));
         for contract in [
             "xpath-evaluator-package-ast",
             "xpath-evaluator-resource-access",
             "xpath-evaluator-runtime-targets",
             "xpath-evaluation-feature-support",
+            "xpath-invocation-host-association",
+            "xpath-invocation-variable-expanded-name",
             "xpath-result-item-order",
             "xpath-result-node-identity",
             "xpath-result-function-scope",
@@ -6110,6 +6464,7 @@ mod tests {
         for diagnostic in [
             "cem.xpath.evaluation_ast_missing",
             "cem.xpath.evaluation_unsupported",
+            "cem.xpath.invocation_host_mismatch",
             "cem.xpath.context_item_missing",
             "cem.xpath.context_item_native_node_required",
             "cem.xpath.variable_unbound",

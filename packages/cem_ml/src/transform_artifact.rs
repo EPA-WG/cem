@@ -15,8 +15,7 @@ use crate::schema::registry::{
     MATHML_NAMESPACE_URI, MATHML_SCHEMA_URI, RELAX_NG_SCHEMA_URI, SVG_CONTENT_TYPE,
     SVG_NAMESPACE_URI, SVG_SCHEMA_URI, XHTML_CONTENT_TYPE, XHTML_SCHEMA_URI, XML_CONTENT_TYPE,
     XML_SCHEMA_URI, XPATH_RESULT_CONTENT_TYPE, XPATH_SCHEMA_URI, XSLT_NAMESPACE_URI,
-    XSLT_SCHEMA_URI,
-    YAML_CONTENT_TYPE, YAML_SCHEMA_URI,
+    XSLT_SCHEMA_URI, YAML_CONTENT_TYPE, YAML_SCHEMA_URI,
 };
 use crate::source::{ByteRange, SourceId};
 use crate::source_map::{FrameSpan, SourceMapFrame, SourceMapStack, TransformKind};
@@ -6693,8 +6692,7 @@ fn xml_family_element_requires_lexical_layout(
             "mi" | "mn" | "mo" | "mtext" | "ms" | "annotation" | "annotation-xml"
         ),
         XmlFamilyMarkupPackage::Xslt => {
-            local_name == "text"
-                && event.namespace_uri.as_deref() == Some(XSLT_NAMESPACE_URI)
+            local_name == "text" && event.namespace_uri.as_deref() == Some(XSLT_NAMESPACE_URI)
         }
     };
     let expected_namespace = match package {
@@ -11222,8 +11220,8 @@ mod tests {
     fn test_xpath_result_artifact() -> Arc<XPathResultArtifact> {
         use crate::schema::registry::{XPATH_RESULT_CONTENT_TYPE, XPATH_SCHEMA_URI};
         use crate::validation::xpath::{
-            XPathAtomicValue, XPathEvaluatorIdentity, XPathResultItem, XPathResultSequence,
-            XPathStaticContext, XPATH_GRAMMAR_VERSION,
+            XPathAtomicValue, XPathEvaluatorIdentity, XPathInvocationHost, XPathResultItem,
+            XPathResultSequence, XPathStaticContext, XPATH_GRAMMAR_VERSION,
         };
 
         Arc::new(XPathResultArtifact {
@@ -11231,6 +11229,7 @@ mod tests {
             schema_uri: XPATH_SCHEMA_URI.to_owned(),
             xpath_version: "3.1".to_owned(),
             grammar_version: XPATH_GRAMMAR_VERSION.to_owned(),
+            invocation_host: XPathInvocationHost::StandaloneTransform,
             evaluator: XPathEvaluatorIdentity {
                 evaluator_id: "test.xpath".to_owned(),
                 evaluator_version: "1.0.0".to_owned(),

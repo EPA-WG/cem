@@ -63,6 +63,12 @@ mediate between internal layers.
           typed XPath result artifact, export JSON only through the registered
           result exporter, and reject parameters, secondary inputs, and
           unsupported input AST families until their binding contracts exist.
+    - [x] Establish the shared typed host-invocation contract and its first CEMT
+          adapter: consume an already owned XPath AST, retain a separate native
+          context item, bind expanded-QName keys directly to typed XPath
+          sequences, and preserve resolver, safety, owner, and source-map
+          identity without parsing expression strings or projecting bindings
+          through JSON; leave authored CEMT call syntax explicitly undecided.
   - [x] Fuse parsed XPath streams into XSLT XPath-bearing attributes and AVT
         expression segments while retaining an independently addressable XPath
         AST associated with the owning XML event or subtree node.
