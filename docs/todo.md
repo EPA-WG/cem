@@ -68,6 +68,11 @@ mediate between internal layers.
           identity deduplication and same-owner document order, retain native
           source maps, and reject only results that need undefined cross-owner
           ordering rather than introducing a serializer or synthetic tree.
+    - [x] Execute XPath string concatenation (`||`) directly on the owned
+          expression AST: atomize each optional-singleton operand, treat empty
+          operands as zero-length strings, cast supported native atomic values
+          to `xs:string` with XPath 3.1 lexical rules, retain exact result and
+          operand source maps, and never introduce a serializer or DTO.
   - [ ] Wire the native evaluator through the `transform` command and expose
         explicit CEM-QL, CEMT, and XSLT invocation adapters without reparsing
         source text, constructing an evaluator-owned replacement XML tree, or

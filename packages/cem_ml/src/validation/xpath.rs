@@ -1766,6 +1766,27 @@ fn xpath_evaluate_expression_node(
             )])
         }
         XPathExpression::Binary {
+            operator: XPathBinaryOperator::Concatenate,
+            left,
+            right,
+        } => {
+            let left_items =
+                xpath_evaluate_expression_node(expression, left, focus, variable_bindings)?;
+            let left_value = xpath_string_concat_operand(&left_items, left.source_range)?;
+            let right_items =
+                xpath_evaluate_expression_node(expression, right, focus, variable_bindings)?;
+            let right_value = xpath_string_concat_operand(&right_items, right.source_range)?;
+            let mut value =
+                String::with_capacity(left_value.len().saturating_add(right_value.len()));
+            value.push_str(&left_value);
+            value.push_str(&right_value);
+            Ok(vec![xpath_string_result_item(
+                expression,
+                node.source_range,
+                value,
+            )])
+        }
+        XPathExpression::Binary {
             operator,
             left,
             right,
@@ -2606,6 +2627,25 @@ fn xpath_boolean_result_item(
     }
 }
 
+fn xpath_string_result_item(
+    expression: &XPathExpressionAst,
+    source_range: XPathSourceRange,
+    value: String,
+) -> XPathResultItem {
+    XPathResultItem::Atomic {
+        value: XPathAtomicValue {
+            type_name: "xs:string".to_owned(),
+            lexical_value: value,
+            namespace_uri: None,
+            local_name: None,
+        },
+        source_map: source_range.source_map(
+            expression.attachment.source_id(),
+            expression.source.media_type.as_str(),
+        ),
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct XPathExactDecimal {
     negative: bool,
@@ -2830,6 +2870,155 @@ fn xpath_atomize_sequence(
         .collect()
 }
 
+fn xpath_string_concat_operand(
+    items: &[XPathResultItem],
+    source_range: XPathSourceRange,
+) -> Result<String, XPathEvaluationError> {
+    let mut values = xpath_atomize_sequence(items, source_range)?;
+    match values.len() {
+        0 => Ok(String::new()),
+        1 => Ok(xpath_atomic_string_value(
+            values.pop().expect("singleton concat operand"),
+        )),
+        _ => Err(XPathEvaluationError::dynamic(
+            "cem.xpath.string_concat_cardinality",
+            "XPath string concatenation operands must atomize to zero or one value",
+            source_range,
+        )),
+    }
+}
+
+fn xpath_atomic_string_value(value: XPathComparableAtomic) -> String {
+    match value {
+        XPathComparableAtomic::Untyped(value) | XPathComparableAtomic::String(value) => value,
+        XPathComparableAtomic::Boolean(value) => value.to_string(),
+        XPathComparableAtomic::Decimal(value) => value.to_lexical(),
+        XPathComparableAtomic::Float(value) => xpath_float_string_value(value),
+        XPathComparableAtomic::Double(value) => xpath_double_string_value(value),
+    }
+}
+
+fn xpath_float_string_value(value: f32) -> String {
+    if value.is_nan() {
+        return "NaN".to_owned();
+    }
+    if value == f32::INFINITY {
+        return "INF".to_owned();
+    }
+    if value == f32::NEG_INFINITY {
+        return "-INF".to_owned();
+    }
+    if value == 0.0 {
+        return if value.is_sign_negative() {
+            "-0".to_owned()
+        } else {
+            "0".to_owned()
+        };
+    }
+    xpath_finite_floating_string(
+        value.to_string(),
+        f64::from(value.abs()),
+        value.is_sign_negative(),
+    )
+}
+
+fn xpath_double_string_value(value: f64) -> String {
+    if value.is_nan() {
+        return "NaN".to_owned();
+    }
+    if value == f64::INFINITY {
+        return "INF".to_owned();
+    }
+    if value == f64::NEG_INFINITY {
+        return "-INF".to_owned();
+    }
+    if value == 0.0 {
+        return if value.is_sign_negative() {
+            "-0".to_owned()
+        } else {
+            "0".to_owned()
+        };
+    }
+    xpath_finite_floating_string(value.to_string(), value.abs(), value.is_sign_negative())
+}
+
+fn xpath_finite_floating_string(rust_lexical: String, magnitude: f64, negative: bool) -> String {
+    debug_assert!(magnitude.is_finite() && magnitude > 0.0);
+    let unsigned = rust_lexical
+        .strip_prefix('-')
+        .or_else(|| rust_lexical.strip_prefix('+'))
+        .unwrap_or(&rust_lexical);
+    let (mantissa, exponent) =
+        unsigned
+            .split_once(['e', 'E'])
+            .map_or((unsigned, 0), |(mantissa, exponent)| {
+                (
+                    mantissa,
+                    exponent
+                        .parse::<i32>()
+                        .expect("Rust floating-point display exponent is an integer"),
+                )
+            });
+    let (integer, fraction) = mantissa.split_once('.').unwrap_or((mantissa, ""));
+    let mut digits = String::with_capacity(integer.len().saturating_add(fraction.len()));
+    digits.push_str(integer);
+    digits.push_str(fraction);
+    let first_nonzero = digits
+        .bytes()
+        .position(|digit| digit != b'0')
+        .expect("finite non-zero floating-point display has a non-zero digit");
+    let last_nonzero = digits
+        .bytes()
+        .rposition(|digit| digit != b'0')
+        .expect("finite non-zero floating-point display has a non-zero digit");
+    let decimal_position = i32::try_from(integer.len())
+        .expect("floating-point display length fits i32")
+        .saturating_add(exponent)
+        .saturating_sub(
+            i32::try_from(first_nonzero).expect("floating-point display length fits i32"),
+        );
+    let significant = &digits[first_nonzero..=last_nonzero];
+
+    let mut result = String::new();
+    if negative {
+        result.push('-');
+    }
+    if (0.000001..1_000_000.0).contains(&magnitude) {
+        if decimal_position <= 0 {
+            result.push_str("0.");
+            for _ in 0..decimal_position.unsigned_abs() {
+                result.push('0');
+            }
+            result.push_str(significant);
+        } else {
+            let decimal_position =
+                usize::try_from(decimal_position).expect("positive decimal position fits usize");
+            if decimal_position >= significant.len() {
+                result.push_str(significant);
+                for _ in significant.len()..decimal_position {
+                    result.push('0');
+                }
+            } else {
+                result.push_str(&significant[..decimal_position]);
+                result.push('.');
+                result.push_str(&significant[decimal_position..]);
+            }
+        }
+        return result;
+    }
+
+    result.push(char::from(significant.as_bytes()[0]));
+    result.push('.');
+    if significant.len() == 1 {
+        result.push('0');
+    } else {
+        result.push_str(&significant[1..]);
+    }
+    result.push('E');
+    result.push_str(&decimal_position.saturating_sub(1).to_string());
+    result
+}
+
 fn xpath_atomize_item(
     item: &XPathResultItem,
     source_range: XPathSourceRange,
@@ -2889,7 +3078,7 @@ fn xpath_comparable_atomic(
             .ok_or_else(invalid),
         _ => Err(XPathEvaluationError::unsupported(
             format!(
-                "XPath comparison for atomic type `{}` is outside the native atomic slice",
+                "XPath atomic type `{}` is outside the native atomic kernel",
                 value.type_name
             ),
             source_range,
@@ -6792,6 +6981,179 @@ mod tests {
             &["a", "a"],
         );
         assert_nodes("/root/missing union $foreign", foreign_bindings, &["root"]);
+    }
+
+    #[test]
+    fn xpath_native_evaluator_concatenates_optional_atomic_operands_without_projection() {
+        use crate::lifecycle::LoadedInputAstStream;
+        use crate::validation::xml::{
+            xml_document_ast_from_source_bytes, XmlSourceValidationRequest,
+        };
+        use std::sync::Arc;
+
+        let (document, diagnostics) =
+            xml_document_ast_from_source_bytes(XmlSourceValidationRequest {
+                bytes: br#"<root><label>native</label><empty/></root>"#,
+                source_uri: "memory://concat-context.xml",
+                content_type: Some("application/xml"),
+            });
+        assert!(diagnostics.is_empty(), "{diagnostics:?}");
+        let owner = Arc::new(LoadedInputAstStream::XmlDocument(
+            document.expect("typed XML document"),
+        ));
+        let context_node = XPathNativeNode::xml_document(owner).expect("native XML document node");
+        let context_item = || XPathResultItem::from_native_node(context_node.clone());
+        let bindings = BTreeMap::from([
+            (
+                XPathExpandedName::unqualified("uri"),
+                singleton_test_binding("xs:anyURI", "https://example.test/path"),
+            ),
+            (
+                XPathExpandedName::unqualified("truth"),
+                singleton_test_binding("xs:boolean", "1"),
+            ),
+            (
+                XPathExpandedName::unqualified("integer"),
+                singleton_test_binding("xs:integer", "+00042"),
+            ),
+            (
+                XPathExpandedName::unqualified("decimal"),
+                singleton_test_binding("xs:decimal", "001.2000"),
+            ),
+            (
+                XPathExpandedName::unqualified("million"),
+                singleton_test_binding("xs:float", "1000000"),
+            ),
+            (
+                XPathExpandedName::unqualified("small"),
+                singleton_test_binding("xs:double", "0.000001"),
+            ),
+            (
+                XPathExpandedName::unqualified("negative-zero"),
+                singleton_test_binding("xs:double", "-0"),
+            ),
+            (
+                XPathExpandedName::unqualified("infinity"),
+                singleton_test_binding("xs:float", "INF"),
+            ),
+            (
+                XPathExpandedName::unqualified("nan"),
+                singleton_test_binding("xs:double", "NaN"),
+            ),
+        ]);
+
+        let assert_string = |source: &str, expected: &str| {
+            let result = evaluate_for_test(source, Some(context_item()), bindings.clone())
+                .unwrap_or_else(|diagnostics| panic!("`{source}` failed: {diagnostics:?}"));
+            let [XPathResultItem::Atomic { value, source_map }] = result.sequence.items.as_slice()
+            else {
+                panic!("`{source}` did not return one atomic value: {result:?}");
+            };
+            assert_eq!(result.sequence.sequence_type, "xs:string", "`{source}`");
+            assert_eq!(value.type_name, "xs:string", "`{source}`");
+            assert_eq!(value.lexical_value, expected, "`{source}`");
+            assert_eq!(source_map.frames.len(), 1, "`{source}`");
+            assert_eq!(source_map.frames[0].source_id, SourceId(7), "`{source}`");
+            assert_eq!(
+                source_map.frames[0].span,
+                FrameSpan::Single(ByteRange::new(0, source.len() as u32)),
+                "`{source}`"
+            );
+        };
+
+        for (source, expected) in [
+            ("'con' || 'cat'", "concat"),
+            ("() || 'tail'", "tail"),
+            ("'head' || ()", "head"),
+            ("/root/label || '-ast'", "native-ast"),
+            ("/root/empty || 'x'", "x"),
+            ("$uri || '-ok'", "https://example.test/path-ok"),
+            (
+                "$truth || ':' || $integer || ':' || $decimal",
+                "true:42:1.2",
+            ),
+            (
+                "$million || ':' || $small || ':' || $negative-zero || ':' || $infinity || ':' || $nan",
+                "1.0E6:0.000001:-0:INF:NaN",
+            ),
+        ] {
+            assert_string(source, expected);
+        }
+
+        let precedence = evaluate_for_test("'a' || 'b' = 'ab'", None, BTreeMap::new())
+            .expect("string concatenation binds more tightly than comparison");
+        let [XPathResultItem::Atomic { value, .. }] = precedence.sequence.items.as_slice() else {
+            panic!("concat precedence did not return one atomic value: {precedence:?}");
+        };
+        assert_eq!(value.type_name, "xs:boolean");
+        assert_eq!(value.lexical_value, "true");
+
+        for (source, expected_offset, expected_length) in
+            [("(1, 2) || 'x'", 0, 6), ("'x' || /root/*", 7, 7)]
+        {
+            let diagnostics = evaluate_for_test(source, Some(context_item()), BTreeMap::new())
+                .expect_err("concat operands must atomize to zero or one value");
+            assert_eq!(diagnostics[0].code, "cem.xpath.string_concat_cardinality");
+            assert_eq!(
+                diagnostics[0].byte_offset,
+                Some(expected_offset),
+                "`{source}`"
+            );
+            let source_map = diagnostics[0]
+                .source_map
+                .as_ref()
+                .expect("concat cardinality diagnostic source map");
+            assert_eq!(
+                source_map.frames[0].span,
+                FrameSpan::Single(ByteRange::new(expected_offset, expected_length)),
+                "`{source}`"
+            );
+        }
+
+        let invalid_bindings = BTreeMap::from([(
+            XPathExpandedName::unqualified("bad"),
+            singleton_test_binding("xs:boolean", "maybe"),
+        )]);
+        let diagnostics = evaluate_for_test("$bad || 'x'", None, invalid_bindings)
+            .expect_err("concat casts must validate native atomic values");
+        assert_eq!(diagnostics[0].code, "cem.xpath.atomic_value_invalid");
+        assert_eq!(diagnostics[0].byte_offset, Some(0));
+        assert_eq!(
+            diagnostics[0]
+                .source_map
+                .as_ref()
+                .expect("invalid concat atomic source map")
+                .frames[0]
+                .span,
+            FrameSpan::Single(ByteRange::new(0, 4))
+        );
+
+        let root = context_node
+            .child_nodes()
+            .into_iter()
+            .next()
+            .expect("context document element");
+        let mut detached_node = XPathResultItem::from_native_node(
+            root.child_nodes()
+                .into_iter()
+                .next()
+                .expect("context label element"),
+        );
+        let XPathResultItem::Node { native_node, .. } = &mut detached_node else {
+            unreachable!("native nodes create XPath node result items")
+        };
+        *native_node = None;
+        let detached_bindings = BTreeMap::from([(
+            XPathExpandedName::unqualified("detached"),
+            XPathResultSequence {
+                sequence_type: "node()".to_owned(),
+                items: vec![detached_node],
+            },
+        )]);
+        let diagnostics = evaluate_for_test("$detached || 'x'", None, detached_bindings)
+            .expect_err("concat node atomization requires retained native handles");
+        assert_eq!(diagnostics[0].code, "cem.xpath.native_node_missing");
+        assert_eq!(diagnostics[0].byte_offset, Some(0));
     }
 
     #[test]
