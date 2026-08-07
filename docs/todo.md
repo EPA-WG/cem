@@ -100,6 +100,13 @@ mediate between internal layers.
           numeric division, and report exact-numeric zero divisors with
           FOAR0001-class source maps without serialization or an intermediate
           DTO.
+    - [x] Execute typed single-binding XPath `for` expressions directly: evaluate
+          the binding sequence once, bind each item as an expanded-QName
+          singleton with lexical shadowing, concatenate return results in order
+          without changing the outer focus, preserve native owners and exact
+          source maps, skip returns for an empty binding sequence, and enforce
+          the cumulative `xpathItems` limit without serialization or a DTO;
+          leave comma-separated binding grammar as explicit follow-up work.
   - [x] Wire the native evaluator through the `transform` command and expose
         explicit CEM-QL, CEMT, and XSLT invocation adapters without reparsing
         source text, constructing an evaluator-owned replacement XML tree, or

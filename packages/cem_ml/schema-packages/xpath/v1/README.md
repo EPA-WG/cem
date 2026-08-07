@@ -158,8 +158,14 @@ original source map. A set result that would span owners is rejected until that
 same stable multi-document order exists; cross-owner intersection or difference
 still succeeds when its result is empty or belongs to one owner. The optional,
 deprecated namespace axis remains an explicit host-language omission.
-Unsupported arithmetic and range operators, other atomic families, functions,
-constructors, dynamic function calls, and lookups fail with a stable
+Typed single-binding `for` expressions evaluate their binding sequence once,
+bind each item through the expanded-QName variable arena, concatenate return
+results in binding order without replacing the outer focus, and enforce the
+cumulative sequence-item budget. Empty binding sequences skip the return clause;
+lexical shadowing, native node owners, item source maps, and return diagnostics
+remain intact. Comma-separated binding grammar, `let`, conditional, quantified,
+and other control-flow forms remain incomplete. Other atomic families,
+functions, constructors, dynamic function calls, and lookups fail with a stable
 schema-owned diagnostic. The evaluator does not read expression source text,
 project through CEMT or JSON, reparse XML, or construct a replacement tree.
 
@@ -220,7 +226,8 @@ evaluator cannot read ambient process or host state.
 manifest and fixture expectations, runs lossless lexer/parser, schema-diagnostic
 handoff, lifecycle loading, no-fallback validation, and host-attachment tests,
 verifies the full-destination conformance matrix, native evaluator owner/path,
-scalar, logical-EBV, and short-circuit semantics, standalone transform routing,
+scalar, single-binding `for`, logical-EBV, and short-circuit semantics,
+standalone transform routing,
 mixed result artifacts and evaluator capability rejection, verifies embedded
 catalog identity, and checks that README examples use fenced XPath source with
 no SVG fallback.

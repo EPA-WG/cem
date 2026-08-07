@@ -2169,10 +2169,41 @@ fn xpath_evaluate_expression_node(
             format!("XPath operator `{operator:?}` is outside the first native evaluator slice"),
             node.source_range,
         )),
-        XPathExpression::For { .. } => Err(XPathEvaluationError::unsupported(
-            "XPath for expressions are outside the first native evaluator slice",
-            node.source_range,
-        )),
+        XPathExpression::For {
+            binding,
+            binding_expression,
+            return_expression,
+        } => {
+            let binding_items = xpath_evaluate_expression_node(
+                expression,
+                binding_expression,
+                focus,
+                variable_bindings,
+                evaluation_limits,
+            )?;
+            let binding_name = XPathExpandedName::from_syntax_name(binding);
+            let mut scoped_bindings = variable_bindings.clone();
+            let mut items = Vec::new();
+            for binding_item in binding_items {
+                let sequence_type = xpath_result_sequence_type(std::slice::from_ref(&binding_item));
+                scoped_bindings.insert(
+                    binding_name.clone(),
+                    XPathResultSequence {
+                        sequence_type,
+                        items: vec![binding_item],
+                    },
+                );
+                items.extend(xpath_evaluate_expression_node(
+                    expression,
+                    return_expression,
+                    focus,
+                    &scoped_bindings,
+                    evaluation_limits,
+                )?);
+                evaluation_limits.enforce_sequence_items(items.len(), node.source_range)?;
+            }
+            Ok(items)
+        }
         XPathExpression::Unsupported { production } => Err(XPathEvaluationError::unsupported(
             format!("XPath production `{production}` is not executable yet"),
             node.source_range,
@@ -9445,6 +9476,149 @@ mod tests {
         )
         .expect_err("general comparison must report an invalid untyped numeric cast");
         assert_eq!(diagnostics[0].code, "cem.xpath.atomic_cast_invalid");
+    }
+
+    #[test]
+    fn xpath_native_evaluator_executes_single_binding_for_expressions_in_order() {
+        use crate::lifecycle::LoadedInputAstStream;
+        use crate::validation::xml::{
+            xml_document_ast_from_source_bytes, XmlSourceValidationRequest,
+        };
+        use std::sync::Arc;
+
+        let (document, diagnostics) =
+            xml_document_ast_from_source_bytes(XmlSourceValidationRequest {
+                bytes: br#"<root><n>2</n><n>10</n></root>"#,
+                source_uri: "memory://for-context.xml",
+                content_type: Some("application/xml"),
+            });
+        assert!(diagnostics.is_empty(), "{diagnostics:?}");
+        let owner = Arc::new(LoadedInputAstStream::XmlDocument(
+            document.expect("typed XML document"),
+        ));
+        let context_node =
+            XPathNativeNode::xml_document(Arc::clone(&owner)).expect("native XML document node");
+        let context_item = || XPathResultItem::from_native_node(context_node.clone());
+
+        let arithmetic = evaluate_for_test_with_limit(
+            "for $n in 1 to 3 return $n * 2",
+            Some(context_item()),
+            BTreeMap::new(),
+            Some(3),
+        )
+        .expect("single-binding for expression evaluates return clauses in order");
+        let arithmetic_values = arithmetic
+            .sequence
+            .items
+            .iter()
+            .map(|item| match item {
+                XPathResultItem::Atomic { value, source_map } => {
+                    assert_eq!(value.type_name, "xs:integer");
+                    assert_eq!(source_map.frames[0].source_id, SourceId(7));
+                    assert_eq!(
+                        source_map.frames[0].span,
+                        FrameSpan::Single(ByteRange::new(24, 6))
+                    );
+                    value.lexical_value.as_str()
+                }
+                item => panic!("for arithmetic returned non-atomic item: {item:?}"),
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(arithmetic_values, ["2", "4", "6"]);
+        assert_eq!(arithmetic.sequence.sequence_type, "xs:integer+");
+
+        let nodes = evaluate_for_test(
+            "for $n in /root/n return $n",
+            Some(context_item()),
+            BTreeMap::new(),
+        )
+        .expect("for expression preserves native node results");
+        assert_eq!(nodes.sequence.items.len(), 2);
+        for item in &nodes.sequence.items {
+            let native_node = item
+                .native_node()
+                .expect("for expression returns retained native XML nodes");
+            assert!(Arc::ptr_eq(native_node.owner(), &owner));
+        }
+
+        let focus = evaluate_for_test(
+            "for $n in (1, 2) return position()",
+            Some(context_item()),
+            BTreeMap::new(),
+        )
+        .expect("for binding does not replace the outer focus");
+        let focus_values = focus
+            .sequence
+            .items
+            .iter()
+            .map(|item| match item {
+                XPathResultItem::Atomic { value, .. } => value.lexical_value.as_str(),
+                item => panic!("for focus returned non-atomic item: {item:?}"),
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(focus_values, ["1", "1"]);
+    }
+
+    #[test]
+    fn xpath_native_evaluator_for_expression_scopes_bindings_and_budgets_results() {
+        let outer_bindings = BTreeMap::from([(
+            XPathExpandedName::unqualified("item"),
+            singleton_test_binding("xs:integer", "99"),
+        )]);
+        let shadowed = evaluate_for_test("for $item in (1, 2) return $item", None, outer_bindings)
+            .expect("for binding shadows the outer variable only inside its return clause");
+        let shadowed_values = shadowed
+            .sequence
+            .items
+            .iter()
+            .map(|item| match item {
+                XPathResultItem::Atomic { value, .. } => value.lexical_value.as_str(),
+                item => panic!("for shadowing returned non-atomic item: {item:?}"),
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(shadowed_values, ["1", "2"]);
+
+        let empty = evaluate_for_test("for $item in () return $missing", None, BTreeMap::new())
+            .expect("an empty binding sequence does not evaluate the return clause");
+        assert!(empty.sequence.items.is_empty());
+        assert_eq!(empty.sequence.sequence_type, "empty-sequence()");
+
+        let diagnostics = evaluate_for_test_with_limit(
+            "for $item in (1, 2) return ($item, $item)",
+            None,
+            BTreeMap::new(),
+            Some(3),
+        )
+        .expect_err("for expression must enforce its cumulative sequence-item budget");
+        assert_eq!(
+            diagnostics[0].code,
+            "cem.xpath.sequence_item_limit_exceeded"
+        );
+        assert_eq!(diagnostics[0].byte_offset, Some(0));
+        assert_eq!(
+            diagnostics[0]
+                .source_map
+                .as_ref()
+                .expect("for budget diagnostic source map")
+                .frames[0]
+                .span,
+            FrameSpan::Single(ByteRange::new(0, 41))
+        );
+
+        let diagnostics =
+            evaluate_for_test("for $item in 1 return $missing", None, BTreeMap::new())
+                .expect_err("for expression preserves return-clause diagnostic provenance");
+        assert_eq!(diagnostics[0].code, "cem.xpath.variable_unbound");
+        assert_eq!(diagnostics[0].byte_offset, Some(23));
+        assert_eq!(
+            diagnostics[0]
+                .source_map
+                .as_ref()
+                .expect("for return diagnostic source map")
+                .frames[0]
+                .span,
+            FrameSpan::Single(ByteRange::new(23, 7))
+        );
     }
 
     #[test]
