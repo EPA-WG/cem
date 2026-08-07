@@ -42,12 +42,19 @@ mediates this association.
 Schema-owned attribute-value constraints classify values as literals, whole
 XPath expressions, XSLT patterns, or attribute value templates. The current
 bounded selector catalog separates the supported instruction attributes and
-classifies non-XSLT attributes on literal result elements as AVTs. Patterns stay
-lexical typed facts until a package-owned pattern parser is registered, and AVTs
-stay lexical typed facts until their segment AST is defined; neither is
-misrepresented as a whole XPath expression. The source lifecycle does not
-execute embedded expressions. Explicit transform-template execution continues
-through the existing bounded XSLT parity capability.
+classifies non-XSLT attributes on literal result elements as AVTs. Each such AVT
+is segmented into typed literal, expression, empty-expression, or error nodes.
+Literal nodes retain their exact XML lexeme and their effective value after
+doubled-brace expansion. Expression nodes directly own the single
+`XPathExpressionAst` parse plus enclosure and expression-content ranges; a
+native offset projector views the existing decoded XML attribute map so nested
+XPath tokens and diagnostics remain in original XML coordinates. Empty or
+comment-only expressions remain explicit zero-value nodes, and malformed braces
+remain lossless error nodes bound to schema-owned diagnostics. Patterns stay
+lexical typed facts until a package-owned pattern parser is registered. The
+source lifecycle does not execute embedded expressions. Explicit
+transform-template execution continues through the existing bounded XSLT parity
+capability.
 
 ## Parser Facts And Diagnostics
 
@@ -55,8 +62,9 @@ The adapter emits neutral XML and XSLT facts for encoding, namespace prefix and
 attribute errors, root and namespace identity, version syntax/support,
 top-level declarations and template entrypoints, external URI access,
 extension instructions/functions, literal result elements, XPath-bearing
-attributes, DTD/entities, and source maps. Reportable facts bind to diagnostics
-declared by `schema/xslt.cem` through `xslt-report-fact` contracts.
+attributes, AVT delimiter errors, DTD/entities, and source maps. Reportable facts
+bind to diagnostics declared by `schema/xslt.cem` through `xslt-report-fact`
+contracts.
 
 ## Output Artifacts
 

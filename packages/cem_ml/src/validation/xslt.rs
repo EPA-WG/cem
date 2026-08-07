@@ -4,11 +4,12 @@ use crate::schema::package_sources::builtin_schema_package_source;
 use crate::schema::registry::{
     content_type_essence, XSLT_CONTENT_TYPE, XSLT_NAMESPACE_URI, XSLT_SCHEMA_URI,
 };
-use crate::source::{ByteRange, SourceId};
+use crate::source::{ByteRange, SourceId, SourceProjectionPosition, SourceRangeProjector};
 use crate::source_map::{FrameSpan, SourceMapFrame, SourceMapStack, TransformKind};
 use crate::validation::xml::{
-    xml_document_ast_from_source_bytes, XmlAttributeAst, XmlDocumentAst, XmlEventAst, XmlEventKind,
-    XmlParseFactKind, XmlSourceRange, XmlSourceValidationRequest,
+    xml_document_ast_from_source_bytes, XmlAttributeAst, XmlAttributeValueSourceMap,
+    XmlDocumentAst, XmlEventAst, XmlEventKind, XmlParseFactKind, XmlSourceRange,
+    XmlSourceValidationRequest,
 };
 use crate::validation::xpath::{
     validate_xpath_expression_ast, xpath_expression_ast_from_source_bytes, XPathAttachment,
@@ -41,6 +42,7 @@ pub struct XsltStylesheetAst {
     pub version: Option<String>,
     pub facts: Vec<XsltFact>,
     pub xpath_expressions: Vec<XsltXPathExpressionAst>,
+    pub attribute_value_templates: Vec<XsltAttributeValueTemplateAst>,
     pub line_ending: Option<String>,
 }
 
@@ -49,6 +51,70 @@ pub struct XsltXPathExpressionAst {
     pub event_index: usize,
     pub attribute_name: String,
     pub expression: XPathExpressionAst,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct XsltAttributeValueTemplateAst {
+    pub event_index: usize,
+    pub attribute_name: String,
+    pub source_range: XmlSourceRange,
+    pub lexical_value: String,
+    pub decoded_value: String,
+    pub segments: Vec<XsltAttributeValueTemplateSegmentAst>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum XsltAttributeValueTemplateSegmentAst {
+    Literal {
+        lexical: String,
+        effective: String,
+        source_range: XmlSourceRange,
+    },
+    Expression {
+        enclosure_range: XmlSourceRange,
+        expression_range: XmlSourceRange,
+        expression: Box<XPathExpressionAst>,
+    },
+    EmptyExpression {
+        lexical: String,
+        enclosure_range: XmlSourceRange,
+        expression_range: XmlSourceRange,
+    },
+    Error {
+        kind: XsltAttributeValueTemplateErrorKind,
+        lexical: String,
+        source_range: XmlSourceRange,
+    },
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum XsltAttributeValueTemplateErrorKind {
+    UnclosedExpression,
+    UnescapedRightBrace,
+}
+
+#[derive(Debug)]
+struct XsltAttributeValueSubrangeProjector<'a> {
+    parent: &'a dyn SourceRangeProjector,
+    decoded_start: u64,
+    decoded_byte_length: u64,
+}
+
+impl SourceRangeProjector for XsltAttributeValueSubrangeProjector<'_> {
+    fn project_boundary(&self, decoded_byte_offset: u64) -> Option<SourceProjectionPosition> {
+        if decoded_byte_offset > self.decoded_byte_length {
+            return None;
+        }
+        self.parent
+            .project_boundary(self.decoded_start.checked_add(decoded_byte_offset)?)
+    }
+}
+
+#[derive(Debug, Default)]
+struct XsltEmbeddedAttributeAsts {
+    xpath_expressions: Vec<XsltXPathExpressionAst>,
+    attribute_value_templates: Vec<XsltAttributeValueTemplateAst>,
+    facts: Vec<XsltFact>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -182,6 +248,8 @@ pub enum XsltFactKind {
     XPathObserved,
     PatternObserved,
     AttributeValueTemplateObserved,
+    AvtUnclosedExpression,
+    AvtUnescapedRightBrace,
     BrowserEnginePolicyObserved,
     DoctypeObserved,
 }
@@ -215,6 +283,8 @@ impl XsltFactKind {
             Self::XPathObserved => "xpath-observed",
             Self::PatternObserved => "pattern-observed",
             Self::AttributeValueTemplateObserved => "attribute-value-template-observed",
+            Self::AvtUnclosedExpression => "avt-unclosed-expression",
+            Self::AvtUnescapedRightBrace => "avt-unescaped-right-brace",
             Self::BrowserEnginePolicyObserved => "browser-engine-policy-observed",
             Self::DoctypeObserved => "doctype-observed",
         }
@@ -374,38 +444,50 @@ pub fn xslt_stylesheet_ast_from_source_bytes(
         return (None, Vec::new());
     };
     let contracts = XsltSchemaContractCatalog::from_builtin();
-    let (version, facts) = xslt_facts(&xml_document, contracts);
-    let xpath_expressions = xslt_xpath_expressions(&xml_document, contracts);
+    let (version, mut facts) = xslt_facts(&xml_document, contracts);
+    let embedded = xslt_embedded_attribute_asts(&xml_document, contracts);
+    facts.extend(embedded.facts);
     let mut diagnostics = xslt_fact_diagnostics(
         request.source_uri,
         &xml_document.source.media_type,
         &facts,
         contracts,
     );
-    diagnostics.extend(xpath_expressions.iter().flat_map(|embedded| {
+    diagnostics.extend(embedded.xpath_expressions.iter().flat_map(|embedded| {
         validate_xpath_expression_ast(
             &embedded.expression,
             XPathSchemaContractCatalog::from_builtin(),
         )
     }));
+    for avt in &embedded.attribute_value_templates {
+        for segment in &avt.segments {
+            if let XsltAttributeValueTemplateSegmentAst::Expression { expression, .. } = segment {
+                diagnostics.extend(validate_xpath_expression_ast(
+                    expression,
+                    XPathSchemaContractCatalog::from_builtin(),
+                ));
+            }
+        }
+    }
     let line_ending = xml_document.line_ending.clone();
     (
         Some(XsltStylesheetAst {
             xml_document,
             version,
             facts,
-            xpath_expressions,
+            xpath_expressions: embedded.xpath_expressions,
+            attribute_value_templates: embedded.attribute_value_templates,
             line_ending,
         }),
         diagnostics,
     )
 }
 
-fn xslt_xpath_expressions(
+fn xslt_embedded_attribute_asts(
     document: &XmlDocumentAst,
     contracts: &XsltSchemaContractCatalog,
-) -> Vec<XsltXPathExpressionAst> {
-    let mut expressions = Vec::new();
+) -> XsltEmbeddedAttributeAsts {
+    let mut embedded = XsltEmbeddedAttributeAsts::default();
     let mut static_contexts = Vec::<XPathStaticContext>::new();
 
     for event in &document.events {
@@ -432,9 +514,6 @@ fn xslt_xpath_expressions(
             static_contexts.push(static_context.clone());
         }
 
-        if event.namespace_uri.as_deref() != Some(XSLT_NAMESPACE_URI) {
-            continue;
-        }
         for attribute in &event.attributes {
             let Some(value_source_range) = attribute.value_source_range else {
                 continue;
@@ -445,50 +524,389 @@ fn xslt_xpath_expressions(
             ) else {
                 continue;
             };
-            if contracts.attribute_value_grammar(event, attribute)
-                != XsltAttributeValueGrammar::XPathExpression
-                || expression_text.trim().is_empty()
-            {
-                continue;
+            match contracts.attribute_value_grammar(event, attribute) {
+                XsltAttributeValueGrammar::XPathExpression
+                    if !expression_text.trim().is_empty() =>
+                {
+                    let expression_range = xpath_range_from_xml(value_source_range);
+                    let expression = xslt_attached_xpath_expression(
+                        document,
+                        event,
+                        expression_text,
+                        source_range_projector,
+                        expression_range,
+                        static_context.clone(),
+                        format!("event:{}@{}", event.index, attribute.qualified_name),
+                    );
+                    embedded.xpath_expressions.push(XsltXPathExpressionAst {
+                        event_index: event.index,
+                        attribute_name: attribute.qualified_name.clone(),
+                        expression,
+                    });
+                }
+                XsltAttributeValueGrammar::AttributeValueTemplate => {
+                    let (avt, facts) = xslt_attribute_value_template_ast(
+                        document,
+                        event,
+                        attribute,
+                        expression_text,
+                        source_range_projector,
+                        static_context.clone(),
+                    );
+                    embedded.attribute_value_templates.push(avt);
+                    embedded.facts.extend(facts);
+                }
+                _ => {}
             }
-            let expression_range = xpath_range_from_xml(value_source_range);
-            let owner_range = xpath_range_from_xml(event.source_range);
-            let expression = xpath_expression_ast_from_source_bytes(
-                XPathSourceRequest {
-                    bytes: expression_text.as_bytes(),
-                    source_uri: &document.source.uri,
-                    content_type: Some(XPATH_CONTENT_TYPE),
-                    source_range_projector: Some(source_range_projector),
-                },
-                XPathAttachment::Host(XPathHostAttachment {
-                    owner: XPathHostOwner {
-                        source_id: 1,
-                        source_uri: document.source.uri.clone(),
-                        content_type: Some(document.source.content_type.clone()),
-                        schema_uri: Some(XSLT_SCHEMA_URI.to_owned()),
-                        node_kind: XPathHostNodeKind::XsltAttribute,
-                        node_id: Some(format!(
-                            "event:{}@{}",
-                            event.index, attribute.qualified_name
-                        )),
-                        source_range: owner_range,
-                    },
-                    expression_range,
-                    static_context: static_context.clone(),
-                    expected_result: None,
-                    evaluation_phase: XPathEvaluationPhase::Transform,
-                    resolver_policy_stamp: None,
-                    safety_policy_stamp: None,
-                }),
-            );
-            expressions.push(XsltXPathExpressionAst {
-                event_index: event.index,
-                attribute_name: attribute.qualified_name.clone(),
-                expression,
-            });
         }
     }
-    expressions
+    embedded
+}
+
+fn xslt_attached_xpath_expression(
+    document: &XmlDocumentAst,
+    event: &XmlEventAst,
+    expression_text: &str,
+    source_range_projector: &dyn SourceRangeProjector,
+    expression_range: XPathSourceRange,
+    static_context: XPathStaticContext,
+    node_id: String,
+) -> XPathExpressionAst {
+    xpath_expression_ast_from_source_bytes(
+        XPathSourceRequest {
+            bytes: expression_text.as_bytes(),
+            source_uri: &document.source.uri,
+            content_type: Some(XPATH_CONTENT_TYPE),
+            source_range_projector: Some(source_range_projector),
+        },
+        XPathAttachment::Host(XPathHostAttachment {
+            owner: XPathHostOwner {
+                source_id: 1,
+                source_uri: document.source.uri.clone(),
+                content_type: Some(document.source.content_type.clone()),
+                schema_uri: Some(XSLT_SCHEMA_URI.to_owned()),
+                node_kind: XPathHostNodeKind::XsltAttribute,
+                node_id: Some(node_id),
+                source_range: xpath_range_from_xml(event.source_range),
+            },
+            expression_range,
+            static_context,
+            expected_result: None,
+            evaluation_phase: XPathEvaluationPhase::Transform,
+            resolver_policy_stamp: None,
+            safety_policy_stamp: None,
+        }),
+    )
+}
+
+fn xslt_attribute_value_template_ast(
+    document: &XmlDocumentAst,
+    event: &XmlEventAst,
+    attribute: &XmlAttributeAst,
+    decoded_value: &str,
+    source_map: &XmlAttributeValueSourceMap,
+    static_context: XPathStaticContext,
+) -> (XsltAttributeValueTemplateAst, Vec<XsltFact>) {
+    let source_range = attribute
+        .value_source_range
+        .expect("decoded XML attribute value must retain its source range");
+    let mut segments = Vec::new();
+    let mut facts = Vec::new();
+    let mut fixed_start = 0usize;
+    let mut cursor = 0usize;
+
+    while cursor < decoded_value.len() {
+        if decoded_value[cursor..].starts_with("{{") || decoded_value[cursor..].starts_with("}}") {
+            cursor += 2;
+            continue;
+        }
+
+        match decoded_value.as_bytes()[cursor] {
+            b'{' => {
+                xslt_push_avt_literal_segment(
+                    attribute,
+                    decoded_value,
+                    source_map,
+                    fixed_start,
+                    cursor,
+                    &mut segments,
+                );
+                let expression_start = cursor + 1;
+                let Some(expression_end) = xslt_avt_expression_end(decoded_value, expression_start)
+                else {
+                    let error_range =
+                        xslt_avt_source_range(source_map, cursor, decoded_value.len());
+                    segments.push(XsltAttributeValueTemplateSegmentAst::Error {
+                        kind: XsltAttributeValueTemplateErrorKind::UnclosedExpression,
+                        lexical: xslt_attribute_lexical_slice(attribute, error_range),
+                        source_range: error_range,
+                    });
+                    facts.push(XsltFact {
+                        kind: XsltFactKind::AvtUnclosedExpression,
+                        source_range: Some(error_range),
+                        message: "XSLT attribute value template has an unclosed expression"
+                            .to_owned(),
+                        value: Some("XTSE0350".to_owned()),
+                    });
+                    cursor = decoded_value.len();
+                    fixed_start = cursor;
+                    continue;
+                };
+                let enclosure_range = xslt_avt_source_range(source_map, cursor, expression_end + 1);
+                let expression_range =
+                    xslt_avt_source_range(source_map, expression_start, expression_end);
+                let expression_text = &decoded_value[expression_start..expression_end];
+                let segment_index = segments.len();
+                if xslt_avt_expression_is_empty(expression_text) {
+                    segments.push(XsltAttributeValueTemplateSegmentAst::EmptyExpression {
+                        lexical: xslt_attribute_lexical_slice(attribute, expression_range),
+                        enclosure_range,
+                        expression_range,
+                    });
+                } else {
+                    let projector = XsltAttributeValueSubrangeProjector {
+                        parent: source_map,
+                        decoded_start: expression_start as u64,
+                        decoded_byte_length: (expression_end - expression_start) as u64,
+                    };
+                    let expression = xslt_attached_xpath_expression(
+                        document,
+                        event,
+                        expression_text,
+                        &projector,
+                        xpath_range_from_xml(expression_range),
+                        static_context.clone(),
+                        format!(
+                            "event:{}@{}#avt:{segment_index}",
+                            event.index, attribute.qualified_name
+                        ),
+                    );
+                    segments.push(XsltAttributeValueTemplateSegmentAst::Expression {
+                        enclosure_range,
+                        expression_range,
+                        expression: Box::new(expression),
+                    });
+                }
+                cursor = expression_end + 1;
+                fixed_start = cursor;
+            }
+            b'}' => {
+                xslt_push_avt_literal_segment(
+                    attribute,
+                    decoded_value,
+                    source_map,
+                    fixed_start,
+                    cursor,
+                    &mut segments,
+                );
+                let error_range = xslt_avt_source_range(source_map, cursor, cursor + 1);
+                segments.push(XsltAttributeValueTemplateSegmentAst::Error {
+                    kind: XsltAttributeValueTemplateErrorKind::UnescapedRightBrace,
+                    lexical: xslt_attribute_lexical_slice(attribute, error_range),
+                    source_range: error_range,
+                });
+                facts.push(XsltFact {
+                    kind: XsltFactKind::AvtUnescapedRightBrace,
+                    source_range: Some(error_range),
+                    message: "XSLT attribute value template has an unescaped right brace"
+                        .to_owned(),
+                    value: Some("XTSE0370".to_owned()),
+                });
+                cursor += 1;
+                fixed_start = cursor;
+            }
+            _ => cursor = xslt_next_scalar_boundary(decoded_value, cursor),
+        }
+    }
+    xslt_push_avt_literal_segment(
+        attribute,
+        decoded_value,
+        source_map,
+        fixed_start,
+        decoded_value.len(),
+        &mut segments,
+    );
+
+    (
+        XsltAttributeValueTemplateAst {
+            event_index: event.index,
+            attribute_name: attribute.qualified_name.clone(),
+            source_range,
+            lexical_value: attribute.value.clone(),
+            decoded_value: decoded_value.to_owned(),
+            segments,
+        },
+        facts,
+    )
+}
+
+fn xslt_push_avt_literal_segment(
+    attribute: &XmlAttributeAst,
+    decoded_value: &str,
+    source_map: &XmlAttributeValueSourceMap,
+    start: usize,
+    end: usize,
+    segments: &mut Vec<XsltAttributeValueTemplateSegmentAst>,
+) {
+    if start == end {
+        return;
+    }
+    let source_range = xslt_avt_source_range(source_map, start, end);
+    segments.push(XsltAttributeValueTemplateSegmentAst::Literal {
+        lexical: xslt_attribute_lexical_slice(attribute, source_range),
+        effective: decoded_value[start..end]
+            .replace("{{", "{")
+            .replace("}}", "}"),
+        source_range,
+    });
+}
+
+fn xslt_avt_source_range(
+    source_map: &XmlAttributeValueSourceMap,
+    start: usize,
+    end: usize,
+) -> XmlSourceRange {
+    let len = end.checked_sub(start).expect("ordered AVT source range");
+    source_map
+        .project_range(ByteRange::new(
+            start as u64,
+            u32::try_from(len).expect("AVT segment must fit a source range"),
+        ))
+        .expect("AVT segment boundaries must be covered by the XML source map")
+}
+
+fn xslt_attribute_lexical_slice(
+    attribute: &XmlAttributeAst,
+    source_range: XmlSourceRange,
+) -> String {
+    let attribute_range = attribute
+        .value_source_range
+        .expect("decoded XML attribute value must retain its source range");
+    let start = source_range
+        .start
+        .byte_offset
+        .checked_sub(attribute_range.start.byte_offset)
+        .and_then(|offset| usize::try_from(offset).ok())
+        .expect("AVT segment must begin inside its XML attribute value");
+    let end = usize::try_from(source_range.byte_length)
+        .ok()
+        .and_then(|len| start.checked_add(len))
+        .expect("AVT segment must end inside its XML attribute value");
+    attribute
+        .value
+        .get(start..end)
+        .expect("AVT segment must follow XML scalar boundaries")
+        .to_owned()
+}
+
+fn xslt_avt_expression_end(value: &str, start: usize) -> Option<usize> {
+    let mut cursor = start;
+    let mut quote = None::<u8>;
+    let mut comment_depth = 0usize;
+    let mut curly_depth = 0usize;
+
+    while cursor < value.len() {
+        let remaining = &value[cursor..];
+        if let Some(delimiter) = quote {
+            if value.as_bytes()[cursor] == delimiter {
+                if value.as_bytes().get(cursor + 1) == Some(&delimiter) {
+                    cursor += 2;
+                } else {
+                    quote = None;
+                    cursor += 1;
+                }
+            } else {
+                cursor = xslt_next_scalar_boundary(value, cursor);
+            }
+            continue;
+        }
+        if comment_depth > 0 {
+            if remaining.starts_with("(:") {
+                comment_depth += 1;
+                cursor += 2;
+            } else if remaining.starts_with(":)") {
+                comment_depth -= 1;
+                cursor += 2;
+            } else {
+                cursor = xslt_next_scalar_boundary(value, cursor);
+            }
+            continue;
+        }
+        if remaining.starts_with("(:") {
+            comment_depth = 1;
+            cursor += 2;
+            continue;
+        }
+        match value.as_bytes()[cursor] {
+            delimiter @ (b'\'' | b'"') => {
+                quote = Some(delimiter);
+                cursor += 1;
+            }
+            b'{' => {
+                curly_depth += 1;
+                cursor += 1;
+            }
+            b'}' if curly_depth == 0 => return Some(cursor),
+            b'}' => {
+                curly_depth -= 1;
+                cursor += 1;
+            }
+            _ => cursor = xslt_next_scalar_boundary(value, cursor),
+        }
+    }
+    None
+}
+
+fn xslt_avt_expression_is_empty(expression: &str) -> bool {
+    let mut cursor = 0usize;
+    while cursor < expression.len() {
+        let character = expression[cursor..]
+            .chars()
+            .next()
+            .expect("cursor must remain on an XPath scalar boundary");
+        if character.is_whitespace() {
+            cursor += character.len_utf8();
+            continue;
+        }
+        if expression[cursor..].starts_with("(:") {
+            let Some(comment_end) = xslt_xpath_comment_end(expression, cursor) else {
+                return false;
+            };
+            cursor = comment_end;
+            continue;
+        }
+        return false;
+    }
+    true
+}
+
+fn xslt_xpath_comment_end(expression: &str, start: usize) -> Option<usize> {
+    let mut cursor = start;
+    let mut depth = 0usize;
+    while cursor < expression.len() {
+        if expression[cursor..].starts_with("(:") {
+            depth += 1;
+            cursor += 2;
+        } else if expression[cursor..].starts_with(":)") {
+            depth = depth.checked_sub(1)?;
+            cursor += 2;
+            if depth == 0 {
+                return Some(cursor);
+            }
+        } else {
+            cursor = xslt_next_scalar_boundary(expression, cursor);
+        }
+    }
+    None
+}
+
+fn xslt_next_scalar_boundary(value: &str, cursor: usize) -> usize {
+    cursor
+        + value[cursor..]
+            .chars()
+            .next()
+            .expect("cursor must remain on a UTF-8 scalar boundary")
+            .len_utf8()
 }
 
 fn xslt_extend_xpath_static_context(event: &XmlEventAst, static_context: &mut XPathStaticContext) {
@@ -2015,6 +2433,192 @@ mod tests {
     }
 
     #[test]
+    fn xslt_literal_result_avts_segment_and_fuse_xpath_with_exact_source_identity() {
+        let source = r#"<xsl:stylesheet xmlns:xsl="http://www.w3.org/1999/XSL/Transform" xmlns:c="urn:catalog" version="3.0">
+  <xsl:template match="/">
+    <card title="pre&amp;{{fixed}}-{concat('{', c:name, '}')}-{ (: empty (: nested :) :) }-{(: outer } (: inner { :) :) map { 'lt': @price &lt; 10 }}-tail &amp; done" empty="{}"/>
+  </xsl:template>
+</xsl:stylesheet>
+"#;
+        let (stylesheet, diagnostics) =
+            xslt_stylesheet_ast_from_source_bytes(XsltSourceValidationRequest {
+                bytes: source.as_bytes(),
+                source_uri: "memory://literal-result-avt.xsl",
+                content_type: Some(XSLT_CONTENT_TYPE),
+            });
+        assert!(diagnostics.is_empty(), "{diagnostics:?}");
+        let stylesheet = stylesheet.expect("typed XSLT stylesheet");
+        assert_eq!(stylesheet.attribute_value_templates.len(), 2);
+        let avt = stylesheet
+            .attribute_value_templates
+            .iter()
+            .find(|avt| avt.attribute_name == "title")
+            .expect("title AVT");
+        assert_eq!(avt.attribute_name, "title");
+        assert_eq!(avt.segments.len(), 7);
+
+        let XsltAttributeValueTemplateSegmentAst::Literal {
+            lexical,
+            effective,
+            source_range,
+        } = &avt.segments[0]
+        else {
+            panic!("leading AVT literal segment")
+        };
+        assert_eq!(lexical, "pre&amp;{{fixed}}-");
+        assert_eq!(effective, "pre&{fixed}-");
+        let start = source_range.start.byte_offset as usize;
+        let end = start + source_range.byte_length as usize;
+        assert_eq!(&source[start..end], lexical);
+
+        let expressions = avt
+            .segments
+            .iter()
+            .filter_map(|segment| match segment {
+                XsltAttributeValueTemplateSegmentAst::Expression {
+                    enclosure_range,
+                    expression_range,
+                    expression,
+                } => Some((enclosure_range, expression_range, expression)),
+                _ => None,
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(expressions.len(), 2);
+        assert_eq!(
+            expressions[0].2.source_text.as_deref(),
+            Some("concat('{', c:name, '}')")
+        );
+        assert_eq!(
+            expressions[1].2.source_text.as_deref(),
+            Some("(: outer } (: inner { :) :) map { 'lt': @price < 10 }")
+        );
+        assert!(expressions
+            .iter()
+            .all(|(_, _, expression)| expression.syntax_ast.is_some()));
+        let XPathAttachment::Host(host) = &expressions[1].2.attachment else {
+            panic!("AVT XPath expression must retain a typed host attachment")
+        };
+        assert_eq!(
+            host.expression_range,
+            xpath_range_from_xml(*expressions[1].1)
+        );
+        assert!(host
+            .owner
+            .node_id
+            .as_deref()
+            .is_some_and(|node_id| node_id.contains("@title#avt:")));
+        assert_eq!(
+            host.static_context.namespaces.get("c").map(String::as_str),
+            Some("urn:catalog")
+        );
+        let less_than = expressions[1]
+            .2
+            .tokens
+            .iter()
+            .find(|token| token.lexeme == "<")
+            .expect("entity-decoded AVT less-than token");
+        let start = less_than.source_range.start.byte_offset as usize;
+        let end = start + less_than.source_range.byte_length as usize;
+        assert_eq!(&source[start..end], "&lt;");
+
+        let XsltAttributeValueTemplateSegmentAst::EmptyExpression { lexical, .. } =
+            &avt.segments[3]
+        else {
+            panic!("comment-only AVT expression")
+        };
+        assert_eq!(lexical, " (: empty (: nested :) :) ");
+        let XsltAttributeValueTemplateSegmentAst::Literal {
+            lexical, effective, ..
+        } = &avt.segments[6]
+        else {
+            panic!("trailing AVT literal segment")
+        };
+        assert_eq!(lexical, "-tail &amp; done");
+        assert_eq!(effective, "-tail & done");
+        let empty = stylesheet
+            .attribute_value_templates
+            .iter()
+            .find(|avt| avt.attribute_name == "empty")
+            .expect("zero-length expression AVT");
+        assert!(matches!(
+            empty.segments.as_slice(),
+            [XsltAttributeValueTemplateSegmentAst::EmptyExpression {
+                lexical,
+                ..
+            }] if lexical.is_empty()
+        ));
+    }
+
+    #[test]
+    fn xslt_malformed_avts_retain_typed_error_segments_and_schema_diagnostics() {
+        let source = r#"<xsl:stylesheet xmlns:xsl="http://www.w3.org/1999/XSL/Transform" version="3.0">
+  <xsl:template match="/">
+    <card right="before}after" open="before{@name" xpath="{catalog[}"/>
+  </xsl:template>
+</xsl:stylesheet>
+"#;
+        let (stylesheet, diagnostics) =
+            xslt_stylesheet_ast_from_source_bytes(XsltSourceValidationRequest {
+                bytes: source.as_bytes(),
+                source_uri: "memory://malformed-avt.xsl",
+                content_type: Some(XSLT_CONTENT_TYPE),
+            });
+        let stylesheet = stylesheet.expect("typed malformed XSLT stylesheet");
+        let error = |attribute_name: &str| {
+            stylesheet
+                .attribute_value_templates
+                .iter()
+                .find(|avt| avt.attribute_name == attribute_name)
+                .and_then(|avt| {
+                    avt.segments.iter().find_map(|segment| match segment {
+                        XsltAttributeValueTemplateSegmentAst::Error {
+                            kind,
+                            lexical,
+                            source_range,
+                        } => Some((*kind, lexical.as_str(), *source_range)),
+                        _ => None,
+                    })
+                })
+                .unwrap_or_else(|| panic!("{attribute_name} AVT error segment"))
+        };
+        let (right_kind, right_lexical, right_range) = error("right");
+        assert_eq!(
+            right_kind,
+            XsltAttributeValueTemplateErrorKind::UnescapedRightBrace
+        );
+        assert_eq!(right_lexical, "}");
+        assert_eq!(
+            right_range.start.byte_offset,
+            source.find("}after").expect("right brace") as u64
+        );
+        let (open_kind, open_lexical, open_range) = error("open");
+        assert_eq!(
+            open_kind,
+            XsltAttributeValueTemplateErrorKind::UnclosedExpression
+        );
+        assert_eq!(open_lexical, "{@name");
+        assert_eq!(
+            open_range.start.byte_offset,
+            source.find("{@name").expect("open expression") as u64
+        );
+        assert!(diagnostics.iter().any(|diagnostic| {
+            diagnostic.code == "cem.xslt.avt_unescaped_right_brace"
+                && diagnostic.byte_offset == Some(right_range.start.byte_offset)
+        }));
+        assert!(diagnostics.iter().any(|diagnostic| {
+            diagnostic.code == "cem.xslt.avt_unclosed_expression"
+                && diagnostic.byte_offset == Some(open_range.start.byte_offset)
+        }));
+        let xpath_open = source.find("catalog[").expect("malformed XPath") as u64;
+        assert!(diagnostics.iter().any(|diagnostic| {
+            diagnostic.code.starts_with("cem.xpath.")
+                && diagnostic
+                    .byte_offset
+                    .is_some_and(|offset| offset >= xpath_open && offset <= xpath_open + 8)
+        }));
+    }
+
+    #[test]
     fn xslt_embedded_xpath_diagnostics_are_schema_owned_and_entity_values_fuse_with_original_ranges(
     ) {
         let malformed = r#"<xsl:stylesheet xmlns:xsl="http://www.w3.org/1999/XSL/Transform" version="3.0">
@@ -2152,10 +2756,10 @@ mod tests {
             .and_then(|source| source.split("pub fn validate_xslt_source_bytes").next())
             .expect("XSLT schema contract classification region");
         let fusion = source
-            .split("fn xslt_xpath_expressions")
+            .split("fn xslt_embedded_attribute_asts")
             .nth(1)
             .and_then(|source| source.split("fn xslt_facts").next())
-            .expect("XSLT XPath fusion implementation region");
+            .expect("XSLT XPath and AVT fusion implementation region");
         for forbidden in [
             "serde_json",
             "to_value",

@@ -67,6 +67,11 @@ mediate between internal layers.
     - [x] Replace XSLT's hardcoded attribute-name test with schema-owned typed
           value-grammar rules that distinguish XPath expressions, XSLT
           patterns, AVTs, and literals before AVT segmentation begins.
+    - [x] Segment schema-classified literal-result AVTs into lossless typed
+          literal, expression, empty-expression, and error segments; parse each
+          expression once into its directly owned XPath AST; and project escaped
+          braces, nested XPath braces, comments, strings, and entity-decoded
+          subranges to exact XML coordinates without a serializer or reparse.
   - [ ] Add deterministic compact/pretty/tabular and
         terminal/HTML/Markdown profiles that preserve lexical islands and source
         maps, then run package, converter-parity, CLI e2e, WASM, and core release
