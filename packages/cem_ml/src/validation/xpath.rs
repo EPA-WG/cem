@@ -1933,6 +1933,8 @@ fn xpath_evaluate_expression_node(
             XPathBinaryOperator::Add
                 | XPathBinaryOperator::Subtract
                 | XPathBinaryOperator::Multiply
+                | XPathBinaryOperator::IntegerDivide
+                | XPathBinaryOperator::Modulo
         ) =>
         {
             let left_items = xpath_evaluate_expression_node(
@@ -1962,6 +1964,7 @@ fn xpath_evaluate_expression_node(
                 *operator,
                 left.source_range,
                 right.source_range,
+                node.source_range,
             )?;
             Ok(vec![xpath_numeric_result_item(
                 expression,
@@ -3109,6 +3112,15 @@ impl XPathExactDecimal {
         )
     }
 
+    fn truncating_integer_quotient(&self, divisor: &Self) -> Self {
+        debug_assert!(!divisor.is_zero());
+        let negative = self.negative != divisor.negative;
+        let common_scale = self.scale.max(divisor.scale);
+        let dividend = self.coefficient_at_scale(common_scale);
+        let divisor = divisor.coefficient_at_scale(common_scale);
+        Self::from_parts(negative, Self::divide_magnitudes(&dividend, &divisor), 0)
+    }
+
     fn coefficient_at_scale(&self, scale: usize) -> Vec<u8> {
         let mut coefficient = self.coefficient.clone();
         coefficient.extend(std::iter::repeat_n(0, scale.saturating_sub(self.scale)));
@@ -3168,6 +3180,48 @@ impl XPathExactDecimal {
         debug_assert_eq!(borrow, 0);
         reversed.reverse();
         reversed
+    }
+
+    fn divide_magnitudes(dividend: &[u8], divisor: &[u8]) -> Vec<u8> {
+        debug_assert!(divisor.iter().any(|digit| *digit != 0));
+        let mut quotient = Vec::with_capacity(dividend.len());
+        let mut remainder = vec![0];
+        for digit in dividend {
+            if remainder == [0] {
+                remainder[0] = *digit;
+            } else {
+                remainder.push(*digit);
+            }
+            Self::normalize_magnitude(&mut remainder);
+            let mut quotient_digit = 0_u8;
+            while Self::compare_digit_magnitudes(&remainder, divisor) != Ordering::Less {
+                remainder = Self::subtract_magnitudes(&remainder, divisor);
+                Self::normalize_magnitude(&mut remainder);
+                quotient_digit = quotient_digit
+                    .checked_add(1)
+                    .expect("base-ten quotient digit fits u8");
+            }
+            debug_assert!(quotient_digit <= 9);
+            quotient.push(quotient_digit);
+        }
+        Self::normalize_magnitude(&mut quotient);
+        quotient
+    }
+
+    fn compare_digit_magnitudes(left: &[u8], right: &[u8]) -> Ordering {
+        match left.len().cmp(&right.len()) {
+            Ordering::Equal => left.cmp(right),
+            ordering => ordering,
+        }
+    }
+
+    fn normalize_magnitude(digits: &mut Vec<u8>) {
+        let Some(first_nonzero) = digits.iter().position(|digit| *digit != 0) else {
+            digits.clear();
+            digits.push(0);
+            return;
+        };
+        digits.drain(..first_nonzero);
     }
 
     fn from_parts(negative: bool, mut coefficient: Vec<u8>, mut scale: usize) -> Self {
@@ -3469,16 +3523,28 @@ fn xpath_numeric_binary(
     operator: XPathBinaryOperator,
     left_source_range: XPathSourceRange,
     right_source_range: XPathSourceRange,
+    operation_source_range: XPathSourceRange,
 ) -> Result<XPathComparableAtomic, XPathEvaluationError> {
     if matches!(left, XPathComparableAtomic::Double(_))
         || matches!(right, XPathComparableAtomic::Double(_))
     {
         let left = xpath_numeric_as_double(&left, left_source_range)?;
         let right = xpath_numeric_as_double(&right, right_source_range)?;
+        if operator == XPathBinaryOperator::IntegerDivide {
+            return xpath_double_integer_divide(
+                left,
+                right,
+                left_source_range,
+                right_source_range,
+                operation_source_range,
+            )
+            .map(XPathComparableAtomic::Integer);
+        }
         let value = match operator {
             XPathBinaryOperator::Add => left + right,
             XPathBinaryOperator::Subtract => left - right,
             XPathBinaryOperator::Multiply => left * right,
+            XPathBinaryOperator::Modulo => left % right,
             _ => unreachable!("native arithmetic guard restricts binary operators"),
         };
         return Ok(XPathComparableAtomic::Double(value));
@@ -3488,10 +3554,21 @@ fn xpath_numeric_binary(
     {
         let left = xpath_numeric_as_float(&left, left_source_range)?;
         let right = xpath_numeric_as_float(&right, right_source_range)?;
+        if operator == XPathBinaryOperator::IntegerDivide {
+            return xpath_float_integer_divide(
+                left,
+                right,
+                left_source_range,
+                right_source_range,
+                operation_source_range,
+            )
+            .map(XPathComparableAtomic::Integer);
+        }
         let value = match operator {
             XPathBinaryOperator::Add => left + right,
             XPathBinaryOperator::Subtract => left - right,
             XPathBinaryOperator::Multiply => left * right,
+            XPathBinaryOperator::Modulo => left % right,
             _ => unreachable!("native arithmetic guard restricts binary operators"),
         };
         return Ok(XPathComparableAtomic::Float(value));
@@ -3507,10 +3584,26 @@ fn xpath_numeric_binary(
         XPathComparableAtomic::Integer(value) | XPathComparableAtomic::Decimal(value) => value,
         _ => unreachable!("exact arithmetic requires integer or decimal right operand"),
     };
+    if matches!(
+        operator,
+        XPathBinaryOperator::IntegerDivide | XPathBinaryOperator::Modulo
+    ) && right.is_zero()
+    {
+        return Err(xpath_arithmetic_division_by_zero(right_source_range));
+    }
     let value = match operator {
         XPathBinaryOperator::Add => left.add(&right),
         XPathBinaryOperator::Subtract => left.subtract(&right),
         XPathBinaryOperator::Multiply => left.multiply(&right),
+        XPathBinaryOperator::IntegerDivide => {
+            return Ok(XPathComparableAtomic::Integer(
+                left.truncating_integer_quotient(&right),
+            ));
+        }
+        XPathBinaryOperator::Modulo => {
+            let quotient = left.truncating_integer_quotient(&right);
+            left.subtract(&quotient.multiply(&right))
+        }
         _ => unreachable!("native arithmetic guard restricts binary operators"),
     };
     Ok(if result_is_decimal {
@@ -3518,6 +3611,109 @@ fn xpath_numeric_binary(
     } else {
         XPathComparableAtomic::Integer(value)
     })
+}
+
+fn xpath_float_integer_divide(
+    left: f32,
+    right: f32,
+    left_source_range: XPathSourceRange,
+    right_source_range: XPathSourceRange,
+    operation_source_range: XPathSourceRange,
+) -> Result<XPathExactDecimal, XPathEvaluationError> {
+    if right == 0.0 {
+        return Err(xpath_arithmetic_division_by_zero(right_source_range));
+    }
+    if left.is_nan() || left.is_infinite() {
+        return Err(xpath_arithmetic_integer_division_non_finite(
+            "xs:float",
+            left_source_range,
+        ));
+    }
+    if right.is_nan() {
+        return Err(xpath_arithmetic_integer_division_non_finite(
+            "xs:float",
+            right_source_range,
+        ));
+    }
+    if right.is_infinite() {
+        return Ok(XPathExactDecimal::from_u64(0));
+    }
+    xpath_truncated_float_to_integer((left / right).trunc(), "xs:float", operation_source_range)
+}
+
+fn xpath_double_integer_divide(
+    left: f64,
+    right: f64,
+    left_source_range: XPathSourceRange,
+    right_source_range: XPathSourceRange,
+    operation_source_range: XPathSourceRange,
+) -> Result<XPathExactDecimal, XPathEvaluationError> {
+    if right == 0.0 {
+        return Err(xpath_arithmetic_division_by_zero(right_source_range));
+    }
+    if left.is_nan() || left.is_infinite() {
+        return Err(xpath_arithmetic_integer_division_non_finite(
+            "xs:double",
+            left_source_range,
+        ));
+    }
+    if right.is_nan() {
+        return Err(xpath_arithmetic_integer_division_non_finite(
+            "xs:double",
+            right_source_range,
+        ));
+    }
+    if right.is_infinite() {
+        return Ok(XPathExactDecimal::from_u64(0));
+    }
+    xpath_truncated_float_to_integer(left / right, "xs:double", operation_source_range)
+}
+
+fn xpath_truncated_float_to_integer(
+    value: impl Into<f64>,
+    source_type: &str,
+    source_range: XPathSourceRange,
+) -> Result<XPathExactDecimal, XPathEvaluationError> {
+    let value = value.into().trunc();
+    if !value.is_finite() {
+        return Err(XPathEvaluationError::dynamic(
+            "cem.xpath.arithmetic_integer_division_overflow",
+            format!(
+                "err:FOAR0002: XPath integer division of `{source_type}` operands overflowed its finite numeric domain"
+            ),
+            source_range,
+        ));
+    }
+    XPathExactDecimal::parse(&format!("{value:.0}"), false).ok_or_else(|| {
+        XPathEvaluationError::dynamic(
+            "cem.xpath.arithmetic_integer_division_overflow",
+            format!(
+                "err:FOAR0002: XPath integer division of `{source_type}` operands could not produce an xs:integer"
+            ),
+            source_range,
+        )
+    })
+}
+
+fn xpath_arithmetic_division_by_zero(source_range: XPathSourceRange) -> XPathEvaluationError {
+    XPathEvaluationError::dynamic(
+        "cem.xpath.arithmetic_division_by_zero",
+        "err:FOAR0001: XPath integer division and exact numeric modulo reject a zero divisor",
+        source_range,
+    )
+}
+
+fn xpath_arithmetic_integer_division_non_finite(
+    source_type: &str,
+    source_range: XPathSourceRange,
+) -> XPathEvaluationError {
+    XPathEvaluationError::dynamic(
+        "cem.xpath.arithmetic_integer_division_non_finite",
+        format!(
+            "err:FOAR0002: XPath integer division cannot convert a non-finite `{source_type}` operand to xs:integer"
+        ),
+        source_range,
+    )
 }
 
 fn xpath_string_concat_operand(
@@ -8132,6 +8328,228 @@ mod tests {
             .expect_err("arithmetic node atomization requires retained native handles");
         assert_eq!(diagnostics[0].code, "cem.xpath.native_node_missing");
         assert_eq!(diagnostics[0].byte_offset, Some(0));
+    }
+
+    #[test]
+    fn xpath_native_evaluator_executes_idiv_and_mod_without_projection() {
+        use crate::lifecycle::LoadedInputAstStream;
+        use crate::validation::xml::{
+            xml_document_ast_from_source_bytes, XmlSourceValidationRequest,
+        };
+        use std::sync::Arc;
+
+        let (document, diagnostics) =
+            xml_document_ast_from_source_bytes(XmlSourceValidationRequest {
+                bytes: br#"<root><n>8</n><bad>not-a-number</bad></root>"#,
+                source_uri: "memory://integer-division-context.xml",
+                content_type: Some("application/xml"),
+            });
+        assert!(diagnostics.is_empty(), "{diagnostics:?}");
+        let owner = Arc::new(LoadedInputAstStream::XmlDocument(
+            document.expect("typed XML document"),
+        ));
+        let context_node = XPathNativeNode::xml_document(owner).expect("native XML document node");
+        let context_item = || XPathResultItem::from_native_node(context_node.clone());
+        let bindings = BTreeMap::from([
+            (
+                XPathExpandedName::unqualified("float"),
+                singleton_test_binding("xs:float", "31"),
+            ),
+            (
+                XPathExpandedName::unqualified("double"),
+                singleton_test_binding("xs:double", "-3.5"),
+            ),
+            (
+                XPathExpandedName::unqualified("negative-zero"),
+                singleton_test_binding("xs:double", "-0"),
+            ),
+            (
+                XPathExpandedName::unqualified("infinity"),
+                singleton_test_binding("xs:float", "INF"),
+            ),
+            (
+                XPathExpandedName::unqualified("nan"),
+                singleton_test_binding("xs:double", "NaN"),
+            ),
+        ]);
+
+        let assert_atomic = |source: &str, expected_type: &str, expected_lexical: &str| {
+            let result = evaluate_for_test(source, Some(context_item()), bindings.clone())
+                .unwrap_or_else(|diagnostics| panic!("`{source}` failed: {diagnostics:?}"));
+            let [XPathResultItem::Atomic { value, source_map }] = result.sequence.items.as_slice()
+            else {
+                panic!("`{source}` did not return one atomic value: {result:?}");
+            };
+            assert_eq!(result.sequence.sequence_type, expected_type, "`{source}`");
+            assert_eq!(value.type_name, expected_type, "`{source}`");
+            assert_eq!(value.lexical_value, expected_lexical, "`{source}`");
+            assert_eq!(source_map.frames.len(), 1, "`{source}`");
+            assert_eq!(source_map.frames[0].source_id, SourceId(7), "`{source}`");
+            assert_eq!(
+                source_map.frames[0].span,
+                FrameSpan::Single(ByteRange::new(0, source.len() as u32)),
+                "`{source}`"
+            );
+        };
+
+        for (source, expected_type, expected_lexical) in [
+            ("10 idiv 3", "xs:integer", "3"),
+            ("3 idiv -2", "xs:integer", "-1"),
+            ("-3 idiv 2", "xs:integer", "-1"),
+            ("-3 idiv -2", "xs:integer", "1"),
+            ("3 idiv 4", "xs:integer", "0"),
+            (
+                "999999999999999999999999999999999999 idiv 3",
+                "xs:integer",
+                "333333333333333333333333333333333333",
+            ),
+            ("9.0 idiv 3", "xs:integer", "3"),
+            ("-3.5 idiv 3", "xs:integer", "-1"),
+            ("5 idiv 0.2", "xs:integer", "25"),
+            ("-5.5 idiv 0.2", "xs:integer", "-27"),
+            ("$float idiv 6", "xs:integer", "5"),
+            ("$double idiv 3", "xs:integer", "-1"),
+            ("1e20 idiv 1e0", "xs:integer", "100000000000000000000"),
+            ("3e0 idiv $infinity", "xs:integer", "0"),
+            ("/root/n idiv 3", "xs:integer", "2"),
+            ("10 - 7 idiv 2", "xs:integer", "7"),
+            ("20 idiv 3 mod 2", "xs:integer", "0"),
+            ("10 mod 3", "xs:integer", "1"),
+            ("-10 mod 3", "xs:integer", "-1"),
+            ("10 mod -3", "xs:integer", "1"),
+            ("-10 mod -3", "xs:integer", "-1"),
+            ("4.5 mod 1.2", "xs:decimal", "0.9"),
+            ("-4.5 mod 1.2", "xs:decimal", "-0.9"),
+            ("5 mod 0.2", "xs:decimal", "0"),
+            (
+                "100000000000000000000000000000000001 mod 10",
+                "xs:integer",
+                "1",
+            ),
+            ("$float mod 6", "xs:float", "1"),
+            ("$float mod 4.5", "xs:float", "4"),
+            ("$double mod 3", "xs:double", "-0.5"),
+            ("$negative-zero mod 3", "xs:double", "-0"),
+            ("3e0 mod $infinity", "xs:double", "3"),
+            ("$infinity mod 3", "xs:float", "NaN"),
+            ("3e0 mod $negative-zero", "xs:double", "NaN"),
+            ("$nan mod 2", "xs:double", "NaN"),
+            ("/root/n mod 3", "xs:double", "2"),
+        ] {
+            assert_atomic(source, expected_type, expected_lexical);
+        }
+
+        for source in ["() idiv $missing", "1 mod ()"] {
+            let result = evaluate_for_test(source, Some(context_item()), BTreeMap::new())
+                .unwrap_or_else(|diagnostics| panic!("`{source}` failed: {diagnostics:?}"));
+            assert!(result.sequence.items.is_empty(), "`{source}`: {result:?}");
+            assert_eq!(
+                result.sequence.sequence_type, "empty-sequence()",
+                "`{source}`"
+            );
+        }
+
+        for (source, expected_code, expected_offset, expected_length, w3c_code) in [
+            (
+                "1 idiv 0",
+                "cem.xpath.arithmetic_division_by_zero",
+                7,
+                1,
+                "err:FOAR0001",
+            ),
+            (
+                "1.0 mod 0.0",
+                "cem.xpath.arithmetic_division_by_zero",
+                8,
+                3,
+                "err:FOAR0001",
+            ),
+            (
+                "$nan idiv 1",
+                "cem.xpath.arithmetic_integer_division_non_finite",
+                0,
+                4,
+                "err:FOAR0002",
+            ),
+            (
+                "$infinity idiv 1",
+                "cem.xpath.arithmetic_integer_division_non_finite",
+                0,
+                9,
+                "err:FOAR0002",
+            ),
+            (
+                "1 idiv $nan",
+                "cem.xpath.arithmetic_integer_division_non_finite",
+                7,
+                4,
+                "err:FOAR0002",
+            ),
+            (
+                "1 idiv $negative-zero",
+                "cem.xpath.arithmetic_division_by_zero",
+                7,
+                14,
+                "err:FOAR0001",
+            ),
+            (
+                "1e308 idiv 1e-308",
+                "cem.xpath.arithmetic_integer_division_overflow",
+                0,
+                17,
+                "err:FOAR0002",
+            ),
+        ] {
+            let diagnostics = evaluate_for_test(source, Some(context_item()), bindings.clone())
+                .expect_err("invalid integer division or exact modulo must fail deterministically");
+            assert_eq!(diagnostics[0].code, expected_code, "`{source}`");
+            assert!(diagnostics[0].message.contains(w3c_code), "`{source}`");
+            assert_eq!(
+                diagnostics[0].byte_offset,
+                Some(expected_offset),
+                "`{source}`"
+            );
+            assert_eq!(
+                diagnostics[0]
+                    .source_map
+                    .as_ref()
+                    .expect("arithmetic diagnostic source map")
+                    .frames[0]
+                    .span,
+                FrameSpan::Single(ByteRange::new(expected_offset, expected_length)),
+                "`{source}`"
+            );
+        }
+
+        for (source, expected_code, expected_offset, expected_length) in [
+            ("(1, 2) idiv 3", "cem.xpath.arithmetic_cardinality", 0, 6),
+            ("'x' mod 2", "cem.xpath.arithmetic_type_error", 0, 3),
+            (
+                "/root/bad idiv 2",
+                "cem.xpath.arithmetic_cast_invalid",
+                0,
+                9,
+            ),
+        ] {
+            let diagnostics = evaluate_for_test(source, Some(context_item()), BTreeMap::new())
+                .expect_err("invalid idiv/mod operands must retain arithmetic diagnostics");
+            assert_eq!(diagnostics[0].code, expected_code, "`{source}`");
+            assert_eq!(
+                diagnostics[0].byte_offset,
+                Some(expected_offset),
+                "`{source}`"
+            );
+            assert_eq!(
+                diagnostics[0]
+                    .source_map
+                    .as_ref()
+                    .expect("arithmetic operand diagnostic source map")
+                    .frames[0]
+                    .span,
+                FrameSpan::Single(ByteRange::new(expected_offset, expected_length)),
+                "`{source}`"
+            );
+        }
     }
 
     #[test]

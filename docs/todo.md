@@ -86,6 +86,13 @@ mediate between internal layers.
           inclusive integer sequences only within the limit; preserve source
           maps and deterministic diagnostics; and thread the limit through
           standalone and host invocation paths without serialization or a DTO.
+    - [x] Execute XPath `idiv` and `mod` directly on typed numeric values:
+          reuse optional-singleton atomization and numeric promotion; calculate
+          unbounded integer/decimal quotients and remainders exactly with
+          truncation toward zero; preserve float/double NaN, infinity, and
+          signed-zero behavior; report FOAR0001/FOAR0002-class failures with
+          exact source maps; and leave decimal `div` precision policy explicit
+          without introducing serialization or an intermediate DTO.
   - [ ] Wire the native evaluator through the `transform` command and expose
         explicit CEM-QL, CEMT, and XSLT invocation adapters without reparsing
         source text, constructing an evaluator-owned replacement XML tree, or
