@@ -813,7 +813,7 @@ export const Phase2CanonicalLoginRuntimeFixture: Story = {
         assertEqual(main.getAttribute('aria-labelledby'), 'login-title', 'login landmark preserves label reference');
         assertEqual(requiredElement(instance, '#login-title').textContent, 'Sign in', 'login title renders');
         assertEqual(form.getAttribute('method'), 'post', 'form method survives canonical render');
-        assertEqual(form.getAttribute('action'), '/session', 'form action survives canonical render');
+        assertEqual(form.getAttribute('action'), '#session', 'form action survives canonical render');
         assertEqual(email.getAttribute('type'), 'email', 'email field type renders');
         assert(email.required, 'email field keeps required boolean semantics');
         assertEqual(password.getAttribute('autocomplete'), 'current-password', 'password autocomplete renders');

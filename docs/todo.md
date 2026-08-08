@@ -8,9 +8,12 @@ history is preserved in
 
 ## Immediate Goal
 
-The CEM-owned XPath 3.1 compiler and evaluator slice is complete. The next
-deferred Phase 3 custom-element runtime item remains inactive until its broad
-"substrate expansion" scope is decomposed into a concrete executable gate.
+The CEM-owned XPath 3.1 compiler and evaluator slice is complete. The Phase 3.1
+browser substrate and Phase 3.5 Edge/SSR gates are reconciled and green through
+`cem-elements:verify`. The next decision is whether to begin the roadmap's
+Phase 3.6 `@epa-wg/custom-element` monorepo adoption or first reopen a known
+Phase 3.1 bridge deferral. The recommended path is Phase 3.6; keep bridge
+expansion deferred until adoption fixtures demonstrate a concrete need.
 
 The cross-layer architecture remains serializer-free: lifecycle loading, graph
 routing, joins, evaluators, CEM-QL, CEMT, and XSLT adapters must exchange
@@ -447,8 +450,34 @@ Xee runtime dependencies. Detailed evidence and provenance remain in the
 
 ### Deferred: Phase 3 Custom-Element Runtime
 
-- [ ] Resume Phase 3 custom-element runtime substrate expansion after the
+- [x] Reconcile the implemented Phase 3 custom-element runtime gates after the
       schema-package folder contract slice is closed.
+  - [x] Confirm the schema-package structure audit reports no hard folder,
+        formatter-profile, or colorizer-profile contract gaps for XPath/XSLT.
+  - [x] Resolve `cem-elements:verify` and confirm it aggregates the Phase 3.1
+        browser-substrate trigger, Phase 3.5 Edge/SSR gate, parity fixtures,
+        executable demos, CEMT Storybook screenshot, CLI fixtures, and benchmark.
+  - [x] Run `yarn nx run cem-elements:verify` with browser host permission.
+  - [x] Restore colored-stage writer-boundary metadata through the native CEMT
+        artifact lowering and keep the unit, browser-story, and screenshot
+        verifier assertions intact.
+  - [x] Reconcile the Phase 2 canonical login browser assertion with the
+        validation-clean `#session` action already used by the shared fixture
+        and native HTML snapshot.
+  - [x] Record the verified Phase 3.1/3.5 state and replace the stale broad
+        "substrate expansion" instruction with the next explicit decision.
+
+- [ ] Select the next Phase 3 work track before implementation.
+  - Recommended: begin Phase 3.6 by defining the migration and fixture gate for
+    moving `@epa-wg/custom-element` into `packages/custom-element/`, preserving
+    its npm identity and `<custom-element>` public tag while rebuilding its next
+    major on the parity-proven `cem-element` substrate.
+  - Alternative: reopen one or more known Phase 3.1 bridge deferrals—broad
+    legacy XPath/XSLT behavior, scoped light-DOM style containment, or host
+    resolution policy—only when consumer or adoption evidence requires it.
+  - Decision boundary: package-history migration, compatibility/versioning, and
+    bridge-retention scope must be chosen before fixtures or implementation are
+    added.
 
 ### Deferred: Phase 4 CEM Component Set
 
@@ -469,6 +498,7 @@ Xee runtime dependencies. Detailed evidence and provenance remain in the
 
 ## Current Verification Commands
 
+- `yarn nx run cem-elements:verify`
 - `yarn nx run cem_ml_schema_package_xslt_v1:verify`
 - `yarn nx run cem_ml_schema_package_xpath_v1:verify`
 - `yarn nx run cem_ml:test:schema-package-structure`

@@ -34231,6 +34231,13 @@ mod tests {
         let queued_edit = cem_tree_color_decision(&colored, "queued-edit");
         assert_eq!(queued_edit["colorizerRole"], "colorizer.queued-edit");
         assert_eq!(queued_edit["value"], "queued edit replay before writer");
+        assert_eq!(colored["writerBoundaries"][0]["kind"], "writer-boundary");
+        assert_eq!(colored["writerBoundaries"][0]["stage"], "after-color");
+        assert_eq!(
+            colored["writerBoundaries"][0]["value"],
+            "writer consumes colored CEM tree"
+        );
+        assert!(colored["writerBoundaries"][0]["sourceMap"].is_object());
         assert_eq!(aside["children"][0]["children"][0]["value"], "Gamma");
 
         assert!(writer_output.contains("<section class=\"cem-color cem-color-syntax-name\""));

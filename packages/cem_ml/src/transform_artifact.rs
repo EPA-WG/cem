@@ -322,6 +322,13 @@ pub struct CemtColorOperation {
     pub provenance: CemtOverlayProvenance,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CemtWriterBoundary {
+    pub stage: String,
+    pub value: Option<String>,
+    pub provenance: CemtOverlayProvenance,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CemtColorOutput {
     Terminal,
@@ -414,6 +421,7 @@ pub struct CemtNodeColorOperation {
 pub struct CemtColoredTreeOverlay {
     pub producer: CemtColorOverlayProducer,
     pub operations: Vec<CemtColorOperation>,
+    pub writer_boundaries: Vec<CemtWriterBoundary>,
     pub node_operations: Vec<CemtNodeColorOperation>,
 }
 
@@ -580,6 +588,18 @@ fn project_cemt_colored_overlay_to_public_json(
                 .collect::<Result<Vec<_>, _>>()?,
         ),
     );
+    if !overlay.writer_boundaries.is_empty() {
+        fields.insert(
+            "writerBoundaries".to_owned(),
+            serde_json::Value::Array(
+                overlay
+                    .writer_boundaries
+                    .iter()
+                    .map(cemt_public_writer_boundary)
+                    .collect::<Result<Vec<_>, _>>()?,
+            ),
+        );
+    }
 
     let mut owner_paths = Vec::new();
     for operation in &overlay.node_operations {
@@ -934,6 +954,20 @@ fn cemt_public_color_operation(
         value["value"] = serde_json::Value::String(decision.clone());
     }
     cemt_public_insert_provenance(&mut value, &operation.provenance)?;
+    Ok(value)
+}
+
+fn cemt_public_writer_boundary(
+    boundary: &CemtWriterBoundary,
+) -> Result<serde_json::Value, String> {
+    let mut value = serde_json::json!({
+        "kind": "writer-boundary",
+        "stage": boundary.stage,
+    });
+    if let Some(decision) = boundary.value.as_ref() {
+        value["value"] = serde_json::Value::String(decision.clone());
+    }
+    cemt_public_insert_provenance(&mut value, &boundary.provenance)?;
     Ok(value)
 }
 

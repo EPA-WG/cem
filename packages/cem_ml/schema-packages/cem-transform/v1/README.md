@@ -935,6 +935,9 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
         {color-decision @name="showcase" @value="colored tree before writer" @colorizer-role="colorizer.showcase"}
         {color-decision @name="queued-edit" @value="queued edit replay before writer" @color-profile="classes" @colorizer-role="colorizer.queued-edit"}
     }
+    {writer-boundaries |
+        {writer-boundary @stage="after-color" @value="writer consumes colored CEM tree"}
+    }
     {nodes |
         {article @color-role="syntax.name" |
             {format-layout @kind="format-decision" @name="layout" @value="inline" @formatter-role="formatter.layout"}

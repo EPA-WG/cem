@@ -59,7 +59,8 @@ use crate::transform_artifact::{
     CemtNodeColorOperationKind, CemtNodeFormatOperation, CemtNodeFormatOperationKind,
     CemtNodeFormatTarget, CemtOverlayProducer, CemtOverlayProvenance, CemtOwnerPath,
     CemtTreeArtifact, CemtTreeArtifactStage, CemtTreeEnvelopeMetadata, CemtTreeEnvelopeMode,
-    CemtTreeSubjectRef, CsvDocumentCemtSubjectRef, GenericDataCsvDocumentCemtSubjectRef,
+    CemtTreeSubjectRef, CemtWriterBoundary, CsvDocumentCemtSubjectRef,
+    GenericDataCsvDocumentCemtSubjectRef,
     GenericDataJsonDocumentCemtSubjectRef, GenericDataYamlDocumentCemtSubjectRef,
     JsonDocumentCemtSubjectRef, JsonSchemaDocumentCemtSubjectRef, MarkdownDocumentCemtSubjectRef,
     RelaxNgDocumentCemtSubjectRef, TransformArtifactBody, TransformNativeArtifact,
@@ -4149,6 +4150,18 @@ fn lower_colored_cemt_tree_value(
         .enumerate()
         .map(|(index, value)| lower_cemt_color_operation(value, index, function_name))
         .collect::<Result<Vec<_>, _>>()?;
+    let writer_boundaries = match colored_tree.field("writerBoundaries") {
+        None => Vec::new(),
+        Some(value) => value
+            .sequence()
+            .ok_or_else(|| {
+                "colored CEMT tree `writerBoundaries` field must be an array".to_owned()
+            })?
+            .iter()
+            .enumerate()
+            .map(|(index, value)| lower_cemt_writer_boundary(value, index, function_name))
+            .collect::<Result<Vec<_>, _>>()?,
+    };
 
     let formatted_format_nodes = formatted_tree
         .field("formatNodes")
@@ -4212,6 +4225,7 @@ fn lower_colored_cemt_tree_value(
                 color_profile: Some(color_profile),
             },
             operations,
+            writer_boundaries,
             node_operations,
         },
     )))
@@ -4911,6 +4925,30 @@ fn lower_cemt_color_operation(
             function_name,
             &format!("operation {index}"),
         )?,
+    })
+}
+
+fn lower_cemt_writer_boundary(
+    value: &CemtTreeLoweringValue<'_>,
+    index: usize,
+    function_name: &str,
+) -> Result<CemtWriterBoundary, String> {
+    if value.kind() != CemtEvaluatorValueKind::Record {
+        return Err(format!(
+            "colored CEMT tree writer boundary {index} must be an object"
+        ));
+    }
+    let context = format!("writer boundary {index}");
+    let kind = required_cemt_color_string(value, "kind", &context)?;
+    if kind != "writer-boundary" {
+        return Err(format!(
+            "colored CEMT tree writer boundary {index} has unsupported kind `{kind}`"
+        ));
+    }
+    Ok(CemtWriterBoundary {
+        stage: required_cemt_color_string(value, "stage", &context)?,
+        value: optional_cemt_color_string(value, "value")?,
+        provenance: lower_cemt_color_provenance(value, function_name, &context)?,
     })
 }
 
