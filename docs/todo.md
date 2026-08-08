@@ -220,6 +220,18 @@ mediate between internal layers.
           wrong arities before arguments run; and leave schema-aware absent or
           multi-valued node typed values outside the lifecycle XML slice without
           serialization, recursive host risk, or an intermediate DTO.
+    - [x] Execute both native XPath `fn:number` signatures: dispatch zero- and
+          one-argument unprefixed, `fn:`-prefixed, EQName, and named-arrow calls
+          by expanded QName and arity; apply native `fn:data` atomization,
+          including ordered array flattening, before optional-singleton function
+          conversion; reuse the closed primitive cast-to-double kernel; return
+          canonical `xs:double` values and `NaN` for empty or non-convertible
+          atomic inputs; preserve full-call result maps and evaluated-work
+          budgets; reject missing focus, detached nodes, failed function-item
+          atomization, excess cardinality, invalid retained atomic values, and
+          wrong arities before arguments run; and leave schema-derived atomic
+          conversion outside the native primitive slice without serialization,
+          a duplicate numeric parser, or an intermediate DTO.
   - [x] Wire the native evaluator through the `transform` command and expose
         explicit CEM-QL, CEMT, and XSLT invocation adapters without reparsing
         source text, constructing an evaluator-owned replacement XML tree, or
