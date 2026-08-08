@@ -289,6 +289,24 @@ mediate between internal layers.
           before arguments run; and avoid serialization, inferred subtype
           relationships, bounded precision coercion, duplicate numeric parsers,
           direct binary rounding, or an intermediate DTO.
+    - [x] Execute both native XPath `fn:round-half-to-even` signatures: dispatch
+          one- and two-argument unprefixed, `fn:`-prefixed, EQName, and
+          named-arrow calls by expanded QName and arity; reuse primitive numeric
+          optional-singleton conversion for the value and required-integer
+          function conversion for the precision, including ordered atomization
+          and untyped-atomic casts; preserve integer identity where possible and
+          round exact integer and decimal values to unbounded positive or
+          negative decimal places with midpoint ties selecting the result whose
+          retained least-significant digit is even; convert finite IEEE values
+          to their exact unbounded decimals before rounding and back to their
+          original float/double types while preserving `NaN`, infinities, and
+          signed zero; preserve full-call result maps and evaluated-work budgets;
+          reject failed function-item atomization, wrong cardinality, invalid
+          retained values, non-numeric values or non-integer precisions,
+          schema-derived atomic inputs, detached nodes, and wrong signatures
+          before arguments run; and avoid serialization, inferred subtype
+          relationships, bounded precision coercion, duplicate numeric parsers,
+          direct binary rounding, or an intermediate DTO.
   - [x] Wire the native evaluator through the `transform` command and expose
         explicit CEM-QL, CEMT, and XSLT invocation adapters without reparsing
         source text, constructing an evaluator-owned replacement XML tree, or

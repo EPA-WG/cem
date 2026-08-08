@@ -3358,7 +3358,52 @@ enum XPathNativeFunction {
     Ceiling,
     Floor,
     Round,
+    RoundHalfToEven,
     AtomicConstructor(&'static str),
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum XPathMidpointRounding {
+    TowardPositiveInfinity,
+    HalfToEven,
+}
+
+#[derive(Debug, Clone, Copy)]
+struct XPathRoundFunctionContract {
+    function_name: &'static str,
+    value_function_item_code: &'static str,
+    precision_function_item_code: &'static str,
+    precision_cardinality_code: &'static str,
+    precision_cast_invalid_code: &'static str,
+    precision_type_error_code: &'static str,
+    midpoint_rounding: XPathMidpointRounding,
+}
+
+impl XPathRoundFunctionContract {
+    fn from_native(function: XPathNativeFunction) -> Option<Self> {
+        match function {
+            XPathNativeFunction::Round => Some(Self {
+                function_name: "fn:round",
+                value_function_item_code: "cem.xpath.round_function_item",
+                precision_function_item_code: "cem.xpath.round_precision_function_item",
+                precision_cardinality_code: "cem.xpath.round_precision_cardinality",
+                precision_cast_invalid_code: "cem.xpath.round_precision_cast_invalid",
+                precision_type_error_code: "cem.xpath.round_precision_type_error",
+                midpoint_rounding: XPathMidpointRounding::TowardPositiveInfinity,
+            }),
+            XPathNativeFunction::RoundHalfToEven => Some(Self {
+                function_name: "fn:round-half-to-even",
+                value_function_item_code: "cem.xpath.round_half_to_even_function_item",
+                precision_function_item_code:
+                    "cem.xpath.round_half_to_even_precision_function_item",
+                precision_cardinality_code: "cem.xpath.round_half_to_even_precision_cardinality",
+                precision_cast_invalid_code: "cem.xpath.round_half_to_even_precision_cast_invalid",
+                precision_type_error_code: "cem.xpath.round_half_to_even_precision_type_error",
+                midpoint_rounding: XPathMidpointRounding::HalfToEven,
+            }),
+            _ => None,
+        }
+    }
 }
 
 fn xpath_native_function(name: &XPathName, arity: usize) -> Option<XPathNativeFunction> {
@@ -3396,6 +3441,7 @@ fn xpath_native_function(name: &XPathName, arity: usize) -> Option<XPathNativeFu
         ("ceiling", 1) => Some(XPathNativeFunction::Ceiling),
         ("floor", 1) => Some(XPathNativeFunction::Floor),
         ("round", 1 | 2) => Some(XPathNativeFunction::Round),
+        ("round-half-to-even", 1 | 2) => Some(XPathNativeFunction::RoundHalfToEven),
         _ => None,
     }
 }
@@ -3589,7 +3635,7 @@ fn xpath_evaluate_function_call(
             xpath_numeric_floor(value),
         )]);
     }
-    if function == XPathNativeFunction::Round {
+    if let Some(contract) = XPathRoundFunctionContract::from_native(function) {
         let precision = if let Some(precision) = arguments.get(1) {
             let precision_items = xpath_evaluate_expression_node(
                 expression,
@@ -3602,6 +3648,7 @@ fn xpath_evaluate_function_call(
                 &precision_items,
                 precision.source_range,
                 evaluation_limits,
+                contract,
             )?
         } else {
             XPathExactDecimal::from_u64(0)
@@ -3610,8 +3657,8 @@ fn xpath_evaluate_function_call(
             &items,
             argument.source_range,
             evaluation_limits,
-            "fn:round",
-            "cem.xpath.round_function_item",
+            contract.function_name,
+            contract.value_function_item_code,
         )?
         else {
             return Ok(Vec::new());
@@ -3619,7 +3666,7 @@ fn xpath_evaluate_function_call(
         return Ok(vec![xpath_numeric_result_item(
             expression,
             source_range,
-            xpath_numeric_round(value, &precision),
+            xpath_numeric_round(value, &precision, contract.midpoint_rounding),
         )]);
     }
     if let XPathNativeFunction::AtomicConstructor(target) = function {
@@ -3696,6 +3743,9 @@ fn xpath_evaluate_function_call(
             unreachable!("numeric functions return after optional numeric conversion")
         }
         XPathNativeFunction::Round => {
+            unreachable!("numeric functions return after optional numeric conversion")
+        }
+        XPathNativeFunction::RoundHalfToEven => {
             unreachable!("numeric functions return after optional numeric conversion")
         }
     };
@@ -4371,19 +4421,21 @@ fn xpath_round_precision_operand(
     items: &[XPathResultItem],
     source_range: XPathSourceRange,
     evaluation_limits: XPathEvaluationLimits,
+    contract: XPathRoundFunctionContract,
 ) -> Result<XPathExactDecimal, XPathEvaluationError> {
     let atomized = xpath_atomized_items(
         items,
         source_range,
         evaluation_limits,
-        "fn:round precision",
-        "cem.xpath.round_precision_function_item",
+        contract.function_name,
+        contract.precision_function_item_code,
     )?;
     let [item] = atomized.as_slice() else {
         return Err(XPathEvaluationError::dynamic(
-            "cem.xpath.round_precision_cardinality",
+            contract.precision_cardinality_code,
             format!(
-                "err:XPTY0004: XPath fn:round precision must atomize to exactly one xs:integer value; found {}",
+                "err:XPTY0004: XPath {} precision must atomize to exactly one xs:integer value; found {}",
+                contract.function_name,
                 atomized.len()
             ),
             source_range,
@@ -4397,9 +4449,10 @@ fn xpath_round_precision_operand(
             let lexical = xpath_collapse_xml_whitespace(&value.lexical_value);
             XPathExactDecimal::parse(&lexical, false).ok_or_else(|| {
                 XPathEvaluationError::dynamic(
-                    "cem.xpath.round_precision_cast_invalid",
+                    contract.precision_cast_invalid_code,
                     format!(
-                        "err:FORG0001: XPath fn:round cannot cast untyped atomic precision `{}` to xs:integer",
+                        "err:FORG0001: XPath {} cannot cast untyped atomic precision `{}` to xs:integer",
+                        contract.function_name,
                         value.lexical_value
                     ),
                     source_range,
@@ -4411,9 +4464,10 @@ fn xpath_round_precision_operand(
             _ => unreachable!("validated xs:integer values retain their exact representation"),
         },
         _ => Err(XPathEvaluationError::dynamic(
-            "cem.xpath.round_precision_type_error",
+            contract.precision_type_error_code,
             format!(
-                "err:XPTY0004: XPath fn:round precision requires a primitive xs:integer value, found `{}`",
+                "err:XPTY0004: XPath {} precision requires a primitive xs:integer value, found `{}`",
+                contract.function_name,
                 value.type_name
             ),
             source_range,
@@ -4586,7 +4640,7 @@ impl XPathExactDecimal {
         )
     }
 
-    fn rounded_toward_positive_infinity(&self, precision: &Self) -> Self {
+    fn rounded(&self, precision: &Self, midpoint_rounding: XPathMidpointRounding) -> Self {
         debug_assert_eq!(precision.scale, 0);
         if self.is_zero() {
             return self.clone();
@@ -4613,10 +4667,14 @@ impl XPathExactDecimal {
                     .expect("precision below decimal scale fits usize"),
             )
         };
-        self.round_dropping_digits(digits_to_drop)
+        self.round_dropping_digits(digits_to_drop, midpoint_rounding)
     }
 
-    fn round_dropping_digits(&self, digits_to_drop: usize) -> Self {
+    fn round_dropping_digits(
+        &self,
+        digits_to_drop: usize,
+        midpoint_rounding: XPathMidpointRounding,
+    ) -> Self {
         if digits_to_drop == 0 {
             return self.clone();
         }
@@ -4628,7 +4686,13 @@ impl XPathExactDecimal {
         let sticky = self.coefficient[kept_length.saturating_add(1)..]
             .iter()
             .any(|digit| *digit != 0);
-        let round_up = guard_digit > 5 || (guard_digit == 5 && (sticky || !self.negative));
+        let midpoint_rounds_up = match midpoint_rounding {
+            XPathMidpointRounding::TowardPositiveInfinity => !self.negative,
+            XPathMidpointRounding::HalfToEven => self.coefficient[..kept_length]
+                .last()
+                .is_some_and(|digit| digit % 2 != 0),
+        };
+        let round_up = guard_digit > 5 || (guard_digit == 5 && (sticky || midpoint_rounds_up));
         let mut coefficient = self.coefficient[..kept_length].to_vec();
         if round_up {
             coefficient = Self::add_magnitudes(&coefficient, &[1]);
@@ -5416,13 +5480,14 @@ fn xpath_numeric_floor(value: XPathComparableAtomic) -> XPathComparableAtomic {
 fn xpath_numeric_round(
     value: XPathComparableAtomic,
     precision: &XPathExactDecimal,
+    midpoint_rounding: XPathMidpointRounding,
 ) -> XPathComparableAtomic {
     match value {
         XPathComparableAtomic::Integer(value) => {
-            XPathComparableAtomic::Integer(value.rounded_toward_positive_infinity(precision))
+            XPathComparableAtomic::Integer(value.rounded(precision, midpoint_rounding))
         }
         XPathComparableAtomic::Decimal(value) => {
-            XPathComparableAtomic::Decimal(value.rounded_toward_positive_infinity(precision))
+            XPathComparableAtomic::Decimal(value.rounded(precision, midpoint_rounding))
         }
         XPathComparableAtomic::Float(value) => {
             if !value.is_finite() || value == 0.0 {
@@ -5430,7 +5495,7 @@ fn xpath_numeric_round(
             }
             let rounded = xpath_exact_decimal_from_f64(f64::from(value))
                 .expect("finite floats have an exact unbounded decimal representation")
-                .rounded_toward_positive_infinity(precision);
+                .rounded(precision, midpoint_rounding);
             let rounded = if rounded.is_zero() {
                 if value.is_sign_negative() {
                     -0.0_f32
@@ -5451,7 +5516,7 @@ fn xpath_numeric_round(
             }
             let rounded = xpath_exact_decimal_from_f64(value)
                 .expect("finite doubles have an exact unbounded decimal representation")
-                .rounded_toward_positive_infinity(precision);
+                .rounded(precision, midpoint_rounding);
             let rounded = if rounded.is_zero() {
                 if value.is_sign_negative() {
                     -0.0_f64
@@ -14694,6 +14759,386 @@ mod tests {
             Some(1),
         )
         .expect_err("round precision atomization enforces evaluated sequence-item budgets");
+        assert_eq!(
+            diagnostics[0].code,
+            "cem.xpath.sequence_item_limit_exceeded"
+        );
+    }
+
+    #[test]
+    fn xpath_native_round_half_to_even_function_rounds_midpoints_to_even() {
+        let assert_round = |source: &str,
+                            context_item: Option<XPathResultItem>,
+                            bindings: XPathVariableBindings,
+                            expected: Option<(&str, &str)>| {
+            let result = evaluate_for_test(source, context_item, bindings)
+                .unwrap_or_else(|diagnostics| panic!("`{source}` failed: {diagnostics:?}"));
+            let Some((expected_type, expected_lexical)) = expected else {
+                assert!(result.sequence.items.is_empty(), "`{source}`: {result:?}");
+                assert_eq!(
+                    result.sequence.sequence_type, "empty-sequence()",
+                    "`{source}`"
+                );
+                return;
+            };
+            let [XPathResultItem::Atomic { value, source_map }] = result.sequence.items.as_slice()
+            else {
+                panic!("`{source}` did not return one atomic item: {result:?}");
+            };
+            assert_eq!(result.sequence.sequence_type, expected_type, "`{source}`");
+            assert_eq!(value.type_name, expected_type, "`{source}`");
+            assert_eq!(value.lexical_value, expected_lexical, "`{source}`");
+            assert_eq!(
+                source_map.frames[0].span,
+                FrameSpan::Single(ByteRange::new(0, source.len() as u32)),
+                "`{source}`"
+            );
+        };
+
+        for (source, expected_type, expected_lexical) in [
+            ("round-half-to-even(4)", "xs:integer", "4"),
+            ("fn:round-half-to-even(0.5)", "xs:decimal", "0"),
+            (
+                "Q{http://www.w3.org/2005/xpath-functions}round-half-to-even(1.5)",
+                "xs:decimal",
+                "2",
+            ),
+            ("round-half-to-even(2.5)", "xs:decimal", "2"),
+            ("3.5 => round-half-to-even()", "xs:decimal", "4"),
+            ("round-half-to-even(-1.5)", "xs:decimal", "-2"),
+            ("round-half-to-even(-2.5)", "xs:decimal", "-2"),
+            ("round-half-to-even(-3.5)", "xs:decimal", "-4"),
+            ("round-half-to-even(1.225, 2)", "xs:decimal", "1.22"),
+            ("round-half-to-even(1.235, 2)", "xs:decimal", "1.24"),
+            ("round-half-to-even(-1.225, 2)", "xs:decimal", "-1.22"),
+            ("round-half-to-even(250, -2)", "xs:integer", "200"),
+            ("round-half-to-even(350, -2)", "xs:integer", "400"),
+            ("round-half-to-even(-250, -2)", "xs:integer", "-200"),
+            ("round-half-to-even(3.567812e3, 2)", "xs:double", "3567.81"),
+            ("round-half-to-even(4.7564e-3, 2)", "xs:double", "0"),
+            ("round-half-to-even(35612.25, -2)", "xs:decimal", "35600"),
+            (
+                "round-half-to-even(999999999999999999999999999998.5)",
+                "xs:decimal",
+                "999999999999999999999999999998",
+            ),
+            (
+                "round-half-to-even(0.0001, 1000000000000000000000000000000)",
+                "xs:decimal",
+                "0.0001",
+            ),
+            (
+                "round-half-to-even(123, -1000000000000000000000000000000)",
+                "xs:integer",
+                "0",
+            ),
+        ] {
+            assert_round(
+                source,
+                None,
+                BTreeMap::new(),
+                Some((expected_type, expected_lexical)),
+            );
+        }
+        assert_round("round-half-to-even(())", None, BTreeMap::new(), None);
+        assert_round("round-half-to-even((), 2)", None, BTreeMap::new(), None);
+
+        let bindings = BTreeMap::from([
+            (
+                XPathExpandedName::unqualified("float"),
+                singleton_test_binding("xs:float", "150.015"),
+            ),
+            (
+                XPathExpandedName::unqualified("negative-small"),
+                singleton_test_binding("xs:double", "-0.5"),
+            ),
+            (
+                XPathExpandedName::unqualified("negative-zero"),
+                singleton_test_binding("xs:double", "-0"),
+            ),
+            (
+                XPathExpandedName::unqualified("infinity"),
+                singleton_test_binding("xs:float", "-INF"),
+            ),
+            (
+                XPathExpandedName::unqualified("nan"),
+                singleton_test_binding("xs:double", "NaN"),
+            ),
+            (
+                XPathExpandedName::unqualified("untyped"),
+                singleton_test_binding("xs:untypedAtomic", " 6.5 "),
+            ),
+            (
+                XPathExpandedName::unqualified("precision"),
+                singleton_test_binding("xs:untypedAtomic", " 2 "),
+            ),
+        ]);
+        for (source, expected_type, expected_lexical) in [
+            ("round-half-to-even($float, 2)", "xs:float", "150.01"),
+            ("round-half-to-even($negative-small)", "xs:double", "-0"),
+            ("round-half-to-even($negative-zero, -20)", "xs:double", "-0"),
+            ("round-half-to-even($infinity, 2)", "xs:float", "-INF"),
+            ("round-half-to-even($nan, 2)", "xs:double", "NaN"),
+            ("round-half-to-even($untyped)", "xs:double", "6"),
+            (
+                "round-half-to-even(1.225, $precision)",
+                "xs:decimal",
+                "1.22",
+            ),
+        ] {
+            assert_round(
+                source,
+                None,
+                bindings.clone(),
+                Some((expected_type, expected_lexical)),
+            );
+        }
+
+        use crate::lifecycle::LoadedInputAstStream;
+        use crate::validation::xml::{
+            xml_document_ast_from_source_bytes, XmlSourceValidationRequest,
+        };
+        use std::sync::Arc;
+
+        let (document, diagnostics) =
+            xml_document_ast_from_source_bytes(XmlSourceValidationRequest {
+                bytes: br#"<root><value>125</value><precision>-1</precision><invalid>nope</invalid></root>"#,
+                source_uri: "memory://round-half-to-even-function.xml",
+                content_type: Some("application/xml"),
+            });
+        assert!(diagnostics.is_empty(), "{diagnostics:?}");
+        let owner = Arc::new(LoadedInputAstStream::XmlDocument(
+            document.expect("typed XML document"),
+        ));
+        let context_node = XPathNativeNode::xml_document(owner).expect("native XML document node");
+        let context_item = || XPathResultItem::from_native_node(context_node.clone());
+        assert_round(
+            "round-half-to-even(/root/value, /root/precision)",
+            Some(context_item()),
+            BTreeMap::new(),
+            Some(("xs:double", "120")),
+        );
+
+        let diagnostics = evaluate_for_test(
+            "round-half-to-even(/root/invalid)",
+            Some(context_item()),
+            BTreeMap::new(),
+        )
+        .expect_err("invalid untyped numeric input must fail conversion");
+        assert_eq!(
+            diagnostics[0].code,
+            "cem.xpath.numeric_function_cast_invalid"
+        );
+
+        let diagnostics = evaluate_for_test(
+            "round-half-to-even(1, /root/invalid)",
+            Some(context_item()),
+            BTreeMap::new(),
+        )
+        .expect_err("invalid untyped precision must fail integer conversion");
+        assert_eq!(
+            diagnostics[0].code,
+            "cem.xpath.round_half_to_even_precision_cast_invalid"
+        );
+
+        let nested_value = XPathResultSequence {
+            sequence_type: "array(*)".to_owned(),
+            items: vec![XPathResultItem::Array {
+                members: vec![XPathResultSequence {
+                    sequence_type: "array(*)".to_owned(),
+                    items: vec![XPathResultItem::Array {
+                        members: vec![singleton_test_binding("xs:decimal", "2.5")],
+                        source_map: result_source_map(19, 2),
+                    }],
+                }],
+                source_map: result_source_map(19, 3),
+            }],
+        };
+        let nested_precision = XPathResultSequence {
+            sequence_type: "array(*)".to_owned(),
+            items: vec![XPathResultItem::Array {
+                members: vec![singleton_test_binding("xs:integer", "0")],
+                source_map: result_source_map(27, 2),
+            }],
+        };
+        assert_round(
+            "round-half-to-even($value, $precision)",
+            None,
+            BTreeMap::from([
+                (XPathExpandedName::unqualified("value"), nested_value),
+                (
+                    XPathExpandedName::unqualified("precision"),
+                    nested_precision,
+                ),
+            ]),
+            Some(("xs:decimal", "2")),
+        );
+
+        let diagnostics = evaluate_for_test(
+            "round-half-to-even($value)",
+            None,
+            BTreeMap::from([(
+                XPathExpandedName::unqualified("value"),
+                XPathResultSequence {
+                    sequence_type: "map(*)".to_owned(),
+                    items: vec![XPathResultItem::Map {
+                        entries: Vec::new(),
+                        source_map: result_source_map(19, 1),
+                    }],
+                },
+            )]),
+        )
+        .expect_err("round-half-to-even rejects failed value function-item atomization");
+        assert_eq!(
+            diagnostics[0].code,
+            "cem.xpath.round_half_to_even_function_item"
+        );
+
+        let diagnostics = evaluate_for_test(
+            "round-half-to-even(1, $precision)",
+            None,
+            BTreeMap::from([(
+                XPathExpandedName::unqualified("precision"),
+                XPathResultSequence {
+                    sequence_type: "map(*)".to_owned(),
+                    items: vec![XPathResultItem::Map {
+                        entries: Vec::new(),
+                        source_map: result_source_map(22, 1),
+                    }],
+                },
+            )]),
+        )
+        .expect_err("round-half-to-even rejects failed precision function-item atomization");
+        assert_eq!(
+            diagnostics[0].code,
+            "cem.xpath.round_half_to_even_precision_function_item"
+        );
+
+        let diagnostics = evaluate_for_test("round-half-to-even((1, 2))", None, BTreeMap::new())
+            .expect_err("round-half-to-even requires optional-singleton numeric input");
+        assert_eq!(
+            diagnostics[0].code,
+            "cem.xpath.numeric_function_cardinality"
+        );
+
+        for source in ["round-half-to-even(1, ())", "round-half-to-even(1, (2, 3))"] {
+            let diagnostics = evaluate_for_test(source, None, BTreeMap::new())
+                .expect_err("round-half-to-even requires exactly one integer precision");
+            assert_eq!(
+                diagnostics[0].code,
+                "cem.xpath.round_half_to_even_precision_cardinality"
+            );
+        }
+
+        for source in ["round-half-to-even(1, 2.0)", "round-half-to-even(1, '2')"] {
+            let diagnostics = evaluate_for_test(source, None, BTreeMap::new())
+                .expect_err("round-half-to-even rejects non-integer typed precisions");
+            assert_eq!(
+                diagnostics[0].code,
+                "cem.xpath.round_half_to_even_precision_type_error"
+            );
+        }
+
+        let diagnostics = evaluate_for_test(
+            "round-half-to-even($value)",
+            None,
+            BTreeMap::from([(
+                XPathExpandedName::unqualified("value"),
+                singleton_test_binding("xs:string", "2.5"),
+            )]),
+        )
+        .expect_err("round-half-to-even rejects non-numeric values");
+        assert_eq!(diagnostics[0].code, "cem.xpath.numeric_function_type_error");
+
+        let mut detached_node = context_item();
+        let XPathResultItem::Node { native_node, .. } = &mut detached_node else {
+            unreachable!("native nodes create XPath node result items")
+        };
+        *native_node = None;
+        let diagnostics = evaluate_for_test(
+            "round-half-to-even(1, $precision)",
+            None,
+            BTreeMap::from([(
+                XPathExpandedName::unqualified("precision"),
+                XPathResultSequence {
+                    sequence_type: "node()".to_owned(),
+                    items: vec![detached_node],
+                },
+            )]),
+        )
+        .expect_err("round-half-to-even precision requires retained native node handles");
+        assert_eq!(diagnostics[0].code, "cem.xpath.native_node_missing");
+
+        for (type_name, lexical, source, name) in [
+            (
+                "xs:decimal",
+                "not-a-decimal",
+                "round-half-to-even($value)",
+                "value",
+            ),
+            (
+                "xs:integer",
+                "not-an-integer",
+                "round-half-to-even(1, $precision)",
+                "precision",
+            ),
+        ] {
+            let diagnostics = evaluate_for_test(
+                source,
+                None,
+                BTreeMap::from([(
+                    XPathExpandedName::unqualified(name),
+                    singleton_test_binding(type_name, lexical),
+                )]),
+            )
+            .expect_err("invalid retained inputs remain internal type errors");
+            assert_eq!(diagnostics[0].code, "cem.xpath.atomic_value_invalid");
+        }
+
+        for source in [
+            "round-half-to-even()",
+            "round-half-to-even($missing, 1, 2)",
+            "$missing => round-half-to-even(1, 2)",
+            "Q{urn:not-functions}round-half-to-even($missing)",
+        ] {
+            let diagnostics = evaluate_for_test(source, None, BTreeMap::new())
+                .expect_err("unknown expanded names or arities resolve before arguments run");
+            assert_eq!(diagnostics[0].code, "cem.xpath.evaluation_unsupported");
+            assert_ne!(diagnostics[0].code, "cem.xpath.variable_unbound");
+        }
+
+        for source in [
+            "round-half-to-even($missing)",
+            "round-half-to-even(1, $missing)",
+        ] {
+            let diagnostics = evaluate_for_test(source, None, BTreeMap::new())
+                .expect_err("supported calls propagate argument evaluation errors");
+            assert_eq!(diagnostics[0].code, "cem.xpath.variable_unbound");
+        }
+
+        let expanded_precision = XPathResultSequence {
+            sequence_type: "array(*)".to_owned(),
+            items: vec![XPathResultItem::Array {
+                members: vec![XPathResultSequence {
+                    sequence_type: "xs:integer+".to_owned(),
+                    items: vec![
+                        atomic_test_item("xs:integer", "1"),
+                        atomic_test_item("xs:integer", "2"),
+                    ],
+                }],
+                source_map: result_source_map(22, 1),
+            }],
+        };
+        let diagnostics = evaluate_for_test_with_limit(
+            "round-half-to-even(1, $precision)",
+            None,
+            BTreeMap::from([(
+                XPathExpandedName::unqualified("precision"),
+                expanded_precision,
+            )]),
+            Some(1),
+        )
+        .expect_err("precision atomization enforces evaluated sequence-item budgets");
         assert_eq!(
             diagnostics[0].code,
             "cem.xpath.sequence_item_limit_exceeded"
