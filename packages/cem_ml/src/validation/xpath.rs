@@ -985,14 +985,49 @@ impl XPathNativeNode {
                 .filter(|node| node.result_node_kind() == XPathResultNodeKind::Text)
                 .filter_map(|node| node.xml_event_ast().and_then(|event| event.value.clone()))
                 .collect(),
-            XPathResultNodeKind::Text
-            | XPathResultNodeKind::Comment
-            | XPathResultNodeKind::ProcessingInstruction => self
+            XPathResultNodeKind::Text | XPathResultNodeKind::Comment => self
                 .xml_event_ast()
                 .and_then(|event| event.value.clone())
                 .unwrap_or_default(),
+            XPathResultNodeKind::ProcessingInstruction => self
+                .xml_event_ast()
+                .and_then(|event| event.value.as_deref())
+                .map(|value| {
+                    value
+                        .char_indices()
+                        .find_map(|(offset, character)| {
+                            matches!(character, ' ' | '\t' | '\r' | '\n').then_some(offset)
+                        })
+                        .map(|offset| {
+                            value[offset..]
+                                .trim_start_matches(|character| {
+                                    matches!(character, ' ' | '\t' | '\r' | '\n')
+                                })
+                                .to_owned()
+                        })
+                        .unwrap_or_default()
+                })
+                .unwrap_or_default(),
             XPathResultNodeKind::Attribute => unreachable!("attributes return above"),
             XPathResultNodeKind::Namespace => String::new(),
+        }
+    }
+
+    fn typed_value(&self) -> XPathAtomicValue {
+        let type_name = match self.result_node_kind() {
+            XPathResultNodeKind::Document
+            | XPathResultNodeKind::Element
+            | XPathResultNodeKind::Attribute
+            | XPathResultNodeKind::Text => "xs:untypedAtomic",
+            XPathResultNodeKind::Comment
+            | XPathResultNodeKind::ProcessingInstruction
+            | XPathResultNodeKind::Namespace => "xs:string",
+        };
+        XPathAtomicValue {
+            type_name: type_name.to_owned(),
+            lexical_value: self.string_value(),
+            namespace_uri: None,
+            local_name: None,
         }
     }
 
@@ -2551,40 +2586,13 @@ fn xpath_atomize_cast_item(
         XPathResultItem::Node {
             native_node: Some(node),
             ..
-        } => Ok(XPathCastAtomic::Untyped(node.string_value())),
+        } => xpath_cast_atomic_value(&node.typed_value(), source_range),
         XPathResultItem::Node { .. } => Err(XPathEvaluationError::dynamic(
             "cem.xpath.native_node_missing",
             "XPath node atomization requires its retained native node handle",
             source_range,
         )),
-        XPathResultItem::Atomic { value, .. } => {
-            let comparable = xpath_comparable_atomic(value, source_range)?;
-            Ok(match (value.type_name.as_str(), comparable) {
-                ("xs:untypedAtomic", XPathComparableAtomic::Untyped(value)) => {
-                    XPathCastAtomic::Untyped(value)
-                }
-                ("xs:string", XPathComparableAtomic::String(value)) => {
-                    XPathCastAtomic::String(value)
-                }
-                ("xs:anyURI", XPathComparableAtomic::String(value)) => {
-                    XPathCastAtomic::AnyUri(value)
-                }
-                ("xs:boolean", XPathComparableAtomic::Boolean(value)) => {
-                    XPathCastAtomic::Boolean(value)
-                }
-                ("xs:integer", XPathComparableAtomic::Integer(value)) => {
-                    XPathCastAtomic::Integer(value)
-                }
-                ("xs:decimal", XPathComparableAtomic::Decimal(value)) => {
-                    XPathCastAtomic::Decimal(value)
-                }
-                ("xs:float", XPathComparableAtomic::Float(value)) => XPathCastAtomic::Float(value),
-                ("xs:double", XPathComparableAtomic::Double(value)) => {
-                    XPathCastAtomic::Double(value)
-                }
-                _ => unreachable!("native cast atomization preserves its validated source type"),
-            })
-        }
+        XPathResultItem::Atomic { value, .. } => xpath_cast_atomic_value(value, source_range),
         item => Err(XPathEvaluationError::unsupported(
             format!(
                 "XPath atomization for result item kind `{:?}` is outside the native atomic slice",
@@ -2593,6 +2601,26 @@ fn xpath_atomize_cast_item(
             source_range,
         )),
     }
+}
+
+fn xpath_cast_atomic_value(
+    value: &XPathAtomicValue,
+    source_range: XPathSourceRange,
+) -> Result<XPathCastAtomic, XPathEvaluationError> {
+    let comparable = xpath_comparable_atomic(value, source_range)?;
+    Ok(match (value.type_name.as_str(), comparable) {
+        ("xs:untypedAtomic", XPathComparableAtomic::Untyped(value)) => {
+            XPathCastAtomic::Untyped(value)
+        }
+        ("xs:string", XPathComparableAtomic::String(value)) => XPathCastAtomic::String(value),
+        ("xs:anyURI", XPathComparableAtomic::String(value)) => XPathCastAtomic::AnyUri(value),
+        ("xs:boolean", XPathComparableAtomic::Boolean(value)) => XPathCastAtomic::Boolean(value),
+        ("xs:integer", XPathComparableAtomic::Integer(value)) => XPathCastAtomic::Integer(value),
+        ("xs:decimal", XPathComparableAtomic::Decimal(value)) => XPathCastAtomic::Decimal(value),
+        ("xs:float", XPathComparableAtomic::Float(value)) => XPathCastAtomic::Float(value),
+        ("xs:double", XPathComparableAtomic::Double(value)) => XPathCastAtomic::Double(value),
+        _ => unreachable!("native cast atomization preserves its validated source type"),
+    })
 }
 
 fn xpath_cast_atomized_sequence(
@@ -3324,6 +3352,7 @@ enum XPathNativeFunction {
     True,
     False,
     String,
+    Data,
     AtomicConstructor(&'static str),
 }
 
@@ -3356,6 +3385,7 @@ fn xpath_native_function(name: &XPathName, arity: usize) -> Option<XPathNativeFu
         ("true", 0) => Some(XPathNativeFunction::True),
         ("false", 0) => Some(XPathNativeFunction::False),
         ("string", 0 | 1) => Some(XPathNativeFunction::String),
+        ("data", 0 | 1) => Some(XPathNativeFunction::Data),
         _ => None,
     }
 }
@@ -3434,6 +3464,21 @@ fn xpath_evaluate_function_call(
         )]);
     }
 
+    if function == XPathNativeFunction::Data && arguments.is_empty() {
+        let context_item = focus.context_item.ok_or_else(|| {
+            XPathEvaluationError::dynamic(
+                "cem.xpath.context_item_missing",
+                "err:XPDY0002: XPath fn:data() requires an available context item",
+                source_range,
+            )
+        })?;
+        return xpath_data_function_items(
+            std::slice::from_ref(context_item),
+            source_range,
+            evaluation_limits,
+        );
+    }
+
     let argument = arguments
         .first()
         .expect("resolved sequence functions have one argument");
@@ -3451,6 +3496,9 @@ fn xpath_evaluate_function_call(
             source_range,
             value,
         )]);
+    }
+    if function == XPathNativeFunction::Data {
+        return xpath_data_function_items(&items, argument.source_range, evaluation_limits);
     }
     if let XPathNativeFunction::AtomicConstructor(target) = function {
         debug_assert_eq!(name.local_name, target);
@@ -3509,6 +3557,9 @@ fn xpath_evaluate_function_call(
         }
         XPathNativeFunction::String => {
             unreachable!("string functions return after optional-item conversion")
+        }
+        XPathNativeFunction::Data => {
+            unreachable!("data functions return after sequence atomization")
         }
     };
     Ok(vec![result])
@@ -4058,6 +4109,49 @@ fn xpath_string_function_value(
             source_range,
         )),
     }
+}
+
+fn xpath_data_function_items(
+    items: &[XPathResultItem],
+    source_range: XPathSourceRange,
+    evaluation_limits: XPathEvaluationLimits,
+) -> Result<Vec<XPathResultItem>, XPathEvaluationError> {
+    let mut pending = items.iter().rev().collect::<Vec<_>>();
+    let mut result = Vec::new();
+    while let Some(item) = pending.pop() {
+        match item {
+            XPathResultItem::Atomic { .. } => result.push(item.clone()),
+            XPathResultItem::Node {
+                native_node: Some(node),
+                source_map,
+                ..
+            } => result.push(XPathResultItem::Atomic {
+                value: node.typed_value(),
+                source_map: source_map.clone(),
+            }),
+            XPathResultItem::Node { .. } => {
+                return Err(XPathEvaluationError::dynamic(
+                    "cem.xpath.native_node_missing",
+                    "XPath fn:data requires a retained native node handle",
+                    source_range,
+                ));
+            }
+            XPathResultItem::Array { members, .. } => {
+                for member in members.iter().rev() {
+                    pending.extend(member.items.iter().rev());
+                }
+            }
+            XPathResultItem::Map { .. } | XPathResultItem::Function { .. } => {
+                return Err(XPathEvaluationError::dynamic(
+                    "cem.xpath.data_function_item",
+                    "err:FOTY0013: XPath fn:data is not defined for maps or non-array function items",
+                    source_range,
+                ));
+            }
+        }
+        evaluation_limits.enforce_sequence_items(result.len(), source_range)?;
+    }
+    Ok(result)
 }
 
 fn xpath_numeric_result_item(
@@ -5240,7 +5334,7 @@ fn xpath_atomize_item(
         XPathResultItem::Node {
             native_node: Some(node),
             ..
-        } => Ok(XPathComparableAtomic::Untyped(node.string_value())),
+        } => xpath_comparable_atomic(&node.typed_value(), source_range),
         XPathResultItem::Node { .. } => Err(XPathEvaluationError::dynamic(
             "cem.xpath.native_node_missing",
             "XPath node atomization requires its retained native node handle",
@@ -12298,6 +12392,318 @@ mod tests {
         let diagnostics =
             evaluate_for_test_with_limit("string((1, 2))", None, BTreeMap::new(), Some(1))
                 .expect_err("string arguments enforce evaluated sequence-item budgets");
+        assert_eq!(
+            diagnostics[0].code,
+            "cem.xpath.sequence_item_limit_exceeded"
+        );
+    }
+
+    #[test]
+    fn xpath_native_data_function_atomizes_sequences_and_arrays_without_projection() {
+        let assert_values = |source: &str, expected: &[(&str, &str)]| {
+            let result = evaluate_for_test(source, None, BTreeMap::new())
+                .unwrap_or_else(|diagnostics| panic!("`{source}` failed: {diagnostics:?}"));
+            let actual = result
+                .sequence
+                .items
+                .iter()
+                .map(|item| match item {
+                    XPathResultItem::Atomic { value, .. } => {
+                        (value.type_name.as_str(), value.lexical_value.as_str())
+                    }
+                    _ => panic!("`{source}` returned a non-atomic item: {item:?}"),
+                })
+                .collect::<Vec<_>>();
+            assert_eq!(actual, expected, "`{source}`");
+        };
+
+        for (source, expected) in [
+            ("data(())", Vec::new()),
+            (
+                "fn:data((1, 'two'))",
+                vec![("xs:integer", "1"), ("xs:string", "two")],
+            ),
+            (
+                "Q{http://www.w3.org/2005/xpath-functions}data((1 eq 1))",
+                vec![("xs:boolean", "true")],
+            ),
+            (
+                "(1, 2) => data()",
+                vec![("xs:integer", "1"), ("xs:integer", "2")],
+            ),
+        ] {
+            assert_values(source, expected.as_slice());
+        }
+
+        let source = "data((1, 'two'))";
+        let result = evaluate_for_test(source, None, BTreeMap::new())
+            .expect("data preserves atomic items and their origins");
+        let [one, two] = result.sequence.items.as_slice() else {
+            panic!("data did not return two atomic items: {result:?}");
+        };
+        assert_eq!(
+            one.source_map().frames[0].span,
+            FrameSpan::Single(ByteRange::new(6, 1))
+        );
+        assert_eq!(
+            two.source_map().frames[0].span,
+            FrameSpan::Single(ByteRange::new(9, 5))
+        );
+
+        let date_binding = singleton_test_binding("xs:date", "2026-08-07");
+        let date_source_map = date_binding.items[0].source_map().clone();
+        let result = evaluate_for_test(
+            "data($value)",
+            None,
+            BTreeMap::from([(XPathExpandedName::unqualified("value"), date_binding)]),
+        )
+        .expect("data preserves atomic types outside the comparison kernel");
+        let [XPathResultItem::Atomic { value, source_map }] = result.sequence.items.as_slice()
+        else {
+            panic!("data did not preserve the bound atomic item: {result:?}");
+        };
+        assert_eq!(value.type_name, "xs:date");
+        assert_eq!(value.lexical_value, "2026-08-07");
+        assert_eq!(*source_map, date_source_map);
+
+        use crate::lifecycle::LoadedInputAstStream;
+        use crate::validation::xml::{
+            xml_document_ast_from_source_bytes, XmlSourceValidationRequest,
+        };
+        use std::sync::Arc;
+
+        let (document, diagnostics) =
+            xml_document_ast_from_source_bytes(XmlSourceValidationRequest {
+                bytes: br#"<root a="attribute">text<!--comment--><?target instruction?></root>"#,
+                source_uri: "memory://data-function.xml",
+                content_type: Some("application/xml"),
+            });
+        assert!(diagnostics.is_empty(), "{diagnostics:?}");
+        let owner = Arc::new(LoadedInputAstStream::XmlDocument(
+            document.expect("typed XML document"),
+        ));
+        let context_node =
+            XPathNativeNode::xml_document(Arc::clone(&owner)).expect("native XML document node");
+        let context_item = || XPathResultItem::from_native_node(context_node.clone());
+
+        for (source, expected_type, expected_value) in [
+            ("data()", "xs:untypedAtomic", "text"),
+            ("fn:data(/root)", "xs:untypedAtomic", "text"),
+            ("data(/root/@a)", "xs:untypedAtomic", "attribute"),
+            ("data(/root/text())", "xs:untypedAtomic", "text"),
+            ("data(/root/comment())", "xs:string", "comment"),
+            (
+                "data(/root/processing-instruction())",
+                "xs:string",
+                "instruction",
+            ),
+        ] {
+            let result = evaluate_for_test(source, Some(context_item()), BTreeMap::new())
+                .unwrap_or_else(|diagnostics| panic!("`{source}` failed: {diagnostics:?}"));
+            let [XPathResultItem::Atomic { value, .. }] = result.sequence.items.as_slice() else {
+                panic!("`{source}` did not return one atomic item: {result:?}");
+            };
+            assert_eq!(value.type_name, expected_type, "`{source}`");
+            assert_eq!(value.lexical_value, expected_value, "`{source}`");
+        }
+
+        let result = evaluate_for_test(
+            "string(/root/processing-instruction())",
+            Some(context_item()),
+            BTreeMap::new(),
+        )
+        .expect("string shares the XDM processing-instruction string value");
+        let [XPathResultItem::Atomic { value, .. }] = result.sequence.items.as_slice() else {
+            panic!("string did not return one atomic item: {result:?}");
+        };
+        assert_eq!(value.type_name, "xs:string");
+        assert_eq!(value.lexical_value, "instruction");
+
+        let node = evaluate_for_test("/root/@a", Some(context_item()), BTreeMap::new())
+            .expect("attribute node selection");
+        let result = evaluate_for_test(
+            "data($node)",
+            None,
+            BTreeMap::from([(
+                XPathExpandedName::unqualified("node"),
+                XPathResultSequence {
+                    sequence_type: "attribute()".to_owned(),
+                    items: node.sequence.items.clone(),
+                },
+            )]),
+        )
+        .expect("data maps a node typed value to the node origin");
+        assert_eq!(
+            result.sequence.items[0].source_map(),
+            node.sequence.items[0].source_map()
+        );
+
+        let nested_array = XPathResultItem::Array {
+            members: vec![
+                XPathResultSequence {
+                    sequence_type: "item()*".to_owned(),
+                    items: vec![
+                        atomic_test_item("xs:integer", "1"),
+                        atomic_test_item("xs:string", "two"),
+                    ],
+                },
+                XPathResultSequence {
+                    sequence_type: "array(*)".to_owned(),
+                    items: vec![XPathResultItem::Array {
+                        members: vec![XPathResultSequence {
+                            sequence_type: "xs:boolean".to_owned(),
+                            items: vec![atomic_test_item("xs:boolean", "true")],
+                        }],
+                        source_map: result_source_map(9, 2),
+                    }],
+                },
+            ],
+            source_map: result_source_map(9, 3),
+        };
+        let array_binding = XPathResultSequence {
+            sequence_type: "array(*)".to_owned(),
+            items: vec![nested_array],
+        };
+        let result = evaluate_for_test(
+            "data($value)",
+            None,
+            BTreeMap::from([(
+                XPathExpandedName::unqualified("value"),
+                array_binding.clone(),
+            )]),
+        )
+        .expect("data flattens array member sequences recursively in order");
+        assert_eq!(
+            result
+                .sequence
+                .items
+                .iter()
+                .map(|item| match item {
+                    XPathResultItem::Atomic { value, .. } => {
+                        (value.type_name.as_str(), value.lexical_value.as_str())
+                    }
+                    _ => panic!("data array result was not atomic: {item:?}"),
+                })
+                .collect::<Vec<_>>(),
+            [
+                ("xs:integer", "1"),
+                ("xs:string", "two"),
+                ("xs:boolean", "true"),
+            ]
+        );
+
+        let empty_array = XPathResultSequence {
+            sequence_type: "array(*)".to_owned(),
+            items: vec![XPathResultItem::Array {
+                members: Vec::new(),
+                source_map: result_source_map(9, 1),
+            }],
+        };
+        let result = evaluate_for_test(
+            "data($value)",
+            None,
+            BTreeMap::from([(XPathExpandedName::unqualified("value"), empty_array)]),
+        )
+        .expect("data maps an empty array to an empty sequence");
+        assert!(result.sequence.items.is_empty());
+
+        for (sequence_type, item) in [
+            (
+                "map(*)",
+                XPathResultItem::Map {
+                    entries: Vec::new(),
+                    source_map: result_source_map(9, 1),
+                },
+            ),
+            (
+                "function(*)",
+                XPathResultItem::Function {
+                    evaluator_id: "test".to_owned(),
+                    function_id: "test-function".to_owned(),
+                    name: None,
+                    arity: 0,
+                    signature: "function(*)".to_owned(),
+                    source_map: result_source_map(9, 1),
+                },
+            ),
+        ] {
+            let diagnostics = evaluate_for_test(
+                "data($value)",
+                None,
+                BTreeMap::from([(
+                    XPathExpandedName::unqualified("value"),
+                    XPathResultSequence {
+                        sequence_type: sequence_type.to_owned(),
+                        items: vec![item],
+                    },
+                )]),
+            )
+            .expect_err("data rejects maps and non-array function items");
+            assert_eq!(
+                diagnostics[0].code, "cem.xpath.data_function_item",
+                "`{sequence_type}`"
+            );
+            assert_eq!(diagnostics[0].byte_offset, Some(5), "`{sequence_type}`");
+            assert_eq!(
+                diagnostics[0]
+                    .source_map
+                    .as_ref()
+                    .expect("data function-item diagnostic source map")
+                    .frames[0]
+                    .span,
+                FrameSpan::Single(ByteRange::new(5, 6)),
+                "`{sequence_type}`"
+            );
+        }
+
+        let mut detached_node = context_item();
+        let XPathResultItem::Node { native_node, .. } = &mut detached_node else {
+            unreachable!("native nodes create XPath node result items")
+        };
+        *native_node = None;
+        let diagnostics = evaluate_for_test(
+            "data($detached)",
+            None,
+            BTreeMap::from([(
+                XPathExpandedName::unqualified("detached"),
+                XPathResultSequence {
+                    sequence_type: "node()".to_owned(),
+                    items: vec![detached_node],
+                },
+            )]),
+        )
+        .expect_err("data requires retained native node handles");
+        assert_eq!(diagnostics[0].code, "cem.xpath.native_node_missing");
+        assert_eq!(diagnostics[0].byte_offset, Some(5));
+
+        let diagnostics = evaluate_for_test("data()", None, BTreeMap::new())
+            .expect_err("zero-argument data requires a context item");
+        assert_eq!(diagnostics[0].code, "cem.xpath.context_item_missing");
+        assert_eq!(diagnostics[0].byte_offset, Some(0));
+
+        for source in [
+            "data($missing, 1)",
+            "$missing => data(1)",
+            "Q{urn:not-functions}data($missing)",
+        ] {
+            let diagnostics = evaluate_for_test(source, None, BTreeMap::new())
+                .expect_err("unknown expanded names or arities resolve before arguments run");
+            assert_eq!(diagnostics[0].code, "cem.xpath.evaluation_unsupported");
+            assert_ne!(diagnostics[0].code, "cem.xpath.variable_unbound");
+            assert_eq!(diagnostics[0].byte_offset, Some(0), "`{source}`");
+        }
+
+        let diagnostics = evaluate_for_test("data($missing)", None, BTreeMap::new())
+            .expect_err("supported data calls propagate argument evaluation errors");
+        assert_eq!(diagnostics[0].code, "cem.xpath.variable_unbound");
+
+        let diagnostics = evaluate_for_test_with_limit(
+            "data($value)",
+            None,
+            BTreeMap::from([(XPathExpandedName::unqualified("value"), array_binding)]),
+            Some(2),
+        )
+        .expect_err("data array expansion enforces evaluated sequence-item budgets");
         assert_eq!(
             diagnostics[0].code,
             "cem.xpath.sequence_item_limit_exceeded"
