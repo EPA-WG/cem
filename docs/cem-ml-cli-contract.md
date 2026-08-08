@@ -688,10 +688,11 @@ I/O messages, but they must not replace the underlying resolver code or URI.
 
 ## Query Runtime Boundary
 
-The library now defines the shared typed query request/result boundary. The
-`cem-ml query` command, CSS selector schema package, and CSS selector evaluator
-in this section remain target design until their later checklist items are
-complete.
+The library now defines the shared typed query request/result boundary. The CSS
+selector schema package, lossless parser, lifecycle element-tree adapter, and
+native evaluator implement the library side of this contract. The
+`cem-ml query` command and its query-source loading, routing, and exporter
+integration remain the next checklist item.
 
 `cem-ml query` will execute exactly one explicitly identified query source over
 one lifecycle-loaded data input. Query source may be inline or file-backed, but

@@ -90,6 +90,7 @@
                     "cargo test -p cem-ml css_selector_package -- --nocapture",
                     "cargo test -p cem-ml catalog_exposes_css_selector -- --nocapture",
                     "cargo test -p cem-ml --test schema_package_structure css_selector_package_is_schema_owned_nx_subproject -- --nocapture",
+                    "cargo test -p cem-ml --test css_selector --target-dir dist/target/cem_ml -- --nocapture",
                     "node packages/cem_ml/schema-packages/css-selector/v1/scripts/verify-previews.mjs"
                 ],
                 "parallel": false,
@@ -106,6 +107,7 @@
                 "{projectRoot}/examples/**/*",
                 "{projectRoot}/tests/**/*.cem",
                 "{workspaceRoot}/packages/cem_ml/src/**/*.rs",
+                "{workspaceRoot}/packages/cem_ml/tests/css_selector.rs",
                 "{workspaceRoot}/packages/cem_ml/tests/schema_package_structure.rs",
                 "{workspaceRoot}/packages/cem_ml/Cargo.toml",
                 "{workspaceRoot}/packages/cem_ml_cli/src/**/*.rs",

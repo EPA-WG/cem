@@ -37,6 +37,7 @@ pub mod cem_ast_projection;
 pub mod cem_dom_projection;
 pub mod cem_events_projection;
 pub mod css;
+pub mod css_selector;
 pub mod csv;
 pub(crate) mod diagnostics;
 pub mod generic_data;

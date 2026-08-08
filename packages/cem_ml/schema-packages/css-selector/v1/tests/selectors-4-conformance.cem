@@ -45,12 +45,12 @@
     }
     {conformance-feature
         @id="logical-pseudo-classes"
-        @status="planned"
+        @status="required"
         @requirement=":is() :where() and :not() consume nested typed selector lists"
     }
     {conformance-feature
         @id="relational-pseudo-class"
-        @status="planned"
+        @status="required"
         @requirement=":has() evaluates through explicit traversal work budgets"
         @diagnostic="css-selector.budget.exceeded"
     }

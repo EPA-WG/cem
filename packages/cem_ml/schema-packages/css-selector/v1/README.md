@@ -1,7 +1,8 @@
 # CSS Selector Schema Package
 
-Status: schema-owned query contract and package assets; parser, lifecycle loader,
-native evaluator, and CLI query execution are planned in the next checklist item
+Status: schema-owned query contract, package assets, native parser, lifecycle
+element-tree adapter, and evaluator implemented;
+CLI query-source loading and query execution remain planned
 
 This package owns standalone CSS selector query expressions. It is deliberately
 separate from the `css/v1` stylesheet package and never treats `text/css` or a
@@ -25,14 +26,14 @@ stylesheets and owned by `schema-packages/css/v1`.
 `schema/css-selector.cem` declaratively owns the typed selector resource,
 lossless token stream, selector list, compound/simple selector, combinator,
 namespace/static-context, request/result, native matched-node, source-map, fact,
-diagnostic, and conformance structures. Native code may later emit neutral facts
-and implement primitive parsing/matching, but it does not own severity or
+diagnostic, and conformance structures. Native code emits neutral facts and
+implements primitive parsing and matching, but it does not own severity or
 package-specific validation policy.
 
 The package declares `compact`, `pretty`, and `tabular` formatters plus
 `terminal`, `html`, and `md` colorizers. Their CEMT assets are registered now as
-deterministic lexical token-tree stages. Runtime invocation waits for the next
-slice to provide the package-owned selector AST/token subject; no private source
+deterministic lexical token-tree stages. Runtime invocation waits for the CLI
+slice to route the package-owned selector AST/token subject; no private source
 reparse or stylesheet AST substitution is permitted.
 
 The package-owned
@@ -43,7 +44,7 @@ must not move ahead of this matrix.
 
 ## Native Query Semantics
 
-The future evaluator consumes only a borrowed lifecycle-owned element-tree view.
+The native evaluator consumes only a borrowed lifecycle-owned element-tree view.
 Selector-list results eliminate duplicates by native identity and return nodes
 in lifecycle document order. Explicit host namespace bindings define prefixes;
 unbound prefixes fail. The evaluator must retain input/query owners, result item
@@ -97,10 +98,9 @@ the initial slice.
 
 `yarn nx run cem_ml_schema_package_css_selector_v1:verify` validates
 `package.cem`, checks the embedded package/catalog/profile contracts, runs the
-schema-package structure gate, and verifies the README source-only preview
-policy. The parser/evaluator checklist item will extend this target with
-lossless syntax, schema diagnostic, lifecycle loading, native matching, budget,
-and result identity tests before it is marked complete.
+schema-package structure gate and focused lossless syntax, schema diagnostic,
+lifecycle loading, native matching, budget, and result-identity tests, and
+verifies the README source-only preview policy.
 
 ## Examples
 

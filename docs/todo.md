@@ -67,19 +67,19 @@ mediate between internal layers.
           structure audit, CLI schema-package dependencies, converter parity,
           and release inputs without weakening the existing CSS stylesheet
           package.
-  - [ ] Implement CSS selector parsing, validation, and evaluation tests-first.
-    - [ ] Add focused failing Rust tests for lossless selector tokens and ranges,
+  - [x] Implement CSS selector parsing, validation, and evaluation tests-first.
+    - [x] Add focused failing Rust tests for lossless selector tokens and ranges,
           typed selector AST shape, namespaces, combinators, attribute matching,
           selector-list ordering, invalid syntax, unsupported features, and
           evaluator work-budget failures before adding manifest examples.
-    - [ ] Parse selector source once into a CEM-owned typed AST plus lossless
+    - [x] Parse selector source once into a CEM-owned typed AST plus lossless
           token stream; pin the normative selector baseline and maintain a
           schema-owned conformance/gap matrix instead of silently accepting a
           host library's unsupported or extended grammar.
-    - [ ] Emit neutral lexical, parse, namespace, host-association, capability,
+    - [x] Emit neutral lexical, parse, namespace, host-association, capability,
           and evaluation facts from Rust, with `schema/css-selector.cem` owning
           diagnostic codes, severity, behavior, policy, and validation modes.
-    - [ ] Evaluate selectors directly over borrowed lifecycle-owned element-tree
+    - [x] Evaluate selectors directly over borrowed lifecycle-owned element-tree
           views with deterministic document order and native identity. Do not
           require Chromium, construct browser DOM, reparse source, or project
           the tree through JSON.

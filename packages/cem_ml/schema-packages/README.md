@@ -294,17 +294,17 @@ expression transformation file.
 ### Shared Native Query Execution Contract
 
 The Rust query boundary now defines one typed request/result contract for CSS
-selectors, CEM-QL, and XPath. The CSS selector parser, evaluator, schema package,
-and `cem-ml query` command described below remain target design until their
-individual checklist items are complete.
+selectors, CEM-QL, and XPath. The CSS selector package, lossless parser,
+schema-projected validation, lifecycle element-tree adapter, and native
+evaluator are implemented. The `cem-ml query` command described below remains
+the next checklist item.
 
 The `css-selector/v1` subproject now owns the standalone selector schema,
 manifest examples, dated Selectors Level 4 conformance matrix, stable diagnostic
 vocabulary, and CEMT formatter/colorizer profiles. It is embedded in the Rust
 package catalog and included in the CLI schema-package dependency gates under
-the `.css-selector` authoring convention. Parsing, lifecycle loading, native
-evaluation, and CLI execution remain the next implementation slice; the package
-does not claim those runtime capabilities early.
+the `.css-selector` authoring convention. CLI query-source loading and execution
+remain the next implementation slice.
 
 Query source identity is always explicit. It is never inferred from source text:
 
@@ -324,18 +324,18 @@ with tokenization grounded in
 does not identify standalone selector expressions. The selector query package
 therefore has its own vendor content type and schema identity.
 
-The initial selector conformance contract covers type, universal, ID, class,
+The implemented selector conformance contract covers type, universal, ID, class,
 attribute, compound, complex, and selector-list matching; descendant, child,
 next-sibling, and subsequent-sibling combinators; and explicitly bound namespace
-prefixes. It stages the tree-derived pseudo-classes `:root`, `:empty`, `:scope`,
-the child and type index families, and the logical `:is()`, `:where()`, `:not()`,
-and budget-bounded `:has()`. A package-owned conformance matrix must identify
-each production as supported, unsupported, or capability-gated before parser
-acceptance is enabled. Pseudo-elements, the at-risk column combinator, unknown
-extensions, and UI, browsing, resource, link-history, shadow-tree, or host-state
-pseudo-classes are not silently treated as non-matches: they produce stable
-unsupported-feature or missing-capability facts until a lifecycle input adapter
-advertises the required semantics.
+prefixes, the logical `:is()`, `:where()`, and `:not()` pseudo-classes, and
+budget-bounded `:has()`. It stages the tree-derived pseudo-classes `:root`,
+`:empty`, `:scope`, and the child and type index families. The package-owned
+conformance matrix identifies each production as supported, unsupported, or
+capability-gated before parser acceptance is enabled. Pseudo-elements, the
+at-risk column combinator, unknown extensions, and UI, browsing, resource,
+link-history, shadow-tree, or host-state pseudo-classes are not silently treated
+as non-matches: they produce stable unsupported-feature or missing-capability
+facts until a lifecycle input adapter advertises the required semantics.
 
 Namespace prefixes come only from the request's explicit host bindings. An
 undeclared prefix is an error. The default namespace applies to type and

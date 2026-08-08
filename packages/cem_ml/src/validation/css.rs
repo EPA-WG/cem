@@ -623,6 +623,17 @@ fn collect_cssparser_events<'i, 't>(
     }
 }
 
+pub(crate) fn css_syntax_lossless_events(source: &str) -> (Vec<CssEventAst>, Vec<CssFact>) {
+    let line_index = LineIndex::from_utf8(source);
+    let mut parser_input = ParserInput::new(source);
+    let mut parser = Parser::new(&mut parser_input);
+    let mut events = Vec::new();
+    let mut facts = Vec::new();
+    collect_cssparser_events(&mut parser, source, &line_index, 0, &mut events, &mut facts);
+    normalize_lossless_events(source, &line_index, &mut events);
+    (events, facts)
+}
+
 fn css_token_metadata(token: &Token<'_>) -> CssTokenMetadata {
     let (token_kind, value, recovered, closing) = match token {
         Token::Ident(value) => ("ident", Some(value.to_string()), false, None),

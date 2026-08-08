@@ -1108,9 +1108,7 @@ fn schema_package_preview_and_validation_paths_track_source_boundaries() {
             }
         } else if package_id == "css-selector" {
             assert!(
-                readme.contains(
-                    "parser, lifecycle loader,\nnative evaluator, and CLI query execution are planned"
-                ),
+                readme.contains("CLI query-source loading and query execution remain planned"),
                 "CSS selector package must declare why runtime CLI example validation is deferred"
             );
         } else {
