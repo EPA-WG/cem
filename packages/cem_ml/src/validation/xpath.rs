@@ -3355,6 +3355,7 @@ enum XPathNativeFunction {
     Data,
     Number,
     Abs,
+    Ceiling,
     AtomicConstructor(&'static str),
 }
 
@@ -3390,6 +3391,7 @@ fn xpath_native_function(name: &XPathName, arity: usize) -> Option<XPathNativeFu
         ("data", 0 | 1) => Some(XPathNativeFunction::Data),
         ("number", 0 | 1) => Some(XPathNativeFunction::Number),
         ("abs", 1) => Some(XPathNativeFunction::Abs),
+        ("ceiling", 1) => Some(XPathNativeFunction::Ceiling),
         _ => None,
     }
 }
@@ -3549,6 +3551,23 @@ fn xpath_evaluate_function_call(
             xpath_numeric_absolute(value),
         )]);
     }
+    if function == XPathNativeFunction::Ceiling {
+        let Some(value) = xpath_numeric_function_operand(
+            &items,
+            argument.source_range,
+            evaluation_limits,
+            "fn:ceiling",
+            "cem.xpath.ceiling_function_item",
+        )?
+        else {
+            return Ok(Vec::new());
+        };
+        return Ok(vec![xpath_numeric_result_item(
+            expression,
+            source_range,
+            xpath_numeric_ceiling(value),
+        )]);
+    }
     if let XPathNativeFunction::AtomicConstructor(target) = function {
         debug_assert_eq!(name.local_name, target);
         let atomized = xpath_atomize_cast_sequence(&items, source_range)?;
@@ -3614,6 +3633,9 @@ fn xpath_evaluate_function_call(
             unreachable!("number functions return after optional atomic conversion")
         }
         XPathNativeFunction::Abs => {
+            unreachable!("numeric functions return after optional numeric conversion")
+        }
+        XPathNativeFunction::Ceiling => {
             unreachable!("numeric functions return after optional numeric conversion")
         }
     };
@@ -5167,6 +5189,23 @@ fn xpath_numeric_absolute(value: XPathComparableAtomic) -> XPathComparableAtomic
         xpath_numeric_negate(value)
     } else {
         value
+    }
+}
+
+fn xpath_numeric_ceiling(value: XPathComparableAtomic) -> XPathComparableAtomic {
+    match value {
+        XPathComparableAtomic::Integer(value) => XPathComparableAtomic::Integer(value),
+        XPathComparableAtomic::Decimal(value) => {
+            let truncated = value.truncated();
+            if value.negative || value.scale == 0 {
+                XPathComparableAtomic::Decimal(truncated)
+            } else {
+                XPathComparableAtomic::Decimal(truncated.add(&XPathExactDecimal::from_u64(1)))
+            }
+        }
+        XPathComparableAtomic::Float(value) => XPathComparableAtomic::Float(value.ceil()),
+        XPathComparableAtomic::Double(value) => XPathComparableAtomic::Double(value.ceil()),
+        _ => unreachable!("numeric functions require native numeric values"),
     }
 }
 
@@ -13456,6 +13495,287 @@ mod tests {
             Some(1),
         )
         .expect_err("abs array atomization enforces evaluated sequence-item budgets");
+        assert_eq!(
+            diagnostics[0].code,
+            "cem.xpath.sequence_item_limit_exceeded"
+        );
+    }
+
+    #[test]
+    fn xpath_native_ceiling_function_rounds_optional_numeric_values_upward() {
+        let assert_ceiling = |source: &str,
+                              context_item: Option<XPathResultItem>,
+                              bindings: XPathVariableBindings,
+                              expected: Option<(&str, &str)>| {
+            let result = evaluate_for_test(source, context_item, bindings)
+                .unwrap_or_else(|diagnostics| panic!("`{source}` failed: {diagnostics:?}"));
+            let Some((expected_type, expected_lexical)) = expected else {
+                assert!(result.sequence.items.is_empty(), "`{source}`: {result:?}");
+                assert_eq!(
+                    result.sequence.sequence_type, "empty-sequence()",
+                    "`{source}`"
+                );
+                return;
+            };
+            let [XPathResultItem::Atomic { value, source_map }] = result.sequence.items.as_slice()
+            else {
+                panic!("`{source}` did not return one atomic item: {result:?}");
+            };
+            assert_eq!(result.sequence.sequence_type, expected_type, "`{source}`");
+            assert_eq!(value.type_name, expected_type, "`{source}`");
+            assert_eq!(value.lexical_value, expected_lexical, "`{source}`");
+            assert_eq!(
+                source_map.frames[0].span,
+                FrameSpan::Single(ByteRange::new(0, source.len() as u32)),
+                "`{source}`"
+            );
+        };
+
+        for (source, expected_type, expected_lexical) in [
+            ("ceiling(5)", "xs:integer", "5"),
+            ("fn:ceiling(2.01)", "xs:decimal", "3"),
+            (
+                "Q{http://www.w3.org/2005/xpath-functions}ceiling(-2.99)",
+                "xs:decimal",
+                "-2",
+            ),
+            ("-3.2e0 => ceiling()", "xs:double", "-3"),
+            (
+                "ceiling(999999999999999999999999999999.0001)",
+                "xs:decimal",
+                "1000000000000000000000000000000",
+            ),
+            (
+                "ceiling(-999999999999999999999999999999.9999)",
+                "xs:decimal",
+                "-999999999999999999999999999999",
+            ),
+        ] {
+            assert_ceiling(
+                source,
+                None,
+                BTreeMap::new(),
+                Some((expected_type, expected_lexical)),
+            );
+        }
+        assert_ceiling("ceiling(())", None, BTreeMap::new(), None);
+
+        let bindings = BTreeMap::from([
+            (
+                XPathExpandedName::unqualified("float"),
+                singleton_test_binding("xs:float", "2.25"),
+            ),
+            (
+                XPathExpandedName::unqualified("negative-small"),
+                singleton_test_binding("xs:float", "-0.25"),
+            ),
+            (
+                XPathExpandedName::unqualified("negative-zero"),
+                singleton_test_binding("xs:double", "-0"),
+            ),
+            (
+                XPathExpandedName::unqualified("infinity"),
+                singleton_test_binding("xs:float", "-INF"),
+            ),
+            (
+                XPathExpandedName::unqualified("nan"),
+                singleton_test_binding("xs:double", "NaN"),
+            ),
+            (
+                XPathExpandedName::unqualified("untyped"),
+                singleton_test_binding("xs:untypedAtomic", " 7.01 "),
+            ),
+        ]);
+        for (source, expected_type, expected_lexical) in [
+            ("ceiling($float)", "xs:float", "3"),
+            ("ceiling($negative-small)", "xs:float", "-0"),
+            ("ceiling($negative-zero)", "xs:double", "-0"),
+            ("ceiling($infinity)", "xs:float", "-INF"),
+            ("ceiling($nan)", "xs:double", "NaN"),
+            ("$untyped => ceiling()", "xs:double", "8"),
+        ] {
+            assert_ceiling(
+                source,
+                None,
+                bindings.clone(),
+                Some((expected_type, expected_lexical)),
+            );
+        }
+
+        use crate::lifecycle::LoadedInputAstStream;
+        use crate::validation::xml::{
+            xml_document_ast_from_source_bytes, XmlSourceValidationRequest,
+        };
+        use std::sync::Arc;
+
+        let (document, diagnostics) =
+            xml_document_ast_from_source_bytes(XmlSourceValidationRequest {
+                bytes: br#"<root><value>-12.5</value><invalid>nope</invalid></root>"#,
+                source_uri: "memory://ceiling-function.xml",
+                content_type: Some("application/xml"),
+            });
+        assert!(diagnostics.is_empty(), "{diagnostics:?}");
+        let owner = Arc::new(LoadedInputAstStream::XmlDocument(
+            document.expect("typed XML document"),
+        ));
+        let context_node = XPathNativeNode::xml_document(owner).expect("native XML document node");
+        let context_item = || XPathResultItem::from_native_node(context_node.clone());
+        assert_ceiling(
+            "ceiling(/root/value)",
+            Some(context_item()),
+            BTreeMap::new(),
+            Some(("xs:double", "-12")),
+        );
+
+        let diagnostics = evaluate_for_test(
+            "ceiling(/root/invalid)",
+            Some(context_item()),
+            BTreeMap::new(),
+        )
+        .expect_err("invalid untyped numeric function input must fail conversion");
+        assert_eq!(
+            diagnostics[0].code,
+            "cem.xpath.numeric_function_cast_invalid"
+        );
+        assert_eq!(diagnostics[0].byte_offset, Some(8));
+
+        let nested_array = XPathResultSequence {
+            sequence_type: "array(*)".to_owned(),
+            items: vec![XPathResultItem::Array {
+                members: vec![XPathResultSequence {
+                    sequence_type: "array(*)".to_owned(),
+                    items: vec![XPathResultItem::Array {
+                        members: vec![singleton_test_binding("xs:decimal", "1.1")],
+                        source_map: result_source_map(9, 2),
+                    }],
+                }],
+                source_map: result_source_map(9, 3),
+            }],
+        };
+        assert_ceiling(
+            "ceiling($value)",
+            None,
+            BTreeMap::from([(XPathExpandedName::unqualified("value"), nested_array)]),
+            Some(("xs:decimal", "2")),
+        );
+
+        let diagnostics = evaluate_for_test(
+            "ceiling($value)",
+            None,
+            BTreeMap::from([(
+                XPathExpandedName::unqualified("value"),
+                XPathResultSequence {
+                    sequence_type: "map(*)".to_owned(),
+                    items: vec![XPathResultItem::Map {
+                        entries: Vec::new(),
+                        source_map: result_source_map(9, 1),
+                    }],
+                },
+            )]),
+        )
+        .expect_err("ceiling rejects failed function-item atomization");
+        assert_eq!(diagnostics[0].code, "cem.xpath.ceiling_function_item");
+        assert!(diagnostics[0].message.contains("err:FOTY0013"));
+        assert_eq!(diagnostics[0].byte_offset, Some(8));
+
+        let diagnostics = evaluate_for_test("ceiling((1, 2))", None, BTreeMap::new())
+            .expect_err("ceiling requires optional-singleton atomized input");
+        assert_eq!(
+            diagnostics[0].code,
+            "cem.xpath.numeric_function_cardinality"
+        );
+        assert!(diagnostics[0].message.contains("err:XPTY0004"));
+        assert_eq!(diagnostics[0].byte_offset, Some(8));
+        assert_eq!(
+            diagnostics[0]
+                .source_map
+                .as_ref()
+                .expect("ceiling cardinality diagnostic source map")
+                .frames[0]
+                .span,
+            FrameSpan::Single(ByteRange::new(8, 6))
+        );
+
+        let diagnostics = evaluate_for_test(
+            "ceiling($value)",
+            None,
+            BTreeMap::from([(
+                XPathExpandedName::unqualified("value"),
+                singleton_test_binding("xs:string", "2.5"),
+            )]),
+        )
+        .expect_err("ceiling rejects non-numeric inputs");
+        assert_eq!(diagnostics[0].code, "cem.xpath.numeric_function_type_error");
+        assert_eq!(diagnostics[0].byte_offset, Some(8));
+
+        let mut detached_node = context_item();
+        let XPathResultItem::Node { native_node, .. } = &mut detached_node else {
+            unreachable!("native nodes create XPath node result items")
+        };
+        *native_node = None;
+        let diagnostics = evaluate_for_test(
+            "ceiling($detached)",
+            None,
+            BTreeMap::from([(
+                XPathExpandedName::unqualified("detached"),
+                XPathResultSequence {
+                    sequence_type: "node()".to_owned(),
+                    items: vec![detached_node],
+                },
+            )]),
+        )
+        .expect_err("ceiling requires retained native node handles");
+        assert_eq!(diagnostics[0].code, "cem.xpath.native_node_missing");
+        assert_eq!(diagnostics[0].byte_offset, Some(8));
+
+        let diagnostics = evaluate_for_test(
+            "ceiling($value)",
+            None,
+            BTreeMap::from([(
+                XPathExpandedName::unqualified("value"),
+                singleton_test_binding("xs:decimal", "not-a-decimal"),
+            )]),
+        )
+        .expect_err("invalid retained numeric values remain an internal type error");
+        assert_eq!(diagnostics[0].code, "cem.xpath.atomic_value_invalid");
+
+        for source in [
+            "ceiling()",
+            "ceiling($missing, 1)",
+            "$missing => ceiling(1)",
+            "Q{urn:not-functions}ceiling($missing)",
+        ] {
+            let diagnostics = evaluate_for_test(source, None, BTreeMap::new())
+                .expect_err("unknown expanded names or arities resolve before arguments run");
+            assert_eq!(diagnostics[0].code, "cem.xpath.evaluation_unsupported");
+            assert_ne!(diagnostics[0].code, "cem.xpath.variable_unbound");
+            assert_eq!(diagnostics[0].byte_offset, Some(0), "`{source}`");
+        }
+
+        let diagnostics = evaluate_for_test("ceiling($missing)", None, BTreeMap::new())
+            .expect_err("supported ceiling calls propagate argument evaluation errors");
+        assert_eq!(diagnostics[0].code, "cem.xpath.variable_unbound");
+
+        let expanded_array = XPathResultSequence {
+            sequence_type: "array(*)".to_owned(),
+            items: vec![XPathResultItem::Array {
+                members: vec![XPathResultSequence {
+                    sequence_type: "xs:integer+".to_owned(),
+                    items: vec![
+                        atomic_test_item("xs:integer", "1"),
+                        atomic_test_item("xs:integer", "2"),
+                    ],
+                }],
+                source_map: result_source_map(9, 1),
+            }],
+        };
+        let diagnostics = evaluate_for_test_with_limit(
+            "ceiling($value)",
+            None,
+            BTreeMap::from([(XPathExpandedName::unqualified("value"), expanded_array)]),
+            Some(1),
+        )
+        .expect_err("ceiling array atomization enforces evaluated sequence-item budgets");
         assert_eq!(
             diagnostics[0].code,
             "cem.xpath.sequence_item_limit_exceeded"
