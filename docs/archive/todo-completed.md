@@ -1,10 +1,10 @@
-# Todo History Through 2026-08-06
+# Todo History Through 2026-08-08
 
-This is the archived execution-checklist snapshot that preceded the focused
-active checklist in [`../todo.md`](../todo.md). It preserves implementation
-rationale, verification evidence, and original checkbox state for searchability.
-Unchecked entries here are historical context, not active instructions; current
-work is authoritative only in [`../todo.md`](../todo.md).
+This archive preserves completed execution checklists through 2026-08-08,
+including implementation rationale, verification evidence, and original
+checkbox state for searchability. Unchecked entries here are historical context,
+not active instructions; current work is authoritative only in
+[`../todo.md`](../todo.md).
 
 Product/module sequencing lives in [`../../roadmap.md`](../../roadmap.md), and
 future wishlist work lives in [`../wishlist.md`](../wishlist.md).
@@ -1453,6 +1453,458 @@ evidence that future changes still need:
 The dedicated-archive recommendation was accepted and applied on 2026-08-06.
 The active checklist now retains only actionable/deferred work and durable gates,
 while this document preserves the prior execution narratives and evidence.
+
+## Completed Work — XPath 3.1 Compiler and Evaluator
+
+Archived from the active checklist on 2026-08-08 after the XPath/XSLT package,
+schema-package structure, converter parity, CLI e2e, native lint/test, WASM,
+and CEM core release gates passed.
+
+- [x] Complete XPath 3.1 execution on the existing CEM-owned typed XPath AST
+      and lossless token stream.
+  - [x] Implement a CEM-owned XPath 3.1 compiler and evaluator. Treat W3C XPath
+        3.1, XDM 3.1, and Functions and Operators 3.1 as normative; use the
+        pinned Xee source only as a non-normative implementation reference;
+        target native and WASM; and route documents, collections, unparsed text,
+        environment, time, randomness, recursion, cancellation, and work budgets
+        through explicit CEM resolver/safety capabilities.
+    - [x] Establish the first native evaluator slice: retain the exact lifecycle
+          XML AST owner and typed node handle in context/results, execute package
+          AST literals, variables, context items, and child/name-test paths
+          directly, reject unsupported semantics deterministically, and prove no
+          serializer, projection DTO, source reparse, or replacement tree enters
+          the evaluator boundary.
+    - [x] Extend the native evaluator over the retained lifecycle XML owner with
+          attribute, parent, descendant, and descendant-or-self axes; path-result
+          identity deduplication and document ordering; predicate item/position/
+          size focus; numeric and effective-boolean-value filtering; and exact
+          untyped/string general equality, without a serializer, DTO, source
+          reparse, or evaluator-owned replacement tree.
+    - [x] Complete retained-owner structural navigation with ancestor,
+          ancestor-or-self, following, following-sibling, preceding, and
+          preceding-sibling axes; reverse-axis predicate focus; postfix filter
+          predicates; and native `position()`/`last()` focus functions, while
+          leaving the optional namespace axis and atomic coercions explicit.
+    - [x] Establish the exact native atomic comparison kernel: represent
+          integers and decimals with unbounded normalized coefficient/scale
+          values; atomize retained XML nodes without projection; implement
+          XPath 3.1 general and value comparisons across supported string,
+          URI, boolean, untyped, decimal, float, and double values; and preserve
+          cardinality, coercion, promotion, NaN, and source-map semantics
+          without a serializer or intermediate DTO.
+    - [x] Execute XPath `and` and `or` directly on the owned expression AST:
+          apply the existing effective-boolean-value kernel to each required
+          operand, short-circuit deterministically from left to right, retain
+          expression source maps on typed boolean results and operand errors,
+          and never evaluate a skipped branch or cross a serialized boundary.
+    - [x] Execute XPath node comparisons directly on retained native node
+          identity: implement `is` across owners and same-owner `<<`/`>>`,
+          enforce optional-singleton node operands with exact operand source
+          maps, preserve empty-sequence propagation, and reject cross-owner
+          ordering until the host defines a stable multi-document order.
+    - [x] Execute XPath `union`/`|`, `intersect`, and `except` directly on
+          retained native node sequences: enforce node-only operands, preserve
+          identity deduplication and same-owner document order, retain native
+          source maps, and reject only results that need undefined cross-owner
+          ordering rather than introducing a serializer or synthetic tree.
+    - [x] Execute XPath string concatenation (`||`) directly on the owned
+          expression AST: atomize each optional-singleton operand, treat empty
+          operands as zero-length strings, cast supported native atomic values
+          to `xs:string` with XPath 3.1 lexical rules, retain exact result and
+          operand source maps, and never introduce a serializer or DTO.
+    - [x] Establish the type-preserving native arithmetic core: model unary
+          signs in the owned expression AST; execute unary `+`/`-` and binary
+          `+`/`-`/`*` over optional-singleton atomized operands; preserve exact
+          integer/decimal values, XPath numeric promotion, IEEE float/double
+          behavior, and exact source maps; and keep division and range budget
+          policy as explicit follow-up work without a serializer or DTO.
+    - [x] Establish the typed XPath sequence-item budget and native range
+          operator: promote inherited `xpathItems` scope budgets into evaluator
+          limits with no hidden default; require an explicit limit for `to`;
+          apply function conversion to `xs:integer?`; materialize exact,
+          inclusive integer sequences only within the limit; preserve source
+          maps and deterministic diagnostics; and thread the limit through
+          standalone and host invocation paths without serialization or a DTO.
+    - [x] Execute XPath `idiv` and `mod` directly on typed numeric values:
+          reuse optional-singleton atomization and numeric promotion; calculate
+          unbounded integer/decimal quotients and remainders exactly with
+          truncation toward zero; preserve float/double NaN, infinity, and
+          signed-zero behavior; report FOAR0001/FOAR0002-class failures with
+          exact source maps; and leave decimal `div` precision policy explicit
+          without introducing serialization or an intermediate DTO.
+    - [x] Execute XPath `div` directly on typed numeric values: preserve exact
+          terminating integer/decimal quotients, round repeating quotients to
+          18 significant digits with round-half-even, retain IEEE float/double
+          NaN, infinity, and signed-zero behavior, return `xs:decimal` for exact
+          numeric division, and report exact-numeric zero divisors with
+          FOAR0001-class source maps without serialization or an intermediate
+          DTO.
+    - [x] Execute typed single-binding XPath `for` expressions directly: evaluate
+          the binding sequence once, bind each item as an expanded-QName
+          singleton with lexical shadowing, concatenate return results in order
+          without changing the outer focus, preserve native owners and exact
+          source maps, skip returns for an empty binding sequence, and enforce
+          the cumulative `xpathItems` limit without serialization or a DTO.
+    - [x] Lower comma-separated XPath `for` bindings into nested typed `For`
+          nodes: retain the complete expression range on the outer node and the
+          `$binding`-through-return suffix on each inner node; evaluate later
+          bindings in dependent lexical scope and Cartesian binding order; skip
+          dependent work after an empty binding; preserve native owners, item
+          source maps, and diagnostics; and enforce cumulative `xpathItems`
+          budgets without a new AST variant, serialization, or a DTO.
+    - [x] Execute typed XPath `let` expressions directly: lower one or more
+          comma-separated bindings into nested typed `Let` nodes with complete
+          outer and `$binding`-suffix ranges; evaluate and bind each complete
+          sequence once; expose earlier sequences to dependent later bindings;
+          evaluate each return exactly once even for an empty binding; preserve
+          lexical shadowing, outer focus, native owners, item source maps, and
+          exact diagnostics; and enforce `xpathItems` budgets without
+          serialization, a DTO, or a replacement tree.
+    - [x] Execute typed XPath conditional expressions directly: model the
+          condition as an owned expression sequence and both branches as typed
+          expression nodes; evaluate the condition once through native
+          effective-boolean-value rules; execute exactly one branch; preserve
+          outer focus, native owners, item source maps, and exact condition and
+          branch diagnostics; enforce `xpathItems` budgets only for evaluated
+          work; and avoid serialization, a DTO, or a replacement tree.
+    - [x] Execute typed XPath `some` and `every` expressions directly: lower
+          comma-separated bindings into nested same-quantifier nodes with
+          complete outer and `$binding`-suffix ranges; bind each item as an
+          expanded-QName singleton in dependent lexical scope and Cartesian
+          order; apply native effective-boolean-value rules to required
+          `satisfies` tuples; short-circuit decisive results; preserve vacuous
+          empty-binding truth, outer focus, shadowing, native owners, exact
+          source maps and diagnostics, and evaluated-work `xpathItems` budgets;
+          and avoid serialization, a DTO, or a replacement tree.
+    - [x] Execute typed XPath simple-map (`!`) expressions directly: model each
+          grammar node as one input path plus an ordered vector of mapping
+          paths; preserve its tighter-than-unary precedence and exact parent and
+          operand ranges; evaluate each stage left to right with item, position,
+          and size focus; concatenate results without path normalization,
+          identity deduplication, or document sorting; skip all remaining work
+          after an empty stage; preserve bindings, native owners, item source
+          maps, exact diagnostics, duplicates, and evaluated intermediate/output
+          `xpathItems` budgets; and avoid serialization, a DTO, or a replacement
+          tree.
+    - [x] Establish native XPath function dispatch keyed by expanded QName and
+          arity: route `position`, `last`, `count`, `exists`, `empty`, `boolean`,
+          and `not` through one dispatcher; resolve a supported signature before
+          argument evaluation; preserve focus, effective-boolean-value, exact
+          result and argument source maps, namespace isolation, deterministic
+          unsupported-signature diagnostics, and evaluated-work `xpathItems`
+          budgets; and avoid serialization or an intermediate DTO.
+    - [x] Execute named XPath arrow expressions through canonical function-call
+          lowering: insert the left operand as argument zero, fold chains from
+          left to right with exact prefix and outer ranges, and preserve normal
+          grammar precedence. Lower variable and parenthesized specifiers into
+          the existing dynamic postfix-call form, keep their execution
+          fail-closed until function items exist, and avoid a dedicated arrow
+          AST, serialization, or an intermediate DTO.
+    - [x] Establish the CEM-owned XPath sequence-type matcher and execute
+          `instance of` and `treat as` directly: model `empty-sequence()`,
+          `item()`, parenthesized item types, supported atomic EQNames,
+          unconstrained native node-kind tests, and `?`/`*`/`+` occurrence
+          indicators with exact ranges and grammar precedence; match native
+          cardinality, atomic subtype, and retained node-kind identity; return
+          typed booleans or original treated items without rewriting source maps
+          or owners; and reject unsupported atomic, constrained/schema-aware,
+          function, map, and array types before operand evaluation without
+          parsing derived result-type strings or crossing a serialized boundary.
+    - [x] Execute typed XPath `cast as` and `castable as` through a closed native
+          atomic conversion matrix: model `SingleType` EQNames and optional-empty
+          indicators with exact ranges and grammar precedence; validate the eight
+          concrete `xs:untypedAtomic`, string, boolean, integer, decimal, float,
+          double, and anyURI targets before operand evaluation; atomize retained
+          nodes and singleton atomic values directly; preserve exact unbounded
+          integer/decimal values, deterministic binary-float conversion, XML
+          whitespace and lexical rules, primitive source/target restrictions,
+          full-expression result maps, and optional-empty behavior; return false
+          from `castable as` only for cast/cardinality failure while propagating
+          operand and atomization errors; and reject abstract, derived,
+          namespace-sensitive, schema-defined, list, and union targets without a
+          serializer, derived result-type parser, or intermediate DTO.
+    - [x] Execute the matching closed XML Schema constructor-function slice:
+          resolve one-argument expanded QNames for `xs:untypedAtomic`, string,
+          boolean, integer, decimal, float, double, and anyURI before argument
+          evaluation; reuse the native optional cast atomization and conversion
+          kernel for direct calls and named arrows; return empty for an empty
+          argument; preserve full-call result and conversion source maps, native
+          owners, exact numeric/lexical behavior, argument errors, and evaluated
+          work budgets; and keep abstract, derived, namespace-sensitive,
+          schema-defined, list, and union constructors fail-closed without a
+          serializer, duplicate conversion path, or intermediate DTO.
+    - [x] Complete the native XPath boolean constant function signatures:
+          dispatch unprefixed, `fn:`-prefixed, and EQName `true()` and `false()`
+          calls by expanded QName and zero arity; return typed booleans with
+          full-call source maps without requiring focus or evaluating arguments;
+          reject wrong arities before direct or arrow-lowered operands run; and
+          avoid a special parser form, serializer, or intermediate DTO.
+    - [x] Execute both native XPath `fn:string` signatures: dispatch zero- and
+          one-argument unprefixed, `fn:`-prefixed, EQName, and named-arrow calls
+          by expanded QName and arity; use the context item only for the zero-
+          argument signature; return the retained string value of native nodes
+          and canonical lexical values for supported atomic items; preserve
+          empty optional-item behavior, full-call result maps, exact argument
+          diagnostics, and evaluated-work budgets; reject missing focus,
+          multiple items, detached nodes, function items (including maps and
+          arrays), unsupported atomics, and wrong arities without serialization,
+          atomization shortcuts, or an intermediate DTO.
+    - [x] Execute both native XPath `fn:data` signatures: dispatch zero- and
+          one-argument unprefixed, `fn:`-prefixed, EQName, and named-arrow calls
+          by expanded QName and arity; preserve atomic values and item-origin
+          maps; expose the exact XDM typed values of retained schema-untyped XML
+          node kinds; flatten nested array member sequences iteratively in
+          order; preserve empty results and evaluated-work budgets; reject
+          missing focus, detached nodes, maps and non-array function items, and
+          wrong arities before arguments run; and leave schema-aware absent or
+          multi-valued node typed values outside the lifecycle XML slice without
+          serialization, recursive host risk, or an intermediate DTO.
+    - [x] Execute both native XPath `fn:number` signatures: dispatch zero- and
+          one-argument unprefixed, `fn:`-prefixed, EQName, and named-arrow calls
+          by expanded QName and arity; apply native `fn:data` atomization,
+          including ordered array flattening, before optional-singleton function
+          conversion; reuse the closed primitive cast-to-double kernel; return
+          canonical `xs:double` values and `NaN` for empty or non-convertible
+          atomic inputs; preserve full-call result maps and evaluated-work
+          budgets; reject missing focus, detached nodes, failed function-item
+          atomization, excess cardinality, invalid retained atomic values, and
+          wrong arities before arguments run; and leave schema-derived atomic
+          conversion outside the native primitive slice without serialization,
+          a duplicate numeric parser, or an intermediate DTO.
+    - [x] Execute native XPath `fn:abs`: dispatch one-argument unprefixed,
+          `fn:`-prefixed, EQName, and named-arrow calls by expanded QName and
+          arity; apply numeric optional-singleton function conversion through
+          ordered native atomization, including array flattening and
+          untyped-atomic conversion to `xs:double`; preserve primitive integer,
+          decimal, float, and double result types and exact values; return empty
+          for empty input and positive zero, finite magnitude, positive infinity,
+          or `NaN` for IEEE inputs by reusing the unary-negation kernel; preserve
+          full-call result maps and evaluated-work budgets; reject failed
+          function-item atomization, excess cardinality, invalid retained values,
+          non-numeric and schema-derived atomic inputs, detached nodes, and wrong
+          signatures before arguments run; and avoid serialization, inferred
+          subtype relationships, a duplicate numeric parser, or an intermediate
+          DTO.
+    - [x] Execute native XPath `fn:ceiling`: dispatch one-argument unprefixed,
+          `fn:`-prefixed, EQName, and named-arrow calls by expanded QName and
+          arity; reuse primitive numeric optional-singleton function conversion
+          and ordered atomization; preserve integer identity and compute the
+          exact least integral decimal not below the input through native
+          truncation and unbounded addition; apply IEEE ceiling while preserving
+          float/double types, `NaN`, infinities, and signed zero; preserve
+          full-call result maps and evaluated-work budgets; reject failed
+          function-item atomization, excess cardinality, invalid retained values,
+          non-numeric and schema-derived atomic inputs, detached nodes, and wrong
+          signatures before arguments run; and avoid serialization, inferred
+          subtype relationships, binary conversion of exact values, a duplicate
+          numeric parser, or an intermediate DTO.
+    - [x] Execute native XPath `fn:floor`: dispatch one-argument unprefixed,
+          `fn:`-prefixed, EQName, and named-arrow calls by expanded QName and
+          arity; reuse primitive numeric optional-singleton function conversion
+          and ordered atomization; preserve integer identity and compute the
+          exact greatest integral decimal not above the input through native
+          truncation and unbounded subtraction; apply IEEE floor while preserving
+          float/double types, `NaN`, infinities, and signed zero; preserve
+          full-call result maps and evaluated-work budgets; reject failed
+          function-item atomization, excess cardinality, invalid retained values,
+          non-numeric and schema-derived atomic inputs, detached nodes, and wrong
+          signatures before arguments run; and avoid serialization, inferred
+          subtype relationships, binary conversion of exact values, a duplicate
+          numeric parser, or an intermediate DTO.
+    - [x] Execute both native XPath `fn:round` signatures: dispatch one- and
+          two-argument unprefixed, `fn:`-prefixed, EQName, and named-arrow calls
+          by expanded QName and arity; reuse primitive numeric optional-singleton
+          conversion for the value and required-integer function conversion for
+          the precision, including ordered atomization and untyped-atomic casts;
+          preserve integer identity where possible and round exact integer and
+          decimal values to unbounded positive or negative decimal places with
+          midpoint ties toward positive infinity; convert finite IEEE values to
+          their exact unbounded decimals before rounding and back to their
+          original float/double types while preserving `NaN`, infinities, and
+          signed zero; preserve full-call result maps and evaluated-work budgets;
+          reject failed function-item atomization, wrong cardinality, invalid
+          retained values, non-numeric values or non-integer precisions,
+          schema-derived atomic inputs, detached nodes, and wrong signatures
+          before arguments run; and avoid serialization, inferred subtype
+          relationships, bounded precision coercion, duplicate numeric parsers,
+          direct binary rounding, or an intermediate DTO.
+    - [x] Execute both native XPath `fn:round-half-to-even` signatures: dispatch
+          one- and two-argument unprefixed, `fn:`-prefixed, EQName, and
+          named-arrow calls by expanded QName and arity; reuse primitive numeric
+          optional-singleton conversion for the value and required-integer
+          function conversion for the precision, including ordered atomization
+          and untyped-atomic casts; preserve integer identity where possible and
+          round exact integer and decimal values to unbounded positive or
+          negative decimal places with midpoint ties selecting the result whose
+          retained least-significant digit is even; convert finite IEEE values
+          to their exact unbounded decimals before rounding and back to their
+          original float/double types while preserving `NaN`, infinities, and
+          signed zero; preserve full-call result maps and evaluated-work budgets;
+          reject failed function-item atomization, wrong cardinality, invalid
+          retained values, non-numeric values or non-integer precisions,
+          schema-derived atomic inputs, detached nodes, and wrong signatures
+          before arguments run; and avoid serialization, inferred subtype
+          relationships, bounded precision coercion, duplicate numeric parsers,
+          direct binary rounding, or an intermediate DTO.
+    - [x] Execute both native XPath `fn:format-integer` signatures with an
+          explicit deterministic CEM formatting policy: dispatch two- and
+          three-argument unprefixed, `fn:`-prefixed, EQName, and named-arrow
+          calls by expanded QName and arity; add `default language` to the typed
+          XPath dynamic context with `en` as the CEM host default; reuse ordered
+          atomization and function conversion for optional integer values,
+          required string pictures, and optional string language tags; implement
+          prescribed Unicode decimal digit patterns, padding, regular and
+          irregular grouping, negative values, conventional unbounded Latin
+          alphabetic numbering, conventional Roman numbering through 3999, and
+          English decimal ordinals; use decimal formatting for unsupported
+          language, numbering-sequence, range, variation, and word-format
+          combinations as required by the implementation-defined fallback;
+          preserve empty-value strings, full-call result maps, and evaluated-work
+          budgets; reject invalid pictures and modifiers with `err:FODF1310`,
+          failed function-item atomization, wrong cardinality or primitive
+          argument types, invalid retained values, detached nodes, invalid host
+          default languages, and wrong signatures before arguments run; and
+          avoid locale-dependent platform APIs, serialization, inferred subtype
+          relationships, bounded integer coercion for decimal/alphabetic output,
+          duplicate atomizers, or an intermediate DTO.
+    - [x] Execute both native XPath `fn:format-number` signatures against a
+          public typed decimal-format static-context registry: dispatch two- and
+          three-argument unprefixed, `fn:`-prefixed, EQName, and named-arrow
+          calls by expanded QName and arity; provide the XPath 3.1 unnamed
+          decimal format by default and expanded-QName-keyed named formats with
+          host-supplied decimal, grouping, exponent, infinity, minus, NaN,
+          percent, per-mille, zero-digit, optional-digit, and pattern-separator
+          properties; resolve lexical QName and URIQualifiedName format names
+          through statically known namespaces; validate every host format's
+          Unicode zero digit and distinct picture characters before evaluation;
+          reuse optional numeric and string function conversion with ordered
+          atomization; implement positive and negative subpictures, passive
+          prefixes and suffixes, prescribed half-even rounding, integer and
+          fractional padding and grouping, percent and per-mille scaling,
+          arbitrary-precision integer and decimal inputs, shortest round-tripping
+          finite float and double decimals, signed zero, NaN, infinities, and
+          scientific notation; preserve full-call result maps and evaluated-work
+          budgets; reject invalid format names with `err:FODF1280`, invalid
+          pictures with `err:FODF1310`, invalid host formats, failed function-item
+          atomization, wrong cardinality or primitive argument types, invalid
+          retained values, detached nodes, and wrong signatures before arguments
+          run; and avoid locale-dependent platform APIs, serialization, inferred
+          subtype relationships, bounded numeric coercion, duplicate atomizers,
+          or an intermediate DTO.
+  - [x] Wire the native evaluator through the `transform` command and expose
+        explicit CEM-QL, CEMT, and XSLT invocation adapters without reparsing
+        source text, constructing an evaluator-owned replacement XML tree, or
+        projecting AST or result values through JSON.
+    - [x] Register the standalone XPath transform slice: compile XPath source
+          once into the package-owned AST, evaluate the primary lifecycle XML
+          owner as the document context, retain native node identity in the
+          typed XPath result artifact, export JSON only through the registered
+          result exporter, and reject parameters, secondary inputs, and
+          unsupported input AST families until their binding contracts exist.
+    - [x] Establish the shared typed host-invocation contract and its first CEMT
+          adapter: consume an already owned XPath AST, retain a separate native
+          context item, bind expanded-QName keys directly to typed XPath
+          sequences, and preserve resolver, safety, owner, and source-map
+          identity without parsing expression strings or projecting bindings
+          through JSON; leave authored CEMT call syntax explicitly undecided.
+    - [x] Add the schema-owned CEMT XPath body form: fuse its typed expression
+          child once into a CEMT-owned XPath AST, map explicit context and
+          expanded-QName variable declarations only from native XPath host
+          bindings, invoke the CEMT adapter directly, and return the typed XPath
+          result artifact without a string parser, generic CEMT value bridge,
+          serializer, DTO, or replacement tree at runtime.
+    - [x] Add the explicit host-selected CEMT XPath function entrypoint: resolve
+          one compiled XPath body by exact function name, require the host to
+          populate every declared native XDM binding without implicit renderer
+          aliases, and return the typed XPath artifact body without entering the
+          generic CEMT evaluator or an authored call-syntax lane.
+    - [x] Expose the XSLT XPath invocation adapter: consume the XPath AST already
+          fused into an XSLT expression attribute or AVT segment, require typed
+          XSLT host ownership, evaluate a separate retained native XML context
+          with expanded-QName variable bindings, preserve result owner and
+          source-map identity, and reject host mismatches without reparsing or a
+          serializer, JSON projection, DTO, or replacement tree.
+    - [x] Expose the schema-owned CEM-QL XPath expression slot and invocation
+          adapter: compile a `slot-kind=xpath` lexical island once into a
+          CEM-QL-owned XPath AST with exact slot provenance, accept only a native
+          context item and expanded-QName XPath sequences, preserve result node
+          and source-map identity, and reject non-CEM-QL owners without a
+          CEM-QL `ItemStream`, JSON, serializer, DTO, or replacement-tree bridge.
+  - [x] Fuse parsed XPath streams into XSLT XPath-bearing attributes and AVT
+        expression segments while retaining an independently addressable XPath
+        AST associated with the owning XML event or subtree node.
+    - [x] Fuse entity-free XPath-bearing attributes on XSLT instruction nodes
+          into package-owned XPath ASTs with exact host byte ranges, owning XML
+          event identity, and inherited static namespace context; keep AVT
+          segmentation and entity-decoded source mapping explicit follow-up
+          work rather than introducing a text, JSON, or replacement-tree bridge.
+    - [x] Extend the generic `XmlAttributeAst` with its exact lexical value
+          range, entity-decoded value, and monotonic decoded-byte-to-source
+          spans so XML-family consumers can retain original source identity
+          without a serializer or format-specific mapping overlay.
+    - [x] Wrap decoded XML attribute spans in a boundary-aware typed source map
+          that projects scalar-aligned ranges and zero-length positions back to
+          exact original source ranges while invalid boundaries fail closed.
+    - [x] Thread a shared typed source-range projector through XPath's single
+          scan/parse and fuse entity-decoded whole XPath attributes directly
+          into XSLT, preserving original ranges on tokens, events, syntax,
+          facts, and diagnostics without a serializer or post-parse rewrite.
+    - [x] Replace XSLT's hardcoded attribute-name test with schema-owned typed
+          value-grammar rules that distinguish XPath expressions, XSLT
+          patterns, AVTs, and literals before AVT segmentation begins.
+    - [x] Segment schema-classified literal-result AVTs into lossless typed
+          literal, expression, empty-expression, and error segments; parse each
+          expression once into its directly owned XPath AST; and project escaped
+          braces, nested XPath braces, comments, strings, and entity-decoded
+          subranges to exact XML coordinates without a serializer or reparse.
+    - [x] Cover the complete XSLT 3.0 instruction AVT matrix—59 attributes
+          across 15 elements—in schema-owned contextual selectors; prove the
+          selector set exactly against a normative contract fixture; and route
+          every selected value through the existing directly owned AVT/XPath
+          AST path while fixed, expression, pattern, and XSLT control attributes
+          remain outside it.
+  - [x] Add deterministic compact/pretty/tabular and
+        terminal/HTML/Markdown profiles that preserve lexical islands and source
+        maps, then run package, converter-parity, CLI e2e, WASM, and core release
+        gates.
+    - [x] Prove the accepted XSLT layout/presentation split preserves fused
+          whole-expression and AVT XPath lexical bytes and original source
+          coordinates through compact, pretty, tabular, terminal, HTML, and
+          Markdown output profiles.
+    - [x] Promote the integrated profile/source-map contract into the XSLT
+          schema-package verification target without adding a duplicate fixture
+          or formatter path.
+    - [x] Run XPath and XSLT package verification, schema-package structure,
+          converter parity, CLI e2e, native lint/tests, WASM, and the CEM core
+          release dry-run gate.
+
+Completed prerequisites include the independent XPath schema package, CEM-owned
+lossless scanner and recursive-descent parser, strongly typed AST/event model,
+host attachment and evaluation contracts, conformance matrix, and removal of
+Xee runtime dependencies. Earlier prerequisite evidence remains in the
+preceding historical sections of this archive.
+
+## Completed Work — Phase 3 Runtime Gate Reconciliation
+
+Archived from the active checklist on 2026-08-08 after
+`yarn nx run cem-elements:verify` and all 38 dependency tasks passed.
+
+- [x] Reconcile the implemented Phase 3 custom-element runtime gates after the
+      schema-package folder contract slice is closed.
+  - [x] Confirm the schema-package structure audit reports no hard folder,
+        formatter-profile, or colorizer-profile contract gaps for XPath/XSLT.
+  - [x] Resolve `cem-elements:verify` and confirm it aggregates the Phase 3.1
+        browser-substrate trigger, Phase 3.5 Edge/SSR gate, parity fixtures,
+        executable demos, CEMT Storybook screenshot, CLI fixtures, and benchmark.
+  - [x] Run `yarn nx run cem-elements:verify` with browser host permission.
+  - [x] Restore colored-stage writer-boundary metadata through the native CEMT
+        artifact lowering and keep the unit, browser-story, and screenshot
+        verifier assertions intact.
+  - [x] Reconcile the Phase 2 canonical login browser assertion with the
+        validation-clean `#session` action already used by the shared fixture
+        and native HTML snapshot.
+  - [x] Record the verified Phase 3.1/3.5 state and replace the stale broad
+        "substrate expansion" instruction with the next explicit decision.
 
 ## Current Verification Commands
 

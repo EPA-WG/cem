@@ -1,14 +1,401 @@
-//! Query helpers over a built `CemDocument`.
+//! Shared native query contracts and helpers over a built `CemDocument`.
 //!
 //! Tier A coverage per AC-Q-*: role / state lookup, validation message
 //! traversal, label resolution via `id_table`, and source-map lookup that
 //! traces any node back to its origin byte range.
 
+use std::any::Any;
+use std::collections::BTreeMap;
+use std::fmt;
+use std::sync::Arc;
+
 use crate::diagnostics::Diagnostic;
+use crate::engine::FormatIdentity;
 use crate::parser::document::CemDocument;
 use crate::parser::{AstNodeId, CemAstNode};
+use crate::resolver::{ResolverPolicy, ResolverRegistry};
+use crate::scheduler::{AbortSignal, ScopePolicy};
+use crate::schema::registry::{
+    content_type_essence, CEM_QL_CONTENT_TYPE, CEM_QL_EXPRESSION_CONTENT_TYPE,
+    CEM_QL_EXPRESSION_SCHEMA_URI, CEM_QL_SCHEMA_URI, CSS_SELECTOR_CONTENT_TYPE,
+    CSS_SELECTOR_SCHEMA_URI, XPATH_CONTENT_TYPE, XPATH_SCHEMA_URI,
+};
 use crate::source::ByteRange;
-use crate::source_map::{FrameSpan, SourceMapFrame};
+use crate::source_map::{FrameSpan, SourceMapFrame, SourceMapStack};
+
+pub const CSS_SELECTOR_LANGUAGE_VERSION: &str = "selectors-4-20260122";
+pub const CSS_SELECTOR_RESULT_REPRESENTATION_ID: &str = "cem.css-selector-result";
+
+const CSS_SELECTOR_CONTENT_TYPES: &[&str] = &[CSS_SELECTOR_CONTENT_TYPE];
+const CSS_SELECTOR_SCHEMA_URIS: &[&str] = &[CSS_SELECTOR_SCHEMA_URI];
+const CEM_QL_QUERY_CONTENT_TYPES: &[&str] = &[
+    CEM_QL_EXPRESSION_CONTENT_TYPE,
+    CEM_QL_CONTENT_TYPE,
+    "text/cem-ql",
+];
+const CEM_QL_QUERY_SCHEMA_URIS: &[&str] = &[CEM_QL_EXPRESSION_SCHEMA_URI, CEM_QL_SCHEMA_URI];
+const XPATH_QUERY_CONTENT_TYPES: &[&str] = &[XPATH_CONTENT_TYPE, "text/xpath"];
+const XPATH_QUERY_SCHEMA_URIS: &[&str] = &[XPATH_SCHEMA_URI];
+const CSS_SELECTOR_INPUT_MODELS: &[QueryInputModel] = &[QueryInputModel::ElementTree];
+const CEM_QL_INPUT_MODELS: &[QueryInputModel] = &[QueryInputModel::NativeItems];
+const XPATH_INPUT_MODELS: &[QueryInputModel] = &[QueryInputModel::XdmTree];
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub enum QueryLanguage {
+    CssSelector,
+    CemQl,
+    XPath,
+}
+
+impl QueryLanguage {
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::CssSelector => "css-selector",
+            Self::CemQl => "cem-ql",
+            Self::XPath => "xpath",
+        }
+    }
+
+    pub const fn contract(self) -> QueryLanguageContract {
+        match self {
+            Self::CssSelector => QueryLanguageContract {
+                language: self,
+                language_version: CSS_SELECTOR_LANGUAGE_VERSION,
+                canonical_content_type: CSS_SELECTOR_CONTENT_TYPE,
+                canonical_schema_uri: CSS_SELECTOR_SCHEMA_URI,
+                accepted_content_types: CSS_SELECTOR_CONTENT_TYPES,
+                accepted_schema_uris: CSS_SELECTOR_SCHEMA_URIS,
+                input_models: CSS_SELECTOR_INPUT_MODELS,
+                result_order: QueryResultOrder::DocumentOrder,
+                duplicate_policy: QueryDuplicatePolicy::Eliminate,
+                namespace_policy: QueryNamespacePolicy::ExplicitHostBindings,
+            },
+            Self::CemQl => QueryLanguageContract {
+                language: self,
+                language_version: "1.0.0",
+                canonical_content_type: CEM_QL_EXPRESSION_CONTENT_TYPE,
+                canonical_schema_uri: CEM_QL_EXPRESSION_SCHEMA_URI,
+                accepted_content_types: CEM_QL_QUERY_CONTENT_TYPES,
+                accepted_schema_uris: CEM_QL_QUERY_SCHEMA_URIS,
+                input_models: CEM_QL_INPUT_MODELS,
+                result_order: QueryResultOrder::LanguageDefined,
+                duplicate_policy: QueryDuplicatePolicy::LanguageDefined,
+                namespace_policy: QueryNamespacePolicy::LanguageStaticContext,
+            },
+            Self::XPath => QueryLanguageContract {
+                language: self,
+                language_version: "3.1",
+                canonical_content_type: XPATH_CONTENT_TYPE,
+                canonical_schema_uri: XPATH_SCHEMA_URI,
+                accepted_content_types: XPATH_QUERY_CONTENT_TYPES,
+                accepted_schema_uris: XPATH_QUERY_SCHEMA_URIS,
+                input_models: XPATH_INPUT_MODELS,
+                result_order: QueryResultOrder::LanguageDefined,
+                duplicate_policy: QueryDuplicatePolicy::LanguageDefined,
+                namespace_policy: QueryNamespacePolicy::LanguageStaticContext,
+            },
+        }
+    }
+}
+
+impl fmt::Display for QueryLanguage {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter.write_str(self.as_str())
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum QueryInputModel {
+    NativeItems,
+    XdmTree,
+    ElementTree,
+}
+
+impl QueryInputModel {
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::NativeItems => "native-items",
+            Self::XdmTree => "xdm-tree",
+            Self::ElementTree => "element-tree",
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum QueryResultOrder {
+    LanguageDefined,
+    DocumentOrder,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum QueryDuplicatePolicy {
+    LanguageDefined,
+    Eliminate,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum QueryNamespacePolicy {
+    LanguageStaticContext,
+    ExplicitHostBindings,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct QueryLanguageContract {
+    pub language: QueryLanguage,
+    pub language_version: &'static str,
+    pub canonical_content_type: &'static str,
+    pub canonical_schema_uri: &'static str,
+    pub accepted_content_types: &'static [&'static str],
+    pub accepted_schema_uris: &'static [&'static str],
+    pub input_models: &'static [QueryInputModel],
+    pub result_order: QueryResultOrder,
+    pub duplicate_policy: QueryDuplicatePolicy,
+    pub namespace_policy: QueryNamespacePolicy,
+}
+
+impl QueryLanguageContract {
+    pub fn matches_query_identity(self, identity: &FormatIdentity) -> bool {
+        let content_type_matches = identity.content_type.as_deref().map(|content_type| {
+            let essence = content_type_essence(content_type);
+            self.accepted_content_types
+                .iter()
+                .any(|accepted| *accepted == essence)
+        });
+        let schema_matches = identity
+            .schema
+            .as_deref()
+            .map(|schema| self.accepted_schema_uris.contains(&schema));
+        match (content_type_matches, schema_matches) {
+            (Some(content_type), Some(schema)) => content_type && schema,
+            (Some(content_type), None) => content_type,
+            (None, Some(schema)) => schema,
+            (None, None) => false,
+        }
+    }
+
+    pub fn supports_input_owner(self, owner: &dyn QueryInputOwner) -> bool {
+        owner
+            .input_models()
+            .iter()
+            .any(|model| self.input_models.contains(model))
+    }
+}
+
+pub trait QueryNativeArtifact: Any + Send + Sync {
+    fn representation_id(&self) -> &'static str;
+    fn source_map(&self) -> Option<&SourceMapStack>;
+    fn as_any(&self) -> &dyn Any;
+}
+
+pub trait QueryAstOwner: QueryNativeArtifact {
+    fn language(&self) -> QueryLanguage;
+    fn identity(&self) -> &FormatIdentity;
+    fn source_uri(&self) -> &str;
+}
+
+pub trait QueryInputOwner: QueryNativeArtifact {
+    fn identity(&self) -> &FormatIdentity;
+    fn input_models(&self) -> &[QueryInputModel];
+}
+
+pub trait QueryNativeResult: QueryNativeArtifact {
+    fn language(&self) -> QueryLanguage;
+}
+
+pub type QueryNativeBindings<'a> = BTreeMap<String, &'a dyn QueryNativeArtifact>;
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct QueryExecutionLimits {
+    pub max_result_items: Option<u64>,
+    pub max_work_units: Option<u64>,
+}
+
+pub struct QueryExecutionRequest<'a> {
+    pub language: QueryLanguage,
+    pub query_ast_owner: &'a dyn QueryAstOwner,
+    pub input_ast_owner: &'a dyn QueryInputOwner,
+    pub context_item: Option<&'a dyn QueryNativeArtifact>,
+    pub bindings: &'a QueryNativeBindings<'a>,
+    pub namespace_bindings: &'a BTreeMap<String, String>,
+    pub resolver_registry: &'a ResolverRegistry,
+    pub resolver_policy: &'a ResolverPolicy,
+    pub resolver_policy_stamp: &'a str,
+    pub safety_policy_stamp: &'a str,
+    pub scope_policy: &'a ScopePolicy,
+    pub abort_signal: &'a AbortSignal,
+    pub limits: QueryExecutionLimits,
+}
+
+impl QueryExecutionRequest<'_> {
+    pub fn validate_contract(&self) -> Result<(), QueryContractError> {
+        if self.query_ast_owner.language() != self.language {
+            return Err(QueryContractError::QueryLanguageMismatch {
+                requested: self.language,
+                owner: self.query_ast_owner.language(),
+            });
+        }
+        let contract = self.language.contract();
+        if !contract.matches_query_identity(self.query_ast_owner.identity()) {
+            return Err(QueryContractError::QueryIdentityUnsupported {
+                language: self.language,
+            });
+        }
+        if !contract.supports_input_owner(self.input_ast_owner) {
+            return Err(QueryContractError::InputModelUnsupported {
+                language: self.language,
+                actual: self.input_ast_owner.input_models().to_vec(),
+            });
+        }
+        if self.resolver_policy_stamp.trim().is_empty() {
+            return Err(QueryContractError::ResolverPolicyStampMissing);
+        }
+        if self.safety_policy_stamp.trim().is_empty() {
+            return Err(QueryContractError::SafetyPolicyStampMissing);
+        }
+        self.scope_policy
+            .validate()
+            .map_err(|error| QueryContractError::ScopePolicyInvalid {
+                message: error.to_string(),
+            })?;
+        if self.abort_signal.is_aborted() {
+            return Err(QueryContractError::Aborted);
+        }
+        if let Some((prefix, _)) = self
+            .namespace_bindings
+            .iter()
+            .find(|(_, namespace_uri)| namespace_uri.trim().is_empty())
+        {
+            return Err(QueryContractError::NamespaceUriEmpty {
+                prefix: prefix.clone(),
+            });
+        }
+        if let Some(name) = self.bindings.keys().find(|name| name.trim().is_empty()) {
+            return Err(QueryContractError::BindingNameEmpty { name: name.clone() });
+        }
+        Ok(())
+    }
+}
+
+pub struct QueryExecutionResult {
+    pub language: QueryLanguage,
+    pub query_identity: FormatIdentity,
+    pub input_ast_owner: Arc<dyn QueryInputOwner>,
+    pub native_result: Arc<dyn QueryNativeResult>,
+    pub source_map: SourceMapStack,
+}
+
+impl QueryExecutionResult {
+    pub fn new(
+        language: QueryLanguage,
+        query_identity: FormatIdentity,
+        input_ast_owner: Arc<dyn QueryInputOwner>,
+        native_result: Arc<dyn QueryNativeResult>,
+        source_map: SourceMapStack,
+    ) -> Result<Self, QueryContractError> {
+        let contract = language.contract();
+        if !contract.matches_query_identity(&query_identity) {
+            return Err(QueryContractError::QueryIdentityUnsupported { language });
+        }
+        if !contract.supports_input_owner(input_ast_owner.as_ref()) {
+            return Err(QueryContractError::InputModelUnsupported {
+                language,
+                actual: input_ast_owner.input_models().to_vec(),
+            });
+        }
+        if native_result.language() != language {
+            return Err(QueryContractError::ResultLanguageMismatch {
+                expected: language,
+                actual: native_result.language(),
+            });
+        }
+        Ok(Self {
+            language,
+            query_identity,
+            input_ast_owner,
+            native_result,
+            source_map,
+        })
+    }
+}
+
+pub trait QueryEvaluatorAdapter: Send + Sync {
+    fn language(&self) -> QueryLanguage;
+    fn evaluate(
+        &self,
+        request: QueryExecutionRequest<'_>,
+    ) -> Result<QueryExecutionResult, Vec<Diagnostic>>;
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum QueryContractError {
+    QueryLanguageMismatch {
+        requested: QueryLanguage,
+        owner: QueryLanguage,
+    },
+    QueryIdentityUnsupported {
+        language: QueryLanguage,
+    },
+    InputModelUnsupported {
+        language: QueryLanguage,
+        actual: Vec<QueryInputModel>,
+    },
+    ResultLanguageMismatch {
+        expected: QueryLanguage,
+        actual: QueryLanguage,
+    },
+    ResolverPolicyStampMissing,
+    SafetyPolicyStampMissing,
+    ScopePolicyInvalid {
+        message: String,
+    },
+    NamespaceUriEmpty {
+        prefix: String,
+    },
+    BindingNameEmpty {
+        name: String,
+    },
+    Aborted,
+}
+
+impl fmt::Display for QueryContractError {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::QueryLanguageMismatch { requested, owner } => write!(
+                formatter,
+                "query language `{requested}` does not match AST owner language `{owner}`"
+            ),
+            Self::QueryIdentityUnsupported { language } => {
+                write!(formatter, "query identity is not owned by `{language}`")
+            }
+            Self::InputModelUnsupported { language, actual } => write!(
+                formatter,
+                "query language `{language}` cannot consume input models {actual:?}"
+            ),
+            Self::ResultLanguageMismatch { expected, actual } => write!(
+                formatter,
+                "query result language `{actual}` does not match `{expected}`"
+            ),
+            Self::ResolverPolicyStampMissing => {
+                formatter.write_str("query resolver policy stamp is required")
+            }
+            Self::SafetyPolicyStampMissing => {
+                formatter.write_str("query safety policy stamp is required")
+            }
+            Self::ScopePolicyInvalid { message } => {
+                write!(formatter, "query scope policy is invalid: {message}")
+            }
+            Self::NamespaceUriEmpty { prefix } => {
+                write!(formatter, "query namespace `{prefix}` has an empty URI")
+            }
+            Self::BindingNameEmpty { name } => {
+                write!(formatter, "query binding name `{name}` is empty")
+            }
+            Self::Aborted => formatter.write_str("query execution was aborted"),
+        }
+    }
+}
+
+impl std::error::Error for QueryContractError {}
 
 /// Return the element node id whose `id="..."` attribute matched `target`,
 /// or `None` if no element registered that id.
@@ -174,4 +561,278 @@ pub fn source_map_frames(node: &CemAstNode) -> &[SourceMapFrame] {
         | CemAstNode::Error { source, .. } => source,
     };
     &stack.frames
+}
+
+#[cfg(test)]
+mod query_execution_contract_tests {
+    use std::any::Any;
+    use std::collections::BTreeMap;
+    use std::sync::Arc;
+
+    use super::*;
+    use crate::engine::FormatIdentity;
+    use crate::resolver::{ResolverPolicy, ResolverRegistry};
+    use crate::scheduler::{AbortSignal, ScopePolicy};
+    use crate::schema::registry::{
+        CSS_CONTENT_TYPE, CSS_SCHEMA_URI, CSS_SELECTOR_CONTENT_TYPE, CSS_SELECTOR_SCHEMA_URI,
+    };
+    use crate::source_map::SourceMapStack;
+
+    #[derive(Debug)]
+    struct TestNativeArtifact {
+        representation_id: &'static str,
+        source_map: SourceMapStack,
+    }
+
+    impl QueryNativeArtifact for TestNativeArtifact {
+        fn representation_id(&self) -> &'static str {
+            self.representation_id
+        }
+
+        fn source_map(&self) -> Option<&SourceMapStack> {
+            Some(&self.source_map)
+        }
+
+        fn as_any(&self) -> &dyn Any {
+            self
+        }
+    }
+
+    #[derive(Debug)]
+    struct TestQueryAst {
+        native: TestNativeArtifact,
+        language: QueryLanguage,
+        identity: FormatIdentity,
+        source_uri: String,
+    }
+
+    impl QueryNativeArtifact for TestQueryAst {
+        fn representation_id(&self) -> &'static str {
+            self.native.representation_id()
+        }
+
+        fn source_map(&self) -> Option<&SourceMapStack> {
+            self.native.source_map()
+        }
+
+        fn as_any(&self) -> &dyn Any {
+            self
+        }
+    }
+
+    impl QueryAstOwner for TestQueryAst {
+        fn language(&self) -> QueryLanguage {
+            self.language
+        }
+
+        fn identity(&self) -> &FormatIdentity {
+            &self.identity
+        }
+
+        fn source_uri(&self) -> &str {
+            &self.source_uri
+        }
+    }
+
+    #[derive(Debug)]
+    struct TestInputAst {
+        native: TestNativeArtifact,
+        identity: FormatIdentity,
+        input_models: Vec<QueryInputModel>,
+    }
+
+    impl QueryNativeArtifact for TestInputAst {
+        fn representation_id(&self) -> &'static str {
+            self.native.representation_id()
+        }
+
+        fn source_map(&self) -> Option<&SourceMapStack> {
+            self.native.source_map()
+        }
+
+        fn as_any(&self) -> &dyn Any {
+            self
+        }
+    }
+
+    impl QueryInputOwner for TestInputAst {
+        fn identity(&self) -> &FormatIdentity {
+            &self.identity
+        }
+
+        fn input_models(&self) -> &[QueryInputModel] {
+            &self.input_models
+        }
+    }
+
+    #[derive(Debug)]
+    struct TestQueryResult(TestNativeArtifact);
+
+    impl QueryNativeArtifact for TestQueryResult {
+        fn representation_id(&self) -> &'static str {
+            self.0.representation_id()
+        }
+
+        fn source_map(&self) -> Option<&SourceMapStack> {
+            self.0.source_map()
+        }
+
+        fn as_any(&self) -> &dyn Any {
+            self
+        }
+    }
+
+    impl QueryNativeResult for TestQueryResult {
+        fn language(&self) -> QueryLanguage {
+            QueryLanguage::CssSelector
+        }
+    }
+
+    fn identity(content_type: &str, schema: &str) -> FormatIdentity {
+        FormatIdentity {
+            content_type: Some(content_type.to_owned()),
+            schema: Some(schema.to_owned()),
+            ..FormatIdentity::default()
+        }
+    }
+
+    #[test]
+    fn css_selector_identity_is_distinct_from_stylesheet_css() {
+        let contract = QueryLanguage::CssSelector.contract();
+        assert_eq!(contract.canonical_content_type, CSS_SELECTOR_CONTENT_TYPE);
+        assert_eq!(contract.canonical_schema_uri, CSS_SELECTOR_SCHEMA_URI);
+        assert!(contract.matches_query_identity(&identity(
+            CSS_SELECTOR_CONTENT_TYPE,
+            CSS_SELECTOR_SCHEMA_URI,
+        )));
+        assert!(!contract.matches_query_identity(&identity(CSS_CONTENT_TYPE, CSS_SCHEMA_URI)));
+    }
+
+    #[test]
+    fn builtin_query_contracts_pin_native_input_and_result_semantics() {
+        let css = QueryLanguage::CssSelector.contract();
+        assert_eq!(css.input_models, &[QueryInputModel::ElementTree]);
+        assert_eq!(css.result_order, QueryResultOrder::DocumentOrder);
+        assert_eq!(css.duplicate_policy, QueryDuplicatePolicy::Eliminate);
+        assert_eq!(
+            css.namespace_policy,
+            QueryNamespacePolicy::ExplicitHostBindings
+        );
+
+        let cem_ql = QueryLanguage::CemQl.contract();
+        assert_eq!(cem_ql.input_models, &[QueryInputModel::NativeItems]);
+        assert_eq!(cem_ql.result_order, QueryResultOrder::LanguageDefined);
+
+        let xpath = QueryLanguage::XPath.contract();
+        assert_eq!(xpath.input_models, &[QueryInputModel::XdmTree]);
+        assert_eq!(xpath.result_order, QueryResultOrder::LanguageDefined);
+    }
+
+    #[test]
+    fn shared_request_and_result_retain_native_owners_and_policies() {
+        let query = TestQueryAst {
+            native: TestNativeArtifact {
+                representation_id: "test.css-selector-ast",
+                source_map: SourceMapStack::default(),
+            },
+            language: QueryLanguage::CssSelector,
+            identity: identity(CSS_SELECTOR_CONTENT_TYPE, CSS_SELECTOR_SCHEMA_URI),
+            source_uri: "memory:query.css-selector".to_owned(),
+        };
+        let input = Arc::new(TestInputAst {
+            native: TestNativeArtifact {
+                representation_id: "test.element-tree",
+                source_map: SourceMapStack::default(),
+            },
+            identity: identity("text/html", "https://cem.dev/ns/data/html/1"),
+            input_models: vec![QueryInputModel::ElementTree],
+        });
+        let binding = TestNativeArtifact {
+            representation_id: "test.binding",
+            source_map: SourceMapStack::default(),
+        };
+        let bindings: QueryNativeBindings<'_> =
+            BTreeMap::from([("limit".to_owned(), &binding as &dyn QueryNativeArtifact)]);
+        let namespaces =
+            BTreeMap::from([("svg".to_owned(), "http://www.w3.org/2000/svg".to_owned())]);
+        let resolver_registry = ResolverRegistry::new();
+        let resolver_policy = ResolverPolicy::new();
+        let scope_policy = ScopePolicy::host_root();
+        let abort_signal = AbortSignal::new();
+
+        let request = QueryExecutionRequest {
+            language: QueryLanguage::CssSelector,
+            query_ast_owner: &query,
+            input_ast_owner: input.as_ref(),
+            context_item: None,
+            bindings: &bindings,
+            namespace_bindings: &namespaces,
+            resolver_registry: &resolver_registry,
+            resolver_policy: &resolver_policy,
+            resolver_policy_stamp: "resolver-policy/1",
+            safety_policy_stamp: "query-safety/1",
+            scope_policy: &scope_policy,
+            abort_signal: &abort_signal,
+            limits: QueryExecutionLimits {
+                max_result_items: Some(10),
+                max_work_units: Some(100),
+            },
+        };
+        request
+            .validate_contract()
+            .expect("native CSS selector request should satisfy the shared contract");
+        assert!(request
+            .query_ast_owner
+            .as_any()
+            .downcast_ref::<TestQueryAst>()
+            .is_some());
+        assert!(request
+            .input_ast_owner
+            .as_any()
+            .downcast_ref::<TestInputAst>()
+            .is_some());
+
+        let unsupported_input = TestInputAst {
+            native: TestNativeArtifact {
+                representation_id: "test.native-items",
+                source_map: SourceMapStack::default(),
+            },
+            identity: identity("application/json", "https://cem.dev/ns/data/json/1"),
+            input_models: vec![QueryInputModel::NativeItems],
+        };
+        let unsupported_request = QueryExecutionRequest {
+            input_ast_owner: &unsupported_input,
+            ..request
+        };
+        assert!(matches!(
+            unsupported_request.validate_contract(),
+            Err(QueryContractError::InputModelUnsupported {
+                language: QueryLanguage::CssSelector,
+                actual,
+            }) if actual == vec![QueryInputModel::NativeItems]
+        ));
+
+        let input_owner: Arc<dyn QueryInputOwner> = input;
+        let native_result: Arc<dyn QueryNativeResult> =
+            Arc::new(TestQueryResult(TestNativeArtifact {
+                representation_id: "test.css-selector-result",
+                source_map: SourceMapStack::default(),
+            }));
+        let result = QueryExecutionResult::new(
+            QueryLanguage::CssSelector,
+            query.identity.clone(),
+            input_owner,
+            native_result,
+            SourceMapStack::default(),
+        )
+        .expect("native result should retain matching owners");
+        assert_eq!(
+            result.input_ast_owner.representation_id(),
+            "test.element-tree"
+        );
+        assert_eq!(
+            result.native_result.representation_id(),
+            "test.css-selector-result"
+        );
+    }
 }

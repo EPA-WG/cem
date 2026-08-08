@@ -686,6 +686,51 @@ diagnostics such as unsupported resolver, permission denied, not found, invalid 
 read failure, and write failure; CLI commands may wrap those diagnostics in command-level
 I/O messages, but they must not replace the underlying resolver code or URI.
 
+## Query Runtime Boundary
+
+The library now defines the shared typed query request/result boundary. The
+`cem-ml query` command, CSS selector schema package, and CSS selector evaluator
+in this section remain target design until their later checklist items are
+complete.
+
+`cem-ml query` will execute exactly one explicitly identified query source over
+one lifecycle-loaded data input. Query source may be inline or file-backed, but
+its language is selected by schema/content identity rather than filename,
+source syntax, or trial parsing:
+
+| Language | Canonical query identity | Required native input view |
+| --- | --- | --- |
+| CSS selector | `application/vnd.cem.query-expression+css-selector`; `https://cem.dev/ns/query/css-selector/1` | Lifecycle-owned element tree |
+| CEM-QL | `application/vnd.cem.query-expression+cem-ql`; `https://cem.dev/ns/query/cem-ql/1#expression` | CEM-QL native items |
+| XPath | `application/vnd.cem.xpath`; `https://cem.dev/ns/query/xpath/1` | Lifecycle-owned XDM tree |
+
+The option names for inline versus file-backed query source belong to the CLI
+implementation slice and are not inferred by this contract. Whichever spelling
+is selected must construct the same request: language identity, native query
+AST owner, native input AST owner, context and bindings, namespace/static
+context, resolver and safety policy, cancellation, and budgets. A registered
+language adapter receives that request and returns its language-native result;
+the CLI does not normalize the three result models into JSON or another common
+DTO.
+
+CSS selector results eliminate duplicate native nodes and use lifecycle
+document order. CEM-QL and XPath preserve their language-defined sequence,
+ordering, duplicate, and type semantics. An input adapter may expose multiple
+borrowed native views over one lifecycle owner. It must not reparse the input,
+construct a browser DOM, infer a tree from JSON shape, or serialize through a
+replacement model to make an unsupported pairing appear compatible. Missing
+views fail with a typed input-compatibility diagnostic before evaluation.
+
+Input loading, host bindings, resolver policy, safety capabilities,
+cancellation, work/result budgets, reporting, and exit behavior are common to
+all three adapters. Result exporters are separately registered and encode only
+when the user requests a terminal, CEM, JSON, or other output boundary. The
+native result and input owners remain alive through export so native item/node
+identity, source maps, ordering, and language-specific types remain available.
+Existing CEM-QL and XPath transform aliases remain compatibility surfaces until
+the query command migration is implemented and documented; this contract does
+not silently change their current behavior.
+
 ## Functional Surface
 
 - Parse one input into structured output.
@@ -695,6 +740,8 @@ I/O messages, but they must not replace the underlying resolver code or URI.
 - Inspect parsed output as summary, tree, AST, events, diagnostics, or source-offset views.
 - Convert/export supported documents from one declared document format into another declared document format, or into
   debug projections through the same internal AST/binary artifact spine.
+- Execute explicitly identified CSS selector, CEM-QL, or XPath source over a
+  compatible native lifecycle view through the planned `query` command.
 - Reserve transform execution for applying a template/stylesheet to data to produce a document; the CLI shape is
   parseable, but runtime execution is not implemented.
 - Trace parser and validator work with deterministic text or JSON output.

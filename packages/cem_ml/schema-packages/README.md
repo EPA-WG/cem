@@ -291,6 +291,85 @@ template-package-specific feature. The Rust API exists, and the CEM-ML
 `transform` command can run an inline `--template-expression` or a `*.cem-ql`
 expression transformation file.
 
+### Shared Native Query Execution Contract
+
+The Rust query boundary now defines one typed request/result contract for CSS
+selectors, CEM-QL, and XPath. The CSS selector parser, evaluator, schema package,
+and `cem-ml query` command described below remain target design until their
+individual checklist items are complete.
+
+Query source identity is always explicit. It is never inferred from source text:
+
+| Language | Canonical schema | Canonical content type | Language baseline |
+| --- | --- | --- | --- |
+| CSS selector | `https://cem.dev/ns/query/css-selector/1` | `application/vnd.cem.query-expression+css-selector` | `selectors-4-20260122` |
+| CEM-QL expression | `https://cem.dev/ns/query/cem-ql/1#expression` | `application/vnd.cem.query-expression+cem-ql` | CEM-QL 1.0 |
+| XPath | `https://cem.dev/ns/query/xpath/1` | `application/vnd.cem.xpath` | XPath 3.1 |
+
+The CSS selector baseline is the dated 22 January 2026
+[Selectors Level 4 Working Draft](https://www.w3.org/TR/2026/WD-selectors-4-20260122/),
+with tokenization grounded in
+[CSS Syntax Level 3](https://www.w3.org/TR/css-syntax-3/). The existing
+`css/v1` package continues to own stylesheet documents under `text/css` and
+`https://cem.dev/ns/data/css/1`; the
+[IANA `text/css` registration](https://www.iana.org/assignments/media-types/text/css)
+does not identify standalone selector expressions. The selector query package
+therefore has its own vendor content type and schema identity.
+
+The initial selector conformance contract covers type, universal, ID, class,
+attribute, compound, complex, and selector-list matching; descendant, child,
+next-sibling, and subsequent-sibling combinators; and explicitly bound namespace
+prefixes. It stages the tree-derived pseudo-classes `:root`, `:empty`, `:scope`,
+the child and type index families, and the logical `:is()`, `:where()`, `:not()`,
+and budget-bounded `:has()`. A package-owned conformance matrix must identify
+each production as supported, unsupported, or capability-gated before parser
+acceptance is enabled. Pseudo-elements, the at-risk column combinator, unknown
+extensions, and UI, browsing, resource, link-history, shadow-tree, or host-state
+pseudo-classes are not silently treated as non-matches: they produce stable
+unsupported-feature or missing-capability facts until a lifecycle input adapter
+advertises the required semantics.
+
+Namespace prefixes come only from the request's explicit host bindings. An
+undeclared prefix is an error. The default namespace applies to type and
+universal selectors as Selectors Level 4 specifies, while unprefixed attribute
+selectors remain in no namespace. Selector-list results are the identity-based
+union of matches, with duplicates removed and nodes returned in lifecycle
+document order. This follows the selector matching and tree-order model while
+avoiding a browser DOM; the
+[DOM Standard](https://dom.spec.whatwg.org/) is an interoperability reference,
+not the execution data plane.
+
+Every query request retains the language and source identity, native query AST
+owner, native input AST owner, optional context item, typed native bindings,
+namespace/static context, resolver registry and policy, resolver and safety
+policy stamps, scope policy, cancellation signal, and work/result budgets.
+Every result retains the native input owner, language-specific result owner and
+type information, query identity, result order, native node/item identity, and
+source-map stack. Query tokens and AST nodes must retain query-source ranges;
+matched nodes retain their input source maps. Exporters may encode those native
+results only at an explicitly selected output boundary.
+
+The data-compatibility matrix is deliberately narrow:
+
+| Query language | Accepted native input view | Order and duplicates |
+| --- | --- | --- |
+| CSS selector | Lifecycle-owned element tree | Document order; eliminate duplicates by native identity |
+| CEM-QL | CEM-QL native item view | Language-defined sequence semantics |
+| XPath | Lifecycle-owned XDM-compatible tree | XPath/XDM sequence semantics |
+
+An adapter may expose more than one borrowed native view over the same owned
+lifecycle artifact, but it must not synthesize a replacement tree. Unsupported
+language/input combinations fail before evaluation with a typed diagnostic.
+JSON projection, generic DTO conversion, browser DOM construction, source
+reparsing, and shape inference are not compatibility mechanisms.
+
+The CSS selector package owns diagnostic policy for the neutral fact families
+`css-selector.lexical.invalid`, `css-selector.parse.invalid`,
+`css-selector.namespace.unbound`, `css-selector.feature.unsupported`,
+`css-selector.capability.missing`, `css-selector.budget.exceeded`, and
+`css-selector.input.unsupported`. The package schema will bind severity and
+structured details; Rust emits facts, source ranges, observed work, and limits.
+
 `json/v1` defines generic JSON text resource identity. It owns
 `application/json` and claims `text/json` as an alias. JSON source is not
 CEM-ML syntax, and this package intentionally does not claim JSON Schema or
