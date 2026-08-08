@@ -307,6 +307,27 @@ mediate between internal layers.
           before arguments run; and avoid serialization, inferred subtype
           relationships, bounded precision coercion, duplicate numeric parsers,
           direct binary rounding, or an intermediate DTO.
+    - [x] Execute both native XPath `fn:format-integer` signatures with an
+          explicit deterministic CEM formatting policy: dispatch two- and
+          three-argument unprefixed, `fn:`-prefixed, EQName, and named-arrow
+          calls by expanded QName and arity; add `default language` to the typed
+          XPath dynamic context with `en` as the CEM host default; reuse ordered
+          atomization and function conversion for optional integer values,
+          required string pictures, and optional string language tags; implement
+          prescribed Unicode decimal digit patterns, padding, regular and
+          irregular grouping, negative values, conventional unbounded Latin
+          alphabetic numbering, conventional Roman numbering through 3999, and
+          English decimal ordinals; use decimal formatting for unsupported
+          language, numbering-sequence, range, variation, and word-format
+          combinations as required by the implementation-defined fallback;
+          preserve empty-value strings, full-call result maps, and evaluated-work
+          budgets; reject invalid pictures and modifiers with `err:FODF1310`,
+          failed function-item atomization, wrong cardinality or primitive
+          argument types, invalid retained values, detached nodes, invalid host
+          default languages, and wrong signatures before arguments run; and
+          avoid locale-dependent platform APIs, serialization, inferred subtype
+          relationships, bounded integer coercion for decimal/alphabetic output,
+          duplicate atomizers, or an intermediate DTO.
   - [x] Wire the native evaluator through the `transform` command and expose
         explicit CEM-QL, CEMT, and XSLT invocation adapters without reparsing
         source text, constructing an evaluator-owned replacement XML tree, or

@@ -26110,6 +26110,7 @@ pub fn invoke_transform_template_xpath(
         dynamic_context: XPathDynamicContext {
             context_item,
             variable_bindings,
+            ..XPathDynamicContext::default()
         },
         static_context: invocation.static_context.clone(),
         expected_result: Some(invocation.expected_result.clone()),
