@@ -1,0 +1,60 @@
+@doc cem-ml 1
+@ns transform = "https://cem.dev/ns/transform/cem/1"
+@default transform
+
+{module @version="1.0.0" |
+    {color-function
+        @name="css-selector.color-expression.tree"
+        @visibility="private"
+        @category="css-selector-expression"
+        @subject="cem-tree"
+        @produces="cem-tree"
+        @content-type="application/vnd.cem.query-expression+css-selector"
+        @schema="https://cem.dev/ns/query/css-selector/1"
+        @canonical=false
+        @deterministic=true
+        @streamable=true |
+        {param @name="subject" @type="object" @required=true}
+        {param @name="profile" @type="string" @required=true}
+        {param @name="output" @type="string" @required=true}
+        {body |
+            {$ merge($subject, {
+                colorProfile: $profile,
+                colorOutput: $output,
+                colored: true,
+                colorNodes: [
+                    {
+                        kind: "color-marker",
+                        name: "css-selector.color-expression",
+                        colorizerRole: "colorizer.boundary",
+                        colorProfile: $profile,
+                        colorOutput: $output
+                    }
+                ],
+                nodes: map(
+                    match(typeOf($subject.nodes), { array: $subject.nodes, default: [] }),
+                    call("css-selector.color-expression.token", {
+                        token: $item,
+                        profile: $profile,
+                        output: $output
+                    })
+                )
+            }) }
+        }
+    }
+
+    {function @name="css-selector.color-expression.token" @visibility="private" @returns="object" @deterministic=true |
+        {param @name="token" @type="object" @required=true}
+        {param @name="profile" @type="string" @required=true}
+        {param @name="output" @type="string" @required=true}
+        {body |
+            {$ merge($token, {
+                style: {
+                    colorRole: match(typeOf($token.role), { string: $token.role, default: "syntax.raw" }),
+                    colorProfile: $profile,
+                    colorOutput: $output
+                }
+            }) }
+        }
+    }
+}

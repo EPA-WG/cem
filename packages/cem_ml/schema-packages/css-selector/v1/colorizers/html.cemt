@@ -1,0 +1,10 @@
+@doc cem-ml 1
+@ns transform = "https://cem.dev/ns/transform/cem/1"
+@default transform
+
+{module @version="1.0.0" |
+    {color-function @name="css-selector.color-expression" @visibility="public" @category="css-selector-expression" @subject="cem-tree" @produces="cem-tree" @content-type="application/vnd.cem.query-expression+css-selector" @schema="https://cem.dev/ns/query/css-selector/1" @profile="html" @extends="cem.color-tree" @canonical=false @deterministic=true @streamable=true |
+        {param @name="subject" @type="object" @required=true}
+        {body | {$ merge(call("css-selector.color-expression.tree", { subject: $subject, profile: "html", output: "html" }), {}) } }
+    }
+}

@@ -44,15 +44,15 @@ mediate between internal layers.
           selectors consume lifecycle-owned element-tree views. Unsupported
           input families must fail with typed diagnostics instead of converting
           through JSON, browser DOM, generic DTOs, or inferred replacement trees.
-  - [ ] Create `packages/cem_ml/schema-packages/css-selector/v1` as a normal
+  - [x] Create `packages/cem_ml/schema-packages/css-selector/v1` as a normal
         schema-package Nx subproject named
         `cem_ml_schema_package_css_selector_v1`.
-    - [ ] Add `package.cem`, `README.md`, `schema/css-selector.cem`, manifest-owned
+    - [x] Add `package.cem`, `README.md`, `schema/css-selector.cem`, manifest-owned
           `examples/`, a package-owned conformance matrix under `tests/`, CEMT
           `formatters/` and `colorizers/`, `scripts/verify-previews.mjs`, and
           `project.json` with `build`, `samples2readme`, and `verify` targets
           matching sibling package structure and cache inputs/outputs.
-    - [ ] Adopt the [schema-package shared principles and review
+    - [x] Adopt the [schema-package shared principles and review
           protocol](../packages/cem_ml/schema-packages/README.md) together with
           the CSS package README pattern: keep domain semantics declarative in
           `.cem`; keep the built-in vocabulary primitive; make CEMT own declared
@@ -63,7 +63,7 @@ mediate between internal layers.
           compact/pretty/tabular and terminal/HTML/Markdown profiles; use fenced
           selector source when supported; and generate example sections from
           `package.cem` metadata.
-    - [ ] Register the package in the built-in schema catalog, schema-package
+    - [x] Register the package in the built-in schema catalog, schema-package
           structure audit, CLI schema-package dependencies, converter parity,
           and release inputs without weakening the existing CSS stylesheet
           package.
@@ -111,6 +111,29 @@ mediate between internal layers.
         CSS stylesheet regression verification, CEM-QL and XPath package gates,
         `cem_ml_cli` tests/e2e/converter parity, `cem_ml` lint/tests/WASM, and the
         CEM core release dry run before marking this parent item complete.
+
+### Immediate Next: SCSS Source to CSS AST Stream
+
+- [ ] Add SCSS as a distinct schema-owned source that transforms into the
+      lifecycle-owned CSS AST stream.
+  - [ ] Before adding fixtures, choose and document the SCSS schema/content
+        identity, source extension, supported language/dialect version, module
+        system baseline, and compatibility policy without claiming `text/css`.
+  - [ ] Create `schema-packages/scss/v1` with the normal schema-package
+        subproject structure, declarative diagnostics, manifest-owned examples,
+        conformance/gap matrix, CEMT profiles, preview verification, catalog
+        registration, CLI dependencies, and release inputs.
+  - [ ] Implement SCSS parsing and transformation tests-first so native SCSS
+        syntax and expansion facts lower directly into a lifecycle-owned typed
+        CSS AST stream with exact origin chains. Do not emit CSS text and reparse
+        it, construct a JSON/generic DTO bridge, or lose SCSS-to-CSS source maps.
+  - [ ] Route imports, modules, functions, mixins, interpolation, generated
+        selectors, and expansion limits through explicit resolver, safety,
+        cancellation, recursion, output-size, and work-budget policies.
+  - [ ] Reuse the registered CSS validation, formatter, colorizer, conversion,
+        and export stages after the typed AST handoff, and verify the source path
+        through package-local, `cem_ml`, `cem_ml_cli`, WASM, parity, and release
+        Nx gates.
 
 ### Deferred: Phase 3.6 Adoption Decision
 

@@ -837,6 +837,7 @@ function sourceFenceLanguage(path) {
         case '.cem-ql':
             return 'cemql';
         case '.css':
+        case '.css-selector':
             return 'css';
         case '.csv':
             return 'csv';

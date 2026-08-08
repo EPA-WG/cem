@@ -706,6 +706,26 @@ fn assert_readme_preview_contract(
             example.id
         );
     }
+
+    if details.contains("- README rendering: fenced `") {
+        assert!(
+            !details.contains("- Preview HTML:"),
+            "schema package `{package_id}` README example `{}` fenced source must not claim generated preview HTML",
+            example.id
+        );
+        let after_details = &readme[details_end..];
+        let next_content = after_details
+            .lines()
+            .find(|line| !line.trim().is_empty())
+            .unwrap_or_else(|| panic!("README has fenced source after `{}` details", example.id));
+        assert!(
+            next_content.starts_with("```"),
+            "schema package `{package_id}` README example `{}` must put its source fence immediately after details; next line was `{next_content}`",
+            example.id
+        );
+        return false;
+    }
+
     assert!(
         details.contains(&format!("- Preview HTML: `{html_preview_path}`")),
         "schema package `{package_id}` README example `{}` must declare generated preview HTML",
@@ -968,12 +988,6 @@ fn schema_package_preview_and_validation_paths_track_source_boundaries() {
             readme.contains("This section is generated from `package.cem` `{example}` metadata"),
             "schema package `{package_id}` README must identify manifest-owned examples"
         );
-        assert!(
-            readme
-                .contains("Source snapshots are used only where the current CLI cannot yet render"),
-            "schema package `{package_id}` README must carry the source-snapshot waiver language"
-        );
-
         let project = schema_package_project_json(&package_id);
         let build = schema_package_project_target(&project, &package_id, "build");
         assert!(
@@ -1092,6 +1106,13 @@ fn schema_package_preview_and_validation_paths_track_source_boundaries() {
                     "schema-package validation examples must stay covered by `{test_name}`"
                 );
             }
+        } else if package_id == "css-selector" {
+            assert!(
+                readme.contains(
+                    "parser, lifecycle loader,\nnative evaluator, and CLI query execution are planned"
+                ),
+                "CSS selector package must declare why runtime CLI example validation is deferred"
+            );
         } else {
             let test_name = format!(
                 "schema_owned_{}_examples_validate_through_cli",

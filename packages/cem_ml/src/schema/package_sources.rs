@@ -314,6 +314,50 @@ static BUILTIN_SCHEMA_PACKAGE_ARTIFACT_SOURCES: &[BuiltinSchemaPackageArtifactSo
         source: include_str!("../../schema-packages/css/v1/colorizers/css-color-document.cemt"),
     },
     BuiltinSchemaPackageArtifactSource {
+        package_id: "css-selector",
+        path: "schema-packages/css-selector/v1/formatters/compact.cemt",
+        source: include_str!("../../schema-packages/css-selector/v1/formatters/compact.cemt"),
+    },
+    BuiltinSchemaPackageArtifactSource {
+        package_id: "css-selector",
+        path: "schema-packages/css-selector/v1/formatters/pretty.cemt",
+        source: include_str!("../../schema-packages/css-selector/v1/formatters/pretty.cemt"),
+    },
+    BuiltinSchemaPackageArtifactSource {
+        package_id: "css-selector",
+        path: "schema-packages/css-selector/v1/formatters/tabular.cemt",
+        source: include_str!("../../schema-packages/css-selector/v1/formatters/tabular.cemt"),
+    },
+    BuiltinSchemaPackageArtifactSource {
+        package_id: "css-selector",
+        path: "schema-packages/css-selector/v1/formatters/css-selector-format-expression.cemt",
+        source: include_str!(
+            "../../schema-packages/css-selector/v1/formatters/css-selector-format-expression.cemt"
+        ),
+    },
+    BuiltinSchemaPackageArtifactSource {
+        package_id: "css-selector",
+        path: "schema-packages/css-selector/v1/colorizers/terminal.cemt",
+        source: include_str!("../../schema-packages/css-selector/v1/colorizers/terminal.cemt"),
+    },
+    BuiltinSchemaPackageArtifactSource {
+        package_id: "css-selector",
+        path: "schema-packages/css-selector/v1/colorizers/html.cemt",
+        source: include_str!("../../schema-packages/css-selector/v1/colorizers/html.cemt"),
+    },
+    BuiltinSchemaPackageArtifactSource {
+        package_id: "css-selector",
+        path: "schema-packages/css-selector/v1/colorizers/md.cemt",
+        source: include_str!("../../schema-packages/css-selector/v1/colorizers/md.cemt"),
+    },
+    BuiltinSchemaPackageArtifactSource {
+        package_id: "css-selector",
+        path: "schema-packages/css-selector/v1/colorizers/css-selector-color-expression.cemt",
+        source: include_str!(
+            "../../schema-packages/css-selector/v1/colorizers/css-selector-color-expression.cemt"
+        ),
+    },
+    BuiltinSchemaPackageArtifactSource {
         package_id: "html",
         path: "schema-packages/html/v1/formatters/compact.cemt",
         source: include_str!("../../schema-packages/html/v1/formatters/compact.cemt"),
@@ -803,6 +847,14 @@ static BUILTIN_SCHEMA_PACKAGE_SOURCES: &[BuiltinSchemaPackageSource] = &[
         schema_source: include_str!("../../schema-packages/css/v1/schema/css.cem"),
     },
     BuiltinSchemaPackageSource {
+        package_id: "css-selector",
+        schema_path: "schema-packages/css-selector/v1/schema/css-selector.cem",
+        manifest_source: include_str!("../../schema-packages/css-selector/v1/package.cem"),
+        schema_source: include_str!(
+            "../../schema-packages/css-selector/v1/schema/css-selector.cem"
+        ),
+    },
+    BuiltinSchemaPackageSource {
         package_id: "json-schema",
         schema_path: "schema-packages/json-schema/v1/schema/json-schema.cem",
         manifest_source: include_str!("../../schema-packages/json-schema/v1/package.cem"),
@@ -852,8 +904,9 @@ mod tests {
         CEM_QL_EXPRESSION_CONTENT_TYPE, CEM_QL_EXPRESSION_SCHEMA_URI, CEM_QL_SCHEMA_URI,
         CEM_SCHEMA_CONTENT_TYPE, CEM_SCHEMA_PACKAGE_CONTENT_TYPE, CEM_SCHEMA_PACKAGE_URI,
         CEM_SCHEMA_URI, CEM_TRANSFORM_CONTENT_TYPE, CEM_TRANSFORM_SCHEMA_URI, CSS_CONTENT_TYPE,
-        CSS_SCHEMA_URI, CSV_CONTENT_TYPE, CSV_SCHEMA_URI, HTML_CONTENT_TYPE, HTML_SCHEMA_URI,
-        JSON_CONTENT_TYPE, JSON_SCHEMA_CONTENT_TYPE, JSON_SCHEMA_SCHEMA_URI, JSON_VALUE_SCHEMA_URI,
+        CSS_SCHEMA_URI, CSS_SELECTOR_CONTENT_TYPE, CSS_SELECTOR_SCHEMA_URI, CSV_CONTENT_TYPE,
+        CSV_SCHEMA_URI, HTML_CONTENT_TYPE, HTML_SCHEMA_URI, JSON_CONTENT_TYPE,
+        JSON_SCHEMA_CONTENT_TYPE, JSON_SCHEMA_SCHEMA_URI, JSON_VALUE_SCHEMA_URI,
         MARKDOWN_SCHEMA_URI, MATHML_CONTENT_TYPE, MATHML_SCHEMA_URI, RELAX_NG_COMPACT_CONTENT_TYPE,
         RELAX_NG_SCHEMA_URI, RELAX_NG_XML_CONTENT_TYPE, SVG_CONTENT_TYPE, SVG_SCHEMA_URI,
         XHTML_CONTENT_TYPE, XHTML_SCHEMA_URI, XML_CONTENT_TYPE, XML_SCHEMA_URI, XPATH_CONTENT_TYPE,
@@ -2438,6 +2491,44 @@ mod tests {
     }
 
     #[test]
+    fn css_selector_package_examples_are_manifest_indexed() {
+        let examples = manifest_indexed_package_examples(
+            "css-selector",
+            CSS_SELECTOR_CONTENT_TYPE,
+            CSS_SELECTOR_SCHEMA_URI,
+        );
+
+        assert_eq!(examples.len(), 3);
+        for (id, expected_result, expected_code) in [
+            (
+                "basic-selector",
+                SchemaPackageExampleExpectedResult::Pass,
+                None,
+            ),
+            (
+                "relational-selector",
+                SchemaPackageExampleExpectedResult::Pass,
+                None,
+            ),
+            (
+                "unbound-namespace",
+                SchemaPackageExampleExpectedResult::Fail,
+                Some("css-selector.namespace.unbound"),
+            ),
+        ] {
+            let example = examples
+                .iter()
+                .find(|example| example.id == id)
+                .unwrap_or_else(|| panic!("CSS selector example `{id}`"));
+            assert_eq!(example.expected_result, expected_result);
+            let expected_codes = expected_code
+                .map(|code| vec![code.to_owned()])
+                .unwrap_or_default();
+            assert_eq!(example.expected_diagnostic_codes, expected_codes);
+        }
+    }
+
+    #[test]
     fn html_package_examples_are_manifest_indexed() {
         let examples =
             manifest_indexed_package_examples("html", HTML_CONTENT_TYPE, HTML_SCHEMA_URI);
@@ -3891,6 +3982,70 @@ mod tests {
             let helper = builtin_schema_package_artifact_source("css", path)
                 .unwrap_or_else(|| panic!("CSS helper source `{path}`"));
             assert!(helper.source.contains("{body |"));
+        }
+    }
+
+    #[test]
+    fn catalog_exposes_css_selector_output_artifact_sources() {
+        for (path, function, profile) in [
+            (
+                "formatters/compact.cemt",
+                "css-selector.format-expression",
+                "compact",
+            ),
+            (
+                "formatters/pretty.cemt",
+                "css-selector.format-expression",
+                "pretty",
+            ),
+            (
+                "formatters/tabular.cemt",
+                "css-selector.format-expression",
+                "tabular",
+            ),
+            (
+                "colorizers/terminal.cemt",
+                "css-selector.color-expression",
+                "terminal",
+            ),
+            (
+                "colorizers/html.cemt",
+                "css-selector.color-expression",
+                "html",
+            ),
+            ("colorizers/md.cemt", "css-selector.color-expression", "md"),
+        ] {
+            let full_path = format!("schema-packages/css-selector/v1/{path}");
+            let artifact = builtin_schema_package_artifact_source("css-selector", &full_path)
+                .unwrap_or_else(|| panic!("CSS selector artifact source `{full_path}`"));
+            assert!(artifact.source.contains(&format!(r#"@name="{function}""#)));
+            assert!(artifact
+                .source
+                .contains(&format!(r#"@profile="{profile}""#)));
+            assert!(artifact.source.contains("{body |"));
+            assert!(artifact.source.contains(r#"@produces="cem-tree""#));
+            assert!(artifact
+                .source
+                .contains(r#"@content-type="application/vnd.cem.query-expression+css-selector""#));
+            assert!(artifact
+                .source
+                .contains(r#"@schema="https://cem.dev/ns/query/css-selector/1""#));
+            assert!(!artifact.source.contains(r#"@content-type="text/css""#));
+        }
+        for path in [
+            "schema-packages/css-selector/v1/formatters/css-selector-format-expression.cemt",
+            "schema-packages/css-selector/v1/colorizers/css-selector-color-expression.cemt",
+        ] {
+            let helper = builtin_schema_package_artifact_source("css-selector", path)
+                .unwrap_or_else(|| panic!("CSS selector helper source `{path}`"));
+            assert!(helper.source.contains("{body |"));
+            assert!(helper
+                .source
+                .contains("application/vnd.cem.query-expression+css-selector"));
+            assert!(helper
+                .source
+                .contains("https://cem.dev/ns/query/css-selector/1"));
+            assert!(!helper.source.contains(r#"@content-type="text/css""#));
         }
     }
 

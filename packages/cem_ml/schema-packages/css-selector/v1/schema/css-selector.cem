@@ -1,0 +1,148 @@
+@doc cem-ml 1
+@ns schema = "https://cem.dev/ns/schema/1"
+@ns cemml = "https://cem.dev/ns/cem-ml/1"
+@default schema
+
+{schema @name="css-selector" @namespace="https://cem.dev/ns/query/css-selector/1" @version="1.0.0" |
+    {summary |
+        {text | Standalone CSS selector query-expression schema. The package owns lossless selector tokens, typed selector AST structure, explicit namespace context, neutral parse and evaluation facts, native element-tree matching contracts, result identity and order, source maps, and diagnostic policy independently from CSS stylesheet documents.}
+    }
+
+    {uses |
+        {use @schema="https://cem.dev/ns/schema/1" @as="schema"}
+        {use @schema="https://cem.dev/ns/cem-ml/1" @as="cemml"}
+    }
+
+    {content-types |
+        {content-type @value="application/vnd.cem.query-expression+css-selector" @primary=true}
+    }
+
+    {namespaces |
+        {namespace @prefix="csssel" @uri="https://cem.dev/ns/query/css-selector/1" @role="schema"}
+    }
+
+    {elements |
+        {element @name="expression-resource" @required-attributes="content-type schema-uri language-version parse-state" @optional-attributes="uri byte-length line-ending" @children="source? token-stream? selector-list? parse-facts? static-context?"}
+        {element @name="source" @optional-attributes="uri content-type byte-length line-ending"}
+        {element @name="token-stream" @children="token*"}
+        {element @name="token" @required-attributes="index token-kind role lexeme depth byte-offset byte-length line column" @optional-attributes="source-id"}
+        {element @name="selector-list" @children="selector+"}
+        {element @name="selector" @required-attributes="specificity" @optional-attributes="byte-offset byte-length line column" @children="compound-selector+ combinator*"}
+        {element @name="compound-selector" @optional-attributes="byte-offset byte-length line column" @children="simple-selector+"}
+        {element @name="simple-selector" @required-attributes="selector-kind" @optional-attributes="name value namespace-prefix operator modifier byte-offset byte-length line column" @children="selector-list? nth-expression?"}
+        {element @name="combinator" @required-attributes="combinator-kind" @optional-attributes="byte-offset byte-length line column"}
+        {element @name="nth-expression" @required-attributes="a b" @optional-attributes="of-selector-present" @children="selector-list?"}
+        {element @name="parse-facts" @children="parse-fact*"}
+        {element @name="parse-fact" @required-attributes="kind" @optional-attributes="message value byte-offset byte-length line column"}
+        {element @name="static-context" @optional-attributes="default-namespace" @children="namespace-binding* capability*"}
+        {element @name="namespace-binding" @required-attributes="prefix namespace-uri"}
+        {element @name="capability" @required-attributes="name enabled"}
+        {element @name="evaluation-request" @required-attributes="language-version resolver-policy-stamp safety-policy-stamp input-model" @optional-attributes="context-node-id max-result-items max-work-units" @children="static-context"}
+        {element @name="evaluation-result" @required-attributes="language-version input-model result-order duplicate-policy" @children="matched-node* source-map"}
+        {element @name="matched-node" @required-attributes="source-id source-uri node-id node-kind document-order" @optional-attributes="expanded-name" @children="source-map"}
+        {element @name="source-map" @children="source-map-frame*"}
+        {element @name="source-map-frame" @required-attributes="source-id transform" @optional-attributes="transform-detail" @children="source-range*"}
+        {element @name="source-range" @required-attributes="byte-offset byte-length"}
+        {element @name="conformance-profile" @required-attributes="selectors-version syntax-version dated-baseline destination delivery" @children="normative-reference+ conformance-feature+"}
+        {element @name="normative-reference" @required-attributes="id role version uri"}
+        {element @name="conformance-feature" @required-attributes="id status requirement" @optional-attributes="capability diagnostic notes"}
+    }
+
+    {attributes |
+        {attribute @name="uri" @type="schema:uri"}
+        {attribute @name="source-uri" @type="schema:uri"}
+        {attribute @name="schema-uri" @type="schema:uri"}
+        {attribute @name="content-type" @type="schema:media-type"}
+        {attribute @name="language-version" @type="schema:string"}
+        {attribute @name="byte-length" @type="cemml:integer"}
+        {attribute @name="line-ending" @type="schema:identifier" @values="crlf lf cr mixed none"}
+        {attribute @name="parse-state" @type="schema:identifier" @values="parsed lexical-error parse-error unsupported"}
+        {attribute @name="index" @type="cemml:integer"}
+        {attribute @name="token-kind" @type="schema:identifier"}
+        {attribute @name="role" @type="schema:string"}
+        {attribute @name="lexeme" @type="schema:string"}
+        {attribute @name="depth" @type="cemml:integer"}
+        {attribute @name="source-id" @type="schema:identifier"}
+        {attribute @name="byte-offset" @type="cemml:integer"}
+        {attribute @name="line" @type="cemml:integer"}
+        {attribute @name="column" @type="cemml:integer"}
+        {attribute @name="specificity" @type="schema:string"}
+        {attribute @name="selector-kind" @type="schema:identifier" @values="type universal id class attribute pseudo-class nesting"}
+        {attribute @name="name" @type="schema:string"}
+        {attribute @name="value" @type="schema:string"}
+        {attribute @name="namespace-prefix" @type="schema:string"}
+        {attribute @name="operator" @type="schema:string"}
+        {attribute @name="modifier" @type="schema:identifier" @values="i s"}
+        {attribute @name="combinator-kind" @type="schema:identifier" @values="descendant child next-sibling subsequent-sibling column"}
+        {attribute @name="a" @type="cemml:integer"}
+        {attribute @name="b" @type="cemml:integer"}
+        {attribute @name="of-selector-present" @type="schema:boolean"}
+        {attribute @name="kind" @type="schema:identifier"}
+        {attribute @name="message" @type="schema:string"}
+        {attribute @name="default-namespace" @type="schema:uri"}
+        {attribute @name="prefix" @type="schema:string"}
+        {attribute @name="namespace-uri" @type="schema:uri"}
+        {attribute @name="enabled" @type="schema:boolean"}
+        {attribute @name="resolver-policy-stamp" @type="schema:string"}
+        {attribute @name="safety-policy-stamp" @type="schema:string"}
+        {attribute @name="input-model" @type="schema:identifier" @values="element-tree"}
+        {attribute @name="context-node-id" @type="schema:string"}
+        {attribute @name="max-result-items" @type="cemml:integer"}
+        {attribute @name="max-work-units" @type="cemml:integer"}
+        {attribute @name="result-order" @type="schema:identifier" @values="document"}
+        {attribute @name="duplicate-policy" @type="schema:identifier" @values="eliminate-native-identity"}
+        {attribute @name="node-id" @type="schema:string"}
+        {attribute @name="node-kind" @type="schema:identifier" @values="element"}
+        {attribute @name="document-order" @type="cemml:integer"}
+        {attribute @name="expanded-name" @type="schema:string"}
+        {attribute @name="transform" @type="schema:string"}
+        {attribute @name="transform-detail" @type="schema:string"}
+        {attribute @name="selectors-version" @type="schema:string"}
+        {attribute @name="syntax-version" @type="schema:string"}
+        {attribute @name="dated-baseline" @type="schema:string"}
+        {attribute @name="destination" @type="schema:identifier" @values="selectors-4"}
+        {attribute @name="delivery" @type="schema:identifier" @values="staged"}
+        {attribute @name="id" @type="schema:identifier"}
+        {attribute @name="version" @type="schema:string"}
+        {attribute @name="status" @type="schema:identifier" @values="required planned capability-gated unsupported"}
+        {attribute @name="requirement" @type="schema:string"}
+        {attribute @name="capability" @type="schema:identifier"}
+        {attribute @name="diagnostic" @type="schema:string"}
+        {attribute @name="notes" @type="schema:string"}
+    }
+
+    {constraints |
+        {constraint @kind="css-selector-distinct-source-identity" @target="expression-resource" @diagnostic="css-selector.input.unsupported" @behavior="css-selector-report-fact" @fact-kind="input-unsupported" @policy="selector expressions require the package vendor identity and are never inferred from text/css stylesheet data"}
+        {constraint @kind="css-selector-lexical-validity" @target="token-stream" @diagnostic="css-selector.lexical.invalid" @behavior="css-selector-report-fact" @fact-kind="lexical-invalid" @policy="retain CSS Syntax tokens and exact ranges while reporting invalid lexical boundaries"}
+        {constraint @kind="css-selector-grammar-validity" @target="selector-list" @diagnostic="css-selector.parse.invalid" @behavior="css-selector-report-fact" @fact-kind="parse-invalid" @policy="parse against the dated Selectors Level 4 baseline without accepting undeclared host extensions"}
+        {constraint @kind="css-selector-namespace-binding" @target="simple-selector" @diagnostic="css-selector.namespace.unbound" @behavior="css-selector-report-fact" @fact-kind="namespace-unbound" @policy="every named namespace prefix comes from the explicit query static context"}
+        {constraint @kind="css-selector-feature-support" @target="simple-selector" @diagnostic="css-selector.feature.unsupported" @behavior="css-selector-report-fact" @fact-kind="feature-unsupported" @policy="unsupported selector productions fail deterministically instead of becoming false matches"}
+        {constraint @kind="css-selector-capability-support" @target="simple-selector" @diagnostic="css-selector.capability.missing" @behavior="css-selector-report-fact" @fact-kind="capability-missing" @policy="host, UI, browsing, resource, link-history, and shadow-tree state require explicit input capabilities"}
+        {constraint @kind="css-selector-work-budget" @target="evaluation-request" @diagnostic="css-selector.budget.exceeded" @behavior="css-selector-report-fact" @fact-kind="budget-exceeded" @policy="matching, relational traversal, and result growth consume explicit work and result budgets"}
+        {constraint @kind="css-selector-native-element-tree" @target="evaluation-request" @diagnostic="css-selector.input.unsupported" @behavior="css-selector-report-fact" @fact-kind="input-unsupported" @policy="evaluation consumes a borrowed lifecycle-owned element tree without browser DOM, JSON, generic DTO, source reparse, or replacement tree"}
+        {constraint @kind="css-selector-result-order" @target="evaluation-result" @policy="selector-list matches eliminate duplicates by native identity and return lifecycle document order"}
+        {constraint @kind="css-selector-source-map-retention" @target="matched-node" @policy="query tokens and AST nodes retain query ranges while matched nodes retain input origin-first source maps"}
+        {constraint @kind="css-selector-passive-tools" @target="expression-resource" @policy="validation formatting coloring and preview generation perform no resolution or evaluation"}
+    }
+
+    {diagnostics |
+        {diagnostic @code="css-selector.lexical.invalid" @severity="error"}
+        {diagnostic @code="css-selector.parse.invalid" @severity="error"}
+        {diagnostic @code="css-selector.namespace.unbound" @severity="error"}
+        {diagnostic @code="css-selector.feature.unsupported" @severity="error"}
+        {diagnostic @code="css-selector.capability.missing" @severity="error"}
+        {diagnostic @code="css-selector.budget.exceeded" @severity="error"}
+        {diagnostic @code="css-selector.input.unsupported" @severity="error"}
+    }
+
+    {compatibility |
+        {note @version="1.0.0" @value="Selectors Level 4 Working Draft dated 2026-01-22 is the pinned selector baseline."}
+        {note @version="1.0.0" @value="CSS Syntax Level 3 supplies tokenization; text/css remains owned by the CSS stylesheet package."}
+        {note @version="1.0.0" @value="The preferred .css-selector extension is an authoring convention; schema and content identity remain authoritative."}
+    }
+
+    {open-content |
+        {accept @kind="future-selector-production" @policy="preserve-as-unsupported-fact"}
+        {accept @kind="host-capability" @policy="require-explicit-adapter-capability"}
+    }
+}

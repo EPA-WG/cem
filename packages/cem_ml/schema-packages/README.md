@@ -298,6 +298,14 @@ selectors, CEM-QL, and XPath. The CSS selector parser, evaluator, schema package
 and `cem-ml query` command described below remain target design until their
 individual checklist items are complete.
 
+The `css-selector/v1` subproject now owns the standalone selector schema,
+manifest examples, dated Selectors Level 4 conformance matrix, stable diagnostic
+vocabulary, and CEMT formatter/colorizer profiles. It is embedded in the Rust
+package catalog and included in the CLI schema-package dependency gates under
+the `.css-selector` authoring convention. Parsing, lifecycle loading, native
+evaluation, and CLI execution remain the next implementation slice; the package
+does not claim those runtime capabilities early.
+
 Query source identity is always explicit. It is never inferred from source text:
 
 | Language | Canonical schema | Canonical content type | Language baseline |

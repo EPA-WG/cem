@@ -1,0 +1,1 @@
+main#app > article.card[data-state="ready"]

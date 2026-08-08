@@ -1,0 +1,81 @@
+@doc cem-ml 1
+@ns csssel = "https://cem.dev/ns/query/css-selector/1"
+@default csssel
+
+{conformance-profile
+    @selectors-version="4"
+    @syntax-version="3"
+    @dated-baseline="2026-01-22"
+    @destination="selectors-4"
+    @delivery="staged"
+|
+    {normative-reference
+        @id="selectors4"
+        @role="selector-language"
+        @version="2026-01-22"
+        @uri="https://www.w3.org/TR/2026/WD-selectors-4-20260122/"
+    }
+    {normative-reference
+        @id="css-syntax3"
+        @role="tokenization"
+        @version="3"
+        @uri="https://www.w3.org/TR/css-syntax-3/"
+    }
+
+    {conformance-feature
+        @id="basic-simple-selectors"
+        @status="required"
+        @requirement="type universal ID class and attribute selectors retain typed AST nodes and exact source ranges"
+    }
+    {conformance-feature
+        @id="structural-combinators"
+        @status="required"
+        @requirement="descendant child next-sibling and subsequent-sibling combinators match native element relationships"
+    }
+    {conformance-feature
+        @id="selector-list-order"
+        @status="required"
+        @requirement="selector-list unions eliminate duplicate native identities and return lifecycle document order"
+    }
+    {conformance-feature
+        @id="namespaces"
+        @status="required"
+        @requirement="named and default namespaces come only from explicit host bindings and unbound prefixes fail"
+        @diagnostic="css-selector.namespace.unbound"
+    }
+    {conformance-feature
+        @id="logical-pseudo-classes"
+        @status="planned"
+        @requirement=":is() :where() and :not() consume nested typed selector lists"
+    }
+    {conformance-feature
+        @id="relational-pseudo-class"
+        @status="planned"
+        @requirement=":has() evaluates through explicit traversal work budgets"
+        @diagnostic="css-selector.budget.exceeded"
+    }
+    {conformance-feature
+        @id="tree-derived-pseudo-classes"
+        @status="planned"
+        @requirement=":root :empty :scope and child and type index families derive only from the native element tree"
+    }
+    {conformance-feature
+        @id="dynamic-host-state"
+        @status="capability-gated"
+        @requirement="UI browsing resource link-history shadow-tree and host-state selectors require advertised semantics"
+        @capability="dynamic-selector-state"
+        @diagnostic="css-selector.capability.missing"
+    }
+    {conformance-feature
+        @id="pseudo-elements"
+        @status="unsupported"
+        @requirement="query expressions select elements and reject pseudo-elements"
+        @diagnostic="css-selector.feature.unsupported"
+    }
+    {conformance-feature
+        @id="column-combinator"
+        @status="unsupported"
+        @requirement="the at-risk column combinator remains fail-closed"
+        @diagnostic="css-selector.feature.unsupported"
+    }
+}

@@ -241,6 +241,64 @@ fn schema_package_structure_audit_covers_profiles_artifacts_and_cemt_converters(
 }
 
 #[test]
+fn css_selector_package_is_schema_owned_nx_subproject() {
+    let reports = audit_schema_package_structure();
+    let css = reports
+        .iter()
+        .find(|report| report.package_id == "css")
+        .expect("CSS stylesheet package report");
+    let selector = reports
+        .iter()
+        .find(|report| report.package_id == "css-selector")
+        .expect("CSS selector query package report");
+
+    assert_eq!(
+        css.schema_uri.as_deref(),
+        Some("https://cem.dev/ns/data/css/1")
+    );
+    assert_eq!(css.content_types, BTreeSet::from(["text/css".to_owned()]));
+    assert_eq!(
+        selector.schema_uri.as_deref(),
+        Some("https://cem.dev/ns/query/css-selector/1")
+    );
+    assert_eq!(
+        selector.content_types,
+        BTreeSet::from(["application/vnd.cem.query-expression+css-selector".to_owned()])
+    );
+    assert_eq!(
+        selector.nx_project_name.as_deref(),
+        Some("cem_ml_schema_package_css_selector_v1")
+    );
+    assert!(
+        selector.missing_formatter_profiles.is_empty(),
+        "{selector:#?}"
+    );
+    assert!(
+        selector.missing_colorizer_profiles.is_empty(),
+        "{selector:#?}"
+    );
+    assert!(
+        selector
+            .version_dir
+            .join("tests/selectors-4-conformance.cem")
+            .is_file(),
+        "CSS selector package must own its Selectors Level 4 conformance matrix"
+    );
+
+    let cli_project = std::fs::read_to_string(
+        Path::new(env!("CARGO_MANIFEST_DIR")).join("../cem_ml_cli/project.json"),
+    )
+    .expect("cem_ml_cli project configuration");
+    assert_eq!(
+        cli_project
+            .matches("\"cem_ml_schema_package_css_selector_v1\"")
+            .count(),
+        3,
+        "CSS selector package must participate in CLI test, converter-parity, and e2e dependency gates"
+    );
+}
+
+#[test]
 fn schema_package_examples_use_manifest_owned_reference_records() {
     let reports = audit_schema_package_structure();
     for report in &reports {
@@ -386,7 +444,7 @@ fn source_fence_language(path: &str) -> Option<&'static str> {
     {
         "cem" | "cemt" => Some("cem"),
         "cemql" | "cem-ql" => Some("cemql"),
-        "css" => Some("css"),
+        "css" | "css-selector" => Some("css"),
         "csv" => Some("csv"),
         "html" | "htm" | "xhtml" => Some("html"),
         "json" => Some("json"),
