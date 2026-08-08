@@ -259,6 +259,19 @@ mediate between internal layers.
           signatures before arguments run; and avoid serialization, inferred
           subtype relationships, binary conversion of exact values, a duplicate
           numeric parser, or an intermediate DTO.
+    - [x] Execute native XPath `fn:floor`: dispatch one-argument unprefixed,
+          `fn:`-prefixed, EQName, and named-arrow calls by expanded QName and
+          arity; reuse primitive numeric optional-singleton function conversion
+          and ordered atomization; preserve integer identity and compute the
+          exact greatest integral decimal not above the input through native
+          truncation and unbounded subtraction; apply IEEE floor while preserving
+          float/double types, `NaN`, infinities, and signed zero; preserve
+          full-call result maps and evaluated-work budgets; reject failed
+          function-item atomization, excess cardinality, invalid retained values,
+          non-numeric and schema-derived atomic inputs, detached nodes, and wrong
+          signatures before arguments run; and avoid serialization, inferred
+          subtype relationships, binary conversion of exact values, a duplicate
+          numeric parser, or an intermediate DTO.
   - [x] Wire the native evaluator through the `transform` command and expose
         explicit CEM-QL, CEMT, and XSLT invocation adapters without reparsing
         source text, constructing an evaluator-owned replacement XML tree, or
