@@ -7,6 +7,12 @@ pub use syntax::*;
 use crate::diagnostics::{Diagnostic, Severity};
 use crate::engine::{FormatIdentity, TransformTemplateKind};
 use crate::lifecycle::LoadedInputAstStream;
+use crate::query::{
+    QueryAstOwner, QueryEncodedOutput, QueryEvaluatorAdapter, QueryExecutionRequest,
+    QueryExecutionResult, QueryExportFormat, QueryExportRequest, QueryInputModel, QueryInputOwner,
+    QueryLanguage, QueryNativeArtifact, QueryNativeResult, QueryResultExporter,
+    QueryResultExporterRegistry,
+};
 use crate::resolver::{ResolverPolicy, ResolverRegistry};
 use crate::schema::document_model::compile_schema_document_model;
 use crate::schema::package_sources::builtin_schema_package_source;
@@ -30,6 +36,7 @@ use crate::validation::xml::{XmlAttributeAst, XmlDocumentAst, XmlEventAst, XmlEv
 use regex::Regex;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
+use std::any::Any;
 use std::cmp::Ordering;
 use std::collections::{BTreeMap, BTreeSet};
 use std::sync::{Arc, OnceLock};
@@ -608,6 +615,7 @@ pub type XPathVariableBindings = BTreeMap<XPathExpandedName, XPathResultSequence
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
 pub enum XPathInvocationHost {
+    Query,
     StandaloneTransform,
     Cemt,
     CemQl,
@@ -617,6 +625,7 @@ pub enum XPathInvocationHost {
 impl XPathInvocationHost {
     fn as_str(self) -> &'static str {
         match self {
+            Self::Query => "query",
             Self::StandaloneTransform => "standalone-transform",
             Self::Cemt => "cemt",
             Self::CemQl => "cem-ql",
@@ -9721,6 +9730,426 @@ fn detect_line_ending_style_bytes(source: &[u8]) -> Option<&'static str> {
         (false, true, false) => Some("lf"),
         _ => Some("mixed"),
     }
+}
+
+const XPATH_QUERY_AST_REPRESENTATION_ID: &str = "cem.xpath-query-ast";
+const XPATH_XDM_TREE_REPRESENTATION_ID: &str = "cem.lifecycle.xdm-tree";
+const XPATH_QUERY_INPUT_MODELS: &[QueryInputModel] = &[QueryInputModel::XdmTree];
+
+#[derive(Debug, Clone)]
+pub struct XPathQueryAstOwner {
+    expression: XPathExpressionAst,
+    identity: FormatIdentity,
+    source_map: SourceMapStack,
+}
+
+impl XPathQueryAstOwner {
+    pub fn from_source_bytes(
+        request: XPathSourceRequest<'_>,
+        identity: FormatIdentity,
+    ) -> (Self, Vec<Diagnostic>) {
+        let expression = xpath_expression_ast_from_source_bytes(
+            request,
+            XPathAttachment::Standalone { source_id: 1 },
+        );
+        let diagnostics =
+            validate_xpath_expression_ast(&expression, XPathSchemaContractCatalog::from_builtin());
+        let source_map = expression
+            .syntax_ast
+            .as_ref()
+            .map(|syntax| {
+                syntax.root.source_range.source_map(
+                    expression.attachment.source_id(),
+                    expression.source.media_type.as_str(),
+                )
+            })
+            .unwrap_or_else(|| {
+                XPathSourceRange::new(1, 1, 0, expression.source.byte_length as u64).source_map(
+                    expression.attachment.source_id(),
+                    expression.source.media_type.as_str(),
+                )
+            });
+        (
+            Self {
+                expression,
+                identity,
+                source_map,
+            },
+            diagnostics,
+        )
+    }
+
+    pub fn expression(&self) -> &XPathExpressionAst {
+        &self.expression
+    }
+}
+
+impl QueryNativeArtifact for XPathQueryAstOwner {
+    fn representation_id(&self) -> &'static str {
+        XPATH_QUERY_AST_REPRESENTATION_ID
+    }
+
+    fn source_map(&self) -> Option<&SourceMapStack> {
+        Some(&self.source_map)
+    }
+
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+}
+
+impl QueryAstOwner for XPathQueryAstOwner {
+    fn language(&self) -> QueryLanguage {
+        QueryLanguage::XPath
+    }
+
+    fn identity(&self) -> &FormatIdentity {
+        &self.identity
+    }
+
+    fn source_uri(&self) -> &str {
+        &self.expression.source.uri
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct XPathXdmTreeOwner {
+    owner: Arc<LoadedInputAstStream>,
+    identity: FormatIdentity,
+    source_map: SourceMapStack,
+}
+
+impl XPathXdmTreeOwner {
+    pub fn from_lifecycle(
+        owner: Arc<LoadedInputAstStream>,
+        identity: FormatIdentity,
+    ) -> Result<Self, String> {
+        let LoadedInputAstStream::XmlDocument(document) = owner.as_ref() else {
+            return Err(
+                "XPath queries require a lifecycle-owned XML XDM tree; the input exposes no compatible native view"
+                    .to_owned(),
+            );
+        };
+        let byte_length = document.source.byte_length;
+        let content_type = identity
+            .content_type
+            .clone()
+            .unwrap_or_else(|| "application/octet-stream".to_owned());
+        Ok(Self {
+            owner,
+            identity,
+            source_map: SourceMapStack {
+                frames: vec![SourceMapFrame {
+                    source_id: SourceId(1),
+                    span: FrameSpan::Single(crate::source::ByteRange::new(
+                        0,
+                        u32::try_from(byte_length).unwrap_or(u32::MAX),
+                    )),
+                    transform: TransformKind::ContentTypeTransform { content_type },
+                }],
+            },
+        })
+    }
+
+    pub fn lifecycle_owner(&self) -> &Arc<LoadedInputAstStream> {
+        &self.owner
+    }
+}
+
+impl QueryNativeArtifact for XPathXdmTreeOwner {
+    fn representation_id(&self) -> &'static str {
+        XPATH_XDM_TREE_REPRESENTATION_ID
+    }
+
+    fn source_map(&self) -> Option<&SourceMapStack> {
+        Some(&self.source_map)
+    }
+
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+}
+
+impl QueryInputOwner for XPathXdmTreeOwner {
+    fn identity(&self) -> &FormatIdentity {
+        &self.identity
+    }
+
+    fn input_models(&self) -> &[QueryInputModel] {
+        XPATH_QUERY_INPUT_MODELS
+    }
+}
+
+impl QueryNativeArtifact for XPathResultArtifact {
+    fn representation_id(&self) -> &'static str {
+        crate::transform_artifact::XPATH_RESULT_REPRESENTATION_ID
+    }
+
+    fn source_map(&self) -> Option<&SourceMapStack> {
+        Some(&self.source_map)
+    }
+
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+}
+
+impl QueryNativeResult for XPathResultArtifact {
+    fn language(&self) -> QueryLanguage {
+        QueryLanguage::XPath
+    }
+}
+
+#[derive(Debug, Clone, Default)]
+pub struct CemXPathQueryEvaluator;
+
+impl QueryEvaluatorAdapter for CemXPathQueryEvaluator {
+    fn language(&self) -> QueryLanguage {
+        QueryLanguage::XPath
+    }
+
+    fn evaluate(
+        &self,
+        request: QueryExecutionRequest<'_>,
+    ) -> Result<QueryExecutionResult, Vec<Diagnostic>> {
+        request
+            .validate_contract()
+            .map_err(|error| vec![xpath_query_diagnostic(None, error.to_string())])?;
+        let query = request
+            .query_ast_owner
+            .as_any()
+            .downcast_ref::<XPathQueryAstOwner>()
+            .ok_or_else(|| {
+                vec![xpath_query_diagnostic(
+                    Some(request.query_ast_owner.source_uri()),
+                    "XPath query evaluator requires the package-owned query AST",
+                )]
+            })?;
+        let input = request
+            .input_ast_owner
+            .as_any()
+            .downcast_ref::<XPathXdmTreeOwner>()
+            .ok_or_else(|| {
+                vec![xpath_query_diagnostic(
+                    Some(query.source_uri()),
+                    "XPath query evaluator requires a lifecycle-owned XDM tree",
+                )]
+            })?;
+        if !request.bindings.is_empty() {
+            return Err(vec![xpath_query_diagnostic(
+                Some(query.source_uri()),
+                "XPath query host bindings require typed XDM variable artifacts",
+            )]);
+        }
+        let context_node = XPathNativeNode::xml_document(Arc::clone(input.lifecycle_owner()))
+            .map_err(|error| {
+                vec![xpath_query_diagnostic(
+                    Some(query.source_uri()),
+                    error.to_string(),
+                )]
+            })?;
+        let max_sequence_items = match (
+            request.limits.max_result_items,
+            request.limits.max_work_units,
+        ) {
+            (Some(results), Some(work)) => Some(results.min(work)),
+            (Some(results), None) => Some(results),
+            (None, Some(work)) => Some(work),
+            (None, None) => None,
+        };
+        let evaluator = CemXPathEvaluator::default();
+        let result = evaluator.evaluate(XPathEvaluationRequest {
+            invocation_host: XPathInvocationHost::Query,
+            expression: query.expression(),
+            dynamic_context: XPathDynamicContext {
+                context_item: Some(XPathResultItem::from_native_node(context_node)),
+                ..XPathDynamicContext::default()
+            },
+            static_context: XPathStaticContext {
+                namespaces: request.namespace_bindings.clone(),
+                default_element_namespace: input.identity.default_namespace.clone(),
+                ..XPathStaticContext::default()
+            },
+            expected_result: None,
+            resolver_registry: request.resolver_registry,
+            resolver_policy: request.resolver_policy,
+            evaluation_limits: XPathEvaluationLimits { max_sequence_items },
+            safety_policy_stamp: request.safety_policy_stamp,
+        })?;
+        let source_map = result.source_map.clone();
+        let native_result: Arc<dyn QueryNativeResult> = Arc::new(result);
+        QueryExecutionResult::new(
+            QueryLanguage::XPath,
+            query.identity.clone(),
+            Arc::new(input.clone()),
+            native_result,
+            source_map,
+        )
+        .map_err(|error| {
+            vec![xpath_query_diagnostic(
+                Some(query.source_uri()),
+                error.to_string(),
+            )]
+        })
+    }
+}
+
+fn xpath_query_diagnostic(uri: Option<&str>, message: impl Into<String>) -> Diagnostic {
+    Diagnostic {
+        uri: uri.map(str::to_owned),
+        code: "cem.xpath.query_contract_invalid".to_owned(),
+        severity: Severity::Fatal,
+        message: message.into(),
+        ..Diagnostic::default()
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+struct XPathQueryResultExporter {
+    format: QueryExportFormat,
+}
+
+impl QueryResultExporter for XPathQueryResultExporter {
+    fn id(&self) -> &'static str {
+        match self.format {
+            QueryExportFormat::Terminal => "cem.xpath-query-result-terminal",
+            QueryExportFormat::Cem => "cem.xpath-query-result-cem",
+            QueryExportFormat::Json => "cem.xpath-query-result-json",
+        }
+    }
+
+    fn language(&self) -> QueryLanguage {
+        QueryLanguage::XPath
+    }
+
+    fn format(&self) -> QueryExportFormat {
+        self.format
+    }
+
+    fn export(&self, request: QueryExportRequest<'_>) -> Result<QueryEncodedOutput, String> {
+        let result = request
+            .result
+            .native_result
+            .as_any()
+            .downcast_ref::<XPathResultArtifact>()
+            .ok_or_else(|| {
+                "XPath exporter requires the package-owned result sequence".to_owned()
+            })?;
+        let (content_type, bytes) = match self.format {
+            QueryExportFormat::Terminal => {
+                let mut text = format!(
+                    "XPath: {} item{} ({})\n",
+                    result.sequence.items.len(),
+                    if result.sequence.items.len() == 1 {
+                        ""
+                    } else {
+                        "s"
+                    },
+                    result.sequence.sequence_type
+                );
+                for item in &result.sequence.items {
+                    text.push_str(&xpath_terminal_item(item));
+                    text.push('\n');
+                }
+                ("text/plain; charset=utf-8".to_owned(), text.into_bytes())
+            }
+            QueryExportFormat::Cem => {
+                let mut text = format!(
+                    "{{query-result @language=\"xpath\" @sequence-type=\"{}\" @count={} |\n",
+                    xpath_query_attribute_escape(&result.sequence.sequence_type),
+                    result.sequence.items.len()
+                );
+                for item in &result.sequence.items {
+                    text.push_str("  ");
+                    text.push_str(&xpath_cem_item(item));
+                    text.push('\n');
+                }
+                text.push_str("}\n");
+                ("text/cem-ml; charset=utf-8".to_owned(), text.into_bytes())
+            }
+            QueryExportFormat::Json => {
+                let body = json!({
+                    "language": "xpath",
+                    "result": result,
+                });
+                (
+                    XPATH_RESULT_CONTENT_TYPE.to_owned(),
+                    serde_json::to_vec_pretty(&body).map_err(|error| error.to_string())?,
+                )
+            }
+        };
+        Ok(QueryEncodedOutput {
+            content_type,
+            bytes,
+        })
+    }
+}
+
+pub fn register_xpath_query_exporters(registry: &mut QueryResultExporterRegistry) {
+    for format in [
+        QueryExportFormat::Terminal,
+        QueryExportFormat::Cem,
+        QueryExportFormat::Json,
+    ] {
+        registry.register(XPathQueryResultExporter { format });
+    }
+}
+
+fn xpath_terminal_item(item: &XPathResultItem) -> String {
+    match item {
+        XPathResultItem::Node {
+            node_id,
+            expanded_name,
+            ..
+        } => format!(
+            "node\t{}\t{}",
+            node_id,
+            expanded_name.as_deref().unwrap_or_default()
+        ),
+        XPathResultItem::Atomic { value, .. } => {
+            format!("atomic\t{}\t{}", value.type_name, value.lexical_value)
+        }
+        XPathResultItem::Map { entries, .. } => format!("map\t{} entries", entries.len()),
+        XPathResultItem::Array { members, .. } => format!("array\t{} members", members.len()),
+        XPathResultItem::Function { signature, .. } => format!("function\t{signature}"),
+    }
+}
+
+fn xpath_cem_item(item: &XPathResultItem) -> String {
+    match item {
+        XPathResultItem::Node {
+            node_id,
+            expanded_name,
+            ..
+        } => format!(
+            "{{item @kind=\"node\" @node-id=\"{}\" @name=\"{}\"}}",
+            xpath_query_attribute_escape(node_id),
+            xpath_query_attribute_escape(expanded_name.as_deref().unwrap_or_default())
+        ),
+        XPathResultItem::Atomic { value, .. } => format!(
+            "{{item @kind=\"atomic\" @type=\"{}\" @value=\"{}\"}}",
+            xpath_query_attribute_escape(&value.type_name),
+            xpath_query_attribute_escape(&value.lexical_value)
+        ),
+        XPathResultItem::Map { entries, .. } => {
+            format!("{{item @kind=\"map\" @entries={}}}", entries.len())
+        }
+        XPathResultItem::Array { members, .. } => {
+            format!("{{item @kind=\"array\" @members={}}}", members.len())
+        }
+        XPathResultItem::Function { signature, .. } => format!(
+            "{{item @kind=\"function\" @signature=\"{}\"}}",
+            xpath_query_attribute_escape(signature)
+        ),
+    }
+}
+
+fn xpath_query_attribute_escape(value: &str) -> String {
+    value
+        .replace('&', "&amp;")
+        .replace('"', "&quot;")
+        .replace('<', "&lt;")
+        .replace('>', "&gt;")
 }
 
 #[cfg(test)]

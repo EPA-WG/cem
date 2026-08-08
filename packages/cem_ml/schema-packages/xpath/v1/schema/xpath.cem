@@ -124,7 +124,7 @@
         {attribute @name="min-items" @type="cemml:integer"}
         {attribute @name="max-items" @type="cemml:integer"}
         {attribute @name="host-package" @type="schema:string"}
-        {attribute @name="host-language" @type="schema:identifier" @values="standalone-transform cemt cem-ql xslt"}
+        {attribute @name="host-language" @type="schema:identifier" @values="query standalone-transform cemt cem-ql xslt"}
         {attribute @name="expression-uri" @type="schema:uri"}
         {attribute @name="xpath-version" @type="schema:string"}
         {attribute @name="evaluator-id" @type="schema:identifier"}

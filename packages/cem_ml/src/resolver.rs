@@ -15,6 +15,7 @@ use std::sync::Arc;
 pub enum ResolvePurpose {
     Config,
     Input,
+    Query,
     Template,
     ModuleMap,
     Output,
@@ -27,6 +28,7 @@ impl ResolvePurpose {
         match self {
             Self::Config => "config",
             Self::Input => "input",
+            Self::Query => "query",
             Self::Template => "template",
             Self::ModuleMap => "moduleMap",
             Self::Output => "output",

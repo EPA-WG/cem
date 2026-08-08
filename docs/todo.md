@@ -83,17 +83,22 @@ mediate between internal layers.
           views with deterministic document order and native identity. Do not
           require Chromium, construct browser DOM, reparse source, or project
           the tree through JSON.
-  - [ ] Add one `cem-ml query` CLI surface for all three query languages.
-    - [ ] Accept a data input plus an explicit CSS selector, CEM-QL, or XPath
+  - [x] Add one `cem-ml query` CLI surface for all three query languages.
+    - [x] Lock the recommended CLI contract with red integration tests before
+          implementation: `query DATA`, exactly one of `--query` or
+          `--query-file`, explicit `--query-content-type` with optional
+          `--query-schema`, and `--output terminal|cem|json`; cover CSS
+          selector, CEM-QL, and XPath execution without checked-in fixtures.
+    - [x] Accept a data input plus an explicit CSS selector, CEM-QL, or XPath
           query source by schema/content identity; support inline and file-backed
           query source, and never detect a language from query text shape.
-    - [ ] Route each language to its registered native evaluator adapter while
+    - [x] Route each language to its registered native evaluator adapter while
           sharing input lifecycle loading, host bindings, resolver/safety
           capabilities, cancellation, budgets, reporting, and exit semantics.
-    - [ ] Add explicit registered result exporters so terminal, CEM, and JSON
+    - [x] Add explicit registered result exporters so terminal, CEM, and JSON
           output encode only at the requested export boundary; do not introduce
           a common serialized query-result data plane.
-    - [ ] Preserve existing CEM-QL and XPath command behavior through documented
+    - [x] Preserve existing CEM-QL and XPath command behavior through documented
           compatibility aliases or migration diagnostics, with the unified
           query command as the canonical interface.
   - [ ] Add package and CLI evidence after the native red tests are in place.

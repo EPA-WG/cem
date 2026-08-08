@@ -61,6 +61,8 @@ pub enum Command {
 
     #[command(about = "Apply a template/stylesheet to data")]
     Transform(TransformArgs),
+    #[command(about = "Execute an explicitly identified CSS selector, CEM-QL, or XPath query")]
+    Query(QueryArgs),
     #[command(subcommand, about = "Reserved: schema workflows (not yet implemented)")]
     Schema(SchemaCmd),
     #[command(subcommand, about = "Reserved: plugin workflows (not yet implemented)")]
@@ -163,6 +165,13 @@ pub enum ReportFormat {
     Cem,
     Json,
     Md,
+}
+
+#[derive(ValueEnum, Copy, Clone, Debug, PartialEq, Eq)]
+pub enum QueryOutput {
+    Terminal,
+    Cem,
+    Json,
 }
 
 impl Default for ReportFormat {
@@ -781,6 +790,68 @@ pub struct TransformArgs {
         help = "Print source-map sidecar refs and output-span counts to stdout"
     )]
     pub source_map_summary: bool,
+
+    #[command(flatten)]
+    pub context: ContextOptions,
+    #[command(flatten)]
+    pub report: ReportOptions,
+}
+
+#[derive(Args, Debug)]
+pub struct QueryArgs {
+    #[arg(
+        value_name = "DATA",
+        help = "Path to the data input queried through its lifecycle adapter"
+    )]
+    pub data: PathBuf,
+
+    #[arg(
+        long,
+        value_name = "SOURCE",
+        required_unless_present = "query_file",
+        conflicts_with = "query_file",
+        help = "Inline query source; its language comes only from the declared query identity"
+    )]
+    pub query: Option<String>,
+
+    #[arg(
+        long = "query-file",
+        value_name = "PATH-OR-URI",
+        required_unless_present = "query",
+        conflicts_with = "query",
+        help = "File-backed query source; its language comes only from the declared query identity"
+    )]
+    pub query_file: Option<PathBuf>,
+
+    #[arg(
+        long = "query-content-type",
+        value_name = "TYPE",
+        required = true,
+        help = "Explicit query content type used to select the registered language adapter"
+    )]
+    pub query_content_type: String,
+
+    #[arg(
+        long = "query-schema",
+        value_name = "URI",
+        help = "Optional query schema identity; when present it must agree with the content type"
+    )]
+    pub query_schema: Option<String>,
+
+    #[arg(
+        long,
+        value_enum,
+        default_value_t = QueryOutput::Terminal,
+        help = "Explicit result export boundary (terminal|cem|json)"
+    )]
+    pub output: QueryOutput,
+
+    #[arg(
+        long,
+        value_name = "FILE",
+        help = "Write the exported query result to FILE"
+    )]
+    pub out: Option<PathBuf>,
 
     #[command(flatten)]
     pub context: ContextOptions,

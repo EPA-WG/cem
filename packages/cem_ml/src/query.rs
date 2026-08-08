@@ -326,6 +326,130 @@ pub trait QueryEvaluatorAdapter: Send + Sync {
     ) -> Result<QueryExecutionResult, Vec<Diagnostic>>;
 }
 
+#[derive(Default)]
+pub struct QueryEvaluatorRegistry {
+    evaluators: BTreeMap<QueryLanguage, Arc<dyn QueryEvaluatorAdapter>>,
+}
+
+impl QueryEvaluatorRegistry {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    pub fn register(&mut self, evaluator: impl QueryEvaluatorAdapter + 'static) {
+        self.evaluators
+            .insert(evaluator.language(), Arc::new(evaluator));
+    }
+
+    pub fn evaluate(
+        &self,
+        request: QueryExecutionRequest<'_>,
+    ) -> Result<QueryExecutionResult, Vec<Diagnostic>> {
+        let language = request.language;
+        self.evaluators
+            .get(&language)
+            .ok_or_else(|| {
+                vec![Diagnostic {
+                    code: "cem.query.evaluator_unavailable".to_owned(),
+                    severity: crate::diagnostics::Severity::Fatal,
+                    message: format!("no native query evaluator is registered for `{language}`"),
+                    ..Diagnostic::default()
+                }]
+            })?
+            .evaluate(request)
+    }
+}
+
+impl fmt::Debug for QueryEvaluatorRegistry {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter
+            .debug_struct("QueryEvaluatorRegistry")
+            .field("languages", &self.evaluators.keys().collect::<Vec<_>>())
+            .finish()
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub enum QueryExportFormat {
+    Terminal,
+    Cem,
+    Json,
+}
+
+impl QueryExportFormat {
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Terminal => "terminal",
+            Self::Cem => "cem",
+            Self::Json => "json",
+        }
+    }
+}
+
+pub struct QueryExportRequest<'a> {
+    pub result: &'a QueryExecutionResult,
+    pub no_color: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct QueryEncodedOutput {
+    pub content_type: String,
+    pub bytes: Vec<u8>,
+}
+
+pub trait QueryResultExporter: Send + Sync {
+    fn id(&self) -> &'static str;
+    fn language(&self) -> QueryLanguage;
+    fn format(&self) -> QueryExportFormat;
+    fn export(&self, request: QueryExportRequest<'_>) -> Result<QueryEncodedOutput, String>;
+}
+
+#[derive(Default)]
+pub struct QueryResultExporterRegistry {
+    exporters: BTreeMap<(QueryLanguage, QueryExportFormat), Arc<dyn QueryResultExporter>>,
+}
+
+impl QueryResultExporterRegistry {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    pub fn register(&mut self, exporter: impl QueryResultExporter + 'static) {
+        self.exporters
+            .insert((exporter.language(), exporter.format()), Arc::new(exporter));
+    }
+
+    pub fn export(
+        &self,
+        format: QueryExportFormat,
+        request: QueryExportRequest<'_>,
+    ) -> Result<QueryEncodedOutput, String> {
+        let language = request.result.language;
+        let exporter = self.exporters.get(&(language, format)).ok_or_else(|| {
+            format!(
+                "no query result exporter is registered for `{language}` and `{}`",
+                format.as_str()
+            )
+        })?;
+        exporter.export(request).map_err(|message| {
+            format!(
+                "query result exporter `{}` failed for `{language}` and `{}`: {message}",
+                exporter.id(),
+                format.as_str()
+            )
+        })
+    }
+}
+
+impl fmt::Debug for QueryResultExporterRegistry {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter
+            .debug_struct("QueryResultExporterRegistry")
+            .field("boundaries", &self.exporters.keys().collect::<Vec<_>>())
+            .finish()
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum QueryContractError {
     QueryLanguageMismatch {

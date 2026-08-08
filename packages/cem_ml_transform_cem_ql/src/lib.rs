@@ -29,6 +29,12 @@ use cem_ml::lifecycle::LoadedInputAstStream;
 use cem_ml::parser::document::CemDocument;
 use cem_ml::parser::{AstNodeId, CemAstNode};
 use cem_ml::projection::{CemTreeAstAttribute, CemTreeAstNode, CemTreeAstStream};
+use cem_ml::query::{
+    QueryAstOwner, QueryEncodedOutput, QueryEvaluatorAdapter, QueryExecutionRequest,
+    QueryExecutionResult, QueryExportFormat, QueryExportRequest, QueryInputModel, QueryInputOwner,
+    QueryLanguage, QueryNativeArtifact, QueryNativeResult, QueryResultExporter,
+    QueryResultExporterRegistry,
+};
 use cem_ml::run_config::ScopeConfig;
 use cem_ml::scheduler::ScopePolicy;
 use cem_ml::schema::document_model::{
@@ -101,6 +107,10 @@ pub const XSLT_PARITY_TEMPLATE_ADAPTER_ID: &str = "cem-ql-xslt-parity-template";
 const TRANSFORM_CALL_NODE: &str = "__cem_transform_call";
 const CEM_QL_RESULT_REPRESENTATION_ID: &str = "cem-ql.result-sequence";
 const CEM_QL_SOURCE_TOKEN_AST_REPRESENTATION_ID: &str = "cem-ql.source-token-ast";
+const CEM_QL_QUERY_AST_REPRESENTATION_ID: &str = "cem-ql.expression-query-ast";
+const CEM_QL_QUERY_INPUT_REPRESENTATION_ID: &str = "cem-ql.native-item-input";
+const CEM_QL_QUERY_RESULT_REPRESENTATION_ID: &str = "cem-ql.query-result-sequence";
+const CEM_QL_QUERY_INPUT_MODELS: &[QueryInputModel] = &[QueryInputModel::NativeItems];
 
 #[derive(Debug, Clone, Copy)]
 pub struct CemQlSourceValidationRequest<'a> {
@@ -5556,6 +5566,453 @@ fn lifecycle_representation_name(stream: &LoadedInputAstStream) -> &'static str 
     }
 }
 
+#[derive(Debug, Clone)]
+pub struct CemQlQueryAstOwner {
+    compiled: CompiledExpression,
+    identity: FormatIdentity,
+    source_uri: String,
+    source_map: SourceMapStack,
+}
+
+impl CemQlQueryAstOwner {
+    pub fn from_source_bytes(
+        bytes: &[u8],
+        source_uri: &str,
+        identity: FormatIdentity,
+        resolver_policy_stamp: &str,
+    ) -> Result<Self, Vec<Diagnostic>> {
+        let source = std::str::from_utf8(bytes).map_err(|error| {
+            vec![cem_ql_query_diagnostic(
+                source_uri,
+                "cem.ql.query_invalid_utf8",
+                format!("CEM-QL query source is not valid UTF-8: {error}"),
+            )]
+        })?;
+        let context = StandaloneExpressionContext {
+            source_uri: Some(source_uri.to_owned()),
+            resolver_policy_stamp: Some(resolver_policy_stamp.to_owned()),
+            host_capability_profile: Some("cem-ml-query".to_owned()),
+            ..StandaloneExpressionContext::default()
+        }
+        .with_input(ItemStream::empty(), Type::Any);
+        let compiled = compile_expression(source, &context).map_err(|error| {
+            let diagnostics = diagnostics_with_uri(&error.diagnostics, source_uri);
+            if diagnostics.is_empty() {
+                vec![cem_ql_query_diagnostic(
+                    source_uri,
+                    error.code,
+                    error.message,
+                )]
+            } else {
+                diagnostics
+            }
+        })?;
+        let source_map = SourceMapStack {
+            frames: vec![SourceMapFrame {
+                source_id: SourceId(1),
+                span: FrameSpan::Single(ByteRange::new(
+                    0,
+                    u32::try_from(bytes.len()).unwrap_or(u32::MAX),
+                )),
+                transform: TransformKind::ContentTypeTransform {
+                    content_type: identity
+                        .content_type
+                        .clone()
+                        .unwrap_or_else(|| "application/octet-stream".to_owned()),
+                },
+            }],
+        };
+        Ok(Self {
+            compiled,
+            identity,
+            source_uri: source_uri.to_owned(),
+            source_map,
+        })
+    }
+}
+
+impl QueryNativeArtifact for CemQlQueryAstOwner {
+    fn representation_id(&self) -> &'static str {
+        CEM_QL_QUERY_AST_REPRESENTATION_ID
+    }
+
+    fn source_map(&self) -> Option<&SourceMapStack> {
+        Some(&self.source_map)
+    }
+
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+}
+
+impl QueryAstOwner for CemQlQueryAstOwner {
+    fn language(&self) -> QueryLanguage {
+        QueryLanguage::CemQl
+    }
+
+    fn identity(&self) -> &FormatIdentity {
+        &self.identity
+    }
+
+    fn source_uri(&self) -> &str {
+        &self.source_uri
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct CemQlNativeItemsOwner {
+    owner: Arc<LoadedInputAstStream>,
+    identity: FormatIdentity,
+    stream: ItemStream,
+    source_map: SourceMapStack,
+}
+
+impl CemQlNativeItemsOwner {
+    pub fn from_lifecycle(
+        owner: Arc<LoadedInputAstStream>,
+        identity: FormatIdentity,
+    ) -> Result<Self, String> {
+        let stream = lifecycle_query_stream(Arc::clone(&owner))?;
+        let source_map = stream
+            .items
+            .first()
+            .and_then(Item::source_map)
+            .unwrap_or_else(|| SourceMapStack {
+                frames: vec![SourceMapFrame {
+                    source_id: SourceId(1),
+                    span: FrameSpan::Single(ByteRange::new(0, 0)),
+                    transform: TransformKind::ContentTypeTransform {
+                        content_type: identity
+                            .content_type
+                            .clone()
+                            .unwrap_or_else(|| "application/octet-stream".to_owned()),
+                    },
+                }],
+            });
+        Ok(Self {
+            owner,
+            identity,
+            stream,
+            source_map,
+        })
+    }
+
+    pub fn stream(&self) -> &ItemStream {
+        &self.stream
+    }
+
+    pub fn lifecycle_owner(&self) -> &Arc<LoadedInputAstStream> {
+        &self.owner
+    }
+}
+
+impl QueryNativeArtifact for CemQlNativeItemsOwner {
+    fn representation_id(&self) -> &'static str {
+        CEM_QL_QUERY_INPUT_REPRESENTATION_ID
+    }
+
+    fn source_map(&self) -> Option<&SourceMapStack> {
+        Some(&self.source_map)
+    }
+
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+}
+
+impl QueryInputOwner for CemQlNativeItemsOwner {
+    fn identity(&self) -> &FormatIdentity {
+        &self.identity
+    }
+
+    fn input_models(&self) -> &[QueryInputModel] {
+        CEM_QL_QUERY_INPUT_MODELS
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct CemQlQueryResultArtifact {
+    stream: ItemStream,
+    source_map: SourceMapStack,
+}
+
+impl CemQlQueryResultArtifact {
+    pub fn stream(&self) -> &ItemStream {
+        &self.stream
+    }
+}
+
+impl QueryNativeArtifact for CemQlQueryResultArtifact {
+    fn representation_id(&self) -> &'static str {
+        CEM_QL_QUERY_RESULT_REPRESENTATION_ID
+    }
+
+    fn source_map(&self) -> Option<&SourceMapStack> {
+        Some(&self.source_map)
+    }
+
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+}
+
+impl QueryNativeResult for CemQlQueryResultArtifact {
+    fn language(&self) -> QueryLanguage {
+        QueryLanguage::CemQl
+    }
+}
+
+#[derive(Debug, Clone, Default)]
+pub struct CemQlQueryEvaluator;
+
+impl QueryEvaluatorAdapter for CemQlQueryEvaluator {
+    fn language(&self) -> QueryLanguage {
+        QueryLanguage::CemQl
+    }
+
+    fn evaluate(
+        &self,
+        request: QueryExecutionRequest<'_>,
+    ) -> Result<QueryExecutionResult, Vec<Diagnostic>> {
+        request.validate_contract().map_err(|error| {
+            vec![cem_ql_query_diagnostic(
+                request.query_ast_owner.source_uri(),
+                "cem.ql.query_contract_invalid",
+                error.to_string(),
+            )]
+        })?;
+        let query = request
+            .query_ast_owner
+            .as_any()
+            .downcast_ref::<CemQlQueryAstOwner>()
+            .ok_or_else(|| {
+                vec![cem_ql_query_diagnostic(
+                    request.query_ast_owner.source_uri(),
+                    "cem.ql.query_ast_unsupported",
+                    "CEM-QL query evaluator requires the package-owned compiled expression",
+                )]
+            })?;
+        let input = request
+            .input_ast_owner
+            .as_any()
+            .downcast_ref::<CemQlNativeItemsOwner>()
+            .ok_or_else(|| {
+                vec![cem_ql_query_diagnostic(
+                    query.source_uri(),
+                    "cem.ql.query_input_unsupported",
+                    "CEM-QL query evaluator requires a lifecycle-owned native item stream",
+                )]
+            })?;
+        if !request.bindings.is_empty() {
+            return Err(vec![cem_ql_query_diagnostic(
+                query.source_uri(),
+                "cem.ql.query_binding_unsupported",
+                "CEM-QL query host bindings require package-owned typed item artifacts",
+            )]);
+        }
+        let mut stream = evaluate(
+            &query.compiled.query,
+            &EvaluationContext {
+                scope: QueryContextScope(0),
+                scope_policy: *request.scope_policy,
+                diagnostics: Vec::new(),
+                policy_bindings: BTreeMap::from([("input".to_owned(), input.stream().clone())]),
+                current_item: None,
+            },
+        );
+        let mut diagnostics = diagnostics_with_uri(&stream.diagnostics, query.source_uri());
+        if let Some(error) = stream.error.as_ref() {
+            diagnostics.push(cem_ql_query_diagnostic(
+                query.source_uri(),
+                "cem.ql.query_evaluation_failed",
+                format!("{error:?}"),
+            ));
+        }
+        if diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.severity.is_hard_violation())
+        {
+            return Err(diagnostics);
+        }
+        let item_limit = match (
+            request.limits.max_result_items,
+            request.limits.max_work_units,
+        ) {
+            (Some(results), Some(work)) => Some(results.min(work)),
+            (Some(results), None) => Some(results),
+            (None, Some(work)) => Some(work),
+            (None, None) => None,
+        };
+        if item_limit.is_some_and(|limit| stream.items.len() as u64 > limit) {
+            return Err(vec![cem_ql_query_diagnostic(
+                query.source_uri(),
+                "cem.ql.query_result_limit_exceeded",
+                format!(
+                    "CEM-QL query returned {} items, exceeding the configured limit of {}",
+                    stream.items.len(),
+                    item_limit.expect("item limit guard")
+                ),
+            )]);
+        }
+        stream.diagnostics.clear();
+        let source_map = query.source_map.clone();
+        let native_result: Arc<dyn QueryNativeResult> = Arc::new(CemQlQueryResultArtifact {
+            stream,
+            source_map: source_map.clone(),
+        });
+        QueryExecutionResult::new(
+            QueryLanguage::CemQl,
+            query.identity.clone(),
+            Arc::new(input.clone()),
+            native_result,
+            source_map,
+        )
+        .map_err(|error| {
+            vec![cem_ql_query_diagnostic(
+                query.source_uri(),
+                "cem.ql.query_contract_invalid",
+                error.to_string(),
+            )]
+        })
+    }
+}
+
+fn cem_ql_query_diagnostic(
+    uri: &str,
+    code: impl Into<String>,
+    message: impl Into<String>,
+) -> Diagnostic {
+    Diagnostic {
+        uri: Some(uri.to_owned()),
+        code: code.into(),
+        severity: Severity::Fatal,
+        message: message.into(),
+        ..Diagnostic::default()
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+struct CemQlQueryResultExporter {
+    format: QueryExportFormat,
+}
+
+impl QueryResultExporter for CemQlQueryResultExporter {
+    fn id(&self) -> &'static str {
+        match self.format {
+            QueryExportFormat::Terminal => "cem-ql.query-result-terminal",
+            QueryExportFormat::Cem => "cem-ql.query-result-cem",
+            QueryExportFormat::Json => "cem-ql.query-result-json",
+        }
+    }
+
+    fn language(&self) -> QueryLanguage {
+        QueryLanguage::CemQl
+    }
+
+    fn format(&self) -> QueryExportFormat {
+        self.format
+    }
+
+    fn export(&self, request: QueryExportRequest<'_>) -> Result<QueryEncodedOutput, String> {
+        let result = request
+            .result
+            .native_result
+            .as_any()
+            .downcast_ref::<CemQlQueryResultArtifact>()
+            .ok_or_else(|| "CEM-QL exporter requires the native item sequence".to_owned())?;
+        let (content_type, bytes) = match self.format {
+            QueryExportFormat::Terminal => {
+                let mut text = format!(
+                    "CEM-QL: {} item{}\n",
+                    result.stream.items.len(),
+                    if result.stream.items.len() == 1 {
+                        ""
+                    } else {
+                        "s"
+                    }
+                );
+                for item in &result.stream.items {
+                    text.push_str(
+                        &serde_json::to_string(&item_json(item))
+                            .map_err(|error| error.to_string())?,
+                    );
+                    text.push('\n');
+                }
+                ("text/plain; charset=utf-8".to_owned(), text.into_bytes())
+            }
+            QueryExportFormat::Cem => {
+                let mut text = format!(
+                    "{{query-result @language=\"cem-ql\" @count={} |\n",
+                    result.stream.items.len()
+                );
+                for item in &result.stream.items {
+                    text.push_str("  ");
+                    text.push_str(&cem_ql_cem_item(item));
+                    text.push('\n');
+                }
+                text.push_str("}\n");
+                ("text/cem-ml; charset=utf-8".to_owned(), text.into_bytes())
+            }
+            QueryExportFormat::Json => {
+                let body = json!({
+                    "language": "cem-ql",
+                    "result": item_stream_json(&result.stream),
+                });
+                (
+                    "application/vnd.cem.query-result+cem-ql".to_owned(),
+                    serde_json::to_vec_pretty(&body).map_err(|error| error.to_string())?,
+                )
+            }
+        };
+        Ok(QueryEncodedOutput {
+            content_type,
+            bytes,
+        })
+    }
+}
+
+pub fn register_cem_ql_query_exporters(registry: &mut QueryResultExporterRegistry) {
+    for format in [
+        QueryExportFormat::Terminal,
+        QueryExportFormat::Cem,
+        QueryExportFormat::Json,
+    ] {
+        registry.register(CemQlQueryResultExporter { format });
+    }
+}
+
+fn cem_ql_cem_item(item: &Item) -> String {
+    match item {
+        Item::Node(id) => format!("{{item @kind=\"node\" @id={id}}}"),
+        Item::Atomic(atom) => format!(
+            "{{item @kind=\"atomic\" @value=\"{}\"}}",
+            cem_ql_query_attribute_escape(&atom_json(atom).to_string())
+        ),
+        Item::Record(fields) => {
+            format!("{{item @kind=\"record\" @fields={}}}", fields.len())
+        }
+        Item::Array(items) => format!("{{item @kind=\"array\" @items={}}}", items.len()),
+        Item::Native(view) => format!(
+            "{{item @kind=\"native\" @representation=\"{}\" @identity=\"{}\"}}",
+            cem_ql_query_attribute_escape(view.representation_id()),
+            cem_ql_query_attribute_escape(&view.identity())
+        ),
+        Item::Lambda(id) => format!("{{item @kind=\"lambda\" @id=\"{id:?}\"}}"),
+        Item::Resource(resource) => format!(
+            "{{item @kind=\"resource\" @id=\"{}\"}}",
+            cem_ql_query_attribute_escape(&resource.id)
+        ),
+    }
+}
+
+fn cem_ql_query_attribute_escape(value: &str) -> String {
+    value
+        .replace('&', "&amp;")
+        .replace('"', "&quot;")
+        .replace('<', "&lt;")
+        .replace('>', "&gt;")
+}
+
 fn template_data_from_artifacts(
     primary: &TransformTemplateDataArtifact,
     secondary: &BTreeMap<String, Arc<TransformTemplateDataArtifact>>,
@@ -6784,7 +7241,7 @@ count + 1"#,
         let ingress = source
             .split("fn artifact_query_stream")
             .nth(1)
-            .and_then(|source| source.split("fn expression_compile_context").next())
+            .and_then(|source| source.split("struct CemQlQueryResultExporter").next())
             .expect("CEM-QL artifact ingress source");
         for forbidden in [
             "explicit_json_value",

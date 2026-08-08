@@ -280,9 +280,10 @@ pub fn context_with_resolver_schemes_and_schema_packages(
     context
 }
 
-const RESOLVE_PURPOSES: [ResolvePurpose; 7] = [
+const RESOLVE_PURPOSES: [ResolvePurpose; 8] = [
     ResolvePurpose::Config,
     ResolvePurpose::Input,
+    ResolvePurpose::Query,
     ResolvePurpose::Template,
     ResolvePurpose::ModuleMap,
     ResolvePurpose::Output,

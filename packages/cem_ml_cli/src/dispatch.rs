@@ -7,6 +7,11 @@
 
 use crate::cli;
 use cem_ml::engine::{self as eng, CemMlEngine, EngineError};
+use cem_ml::query::{
+    QueryAstOwner, QueryEvaluatorRegistry, QueryExecutionLimits, QueryExecutionRequest,
+    QueryExportFormat, QueryExportRequest, QueryInputOwner, QueryLanguage, QueryNativeBindings,
+    QueryResultExporterRegistry,
+};
 use cem_ml::resolver::{
     is_windows_drive_path, local_file_uri_to_path, local_path_or_file_uri, uri_scheme,
     ResolveDirection, ResolveListRequest, ResolvePurpose, ResolveRequest, ResolvedListEntry,
@@ -20,8 +25,9 @@ use cem_ml::transform_config::{
     TransformGraphNodeKind,
 };
 use cem_ml_transform_cem_ql::{
-    engine_context_with_cem_ql_template_adapter, register_cem_ql_source_output_converter,
-    CemNativeTemplateExpressionValidationRequest, CemQlTemplateEmbeddingIdentity,
+    engine_context_with_cem_ql_template_adapter, register_cem_ql_query_exporters,
+    register_cem_ql_source_output_converter, CemNativeTemplateExpressionValidationRequest,
+    CemQlNativeItemsOwner, CemQlQueryAstOwner, CemQlQueryEvaluator, CemQlTemplateEmbeddingIdentity,
     CemQlTemplateEmbeddingValidationRequest,
 };
 use std::collections::{BTreeMap, BTreeSet};
@@ -29,7 +35,7 @@ use std::ffi::OsStr;
 use std::fs;
 use std::io::{self, Read, Write};
 use std::path::{Path, PathBuf};
-use std::sync::OnceLock;
+use std::sync::{Arc, OnceLock};
 use std::time::Duration;
 
 pub const EXIT_OK: u8 = 0;
@@ -68,9 +74,10 @@ enum CliRequestError {
     Engine(EngineError),
 }
 
-const READ_PURPOSES: [ResolvePurpose; 4] = [
+const READ_PURPOSES: [ResolvePurpose; 5] = [
     ResolvePurpose::Config,
     ResolvePurpose::Input,
+    ResolvePurpose::Query,
     ResolvePurpose::Template,
     ResolvePurpose::ModuleMap,
 ];
@@ -5644,6 +5651,7 @@ pub const REPORT_BASENAME_ROUNDTRIP: &str = "cem-ml.roundtrip.report";
 pub const REPORT_BASENAME_BENCH: &str = "cem-ml.bench.report";
 pub const REPORT_BASENAME_CONVERT: &str = "cem-ml.convert.report";
 pub const REPORT_BASENAME_TRANSFORM: &str = "cem-ml.transform.report";
+pub const REPORT_BASENAME_QUERY: &str = "cem-ml.query.report";
 pub const REPORT_BASENAME_PARITY: &str = "cem-ml.parity.report";
 
 fn resolve_report_target(p: &Path, basename: &str, ext: &str) -> std::path::PathBuf {
@@ -7627,6 +7635,468 @@ fn transform_graph_source_map_sidecar_payload(
         fields.insert("outputSpans".to_owned(), output_spans);
     }
     sidecar
+}
+
+fn query_language(identity: &eng::FormatIdentity) -> Result<QueryLanguage, CliRequestError> {
+    let matches = [
+        QueryLanguage::CssSelector,
+        QueryLanguage::CemQl,
+        QueryLanguage::XPath,
+    ]
+    .into_iter()
+    .filter(|language| language.contract().matches_query_identity(identity))
+    .collect::<Vec<_>>();
+    match matches.as_slice() {
+        [language] => Ok(*language),
+        [] => Err(CliRequestError::Usage(format!(
+            "query identity did not match CSS selector, CEM-QL, or XPath: content type `{}` schema `{}`",
+            identity.content_type.as_deref().unwrap_or("none"),
+            identity.schema.as_deref().unwrap_or("none")
+        ))),
+        languages => Err(CliRequestError::Usage(format!(
+            "query identity is ambiguous across registered languages: {}",
+            languages
+                .iter()
+                .map(ToString::to_string)
+                .collect::<Vec<_>>()
+                .join(", ")
+        ))),
+    }
+}
+
+fn query_scope_policy(context: &eng::EngineContext) -> cem_ml::scheduler::ScopePolicy {
+    let mut policy = if context.scheduler.thread_pool.as_deref() == Some("host") {
+        cem_ml::scheduler::ScopePolicy::host_root()
+    } else {
+        cem_ml::scheduler::ScopePolicy {
+            cpu_workers: 1,
+            queue_size: 8,
+            io_streams: 4,
+            memory_bytes: 8 * 1024 * 1024,
+            plugin_time_budget_ms: None,
+            overflow: cem_ml::scheduler::OverflowPolicy::Reject,
+        }
+    };
+    if let Some(max_parallel_documents) = context.scheduler.max_parallel_documents {
+        policy.cpu_workers = max_parallel_documents.max(1);
+    }
+    policy
+}
+
+fn query_budget_value(scope: &ScopeConfig, names: &[&str]) -> Result<Option<u64>, CliRequestError> {
+    let mut selected = None;
+    for (name, value) in &scope.budgets {
+        let normalized = name
+            .chars()
+            .filter(|character| character.is_ascii_alphanumeric())
+            .flat_map(char::to_lowercase)
+            .collect::<String>();
+        if !names.contains(&normalized.as_str()) {
+            continue;
+        }
+        selected = Some(value.parse::<u64>().map_err(|_| {
+            CliRequestError::Usage(format!(
+                "query scope budget `{name}` must be a non-negative integer"
+            ))
+        })?);
+    }
+    Ok(selected)
+}
+
+fn query_limits(
+    language: QueryLanguage,
+    scope: &ScopeConfig,
+) -> Result<QueryExecutionLimits, CliRequestError> {
+    let result_names: &[&str] = if language == QueryLanguage::XPath {
+        &["queryitems", "xpathitems"]
+    } else {
+        &["queryitems"]
+    };
+    Ok(QueryExecutionLimits {
+        max_result_items: query_budget_value(scope, result_names)?,
+        max_work_units: query_budget_value(scope, &["querywork"])?,
+    })
+}
+
+fn query_diagnostic(
+    uri: Option<&str>,
+    code: &str,
+    message: impl Into<String>,
+) -> cem_ml::diagnostics::Diagnostic {
+    cem_ml::diagnostics::Diagnostic {
+        uri: uri.map(str::to_owned),
+        code: code.to_owned(),
+        severity: cem_ml::diagnostics::Severity::Fatal,
+        message: message.into(),
+        ..cem_ml::diagnostics::Diagnostic::default()
+    }
+}
+
+fn write_query_report(
+    context: &eng::EngineContext,
+    args: &cli::QueryArgs,
+    inputs: Vec<String>,
+    diagnostics: Vec<cem_ml::diagnostics::Diagnostic>,
+) -> io::Result<()> {
+    let report = cem_ml::report::Report::deterministic(
+        inputs,
+        diagnostics,
+        report_options_snapshot(cli::FailLevel::Validate, &args.context),
+    );
+    write_report_files(context, &report, &args.report, REPORT_BASENAME_QUERY)
+}
+
+fn query_failure(
+    context: &eng::EngineContext,
+    args: &cli::QueryArgs,
+    inputs: Vec<String>,
+    diagnostics: Vec<cem_ml::diagnostics::Diagnostic>,
+    s: &mut Streams<'_>,
+) -> Outcome {
+    if let Err(error) = write_query_report(context, args, inputs, diagnostics.clone()) {
+        let _ = writeln!(s.stderr, "cem-ml: query report write failure: {error}");
+        return Outcome::code(EXIT_IO);
+    }
+    if !report_requested(&args.report) {
+        write_diagnostics(&diagnostics, s);
+    }
+    Outcome::code(EXIT_HARD_FAILURE)
+}
+
+pub fn run_query(args: cli::QueryArgs, s: &mut Streams<'_>) -> Outcome {
+    let engine_context = context(&args.context);
+    let input_scope = input_scope_defaults(&args.context);
+    let input = match engine_input(
+        &engine_context,
+        &args.data,
+        infer_input_format(&args.data),
+        positional_input_scope(&args.data, &input_scope),
+    ) {
+        Ok(input) => input,
+        Err(error) => return handle_engine_error(error, s),
+    };
+    let data_uri = input.uri.clone();
+    let data_identity = input.identity.clone().unwrap_or_default();
+    let query_identity = eng::FormatIdentity {
+        content_type: Some(args.query_content_type.clone()),
+        schema: args.query_schema.clone(),
+        namespaces: input.root_scope.namespaces.clone(),
+        default_namespace: input.root_scope.default_namespace.clone(),
+        base_uri: input.root_scope.base_uri.clone(),
+    };
+    let language = match query_language(&query_identity) {
+        Ok(language) => language,
+        Err(error) => return handle_cli_request_error(error, s),
+    };
+    let (query_uri, query_bytes) = if let Some(source) = args.query.as_deref() {
+        (
+            format!("memory:query.{}", language.as_str()),
+            source.as_bytes().to_vec(),
+        )
+    } else {
+        let path = args
+            .query_file
+            .as_deref()
+            .expect("clap requires one query source");
+        match read_source(
+            &engine_context,
+            path,
+            "query URI",
+            ResolvePurpose::Query,
+            Some(&args.query_content_type),
+        ) {
+            Ok(read) => (read.uri, read.bytes),
+            Err(error) => {
+                let _ = writeln!(
+                    s.stderr,
+                    "cem-ml: cannot read query `{}`: {error}",
+                    path.display()
+                );
+                return Outcome::code(EXIT_IO);
+            }
+        }
+    };
+
+    let mut loaded =
+        cem_ml::lifecycle::LifecycleRegistry::with_builtin_adapters().load(&input, &engine_context);
+    let mut diagnostics = loaded.diagnostics;
+    if diagnostics
+        .iter()
+        .any(|diagnostic| diagnostic.severity.is_hard_violation())
+    {
+        return query_failure(
+            &engine_context,
+            &args,
+            vec![data_uri, query_uri],
+            diagnostics,
+            s,
+        );
+    }
+    let Some(lifecycle_owner) = loaded.ast_stream.take().map(Arc::new) else {
+        diagnostics.push(query_diagnostic(
+            Some(&data_uri),
+            "cem.query.input_model_unsupported",
+            "data input did not produce a lifecycle-owned native AST view",
+        ));
+        return query_failure(
+            &engine_context,
+            &args,
+            vec![data_uri, query_uri],
+            diagnostics,
+            s,
+        );
+    };
+
+    let input_owner: Arc<dyn QueryInputOwner> = match language {
+        QueryLanguage::CssSelector => {
+            match cem_ml::validation::css_selector::CssSelectorElementTreeOwner::from_lifecycle(
+                Arc::clone(&lifecycle_owner),
+                data_identity.clone(),
+            ) {
+                Ok(owner) => Arc::new(owner),
+                Err(fact) => {
+                    diagnostics.push(query_diagnostic(
+                        Some(&data_uri),
+                        "cem.css_selector.input_unsupported",
+                        fact.message,
+                    ));
+                    return query_failure(
+                        &engine_context,
+                        &args,
+                        vec![data_uri, query_uri],
+                        diagnostics,
+                        s,
+                    );
+                }
+            }
+        }
+        QueryLanguage::CemQl => match CemQlNativeItemsOwner::from_lifecycle(
+            Arc::clone(&lifecycle_owner),
+            data_identity.clone(),
+        ) {
+            Ok(owner) => Arc::new(owner),
+            Err(message) => {
+                diagnostics.push(query_diagnostic(
+                    Some(&data_uri),
+                    "cem.ql.query_input_unsupported",
+                    message,
+                ));
+                return query_failure(
+                    &engine_context,
+                    &args,
+                    vec![data_uri, query_uri],
+                    diagnostics,
+                    s,
+                );
+            }
+        },
+        QueryLanguage::XPath => match cem_ml::validation::xpath::XPathXdmTreeOwner::from_lifecycle(
+            Arc::clone(&lifecycle_owner),
+            data_identity.clone(),
+        ) {
+            Ok(owner) => Arc::new(owner),
+            Err(message) => {
+                diagnostics.push(query_diagnostic(
+                    Some(&data_uri),
+                    "cem.xpath.query_input_unsupported",
+                    message,
+                ));
+                return query_failure(
+                    &engine_context,
+                    &args,
+                    vec![data_uri, query_uri],
+                    diagnostics,
+                    s,
+                );
+            }
+        },
+    };
+
+    let resolver_policy_stamp = engine_context.resolver_policy.cache_stamp();
+    let query_owner: Arc<dyn QueryAstOwner> = match language {
+        QueryLanguage::CssSelector => {
+            let (owner, mut parse_diagnostics) =
+                cem_ml::validation::css_selector::css_selector_expression_ast_from_source_bytes(
+                    cem_ml::validation::css_selector::CssSelectorSourceRequest {
+                        bytes: &query_bytes,
+                        source_uri: &query_uri,
+                        content_type: query_identity.content_type.as_deref(),
+                        namespace_bindings: &query_identity.namespaces,
+                    },
+                );
+            diagnostics.append(&mut parse_diagnostics);
+            let Some(owner) = owner else {
+                return query_failure(
+                    &engine_context,
+                    &args,
+                    vec![data_uri, query_uri],
+                    diagnostics,
+                    s,
+                );
+            };
+            Arc::new(owner)
+        }
+        QueryLanguage::CemQl => match CemQlQueryAstOwner::from_source_bytes(
+            &query_bytes,
+            &query_uri,
+            query_identity.clone(),
+            &resolver_policy_stamp,
+        ) {
+            Ok(owner) => Arc::new(owner),
+            Err(mut query_diagnostics) => {
+                diagnostics.append(&mut query_diagnostics);
+                return query_failure(
+                    &engine_context,
+                    &args,
+                    vec![data_uri, query_uri],
+                    diagnostics,
+                    s,
+                );
+            }
+        },
+        QueryLanguage::XPath => {
+            let (owner, mut parse_diagnostics) =
+                cem_ml::validation::xpath::XPathQueryAstOwner::from_source_bytes(
+                    cem_ml::validation::xpath::XPathSourceRequest {
+                        bytes: &query_bytes,
+                        source_uri: &query_uri,
+                        content_type: query_identity.content_type.as_deref(),
+                        source_range_projector: None,
+                    },
+                    query_identity.clone(),
+                );
+            diagnostics.append(&mut parse_diagnostics);
+            Arc::new(owner)
+        }
+    };
+    if diagnostics
+        .iter()
+        .any(|diagnostic| diagnostic.severity.is_hard_violation())
+    {
+        return query_failure(
+            &engine_context,
+            &args,
+            vec![data_uri, query_uri],
+            diagnostics,
+            s,
+        );
+    }
+
+    let limits = match query_limits(language, &input.root_scope) {
+        Ok(limits) => limits,
+        Err(error) => return handle_cli_request_error(error, s),
+    };
+    let scope_policy = query_scope_policy(&engine_context);
+    let abort_signal = cem_ml::scheduler::AbortSignal::new();
+    let bindings = QueryNativeBindings::new();
+    let safety_policy_stamp = format!(
+        "cem-ml-query/1;result-items={};work-units={}",
+        limits
+            .max_result_items
+            .map_or_else(|| "unbounded".to_owned(), |value| value.to_string()),
+        limits
+            .max_work_units
+            .map_or_else(|| "unbounded".to_owned(), |value| value.to_string())
+    );
+    let mut evaluators = QueryEvaluatorRegistry::new();
+    evaluators.register(cem_ml::validation::css_selector::CemCssSelectorEvaluator::default());
+    evaluators.register(CemQlQueryEvaluator::default());
+    evaluators.register(cem_ml::validation::xpath::CemXPathQueryEvaluator::default());
+    let result = match evaluators.evaluate(QueryExecutionRequest {
+        language,
+        query_ast_owner: query_owner.as_ref(),
+        input_ast_owner: input_owner.as_ref(),
+        context_item: None,
+        bindings: &bindings,
+        namespace_bindings: &query_identity.namespaces,
+        resolver_registry: &engine_context.resolver_registry,
+        resolver_policy: &engine_context.resolver_policy,
+        resolver_policy_stamp: &resolver_policy_stamp,
+        safety_policy_stamp: &safety_policy_stamp,
+        scope_policy: &scope_policy,
+        abort_signal: &abort_signal,
+        limits,
+    }) {
+        Ok(result) => result,
+        Err(mut query_diagnostics) => {
+            diagnostics.append(&mut query_diagnostics);
+            return query_failure(
+                &engine_context,
+                &args,
+                vec![data_uri, query_uri],
+                diagnostics,
+                s,
+            );
+        }
+    };
+
+    let mut exporters = QueryResultExporterRegistry::new();
+    cem_ml::validation::css_selector::register_css_selector_query_exporters(&mut exporters);
+    register_cem_ql_query_exporters(&mut exporters);
+    cem_ml::validation::xpath::register_xpath_query_exporters(&mut exporters);
+    let export_format = match args.output {
+        cli::QueryOutput::Terminal => QueryExportFormat::Terminal,
+        cli::QueryOutput::Cem => QueryExportFormat::Cem,
+        cli::QueryOutput::Json => QueryExportFormat::Json,
+    };
+    let output = match exporters.export(
+        export_format,
+        QueryExportRequest {
+            result: &result,
+            no_color: s.no_color,
+        },
+    ) {
+        Ok(output) => output,
+        Err(message) => {
+            diagnostics.push(query_diagnostic(
+                Some(&query_uri),
+                "cem.query.exporter_unavailable",
+                message,
+            ));
+            return query_failure(
+                &engine_context,
+                &args,
+                vec![data_uri, query_uri],
+                diagnostics,
+                s,
+            );
+        }
+    };
+    if let Err(error) = write_query_report(
+        &engine_context,
+        &args,
+        vec![data_uri.clone(), query_uri.clone()],
+        diagnostics.clone(),
+    ) {
+        let _ = writeln!(s.stderr, "cem-ml: query report write failure: {error}");
+        return Outcome::code(EXIT_IO);
+    }
+    if !report_requested(&args.report) {
+        write_diagnostics(&diagnostics, s);
+    }
+    let write_result = if let Some(path) = args.out.as_deref() {
+        write_destination(
+            &engine_context,
+            path,
+            "query output destination",
+            ResolvePurpose::Output,
+            &output.bytes,
+        )
+    } else {
+        s.stdout.write_all(&output.bytes).and_then(|()| {
+            if output.bytes.ends_with(b"\n") {
+                Ok(())
+            } else {
+                s.stdout.write_all(b"\n")
+            }
+        })
+    };
+    if let Err(error) = write_result {
+        let _ = writeln!(s.stderr, "cem-ml: query output write failure: {error}");
+        Outcome::code(EXIT_IO)
+    } else {
+        Outcome::ok()
+    }
 }
 
 fn run_transform_graph<E: CemMlEngine + ?Sized>(
@@ -23875,6 +24345,18 @@ fn observable_inputs(
             )?;
             Ok((vec![input], context))
         }
+        cli::Command::Query(a) => {
+            let input_defaults = input_scope_defaults(&a.context);
+            let context = context(&a.context);
+            let input = engine_input(
+                &context,
+                &a.data,
+                infer_input_format(&a.data),
+                positional_input_scope(&a.data, &input_defaults),
+            )
+            .map_err(CliRequestError::Engine)?;
+            Ok((vec![input], context))
+        }
         cli::Command::Trace(a) => {
             let input_defaults = input_scope_defaults(&a.context);
             let config = run_config_for_context(
@@ -24033,6 +24515,7 @@ pub fn dispatch<E: CemMlEngine + ?Sized>(
         cli::Command::Fixture(cli::FixtureCmd::CemtPipeline(a)) => run_fixture_cemt_pipeline(a, s),
         cli::Command::Version => run_version(s),
         cli::Command::Transform(a) => run_transform(engine, a, s),
+        cli::Command::Query(a) => run_query(a, s),
         cli::Command::Schema(cli::SchemaCmd::Emit) => run_reserved("schema emit", s),
         cli::Command::Schema(cli::SchemaCmd::Sample) => run_reserved("schema sample", s),
         cli::Command::Schema(cli::SchemaCmd::Replace) => run_reserved("schema replace", s),

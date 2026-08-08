@@ -8,9 +8,11 @@ use crate::diagnostics::{Diagnostic, Severity};
 use crate::engine::FormatIdentity;
 use crate::lifecycle::LoadedInputAstStream;
 use crate::query::{
-    QueryAstOwner, QueryEvaluatorAdapter, QueryExecutionLimits, QueryExecutionRequest,
-    QueryExecutionResult, QueryInputModel, QueryInputOwner, QueryLanguage, QueryNativeArtifact,
-    QueryNativeResult, CSS_SELECTOR_LANGUAGE_VERSION, CSS_SELECTOR_RESULT_REPRESENTATION_ID,
+    QueryAstOwner, QueryEncodedOutput, QueryEvaluatorAdapter, QueryExecutionLimits,
+    QueryExecutionRequest, QueryExecutionResult, QueryExportFormat, QueryExportRequest,
+    QueryInputModel, QueryInputOwner, QueryLanguage, QueryNativeArtifact, QueryNativeResult,
+    QueryResultExporter, QueryResultExporterRegistry, CSS_SELECTOR_LANGUAGE_VERSION,
+    CSS_SELECTOR_RESULT_REPRESENTATION_ID,
 };
 use crate::schema::document_model::compile_schema_document_model;
 use crate::schema::package_sources::builtin_schema_package_source;
@@ -1711,6 +1713,115 @@ impl QueryNativeResult for CssSelectorResultArtifact {
     fn language(&self) -> QueryLanguage {
         QueryLanguage::CssSelector
     }
+}
+
+#[derive(Debug, Clone, Copy)]
+struct CssSelectorQueryResultExporter {
+    format: QueryExportFormat,
+}
+
+impl QueryResultExporter for CssSelectorQueryResultExporter {
+    fn id(&self) -> &'static str {
+        match self.format {
+            QueryExportFormat::Terminal => "cem.css-selector-result-terminal",
+            QueryExportFormat::Cem => "cem.css-selector-result-cem",
+            QueryExportFormat::Json => "cem.css-selector-result-json",
+        }
+    }
+
+    fn language(&self) -> QueryLanguage {
+        QueryLanguage::CssSelector
+    }
+
+    fn format(&self) -> QueryExportFormat {
+        self.format
+    }
+
+    fn export(&self, request: QueryExportRequest<'_>) -> Result<QueryEncodedOutput, String> {
+        let result = request
+            .result
+            .native_result
+            .as_any()
+            .downcast_ref::<CssSelectorResultArtifact>()
+            .ok_or_else(|| {
+                "CSS selector exporter requires the package-owned native result".to_owned()
+            })?;
+        let (content_type, bytes) = match self.format {
+            QueryExportFormat::Terminal => {
+                let mut text = format!(
+                    "CSS selector: {} match{}\n",
+                    result.matches.len(),
+                    if result.matches.len() == 1 { "" } else { "es" }
+                );
+                for matched in &result.matches {
+                    text.push_str(&format!(
+                        "{}\t{}\t{}\n",
+                        matched.node_id, matched.local_name, matched.namespace_uri
+                    ));
+                }
+                ("text/plain; charset=utf-8".to_owned(), text.into_bytes())
+            }
+            QueryExportFormat::Cem => {
+                let mut text = format!(
+                    "{{query-result @language=\"css-selector\" @count={} |\n",
+                    result.matches.len()
+                );
+                for matched in &result.matches {
+                    text.push_str(&format!(
+                        "  {{match @node-id=\"{}\" @name=\"{}\" @namespace=\"{}\"}}\n",
+                        cem_query_attribute_escape(&matched.node_id),
+                        cem_query_attribute_escape(&matched.local_name),
+                        cem_query_attribute_escape(&matched.namespace_uri)
+                    ));
+                }
+                text.push_str("}\n");
+                ("text/cem-ml; charset=utf-8".to_owned(), text.into_bytes())
+            }
+            QueryExportFormat::Json => {
+                let body = json!({
+                    "language": "css-selector",
+                    "contentType": result.content_type,
+                    "schema": result.schema_uri,
+                    "languageVersion": result.language_version,
+                    "observedWorkUnits": result.observed_work_units,
+                    "matches": result.matches.iter().map(|matched| json!({
+                        "nodeId": matched.node_id,
+                        "localName": matched.local_name,
+                        "namespaceUri": matched.namespace_uri,
+                        "documentOrder": matched.document_order,
+                        "sourceMap": matched.source_map,
+                    })).collect::<Vec<_>>(),
+                    "sourceMap": result.source_map,
+                });
+                (
+                    "application/vnd.cem.query-result+css-selector".to_owned(),
+                    serde_json::to_vec_pretty(&body).map_err(|error| error.to_string())?,
+                )
+            }
+        };
+        Ok(QueryEncodedOutput {
+            content_type,
+            bytes,
+        })
+    }
+}
+
+pub fn register_css_selector_query_exporters(registry: &mut QueryResultExporterRegistry) {
+    for format in [
+        QueryExportFormat::Terminal,
+        QueryExportFormat::Cem,
+        QueryExportFormat::Json,
+    ] {
+        registry.register(CssSelectorQueryResultExporter { format });
+    }
+}
+
+fn cem_query_attribute_escape(value: &str) -> String {
+    value
+        .replace('&', "&amp;")
+        .replace('"', "&quot;")
+        .replace('<', "&lt;")
+        .replace('>', "&gt;")
 }
 
 #[derive(Debug, Clone, Default)]

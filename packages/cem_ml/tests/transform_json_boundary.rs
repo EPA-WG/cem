@@ -28,6 +28,8 @@ const FROM_SLICE_ONCE: &[(&str, usize)] = &[("from_slice", 1)];
 const FROM_STR_ONCE: &[(&str, usize)] = &[("from_str", 1)];
 const TO_STRING_ONCE: &[(&str, usize)] = &[("to_string", 1)];
 const TO_STRING_TWICE: &[(&str, usize)] = &[("to_string", 2)];
+const TO_STRING_ONCE_AND_TO_VEC_PRETTY_ONCE: &[(&str, usize)] =
+    &[("to_string", 1), ("to_vec_pretty", 1)];
 const TO_STRING_PRETTY_TWICE_AND_FROM_STR_ONCE: &[(&str, usize)] =
     &[("from_str", 1), ("to_string_pretty", 2)];
 const TO_VALUE_ONCE: &[(&str, usize)] = &[("to_value", 1)];
@@ -66,8 +68,16 @@ const JSON_BOUNDARY_ALLOWLIST: &[JsonBoundaryRegion] = &[
         class: "serializer-free-native-route",
         source: CEM_QL_ADAPTER_SOURCE,
         start: "fn artifact_query_stream",
-        end: "fn template_data_from_artifacts",
+        end: "struct CemQlQueryResultExporter",
         expected_operations: NO_JSON_OPERATIONS,
+    },
+    JsonBoundaryRegion {
+        id: "cemql-query-result-export",
+        class: "registered-exporter-boundary",
+        source: CEM_QL_ADAPTER_SOURCE,
+        start: "impl QueryResultExporter for CemQlQueryResultExporter",
+        end: "pub fn register_cem_ql_query_exporters",
+        expected_operations: TO_STRING_ONCE_AND_TO_VEC_PRETTY_ONCE,
     },
     JsonBoundaryRegion {
         id: "cemql-compile-cache-key",

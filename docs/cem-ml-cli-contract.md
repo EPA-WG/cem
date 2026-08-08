@@ -655,6 +655,7 @@ Every resolver operation carries a purpose so hosts can apply policy by capabili
 
 - `config` reads the run configuration document before parsing it.
 - `input` reads configured, positional, or fixture-materialized document inputs.
+- `query` reads file-backed query source for the canonical query command.
 - `moduleMap` reads root-scope module-map JSON and establishes the base URI for relative
   schema-source identities.
 - `output` writes primary output or per-output conversion artifacts.
@@ -688,13 +689,12 @@ I/O messages, but they must not replace the underlying resolver code or URI.
 
 ## Query Runtime Boundary
 
-The library now defines the shared typed query request/result boundary. The CSS
-selector schema package, lossless parser, lifecycle element-tree adapter, and
-native evaluator implement the library side of this contract. The
-`cem-ml query` command and its query-source loading, routing, and exporter
-integration remain the next checklist item.
+The library and CLI define one shared typed query request/result boundary. The
+CSS selector schema package, lossless parser, lifecycle element-tree adapter,
+and native evaluator implement the CSS side; CEM-QL and XPath provide their
+native item/XDM adapters through the same evaluator registry.
 
-`cem-ml query` will execute exactly one explicitly identified query source over
+`cem-ml query` executes exactly one explicitly identified query source over
 one lifecycle-loaded data input. Query source may be inline or file-backed, but
 its language is selected by schema/content identity rather than filename,
 source syntax, or trial parsing:
@@ -705,9 +705,18 @@ source syntax, or trial parsing:
 | CEM-QL | `application/vnd.cem.query-expression+cem-ql`; `https://cem.dev/ns/query/cem-ql/1#expression` | CEM-QL native items |
 | XPath | `application/vnd.cem.xpath`; `https://cem.dev/ns/query/xpath/1` | Lifecycle-owned XDM tree |
 
-The option names for inline versus file-backed query source belong to the CLI
-implementation slice and are not inferred by this contract. Whichever spelling
-is selected must construct the same request: language identity, native query
+The canonical command is:
+
+```text
+cem-ml query DATA (--query SOURCE | --query-file PATH-OR-URI) \
+  --query-content-type TYPE [--query-schema URI] \
+  [--output terminal|cem|json] [--out FILE]
+```
+
+`--query` and `--query-file` construct the same request. Exactly one is
+required. `--query-content-type` is mandatory; `--query-schema`, when present,
+must agree with it. The CLI never infers a language from source text, a file
+extension, or trial parsing. The request carries language identity, native query
 AST owner, native input AST owner, context and bindings, namespace/static
 context, resolver and safety policy, cancellation, and budgets. A registered
 language adapter receives that request and returns its language-native result;
@@ -728,9 +737,10 @@ all three adapters. Result exporters are separately registered and encode only
 when the user requests a terminal, CEM, JSON, or other output boundary. The
 native result and input owners remain alive through export so native item/node
 identity, source maps, ordering, and language-specific types remain available.
-Existing CEM-QL and XPath transform aliases remain compatibility surfaces until
-the query command migration is implemented and documented; this contract does
-not silently change their current behavior.
+Existing CEM-QL expression and XPath `transform` invocations remain compatibility
+surfaces. They retain their existing options and output behavior; `query` is the
+canonical interface when the operation returns a native query result rather
+than applying a document-producing template or stylesheet.
 
 ## Functional Surface
 
@@ -742,7 +752,7 @@ not silently change their current behavior.
 - Convert/export supported documents from one declared document format into another declared document format, or into
   debug projections through the same internal AST/binary artifact spine.
 - Execute explicitly identified CSS selector, CEM-QL, or XPath source over a
-  compatible native lifecycle view through the planned `query` command.
+  compatible native lifecycle view through the canonical `query` command.
 - Reserve transform execution for applying a template/stylesheet to data to produce a document; the CLI shape is
   parseable, but runtime execution is not implemented.
 - Trace parser and validator work with deterministic text or JSON output.
