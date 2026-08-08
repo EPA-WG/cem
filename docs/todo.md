@@ -328,6 +328,30 @@ mediate between internal layers.
           avoid locale-dependent platform APIs, serialization, inferred subtype
           relationships, bounded integer coercion for decimal/alphabetic output,
           duplicate atomizers, or an intermediate DTO.
+    - [x] Execute both native XPath `fn:format-number` signatures against a
+          public typed decimal-format static-context registry: dispatch two- and
+          three-argument unprefixed, `fn:`-prefixed, EQName, and named-arrow
+          calls by expanded QName and arity; provide the XPath 3.1 unnamed
+          decimal format by default and expanded-QName-keyed named formats with
+          host-supplied decimal, grouping, exponent, infinity, minus, NaN,
+          percent, per-mille, zero-digit, optional-digit, and pattern-separator
+          properties; resolve lexical QName and URIQualifiedName format names
+          through statically known namespaces; validate every host format's
+          Unicode zero digit and distinct picture characters before evaluation;
+          reuse optional numeric and string function conversion with ordered
+          atomization; implement positive and negative subpictures, passive
+          prefixes and suffixes, prescribed half-even rounding, integer and
+          fractional padding and grouping, percent and per-mille scaling,
+          arbitrary-precision integer and decimal inputs, shortest round-tripping
+          finite float and double decimals, signed zero, NaN, infinities, and
+          scientific notation; preserve full-call result maps and evaluated-work
+          budgets; reject invalid format names with `err:FODF1280`, invalid
+          pictures with `err:FODF1310`, invalid host formats, failed function-item
+          atomization, wrong cardinality or primitive argument types, invalid
+          retained values, detached nodes, and wrong signatures before arguments
+          run; and avoid locale-dependent platform APIs, serialization, inferred
+          subtype relationships, bounded numeric coercion, duplicate atomizers,
+          or an intermediate DTO.
   - [x] Wire the native evaluator through the `transform` command and expose
         explicit CEM-QL, CEMT, and XSLT invocation adapters without reparsing
         source text, constructing an evaluator-owned replacement XML tree, or

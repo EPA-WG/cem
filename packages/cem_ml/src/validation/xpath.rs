@@ -371,6 +371,169 @@ pub struct XPathStaticContext {
     pub default_function_namespace: Option<String>,
     pub variable_bindings: BTreeMap<String, String>,
     pub function_bindings: BTreeMap<String, String>,
+    #[serde(default)]
+    pub unnamed_decimal_format: XPathDecimalFormat,
+    #[serde(
+        default,
+        serialize_with = "xpath_serialize_decimal_formats",
+        deserialize_with = "xpath_deserialize_decimal_formats"
+    )]
+    pub decimal_formats: BTreeMap<XPathExpandedName, XPathDecimalFormat>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct XPathDecimalFormat {
+    pub decimal_separator: char,
+    pub exponent_separator: char,
+    pub grouping_separator: char,
+    pub infinity: String,
+    pub minus_sign: char,
+    pub nan: String,
+    pub percent: char,
+    pub per_mille: char,
+    pub zero_digit: char,
+    pub digit: char,
+    pub pattern_separator: char,
+}
+
+impl Default for XPathDecimalFormat {
+    fn default() -> Self {
+        Self {
+            decimal_separator: '.',
+            exponent_separator: 'e',
+            grouping_separator: ',',
+            infinity: "Infinity".to_owned(),
+            minus_sign: '-',
+            nan: "NaN".to_owned(),
+            percent: '%',
+            per_mille: '‰',
+            zero_digit: '0',
+            digit: '#',
+            pattern_separator: ';',
+        }
+    }
+}
+
+fn xpath_serialize_decimal_formats<S>(
+    decimal_formats: &BTreeMap<XPathExpandedName, XPathDecimalFormat>,
+    serializer: S,
+) -> Result<S::Ok, S::Error>
+where
+    S: serde::Serializer,
+{
+    decimal_formats
+        .iter()
+        .map(|(name, decimal_format)| (name.display(), decimal_format))
+        .collect::<BTreeMap<_, _>>()
+        .serialize(serializer)
+}
+
+fn xpath_deserialize_decimal_formats<'de, D>(
+    deserializer: D,
+) -> Result<BTreeMap<XPathExpandedName, XPathDecimalFormat>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    let serialized = BTreeMap::<String, XPathDecimalFormat>::deserialize(deserializer)?;
+    let mut decimal_formats = BTreeMap::new();
+    for (key, decimal_format) in serialized {
+        let name = xpath_decimal_format_serialized_name(&key).ok_or_else(|| {
+            serde::de::Error::custom(format!(
+                "decimal format key `{key}` must be an unqualified NCName or URIQualifiedName"
+            ))
+        })?;
+        if decimal_formats.insert(name, decimal_format).is_some() {
+            return Err(serde::de::Error::custom(format!(
+                "decimal format key `{key}` duplicates an expanded name"
+            )));
+        }
+    }
+    Ok(decimal_formats)
+}
+
+fn xpath_decimal_format_serialized_name(key: &str) -> Option<XPathExpandedName> {
+    if let Some(rest) = key.strip_prefix("Q{") {
+        let (namespace_uri, local_name) = rest.split_once('}')?;
+        if namespace_uri.contains('{') || !lexer::is_ncname(local_name) {
+            return None;
+        }
+        Some(XPathExpandedName::new(
+            (!namespace_uri.is_empty()).then_some(namespace_uri),
+            local_name,
+        ))
+    } else if lexer::is_ncname(key) {
+        Some(XPathExpandedName::unqualified(key))
+    } else {
+        None
+    }
+}
+
+fn xpath_validate_decimal_formats(static_context: &XPathStaticContext) -> Result<(), String> {
+    xpath_validate_decimal_format("unnamed", &static_context.unnamed_decimal_format)?;
+    for (name, decimal_format) in &static_context.decimal_formats {
+        if !lexer::is_ncname(&name.local_name) {
+            return Err(format!(
+                "XPath static context decimal format `{}` has a local name that is not an NCName",
+                name.display()
+            ));
+        }
+        if name.namespace_uri.as_deref() == Some("") {
+            return Err(format!(
+                "XPath static context decimal format `{}` must represent an empty namespace with None",
+                name.display()
+            ));
+        }
+        xpath_validate_decimal_format(&name.display(), decimal_format)?;
+    }
+    Ok(())
+}
+
+fn xpath_validate_decimal_format(
+    name: &str,
+    decimal_format: &XPathDecimalFormat,
+) -> Result<(), String> {
+    let Some(zero_digit) = xpath_decimal_digit_family_start(decimal_format.zero_digit) else {
+        return Err(format!(
+            "XPath static context decimal format `{name}` zero digit `{}` is not a Unicode Nd character",
+            decimal_format.zero_digit
+        ));
+    };
+    if zero_digit != u32::from(decimal_format.zero_digit) {
+        return Err(format!(
+            "XPath static context decimal format `{name}` zero digit `{}` does not have numeric value zero",
+            decimal_format.zero_digit
+        ));
+    }
+
+    let properties = [
+        ("decimal separator", decimal_format.decimal_separator),
+        ("exponent separator", decimal_format.exponent_separator),
+        ("grouping separator", decimal_format.grouping_separator),
+        ("percent", decimal_format.percent),
+        ("per-mille", decimal_format.per_mille),
+        ("zero digit", decimal_format.zero_digit),
+        ("optional digit", decimal_format.digit),
+        ("pattern separator", decimal_format.pattern_separator),
+    ];
+    for (index, (label, character)) in properties.iter().enumerate() {
+        if let Some((other_label, _)) = properties[..index]
+            .iter()
+            .find(|(_, other)| other == character)
+        {
+            return Err(format!(
+                "XPath static context decimal format `{name}` uses `{character}` for both {other_label} and {label}"
+            ));
+        }
+        if *label != "zero digit"
+            && (zero_digit..zero_digit.saturating_add(10)).contains(&u32::from(*character))
+        {
+            return Err(format!(
+                "XPath static context decimal format `{name}` {label} `{character}` conflicts with its decimal digit family"
+            ));
+        }
+    }
+    Ok(())
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -1417,6 +1580,14 @@ impl XPathEvaluatorAdapter for CemXPathEvaluator {
                 None,
             )]);
         }
+        if let Err(message) = xpath_validate_decimal_formats(&request.static_context) {
+            return Err(vec![xpath_evaluation_diagnostic(
+                request.expression,
+                "cem.xpath.decimal_format_invalid",
+                message,
+                None,
+            )]);
+        }
         let Some(syntax) = request.expression.syntax_ast.as_ref() else {
             return Err(vec![xpath_evaluation_diagnostic(
                 request.expression,
@@ -1431,6 +1602,7 @@ impl XPathEvaluatorAdapter for CemXPathEvaluator {
             XPathFocus::outer(
                 request.dynamic_context.context_item.as_ref(),
                 &request.dynamic_context.default_language,
+                &request.static_context,
             ),
             &request.dynamic_context.variable_bindings,
             request.evaluation_limits,
@@ -1557,6 +1729,7 @@ impl TransformTemplateAdapter for XPathTransformTemplateAdapter {
                 default_function_namespace: None,
                 variable_bindings: BTreeMap::new(),
                 function_bindings: BTreeMap::new(),
+                ..XPathStaticContext::default()
             })
             .unwrap_or_default();
 
@@ -1843,15 +2016,21 @@ struct XPathFocus<'a> {
     position: usize,
     size: usize,
     default_language: &'a str,
+    static_context: &'a XPathStaticContext,
 }
 
 impl<'a> XPathFocus<'a> {
-    fn outer(context_item: Option<&'a XPathResultItem>, default_language: &'a str) -> Self {
+    fn outer(
+        context_item: Option<&'a XPathResultItem>,
+        default_language: &'a str,
+        static_context: &'a XPathStaticContext,
+    ) -> Self {
         Self {
             context_item,
             position: usize::from(context_item.is_some()),
             size: usize::from(context_item.is_some()),
             default_language,
+            static_context,
         }
     }
 
@@ -1860,12 +2039,14 @@ impl<'a> XPathFocus<'a> {
         position: usize,
         size: usize,
         default_language: &'a str,
+        static_context: &'a XPathStaticContext,
     ) -> Self {
         Self {
             context_item: Some(context_item),
             position,
             size,
             default_language,
+            static_context,
         }
     }
 }
@@ -2491,6 +2672,7 @@ fn xpath_evaluate_expression_node(
                             position.saturating_add(1),
                             size,
                             focus.default_language,
+                            focus.static_context,
                         ),
                         variable_bindings,
                         evaluation_limits,
@@ -3185,6 +3367,7 @@ fn xpath_evaluate_path(
                         predicates,
                         candidates,
                         focus.default_language,
+                        focus.static_context,
                         variable_bindings,
                         evaluation_limits,
                     )?);
@@ -3213,6 +3396,7 @@ fn xpath_evaluate_path(
                                 position.saturating_add(1),
                                 size,
                                 focus.default_language,
+                                focus.static_context,
                             ),
                             variable_bindings,
                             evaluation_limits,
@@ -3246,6 +3430,7 @@ fn xpath_evaluate_path(
                                 position.saturating_add(1),
                                 size,
                                 focus.default_language,
+                                focus.static_context,
                             ),
                             variable_bindings,
                             evaluation_limits,
@@ -3285,6 +3470,7 @@ fn xpath_evaluate_postfix(
                     std::slice::from_ref(predicate),
                     current,
                     focus.default_language,
+                    focus.static_context,
                     variable_bindings,
                     evaluation_limits,
                 )?;
@@ -3414,6 +3600,7 @@ enum XPathNativeFunction {
     Round,
     RoundHalfToEven,
     FormatInteger,
+    FormatNumber,
     AtomicConstructor(&'static str),
 }
 
@@ -3498,6 +3685,88 @@ fn xpath_native_function(name: &XPathName, arity: usize) -> Option<XPathNativeFu
         ("round", 1 | 2) => Some(XPathNativeFunction::Round),
         ("round-half-to-even", 1 | 2) => Some(XPathNativeFunction::RoundHalfToEven),
         ("format-integer", 2 | 3) => Some(XPathNativeFunction::FormatInteger),
+        ("format-number", 2 | 3) => Some(XPathNativeFunction::FormatNumber),
+        _ => None,
+    }
+}
+
+fn xpath_builtin_namespace_for_prefix(prefix: &str) -> Option<&'static str> {
+    match prefix {
+        "xml" => Some("http://www.w3.org/XML/1998/namespace"),
+        "xs" => Some("http://www.w3.org/2001/XMLSchema"),
+        "fn" => Some("http://www.w3.org/2005/xpath-functions"),
+        "math" => Some("http://www.w3.org/2005/xpath-functions/math"),
+        "map" => Some("http://www.w3.org/2005/xpath-functions/map"),
+        "array" => Some("http://www.w3.org/2005/xpath-functions/array"),
+        "err" => Some("http://www.w3.org/2005/xqt-errors"),
+        "output" => Some("http://www.w3.org/2010/xslt-xquery-serialization"),
+        _ => None,
+    }
+}
+
+fn xpath_resolve_decimal_format<'a>(
+    static_context: &'a XPathStaticContext,
+    lexical_name: Option<&str>,
+    source_range: XPathSourceRange,
+) -> Result<&'a XPathDecimalFormat, XPathEvaluationError> {
+    let Some(lexical_name) = lexical_name.map(str::trim).filter(|name| !name.is_empty()) else {
+        return Ok(&static_context.unnamed_decimal_format);
+    };
+    let expanded_name = xpath_decimal_format_expanded_name(lexical_name, static_context)
+        .ok_or_else(|| {
+            XPathEvaluationError::dynamic(
+                "cem.xpath.format_number_decimal_format_invalid",
+                format!(
+                    "err:FODF1280: XPath fn:format-number decimal-format name `{lexical_name}` is not a resolvable QName"
+                ),
+                source_range,
+            )
+        })?;
+    static_context
+        .decimal_formats
+        .get(&expanded_name)
+        .ok_or_else(|| {
+            XPathEvaluationError::dynamic(
+                "cem.xpath.format_number_decimal_format_invalid",
+                format!(
+                    "err:FODF1280: XPath fn:format-number decimal format `{}` is not defined in the static context",
+                    expanded_name.display()
+                ),
+                source_range,
+            )
+        })
+}
+
+fn xpath_decimal_format_expanded_name(
+    lexical_name: &str,
+    static_context: &XPathStaticContext,
+) -> Option<XPathExpandedName> {
+    if let Some(rest) = lexical_name.strip_prefix("Q{") {
+        let (namespace_uri, local_name) = rest.split_once('}')?;
+        if namespace_uri.contains('{') || !lexer::is_ncname(local_name) {
+            return None;
+        }
+        return Some(XPathExpandedName::new(
+            (!namespace_uri.is_empty()).then_some(namespace_uri),
+            local_name,
+        ));
+    }
+    let mut parts = lexical_name.split(':');
+    let first = parts.next()?;
+    let second = parts.next();
+    if parts.next().is_some() {
+        return None;
+    }
+    match second {
+        None if lexer::is_ncname(first) => Some(XPathExpandedName::unqualified(first)),
+        Some(local_name) if lexer::is_ncname(first) && lexer::is_ncname(local_name) => {
+            let namespace_uri = static_context
+                .namespaces
+                .get(first)
+                .map(String::as_str)
+                .or_else(|| xpath_builtin_namespace_for_prefix(first))?;
+            Some(XPathExpandedName::new(Some(namespace_uri), local_name))
+        }
         _ => None,
     }
 }
@@ -3736,11 +4005,11 @@ fn xpath_evaluate_function_call(
             variable_bindings,
             evaluation_limits,
         )?;
-        let picture = xpath_format_integer_string_operand(
+        let picture = xpath_formatting_string_operand(
             &picture_items,
             picture_argument.source_range,
             evaluation_limits,
-            XPathFormatIntegerStringOperand::Picture,
+            XPathFormattingStringOperand::IntegerPicture,
         )?
         .expect("fn:format-integer requires one picture string");
         let language = if let Some(language_argument) = arguments.get(2) {
@@ -3751,11 +4020,11 @@ fn xpath_evaluate_function_call(
                 variable_bindings,
                 evaluation_limits,
             )?;
-            xpath_format_integer_string_operand(
+            xpath_formatting_string_operand(
                 &language_items,
                 language_argument.source_range,
                 evaluation_limits,
-                XPathFormatIntegerStringOperand::Language,
+                XPathFormattingStringOperand::IntegerLanguage,
             )?
         } else {
             None
@@ -3767,6 +4036,69 @@ fn xpath_evaluate_function_call(
             &picture,
             language.as_deref(),
             focus.default_language,
+            picture_argument.source_range,
+        )?;
+        return Ok(vec![xpath_string_result_item(
+            expression,
+            source_range,
+            formatted,
+        )]);
+    }
+    if function == XPathNativeFunction::FormatNumber {
+        let picture_argument = arguments
+            .get(1)
+            .expect("resolved fn:format-number calls have a picture argument");
+        let picture_items = xpath_evaluate_expression_node(
+            expression,
+            picture_argument,
+            focus,
+            variable_bindings,
+            evaluation_limits,
+        )?;
+        let picture = xpath_formatting_string_operand(
+            &picture_items,
+            picture_argument.source_range,
+            evaluation_limits,
+            XPathFormattingStringOperand::NumberPicture,
+        )?
+        .expect("fn:format-number requires one picture string");
+        let (decimal_format_name, decimal_format_name_source_range) =
+            if let Some(name_argument) = arguments.get(2) {
+                let name_items = xpath_evaluate_expression_node(
+                    expression,
+                    name_argument,
+                    focus,
+                    variable_bindings,
+                    evaluation_limits,
+                )?;
+                (
+                    xpath_formatting_string_operand(
+                        &name_items,
+                        name_argument.source_range,
+                        evaluation_limits,
+                        XPathFormattingStringOperand::NumberDecimalFormatName,
+                    )?,
+                    name_argument.source_range,
+                )
+            } else {
+                (None, source_range)
+            };
+        let decimal_format = xpath_resolve_decimal_format(
+            focus.static_context,
+            decimal_format_name.as_deref(),
+            decimal_format_name_source_range,
+        )?;
+        let value = xpath_numeric_function_operand(
+            &items,
+            argument.source_range,
+            evaluation_limits,
+            "fn:format-number",
+            "cem.xpath.format_number_value_function_item",
+        )?;
+        let formatted = xpath_format_number(
+            value,
+            &picture,
+            decimal_format,
             picture_argument.source_range,
         )?;
         return Ok(vec![xpath_string_result_item(
@@ -3857,6 +4189,9 @@ fn xpath_evaluate_function_call(
         XPathNativeFunction::FormatInteger => {
             unreachable!("formatting functions return after signature conversion")
         }
+        XPathNativeFunction::FormatNumber => {
+            unreachable!("formatting functions return after signature conversion")
+        }
     };
     Ok(vec![result])
 }
@@ -3943,6 +4278,7 @@ fn xpath_apply_predicates(
     predicates: &[XPathExpressionSequence],
     mut input: Vec<XPathResultItem>,
     default_language: &str,
+    static_context: &XPathStaticContext,
     variable_bindings: &XPathVariableBindings,
     evaluation_limits: XPathEvaluationLimits,
 ) -> Result<Vec<XPathResultItem>, XPathEvaluationError> {
@@ -3950,8 +4286,13 @@ fn xpath_apply_predicates(
         let size = input.len();
         let mut filtered = Vec::new();
         for (index, item) in input.into_iter().enumerate() {
-            let predicate_focus =
-                XPathFocus::item(&item, index.saturating_add(1), size, default_language);
+            let predicate_focus = XPathFocus::item(
+                &item,
+                index.saturating_add(1),
+                size,
+                default_language,
+                static_context,
+            );
             let result = xpath_evaluate_expression_sequence(
                 expression,
                 predicate,
@@ -4587,42 +4928,58 @@ fn xpath_round_precision_operand(
 }
 
 #[derive(Debug, Clone, Copy)]
-enum XPathFormatIntegerStringOperand {
-    Picture,
-    Language,
+enum XPathFormattingStringOperand {
+    IntegerPicture,
+    IntegerLanguage,
+    NumberPicture,
+    NumberDecimalFormatName,
 }
 
-impl XPathFormatIntegerStringOperand {
+impl XPathFormattingStringOperand {
+    fn function_name(self) -> &'static str {
+        match self {
+            Self::IntegerPicture | Self::IntegerLanguage => "fn:format-integer",
+            Self::NumberPicture | Self::NumberDecimalFormatName => "fn:format-number",
+        }
+    }
+
     fn label(self) -> &'static str {
         match self {
-            Self::Picture => "picture",
-            Self::Language => "language",
+            Self::IntegerPicture | Self::NumberPicture => "picture",
+            Self::IntegerLanguage => "language",
+            Self::NumberDecimalFormatName => "decimal-format name",
         }
     }
 
     fn function_item_code(self) -> &'static str {
         match self {
-            Self::Picture => "cem.xpath.format_integer_picture_function_item",
-            Self::Language => "cem.xpath.format_integer_language_function_item",
+            Self::IntegerPicture => "cem.xpath.format_integer_picture_function_item",
+            Self::IntegerLanguage => "cem.xpath.format_integer_language_function_item",
+            Self::NumberPicture => "cem.xpath.format_number_picture_function_item",
+            Self::NumberDecimalFormatName => "cem.xpath.format_number_decimal_format_function_item",
         }
     }
 
     fn cardinality_code(self) -> &'static str {
         match self {
-            Self::Picture => "cem.xpath.format_integer_picture_cardinality",
-            Self::Language => "cem.xpath.format_integer_language_cardinality",
+            Self::IntegerPicture => "cem.xpath.format_integer_picture_cardinality",
+            Self::IntegerLanguage => "cem.xpath.format_integer_language_cardinality",
+            Self::NumberPicture => "cem.xpath.format_number_picture_cardinality",
+            Self::NumberDecimalFormatName => "cem.xpath.format_number_decimal_format_cardinality",
         }
     }
 
     fn type_error_code(self) -> &'static str {
         match self {
-            Self::Picture => "cem.xpath.format_integer_picture_type_error",
-            Self::Language => "cem.xpath.format_integer_language_type_error",
+            Self::IntegerPicture => "cem.xpath.format_integer_picture_type_error",
+            Self::IntegerLanguage => "cem.xpath.format_integer_language_type_error",
+            Self::NumberPicture => "cem.xpath.format_number_picture_type_error",
+            Self::NumberDecimalFormatName => "cem.xpath.format_number_decimal_format_type_error",
         }
     }
 
     fn allows_empty(self) -> bool {
-        matches!(self, Self::Language)
+        matches!(self, Self::IntegerLanguage | Self::NumberDecimalFormatName)
     }
 }
 
@@ -4686,17 +5043,17 @@ fn xpath_format_integer_value_operand(
     }
 }
 
-fn xpath_format_integer_string_operand(
+fn xpath_formatting_string_operand(
     items: &[XPathResultItem],
     source_range: XPathSourceRange,
     evaluation_limits: XPathEvaluationLimits,
-    operand: XPathFormatIntegerStringOperand,
+    operand: XPathFormattingStringOperand,
 ) -> Result<Option<String>, XPathEvaluationError> {
     let atomized = xpath_atomized_items(
         items,
         source_range,
         evaluation_limits,
-        "fn:format-integer",
+        operand.function_name(),
         operand.function_item_code(),
     )?;
     let [item] = atomized.as_slice() else {
@@ -4706,7 +5063,8 @@ fn xpath_format_integer_string_operand(
         return Err(XPathEvaluationError::dynamic(
             operand.cardinality_code(),
             format!(
-                "err:XPTY0004: XPath fn:format-integer {} must atomize to {} xs:string value; found {}",
+                "err:XPTY0004: XPath {} {} must atomize to {} xs:string value; found {}",
+                operand.function_name(),
                 operand.label(),
                 if operand.allows_empty() {
                     "zero or one"
@@ -4722,18 +5080,703 @@ fn xpath_format_integer_string_operand(
         unreachable!("native atomization returns only atomic result items")
     };
     match value.type_name.as_str() {
-        "xs:untypedAtomic" | "xs:string" | "xs:anyURI" => {
-            Ok(Some(value.lexical_value.clone()))
-        }
+        "xs:untypedAtomic" | "xs:string" | "xs:anyURI" => Ok(Some(value.lexical_value.clone())),
         _ => Err(XPathEvaluationError::dynamic(
             operand.type_error_code(),
             format!(
-                "err:XPTY0004: XPath fn:format-integer {} requires a primitive xs:string value, found `{}`",
+                "err:XPTY0004: XPath {} {} requires a primitive xs:string value, found `{}`",
+                operand.function_name(),
                 operand.label(),
                 value.type_name
             ),
             source_range,
         )),
+    }
+}
+
+#[derive(Debug, Clone)]
+struct XPathNumberPicture {
+    positive: XPathNumberSubPicture,
+    negative: Option<XPathNumberSubPicture>,
+}
+
+#[derive(Debug, Clone)]
+struct XPathNumberSubPicture {
+    prefix: String,
+    suffix: String,
+    integer_grouping: XPathNumberGrouping,
+    fractional_grouping_positions: BTreeSet<usize>,
+    minimum_integer_size: usize,
+    minimum_fractional_size: usize,
+    maximum_fractional_size: usize,
+    scaling_factor: usize,
+    minimum_exponent_size: usize,
+    decimal_separator_present: bool,
+    percent: bool,
+    per_mille: bool,
+}
+
+#[derive(Debug, Clone)]
+enum XPathNumberGrouping {
+    None,
+    Regular(usize),
+    Irregular(BTreeSet<usize>),
+}
+
+#[derive(Debug, Clone, Copy)]
+struct XPathNumberExponent {
+    negative: bool,
+    magnitude: usize,
+}
+
+fn xpath_format_number(
+    value: Option<XPathComparableAtomic>,
+    picture: &str,
+    decimal_format: &XPathDecimalFormat,
+    picture_source_range: XPathSourceRange,
+) -> Result<String, XPathEvaluationError> {
+    let picture = xpath_parse_number_picture(picture, decimal_format).map_err(|message| {
+        XPathEvaluationError::dynamic(
+            "cem.xpath.format_number_picture_invalid",
+            format!("err:FODF1310: invalid fn:format-number picture: {message}"),
+            picture_source_range,
+        )
+    })?;
+    let value = value.unwrap_or(XPathComparableAtomic::Double(f64::NAN));
+    if matches!(
+        value,
+        XPathComparableAtomic::Float(value) if value.is_nan()
+    ) || matches!(
+        value,
+        XPathComparableAtomic::Double(value) if value.is_nan()
+    ) {
+        return Ok(decimal_format.nan.clone());
+    }
+
+    let negative = match &value {
+        XPathComparableAtomic::Integer(value) | XPathComparableAtomic::Decimal(value) => {
+            value.negative
+        }
+        XPathComparableAtomic::Float(value) => value.is_sign_negative(),
+        XPathComparableAtomic::Double(value) => value.is_sign_negative(),
+        _ => unreachable!("fn:format-number conversion supplies numeric values"),
+    };
+    let (subpicture, implicit_minus) = if negative {
+        picture
+            .negative
+            .as_ref()
+            .map_or((&picture.positive, true), |subpicture| (subpicture, false))
+    } else {
+        (&picture.positive, false)
+    };
+
+    let scaled = xpath_scale_format_number_value(value, subpicture);
+    let infinite = matches!(
+        scaled,
+        XPathComparableAtomic::Float(value) if value.is_infinite()
+    ) || matches!(
+        scaled,
+        XPathComparableAtomic::Double(value) if value.is_infinite()
+    );
+    if infinite {
+        return Ok(xpath_format_number_with_affixes(
+            &decimal_format.infinity,
+            subpicture,
+            decimal_format,
+            implicit_minus,
+        ));
+    }
+
+    let exact = xpath_format_number_exact_magnitude(scaled);
+    let (mantissa, exponent) = xpath_format_number_mantissa(exact, subpicture);
+    let rounded = mantissa.rounded(
+        &XPathExactDecimal::from_usize(subpicture.maximum_fractional_size),
+        XPathMidpointRounding::HalfToEven,
+    );
+    let mut formatted = xpath_render_number_mantissa(&rounded, subpicture, decimal_format);
+    if let Some(exponent) = exponent {
+        formatted.push(decimal_format.exponent_separator);
+        if exponent.negative && exponent.magnitude != 0 {
+            formatted.push(decimal_format.minus_sign);
+        }
+        let mut digits = exponent.magnitude.to_string();
+        if digits.len() < subpicture.minimum_exponent_size {
+            digits.insert_str(
+                0,
+                &"0".repeat(subpicture.minimum_exponent_size - digits.len()),
+            );
+        }
+        formatted.push_str(&xpath_translate_number_digits(&digits, decimal_format));
+    }
+    Ok(xpath_format_number_with_affixes(
+        &formatted,
+        subpicture,
+        decimal_format,
+        implicit_minus,
+    ))
+}
+
+fn xpath_scale_format_number_value(
+    value: XPathComparableAtomic,
+    subpicture: &XPathNumberSubPicture,
+) -> XPathComparableAtomic {
+    let factor = if subpicture.percent {
+        100
+    } else if subpicture.per_mille {
+        1_000
+    } else {
+        1
+    };
+    match value {
+        XPathComparableAtomic::Integer(value) => {
+            XPathComparableAtomic::Integer(value.multiply(&XPathExactDecimal::from_u64(factor)))
+        }
+        XPathComparableAtomic::Decimal(value) => {
+            XPathComparableAtomic::Decimal(value.multiply(&XPathExactDecimal::from_u64(factor)))
+        }
+        XPathComparableAtomic::Float(value) => XPathComparableAtomic::Float(value * factor as f32),
+        XPathComparableAtomic::Double(value) => {
+            XPathComparableAtomic::Double(value * factor as f64)
+        }
+        _ => unreachable!("fn:format-number conversion supplies numeric values"),
+    }
+}
+
+fn xpath_format_number_exact_magnitude(value: XPathComparableAtomic) -> XPathExactDecimal {
+    let mut exact = match value {
+        XPathComparableAtomic::Integer(value) | XPathComparableAtomic::Decimal(value) => value,
+        XPathComparableAtomic::Float(value) => xpath_exact_decimal_from_shortest_float(value),
+        XPathComparableAtomic::Double(value) => xpath_exact_decimal_from_shortest_double(value),
+        _ => unreachable!("fn:format-number conversion supplies numeric values"),
+    };
+    exact.negative = false;
+    exact
+}
+
+fn xpath_exact_decimal_from_shortest_float(value: f32) -> XPathExactDecimal {
+    debug_assert!(value.is_finite());
+    xpath_exact_decimal_from_scientific_lexical(&value.abs().to_string())
+        .expect("finite float display is a valid decimal lexical form")
+}
+
+fn xpath_exact_decimal_from_shortest_double(value: f64) -> XPathExactDecimal {
+    debug_assert!(value.is_finite());
+    xpath_exact_decimal_from_scientific_lexical(&value.abs().to_string())
+        .expect("finite double display is a valid decimal lexical form")
+}
+
+fn xpath_exact_decimal_from_scientific_lexical(lexical: &str) -> Option<XPathExactDecimal> {
+    let (mantissa, exponent) = if let Some((mantissa, exponent)) = lexical.split_once(['e', 'E']) {
+        (mantissa, exponent.parse::<i64>().ok()?)
+    } else {
+        (lexical, 0_i64)
+    };
+    let mut value = XPathExactDecimal::parse(mantissa, true)?;
+    if exponent >= 0 {
+        let exponent = usize::try_from(exponent).ok()?;
+        if exponent >= value.scale {
+            value
+                .coefficient
+                .extend(std::iter::repeat_n(0, exponent - value.scale));
+            value.scale = 0;
+        } else {
+            value.scale -= exponent;
+        }
+    } else {
+        value.scale = value
+            .scale
+            .checked_add(usize::try_from(exponent.unsigned_abs()).ok()?)?;
+    }
+    Some(XPathExactDecimal::from_parts(
+        value.negative,
+        value.coefficient,
+        value.scale,
+    ))
+}
+
+fn xpath_format_number_mantissa(
+    value: XPathExactDecimal,
+    subpicture: &XPathNumberSubPicture,
+) -> (XPathExactDecimal, Option<XPathNumberExponent>) {
+    if subpicture.minimum_exponent_size == 0 {
+        return (value, None);
+    }
+    if value.is_zero() {
+        return (
+            value,
+            Some(XPathNumberExponent {
+                negative: false,
+                magnitude: 0,
+            }),
+        );
+    }
+
+    let coefficient_length = value.coefficient.len();
+    let target_scale = value
+        .scale
+        .checked_add(subpicture.scaling_factor)
+        .expect("picture and decimal lengths fit usize");
+    let exponent = if coefficient_length >= target_scale {
+        XPathNumberExponent {
+            negative: false,
+            magnitude: coefficient_length - target_scale,
+        }
+    } else {
+        XPathNumberExponent {
+            negative: true,
+            magnitude: target_scale - coefficient_length,
+        }
+    };
+    let mantissa = if exponent.negative {
+        xpath_shift_exact_decimal(value, true, exponent.magnitude)
+    } else {
+        xpath_shift_exact_decimal(value, false, exponent.magnitude)
+    };
+    (mantissa, Some(exponent))
+}
+
+fn xpath_shift_exact_decimal(
+    mut value: XPathExactDecimal,
+    multiply: bool,
+    places: usize,
+) -> XPathExactDecimal {
+    if multiply {
+        if places >= value.scale {
+            value
+                .coefficient
+                .extend(std::iter::repeat_n(0, places - value.scale));
+            value.scale = 0;
+        } else {
+            value.scale -= places;
+        }
+    } else {
+        value.scale = value
+            .scale
+            .checked_add(places)
+            .expect("picture and decimal lengths fit usize");
+    }
+    XPathExactDecimal::from_parts(value.negative, value.coefficient, value.scale)
+}
+
+fn xpath_render_number_mantissa(
+    value: &XPathExactDecimal,
+    subpicture: &XPathNumberSubPicture,
+    decimal_format: &XPathDecimalFormat,
+) -> String {
+    let (mut integer, mut fraction) = if value.is_zero() {
+        (String::new(), String::new())
+    } else if value.scale == 0 {
+        (
+            xpath_format_ascii_integer_magnitude(&value.coefficient),
+            String::new(),
+        )
+    } else if value.coefficient.len() > value.scale {
+        let integer_length = value.coefficient.len() - value.scale;
+        (
+            xpath_format_ascii_integer_magnitude(&value.coefficient[..integer_length]),
+            xpath_format_ascii_integer_magnitude(&value.coefficient[integer_length..]),
+        )
+    } else {
+        let mut fraction = "0".repeat(value.scale - value.coefficient.len());
+        fraction.push_str(&xpath_format_ascii_integer_magnitude(&value.coefficient));
+        (String::new(), fraction)
+    };
+    if integer.len() < subpicture.minimum_integer_size {
+        integer.insert_str(
+            0,
+            &"0".repeat(subpicture.minimum_integer_size - integer.len()),
+        );
+    }
+    if fraction.len() < subpicture.minimum_fractional_size {
+        fraction.push_str(&"0".repeat(subpicture.minimum_fractional_size - fraction.len()));
+    }
+
+    let integer =
+        xpath_group_number_integer(&integer, &subpicture.integer_grouping, decimal_format);
+    let fraction = xpath_group_number_fraction(
+        &fraction,
+        &subpicture.fractional_grouping_positions,
+        decimal_format,
+    );
+    let mut result = xpath_translate_number_digits(&integer, decimal_format);
+    if subpicture.decimal_separator_present && !fraction.is_empty() {
+        result.push(decimal_format.decimal_separator);
+        result.push_str(&xpath_translate_number_digits(&fraction, decimal_format));
+    }
+    result
+}
+
+fn xpath_group_number_integer(
+    integer: &str,
+    grouping: &XPathNumberGrouping,
+    decimal_format: &XPathDecimalFormat,
+) -> String {
+    let positions = match grouping {
+        XPathNumberGrouping::None => return integer.to_owned(),
+        XPathNumberGrouping::Regular(size) => (1..integer.len())
+            .filter(|position| position % size == 0)
+            .collect::<BTreeSet<_>>(),
+        XPathNumberGrouping::Irregular(positions) => positions.clone(),
+    };
+    let mut grouped = String::with_capacity(integer.len().saturating_add(positions.len()));
+    for (index, digit) in integer.chars().enumerate() {
+        let digits_to_right = integer.len().saturating_sub(index).saturating_sub(1);
+        grouped.push(digit);
+        if digits_to_right > 0 && positions.contains(&digits_to_right) {
+            grouped.push(decimal_format.grouping_separator);
+        }
+    }
+    grouped
+}
+
+fn xpath_group_number_fraction(
+    fraction: &str,
+    positions: &BTreeSet<usize>,
+    decimal_format: &XPathDecimalFormat,
+) -> String {
+    let mut grouped = String::with_capacity(fraction.len().saturating_add(positions.len()));
+    for (index, digit) in fraction.chars().enumerate() {
+        if index > 0 && positions.contains(&index) {
+            grouped.push(decimal_format.grouping_separator);
+        }
+        grouped.push(digit);
+    }
+    grouped
+}
+
+fn xpath_translate_number_digits(digits: &str, decimal_format: &XPathDecimalFormat) -> String {
+    let zero_digit = u32::from(decimal_format.zero_digit);
+    digits
+        .chars()
+        .map(|character| {
+            character
+                .is_ascii_digit()
+                .then(|| {
+                    character
+                        .to_digit(10)
+                        .expect("ASCII digits have numeric values")
+                })
+                .map_or(character, |digit| {
+                    char::from_u32(zero_digit.saturating_add(digit))
+                        .expect("validated decimal digit families contain ten scalar values")
+                })
+        })
+        .collect()
+}
+
+fn xpath_format_number_with_affixes(
+    number: &str,
+    subpicture: &XPathNumberSubPicture,
+    decimal_format: &XPathDecimalFormat,
+    implicit_minus: bool,
+) -> String {
+    let mut result = String::new();
+    if implicit_minus {
+        result.push(decimal_format.minus_sign);
+    }
+    result.push_str(&subpicture.prefix);
+    result.push_str(number);
+    result.push_str(&subpicture.suffix);
+    result
+}
+
+fn xpath_parse_number_picture(
+    picture: &str,
+    decimal_format: &XPathDecimalFormat,
+) -> Result<XPathNumberPicture, String> {
+    let subpictures = picture
+        .split(decimal_format.pattern_separator)
+        .collect::<Vec<_>>();
+    if subpictures.len() > 2 {
+        return Err("a picture can contain at most two subpictures".to_owned());
+    }
+    let positive = xpath_parse_number_subpicture(subpictures[0], decimal_format)?;
+    let negative = subpictures
+        .get(1)
+        .map(|subpicture| xpath_parse_number_subpicture(subpicture, decimal_format))
+        .transpose()?;
+    Ok(XPathNumberPicture { positive, negative })
+}
+
+fn xpath_parse_number_subpicture(
+    subpicture: &str,
+    decimal_format: &XPathDecimalFormat,
+) -> Result<XPathNumberSubPicture, String> {
+    let characters = subpicture.chars().collect::<Vec<_>>();
+    if characters.is_empty() {
+        return Err("a subpicture cannot be empty".to_owned());
+    }
+    if characters
+        .iter()
+        .filter(|character| **character == decimal_format.decimal_separator)
+        .count()
+        > 1
+    {
+        return Err("a subpicture can contain at most one decimal separator".to_owned());
+    }
+    let percent_count = characters
+        .iter()
+        .filter(|character| **character == decimal_format.percent)
+        .count();
+    let per_mille_count = characters
+        .iter()
+        .filter(|character| **character == decimal_format.per_mille)
+        .count();
+    if percent_count > 1 || per_mille_count > 1 || (percent_count > 0 && per_mille_count > 0) {
+        return Err(
+            "a subpicture can contain one percent or one per-mille character, but not both"
+                .to_owned(),
+        );
+    }
+
+    let is_base_active = |character: char| {
+        character == decimal_format.decimal_separator
+            || character == decimal_format.grouping_separator
+            || character == decimal_format.digit
+            || xpath_number_mandatory_digit(character, decimal_format)
+    };
+    let is_initial_active = |character: char| {
+        is_base_active(character) || character == decimal_format.exponent_separator
+    };
+    let exponent_positions = characters
+        .iter()
+        .enumerate()
+        .filter_map(|(index, character)| {
+            if *character != decimal_format.exponent_separator {
+                return None;
+            }
+            let preceded = characters[..index].iter().copied().any(is_initial_active);
+            let followed = characters[index.saturating_add(1)..]
+                .iter()
+                .copied()
+                .any(is_initial_active);
+            (preceded && followed).then_some(index)
+        })
+        .collect::<Vec<_>>();
+    if exponent_positions.len() > 1 {
+        return Err("a subpicture can contain at most one exponent separator".to_owned());
+    }
+    if !exponent_positions.is_empty() && (percent_count > 0 || per_mille_count > 0) {
+        return Err("exponent notation cannot be combined with percent or per-mille".to_owned());
+    }
+
+    let first_active = characters
+        .iter()
+        .enumerate()
+        .find_map(|(index, character)| {
+            (is_base_active(*character) || exponent_positions.contains(&index)).then_some(index)
+        })
+        .ok_or_else(|| "a subpicture must contain a digit placeholder".to_owned())?;
+    let last_active = characters
+        .iter()
+        .enumerate()
+        .rev()
+        .find_map(|(index, character)| {
+            (is_base_active(*character) || exponent_positions.contains(&index)).then_some(index)
+        })
+        .expect("a first active character implies a last active character");
+    if characters[first_active..=last_active]
+        .iter()
+        .enumerate()
+        .any(|(offset, character)| {
+            let index = first_active.saturating_add(offset);
+            !is_base_active(*character) && !exponent_positions.contains(&index)
+        })
+    {
+        return Err("a passive character cannot occur between active characters".to_owned());
+    }
+
+    for pair in characters.windows(2) {
+        if pair
+            == [
+                decimal_format.grouping_separator,
+                decimal_format.grouping_separator,
+            ]
+        {
+            return Err("grouping separators cannot be adjacent".to_owned());
+        }
+        if (pair[0] == decimal_format.grouping_separator
+            && pair[1] == decimal_format.decimal_separator)
+            || (pair[0] == decimal_format.decimal_separator
+                && pair[1] == decimal_format.grouping_separator)
+        {
+            return Err(
+                "a grouping separator cannot be adjacent to the decimal separator".to_owned(),
+            );
+        }
+    }
+
+    let exponent_index = exponent_positions.first().copied();
+    let mantissa_end = exponent_index.unwrap_or(last_active.saturating_add(1));
+    let mantissa = &characters[first_active..mantissa_end];
+    let exponent = exponent_index.map(|index| &characters[index.saturating_add(1)..=last_active]);
+    if let Some(exponent) = exponent {
+        if exponent.is_empty()
+            || exponent
+                .iter()
+                .any(|character| !xpath_number_mandatory_digit(*character, decimal_format))
+        {
+            return Err("an exponent separator must be followed by one or more mandatory digits and no other active character".to_owned());
+        }
+    }
+
+    let decimal_index = mantissa
+        .iter()
+        .position(|character| *character == decimal_format.decimal_separator);
+    let (integer, fraction) = decimal_index.map_or((mantissa, &[][..]), |index| {
+        (&mantissa[..index], &mantissa[index.saturating_add(1)..])
+    });
+    if decimal_index.is_none() && integer.last() == Some(&decimal_format.grouping_separator) {
+        return Err(
+            "a grouping separator cannot end an integer part without a decimal separator"
+                .to_owned(),
+        );
+    }
+
+    let integer_placeholders = integer
+        .iter()
+        .filter(|character| xpath_number_is_placeholder(**character, decimal_format))
+        .count();
+    let fractional_placeholders = fraction
+        .iter()
+        .filter(|character| xpath_number_is_placeholder(**character, decimal_format))
+        .count();
+    if integer_placeholders.saturating_add(fractional_placeholders) == 0 {
+        return Err("a mantissa must contain at least one digit placeholder".to_owned());
+    }
+
+    let mut integer_seen_mandatory = false;
+    for character in integer {
+        if xpath_number_mandatory_digit(*character, decimal_format) {
+            integer_seen_mandatory = true;
+        } else if *character == decimal_format.digit && integer_seen_mandatory {
+            return Err(
+                "an optional integer digit cannot follow a mandatory integer digit".to_owned(),
+            );
+        }
+    }
+    let mut fraction_seen_optional = false;
+    for character in fraction {
+        if *character == decimal_format.digit {
+            fraction_seen_optional = true;
+        } else if xpath_number_mandatory_digit(*character, decimal_format) && fraction_seen_optional
+        {
+            return Err(
+                "a mandatory fractional digit cannot follow an optional fractional digit"
+                    .to_owned(),
+            );
+        }
+    }
+
+    let minimum_integer_initial = integer
+        .iter()
+        .filter(|character| xpath_number_mandatory_digit(**character, decimal_format))
+        .count();
+    let scaling_factor = minimum_integer_initial;
+    let mut minimum_integer_size = minimum_integer_initial;
+    let mut minimum_fractional_size = fraction
+        .iter()
+        .filter(|character| xpath_number_mandatory_digit(**character, decimal_format))
+        .count();
+    let mut maximum_fractional_size = fractional_placeholders;
+    let minimum_exponent_size = exponent.map_or(0, <[char]>::len);
+    if minimum_integer_size == 0 && maximum_fractional_size == 0 {
+        if minimum_exponent_size > 0 {
+            minimum_fractional_size = 1;
+            maximum_fractional_size = 1;
+        } else {
+            minimum_integer_size = 1;
+        }
+    }
+    if minimum_exponent_size > 0
+        && minimum_integer_size == 0
+        && integer.contains(&decimal_format.digit)
+    {
+        minimum_integer_size = 1;
+    }
+    if minimum_integer_size == 0 && minimum_fractional_size == 0 {
+        minimum_fractional_size = 1;
+    }
+
+    let integer_grouping = xpath_number_integer_grouping(
+        integer,
+        integer_placeholders,
+        decimal_format.grouping_separator,
+        decimal_format,
+    );
+    let fractional_grouping_positions = fraction
+        .iter()
+        .scan(0_usize, |digits, character| {
+            if xpath_number_is_placeholder(*character, decimal_format) {
+                *digits = digits.saturating_add(1);
+                Some(None)
+            } else if *character == decimal_format.grouping_separator {
+                Some(Some(*digits))
+            } else {
+                Some(None)
+            }
+        })
+        .flatten()
+        .collect();
+
+    Ok(XPathNumberSubPicture {
+        prefix: characters[..first_active].iter().collect(),
+        suffix: characters[last_active.saturating_add(1)..].iter().collect(),
+        integer_grouping,
+        fractional_grouping_positions,
+        minimum_integer_size,
+        minimum_fractional_size,
+        maximum_fractional_size,
+        scaling_factor,
+        minimum_exponent_size,
+        decimal_separator_present: decimal_index.is_some(),
+        percent: percent_count == 1,
+        per_mille: per_mille_count == 1,
+    })
+}
+
+fn xpath_number_mandatory_digit(character: char, decimal_format: &XPathDecimalFormat) -> bool {
+    let code_point = u32::from(character);
+    let zero_digit = u32::from(decimal_format.zero_digit);
+    (zero_digit..zero_digit.saturating_add(10)).contains(&code_point)
+}
+
+fn xpath_number_is_placeholder(character: char, decimal_format: &XPathDecimalFormat) -> bool {
+    character == decimal_format.digit || xpath_number_mandatory_digit(character, decimal_format)
+}
+
+fn xpath_number_integer_grouping(
+    integer: &[char],
+    integer_placeholders: usize,
+    grouping_separator: char,
+    decimal_format: &XPathDecimalFormat,
+) -> XPathNumberGrouping {
+    let positions = integer
+        .iter()
+        .scan(0_usize, |digits, character| {
+            if xpath_number_is_placeholder(*character, decimal_format) {
+                *digits = digits.saturating_add(1);
+                Some(None)
+            } else if *character == grouping_separator {
+                Some(Some(integer_placeholders.saturating_sub(*digits)))
+            } else {
+                Some(None)
+            }
+        })
+        .flatten()
+        .collect::<BTreeSet<_>>();
+    let Some(size) = positions.first().copied() else {
+        return XPathNumberGrouping::None;
+    };
+    if size > 0
+        && positions
+            == (size..integer_placeholders)
+                .step_by(size)
+                .collect::<BTreeSet<_>>()
+    {
+        XPathNumberGrouping::Regular(size)
+    } else {
+        XPathNumberGrouping::Irregular(positions)
     }
 }
 
@@ -8515,20 +9558,7 @@ impl<'a> XPathSyntaxLowerer<'a> {
             XPathAttachment::Host(host) => host.static_context.namespaces.get(prefix).cloned(),
             XPathAttachment::Standalone { .. } => None,
         };
-        host_namespace.or_else(|| {
-            match prefix {
-                "xml" => Some("http://www.w3.org/XML/1998/namespace"),
-                "xs" => Some("http://www.w3.org/2001/XMLSchema"),
-                "fn" => Some("http://www.w3.org/2005/xpath-functions"),
-                "math" => Some("http://www.w3.org/2005/xpath-functions/math"),
-                "map" => Some("http://www.w3.org/2005/xpath-functions/map"),
-                "array" => Some("http://www.w3.org/2005/xpath-functions/array"),
-                "err" => Some("http://www.w3.org/2005/xqt-errors"),
-                "output" => Some("http://www.w3.org/2010/xslt-xquery-serialization"),
-                _ => None,
-            }
-            .map(str::to_owned)
-        })
+        host_namespace.or_else(|| xpath_builtin_namespace_for_prefix(prefix).map(str::to_owned))
     }
 
     fn default_namespace(&self, name_use: XPathNameUse) -> Option<String> {
@@ -8811,6 +9841,22 @@ mod tests {
         variable_bindings: XPathVariableBindings,
         max_sequence_items: Option<u64>,
     ) -> Result<XPathResultArtifact, Vec<Diagnostic>> {
+        evaluate_for_test_with_static_context(
+            source,
+            context_item,
+            variable_bindings,
+            XPathStaticContext::default(),
+            max_sequence_items,
+        )
+    }
+
+    fn evaluate_for_test_with_static_context(
+        source: &str,
+        context_item: Option<XPathResultItem>,
+        variable_bindings: XPathVariableBindings,
+        static_context: XPathStaticContext,
+        max_sequence_items: Option<u64>,
+    ) -> Result<XPathResultArtifact, Vec<Diagnostic>> {
         let expression = parse(source);
         let resolver_registry = ResolverRegistry::new();
         let resolver_policy = ResolverPolicy::new();
@@ -8822,7 +9868,7 @@ mod tests {
                 variable_bindings,
                 ..XPathDynamicContext::default()
             },
-            static_context: XPathStaticContext::default(),
+            static_context,
             expected_result: None,
             resolver_registry: &resolver_registry,
             resolver_policy: &resolver_policy,
@@ -16194,6 +17240,502 @@ mod tests {
             "format-integer(1, $picture)",
             None,
             BTreeMap::from([(XPathExpandedName::unqualified("picture"), expanded_picture)]),
+            Some(1),
+        )
+        .expect_err("picture atomization enforces evaluated sequence-item budgets");
+        assert_eq!(
+            diagnostics[0].code,
+            "cem.xpath.sequence_item_limit_exceeded"
+        );
+    }
+
+    #[test]
+    fn xpath_native_format_number_function_uses_typed_decimal_formats() {
+        let assert_format = |source: &str,
+                             context_item: Option<XPathResultItem>,
+                             bindings: XPathVariableBindings,
+                             static_context: XPathStaticContext,
+                             expected: &str| {
+            let result = evaluate_for_test_with_static_context(
+                source,
+                context_item,
+                bindings,
+                static_context,
+                None,
+            )
+            .unwrap_or_else(|diagnostics| panic!("`{source}` failed: {diagnostics:?}"));
+            let [XPathResultItem::Atomic { value, source_map }] = result.sequence.items.as_slice()
+            else {
+                panic!("`{source}` did not return one atomic item: {result:?}");
+            };
+            assert_eq!(result.sequence.sequence_type, "xs:string", "`{source}`");
+            assert_eq!(value.type_name, "xs:string", "`{source}`");
+            assert_eq!(value.lexical_value, expected, "`{source}`");
+            assert_eq!(
+                source_map.frames[0].span,
+                FrameSpan::Single(ByteRange::new(0, source.len() as u32)),
+                "`{source}`"
+            );
+        };
+
+        for (source, expected) in [
+            ("format-number(12345.6, '#,###.00')", "12,345.60"),
+            ("fn:format-number(12345678.9, '9,999.99')", "12,345,678.90"),
+            (
+                "Q{http://www.w3.org/2005/xpath-functions}format-number(123.9, '9999')",
+                "0124",
+            ),
+            ("1234 => format-number('#,##0')", "1,234"),
+            ("format-number(0.14, '01%')", "14%"),
+            ("format-number(0.014, '01‰')", "14‰"),
+            ("format-number(-6, '000')", "-006"),
+            ("format-number(-6, '0.00;(0.00)')", "(6.00)"),
+            ("format-number(0.5, '.00')", ".50"),
+            ("format-number(1.234567, '0.000,000')", "1.234,567"),
+            ("format-number(1234567, '##,##,###')", "12,34,567"),
+            ("format-number(2.345, '0.00')", "2.34"),
+            ("format-number(2.355, '0.00')", "2.36"),
+            ("format-number((), '0.0')", "NaN"),
+            ("format-number(12.3, 'USD #,##0.00')", "USD 12.30"),
+            ("format-number(12.3, '#,##0.00 USD')", "12.30 USD"),
+            (
+                "format-number(123456789012345678901234567890, '#,##0')",
+                "123,456,789,012,345,678,901,234,567,890",
+            ),
+            ("format-number(0.23, '#')", "0"),
+        ] {
+            assert_format(
+                source,
+                None,
+                BTreeMap::new(),
+                XPathStaticContext::default(),
+                expected,
+            );
+        }
+        let swiss = XPathDecimalFormat {
+            decimal_separator: '·',
+            grouping_separator: 'ʹ',
+            ..XPathDecimalFormat::default()
+        };
+        let fortran = XPathDecimalFormat {
+            exponent_separator: 'E',
+            ..XPathDecimalFormat::default()
+        };
+        let arabic = XPathDecimalFormat {
+            decimal_separator: '٫',
+            grouping_separator: '٬',
+            zero_digit: '٠',
+            ..XPathDecimalFormat::default()
+        };
+        let symbols = XPathDecimalFormat {
+            decimal_separator: '·',
+            exponent_separator: 'E',
+            grouping_separator: '_',
+            infinity: "∞".to_owned(),
+            minus_sign: '~',
+            nan: "not-a-number".to_owned(),
+            percent: 'p',
+            per_mille: 'm',
+            zero_digit: '٠',
+            digit: '?',
+            pattern_separator: '|',
+        };
+        let static_context = XPathStaticContext {
+            namespaces: BTreeMap::from([("fmt".to_owned(), "urn:formats".to_owned())]),
+            decimal_formats: BTreeMap::from([
+                (XPathExpandedName::new(Some("urn:formats"), "ch"), swiss),
+                (XPathExpandedName::unqualified("fortran"), fortran),
+                (XPathExpandedName::unqualified("arabic"), arabic),
+                (XPathExpandedName::unqualified("symbols"), symbols),
+            ]),
+            ..XPathStaticContext::default()
+        };
+        let serialized_static_context = serde_json::to_value(&static_context)
+            .expect("typed decimal-format registries remain artifact-serializable");
+        let round_tripped_static_context: XPathStaticContext =
+            serde_json::from_value(serialized_static_context)
+                .expect("serialized decimal-format registry keys remain typed");
+        assert_eq!(round_tripped_static_context, static_context);
+        let static_context_with_defaults = XPathStaticContext {
+            default_element_namespace: Some("urn:not-a-decimal-format".to_owned()),
+            default_function_namespace: Some("http://www.w3.org/2005/xpath-functions".to_owned()),
+            ..static_context.clone()
+        };
+        assert_format(
+            "format-number(0.234, '0.0E0', 'fortran')",
+            None,
+            BTreeMap::new(),
+            static_context_with_defaults,
+            "2.3E-1",
+        );
+        for (source, expected) in [
+            ("format-number(1234.5678, '#ʹ##0·00', 'fmt:ch')", "1ʹ234·57"),
+            (
+                "format-number(1234.5678, '#ʹ##0·00', 'Q{urn:formats}ch')",
+                "1ʹ234·57",
+            ),
+            (
+                "format-number(1234.5678, '00.000E0', 'fortran')",
+                "12.346E2",
+            ),
+            ("format-number(0.234, '0.0E0', 'fortran')", "2.3E-1"),
+            ("format-number(0.234, '#.00E0', 'fortran')", "0.23E0"),
+            ("format-number(0.234, '.00E0', 'fortran')", ".23E0"),
+            ("format-number(12.3, '٠٠٫٠٠', 'arabic')", "١٢٫٣٠"),
+            ("format-number(12.3, '0.00', ())", "12.30"),
+            ("format-number(12.3, '0.00', '')", "12.30"),
+        ] {
+            assert_format(
+                source,
+                None,
+                BTreeMap::new(),
+                static_context.clone(),
+                expected,
+            );
+        }
+
+        for (type_name, lexical, picture, expected) in [
+            ("xs:float", "-0", "0.0;(0.0)", "(0.0)"),
+            ("xs:double", "0", "0.0;(0.0)", "0.0"),
+            ("xs:double", "INF", "USD 0.0", "USD Infinity"),
+            ("xs:double", "-INF", "0.0", "-Infinity"),
+            ("xs:float", "NaN", "USD 0.0", "NaN"),
+            (
+                "xs:double",
+                "0.1",
+                "0.00000000000000000",
+                "0.10000000000000000",
+            ),
+            ("xs:untypedAtomic", "42.5", "000.00", "042.50"),
+        ] {
+            assert_format(
+                "format-number($value, $picture)",
+                None,
+                BTreeMap::from([
+                    (
+                        XPathExpandedName::unqualified("value"),
+                        singleton_test_binding(type_name, lexical),
+                    ),
+                    (
+                        XPathExpandedName::unqualified("picture"),
+                        singleton_test_binding("xs:anyURI", picture),
+                    ),
+                ]),
+                XPathStaticContext::default(),
+                expected,
+            );
+        }
+
+        for (type_name, lexical, picture, expected) in [
+            ("xs:double", "INF", "?٠·٠", "∞"),
+            ("xs:double", "-INF", "?٠·٠", "~∞"),
+            ("xs:double", "NaN", "?٠·٠", "not-a-number"),
+            ("xs:decimal", "0.12", "٠p", "١٢p"),
+            ("xs:decimal", "0.012", "٠m", "١٢m"),
+            ("xs:integer", "-1", "?٠|[?٠]", "[١]"),
+        ] {
+            assert_format(
+                "format-number($value, $picture, 'symbols')",
+                None,
+                BTreeMap::from([
+                    (
+                        XPathExpandedName::unqualified("value"),
+                        singleton_test_binding(type_name, lexical),
+                    ),
+                    (
+                        XPathExpandedName::unqualified("picture"),
+                        singleton_test_binding("xs:string", picture),
+                    ),
+                ]),
+                static_context.clone(),
+                expected,
+            );
+        }
+
+        let nested_value = XPathResultSequence {
+            sequence_type: "array(*)".to_owned(),
+            items: vec![XPathResultItem::Array {
+                members: vec![XPathResultSequence {
+                    sequence_type: "array(*)".to_owned(),
+                    items: vec![XPathResultItem::Array {
+                        members: vec![singleton_test_binding("xs:decimal", "12.345")],
+                        source_map: result_source_map(30, 1),
+                    }],
+                }],
+                source_map: result_source_map(29, 1),
+            }],
+        };
+        let nested_picture = XPathResultSequence {
+            sequence_type: "array(*)".to_owned(),
+            items: vec![XPathResultItem::Array {
+                members: vec![singleton_test_binding("xs:string", "0.00")],
+                source_map: result_source_map(31, 1),
+            }],
+        };
+        assert_format(
+            "format-number($value, $picture)",
+            None,
+            BTreeMap::from([
+                (XPathExpandedName::unqualified("value"), nested_value),
+                (XPathExpandedName::unqualified("picture"), nested_picture),
+            ]),
+            XPathStaticContext::default(),
+            "12.34",
+        );
+
+        let (document, diagnostics) = crate::validation::xml::xml_document_ast_from_source_bytes(
+            crate::validation::xml::XmlSourceValidationRequest {
+                bytes: br#"<root><value>1234.567</value><picture>#,##0.00</picture></root>"#,
+                source_uri: "memory://format-number-function.xml",
+                content_type: Some("application/xml"),
+            },
+        );
+        assert!(diagnostics.is_empty(), "{diagnostics:?}");
+        let owner = Arc::new(LoadedInputAstStream::XmlDocument(
+            document.expect("typed XML document"),
+        ));
+        let context_item = XPathResultItem::from_native_node(
+            XPathNativeNode::xml_document(owner).expect("native XML document node"),
+        );
+        assert_format(
+            "format-number(/root/value, /root/picture)",
+            Some(context_item),
+            BTreeMap::new(),
+            XPathStaticContext::default(),
+            "1,234.57",
+        );
+
+        for source in [
+            "format-number(1, '')",
+            "format-number(1, '0;')",
+            "format-number(1, '0;0;0')",
+            "format-number(1, '0.0.0')",
+            "format-number(1, '0%%')",
+            "format-number(1, '0%‰')",
+            "format-number(1, 'abc')",
+            "format-number(1, '0x0')",
+            "format-number(1, '0,.0')",
+            "format-number(1, '0,,0')",
+            "format-number(1, '0#')",
+            "format-number(1, '0.#0')",
+            "format-number(1, '0e0e0')",
+            "format-number(1, '0ee')",
+            "format-number(1, '0e0%')",
+            "format-number(1, '0e#')",
+            "format-number(1, '0,')",
+        ] {
+            let diagnostics = evaluate_for_test(source, None, BTreeMap::new())
+                .expect_err("invalid format-number pictures must fail deterministically");
+            assert_eq!(
+                diagnostics[0].code, "cem.xpath.format_number_picture_invalid",
+                "`{source}`"
+            );
+            assert!(diagnostics[0].message.contains("err:FODF1310"));
+        }
+
+        for source in [
+            "format-number(1, '0', 'missing')",
+            "format-number(1, '0', 'unknown:name')",
+            "format-number(1, '0', 'not a name')",
+            "format-number(1, '0', 'Q{urn:formats}')",
+        ] {
+            let diagnostics = evaluate_for_test(source, None, BTreeMap::new())
+                .expect_err("invalid decimal-format names must fail deterministically");
+            assert_eq!(
+                diagnostics[0].code, "cem.xpath.format_number_decimal_format_invalid",
+                "`{source}`"
+            );
+            assert!(diagnostics[0].message.contains("err:FODF1280"));
+        }
+
+        for (source, code) in [
+            (
+                "format-number((1, 2), '0')",
+                "cem.xpath.numeric_function_cardinality",
+            ),
+            (
+                "format-number(1, ())",
+                "cem.xpath.format_number_picture_cardinality",
+            ),
+            (
+                "format-number(1, ('0', '00'))",
+                "cem.xpath.format_number_picture_cardinality",
+            ),
+            (
+                "format-number(1, '0', ('one', 'two'))",
+                "cem.xpath.format_number_decimal_format_cardinality",
+            ),
+            (
+                "format-number('1', '0')",
+                "cem.xpath.numeric_function_type_error",
+            ),
+            (
+                "format-number(1, 0)",
+                "cem.xpath.format_number_picture_type_error",
+            ),
+            (
+                "format-number(1, '0', 0)",
+                "cem.xpath.format_number_decimal_format_type_error",
+            ),
+        ] {
+            let diagnostics = evaluate_for_test(source, None, BTreeMap::new())
+                .expect_err("format-number conversion must enforce its signatures");
+            assert_eq!(diagnostics[0].code, code, "`{source}`");
+        }
+
+        for (source, binding_name, code) in [
+            (
+                "format-number($value, '0')",
+                "value",
+                "cem.xpath.format_number_value_function_item",
+            ),
+            (
+                "format-number(1, $picture)",
+                "picture",
+                "cem.xpath.format_number_picture_function_item",
+            ),
+            (
+                "format-number(1, '0', $name)",
+                "name",
+                "cem.xpath.format_number_decimal_format_function_item",
+            ),
+        ] {
+            let diagnostics = evaluate_for_test(
+                source,
+                None,
+                BTreeMap::from([(
+                    XPathExpandedName::unqualified(binding_name),
+                    XPathResultSequence {
+                        sequence_type: "map(*)".to_owned(),
+                        items: vec![XPathResultItem::Map {
+                            entries: Vec::new(),
+                            source_map: result_source_map(1, 1),
+                        }],
+                    },
+                )]),
+            )
+            .expect_err("format-number rejects failed function-item atomization");
+            assert_eq!(diagnostics[0].code, code, "`{source}`");
+            assert!(diagnostics[0].message.contains("err:FOTY0013"));
+        }
+
+        let diagnostics = evaluate_for_test(
+            "format-number($value, '0')",
+            None,
+            BTreeMap::from([(
+                XPathExpandedName::unqualified("value"),
+                singleton_test_binding("xs:decimal", "not-a-decimal"),
+            )]),
+        )
+        .expect_err("invalid retained numeric inputs remain internal type errors");
+        assert_eq!(diagnostics[0].code, "cem.xpath.atomic_value_invalid");
+
+        let detached_node = XPathResultItem::Node {
+            node_kind: XPathResultNodeKind::Element,
+            source_id: 99,
+            source_uri: "memory://detached.xml".to_owned(),
+            node_id: "detached".to_owned(),
+            expanded_name: Some("picture".to_owned()),
+            source_range: None,
+            source_map: result_source_map(99, 0),
+            native_node: None,
+        };
+        let diagnostics = evaluate_for_test(
+            "format-number(1, $picture)",
+            None,
+            BTreeMap::from([(
+                XPathExpandedName::unqualified("picture"),
+                XPathResultSequence {
+                    sequence_type: "node()".to_owned(),
+                    items: vec![detached_node],
+                },
+            )]),
+        )
+        .expect_err("format-number requires retained native node handles");
+        assert_eq!(diagnostics[0].code, "cem.xpath.native_node_missing");
+
+        for source in [
+            "format-number()",
+            "format-number($missing)",
+            "format-number($missing, '0', '', 'extra')",
+            "$missing => format-number()",
+            "Q{urn:not-functions}format-number($missing, '0')",
+        ] {
+            let diagnostics = evaluate_for_test(source, None, BTreeMap::new())
+                .expect_err("unknown expanded names or arities resolve before arguments run");
+            assert_eq!(diagnostics[0].code, "cem.xpath.evaluation_unsupported");
+            assert_ne!(diagnostics[0].code, "cem.xpath.variable_unbound");
+        }
+
+        for source in [
+            "format-number($missing, '0')",
+            "format-number(1, $missing)",
+            "format-number(1, '0', $missing)",
+        ] {
+            let diagnostics = evaluate_for_test(source, None, BTreeMap::new())
+                .expect_err("supported format-number calls propagate argument errors");
+            assert_eq!(diagnostics[0].code, "cem.xpath.variable_unbound");
+        }
+
+        for invalid_format in [
+            XPathDecimalFormat {
+                grouping_separator: '.',
+                ..XPathDecimalFormat::default()
+            },
+            XPathDecimalFormat {
+                zero_digit: '1',
+                ..XPathDecimalFormat::default()
+            },
+        ] {
+            let diagnostics = evaluate_for_test_with_static_context(
+                "$missing",
+                None,
+                BTreeMap::new(),
+                XPathStaticContext {
+                    unnamed_decimal_format: invalid_format,
+                    ..XPathStaticContext::default()
+                },
+                None,
+            )
+            .expect_err("invalid host decimal formats fail before expression evaluation");
+            assert_eq!(diagnostics[0].code, "cem.xpath.decimal_format_invalid");
+            assert_ne!(diagnostics[0].code, "cem.xpath.variable_unbound");
+        }
+
+        let diagnostics = evaluate_for_test_with_static_context(
+            "$missing",
+            None,
+            BTreeMap::new(),
+            XPathStaticContext {
+                decimal_formats: BTreeMap::from([(
+                    XPathExpandedName::unqualified("not:a-name"),
+                    XPathDecimalFormat::default(),
+                )]),
+                ..XPathStaticContext::default()
+            },
+            None,
+        )
+        .expect_err("invalid typed decimal-format names fail before expression evaluation");
+        assert_eq!(diagnostics[0].code, "cem.xpath.decimal_format_invalid");
+
+        let expanded_picture = XPathResultSequence {
+            sequence_type: "array(*)".to_owned(),
+            items: vec![XPathResultItem::Array {
+                members: vec![XPathResultSequence {
+                    sequence_type: "xs:string+".to_owned(),
+                    items: vec![
+                        atomic_test_item("xs:string", "0"),
+                        atomic_test_item("xs:string", "00"),
+                    ],
+                }],
+                source_map: result_source_map(18, 1),
+            }],
+        };
+        let diagnostics = evaluate_for_test_with_static_context(
+            "format-number(1, $picture)",
+            None,
+            BTreeMap::from([(XPathExpandedName::unqualified("picture"), expanded_picture)]),
+            XPathStaticContext::default(),
             Some(1),
         )
         .expect_err("picture atomization enforces evaluated sequence-item budgets");

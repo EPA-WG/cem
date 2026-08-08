@@ -411,6 +411,10 @@ fn scan_ncname(source: &str, start: usize) -> Option<usize> {
     Some(cursor)
 }
 
+pub(super) fn is_ncname(source: &str) -> bool {
+    !source.is_empty() && scan_ncname(source, 0) == Some(source.len())
+}
+
 fn is_ncname_start(character: char) -> bool {
     matches!(
         character,
