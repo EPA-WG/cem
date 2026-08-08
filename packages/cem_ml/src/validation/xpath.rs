@@ -3323,6 +3323,7 @@ enum XPathNativeFunction {
     Not,
     True,
     False,
+    String,
     AtomicConstructor(&'static str),
 }
 
@@ -3354,6 +3355,7 @@ fn xpath_native_function(name: &XPathName, arity: usize) -> Option<XPathNativeFu
         ("not", 1) => Some(XPathNativeFunction::Not),
         ("true", 0) => Some(XPathNativeFunction::True),
         ("false", 0) => Some(XPathNativeFunction::False),
+        ("string", 0 | 1) => Some(XPathNativeFunction::String),
         _ => None,
     }
 }
@@ -3416,6 +3418,22 @@ fn xpath_evaluate_function_call(
         )]);
     }
 
+    if function == XPathNativeFunction::String && arguments.is_empty() {
+        let context_item = focus.context_item.ok_or_else(|| {
+            XPathEvaluationError::dynamic(
+                "cem.xpath.context_item_missing",
+                "err:XPDY0002: XPath fn:string() requires an available context item",
+                source_range,
+            )
+        })?;
+        let value = xpath_string_function_value(std::slice::from_ref(context_item), source_range)?;
+        return Ok(vec![xpath_string_result_item(
+            expression,
+            source_range,
+            value,
+        )]);
+    }
+
     let argument = arguments
         .first()
         .expect("resolved sequence functions have one argument");
@@ -3426,6 +3444,14 @@ fn xpath_evaluate_function_call(
         variable_bindings,
         evaluation_limits,
     )?;
+    if function == XPathNativeFunction::String {
+        let value = xpath_string_function_value(&items, argument.source_range)?;
+        return Ok(vec![xpath_string_result_item(
+            expression,
+            source_range,
+            value,
+        )]);
+    }
     if let XPathNativeFunction::AtomicConstructor(target) = function {
         debug_assert_eq!(name.local_name, target);
         let atomized = xpath_atomize_cast_sequence(&items, source_range)?;
@@ -3480,6 +3506,9 @@ fn xpath_evaluate_function_call(
         }
         XPathNativeFunction::True | XPathNativeFunction::False => {
             unreachable!("boolean constants return before argument evaluation")
+        }
+        XPathNativeFunction::String => {
+            unreachable!("string functions return after optional-item conversion")
         }
     };
     Ok(vec![result])
@@ -3990,6 +4019,44 @@ fn xpath_string_result_item(
             expression.attachment.source_id(),
             expression.source.media_type.as_str(),
         ),
+    }
+}
+
+fn xpath_string_function_value(
+    items: &[XPathResultItem],
+    source_range: XPathSourceRange,
+) -> Result<String, XPathEvaluationError> {
+    let [item] = items else {
+        return if items.is_empty() {
+            Ok(String::new())
+        } else {
+            Err(XPathEvaluationError::dynamic(
+                "cem.xpath.string_cardinality",
+                "err:XPTY0004: XPath fn:string argument must contain zero or one item",
+                source_range,
+            ))
+        };
+    };
+    match item {
+        XPathResultItem::Node {
+            native_node: Some(node),
+            ..
+        } => Ok(node.string_value()),
+        XPathResultItem::Node { .. } => Err(XPathEvaluationError::dynamic(
+            "cem.xpath.native_node_missing",
+            "XPath fn:string requires a retained native node handle",
+            source_range,
+        )),
+        XPathResultItem::Atomic { value, .. } => Ok(xpath_atomic_string_value(
+            xpath_comparable_atomic(value, source_range)?,
+        )),
+        XPathResultItem::Map { .. }
+        | XPathResultItem::Array { .. }
+        | XPathResultItem::Function { .. } => Err(XPathEvaluationError::dynamic(
+            "cem.xpath.string_function_item",
+            "err:FOTY0014: XPath fn:string is not defined for function items, including maps and arrays",
+            source_range,
+        )),
     }
 }
 
@@ -11999,6 +12066,238 @@ mod tests {
         let diagnostics =
             evaluate_for_test_with_limit("count((1, 2, 3))", None, BTreeMap::new(), Some(2))
                 .expect_err("function arguments enforce evaluated sequence-item budgets");
+        assert_eq!(
+            diagnostics[0].code,
+            "cem.xpath.sequence_item_limit_exceeded"
+        );
+    }
+
+    #[test]
+    fn xpath_native_string_function_uses_optional_item_and_context_without_projection() {
+        let assert_string = |source: &str, expected: &str| {
+            let result = evaluate_for_test(source, None, BTreeMap::new())
+                .unwrap_or_else(|diagnostics| panic!("`{source}` failed: {diagnostics:?}"));
+            let [XPathResultItem::Atomic { value, source_map }] = result.sequence.items.as_slice()
+            else {
+                panic!("`{source}` did not return one atomic item: {result:?}");
+            };
+            assert_eq!(value.type_name, "xs:string", "`{source}`");
+            assert_eq!(value.lexical_value, expected, "`{source}`");
+            assert_eq!(
+                source_map.frames[0].span,
+                FrameSpan::Single(ByteRange::new(0, source.len() as u32)),
+                "`{source}`"
+            );
+        };
+
+        for (source, expected) in [
+            ("string(())", ""),
+            ("fn:string('value')", "value"),
+            ("string(42)", "42"),
+            ("string((1 eq 1))", "true"),
+            ("string(xs:anyURI('  urn:test  '))", "urn:test"),
+            ("Q{http://www.w3.org/2005/xpath-functions}string(7)", "7"),
+            ("'value' => string()", "value"),
+        ] {
+            assert_string(source, expected);
+        }
+
+        use crate::lifecycle::LoadedInputAstStream;
+        use crate::validation::xml::{
+            xml_document_ast_from_source_bytes, XmlSourceValidationRequest,
+        };
+        use std::sync::Arc;
+
+        let (document, diagnostics) =
+            xml_document_ast_from_source_bytes(XmlSourceValidationRequest {
+                bytes: br#"<root><label>native</label><empty/></root>"#,
+                source_uri: "memory://string-function.xml",
+                content_type: Some("application/xml"),
+            });
+        assert!(diagnostics.is_empty(), "{diagnostics:?}");
+        let owner = Arc::new(LoadedInputAstStream::XmlDocument(
+            document.expect("typed XML document"),
+        ));
+        let context_node =
+            XPathNativeNode::xml_document(Arc::clone(&owner)).expect("native XML document node");
+        let context_item = || XPathResultItem::from_native_node(context_node.clone());
+
+        for source in ["string()", "fn:string()"] {
+            let result = evaluate_for_test(source, Some(context_item()), BTreeMap::new())
+                .unwrap_or_else(|diagnostics| panic!("`{source}` failed: {diagnostics:?}"));
+            let [XPathResultItem::Atomic { value, source_map }] = result.sequence.items.as_slice()
+            else {
+                panic!("`{source}` did not return one string: {result:?}");
+            };
+            assert_eq!(value.type_name, "xs:string", "`{source}`");
+            assert_eq!(value.lexical_value, "native", "`{source}`");
+            assert_eq!(
+                source_map.frames[0].span,
+                FrameSpan::Single(ByteRange::new(0, source.len() as u32)),
+                "`{source}`"
+            );
+        }
+
+        let source = "string(/root/label)";
+        let result = evaluate_for_test(source, Some(context_item()), BTreeMap::new())
+            .expect("one-argument string returns a retained node's string value");
+        let [XPathResultItem::Atomic { value, source_map }] = result.sequence.items.as_slice()
+        else {
+            panic!("node string call did not return one atomic item: {result:?}");
+        };
+        assert_eq!(value.lexical_value, "native");
+        assert_eq!(
+            source_map.frames[0].span,
+            FrameSpan::Single(ByteRange::new(0, source.len() as u32))
+        );
+
+        let source = "string()";
+        let diagnostics = evaluate_for_test(source, None, BTreeMap::new())
+            .expect_err("zero-argument string requires a context item");
+        assert_eq!(diagnostics[0].code, "cem.xpath.context_item_missing");
+        assert_eq!(diagnostics[0].byte_offset, Some(0));
+        assert_eq!(
+            diagnostics[0]
+                .source_map
+                .as_ref()
+                .expect("missing context diagnostic source map")
+                .frames[0]
+                .span,
+            FrameSpan::Single(ByteRange::new(0, source.len() as u32))
+        );
+
+        let source = "string((1, 2))";
+        let diagnostics = evaluate_for_test(source, None, BTreeMap::new())
+            .expect_err("one-argument string accepts at most one item");
+        assert_eq!(diagnostics[0].code, "cem.xpath.string_cardinality");
+        assert_eq!(diagnostics[0].byte_offset, Some(7));
+        assert_eq!(
+            diagnostics[0]
+                .source_map
+                .as_ref()
+                .expect("string cardinality diagnostic source map")
+                .frames[0]
+                .span,
+            FrameSpan::Single(ByteRange::new(7, 6))
+        );
+
+        for (sequence_type, item) in [
+            (
+                "map(*)",
+                XPathResultItem::Map {
+                    entries: Vec::new(),
+                    source_map: result_source_map(9, 1),
+                },
+            ),
+            (
+                "array(*)",
+                XPathResultItem::Array {
+                    members: Vec::new(),
+                    source_map: result_source_map(9, 1),
+                },
+            ),
+            (
+                "function(*)",
+                XPathResultItem::Function {
+                    evaluator_id: "test".to_owned(),
+                    function_id: "test-function".to_owned(),
+                    name: None,
+                    arity: 0,
+                    signature: "function(*)".to_owned(),
+                    source_map: result_source_map(9, 1),
+                },
+            ),
+        ] {
+            let source = "string($value)";
+            let diagnostics = evaluate_for_test(
+                source,
+                None,
+                BTreeMap::from([(
+                    XPathExpandedName::unqualified("value"),
+                    XPathResultSequence {
+                        sequence_type: sequence_type.to_owned(),
+                        items: vec![item],
+                    },
+                )]),
+            )
+            .expect_err("string rejects function items, maps, and arrays");
+            assert_eq!(
+                diagnostics[0].code, "cem.xpath.string_function_item",
+                "`{sequence_type}`"
+            );
+            assert_eq!(diagnostics[0].byte_offset, Some(7), "`{sequence_type}`");
+            assert_eq!(
+                diagnostics[0]
+                    .source_map
+                    .as_ref()
+                    .expect("string function-item diagnostic source map")
+                    .frames[0]
+                    .span,
+                FrameSpan::Single(ByteRange::new(7, 6)),
+                "`{sequence_type}`"
+            );
+        }
+
+        let diagnostics = evaluate_for_test(
+            "string($value)",
+            None,
+            BTreeMap::from([(
+                XPathExpandedName::unqualified("value"),
+                singleton_test_binding("xs:date", "2026-08-07"),
+            )]),
+        )
+        .expect_err("string keeps unsupported atomic types fail-closed");
+        assert_eq!(diagnostics[0].code, "cem.xpath.evaluation_unsupported");
+        assert_eq!(diagnostics[0].byte_offset, Some(7));
+
+        let mut detached_node = context_item();
+        let XPathResultItem::Node { native_node, .. } = &mut detached_node else {
+            unreachable!("native nodes create XPath node result items")
+        };
+        *native_node = None;
+        let diagnostics = evaluate_for_test(
+            "string($detached)",
+            None,
+            BTreeMap::from([(
+                XPathExpandedName::unqualified("detached"),
+                XPathResultSequence {
+                    sequence_type: "node()".to_owned(),
+                    items: vec![detached_node],
+                },
+            )]),
+        )
+        .expect_err("string requires retained native node handles");
+        assert_eq!(diagnostics[0].code, "cem.xpath.native_node_missing");
+        assert_eq!(diagnostics[0].byte_offset, Some(7));
+        assert_eq!(
+            diagnostics[0]
+                .source_map
+                .as_ref()
+                .expect("detached string node diagnostic source map")
+                .frames[0]
+                .span,
+            FrameSpan::Single(ByteRange::new(7, 9))
+        );
+
+        for source in [
+            "string($missing, 1)",
+            "$missing => string(1)",
+            "Q{urn:not-functions}string($missing)",
+        ] {
+            let diagnostics = evaluate_for_test(source, None, BTreeMap::new())
+                .expect_err("unknown expanded names or arities resolve before arguments run");
+            assert_eq!(diagnostics[0].code, "cem.xpath.evaluation_unsupported");
+            assert_ne!(diagnostics[0].code, "cem.xpath.variable_unbound");
+            assert_eq!(diagnostics[0].byte_offset, Some(0), "`{source}`");
+        }
+
+        let diagnostics = evaluate_for_test("string($missing)", None, BTreeMap::new())
+            .expect_err("supported string calls propagate argument evaluation errors");
+        assert_eq!(diagnostics[0].code, "cem.xpath.variable_unbound");
+
+        let diagnostics =
+            evaluate_for_test_with_limit("string((1, 2))", None, BTreeMap::new(), Some(1))
+                .expect_err("string arguments enforce evaluated sequence-item budgets");
         assert_eq!(
             diagnostics[0].code,
             "cem.xpath.sequence_item_limit_exceeded"

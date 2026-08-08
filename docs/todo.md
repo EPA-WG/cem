@@ -200,6 +200,16 @@ mediate between internal layers.
           full-call source maps without requiring focus or evaluating arguments;
           reject wrong arities before direct or arrow-lowered operands run; and
           avoid a special parser form, serializer, or intermediate DTO.
+    - [x] Execute both native XPath `fn:string` signatures: dispatch zero- and
+          one-argument unprefixed, `fn:`-prefixed, EQName, and named-arrow calls
+          by expanded QName and arity; use the context item only for the zero-
+          argument signature; return the retained string value of native nodes
+          and canonical lexical values for supported atomic items; preserve
+          empty optional-item behavior, full-call result maps, exact argument
+          diagnostics, and evaluated-work budgets; reject missing focus,
+          multiple items, detached nodes, function items (including maps and
+          arrays), unsupported atomics, and wrong arities without serialization,
+          atomization shortcuts, or an intermediate DTO.
   - [x] Wire the native evaluator through the `transform` command and expose
         explicit CEM-QL, CEMT, and XSLT invocation adapters without reparsing
         source text, constructing an evaluator-owned replacement XML tree, or
