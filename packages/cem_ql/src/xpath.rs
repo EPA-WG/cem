@@ -123,6 +123,7 @@ pub fn invoke_cem_ql_xpath_expression_slot(
         dynamic_context: XPathDynamicContext {
             context_item: host_bindings.context_item.clone(),
             variable_bindings: host_bindings.variable_bindings.clone(),
+            ..XPathDynamicContext::default()
         },
         static_context,
         expected_result,

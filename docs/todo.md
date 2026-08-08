@@ -8,9 +8,9 @@ history is preserved in
 
 ## Immediate Goal
 
-Current active slice: implement the CEM-owned XPath 3.1 compiler and evaluator
-over the package AST, following completion of the strict native-AST transform
-boundary.
+The CEM-owned XPath 3.1 compiler and evaluator slice is complete. The next
+deferred Phase 3 custom-element runtime item remains inactive until its broad
+"substrate expansion" scope is decomposed into a concrete executable gate.
 
 The cross-layer architecture remains serializer-free: lifecycle loading, graph
 routing, joins, evaluators, CEM-QL, CEMT, and XSLT adapters must exchange
@@ -21,9 +21,9 @@ mediate between internal layers.
 
 ### Immediate: XPath 3.1 Compiler and Evaluator
 
-- [ ] Complete XPath 3.1 execution on the existing CEM-owned typed XPath AST
+- [x] Complete XPath 3.1 execution on the existing CEM-owned typed XPath AST
       and lossless token stream.
-  - [ ] Implement a CEM-owned XPath 3.1 compiler and evaluator. Treat W3C XPath
+  - [x] Implement a CEM-owned XPath 3.1 compiler and evaluator. Treat W3C XPath
         3.1, XDM 3.1, and Functions and Operators 3.1 as normative; use the
         pinned Xee source only as a non-normative implementation reference;
         target native and WASM; and route documents, collections, unparsed text,
@@ -424,10 +424,20 @@ mediate between internal layers.
           every selected value through the existing directly owned AVT/XPath
           AST path while fixed, expression, pattern, and XSLT control attributes
           remain outside it.
-  - [ ] Add deterministic compact/pretty/tabular and
+  - [x] Add deterministic compact/pretty/tabular and
         terminal/HTML/Markdown profiles that preserve lexical islands and source
         maps, then run package, converter-parity, CLI e2e, WASM, and core release
         gates.
+    - [x] Prove the accepted XSLT layout/presentation split preserves fused
+          whole-expression and AVT XPath lexical bytes and original source
+          coordinates through compact, pretty, tabular, terminal, HTML, and
+          Markdown output profiles.
+    - [x] Promote the integrated profile/source-map contract into the XSLT
+          schema-package verification target without adding a duplicate fixture
+          or formatter path.
+    - [x] Run XPath and XSLT package verification, schema-package structure,
+          converter parity, CLI e2e, native lint/tests, WASM, and the CEM core
+          release dry-run gate.
 
 Completed prerequisites include the independent XPath schema package, CEM-owned
 lossless scanner and recursive-descent parser, strongly typed AST/event model,
@@ -459,6 +469,7 @@ Xee runtime dependencies. Detailed evidence and provenance remain in the
 
 ## Current Verification Commands
 
+- `yarn nx run cem_ml_schema_package_xslt_v1:verify`
 - `yarn nx run cem_ml_schema_package_xpath_v1:verify`
 - `yarn nx run cem_ml:test:schema-package-structure`
 - `yarn nx run cem_ml_cli:validate-converter-parity`
@@ -466,6 +477,7 @@ Xee runtime dependencies. Detailed evidence and provenance remain in the
 - `yarn nx run cem_ml:lint`
 - `yarn nx run cem_ml:test`
 - `yarn nx run cem_ml:build:wasm`
+- `yarn nx release publish --groups=cem --dry-run --verbose`
 
 Browser-backed targets must be run with the required host permission on their
 first attempt. Chromium sandbox-host aborts under the workspace restriction are

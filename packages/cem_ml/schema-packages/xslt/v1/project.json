@@ -98,6 +98,7 @@
                     "cargo test -p cem-ml validate_xslt_source_consumes_dedicated_lifecycle_ast_without_html_xml_or_cem_parse -- --nocapture",
                     "cargo test -p cem-ml convert_xslt_same_schema_preserves_standard_media_types_and_final_newline -- --nocapture",
                     "cargo test -p cem-ml builtin_xslt_lifecycle_output_pipeline_executes_package_cemt_assets -- --nocapture",
+                    "cargo test -p cem-ml builtin_xslt_profile_semantics_preserve_lexical_islands_and_source_maps -- --nocapture",
                     "cargo test -p cem-ml builtin_xslt_colorizer_profiles_execute_package_cemt_assets -- --nocapture",
                     "cargo test -p cem-ml-cli xslt -- --nocapture",
                     "cargo test -p cem-ml-cli --test xslt_parity_transform -- --nocapture",

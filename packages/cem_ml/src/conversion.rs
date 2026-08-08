@@ -24919,6 +24919,8 @@ mod tests {
 
     #[test]
     fn builtin_xslt_profile_semantics_preserve_lexical_islands_and_source_maps() {
+        use crate::validation::xslt::XsltAttributeValueTemplateSegmentAst;
+
         let schema_registry = SchemaRegistry::with_builtin_schemas();
         let conversion_registry = ConversionRegistry::with_builtin_converters();
         let environment = ConversionOutputPipelineEnvironment {
@@ -24946,6 +24948,58 @@ mod tests {
         );
 
         let source_text = std::str::from_utf8(source).expect("UTF-8 fixture");
+        let stylesheet_ast = stylesheet
+            .as_ref()
+            .expect("typed XSLT characterization fixture");
+        let fused_expressions = stylesheet_ast
+            .xpath_expressions
+            .iter()
+            .map(|embedded| &embedded.expression)
+            .chain(
+                stylesheet_ast
+                    .attribute_value_templates
+                    .iter()
+                    .flat_map(|template| &template.segments)
+                    .filter_map(|segment| match segment {
+                        XsltAttributeValueTemplateSegmentAst::Expression {
+                            expression,
+                            ..
+                        } => Some(expression.as_ref()),
+                        _ => None,
+                    }),
+            )
+            .collect::<Vec<_>>();
+        assert_eq!(
+            fused_expressions.len(),
+            7,
+            "characterization fixture must retain four whole XPath expressions and three AVT expressions"
+        );
+        for expression in fused_expressions {
+            let crate::validation::xpath::XPathAttachment::Host(host) = &expression.attachment
+            else {
+                panic!("fused XSLT XPath expression must retain its host attachment")
+            };
+            let expression_start = host.expression_range.start.byte_offset as usize;
+            let expression_end = expression_start + host.expression_range.byte_length as usize;
+            assert_eq!(
+                &source_text[expression_start..expression_end],
+                expression
+                    .source_text
+                    .as_deref()
+                    .expect("fused XPath source text"),
+                "fused XPath range must address the original stylesheet bytes"
+            );
+            assert!(!expression.tokens.is_empty(), "fused XPath tokens");
+            for token in &expression.tokens {
+                let token_start = token.source_range.start.byte_offset as usize;
+                let token_end = token_start + token.source_range.byte_length as usize;
+                assert_eq!(
+                    &source_text[token_start..token_end],
+                    token.lexeme,
+                    "fused XPath token must retain its original stylesheet coordinates"
+                );
+            }
+        }
         let foreign_start = source_text.find("<ui:card").expect("foreign subtree start");
         let foreign_end = source_text
             .find("    </ui:card>")
