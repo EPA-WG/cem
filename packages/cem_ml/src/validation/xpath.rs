@@ -3357,6 +3357,7 @@ enum XPathNativeFunction {
     Abs,
     Ceiling,
     Floor,
+    Round,
     AtomicConstructor(&'static str),
 }
 
@@ -3394,6 +3395,7 @@ fn xpath_native_function(name: &XPathName, arity: usize) -> Option<XPathNativeFu
         ("abs", 1) => Some(XPathNativeFunction::Abs),
         ("ceiling", 1) => Some(XPathNativeFunction::Ceiling),
         ("floor", 1) => Some(XPathNativeFunction::Floor),
+        ("round", 1 | 2) => Some(XPathNativeFunction::Round),
         _ => None,
     }
 }
@@ -3587,6 +3589,39 @@ fn xpath_evaluate_function_call(
             xpath_numeric_floor(value),
         )]);
     }
+    if function == XPathNativeFunction::Round {
+        let precision = if let Some(precision) = arguments.get(1) {
+            let precision_items = xpath_evaluate_expression_node(
+                expression,
+                precision,
+                focus,
+                variable_bindings,
+                evaluation_limits,
+            )?;
+            xpath_round_precision_operand(
+                &precision_items,
+                precision.source_range,
+                evaluation_limits,
+            )?
+        } else {
+            XPathExactDecimal::from_u64(0)
+        };
+        let Some(value) = xpath_numeric_function_operand(
+            &items,
+            argument.source_range,
+            evaluation_limits,
+            "fn:round",
+            "cem.xpath.round_function_item",
+        )?
+        else {
+            return Ok(Vec::new());
+        };
+        return Ok(vec![xpath_numeric_result_item(
+            expression,
+            source_range,
+            xpath_numeric_round(value, &precision),
+        )]);
+    }
     if let XPathNativeFunction::AtomicConstructor(target) = function {
         debug_assert_eq!(name.local_name, target);
         let atomized = xpath_atomize_cast_sequence(&items, source_range)?;
@@ -3658,6 +3693,9 @@ fn xpath_evaluate_function_call(
             unreachable!("numeric functions return after optional numeric conversion")
         }
         XPathNativeFunction::Floor => {
+            unreachable!("numeric functions return after optional numeric conversion")
+        }
+        XPathNativeFunction::Round => {
             unreachable!("numeric functions return after optional numeric conversion")
         }
     };
@@ -4329,6 +4367,60 @@ fn xpath_numeric_function_operand(
     }
 }
 
+fn xpath_round_precision_operand(
+    items: &[XPathResultItem],
+    source_range: XPathSourceRange,
+    evaluation_limits: XPathEvaluationLimits,
+) -> Result<XPathExactDecimal, XPathEvaluationError> {
+    let atomized = xpath_atomized_items(
+        items,
+        source_range,
+        evaluation_limits,
+        "fn:round precision",
+        "cem.xpath.round_precision_function_item",
+    )?;
+    let [item] = atomized.as_slice() else {
+        return Err(XPathEvaluationError::dynamic(
+            "cem.xpath.round_precision_cardinality",
+            format!(
+                "err:XPTY0004: XPath fn:round precision must atomize to exactly one xs:integer value; found {}",
+                atomized.len()
+            ),
+            source_range,
+        ));
+    };
+    let XPathResultItem::Atomic { value, .. } = item else {
+        unreachable!("native atomization returns only atomic result items")
+    };
+    match value.type_name.as_str() {
+        "xs:untypedAtomic" => {
+            let lexical = xpath_collapse_xml_whitespace(&value.lexical_value);
+            XPathExactDecimal::parse(&lexical, false).ok_or_else(|| {
+                XPathEvaluationError::dynamic(
+                    "cem.xpath.round_precision_cast_invalid",
+                    format!(
+                        "err:FORG0001: XPath fn:round cannot cast untyped atomic precision `{}` to xs:integer",
+                        value.lexical_value
+                    ),
+                    source_range,
+                )
+            })
+        }
+        "xs:integer" => match xpath_comparable_atomic(value, source_range)? {
+            XPathComparableAtomic::Integer(value) => Ok(value),
+            _ => unreachable!("validated xs:integer values retain their exact representation"),
+        },
+        _ => Err(XPathEvaluationError::dynamic(
+            "cem.xpath.round_precision_type_error",
+            format!(
+                "err:XPTY0004: XPath fn:round precision requires a primitive xs:integer value, found `{}`",
+                value.type_name
+            ),
+            source_range,
+        )),
+    }
+}
+
 fn xpath_double_atomic_value(value: f64) -> XPathAtomicValue {
     XPathAtomicValue {
         type_name: "xs:double".to_owned(),
@@ -4494,6 +4586,68 @@ impl XPathExactDecimal {
         )
     }
 
+    fn rounded_toward_positive_infinity(&self, precision: &Self) -> Self {
+        debug_assert_eq!(precision.scale, 0);
+        if self.is_zero() {
+            return self.clone();
+        }
+        let digits_to_drop = if precision.negative {
+            let magnitude = precision.negated();
+            if magnitude.compare(&Self::from_usize(self.coefficient.len())) == Ordering::Greater {
+                return Self::from_u64(0);
+            }
+            let Some(places) = magnitude.to_usize() else {
+                return Self::from_u64(0);
+            };
+            let Some(digits_to_drop) = self.scale.checked_add(places) else {
+                return Self::from_u64(0);
+            };
+            digits_to_drop
+        } else {
+            if precision.compare(&Self::from_usize(self.scale)) != Ordering::Less {
+                return self.clone();
+            }
+            self.scale.saturating_sub(
+                precision
+                    .to_usize()
+                    .expect("precision below decimal scale fits usize"),
+            )
+        };
+        self.round_dropping_digits(digits_to_drop)
+    }
+
+    fn round_dropping_digits(&self, digits_to_drop: usize) -> Self {
+        if digits_to_drop == 0 {
+            return self.clone();
+        }
+        if digits_to_drop > self.coefficient.len() {
+            return Self::from_u64(0);
+        }
+        let kept_length = self.coefficient.len().saturating_sub(digits_to_drop);
+        let guard_digit = self.coefficient[kept_length];
+        let sticky = self.coefficient[kept_length.saturating_add(1)..]
+            .iter()
+            .any(|digit| *digit != 0);
+        let round_up = guard_digit > 5 || (guard_digit == 5 && (sticky || !self.negative));
+        let mut coefficient = self.coefficient[..kept_length].to_vec();
+        if round_up {
+            coefficient = Self::add_magnitudes(&coefficient, &[1]);
+        }
+        if coefficient.is_empty() {
+            return Self::from_u64(0);
+        }
+        if digits_to_drop >= self.scale {
+            coefficient.extend(std::iter::repeat_n(0, digits_to_drop - self.scale));
+            Self::from_parts(self.negative, coefficient, 0)
+        } else {
+            Self::from_parts(
+                self.negative,
+                coefficient,
+                self.scale.saturating_sub(digits_to_drop),
+            )
+        }
+    }
+
     fn to_u64(&self) -> Option<u64> {
         if self.negative || self.scale != 0 {
             return None;
@@ -4502,6 +4656,17 @@ impl XPathExactDecimal {
             value
                 .checked_mul(10)
                 .and_then(|value| value.checked_add(u64::from(*digit)))
+        })
+    }
+
+    fn to_usize(&self) -> Option<usize> {
+        if self.negative || self.scale != 0 {
+            return None;
+        }
+        self.coefficient.iter().try_fold(0_usize, |value, digit| {
+            value
+                .checked_mul(10)
+                .and_then(|value| value.checked_add(usize::from(*digit)))
         })
     }
 
@@ -5244,6 +5409,63 @@ fn xpath_numeric_floor(value: XPathComparableAtomic) -> XPathComparableAtomic {
         }
         XPathComparableAtomic::Float(value) => XPathComparableAtomic::Float(value.floor()),
         XPathComparableAtomic::Double(value) => XPathComparableAtomic::Double(value.floor()),
+        _ => unreachable!("numeric functions require native numeric values"),
+    }
+}
+
+fn xpath_numeric_round(
+    value: XPathComparableAtomic,
+    precision: &XPathExactDecimal,
+) -> XPathComparableAtomic {
+    match value {
+        XPathComparableAtomic::Integer(value) => {
+            XPathComparableAtomic::Integer(value.rounded_toward_positive_infinity(precision))
+        }
+        XPathComparableAtomic::Decimal(value) => {
+            XPathComparableAtomic::Decimal(value.rounded_toward_positive_infinity(precision))
+        }
+        XPathComparableAtomic::Float(value) => {
+            if !value.is_finite() || value == 0.0 {
+                return XPathComparableAtomic::Float(value);
+            }
+            let rounded = xpath_exact_decimal_from_f64(f64::from(value))
+                .expect("finite floats have an exact unbounded decimal representation")
+                .rounded_toward_positive_infinity(precision);
+            let rounded = if rounded.is_zero() {
+                if value.is_sign_negative() {
+                    -0.0_f32
+                } else {
+                    0.0_f32
+                }
+            } else {
+                rounded
+                    .to_lexical()
+                    .parse::<f32>()
+                    .expect("rounded exact decimals retain a valid float lexical form")
+            };
+            XPathComparableAtomic::Float(rounded)
+        }
+        XPathComparableAtomic::Double(value) => {
+            if !value.is_finite() || value == 0.0 {
+                return XPathComparableAtomic::Double(value);
+            }
+            let rounded = xpath_exact_decimal_from_f64(value)
+                .expect("finite doubles have an exact unbounded decimal representation")
+                .rounded_toward_positive_infinity(precision);
+            let rounded = if rounded.is_zero() {
+                if value.is_sign_negative() {
+                    -0.0_f64
+                } else {
+                    0.0_f64
+                }
+            } else {
+                rounded
+                    .to_lexical()
+                    .parse::<f64>()
+                    .expect("rounded exact decimals retain a valid double lexical form")
+            };
+            XPathComparableAtomic::Double(rounded)
+        }
         _ => unreachable!("numeric functions require native numeric values"),
     }
 }
@@ -14101,6 +14323,377 @@ mod tests {
             Some(1),
         )
         .expect_err("floor array atomization enforces evaluated sequence-item budgets");
+        assert_eq!(
+            diagnostics[0].code,
+            "cem.xpath.sequence_item_limit_exceeded"
+        );
+    }
+
+    #[test]
+    fn xpath_native_round_function_rounds_exact_and_ieee_values_at_precision() {
+        let assert_round = |source: &str,
+                            context_item: Option<XPathResultItem>,
+                            bindings: XPathVariableBindings,
+                            expected: Option<(&str, &str)>| {
+            let result = evaluate_for_test(source, context_item, bindings)
+                .unwrap_or_else(|diagnostics| panic!("`{source}` failed: {diagnostics:?}"));
+            let Some((expected_type, expected_lexical)) = expected else {
+                assert!(result.sequence.items.is_empty(), "`{source}`: {result:?}");
+                assert_eq!(
+                    result.sequence.sequence_type, "empty-sequence()",
+                    "`{source}`"
+                );
+                return;
+            };
+            let [XPathResultItem::Atomic { value, source_map }] = result.sequence.items.as_slice()
+            else {
+                panic!("`{source}` did not return one atomic item: {result:?}");
+            };
+            assert_eq!(result.sequence.sequence_type, expected_type, "`{source}`");
+            assert_eq!(value.type_name, expected_type, "`{source}`");
+            assert_eq!(value.lexical_value, expected_lexical, "`{source}`");
+            assert_eq!(
+                source_map.frames[0].span,
+                FrameSpan::Single(ByteRange::new(0, source.len() as u32)),
+                "`{source}`"
+            );
+        };
+
+        for (source, expected_type, expected_lexical) in [
+            ("round(5)", "xs:integer", "5"),
+            ("fn:round(2.5)", "xs:decimal", "3"),
+            (
+                "Q{http://www.w3.org/2005/xpath-functions}round(-2.5)",
+                "xs:decimal",
+                "-2",
+            ),
+            ("2.499e0 => round()", "xs:double", "2"),
+            ("1.125 => round(2)", "xs:decimal", "1.13"),
+            ("round(-1.125, 2)", "xs:decimal", "-1.12"),
+            ("round(8452, -2)", "xs:integer", "8500"),
+            ("round(-8450, -2)", "xs:integer", "-8400"),
+            (
+                "round(999999999999999999999999999999.5)",
+                "xs:decimal",
+                "1000000000000000000000000000000",
+            ),
+            (
+                "round(0.0001, 1000000000000000000000000000000)",
+                "xs:decimal",
+                "0.0001",
+            ),
+            (
+                "round(123, -1000000000000000000000000000000)",
+                "xs:integer",
+                "0",
+            ),
+        ] {
+            assert_round(
+                source,
+                None,
+                BTreeMap::new(),
+                Some((expected_type, expected_lexical)),
+            );
+        }
+        assert_round("round(())", None, BTreeMap::new(), None);
+        assert_round("round((), 2)", None, BTreeMap::new(), None);
+
+        let bindings = BTreeMap::from([
+            (
+                XPathExpandedName::unqualified("float"),
+                singleton_test_binding("xs:float", "150.015"),
+            ),
+            (
+                XPathExpandedName::unqualified("negative-small"),
+                singleton_test_binding("xs:double", "-0.4"),
+            ),
+            (
+                XPathExpandedName::unqualified("negative-zero"),
+                singleton_test_binding("xs:double", "-0"),
+            ),
+            (
+                XPathExpandedName::unqualified("infinity"),
+                singleton_test_binding("xs:float", "-INF"),
+            ),
+            (
+                XPathExpandedName::unqualified("nan"),
+                singleton_test_binding("xs:double", "NaN"),
+            ),
+            (
+                XPathExpandedName::unqualified("untyped"),
+                singleton_test_binding("xs:untypedAtomic", " 7.5 "),
+            ),
+            (
+                XPathExpandedName::unqualified("precision"),
+                singleton_test_binding("xs:untypedAtomic", " 2 "),
+            ),
+        ]);
+        for (source, expected_type, expected_lexical) in [
+            ("round(35.425e0, 2)", "xs:double", "35.42"),
+            ("round($float, 2)", "xs:float", "150.01"),
+            ("round($negative-small)", "xs:double", "-0"),
+            ("round($negative-zero, -20)", "xs:double", "-0"),
+            ("round($infinity, 2)", "xs:float", "-INF"),
+            ("round($nan, 2)", "xs:double", "NaN"),
+            ("round($untyped)", "xs:double", "8"),
+            ("round(1.125, $precision)", "xs:decimal", "1.13"),
+        ] {
+            assert_round(
+                source,
+                None,
+                bindings.clone(),
+                Some((expected_type, expected_lexical)),
+            );
+        }
+
+        use crate::lifecycle::LoadedInputAstStream;
+        use crate::validation::xml::{
+            xml_document_ast_from_source_bytes, XmlSourceValidationRequest,
+        };
+        use std::sync::Arc;
+
+        let (document, diagnostics) =
+            xml_document_ast_from_source_bytes(XmlSourceValidationRequest {
+                bytes: br#"<root><value>125</value><precision>-1</precision><invalid>nope</invalid></root>"#,
+                source_uri: "memory://round-function.xml",
+                content_type: Some("application/xml"),
+            });
+        assert!(diagnostics.is_empty(), "{diagnostics:?}");
+        let owner = Arc::new(LoadedInputAstStream::XmlDocument(
+            document.expect("typed XML document"),
+        ));
+        let context_node = XPathNativeNode::xml_document(owner).expect("native XML document node");
+        let context_item = || XPathResultItem::from_native_node(context_node.clone());
+        assert_round(
+            "round(/root/value, /root/precision)",
+            Some(context_item()),
+            BTreeMap::new(),
+            Some(("xs:double", "130")),
+        );
+
+        let diagnostics = evaluate_for_test(
+            "round(/root/invalid)",
+            Some(context_item()),
+            BTreeMap::new(),
+        )
+        .expect_err("invalid untyped numeric input must fail conversion");
+        assert_eq!(
+            diagnostics[0].code,
+            "cem.xpath.numeric_function_cast_invalid"
+        );
+        assert_eq!(diagnostics[0].byte_offset, Some(6));
+
+        let diagnostics = evaluate_for_test(
+            "round(1, /root/invalid)",
+            Some(context_item()),
+            BTreeMap::new(),
+        )
+        .expect_err("invalid untyped precision must fail integer conversion");
+        assert_eq!(
+            diagnostics[0].code,
+            "cem.xpath.round_precision_cast_invalid"
+        );
+        assert_eq!(diagnostics[0].byte_offset, Some(9));
+
+        let nested_value = XPathResultSequence {
+            sequence_type: "array(*)".to_owned(),
+            items: vec![XPathResultItem::Array {
+                members: vec![XPathResultSequence {
+                    sequence_type: "array(*)".to_owned(),
+                    items: vec![XPathResultItem::Array {
+                        members: vec![singleton_test_binding("xs:decimal", "1.6")],
+                        source_map: result_source_map(6, 2),
+                    }],
+                }],
+                source_map: result_source_map(6, 3),
+            }],
+        };
+        let nested_precision = XPathResultSequence {
+            sequence_type: "array(*)".to_owned(),
+            items: vec![XPathResultItem::Array {
+                members: vec![singleton_test_binding("xs:integer", "0")],
+                source_map: result_source_map(14, 2),
+            }],
+        };
+        assert_round(
+            "round($value, $precision)",
+            None,
+            BTreeMap::from([
+                (XPathExpandedName::unqualified("value"), nested_value),
+                (
+                    XPathExpandedName::unqualified("precision"),
+                    nested_precision,
+                ),
+            ]),
+            Some(("xs:decimal", "2")),
+        );
+
+        let diagnostics = evaluate_for_test(
+            "round($value)",
+            None,
+            BTreeMap::from([(
+                XPathExpandedName::unqualified("value"),
+                XPathResultSequence {
+                    sequence_type: "map(*)".to_owned(),
+                    items: vec![XPathResultItem::Map {
+                        entries: Vec::new(),
+                        source_map: result_source_map(6, 1),
+                    }],
+                },
+            )]),
+        )
+        .expect_err("round rejects failed value function-item atomization");
+        assert_eq!(diagnostics[0].code, "cem.xpath.round_function_item");
+        assert!(diagnostics[0].message.contains("err:FOTY0013"));
+        assert_eq!(diagnostics[0].byte_offset, Some(6));
+
+        let diagnostics = evaluate_for_test(
+            "round(1, $precision)",
+            None,
+            BTreeMap::from([(
+                XPathExpandedName::unqualified("precision"),
+                XPathResultSequence {
+                    sequence_type: "map(*)".to_owned(),
+                    items: vec![XPathResultItem::Map {
+                        entries: Vec::new(),
+                        source_map: result_source_map(9, 1),
+                    }],
+                },
+            )]),
+        )
+        .expect_err("round rejects failed precision function-item atomization");
+        assert_eq!(
+            diagnostics[0].code,
+            "cem.xpath.round_precision_function_item"
+        );
+        assert!(diagnostics[0].message.contains("err:FOTY0013"));
+        assert_eq!(diagnostics[0].byte_offset, Some(9));
+
+        let diagnostics = evaluate_for_test("round((1, 2))", None, BTreeMap::new())
+            .expect_err("round requires optional-singleton numeric input");
+        assert_eq!(
+            diagnostics[0].code,
+            "cem.xpath.numeric_function_cardinality"
+        );
+        assert_eq!(diagnostics[0].byte_offset, Some(6));
+
+        for source in ["round(1, ())", "round(1, (2, 3))"] {
+            let diagnostics = evaluate_for_test(source, None, BTreeMap::new())
+                .expect_err("round requires exactly one integer precision");
+            assert_eq!(diagnostics[0].code, "cem.xpath.round_precision_cardinality");
+            assert!(diagnostics[0].message.contains("err:XPTY0004"));
+            assert_eq!(diagnostics[0].byte_offset, Some(9), "`{source}`");
+        }
+
+        for source in ["round(1, 2.0)", "round(1, '2')"] {
+            let diagnostics = evaluate_for_test(source, None, BTreeMap::new())
+                .expect_err("round rejects non-integer typed precisions");
+            assert_eq!(diagnostics[0].code, "cem.xpath.round_precision_type_error");
+            assert_eq!(diagnostics[0].byte_offset, Some(9), "`{source}`");
+        }
+
+        let diagnostics = evaluate_for_test(
+            "round($value)",
+            None,
+            BTreeMap::from([(
+                XPathExpandedName::unqualified("value"),
+                singleton_test_binding("xs:string", "2.5"),
+            )]),
+        )
+        .expect_err("round rejects non-numeric values");
+        assert_eq!(diagnostics[0].code, "cem.xpath.numeric_function_type_error");
+
+        let mut detached_node = context_item();
+        let XPathResultItem::Node { native_node, .. } = &mut detached_node else {
+            unreachable!("native nodes create XPath node result items")
+        };
+        *native_node = None;
+        let diagnostics = evaluate_for_test(
+            "round(1, $precision)",
+            None,
+            BTreeMap::from([(
+                XPathExpandedName::unqualified("precision"),
+                XPathResultSequence {
+                    sequence_type: "node()".to_owned(),
+                    items: vec![detached_node],
+                },
+            )]),
+        )
+        .expect_err("round precision requires retained native node handles");
+        assert_eq!(diagnostics[0].code, "cem.xpath.native_node_missing");
+        assert_eq!(diagnostics[0].byte_offset, Some(9));
+
+        for (type_name, lexical, expected_code) in [
+            (
+                "xs:decimal",
+                "not-a-decimal",
+                "cem.xpath.atomic_value_invalid",
+            ),
+            (
+                "xs:integer",
+                "not-an-integer",
+                "cem.xpath.atomic_value_invalid",
+            ),
+        ] {
+            let (source, name) = if type_name == "xs:decimal" {
+                ("round($value)", "value")
+            } else {
+                ("round(1, $precision)", "precision")
+            };
+            let diagnostics = evaluate_for_test(
+                source,
+                None,
+                BTreeMap::from([(
+                    XPathExpandedName::unqualified(name),
+                    singleton_test_binding(type_name, lexical),
+                )]),
+            )
+            .expect_err("invalid retained round inputs remain internal type errors");
+            assert_eq!(diagnostics[0].code, expected_code, "`{source}`");
+        }
+
+        for source in [
+            "round()",
+            "round($missing, 1, 2)",
+            "$missing => round(1, 2)",
+            "Q{urn:not-functions}round($missing)",
+        ] {
+            let diagnostics = evaluate_for_test(source, None, BTreeMap::new())
+                .expect_err("unknown expanded names or arities resolve before arguments run");
+            assert_eq!(diagnostics[0].code, "cem.xpath.evaluation_unsupported");
+            assert_ne!(diagnostics[0].code, "cem.xpath.variable_unbound");
+            assert_eq!(diagnostics[0].byte_offset, Some(0), "`{source}`");
+        }
+
+        for source in ["round($missing)", "round(1, $missing)"] {
+            let diagnostics = evaluate_for_test(source, None, BTreeMap::new())
+                .expect_err("supported round calls propagate argument evaluation errors");
+            assert_eq!(diagnostics[0].code, "cem.xpath.variable_unbound");
+        }
+
+        let expanded_precision = XPathResultSequence {
+            sequence_type: "array(*)".to_owned(),
+            items: vec![XPathResultItem::Array {
+                members: vec![XPathResultSequence {
+                    sequence_type: "xs:integer+".to_owned(),
+                    items: vec![
+                        atomic_test_item("xs:integer", "1"),
+                        atomic_test_item("xs:integer", "2"),
+                    ],
+                }],
+                source_map: result_source_map(9, 1),
+            }],
+        };
+        let diagnostics = evaluate_for_test_with_limit(
+            "round(1, $precision)",
+            None,
+            BTreeMap::from([(
+                XPathExpandedName::unqualified("precision"),
+                expanded_precision,
+            )]),
+            Some(1),
+        )
+        .expect_err("round precision atomization enforces evaluated sequence-item budgets");
         assert_eq!(
             diagnostics[0].code,
             "cem.xpath.sequence_item_limit_exceeded"
