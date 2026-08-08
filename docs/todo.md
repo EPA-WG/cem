@@ -232,6 +232,20 @@ mediate between internal layers.
           wrong arities before arguments run; and leave schema-derived atomic
           conversion outside the native primitive slice without serialization,
           a duplicate numeric parser, or an intermediate DTO.
+    - [x] Execute native XPath `fn:abs`: dispatch one-argument unprefixed,
+          `fn:`-prefixed, EQName, and named-arrow calls by expanded QName and
+          arity; apply numeric optional-singleton function conversion through
+          ordered native atomization, including array flattening and
+          untyped-atomic conversion to `xs:double`; preserve primitive integer,
+          decimal, float, and double result types and exact values; return empty
+          for empty input and positive zero, finite magnitude, positive infinity,
+          or `NaN` for IEEE inputs by reusing the unary-negation kernel; preserve
+          full-call result maps and evaluated-work budgets; reject failed
+          function-item atomization, excess cardinality, invalid retained values,
+          non-numeric and schema-derived atomic inputs, detached nodes, and wrong
+          signatures before arguments run; and avoid serialization, inferred
+          subtype relationships, a duplicate numeric parser, or an intermediate
+          DTO.
   - [x] Wire the native evaluator through the `transform` command and expose
         explicit CEM-QL, CEMT, and XSLT invocation adapters without reparsing
         source text, constructing an evaluator-owned replacement XML tree, or
