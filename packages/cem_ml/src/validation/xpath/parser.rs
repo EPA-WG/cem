@@ -1174,10 +1174,10 @@ impl<'tokens, 'source, 'context> XPathParser<'tokens, 'source, 'context> {
     }
 
     fn namespace_for_prefix(&self, prefix: &str) -> Option<String> {
-        let host_namespace = match self.attachment {
-            XPathAttachment::Host(host) => host.static_context.namespaces.get(prefix).cloned(),
-            XPathAttachment::Standalone { .. } => None,
-        };
+        let host_namespace = self
+            .attachment
+            .static_context()
+            .and_then(|context| context.namespaces.get(prefix).cloned());
         host_namespace.or_else(|| {
             match prefix {
                 "xml" => Some("http://www.w3.org/XML/1998/namespace"),
@@ -1195,10 +1195,7 @@ impl<'tokens, 'source, 'context> XPathParser<'tokens, 'source, 'context> {
     }
 
     fn default_namespace(&self, name_use: XPathNameUse) -> Option<String> {
-        let static_context = match self.attachment {
-            XPathAttachment::Host(host) => Some(&host.static_context),
-            XPathAttachment::Standalone { .. } => None,
-        };
+        let static_context = self.attachment.static_context();
         match name_use {
             XPathNameUse::Function => static_context
                 .and_then(|context| context.default_function_namespace.clone())

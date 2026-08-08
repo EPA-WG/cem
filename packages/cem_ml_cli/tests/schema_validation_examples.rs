@@ -1106,11 +1106,6 @@ fn schema_package_preview_and_validation_paths_track_source_boundaries() {
                     "schema-package validation examples must stay covered by `{test_name}`"
                 );
             }
-        } else if package_id == "css-selector" {
-            assert!(
-                readme.contains("CLI query-source loading and query execution remain planned"),
-                "CSS selector package must declare why runtime CLI example validation is deferred"
-            );
         } else {
             let test_name = format!(
                 "schema_owned_{}_examples_validate_through_cli",
@@ -1414,6 +1409,10 @@ schema_owned_package_validation_test!(
     "cem-transform"
 );
 schema_owned_package_validation_test!(schema_owned_css_examples_validate_through_cli, "css");
+schema_owned_package_validation_test!(
+    schema_owned_css_selector_examples_validate_through_cli,
+    "css-selector"
+);
 schema_owned_package_validation_test!(schema_owned_csv_examples_validate_through_cli, "csv");
 schema_owned_package_validation_test!(schema_owned_html_examples_validate_through_cli, "html");
 schema_owned_package_validation_test!(

@@ -101,15 +101,15 @@ mediate between internal layers.
     - [x] Preserve existing CEM-QL and XPath command behavior through documented
           compatibility aliases or migration diagnostics, with the unified
           query command as the canonical interface.
-  - [ ] Add package and CLI evidence after the native red tests are in place.
-    - [ ] Add manifest-owned pass/fail CSS selector examples, validation reports,
+  - [x] Add package and CLI evidence after the native red tests are in place.
+    - [x] Add manifest-owned pass/fail CSS selector examples, validation reports,
           source-map cases, namespace cases, safety-limit cases, and README
           source/preview verification.
-    - [ ] Add a tree-backed data fixture queried three ways—with an equivalent
+    - [x] Add a tree-backed data fixture queried three ways—with an equivalent
           CSS selector, CEM-QL expression, and XPath expression—and assert the
           same native node identities, document order, source maps, CLI report
           shape, and explicit exported output.
-    - [ ] Add negative CLI fixtures for language/content-type mismatch,
+    - [x] Add negative CLI fixtures for language/content-type mismatch,
           unsupported data models, invalid queries, missing context, denied
           resolver capabilities, budget exhaustion, and unavailable exporters.
   - [ ] Close the slice through Nx: run the new schema package `verify` target,

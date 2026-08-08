@@ -130,4 +130,55 @@
         @expected-result="fail"
         @expected-diagnostics="css-selector.namespace.unbound"
     }
+
+    {example
+        @id="source-map-selector"
+        @path="examples/source-map-selector.css-selector"
+        @content-type="application/vnd.cem.query-expression+css-selector"
+        @schema="https://cem.dev/ns/query/css-selector/1"
+        @expected-result="pass"
+    }
+
+    {example
+        @id="namespace-wildcard"
+        @path="examples/namespace-wildcard.css-selector"
+        @content-type="application/vnd.cem.query-expression+css-selector"
+        @schema="https://cem.dev/ns/query/css-selector/1"
+        @expected-result="pass"
+    }
+
+    {example
+        @id="budgeted-relational"
+        @path="examples/budgeted-relational.css-selector"
+        @content-type="application/vnd.cem.query-expression+css-selector"
+        @schema="https://cem.dev/ns/query/css-selector/1"
+        @expected-result="pass"
+    }
+
+    {example
+        @id="invalid-syntax"
+        @path="examples/invalid-syntax.css-selector"
+        @content-type="application/vnd.cem.query-expression+css-selector"
+        @schema="https://cem.dev/ns/query/css-selector/1"
+        @expected-result="fail"
+        @expected-diagnostics="css-selector.parse.invalid"
+    }
+
+    {example
+        @id="unsupported-pseudo-element"
+        @path="examples/unsupported-pseudo-element.css-selector"
+        @content-type="application/vnd.cem.query-expression+css-selector"
+        @schema="https://cem.dev/ns/query/css-selector/1"
+        @expected-result="fail"
+        @expected-diagnostics="css-selector.feature.unsupported"
+    }
+
+    {example
+        @id="missing-host-capability"
+        @path="examples/missing-host-capability.css-selector"
+        @content-type="application/vnd.cem.query-expression+css-selector"
+        @schema="https://cem.dev/ns/query/css-selector/1"
+        @expected-result="fail"
+        @expected-diagnostics="css-selector.capability.missing"
+    }
 }

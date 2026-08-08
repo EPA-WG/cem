@@ -4825,7 +4825,7 @@ impl QueryItemView for XmlDocumentQueryView {
     }
 
     fn identity(&self) -> String {
-        format!("{:p}:document", Arc::as_ptr(&self.owner))
+        "xml:document".to_owned()
     }
 
     fn kind(&self) -> QueryItemViewKind {
@@ -4846,19 +4846,17 @@ impl QueryItemView for XmlDocumentQueryView {
         Some(match name {
             "kind" => atom_items("xml-document"),
             "resourceKind" => atom_items(document.resource_kind.clone()),
-            "events" => vec![Item::Array(
-                document
-                    .events
-                    .iter()
-                    .enumerate()
-                    .map(|(index, _)| {
-                        Item::native(XmlEventQueryView {
-                            owner: Arc::clone(&self.owner),
-                            index,
-                        })
+            "events" => document
+                .events
+                .iter()
+                .enumerate()
+                .map(|(index, _)| {
+                    Item::native(XmlEventQueryView {
+                        owner: Arc::clone(&self.owner),
+                        index,
                     })
-                    .collect(),
-            )],
+                })
+                .collect(),
             _ => Vec::new(),
         })
     }
@@ -4889,7 +4887,7 @@ impl QueryItemView for XmlEventQueryView {
     }
 
     fn identity(&self) -> String {
-        format!("{:p}:event:{}", Arc::as_ptr(&self.owner), self.index)
+        format!("xml:event:{}", self.index)
     }
 
     fn kind(&self) -> QueryItemViewKind {
@@ -4984,10 +4982,8 @@ impl QueryItemView for XmlAttributeQueryView {
 
     fn identity(&self) -> String {
         format!(
-            "{:p}:event:{}:attribute:{}",
-            Arc::as_ptr(&self.owner),
-            self.event_index,
-            self.attribute_index
+            "xml:event:{}:attribute:{}",
+            self.event_index, self.attribute_index
         )
     }
 
@@ -5551,6 +5547,7 @@ fn lifecycle_representation_name(stream: &LoadedInputAstStream) -> &'static str 
     match stream {
         LoadedInputAstStream::HtmlDocument(_) => "html-document",
         LoadedInputAstStream::CssDocument(_) => "css-document",
+        LoadedInputAstStream::CssSelectorExpression(_) => "css-selector-expression",
         LoadedInputAstStream::CsvDocument(_) => "csv-document",
         LoadedInputAstStream::YamlDocument(_) => "yaml-document",
         LoadedInputAstStream::JsonDocument(_) => "json-document",
@@ -6231,7 +6228,7 @@ fn item_json(item: &Item) -> Value {
             "items": items.iter().map(item_json).collect::<Vec<_>>(),
         }),
         Item::Native(view) => {
-            if let Some(atom) = view.atom() {
+            let mut value = if let Some(atom) = view.atom() {
                 atom_json(&atom)
             } else if let Some(items) = view.members() {
                 json!({
@@ -6255,10 +6252,18 @@ fn item_json(item: &Item) -> Value {
             } else {
                 json!({
                     "kind": "native",
-                    "representation": view.representation_id(),
-                    "identity": view.identity(),
                 })
-            }
+            };
+            let object = value
+                .as_object_mut()
+                .expect("native item JSON projections are objects");
+            object.insert("identity".to_owned(), Value::String(view.identity()));
+            object.insert(
+                "representation".to_owned(),
+                Value::String(view.representation_id().to_owned()),
+            );
+            object.insert("sourceMap".to_owned(), json!(view.source_map()));
+            value
         }
         Item::Lambda(id) => json!({
             "kind": "lambda",
@@ -6954,11 +6959,11 @@ count + 1"#,
             .and_then(|view| view.downcast_ref::<XmlDocumentQueryView>())
             .expect("XML document remains a native view");
         assert!(Arc::ptr_eq(&document_view.owner, &owner));
+        assert_eq!(root.identity().as_deref(), Some("xml:document"));
 
         let events = root
             .view()
             .and_then(|view| view.field("events"))
-            .and_then(|items| items.first().and_then(Item::members))
             .expect("XML event sequence");
         let start = events
             .iter()
@@ -6974,6 +6979,10 @@ count + 1"#,
             .and_then(|view| view.downcast_ref::<XmlEventQueryView>())
             .expect("XML event remains a native view");
         assert!(Arc::ptr_eq(&event_view.owner, &owner));
+        assert_eq!(
+            start.identity(),
+            Some(format!("xml:event:{}", event_view.index))
+        );
         assert!(start.source_map().is_some());
 
         let attributes = start
@@ -6993,6 +7002,14 @@ count + 1"#,
             })
             .expect("namespaced id attribute view");
         assert!(Arc::ptr_eq(&attribute_view.owner, &owner));
+        assert_eq!(
+            attribute_view.identity(),
+            format!(
+                "xml:event:{}:attribute:{}",
+                attribute_view.event_index, attribute_view.attribute_index
+            )
+        );
+        assert!(attribute_view.source_map().is_some());
         assert_eq!(
             attribute_view.field("namespaceUri"),
             Some(atom_items("urn:example"))

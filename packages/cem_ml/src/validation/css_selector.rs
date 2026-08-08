@@ -1441,6 +1441,7 @@ fn lifecycle_ast_stream_kind(owner: &LoadedInputAstStream) -> &'static str {
     match owner {
         LoadedInputAstStream::HtmlDocument(_) => "html-document",
         LoadedInputAstStream::CssDocument(_) => "css-document",
+        LoadedInputAstStream::CssSelectorExpression(_) => "css-selector-expression",
         LoadedInputAstStream::CsvDocument(_) => "csv-document",
         LoadedInputAstStream::YamlDocument(_) => "yaml-document",
         LoadedInputAstStream::JsonDocument(_) => "json-document",

@@ -166,6 +166,92 @@ fn parser_retains_lossless_tokens_ranges_and_typed_selector_shape() {
 }
 
 #[test]
+fn manifest_examples_prove_source_maps_namespace_matching_and_relational_budget_safety() {
+    let source_map_selector = include_str!(
+        "../schema-packages/css-selector/v1/examples/source-map-selector.css-selector"
+    );
+    let (source_map_expression, diagnostics) =
+        parse_selector(source_map_selector, &BTreeMap::new());
+    assert!(diagnostics.is_empty(), "{diagnostics:#?}");
+    assert_eq!(
+        source_map_expression
+            .tokens
+            .iter()
+            .map(|token| token.lexeme.as_str())
+            .collect::<String>(),
+        source_map_selector
+    );
+    let owner = html_owner(
+        r#"<catalog><book id="featured-primary" class="featured"></book><book id="featured-secondary"></book></catalog>"#,
+    );
+    let result = evaluate(
+        &source_map_expression,
+        &owner,
+        &BTreeMap::new(),
+        QueryExecutionLimits::default(),
+    )
+    .expect("manifest source-map selector evaluates");
+    let artifact = result
+        .native_result
+        .as_any()
+        .downcast_ref::<CssSelectorResultArtifact>()
+        .expect("CSS selector result artifact");
+    assert_eq!(artifact.matches.len(), 2);
+    assert!(artifact
+        .matches
+        .windows(2)
+        .all(|pair| pair[0].document_order < pair[1].document_order));
+    assert!(artifact
+        .matches
+        .iter()
+        .all(|matched| !matched.source_map.frames.is_empty()));
+
+    let namespace_selector =
+        include_str!("../schema-packages/css-selector/v1/examples/namespace-wildcard.css-selector");
+    let (namespace_expression, diagnostics) = parse_selector(namespace_selector, &BTreeMap::new());
+    assert!(diagnostics.is_empty(), "{diagnostics:#?}");
+    let namespace_owner = xml_owner(
+        r#"<catalog xmlns="urn:catalog"><book id="featured"/><magazine id="monthly"/></catalog>"#,
+    );
+    let result = evaluate(
+        &namespace_expression,
+        &namespace_owner,
+        &BTreeMap::new(),
+        QueryExecutionLimits::default(),
+    )
+    .expect("manifest namespace wildcard evaluates");
+    let artifact = result
+        .native_result
+        .as_any()
+        .downcast_ref::<CssSelectorResultArtifact>()
+        .expect("CSS selector result artifact");
+    assert_eq!(artifact.matches.len(), 1);
+    assert_eq!(artifact.matches[0].namespace_uri, "urn:catalog");
+
+    let relational_selector = include_str!(
+        "../schema-packages/css-selector/v1/examples/budgeted-relational.css-selector"
+    );
+    let (relational_expression, diagnostics) =
+        parse_selector(relational_selector, &BTreeMap::new());
+    assert!(diagnostics.is_empty(), "{diagnostics:#?}");
+    let exhausted = match evaluate(
+        &relational_expression,
+        &owner,
+        &BTreeMap::new(),
+        QueryExecutionLimits {
+            max_result_items: Some(10),
+            max_work_units: Some(1),
+        },
+    ) {
+        Ok(_) => panic!("manifest relational selector must consume an explicit work budget"),
+        Err(diagnostics) => diagnostics,
+    };
+    assert!(exhausted
+        .iter()
+        .any(|diagnostic| diagnostic.code == "css-selector.budget.exceeded"));
+}
+
+#[test]
 fn parser_binds_namespaces_and_reports_unbound_prefixes_from_schema_policy() {
     let source = "svg|svg > svg|a[href]";
     let namespaces = BTreeMap::from([("svg".to_owned(), "http://www.w3.org/2000/svg".to_owned())]);

@@ -1,8 +1,7 @@
 # CSS Selector Schema Package
 
 Status: schema-owned query contract, package assets, native parser, lifecycle
-element-tree adapter, and evaluator implemented;
-CLI query-source loading and query execution remain planned
+element-tree adapter, evaluator, and unified CLI query execution implemented
 
 This package owns standalone CSS selector query expressions. It is deliberately
 separate from the `css/v1` stylesheet package and never treats `text/css` or a
@@ -31,9 +30,9 @@ implements primitive parsing and matching, but it does not own severity or
 package-specific validation policy.
 
 The package declares `compact`, `pretty`, and `tabular` formatters plus
-`terminal`, `html`, and `md` colorizers. Their CEMT assets are registered now as
-deterministic lexical token-tree stages. Runtime invocation waits for the CLI
-slice to route the package-owned selector AST/token subject; no private source
+`terminal`, `html`, and `md` colorizers. Their CEMT assets are registered as
+deterministic lexical token-tree stages. The unified CLI routes the
+package-owned selector AST to the native query evaluator; no private source
 reparse or stylesheet AST substitution is permitted.
 
 The package-owned
@@ -81,9 +80,10 @@ are passive and perform no resolution or evaluation.
 - `colorizers/md.cemt`
 - `colorizers/css-selector-color-expression.cemt`
 
-Source snapshots are used only where the current CLI cannot yet render the
-package formatter/colorizer path. The checked-in selector examples use fenced
-source, so they require no SVG fallback previews.
+The checked-in selector examples use fenced source, so they require no SVG
+fallback previews. Source snapshots are used only where the current CLI cannot
+yet render package formatter/colorizer previews. Preview verification enforces
+that source-only policy.
 
 ## Safety
 
@@ -154,4 +154,99 @@ section:has(> h2):not([hidden])
 
 ```css
 svg|svg > svg|a[href]
+```
+
+<details>
+<summary>source-map-selector</summary>
+
+- Source: [`examples/source-map-selector.css-selector`](./examples/source-map-selector.css-selector)
+- Content type: `application/vnd.cem.query-expression+css-selector`
+- Schema: `https://cem.dev/ns/query/css-selector/1`
+- Expected result: `pass`
+- README rendering: fenced `css` source
+
+</details>
+
+```css
+catalog >
+  book.featured,
+book#featured-secondary
+```
+
+<details>
+<summary>namespace-wildcard</summary>
+
+- Source: [`examples/namespace-wildcard.css-selector`](./examples/namespace-wildcard.css-selector)
+- Content type: `application/vnd.cem.query-expression+css-selector`
+- Schema: `https://cem.dev/ns/query/css-selector/1`
+- Expected result: `pass`
+- README rendering: fenced `css` source
+
+</details>
+
+```css
+*|book[id]
+```
+
+<details>
+<summary>budgeted-relational</summary>
+
+- Source: [`examples/budgeted-relational.css-selector`](./examples/budgeted-relational.css-selector)
+- Content type: `application/vnd.cem.query-expression+css-selector`
+- Schema: `https://cem.dev/ns/query/css-selector/1`
+- Expected result: `pass`
+- README rendering: fenced `css` source
+
+</details>
+
+```css
+catalog:has(> book.featured)
+```
+
+<details>
+<summary>invalid-syntax</summary>
+
+- Source: [`examples/invalid-syntax.css-selector`](./examples/invalid-syntax.css-selector)
+- Content type: `application/vnd.cem.query-expression+css-selector`
+- Schema: `https://cem.dev/ns/query/css-selector/1`
+- Expected result: `fail`
+- Expected diagnostics: `css-selector.parse.invalid`
+- README rendering: fenced `css` source
+
+</details>
+
+```css
+article[
+```
+
+<details>
+<summary>unsupported-pseudo-element</summary>
+
+- Source: [`examples/unsupported-pseudo-element.css-selector`](./examples/unsupported-pseudo-element.css-selector)
+- Content type: `application/vnd.cem.query-expression+css-selector`
+- Schema: `https://cem.dev/ns/query/css-selector/1`
+- Expected result: `fail`
+- Expected diagnostics: `css-selector.feature.unsupported`
+- README rendering: fenced `css` source
+
+</details>
+
+```css
+article::before
+```
+
+<details>
+<summary>missing-host-capability</summary>
+
+- Source: [`examples/missing-host-capability.css-selector`](./examples/missing-host-capability.css-selector)
+- Content type: `application/vnd.cem.query-expression+css-selector`
+- Schema: `https://cem.dev/ns/query/css-selector/1`
+- Expected result: `fail`
+- Expected diagnostics: `css-selector.capability.missing`
+- README rendering: fenced `css` source
+
+</details>
+
+```css
+a:hover
 ```

@@ -91,6 +91,8 @@
                     "cargo test -p cem-ml catalog_exposes_css_selector -- --nocapture",
                     "cargo test -p cem-ml --test schema_package_structure css_selector_package_is_schema_owned_nx_subproject -- --nocapture",
                     "cargo test -p cem-ml --test css_selector --target-dir dist/target/cem_ml -- --nocapture",
+                    "cargo test -p cem-ml-cli --test schema_validation_examples schema_owned_css_selector_examples_validate_through_cli --target-dir dist/target/cem_ml_cli -- --nocapture",
+                    "cargo test -p cem-ml-cli --test query_cli --target-dir dist/target/cem_ml_cli -- --nocapture",
                     "node packages/cem_ml/schema-packages/css-selector/v1/scripts/verify-previews.mjs"
                 ],
                 "parallel": false,
@@ -111,6 +113,9 @@
                 "{workspaceRoot}/packages/cem_ml/tests/schema_package_structure.rs",
                 "{workspaceRoot}/packages/cem_ml/Cargo.toml",
                 "{workspaceRoot}/packages/cem_ml_cli/src/**/*.rs",
+                "{workspaceRoot}/packages/cem_ml_cli/tests/query_cli.rs",
+                "{workspaceRoot}/packages/cem_ml_cli/tests/fixtures/query/**/*",
+                "{workspaceRoot}/packages/cem_ml_cli/tests/schema_validation_examples.rs",
                 "{workspaceRoot}/packages/cem_ml_cli/Cargo.toml"
             ],
             "outputs": ["{projectRoot}/dist/cem-ml.report.json"]

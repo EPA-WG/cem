@@ -2498,7 +2498,7 @@ mod tests {
             CSS_SELECTOR_SCHEMA_URI,
         );
 
-        assert_eq!(examples.len(), 3);
+        assert_eq!(examples.len(), 9);
         for (id, expected_result, expected_code) in [
             (
                 "basic-selector",
@@ -2514,6 +2514,36 @@ mod tests {
                 "unbound-namespace",
                 SchemaPackageExampleExpectedResult::Fail,
                 Some("css-selector.namespace.unbound"),
+            ),
+            (
+                "source-map-selector",
+                SchemaPackageExampleExpectedResult::Pass,
+                None,
+            ),
+            (
+                "namespace-wildcard",
+                SchemaPackageExampleExpectedResult::Pass,
+                None,
+            ),
+            (
+                "budgeted-relational",
+                SchemaPackageExampleExpectedResult::Pass,
+                None,
+            ),
+            (
+                "invalid-syntax",
+                SchemaPackageExampleExpectedResult::Fail,
+                Some("css-selector.parse.invalid"),
+            ),
+            (
+                "unsupported-pseudo-element",
+                SchemaPackageExampleExpectedResult::Fail,
+                Some("css-selector.feature.unsupported"),
+            ),
+            (
+                "missing-host-capability",
+                SchemaPackageExampleExpectedResult::Fail,
+                Some("css-selector.capability.missing"),
             ),
         ] {
             let example = examples

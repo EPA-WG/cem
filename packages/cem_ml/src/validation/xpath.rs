@@ -8286,21 +8286,37 @@ pub struct XPathHostAttachment {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum XPathAttachment {
-    Standalone { source_id: u32 },
+    Standalone {
+        source_id: u32,
+    },
+    StandaloneStaticContext {
+        source_id: u32,
+        static_context: XPathStaticContext,
+    },
     Host(XPathHostAttachment),
 }
 
 impl XPathAttachment {
     fn source_id(&self) -> u32 {
         match self {
-            Self::Standalone { source_id } => *source_id,
+            Self::Standalone { source_id } | Self::StandaloneStaticContext { source_id, .. } => {
+                *source_id
+            }
             Self::Host(attachment) => attachment.owner.source_id,
+        }
+    }
+
+    pub(super) fn static_context(&self) -> Option<&XPathStaticContext> {
+        match self {
+            Self::Standalone { .. } => None,
+            Self::StandaloneStaticContext { static_context, .. } => Some(static_context),
+            Self::Host(attachment) => Some(&attachment.static_context),
         }
     }
 
     fn expression_origin(&self) -> XPathSourcePosition {
         match self {
-            Self::Standalone { .. } => XPathSourcePosition {
+            Self::Standalone { .. } | Self::StandaloneStaticContext { .. } => XPathSourcePosition {
                 line: 1,
                 column: 1,
                 byte_offset: 0,
@@ -8526,7 +8542,8 @@ pub fn validate_xpath_expression_ast(
                         "byteLength": fact.source_range.map(|range| range.byte_length),
                         "value": fact.value,
                         "attachmentKind": match ast.attachment {
-                            XPathAttachment::Standalone { .. } => "standalone",
+                            XPathAttachment::Standalone { .. }
+                            | XPathAttachment::StandaloneStaticContext { .. } => "standalone",
                             XPathAttachment::Host(_) => "host",
                         },
                     }
@@ -9563,18 +9580,15 @@ impl<'a> XPathSyntaxLowerer<'a> {
     }
 
     fn namespace_for_prefix(&self, prefix: &str) -> Option<String> {
-        let host_namespace = match self.attachment {
-            XPathAttachment::Host(host) => host.static_context.namespaces.get(prefix).cloned(),
-            XPathAttachment::Standalone { .. } => None,
-        };
+        let host_namespace = self
+            .attachment
+            .static_context()
+            .and_then(|context| context.namespaces.get(prefix).cloned());
         host_namespace.or_else(|| xpath_builtin_namespace_for_prefix(prefix).map(str::to_owned))
     }
 
     fn default_namespace(&self, name_use: XPathNameUse) -> Option<String> {
-        let static_context = match self.attachment {
-            XPathAttachment::Host(host) => Some(&host.static_context),
-            XPathAttachment::Standalone { .. } => None,
-        };
+        let static_context = self.attachment.static_context();
         match name_use {
             XPathNameUse::Element => {
                 static_context.and_then(|context| context.default_element_namespace.clone())
@@ -9617,15 +9631,14 @@ fn synthetic_wrapped_expression(path: &xee_ast::PathExpr) -> Option<&xee_ast::Ex
 #[cfg(test)]
 fn xpath_parser_context(attachment: &XPathAttachment) -> XPathParserContext {
     let mut namespaces = Namespaces::default();
-    if let XPathAttachment::Host(host) = attachment {
-        if let Some(namespace) = &host.static_context.default_element_namespace {
+    if let Some(static_context) = attachment.static_context() {
+        if let Some(namespace) = &static_context.default_element_namespace {
             namespaces.default_element_namespace = namespace.clone();
         }
-        if let Some(namespace) = &host.static_context.default_function_namespace {
+        if let Some(namespace) = &static_context.default_function_namespace {
             namespaces.default_function_namespace = namespace.clone();
         }
-        let pairs = host
-            .static_context
+        let pairs = static_context
             .namespaces
             .iter()
             .map(|(prefix, namespace)| (prefix.as_str(), namespace.as_str()))
@@ -9662,6 +9675,20 @@ fn xpath_attachment_to_cemt_subject(attachment: &XPathAttachment) -> Value {
         XPathAttachment::Standalone { source_id } => json!({
             "kind": "standalone",
             "sourceId": source_id,
+        }),
+        XPathAttachment::StandaloneStaticContext {
+            source_id,
+            static_context,
+        } => json!({
+            "kind": "standalone",
+            "sourceId": source_id,
+            "staticContext": {
+                "namespaces": static_context.namespaces,
+                "defaultElementNamespace": static_context.default_element_namespace,
+                "defaultFunctionNamespace": static_context.default_function_namespace,
+                "variableBindings": static_context.variable_bindings,
+                "functionBindings": static_context.function_bindings,
+            },
         }),
         XPathAttachment::Host(host) => json!({
             "kind": "host",
@@ -9750,7 +9777,14 @@ impl XPathQueryAstOwner {
     ) -> (Self, Vec<Diagnostic>) {
         let expression = xpath_expression_ast_from_source_bytes(
             request,
-            XPathAttachment::Standalone { source_id: 1 },
+            XPathAttachment::StandaloneStaticContext {
+                source_id: 1,
+                static_context: XPathStaticContext {
+                    namespaces: identity.namespaces.clone(),
+                    default_element_namespace: identity.default_namespace.clone(),
+                    ..XPathStaticContext::default()
+                },
+            },
         );
         let diagnostics =
             validate_xpath_expression_ast(&expression, XPathSchemaContractCatalog::from_builtin());

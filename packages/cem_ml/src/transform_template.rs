@@ -26132,7 +26132,9 @@ fn transform_template_xpath_binding_diagnostic(
             Some(host.expression_range.start.column),
             Some(host.expression_range.start.byte_offset),
         ),
-        XPathAttachment::Standalone { .. } => (None, None, None),
+        XPathAttachment::Standalone { .. } | XPathAttachment::StandaloneStaticContext { .. } => {
+            (None, None, None)
+        }
     };
     Diagnostic {
         uri: Some(invocation.expression.source.uri.clone()),

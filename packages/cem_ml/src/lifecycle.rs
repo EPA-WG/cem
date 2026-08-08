@@ -15,18 +15,22 @@ use crate::schema::registry::{
     CEM_NATIVE_TEMPLATE_CONTENT_TYPE, CEM_NATIVE_TEMPLATE_SCHEMA_URI, CEM_SCHEMA_CONTENT_TYPE,
     CEM_SCHEMA_PACKAGE_CONTENT_TYPE, CEM_SCHEMA_PACKAGE_URI, CEM_SCHEMA_URI,
     CEM_TRANSFORM_CONTENT_TYPE, CEM_TRANSFORM_SCHEMA_URI, CSS_CONTENT_TYPE, CSS_SCHEMA_URI,
-    CSV_CONTENT_TYPE, CSV_SCHEMA_URI, HTML_CONTENT_TYPE, HTML_NAMESPACE_URI, HTML_SCHEMA_URI,
-    JSON_CONTENT_TYPE, JSON_SCHEMA_CONTENT_TYPE, JSON_SCHEMA_SCHEMA_URI, JSON_VALUE_SCHEMA_URI,
-    MARKDOWN_CONTENT_TYPE, MARKDOWN_SCHEMA_URI, MATHML_CONTENT_TYPE, MATHML_NAMESPACE_URI,
-    MATHML_SCHEMA_URI, RELAX_NG_COMPACT_CONTENT_TYPE, RELAX_NG_SCHEMA_URI,
-    RELAX_NG_XML_CONTENT_TYPE, SVG_CONTENT_TYPE, SVG_NAMESPACE_URI, SVG_SCHEMA_URI,
-    XHTML_CONTENT_TYPE, XHTML_SCHEMA_URI, XML_CONTENT_TYPE, XML_SCHEMA_URI, XPATH_CONTENT_TYPE,
-    XPATH_SCHEMA_URI, XSLT_CONTENT_TYPE, XSLT_NAMESPACE_URI, XSLT_SCHEMA_URI, YAML_CONTENT_TYPE,
-    YAML_SCHEMA_URI,
+    CSS_SELECTOR_CONTENT_TYPE, CSS_SELECTOR_SCHEMA_URI, CSV_CONTENT_TYPE, CSV_SCHEMA_URI,
+    HTML_CONTENT_TYPE, HTML_NAMESPACE_URI, HTML_SCHEMA_URI, JSON_CONTENT_TYPE,
+    JSON_SCHEMA_CONTENT_TYPE, JSON_SCHEMA_SCHEMA_URI, JSON_VALUE_SCHEMA_URI, MARKDOWN_CONTENT_TYPE,
+    MARKDOWN_SCHEMA_URI, MATHML_CONTENT_TYPE, MATHML_NAMESPACE_URI, MATHML_SCHEMA_URI,
+    RELAX_NG_COMPACT_CONTENT_TYPE, RELAX_NG_SCHEMA_URI, RELAX_NG_XML_CONTENT_TYPE,
+    SVG_CONTENT_TYPE, SVG_NAMESPACE_URI, SVG_SCHEMA_URI, XHTML_CONTENT_TYPE, XHTML_SCHEMA_URI,
+    XML_CONTENT_TYPE, XML_SCHEMA_URI, XPATH_CONTENT_TYPE, XPATH_SCHEMA_URI, XSLT_CONTENT_TYPE,
+    XSLT_NAMESPACE_URI, XSLT_SCHEMA_URI, YAML_CONTENT_TYPE, YAML_SCHEMA_URI,
 };
 use crate::transform_config::TRANSFORM_CONFIG_SCHEMA_URI;
 use crate::validation::css::{
     css_document_ast_from_source_bytes, CssDocumentAst, CssSourceValidationRequest,
+};
+use crate::validation::css_selector::{
+    css_selector_expression_ast_from_source_bytes, CssSelectorExpressionAst,
+    CssSelectorSourceRequest,
 };
 use crate::validation::csv::{
     csv_document_ast_from_source_bytes, CsvDocumentAst, CsvSourceValidationRequest,
@@ -113,6 +117,7 @@ pub struct LoadedInput {
 pub enum LoadedInputAstStream {
     HtmlDocument(HtmlDocumentAst),
     CssDocument(CssDocumentAst),
+    CssSelectorExpression(CssSelectorExpressionAst),
     CsvDocument(CsvDocumentAst),
     YamlDocument(YamlDocumentAst),
     JsonDocument(JsonDocumentAst),
@@ -162,6 +167,7 @@ impl LifecycleRegistry {
         registry.register(XhtmlAdapter);
         registry.register(SvgAdapter);
         registry.register(MathMlAdapter);
+        registry.register(CssSelectorAdapter);
         registry.register(XPathAdapter);
         registry.register(XsltAdapter);
         registry.register(HtmlAdapter);
@@ -815,6 +821,49 @@ fn matches_mathml_identity(identity: &FormatIdentity) -> bool {
     }
     explicit_schema_matches
         || matches_namespace_without_content_type_or_schema(identity, &[MATHML_NAMESPACE])
+}
+
+struct CssSelectorAdapter;
+
+impl LifecycleAdapter for CssSelectorAdapter {
+    fn id(&self) -> &'static str {
+        "css-selector"
+    }
+
+    fn matches_input(&self, identity: &FormatIdentity) -> bool {
+        let explicit_schema_matches = identity
+            .schema
+            .as_deref()
+            .map(str::trim)
+            .is_some_and(|schema| schema == CSS_SELECTOR_SCHEMA_URI);
+        if let Some(content_type) = identity.content_type.as_deref() {
+            return content_type_essence(content_type) == CSS_SELECTOR_CONTENT_TYPE
+                && (identity.schema.is_none() || explicit_schema_matches);
+        }
+        explicit_schema_matches
+    }
+
+    fn load(&self, input: &EngineInput, identity: &FormatIdentity) -> LoadedInput {
+        let content_type = identity
+            .content_type
+            .as_deref()
+            .or(input.root_scope.default_content_type.as_deref())
+            .unwrap_or(CSS_SELECTOR_CONTENT_TYPE);
+        let (expression, diagnostics) =
+            css_selector_expression_ast_from_source_bytes(CssSelectorSourceRequest {
+                bytes: &input.bytes,
+                source_uri: &input.uri,
+                content_type: Some(content_type),
+                namespace_bindings: &identity.namespaces,
+            });
+        LoadedInput {
+            bytes: input.bytes.clone(),
+            from_format: input.from_format.unwrap_or(InputFormat::Cem),
+            ast_stream: expression.map(LoadedInputAstStream::CssSelectorExpression),
+            diagnostics,
+            adapter_id: Some(self.id()),
+        }
+    }
 }
 
 struct XPathAdapter;

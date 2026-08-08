@@ -1,0 +1,6 @@
+<?xml version="1.0"?>
+<catalog xmlns="urn:cem:query-catalog">
+  <book id="featured-primary" class="featured"/>
+  <book id="featured-secondary" class="featured"/>
+  <magazine id="monthly"/>
+</catalog>

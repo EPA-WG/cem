@@ -1,0 +1,1 @@
+seq:where(input.events, fn(event) => event.localName == "book" && event.namespaceUri == "urn:cem:query-catalog")

@@ -8324,6 +8324,7 @@ fn loaded_input_consumes_validation_without_cem_parse(loaded: &LoadedInput) -> b
         Some(
             LoadedInputAstStream::HtmlDocument(_)
                 | LoadedInputAstStream::CssDocument(_)
+                | LoadedInputAstStream::CssSelectorExpression(_)
                 | LoadedInputAstStream::CsvDocument(_)
                 | LoadedInputAstStream::YamlDocument(_)
                 | LoadedInputAstStream::JsonDocument(_)
@@ -8339,7 +8340,7 @@ fn loaded_input_consumes_validation_without_cem_parse(loaded: &LoadedInput) -> b
         )
     ) || matches!(
         loaded.adapter_id,
-        Some("css" | "csv" | "yaml" | "json" | "json-schema" | "markdown")
+        Some("css" | "css-selector" | "csv" | "yaml" | "json" | "json-schema" | "markdown")
     )
 }
 
@@ -9118,6 +9119,9 @@ impl CemMlEngine for RealCemMlEngine {
             let export_adapter_id = export.adapter_id;
             if let Some(ast_stream) = loaded.ast_stream.take() {
                 match ast_stream {
+                    LoadedInputAstStream::CssSelectorExpression(_) => {
+                        // CSS selector query expressions require an explicit registered converter.
+                    }
                     LoadedInputAstStream::CsvDocument(table_value) => {
                         if to_format == LayerFormat::Csv {
                             if diagnostics
@@ -17517,6 +17521,83 @@ mod tests {
             "CSS validation must stay on the typed lifecycle AST path: {:?}",
             resp.report.diagnostics
         );
+    }
+
+    #[test]
+    fn validate_css_selector_source_consumes_typed_lifecycle_ast_without_cem_parse() {
+        let mut source = input(b"svg|svg > svg|a[href]", "links.css-selector");
+        source.identity = Some(FormatIdentity {
+            content_type: Some(crate::schema::registry::CSS_SELECTOR_CONTENT_TYPE.to_owned()),
+            schema: Some(crate::schema::registry::CSS_SELECTOR_SCHEMA_URI.to_owned()),
+            namespaces: BTreeMap::from([(
+                "svg".to_owned(),
+                "http://www.w3.org/2000/svg".to_owned(),
+            )]),
+            ..FormatIdentity::default()
+        });
+        let req = ValidateRequest {
+            inputs: vec![source],
+            projection: ValidateProjection::Json,
+            fail_level: FailLevel::Validate,
+            context: ctx(),
+        };
+
+        let resp = RealCemMlEngine::new().validate(req).unwrap();
+
+        assert_eq!(resp.report.summary.input_count, 1);
+        assert_eq!(resp.report.summary.hard_violation_count, 0);
+        assert!(
+            resp.report.diagnostics.is_empty(),
+            "CSS selector validation must stay on the typed lifecycle AST path: {:?}",
+            resp.report.diagnostics
+        );
+    }
+
+    #[test]
+    fn validate_css_selector_source_reports_schema_owned_lifecycle_diagnostics() {
+        for (bytes, uri, expected_code) in [
+            (
+                b"article[".as_slice(),
+                "invalid.css-selector",
+                "css-selector.parse.invalid",
+            ),
+            (
+                [0xff].as_slice(),
+                "invalid-utf8.css-selector",
+                "css-selector.lexical.invalid",
+            ),
+        ] {
+            let mut source = input(bytes, uri);
+            source.identity = Some(FormatIdentity {
+                content_type: Some(crate::schema::registry::CSS_SELECTOR_CONTENT_TYPE.to_owned()),
+                schema: Some(crate::schema::registry::CSS_SELECTOR_SCHEMA_URI.to_owned()),
+                ..FormatIdentity::default()
+            });
+            let req = ValidateRequest {
+                inputs: vec![source],
+                projection: ValidateProjection::Json,
+                fail_level: FailLevel::Validate,
+                context: ctx(),
+            };
+
+            let resp = RealCemMlEngine::new().validate(req).unwrap();
+
+            let diagnostic = resp
+                .report
+                .diagnostics
+                .iter()
+                .find(|diagnostic| diagnostic.code == expected_code)
+                .unwrap_or_else(|| {
+                    panic!("schema-owned CSS selector diagnostic `{expected_code}`")
+                });
+            if expected_code == "css-selector.parse.invalid" {
+                assert!(diagnostic.source_map.is_some());
+            }
+            assert!(resp.report.diagnostics.iter().all(|diagnostic| {
+                !diagnostic.code.starts_with("cem.token")
+                    && !diagnostic.code.starts_with("cem.parser")
+            }));
+        }
     }
 
     #[test]
