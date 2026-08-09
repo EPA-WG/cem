@@ -10,9 +10,9 @@ history is preserved in
 
 The CSS selector query and SCSS-to-CSS lifecycle slices are complete. The active
 work is closing the Phase 4 component state matrix in priority order. The
-`navigation:expanded` slice is verified; the audit now recommends
-`layout:empty`, whose owner and semantics must be accepted before adding another
-component fixture or runtime branch.
+`layout:empty` slice is verified; the audit now recommends `content:loading`,
+whose owner and semantics must be accepted before adding another component
+fixture or runtime branch.
 
 The cross-layer architecture remains serializer-free: lifecycle loading, graph
 routing, joins, evaluators, CEM-QL, CEMT, and XSLT adapters must exchange
@@ -339,7 +339,42 @@ mediate between internal layers.
   - Updated the contract, component reference, accessibility, and boolean-state
     docs. Promoted only `layout:empty` in the audit, yielding 23 browser-covered
     rows, 0 static-only rows, and 16 gaps; `content:loading` is next.
-- [ ] Verify the `layout:empty` slice with focused targets, package lint, the
+- [x] Verify the `layout:empty` slice with focused targets, package lint, the
+      state-matrix audit, and the aggregate `@epa-wg/cem-components:verify`
+      gate; then confirm the audit's next recommended gap.
+  - The uncached standard focused target passed all 8 state tests without
+    reproducing the earlier transient Nx `env` schema abort. Package lint, the
+    32-primitive manifest audit, and the state-matrix audit also passed
+    independently.
+  - The uncached aggregate gate passed all 12 dependencies, including
+    deterministic theme/token regeneration, style and workflow audits, and all
+    35 package tests across 5 files.
+  - Confirmed regeneration left tracked source unchanged and created no failed
+    browser artifacts. The audit remains at 23 browser-covered, 0 static-only,
+    and 16 gap rows, with `content:loading` recommended next.
+- [ ] Decide and document the Phase 4 `content:loading` owner before adding a
+      fixture or runtime behavior.
+  - Compare `cem-list`, `cem-table`, `cem-card`, and `cem-media-preview` against
+    the roadmap's asset, profile, and discussion workflows, then choose the
+    smallest semantic owner without making every content container busy.
+  - Define the declarative loading source of truth, dimension-preserving
+    placeholder boundary, exact `aria-busy` and status semantics, accessible
+    loading label, and relationship to `cem-progress` and `cem-skeleton`.
+  - Pin loading-to-content, loading-to-empty, and loading-to-error transitions;
+    payload visibility; focus and interaction behavior; motion policy; and the
+    application/resource-loader ownership boundary.
+  - Distinguish content loading from deferred `layout:loading`, input/action
+    loading, and feedback progress/status. Stop if the accepted behavior needs
+    resource, timing, or rendering substrate support beyond existing
+    CEM-ML/CEM-QL state projection.
+- [ ] Implement the accepted `content:loading` contract tests-first.
+  - Add the smallest focused red browser fixture only after the owner contract
+    is accepted, covering initial and transitioned loading state, stable
+    geometry/content identity, exact busy/status semantics, focus, and the
+    settled content/empty boundary.
+  - Implement only the accepted declarative branches, update public component
+    and accessibility docs, and promote only the `content:loading` audit row.
+- [ ] Verify the `content:loading` slice with focused targets, package lint, the
       state-matrix audit, and the aggregate `@epa-wg/cem-components:verify`
       gate; then confirm the audit's next recommended gap.
 
