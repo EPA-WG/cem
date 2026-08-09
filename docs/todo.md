@@ -8,10 +8,11 @@ history is preserved in
 
 ## Immediate Goal
 
-The CSS selector query and SCSS-to-CSS lifecycle slices are complete. The next
-active work is the Phase 4 component state-matrix audit: map the state
-requirements in [`component-mvp.md`](component-mvp.md) to executable browser
-evidence before adding another component fixture or assertion.
+The CSS selector query and SCSS-to-CSS lifecycle slices are complete. The active
+work is closing the Phase 4 component state matrix in priority order. The
+`navigation:expanded` slice is verified; the audit now recommends
+`layout:empty`, whose owner and semantics must be accepted before adding another
+component fixture or runtime branch.
 
 The cross-layer architecture remains serializer-free: lifecycle loading, graph
 routing, joins, evaluators, CEM-QL, CEMT, and XSLT adapters must exchange
@@ -170,7 +171,7 @@ mediate between internal layers.
     browser, material compatibility, theme-vendor, no-XSLT, and release-root
     checks aggregated by `yarn nx run @epa-wg/custom-element:verify`.
 
-### Deferred: Phase 4 CEM Component Set
+### Active: Phase 4 CEM Component Set
 
 - [x] Add a Phase 4 component state-matrix coverage audit/gate that maps
       `docs/component-mvp.md` category state requirements to the executable
@@ -288,8 +289,39 @@ mediate between internal layers.
   - Updated the component, accessibility, conventions, and accepted-contract
     docs. Promoted only `navigation:expanded` in the audit, yielding 22
     browser-covered rows, 0 static-only rows, and 17 gaps; `layout:empty` is next.
-- [ ] Verify the `navigation:expanded` slice with focused targets, package lint,
+- [x] Verify the `navigation:expanded` slice with focused targets, package lint,
       the state-matrix audit, and the aggregate `@epa-wg/cem-components:verify`
+      gate; then confirm the audit's next recommended gap.
+  - The uncached focused state suite passed all 7 tests. Package lint, the
+    32-primitive manifest audit, and the state-matrix audit also passed
+    independently.
+  - The uncached aggregate gate passed all 12 dependencies, including
+    deterministic theme/token regeneration, style and workflow audits, and all
+    34 package tests across 5 files.
+  - Confirmed regeneration left tracked source unchanged and created no failed
+    browser artifacts. The audit remains at 22 browser-covered, 0 static-only,
+    and 17 gap rows, with `layout:empty` recommended next.
+- [ ] Decide and document the Phase 4 `layout:empty` owner before adding a
+      fixture or runtime behavior.
+  - Compare `cem-surface`, `cem-stack`, and `cem-grid` against the roadmap's
+    practical layout/workflow needs, then select one semantic owner without
+    making every empty container an announced state.
+  - Define how authored emptiness is detected, whether an explicit opt-in or
+    fallback slot is required, what empty message or recovery action authors
+    provide, and which accessible semantics apply.
+  - Pin progressive fallback, nested-layout boundaries, dynamic transitions,
+    focus behavior, and the exact distinction from the already covered
+    `content:empty` and feedback loading/status contracts.
+  - Record rejected owners and stop if the accepted behavior needs a new
+    substrate capability rather than existing CEM-ML/CEM-QL conditionals.
+- [ ] Implement the accepted `layout:empty` contract tests-first.
+  - Add the smallest focused browser fixture only after the owner contract is
+    accepted, and prove the required empty/non-empty transition before changing
+    primitive behavior.
+  - Implement only the accepted declarative branches, update public component
+    and accessibility docs, and promote only the `layout:empty` audit row.
+- [ ] Verify the `layout:empty` slice with focused targets, package lint, the
+      state-matrix audit, and the aggregate `@epa-wg/cem-components:verify`
       gate; then confirm the audit's next recommended gap.
 
 ## Current Verification Commands
