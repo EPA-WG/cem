@@ -301,25 +301,41 @@ mediate between internal layers.
   - Confirmed regeneration left tracked source unchanged and created no failed
     browser artifacts. The audit remains at 22 browser-covered, 0 static-only,
     and 17 gap rows, with `layout:empty` recommended next.
-- [ ] Decide and document the Phase 4 `layout:empty` owner before adding a
+- [x] Decide and document the Phase 4 `layout:empty` owner before adding a
       fixture or runtime behavior.
-  - Compare `cem-surface`, `cem-stack`, and `cem-grid` against the roadmap's
-    practical layout/workflow needs, then select one semantic owner without
-    making every empty container an announced state.
-  - Define how authored emptiness is detected, whether an explicit opt-in or
-    fallback slot is required, what empty message or recovery action authors
-    provide, and which accessible semantics apply.
-  - Pin progressive fallback, nested-layout boundaries, dynamic transitions,
-    focus behavior, and the exact distinction from the already covered
-    `content:empty` and feedback loading/status contracts.
-  - Record rejected owners and stop if the accepted behavior needs a new
-    substrate capability rather than existing CEM-ML/CEM-QL conditionals.
+  - Accepted and documented
+    [`packages/cem-components/docs/layout-empty-contract.md`](../packages/cem-components/docs/layout-empty-contract.md):
+    `cem-surface[empty]` explicitly marks a settled empty workflow region, while
+    `cem-stack` and `cem-grid` remain formatting-only containers whose empty
+    output has no inferred semantics.
+  - Pinned presence-only author/data-source ownership instead of child counting,
+    unchanged non-empty output, exact rendered `data-state="empty"`, and a single
+    default payload containing visible contextual guidance plus a real next
+    action path. No synthesized message, alternate named slot, new primitive,
+    slice, state event, fetch, or routing behavior is accepted.
+  - Kept the named surface as an ordinary region: no automatic live region,
+    focus move, or composite role. A workflow may put `role="status"` on only a
+    dedicated non-interactive message when a dynamic result meets the WCAG
+    status-message definition, and it owns focus recovery if content removal
+    invalidates focus.
+  - Distinguished settled workflow emptiness from collection-local
+    `content:empty`, pending `layout:loading`, and feedback/error semantics.
+    Existing attribute observation, CEM-ML conditionals, light-DOM diffing, and
+    slot projection are expected to suffice; implementation must stop if the red
+    fixture disproves that boundary.
 - [ ] Implement the accepted `layout:empty` contract tests-first.
-  - Add the smallest focused browser fixture only after the owner contract is
-    accepted, and prove the required empty/non-empty transition before changing
-    primitive behavior.
-  - Implement only the accepted declarative branches, update public component
-    and accessibility docs, and promote only the `layout:empty` audit row.
+  - Add a focused red browser fixture with ordinary and empty surfaces plus
+    empty stacks/grids. Prove the named stable section, visible guidance and
+    native next action, exact marker omission/presence, absence of inferred
+    layout fallbacks or live semantics, host-attribute transitions, and focus
+    retention before changing the primitive.
+  - Add only the accepted declarative `cem-surface` state branches. Keep the
+    ordinary branch byte-for-byte stable, project the same authored payload, and
+    do not add child counting, hidden alternate content, slices, custom events,
+    imperative focus, or application behavior.
+  - Update the component, accessibility, and boolean-state docs and promote only
+    `layout:empty` in the audit after the red fixture identifies the missing
+    marker.
 - [ ] Verify the `layout:empty` slice with focused targets, package lint, the
       state-matrix audit, and the aggregate `@epa-wg/cem-components:verify`
       gate; then confirm the audit's next recommended gap.
