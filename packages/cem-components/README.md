@@ -114,6 +114,8 @@ Known deferrals stay outside this trigger:
   inert data islands, declarative slot projection, host-attribute forwarding, render lifecycle.
 - [Accessibility contract](./docs/accessibility.md) — accessible names, ARIA wiring, focus, keyboard patterns, live
   regions; mirrors the Tier A semantic-validation catalog enforced by `cem_ml`.
+- [Selectable list contract](./docs/selectable-list-contract.md) — accepted Phase 4 single-select listbox ownership,
+  declarative option payload, native interaction boundary, and executable acceptance criteria.
 
 ## Related docs
 

@@ -209,36 +209,39 @@ mediate between internal layers.
   - Confirmed the generated audit remains at 20 browser-covered, 0 static-only,
     and 19 gaps with `content:selected` still recommended next; no selectable
     row/option API was introduced by this verification-only item.
-- [ ] Decide and document the Phase 4 `content:selected` owner before adding a
+- [x] Decide and document the Phase 4 `content:selected` owner before adding a
       fixture or runtime behavior.
-  - Recommended: preserve the existing passive `cem-list` and static
-    `cem-table` defaults; add an opt-in single-select listbox family using
-    `cem-list[selectable]` plus a declarative `cem-list-option` child, and defer
-    selectable tables until the package can own the complete interactive-grid
-    contract.
-  - This is an explicit public-API decision because `cem-list-option` adds an
-    element name to the accepted MVP and the selectable mode changes the list
-    from native list semantics to the WAI-ARIA
-    [listbox pattern](https://www.w3.org/WAI/ARIA/apg/patterns/listbox/). Do not
-    implement it until that ownership choice is accepted.
-  - Pin single-selection rules, option value/identity, authored initial
-    `selected` state versus the runtime slice, click and keyboard transitions,
-    disabled options, accessible naming, and either roving focus or
-    `aria-activedescendant`. Selection MUST remain distinguishable from hover
-    and keyboard focus, and listbox options MUST NOT contain nested interactive
-    controls.
-  - Record why `cem-table` remains a static table: adopting row selection would
-    require the WAI-ARIA [grid pattern](https://www.w3.org/WAI/ARIA/apg/patterns/grid/),
-    including composite focus ownership and directional keyboard navigation,
-    rather than merely adding `aria-selected` to the current rows.
+  - Accepted and documented
+    [`packages/cem-components/docs/selectable-list-contract.md`](../packages/cem-components/docs/selectable-list-contract.md):
+    preserve passive `cem-list` and static `cem-table` defaults, while
+    `cem-list[selectable]` consumes direct declarative `cem-list-option` payload
+    into a native single-select `<select size>` listbox.
+  - `cem-list-option` is parent-scoped payload vocabulary, not a separately
+    registered primitive, so the accepted 32-component manifest remains stable.
+    It requires unique `value`, text-only content, and optional presence-only
+    `selected` and `disabled` defaults.
+  - Pinned host `value` precedence, last-authored selected fallback, native
+    pointer/keyboard behavior, a serializable `value` slice, explicit
+    `aria-selected` evidence, native-control focus, non-form participation, and
+    the prohibition on nested option controls.
+  - Kept table-row selection deferred to a complete interactive-grid contract;
+    static rows MUST NOT gain `aria-selected` in isolation.
 - [ ] Implement the accepted `content:selected` contract tests-first.
-  - Add the smallest focused browser fixture for at least two options, then
-    prove initial selection, pointer activation, keyboard focus, selection
-    transfer, exact `aria-selected` reflection, and serializable slice-event
-    payloads without changing passive-list behavior.
-  - Update the primitive manifest, component/accessibility docs, and
-    `content:selected` audit row only after the red browser assertion identifies
-    the missing behavior.
+  - Add the smallest focused browser fixture with a passive list and at least
+    three declarative options, including selected and disabled cases. Prove the
+    missing native listbox output, source order, label, `size`, initial value
+    precedence, and unchanged passive output before changing the primitive.
+  - Implement payload iteration inside `cem-list`; normalize option payload into
+    native `<option>` nodes and bind native `change` to the string `value` slice.
+    Do not register `cem-list-option`, add imperative keyboard handlers, or make
+    the list a form participant.
+  - Extend the browser assertion through pointer and keyboard selection,
+    selected-versus-focus evidence, exact native/ARIA selectedness, disabled
+    behavior, and serializable event payloads. Stop if the red test exposes a
+    required substrate capability beyond existing CEM-ML iteration and
+    declarative slice events.
+  - Update the component/accessibility docs and `content:selected` audit row only
+    after the red browser assertion identifies the missing behavior.
 - [ ] Verify the `content:selected` slice with focused targets, package lint,
       the state-matrix audit, and the aggregate `@epa-wg/cem-components:verify`
       gate; then confirm the audit's next recommended gap.
