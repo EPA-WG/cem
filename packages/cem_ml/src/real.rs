@@ -2363,6 +2363,10 @@ fn load_input_through_lifecycle(input: &EngineInput, context: &EngineContext) ->
     LifecycleRegistry::with_builtin_adapters().load(input, context)
 }
 
+fn validate_input_through_lifecycle(input: &EngineInput, context: &EngineContext) -> LoadedInput {
+    LifecycleRegistry::with_builtin_adapters().load_for_source_validation(input, context)
+}
+
 fn scheduler_policy_from_context(context: &EngineContext) -> crate::scheduler::ScopePolicy {
     let mut policy = if context.scheduler.thread_pool.as_deref() == Some("host") {
         crate::scheduler::ScopePolicy::host_root()
@@ -5745,6 +5749,25 @@ fn convert_loaded_css_ast_output(
     diagnostics: &mut Vec<Diagnostic>,
 ) -> (Value, Option<PrimaryBytes>, ConvertExecutionMetadata) {
     let metadata = convert_metadata_for_css_lifecycle_output(&request.target_scope);
+    if let Some(color_profile) = xml_direct_output_color_profile(&request.target_scope) {
+        diagnostics.push(Diagnostic {
+            uri: Some(request.input.uri.clone()),
+            code: CONVERSION_OUTPUT_PIPELINE_EXECUTION_CODE.to_owned(),
+            severity: Severity::Error,
+            message: format!(
+                "browser-facing CSS export cannot apply the `{color_profile}` presentation color profile; export uncolored text/css or consume the CSS colorizer's presentation artifact separately"
+            ),
+            node: Some("css".to_owned()),
+            details: Some(json!({
+                "contentType": CSS_CONTENT_TYPE,
+                "schema": CSS_SCHEMA_URI,
+                "colorProfile": color_profile,
+                "boundary": "browser-css-export",
+            })),
+            ..Diagnostic::default()
+        });
+        return (Value::Null, None, metadata);
+    }
     let environment = ConversionOutputPipelineEnvironment {
         schema_registry: &context.schema_registry,
         conversion_registry: &context.converter_registry,
@@ -8255,7 +8278,7 @@ fn run_scheduled_validation_documents(
                 let mut scope_diagnostics =
                     root_scope_metadata_diagnostics(&input.uri, &input.root_scope, "input");
                 input_diags.append(&mut scope_diagnostics);
-                let mut loaded = load_input_through_lifecycle(input, context);
+                let mut loaded = validate_input_through_lifecycle(input, context);
                 input_diags.append(&mut loaded.diagnostics);
                 source_bytes_for_projection = Some(loaded.bytes.clone());
                 loaded_input = Some(loaded);
@@ -8264,7 +8287,7 @@ fn run_scheduled_validation_documents(
 
             let mut loaded = loaded_input
                 .take()
-                .unwrap_or_else(|| load_input_through_lifecycle(input, context));
+                .unwrap_or_else(|| validate_input_through_lifecycle(input, context));
             input_diags.append(&mut loaded.diagnostics);
             source_bytes_for_projection = Some(loaded.bytes.clone());
             if loaded_input_consumes_validation_without_cem_parse(&loaded) {
@@ -8340,7 +8363,9 @@ fn loaded_input_consumes_validation_without_cem_parse(loaded: &LoadedInput) -> b
         )
     ) || matches!(
         loaded.adapter_id,
-        Some("css" | "css-selector" | "csv" | "yaml" | "json" | "json-schema" | "markdown")
+        Some(
+            "scss" | "css" | "css-selector" | "csv" | "yaml" | "json" | "json-schema" | "markdown"
+        )
     )
 }
 

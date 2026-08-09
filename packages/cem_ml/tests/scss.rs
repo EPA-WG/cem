@@ -4,7 +4,9 @@ use cem_ml::resolver::{
     ResolverDiagnostic, ResolverPolicy, ResolverRegistry, ResourceResolver,
 };
 use cem_ml::scheduler::AbortSignal;
-use cem_ml::schema::registry::{CSS_CONTENT_TYPE, CSS_SCHEMA_URI, SCSS_CONTENT_TYPE};
+use cem_ml::schema::registry::{
+    SchemaRegistry, CSS_CONTENT_TYPE, CSS_SCHEMA_URI, SCSS_CONTENT_TYPE,
+};
 use cem_ml::source::ByteRange;
 use cem_ml::source_map::{FrameSpan, TransformKind};
 use cem_ml::validation::scss::{
@@ -13,8 +15,16 @@ use cem_ml::validation::scss::{
     ScssSafetyPolicy, ScssSourceRequest, ScssStatementKind,
 };
 use cem_ml::{
-    engine::{EngineContext, EngineInput},
+    conversion::{
+        execute_css_document_output_pipeline_with_environment, ConversionOutputPipelineEnvironment,
+        ConversionRegistry,
+    },
+    engine::{
+        CemMlEngine, ConvertRequest, EngineContext, EngineInput, FormatIdentity, LayerFormat,
+    },
     lifecycle::{LifecycleRegistry, LoadedInputAstStream},
+    real::RealCemMlEngine,
+    run_config::ScopeConfig,
 };
 use std::collections::BTreeMap;
 
@@ -399,6 +409,194 @@ fn lifecycle_registry_routes_scss_modules_through_the_engine_resolver_context() 
             .collect::<String>(),
         ".card {\n  padding: 0.75rem;\n}\n"
     );
+}
+
+#[test]
+fn source_validation_is_passive_while_explicit_css_export_reuses_css_stages() {
+    let source = EngineInput {
+        uri: "file:///styles/main.scss".to_owned(),
+        bytes: b"@use \"unavailable\"; .card { color: #036; }".to_vec(),
+        from_format: None,
+        identity: Some(FormatIdentity {
+            content_type: Some(SCSS_CONTENT_TYPE.to_owned()),
+            schema: Some("https://cem.dev/ns/data/scss/1".to_owned()),
+            ..FormatIdentity::default()
+        }),
+        root_scope: Default::default(),
+    };
+    let loaded = LifecycleRegistry::with_builtin_adapters()
+        .load_for_source_validation(&source, &EngineContext::default());
+
+    assert_eq!(loaded.adapter_id, Some("scss"));
+    assert!(loaded.ast_stream.is_none());
+    assert!(loaded.diagnostics.is_empty(), "{:#?}", loaded.diagnostics);
+
+    let input = EngineInput {
+        uri: "file:///styles/card.scss".to_owned(),
+        bytes: b"$accent: #036; .card { color: $accent; }".to_vec(),
+        from_format: None,
+        identity: Some(FormatIdentity {
+            content_type: Some(SCSS_CONTENT_TYPE.to_owned()),
+            schema: Some("https://cem.dev/ns/data/scss/1".to_owned()),
+            ..FormatIdentity::default()
+        }),
+        root_scope: Default::default(),
+    };
+    let response = RealCemMlEngine::new()
+        .convert(ConvertRequest {
+            input,
+            to_format: LayerFormat::Css,
+            preserve_source_offsets: false,
+            context: EngineContext::default(),
+            target: Some(FormatIdentity {
+                content_type: Some(CSS_CONTENT_TYPE.to_owned()),
+                schema: Some(CSS_SCHEMA_URI.to_owned()),
+                ..FormatIdentity::default()
+            }),
+            target_scope: ScopeConfig {
+                cemt_formatter_profile: Some("tabular".to_owned()),
+                ..ScopeConfig::default()
+            },
+            scheduler_scope_id: 0,
+        })
+        .expect("SCSS to CSS lifecycle conversion");
+
+    assert!(
+        response.diagnostics.is_empty(),
+        "{:#?}",
+        response.diagnostics
+    );
+    let bytes = response.primary_bytes.expect("browser-facing CSS bytes");
+    assert_eq!(bytes.content_type, CSS_CONTENT_TYPE);
+    assert_eq!(bytes.schema.as_deref(), Some(CSS_SCHEMA_URI));
+    assert_eq!(
+        String::from_utf8(bytes.bytes).expect("CSS output is UTF-8"),
+        ".card {\n  color: #036;\n}\n"
+    );
+    let metadata = response.conversion.expect("CSS lifecycle metadata");
+    assert_eq!(
+        metadata.converter_id.as_deref(),
+        Some("css-lifecycle-output")
+    );
+    assert_eq!(
+        metadata.implementation.as_deref(),
+        Some("css-ast-stream-to-css-output-pipeline")
+    );
+    let stages = metadata.output_pipeline.expect("CSS output stages").stages;
+    assert_eq!(
+        stages
+            .iter()
+            .map(|stage| stage.stage.as_str())
+            .collect::<Vec<_>>(),
+        ["formatter", "colorizer", "writer"]
+    );
+    assert_eq!(stages[0].profile.as_deref(), Some("tabular"));
+    assert_eq!(stages[1].profile, None);
+    assert!(stages.iter().all(|stage| {
+        stage.content_type.as_deref() == Some(CSS_CONTENT_TYPE)
+            && stage.schema.as_deref() == Some(CSS_SCHEMA_URI)
+    }));
+}
+
+#[test]
+fn scss_typed_handoff_reuses_css_formatter_and_colorizer_assets() {
+    let loaded = LifecycleRegistry::with_builtin_adapters().load(
+        &EngineInput {
+            uri: "file:///styles/presentation.scss".to_owned(),
+            bytes: b"$accent: #036; .card { color: $accent; }".to_vec(),
+            from_format: None,
+            identity: None,
+            root_scope: Default::default(),
+        },
+        &EngineContext {
+            content_type: Some(SCSS_CONTENT_TYPE.to_owned()),
+            schema: Some("https://cem.dev/ns/data/scss/1".to_owned()),
+            ..EngineContext::default()
+        },
+    );
+    assert!(loaded.diagnostics.is_empty(), "{:#?}", loaded.diagnostics);
+    let document = match loaded.ast_stream.expect("SCSS CSS handoff") {
+        LoadedInputAstStream::CssDocument(document) => document,
+        other => panic!("unexpected SCSS lifecycle stream: {other:#?}"),
+    };
+    let schema_registry = SchemaRegistry::with_builtin_schemas();
+    let conversion_registry = ConversionRegistry::with_builtin_converters();
+    let execution = execute_css_document_output_pipeline_with_environment(
+        &ConversionOutputPipelineEnvironment {
+            schema_registry: &schema_registry,
+            conversion_registry: &conversion_registry,
+            package_artifact_reader: None,
+            artifact_cache: None,
+        },
+        document,
+        &ScopeConfig {
+            cemt_formatter_profile: Some("tabular".to_owned()),
+            cemt_color_profile: Some("html".to_owned()),
+            ..ScopeConfig::default()
+        },
+        Some("file:///styles/presentation.scss"),
+    );
+
+    assert!(
+        execution.diagnostics.is_empty(),
+        "{:#?}",
+        execution.diagnostics
+    );
+    assert_eq!(
+        execution.formatted_cem_tree.as_ref().unwrap().value["contentType"],
+        CSS_CONTENT_TYPE
+    );
+    assert_eq!(
+        execution.formatted_cem_tree.as_ref().unwrap().value["formatterProfile"],
+        "tabular"
+    );
+    assert_eq!(
+        execution.colored_cem_tree.as_ref().unwrap().value["contentType"],
+        CSS_CONTENT_TYPE
+    );
+    assert_eq!(
+        execution.colored_cem_tree.as_ref().unwrap().value["colorProfile"],
+        "html"
+    );
+}
+
+#[test]
+fn generated_css_uses_css_schema_validation_without_losing_scss_origins() {
+    let loaded = LifecycleRegistry::with_builtin_adapters().load(
+        &EngineInput {
+            uri: "file:///styles/hero.scss".to_owned(),
+            bytes: b".hero { background-image: url(\"images/hero.png\"); }".to_vec(),
+            from_format: None,
+            identity: None,
+            root_scope: Default::default(),
+        },
+        &EngineContext {
+            content_type: Some(SCSS_CONTENT_TYPE.to_owned()),
+            schema: Some("https://cem.dev/ns/data/scss/1".to_owned()),
+            ..EngineContext::default()
+        },
+    );
+
+    let diagnostic = loaded
+        .diagnostics
+        .iter()
+        .find(|diagnostic| diagnostic.code == "cem.css.url_rejected")
+        .expect("CSS package owns generated-value validation");
+    assert_eq!(
+        diagnostic.details.as_ref().unwrap()["schema"],
+        CSS_SCHEMA_URI
+    );
+    assert!(diagnostic.source_map.as_ref().is_some_and(|source_map| {
+        source_map.frames.iter().any(|frame| {
+            matches!(
+                frame.transform,
+                TransformKind::ScssOrigin {
+                    origin_kind: ScssOriginKind::Module,
+                    ..
+                }
+            )
+        })
+    }));
 }
 
 #[test]

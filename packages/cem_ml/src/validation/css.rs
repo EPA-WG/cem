@@ -353,6 +353,44 @@ pub fn validate_css_source_bytes(request: CssSourceValidationRequest<'_>) -> Vec
     diagnostics
 }
 
+pub fn validate_css_document_ast(document: &CssDocumentAst) -> Vec<Diagnostic> {
+    let mut facts = document.facts.clone();
+    for event in &document.events {
+        if event.source_map.frames.is_empty() {
+            push_fact_once(
+                &mut facts,
+                CssFactKind::SourceMapUnavailable,
+                Some(event.source_range),
+                "CSS lifecycle event is missing its source-map origin",
+                None,
+            );
+        }
+        if event.token_kind == "raw" {
+            collect_generated_component_value_facts(&event.lexeme, event.source_range, &mut facts);
+        }
+    }
+
+    let mut diagnostics = css_fact_diagnostics(
+        &document.source.uri,
+        &document.source.media_type,
+        &facts,
+        CssSchemaContractCatalog::from_builtin(),
+    );
+    for diagnostic in &mut diagnostics {
+        let Some(byte_offset) = diagnostic.byte_offset else {
+            continue;
+        };
+        if let Some(event) = document.events.iter().find(|event| {
+            let start = event.source_range.start.byte_offset;
+            let end = start.saturating_add(event.source_range.byte_length.max(1));
+            (start..end).contains(&byte_offset)
+        }) {
+            diagnostic.source_map = Some(event.source_map.clone());
+        }
+    }
+    diagnostics
+}
+
 pub fn css_document_ast_from_source_bytes(
     request: CssSourceValidationRequest<'_>,
 ) -> (Option<CssDocumentAst>, Vec<Diagnostic>) {
@@ -499,12 +537,7 @@ pub fn css_document_ast_from_source_bytes(
         line_ending: detect_line_ending(source),
         recovery_count,
     };
-    let diagnostics = css_fact_diagnostics(
-        request.source_uri,
-        &ast.source.media_type,
-        &ast.facts,
-        CssSchemaContractCatalog::from_builtin(),
-    );
+    let diagnostics = validate_css_document_ast(&ast);
     (Some(ast), diagnostics)
 }
 
@@ -1219,6 +1252,36 @@ fn css_url_requires_policy(reference: &str) -> bool {
     !(trimmed.is_empty()
         || trimmed.starts_with('#')
         || trimmed.to_ascii_lowercase().starts_with("data:"))
+}
+
+fn collect_generated_component_value_facts(
+    value: &str,
+    source_range: CssSourceRange,
+    facts: &mut Vec<CssFact>,
+) {
+    let lower = value.to_ascii_lowercase();
+    let mut search_start = 0usize;
+    while let Some(relative_url_start) = lower[search_start..].find("url(") {
+        let url_start = search_start + relative_url_start;
+        match css_url_argument(value, url_start) {
+            Some(reference) if css_url_requires_policy(&reference) => push_fact_once(
+                facts,
+                CssFactKind::UrlRejected,
+                Some(source_range),
+                "CSS url() reference requires an explicit resolver or sanitizer policy",
+                None,
+            ),
+            None => push_fact_once(
+                facts,
+                CssFactKind::BadUrl,
+                Some(source_range),
+                "CSS url() token was recovered without a closing parenthesis",
+                None,
+            ),
+            _ => {}
+        }
+        search_start = url_start + 4;
+    }
 }
 
 fn css_validate_rule_shapes(

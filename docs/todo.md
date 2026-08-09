@@ -119,7 +119,7 @@ mediate between internal layers.
 
 ### Immediate Next: SCSS Source to CSS AST Stream
 
-- [ ] Add SCSS as a distinct schema-owned source that transforms into the
+- [x] Add SCSS as a distinct schema-owned source that transforms into the
       lifecycle-owned CSS AST stream.
   - [x] Before adding fixtures, choose and document the SCSS schema/content
         identity, source extension, supported language/dialect version, module
@@ -137,7 +137,7 @@ mediate between internal layers.
   - [x] Route imports, modules, functions, mixins, interpolation, generated
         selectors, and expansion limits through explicit resolver, safety,
         cancellation, recursion, output-size, and work-budget policies.
-  - [ ] Reuse the registered CSS validation, formatter, colorizer, conversion,
+  - [x] Reuse the registered CSS validation, formatter, colorizer, conversion,
         and export stages after the typed AST handoff, and verify the source path
         through package-local, `cem_ml`, `cem_ml_cli`, WASM, parity, and release
         Nx gates.

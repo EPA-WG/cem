@@ -73,6 +73,33 @@
                 }
             }
         },
+        "test:scss": {
+            "cache": true,
+            "executor": "nx:run-commands",
+            "options": {
+                "commands": [
+                    "cargo test --package cem-ml --lib scss --target-dir dist/target/cem_ml -- --nocapture",
+                    "cargo test --package cem-ml --test scss --target-dir dist/target/cem_ml -- --nocapture"
+                ],
+                "parallel": false,
+                "cwd": "{workspaceRoot}"
+            },
+            "inputs": [
+                "{projectRoot}/src/**/*.rs",
+                "{projectRoot}/tests/scss.rs",
+                "{projectRoot}/Cargo.toml",
+                "{projectRoot}/schema-packages/css/v1/package.cem",
+                "{projectRoot}/schema-packages/css/v1/schema/**/*.cem",
+                "{projectRoot}/schema-packages/css/v1/formatters/**/*.cemt",
+                "{projectRoot}/schema-packages/css/v1/colorizers/**/*.cemt",
+                "{projectRoot}/schema-packages/scss/v1/package.cem",
+                "{projectRoot}/schema-packages/scss/v1/schema/**/*.cem",
+                "{projectRoot}/schema-packages/scss/v1/examples/*.scss",
+                "{workspaceRoot}/Cargo.toml",
+                "{workspaceRoot}/Cargo.lock"
+            ],
+            "outputs": ["{workspaceRoot}/dist/target/cem_ml"]
+        },
         "test:observability-schema": {
             "cache": true,
             "executor": "nx:run-commands",

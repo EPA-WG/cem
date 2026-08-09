@@ -97,6 +97,30 @@
                 "{workspaceRoot}/packages/cem_ml/schema-packages/scss/v1/examples/*.scss"
             ]
         },
+        "validate-converter-parity:scss": {
+            "cache": true,
+            "executor": "nx:run-commands",
+            "options": {
+                "command": "cargo test --package cem-ml-cli --test scss --target-dir dist/target/cem_ml_cli scss_css_handoff_matches_native_css_output_pipeline -- --nocapture",
+                "cwd": "{workspaceRoot}"
+            },
+            "inputs": [
+                "{projectRoot}/src/**/*.rs",
+                "{projectRoot}/tests/scss.rs",
+                "{projectRoot}/Cargo.toml",
+                "{workspaceRoot}/Cargo.toml",
+                "{workspaceRoot}/Cargo.lock",
+                "{workspaceRoot}/packages/cem_ml/src/**/*.rs",
+                "{workspaceRoot}/packages/cem_ml/Cargo.toml",
+                "{workspaceRoot}/packages/cem_ml/schema-packages/css/v1/package.cem",
+                "{workspaceRoot}/packages/cem_ml/schema-packages/css/v1/schema/**/*.cem",
+                "{workspaceRoot}/packages/cem_ml/schema-packages/css/v1/formatters/**/*.cemt",
+                "{workspaceRoot}/packages/cem_ml/schema-packages/css/v1/colorizers/**/*.cemt",
+                "{workspaceRoot}/packages/cem_ml/schema-packages/scss/v1/package.cem",
+                "{workspaceRoot}/packages/cem_ml/schema-packages/scss/v1/schema/**/*.cem"
+            ],
+            "outputs": ["{workspaceRoot}/dist/target/cem_ml_cli"]
+        },
         "lint": {
             "cache": true,
             "executor": "@monodon/rust:lint",

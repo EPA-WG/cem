@@ -28,7 +28,8 @@ use crate::schema::registry::{
 };
 use crate::transform_config::TRANSFORM_CONFIG_SCHEMA_URI;
 use crate::validation::css::{
-    css_document_ast_from_source_bytes, CssDocumentAst, CssSourceValidationRequest,
+    css_document_ast_from_source_bytes, validate_css_document_ast, CssDocumentAst,
+    CssSourceValidationRequest,
 };
 use crate::validation::css_selector::{
     css_selector_expression_ast_from_source_bytes, CssSelectorExpressionAst,
@@ -157,6 +158,14 @@ pub trait LifecycleAdapter: Send + Sync {
     ) -> LoadedInput {
         self.load(input, identity)
     }
+    fn validate_source_with_context(
+        &self,
+        input: &EngineInput,
+        identity: &FormatIdentity,
+        context: &EngineContext,
+    ) -> LoadedInput {
+        self.load_with_context(input, identity, context)
+    }
     fn matches_target(&self, _: &FormatIdentity) -> bool {
         false
     }
@@ -209,6 +218,23 @@ impl LifecycleRegistry {
     }
 
     pub fn load(&self, input: &EngineInput, context: &EngineContext) -> LoadedInput {
+        self.load_for_operation(input, context, false)
+    }
+
+    pub fn load_for_source_validation(
+        &self,
+        input: &EngineInput,
+        context: &EngineContext,
+    ) -> LoadedInput {
+        self.load_for_operation(input, context, true)
+    }
+
+    fn load_for_operation(
+        &self,
+        input: &EngineInput,
+        context: &EngineContext,
+        source_validation: bool,
+    ) -> LoadedInput {
         let identity = input
             .identity
             .clone()
@@ -222,6 +248,9 @@ impl LifecycleRegistry {
             .collect();
 
         match matches.as_slice() {
+            [adapter] if source_validation => {
+                adapter.validate_source_with_context(input, &identity, context)
+            }
             [adapter] => adapter.load_with_context(input, &identity, context),
             [] => {
                 let mut loaded =
@@ -641,16 +670,7 @@ impl LifecycleAdapter for ScssAdapter {
         identity: &FormatIdentity,
         context: &EngineContext,
     ) -> LoadedInput {
-        let content_type = identity
-            .content_type
-            .as_deref()
-            .or(input.root_scope.default_content_type.as_deref())
-            .unwrap_or(SCSS_CONTENT_TYPE);
-        let (stylesheet, mut diagnostics) = parse_scss_source_bytes(ScssSourceRequest {
-            bytes: &input.bytes,
-            source_uri: &input.uri,
-            content_type: Some(content_type),
-        });
+        let (stylesheet, mut diagnostics) = parse_scss_input(input, identity);
         let document = stylesheet.and_then(|stylesheet| {
             let abort_signal = AbortSignal::new();
             let resolver_policy_stamp = context.resolver_policy.cache_stamp();
@@ -669,7 +689,9 @@ impl LifecycleAdapter for ScssAdapter {
                 limits: ScssEvaluationLimits::default(),
             });
             diagnostics.extend(result.diagnostics);
-            result.document
+            result.document.inspect(|document| {
+                diagnostics.extend(validate_css_document_ast(document));
+            })
         });
         LoadedInput {
             bytes: input.bytes.clone(),
@@ -679,6 +701,41 @@ impl LifecycleAdapter for ScssAdapter {
             adapter_id: Some(self.id()),
         }
     }
+
+    fn validate_source_with_context(
+        &self,
+        input: &EngineInput,
+        identity: &FormatIdentity,
+        _context: &EngineContext,
+    ) -> LoadedInput {
+        let (_, diagnostics) = parse_scss_input(input, identity);
+        LoadedInput {
+            bytes: input.bytes.clone(),
+            from_format: input.from_format.unwrap_or(InputFormat::Cem),
+            ast_stream: None,
+            diagnostics,
+            adapter_id: Some(self.id()),
+        }
+    }
+}
+
+fn parse_scss_input(
+    input: &EngineInput,
+    identity: &FormatIdentity,
+) -> (
+    Option<crate::validation::scss::ScssStylesheetAst>,
+    Vec<Diagnostic>,
+) {
+    let content_type = identity
+        .content_type
+        .as_deref()
+        .or(input.root_scope.default_content_type.as_deref())
+        .unwrap_or(SCSS_CONTENT_TYPE);
+    parse_scss_source_bytes(ScssSourceRequest {
+        bytes: &input.bytes,
+        source_uri: &input.uri,
+        content_type: Some(content_type),
+    })
 }
 
 fn matches_scss_identity(identity: &FormatIdentity) -> bool {

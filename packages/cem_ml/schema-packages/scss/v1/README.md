@@ -2,13 +2,13 @@
 
 Status: schema identity, lossless native parsing, focused CEM-owned expansion,
 explicit-policy module resolution and execution limits, direct typed CSS AST
-handoff, exact expansion origins, manifest examples, and passive output-profile
-assets implemented; full Sass parity remains a staged gap
+handoff, CSS-owned validation and output-stage reuse, exact expansion origins,
+manifest examples, and passive source profiles implemented; full Sass parity
+remains a staged gap
 
 This package owns SCSS source identity and the contract for expanding SCSS into
 the lifecycle-owned typed CSS AST. It does not claim `text/css`, does not serve
-raw SCSS as CSS, and does not declare an executable SCSS-to-CSS converter before
-the evaluator exists.
+raw SCSS as CSS, and does not introduce a text-mediated SCSS-to-CSS converter.
 
 ## Owned Identities
 
@@ -117,6 +117,14 @@ Source validation, formatting, coloring, README generation, and preview
 verification are passive and perform no module resolution. Lifecycle expansion
 is explicit and hands the generated typed stream to the CSS package.
 
+After that handoff, the CSS package validates generated component values through
+its schema-owned fact bindings. CSS diagnostics retain the originating SCSS
+module and expansion frames. The registered CSS formatter, optional colorizer,
+writer, conversion metadata, and export adapter then consume the same
+`CssDocumentAst`; there is no generated-text reparse. Browser-facing export is
+uncolored `text/css`. Colorized terminal, HTML, or Markdown output is a separate
+presentation artifact and is not labeled as browser CSS.
+
 ## Formatter And Colorizer Assets
 
 - `formatters/compact.cemt`
@@ -141,12 +149,20 @@ schema-package structure, native SCSS parser/lowering contracts, CLI source
 validation, manifest-owned examples, CLI dependency gates, and source-only
 README preview policy.
 
-For the CLI boundary alone, `yarn nx run cem_ml_cli:test:scss` runs the five
+For the library boundary, `yarn nx run cem_ml:test:scss` runs only the SCSS
+unit-filter and integration suite. For the CLI boundary alone,
+`yarn nx run cem_ml_cli:test:scss` runs the nine
 SCSS-specific integration tests without selecting the broad CLI unit or
 schema-example suites.
 
+`yarn nx run cem_ml_cli:validate-converter-parity:scss` selects only the
+SCSS-to-CSS handoff parity case and compares its browser-facing bytes with the
+same native CSS AST/output pipeline. It does not invoke the workspace-wide CLI
+or converter-parity suites.
+
 The package `verify` target also selects only the SCSS library tests. Its native
-integration suite covers lifecycle resolver plumbing, namespaced member use,
+integration suite covers passive source validation, lifecycle resolver plumbing,
+CSS schema validation and output-stage reuse, namespaced member use,
 canonical single-load behavior, resolution audit fields, denials, cycles,
 cancellation, recursion, work, output-node, output-byte, and exact-origin
 contracts without running unrelated Rust tests.

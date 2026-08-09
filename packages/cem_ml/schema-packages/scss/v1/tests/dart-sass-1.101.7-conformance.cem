@@ -96,6 +96,12 @@
         @diagnostic="cem.scss.origin_unavailable"
     }
     {conformance-feature
+        @id="css-stage-reuse"
+        @requirement="required"
+        @state="supported"
+        @summary="passive SCSS validation performs no resolution; explicit expansion reuses CSS schema validation formatter colorizer writer conversion metadata and text/css export directly from CssDocumentAst"
+    }
+    {conformance-feature
         @id="indented-sass-syntax"
         @requirement="excluded"
         @state="unsupported"
