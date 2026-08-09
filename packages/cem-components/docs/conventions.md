@@ -43,7 +43,7 @@ set (item 5) MUST satisfy.
   (`aria-*`, `data-*`, `name`, `value`, `disabled`).
 - Boolean attributes use the WHATWG presence convention: present = true, absent = false.
   `disabled`, `required`, `readonly`, `busy`, `selected`, `expanded`, `selectable`,
-  `checkable`, and `checked` MUST follow this rule. They MUST NOT be set to the string `"false"`
+  `collapsible`, `checkable`, and `checked` MUST follow this rule. They MUST NOT be set to the string `"false"`
   to mean false; remove the attribute.
 - Enum attributes use a single hyphenated token: `variant="primary"`,
   `intent="destructive"`, `tone="quiet"`. The accepted token set per component is

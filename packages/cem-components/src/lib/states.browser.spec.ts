@@ -270,6 +270,123 @@ describe('CEM component primitive states and ARIA behavior', () => {
         expect(() => assertAriaReferenceIntegrity(harness.root)).not.toThrow();
     });
 
+    it('toggles collapsible navigation without changing passive landmark semantics', async () => {
+        harness = createComponentHarness();
+        const root = await harness.render(`
+            <form>
+                <cem-stack gap="sm">
+                    <cem-nav label="Primary navigation">
+                        <a href="#overview">Overview</a>
+                    </cem-nav>
+                    <cem-nav label="Workspace navigation" collapsible>
+                        <a href="#workspace">Workspace</a>
+                    </cem-nav>
+                    <cem-nav label="Admin navigation" collapsible expanded>
+                        <a href="#admin">Admin</a>
+                    </cem-nav>
+                </cem-stack>
+            </form>
+        `);
+        await waitForStateSelector(root, 'cem-nav[collapsible] button');
+
+        const form = harness.query<HTMLFormElement>('form');
+        const passiveNav = harness.query<HTMLElement>('cem-nav:not([collapsible]) nav');
+        const passiveLink = harness.query<HTMLAnchorElement>('cem-nav:not([collapsible]) a');
+        const closedHost = harness.query<HTMLElement>('cem-nav[collapsible]:not([expanded])');
+        const closedNav = harness.query<HTMLElement>('cem-nav[collapsible]:not([expanded]) nav');
+        const closedButton = harness.query<HTMLButtonElement>('cem-nav[collapsible]:not([expanded]) button');
+        const closedContent = harness.query<HTMLDivElement>(
+            'cem-nav[collapsible]:not([expanded]) .cem-nav__content',
+        );
+        const closedLink = harness.query<HTMLAnchorElement>('cem-nav[collapsible]:not([expanded]) a');
+        const openNav = harness.query<HTMLElement>('cem-nav[collapsible][expanded] nav');
+        const openButton = harness.query<HTMLButtonElement>('cem-nav[collapsible][expanded] button');
+        const openContent = harness.query<HTMLDivElement>('cem-nav[collapsible][expanded] .cem-nav__content');
+
+        expect(passiveNav.children).toHaveLength(1);
+        expect(passiveNav.firstElementChild).toBe(passiveLink);
+        expect(passiveNav.querySelector('button, .cem-nav__content')).toBeNull();
+        expect(assertAccessibleName(passiveNav, 'Primary navigation')).toBe('Primary navigation');
+        expect(assertAccessibleName(closedNav, 'Workspace navigation')).toBe('Workspace navigation');
+        expect(assertAccessibleName(openNav, 'Admin navigation')).toBe('Admin navigation');
+        expect(closedButton).toBeInstanceOf(HTMLButtonElement);
+        expect(closedButton.type).toBe('button');
+        expect(closedButton.name).toBe('');
+        expect(assertAccessibleName(closedButton, 'Workspace navigation')).toBe('Workspace navigation');
+        expect(assertAccessibleName(openButton, 'Admin navigation')).toBe('Admin navigation');
+        expect(closedButton.getAttribute('aria-expanded')).toBe('false');
+        expect(openButton.getAttribute('aria-expanded')).toBe('true');
+        expect(closedContent.hidden).toBe(true);
+        expect(openContent.hidden).toBe(false);
+        expect(Array.from(form.querySelectorAll('button')).every((button) => !button.hasAttribute('aria-controls'))).toBe(
+            true,
+        );
+        expect(form.querySelector('[role="menu"], [role="menubar"], [role="menuitem"], [aria-haspopup]')).toBeNull();
+        expect(form.querySelector('details, summary')).toBeNull();
+        expect(Array.from(new FormData(form).entries())).toEqual([]);
+
+        await userEvent.click(closedButton);
+        await nextRenderFrame();
+
+        const pointerButton = harness.query<HTMLButtonElement>('cem-nav[collapsible]:not([expanded]) button');
+        const pointerContent = harness.query<HTMLDivElement>(
+            'cem-nav[collapsible]:not([expanded]) .cem-nav__content',
+        );
+        const pointerSnapshot = runtime.snapshotInstance(closedHost);
+        expect(pointerButton).toBe(closedButton);
+        expect(pointerContent).toBe(closedContent);
+        expect(pointerButton.getAttribute('aria-expanded')).toBe('true');
+        expect(pointerContent.hidden).toBe(false);
+        expect(document.activeElement).toBe(pointerButton);
+        expect(pointerSnapshot.slices.expanded).toBe(true);
+        expect(eventPayload(pointerSnapshot, 'expanded')).toMatchObject({
+            bubbles: true,
+            sliceValue: true,
+            type: 'click',
+        });
+        expect(eventPayload(pointerSnapshot, 'expanded').target).toMatchObject({
+            tag: 'button',
+            type: 'button',
+        });
+
+        await userEvent.tab();
+        expect(document.activeElement).toBe(closedLink);
+
+        pointerButton.focus();
+        await userEvent.keyboard('{Enter}');
+        await nextRenderFrame();
+
+        const enterButton = harness.query<HTMLButtonElement>('cem-nav[collapsible]:not([expanded]) button');
+        const enterContent = harness.query<HTMLDivElement>('cem-nav[collapsible]:not([expanded]) .cem-nav__content');
+        const enterSnapshot = runtime.snapshotInstance(closedHost);
+        expect(enterButton).toBe(closedButton);
+        expect(enterContent).toBe(closedContent);
+        expect(enterButton.getAttribute('aria-expanded')).toBe('false');
+        expect(enterContent.hidden).toBe(true);
+        expect(document.activeElement).toBe(enterButton);
+        expect(enterSnapshot.slices.expanded).toBe(false);
+        expect(eventPayload(enterSnapshot, 'expanded').sliceValue).toBe(false);
+
+        await userEvent.tab();
+        expect(document.activeElement).toBe(openButton);
+
+        enterButton.focus();
+        await userEvent.keyboard(' ');
+        await nextRenderFrame();
+
+        const spaceButton = harness.query<HTMLButtonElement>('cem-nav[collapsible]:not([expanded]) button');
+        const spaceContent = harness.query<HTMLDivElement>('cem-nav[collapsible]:not([expanded]) .cem-nav__content');
+        const spaceSnapshot = runtime.snapshotInstance(closedHost);
+        expect(spaceButton).toBe(closedButton);
+        expect(spaceContent).toBe(closedContent);
+        expect(spaceButton.getAttribute('aria-expanded')).toBe('true');
+        expect(spaceContent.hidden).toBe(false);
+        expect(document.activeElement).toBe(spaceButton);
+        expect(spaceSnapshot.slices.expanded).toBe(true);
+        expect(eventPayload(spaceSnapshot, 'expanded').sliceValue).toBe(true);
+        expect(() => assertAriaReferenceIntegrity(harness.root)).not.toThrow();
+    });
+
     it('selects declarative list options without changing passive list semantics', async () => {
         harness = createComponentHarness();
         const root = await harness.render(`

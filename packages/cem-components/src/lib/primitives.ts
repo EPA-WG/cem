@@ -228,10 +228,19 @@ export const CEM_COMPONENT_PRIMITIVES = [
     },
     {
         tag: 'cem-nav',
-        description: 'Labeled navigation landmark.',
+        description: 'Labeled navigation landmark with an opt-in disclosure mode.',
         cemMl:
             '{attribute @name=label | Navigation}' +
-            '{nav @class=cem-nav @aria-label="{$label}" | {slot}}',
+            '{cem:choose |' +
+            ' {cem:when @test="datadom.attributes.collapsible" |' +
+            '  {nav @class="cem-nav cem-nav--collapsible" @aria-label="{$label}" | {cem:choose |' +
+            '   {cem:when @test="datadom.slices.expanded ?? datadom.attributes.expanded" |' +
+            '    {button @type=button @class=cem-nav__disclosure @aria-expanded=true @slice=expanded @slice-event=click @slice-value=false | {$label}}' +
+            '    {div @class=cem-nav__content | {slot}}}' +
+            '   {cem:otherwise |' +
+            '    {button @type=button @class=cem-nav__disclosure @aria-expanded=false @slice=expanded @slice-event=click @slice-value=true | {$label}}' +
+            '    {div @class=cem-nav__content @hidden=true | {slot}}}}}}' +
+            ' {cem:otherwise | {nav @class=cem-nav @aria-label="{$label}" | {slot}}}}',
     },
     {
         tag: 'cem-tabs',

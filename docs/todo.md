@@ -275,22 +275,19 @@ mediate between internal layers.
   - Kept `cem-app-bar` and `cem-tabs` outside the state owner: banners do not own
     descendant action disclosures, and tabs own selection/panel visibility rather
     than expanded navigation groups.
-- [ ] Implement the accepted `navigation:expanded` contract tests-first.
-  - Add the smallest focused browser fixture with a passive nav plus closed and
-    initially expanded `cem-nav[collapsible]` hosts. Prove unchanged passive
-    output, the named native button/landmark, stable hidden content, exact initial
-    `aria-expanded`, and absence of menu roles before changing the primitive.
-  - Implement the accepted button and content-container branches with existing
-    CEM-ML/CEM-QL only. Bind native click to the opposite boolean `expanded`
-    slice; do not add `cem-nav-group`, `<details>`, generated IDs, app routing, or
-    imperative keyboard/focus handlers.
-  - Extend the fixture through pointer, Enter, and Space toggles, button focus
-    retention, open/closed link tab order, exact visibility/ARIA agreement, and
-    the serialized boolean event payload. Stop if stable focus or boolean state
-    exposes a required substrate capability.
-  - Update the component/accessibility docs and only the
-    `navigation:expanded` audit row after the red fixture identifies the missing
-    behavior.
+- [x] Implement the accepted `navigation:expanded` contract tests-first.
+  - Added a focused browser fixture with passive, closed, and initially expanded
+    navigation. Its required red run failed only because the disclosure button
+    was absent; after implementation all 7 focused state tests passed.
+  - Added the accepted native button and stable hidden content branches using
+    existing CEM-ML/CEM-QL boolean slices only. Passive `cem-nav` output remains
+    unchanged, and no runtime-substrate change or imperative handler was needed.
+  - Covered pointer, Enter, Space, focus retention, open/closed link tab order,
+    exact ARIA/visibility agreement, stable rendered nodes, form neutrality, and
+    the serialized boolean `expanded` payload.
+  - Updated the component, accessibility, conventions, and accepted-contract
+    docs. Promoted only `navigation:expanded` in the audit, yielding 22
+    browser-covered rows, 0 static-only rows, and 17 gaps; `layout:empty` is next.
 - [ ] Verify the `navigation:expanded` slice with focused targets, package lint,
       the state-matrix audit, and the aggregate `@epa-wg/cem-components:verify`
       gate; then confirm the audit's next recommended gap.

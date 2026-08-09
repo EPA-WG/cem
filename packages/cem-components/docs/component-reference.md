@@ -90,7 +90,7 @@ States: `default`, `hover`, `focus-visible`, `disabled`, `loading`, `expanded`, 
 | Component | Semantics | Content and Attributes | Token Families | Required A11y |
 | --- | --- | --- | --- | --- |
 | `cem-app-bar` | Page or application banner. | `slot="title"` for title; default slot for global actions. | palette, stroke, gap, inset, typography | `label` names the banner when multiple landmarks exist. |
-| `cem-nav` | Labeled navigation region. | Default slot accepts links/actions. | palette, action, gap, inset, typography | `label` or `aria-label` must name the nav landmark. |
+| `cem-nav` | Labeled navigation region with an optional region-wide disclosure. | Default slot accepts links/actions. Presence-only `collapsible` adds a native disclosure button; presence-only `expanded` sets its initial open state. Without `collapsible`, the existing passive landmark output is unchanged. | palette, action, gap, inset, typography | `label` names both the nav landmark and disclosure button. The button mirrors the current boolean state through `aria-expanded`; hidden content leaves the tab order and links retain native semantics. |
 | `cem-tabs` | Local view switcher. | Project tab buttons with `role="tab"` and `aria-selected`. | palette, action, stroke, gap, typography | Tablist must be named and exactly one active tab should be selected. |
 
 States: `default`, `hover`, `focus-visible`, `active`, `disabled`, `selected`, `expanded`.

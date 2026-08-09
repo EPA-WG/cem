@@ -10,7 +10,7 @@
         "content:loading",
         "layout:loading"
     ],
-    "recommendedNext": "navigation:expanded",
+    "recommendedNext": "layout:empty",
     "coverage": [
         {
             "id": "action:default",
@@ -294,8 +294,15 @@
             "state": "expanded",
             "components": ["cem-nav"],
             "interaction": "Open and close a navigation group and mirror disclosure state with aria-expanded.",
-            "status": "gap",
-            "reason": "The suite asserts menu-item expansion, but no navigation group owns an expanded transition."
+            "status": "covered",
+            "owner": "packages/cem-components/src/lib/states.browser.spec.ts",
+            "test": "toggles collapsible navigation without changing passive landmark semantics",
+            "assertions": [
+                "expect(closedButton.getAttribute('aria-expanded')).toBe('false');",
+                "expect(pointerContent.hidden).toBe(false);",
+                "expect(document.activeElement).toBe(spaceButton);",
+                "expect(pointerSnapshot.slices.expanded).toBe(true);"
+            ]
         },
         {
             "id": "layout:default",

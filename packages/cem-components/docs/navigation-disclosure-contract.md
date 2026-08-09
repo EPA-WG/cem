@@ -1,8 +1,8 @@
 # Navigation Disclosure Contract
 
-**Status:** Accepted Phase 4 design; implementation pending. This contract is
-promoted by [`docs/todo.md`](../../../docs/todo.md) and governs the next
-`navigation:expanded` implementation slice.
+**Status:** Implemented Phase 4 contract. This contract is promoted by
+[`docs/todo.md`](../../../docs/todo.md) and is covered by the focused browser
+test in [`states.browser.spec.ts`](../src/lib/states.browser.spec.ts).
 
 ## Decision
 
@@ -136,3 +136,10 @@ The implementation slice is complete only when a focused browser test proves:
   state; and
 - no menu roles, form participation, parent-scoped group vocabulary, or
   component-specific keyboard handlers are introduced.
+
+The browser test `toggles collapsible navigation without changing passive
+landmark semantics` is the executable owner of these requirements. It covers a
+passive landmark plus closed and initially expanded disclosures, and exercises
+pointer, `Enter`, `Space`, focus retention, open/closed tab order, stable
+rendered nodes, exact ARIA/visibility agreement, and the serialized boolean
+slice payload.
