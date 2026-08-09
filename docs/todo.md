@@ -243,17 +243,45 @@ mediate between internal layers.
     shipped boundary.
   - Updated `content:selected` to browser-covered. The audit now has 21 covered,
     0 static-only, and 18 gap rows, with `navigation:expanded` recommended next.
-- [ ] Verify the `content:selected` slice with focused targets, package lint,
+- [x] Verify the `content:selected` slice with focused targets, package lint,
       the state-matrix audit, and the aggregate `@epa-wg/cem-components:verify`
       gate; then confirm the audit's next recommended gap.
-  - Re-run the isolated state browser target from the clean implementation
-    commit, then run `verify-primitives`, `verify-state-matrix`, and package
-    `lint` without accepting cached evidence as the only result.
-  - Run the aggregate package `verify` gate and confirm all browser, workflow,
-    style, build, and manifest dependencies remain green together.
-  - Confirm the generated audit remains at 21 browser-covered, 0 static-only,
-    and 18 gaps with `navigation:expanded` recommended next; keep that behavior
-    out of this verification-only item.
+  - Re-ran the uncached isolated state browser target from the clean
+    implementation commit: all 6 tests passed. The uncached 32-primitive audit,
+    state-matrix audit, and package lint target also passed independently.
+  - The uncached aggregate package gate passed all 12 dependencies, including
+    deterministic theme/token regeneration, primitive, style, workflow,
+    state-matrix, build, and 33 package tests across 5 files.
+  - Confirmed regeneration left the worktree unchanged and the audit remains at
+    21 browser-covered, 0 static-only, and 18 gaps with
+    `navigation:expanded` recommended next; no expanded-navigation behavior was
+    introduced by this verification-only item.
+- [ ] Decide and document the Phase 4 `navigation:expanded` owner before adding
+      a fixture or runtime behavior.
+  - Start from the audit's `cem-nav` scope and compare a host-level collapsible
+    navigation region with parent-scoped navigation-group vocabulary. Choose one
+    semantic owner and document why `cem-app-bar` and `cem-tabs` stay outside
+    this state slice.
+  - Pin the author API, default/passive compatibility, disclosure structure,
+    `aria-expanded` ownership, focus and keyboard behavior, initial/current
+    state precedence, event/slice contract, nested-content rules, and form
+    non-participation before changing a primitive.
+  - Prefer native disclosure semantics where they satisfy the navigation-group
+    contract; explicitly record any gap that would require custom composite
+    focus or keyboard behavior. Stop at that substrate boundary rather than
+    approximating an incomplete navigation pattern.
+- [ ] Implement the accepted `navigation:expanded` contract tests-first.
+  - Add the smallest focused browser fixture that proves the existing passive
+    `cem-nav` output first, then the accepted closed/open transition, exact
+    `aria-expanded`, focus location, native keyboard/pointer interaction, and a
+    serializable boolean slice or event payload.
+  - Implement only the accepted declarative CEM-ML/CEM-QL projection; do not add
+    app-level routing, imperative keyboard emulation, or unrelated navigation
+    states. Update public docs and only the `navigation:expanded` audit row after
+    the red fixture identifies the missing behavior.
+- [ ] Verify the `navigation:expanded` slice with focused targets, package lint,
+      the state-matrix audit, and the aggregate `@epa-wg/cem-components:verify`
+      gate; then confirm the audit's next recommended gap.
 
 ## Current Verification Commands
 
