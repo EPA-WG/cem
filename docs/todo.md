@@ -128,7 +128,7 @@ mediate between internal layers.
         subproject structure, declarative diagnostics, manifest-owned examples,
         conformance/gap matrix, CEMT profiles, preview verification, catalog
         registration, CLI dependencies, and release inputs.
-  - [ ] Implement SCSS parsing and transformation tests-first so native SCSS
+  - [x] Implement SCSS parsing and transformation tests-first so native SCSS
         syntax and expansion facts lower directly into a lifecycle-owned typed
         CSS AST stream with exact origin chains. Do not emit CSS text and reparse
         it, construct a JSON/generic DTO bridge, or lose SCSS-to-CSS source maps.

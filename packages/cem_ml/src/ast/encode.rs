@@ -281,6 +281,17 @@ fn encode_transform(t: &TransformKind) -> (u16, Option<String>) {
             (11, Some(format!("{},{}", host.start, host.len)))
         }
         TransformKind::TemplateTransform { function } => (12, Some(function.clone())),
+        TransformKind::ScssOrigin {
+            origin_kind,
+            module_uri,
+            name,
+        } => (
+            13,
+            Some(
+                serde_json::to_string(&(origin_kind, module_uri, name))
+                    .expect("SCSS origin transform payload"),
+            ),
+        ),
     }
 }
 

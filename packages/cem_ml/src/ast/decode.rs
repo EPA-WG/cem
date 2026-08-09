@@ -5,7 +5,7 @@ use crate::ast::format::{fnv1a64, NodeKindTag, FLAGS_NONE, MAGIC, VERSION};
 use crate::parser::document::CemDocument;
 use crate::parser::{AstNodeId, CemAstNode, ExpandedName, NameSlot};
 use crate::source::{ByteRange, SourceId};
-use crate::source_map::{FrameSpan, SourceMapFrame, SourceMapStack, TransformKind};
+use crate::source_map::{FrameSpan, ScssOriginKind, SourceMapFrame, SourceMapStack, TransformKind};
 use std::collections::HashMap;
 
 #[derive(Debug)]
@@ -258,6 +258,19 @@ fn decode_transform(tag: u16, payload: Option<String>) -> Result<TransformKind, 
         12 => TransformKind::TemplateTransform {
             function: payload.unwrap_or_default(),
         },
+        13 => {
+            let (origin_kind, module_uri, name) = payload
+                .as_deref()
+                .and_then(|payload| {
+                    serde_json::from_str::<(ScssOriginKind, String, Option<String>)>(payload).ok()
+                })
+                .unwrap_or((ScssOriginKind::Source, String::new(), None));
+            TransformKind::ScssOrigin {
+                origin_kind,
+                module_uri,
+                name,
+            }
+        }
         _ => return Err(DecodeError::UnknownTransformTag(tag)),
     })
 }

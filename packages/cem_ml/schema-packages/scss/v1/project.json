@@ -44,7 +44,7 @@
             ],
             "options": {
                 "commands": [
-                    "node packages/cem_ml/schema-packages/scripts/samples2readme.mjs packages/cem_ml/schema-packages/scss/v1"
+                    "node packages/cem_ml/schema-packages/scripts/samples2readme.mjs {projectRoot}"
                 ],
                 "parallel": false,
                 "cwd": "{workspaceRoot}"
@@ -92,6 +92,9 @@
                     "cargo test -p cem-ml scss_package -- --nocapture",
                     "cargo test -p cem-ml catalog_exposes_scss -- --nocapture",
                     "cargo test -p cem-ml builtin_registry_resolves_scss -- --nocapture",
+                    "cargo test -p cem-ml --test scss -- --nocapture",
+                    "cargo test -p cem-ml-cli validate_scss_source -- --nocapture",
+                    "cargo test -p cem-ml-cli --test schema_validation_examples scss -- --nocapture",
                     "cargo test -p cem-ml --test schema_package_structure scss_package_is_schema_owned_nx_subproject -- --nocapture",
                     "node packages/cem_ml/schema-packages/scss/v1/scripts/verify-previews.mjs"
                 ],

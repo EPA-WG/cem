@@ -4277,6 +4277,8 @@ fn direct_source_validation_report(
             diagnostics.extend(collect_markdown_source_diagnostics(std::slice::from_ref(
                 input,
             )));
+        } else if is_scss_source_input(input) {
+            diagnostics.extend(collect_scss_source_diagnostics(std::slice::from_ref(input)));
         } else if is_css_source_input(input) {
             diagnostics.extend(collect_css_source_diagnostics(std::slice::from_ref(input)));
         } else if is_html_source_input(input) {
@@ -4338,6 +4340,10 @@ fn is_html_source_input(input: &eng::EngineInput) -> bool {
 
 fn is_css_source_input(input: &eng::EngineInput) -> bool {
     source_input_matches_schema_uri(input, cem_ml::schema::registry::CSS_SCHEMA_URI)
+}
+
+fn is_scss_source_input(input: &eng::EngineInput) -> bool {
+    source_input_matches_schema_uri(input, cem_ml::schema::registry::SCSS_SCHEMA_URI)
 }
 
 fn is_xml_source_input(input: &eng::EngineInput) -> bool {
@@ -4585,6 +4591,24 @@ fn collect_css_source_diagnostics(
                     content_type: content_type.as_deref(),
                 },
             );
+        diagnostics.append(&mut input_diagnostics);
+    }
+    diagnostics
+}
+
+fn collect_scss_source_diagnostics(
+    inputs: &[eng::EngineInput],
+) -> Vec<cem_ml::diagnostics::Diagnostic> {
+    let mut diagnostics = Vec::new();
+    for input in inputs {
+        let content_type = input_source_content_type(input);
+        let (_, mut input_diagnostics) = cem_ml::validation::scss::parse_scss_source_bytes(
+            cem_ml::validation::scss::ScssSourceRequest {
+                bytes: &input.bytes,
+                source_uri: &input.uri,
+                content_type: content_type.as_deref(),
+            },
+        );
         diagnostics.append(&mut input_diagnostics);
     }
     diagnostics
@@ -14746,6 +14770,93 @@ start =
         assert!(!diagnostics
             .iter()
             .any(|diag| diag["code"] == "cem.lifecycle.adapter_unsupported"));
+    }
+
+    #[test]
+    fn validate_scss_source_uses_native_parser() {
+        let p = write_fixture(
+            "validate-scss-source.scss",
+            r#"$space: 0.5rem;
+@mixin inset($amount: $space) { padding: $amount; }
+.card { @include inset(); }
+"#,
+        );
+        let (outcome, stdout, stderr) = run(
+            &RealCemMlEngine::new(),
+            &[
+                "validate",
+                "--format",
+                "json",
+                "--content-type",
+                "text/vnd.cem.scss",
+                "--schema",
+                cem_ml::schema::registry::SCSS_SCHEMA_URI,
+                p.to_str().unwrap(),
+            ],
+        );
+
+        assert_eq!(outcome.exit_code, EXIT_OK, "{stderr}");
+        let v: serde_json::Value = serde_json::from_str(stdout.trim()).unwrap();
+        assert_eq!(v["summary"]["hardViolationCount"], 0);
+        assert!(v["diagnostics"].as_array().unwrap().is_empty());
+    }
+
+    #[test]
+    fn validate_scss_source_reports_parse_error() {
+        let p = write_fixture(
+            "validate-scss-indented-syntax.scss",
+            ".card\n  color: red\n",
+        );
+        let (outcome, stdout, stderr) = run(
+            &RealCemMlEngine::new(),
+            &[
+                "validate",
+                "--format",
+                "json",
+                "--content-type",
+                "text/vnd.cem.scss",
+                "--schema",
+                cem_ml::schema::registry::SCSS_SCHEMA_URI,
+                p.to_str().unwrap(),
+            ],
+        );
+
+        assert_eq!(outcome.exit_code, EXIT_HARD_FAILURE, "{stderr}");
+        let v: serde_json::Value = serde_json::from_str(stdout.trim()).unwrap();
+        assert!(v["diagnostics"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|diag| diag["code"] == "cem.scss.parse_error"));
+    }
+
+    #[test]
+    fn validate_scss_source_reports_deprecated_import() {
+        let p = write_fixture(
+            "validate-scss-import.scss",
+            "@import \"tokens\";\n.card { color: red; }\n",
+        );
+        let (outcome, stdout, stderr) = run(
+            &RealCemMlEngine::new(),
+            &[
+                "validate",
+                "--format",
+                "json",
+                "--content-type",
+                "text/vnd.cem.scss",
+                "--schema",
+                cem_ml::schema::registry::SCSS_SCHEMA_URI,
+                p.to_str().unwrap(),
+            ],
+        );
+
+        assert_eq!(outcome.exit_code, EXIT_OK, "{stderr}");
+        let v: serde_json::Value = serde_json::from_str(stdout.trim()).unwrap();
+        assert!(v["diagnostics"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|diag| diag["code"] == "cem.scss.import_deprecated"));
     }
 
     #[test]

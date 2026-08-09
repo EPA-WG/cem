@@ -1,8 +1,9 @@
 # SCSS Schema Package v1
 
-Status: schema identity, declarative contract, conformance gaps, manifest
-examples, and passive output-profile assets implemented; native parsing and
-evaluation are not implemented
+Status: schema identity, lossless native parsing, focused CEM-owned expansion,
+direct typed CSS AST handoff, exact expansion origins, manifest examples, and
+passive output-profile assets implemented; full Sass parity and module
+resolution remain staged gaps
 
 This package owns SCSS source identity and the contract for expanding SCSS into
 the lifecycle-owned typed CSS AST. It does not claim `text/css`, does not serve
@@ -26,10 +27,11 @@ mechanisms.
 
 `schema/scss.cem` owns the lossless source resource, token and syntax AST,
 module graph, neutral parser/evaluator facts, safety request, CSS handoff, and
-origin-chain structures. SCSS bytes keep their SCSS identity through parsing,
-module loading, and expansion. A successful evaluator will construct
-`CssDocumentAst` under `https://cem.dev/ns/data/css/1` directly. Generated nodes
-must retain module, definition, call-site, and interpolation origins.
+origin-chain structures. SCSS bytes keep their SCSS identity through parsing
+and expansion. The CEM-owned evaluator constructs `CssDocumentAst` under
+`https://cem.dev/ns/data/css/1` directly. Generated CSS events retain source,
+module, definition, call-site, interpolation, and expansion frames as
+applicable.
 
 Browser-facing serialization belongs to the CSS package and always uses
 `text/css`. The pipeline must not call a Sass CSS serializer and then reparse
@@ -48,19 +50,22 @@ normative module system. Sass `@import` remains an accepted compatibility path
 that emits `cem.scss.import_deprecated`, matching the
 [Sass migration guidance](https://sass-lang.com/documentation/breaking-changes/import/).
 
-## Recommended Parser Strategy
+## Parser And Evaluation Strategy
 
-The future parser slice should pin the public SCSS syntax AST dependency without
-default features:
+The implementation is CEM-native and has no Grass dependency. It uses
+[`grass_compiler` 0.13.4](https://docs.rs/grass_compiler/0.13.4/grass_compiler/)
+as a behavioral and algorithmic reference for a staged lexer, syntax parser,
+lexical environments, definition registration, visitor-style evaluation, and
+nested expansion. The algorithms are independently expressed over CEM-owned
+tokens, statements, diagnostics, ranges, and origin frames; Grass source code,
+AST types, and runtime values are not copied or linked.
 
-```toml
-grass_compiler = { version = "=0.13.4", default-features = false }
-```
-
-Use [`grass_compiler::sass_ast`](https://docs.rs/grass_compiler/0.13.4/grass_compiler/sass_ast/index.html)
-only as the syntax AST boundary. CEM-owned evaluation must lower that AST
-directly into `CssDocumentAst`; the crate's CSS serializer is not in the data
-path.
+Grass separates parsing, evaluation, and CSS serialization. CEM adopts the
+first two architectural boundaries but deliberately replaces the serializer
+boundary: expansion creates `CssDocumentAst` events directly. No Grass CSS
+serializer and no generated-CSS reparse are in the data path. Dart Sass 1.101.7
+remains the language compatibility reference, and only matrix rows marked
+`supported` are conformance claims.
 
 ## Diagnostics
 
@@ -77,8 +82,9 @@ The schema binds neutral facts to these initial stable codes:
 - `cem.scss.origin_unavailable`
 - `cem.scss.handoff_invalid`
 
-Validation, formatting, coloring, README generation, and preview verification
-are passive and perform no module resolution or evaluation.
+Source validation, formatting, coloring, README generation, and preview
+verification are passive and perform no module resolution. Lifecycle expansion
+is explicit and hands the generated typed stream to the CSS package.
 
 ## Formatter And Colorizer Assets
 
@@ -100,9 +106,9 @@ than being duplicated here.
 
 `yarn nx run cem_ml_schema_package_scss_v1:verify` validates the manifest,
 schema source, conformance matrix, embedded catalog identities and assets,
-schema-package structure, CLI dependency gates, and source-only README preview
-policy. Raw `.scss` example execution remains intentionally deferred to the
-next parser/evaluator checklist item.
+schema-package structure, native SCSS parser/lowering contracts, CLI source
+validation, manifest-owned examples, CLI dependency gates, and source-only
+README preview policy.
 
 ## Examples
 

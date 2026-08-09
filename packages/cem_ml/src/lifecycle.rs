@@ -20,9 +20,10 @@ use crate::schema::registry::{
     JSON_SCHEMA_CONTENT_TYPE, JSON_SCHEMA_SCHEMA_URI, JSON_VALUE_SCHEMA_URI, MARKDOWN_CONTENT_TYPE,
     MARKDOWN_SCHEMA_URI, MATHML_CONTENT_TYPE, MATHML_NAMESPACE_URI, MATHML_SCHEMA_URI,
     RELAX_NG_COMPACT_CONTENT_TYPE, RELAX_NG_SCHEMA_URI, RELAX_NG_XML_CONTENT_TYPE,
-    SVG_CONTENT_TYPE, SVG_NAMESPACE_URI, SVG_SCHEMA_URI, XHTML_CONTENT_TYPE, XHTML_SCHEMA_URI,
-    XML_CONTENT_TYPE, XML_SCHEMA_URI, XPATH_CONTENT_TYPE, XPATH_SCHEMA_URI, XSLT_CONTENT_TYPE,
-    XSLT_NAMESPACE_URI, XSLT_SCHEMA_URI, YAML_CONTENT_TYPE, YAML_SCHEMA_URI,
+    SCSS_CONTENT_TYPE, SCSS_SCHEMA_URI, SVG_CONTENT_TYPE, SVG_NAMESPACE_URI, SVG_SCHEMA_URI,
+    XHTML_CONTENT_TYPE, XHTML_SCHEMA_URI, XML_CONTENT_TYPE, XML_SCHEMA_URI, XPATH_CONTENT_TYPE,
+    XPATH_SCHEMA_URI, XSLT_CONTENT_TYPE, XSLT_NAMESPACE_URI, XSLT_SCHEMA_URI, YAML_CONTENT_TYPE,
+    YAML_SCHEMA_URI,
 };
 use crate::transform_config::TRANSFORM_CONFIG_SCHEMA_URI;
 use crate::validation::css::{
@@ -55,6 +56,9 @@ use crate::validation::mathml::{
 use crate::validation::relax_ng::{
     relax_ng_document_ast_from_source_bytes, RelaxNgDocumentAst, RelaxNgSourceValidationRequest,
     RelaxNgSyntaxKind,
+};
+use crate::validation::scss::{
+    evaluate_scss_to_css, parse_scss_source_bytes, ScssEvaluationRequest, ScssSourceRequest,
 };
 use crate::validation::svg::{
     svg_document_ast_from_source_bytes, SvgDocumentAst, SvgSourceValidationRequest,
@@ -171,6 +175,7 @@ impl LifecycleRegistry {
         registry.register(XPathAdapter);
         registry.register(XsltAdapter);
         registry.register(HtmlAdapter);
+        registry.register(ScssAdapter);
         registry.register(CssAdapter);
         registry.register(RelaxNgAdapter);
         registry.register(XmlAdapter);
@@ -604,6 +609,60 @@ impl LifecycleAdapter for HtmlAdapter {
 }
 
 struct CssAdapter;
+
+struct ScssAdapter;
+
+impl LifecycleAdapter for ScssAdapter {
+    fn id(&self) -> &'static str {
+        "scss"
+    }
+
+    fn matches_input(&self, identity: &FormatIdentity) -> bool {
+        matches_scss_identity(identity)
+    }
+
+    fn load(&self, input: &EngineInput, identity: &FormatIdentity) -> LoadedInput {
+        let content_type = identity
+            .content_type
+            .as_deref()
+            .or(input.root_scope.default_content_type.as_deref())
+            .unwrap_or(SCSS_CONTENT_TYPE);
+        let (stylesheet, mut diagnostics) = parse_scss_source_bytes(ScssSourceRequest {
+            bytes: &input.bytes,
+            source_uri: &input.uri,
+            content_type: Some(content_type),
+        });
+        let document = stylesheet.and_then(|stylesheet| {
+            let result = evaluate_scss_to_css(ScssEvaluationRequest {
+                stylesheet: &stylesheet,
+            });
+            diagnostics.extend(result.diagnostics);
+            result.document
+        });
+        LoadedInput {
+            bytes: input.bytes.clone(),
+            from_format: input.from_format.unwrap_or(InputFormat::Cem),
+            ast_stream: document.map(LoadedInputAstStream::CssDocument),
+            diagnostics,
+            adapter_id: Some(self.id()),
+        }
+    }
+}
+
+fn matches_scss_identity(identity: &FormatIdentity) -> bool {
+    let explicit_schema_matches = identity
+        .schema
+        .as_deref()
+        .map(str::trim)
+        .is_some_and(|schema| schema == SCSS_SCHEMA_URI);
+    if let Some(content_type) = identity.content_type.as_deref() {
+        return matches!(
+            content_type_essence(content_type).as_str(),
+            SCSS_CONTENT_TYPE | "text/x-scss"
+        ) && (identity.schema.is_none() || explicit_schema_matches);
+    }
+    explicit_schema_matches
+}
 
 impl LifecycleAdapter for CssAdapter {
     fn id(&self) -> &'static str {

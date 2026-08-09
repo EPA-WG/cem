@@ -135,6 +135,7 @@ pub struct CssEventAst {
     pub lexeme: String,
     pub recovered: bool,
     pub source_range: CssSourceRange,
+    pub source_map: SourceMapStack,
 }
 
 impl CssEventAst {
@@ -149,7 +150,7 @@ impl CssEventAst {
             "lexeme": self.lexeme,
             "recovered": self.recovered,
             "sourceRange": self.source_range.to_cemt_subject(),
-            "sourceMap": serde_json::to_value(self.source_range.source_map()).unwrap_or(Value::Null),
+            "sourceMap": serde_json::to_value(&self.source_map).unwrap_or(Value::Null),
         })
     }
 }
@@ -547,6 +548,7 @@ fn collect_cssparser_events<'i, 't>(
             lexeme: source.get(start..end).unwrap_or_default().to_owned(),
             recovered: metadata.recovered,
             source_range,
+            source_map: source_range.source_map(),
         });
 
         match token {
@@ -601,6 +603,8 @@ fn collect_cssparser_events<'i, 't>(
                     .is_some_and(|slice| slice.ends_with(closing_lexeme))
             {
                 let closing_start = outer_end.saturating_sub(closing_lexeme.len());
+                let source_range =
+                    CssSourceRange::from_offsets(line_index, closing_start, outer_end);
                 events.push(CssEventAst {
                     index: events.len(),
                     depth,
@@ -612,11 +616,8 @@ fn collect_cssparser_events<'i, 't>(
                         .unwrap_or(closing_lexeme)
                         .to_owned(),
                     recovered: nested_result.is_err(),
-                    source_range: CssSourceRange::from_offsets(
-                        line_index,
-                        closing_start,
-                        outer_end,
-                    ),
+                    source_range,
+                    source_map: source_range.source_map(),
                 });
             }
         }
@@ -699,6 +700,7 @@ fn normalize_lossless_events(source: &str, line_index: &LineIndex, events: &mut 
         let start = event.source_range.start.byte_offset as usize;
         let end = start.saturating_add(event.source_range.byte_length as usize);
         if start > cursor {
+            let source_range = CssSourceRange::from_offsets(line_index, cursor, start);
             normalized.push(CssEventAst {
                 index: normalized.len(),
                 depth: event.depth,
@@ -707,7 +709,8 @@ fn normalize_lossless_events(source: &str, line_index: &LineIndex, events: &mut 
                 value: None,
                 lexeme: source.get(cursor..start).unwrap_or_default().to_owned(),
                 recovered: false,
-                source_range: CssSourceRange::from_offsets(line_index, cursor, start),
+                source_range,
+                source_map: source_range.source_map(),
             });
         }
         if start >= cursor {
@@ -717,6 +720,7 @@ fn normalize_lossless_events(source: &str, line_index: &LineIndex, events: &mut 
         }
     }
     if cursor < source.len() {
+        let source_range = CssSourceRange::from_offsets(line_index, cursor, source.len());
         normalized.push(CssEventAst {
             index: normalized.len(),
             depth: 0,
@@ -725,7 +729,8 @@ fn normalize_lossless_events(source: &str, line_index: &LineIndex, events: &mut 
             value: None,
             lexeme: source[cursor..].to_owned(),
             recovered: false,
-            source_range: CssSourceRange::from_offsets(line_index, cursor, source.len()),
+            source_range,
+            source_map: source_range.source_map(),
         });
     }
     debug_assert_eq!(

@@ -6486,11 +6486,7 @@ fn css_event_evaluator_field<'a>(
             event.source_range.start.column,
         )),
         "sourceMap" => Some(CemtEvaluatorValueRef::OwnedSourceMap(Arc::new(
-            xml_family_source_map_from_coordinates(
-                event.source_range.start.byte_offset,
-                event.source_range.byte_length,
-                CSS_CONTENT_TYPE,
-            ),
+            event.source_map.clone(),
         ))),
         _ => None,
     }

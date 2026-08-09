@@ -3,6 +3,17 @@
 use crate::source::{ByteRange, SourceId};
 use serde::{Deserialize, Serialize};
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum ScssOriginKind {
+    Source,
+    Module,
+    Definition,
+    CallSite,
+    Interpolation,
+    Expansion,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "kind")]
 pub enum TransformKind {
@@ -32,6 +43,12 @@ pub enum TransformKind {
     /// cem-ql parser pushes carries the sub-span inside that range.
     TemplateEmbedding {
         host: ByteRange,
+    },
+    ScssOrigin {
+        origin_kind: ScssOriginKind,
+        module_uri: String,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        name: Option<String>,
     },
 }
 

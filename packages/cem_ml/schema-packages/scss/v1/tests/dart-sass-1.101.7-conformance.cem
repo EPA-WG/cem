@@ -22,9 +22,9 @@
     }
     {normative-reference
         @id="grass-compiler-0-13-4"
-        @role="syntax-ast-strategy"
+        @role="behavioral-algorithm-reference"
         @version="0.13.4"
-        @uri="https://docs.rs/grass_compiler/0.13.4/grass_compiler/sass_ast/index.html"
+        @uri="https://docs.rs/grass_compiler/0.13.4/grass_compiler/"
     }
 
     {conformance-feature
@@ -36,9 +36,16 @@
     {conformance-feature
         @id="utf8-and-charset"
         @requirement="required"
-        @state="gap"
+        @state="supported"
         @summary="accept UTF-8 bytes and only an optional charset normalized to utf-8"
         @diagnostic="cem.scss.unsupported_encoding"
+    }
+    {conformance-feature
+        @id="lossless-native-parser-subset"
+        @requirement="required"
+        @state="supported"
+        @summary="retain every source byte and exact statement ranges for the implemented SCSS statement subset"
+        @diagnostic="cem.scss.parse_error"
     }
     {conformance-feature
         @id="core-scss-syntax"
@@ -51,7 +58,7 @@
         @id="variables-mixins-functions-control"
         @requirement="required"
         @state="gap"
-        @summary="evaluate variables mixins functions content blocks control flow extension and generated selectors"
+        @summary="focused variables mixins functions if each for while nesting and interpolation are implemented while full Dart Sass semantics content blocks extension and generated-selector parity remain gaps"
     }
     {conformance-feature
         @id="use-and-forward"
@@ -63,7 +70,7 @@
     {conformance-feature
         @id="sass-import"
         @requirement="compatibility"
-        @state="compatibility-gap"
+        @state="supported"
         @summary="accept legacy Sass @import and emit the package-owned deprecation warning"
         @diagnostic="cem.scss.import_deprecated"
     }
@@ -77,14 +84,14 @@
     {conformance-feature
         @id="typed-css-handoff"
         @requirement="required"
-        @state="gap"
+        @state="supported"
         @summary="evaluate directly into CssDocumentAst without CSS text serialization or reparsing"
         @diagnostic="cem.scss.handoff_invalid"
     }
     {conformance-feature
         @id="generated-node-origins"
         @requirement="required"
-        @state="gap"
+        @state="supported"
         @summary="retain module definition call-site and interpolation origin frames on generated CSS nodes"
         @diagnostic="cem.scss.origin_unavailable"
     }

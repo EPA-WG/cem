@@ -130,7 +130,7 @@
         {attribute @name="completion-state" @type="schema:identifier" @values="pending complete failed cancelled"}
         {attribute @name="css-node-id" @type="schema:identifier"}
         {attribute @name="css-node-kind" @type="schema:identifier"}
-        {attribute @name="origin-kind" @type="schema:identifier" @values="module definition call-site interpolation source"}
+        {attribute @name="origin-kind" @type="schema:identifier" @values="module definition call-site interpolation source expansion"}
         {attribute @name="interpolation-id" @type="schema:identifier"}
         {attribute @name="reference-implementation" @type="schema:identifier"}
         {attribute @name="reference-version" @type="schema:string"}
@@ -174,7 +174,7 @@
     {compatibility |
         {note @version="1.0.0" @value="Dart Sass 1.101.7 is the dated compatibility reference; support is claimed only by feature rows marked supported in the package conformance matrix."}
         {note @version="1.0.0" @value="The canonical source identity is text/vnd.cem.scss, text/x-scss is a compatibility alias, and the only v1 extension is .scss."}
-        {note @version="1.0.0" @value="The recommended parser dependency is grass_compiler =0.13.4 with default features disabled; CEM owns evaluation, diagnostics, CssDocumentAst construction, and origin retention."}
+        {note @version="1.0.0" @value="Grass 0.13.4 is a behavioral and algorithmic reference only. The independent CEM implementation owns tokens syntax evaluation diagnostics CssDocumentAst construction and origin retention without a Grass dependency AST bridge serializer or copied source."}
     }
 
     {open-content |
