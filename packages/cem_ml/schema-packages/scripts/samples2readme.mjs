@@ -839,6 +839,8 @@ function sourceFenceLanguage(path) {
         case '.css':
         case '.css-selector':
             return 'css';
+        case '.scss':
+            return 'scss';
         case '.csv':
             return 'csv';
         case '.html':

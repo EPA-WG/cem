@@ -457,10 +457,12 @@ metadata, host document integration, external `@import` and `url()` policy, and
 source-map hooks. CSS source is not CEM-ML syntax; parser/adaptor support is
 separate from the schema package.
 
-### Planned SCSS Source Identity
+### SCSS Source Identity And Planned Runtime Boundary
 
-This section is target design for the future `scss/v1` package; no SCSS schema
-package or runtime adapter is implemented yet.
+The `scss/v1` package now owns the source identity, declarative AST/evaluation
+contract, conformance/gap matrix, manifest examples, and passive CEMT source
+profiles described here. Native parsing and evaluation remain the next
+implementation slice.
 
 | Property | SCSS v1 decision |
 | --- | --- |

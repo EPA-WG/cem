@@ -1,0 +1,184 @@
+@doc cem-ml 1
+@ns schema = "https://cem.dev/ns/schema/1"
+@ns cemml = "https://cem.dev/ns/cem-ml/1"
+@ns css = "https://cem.dev/ns/data/css/1"
+@default schema
+
+{schema @name="scss" @namespace="https://cem.dev/ns/data/scss/1" @version="1.0.0" |
+    {summary |
+        {text | SCSS source and expansion schema. SCSS bytes retain their own identity while a lossless syntax AST, module graph, neutral facts, evaluation request, expansion state, and exact origin chains are built. Successful evaluation hands a typed CSS document AST to the existing CSS schema without serializing and reparsing generated CSS text.}
+    }
+
+    {uses |
+        {use @schema="https://cem.dev/ns/schema/1" @as="schema"}
+        {use @schema="https://cem.dev/ns/cem-ml/1" @as="cemml"}
+        {use @schema="https://cem.dev/ns/data/css/1" @as="css"}
+    }
+
+    {content-types |
+        {content-type @value="text/vnd.cem.scss" @primary=true}
+        {content-type @value="text/x-scss" @alias=true}
+    }
+
+    {namespaces |
+        {namespace @prefix="scss" @uri="https://cem.dev/ns/data/scss/1" @role="schema"}
+        {namespace @prefix="css" @uri="https://cem.dev/ns/data/css/1" @role="target-schema"}
+    }
+
+    {elements |
+        {element @name="source-resource" @required-attributes="content-type schema-uri language-version syntax encoding parse-state" @optional-attributes="uri charset byte-length line-ending" @children="source? token-stream? stylesheet? module-graph? parse-facts? evaluation-request? css-handoff?"}
+        {element @name="source" @optional-attributes="uri content-type charset byte-length line-ending"}
+        {element @name="token-stream" @children="token*"}
+        {element @name="token" @required-attributes="index token-kind role lexeme depth byte-offset byte-length line column" @optional-attributes="source-id"}
+        {element @name="stylesheet" @children="statement*"}
+        {element @name="statement" @required-attributes="statement-kind" @optional-attributes="name value byte-offset byte-length line column" @children="variable-declaration? use-rule? forward-rule? import-rule? mixin-declaration? include-rule? function-declaration? return-rule? control-rule? extend-rule? rule? declaration? expression* interpolation* statement* origin-chain?"}
+        {element @name="variable-declaration" @required-attributes="name" @optional-attributes="default global guarded byte-offset byte-length" @children="expression? interpolation*"}
+        {element @name="use-rule" @required-attributes="url" @optional-attributes="namespace configuration byte-offset byte-length" @children="argument*"}
+        {element @name="forward-rule" @required-attributes="url" @optional-attributes="prefix visibility configuration byte-offset byte-length" @children="argument*"}
+        {element @name="import-rule" @required-attributes="url import-kind" @optional-attributes="byte-offset byte-length"}
+        {element @name="mixin-declaration" @required-attributes="name" @optional-attributes="byte-offset byte-length" @children="parameter* statement*"}
+        {element @name="include-rule" @required-attributes="name" @optional-attributes="byte-offset byte-length" @children="argument* content-block? origin-chain?"}
+        {element @name="content-block" @children="statement*"}
+        {element @name="function-declaration" @required-attributes="name" @optional-attributes="byte-offset byte-length" @children="parameter* statement*"}
+        {element @name="return-rule" @children="expression?"}
+        {element @name="control-rule" @required-attributes="control-kind" @optional-attributes="binding byte-offset byte-length" @children="expression* statement*"}
+        {element @name="extend-rule" @children="expression?"}
+        {element @name="rule" @optional-attributes="selector byte-offset byte-length" @children="expression* interpolation* statement* declaration*"}
+        {element @name="declaration" @required-attributes="name" @optional-attributes="important custom-property byte-offset byte-length" @children="expression? interpolation*"}
+        {element @name="expression" @required-attributes="expression-kind" @optional-attributes="value operator unit byte-offset byte-length" @children="expression* interpolation* argument*"}
+        {element @name="interpolation" @optional-attributes="byte-offset byte-length" @children="expression? origin-chain?"}
+        {element @name="parameter" @required-attributes="name" @optional-attributes="variadic byte-offset byte-length" @children="expression?"}
+        {element @name="argument" @optional-attributes="name variadic byte-offset byte-length" @children="expression?"}
+        {element @name="module-graph" @children="module* module-edge*"}
+        {element @name="module" @required-attributes="module-id canonical-url load-state" @optional-attributes="source-uri namespace configuration-hash" @children="member* origin-chain?"}
+        {element @name="module-edge" @required-attributes="from-module to-module edge-kind" @optional-attributes="call-site-id"}
+        {element @name="member" @required-attributes="name member-kind visibility definition-id"}
+        {element @name="parse-facts" @children="parse-fact*"}
+        {element @name="parse-fact" @required-attributes="kind" @optional-attributes="message value byte-offset byte-length line column"}
+        {element @name="evaluation-request" @required-attributes="resolver-policy-stamp safety-policy-stamp max-work-units max-recursion-depth max-output-nodes" @optional-attributes="cancellation-id"}
+        {element @name="css-handoff" @required-attributes="target-content-type target-schema completion-state" @children="generated-node* origin-chain*"}
+        {element @name="generated-node" @required-attributes="css-node-id css-node-kind" @children="origin-chain"}
+        {element @name="origin-chain" @children="origin-frame+"}
+        {element @name="origin-frame" @required-attributes="origin-kind source-id byte-offset byte-length" @optional-attributes="module-id definition-id call-site-id interpolation-id"}
+        {element @name="conformance-profile" @required-attributes="reference-implementation reference-version syntax delivery" @children="normative-reference+ conformance-feature+"}
+        {element @name="normative-reference" @required-attributes="id role version uri"}
+        {element @name="conformance-feature" @required-attributes="id requirement state summary" @optional-attributes="diagnostic notes"}
+    }
+
+    {attributes |
+        {attribute @name="uri" @type="schema:uri"}
+        {attribute @name="source-uri" @type="schema:uri"}
+        {attribute @name="schema-uri" @type="schema:uri"}
+        {attribute @name="content-type" @type="schema:media-type"}
+        {attribute @name="target-content-type" @type="schema:media-type"}
+        {attribute @name="target-schema" @type="schema:uri"}
+        {attribute @name="language-version" @type="schema:string"}
+        {attribute @name="syntax" @type="schema:identifier" @values="scss"}
+        {attribute @name="encoding" @type="schema:identifier" @values="utf-8 unsupported"}
+        {attribute @name="charset" @type="schema:identifier"}
+        {attribute @name="byte-length" @type="cemml:integer"}
+        {attribute @name="line-ending" @type="schema:identifier" @values="crlf lf cr mixed none"}
+        {attribute @name="parse-state" @type="schema:identifier" @values="unparsed parsed parse-error unsupported"}
+        {attribute @name="index" @type="cemml:integer"}
+        {attribute @name="token-kind" @type="schema:identifier"}
+        {attribute @name="role" @type="schema:string"}
+        {attribute @name="lexeme" @type="schema:string"}
+        {attribute @name="depth" @type="cemml:integer"}
+        {attribute @name="source-id" @type="schema:identifier"}
+        {attribute @name="byte-offset" @type="cemml:integer"}
+        {attribute @name="line" @type="cemml:integer"}
+        {attribute @name="column" @type="cemml:integer"}
+        {attribute @name="statement-kind" @type="schema:identifier"}
+        {attribute @name="name" @type="schema:string"}
+        {attribute @name="value" @type="schema:string"}
+        {attribute @name="default" @type="schema:boolean"}
+        {attribute @name="global" @type="schema:boolean"}
+        {attribute @name="guarded" @type="schema:boolean"}
+        {attribute @name="url" @type="schema:string"}
+        {attribute @name="namespace" @type="schema:string"}
+        {attribute @name="configuration" @type="schema:string"}
+        {attribute @name="prefix" @type="schema:string"}
+        {attribute @name="visibility" @type="schema:identifier" @values="public private hidden shown"}
+        {attribute @name="import-kind" @type="schema:identifier" @values="sass css"}
+        {attribute @name="control-kind" @type="schema:identifier" @values="if else each for while"}
+        {attribute @name="binding" @type="schema:string"}
+        {attribute @name="selector" @type="schema:string"}
+        {attribute @name="important" @type="schema:boolean"}
+        {attribute @name="custom-property" @type="schema:boolean"}
+        {attribute @name="expression-kind" @type="schema:identifier"}
+        {attribute @name="operator" @type="schema:string"}
+        {attribute @name="unit" @type="schema:string"}
+        {attribute @name="variadic" @type="schema:boolean"}
+        {attribute @name="module-id" @type="schema:identifier"}
+        {attribute @name="canonical-url" @type="schema:uri"}
+        {attribute @name="load-state" @type="schema:identifier" @values="pending loading loaded failed"}
+        {attribute @name="configuration-hash" @type="schema:string"}
+        {attribute @name="from-module" @type="schema:identifier"}
+        {attribute @name="to-module" @type="schema:identifier"}
+        {attribute @name="edge-kind" @type="schema:identifier" @values="use forward import"}
+        {attribute @name="call-site-id" @type="schema:identifier"}
+        {attribute @name="member-kind" @type="schema:identifier" @values="variable mixin function"}
+        {attribute @name="definition-id" @type="schema:identifier"}
+        {attribute @name="kind" @type="schema:identifier"}
+        {attribute @name="message" @type="schema:string"}
+        {attribute @name="resolver-policy-stamp" @type="schema:string"}
+        {attribute @name="safety-policy-stamp" @type="schema:string"}
+        {attribute @name="max-work-units" @type="cemml:integer"}
+        {attribute @name="max-recursion-depth" @type="cemml:integer"}
+        {attribute @name="max-output-nodes" @type="cemml:integer"}
+        {attribute @name="cancellation-id" @type="schema:string"}
+        {attribute @name="completion-state" @type="schema:identifier" @values="pending complete failed cancelled"}
+        {attribute @name="css-node-id" @type="schema:identifier"}
+        {attribute @name="css-node-kind" @type="schema:identifier"}
+        {attribute @name="origin-kind" @type="schema:identifier" @values="module definition call-site interpolation source"}
+        {attribute @name="interpolation-id" @type="schema:identifier"}
+        {attribute @name="reference-implementation" @type="schema:identifier"}
+        {attribute @name="reference-version" @type="schema:string"}
+        {attribute @name="delivery" @type="schema:identifier" @values="staged"}
+        {attribute @name="id" @type="schema:identifier"}
+        {attribute @name="version" @type="schema:string"}
+        {attribute @name="requirement" @type="schema:identifier" @values="required compatibility excluded"}
+        {attribute @name="state" @type="schema:identifier" @values="supported gap compatibility-gap unsupported out-of-scope"}
+        {attribute @name="summary" @type="schema:string"}
+        {attribute @name="diagnostic" @type="schema:string"}
+        {attribute @name="notes" @type="schema:string"}
+    }
+
+    {constraints |
+        {constraint @kind="scss-distinct-source-identity" @target="source-resource" @diagnostic="cem.scss.identity_mismatch" @behavior="scss-report-fact" @fact-kind="identity-mismatch" @policy="SCSS requires text/vnd.cem.scss or text/x-scss and must never be inferred from or labeled as text/css"}
+        {constraint @kind="scss-utf8-only" @target="source-resource" @diagnostic="cem.scss.unsupported_encoding" @behavior="scss-report-fact" @fact-kind="unsupported-encoding" @policy="v1 accepts UTF-8 bytes and only an optional charset parameter normalized to utf-8"}
+        {constraint @kind="scss-parser-validity" @target="stylesheet" @diagnostic="cem.scss.parse_error" @behavior="scss-report-fact" @fact-kind="parse-error" @policy="parse SCSS syntax against the Dart Sass 1.101.7 compatibility matrix and reject indented Sass syntax"}
+        {constraint @kind="scss-module-system" @target="module-graph" @diagnostic="cem.scss.module_error" @behavior="scss-report-fact" @fact-kind="module-error" @policy="@use and @forward are normative and modules load once by canonical URL plus configuration"}
+        {constraint @kind="scss-import-deprecation" @target="import-rule" @diagnostic="cem.scss.import_deprecated" @behavior="scss-report-fact" @fact-kind="import-deprecated" @policy="accept Sass @import for compatibility while emitting a schema-owned warning"}
+        {constraint @kind="scss-resolver-policy" @target="module-edge" @diagnostic="cem.scss.resolver_denied" @behavior="scss-report-fact" @fact-kind="resolver-denied" @policy="every module read requires explicit resolver policy and preserves requested normalized effective and canonical URIs"}
+        {constraint @kind="scss-module-cycle" @target="module-graph" @diagnostic="cem.scss.module_cycle" @behavior="scss-report-fact" @fact-kind="module-cycle" @policy="module cycles fail deterministically with the complete edge chain"}
+        {constraint @kind="scss-work-budget" @target="evaluation-request" @diagnostic="cem.scss.budget_exceeded" @behavior="scss-report-fact" @fact-kind="budget-exceeded" @policy="evaluation consumes explicit work recursion and output-node budgets and observes cancellation"}
+        {constraint @kind="scss-origin-chain" @target="generated-node" @diagnostic="cem.scss.origin_unavailable" @behavior="scss-report-fact" @fact-kind="origin-unavailable" @policy="every generated CSS node retains module definition call-site and interpolation origins when applicable"}
+        {constraint @kind="scss-css-typed-handoff" @target="css-handoff" @diagnostic="cem.scss.handoff_invalid" @behavior="scss-report-fact" @fact-kind="handoff-invalid" @policy="successful evaluation constructs CssDocumentAst under https://cem.dev/ns/data/css/1 directly without CSS serialization or reparsing"}
+        {constraint @kind="scss-passive-tools" @target="source-resource" @policy="validation formatting coloring and preview generation perform no module resolution or evaluation"}
+    }
+
+    {diagnostics |
+        {diagnostic @code="cem.scss.identity_mismatch" @severity="error"}
+        {diagnostic @code="cem.scss.unsupported_encoding" @severity="error"}
+        {diagnostic @code="cem.scss.parse_error" @severity="error"}
+        {diagnostic @code="cem.scss.module_error" @severity="error"}
+        {diagnostic @code="cem.scss.import_deprecated" @severity="warning"}
+        {diagnostic @code="cem.scss.resolver_denied" @severity="error"}
+        {diagnostic @code="cem.scss.module_cycle" @severity="error"}
+        {diagnostic @code="cem.scss.budget_exceeded" @severity="error"}
+        {diagnostic @code="cem.scss.origin_unavailable" @severity="error"}
+        {diagnostic @code="cem.scss.handoff_invalid" @severity="error"}
+    }
+
+    {compatibility |
+        {note @version="1.0.0" @value="Dart Sass 1.101.7 is the dated compatibility reference; support is claimed only by feature rows marked supported in the package conformance matrix."}
+        {note @version="1.0.0" @value="The canonical source identity is text/vnd.cem.scss, text/x-scss is a compatibility alias, and the only v1 extension is .scss."}
+        {note @version="1.0.0" @value="The recommended parser dependency is grass_compiler =0.13.4 with default features disabled; CEM owns evaluation, diagnostics, CssDocumentAst construction, and origin retention."}
+    }
+
+    {open-content |
+        {accept @kind="future-scss-production" @policy="preserve-as-unsupported-fact"}
+        {accept @kind="future-dart-sass-behavior" @policy="require-conformance-matrix-entry"}
+    }
+}

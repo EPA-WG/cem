@@ -1,0 +1,10 @@
+@doc cem-ml 1
+@ns transform = "https://cem.dev/ns/transform/cem/1"
+@default transform
+
+{module @version="1.0.0" |
+    {format-function @name="scss.format-source" @visibility="public" @category="scss-source" @subject="scss-source" @produces="cem-tree" @content-type="text/vnd.cem.scss" @schema="https://cem.dev/ns/data/scss/1" @profile="compact" @canonical=true @deterministic=true @streamable=true |
+        {param @name="subject" @type="object" @required=true}
+        {body | {$ merge(call("scss.format-source.tree", { subject: $subject, profile: "compact" }), {}) } }
+    }
+}

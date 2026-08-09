@@ -1,0 +1,94 @@
+@doc cem-ml 1
+@ns transform = "https://cem.dev/ns/transform/cem/1"
+@default transform
+
+{module @version="1.0.0" |
+    {format-function
+        @name="scss.format-source.tree"
+        @visibility="private"
+        @category="scss-source"
+        @subject="scss-source"
+        @produces="cem-tree"
+        @content-type="text/vnd.cem.scss"
+        @schema="https://cem.dev/ns/data/scss/1"
+        @canonical=true
+        @deterministic=true
+        @streamable=true |
+        {param @name="subject" @type="object" @required=true}
+        {param @name="profile" @type="string" @required=true}
+        {body |
+            {$ {
+                kind: "cem-tree",
+                contentType: "text/vnd.cem.scss",
+                schema: "https://cem.dev/ns/data/scss/1",
+                category: "scss-source",
+                formatterProfile: $profile,
+                formatNodes: [
+                    {
+                        kind: "format-marker",
+                        name: "scss.format-source",
+                        formatterRole: "formatter.boundary",
+                        formatterProfile: $profile
+                    },
+                    {
+                        kind: "format-decision",
+                        name: "scss.lexical-lossless",
+                        formatterRole: "formatter.layout",
+                        formatterProfile: $profile,
+                        value: {
+                            layout: concat("lexical-lossless-", $profile),
+                            lineEnding: $lineEnding,
+                            indent: $indent,
+                            tabSize: $tabSize,
+                            sourceBoundary: "scss-source"
+                        }
+                    }
+                ],
+                nodes: extend(
+                    [
+                        call("scss.format-source.token", {
+                            token: {
+                                kind: "scss.format-marker",
+                                lexeme: "",
+                                role: "formatter.boundary",
+                                value: { formatterProfile: $profile }
+                            },
+                            profile: $profile
+                        })
+                    ],
+                    map(
+                        match(typeOf($subject.tokens), { array: $subject.tokens, default: [] }),
+                        call("scss.format-source.token", { token: $item, profile: $profile })
+                    )
+                )
+            } }
+        }
+    }
+
+    {function @name="scss.format-source.token" @visibility="private" @returns="object" @deterministic=true |
+        {param @name="token" @type="object" @required=true}
+        {param @name="profile" @type="string" @required=true}
+        {body |
+            {$ {
+                kind: concat("scss.", match(typeOf($token.kind), { string: $token.kind, default: "raw" })),
+                writerKind: "token",
+                text: match(typeOf($token.lexeme), { string: $token.lexeme, default: "" }),
+                role: match(typeOf($token.role), { string: $token.role, default: "syntax.raw" }),
+                sourceMap: match(exists($token.sourceMap), { true: $token.sourceMap, false: null }),
+                outputSpan: match(exists($token.sourceMap), {
+                    true: { outputRange: { start: 0, len: 0 }, origin: $token.sourceMap },
+                    false: null
+                }),
+                value: merge(
+                    match(typeOf($token.value), { object: $token.value, default: {} }),
+                    {
+                        formatterProfile: $profile,
+                        tokenIndex: match(exists($token.index), { true: $token.index, false: null }),
+                        depth: match(exists($token.depth), { true: $token.depth, false: 0 }),
+                        sourceRange: match(exists($token.sourceRange), { true: $token.sourceRange, false: null })
+                    }
+                )
+            } }
+        }
+    }
+}

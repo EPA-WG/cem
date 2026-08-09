@@ -299,6 +299,60 @@ fn css_selector_package_is_schema_owned_nx_subproject() {
 }
 
 #[test]
+fn scss_package_is_schema_owned_nx_subproject() {
+    let reports = audit_schema_package_structure();
+    let css = reports
+        .iter()
+        .find(|report| report.package_id == "css")
+        .expect("CSS stylesheet package report");
+    let scss = reports
+        .iter()
+        .find(|report| report.package_id == "scss")
+        .expect("SCSS source package report");
+
+    assert_eq!(
+        css.schema_uri.as_deref(),
+        Some("https://cem.dev/ns/data/css/1")
+    );
+    assert_eq!(css.content_types, BTreeSet::from(["text/css".to_owned()]));
+    assert_eq!(
+        scss.schema_uri.as_deref(),
+        Some("https://cem.dev/ns/data/scss/1")
+    );
+    assert_eq!(
+        scss.content_types,
+        BTreeSet::from(["text/vnd.cem.scss".to_owned(), "text/x-scss".to_owned()])
+    );
+    assert!(!scss.content_types.contains("text/css"));
+    assert_eq!(
+        scss.nx_project_name.as_deref(),
+        Some("cem_ml_schema_package_scss_v1")
+    );
+    assert!(scss.missing_formatter_profiles.is_empty(), "{scss:#?}");
+    assert!(scss.missing_colorizer_profiles.is_empty(), "{scss:#?}");
+    assert!(scss.converter_endpoints.is_empty());
+    assert_eq!(scss.manifest_example_count, 7);
+    assert!(
+        scss.version_dir
+            .join("tests/dart-sass-1.101.7-conformance.cem")
+            .is_file(),
+        "SCSS package must own its Dart Sass 1.101.7 conformance/gap matrix"
+    );
+
+    let cli_project = std::fs::read_to_string(
+        Path::new(env!("CARGO_MANIFEST_DIR")).join("../cem_ml_cli/project.json"),
+    )
+    .expect("cem_ml_cli project configuration");
+    assert_eq!(
+        cli_project
+            .matches("\"cem_ml_schema_package_scss_v1\"")
+            .count(),
+        3,
+        "SCSS package must participate in CLI test, converter-parity, and e2e dependency gates"
+    );
+}
+
+#[test]
 fn schema_package_examples_use_manifest_owned_reference_records() {
     let reports = audit_schema_package_structure();
     for report in &reports {
@@ -445,6 +499,7 @@ fn source_fence_language(path: &str) -> Option<&'static str> {
         "cem" | "cemt" => Some("cem"),
         "cemql" | "cem-ql" => Some("cemql"),
         "css" | "css-selector" => Some("css"),
+        "scss" => Some("scss"),
         "csv" => Some("csv"),
         "html" | "htm" | "xhtml" => Some("html"),
         "json" => Some("json"),

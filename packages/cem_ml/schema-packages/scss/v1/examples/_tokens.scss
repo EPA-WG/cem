@@ -1,0 +1,5 @@
+$space: 0.75rem !default;
+
+@mixin inset($amount: $space) {
+  padding: $amount;
+}

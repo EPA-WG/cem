@@ -314,6 +314,50 @@ static BUILTIN_SCHEMA_PACKAGE_ARTIFACT_SOURCES: &[BuiltinSchemaPackageArtifactSo
         source: include_str!("../../schema-packages/css/v1/colorizers/css-color-document.cemt"),
     },
     BuiltinSchemaPackageArtifactSource {
+        package_id: "scss",
+        path: "schema-packages/scss/v1/formatters/compact.cemt",
+        source: include_str!("../../schema-packages/scss/v1/formatters/compact.cemt"),
+    },
+    BuiltinSchemaPackageArtifactSource {
+        package_id: "scss",
+        path: "schema-packages/scss/v1/formatters/pretty.cemt",
+        source: include_str!("../../schema-packages/scss/v1/formatters/pretty.cemt"),
+    },
+    BuiltinSchemaPackageArtifactSource {
+        package_id: "scss",
+        path: "schema-packages/scss/v1/formatters/tabular.cemt",
+        source: include_str!("../../schema-packages/scss/v1/formatters/tabular.cemt"),
+    },
+    BuiltinSchemaPackageArtifactSource {
+        package_id: "scss",
+        path: "schema-packages/scss/v1/formatters/scss-format-source.cemt",
+        source: include_str!(
+            "../../schema-packages/scss/v1/formatters/scss-format-source.cemt"
+        ),
+    },
+    BuiltinSchemaPackageArtifactSource {
+        package_id: "scss",
+        path: "schema-packages/scss/v1/colorizers/terminal.cemt",
+        source: include_str!("../../schema-packages/scss/v1/colorizers/terminal.cemt"),
+    },
+    BuiltinSchemaPackageArtifactSource {
+        package_id: "scss",
+        path: "schema-packages/scss/v1/colorizers/html.cemt",
+        source: include_str!("../../schema-packages/scss/v1/colorizers/html.cemt"),
+    },
+    BuiltinSchemaPackageArtifactSource {
+        package_id: "scss",
+        path: "schema-packages/scss/v1/colorizers/md.cemt",
+        source: include_str!("../../schema-packages/scss/v1/colorizers/md.cemt"),
+    },
+    BuiltinSchemaPackageArtifactSource {
+        package_id: "scss",
+        path: "schema-packages/scss/v1/colorizers/scss-color-source.cemt",
+        source: include_str!(
+            "../../schema-packages/scss/v1/colorizers/scss-color-source.cemt"
+        ),
+    },
+    BuiltinSchemaPackageArtifactSource {
         package_id: "css-selector",
         path: "schema-packages/css-selector/v1/formatters/compact.cemt",
         source: include_str!("../../schema-packages/css-selector/v1/formatters/compact.cemt"),
@@ -847,6 +891,12 @@ static BUILTIN_SCHEMA_PACKAGE_SOURCES: &[BuiltinSchemaPackageSource] = &[
         schema_source: include_str!("../../schema-packages/css/v1/schema/css.cem"),
     },
     BuiltinSchemaPackageSource {
+        package_id: "scss",
+        schema_path: "schema-packages/scss/v1/schema/scss.cem",
+        manifest_source: include_str!("../../schema-packages/scss/v1/package.cem"),
+        schema_source: include_str!("../../schema-packages/scss/v1/schema/scss.cem"),
+    },
+    BuiltinSchemaPackageSource {
         package_id: "css-selector",
         schema_path: "schema-packages/css-selector/v1/schema/css-selector.cem",
         manifest_source: include_str!("../../schema-packages/css-selector/v1/package.cem"),
@@ -908,9 +958,10 @@ mod tests {
         CSV_SCHEMA_URI, HTML_CONTENT_TYPE, HTML_SCHEMA_URI, JSON_CONTENT_TYPE,
         JSON_SCHEMA_CONTENT_TYPE, JSON_SCHEMA_SCHEMA_URI, JSON_VALUE_SCHEMA_URI,
         MARKDOWN_SCHEMA_URI, MATHML_CONTENT_TYPE, MATHML_SCHEMA_URI, RELAX_NG_COMPACT_CONTENT_TYPE,
-        RELAX_NG_SCHEMA_URI, RELAX_NG_XML_CONTENT_TYPE, SVG_CONTENT_TYPE, SVG_SCHEMA_URI,
-        XHTML_CONTENT_TYPE, XHTML_SCHEMA_URI, XML_CONTENT_TYPE, XML_SCHEMA_URI, XPATH_CONTENT_TYPE,
-        XPATH_SCHEMA_URI, XSLT_CONTENT_TYPE, XSLT_SCHEMA_URI, YAML_CONTENT_TYPE, YAML_SCHEMA_URI,
+        RELAX_NG_SCHEMA_URI, RELAX_NG_XML_CONTENT_TYPE, SCSS_CONTENT_TYPE, SCSS_SCHEMA_URI,
+        SVG_CONTENT_TYPE, SVG_SCHEMA_URI, XHTML_CONTENT_TYPE, XHTML_SCHEMA_URI, XML_CONTENT_TYPE,
+        XML_SCHEMA_URI, XPATH_CONTENT_TYPE, XPATH_SCHEMA_URI, XSLT_CONTENT_TYPE, XSLT_SCHEMA_URI,
+        YAML_CONTENT_TYPE, YAML_SCHEMA_URI,
     };
     use crate::source::{BytesSource, SourceId};
     use crate::tokenizer::cem::CemTokenizer;
@@ -2491,6 +2542,79 @@ mod tests {
     }
 
     #[test]
+    fn scss_package_examples_are_manifest_indexed() {
+        let package = builtin_schema_package_source("scss").expect("SCSS package source");
+        let examples =
+            schema_package_examples_from_package_sources(package).expect("SCSS package examples");
+        let declared_paths = examples
+            .iter()
+            .map(|example| example.path.clone())
+            .collect::<BTreeSet<_>>();
+
+        assert_eq!(declared_paths, top_level_example_paths("scss"));
+        assert_eq!(examples.len(), 7);
+        assert!(examples
+            .iter()
+            .all(|example| example.schema == SCSS_SCHEMA_URI));
+
+        for (id, content_type, expected_result, expected_code) in [
+            (
+                "basic-source",
+                SCSS_CONTENT_TYPE,
+                SchemaPackageExampleExpectedResult::Pass,
+                None,
+            ),
+            (
+                "tokens-partial",
+                SCSS_CONTENT_TYPE,
+                SchemaPackageExampleExpectedResult::Pass,
+                None,
+            ),
+            (
+                "module-entry",
+                "text/vnd.cem.scss; charset=utf-8",
+                SchemaPackageExampleExpectedResult::Pass,
+                None,
+            ),
+            (
+                "forward-entry",
+                SCSS_CONTENT_TYPE,
+                SchemaPackageExampleExpectedResult::Pass,
+                None,
+            ),
+            (
+                "deprecated-import",
+                SCSS_CONTENT_TYPE,
+                SchemaPackageExampleExpectedResult::Pass,
+                Some("cem.scss.import_deprecated"),
+            ),
+            (
+                "compatibility-alias",
+                "text/x-scss; charset=UTF-8",
+                SchemaPackageExampleExpectedResult::Pass,
+                None,
+            ),
+            (
+                "invalid-indented-syntax",
+                SCSS_CONTENT_TYPE,
+                SchemaPackageExampleExpectedResult::Fail,
+                Some("cem.scss.parse_error"),
+            ),
+        ] {
+            let example = examples
+                .iter()
+                .find(|example| example.id == id)
+                .unwrap_or_else(|| panic!("SCSS example `{id}`"));
+            assert_eq!(example.content_type, content_type);
+            assert_eq!(example.expected_result, expected_result);
+            let expected_codes = expected_code
+                .map(|code| vec![code.to_owned()])
+                .unwrap_or_default();
+            assert_eq!(example.expected_diagnostic_codes, expected_codes);
+        }
+    }
+
+    #[test]
     fn css_selector_package_examples_are_manifest_indexed() {
         let examples = manifest_indexed_package_examples(
             "css-selector",
@@ -4012,6 +4136,46 @@ mod tests {
             let helper = builtin_schema_package_artifact_source("css", path)
                 .unwrap_or_else(|| panic!("CSS helper source `{path}`"));
             assert!(helper.source.contains("{body |"));
+        }
+    }
+
+    #[test]
+    fn catalog_exposes_scss_source_output_artifact_sources() {
+        for (path, function, profile) in [
+            ("formatters/compact.cemt", "scss.format-source", "compact"),
+            ("formatters/pretty.cemt", "scss.format-source", "pretty"),
+            ("formatters/tabular.cemt", "scss.format-source", "tabular"),
+            ("colorizers/terminal.cemt", "scss.color-source", "terminal"),
+            ("colorizers/html.cemt", "scss.color-source", "html"),
+            ("colorizers/md.cemt", "scss.color-source", "md"),
+        ] {
+            let full_path = format!("schema-packages/scss/v1/{path}");
+            let artifact = builtin_schema_package_artifact_source("scss", &full_path)
+                .unwrap_or_else(|| panic!("SCSS artifact source `{full_path}`"));
+            assert!(artifact.source.contains(&format!(r#"@name="{function}""#)));
+            assert!(artifact
+                .source
+                .contains(&format!(r#"@profile="{profile}""#)));
+            assert!(artifact.source.contains("{body |"));
+            assert!(artifact.source.contains(r#"@produces="cem-tree""#));
+            assert!(artifact
+                .source
+                .contains(r#"@content-type="text/vnd.cem.scss""#));
+            assert!(artifact
+                .source
+                .contains(r#"@schema="https://cem.dev/ns/data/scss/1""#));
+            assert!(!artifact.source.contains(r#"@content-type="text/css""#));
+        }
+        for path in [
+            "schema-packages/scss/v1/formatters/scss-format-source.cemt",
+            "schema-packages/scss/v1/colorizers/scss-color-source.cemt",
+        ] {
+            let helper = builtin_schema_package_artifact_source("scss", path)
+                .unwrap_or_else(|| panic!("SCSS helper source `{path}`"));
+            assert!(helper.source.contains("{body |"));
+            assert!(helper.source.contains("text/vnd.cem.scss"));
+            assert!(helper.source.contains("https://cem.dev/ns/data/scss/1"));
+            assert!(!helper.source.contains(r#"@content-type="text/css""#));
         }
     }
 

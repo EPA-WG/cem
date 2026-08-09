@@ -32,6 +32,7 @@ pub const RELAX_NG_NAMESPACE_URI: &str = "http://relaxng.org/ns/structure/1.0";
 pub const HTML_SCHEMA_URI: &str = "https://cem.dev/ns/data/html/1";
 pub const HTML_NAMESPACE_URI: &str = "http://www.w3.org/1999/xhtml";
 pub const CSS_SCHEMA_URI: &str = "https://cem.dev/ns/data/css/1";
+pub const SCSS_SCHEMA_URI: &str = "https://cem.dev/ns/data/scss/1";
 pub const CSS_SELECTOR_SCHEMA_URI: &str = "https://cem.dev/ns/query/css-selector/1";
 pub const XHTML_SCHEMA_URI: &str = "https://cem.dev/ns/data/xhtml/1";
 pub const XHTML_NAMESPACE_URI: &str = "http://www.w3.org/1999/xhtml";
@@ -65,6 +66,7 @@ pub const RELAX_NG_XML_CONTENT_TYPE: &str = "application/relax-ng+xml";
 pub const RELAX_NG_COMPACT_CONTENT_TYPE: &str = "application/relax-ng-compact-syntax";
 pub const HTML_CONTENT_TYPE: &str = "text/html";
 pub const CSS_CONTENT_TYPE: &str = "text/css";
+pub const SCSS_CONTENT_TYPE: &str = "text/vnd.cem.scss";
 pub const CSS_SELECTOR_CONTENT_TYPE: &str = "application/vnd.cem.query-expression+css-selector";
 pub const XHTML_CONTENT_TYPE: &str = "application/xhtml+xml";
 pub const SVG_CONTENT_TYPE: &str = "image/svg+xml";
@@ -1402,6 +1404,13 @@ mod tests {
         );
         assert_eq!(
             registry
+                .resolve_content_type(SCSS_CONTENT_TYPE)
+                .unwrap()
+                .schema_uri,
+            SCSS_SCHEMA_URI
+        );
+        assert_eq!(
+            registry
                 .resolve_content_type(XHTML_CONTENT_TYPE)
                 .unwrap()
                 .schema_uri,
@@ -1495,6 +1504,35 @@ mod tests {
                 YAML_SCHEMA_URI
             );
         }
+    }
+
+    #[test]
+    fn builtin_registry_resolves_scss_source_identities_without_claiming_css() {
+        let registry = SchemaRegistry::with_builtin_schemas();
+
+        for content_type in [
+            SCSS_CONTENT_TYPE,
+            "text/vnd.cem.scss; charset=utf-8",
+            "text/x-scss",
+            "text/x-scss; charset=UTF-8",
+        ] {
+            assert_eq!(
+                registry
+                    .resolve_content_type(content_type)
+                    .unwrap()
+                    .schema_uri,
+                SCSS_SCHEMA_URI
+            );
+        }
+        assert_eq!(
+            registry
+                .resolve_content_type(CSS_CONTENT_TYPE)
+                .unwrap()
+                .schema_uri,
+            CSS_SCHEMA_URI
+        );
+        assert_ne!(SCSS_SCHEMA_URI, CSS_SCHEMA_URI);
+        assert_ne!(SCSS_CONTENT_TYPE, CSS_CONTENT_TYPE);
     }
 
     #[test]

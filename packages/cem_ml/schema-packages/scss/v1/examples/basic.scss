@@ -1,0 +1,10 @@
+$component: "card";
+$accent: #036;
+
+.#{$component} {
+  color: $accent;
+
+  &__title {
+    font-weight: 700;
+  }
+}

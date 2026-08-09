@@ -1,0 +1,168 @@
+@doc cem-ml 1
+@ns pkg = "https://cem.dev/ns/schema-package/1"
+@default pkg
+
+{package @id="scss" @version="1.0.0" |
+    {schema
+        @uri="https://cem.dev/ns/data/scss/1"
+        @source="schema/scss.cem"
+    }
+
+    {content-type @value="text/vnd.cem.scss" @primary=true}
+    {content-type @value="text/x-scss" @alias=true}
+
+    {namespace @prefix="scss" @uri="https://cem.dev/ns/data/scss/1"}
+    {namespace @prefix="css" @uri="https://cem.dev/ns/data/css/1"}
+
+    {artifact
+        @kind="formatter"
+        @path="formatters/compact.cemt"
+        @content-type="application/vnd.cem.transform+cem"
+        @schema="https://cem.dev/ns/transform/cem/1"
+        @target-content-type="text/vnd.cem.scss"
+        @target-schema="https://cem.dev/ns/data/scss/1"
+        @target-category="scss-source"
+        @function-name="scss.format-source"
+        @formatter-profile="compact"
+    }
+
+    {artifact
+        @kind="formatter"
+        @path="formatters/pretty.cemt"
+        @content-type="application/vnd.cem.transform+cem"
+        @schema="https://cem.dev/ns/transform/cem/1"
+        @target-content-type="text/vnd.cem.scss"
+        @target-schema="https://cem.dev/ns/data/scss/1"
+        @target-category="scss-source"
+        @function-name="scss.format-source"
+        @formatter-profile="pretty"
+    }
+
+    {artifact
+        @kind="formatter"
+        @path="formatters/tabular.cemt"
+        @content-type="application/vnd.cem.transform+cem"
+        @schema="https://cem.dev/ns/transform/cem/1"
+        @target-content-type="text/vnd.cem.scss"
+        @target-schema="https://cem.dev/ns/data/scss/1"
+        @target-category="scss-source"
+        @function-name="scss.format-source"
+        @formatter-profile="tabular"
+    }
+
+    {artifact
+        @kind="formatter-helper"
+        @path="formatters/scss-format-source.cemt"
+        @content-type="application/vnd.cem.transform+cem"
+        @schema="https://cem.dev/ns/transform/cem/1"
+        @target-content-type="text/vnd.cem.scss"
+        @target-schema="https://cem.dev/ns/data/scss/1"
+        @target-category="scss-source"
+        @function-name="scss.format-source.tree"
+    }
+
+    {artifact
+        @kind="colorizer"
+        @path="colorizers/terminal.cemt"
+        @content-type="application/vnd.cem.transform+cem"
+        @schema="https://cem.dev/ns/transform/cem/1"
+        @target-content-type="text/vnd.cem.scss"
+        @target-schema="https://cem.dev/ns/data/scss/1"
+        @target-category="scss-source"
+        @function-name="scss.color-source"
+        @color-profile="terminal"
+    }
+
+    {artifact
+        @kind="colorizer"
+        @path="colorizers/html.cemt"
+        @content-type="application/vnd.cem.transform+cem"
+        @schema="https://cem.dev/ns/transform/cem/1"
+        @target-content-type="text/vnd.cem.scss"
+        @target-schema="https://cem.dev/ns/data/scss/1"
+        @target-category="scss-source"
+        @function-name="scss.color-source"
+        @color-profile="html"
+    }
+
+    {artifact
+        @kind="colorizer"
+        @path="colorizers/md.cemt"
+        @content-type="application/vnd.cem.transform+cem"
+        @schema="https://cem.dev/ns/transform/cem/1"
+        @target-content-type="text/vnd.cem.scss"
+        @target-schema="https://cem.dev/ns/data/scss/1"
+        @target-category="scss-source"
+        @function-name="scss.color-source"
+        @color-profile="md"
+    }
+
+    {artifact
+        @kind="colorizer-helper"
+        @path="colorizers/scss-color-source.cemt"
+        @content-type="application/vnd.cem.transform+cem"
+        @schema="https://cem.dev/ns/transform/cem/1"
+        @target-content-type="text/vnd.cem.scss"
+        @target-schema="https://cem.dev/ns/data/scss/1"
+        @target-category="scss-source"
+        @function-name="scss.color-source.tree"
+    }
+
+    {example
+        @id="basic-source"
+        @path="examples/basic.scss"
+        @content-type="text/vnd.cem.scss"
+        @schema="https://cem.dev/ns/data/scss/1"
+        @expected-result="pass"
+    }
+
+    {example
+        @id="tokens-partial"
+        @path="examples/_tokens.scss"
+        @content-type="text/vnd.cem.scss"
+        @schema="https://cem.dev/ns/data/scss/1"
+        @expected-result="pass"
+    }
+
+    {example
+        @id="module-entry"
+        @path="examples/module-entry.scss"
+        @content-type="text/vnd.cem.scss; charset=utf-8"
+        @schema="https://cem.dev/ns/data/scss/1"
+        @expected-result="pass"
+    }
+
+    {example
+        @id="forward-entry"
+        @path="examples/forward-entry.scss"
+        @content-type="text/vnd.cem.scss"
+        @schema="https://cem.dev/ns/data/scss/1"
+        @expected-result="pass"
+    }
+
+    {example
+        @id="deprecated-import"
+        @path="examples/deprecated-import.scss"
+        @content-type="text/vnd.cem.scss"
+        @schema="https://cem.dev/ns/data/scss/1"
+        @expected-result="pass"
+        @expected-diagnostics="cem.scss.import_deprecated"
+    }
+
+    {example
+        @id="compatibility-alias"
+        @path="examples/compatibility-alias.scss"
+        @content-type="text/x-scss; charset=UTF-8"
+        @schema="https://cem.dev/ns/data/scss/1"
+        @expected-result="pass"
+    }
+
+    {example
+        @id="invalid-indented-syntax"
+        @path="examples/invalid-indented-syntax.scss"
+        @content-type="text/vnd.cem.scss"
+        @schema="https://cem.dev/ns/data/scss/1"
+        @expected-result="fail"
+        @expected-diagnostics="cem.scss.parse_error"
+    }
+}

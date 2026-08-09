@@ -1,0 +1,104 @@
+@doc cem-ml 1
+@ns scss = "https://cem.dev/ns/data/scss/1"
+@default scss
+
+{conformance-profile
+    @reference-implementation="dart-sass"
+    @reference-version="1.101.7"
+    @syntax="scss"
+    @delivery="staged"
+|
+    {normative-reference
+        @id="dart-sass-1-101-7"
+        @role="language-compatibility"
+        @version="1.101.7"
+        @uri="https://github.com/sass/dart-sass/releases/tag/1.101.7"
+    }
+    {normative-reference
+        @id="sass-language"
+        @role="language-reference"
+        @version="1.101.7"
+        @uri="https://sass-lang.com/documentation/"
+    }
+    {normative-reference
+        @id="grass-compiler-0-13-4"
+        @role="syntax-ast-strategy"
+        @version="0.13.4"
+        @uri="https://docs.rs/grass_compiler/0.13.4/grass_compiler/sass_ast/index.html"
+    }
+
+    {conformance-feature
+        @id="source-identity"
+        @requirement="required"
+        @state="supported"
+        @summary="catalog owns text/vnd.cem.scss and text/x-scss independently from text/css"
+    }
+    {conformance-feature
+        @id="utf8-and-charset"
+        @requirement="required"
+        @state="gap"
+        @summary="accept UTF-8 bytes and only an optional charset normalized to utf-8"
+        @diagnostic="cem.scss.unsupported_encoding"
+    }
+    {conformance-feature
+        @id="core-scss-syntax"
+        @requirement="required"
+        @state="gap"
+        @summary="parse lossless SCSS tokens statements expressions nesting and interpolation"
+        @diagnostic="cem.scss.parse_error"
+    }
+    {conformance-feature
+        @id="variables-mixins-functions-control"
+        @requirement="required"
+        @state="gap"
+        @summary="evaluate variables mixins functions content blocks control flow extension and generated selectors"
+    }
+    {conformance-feature
+        @id="use-and-forward"
+        @requirement="required"
+        @state="gap"
+        @summary="implement normative @use and @forward module configuration visibility and single-load semantics"
+        @diagnostic="cem.scss.module_error"
+    }
+    {conformance-feature
+        @id="sass-import"
+        @requirement="compatibility"
+        @state="compatibility-gap"
+        @summary="accept legacy Sass @import and emit the package-owned deprecation warning"
+        @diagnostic="cem.scss.import_deprecated"
+    }
+    {conformance-feature
+        @id="resolver-safety-budgets"
+        @requirement="required"
+        @state="gap"
+        @summary="route module resolution cancellation recursion work and output growth through explicit policies"
+        @diagnostic="cem.scss.budget_exceeded"
+    }
+    {conformance-feature
+        @id="typed-css-handoff"
+        @requirement="required"
+        @state="gap"
+        @summary="evaluate directly into CssDocumentAst without CSS text serialization or reparsing"
+        @diagnostic="cem.scss.handoff_invalid"
+    }
+    {conformance-feature
+        @id="generated-node-origins"
+        @requirement="required"
+        @state="gap"
+        @summary="retain module definition call-site and interpolation origin frames on generated CSS nodes"
+        @diagnostic="cem.scss.origin_unavailable"
+    }
+    {conformance-feature
+        @id="indented-sass-syntax"
+        @requirement="excluded"
+        @state="unsupported"
+        @summary="reject the indented .sass syntax rather than infer it from source text"
+        @diagnostic="cem.scss.parse_error"
+    }
+    {conformance-feature
+        @id="dart-cli-api-and-css-bytes"
+        @requirement="excluded"
+        @state="out-of-scope"
+        @summary="Dart Sass CLI API behavior and byte-for-byte CSS serialization are not parity targets"
+    }
+}
