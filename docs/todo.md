@@ -185,12 +185,27 @@ mediate between internal layers.
     and 20 gap rows.
   - Kept the slice audit-only: the first priority gap is `content:selected`; no
     component runtime behavior or browser fixture changed in this item.
-- [ ] Populate the first missing state fixture or assertion from that audit,
-      starting with the selected `content:selected` gap: exercise a selectable
-      list/table row or chip, distinguish selected from hover and keyboard focus,
-      and assert the reflected selected semantics in a browser test.
+- [x] Populate the first missing state fixture or assertion from that audit,
+      applying the resolved chip-state boundary before introducing a selectable
+      list/table-row contract.
+  - [x] Add opt-in `<cem-chip checkable [checked]>` browser coverage: keep the
+        default chip a passive `<span>`, render a checkable chip as a native
+        toggle `<button aria-pressed>`, and persist each click through the
+        serializable `checked` slice. This closes `content:checked`;
+        `content:selected` remains deferred to a future selectable row/option
+        ownership model where selected, hover, and keyboard focus can be
+        distinguished.
+  - The focused `states.browser.spec.ts` target proves passive and checkable
+    rendering, accessible naming, native focus, `aria-pressed`, and serializable
+    boolean transitions in both directions. The audit now reports 20
+    browser-covered, 0 static-only, and 19 gap rows.
 - [ ] Verify the state-matrix slice with focused `@epa-wg/cem-components`
       target(s), then `yarn nx run @epa-wg/cem-components:verify`.
+  - Re-run the isolated state browser target and `verify-state-matrix` from a
+    clean worktree, then run the package `lint` and aggregate `verify` targets.
+  - Confirm the generated audit remains at 20 browser-covered, 0 static-only,
+    and 19 gaps with `content:selected` still recommended next; do not define a
+    selectable row/option API as part of this verification-only item.
 
 ## Current Verification Commands
 

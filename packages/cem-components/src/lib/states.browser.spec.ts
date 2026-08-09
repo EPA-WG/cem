@@ -214,6 +214,61 @@ describe('CEM component primitive states and ARIA behavior', () => {
         expect(harness.query<HTMLInputElement>('cem-checkbox input')).toBe(nextCheckbox);
     });
 
+    it('toggles checkable content chips without changing passive chip semantics', async () => {
+        harness = createComponentHarness();
+        const root = await harness.render(`
+            <cem-stack gap="sm">
+                <cem-chip label="Static topic">Static topic</cem-chip>
+                <cem-chip label="Owner filter" checkable>Owner</cem-chip>
+                <cem-chip label="Ready filter" checkable checked>Ready</cem-chip>
+            </cem-stack>
+        `);
+        await waitForStateSelector(root, 'cem-chip[checkable] button');
+
+        const passive = harness.query<HTMLElement>('cem-chip:not([checkable]) .cem-chip');
+        const uncheckedHost = harness.query<HTMLElement>('cem-chip[checkable]:not([checked])');
+        const unchecked = harness.query<HTMLButtonElement>('cem-chip[checkable]:not([checked]) button');
+        const checked = harness.query<HTMLButtonElement>('cem-chip[checkable][checked] button');
+
+        expect(passive).toBeInstanceOf(HTMLSpanElement);
+        expect(passive.hasAttribute('aria-pressed')).toBe(false);
+        expect(passive.tabIndex).toBe(-1);
+        expect(unchecked).toBeInstanceOf(HTMLButtonElement);
+        expect(unchecked.type).toBe('button');
+        expect(assertAccessibleName(unchecked, 'Owner filter')).toBe('Owner filter');
+        expect(unchecked.getAttribute('aria-pressed')).toBe('false');
+        expect(checked.getAttribute('aria-pressed')).toBe('true');
+        await assertFocusVisible(unchecked);
+
+        unchecked.click();
+        await nextRenderFrame();
+
+        const pressed = harness.query<HTMLButtonElement>('cem-chip[checkable]:not([checked]) button');
+        const pressedSnapshot = runtime.snapshotInstance(uncheckedHost);
+        const pressedPayload = eventPayload(pressedSnapshot, 'checked');
+        expect(pressed.getAttribute('aria-pressed')).toBe('true');
+        expect(pressedSnapshot.slices.checked).toBe(true);
+        expect(pressedPayload).toMatchObject({
+            bubbles: true,
+            sliceValue: true,
+            type: 'click',
+        });
+        expect(pressedPayload.target).toMatchObject({
+            tag: 'button',
+            type: 'button',
+        });
+
+        pressed.click();
+        await nextRenderFrame();
+
+        const released = harness.query<HTMLButtonElement>('cem-chip[checkable]:not([checked]) button');
+        const releasedSnapshot = runtime.snapshotInstance(uncheckedHost);
+        expect(released.getAttribute('aria-pressed')).toBe('false');
+        expect(releasedSnapshot.slices.checked).toBe(false);
+        expect(eventPayload(releasedSnapshot, 'checked').sliceValue).toBe(false);
+        expect(() => assertAriaReferenceIntegrity(harness.root)).not.toThrow();
+    });
+
     it('preserves empty states, indeterminate progress, and live-region roles', async () => {
         harness = createComponentHarness();
         const root = await harness.render(`

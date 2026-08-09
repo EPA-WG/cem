@@ -83,6 +83,7 @@ attributes consistent with reflected state.
 | `aria-invalid="true"` | Required when the field validity is failed. Pair with `aria-describedby` pointing at the error message. |
 | `aria-expanded` | Required on disclosure / popover / menu triggers; reflects open/closed. |
 | `aria-selected` | Required on selectable list/nav rows. |
+| `checked` | A `cem-chip[checkable]` native toggle button MUST expose the current boolean state through `aria-pressed`; passive chips do not expose pressed state. |
 | `aria-current` | Required on the active nav item; value `"page"` or `"step"` per WHATWG/ARIA. |
 
 The catalog enforces presence; runtime enforces *timing* — the attribute MUST

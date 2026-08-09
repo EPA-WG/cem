@@ -376,7 +376,7 @@
             "components": ["cem-list", "cem-table", "cem-chip"],
             "interaction": "Select a content row or chip and distinguish it from hover and keyboard focus.",
             "status": "gap",
-            "reason": "No browser assertion selects a list/table row or chip or checks its reflected selected state."
+            "reason": "Checkable chips own checked/aria-pressed semantics, while no list/table row or option contract yet owns reflected selected state distinct from hover and keyboard focus."
         },
         {
             "id": "content:loading",
@@ -407,8 +407,16 @@
             "state": "checked",
             "components": ["cem-chip"],
             "interaction": "Toggle a filter chip and mirror checked and selected treatment.",
-            "status": "gap",
-            "reason": "The chip primitive has no checked-state browser assertion."
+            "status": "covered",
+            "owner": "packages/cem-components/src/lib/states.browser.spec.ts",
+            "test": "toggles checkable content chips without changing passive chip semantics",
+            "assertions": [
+                "expect(passive).toBeInstanceOf(HTMLSpanElement);",
+                "expect(unchecked.getAttribute('aria-pressed')).toBe('false');",
+                "expect(checked.getAttribute('aria-pressed')).toBe('true');",
+                "expect(pressedSnapshot.slices.checked).toBe(true);",
+                "expect(releasedSnapshot.slices.checked).toBe(false);"
+            ]
         },
         {
             "id": "feedback:default",

@@ -171,10 +171,14 @@ export const CEM_COMPONENT_PRIMITIVES = [
     },
     {
         tag: 'cem-chip',
-        description: 'MVP compact filter, token, or removable label.',
+        description: 'MVP compact label with an opt-in checked toggle mode.',
         cemMl:
             '{attribute @name=label | Chip}' +
-            '{span @class=cem-chip @aria-label="{$label}" | {slot | {$label}}}',
+            '{cem:choose |' +
+            ' {cem:when @test="datadom.attributes.checkable" | {cem:choose |' +
+            '  {cem:when @test="datadom.slices.checked ?? datadom.attributes.checked" | {button @type=button @class=cem-chip @aria-label="{$label}" @aria-pressed=true @slice=checked @slice-event=click @slice-value=false | {slot | {$label}}}}' +
+            '  {cem:otherwise | {button @type=button @class=cem-chip @aria-label="{$label}" @aria-pressed=false @slice=checked @slice-event=click @slice-value=true | {slot | {$label}}}}}}' +
+            ' {cem:otherwise | {span @class=cem-chip @aria-label="{$label}" | {slot | {$label}}}}}',
     },
     {
         tag: 'cem-badge',
