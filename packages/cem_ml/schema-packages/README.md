@@ -457,6 +457,55 @@ metadata, host document integration, external `@import` and `url()` policy, and
 source-map hooks. CSS source is not CEM-ML syntax; parser/adaptor support is
 separate from the schema package.
 
+### Planned SCSS Source Identity
+
+This section is target design for the future `scss/v1` package; no SCSS schema
+package or runtime adapter is implemented yet.
+
+| Property | SCSS v1 decision |
+| --- | --- |
+| Schema | `https://cem.dev/ns/data/scss/1` |
+| Canonical content type | `text/vnd.cem.scss` |
+| Compatibility alias | `text/x-scss` |
+| Source extension | `.scss`; the indented `.sass` syntax is outside v1 |
+| Encoding | UTF-8; accept no content-type parameter except an optional charset whose normalized form is `charset=utf-8` |
+| Dated compatibility reference | [Dart Sass 1.101.7](https://github.com/sass/dart-sass/releases/tag/1.101.7) |
+
+The Dart Sass version is a fixed language-compatibility reference, not a claim
+that every Dart Sass behavior is already supported. Each surface must move from
+a documented gap to supported status through package-owned conformance tests:
+
+| Surface | SCSS v1 policy | Initial conformance state |
+| --- | --- | --- |
+| SCSS syntax, values, variables, operators, nesting, and interpolation | Match Dart Sass 1.101.7 where the package matrix marks a feature supported | Gap until parser and evaluator fixtures pass |
+| Mixins, functions, content blocks, control flow, extension, and generated selectors | Preserve definition, invocation, and expansion semantics in the typed transformation | Gap until feature-specific fixtures pass |
+| [`@use`](https://sass-lang.com/documentation/at-rules/use/) and [`@forward`](https://sass-lang.com/documentation/at-rules/forward/) | Normative module system, including explicit resolver and single-load semantics | Gap until resolver, configuration, cycle, and visibility fixtures pass |
+| Sass `@import` | Accept for compatibility and emit a schema-owned deprecation warning, following the [current Sass migration guidance](https://sass-lang.com/documentation/breaking-changes/import/) | Compatibility path; warning and migration fixtures required |
+| CSS syntax accepted by SCSS | Preserve supported CSS semantics through SCSS evaluation | Gap until cross-package CSS fixtures pass |
+| Indented `.sass` syntax | Excluded from v1 rather than inferred from content | Conforming rejection required |
+| Dart Sass CLI/API behavior and CSS byte-for-byte serialization | Not a compatibility target; CEM owns resolver policy, diagnostics, AST construction, formatting, and serialization | Outside the parity claim |
+
+SCSS bytes retain the SCSS schema and content identity throughout parsing,
+module loading, and expansion. Evaluation then hands off a typed
+`CssDocumentAst` under the existing [`css/v1`](./css/v1/README.md) schema and
+namespace. Every generated CSS node must retain an origin chain for its SCSS
+module, source definition, call site, and interpolation spans.
+Browser-facing serialization occurs only after this typed handoff and is always
+`text/css`; raw SCSS bytes must never be labeled or served as CSS.
+
+The recommended parser strategy is to pin the future Rust dependency exactly
+and disable its default features:
+
+```toml
+grass_compiler = { version = "=0.13.4", default-features = false }
+```
+
+Use the crate's public
+[`sass_ast`](https://docs.rs/grass_compiler/0.13.4/grass_compiler/sass_ast/index.html)
+as the SCSS syntax AST, then perform CEM-owned evaluation directly into
+`CssDocumentAst`. The `grass_compiler` CSS serializer is not part of the
+pipeline, and generated CSS text must not be reparsed to recover a CSS AST.
+
 `json-schema/v1` defines JSON Schema document identity. It owns
 `application/schema+json`, depends on `json/v1`, and models JSON Schema
 dialect, vocabulary, reference, and validation-resource metadata separately

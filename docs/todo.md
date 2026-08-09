@@ -121,7 +121,7 @@ mediate between internal layers.
 
 - [ ] Add SCSS as a distinct schema-owned source that transforms into the
       lifecycle-owned CSS AST stream.
-  - [ ] Before adding fixtures, choose and document the SCSS schema/content
+  - [x] Before adding fixtures, choose and document the SCSS schema/content
         identity, source extension, supported language/dialect version, module
         system baseline, and compatibility policy without claiming `text/css`.
   - [ ] Create `schema-packages/scss/v1` with the normal schema-package
