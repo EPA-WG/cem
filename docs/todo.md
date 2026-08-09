@@ -10,9 +10,9 @@ history is preserved in
 
 The CSS selector query and SCSS-to-CSS lifecycle slices are complete. The active
 work is closing the Phase 4 component state matrix in priority order. The
-`layout:empty` slice is verified; the audit now recommends `content:loading`,
-whose owner and semantics must be accepted before adding another component
-fixture or runtime branch.
+`content:loading` owner and implementation are complete; its package verification
+gate remains before the audit can advance to the recommended `layout:loading`
+decision.
 
 The cross-layer architecture remains serializer-free: lifecycle loading, graph
 routing, joins, evaluators, CEM-QL, CEMT, and XSLT adapters must exchange
@@ -376,18 +376,23 @@ mediate between internal layers.
     observation, CEM-ML conditionals, light-DOM diffing, and slot projection are
     expected to suffice; implementation must stop if the red fixture disproves
     stable section/header/body or surviving-focus identity.
-- [ ] Implement the accepted `content:loading` contract tests-first.
-  - Add the smallest focused red browser fixture for ordinary and busy cards,
-    initial authored status/skeleton payload, retained refresh content,
-    presence-only initialization, host-attribute transitions, stable
-    section/header/body and surviving focus, exact busy semantics, and settled
-    content/empty ordering. Assert that list, table, and media preview do not own
-    or inherit this state.
-  - Implement only the accepted `cem-card` declarative branches. Add no resource
-    work, timing, slice, event, inert behavior, alternate slot, or synthesized
-    status/placeholder; stop if stable rendered identity needs new substrate.
-  - Update the component reference and accessibility/conventions docs, then
-    promote only the `content:loading` audit row.
+- [x] Implement the accepted `content:loading` contract tests-first.
+  - Added the focused browser case first; the existing eight cases stayed green
+    and the new case failed only because the card section lacked the accepted
+    loading marker. After implementation, all nine focused state tests pass.
+  - Added only the accepted declarative `cem-card` branches. Ordinary output is
+    unchanged; presence-only `busy`, including `busy="false"`, adds exact
+    `data-state="loading"` and `aria-busy="true"` to the same stable named
+    section while retaining the authored header, body, and payload.
+  - Proved visible initial status/skeleton fallback, retained refresh dimensions,
+    stable section/header/body and surviving focus through host-attribute
+    transitions, collection-owned settled empty content, and list/table/media
+    preview non-ownership. No resource work, timer, slice, event, inert behavior,
+    alternate slot, or synthesized status/placeholder was added.
+  - Updated the contract, component reference, accessibility, and conventions
+    docs. Promoted only `content:loading` in the audit, yielding 24
+    browser-covered rows, 0 static-only rows, and 15 gaps; `layout:loading` is
+    recommended next after this slice's verification gate.
 - [ ] Verify the `content:loading` slice with focused targets, package lint, the
       state-matrix audit, and the aggregate `@epa-wg/cem-components:verify`
       gate; then confirm the audit's next recommended gap.

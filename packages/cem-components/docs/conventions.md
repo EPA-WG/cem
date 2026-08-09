@@ -103,7 +103,7 @@ and ARIA computations can observe it:
 | --- | --- |
 | `data-state="loading"` | Async operation pending (per AC-V-6 loading state). |
 | `data-state="empty"` | An explicit settled empty state is active. `cem-surface[empty]` mirrors it on the rendered section; stacks and grids do not infer it from child count. |
-| `aria-busy="true"` | Component is mid-update and not safe to interact with. |
+| `aria-busy="true"` | Component or named region is mid-update. This does not disable or make descendants inert. |
 | `aria-invalid="true"` | Form field failed validation. |
 | `aria-disabled="true"` | Mirrors the `disabled` attribute on non-form components. |
 | `aria-expanded="true"` | Disclosure or popover open. |
@@ -199,7 +199,7 @@ Components do NOT hard-code user-facing strings. The error message comes from on
 
 ## 6. Loading States
 
-Components MUST treat asynchronous work as a first-class state:
+Components that own asynchronous work MUST treat it as a first-class state:
 
 - While the work is pending: set `data-state="loading"` and `aria-busy="true"`.
   Preserve layout dimensions; do not collapse to zero size.
@@ -214,6 +214,17 @@ Components MUST treat asynchronous work as a first-class state:
 The `cem_ml` async API (AC-A-1..AC-A-7) is the source of truth for cancellation
 semantics. Components MUST accept an `AbortSignal` via property when they perform
 async work directly.
+
+State-projecting components do not inherit that resource lifecycle. In
+particular, presence-only `cem-card[busy]` adds exact
+`data-state="loading"` and `aria-busy="true"` to its stable named section while
+retaining its authored header/body payload. The application or workflow sets and
+clears `busy`, selects content/empty/error outcomes, and owns any request,
+cancellation, control disabling, and status feedback. The card creates no slice,
+timer, request, lifecycle event, live region, or inert subtree. Initial loading
+uses visible authored text and optional `cem-skeleton` composition; background
+refresh SHOULD retain last-known content. See the
+[content loading contract](./content-loading-contract.md).
 
 ## 7. Progressive Enhancement
 

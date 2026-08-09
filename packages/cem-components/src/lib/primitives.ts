@@ -169,12 +169,16 @@ export const CEM_COMPONENT_PRIMITIVES = [
     },
     {
         tag: 'cem-card',
-        description: 'MVP card surface for profile, asset, and message summaries.',
+        description: 'MVP card surface for profile, asset, and message summaries with explicit busy content state.',
         cemMl:
             '{attribute @name=label | Card}' +
-            '{section @class=cem-card @aria-label="{$label}" |' +
-            ' {header @class=cem-card__header | {slot @name=title | {$label}}}' +
-            ' {div @class=cem-card__body | {slot}}}',
+            '{cem:choose |' +
+            ' {cem:when @test="datadom.attributes.busy" | {section @class=cem-card @aria-label="{$label}" @data-state=loading @aria-busy=true |' +
+            '  {header @class=cem-card__header | {slot @name=title | {$label}}}' +
+            '  {div @class=cem-card__body | {slot}}}}' +
+            ' {cem:otherwise | {section @class=cem-card @aria-label="{$label}" |' +
+            '  {header @class=cem-card__header | {slot @name=title | {$label}}}' +
+            '  {div @class=cem-card__body | {slot}}}}}',
     },
     {
         tag: 'cem-table',

@@ -10,7 +10,7 @@
         "content:loading",
         "layout:loading"
     ],
-    "recommendedNext": "content:loading",
+    "recommendedNext": "layout:loading",
     "coverage": [
         {
             "id": "action:default",
@@ -407,8 +407,17 @@
             "state": "loading",
             "components": ["cem-list", "cem-table", "cem-card", "cem-media-preview"],
             "interaction": "Mark content busy while preserving dimensions and an accessible loading status.",
-            "status": "gap",
-            "reason": "Feedback progress/skeleton coverage exists, but no content primitive owns a loading assertion."
+            "status": "covered",
+            "owner": "packages/cem-components/src/lib/states.browser.spec.ts",
+            "test": "marks explicit busy cards without making nested content primitives loading owners",
+            "assertions": [
+                "expect(initial.getAttribute('data-state')).toBe('loading');",
+                "expect(initial.getAttribute('aria-busy')).toBe('true');",
+                "expect(settledCard).toBe(refreshCard);",
+                "expect(document.activeElement).toBe(pendingButton);",
+                "expect(candidate.hasAttribute('data-state')).toBe(false);",
+                "expect(lifecycleEvents).toEqual([]);"
+            ]
         },
         {
             "id": "content:empty",

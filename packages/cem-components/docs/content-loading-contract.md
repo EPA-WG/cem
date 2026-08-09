@@ -1,8 +1,8 @@
 # Content Loading Contract
 
-**Status:** Accepted Phase 4 contract; implementation is pending. This decision
-is promoted by [`docs/todo.md`](../../../docs/todo.md). No fixture or runtime
-branch is part of this contract slice.
+**Status:** Implemented Phase 4 contract. This contract is promoted by
+[`docs/todo.md`](../../../docs/todo.md) and is covered by the focused browser
+test in [`states.browser.spec.ts`](../src/lib/states.browser.spec.ts).
 
 ## Decision
 
@@ -206,3 +206,11 @@ The implementation slice is complete only when a focused browser test proves:
   owner; and
 - only the `content:loading` state-matrix audit row changes after the red fixture
   identifies the missing state reflection.
+
+The browser test `marks explicit busy cards without making nested content
+primitives loading owners` is the executable owner of these requirements. It
+covers progressive fallback, ordinary and presence-only busy cards, retained
+refresh payload and geometry, exact state/ARIA reflection, loading-to-content
+and loading-to-empty transitions, stable rendered-node and focus identity,
+non-owning list/table/media-preview candidates, and the absence of automatic
+live, inert, slice, resource, or lifecycle-event behavior.

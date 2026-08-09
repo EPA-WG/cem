@@ -110,7 +110,7 @@ States: `default`, `hover`, `focus-visible`, `active`, `disabled`, `selected`, `
 
 | Component | Semantics | Content and Attributes | Token Families | Required A11y |
 | --- | --- | --- | --- | --- |
-| `cem-card` | Summary surface. | `slot="title"` for heading; default slot for body. | palette, stroke, bend, gap, inset | Label or visible title must name the region when used as a landmark-like summary. |
+| `cem-card` | Summary surface and explicit content-loading boundary. | `slot="title"` for heading; default slot for body. Presence-only `busy` retains the authored payload and reflects loading state without starting resource work. | palette, stroke, bend, gap, inset | `label` names the section. Busy state adds exact `data-state="loading"` and `aria-busy="true"` without a live region, inert subtree, or focus move. |
 | `cem-list` | Passive collection wrapper by default; native single-select listbox with `selectable`. | Passive mode projects `<li>` rows. Selectable mode consumes direct `cem-list-option` payload with required `value` and optional `selected`/`disabled`; parent `label`, `value`, and `size` configure the listbox. | palette, stroke, gap, typography | The list or listbox must be named. Selectable mode keeps focus and keyboard behavior on the native `<select>`, reflects exact option `aria-selected`, and does not participate in forms. |
 | `cem-table` | Structured comparison or data grid surface. | Project ARIA rows/cells. | palette, stroke, gap, typography | Renders `role="table"` and needs a label. |
 | `cem-chip` | Compact label or filter toggle. | Default slot is visible label; `label` can provide a fuller name. Without `checkable`, renders a passive `<span>`. With `checkable`, renders a native toggle `<button>` and uses the presence-only `checked` attribute as its initial state. | palette, action, bend, inset, typography | Checkable chips mirror their boolean slice through `aria-pressed`; removable chips need a separate named remove action. |
@@ -119,6 +119,12 @@ States: `default`, `hover`, `focus-visible`, `active`, `disabled`, `selected`, `
 | `cem-media-preview` | Asset thumbnail or object preview. | Project image/media; `slot="caption"` for caption. | palette, stroke, bend, gap | Media must carry its own accessible alternative text. |
 
 States: `default`, `hover`, `focus-visible`, `selected`, `loading`, `empty`, `checked`.
+
+In v1, `content:loading` is owned only by `cem-card[busy]`; lists, tables, and
+media previews neither infer nor inherit it. Authors retain last-known content
+during refresh or provide visible loading text plus layout-preserving
+`cem-skeleton` payload for initial loading. See the
+[content loading contract](./content-loading-contract.md).
 
 ## Feedback
 

@@ -476,6 +476,176 @@ describe('CEM component primitive states and ARIA behavior', () => {
         expect(() => assertAriaReferenceIntegrity(harness.root)).not.toThrow();
     });
 
+    it('marks explicit busy cards without making nested content primitives loading owners', async () => {
+        const authoredFallback = document.createElement('cem-card');
+        authoredFallback.setAttribute('label', 'Assets');
+        authoredFallback.setAttribute('busy', '');
+        authoredFallback.innerHTML = `
+            <span slot="title">Assets</span>
+            <p>Loading assets…</p>
+            <cem-skeleton label="Asset rows"></cem-skeleton>
+        `;
+        expect(authoredFallback.childElementCount).toBe(3);
+        expect(authoredFallback.textContent).toContain('Loading assets…');
+        expect(authoredFallback.querySelector('cem-skeleton')?.getAttribute('label')).toBe('Asset rows');
+
+        harness = createComponentHarness();
+        const root = await harness.render(`
+            <cem-stack gap="sm">
+                <cem-card label="Ordinary card">
+                    <span slot="title">Ordinary card</span>
+                    <p>Ready</p>
+                </cem-card>
+                <cem-card label="Initial assets" busy>
+                    <span slot="title">Initial assets</span>
+                    <p class="loading-message">Loading assets…</p>
+                    <cem-skeleton label="Asset rows"></cem-skeleton>
+                    <cem-skeleton label="Asset preview"></cem-skeleton>
+                </cem-card>
+                <cem-card label="Profile" busy="false">
+                    <span slot="title">Profile</span>
+                    <p>Grace Hopper</p>
+                    <button type="button">Edit profile</button>
+                </cem-card>
+                <cem-card label="Empty assets" busy>
+                    <span slot="title">Empty assets</span>
+                    <cem-list label="Assets"></cem-list>
+                </cem-card>
+                <cem-list id="busy-list" label="Standalone list" busy></cem-list>
+                <cem-table id="busy-table" label="Standalone table" busy></cem-table>
+                <cem-media-preview id="busy-preview" label="Standalone preview" busy></cem-media-preview>
+            </cem-stack>
+        `);
+        await waitForStateSelector(root, '#busy-preview > .cem-media-preview');
+
+        const ordinary = harness.query<HTMLElement>('cem-card[label="Ordinary card"] > section');
+        const initialHost = harness.query<HTMLElement>('cem-card[label="Initial assets"]');
+        const initial = harness.query<HTMLElement>('cem-card[label="Initial assets"] > section');
+        const initialHeader = harness.query<HTMLElement>('cem-card[label="Initial assets"] > section > header');
+        const initialBody = harness.query<HTMLElement>('cem-card[label="Initial assets"] .cem-card__body');
+        const initialMessage = harness.query<HTMLParagraphElement>('cem-card[label="Initial assets"] .loading-message');
+        const skeletons = Array.from(
+            harness.root.querySelectorAll<HTMLElement>('cem-card[label="Initial assets"] cem-skeleton .cem-skeleton'),
+        );
+        const refreshHost = harness.query<HTMLElement>('cem-card[label="Profile"]');
+        const refreshCard = harness.query<HTMLElement>('cem-card[label="Profile"] > section');
+        const refreshHeader = harness.query<HTMLElement>('cem-card[label="Profile"] > section > header');
+        const refreshBody = harness.query<HTMLElement>('cem-card[label="Profile"] .cem-card__body');
+        const refreshButton = harness.query<HTMLButtonElement>('cem-card[label="Profile"] button');
+        const emptyHost = harness.query<HTMLElement>('cem-card[label="Empty assets"]');
+        const emptyCard = harness.query<HTMLElement>('cem-card[label="Empty assets"] > section');
+        const emptyList = harness.query<HTMLUListElement>('cem-card[label="Empty assets"] cem-list ul');
+        const standaloneList = harness.query<HTMLUListElement>('#busy-list > ul');
+        const standaloneTable = harness.query<HTMLElement>('#busy-table > [role="table"]');
+        const standalonePreview = harness.query<HTMLElement>('#busy-preview > .cem-media-preview');
+
+        assertStateHostsRendered(
+            harness.root,
+            'cem-card, #busy-list, #busy-table, #busy-preview, cem-card cem-skeleton',
+        );
+        expect(ordinary.className).toBe('cem-card');
+        expect(ordinary.getAttribute('aria-label')).toBe('Ordinary card');
+        expect(ordinary.hasAttribute('data-state')).toBe(false);
+        expect(ordinary.hasAttribute('aria-busy')).toBe(false);
+        expect(ordinary.querySelector('.cem-card__header')?.textContent?.trim()).toBe('Ordinary card');
+        expect(ordinary.querySelector('.cem-card__body')?.textContent?.trim()).toBe('Ready');
+
+        expect(assertAccessibleName(initial, 'Initial assets')).toBe('Initial assets');
+        expect(initial.getAttribute('data-state')).toBe('loading');
+        expect(initial.getAttribute('aria-busy')).toBe('true');
+        expect(initialHeader.className).toBe('cem-card__header');
+        expect(initialBody.className).toBe('cem-card__body');
+        expect(initialMessage.textContent?.trim()).toBe('Loading assets…');
+        expect(initialMessage.getAttribute('role')).toBeNull();
+        expect(initialMessage.getAttribute('aria-live')).toBeNull();
+        expect(skeletons).toHaveLength(2);
+        expect(skeletons.every((skeleton) => skeleton.getAttribute('aria-hidden') === 'true')).toBe(true);
+        expect(initial.querySelector('[role="status"], [role="alert"], [aria-live]')).toBeNull();
+        expect(initial.hasAttribute('inert')).toBe(false);
+
+        expect(refreshCard.getAttribute('data-state')).toBe('loading');
+        expect(refreshCard.getAttribute('aria-busy')).toBe('true');
+        expect(refreshCard.textContent).toContain('Grace Hopper');
+        expect(refreshButton.disabled).toBe(false);
+        expect(refreshButton.tabIndex).toBe(0);
+        expect(emptyCard.getAttribute('data-state')).toBe('loading');
+        expect(emptyList.querySelector('.cem-list__empty')?.textContent?.trim()).toBe('No items');
+
+        for (const candidate of [standaloneList, standaloneTable, standalonePreview]) {
+            expect(candidate.hasAttribute('data-state')).toBe(false);
+            expect(candidate.hasAttribute('aria-busy')).toBe(false);
+        }
+
+        const refreshRect = refreshCard.getBoundingClientRect();
+        expect(refreshRect.width).toBeGreaterThan(0);
+        expect(refreshRect.height).toBeGreaterThan(0);
+        const lifecycleEvents: string[] = [];
+        for (const name of ['cem-loaded', 'cem-error', 'cem-cancel']) {
+            refreshHost.addEventListener(name, () => lifecycleEvents.push(name));
+        }
+
+        await assertFocusVisible(refreshButton);
+        refreshHost.removeAttribute('busy');
+        await nextRenderFrame();
+        await runtime.whenRenderSettled(refreshHost);
+        await nextRenderFrame();
+
+        const settledCard = harness.query<HTMLElement>('cem-card[label="Profile"] > section');
+        const settledHeader = harness.query<HTMLElement>('cem-card[label="Profile"] > section > header');
+        const settledBody = harness.query<HTMLElement>('cem-card[label="Profile"] .cem-card__body');
+        const settledButton = harness.query<HTMLButtonElement>('cem-card[label="Profile"] button');
+        const settledRect = settledCard.getBoundingClientRect();
+        expect(settledCard).toBe(refreshCard);
+        expect(settledHeader).toBe(refreshHeader);
+        expect(settledBody).toBe(refreshBody);
+        expect(settledButton).toBe(refreshButton);
+        expect(settledCard.hasAttribute('data-state')).toBe(false);
+        expect(settledCard.hasAttribute('aria-busy')).toBe(false);
+        expect(settledRect.width).toBe(refreshRect.width);
+        expect(settledRect.height).toBe(refreshRect.height);
+        expect(document.activeElement).toBe(settledButton);
+
+        refreshHost.setAttribute('busy', '');
+        await nextRenderFrame();
+        await runtime.whenRenderSettled(refreshHost);
+        await nextRenderFrame();
+
+        const pendingAgain = harness.query<HTMLElement>('cem-card[label="Profile"] > section');
+        const pendingButton = harness.query<HTMLButtonElement>('cem-card[label="Profile"] button');
+        const pendingRect = pendingAgain.getBoundingClientRect();
+        expect(pendingAgain).toBe(refreshCard);
+        expect(pendingButton).toBe(refreshButton);
+        expect(pendingAgain.getAttribute('data-state')).toBe('loading');
+        expect(pendingAgain.getAttribute('aria-busy')).toBe('true');
+        expect(pendingRect.width).toBe(refreshRect.width);
+        expect(pendingRect.height).toBe(refreshRect.height);
+        expect(document.activeElement).toBe(pendingButton);
+
+        emptyHost.removeAttribute('busy');
+        await nextRenderFrame();
+        await runtime.whenRenderSettled(emptyHost);
+        await nextRenderFrame();
+
+        const settledEmptyCard = harness.query<HTMLElement>('cem-card[label="Empty assets"] > section');
+        const settledEmptyList = harness.query<HTMLUListElement>('cem-card[label="Empty assets"] cem-list ul');
+        expect(settledEmptyCard).toBe(emptyCard);
+        expect(settledEmptyCard.hasAttribute('data-state')).toBe(false);
+        expect(settledEmptyCard.hasAttribute('aria-busy')).toBe(false);
+        expect(settledEmptyList).toBe(emptyList);
+        expect(settledEmptyList.querySelector('.cem-list__empty')?.textContent?.trim()).toBe('No items');
+
+        const initialSnapshot = runtime.snapshotInstance(initialHost);
+        const refreshSnapshot = runtime.snapshotInstance(refreshHost);
+        expect(initialSnapshot.slices).not.toHaveProperty('busy');
+        expect(initialSnapshot.slices).not.toHaveProperty('loading');
+        expect(initialSnapshot.eventPayloads).not.toHaveProperty('busy');
+        expect(initialSnapshot.eventPayloads).not.toHaveProperty('loading');
+        expect(refreshSnapshot.slices).not.toHaveProperty('busy');
+        expect(refreshSnapshot.eventPayloads).not.toHaveProperty('busy');
+        expect(lifecycleEvents).toEqual([]);
+        expect(() => assertAriaReferenceIntegrity(harness.root)).not.toThrow();
+    });
+
     it('marks explicit empty workflow surfaces without inferring layout emptiness', async () => {
         const authoredFallback = document.createElement('cem-surface');
         authoredFallback.setAttribute('label', 'Asset results');
