@@ -79,7 +79,7 @@ attributes consistent with reflected state.
 | --- | --- |
 | `disabled` | `aria-disabled="true"` on non-form composites (form components rely on the native `disabled`). |
 | `data-state="loading"` | `aria-busy="true"` for the duration of the loading state. |
-| `data-state="empty"` | None (the empty content carries its own semantics). |
+| `data-state="empty"` | No ARIA attribute. `cem-surface[empty]` reflects this marker on its named section while the visible authored guidance and next action carry their own semantics; the surface does not become a live region. |
 | `aria-invalid="true"` | Required when the field validity is failed. Pair with `aria-describedby` pointing at the error message. |
 | `aria-expanded` | Required on disclosure / popover / menu triggers; reflects open/closed. `cem-nav[collapsible]` puts it on its native button and keeps the sibling content container's `hidden` state in exact agreement. |
 | `aria-selected` | Required on selectable list options and navigation rows. `cem-list[selectable]` mirrors the native option selectedness exactly; passive lists and static table rows do not expose it. |
@@ -111,6 +111,9 @@ For every component that emits `id`/`for`/`aria-*` references at runtime:
 - `cem-nav[collapsible]` keeps focus on its native disclosure button after a
   toggle. Open projected links follow the button in normal tab order; native
   `hidden` removes closed content from sequential focus navigation.
+- `cem-surface[empty]` does not receive focus or move focus during state
+  transitions. Surviving projected controls retain focus; a workflow that
+  removes a focused descendant owns recovery because it knows the valid target.
 - Composite components decide tabindex per the WAI-ARIA Authoring Practices for
   their composite pattern (e.g. menubar = one tabstop, internal arrow keys). Per
   pattern, the component MUST set `tabindex="0"` on the entrypoint and

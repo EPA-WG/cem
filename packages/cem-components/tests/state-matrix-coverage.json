@@ -10,7 +10,7 @@
         "content:loading",
         "layout:loading"
     ],
-    "recommendedNext": "layout:empty",
+    "recommendedNext": "content:loading",
     "coverage": [
         {
             "id": "action:default",
@@ -333,8 +333,15 @@
             "state": "empty",
             "components": ["cem-surface", "cem-stack", "cem-grid"],
             "interaction": "Render an empty layout region with visible guidance and a next action path.",
-            "status": "gap",
-            "reason": "No layout workflow asserts an empty region or recovery action."
+            "status": "covered",
+            "owner": "packages/cem-components/src/lib/states.browser.spec.ts",
+            "test": "marks explicit empty workflow surfaces without inferring layout emptiness",
+            "assertions": [
+                "expect(emptySurface.getAttribute('data-state')).toBe('empty');",
+                "expect(guidance.textContent?.trim()).toBe('Upload an asset to begin building this collection.');",
+                "expect(emptyGrid.hasAttribute('data-state')).toBe(false);",
+                "expect(document.activeElement).toBe(recoveryAfterAddition);"
+            ]
         },
         {
             "id": "content:default",

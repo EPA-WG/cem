@@ -323,19 +323,22 @@ mediate between internal layers.
     Existing attribute observation, CEM-ML conditionals, light-DOM diffing, and
     slot projection are expected to suffice; implementation must stop if the red
     fixture disproves that boundary.
-- [ ] Implement the accepted `layout:empty` contract tests-first.
-  - Add a focused red browser fixture with ordinary and empty surfaces plus
-    empty stacks/grids. Prove the named stable section, visible guidance and
-    native next action, exact marker omission/presence, absence of inferred
-    layout fallbacks or live semantics, host-attribute transitions, and focus
-    retention before changing the primitive.
-  - Add only the accepted declarative `cem-surface` state branches. Keep the
-    ordinary branch byte-for-byte stable, project the same authored payload, and
-    do not add child counting, hidden alternate content, slices, custom events,
-    imperative focus, or application behavior.
-  - Update the component, accessibility, and boolean-state docs and promote only
-    `layout:empty` in the audit after the red fixture identifies the missing
-    marker.
+- [x] Implement the accepted `layout:empty` contract tests-first.
+  - Added the focused browser fixture red first. All existing tests passed and
+    the new case failed only on the absent `data-state="empty"`; after the
+    primitive change all 8 focused state tests passed.
+  - Added only the accepted declarative `cem-surface` branches. Ordinary output
+    remains unchanged; explicit empty state adds the exact marker to the same
+    stable named section while projecting the same authored payload. No child
+    counting, alternate slot, slice, custom event, focus handler, or application
+    behavior was added.
+  - Proved pre-upgrade fallback guidance, presence-only authoring, stack/grid
+    non-ownership, native next-action semantics, absence of automatic live or
+    focus semantics, stable host-attribute transitions, focus retention, and no
+    serialized empty state/event.
+  - Updated the contract, component reference, accessibility, and boolean-state
+    docs. Promoted only `layout:empty` in the audit, yielding 23 browser-covered
+    rows, 0 static-only rows, and 16 gaps; `content:loading` is next.
 - [ ] Verify the `layout:empty` slice with focused targets, package lint, the
       state-matrix audit, and the aggregate `@epa-wg/cem-components:verify`
       gate; then confirm the audit's next recommended gap.

@@ -476,6 +476,111 @@ describe('CEM component primitive states and ARIA behavior', () => {
         expect(() => assertAriaReferenceIntegrity(harness.root)).not.toThrow();
     });
 
+    it('marks explicit empty workflow surfaces without inferring layout emptiness', async () => {
+        const authoredFallback = document.createElement('cem-surface');
+        authoredFallback.setAttribute('label', 'Asset results');
+        authoredFallback.setAttribute('empty', '');
+        authoredFallback.innerHTML = `
+            <h2>No assets yet</h2>
+            <p>Upload an asset to begin building this collection.</p>
+            <a href="#authored-upload">Upload an asset</a>
+        `;
+        expect(authoredFallback.childElementCount).toBe(3);
+        expect(authoredFallback.textContent).toContain('No assets yet');
+        expect(authoredFallback.querySelector('a')?.getAttribute('href')).toBe('#authored-upload');
+
+        harness = createComponentHarness();
+        const root = await harness.render(`
+            <cem-stack gap="sm">
+                <cem-surface label="Dashboard">
+                    <p>Ready</p>
+                </cem-surface>
+                <cem-surface label="Asset results" empty>
+                    <h2>No assets yet</h2>
+                    <p>Upload an asset to begin building this collection.</p>
+                    <a href="#new-asset">Upload an asset</a>
+                </cem-surface>
+                <cem-surface label="False-token results" empty="false">
+                    <p>No matching results.</p>
+                    <a href="#clear-filters">Clear filters</a>
+                </cem-surface>
+                <cem-stack id="empty-stack" empty></cem-stack>
+                <cem-grid id="empty-grid" empty></cem-grid>
+            </cem-stack>
+        `);
+        await waitForStateSelector(root, '#empty-grid > .cem-grid');
+
+        const ordinaryHost = harness.query<HTMLElement>('cem-surface:not([empty])');
+        const ordinary = harness.query<HTMLElement>('cem-surface:not([empty]) > section');
+        const emptyHost = harness.query<HTMLElement>('cem-surface[empty=""]');
+        const emptySurface = harness.query<HTMLElement>('cem-surface[empty=""] > section');
+        const falseTokenSurface = harness.query<HTMLElement>('cem-surface[empty="false"] > section');
+        const emptyStack = harness.query<HTMLDivElement>('#empty-stack > .cem-stack');
+        const emptyGrid = harness.query<HTMLDivElement>('#empty-grid > .cem-grid');
+        const guidance = harness.query<HTMLParagraphElement>('cem-surface[empty=""] p');
+        const recovery = harness.query<HTMLAnchorElement>('cem-surface[empty=""] a');
+
+        assertStateHostsRendered(harness.root, 'cem-surface, #empty-stack, #empty-grid');
+        expect(ordinary.className).toBe('cem-surface cem-surface--default');
+        expect(ordinary.getAttribute('aria-label')).toBe('Dashboard');
+        expect(ordinary.hasAttribute('data-state')).toBe(false);
+        expect(ordinary.children).toHaveLength(1);
+        expect(ordinary.textContent?.trim()).toBe('Ready');
+        expect(assertAccessibleName(emptySurface, 'Asset results')).toBe('Asset results');
+        expect(emptySurface.className).toBe('cem-surface cem-surface--default');
+        expect(emptySurface.getAttribute('data-state')).toBe('empty');
+        expect(emptySurface.children).toHaveLength(3);
+        expect(emptySurface.querySelector('h2')?.textContent?.trim()).toBe('No assets yet');
+        expect(guidance.textContent?.trim()).toBe('Upload an asset to begin building this collection.');
+        expect(recovery).toBeInstanceOf(HTMLAnchorElement);
+        expect(recovery.getAttribute('href')).toBe('#new-asset');
+        expect(assertAccessibleName(recovery, 'Upload an asset')).toBe('Upload an asset');
+        expect(falseTokenSurface.getAttribute('data-state')).toBe('empty');
+        expect(emptySurface.getAttribute('role')).toBeNull();
+        expect(emptySurface.getAttribute('aria-live')).toBeNull();
+        expect(emptySurface.getAttribute('aria-atomic')).toBeNull();
+        expect(emptySurface.getAttribute('tabindex')).toBeNull();
+        expect(emptySurface.querySelector('[role="status"], [role="alert"], [aria-live]')).toBeNull();
+        expect(emptyStack.hasAttribute('data-state')).toBe(false);
+        expect(emptyStack.getAttribute('role')).toBeNull();
+        expect(emptyStack.childElementCount).toBe(0);
+        expect(emptyStack.textContent?.trim()).toBe('');
+        expect(emptyGrid.hasAttribute('data-state')).toBe(false);
+        expect(emptyGrid.getAttribute('role')).toBeNull();
+        expect(emptyGrid.childElementCount).toBe(0);
+        expect(emptyGrid.textContent?.trim()).toBe('');
+
+        await assertFocusVisible(recovery);
+        emptyHost.removeAttribute('empty');
+        await nextRenderFrame();
+        await runtime.whenRenderSettled(emptyHost);
+        await nextRenderFrame();
+
+        const ordinaryTransition = harness.query<HTMLElement>('cem-surface[label="Asset results"] > section');
+        const recoveryAfterRemoval = harness.query<HTMLAnchorElement>('cem-surface[label="Asset results"] a');
+        expect(ordinaryTransition).toBe(emptySurface);
+        expect(recoveryAfterRemoval).toBe(recovery);
+        expect(ordinaryTransition.hasAttribute('data-state')).toBe(false);
+        expect(document.activeElement).toBe(recoveryAfterRemoval);
+
+        emptyHost.setAttribute('empty', '');
+        await nextRenderFrame();
+        await runtime.whenRenderSettled(emptyHost);
+        await nextRenderFrame();
+
+        const emptyTransition = harness.query<HTMLElement>('cem-surface[label="Asset results"] > section');
+        const recoveryAfterAddition = harness.query<HTMLAnchorElement>('cem-surface[label="Asset results"] a');
+        const snapshot = runtime.snapshotInstance(emptyHost);
+        expect(emptyTransition).toBe(emptySurface);
+        expect(recoveryAfterAddition).toBe(recovery);
+        expect(emptyTransition.getAttribute('data-state')).toBe('empty');
+        expect(document.activeElement).toBe(recoveryAfterAddition);
+        expect(snapshot.slices).not.toHaveProperty('empty');
+        expect(snapshot.eventPayloads).not.toHaveProperty('empty');
+        expect(runtime.snapshotInstance(ordinaryHost).slices).not.toHaveProperty('empty');
+        expect(() => assertAriaReferenceIntegrity(harness.root)).not.toThrow();
+    });
+
     it('preserves empty states, indeterminate progress, and live-region roles', async () => {
         harness = createComponentHarness();
         const root = await harness.render(`

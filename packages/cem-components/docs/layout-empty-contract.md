@@ -1,8 +1,8 @@
 # Layout Empty Contract
 
-**Status:** Accepted Phase 4 design; implementation pending. This contract is
-promoted by [`docs/todo.md`](../../../docs/todo.md) and governs the next
-`layout:empty` implementation slice.
+**Status:** Implemented Phase 4 contract. This contract is promoted by
+[`docs/todo.md`](../../../docs/todo.md) and is covered by the focused browser
+test in [`states.browser.spec.ts`](../src/lib/states.browser.spec.ts).
 
 ## Decision
 
@@ -149,3 +149,10 @@ The implementation slice is complete only when a focused browser test proves:
   semantics; and
 - only the `layout:empty` audit row changes after the red fixture identifies the
   missing state reflection.
+
+The browser test `marks explicit empty workflow surfaces without inferring
+layout emptiness` is the executable owner of these requirements. It covers
+authored fallback content, ordinary and presence-only empty surfaces, ignored
+empty attributes on stacks and grids, exact marker and accessibility behavior,
+host-attribute transitions, stable rendered nodes and payload, focus retention,
+and the absence of an `empty` slice or event payload.
