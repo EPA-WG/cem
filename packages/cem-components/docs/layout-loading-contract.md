@@ -1,8 +1,8 @@
 # Layout Loading Contract
 
-**Status:** Accepted Phase 4 design; implementation pending. This contract is
-promoted by [`docs/todo.md`](../../../docs/todo.md) and governs the next
-`layout:loading` implementation slice.
+**Status:** Implemented Phase 4 contract. This contract is promoted by
+[`docs/todo.md`](../../../docs/todo.md) and is covered by the focused browser
+test in [`states.browser.spec.ts`](../src/lib/states.browser.spec.ts).
 
 ## Decision
 
@@ -216,10 +216,11 @@ The implementation slice is complete only when a focused browser test proves:
 - only the `layout:loading` state-matrix row changes after the red fixture
   identifies the missing state reflection.
 
-The focused browser test should be named `marks explicit busy workflow surfaces
-without making formatting containers loading owners`. It should cover
-progressive fallback, ordinary/empty/busy surfaces, retained refresh layout,
-presence-only initialization, exact state and ARIA reflection, busy/empty
-precedence, stable rendered-node/dimension/placement/focus behavior, ignored
-stack/grid candidates, descendant non-inheritance, and the absence of automatic
-live, inert, slice, resource, and lifecycle-event behavior.
+The browser test `marks explicit busy workflow surfaces without making
+formatting containers loading owners` is the executable owner of these
+requirements. It covers progressive fallback, ordinary/empty/busy surfaces,
+retained refresh layout, presence-only initialization, exact state and ARIA
+reflection, busy/empty precedence, stable rendered-node/dimension/placement/
+focus behavior, ignored stack/grid candidates, descendant non-inheritance, and
+the absence of automatic live, inert, slice, resource, and lifecycle-event
+behavior.

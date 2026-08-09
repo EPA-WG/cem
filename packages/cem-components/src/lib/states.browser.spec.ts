@@ -751,6 +751,237 @@ describe('CEM component primitive states and ARIA behavior', () => {
         expect(() => assertAriaReferenceIntegrity(harness.root)).not.toThrow();
     });
 
+    it('marks explicit busy workflow surfaces without making formatting containers loading owners', async () => {
+        const authoredFallback = document.createElement('cem-surface');
+        authoredFallback.setAttribute('label', 'Asset workspace');
+        authoredFallback.setAttribute('busy', '');
+        authoredFallback.innerHTML = `
+            <h2>Asset workspace</h2>
+            <p>Loading filters and results…</p>
+            <cem-stack gap="md">
+                <cem-skeleton label="Asset filters"></cem-skeleton>
+                <cem-skeleton label="Asset results"></cem-skeleton>
+            </cem-stack>
+        `;
+        expect(authoredFallback.childElementCount).toBe(3);
+        expect(authoredFallback.textContent).toContain('Loading filters and results…');
+        expect(authoredFallback.querySelectorAll('cem-skeleton')).toHaveLength(2);
+
+        harness = createComponentHarness();
+        const root = await harness.render(`
+            <cem-stack gap="sm">
+                <cem-surface label="Ordinary workspace">
+                    <p>Ready</p>
+                </cem-surface>
+                <cem-surface label="Initial workspace" busy>
+                    <h2>Asset workspace</h2>
+                    <p class="loading-message">Loading filters and results…</p>
+                    <cem-stack gap="md">
+                        <cem-skeleton label="Asset filters"></cem-skeleton>
+                        <cem-skeleton label="Asset results"></cem-skeleton>
+                    </cem-stack>
+                    <cem-surface label="Nested ordinary surface">
+                        <p>Nested content</p>
+                    </cem-surface>
+                </cem-surface>
+                <cem-surface label="Profile workspace" busy="false">
+                    <h2>Profile workspace</h2>
+                    <cem-grid columns="2" gap="lg">
+                        <cem-card label="Profile details">
+                            <p>Grace Hopper</p>
+                            <button type="button">Edit profile</button>
+                        </cem-card>
+                        <cem-card label="Preferences">
+                            <p>Daily summaries</p>
+                        </cem-card>
+                    </cem-grid>
+                </cem-surface>
+                <cem-surface label="Empty transition" busy empty>
+                    <h2>No assets yet</h2>
+                    <p>Upload an asset to begin building this collection.</p>
+                    <a href="#new-asset">Upload an asset</a>
+                </cem-surface>
+                <cem-stack id="busy-stack" gap="sm" busy>
+                    <p>Formatting stack</p>
+                </cem-stack>
+                <cem-grid id="busy-grid" columns="2" gap="md" busy>
+                    <p>First cell</p>
+                    <p>Second cell</p>
+                </cem-grid>
+            </cem-stack>
+        `);
+        await waitForStateSelector(root, '#busy-grid > .cem-grid');
+
+        const ordinary = harness.query<HTMLElement>('cem-surface[label="Ordinary workspace"] > section');
+        const initialHost = harness.query<HTMLElement>('cem-surface[label="Initial workspace"]');
+        const initial = harness.query<HTMLElement>('cem-surface[label="Initial workspace"] > section');
+        const initialMessage = harness.query<HTMLParagraphElement>(
+            'cem-surface[label="Initial workspace"] > section > .loading-message',
+        );
+        const initialStack = harness.query<HTMLDivElement>(
+            'cem-surface[label="Initial workspace"] > section > cem-stack > .cem-stack',
+        );
+        const skeletons = Array.from(
+            harness.root.querySelectorAll<HTMLElement>(
+                'cem-surface[label="Initial workspace"] > section > cem-stack cem-skeleton > .cem-skeleton',
+            ),
+        );
+        const nestedSurface = harness.query<HTMLElement>(
+            'cem-surface[label="Initial workspace"] cem-surface[label="Nested ordinary surface"] > section',
+        );
+        const refreshHost = harness.query<HTMLElement>('cem-surface[label="Profile workspace"]');
+        const refreshSurface = harness.query<HTMLElement>('cem-surface[label="Profile workspace"] > section');
+        const refreshGrid = harness.query<HTMLDivElement>(
+            'cem-surface[label="Profile workspace"] > section > cem-grid > .cem-grid',
+        );
+        const refreshCards = Array.from(
+            harness.root.querySelectorAll<HTMLElement>('cem-surface[label="Profile workspace"] cem-card > section'),
+        );
+        const refreshButton = harness.query<HTMLButtonElement>('cem-surface[label="Profile workspace"] button');
+        const transitionHost = harness.query<HTMLElement>('cem-surface[label="Empty transition"]');
+        const transitionSurface = harness.query<HTMLElement>('cem-surface[label="Empty transition"] > section');
+        const transitionRecovery = harness.query<HTMLAnchorElement>('cem-surface[label="Empty transition"] a');
+        const busyStack = harness.query<HTMLDivElement>('#busy-stack > .cem-stack');
+        const busyGrid = harness.query<HTMLDivElement>('#busy-grid > .cem-grid');
+
+        assertStateHostsRendered(
+            harness.root,
+            'cem-surface, #busy-stack, #busy-grid, cem-surface cem-stack, cem-surface cem-grid, cem-surface cem-card, cem-surface cem-skeleton',
+        );
+        expect(ordinary.className).toBe('cem-surface cem-surface--default');
+        expect(ordinary.getAttribute('aria-label')).toBe('Ordinary workspace');
+        expect(ordinary.hasAttribute('data-state')).toBe(false);
+        expect(ordinary.hasAttribute('aria-busy')).toBe(false);
+
+        expect(assertAccessibleName(initial, 'Initial workspace')).toBe('Initial workspace');
+        expect(initial.getAttribute('data-state')).toBe('loading');
+        expect(initial.getAttribute('aria-busy')).toBe('true');
+        expect(initialMessage.textContent?.trim()).toBe('Loading filters and results…');
+        expect(initialMessage.getAttribute('role')).toBeNull();
+        expect(initialMessage.getAttribute('aria-live')).toBeNull();
+        expect(initialStack.getAttribute('data-gap')).toBe('md');
+        expect(initialStack.hasAttribute('data-state')).toBe(false);
+        expect(initialStack.hasAttribute('aria-busy')).toBe(false);
+        expect(skeletons).toHaveLength(2);
+        expect(skeletons.every((skeleton) => skeleton.getAttribute('aria-hidden') === 'true')).toBe(true);
+        expect(nestedSurface.hasAttribute('data-state')).toBe(false);
+        expect(nestedSurface.hasAttribute('aria-busy')).toBe(false);
+        expect(initial.querySelector('[role="status"], [role="alert"], [aria-live]')).toBeNull();
+        expect(initial.hasAttribute('inert')).toBe(false);
+
+        expect(refreshSurface.getAttribute('data-state')).toBe('loading');
+        expect(refreshSurface.getAttribute('aria-busy')).toBe('true');
+        expect(refreshGrid.getAttribute('data-columns')).toBe('2');
+        expect(refreshGrid.getAttribute('data-gap')).toBe('lg');
+        expect(refreshCards).toHaveLength(2);
+        expect(refreshCards.every((card) => !card.hasAttribute('data-state'))).toBe(true);
+        expect(refreshCards.every((card) => !card.hasAttribute('aria-busy'))).toBe(true);
+        expect(refreshButton.disabled).toBe(false);
+        expect(refreshButton.tabIndex).toBe(0);
+
+        expect(transitionSurface.getAttribute('data-state')).toBe('loading');
+        expect(transitionSurface.getAttribute('aria-busy')).toBe('true');
+        expect(transitionSurface.textContent).toContain('No assets yet');
+        for (const candidate of [busyStack, busyGrid]) {
+            expect(candidate.hasAttribute('data-state')).toBe(false);
+            expect(candidate.hasAttribute('aria-busy')).toBe(false);
+        }
+
+        const refreshRect = refreshSurface.getBoundingClientRect();
+        const refreshGridRect = refreshGrid.getBoundingClientRect();
+        const refreshChildren = Array.from(refreshGrid.children);
+        const refreshChildPositions = refreshChildren.map((child) => {
+            const rect = child.getBoundingClientRect();
+            return [rect.x, rect.y, rect.width, rect.height];
+        });
+        expect(refreshRect.width).toBeGreaterThan(0);
+        expect(refreshRect.height).toBeGreaterThan(0);
+        expect(refreshGridRect.width).toBeGreaterThan(0);
+        expect(refreshGridRect.height).toBeGreaterThan(0);
+        const lifecycleEvents: string[] = [];
+        for (const name of ['cem-loaded', 'cem-error', 'cem-cancel']) {
+            refreshHost.addEventListener(name, () => lifecycleEvents.push(name));
+        }
+
+        await assertFocusVisible(refreshButton);
+        refreshHost.removeAttribute('busy');
+        await nextRenderFrame();
+        await runtime.whenRenderSettled(refreshHost);
+        await nextRenderFrame();
+
+        const settledSurface = harness.query<HTMLElement>('cem-surface[label="Profile workspace"] > section');
+        const settledGrid = harness.query<HTMLDivElement>(
+            'cem-surface[label="Profile workspace"] > section > cem-grid > .cem-grid',
+        );
+        const settledButton = harness.query<HTMLButtonElement>('cem-surface[label="Profile workspace"] button');
+        const settledRect = settledSurface.getBoundingClientRect();
+        const settledGridRect = settledGrid.getBoundingClientRect();
+        const settledChildren = Array.from(settledGrid.children);
+        const settledChildPositions = settledChildren.map((child) => {
+            const rect = child.getBoundingClientRect();
+            return [rect.x, rect.y, rect.width, rect.height];
+        });
+        expect(settledSurface).toBe(refreshSurface);
+        expect(settledGrid).toBe(refreshGrid);
+        expect(settledButton).toBe(refreshButton);
+        expect(settledChildren[0]).toBe(refreshChildren[0]);
+        expect(settledChildren[1]).toBe(refreshChildren[1]);
+        expect(settledSurface.hasAttribute('data-state')).toBe(false);
+        expect(settledSurface.hasAttribute('aria-busy')).toBe(false);
+        expect([settledRect.width, settledRect.height]).toEqual([refreshRect.width, refreshRect.height]);
+        expect([settledGridRect.x, settledGridRect.y, settledGridRect.width, settledGridRect.height]).toEqual([
+            refreshGridRect.x,
+            refreshGridRect.y,
+            refreshGridRect.width,
+            refreshGridRect.height,
+        ]);
+        expect(settledChildPositions).toEqual(refreshChildPositions);
+        expect(document.activeElement).toBe(settledButton);
+
+        refreshHost.setAttribute('busy', '');
+        await nextRenderFrame();
+        await runtime.whenRenderSettled(refreshHost);
+        await nextRenderFrame();
+
+        const pendingAgain = harness.query<HTMLElement>('cem-surface[label="Profile workspace"] > section');
+        const pendingGrid = harness.query<HTMLDivElement>(
+            'cem-surface[label="Profile workspace"] > section > cem-grid > .cem-grid',
+        );
+        const pendingButton = harness.query<HTMLButtonElement>('cem-surface[label="Profile workspace"] button');
+        expect(pendingAgain).toBe(refreshSurface);
+        expect(pendingGrid).toBe(refreshGrid);
+        expect(pendingButton).toBe(refreshButton);
+        expect(pendingAgain.getAttribute('data-state')).toBe('loading');
+        expect(pendingAgain.getAttribute('aria-busy')).toBe('true');
+        expect(document.activeElement).toBe(pendingButton);
+
+        await assertFocusVisible(transitionRecovery);
+        transitionHost.removeAttribute('busy');
+        await nextRenderFrame();
+        await runtime.whenRenderSettled(transitionHost);
+        await nextRenderFrame();
+
+        const settledEmpty = harness.query<HTMLElement>('cem-surface[label="Empty transition"] > section');
+        const settledRecovery = harness.query<HTMLAnchorElement>('cem-surface[label="Empty transition"] a');
+        expect(settledEmpty).toBe(transitionSurface);
+        expect(settledRecovery).toBe(transitionRecovery);
+        expect(settledEmpty.getAttribute('data-state')).toBe('empty');
+        expect(settledEmpty.hasAttribute('aria-busy')).toBe(false);
+        expect(document.activeElement).toBe(settledRecovery);
+
+        for (const host of [initialHost, refreshHost, transitionHost]) {
+            const snapshot = runtime.snapshotInstance(host);
+            expect(snapshot.slices).not.toHaveProperty('busy');
+            expect(snapshot.slices).not.toHaveProperty('loading');
+            expect(snapshot.slices).not.toHaveProperty('empty');
+            expect(snapshot.eventPayloads).not.toHaveProperty('busy');
+            expect(snapshot.eventPayloads).not.toHaveProperty('loading');
+            expect(snapshot.eventPayloads).not.toHaveProperty('empty');
+        }
+        expect(lifecycleEvents).toEqual([]);
+        expect(() => assertAriaReferenceIntegrity(harness.root)).not.toThrow();
+    });
+
     it('preserves empty states, indeterminate progress, and live-region roles', async () => {
         harness = createComponentHarness();
         const root = await harness.render(`

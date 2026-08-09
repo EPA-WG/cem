@@ -8,9 +8,10 @@
         "content:empty",
         "layout:empty",
         "content:loading",
-        "layout:loading"
+        "layout:loading",
+        "action:hover"
     ],
-    "recommendedNext": "layout:loading",
+    "recommendedNext": "action:hover",
     "coverage": [
         {
             "id": "action:default",
@@ -324,8 +325,18 @@
             "state": "loading",
             "components": ["cem-surface", "cem-stack", "cem-grid"],
             "interaction": "Mark a layout region busy while preserving its dimensions and child placement.",
-            "status": "gap",
-            "reason": "No layout primitive exposes or asserts loading/busy state."
+            "status": "covered",
+            "owner": "packages/cem-components/src/lib/states.browser.spec.ts",
+            "test": "marks explicit busy workflow surfaces without making formatting containers loading owners",
+            "assertions": [
+                "expect(initial.getAttribute('data-state')).toBe('loading');",
+                "expect(transitionSurface.getAttribute('data-state')).toBe('loading');",
+                "expect(settledSurface).toBe(refreshSurface);",
+                "expect(settledChildPositions).toEqual(refreshChildPositions);",
+                "expect(document.activeElement).toBe(settledRecovery);",
+                "expect(candidate.hasAttribute('data-state')).toBe(false);",
+                "expect(lifecycleEvents).toEqual([]);"
+            ]
         },
         {
             "id": "layout:empty",

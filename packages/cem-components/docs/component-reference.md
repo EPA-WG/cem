@@ -89,12 +89,15 @@ States: `default`, `hover`, `focus-visible`, `disabled`, `loading`, `expanded`, 
 
 | Component | Semantics | Content and Attributes | Token Families | Required A11y |
 | --- | --- | --- | --- | --- |
-| `cem-surface` | Named section surface for grouped content and workflow regions. | Default slot projects authored content; `tone` selects visual treatment. Presence-only `empty` marks a settled empty workflow and projects the same authored guidance and next-action payload unchanged. | palette, stroke, bend, gap, inset | `label` names the section. Empty state reflects as `data-state="empty"` without adding live-region or focus semantics; visible payload carries the message and native action semantics. |
-| `cem-stack` | Generic single-axis layout container. | Default slot projects children; `gap` selects spacing. The component does not infer empty state. | gap, responsive | Adds no landmark or interaction semantics. |
-| `cem-grid` | Generic responsive grid layout container. | Default slot projects children; `columns` and `gap` select placement. The component does not infer empty state. | gap, responsive | Adds no landmark or interaction semantics. |
+| `cem-surface` | Named section surface for grouped content and workflow regions. | Default slot projects authored content; `tone` selects visual treatment. Presence-only `busy` marks a pending whole-workflow update; presence-only `empty` marks its settled empty outcome. Busy takes rendered-state precedence during ordered transitions. | palette, stroke, bend, gap, inset | `label` names the section. Busy adds exact `data-state="loading"` and `aria-busy="true"`; empty adds exact `data-state="empty"`. Neither state adds live-region, inert, or focus semantics. |
+| `cem-stack` | Generic single-axis layout container. | Default slot projects children; `gap` selects spacing. The component does not infer or inherit loading or empty state. | gap, responsive | Adds no landmark or interaction semantics. |
+| `cem-grid` | Generic responsive grid layout container. | Default slot projects children; `columns` and `gap` select placement. The component does not infer or inherit loading or empty state. | gap, responsive | Adds no landmark or interaction semantics. |
 
-States: `default`, `loading`, `empty`. In v1, `empty` is owned only by
-`cem-surface`; `layout:loading` remains deferred.
+States: `default`, `loading`, `empty`. In v1, both explicit layout states are
+owned by `cem-surface`: `busy` projects pending loading and takes precedence over
+the settled `empty` state. Stacks and grids remain formatting-only. See the
+[layout loading](./layout-loading-contract.md) and
+[layout empty](./layout-empty-contract.md) contracts.
 
 ## Navigation
 

@@ -10,9 +10,9 @@ history is preserved in
 
 The CSS selector query and SCSS-to-CSS lifecycle slices are complete. The active
 work is closing the Phase 4 component state matrix in priority order. The
-`content:loading` slice and package verification gate are complete. The
-audit-recommended `layout:loading` ownership contract is accepted; its focused
-tests-first implementation is next.
+`layout:loading` owner and tests-first implementation are complete; its package
+verification gate remains before the audit can advance to the recommended
+`action:hover` decision.
 
 The cross-layer architecture remains serializer-free: lifecycle loading, graph
 routing, joins, evaluators, CEM-QL, CEMT, and XSLT adapters must exchange
@@ -427,19 +427,28 @@ mediate between internal layers.
     CEM-ML conditionals, light-DOM diffing, and slot projection are expected to
     suffice; implementation must stop if the red fixture disproves stable
     section/descendant identity, dimensions, placement, or surviving focus.
-- [ ] Implement the accepted `layout:loading` contract tests-first.
-  - Add the smallest focused red browser fixture for ordinary, empty, and busy
-    surfaces; authored initial loading fallback; retained refresh layout;
-    presence-only initialization; busy/empty precedence; host-attribute
-    transitions; exact markers; stable section, dimensions, child placement,
-    and surviving focus; ignored stack/grid `busy`; and descendant
-    non-inheritance.
-  - Implement only the accepted `cem-surface` declarative branches, with `busy`
-    taking rendered-state precedence over `empty`. Add no resource work, timing,
-    slice, event, inert behavior, alternate slot, synthesized status/placeholder,
-    or descendant propagation; stop if stable output needs new substrate.
-  - Update the component reference, accessibility, conventions, and layout-empty
-    docs, then promote only the `layout:loading` audit row.
+- [x] Implement the accepted `layout:loading` contract tests-first.
+  - Added the focused browser case first. All 9 existing state tests passed and
+    the new case failed only because the busy surface lacked its accepted
+    `data-state="loading"` marker; after implementation all 10 focused tests pass.
+  - Added only the accepted declarative `cem-surface` branch before the existing
+    empty branch. Ordinary and empty output remain unchanged; presence-only
+    `busy`, including `busy="false"`, adds exact `data-state="loading"` and
+    `aria-busy="true"`, and deterministically precedes `empty` while present.
+  - Proved authored progressive fallback, retained refresh layout, stable
+    section/grid/child identity, dimensions, placement, and surviving focus;
+    direct loading-to-empty ordering; ignored stack/grid `busy`; descendant
+    non-inheritance; and absence of automatic live, inert, slice, resource,
+    timer, and lifecycle-event behavior. The contract's substrate stop condition
+    was not triggered.
+  - Updated the implemented contract, component reference, accessibility,
+    conventions, and layout-empty ordering docs. Promoted only
+    `layout:loading`, yielding 25 browser-covered rows, 0 static-only rows, and
+    14 gaps; appended the approved canonical successor so `action:hover` is now
+    recommended next.
+- [ ] Verify the `layout:loading` slice with focused targets, package lint, the
+      state-matrix audit, and the aggregate `@epa-wg/cem-components:verify`
+      gate; then confirm `action:hover` as the audit's next recommended gap.
 
 ## Current Verification Commands
 

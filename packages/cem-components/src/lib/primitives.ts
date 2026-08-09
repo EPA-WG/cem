@@ -109,10 +109,11 @@ export const CEM_COMPONENT_PRIMITIVES = [
     },
     {
         tag: 'cem-surface',
-        description: 'Section surface for grouped content with an explicit empty workflow state.',
+        description: 'Section surface for grouped content with explicit busy and empty workflow states.',
         cemMl:
             '{attribute @name=tone | default}' +
             '{cem:choose |' +
+            ' {cem:when @test="datadom.attributes.busy" | {section @class="cem-surface cem-surface--{$tone}" @aria-label="{$datadom.attributes.label}" @data-state=loading @aria-busy=true | {slot}}}' +
             ' {cem:when @test="datadom.attributes.empty" | {section @class="cem-surface cem-surface--{$tone}" @aria-label="{$datadom.attributes.label}" @data-state=empty | {slot}}}' +
             ' {cem:otherwise | {section @class="cem-surface cem-surface--{$tone}" @aria-label="{$datadom.attributes.label}" | {slot}}}}',
     },

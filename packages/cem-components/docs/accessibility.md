@@ -78,7 +78,7 @@ attributes consistent with reflected state.
 | Reflected state | Required ARIA attribute |
 | --- | --- |
 | `disabled` | `aria-disabled="true"` on non-form composites (form components rely on the native `disabled`). |
-| `data-state="loading"` | `aria-busy="true"` for the duration of the loading state. `cem-card[busy]` places both on its stable named section and removes both when the workflow settles. |
+| `data-state="loading"` | `aria-busy="true"` for the duration of the loading state. `cem-card[busy]` and `cem-surface[busy]` place both on their stable named sections and remove both when their respective content or layout workflow settles. |
 | `data-state="empty"` | No ARIA attribute. `cem-surface[empty]` reflects this marker on its named section while the visible authored guidance and next action carry their own semantics; the surface does not become a live region. |
 | `aria-invalid="true"` | Required when the field validity is failed. Pair with `aria-describedby` pointing at the error message. |
 | `aria-expanded` | Required on disclosure / popover / menu triggers; reflects open/closed. `cem-nav[collapsible]` puts it on its native button and keeps the sibling content container's `hidden` state in exact agreement. |
@@ -118,6 +118,10 @@ For every component that emits `id`/`for`/`aria-*` references at runtime:
   inert, or move focus during state transitions. A surviving focused descendant
   retains focus; the workflow owns recovery when final payload replacement
   removes it.
+- `cem-surface[busy]` follows the same focus and operability boundary for a
+  whole workflow layout. Its section, surviving descendants, placement, and
+  focused control remain stable through busy transitions; the workflow owns
+  recovery when it replaces the focused node.
 - Composite components decide tabindex per the WAI-ARIA Authoring Practices for
   their composite pattern (e.g. menubar = one tabstop, internal arrow keys). Per
   pattern, the component MUST set `tabindex="0"` on the entrypoint and
@@ -197,10 +201,10 @@ Rules:
 
 - Components MUST NOT use `aria-live="assertive"` for routine status updates;
   reserve it for error states.
-- A busy card MUST NOT become `role="status"`, `role="alert"`, or an `aria-live`
-  region. Its visible authored loading text and `aria-busy` property expose the
-  waiting state. A workflow that requires a separate announcement may author a
-  dedicated non-interactive status node outside the busy subtree.
+- A busy card or surface MUST NOT become `role="status"`, `role="alert"`, or an
+  `aria-live` region. Its visible authored loading text and `aria-busy` property
+  expose the waiting state. A workflow that requires a separate announcement
+  may author a dedicated non-interactive status node outside the busy subtree.
 - A live region's text content MUST NOT include the accessible name of the
   triggering component (avoid duplicate announcements).
 - Live region updates MUST be debounced so a burst of updates within 250 ms

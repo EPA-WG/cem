@@ -102,8 +102,8 @@ and ARIA computations can observe it:
 | Reflected attribute | Set when |
 | --- | --- |
 | `data-state="loading"` | Async operation pending (per AC-V-6 loading state). |
-| `data-state="empty"` | An explicit settled empty state is active. `cem-surface[empty]` mirrors it on the rendered section; stacks and grids do not infer it from child count. |
-| `aria-busy="true"` | Component or named region is mid-update. This does not disable or make descendants inert. |
+| `data-state="empty"` | An explicit settled empty state is active. `cem-surface[empty]` mirrors it on the rendered section only when `busy` is absent; stacks and grids do not infer it from child count. |
+| `aria-busy="true"` | Component or named region is mid-update. `cem-surface[busy]` pairs it with `data-state="loading"` and takes rendered-state precedence over `empty`; this does not disable or make descendants inert. |
 | `aria-invalid="true"` | Form field failed validation. |
 | `aria-disabled="true"` | Mirrors the `disabled` attribute on non-form components. |
 | `aria-expanded="true"` | Disclosure or popover open. |
@@ -215,16 +215,19 @@ The `cem_ml` async API (AC-A-1..AC-A-7) is the source of truth for cancellation
 semantics. Components MUST accept an `AbortSignal` via property when they perform
 async work directly.
 
-State-projecting components do not inherit that resource lifecycle. In
-particular, presence-only `cem-card[busy]` adds exact
-`data-state="loading"` and `aria-busy="true"` to its stable named section while
-retaining its authored header/body payload. The application or workflow sets and
-clears `busy`, selects content/empty/error outcomes, and owns any request,
-cancellation, control disabling, and status feedback. The card creates no slice,
-timer, request, lifecycle event, live region, or inert subtree. Initial loading
-uses visible authored text and optional `cem-skeleton` composition; background
-refresh SHOULD retain last-known content. See the
-[content loading contract](./content-loading-contract.md).
+State-projecting components do not inherit that resource lifecycle.
+Presence-only `cem-card[busy]` marks its stable named section as locally updating
+content, while `cem-surface[busy]` applies the same exact markers to a stable
+named whole-workflow layout. Both retain authored payload, create no slice,
+timer, request, lifecycle event, live region, or inert subtree, and leave request,
+cancellation, control disabling, status feedback, and outcome selection with the
+application or workflow. Surface `busy` takes precedence over settled `empty`
+during ordered transitions so it never exposes simultaneous or intermediate
+rendered states. Initial loading uses visible authored text and optional
+layout-preserving `cem-skeleton`/`cem-progress` composition; background refresh
+SHOULD retain last-known content and placement. See the
+[content loading](./content-loading-contract.md) and
+[layout loading](./layout-loading-contract.md) contracts.
 
 ## 7. Progressive Enhancement
 

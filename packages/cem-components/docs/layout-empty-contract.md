@@ -73,9 +73,12 @@ Authors remove the attribute when the region is no longer empty.
 5. Host-attribute and data-island updates may cause the existing declarative
    runtime to re-render. The section and surviving projected nodes must remain
    structurally stable so focus and selection are not reset.
-6. Empty is a settled result, not a pending state. A workflow MUST clear loading
-   or busy state before or in the same revision that it presents the empty
-   payload. Layout `empty` and layout `loading` are not simultaneous v1 states.
+6. Empty is a settled result, not a pending state. A workflow commits the final
+   empty payload and adds `empty` while `busy` still protects the update, then
+   removes `busy`. Busy has rendered-state precedence, so the same section
+   changes directly from exact loading to exact empty without exposing both
+   markers or flashing ordinary state. Persistently authoring both remains
+   invalid.
 7. Empty state does not inherit through layout descendants. An empty surface does
    not mark nested stacks, grids, lists, tables, or surfaces empty. Independently
    meaningful nested regions require their own explicit state and unique label.
@@ -119,9 +122,10 @@ substrate behavior, stop and promote that behavior as a separate decision.
   fallbacks. A surface empty state describes the broader workflow result and
   supplies contextual recovery; it must not duplicate a nested collection's
   announcement.
-- `layout:loading` remains a separate future decision for pending workflow
-  content and `aria-busy` timing. Empty means loading has completed with no
-  result.
+- `layout:loading` is the separately implemented `cem-surface[busy]` state for a
+  pending whole-workflow update. Empty means loading completed with no result;
+  busy precedence provides deterministic loading-to-empty ordering. See the
+  [layout loading contract](./layout-loading-contract.md).
 - Feedback components own statuses, alerts, progress, and errors. An empty
   surface does not become feedback merely because its payload may include a
   dedicated status message.
