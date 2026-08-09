@@ -10,9 +10,9 @@ history is preserved in
 
 The CSS selector query and SCSS-to-CSS lifecycle slices are complete. The active
 work is closing the Phase 4 component state matrix in priority order. The
-`layout:loading` owner and tests-first implementation are complete; its package
-verification gate remains before the audit can advance to the recommended
-`action:hover` decision.
+`layout:loading` slice and package verification gate are complete. The active
+item is the audit-recommended `action:hover` ownership and executable-acceptance
+decision.
 
 The cross-layer architecture remains serializer-free: lifecycle loading, graph
 routing, joins, evaluators, CEM-QL, CEMT, and XSLT adapters must exchange
@@ -446,9 +446,21 @@ mediate between internal layers.
     `layout:loading`, yielding 25 browser-covered rows, 0 static-only rows, and
     14 gaps; appended the approved canonical successor so `action:hover` is now
     recommended next.
-- [ ] Verify the `layout:loading` slice with focused targets, package lint, the
+- [x] Verify the `layout:loading` slice with focused targets, package lint, the
       state-matrix audit, and the aggregate `@epa-wg/cem-components:verify`
       gate; then confirm `action:hover` as the audit's next recommended gap.
+  - The uncached focused browser target passed all 10 state tests. Package lint,
+    the 32-primitive manifest audit, and the state-matrix audit also passed
+    independently.
+  - The uncached aggregate package gate passed all 12 dependencies, including
+    deterministic theme/token regeneration, style and workflow audits, and all
+    37 package tests across 5 files.
+  - Confirmed regeneration left the pre-existing worktree state unchanged and
+    created no browser failure artifacts. The audit remains at 25
+    browser-covered rows, 0 static-only rows, and 14 gaps, with `action:hover`
+    recommended next.
+- [ ] Decide and document the Phase 4 `action:hover` owner and executable
+      acceptance before adding a fixture or changing runtime/style behavior.
 
 ## Current Verification Commands
 
