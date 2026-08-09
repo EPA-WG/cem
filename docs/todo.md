@@ -10,8 +10,9 @@ history is preserved in
 
 The CSS selector query and SCSS-to-CSS lifecycle slices are complete. The active
 work is closing the Phase 4 component state matrix in priority order. The
-`action:hover` ownership and executable-acceptance decision is complete. The
-active item is implementing that accepted contract tests-first.
+`action:hover` interaction contract is accepted, but its required public
+stylesheet exposed an unresolved package-build boundary. The active item is
+deciding that publication boundary before adding the hover fixture or styles.
 
 The cross-layer architecture remains serializer-free: lifecycle loading, graph
 routing, joins, evaluators, CEM-QL, CEMT, and XSLT adapters must exchange
@@ -484,6 +485,31 @@ mediate between internal layers.
     unhover restoration, stable rectangles/DOM/semantics/focus/runtime state,
     disabled non-treatment, event absence, style-token verification, and
     promotion of only the `action:hover` audit row.
+- [ ] Decide and document the `@epa-wg/cem-components/styles.css` publication
+      boundary before implementing `action:hover`.
+  - [x] Confirm the resolved `@epa-wg/cem-components:build` target is plain
+        `tsc --build tsconfig.lib.json`: it includes only `src/**/*.ts`, declares
+        only JavaScript/declaration outputs under ignored `dist`, and has no
+        static-asset copy stage.
+  - [x] Confirm the npm package currently publishes only `dist`, exposes only
+        JavaScript/package-metadata exports, and has no established workspace
+        pattern that copies a component-owned CSS source through an inferred
+        TypeScript build.
+  - [x] Stop before adding the red browser fixture, component CSS, package
+        export, or state-matrix promotion, as required by the accepted
+        [`action:hover` contract](../packages/cem-components/docs/action-hover-contract.md)
+        when stylesheet publication would change the package build boundary.
+  - [ ] Select and document one source/build/release contract. Recommended:
+        keep a single tracked component CSS source under `src`, add an explicit
+        cacheable Nx asset-copy target that emits `dist/styles.css`, make package
+        build/release verification depend on it, and expose only
+        `./styles.css: ./dist/styles.css`. The rejected alternative should be a
+        separately published package-root CSS copy, because it creates a second
+        distribution root outside the package's existing `dist` boundary.
+  - [ ] Pin the exact source path, Nx inputs/outputs/dependencies, clean-build
+        behavior, package `exports`/`files` entries, author and browser-test
+        import paths, npm-pack evidence, and stop condition before resuming the
+        fixture-first implementation.
 - [ ] Implement the accepted `action:hover` contract tests-first.
   - [ ] Add the focused `states.browser.spec.ts` real-pointer fixture first and
         confirm it fails only because the public component stylesheet and hover
