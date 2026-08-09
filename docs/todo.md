@@ -10,9 +10,9 @@ history is preserved in
 
 The CSS selector query and SCSS-to-CSS lifecycle slices are complete. The active
 work is closing the Phase 4 component state matrix in priority order. The
-`action:hover` interaction contract is accepted, but its required public
-stylesheet exposed an unresolved package-build boundary. The active item is
-deciding that publication boundary before adding the hover fixture or styles.
+`action:hover` interaction and stylesheet-publication contracts are accepted.
+The active item is implementing the publication contract before adding the
+hover fixture or behavioral styles.
 
 The cross-layer architecture remains serializer-free: lifecycle loading, graph
 routing, joins, evaluators, CEM-QL, CEMT, and XSLT adapters must exchange
@@ -485,7 +485,7 @@ mediate between internal layers.
     unhover restoration, stable rectangles/DOM/semantics/focus/runtime state,
     disabled non-treatment, event absence, style-token verification, and
     promotion of only the `action:hover` audit row.
-- [ ] Decide and document the `@epa-wg/cem-components/styles.css` publication
+- [x] Decide and document the `@epa-wg/cem-components/styles.css` publication
       boundary before implementing `action:hover`.
   - [x] Confirm the resolved `@epa-wg/cem-components:build` target is plain
         `tsc --build tsconfig.lib.json`: it includes only `src/**/*.ts`, declares
@@ -499,17 +499,32 @@ mediate between internal layers.
         export, or state-matrix promotion, as required by the accepted
         [`action:hover` contract](../packages/cem-components/docs/action-hover-contract.md)
         when stylesheet publication would change the package build boundary.
-  - [ ] Select and document one source/build/release contract. Recommended:
-        keep a single tracked component CSS source under `src`, add an explicit
-        cacheable Nx asset-copy target that emits `dist/styles.css`, make package
-        build/release verification depend on it, and expose only
-        `./styles.css: ./dist/styles.css`. The rejected alternative should be a
-        separately published package-root CSS copy, because it creates a second
-        distribution root outside the package's existing `dist` boundary.
-  - [ ] Pin the exact source path, Nx inputs/outputs/dependencies, clean-build
-        behavior, package `exports`/`files` entries, author and browser-test
-        import paths, npm-pack evidence, and stop condition before resuming the
-        fixture-first implementation.
+  - [x] Accepted and documented
+        [`packages/cem-components/docs/stylesheet-publication-contract.md`](../packages/cem-components/docs/stylesheet-publication-contract.md):
+        keep the sole tracked source at `src/styles.css`, copy it byte-for-byte
+        through cacheable `build:styles` into `dist/styles.css`, make the
+        inferred TypeScript `build` depend on that target, and expose only
+        `./styles.css: ./dist/styles.css`.
+  - [x] Pinned the package-owned copy and verification script paths, exact Nx
+        inputs/outputs/dependencies, clean/repeated/cache behavior, package
+        `exports`/`files` boundary, source-versus-author import paths,
+        CSS-side-effect prohibition, release workflow dependency, temporary
+        npm-pack evidence, and target-composition stop condition.
+  - Rejected a separately published package-root or `src` CSS file, JavaScript
+    entry import, build replacement, checked-in `dist`, and publish-time
+    generation. The existing package-root manifest continues to publish only
+    verified `dist` artifacts.
+- [ ] Implement the accepted component stylesheet publication contract before
+      adding hover behavior.
+  - [ ] Add the canonical minimal `src/styles.css`, package-owned deterministic
+        copy script, and cacheable `build:styles` target; merge it into the
+        inferred TypeScript build without changing the resolved compiler target.
+  - [ ] Expose only `./styles.css: ./dist/styles.css`, add the package verifier
+        and aggregate gate dependency, and prove byte identity plus exact
+        `npm pack --dry-run --json` inclusion/exclusion behavior.
+  - [ ] Verify fresh, repeated, and cached Nx builds; style/package/lint gates;
+        and aggregate package verification without changing browser presentation
+        or promoting a state-matrix row.
 - [ ] Implement the accepted `action:hover` contract tests-first.
   - [ ] Add the focused `states.browser.spec.ts` real-pointer fixture first and
         confirm it fails only because the public component stylesheet and hover

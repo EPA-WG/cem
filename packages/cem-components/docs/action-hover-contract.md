@@ -1,8 +1,11 @@
 # Action Hover Contract
 
 **Status:** Accepted Phase 4 design, pending implementation. This contract is
-promoted by [`docs/todo.md`](../../../docs/todo.md). No browser fixture, runtime
-behavior, or component stylesheet changed as part of this decision.
+promoted by [`docs/todo.md`](../../../docs/todo.md). Its public stylesheet path
+is pinned by the accepted
+[`stylesheet publication contract`](./stylesheet-publication-contract.md). No
+browser fixture, runtime behavior, or component stylesheet changed as part of
+this decision.
 
 ## Decision
 
@@ -65,6 +68,12 @@ contract does not rename those artifacts. The component package MUST expose
 `./styles.css` through its package exports and published `dist` files. Importing
 the JavaScript module MUST NOT inject, adopt, or automatically import that
 stylesheet.
+
+The canonical source, cacheable copy target, `dist/styles.css` output,
+package-export mapping, release path, and npm-pack evidence are defined by the
+[`component stylesheet publication contract`](./stylesheet-publication-contract.md).
+That contract must be implemented and verified before the hover fixture adds
+the first behavioral rules.
 
 Rules MUST be scoped through the public custom-element tag and then target its
 direct native button. A global `.cem-action`, `.cem-icon-button`, or
@@ -191,8 +200,9 @@ The implementation slice is complete only when that test proves:
   the exact browser test name and assertions recorded after the fixture passes.
 
 The focused test should be named `applies shared native hover treatment without
-changing action geometry or semantics`. If real pointer hover does not produce
-the expected pseudo-class in the existing browser harness, or if publishing an
-explicit side-effect-free `./styles.css` export requires changing the accepted
-package build boundary, stop and promote that substrate or packaging issue as a
-separate decision rather than simulating hover or injecting styles at runtime.
+changing action geometry or semantics`. The previously discovered stylesheet
+build boundary is resolved by the promoted publication contract. If real
+pointer hover does not produce the expected pseudo-class in the existing
+browser harness, or implementing that publication contract triggers its Nx
+target-composition stop condition, stop and promote the substrate issue rather
+than simulating hover or injecting styles at runtime.
