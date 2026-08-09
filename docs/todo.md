@@ -199,13 +199,49 @@ mediate between internal layers.
     rendering, accessible naming, native focus, `aria-pressed`, and serializable
     boolean transitions in both directions. The audit now reports 20
     browser-covered, 0 static-only, and 19 gap rows.
-- [ ] Verify the state-matrix slice with focused `@epa-wg/cem-components`
+- [x] Verify the state-matrix slice with focused `@epa-wg/cem-components`
       target(s), then `yarn nx run @epa-wg/cem-components:verify`.
-  - Re-run the isolated state browser target and `verify-state-matrix` from a
-    clean worktree, then run the package `lint` and aggregate `verify` targets.
-  - Confirm the generated audit remains at 20 browser-covered, 0 static-only,
-    and 19 gaps with `content:selected` still recommended next; do not define a
-    selectable row/option API as part of this verification-only item.
+  - Re-ran the isolated state browser target from the clean implementation
+    commit: all 5 tests passed. The state-matrix audit and package lint target
+    also passed independently.
+  - The aggregate package gate passed all 12 dependencies, including primitive,
+    style, workflow, state-matrix, build, and 32 package tests across 5 files.
+  - Confirmed the generated audit remains at 20 browser-covered, 0 static-only,
+    and 19 gaps with `content:selected` still recommended next; no selectable
+    row/option API was introduced by this verification-only item.
+- [ ] Decide and document the Phase 4 `content:selected` owner before adding a
+      fixture or runtime behavior.
+  - Recommended: preserve the existing passive `cem-list` and static
+    `cem-table` defaults; add an opt-in single-select listbox family using
+    `cem-list[selectable]` plus a declarative `cem-list-option` child, and defer
+    selectable tables until the package can own the complete interactive-grid
+    contract.
+  - This is an explicit public-API decision because `cem-list-option` adds an
+    element name to the accepted MVP and the selectable mode changes the list
+    from native list semantics to the WAI-ARIA
+    [listbox pattern](https://www.w3.org/WAI/ARIA/apg/patterns/listbox/). Do not
+    implement it until that ownership choice is accepted.
+  - Pin single-selection rules, option value/identity, authored initial
+    `selected` state versus the runtime slice, click and keyboard transitions,
+    disabled options, accessible naming, and either roving focus or
+    `aria-activedescendant`. Selection MUST remain distinguishable from hover
+    and keyboard focus, and listbox options MUST NOT contain nested interactive
+    controls.
+  - Record why `cem-table` remains a static table: adopting row selection would
+    require the WAI-ARIA [grid pattern](https://www.w3.org/WAI/ARIA/apg/patterns/grid/),
+    including composite focus ownership and directional keyboard navigation,
+    rather than merely adding `aria-selected` to the current rows.
+- [ ] Implement the accepted `content:selected` contract tests-first.
+  - Add the smallest focused browser fixture for at least two options, then
+    prove initial selection, pointer activation, keyboard focus, selection
+    transfer, exact `aria-selected` reflection, and serializable slice-event
+    payloads without changing passive-list behavior.
+  - Update the primitive manifest, component/accessibility docs, and
+    `content:selected` audit row only after the red browser assertion identifies
+    the missing behavior.
+- [ ] Verify the `content:selected` slice with focused targets, package lint,
+      the state-matrix audit, and the aggregate `@epa-wg/cem-components:verify`
+      gate; then confirm the audit's next recommended gap.
 
 ## Current Verification Commands
 
