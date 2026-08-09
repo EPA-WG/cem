@@ -10,9 +10,9 @@ history is preserved in
 
 The CSS selector query and SCSS-to-CSS lifecycle slices are complete. The active
 work is closing the Phase 4 component state matrix in priority order. The
-`content:loading` owner and implementation are complete; its package verification
-gate remains before the audit can advance to the recommended `layout:loading`
-decision.
+`content:loading` slice and package verification gate are complete. The
+audit-recommended `layout:loading` ownership contract is accepted; its focused
+tests-first implementation is next.
 
 The cross-layer architecture remains serializer-free: lifecycle loading, graph
 routing, joins, evaluators, CEM-QL, CEMT, and XSLT adapters must exchange
@@ -393,9 +393,53 @@ mediate between internal layers.
     docs. Promoted only `content:loading` in the audit, yielding 24
     browser-covered rows, 0 static-only rows, and 15 gaps; `layout:loading` is
     recommended next after this slice's verification gate.
-- [ ] Verify the `content:loading` slice with focused targets, package lint, the
+- [x] Verify the `content:loading` slice with focused targets, package lint, the
       state-matrix audit, and the aggregate `@epa-wg/cem-components:verify`
       gate; then confirm the audit's next recommended gap.
+  - The uncached focused browser target passed all 9 state tests, including the
+    explicit busy-card case. Package lint, the 32-primitive manifest audit, and
+    the state-matrix audit also passed independently.
+  - The uncached aggregate package gate passed all 12 dependencies, including
+    deterministic theme/token regeneration, style and workflow audits, and all
+    36 package tests across 5 files.
+  - Confirmed regeneration left the pre-existing worktree state unchanged. The
+    audit remains at 24 browser-covered rows, 0 static-only rows, and 15 gaps,
+    with `layout:loading` recommended next.
+- [x] Decide and document the Phase 4 `layout:loading` owner before adding a
+      fixture or runtime behavior.
+  - Accepted and documented
+    [`packages/cem-components/docs/layout-loading-contract.md`](../packages/cem-components/docs/layout-loading-contract.md):
+    presence-only `cem-surface[busy]` projects whole-workflow loading onto its
+    stable named section as exact `data-state="loading"` and `aria-busy="true"`.
+  - Kept `cem-stack` and `cem-grid` formatting-only. They arrange authored
+    loading or retained content inside a busy surface but do not infer, inherit,
+    or expose loading semantics themselves.
+  - Pinned retained refresh layouts, authored visible initial-loading text and
+    layout-preserving skeleton/progress composition, stable dimensions, child
+    placement and surviving focus, no automatic live region or inert subtree,
+    and no fetch, timer, slice, event, cancellation, or outcome ownership.
+  - Made `busy` deterministically precede settled `empty`: ordered transitions
+    may briefly carry both host attributes, but the section exposes loading only
+    until `busy` is removed, then changes directly to exact empty state without
+    simultaneous markers or an ordinary-state flash.
+  - Kept card-level `content:loading`, feedback, control, collection, media, and
+    resource lifecycle ownership separate. Existing attribute observation,
+    CEM-ML conditionals, light-DOM diffing, and slot projection are expected to
+    suffice; implementation must stop if the red fixture disproves stable
+    section/descendant identity, dimensions, placement, or surviving focus.
+- [ ] Implement the accepted `layout:loading` contract tests-first.
+  - Add the smallest focused red browser fixture for ordinary, empty, and busy
+    surfaces; authored initial loading fallback; retained refresh layout;
+    presence-only initialization; busy/empty precedence; host-attribute
+    transitions; exact markers; stable section, dimensions, child placement,
+    and surviving focus; ignored stack/grid `busy`; and descendant
+    non-inheritance.
+  - Implement only the accepted `cem-surface` declarative branches, with `busy`
+    taking rendered-state precedence over `empty`. Add no resource work, timing,
+    slice, event, inert behavior, alternate slot, synthesized status/placeholder,
+    or descendant propagation; stop if stable output needs new substrate.
+  - Update the component reference, accessibility, conventions, and layout-empty
+    docs, then promote only the `layout:loading` audit row.
 
 ## Current Verification Commands
 
