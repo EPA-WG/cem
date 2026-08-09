@@ -57,11 +57,27 @@
             ],
             "outputs": []
         },
+        "verify-state-matrix": {
+            "cache": true,
+            "executor": "nx:run-commands",
+            "options": {
+                "command": "node tools/scripts/verify-cem-components-state-matrix.mjs",
+                "cwd": "{workspaceRoot}"
+            },
+            "inputs": [
+                "{workspaceRoot}/tools/scripts/verify-cem-components-state-matrix.mjs",
+                "{workspaceRoot}/docs/component-mvp.md",
+                "{projectRoot}/tests/state-matrix-coverage.json",
+                "{projectRoot}/src/lib/**/*.browser.spec.ts",
+                "{projectRoot}/tests/workflows/**/*.html"
+            ],
+            "outputs": ["{projectRoot}/dist/reports/component-state-matrix.{json,md}"]
+        },
         "verify": {
             "executor": "nx:run-commands",
-            "dependsOn": ["verify-primitives", "verify-style-contract", "verify-workflows", "test"],
+            "dependsOn": ["verify-primitives", "verify-style-contract", "verify-workflows", "verify-state-matrix", "test"],
             "options": {
-                "command": "echo \"cem-components verification gate green: primitive manifest + style contract + workflow examples + browser harness tests passed.\"",
+                "command": "echo \"cem-components verification gate green: primitive manifest + state matrix + style contract + workflow examples + browser harness tests passed.\"",
                 "cwd": "{workspaceRoot}"
             },
             "outputs": []

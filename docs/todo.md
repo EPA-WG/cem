@@ -172,19 +172,23 @@ mediate between internal layers.
 
 ### Deferred: Phase 4 CEM Component Set
 
-- [ ] Add a Phase 4 component state-matrix coverage audit/gate that maps
+- [x] Add a Phase 4 component state-matrix coverage audit/gate that maps
       `docs/component-mvp.md` category state requirements to the executable
       primitive, state, and workflow browser assertions.
-  - Produce one machine-readable inventory keyed by component/category, required
-    state, interaction or transition, and exact browser assertion/story owner.
-  - Make the gate report requirements with no executable owner, stale assertion
-    references, and browser states exercised only by static markup.
-  - Keep this first slice audit-only: select the first missing selected,
-    expanded, empty, or loading proof from the report before changing component
-    runtime behavior or adding a fixture.
+  - Added `packages/cem-components/tests/state-matrix-coverage.json`, keyed by
+    category/state with affected or evidenced components, the required
+    interaction or transition, and the exact browser test/assertion owner.
+  - Added `@epa-wg/cem-components:verify-state-matrix`, which derives all 39
+    requirements from `docs/component-mvp.md`, rejects missing or extra rows,
+    unknown components, stale browser test/assertion references, and stale
+    static-only fixture markers, then reports 19 browser-covered, 0 static-only,
+    and 20 gap rows.
+  - Kept the slice audit-only: the first priority gap is `content:selected`; no
+    component runtime behavior or browser fixture changed in this item.
 - [ ] Populate the first missing state fixture or assertion from that audit,
-      prioritizing selected, expanded, empty, and loading coverage across
-      navigation, content, and layout workflows.
+      starting with the selected `content:selected` gap: exercise a selectable
+      list/table row or chip, distinguish selected from hover and keyboard focus,
+      and assert the reflected selected semantics in a browser test.
 - [ ] Verify the state-matrix slice with focused `@epa-wg/cem-components`
       target(s), then `yarn nx run @epa-wg/cem-components:verify`.
 

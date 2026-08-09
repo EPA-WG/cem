@@ -88,6 +88,21 @@ States are exposed as CEM semantic state names and mirrored to host attributes o
 | Content | `default`, `hover`, `focus-visible`, `selected`, `loading`, `empty`, `checked` |
 | Feedback | `default`, `focus-visible`, `loading`, `expanded`, `invalid` |
 
+### Executable State Coverage
+
+[`../packages/cem-components/tests/state-matrix-coverage.json`](../packages/cem-components/tests/state-matrix-coverage.json)
+is the machine-readable audit of this table. Each category/state requirement names the affected or evidenced
+components, the required interaction or transition, and one of three evidence states:
+
+- `covered`: an exact browser test and assertion own the requirement;
+- `static-only`: fixture markup authors the state but no browser assertion proves its behavior;
+- `gap`: no executable owner exists yet.
+
+`yarn nx run @epa-wg/cem-components:verify-state-matrix` rejects missing requirements, unknown components, stale
+browser tests/assertions, and stale static fixture markers. It emits deterministic JSON and Markdown reports under
+`packages/cem-components/dist/reports/`. Classified gaps do not fail the audit; the inventory's priority list selects
+the next gap that must receive a fixture before its status can change to `covered`.
+
 ## First App Workflow Surfaces
 
 The MVP is complete only when these workflows can be built without one-off UI controls:

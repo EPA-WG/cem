@@ -39,6 +39,7 @@ This registers the minimal primitive tags: `cem-action`, `cem-icon-button`, `cem
 ```bash
 yarn nx run @epa-wg/cem-components:verify
 yarn nx run @epa-wg/cem-components:verify-primitives
+yarn nx run @epa-wg/cem-components:verify-state-matrix
 yarn nx run @epa-wg/cem-components:verify-style-contract
 yarn nx run @epa-wg/cem-components:test
 yarn nx run @epa-wg/cem-components:build
@@ -47,9 +48,12 @@ yarn nx run @epa-wg/cem-components:lint
 
 `yarn build` at the repo root builds every package, including this one.
 
-`yarn nx run @epa-wg/cem-components:verify` is the Phase 3.2 production-ready trigger. It runs the primitive manifest
-gate, the token-only style contract gate, and the Node/Chromium browser coverage. The style contract depends on
-`@epa-wg/cem-theme:build:tokens`, so the component gate checks against current generated theme token artifacts.
+`yarn nx run @epa-wg/cem-components:verify` is the Phase 3.2 production-ready trigger. It runs the primitive manifest,
+state-matrix audit, token-only style contract, and Node/Chromium browser coverage gates. The state-matrix audit keeps
+every category/state requirement classified as browser-covered, static-only, or a gap and rejects stale test and
+assertion references. Intentional gaps remain visible in its generated JSON/Markdown reports so the audit can select
+the next fixture without claiming that it already exists. The style contract depends on `@epa-wg/cem-theme:build:tokens`,
+so the component gate checks against current generated theme token artifacts.
 
 `yarn nx run @epa-wg/cem-components:test` runs the Node unit test plus Chromium-backed component harness coverage.
 
@@ -58,6 +62,8 @@ gate, the token-only style contract gate, and the Node/Chromium browser coverage
 | Surface | Path |
 | ------- | ---- |
 | Primitive manifest gate | `tools/scripts/verify-cem-components-primitives.mjs` |
+| State-matrix inventory | `tests/state-matrix-coverage.json` |
+| State-matrix audit gate | `tools/scripts/verify-cem-components-state-matrix.mjs` |
 | Token-only style gate | `tools/scripts/verify-cem-components-styles.mjs` |
 | Primitive browser coverage | `src/lib/primitives.browser.spec.ts` |
 | State and ARIA coverage | `src/lib/states.browser.spec.ts` |
@@ -70,8 +76,8 @@ gate, the token-only style contract gate, and the Node/Chromium browser coverage
 Phase 4 component expansion can start from this package when `yarn nx run @epa-wg/cem-components:verify` passes on the
 branch being promoted and the working tree contains no uncommitted gate changes. That command proves the current MVP
 primitive list matches `docs/component-mvp.md`, renders through the light-DOM `<cem-element>` substrate, covers the first
-workflow surfaces, reflects required state and ARIA behavior, and does not introduce component-specific color or spacing
-literals.
+workflow surfaces, keeps required state and ARIA evidence explicitly classified without hiding Phase 4 gaps, and does
+not introduce component-specific color or spacing literals.
 
 Known deferrals stay outside this trigger:
 

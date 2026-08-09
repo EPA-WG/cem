@@ -1,0 +1,474 @@
+{
+    "version": 1,
+    "source": "docs/component-mvp.md#category-state-coverage",
+    "priority": [
+        "navigation:selected",
+        "content:selected",
+        "navigation:expanded",
+        "content:empty",
+        "layout:empty",
+        "content:loading",
+        "layout:loading"
+    ],
+    "recommendedNext": "content:selected",
+    "coverage": [
+        {
+            "id": "action:default",
+            "category": "Action",
+            "state": "default",
+            "components": ["cem-action", "cem-icon-button", "cem-menu-item"],
+            "interaction": "Render enabled action controls and preserve their native button and menuitem semantics.",
+            "status": "covered",
+            "owner": "packages/cem-components/src/lib/primitives.browser.spec.ts",
+            "test": "renders action-family primitives as accessible light DOM",
+            "assertions": [
+                "expect(action.type).toBe('button');",
+                "expect(menuItem.getAttribute('role')).toBe('menuitem');"
+            ]
+        },
+        {
+            "id": "action:hover",
+            "category": "Action",
+            "state": "hover",
+            "components": ["cem-action", "cem-icon-button", "cem-menu-item"],
+            "interaction": "Move the pointer onto and away from an action without changing layout.",
+            "status": "gap",
+            "reason": "No browser assertion drives pointer hover and compares the action treatment or geometry."
+        },
+        {
+            "id": "action:focus-visible",
+            "category": "Action",
+            "state": "focus-visible",
+            "components": ["cem-action"],
+            "interaction": "Move keyboard focus to an action and retain a visible focus indicator.",
+            "status": "covered",
+            "owner": "packages/cem-components/src/lib/states.browser.spec.ts",
+            "test": "reflects action, loading, disabled, expanded, selected, and focus states on native controls",
+            "assertions": ["await assertFocusVisible(action);"]
+        },
+        {
+            "id": "action:active",
+            "category": "Action",
+            "state": "active",
+            "components": ["cem-action", "cem-icon-button", "cem-menu-item"],
+            "interaction": "Activate an action and prove the active treatment preserves readable contrast.",
+            "status": "gap",
+            "reason": "Click payload coverage exists, but no browser assertion observes active-state presentation."
+        },
+        {
+            "id": "action:disabled",
+            "category": "Action",
+            "state": "disabled",
+            "components": ["cem-icon-button"],
+            "interaction": "Disable an action and remove native activation.",
+            "status": "covered",
+            "owner": "packages/cem-components/src/lib/states.browser.spec.ts",
+            "test": "reflects action, loading, disabled, expanded, selected, and focus states on native controls",
+            "assertions": ["expect(iconButton.disabled).toBe(true);"]
+        },
+        {
+            "id": "action:loading",
+            "category": "Action",
+            "state": "loading",
+            "components": ["cem-action"],
+            "interaction": "Mark an action busy while preserving its accessible name and control dimensions.",
+            "status": "covered",
+            "owner": "packages/cem-components/src/lib/states.browser.spec.ts",
+            "test": "reflects action, loading, disabled, expanded, selected, and focus states on native controls",
+            "assertions": [
+                "expect(action.getAttribute('aria-busy')).toBe('true');",
+                "expect(assertAccessibleName(action, 'Sync')).toBe('Sync');"
+            ]
+        },
+        {
+            "id": "input:default",
+            "category": "Input",
+            "state": "default",
+            "components": ["cem-text-field", "cem-textarea", "cem-select", "cem-checkbox", "cem-radio", "cem-switch"],
+            "interaction": "Render input primitives as their native accessible controls.",
+            "status": "covered",
+            "owner": "packages/cem-components/src/lib/primitives.browser.spec.ts",
+            "test": "renders input-family MVP primitives as native accessible controls",
+            "assertions": [
+                "expect(textField.type).toBe('text');",
+                "expect(switchInput.getAttribute('role')).toBe('switch');"
+            ]
+        },
+        {
+            "id": "input:hover",
+            "category": "Input",
+            "state": "hover",
+            "components": [
+                "cem-field",
+                "cem-text-field",
+                "cem-textarea",
+                "cem-select",
+                "cem-checkbox",
+                "cem-radio",
+                "cem-switch"
+            ],
+            "interaction": "Move the pointer onto and away from an input without changing layout.",
+            "status": "gap",
+            "reason": "No browser assertion drives pointer hover over an input control."
+        },
+        {
+            "id": "input:focus-visible",
+            "category": "Input",
+            "state": "focus-visible",
+            "components": [
+                "cem-field",
+                "cem-text-field",
+                "cem-textarea",
+                "cem-select",
+                "cem-checkbox",
+                "cem-radio",
+                "cem-switch"
+            ],
+            "interaction": "Move keyboard focus between input controls and retain a visible focus indicator.",
+            "status": "gap",
+            "reason": "The focus-visible harness is covered, but no input-family test invokes it."
+        },
+        {
+            "id": "input:disabled",
+            "category": "Input",
+            "state": "disabled",
+            "components": ["cem-textarea", "cem-radio"],
+            "interaction": "Disable form controls and prevent native interaction.",
+            "status": "covered",
+            "owner": "packages/cem-components/src/lib/states.browser.spec.ts",
+            "test": "reflects form disabled, invalid, required, readonly, checked, and indeterminate states",
+            "assertions": ["expect(textarea.disabled).toBe(true);", "expect(radio.disabled).toBe(true);"]
+        },
+        {
+            "id": "input:loading",
+            "category": "Input",
+            "state": "loading",
+            "components": [
+                "cem-field",
+                "cem-text-field",
+                "cem-textarea",
+                "cem-select",
+                "cem-checkbox",
+                "cem-radio",
+                "cem-switch"
+            ],
+            "interaction": "Mark an input busy while preserving its label, value, and dimensions.",
+            "status": "gap",
+            "reason": "No input primitive currently mirrors loading or busy state in a browser assertion."
+        },
+        {
+            "id": "input:expanded",
+            "category": "Input",
+            "state": "expanded",
+            "components": ["cem-select"],
+            "interaction": "Open and close a select-like disclosure and mirror its expanded state.",
+            "status": "gap",
+            "reason": "Native select rendering is covered, but no disclosure transition or aria-expanded assertion exists."
+        },
+        {
+            "id": "input:invalid",
+            "category": "Input",
+            "state": "invalid",
+            "components": ["cem-text-field", "cem-textarea", "cem-select", "cem-checkbox"],
+            "interaction": "Reflect validation failure and retain help and error relationships.",
+            "status": "covered",
+            "owner": "packages/cem-components/src/lib/states.browser.spec.ts",
+            "test": "reflects form disabled, invalid, required, readonly, checked, and indeterminate states",
+            "assertions": [
+                "expect(textField.getAttribute('aria-invalid')).toBe('true');",
+                "expect(textField.getAttribute('aria-errormessage')).toBe('email-error');"
+            ]
+        },
+        {
+            "id": "input:required",
+            "category": "Input",
+            "state": "required",
+            "components": ["cem-text-field", "cem-select", "cem-checkbox"],
+            "interaction": "Expose required semantics through native controls and their accessible labels.",
+            "status": "covered",
+            "owner": "packages/cem-components/src/lib/states.browser.spec.ts",
+            "test": "reflects form disabled, invalid, required, readonly, checked, and indeterminate states",
+            "assertions": ["expect(textField.required).toBe(true);", "expect(checkedBox.required).toBe(true);"]
+        },
+        {
+            "id": "input:readonly",
+            "category": "Input",
+            "state": "readonly",
+            "components": ["cem-text-field"],
+            "interaction": "Keep a readonly field focusable and submittable while preventing edits.",
+            "status": "covered",
+            "owner": "packages/cem-components/src/lib/states.browser.spec.ts",
+            "test": "reflects form disabled, invalid, required, readonly, checked, and indeterminate states",
+            "assertions": ["expect(textField.readOnly).toBe(true);"]
+        },
+        {
+            "id": "input:checked",
+            "category": "Input",
+            "state": "checked",
+            "components": ["cem-checkbox", "cem-radio", "cem-switch"],
+            "interaction": "Mirror authored checked state to native checkbox, radio, and switch controls.",
+            "status": "covered",
+            "owner": "packages/cem-components/src/lib/states.browser.spec.ts",
+            "test": "reflects form disabled, invalid, required, readonly, checked, and indeterminate states",
+            "assertions": [
+                "expect(checkedBox.checked).toBe(true);",
+                "expect(radio.checked).toBe(true);",
+                "expect(switchInput.checked).toBe(true);"
+            ]
+        },
+        {
+            "id": "input:indeterminate",
+            "category": "Input",
+            "state": "indeterminate",
+            "components": ["cem-checkbox"],
+            "interaction": "Expose mixed aggregate selection through native or ARIA state.",
+            "status": "covered",
+            "owner": "packages/cem-components/src/lib/states.browser.spec.ts",
+            "test": "reflects form disabled, invalid, required, readonly, checked, and indeterminate states",
+            "assertions": ["expect(mixedBox.getAttribute('aria-checked')).toBe('mixed');"]
+        },
+        {
+            "id": "navigation:default",
+            "category": "Navigation",
+            "state": "default",
+            "components": ["cem-app-bar", "cem-nav", "cem-tabs"],
+            "interaction": "Render navigation landmarks and a labeled tablist with native roles.",
+            "status": "covered",
+            "owner": "packages/cem-components/src/lib/primitives.browser.spec.ts",
+            "test": "renders navigation-family MVP primitives as accessible landmarks and tablists",
+            "assertions": [
+                "expect(appBar.getAttribute('role')).toBe('banner');",
+                "expect(tablist.getAttribute('role')).toBe('tablist');"
+            ]
+        },
+        {
+            "id": "navigation:hover",
+            "category": "Navigation",
+            "state": "hover",
+            "components": ["cem-nav", "cem-tabs"],
+            "interaction": "Move the pointer across navigation items without changing layout.",
+            "status": "gap",
+            "reason": "No navigation browser assertion drives pointer hover."
+        },
+        {
+            "id": "navigation:focus-visible",
+            "category": "Navigation",
+            "state": "focus-visible",
+            "components": ["cem-nav", "cem-tabs"],
+            "interaction": "Move keyboard focus through navigation items with a visible focus indicator.",
+            "status": "gap",
+            "reason": "Navigation roles are covered, but their focus-visible treatment is not asserted."
+        },
+        {
+            "id": "navigation:active",
+            "category": "Navigation",
+            "state": "active",
+            "components": ["cem-nav", "cem-tabs"],
+            "interaction": "Activate a navigation item while retaining selection and readable contrast.",
+            "status": "gap",
+            "reason": "No browser assertion performs a navigation activation transition."
+        },
+        {
+            "id": "navigation:disabled",
+            "category": "Navigation",
+            "state": "disabled",
+            "components": ["cem-nav", "cem-tabs"],
+            "interaction": "Disable a navigation item and remove activation and tab-stop behavior where appropriate.",
+            "status": "gap",
+            "reason": "No disabled navigation item is asserted in the browser suite."
+        },
+        {
+            "id": "navigation:selected",
+            "category": "Navigation",
+            "state": "selected",
+            "components": ["cem-tabs"],
+            "interaction": "Distinguish the selected tab from its unselected peer through ARIA state.",
+            "status": "covered",
+            "owner": "packages/cem-components/src/lib/states.browser.spec.ts",
+            "test": "reflects action, loading, disabled, expanded, selected, and focus states on native controls",
+            "assertions": ["expect(tabs.map((tab) => tab.getAttribute('aria-selected')).join('|')).toBe('true|false');"]
+        },
+        {
+            "id": "navigation:expanded",
+            "category": "Navigation",
+            "state": "expanded",
+            "components": ["cem-nav"],
+            "interaction": "Open and close a navigation group and mirror disclosure state with aria-expanded.",
+            "status": "gap",
+            "reason": "The suite asserts menu-item expansion, but no navigation group owns an expanded transition."
+        },
+        {
+            "id": "layout:default",
+            "category": "Layout",
+            "state": "default",
+            "components": ["cem-surface", "cem-stack", "cem-grid"],
+            "interaction": "Render token-scoped layout containers with their authored structure and spacing metadata.",
+            "status": "covered",
+            "owner": "packages/cem-components/src/lib/primitives.browser.spec.ts",
+            "test": "renders layout, list, navigation, surface, and dialog shell primitives",
+            "assertions": [
+                "expect(surface.getAttribute('aria-label')).toBe('Account');",
+                "expect(grid.getAttribute('data-columns')).toBe('2');"
+            ]
+        },
+        {
+            "id": "layout:loading",
+            "category": "Layout",
+            "state": "loading",
+            "components": ["cem-surface", "cem-stack", "cem-grid"],
+            "interaction": "Mark a layout region busy while preserving its dimensions and child placement.",
+            "status": "gap",
+            "reason": "No layout primitive exposes or asserts loading/busy state."
+        },
+        {
+            "id": "layout:empty",
+            "category": "Layout",
+            "state": "empty",
+            "components": ["cem-surface", "cem-stack", "cem-grid"],
+            "interaction": "Render an empty layout region with visible guidance and a next action path.",
+            "status": "gap",
+            "reason": "No layout workflow asserts an empty region or recovery action."
+        },
+        {
+            "id": "content:default",
+            "category": "Content",
+            "state": "default",
+            "components": [
+                "cem-card",
+                "cem-list",
+                "cem-table",
+                "cem-chip",
+                "cem-badge",
+                "cem-avatar",
+                "cem-media-preview"
+            ],
+            "interaction": "Render content primitives with their semantic roles, labels, and projected content.",
+            "status": "covered",
+            "owner": "packages/cem-components/src/lib/primitives.browser.spec.ts",
+            "test": "renders content-family MVP primitives as accessible light DOM",
+            "assertions": [
+                "expect(table.getAttribute('role')).toBe('table');",
+                "expect(avatar.getAttribute('role')).toBe('img');"
+            ]
+        },
+        {
+            "id": "content:hover",
+            "category": "Content",
+            "state": "hover",
+            "components": ["cem-list", "cem-table", "cem-chip"],
+            "interaction": "Move the pointer over an interactive content row or chip without changing layout.",
+            "status": "gap",
+            "reason": "No content browser assertion drives pointer hover."
+        },
+        {
+            "id": "content:focus-visible",
+            "category": "Content",
+            "state": "focus-visible",
+            "components": ["cem-list", "cem-table", "cem-chip"],
+            "interaction": "Move keyboard focus to interactive content with a visible focus indicator.",
+            "status": "gap",
+            "reason": "No content-family test invokes the focus-visible harness."
+        },
+        {
+            "id": "content:selected",
+            "category": "Content",
+            "state": "selected",
+            "components": ["cem-list", "cem-table", "cem-chip"],
+            "interaction": "Select a content row or chip and distinguish it from hover and keyboard focus.",
+            "status": "gap",
+            "reason": "No browser assertion selects a list/table row or chip or checks its reflected selected state."
+        },
+        {
+            "id": "content:loading",
+            "category": "Content",
+            "state": "loading",
+            "components": ["cem-list", "cem-table", "cem-card", "cem-media-preview"],
+            "interaction": "Mark content busy while preserving dimensions and an accessible loading status.",
+            "status": "gap",
+            "reason": "Feedback progress/skeleton coverage exists, but no content primitive owns a loading assertion."
+        },
+        {
+            "id": "content:empty",
+            "category": "Content",
+            "state": "empty",
+            "components": ["cem-list", "cem-table"],
+            "interaction": "Render visible empty-state content when a list or table has no projected items.",
+            "status": "covered",
+            "owner": "packages/cem-components/src/lib/states.browser.spec.ts",
+            "test": "preserves empty states, indeterminate progress, and live-region roles",
+            "assertions": [
+                "expect(list.querySelector('.cem-list__empty')?.textContent?.trim()).toBe('No items');",
+                "expect(table.querySelector('[role=\"cell\"]')?.textContent?.trim()).toBe('No rows');"
+            ]
+        },
+        {
+            "id": "content:checked",
+            "category": "Content",
+            "state": "checked",
+            "components": ["cem-chip"],
+            "interaction": "Toggle a filter chip and mirror checked and selected treatment.",
+            "status": "gap",
+            "reason": "The chip primitive has no checked-state browser assertion."
+        },
+        {
+            "id": "feedback:default",
+            "category": "Feedback",
+            "state": "default",
+            "components": ["cem-dialog", "cem-sheet", "cem-toast", "cem-progress", "cem-skeleton", "cem-alert"],
+            "interaction": "Render feedback surfaces with their native dialog, region, progress, and live-region semantics.",
+            "status": "covered",
+            "owner": "packages/cem-components/src/lib/primitives.browser.spec.ts",
+            "test": "renders feedback-family MVP primitives with status and dialog semantics",
+            "assertions": [
+                "expect(dialog.getAttribute('aria-modal')).toBe('true');",
+                "expect(toast.getAttribute('aria-live')).toBe('polite');"
+            ]
+        },
+        {
+            "id": "feedback:focus-visible",
+            "category": "Feedback",
+            "state": "focus-visible",
+            "components": ["cem-dialog", "cem-dialog-shell", "cem-sheet"],
+            "interaction": "Move keyboard focus into a feedback surface and retain a visible focus indicator.",
+            "status": "gap",
+            "reason": "Dialog and sheet semantics are asserted, but focus movement and indication are not."
+        },
+        {
+            "id": "feedback:loading",
+            "category": "Feedback",
+            "state": "loading",
+            "components": ["cem-progress", "cem-skeleton"],
+            "interaction": "Expose indeterminate progress and an inert visual placeholder with an accessible loading label.",
+            "status": "covered",
+            "owner": "packages/cem-components/src/lib/states.browser.spec.ts",
+            "test": "preserves empty states, indeterminate progress, and live-region roles",
+            "assertions": [
+                "expect(progress.hasAttribute('value')).toBe(false);",
+                "expect(skeleton.getAttribute('aria-hidden')).toBe('true');"
+            ]
+        },
+        {
+            "id": "feedback:expanded",
+            "category": "Feedback",
+            "state": "expanded",
+            "components": ["cem-dialog", "cem-dialog-shell", "cem-sheet"],
+            "interaction": "Open and close a dialog or sheet and mirror disclosure state where applicable.",
+            "status": "gap",
+            "reason": "Feedback surfaces render, but no open/close transition or aria-expanded owner is asserted."
+        },
+        {
+            "id": "feedback:invalid",
+            "category": "Feedback",
+            "state": "invalid",
+            "components": ["cem-alert"],
+            "interaction": "Render validation feedback with urgent semantics and an error treatment.",
+            "status": "covered",
+            "owner": "packages/cem-components/src/lib/states.browser.spec.ts",
+            "test": "preserves empty states, indeterminate progress, and live-region roles",
+            "assertions": [
+                "expect(alert.getAttribute('data-tone')).toBe('danger');",
+                "expect(alert.textContent?.trim()).toBe('Resolve errors.');"
+            ]
+        }
+    ]
+}
