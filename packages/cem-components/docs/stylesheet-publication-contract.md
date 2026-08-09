@@ -1,11 +1,10 @@
 # Component Stylesheet Publication Contract
 
-**Status:** Accepted Phase 4 design, pending implementation. This contract is
-promoted by [`docs/todo.md`](../../../docs/todo.md) and resolves the packaging
-stop condition in the accepted
-[`action:hover` contract](./action-hover-contract.md). No CSS source, build
-target, package export, browser fixture, or runtime behavior changed as part of
-this decision.
+**Status:** Implemented Phase 4 contract. This contract is promoted by
+[`docs/todo.md`](../../../docs/todo.md), resolves the packaging stop condition
+in the accepted [`action:hover` contract](./action-hover-contract.md), and is
+enforced by `@epa-wg/cem-components:verify-package` plus the aggregate package
+gate.
 
 ## Decision
 
@@ -210,9 +209,25 @@ The publication slice is complete only when Nx proves:
 - the clean release-shaped package contains exactly one `dist/styles.css` and
   no source/root duplicate or `*.tsbuildinfo` artifact.
 
-This contract intentionally establishes an initially minimal or empty public
-stylesheet before the `action:hover` fixture adds behavior. Publication alone
-must not promote any state-matrix row or alter browser presentation.
+This implementation establishes a comment-only public stylesheet before the
+`action:hover` fixture adds behavior. Publication did not promote a state-matrix
+row or alter browser presentation. No CSS token exception was required; future
+unrepresentable values must enter the
+[`component CSS exception queue`](./components-css-exceptions.md) before use.
+
+Implementation evidence:
+
+- the resolved build retained its inferred `tsc --build tsconfig.lib.json`
+  command, working directory, TypeScript inputs/outputs, cacheability, and sync
+  generator, gaining only the `build:styles` dependency;
+- fresh and repeated uncached copies produced identical source/output SHA-256
+  `67c56130c04ca22bf46770f3914708d14d6f58c8fed11378d120cca612c43b13`;
+- after removing only `dist/styles.css`, Nx restored that identical output from
+  local cache without rerunning the copy command;
+- `verify-package` packed 18 files with exactly one `dist/styles.css`, no
+  source/root stylesheet copy, and no `*.tsbuildinfo` artifact; and
+- style verification, package lint, the unchanged state audit, and the
+  uncached aggregate 15-dependency gate passed all 37 tests across five files.
 
 If adding the partial explicit `build` configuration replaces or drops any
 inferred TypeScript target field, creates a target cycle, or prevents a cached

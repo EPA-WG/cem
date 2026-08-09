@@ -61,6 +61,11 @@ set (item 5) MUST satisfy.
 - Component-internal CSS lives in the same light-DOM stylesheet as the page, so all
   rules MUST be scoped via the element selector (`cem-button`, `cem-button[disabled]`)
   rather than a global class.
+- Existing semantic CEM tokens have priority over raw or component-local values.
+  If no token can express a requirement, stop and warn, then record the proposed
+  exception in [`components-css-exceptions.md`](./components-css-exceptions.md)
+  for analysis, categorization, and possible adoption into `@epa-wg/cem-theme`.
+  The review queue is not a verifier allowlist.
 
 ## 2. Attributes & Properties
 

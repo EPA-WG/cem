@@ -10,9 +10,8 @@ history is preserved in
 
 The CSS selector query and SCSS-to-CSS lifecycle slices are complete. The active
 work is closing the Phase 4 component state matrix in priority order. The
-`action:hover` interaction and stylesheet-publication contracts are accepted.
-The active item is implementing the publication contract before adding the
-hover fixture or behavioral styles.
+component stylesheet publication contract is implemented and verified. The
+active item is implementing the accepted `action:hover` contract tests-first.
 
 The cross-layer architecture remains serializer-free: lifecycle loading, graph
 routing, joins, evaluators, CEM-QL, CEMT, and XSLT adapters must exchange
@@ -514,17 +513,29 @@ mediate between internal layers.
     entry import, build replacement, checked-in `dist`, and publish-time
     generation. The existing package-root manifest continues to publish only
     verified `dist` artifacts.
-- [ ] Implement the accepted component stylesheet publication contract before
+- [x] Implement the accepted component stylesheet publication contract before
       adding hover behavior.
-  - [ ] Add the canonical minimal `src/styles.css`, package-owned deterministic
+  - [x] Add the canonical minimal `src/styles.css`, package-owned deterministic
         copy script, and cacheable `build:styles` target; merge it into the
         inferred TypeScript build without changing the resolved compiler target.
-  - [ ] Expose only `./styles.css: ./dist/styles.css`, add the package verifier
+  - [x] Expose only `./styles.css: ./dist/styles.css`, add the package verifier
         and aggregate gate dependency, and prove byte identity plus exact
         `npm pack --dry-run --json` inclusion/exclusion behavior.
-  - [ ] Verify fresh, repeated, and cached Nx builds; style/package/lint gates;
+  - [x] Verify fresh, repeated, and cached Nx builds; style/package/lint gates;
         and aggregate package verification without changing browser presentation
         or promoting a state-matrix row.
+  - The resolved build retained its inferred TypeScript executor, command,
+    working directory, inputs/outputs, cacheability, and sync generator. Fresh
+    and repeated copies had identical source/output SHA-256; after removing only
+    the generated stylesheet, Nx restored the same bytes from local cache.
+  - `verify-package` packed 18 files with exactly one `dist/styles.css`, no
+    source/root duplicate, and no `*.tsbuildinfo`. The uncached aggregate gate
+    passed all 15 dependencies and 37 tests across five files; the audit remains
+    25 covered, 0 static-only, and 14 gaps with `action:hover` recommended next.
+  - Added the token-first
+    [`components-css-exceptions.md`](../packages/cem-components/docs/components-css-exceptions.md)
+    review queue requested for future unrepresentable component values. This
+    declaration-free slice needs no exception, and the queue grants no waiver.
 - [ ] Implement the accepted `action:hover` contract tests-first.
   - [ ] Add the focused `states.browser.spec.ts` real-pointer fixture first and
         confirm it fails only because the public component stylesheet and hover

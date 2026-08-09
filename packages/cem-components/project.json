@@ -4,6 +4,19 @@
     "sourceRoot": "packages/cem-components/src",
     "projectType": "library",
     "targets": {
+        "build": {
+            "dependsOn": ["^build", "build:styles"]
+        },
+        "build:styles": {
+            "cache": true,
+            "executor": "nx:run-commands",
+            "options": {
+                "command": "node scripts/copy-styles.mjs",
+                "cwd": "{projectRoot}"
+            },
+            "inputs": ["{projectRoot}/scripts/copy-styles.mjs", "{projectRoot}/src/styles.css"],
+            "outputs": ["{projectRoot}/dist/styles.css"]
+        },
         "verify-primitives": {
             "cache": true,
             "executor": "nx:run-commands",
@@ -73,9 +86,36 @@
             ],
             "outputs": ["{projectRoot}/dist/reports/component-state-matrix.{json,md}"]
         },
+        "verify-package": {
+            "cache": true,
+            "executor": "nx:run-commands",
+            "dependsOn": ["build"],
+            "options": {
+                "command": "node scripts/verify-package.mjs",
+                "cwd": "{projectRoot}"
+            },
+            "inputs": [
+                "{projectRoot}/scripts/verify-package.mjs",
+                "{projectRoot}/package.json",
+                "{projectRoot}/src/index.ts",
+                "{projectRoot}/src/lib/cem-components.ts",
+                {
+                    "dependentTasksOutputFiles": "**/*.{js,css}",
+                    "transitive": false
+                }
+            ],
+            "outputs": []
+        },
         "verify": {
             "executor": "nx:run-commands",
-            "dependsOn": ["verify-primitives", "verify-style-contract", "verify-workflows", "verify-state-matrix", "test"],
+            "dependsOn": [
+                "verify-primitives",
+                "verify-style-contract",
+                "verify-workflows",
+                "verify-state-matrix",
+                "verify-package",
+                "test"
+            ],
             "options": {
                 "command": "echo \"cem-components verification gate green: primitive manifest + state matrix + style contract + workflow examples + browser harness tests passed.\"",
                 "cwd": "{workspaceRoot}"

@@ -33,6 +33,7 @@ The aggregate gate includes:
 | --- | --- | --- |
 | Primitive manifest | `yarn nx run @epa-wg/cem-components:verify-primitives` | `CEM_COMPONENT_PRIMITIVES` exactly matches `docs/component-mvp.md`, uses CEM-ML declarations, and does not depend on legacy `<custom-element>` wrappers. |
 | Token-only style contract | `yarn nx run @epa-wg/cem-components:verify-style-contract` | Depends on `@epa-wg/cem-theme:build:tokens`, checks MVP token families against generated theme tokens/CSS, and rejects inline component styles plus raw component color or spacing literals. |
+| Stylesheet publication | `yarn nx run @epa-wg/cem-components:verify-package` | Builds the canonical component stylesheet byte-for-byte into `dist`, verifies the side-effect-free `./styles.css` export, and checks the dry-run npm file inventory. |
 | Browser and unit behavior | `yarn nx run @epa-wg/cem-components:test` | Runs the Node smoke test plus Chromium-backed harness, primitive, state/ARIA, and workflow specs. |
 
 Executable fixture locations:
@@ -46,6 +47,8 @@ Executable fixture locations:
 | Declarative workflow fixtures | `../tests/workflows/` |
 | Component harness helpers | `../src/lib/testing/component-harness.ts` |
 | Style and manifest verifier scripts | `../../../tools/scripts/verify-cem-components-*.mjs` |
+| Package stylesheet source | `../src/styles.css` |
+| Package publication scripts | `../scripts/copy-styles.mjs`, `../scripts/verify-package.mjs` |
 
 Handoff condition: Phase 4 component expansion can build on this primitive package after the aggregate verify gate is
 green and the promoted branch has no uncommitted gate changes. The handoff covers the MVP primitive declaration set,

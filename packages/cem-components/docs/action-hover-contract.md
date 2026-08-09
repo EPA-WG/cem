@@ -72,8 +72,8 @@ stylesheet.
 The canonical source, cacheable copy target, `dist/styles.css` output,
 package-export mapping, release path, and npm-pack evidence are defined by the
 [`component stylesheet publication contract`](./stylesheet-publication-contract.md).
-That contract must be implemented and verified before the hover fixture adds
-the first behavioral rules.
+That contract is implemented and verified; the hover fixture can add the first
+behavioral rules to its canonical source.
 
 Rules MUST be scoped through the public custom-element tag and then target its
 direct native button. A global `.cem-action`, `.cem-icon-button`, or
