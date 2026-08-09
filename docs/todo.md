@@ -8,11 +8,10 @@ history is preserved in
 
 ## Immediate Goal
 
-The immediate work is to add CSS selectors as a schema-owned query language
-peer to CEM-QL and XPath, then expose all three through one `cem_ml_cli` query
-surface over lifecycle-owned data. Keep stylesheet CSS identity separate from
-selector-expression identity, and keep unsupported data/query combinations
-explicit rather than inferring or serializing a replacement tree.
+The CSS selector query and SCSS-to-CSS lifecycle slices are complete. The next
+active work is the Phase 4 component state-matrix audit: map the state
+requirements in [`component-mvp.md`](component-mvp.md) to executable browser
+evidence before adding another component fixture or assertion.
 
 The cross-layer architecture remains serializer-free: lifecycle loading, graph
 routing, joins, evaluators, CEM-QL, CEMT, and XSLT adapters must exchange
@@ -142,25 +141,47 @@ mediate between internal layers.
         through package-local, `cem_ml`, `cem_ml_cli`, WASM, parity, and release
         Nx gates.
 
-### Deferred: Phase 3.6 Adoption Decision
+### Completed: Phase 3.6 Adoption Decision
 
-- [ ] Select the next Phase 3 work track before implementation.
-  - Recommended: begin Phase 3.6 by defining the migration and fixture gate for
-    moving `@epa-wg/custom-element` into `packages/custom-element/`, preserving
-    its npm identity and `<custom-element>` public tag while rebuilding its next
-    major on the parity-proven `cem-element` substrate.
-  - Alternative: reopen one or more known Phase 3.1 bridge deferrals—broad
-    legacy XPath/XSLT behavior, scoped light-DOM style containment, or host
-    resolution policy—only when consumer or adoption evidence requires it.
-  - Decision boundary: package-history migration, compatibility/versioning, and
-    bridge-retention scope must be chosen before fixtures or implementation are
-    added.
+- [x] Select the next Phase 3 work track before implementation.
+  - Selected the recommended Phase 3.6 adoption track. This reconciles already
+    landed repository state: `@epa-wg/custom-element` is a workspace package in
+    `packages/custom-element/`, preserves its npm identity and public
+    `<custom-element>` tag, and delegates rendering to the parity-proven
+    `CemElementRuntime` substrate.
+  - Package-history/import boundary: use the local 0.0.37 checkout as the
+    history source and the installed 0.0.39 package as the behavior baseline;
+    keep generic legacy release tags out of this repository unless they are
+    namespaced. See
+    [`custom-element-migration-scope.md`](custom-element-migration-scope.md) and
+    [`custom-element-package-baseline.md`](custom-element-package-baseline.md).
+  - Compatibility/versioning boundary: preserve the package name, browser
+    entrypoints, import side effects, and `<custom-element>` declaration surface
+    in the 0.1.0 pre-1.0 major adoption release. See
+    [`custom-element-adapter-boundary.md`](custom-element-adapter-boundary.md)
+    and [`release-readiness-0.1.0.md`](release-readiness-0.1.0.md).
+  - Bridge-retention boundary: keep explicit `custom-element-v0` support as a
+    deprecated 0.1.0 migration bridge, with removal in the next major guarded by
+    FF-5; legacy HTML+XSLT otherwise lowers through the CEM-owned compatibility
+    compiler into CEM-ML/CEM-QL rather than restoring a browser XSLT engine. See
+    [`custom-element-bridge-template-policy.md`](custom-element-bridge-template-policy.md)
+    and [`custom-element-xslt-parity-decision.md`](custom-element-xslt-parity-decision.md).
+  - Executable adoption evidence is owned by the package baseline, source/dist
+    browser, material compatibility, theme-vendor, no-XSLT, and release-root
+    checks aggregated by `yarn nx run @epa-wg/custom-element:verify`.
 
 ### Deferred: Phase 4 CEM Component Set
 
 - [ ] Add a Phase 4 component state-matrix coverage audit/gate that maps
       `docs/component-mvp.md` category state requirements to the executable
       primitive, state, and workflow browser assertions.
+  - Produce one machine-readable inventory keyed by component/category, required
+    state, interaction or transition, and exact browser assertion/story owner.
+  - Make the gate report requirements with no executable owner, stale assertion
+    references, and browser states exercised only by static markup.
+  - Keep this first slice audit-only: select the first missing selected,
+    expanded, empty, or loading proof from the report before changing component
+    runtime behavior or adding a fixture.
 - [ ] Populate the first missing state fixture or assertion from that audit,
       prioritizing selected, expanded, empty, and loading coverage across
       navigation, content, and layout workflows.
