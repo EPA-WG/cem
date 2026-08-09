@@ -1433,6 +1433,7 @@ schema_owned_package_validation_test!(schema_owned_schema_examples_validate_thro
 schema_owned_package_validation_test!(schema_owned_svg_examples_validate_through_cli, "svg");
 schema_owned_package_validation_test!(schema_owned_xhtml_examples_validate_through_cli, "xhtml");
 schema_owned_package_validation_test!(schema_owned_xml_examples_validate_through_cli, "xml");
+schema_owned_package_validation_test!(schema_owned_xpath_examples_validate_through_cli, "xpath");
 schema_owned_package_validation_test!(schema_owned_xslt_examples_validate_through_cli, "xslt");
 schema_owned_package_validation_test!(schema_owned_yaml_examples_validate_through_cli, "yaml");
 

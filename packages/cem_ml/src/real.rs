@@ -9826,6 +9826,15 @@ impl CemMlEngine for RealCemMlEngine {
                 }
             }
 
+            if loaded.adapter_id.is_some_and(|adapter_id| adapter_id != "cem-ml")
+                && diagnostics
+                    .iter()
+                    .any(|diagnostic| diagnostic.severity.is_hard_violation())
+            {
+                primary = Some(Value::Null);
+                return;
+            }
+
             let export_conversion =
                 resolve_export_conversion_execution(&context, to_format, request.target.as_ref());
 
@@ -18472,6 +18481,43 @@ mod tests {
     }
 
     #[test]
+    fn convert_invalid_json_does_not_fall_through_to_cem_pipeline() {
+        let mut source = input(br#"{"enabled": true,}"#, "invalid-document.json");
+        source.identity = Some(FormatIdentity {
+            content_type: Some(JSON_CONTENT_TYPE.to_owned()),
+            schema: Some(JSON_VALUE_SCHEMA_URI.to_owned()),
+            ..FormatIdentity::default()
+        });
+        let target = FormatIdentity {
+            content_type: Some(YAML_CONTENT_TYPE.to_owned()),
+            schema: Some(YAML_SCHEMA_URI.to_owned()),
+            ..FormatIdentity::default()
+        };
+
+        let resp = RealCemMlEngine::new()
+            .convert(ConvertRequest {
+                input: source,
+                to_format: LayerFormat::Yaml,
+                preserve_source_offsets: false,
+                context: ctx(),
+                target: Some(target),
+                target_scope: ScopeConfig::default(),
+                scheduler_scope_id: 0,
+            })
+            .unwrap();
+
+        assert!(resp.primary.is_null());
+        assert!(resp
+            .diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.code == "cem.json.parse_error"));
+        assert!(!resp
+            .diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.code.starts_with("cem.tokenizer.")));
+    }
+
+    #[test]
     fn convert_csv_header_present_to_json_uses_generic_data_ast_stream() {
         let mut source = input(b"id,name\n1,Ada\n", "table.csv");
         source.identity = Some(FormatIdentity {
@@ -19395,7 +19441,7 @@ mod tests {
         let req = ConvertRequest {
             input: EngineInput {
                 uri: "in.xml".to_owned(),
-                bytes: br#"<button cem:action="primary" type="submit">Save</button>"#.to_vec(),
+                bytes: br#"<button type="submit">Save</button>"#.to_vec(),
                 from_format: Some(InputFormat::Xml),
                 identity: Some(FormatIdentity {
                     content_type: Some(XML_CONTENT_TYPE.to_owned()),
@@ -19415,7 +19461,7 @@ mod tests {
         assert_eq!(resp.primary["kind"], "cem");
         assert_eq!(
             resp.primary["content"].as_str().unwrap(),
-            "{button @type=submit @cem:action=primary | Save}\n"
+            "{button @type=submit | Save}\n"
         );
         assert!(resp.primary["outputSpans"]
             .as_array()

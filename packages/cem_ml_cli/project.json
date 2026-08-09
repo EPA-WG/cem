@@ -334,7 +334,7 @@
                     "./dist/target/cem_ml_cli/debug/cem-ml fixture parity --quiet --report-json packages/cem_ml_cli/dist --report-md packages/cem_ml_cli/dist",
                     "./dist/target/cem_ml_cli/debug/cem-ml fixture roundtrip --quiet --report-json packages/cem_ml_cli/dist --report-md packages/cem_ml_cli/dist",
                     "./dist/target/cem_ml_cli/debug/cem-ml convert --from-format cem --to-format cem --out packages/cem_ml_cli/dist/cem-ml.cross-surface.cem.cem examples/cem-ml/cross-surface/conversion-rules.cem",
-                    "./dist/target/cem_ml_cli/debug/cem-ml convert --from-format xml --to-format cem --out packages/cem_ml_cli/dist/cem-ml.cross-surface.xml.cem examples/cem-ml/cross-surface/conversion-rules.xml",
+                    "./dist/target/cem_ml_cli/debug/cem-ml convert --from-format xml --to-format cem --out packages/cem_ml_cli/dist/cem-ml.cross-surface.xml.cem examples/cem-ml/cross-surface/conversion-rules-safe.xml",
                     "./dist/target/cem_ml_cli/debug/cem-ml convert --from-format html --to-format cem --out packages/cem_ml_cli/dist/cem-ml.cross-surface.html.cem examples/cem-ml/cross-surface/conversion-rules.html"
                 ],
                 "parallel": false,

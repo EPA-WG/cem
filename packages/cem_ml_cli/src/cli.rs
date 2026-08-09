@@ -1139,8 +1139,11 @@ mod tests {
             "cem",
             "html",
             "xml",
+            "css",
             "csv",
             "yaml",
+            "json",
+            "markdown",
             "dom-json",
             "ast",
             "events",
@@ -1150,7 +1153,7 @@ mod tests {
         ] {
             try_parse(&["convert", "--to-format", fmt, "in.cem"]).expect(fmt);
         }
-        for fmt in ["json", "text"] {
+        for fmt in ["text"] {
             assert!(
                 try_parse(&["convert", "--to-format", fmt, "in.cem"]).is_err(),
                 "rejected: {fmt}"

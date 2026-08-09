@@ -23,7 +23,7 @@ mediate between internal layers.
 
 ### Immediate: CSS Selector Query Schema and Unified CLI Query Execution
 
-- [ ] Add a validated CSS selector query package and let `cem_ml_cli` execute
+- [x] Add a validated CSS selector query package and let `cem_ml_cli` execute
       CSS selector, CEM-QL, and XPath queries through one native-data boundary.
   - [x] Define the language identities and shared execution contract before
         adding fixtures.
@@ -112,7 +112,7 @@ mediate between internal layers.
     - [x] Add negative CLI fixtures for language/content-type mismatch,
           unsupported data models, invalid queries, missing context, denied
           resolver capabilities, budget exhaustion, and unavailable exporters.
-  - [ ] Close the slice through Nx: run the new schema package `verify` target,
+  - [x] Close the slice through Nx: run the new schema package `verify` target,
         CSS stylesheet regression verification, CEM-QL and XPath package gates,
         `cem_ml_cli` tests/e2e/converter parity, `cem_ml` lint/tests/WASM, and the
         CEM core release dry run before marking this parent item complete.

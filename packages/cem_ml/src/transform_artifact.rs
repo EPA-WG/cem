@@ -73,6 +73,7 @@ pub const CEMT_TREE_REPRESENTATION_ID: &str = "cem.cemt-tree";
 pub const CEMT_MATERIALIZED_TREE_REPRESENTATION_ID: &str = "cem.cemt-materialized-tree";
 pub const DOM_PROJECTION_REPRESENTATION_ID: &str = "cem.dom-projection";
 pub const EVENT_STREAM_REPRESENTATION_ID: &str = "cem.event-stream";
+pub const TRANSFORM_COLLECTION_REPRESENTATION_ID: &str = "cem.transform-collection";
 pub const XPATH_RESULT_REPRESENTATION_ID: &str = "cem.xpath-result";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -8697,7 +8698,7 @@ impl TransformArtifactBody {
             Self::DomProjection(_) => DOM_PROJECTION_REPRESENTATION_ID,
             Self::EventStream(_) => EVENT_STREAM_REPRESENTATION_ID,
             Self::XPathResult(_) => XPATH_RESULT_REPRESENTATION_ID,
-            Self::Collection(_) => "cem.transform-collection",
+            Self::Collection(_) => TRANSFORM_COLLECTION_REPRESENTATION_ID,
             Self::Extension(artifact) => artifact.representation_id(),
             Self::Encoded(_) => "cem.encoded",
         }
@@ -8746,6 +8747,7 @@ impl TransformArtifactExporterRegistry {
         registry.register(DomProjectionJsonExporter);
         registry.register(EventStreamJsonExporter);
         registry.register(XPathResultJsonExporter);
+        registry.register(TransformCollectionJsonExporter);
         registry
     }
 
@@ -9174,6 +9176,133 @@ impl fmt::Display for TransformEncodedArtifactError {
 }
 
 impl std::error::Error for TransformEncodedArtifactError {}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct TransformCollectionJsonProjection<'a> {
+    kind: &'static str,
+    mode: &'static str,
+    count: usize,
+    bindings: &'a BTreeMap<String, String>,
+    items: Vec<TransformCollectionItemJsonProjection<'a>>,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct TransformCollectionItemJsonProjection<'a> {
+    #[serde(rename = "input")]
+    input_name: &'a str,
+    artifact_id: &'a str,
+    uri: Option<&'a str>,
+    destination: Option<&'a str>,
+    identity: Option<&'a FormatIdentity>,
+    primary: serde_json::Value,
+    bindings: &'a BTreeMap<String, String>,
+    source_map: Option<&'a SourceMapStack>,
+    output_spans: &'a [OutputSpan],
+}
+
+#[derive(Debug, Clone, Default)]
+struct TransformCollectionJsonExporter;
+
+impl TransformArtifactExporter for TransformCollectionJsonExporter {
+    fn id(&self) -> &'static str {
+        "cem.transform-collection-json"
+    }
+
+    fn representation_id(&self) -> &'static str {
+        TRANSFORM_COLLECTION_REPRESENTATION_ID
+    }
+
+    fn export(
+        &self,
+        request: TransformArtifactExportRequest<'_>,
+    ) -> Result<Arc<TransformEncodedArtifact>, String> {
+        let content_type = request
+            .target
+            .content_type
+            .as_deref()
+            .map(content_type_essence);
+        if content_type.as_deref() != Some(JSON_CONTENT_TYPE) || request.target.schema.is_some() {
+            return Err(format!(
+                "{} target must use `{JSON_CONTENT_TYPE}` without a schema; got content type `{}` and schema `{}`",
+                self.id(),
+                request.target.content_type.as_deref().unwrap_or("none"),
+                request.target.schema.as_deref().unwrap_or("none")
+            ));
+        }
+        let TransformArtifactBody::Collection(collection) = request.body else {
+            return Err(format!(
+                "expected native `{TRANSFORM_COLLECTION_REPRESENTATION_ID}` body, got `{}`",
+                request.body.representation_id()
+            ));
+        };
+
+        let items = collection
+            .items
+            .iter()
+            .map(|item| {
+                let primary = match &item.artifact.body {
+                    TransformArtifactBody::Encoded(encoded) => match encoded.encoding {
+                        TransformEncoding::Text => serde_json::Value::String(
+                            std::str::from_utf8(encoded.bytes.as_ref())
+                                .map_err(|error| {
+                                    format!(
+                                        "collection item `{}` text is not valid UTF-8: {error}",
+                                        item.artifact.artifact_id
+                                    )
+                                })?
+                                .to_owned(),
+                        ),
+                        TransformEncoding::Json => serde_json::from_slice(encoded.bytes.as_ref())
+                            .map_err(|error| {
+                                format!(
+                                    "collection item `{}` JSON is invalid: {error}",
+                                    item.artifact.artifact_id
+                                )
+                            })?,
+                        TransformEncoding::Binary => {
+                            return Err(format!(
+                                "collection item `{}` uses binary encoding, which is unavailable in the JSON manifest",
+                                item.artifact.artifact_id
+                            ));
+                        }
+                    },
+                    body => {
+                        return Err(format!(
+                            "collection item `{}` retains native representation `{}`; export it explicitly before creating a JSON manifest",
+                            item.artifact.artifact_id,
+                            body.representation_id()
+                        ));
+                    }
+                };
+                Ok(TransformCollectionItemJsonProjection {
+                    input_name: &item.input_name,
+                    artifact_id: &item.artifact.artifact_id,
+                    uri: item.artifact.uri.as_deref(),
+                    destination: item.destination.as_deref(),
+                    identity: item.target.as_ref().or(item.artifact.identity.as_ref()),
+                    primary,
+                    bindings: &item.bindings,
+                    source_map: item.source_map.as_ref(),
+                    output_spans: &item.output_spans,
+                })
+            })
+            .collect::<Result<Vec<_>, String>>()?;
+        let projection = TransformCollectionJsonProjection {
+            kind: "collection",
+            mode: collection.mode.as_str(),
+            count: collection.items.len(),
+            bindings: &collection.bindings,
+            items,
+        };
+        let bytes = serde_json::to_vec(&projection)
+            .map_err(|error| format!("transform collection JSON encoding failed: {error}"))?;
+        TransformEncodedArtifact::new(request.target.clone(), TransformEncoding::Json, bytes)
+            .map(Arc::new)
+            .map_err(|error| error.to_string())
+    }
+}
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum TransformArtifactAccessError {

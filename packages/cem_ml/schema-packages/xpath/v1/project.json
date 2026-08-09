@@ -19,6 +19,7 @@
                 "{projectRoot}/converters/**/*.cemt",
                 "{projectRoot}/scripts/**/*.mjs",
                 "{projectRoot}/examples/**/*",
+                "!{projectRoot}/examples/previews/**/*",
                 "{projectRoot}/tests/**/*.cem",
                 "{workspaceRoot}/packages/cem_ml/schema-packages/scripts/**/*.mjs",
                 "{workspaceRoot}/Cargo.toml",
@@ -29,7 +30,9 @@
                 "{workspaceRoot}/packages/cem_ml_cli/Cargo.toml"
             ],
             "outputs": [
-                "{projectRoot}/README.md"
+                "{projectRoot}/README.md",
+                "{workspaceRoot}/dist/cem_ml/schema-packages/xpath/v1/examples/*.html",
+                "{projectRoot}/examples/previews/*.svg"
             ]
         },
         "samples2readme": {
@@ -59,6 +62,7 @@
                 "{projectRoot}/converters/**/*.cemt",
                 "{projectRoot}/scripts/**/*.mjs",
                 "{projectRoot}/examples/**/*",
+                "!{projectRoot}/examples/previews/**/*",
                 "{projectRoot}/tests/**/*.cem",
                 "{workspaceRoot}/packages/cem_ml/schema-packages/scripts/**/*.mjs",
                 "{workspaceRoot}/Cargo.toml",
@@ -69,7 +73,9 @@
                 "{workspaceRoot}/packages/cem_ml_cli/Cargo.toml"
             ],
             "outputs": [
-                "{projectRoot}/README.md"
+                "{projectRoot}/README.md",
+                "{workspaceRoot}/dist/cem_ml/schema-packages/xpath/v1/examples/*.html",
+                "{projectRoot}/examples/previews/*.svg"
             ]
         },
         "verify": {
@@ -96,6 +102,7 @@
                     "cargo test -p cem-ml xpath_package -- --nocapture",
                     "cargo test -p cem-ml catalog_exposes_xpath_output_artifact_sources -- --nocapture",
                     "cargo test -p cem-ml --test schema_package_structure -- --nocapture",
+                    "cargo test -p cem-ml-cli schema_owned_xpath_examples_validate_through_cli --target-dir dist/target/cem_ml_cli -- --nocapture",
                     "node packages/cem_ml/schema-packages/xpath/v1/scripts/verify-previews.mjs"
                 ],
                 "parallel": false,
@@ -115,6 +122,7 @@
                 "{workspaceRoot}/packages/cem_ml/tests/schema_package_structure.rs",
                 "{workspaceRoot}/packages/cem_ml/Cargo.toml",
                 "{workspaceRoot}/packages/cem_ml_cli/src/**/*.rs",
+                "{workspaceRoot}/packages/cem_ml_cli/tests/schema_validation_examples.rs",
                 "{workspaceRoot}/packages/cem_ml_cli/Cargo.toml"
             ],
             "outputs": [

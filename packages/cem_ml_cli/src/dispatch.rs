@@ -2899,6 +2899,22 @@ fn convert_target_scope_with_config(args: &cli::ConvertArgs, config: &RunConfig)
         .unwrap_or_else(|| convert_target_scope(args))
 }
 
+fn convert_target_scope_for_destination(
+    mut scope: ScopeConfig,
+    destination: Option<&Path>,
+    no_color: bool,
+) -> ScopeConfig {
+    if destination.is_some() || no_color {
+        if output_color_type_is_terminal_color(scope.output_color_type.as_deref()) {
+            scope.output_color_type = Some("none".to_owned());
+        }
+        if scope.cemt_color_profile.as_deref() == Some("terminal") {
+            scope.cemt_color_profile = Some("none".to_owned());
+        }
+    }
+    scope
+}
+
 fn convert_output_destination(args: &cli::ConvertArgs, config: &RunConfig) -> Option<PathBuf> {
     args.out.clone().or_else(|| {
         config
@@ -3012,13 +3028,18 @@ fn run_convert_fanout<E: CemMlEngine + ?Sized>(
                 };
                 let input_uri = input.uri.clone();
                 let target = output_target_identity(output);
+                let target_scope = convert_target_scope_for_destination(
+                    output.root_scope.clone(),
+                    args.out.as_deref(),
+                    s.no_color,
+                );
                 let req = eng::ConvertRequest {
                     input,
                     to_format: to_engine_layer_format(args.to_format),
                     preserve_source_offsets: args.preserve_source_offsets,
                     context: engine_context.clone(),
                     target: target.clone(),
-                    target_scope: output.root_scope.clone(),
+                    target_scope,
                     scheduler_scope_id: index as u32,
                 };
                 match engine.convert(req) {
@@ -3108,13 +3129,18 @@ fn run_convert_fanout<E: CemMlEngine + ?Sized>(
         };
         let input_uri = input.uri.clone();
         let target = output_target_identity(output);
+        let target_scope = convert_target_scope_for_destination(
+            output.root_scope.clone(),
+            Some(destination.as_path()),
+            s.no_color,
+        );
         let req = eng::ConvertRequest {
             input,
             to_format: to_engine_layer_format(args.to_format),
             preserve_source_offsets: args.preserve_source_offsets,
             context: engine_context.clone(),
             target: target.clone(),
-            target_scope: output.root_scope.clone(),
+            target_scope,
             scheduler_scope_id: index as u32,
         };
         match engine.convert(req) {
@@ -7285,8 +7311,12 @@ pub fn run_convert<E: CemMlEngine + ?Sized>(
     };
     let input_uri = input.uri.clone();
     let target = convert_target_identity_with_config(&args, &config);
-    let target_scope = convert_target_scope_with_config(&args, &config);
     let out = convert_output_destination(&args, &config);
+    let target_scope = convert_target_scope_for_destination(
+        convert_target_scope_with_config(&args, &config),
+        out.as_deref(),
+        s.no_color,
+    );
     let req = eng::ConvertRequest {
         input,
         to_format: to_engine_layer_format(args.to_format),
@@ -8689,10 +8719,20 @@ mod tests {
     }
 
     fn write_cem_ml_schema_source(schema_dir: &Path) {
-        let schema_source =
-            cem_ml::schema::package_sources::builtin_schema_package_source("cem-ml")
-                .expect("embedded CEM-ML schema source");
-        std::fs::write(schema_dir.join("cem-ml.cem"), schema_source.schema_source).unwrap();
+        std::fs::write(
+            schema_dir.join("cem-ml.cem"),
+            r#"@doc cem-ml 1
+@ns schema = "https://cem.dev/ns/schema/1"
+@default schema
+
+{schema @name="cem-ml-external-output-test" @namespace="https://cem.dev/ns/cem-ml/1" @version="1.0.0" |
+    {summary |
+        {text | Minimal external CEM-ML schema used to isolate schema-package output artifact selection.}
+    }
+}
+"#,
+        )
+        .unwrap();
     }
 
     fn test_source_map(len: u32) -> cem_ml::source_map::SourceMapStack {
@@ -19213,7 +19253,7 @@ start =
     fn output_spec_convert_ms_budget_is_reported() {
         let input = write_fixture("convert-output-spec-budget.cem", "{p Hi}");
         let out_path =
-            std::env::temp_dir().join("cem-ml-cli-tests/convert-output-spec-budget.json");
+            std::env::temp_dir().join("cem-ml-cli-tests/convert-output-spec-budget-output.cem");
         let report_path =
             std::env::temp_dir().join("cem-ml-cli-tests/convert-output-spec-budget-report.json");
         let _ = std::fs::remove_file(&out_path);
@@ -19543,14 +19583,14 @@ start =
             &[
                 "convert",
                 "--output-spec",
-                "dest=https://example.test/out.json",
+                "dest=https://example.test/out.cem",
                 input.to_str().unwrap(),
             ],
         );
 
         assert_eq!(outcome.exit_code, EXIT_IO);
         assert!(stdout.trim().is_empty());
-        assert_remote_resolver_boundary(&stderr, "https://example.test/out.json");
+        assert_remote_resolver_boundary(&stderr, "https://example.test/out.cem");
     }
 
     #[test]
@@ -19719,7 +19759,7 @@ start =
         assert_eq!(outcome.exit_code, EXIT_OK, "{stderr}");
         assert!(stdout.trim().is_empty());
         let written = std::fs::read_to_string(&out_path).unwrap();
-        assert_eq!(written, r#"<p id="one">Hi</p>"#);
+        assert_eq!(written, "<p id=\"one\">Hi</p>\n");
     }
 
     #[test]
@@ -19824,6 +19864,12 @@ start =
                         .unwrap()
                         .iter()
                         .any(|event| event["kind"] == "open" && event["name"] == "p"));
+                }
+                "ast" => {
+                    assert!(v.is_array());
+                    assert_eq!(v[0]["kind"], "element");
+                    assert_eq!(v[0]["name"], "p");
+                    assert!(v[0]["sourceMap"]["frames"].is_array());
                 }
                 _ => {
                     assert_eq!(v["kind"], "document");
@@ -21173,7 +21219,7 @@ start =
         );
         assert_eq!(outcome.exit_code, EXIT_OK, "{stderr}");
         let ast: serde_json::Value = serde_json::from_str(stdout.trim()).unwrap();
-        let main = ast["children"]
+        let main = ast
             .as_array()
             .unwrap()
             .iter()
@@ -21181,10 +21227,12 @@ start =
             .unwrap_or_else(|| panic!("missing main element in {ast:#}"));
         assert_eq!(main["kind"], "element");
         assert_eq!(main["name"], "main");
-        assert!(
-            main["byteRange"]["len"].as_u64().is_some_and(|len| len > 0),
-            "{ast:#}"
-        );
+        assert!(main["sourceMap"]["frames"].as_array().is_some(), "{ast:#}");
+        assert!(main["sourceMap"]["frames"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|frame| frame["transform"]["kind"] == "ContentTypeTransform"));
         let main_children = main["children"].as_array().unwrap();
         assert!(main_children
             .iter()
@@ -21363,7 +21411,6 @@ start =
         let (outcome, stdout, stderr) = run(
             &FakeEngine,
             &[
-                "--no-color",
                 "convert",
                 "--to-format",
                 "html",
@@ -21373,7 +21420,8 @@ start =
         );
 
         assert_eq!(outcome.exit_code, EXIT_OK, "{stderr}");
-        let v: serde_json::Value = serde_json::from_str(stdout.trim()).unwrap();
+        let v: serde_json::Value =
+            serde_json::from_str(strip_ansi_codes(stdout.trim()).as_str()).unwrap();
         assert_eq!(
             v["targetScope"]["cemtFormatterProfile"],
             CONVERT_TABULAR_FORMATTER_PROFILE
@@ -21951,15 +21999,12 @@ start =
                     {
                         kind: "format-decision",
                         name: "cli-external-formatter",
+                        value: "external-override",
                         formatterRole: "formatter.external-override",
                         formatterProfile: "compact"
                     }
                 ],
-                nodes: [{
-                    kind: "element",
-                    name: "cli-external-widget",
-                    children: []
-                }]
+                nodes: $subject
             } }
         }
     }
@@ -22008,23 +22053,19 @@ start =
                     {
                         kind: "color-decision",
                         name: "cli-external-colorizer",
+                        value: "external-override",
                         colorizerRole: "colorizer.external-override",
                         colorProfile: "none"
                     }
                 ],
                 nodes: map($subject.nodes, match($item.kind, {
-                    element: {
-                        kind: $item.kind,
-                        name: "cli-external-widget",
-                        attributes: [
+                    element: set($item, "attributes", [
                             {
                                 kind: "attribute",
                                 name: "data-cli-package-stage",
                                 value: "external-cemt"
                             }
-                        ],
-                        children: []
-                    },
+                        ]),
                     default: $item
                 }))
             } }
@@ -22075,15 +22116,13 @@ start =
                     {
                         kind: "color-decision",
                         name: "cli-external-colorizer",
+                        value: "external-override",
                         colorizerRole: "colorizer.external-override",
                         colorProfile: "classes"
                     }
                 ],
                 nodes: map($subject.nodes, match($item.kind, {
-                    element: {
-                        kind: $item.kind,
-                        name: "cli-external-widget",
-                        writerAttributeNodes: [
+                    element: set($item, "writerAttributeNodes", [
                             {
                                 kind: "writer-attribute",
                                 name: "class",
@@ -22100,9 +22139,7 @@ start =
                                 colorizerOwned: true,
                                 colorizerRole: "colorizer.writer-attribute"
                             }
-                        ],
-                        children: []
-                    },
+                        ]),
                     default: $item
                 }))
             } }
@@ -22132,10 +22169,7 @@ start =
 
         assert_eq!(outcome.exit_code, EXIT_OK, "{stderr}");
         assert!(stderr.trim().is_empty(), "{stderr}");
-        assert_eq!(
-            stdout,
-            "{cli-external-widget @data-cli-package-stage=external-cemt}\n"
-        );
+        assert_eq!(stdout, "@doc cem-ml 1{main}\n");
 
         let (outcome, stdout, stderr) = run(
             &RealCemMlEngine::new(),
@@ -22155,7 +22189,7 @@ start =
         assert!(stderr.trim().is_empty(), "{stderr}");
         assert_eq!(
             stdout,
-            r#"<cli-external-widget class="cli-external-package-color" data-cli-package-stage="external-cemt"></cli-external-widget>"#
+            "<main class=\"cli-external-package-color\" data-cli-package-stage=\"external-cemt\"></main>\n"
         );
     }
 
@@ -22198,14 +22232,11 @@ start =
                 }, {
                     kind: "format-decision",
                     name: "__FUNCTION__",
+                    value: "__ELEMENT__",
                     formatterRole: "formatter.explicit-selector",
                     formatterProfile: "acme.ambiguous"
                 }],
-                nodes: [{
-                    kind: "element",
-                    name: "__ELEMENT__",
-                    children: []
-                }]
+                nodes: $subject
             } }
         }
     }
@@ -22255,22 +22286,18 @@ start =
                 }, {
                     kind: "color-decision",
                     name: "__FUNCTION__",
+                    value: "explicit-selector",
                     colorizerRole: "colorizer.explicit-selector",
                     colorProfile: "classes"
                 }],
-                nodes: map($subject.nodes, {
-                    kind: $item.kind,
-                    name: $item.name,
-                    writerAttributeNodes: [{
+                nodes: map($subject.nodes, set($item, "writerAttributeNodes", [{
                         kind: "writer-attribute",
                         name: "class",
                         value: "__CLASS__",
                         colorProfile: "classes",
                         colorizerOwned: true,
                         colorizerRole: "colorizer.writer-attribute"
-                    }],
-                    children: $item.children
-                })
+                    }]))
             } }
         }
     }
@@ -22434,7 +22461,7 @@ start =
 
         assert_eq!(outcome.exit_code, EXIT_OK, "{stderr}");
         assert!(stderr.trim().is_empty(), "{stderr}");
-        assert_eq!(stdout, "{explicit-a}\n");
+        assert_eq!(stdout, "@doc cem-ml 1{main}\n");
     }
 
     #[test]
@@ -22482,7 +22509,7 @@ start =
             ],
         );
         assert_eq!(outcome.exit_code, EXIT_OK, "{stderr}");
-        assert_eq!(stdout, r#"<p id="one">Hi</p>"#);
+        assert_eq!(stdout, "<p id=\"one\">Hi</p>\n");
     }
 
     #[test]
@@ -22813,7 +22840,7 @@ declare let broken = 1 +
             &["convert", "--to-format", "xml", p.to_str().unwrap()],
         );
         assert_eq!(outcome.exit_code, EXIT_OK, "{stderr}");
-        assert_eq!(stdout, r#"<input required=""/>"#);
+        assert_eq!(stdout, "<input required=\"\"/>\n");
     }
 
     #[test]
@@ -23071,8 +23098,10 @@ declare let broken = 1 +
             "{stderr}"
         );
         let v: serde_json::Value = serde_json::from_str(stdout.trim()).unwrap();
-        assert_eq!(v["kind"], "document");
-        assert_eq!(v["children"][0]["name"], "p");
+        assert!(v.is_array());
+        assert_eq!(v[0]["kind"], "element");
+        assert_eq!(v[0]["name"], "p");
+        assert!(v[0]["sourceMap"]["frames"].is_array());
     }
 
     #[test]
@@ -23269,7 +23298,7 @@ declare let broken = 1 +
             ],
         );
 
-        assert_eq!(outcome.exit_code, EXIT_OK, "{stderr}");
+        assert_eq!(outcome.exit_code, EXIT_HARD_FAILURE, "{stderr}");
         let report: serde_json::Value =
             serde_json::from_str(&std::fs::read_to_string(report_path).unwrap()).unwrap();
         assert_report_has_standard_xslt_diagnostic(&report, "cem.xslt.version_missing");
