@@ -256,29 +256,41 @@ mediate between internal layers.
     21 browser-covered, 0 static-only, and 18 gaps with
     `navigation:expanded` recommended next; no expanded-navigation behavior was
     introduced by this verification-only item.
-- [ ] Decide and document the Phase 4 `navigation:expanded` owner before adding
+- [x] Decide and document the Phase 4 `navigation:expanded` owner before adding
       a fixture or runtime behavior.
-  - Start from the audit's `cem-nav` scope and compare a host-level collapsible
-    navigation region with parent-scoped navigation-group vocabulary. Choose one
-    semantic owner and document why `cem-app-bar` and `cem-tabs` stay outside
-    this state slice.
-  - Pin the author API, default/passive compatibility, disclosure structure,
-    `aria-expanded` ownership, focus and keyboard behavior, initial/current
-    state precedence, event/slice contract, nested-content rules, and form
-    non-participation before changing a primitive.
-  - Prefer native disclosure semantics where they satisfy the navigation-group
-    contract; explicitly record any gap that would require custom composite
-    focus or keyboard behavior. Stop at that substrate boundary rather than
-    approximating an incomplete navigation pattern.
+  - Accepted and documented
+    [`packages/cem-components/docs/navigation-disclosure-contract.md`](../packages/cem-components/docs/navigation-disclosure-contract.md):
+    preserve passive `cem-nav`, while `cem-nav[collapsible]` makes the whole
+    labeled landmark one disclosure controlled by a native button and stable
+    hidden content container.
+  - Pinned `label`, presence-only `collapsible` and initial `expanded`, exact
+    button-owned `aria-expanded`, native pointer/Enter/Space activation, focus
+    retention, normal link tab order, a serializable boolean slice, optional
+    `aria-controls` omission, progressive fallback, and non-form participation.
+  - Deferred parent-scoped `cem-nav-group`, nested submenu/tree behavior, and
+    menu/menubar roles because they require a separate recursive vocabulary and
+    composite focus contract. Rejected `<details>/<summary>` for this slice
+    because its native expanded state is implicit and current ARIA-in-HTML rules
+    do not allow the explicit `aria-expanded` evidence required here.
+  - Kept `cem-app-bar` and `cem-tabs` outside the state owner: banners do not own
+    descendant action disclosures, and tabs own selection/panel visibility rather
+    than expanded navigation groups.
 - [ ] Implement the accepted `navigation:expanded` contract tests-first.
-  - Add the smallest focused browser fixture that proves the existing passive
-    `cem-nav` output first, then the accepted closed/open transition, exact
-    `aria-expanded`, focus location, native keyboard/pointer interaction, and a
-    serializable boolean slice or event payload.
-  - Implement only the accepted declarative CEM-ML/CEM-QL projection; do not add
-    app-level routing, imperative keyboard emulation, or unrelated navigation
-    states. Update public docs and only the `navigation:expanded` audit row after
-    the red fixture identifies the missing behavior.
+  - Add the smallest focused browser fixture with a passive nav plus closed and
+    initially expanded `cem-nav[collapsible]` hosts. Prove unchanged passive
+    output, the named native button/landmark, stable hidden content, exact initial
+    `aria-expanded`, and absence of menu roles before changing the primitive.
+  - Implement the accepted button and content-container branches with existing
+    CEM-ML/CEM-QL only. Bind native click to the opposite boolean `expanded`
+    slice; do not add `cem-nav-group`, `<details>`, generated IDs, app routing, or
+    imperative keyboard/focus handlers.
+  - Extend the fixture through pointer, Enter, and Space toggles, button focus
+    retention, open/closed link tab order, exact visibility/ARIA agreement, and
+    the serialized boolean event payload. Stop if stable focus or boolean state
+    exposes a required substrate capability.
+  - Update the component/accessibility docs and only the
+    `navigation:expanded` audit row after the red fixture identifies the missing
+    behavior.
 - [ ] Verify the `navigation:expanded` slice with focused targets, package lint,
       the state-matrix audit, and the aggregate `@epa-wg/cem-components:verify`
       gate; then confirm the audit's next recommended gap.
