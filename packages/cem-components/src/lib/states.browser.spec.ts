@@ -1,4 +1,5 @@
 import { CemElementRuntime, type DataIslandSnapshot } from '@epa-wg/cem-elements';
+import { userEvent } from 'vitest/browser';
 
 import { installCemComponentPrimitives } from './primitives.js';
 import {
@@ -266,6 +267,95 @@ describe('CEM component primitive states and ARIA behavior', () => {
         expect(released.getAttribute('aria-pressed')).toBe('false');
         expect(releasedSnapshot.slices.checked).toBe(false);
         expect(eventPayload(releasedSnapshot, 'checked').sliceValue).toBe(false);
+        expect(() => assertAriaReferenceIntegrity(harness.root)).not.toThrow();
+    });
+
+    it('selects declarative list options without changing passive list semantics', async () => {
+        harness = createComponentHarness();
+        const root = await harness.render(`
+            <cem-stack gap="sm">
+                <cem-list label="Static topics">
+                    <li>Static topic</li>
+                </cem-list>
+                <cem-list label="Asset type" selectable value="document" size="3">
+                    <cem-list-option value="image" selected>Image</cem-list-option>
+                    <cem-list-option value="document">Document</cem-list-option>
+                    <cem-list-option value="archive" disabled>Archive</cem-list-option>
+                    <span value="ignored">Ignored non-option</span>
+                    <div><cem-list-option value="nested">Ignored nested option</cem-list-option></div>
+                </cem-list>
+                <cem-list label="Fallback type" selectable size="3">
+                    <cem-list-option value="image" selected>Image</cem-list-option>
+                    <cem-list-option value="document" selected>Document</cem-list-option>
+                </cem-list>
+            </cem-stack>
+        `);
+        await waitForStateSelector(root, 'cem-list[selectable] select');
+
+        const passive = harness.query<HTMLUListElement>('cem-list:not([selectable]) ul');
+        const listHost = harness.query<HTMLElement>('cem-list[selectable][value]');
+        const listbox = harness.query<HTMLSelectElement>('cem-list[selectable][value] select');
+        const fallback = harness.query<HTMLSelectElement>('cem-list[selectable]:not([value]) select');
+        const options = Array.from(listbox.options);
+
+        expect(passive).toBeInstanceOf(HTMLUListElement);
+        expect(passive.textContent?.trim()).toBe('Static topic');
+        expect(listbox).toBeInstanceOf(HTMLSelectElement);
+        expect(listbox.size).toBe(3);
+        expect(listbox.multiple).toBe(false);
+        expect(listbox.name).toBe('');
+        expect(assertAccessibleName(listbox, 'Asset type')).toBe('Asset type');
+        expect(options.map((option) => `${option.value}:${option.text}`).join('|')).toBe(
+            'image:Image|document:Document|archive:Archive',
+        );
+        expect(options.map((option) => option.selected).join('|')).toBe('false|true|false');
+        expect(options.map((option) => option.getAttribute('aria-selected')).join('|')).toBe('false|true|false');
+        expect(options[2]?.disabled).toBe(true);
+        expect(fallback.value).toBe('document');
+        expect(Array.from(fallback.options).map((option) => option.selected).join('|')).toBe('false|true');
+        expect(
+            Array.from(fallback.options).map((option) => option.getAttribute('aria-selected')).join('|'),
+        ).toBe('false|true');
+
+        await userEvent.selectOptions(listbox, 'image');
+        await nextRenderFrame();
+
+        const pointerSelected = harness.query<HTMLSelectElement>('cem-list[selectable][value] select');
+        const pointerSnapshot = runtime.snapshotInstance(listHost);
+        const pointerPayload = eventPayload(pointerSnapshot, 'value');
+        expect(pointerSelected.value).toBe('image');
+        expect(pointerSelected.options[0]?.selected).toBe(true);
+        expect(pointerSelected.options[0]?.getAttribute('aria-selected')).toBe('true');
+        expect(pointerSnapshot.slices.value).toBe('image');
+        expect(pointerPayload).toMatchObject({
+            bubbles: true,
+            sliceValue: 'image',
+            type: 'change',
+        });
+        expect(pointerPayload.target).toMatchObject({
+            tag: 'select',
+            value: 'image',
+        });
+
+        await assertFocusVisible(pointerSelected);
+        expect(document.activeElement).toBe(pointerSelected);
+        expect(pointerSelected.selectedOptions[0]?.matches(':focus')).toBe(false);
+        await userEvent.keyboard('{ArrowDown}');
+        await nextRenderFrame();
+
+        const keyboardSelected = harness.query<HTMLSelectElement>('cem-list[selectable][value] select');
+        const keyboardSnapshot = runtime.snapshotInstance(listHost);
+        expect(keyboardSelected.value).toBe('document');
+        expect(keyboardSelected.options[1]?.getAttribute('aria-selected')).toBe('true');
+        expect(keyboardSnapshot.slices.value).toBe('document');
+        expect(eventPayload(keyboardSnapshot, 'value').sliceValue).toBe('document');
+
+        await userEvent.keyboard('{ArrowDown}');
+        await nextRenderFrame();
+
+        const disabledSkipped = harness.query<HTMLSelectElement>('cem-list[selectable][value] select');
+        expect(disabledSkipped.value).toBe('document');
+        expect(disabledSkipped.options[2]?.disabled).toBe(true);
         expect(() => assertAriaReferenceIntegrity(harness.root)).not.toThrow();
     });
 

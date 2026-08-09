@@ -148,10 +148,22 @@ export const CEM_COMPONENT_PRIMITIVES = [
     },
     {
         tag: 'cem-list',
-        description: 'List container with default empty-state fallback.',
+        description: 'Passive list container with an opt-in native single-select listbox mode.',
         cemMl:
             '{attribute @name=label | Items}' +
-            '{ul @class=cem-list @aria-label="{$label}" | {slot | {li @class=cem-list__empty | No items}}}',
+            '{attribute @name=size | 4}' +
+            '{attribute @name=value | }' +
+            '{cem:choose |' +
+            ' {cem:when @test="datadom.attributes.selectable" |' +
+            '  {select @class="cem-list cem-list--selectable" @aria-label="{$label}" @size={$size} @slice=value @slice-event=change @slice-value="$target.value" |' +
+            '   {cem:for-each @select="datadom.payload.elementsByAttribute.value" @as=option |' +
+            '    {cem:if @test=\'option.tag == "cem-list-option" && !str:contains(option.key, "/")\' |' +
+            '     {cem:choose |' +
+            '      {cem:when @test=\'(option.attributes.value == (datadom.slices.value ?? value)) || ((datadom.slices.value ?? value) == null && option.key == datadom.payload.elementsByAttribute.selected.where(fn(candidate) => candidate.tag == "cem-list-option" && !str:contains(candidate.key, "/")).key.last())\' |' +
+            '       {option @value="{$option.attributes.value}" @disabled={option.attributes.disabled != null} @selected=true @aria-selected=true | {$option.text}}}' +
+            '      {cem:otherwise |' +
+            '       {option @value="{$option.attributes.value}" @disabled={option.attributes.disabled != null} @aria-selected=false | {$option.text}}}}}}}}' +
+            ' {cem:otherwise | {ul @class=cem-list @aria-label="{$label}" | {slot | {li @class=cem-list__empty | No items}}}}}',
     },
     {
         tag: 'cem-card',

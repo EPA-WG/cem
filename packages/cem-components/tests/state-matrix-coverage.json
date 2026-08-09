@@ -10,7 +10,7 @@
         "content:loading",
         "layout:loading"
     ],
-    "recommendedNext": "content:selected",
+    "recommendedNext": "navigation:expanded",
     "coverage": [
         {
             "id": "action:default",
@@ -375,8 +375,17 @@
             "state": "selected",
             "components": ["cem-list", "cem-table", "cem-chip"],
             "interaction": "Select a content row or chip and distinguish it from hover and keyboard focus.",
-            "status": "gap",
-            "reason": "Checkable chips own checked/aria-pressed semantics, while no list/table row or option contract yet owns reflected selected state distinct from hover and keyboard focus."
+            "status": "covered",
+            "owner": "packages/cem-components/src/lib/states.browser.spec.ts",
+            "test": "selects declarative list options without changing passive list semantics",
+            "assertions": [
+                "expect(options.map((option) => option.selected).join('|')).toBe('false|true|false');",
+                "expect(options.map((option) => option.getAttribute('aria-selected')).join('|')).toBe('false|true|false');",
+                "expect(document.activeElement).toBe(pointerSelected);",
+                "expect(pointerSnapshot.slices.value).toBe('image');",
+                "expect(keyboardSnapshot.slices.value).toBe('document');",
+                "expect(disabledSkipped.options[2]?.disabled).toBe(true);"
+            ]
         },
         {
             "id": "content:loading",

@@ -1,8 +1,9 @@
 # Selectable List Contract
 
-**Status:** Accepted Phase 4 design; implementation pending. This contract is
-promoted by [`docs/todo.md`](../../../docs/todo.md) and governs the next
-`content:selected` implementation slice.
+**Status:** Implemented Phase 4 contract. This contract is promoted by
+[`docs/todo.md`](../../../docs/todo.md) and is exercised by the focused
+`content:selected` browser fixture in
+[`states.browser.spec.ts`](../src/lib/states.browser.spec.ts).
 
 ## Scope
 

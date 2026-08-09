@@ -82,7 +82,7 @@ attributes consistent with reflected state.
 | `data-state="empty"` | None (the empty content carries its own semantics). |
 | `aria-invalid="true"` | Required when the field validity is failed. Pair with `aria-describedby` pointing at the error message. |
 | `aria-expanded` | Required on disclosure / popover / menu triggers; reflects open/closed. |
-| `aria-selected` | Required on selectable list/nav rows. |
+| `aria-selected` | Required on selectable list options and navigation rows. `cem-list[selectable]` mirrors the native option selectedness exactly; passive lists and static table rows do not expose it. |
 | `checked` | A `cem-chip[checkable]` native toggle button MUST expose the current boolean state through `aria-pressed`; passive chips do not expose pressed state. |
 | `aria-current` | Required on the active nav item; value `"page"` or `"step"` per WHATWG/ARIA. |
 
@@ -104,6 +104,10 @@ For every component that emits `id`/`for`/`aria-*` references at runtime:
 
 - Native interactive components inherit focus from their inner element. They MUST
   NOT add `tabindex` to the host element.
+- `cem-list[selectable]` keeps its single tab stop, visible focus, pointer
+  selection, and keyboard navigation on the rendered native `<select>`. Its
+  option payload MUST NOT introduce roving `tabindex`, nested controls, or a
+  second focus model.
 - Composite components decide tabindex per the WAI-ARIA Authoring Practices for
   their composite pattern (e.g. menubar = one tabstop, internal arrow keys). Per
   pattern, the component MUST set `tabindex="0"` on the entrypoint and

@@ -42,8 +42,8 @@ set (item 5) MUST satisfy.
 - Attributes are lowercase, hyphen-separated, and align with WHATWG conventions
   (`aria-*`, `data-*`, `name`, `value`, `disabled`).
 - Boolean attributes use the WHATWG presence convention: present = true, absent = false.
-  `disabled`, `required`, `readonly`, `busy`, `selected`, `expanded`, `checkable`,
-  and `checked` MUST follow this rule. They MUST NOT be set to the string `"false"`
+  `disabled`, `required`, `readonly`, `busy`, `selected`, `expanded`, `selectable`,
+  `checkable`, and `checked` MUST follow this rule. They MUST NOT be set to the string `"false"`
   to mean false; remove the attribute.
 - Enum attributes use a single hyphenated token: `variant="primary"`,
   `intent="destructive"`, `tone="quiet"`. The accepted token set per component is
@@ -107,7 +107,7 @@ and ARIA computations can observe it:
 | `aria-invalid="true"` | Form field failed validation. |
 | `aria-disabled="true"` | Mirrors the `disabled` attribute on non-form components. |
 | `aria-expanded="true"` | Disclosure or popover open. |
-| `aria-selected="true"` | List/nav row currently selected. |
+| `aria-selected="true"` | Native selectable-list option or navigation row currently selected. Passive lists and static table rows do not expose selected state. |
 | `aria-pressed="true|false"` | Checkable chip toggle mirrors its current `checked` slice. |
 
 These are the **only** attributes a component is allowed to set on itself for state.

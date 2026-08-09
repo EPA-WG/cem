@@ -226,25 +226,34 @@ mediate between internal layers.
     the prohibition on nested option controls.
   - Kept table-row selection deferred to a complete interactive-grid contract;
     static rows MUST NOT gain `aria-selected` in isolation.
-- [ ] Implement the accepted `content:selected` contract tests-first.
-  - Add the smallest focused browser fixture with a passive list and at least
-    three declarative options, including selected and disabled cases. Prove the
-    missing native listbox output, source order, label, `size`, initial value
-    precedence, and unchanged passive output before changing the primitive.
-  - Implement payload iteration inside `cem-list`; normalize option payload into
-    native `<option>` nodes and bind native `change` to the string `value` slice.
-    Do not register `cem-list-option`, add imperative keyboard handlers, or make
-    the list a form participant.
-  - Extend the browser assertion through pointer and keyboard selection,
-    selected-versus-focus evidence, exact native/ARIA selectedness, disabled
-    behavior, and serializable event payloads. Stop if the red test exposes a
-    required substrate capability beyond existing CEM-ML iteration and
-    declarative slice events.
-  - Update the component/accessibility docs and `content:selected` audit row only
-    after the red browser assertion identifies the missing behavior.
+- [x] Implement the accepted `content:selected` contract tests-first.
+  - Added the focused browser fixture red first, then preserved passive-list
+    output while normalizing only direct `cem-list-option` payload into a named
+    native single-select listbox in source order. The fixture covers parent
+    `value` precedence, last-authored child `selected` fallback, `size`, disabled
+    options, and omission of non-option or nested payload.
+  - Implemented the accepted behavior entirely with existing CEM-ML/CEM-QL
+    iteration, lexical expressions, conditional option materialization, and a
+    native `change`-owned string `value` slice. `cem-list-option` remains
+    unregistered parent-scoped vocabulary; no imperative keyboard handler or
+    form participation was added.
+  - Proved pointer and native keyboard selection, focus remaining on the select,
+    exact native/ARIA selectedness, disabled-option skipping, and serializable
+    event payloads. The component and accessibility docs now describe the
+    shipped boundary.
+  - Updated `content:selected` to browser-covered. The audit now has 21 covered,
+    0 static-only, and 18 gap rows, with `navigation:expanded` recommended next.
 - [ ] Verify the `content:selected` slice with focused targets, package lint,
       the state-matrix audit, and the aggregate `@epa-wg/cem-components:verify`
       gate; then confirm the audit's next recommended gap.
+  - Re-run the isolated state browser target from the clean implementation
+    commit, then run `verify-primitives`, `verify-state-matrix`, and package
+    `lint` without accepting cached evidence as the only result.
+  - Run the aggregate package `verify` gate and confirm all browser, workflow,
+    style, build, and manifest dependencies remain green together.
+  - Confirm the generated audit remains at 21 browser-covered, 0 static-only,
+    and 18 gaps with `navigation:expanded` recommended next; keep that behavior
+    out of this verification-only item.
 
 ## Current Verification Commands
 
