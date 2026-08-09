@@ -352,28 +352,42 @@ mediate between internal layers.
   - Confirmed regeneration left tracked source unchanged and created no failed
     browser artifacts. The audit remains at 23 browser-covered, 0 static-only,
     and 16 gap rows, with `content:loading` recommended next.
-- [ ] Decide and document the Phase 4 `content:loading` owner before adding a
+- [x] Decide and document the Phase 4 `content:loading` owner before adding a
       fixture or runtime behavior.
-  - Compare `cem-list`, `cem-table`, `cem-card`, and `cem-media-preview` against
-    the roadmap's asset, profile, and discussion workflows, then choose the
-    smallest semantic owner without making every content container busy.
-  - Define the declarative loading source of truth, dimension-preserving
-    placeholder boundary, exact `aria-busy` and status semantics, accessible
-    loading label, and relationship to `cem-progress` and `cem-skeleton`.
-  - Pin loading-to-content, loading-to-empty, and loading-to-error transitions;
-    payload visibility; focus and interaction behavior; motion policy; and the
-    application/resource-loader ownership boundary.
-  - Distinguish content loading from deferred `layout:loading`, input/action
-    loading, and feedback progress/status. Stop if the accepted behavior needs
-    resource, timing, or rendering substrate support beyond existing
-    CEM-ML/CEM-QL state projection.
+  - Accepted and documented
+    [`packages/cem-components/docs/content-loading-contract.md`](../packages/cem-components/docs/content-loading-contract.md):
+    `cem-card[busy]` explicitly projects the first content-loading state onto
+    its stable named section as exact `data-state="loading"` and
+    `aria-busy="true"`; ordinary cards remain unchanged.
+  - Selected the card as the smallest shared asset, profile, discussion,
+    authentication, and settings content boundary. Lists and tables retain
+    collection/empty semantics, while media preview remains resource-specific;
+    none infer or inherit loading in this slice.
+  - Pinned presence-only workflow ownership, retained refresh payload, authored
+    visible initial-loading text and layout-preserving `cem-skeleton` payload,
+    optional determinate `cem-progress`, no automatic live region, stable focus,
+    no inert subtree, and reduced-motion behavior.
+  - Defined loading-to-content, loading-to-empty, and loading-to-error ordering.
+    The card performs no fetch, timing, cancellation, payload selection, slice,
+    outcome event, or error/status synthesis; those remain with the application,
+    resource loader, workflow, or feedback primitive.
+  - Kept deferred `layout:loading`, input/action loading, collection-specific
+    placeholders, and feedback progress/status separate. Existing attribute
+    observation, CEM-ML conditionals, light-DOM diffing, and slot projection are
+    expected to suffice; implementation must stop if the red fixture disproves
+    stable section/header/body or surviving-focus identity.
 - [ ] Implement the accepted `content:loading` contract tests-first.
-  - Add the smallest focused red browser fixture only after the owner contract
-    is accepted, covering initial and transitioned loading state, stable
-    geometry/content identity, exact busy/status semantics, focus, and the
-    settled content/empty boundary.
-  - Implement only the accepted declarative branches, update public component
-    and accessibility docs, and promote only the `content:loading` audit row.
+  - Add the smallest focused red browser fixture for ordinary and busy cards,
+    initial authored status/skeleton payload, retained refresh content,
+    presence-only initialization, host-attribute transitions, stable
+    section/header/body and surviving focus, exact busy semantics, and settled
+    content/empty ordering. Assert that list, table, and media preview do not own
+    or inherit this state.
+  - Implement only the accepted `cem-card` declarative branches. Add no resource
+    work, timing, slice, event, inert behavior, alternate slot, or synthesized
+    status/placeholder; stop if stable rendered identity needs new substrate.
+  - Update the component reference and accessibility/conventions docs, then
+    promote only the `content:loading` audit row.
 - [ ] Verify the `content:loading` slice with focused targets, package lint, the
       state-matrix audit, and the aggregate `@epa-wg/cem-components:verify`
       gate; then confirm the audit's next recommended gap.
