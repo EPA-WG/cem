@@ -20,6 +20,8 @@ This index links the active project, release, and token workflow documents.
 - [CEM ML CLI feature summary](./cem-ml-cli-contract.md) — planned CLI capabilities, options, reports, diagnostics,
   fixture workflows, and exit codes.
 - [CEM ML CLI plan](./cem-ml-cli-plan.md) — Rust `cem-ml` CLI implementation plan with `cem-ml` library separation.
+- [CEM-ML IDE and SDLC integration options](./integrations.md) — LSP/DAP architecture, VS Code, IntelliJ, Chromium
+  DevTools, CLI/editor transports, CI/CD projections, tradeoffs, and an implementation-ordered feature list.
 - [CEM ML Phase 2 run-config audit](./cem-ml-phase2-run-config-audit.md) — current `cem_ml` and `cem_ml_cli`
   run-config/lifecycle surfaces mapped to the Phase 2 parser/runtime contract.
 - [CEM ML Phase 2 normalized run-config contract](./cem-ml-phase2-run-config-contract.md) — target authored-config
