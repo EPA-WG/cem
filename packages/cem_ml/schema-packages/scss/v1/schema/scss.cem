@@ -55,7 +55,9 @@
         {element @name="member" @required-attributes="name member-kind visibility definition-id"}
         {element @name="parse-facts" @children="parse-fact*"}
         {element @name="parse-fact" @required-attributes="kind" @optional-attributes="message value byte-offset byte-length line column"}
-        {element @name="evaluation-request" @required-attributes="resolver-policy-stamp safety-policy-stamp max-work-units max-recursion-depth max-output-nodes" @optional-attributes="cancellation-id"}
+        {element @name="evaluation-request" @required-attributes="resolver-policy-stamp safety-policy-stamp max-work-units max-recursion-depth max-output-nodes max-output-bytes" @optional-attributes="cancellation-id" @children="load-path* safety-policy"}
+        {element @name="load-path" @required-attributes="uri"}
+        {element @name="safety-policy" @required-attributes="allow-absolute-paths allow-parent-traversal allow-backslash-paths allow-query-or-fragment allow-network-urls"}
         {element @name="css-handoff" @required-attributes="target-content-type target-schema completion-state" @children="generated-node* origin-chain*"}
         {element @name="generated-node" @required-attributes="css-node-id css-node-kind" @children="origin-chain"}
         {element @name="origin-chain" @children="origin-frame+"}
@@ -123,9 +125,15 @@
         {attribute @name="message" @type="schema:string"}
         {attribute @name="resolver-policy-stamp" @type="schema:string"}
         {attribute @name="safety-policy-stamp" @type="schema:string"}
+        {attribute @name="allow-absolute-paths" @type="schema:boolean"}
+        {attribute @name="allow-parent-traversal" @type="schema:boolean"}
+        {attribute @name="allow-backslash-paths" @type="schema:boolean"}
+        {attribute @name="allow-query-or-fragment" @type="schema:boolean"}
+        {attribute @name="allow-network-urls" @type="schema:boolean"}
         {attribute @name="max-work-units" @type="cemml:integer"}
         {attribute @name="max-recursion-depth" @type="cemml:integer"}
         {attribute @name="max-output-nodes" @type="cemml:integer"}
+        {attribute @name="max-output-bytes" @type="cemml:integer"}
         {attribute @name="cancellation-id" @type="schema:string"}
         {attribute @name="completion-state" @type="schema:identifier" @values="pending complete failed cancelled"}
         {attribute @name="css-node-id" @type="schema:identifier"}
@@ -152,7 +160,8 @@
         {constraint @kind="scss-import-deprecation" @target="import-rule" @diagnostic="cem.scss.import_deprecated" @behavior="scss-report-fact" @fact-kind="import-deprecated" @policy="accept Sass @import for compatibility while emitting a schema-owned warning"}
         {constraint @kind="scss-resolver-policy" @target="module-edge" @diagnostic="cem.scss.resolver_denied" @behavior="scss-report-fact" @fact-kind="resolver-denied" @policy="every module read requires explicit resolver policy and preserves requested normalized effective and canonical URIs"}
         {constraint @kind="scss-module-cycle" @target="module-graph" @diagnostic="cem.scss.module_cycle" @behavior="scss-report-fact" @fact-kind="module-cycle" @policy="module cycles fail deterministically with the complete edge chain"}
-        {constraint @kind="scss-work-budget" @target="evaluation-request" @diagnostic="cem.scss.budget_exceeded" @behavior="scss-report-fact" @fact-kind="budget-exceeded" @policy="evaluation consumes explicit work recursion and output-node budgets and observes cancellation"}
+        {constraint @kind="scss-work-budget" @target="evaluation-request" @diagnostic="cem.scss.budget_exceeded" @behavior="scss-report-fact" @fact-kind="budget-exceeded" @policy="evaluation consumes explicit work recursion output-node and output-byte budgets"}
+        {constraint @kind="scss-cancellation" @target="evaluation-request" @diagnostic="cem.scss.cancelled" @behavior="scss-report-fact" @fact-kind="cancelled" @policy="evaluation observes cooperative cancellation between module-resolution and expansion work units and produces no partial CSS handoff"}
         {constraint @kind="scss-origin-chain" @target="generated-node" @diagnostic="cem.scss.origin_unavailable" @behavior="scss-report-fact" @fact-kind="origin-unavailable" @policy="every generated CSS node retains module definition call-site and interpolation origins when applicable"}
         {constraint @kind="scss-css-typed-handoff" @target="css-handoff" @diagnostic="cem.scss.handoff_invalid" @behavior="scss-report-fact" @fact-kind="handoff-invalid" @policy="successful evaluation constructs CssDocumentAst under https://cem.dev/ns/data/css/1 directly without CSS serialization or reparsing"}
         {constraint @kind="scss-passive-tools" @target="source-resource" @policy="validation formatting coloring and preview generation perform no module resolution or evaluation"}
@@ -167,6 +176,7 @@
         {diagnostic @code="cem.scss.resolver_denied" @severity="error"}
         {diagnostic @code="cem.scss.module_cycle" @severity="error"}
         {diagnostic @code="cem.scss.budget_exceeded" @severity="error"}
+        {diagnostic @code="cem.scss.cancelled" @severity="error"}
         {diagnostic @code="cem.scss.origin_unavailable" @severity="error"}
         {diagnostic @code="cem.scss.handoff_invalid" @severity="error"}
     }

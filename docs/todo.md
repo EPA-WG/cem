@@ -134,7 +134,7 @@ mediate between internal layers.
         it, construct a JSON/generic DTO bridge, or lose SCSS-to-CSS source maps.
   - [x] Isolate SCSS-only CLI verification in a dedicated Cargo integration test
         and Nx target so SCSS package gates do not select the broad CLI suite.
-  - [ ] Route imports, modules, functions, mixins, interpolation, generated
+  - [x] Route imports, modules, functions, mixins, interpolation, generated
         selectors, and expansion limits through explicit resolver, safety,
         cancellation, recursion, output-size, and work-budget policies.
   - [ ] Reuse the registered CSS validation, formatter, colorizer, conversion,

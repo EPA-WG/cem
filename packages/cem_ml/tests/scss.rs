@@ -1,14 +1,92 @@
+use cem_ml::resolver::{
+    ResolveDirection, ResolveListRequest, ResolvePolicyDenial, ResolvePolicyRequestKey,
+    ResolvePurpose, ResolveRequest, ResolvedListEntry, ResolvedRead, ResolvedWrite,
+    ResolverDiagnostic, ResolverPolicy, ResolverRegistry, ResourceResolver,
+};
+use cem_ml::scheduler::AbortSignal;
 use cem_ml::schema::registry::{CSS_CONTENT_TYPE, CSS_SCHEMA_URI, SCSS_CONTENT_TYPE};
 use cem_ml::source::ByteRange;
 use cem_ml::source_map::{FrameSpan, TransformKind};
 use cem_ml::validation::scss::{
-    evaluate_scss_to_css, parse_scss_source_bytes, ScssEvaluationRequest, ScssOriginKind,
-    ScssSourceRequest, ScssStatementKind,
+    evaluate_scss_to_css, evaluate_scss_to_css_with_policy, parse_scss_source_bytes,
+    ScssEvaluationLimits, ScssEvaluationRequest, ScssOriginKind, ScssPolicyEvaluationRequest,
+    ScssSafetyPolicy, ScssSourceRequest, ScssStatementKind,
 };
 use cem_ml::{
     engine::{EngineContext, EngineInput},
     lifecycle::{LifecycleRegistry, LoadedInputAstStream},
 };
+use std::collections::BTreeMap;
+
+#[derive(Debug, Clone)]
+struct ScssMapResolver {
+    entries: BTreeMap<String, Vec<u8>>,
+}
+
+impl ResourceResolver for ScssMapResolver {
+    fn read(&self, request: &ResolveRequest) -> Result<ResolvedRead, ResolverDiagnostic> {
+        let canonical = if request.uri.contains("://") {
+            request.uri.clone()
+        } else {
+            let base = request.base_uri.as_deref().unwrap_or_default();
+            let directory = base
+                .rsplit_once('/')
+                .map_or(base, |(directory, _)| directory);
+            format!("{directory}/{}", request.uri)
+        };
+        self.entries
+            .get(&canonical)
+            .cloned()
+            .map(|bytes| ResolvedRead {
+                uri: canonical.clone(),
+                bytes,
+                content_type: Some(SCSS_CONTENT_TYPE.to_owned()),
+            })
+            .ok_or_else(|| ResolverDiagnostic::Io {
+                uri: canonical,
+                message: "SCSS test resource not found".to_owned(),
+            })
+    }
+
+    fn write(
+        &self,
+        request: &ResolveRequest,
+        _bytes: &[u8],
+    ) -> Result<ResolvedWrite, ResolverDiagnostic> {
+        Err(ResolverDiagnostic::UnsupportedResolver {
+            uri: request.uri.clone(),
+            purpose: request.purpose,
+            direction: ResolveDirection::Write,
+        })
+    }
+
+    fn list(
+        &self,
+        request: &ResolveListRequest,
+    ) -> Result<Vec<ResolvedListEntry>, ResolverDiagnostic> {
+        Err(ResolverDiagnostic::UnsupportedResolver {
+            uri: request.uri.clone(),
+            purpose: request.purpose,
+            direction: ResolveDirection::List,
+        })
+    }
+}
+
+fn scss_registry(entries: &[(&str, &str)]) -> ResolverRegistry {
+    let mut registry = ResolverRegistry::new();
+    registry.register(
+        "cem+vfs",
+        ResolvePurpose::Input,
+        ResolveDirection::Read,
+        ScssMapResolver {
+            entries: entries
+                .iter()
+                .map(|(uri, source)| ((*uri).to_owned(), source.as_bytes().to_vec()))
+                .collect(),
+        },
+    );
+    registry
+}
 
 fn parse(source: &str) -> cem_ml::validation::scss::ScssStylesheetAst {
     let (stylesheet, diagnostics) = parse_scss_source_bytes(ScssSourceRequest {
@@ -283,4 +361,393 @@ fn lifecycle_registry_loads_scss_as_a_generated_css_ast_without_claiming_css_inp
             )
         })
     }));
+}
+
+#[test]
+fn lifecycle_registry_routes_scss_modules_through_the_engine_resolver_context() {
+    let source = b"@use \"tokens\"; .card { @include tokens.inset(); }";
+    let resolver_registry = scss_registry(&[(
+        "cem+vfs://styles/_tokens.scss",
+        "$space: 0.75rem; @mixin inset() { padding: $space; }",
+    )]);
+    let loaded = LifecycleRegistry::with_builtin_adapters().load(
+        &EngineInput {
+            uri: "cem+vfs://styles/main.scss".to_owned(),
+            bytes: source.to_vec(),
+            from_format: None,
+            identity: None,
+            root_scope: Default::default(),
+        },
+        &EngineContext {
+            content_type: Some(SCSS_CONTENT_TYPE.to_owned()),
+            schema: Some("https://cem.dev/ns/data/scss/1".to_owned()),
+            resolver_registry,
+            ..EngineContext::default()
+        },
+    );
+
+    assert!(loaded.diagnostics.is_empty(), "{:#?}", loaded.diagnostics);
+    let document = match loaded.ast_stream.expect("resolved SCSS lifecycle stream") {
+        LoadedInputAstStream::CssDocument(document) => document,
+        other => panic!("unexpected SCSS lifecycle stream: {other:#?}"),
+    };
+    assert_eq!(
+        document
+            .events
+            .iter()
+            .map(|event| event.lexeme.as_str())
+            .collect::<String>(),
+        ".card {\n  padding: 0.75rem;\n}\n"
+    );
+}
+
+#[test]
+fn scss_modules_use_explicit_resolver_policy_and_export_namespaced_members_once() {
+    let stylesheet = parse(
+        r#"@use "tokens";
+@use "tokens";
+
+.card {
+  @include tokens.inset(tokens.$space);
+  width: tokens.double(2px);
+}
+"#,
+    );
+    let registry = scss_registry(&[(
+        "cem+vfs://styles/_tokens.scss",
+        r#"$space: 0.5rem;
+@mixin inset($amount) { padding: $amount; }
+@function double($value) { @return $value * 2; }
+.token-source { --loaded: once; }
+"#,
+    )]);
+    let policy = ResolverPolicy::new();
+    let policy_stamp = policy.cache_stamp();
+    let safety_policy = ScssSafetyPolicy::default();
+    let safety_policy_stamp = safety_policy.cache_stamp();
+    let abort_signal = AbortSignal::new();
+
+    let result = evaluate_scss_to_css_with_policy(ScssPolicyEvaluationRequest {
+        stylesheet: &stylesheet,
+        resolver_registry: &registry,
+        resolver_policy: &policy,
+        resolver_policy_stamp: &policy_stamp,
+        safety_policy: &safety_policy,
+        safety_policy_stamp: &safety_policy_stamp,
+        abort_signal: &abort_signal,
+        load_paths: &["cem+vfs://styles/load-path.scss".to_owned()],
+        limits: ScssEvaluationLimits::default(),
+    });
+
+    assert!(result.diagnostics.is_empty(), "{:#?}", result.diagnostics);
+    assert_eq!(result.module_resolutions.len(), 2);
+    assert!(result.module_resolutions.iter().all(|resolution| {
+        resolution.requested_uri == "_tokens.scss"
+            && resolution.normalized_uri == "_tokens.scss"
+            && resolution.effective_uri == "_tokens.scss"
+            && resolution.canonical_uri == "cem+vfs://styles/_tokens.scss"
+            && resolution.edge_kind == "use"
+            && resolution.namespace.as_deref() == Some("tokens")
+            && resolution.resolver_policy_stamp == policy_stamp
+    }));
+    let document = result.document.expect("resolved SCSS CSS handoff");
+    let css = document
+        .events
+        .iter()
+        .map(|event| event.lexeme.as_str())
+        .collect::<String>();
+    assert_eq!(css.matches(".token-source").count(), 1);
+    assert!(css.contains("padding: 0.5rem;"), "{css}");
+    assert!(css.contains("width: 4px;"), "{css}");
+    let padding = document
+        .events
+        .iter()
+        .find(|event| event.lexeme == "0.5rem")
+        .expect("module variable expansion");
+    assert!(padding.source_map.frames.iter().any(|frame| {
+        matches!(
+            &frame.transform,
+            TransformKind::ScssOrigin {
+                module_uri,
+                origin_kind: ScssOriginKind::Definition,
+                ..
+            } if module_uri == "cem+vfs://styles/_tokens.scss"
+        )
+    }));
+}
+
+#[test]
+fn scss_module_resolution_reports_policy_denials_and_complete_cycles() {
+    let unsafe_stylesheet = parse("@use \"../tokens\";\n");
+    let empty_registry = scss_registry(&[]);
+    let allow_policy = ResolverPolicy::new();
+    let allow_policy_stamp = allow_policy.cache_stamp();
+    let safety_policy = ScssSafetyPolicy::default();
+    let safety_policy_stamp = safety_policy.cache_stamp();
+    let abort_signal = AbortSignal::new();
+    let unsafe_result = evaluate_scss_to_css_with_policy(ScssPolicyEvaluationRequest {
+        stylesheet: &unsafe_stylesheet,
+        resolver_registry: &empty_registry,
+        resolver_policy: &allow_policy,
+        resolver_policy_stamp: &allow_policy_stamp,
+        safety_policy: &safety_policy,
+        safety_policy_stamp: &safety_policy_stamp,
+        abort_signal: &abort_signal,
+        load_paths: &[],
+        limits: ScssEvaluationLimits::default(),
+    });
+    assert!(unsafe_result.diagnostics.iter().any(|diagnostic| {
+        diagnostic.code == "cem.scss.resolver_denied"
+            && diagnostic.message.contains("parent traversal is disabled")
+    }));
+
+    let denied_stylesheet = parse("@use \"tokens\";\n");
+    let registry = scss_registry(&[]);
+    let policy = ResolverPolicy::new().with_denial(
+        ResolvePolicyRequestKey::new(
+            "_tokens.scss",
+            ResolvePurpose::Input,
+            ResolveDirection::Read,
+        )
+        .with_base_uri("file:///styles/main.scss")
+        .with_content_type_hint(SCSS_CONTENT_TYPE),
+        ResolvePolicyDenial::new("fixture-denial"),
+    );
+    let policy_stamp = policy.cache_stamp();
+    let denied = evaluate_scss_to_css_with_policy(ScssPolicyEvaluationRequest {
+        stylesheet: &denied_stylesheet,
+        resolver_registry: &registry,
+        resolver_policy: &policy,
+        resolver_policy_stamp: &policy_stamp,
+        safety_policy: &safety_policy,
+        safety_policy_stamp: &safety_policy_stamp,
+        abort_signal: &abort_signal,
+        load_paths: &[],
+        limits: ScssEvaluationLimits::default(),
+    });
+    let denial = denied
+        .diagnostics
+        .iter()
+        .find(|diagnostic| diagnostic.code == "cem.scss.resolver_denied")
+        .expect("resolver policy denial");
+    assert!(denial.message.contains("fixture-denial"));
+    assert_eq!(
+        denial.details.as_ref().unwrap()["resolverPolicyStamp"],
+        policy_stamp
+    );
+    assert!(denied.document.is_none());
+
+    let cycle_stylesheet = parse("@use \"a\";\n");
+    let registry = scss_registry(&[
+        ("cem+vfs://styles/_a.scss", "@use \"main\";\n"),
+        ("cem+vfs://styles/main.scss", "@use \"a\";\n"),
+    ]);
+    let policy = ResolverPolicy::new();
+    let policy_stamp = policy.cache_stamp();
+    let cycle = evaluate_scss_to_css_with_policy(ScssPolicyEvaluationRequest {
+        stylesheet: &cycle_stylesheet,
+        resolver_registry: &registry,
+        resolver_policy: &policy,
+        resolver_policy_stamp: &policy_stamp,
+        safety_policy: &safety_policy,
+        safety_policy_stamp: &safety_policy_stamp,
+        abort_signal: &abort_signal,
+        load_paths: &["cem+vfs://styles/main.scss".to_owned()],
+        limits: ScssEvaluationLimits::default(),
+    });
+    let diagnostic = cycle
+        .diagnostics
+        .iter()
+        .find(|diagnostic| diagnostic.code == "cem.scss.module_cycle")
+        .expect("module cycle diagnostic");
+    assert!(diagnostic.message.contains("main.scss"));
+    assert!(diagnostic.message.contains("_a.scss"));
+    assert!(cycle.document.is_none());
+}
+
+#[test]
+fn scss_forward_and_legacy_import_share_the_explicit_module_boundary() {
+    let registry = scss_registry(&[(
+        "cem+vfs://styles/_tokens.scss",
+        "$space: 1rem; @mixin inset() { padding: $space; } .tokens { gap: $space; }",
+    )]);
+    let policy = ResolverPolicy::new();
+    let policy_stamp = policy.cache_stamp();
+    let safety_policy = ScssSafetyPolicy::default();
+    let safety_policy_stamp = safety_policy.cache_stamp();
+    let abort_signal = AbortSignal::new();
+    let load_paths = ["cem+vfs://styles/main.scss".to_owned()];
+
+    let forwarded_stylesheet = parse("@forward \"tokens\";\n");
+    let forwarded = evaluate_scss_to_css_with_policy(ScssPolicyEvaluationRequest {
+        stylesheet: &forwarded_stylesheet,
+        resolver_registry: &registry,
+        resolver_policy: &policy,
+        resolver_policy_stamp: &policy_stamp,
+        safety_policy: &safety_policy,
+        safety_policy_stamp: &safety_policy_stamp,
+        abort_signal: &abort_signal,
+        load_paths: &load_paths,
+        limits: ScssEvaluationLimits::default(),
+    });
+    assert!(
+        forwarded.diagnostics.is_empty(),
+        "{:#?}",
+        forwarded.diagnostics
+    );
+    assert_eq!(forwarded.module_resolutions[0].edge_kind, "forward");
+    assert!(forwarded
+        .document
+        .expect("forwarded module CSS")
+        .events
+        .iter()
+        .any(|event| event.lexeme == ".tokens"));
+
+    let imported_source = r#"@import "tokens";
+.legacy { @include inset(); }
+"#;
+    let (imported_stylesheet, parse_diagnostics) = parse_scss_source_bytes(ScssSourceRequest {
+        bytes: imported_source.as_bytes(),
+        source_uri: "file:///styles/main.scss",
+        content_type: Some(SCSS_CONTENT_TYPE),
+    });
+    assert!(parse_diagnostics
+        .iter()
+        .any(|diagnostic| diagnostic.code == "cem.scss.import_deprecated"));
+    let imported_stylesheet = imported_stylesheet.expect("legacy import stylesheet");
+    let imported = evaluate_scss_to_css_with_policy(ScssPolicyEvaluationRequest {
+        stylesheet: &imported_stylesheet,
+        resolver_registry: &registry,
+        resolver_policy: &policy,
+        resolver_policy_stamp: &policy_stamp,
+        safety_policy: &safety_policy,
+        safety_policy_stamp: &safety_policy_stamp,
+        abort_signal: &abort_signal,
+        load_paths: &load_paths,
+        limits: ScssEvaluationLimits::default(),
+    });
+    assert!(
+        imported.diagnostics.is_empty(),
+        "{:#?}",
+        imported.diagnostics
+    );
+    assert_eq!(imported.module_resolutions[0].edge_kind, "import");
+    assert!(imported
+        .document
+        .expect("legacy import CSS")
+        .events
+        .iter()
+        .any(|event| event.lexeme == "1rem"));
+}
+
+#[test]
+fn scss_evaluation_observes_cancellation_recursion_work_and_output_limits() {
+    let registry = ResolverRegistry::new();
+    let policy = ResolverPolicy::new();
+    let policy_stamp = policy.cache_stamp();
+    let safety_policy = ScssSafetyPolicy::default();
+    let safety_policy_stamp = safety_policy.cache_stamp();
+
+    let cancelled_stylesheet = parse(".card { color: red; }");
+    let cancelled_signal = AbortSignal::new();
+    cancelled_signal.abort();
+    let cancelled = evaluate_scss_to_css_with_policy(ScssPolicyEvaluationRequest {
+        stylesheet: &cancelled_stylesheet,
+        resolver_registry: &registry,
+        resolver_policy: &policy,
+        resolver_policy_stamp: &policy_stamp,
+        safety_policy: &safety_policy,
+        safety_policy_stamp: &safety_policy_stamp,
+        abort_signal: &cancelled_signal,
+        load_paths: &[],
+        limits: ScssEvaluationLimits::default(),
+    });
+    assert!(cancelled
+        .diagnostics
+        .iter()
+        .any(|diagnostic| diagnostic.code == "cem.scss.cancelled"));
+    assert!(cancelled.document.is_none());
+
+    let recursive_stylesheet = parse(
+        r#"@function forever($value) { @return forever($value); }
+.card { width: forever(1px); }
+"#,
+    );
+    let recursive = evaluate_scss_to_css_with_policy(ScssPolicyEvaluationRequest {
+        stylesheet: &recursive_stylesheet,
+        resolver_registry: &registry,
+        resolver_policy: &policy,
+        resolver_policy_stamp: &policy_stamp,
+        safety_policy: &safety_policy,
+        safety_policy_stamp: &safety_policy_stamp,
+        abort_signal: &AbortSignal::new(),
+        load_paths: &[],
+        limits: ScssEvaluationLimits {
+            max_recursion_depth: 8,
+            ..ScssEvaluationLimits::default()
+        },
+    });
+    assert!(recursive.diagnostics.iter().any(|diagnostic| {
+        diagnostic.code == "cem.scss.budget_exceeded"
+            && diagnostic.message.contains("max-recursion-depth=8")
+    }));
+
+    let work_limited = evaluate_scss_to_css_with_policy(ScssPolicyEvaluationRequest {
+        stylesheet: &cancelled_stylesheet,
+        resolver_registry: &registry,
+        resolver_policy: &policy,
+        resolver_policy_stamp: &policy_stamp,
+        safety_policy: &safety_policy,
+        safety_policy_stamp: &safety_policy_stamp,
+        abort_signal: &AbortSignal::new(),
+        load_paths: &[],
+        limits: ScssEvaluationLimits {
+            max_work_units: 1,
+            ..ScssEvaluationLimits::default()
+        },
+    });
+    assert!(work_limited.diagnostics.iter().any(|diagnostic| {
+        diagnostic.code == "cem.scss.budget_exceeded"
+            && diagnostic.message.contains("max-work-units=1")
+    }));
+
+    let output_limited = evaluate_scss_to_css_with_policy(ScssPolicyEvaluationRequest {
+        stylesheet: &cancelled_stylesheet,
+        resolver_registry: &registry,
+        resolver_policy: &policy,
+        resolver_policy_stamp: &policy_stamp,
+        safety_policy: &safety_policy,
+        safety_policy_stamp: &safety_policy_stamp,
+        abort_signal: &AbortSignal::new(),
+        load_paths: &[],
+        limits: ScssEvaluationLimits {
+            max_output_nodes: 1,
+            ..ScssEvaluationLimits::default()
+        },
+    });
+    assert!(output_limited.diagnostics.iter().any(|diagnostic| {
+        diagnostic.code == "cem.scss.budget_exceeded"
+            && diagnostic.message.contains("max-output-nodes=1")
+    }));
+    assert!(output_limited.document.is_none());
+
+    let byte_limited = evaluate_scss_to_css_with_policy(ScssPolicyEvaluationRequest {
+        stylesheet: &cancelled_stylesheet,
+        resolver_registry: &registry,
+        resolver_policy: &policy,
+        resolver_policy_stamp: &policy_stamp,
+        safety_policy: &safety_policy,
+        safety_policy_stamp: &safety_policy_stamp,
+        abort_signal: &AbortSignal::new(),
+        load_paths: &[],
+        limits: ScssEvaluationLimits {
+            max_output_bytes: 1,
+            ..ScssEvaluationLimits::default()
+        },
+    });
+    assert!(byte_limited.diagnostics.iter().any(|diagnostic| {
+        diagnostic.code == "cem.scss.budget_exceeded"
+            && diagnostic.message.contains("max-output-bytes=1")
+    }));
+    assert!(byte_limited.document.is_none());
 }

@@ -1,9 +1,9 @@
 # SCSS Schema Package v1
 
 Status: schema identity, lossless native parsing, focused CEM-owned expansion,
-direct typed CSS AST handoff, exact expansion origins, manifest examples, and
-passive output-profile assets implemented; full Sass parity and module
-resolution remain staged gaps
+explicit-policy module resolution and execution limits, direct typed CSS AST
+handoff, exact expansion origins, manifest examples, and passive output-profile
+assets implemented; full Sass parity remains a staged gap
 
 This package owns SCSS source identity and the contract for expanding SCSS into
 the lifecycle-owned typed CSS AST. It does not claim `text/css`, does not serve
@@ -67,6 +67,36 @@ serializer and no generated-CSS reparse are in the data path. Dart Sass 1.101.7
 remains the language compatibility reference, and only matrix rows marked
 `supported` are conformance claims.
 
+## Resolver And Evaluation Policy
+
+Lifecycle expansion passes the engine's resolver registry, resolver policy, and
+request-owned safety policy into the SCSS evaluator. Module reads use the shared
+`input`/`read` purpose, retain requested, normalized, effective, and canonical
+URIs in the module resolution audit, and never fall back to direct filesystem
+or network access.
+Relative resolution checks the importing module first and then only explicitly
+provided load paths. The v1 safety policy rejects traversal, absolute paths,
+backslashes, query/fragment suffixes, and HTTP(S) module specifiers before a
+read. Candidate selection follows the Sass partial/index shape: `name.scss`,
+`_name.scss`, `name/index.scss`, and `name/_index.scss`; multiple canonical
+matches fail as ambiguous.
+
+`@use` and `@forward` cache modules by canonical URI plus configuration text,
+detect active-load cycles with the complete URI chain, and expose public
+variables, mixins, and functions through the requested namespace. Legacy Sass
+`@import` uses the same resolver and safety boundary while importing members
+without a namespace and retaining its deprecation warning. Configuration value
+application, forwarding prefixes/show/hide semantics, and full Dart Sass module
+parity remain explicit gaps in the conformance matrix.
+
+Every expansion request carries resolver and safety stamps, a cooperative abort
+signal, explicit load paths, and four limits. Lifecycle defaults are 100,000
+work units, recursion depth 64, 100,000 generated CSS events, and 16 MiB of CSS
+output. Functions, mixins, control-flow iterations, expression interpolation,
+generated selectors, candidate probes, and module loads consume the shared work
+and recursion budget. A cancellation or limit breach returns no partial
+`CssDocumentAst`.
+
 ## Diagnostics
 
 The schema binds neutral facts to these initial stable codes:
@@ -79,6 +109,7 @@ The schema binds neutral facts to these initial stable codes:
 - `cem.scss.resolver_denied`
 - `cem.scss.module_cycle`
 - `cem.scss.budget_exceeded`
+- `cem.scss.cancelled`
 - `cem.scss.origin_unavailable`
 - `cem.scss.handoff_invalid`
 
@@ -113,6 +144,12 @@ README preview policy.
 For the CLI boundary alone, `yarn nx run cem_ml_cli:test:scss` runs the five
 SCSS-specific integration tests without selecting the broad CLI unit or
 schema-example suites.
+
+The package `verify` target also selects only the SCSS library tests. Its native
+integration suite covers lifecycle resolver plumbing, namespaced member use,
+canonical single-load behavior, resolution audit fields, denials, cycles,
+cancellation, recursion, work, output-node, output-byte, and exact-origin
+contracts without running unrelated Rust tests.
 
 ## Examples
 

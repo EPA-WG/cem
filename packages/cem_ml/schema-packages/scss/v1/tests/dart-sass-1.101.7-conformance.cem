@@ -64,7 +64,7 @@
         @id="use-and-forward"
         @requirement="required"
         @state="gap"
-        @summary="implement normative @use and @forward module configuration visibility and single-load semantics"
+        @summary="explicit-policy resolution canonical single-load cycle detection namespaces and public member access are implemented; full configuration forwarding prefixes and visibility semantics remain gaps"
         @diagnostic="cem.scss.module_error"
     }
     {conformance-feature
@@ -77,8 +77,8 @@
     {conformance-feature
         @id="resolver-safety-budgets"
         @requirement="required"
-        @state="gap"
-        @summary="route module resolution cancellation recursion work and output growth through explicit policies"
+        @state="supported"
+        @summary="route candidate module reads through the shared resolver policy and enforce cooperative cancellation recursion work output-node and output-byte limits before CSS handoff"
         @diagnostic="cem.scss.budget_exceeded"
     }
     {conformance-feature

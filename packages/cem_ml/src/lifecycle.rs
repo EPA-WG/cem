@@ -5,6 +5,7 @@
 
 use crate::diagnostics::{Diagnostic, Severity};
 use crate::engine::{EngineContext, EngineInput, FormatIdentity, InputFormat, LayerFormat};
+use crate::scheduler::AbortSignal;
 use crate::schema::ir::CEM_CORE_NAMESPACE;
 use crate::schema::registry::{
     CEM_AST_JSON_PROJECTION_CONTENT_TYPE, CEM_AST_PROJECTION_CONTENT_TYPE,
@@ -58,7 +59,8 @@ use crate::validation::relax_ng::{
     RelaxNgSyntaxKind,
 };
 use crate::validation::scss::{
-    evaluate_scss_to_css, parse_scss_source_bytes, ScssEvaluationRequest, ScssSourceRequest,
+    evaluate_scss_to_css_with_policy, parse_scss_source_bytes, ScssEvaluationLimits,
+    ScssPolicyEvaluationRequest, ScssSafetyPolicy, ScssSourceRequest,
 };
 use crate::validation::svg::{
     svg_document_ast_from_source_bytes, SvgDocumentAst, SvgSourceValidationRequest,
@@ -147,6 +149,14 @@ pub trait LifecycleAdapter: Send + Sync {
     fn id(&self) -> &'static str;
     fn matches_input(&self, identity: &FormatIdentity) -> bool;
     fn load(&self, input: &EngineInput, identity: &FormatIdentity) -> LoadedInput;
+    fn load_with_context(
+        &self,
+        input: &EngineInput,
+        identity: &FormatIdentity,
+        _context: &EngineContext,
+    ) -> LoadedInput {
+        self.load(input, identity)
+    }
     fn matches_target(&self, _: &FormatIdentity) -> bool {
         false
     }
@@ -212,7 +222,7 @@ impl LifecycleRegistry {
             .collect();
 
         match matches.as_slice() {
-            [adapter] => adapter.load(input, &identity),
+            [adapter] => adapter.load_with_context(input, &identity, context),
             [] => {
                 let mut loaded =
                     passthrough_load(input, input.from_format.unwrap_or(InputFormat::Cem), None);
@@ -622,6 +632,15 @@ impl LifecycleAdapter for ScssAdapter {
     }
 
     fn load(&self, input: &EngineInput, identity: &FormatIdentity) -> LoadedInput {
+        self.load_with_context(input, identity, &EngineContext::default())
+    }
+
+    fn load_with_context(
+        &self,
+        input: &EngineInput,
+        identity: &FormatIdentity,
+        context: &EngineContext,
+    ) -> LoadedInput {
         let content_type = identity
             .content_type
             .as_deref()
@@ -633,8 +652,21 @@ impl LifecycleAdapter for ScssAdapter {
             content_type: Some(content_type),
         });
         let document = stylesheet.and_then(|stylesheet| {
-            let result = evaluate_scss_to_css(ScssEvaluationRequest {
+            let abort_signal = AbortSignal::new();
+            let resolver_policy_stamp = context.resolver_policy.cache_stamp();
+            let safety_policy = ScssSafetyPolicy::default();
+            let safety_policy_stamp = safety_policy.cache_stamp();
+            let load_paths = context.base_uri.clone().into_iter().collect::<Vec<_>>();
+            let result = evaluate_scss_to_css_with_policy(ScssPolicyEvaluationRequest {
                 stylesheet: &stylesheet,
+                resolver_registry: &context.resolver_registry,
+                resolver_policy: &context.resolver_policy,
+                resolver_policy_stamp: &resolver_policy_stamp,
+                safety_policy: &safety_policy,
+                safety_policy_stamp: &safety_policy_stamp,
+                abort_signal: &abort_signal,
+                load_paths: &load_paths,
+                limits: ScssEvaluationLimits::default(),
             });
             diagnostics.extend(result.diagnostics);
             result.document

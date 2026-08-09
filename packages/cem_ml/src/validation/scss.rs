@@ -8,6 +8,11 @@
 //! its serializer, or accept serialized CSS as an intermediate representation.
 
 use crate::diagnostics::{Diagnostic, Severity};
+use crate::resolver::{
+    ResolveDirection, ResolvePurpose, ResolveRequest, ResolvedRead, ResolverDiagnostic,
+    ResolverPolicy, ResolverRegistry,
+};
+use crate::scheduler::AbortSignal;
 use crate::schema::registry::{
     content_type_essence, CSS_CONTENT_TYPE, CSS_SCHEMA_URI, SCSS_CONTENT_TYPE, SCSS_SCHEMA_URI,
 };
@@ -1267,11 +1272,100 @@ pub struct ScssEvaluationRequest<'a> {
     pub stylesheet: &'a ScssStylesheetAst,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ScssEvaluationLimits {
+    pub max_work_units: u64,
+    pub max_recursion_depth: u32,
+    pub max_output_nodes: usize,
+    pub max_output_bytes: usize,
+}
+
+impl Default for ScssEvaluationLimits {
+    fn default() -> Self {
+        Self {
+            max_work_units: 100_000,
+            max_recursion_depth: 64,
+            max_output_nodes: 100_000,
+            max_output_bytes: 16 * 1024 * 1024,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct ScssSafetyPolicy {
+    pub allow_absolute_paths: bool,
+    pub allow_parent_traversal: bool,
+    pub allow_backslash_paths: bool,
+    pub allow_query_or_fragment: bool,
+    pub allow_network_urls: bool,
+}
+
+impl ScssSafetyPolicy {
+    pub fn cache_stamp(self) -> String {
+        format!(
+            "scss-safety/1;absolute={};parent={};backslash={};query-fragment={};network={}",
+            self.allow_absolute_paths,
+            self.allow_parent_traversal,
+            self.allow_backslash_paths,
+            self.allow_query_or_fragment,
+            self.allow_network_urls,
+        )
+    }
+
+    fn denial_reason(self, specifier: &str) -> Option<&'static str> {
+        if !self.allow_absolute_paths && specifier.starts_with('/') {
+            Some("absolute module paths are disabled")
+        } else if !self.allow_parent_traversal
+            && specifier.split('/').any(|segment| segment == "..")
+        {
+            Some("parent traversal is disabled")
+        } else if !self.allow_backslash_paths && specifier.contains('\\') {
+            Some("backslash module paths are disabled")
+        } else if !self.allow_query_or_fragment
+            && (specifier.contains('#') || specifier.contains('?'))
+        {
+            Some("query and fragment suffixes are disabled")
+        } else if !self.allow_network_urls
+            && (specifier.starts_with("http://") || specifier.starts_with("https://"))
+        {
+            Some("network module URLs are disabled")
+        } else {
+            None
+        }
+    }
+}
+
+pub struct ScssPolicyEvaluationRequest<'a> {
+    pub stylesheet: &'a ScssStylesheetAst,
+    pub resolver_registry: &'a ResolverRegistry,
+    pub resolver_policy: &'a ResolverPolicy,
+    pub resolver_policy_stamp: &'a str,
+    pub safety_policy: &'a ScssSafetyPolicy,
+    pub safety_policy_stamp: &'a str,
+    pub abort_signal: &'a AbortSignal,
+    pub load_paths: &'a [String],
+    pub limits: ScssEvaluationLimits,
+}
+
 #[derive(Debug, Clone)]
 pub struct ScssEvaluationResult {
     pub document: Option<CssDocumentAst>,
     pub diagnostics: Vec<Diagnostic>,
     pub target_schema: &'static str,
+    pub module_resolutions: Vec<ScssModuleResolution>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ScssModuleResolution {
+    pub from_module: String,
+    pub requested_uri: String,
+    pub normalized_uri: String,
+    pub effective_uri: String,
+    pub canonical_uri: String,
+    pub edge_kind: String,
+    pub namespace: Option<String>,
+    pub configuration: String,
+    pub resolver_policy_stamp: String,
 }
 
 #[derive(Debug, Clone)]
@@ -1279,6 +1373,7 @@ struct OriginSpec {
     kind: ScssOriginKind,
     name: Option<String>,
     range: ScssSourceRange,
+    module_uri: String,
 }
 
 #[derive(Debug, Clone)]
@@ -1304,6 +1399,7 @@ struct GeneratedDeclaration {
     value: String,
     source_range: ScssSourceRange,
     origins: Vec<OriginSpec>,
+    module_uri: String,
 }
 
 #[derive(Debug, Clone)]
@@ -1312,22 +1408,107 @@ struct GeneratedRule {
     source_range: ScssSourceRange,
     selector_origins: Vec<OriginSpec>,
     declarations: Vec<GeneratedDeclaration>,
+    module_uri: String,
+}
+
+#[derive(Debug, Clone)]
+struct LocatedMixin {
+    module_uri: String,
+    declaration: ScssMixinDeclaration,
+    closure: EvaluationScope,
+}
+
+#[derive(Debug, Clone)]
+struct LocatedFunction {
+    module_uri: String,
+    declaration: ScssFunctionDeclaration,
+    closure: EvaluationScope,
+}
+
+#[derive(Debug, Clone, Default)]
+struct ModuleExports {
+    variables: BTreeMap<String, VariableBinding>,
+    mixins: BTreeMap<String, LocatedMixin>,
+    functions: BTreeMap<String, LocatedFunction>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum ModuleEdgeKind {
+    Use,
+    Forward,
+    Import,
+}
+
+impl ModuleEdgeKind {
+    fn as_str(self) -> &'static str {
+        match self {
+            Self::Use => "use",
+            Self::Forward => "forward",
+            Self::Import => "import",
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+struct ParsedModuleDirective {
+    specifier: String,
+    namespace: String,
+    configuration: String,
 }
 
 struct ScssEvaluator<'a> {
     stylesheet: &'a ScssStylesheetAst,
-    mixins: BTreeMap<String, ScssMixinDeclaration>,
-    functions: BTreeMap<String, ScssFunctionDeclaration>,
+    resolver_registry: &'a ResolverRegistry,
+    resolver_policy: &'a ResolverPolicy,
+    resolver_policy_stamp: &'a str,
+    safety_policy: &'a ScssSafetyPolicy,
+    safety_policy_stamp: &'a str,
+    abort_signal: &'a AbortSignal,
+    load_paths: &'a [String],
+    limits: ScssEvaluationLimits,
+    mixins: BTreeMap<String, LocatedMixin>,
+    functions: BTreeMap<String, LocatedFunction>,
+    module_cache: BTreeMap<String, ModuleExports>,
+    active_modules: Vec<String>,
+    current_module_uri: String,
+    observed_work_units: u64,
+    recursion_depth: u32,
+    halted: bool,
     diagnostics: Vec<Diagnostic>,
+    module_resolutions: Vec<ScssModuleResolution>,
 }
 
 pub fn evaluate_scss_to_css(request: ScssEvaluationRequest<'_>) -> ScssEvaluationResult {
-    let mut evaluator = ScssEvaluator::new(request.stylesheet);
+    let resolver_registry = ResolverRegistry::new();
+    let resolver_policy = ResolverPolicy::new();
+    let resolver_policy_stamp = resolver_policy.cache_stamp();
+    let safety_policy = ScssSafetyPolicy::default();
+    let safety_policy_stamp = safety_policy.cache_stamp();
+    let abort_signal = AbortSignal::new();
+    evaluate_scss_to_css_with_policy(ScssPolicyEvaluationRequest {
+        stylesheet: request.stylesheet,
+        resolver_registry: &resolver_registry,
+        resolver_policy: &resolver_policy,
+        resolver_policy_stamp: &resolver_policy_stamp,
+        safety_policy: &safety_policy,
+        safety_policy_stamp: &safety_policy_stamp,
+        abort_signal: &abort_signal,
+        load_paths: &[],
+        limits: ScssEvaluationLimits::default(),
+    })
+}
+
+pub fn evaluate_scss_to_css_with_policy(
+    request: ScssPolicyEvaluationRequest<'_>,
+) -> ScssEvaluationResult {
+    let mut evaluator = ScssEvaluator::new(request);
     let rules = evaluator.evaluate();
-    let document = if evaluator
-        .diagnostics
-        .iter()
-        .any(|diagnostic| diagnostic.severity.is_hard_violation())
+    evaluator.enforce_output_limits(&rules);
+    let document = if evaluator.halted
+        || evaluator
+            .diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.severity.is_hard_violation())
     {
         None
     } else {
@@ -1337,38 +1518,611 @@ pub fn evaluate_scss_to_css(request: ScssEvaluationRequest<'_>) -> ScssEvaluatio
         document,
         diagnostics: evaluator.diagnostics,
         target_schema: CSS_SCHEMA_URI,
+        module_resolutions: evaluator.module_resolutions,
     }
 }
 
 impl<'a> ScssEvaluator<'a> {
-    fn new(stylesheet: &'a ScssStylesheetAst) -> Self {
+    fn new(request: ScssPolicyEvaluationRequest<'a>) -> Self {
         let mut mixins = BTreeMap::new();
         let mut functions = BTreeMap::new();
-        for statement in &stylesheet.statements {
+        for statement in &request.stylesheet.statements {
             match statement {
                 ScssStatement::Mixin(value) => {
-                    mixins.insert(normalize_name(&value.name), value.clone());
+                    mixins.insert(
+                        normalize_name(&value.name),
+                        LocatedMixin {
+                            module_uri: request.stylesheet.source.uri.clone(),
+                            declaration: value.clone(),
+                            closure: EvaluationScope::default(),
+                        },
+                    );
                 }
                 ScssStatement::Function(value) => {
-                    functions.insert(normalize_name(&value.name), value.clone());
+                    functions.insert(
+                        normalize_name(&value.name),
+                        LocatedFunction {
+                            module_uri: request.stylesheet.source.uri.clone(),
+                            declaration: value.clone(),
+                            closure: EvaluationScope::default(),
+                        },
+                    );
                 }
                 _ => {}
             }
         }
         Self {
-            stylesheet,
+            stylesheet: request.stylesheet,
+            resolver_registry: request.resolver_registry,
+            resolver_policy: request.resolver_policy,
+            resolver_policy_stamp: request.resolver_policy_stamp,
+            safety_policy: request.safety_policy,
+            safety_policy_stamp: request.safety_policy_stamp,
+            abort_signal: request.abort_signal,
+            load_paths: request.load_paths,
+            limits: request.limits,
             mixins,
             functions,
+            module_cache: BTreeMap::new(),
+            active_modules: vec![request.stylesheet.source.uri.clone()],
+            current_module_uri: request.stylesheet.source.uri.clone(),
+            observed_work_units: 0,
+            recursion_depth: 0,
+            halted: false,
             diagnostics: Vec::new(),
+            module_resolutions: Vec::new(),
         }
     }
 
+    fn consume_work(&mut self, range: ScssSourceRange, operation: &str) -> bool {
+        if self.halted {
+            return false;
+        }
+        if self.abort_signal.is_aborted() {
+            self.halted = true;
+            self.diagnostics.push(scss_policy_diagnostic(
+                &self.stylesheet.source.uri,
+                "cem.scss.cancelled",
+                format!("SCSS evaluation was cancelled while {operation}"),
+                range,
+                self.resolver_policy_stamp,
+                self.safety_policy_stamp,
+            ));
+            return false;
+        }
+        self.observed_work_units = self.observed_work_units.saturating_add(1);
+        if self.observed_work_units > self.limits.max_work_units {
+            self.halted = true;
+            self.diagnostics.push(scss_policy_diagnostic(
+                &self.stylesheet.source.uri,
+                "cem.scss.budget_exceeded",
+                format!(
+                    "SCSS evaluation exceeded max-work-units={} while {operation}",
+                    self.limits.max_work_units
+                ),
+                range,
+                self.resolver_policy_stamp,
+                self.safety_policy_stamp,
+            ));
+            return false;
+        }
+        true
+    }
+
+    fn enter_recursion(&mut self, range: ScssSourceRange, operation: &str) -> bool {
+        if !self.consume_work(range, operation) {
+            return false;
+        }
+        if self.recursion_depth >= self.limits.max_recursion_depth {
+            self.halted = true;
+            self.diagnostics.push(scss_policy_diagnostic(
+                &self.stylesheet.source.uri,
+                "cem.scss.budget_exceeded",
+                format!(
+                    "SCSS evaluation exceeded max-recursion-depth={} while {operation}",
+                    self.limits.max_recursion_depth
+                ),
+                range,
+                self.resolver_policy_stamp,
+                self.safety_policy_stamp,
+            ));
+            return false;
+        }
+        self.recursion_depth += 1;
+        true
+    }
+
+    fn leave_recursion(&mut self) {
+        self.recursion_depth = self.recursion_depth.saturating_sub(1);
+    }
+
+    fn enforce_output_limits(&mut self, rules: &[GeneratedRule]) {
+        if self.halted
+            || !self.consume_work(
+                stylesheet_range(self.stylesheet),
+                "finalizing the typed CSS handoff",
+            )
+        {
+            return;
+        }
+        let output_nodes = rules
+            .iter()
+            .map(|rule| 6usize.saturating_add(7usize.saturating_mul(rule.declarations.len())))
+            .sum::<usize>();
+        let output_bytes = rules
+            .iter()
+            .map(|rule| {
+                5usize.saturating_add(rule.selector.len()).saturating_add(
+                    rule.declarations
+                        .iter()
+                        .map(|declaration| {
+                            6usize
+                                .saturating_add(declaration.name.len())
+                                .saturating_add(declaration.value.len())
+                        })
+                        .sum::<usize>(),
+                )
+            })
+            .sum::<usize>();
+        let (code, message) = if output_nodes > self.limits.max_output_nodes {
+            (
+                "max-output-nodes",
+                format!(
+                    "SCSS evaluation produced {output_nodes} CSS events, exceeding max-output-nodes={}",
+                    self.limits.max_output_nodes
+                ),
+            )
+        } else if output_bytes > self.limits.max_output_bytes {
+            (
+                "max-output-bytes",
+                format!(
+                    "SCSS evaluation produced {output_bytes} CSS bytes, exceeding max-output-bytes={}",
+                    self.limits.max_output_bytes
+                ),
+            )
+        } else {
+            return;
+        };
+        self.halted = true;
+        let mut diagnostic = scss_policy_diagnostic(
+            &self.stylesheet.source.uri,
+            "cem.scss.budget_exceeded",
+            message,
+            stylesheet_range(self.stylesheet),
+            self.resolver_policy_stamp,
+            self.safety_policy_stamp,
+        );
+        if let Some(details) = diagnostic
+            .details
+            .as_mut()
+            .and_then(|value| value.as_object_mut())
+        {
+            details.insert("limitKind".to_owned(), serde_json::json!(code));
+            details.insert(
+                "observedOutputNodes".to_owned(),
+                serde_json::json!(output_nodes),
+            );
+            details.insert(
+                "observedOutputBytes".to_owned(),
+                serde_json::json!(output_bytes),
+            );
+        }
+        self.diagnostics.push(diagnostic);
+    }
+
     fn evaluate(&mut self) -> Vec<GeneratedRule> {
+        let range = stylesheet_range(self.stylesheet);
+        let actual_resolver_stamp = self.resolver_policy.cache_stamp();
+        if self.resolver_policy_stamp.trim().is_empty()
+            || self.resolver_policy_stamp != actual_resolver_stamp
+        {
+            self.halted = true;
+            self.diagnostics.push(scss_policy_diagnostic(
+                &self.stylesheet.source.uri,
+                "cem.scss.resolver_denied",
+                "SCSS evaluation requires the exact active resolver-policy stamp",
+                range,
+                self.resolver_policy_stamp,
+                self.safety_policy_stamp,
+            ));
+            return Vec::new();
+        }
+        if self.safety_policy_stamp.trim().is_empty()
+            || self.safety_policy_stamp != self.safety_policy.cache_stamp()
+        {
+            self.halted = true;
+            self.diagnostics.push(scss_policy_diagnostic(
+                &self.stylesheet.source.uri,
+                "cem.scss.module_error",
+                "SCSS evaluation requires the exact active safety-policy stamp",
+                range,
+                self.resolver_policy_stamp,
+                self.safety_policy_stamp,
+            ));
+            return Vec::new();
+        }
         let mut scope = EvaluationScope::default();
         let mut rules = Vec::new();
         let statements = self.stylesheet.statements.clone();
+        let root_uri = self.stylesheet.source.uri.clone();
+        self.evaluate_module_directives(&statements, &root_uri, &mut scope, &mut rules, &[]);
         self.evaluate_top_level(&statements, &mut scope, &mut rules, &[]);
         rules
+    }
+
+    fn evaluate_module_directives(
+        &mut self,
+        statements: &[ScssStatement],
+        current_uri: &str,
+        scope: &mut EvaluationScope,
+        rules: &mut Vec<GeneratedRule>,
+        frames: &[OriginSpec],
+    ) -> ModuleExports {
+        let mut forwarded = ModuleExports::default();
+        for statement in statements {
+            if self.halted {
+                break;
+            }
+            let (directive, edge_kind) = match statement {
+                ScssStatement::Use(value) => (value, ModuleEdgeKind::Use),
+                ScssStatement::Forward(value) => (value, ModuleEdgeKind::Forward),
+                ScssStatement::Import(value) if !is_css_import(&value.value) => {
+                    (value, ModuleEdgeKind::Import)
+                }
+                _ => continue,
+            };
+            if !self.consume_work(directive.source_range, "resolving a SCSS module") {
+                break;
+            }
+            let Some(parsed) = parse_module_directive(&directive.value, edge_kind) else {
+                self.diagnostics.push(scss_policy_diagnostic(
+                    current_uri,
+                    "cem.scss.module_error",
+                    format!("Invalid SCSS module directive `{}`", directive.value.trim()),
+                    directive.source_range,
+                    self.resolver_policy_stamp,
+                    self.safety_policy_stamp,
+                ));
+                self.halted = true;
+                break;
+            };
+            let Some(exports) = self.load_module(
+                &parsed,
+                edge_kind,
+                current_uri,
+                directive.source_range,
+                rules,
+                frames,
+            ) else {
+                break;
+            };
+            match edge_kind {
+                ModuleEdgeKind::Use => self.apply_module_exports(
+                    scope,
+                    &exports,
+                    if parsed.namespace == "*" {
+                        None
+                    } else {
+                        Some(parsed.namespace.as_str())
+                    },
+                ),
+                ModuleEdgeKind::Import => self.apply_module_exports(scope, &exports, None),
+                ModuleEdgeKind::Forward => merge_module_exports(&mut forwarded, &exports),
+            }
+        }
+        forwarded
+    }
+
+    fn load_module(
+        &mut self,
+        directive: &ParsedModuleDirective,
+        edge_kind: ModuleEdgeKind,
+        current_uri: &str,
+        call_range: ScssSourceRange,
+        rules: &mut Vec<GeneratedRule>,
+        frames: &[OriginSpec],
+    ) -> Option<ModuleExports> {
+        let resolved = self.resolve_module(directive, edge_kind, current_uri, call_range)?;
+        let cache_key = format!("{}#configuration={}", resolved.uri, directive.configuration);
+        if self.active_modules.iter().any(|uri| uri == &resolved.uri) {
+            let mut chain = self.active_modules.clone();
+            chain.push(resolved.uri.clone());
+            self.diagnostics.push(scss_policy_diagnostic(
+                current_uri,
+                "cem.scss.module_cycle",
+                format!("SCSS module cycle: {}", chain.join(" -> ")),
+                call_range,
+                self.resolver_policy_stamp,
+                self.safety_policy_stamp,
+            ));
+            self.halted = true;
+            return None;
+        }
+        if let Some(exports) = self.module_cache.get(&cache_key) {
+            return Some(exports.clone());
+        }
+        if !self.enter_recursion(call_range, "loading a SCSS module") {
+            return None;
+        }
+        let content_type = resolved
+            .content_type
+            .as_deref()
+            .unwrap_or(SCSS_CONTENT_TYPE);
+        let (stylesheet, diagnostics) = parse_scss_source_bytes(ScssSourceRequest {
+            bytes: &resolved.bytes,
+            source_uri: &resolved.uri,
+            content_type: Some(content_type),
+        });
+        self.diagnostics.extend(diagnostics);
+        let Some(stylesheet) = stylesheet else {
+            self.halted = true;
+            self.leave_recursion();
+            return None;
+        };
+
+        self.active_modules.push(resolved.uri.clone());
+        let caller_module_uri =
+            std::mem::replace(&mut self.current_module_uri, resolved.uri.clone());
+        let saved_mixins = self.mixins.clone();
+        let saved_functions = self.functions.clone();
+        let mut module_scope = EvaluationScope::default();
+
+        let mut local_mixins = stylesheet
+            .statements
+            .iter()
+            .filter_map(|statement| match statement {
+                ScssStatement::Mixin(declaration) => Some((
+                    normalize_name(&declaration.name),
+                    LocatedMixin {
+                        module_uri: resolved.uri.clone(),
+                        declaration: declaration.clone(),
+                        closure: EvaluationScope::default(),
+                    },
+                )),
+                _ => None,
+            })
+            .collect::<BTreeMap<_, _>>();
+        let mut local_functions = stylesheet
+            .statements
+            .iter()
+            .filter_map(|statement| match statement {
+                ScssStatement::Function(declaration) => Some((
+                    normalize_name(&declaration.name),
+                    LocatedFunction {
+                        module_uri: resolved.uri.clone(),
+                        declaration: declaration.clone(),
+                        closure: EvaluationScope::default(),
+                    },
+                )),
+                _ => None,
+            })
+            .collect::<BTreeMap<_, _>>();
+        self.mixins.extend(local_mixins.clone());
+        self.functions.extend(local_functions.clone());
+
+        let mut exports = self.evaluate_module_directives(
+            &stylesheet.statements,
+            &resolved.uri,
+            &mut module_scope,
+            rules,
+            frames,
+        );
+        if !self.halted {
+            self.evaluate_top_level(&stylesheet.statements, &mut module_scope, rules, frames);
+        }
+        for located in local_mixins.values_mut() {
+            located.closure = module_scope.clone();
+        }
+        for located in local_functions.values_mut() {
+            located.closure = module_scope.clone();
+        }
+        exports.variables.extend(
+            module_scope
+                .variables
+                .iter()
+                .filter(|(name, _)| is_public_member(name) && !name.contains('.'))
+                .map(|(name, value)| (name.clone(), value.clone())),
+        );
+        exports.mixins.extend(
+            local_mixins
+                .into_iter()
+                .filter(|(name, _)| is_public_member(name)),
+        );
+        exports.functions.extend(
+            local_functions
+                .into_iter()
+                .filter(|(name, _)| is_public_member(name)),
+        );
+
+        self.mixins = saved_mixins;
+        self.functions = saved_functions;
+        self.current_module_uri = caller_module_uri;
+        self.active_modules.pop();
+        self.leave_recursion();
+        if self.halted {
+            return None;
+        }
+        self.module_cache.insert(cache_key, exports.clone());
+        Some(exports)
+    }
+
+    fn apply_module_exports(
+        &mut self,
+        scope: &mut EvaluationScope,
+        exports: &ModuleExports,
+        namespace: Option<&str>,
+    ) {
+        for (name, value) in &exports.variables {
+            scope.variables.insert(
+                namespace.map_or_else(|| name.clone(), |prefix| format!("{prefix}.{name}")),
+                value.clone(),
+            );
+        }
+        for (name, value) in &exports.mixins {
+            self.mixins.insert(
+                namespace.map_or_else(|| name.clone(), |prefix| format!("{prefix}.{name}")),
+                value.clone(),
+            );
+        }
+        for (name, value) in &exports.functions {
+            self.functions.insert(
+                namespace.map_or_else(|| name.clone(), |prefix| format!("{prefix}.{name}")),
+                value.clone(),
+            );
+        }
+    }
+
+    fn resolve_module(
+        &mut self,
+        directive: &ParsedModuleDirective,
+        edge_kind: ModuleEdgeKind,
+        current_uri: &str,
+        range: ScssSourceRange,
+    ) -> Option<ResolvedRead> {
+        let specifier = &directive.specifier;
+        if let Some(reason) = self.safety_policy.denial_reason(specifier) {
+            self.diagnostics.push(scss_policy_diagnostic(
+                current_uri,
+                "cem.scss.resolver_denied",
+                format!("SCSS safety policy denied module specifier `{specifier}`: {reason}"),
+                range,
+                self.resolver_policy_stamp,
+                self.safety_policy_stamp,
+            ));
+            self.halted = true;
+            return None;
+        }
+        let candidates = module_resolution_candidates(specifier);
+        let bases = std::iter::once(current_uri.to_owned())
+            .chain(self.load_paths.iter().cloned())
+            .collect::<Vec<_>>();
+        let mut successes = BTreeMap::new();
+        let mut last_error = None;
+        for base_uri in bases {
+            for candidate in &candidates {
+                if !self.consume_work(range, "probing a SCSS module candidate") {
+                    return None;
+                }
+                let request = ResolveRequest::new(
+                    candidate.clone(),
+                    ResolvePurpose::Input,
+                    ResolveDirection::Read,
+                )
+                .with_base_uri(base_uri.clone())
+                .with_content_type_hint(SCSS_CONTENT_TYPE);
+                let decision = match self.resolver_policy.decide(&request) {
+                    Ok(decision) => decision,
+                    Err(error) => {
+                        self.diagnostics.push(scss_resolution_diagnostic(
+                            current_uri,
+                            "cem.scss.resolver_denied",
+                            error.to_string(),
+                            range,
+                            self.resolver_policy_stamp,
+                            self.safety_policy_stamp,
+                            &request,
+                            None,
+                            None,
+                        ));
+                        self.halted = true;
+                        return None;
+                    }
+                };
+                let effective_request = ResolveRequest {
+                    uri: decision.effective_uri.clone(),
+                    base_uri: request.base_uri.clone(),
+                    purpose: request.purpose,
+                    direction: request.direction,
+                    content_type_hint: request.content_type_hint.clone(),
+                };
+                match self.resolver_registry.read(&effective_request) {
+                    Ok(read) => {
+                        successes
+                            .entry(read.uri.clone())
+                            .or_insert((read, request, decision));
+                    }
+                    Err(error) => last_error = Some((request, decision, error)),
+                }
+            }
+        }
+        match successes.len() {
+            1 => {
+                let (read, request, decision) = successes.into_values().next().unwrap();
+                self.module_resolutions.push(ScssModuleResolution {
+                    from_module: current_uri.to_owned(),
+                    requested_uri: request.uri,
+                    normalized_uri: decision.normalized_uri,
+                    effective_uri: decision.effective_uri,
+                    canonical_uri: read.uri.clone(),
+                    edge_kind: edge_kind.as_str().to_owned(),
+                    namespace: (edge_kind == ModuleEdgeKind::Use)
+                        .then(|| directive.namespace.clone()),
+                    configuration: directive.configuration.clone(),
+                    resolver_policy_stamp: decision.policy_stamp,
+                });
+                Some(read)
+            }
+            0 => {
+                let (code, message, request, effective) = match last_error {
+                    Some((request, decision, error)) => {
+                        let code =
+                            if matches!(error, ResolverDiagnostic::UnsupportedResolver { .. }) {
+                                "cem.scss.resolver_denied"
+                            } else {
+                                "cem.scss.module_error"
+                            };
+                        (
+                            code,
+                            format!("Unable to resolve SCSS module `{specifier}`: {error}"),
+                            Some(request),
+                            Some(decision.effective_uri),
+                        )
+                    }
+                    None => (
+                        "cem.scss.module_error",
+                        format!("Unable to resolve SCSS module `{specifier}`"),
+                        None,
+                        None,
+                    ),
+                };
+                self.diagnostics.push(scss_resolution_diagnostic(
+                    current_uri,
+                    code,
+                    message,
+                    range,
+                    self.resolver_policy_stamp,
+                    self.safety_policy_stamp,
+                    request.as_ref().unwrap_or(&ResolveRequest::new(
+                        specifier,
+                        ResolvePurpose::Input,
+                        ResolveDirection::Read,
+                    )),
+                    effective.as_deref(),
+                    None,
+                ));
+                self.halted = true;
+                None
+            }
+            _ => {
+                let canonical = successes.keys().cloned().collect::<Vec<_>>();
+                self.diagnostics.push(scss_resolution_diagnostic(
+                    current_uri,
+                    "cem.scss.module_error",
+                    format!(
+                        "Ambiguous SCSS module `{specifier}` resolved to {}",
+                        canonical.join(", ")
+                    ),
+                    range,
+                    self.resolver_policy_stamp,
+                    self.safety_policy_stamp,
+                    &ResolveRequest::new(specifier, ResolvePurpose::Input, ResolveDirection::Read),
+                    None,
+                    Some(&canonical),
+                ));
+                self.halted = true;
+                None
+            }
+        }
     }
 
     fn evaluate_top_level(
@@ -1379,6 +2133,9 @@ impl<'a> ScssEvaluator<'a> {
         frames: &[OriginSpec],
     ) {
         for statement in statements {
+            if !self.consume_work(statement.source_range(), "evaluating a top-level statement") {
+                break;
+            }
             match statement {
                 ScssStatement::Variable(value) => self.bind_variable(value, scope, frames),
                 ScssStatement::Rule(value) => {
@@ -1395,6 +2152,9 @@ impl<'a> ScssEvaluator<'a> {
                 }
                 ScssStatement::Each(value) => {
                     for item in &value.values {
+                        if self.halted {
+                            break;
+                        }
                         let evaluated = self.evaluate_expression(item, scope, frames);
                         let mut iteration = scope.clone();
                         iteration.variables.insert(
@@ -1420,6 +2180,14 @@ impl<'a> ScssEvaluator<'a> {
                                 to as i64 - 1
                             };
                             for number in from as i64..=end {
+                                if self.halted
+                                    || !self.consume_work(
+                                        value.source_range,
+                                        "expanding an @for iteration",
+                                    )
+                                {
+                                    break;
+                                }
                                 let mut iteration = scope.clone();
                                 iteration.variables.insert(
                                     normalize_name(&value.binding),
@@ -1429,6 +2197,7 @@ impl<'a> ScssEvaluator<'a> {
                                             kind: ScssOriginKind::Definition,
                                             name: Some(value.binding.clone()),
                                             range: value.source_range,
+                                            module_uri: self.current_module_uri.clone(),
                                         }],
                                     },
                                 );
@@ -1438,15 +2207,17 @@ impl<'a> ScssEvaluator<'a> {
                     }
                 }
                 ScssStatement::While(value) => {
-                    let mut iterations = 0usize;
-                    while is_truthy(
-                        &self
-                            .evaluate_expression(&value.condition, scope, frames)
-                            .text,
-                    ) && iterations < 1_024
+                    while !self.halted
+                        && is_truthy(
+                            &self
+                                .evaluate_expression(&value.condition, scope, frames)
+                                .text,
+                        )
                     {
+                        if !self.consume_work(value.source_range, "expanding an @while iteration") {
+                            break;
+                        }
                         self.evaluate_top_level(&value.body, scope, rules, frames);
-                        iterations += 1;
                     }
                 }
                 _ => {}
@@ -1461,6 +2232,9 @@ impl<'a> ScssEvaluator<'a> {
         parent_selector: Option<&str>,
         frames: &[OriginSpec],
     ) -> Vec<GeneratedRule> {
+        if !self.enter_recursion(rule.source_range, "expanding a nested rule") {
+            return Vec::new();
+        }
         let selector_value = self.evaluate_interpolated(&rule.selector, scope, frames);
         let selector = combine_selectors(parent_selector, &selector_value.text);
         let mut local_scope = scope.clone();
@@ -1481,9 +2255,11 @@ impl<'a> ScssEvaluator<'a> {
                 source_range: rule.selector.source_range,
                 selector_origins: selector_value.origins,
                 declarations,
+                module_uri: self.current_module_uri.clone(),
             });
         }
         rules.extend(nested);
+        self.leave_recursion();
         rules
     }
 
@@ -1497,6 +2273,9 @@ impl<'a> ScssEvaluator<'a> {
         frames: &[OriginSpec],
     ) {
         for statement in statements {
+            if !self.consume_work(statement.source_range(), "evaluating a rule-body statement") {
+                break;
+            }
             match statement {
                 ScssStatement::Variable(value) => self.bind_variable(value, scope, frames),
                 ScssStatement::Declaration(value) => {
@@ -1510,6 +2289,7 @@ impl<'a> ScssEvaluator<'a> {
                         value: evaluated.text,
                         source_range: value.source_range,
                         origins,
+                        module_uri: self.current_module_uri.clone(),
                     });
                 }
                 ScssStatement::Rule(value) => {
@@ -1529,6 +2309,9 @@ impl<'a> ScssEvaluator<'a> {
                 }
                 ScssStatement::Each(value) => {
                     for item in &value.values {
+                        if self.halted {
+                            break;
+                        }
                         let evaluated = self.evaluate_expression(item, scope, frames);
                         let mut iteration = scope.clone();
                         iteration.variables.insert(
@@ -1562,8 +2345,11 @@ impl<'a> ScssEvaluator<'a> {
         nested: &mut Vec<GeneratedRule>,
         frames: &[OriginSpec],
     ) {
+        if !self.enter_recursion(include.source_range, "expanding a mixin") {
+            return;
+        }
         let name = normalize_name(&include.name);
-        let Some(mixin) = self.mixins.get(&name).cloned() else {
+        let Some(located_mixin) = self.mixins.get(&name).cloned() else {
             self.diagnostics.push(scss_diagnostic(
                 &self.stylesheet.source.uri,
                 "cem.scss.module_error",
@@ -1571,9 +2357,14 @@ impl<'a> ScssEvaluator<'a> {
                 format!("SCSS mixin `{}` is not defined", include.name),
                 Some(include.source_range),
             ));
+            self.leave_recursion();
             return;
         };
+        let mixin = located_mixin.declaration;
         let mut call_scope = scope.clone();
+        call_scope
+            .variables
+            .extend(located_mixin.closure.variables.clone());
         for (index, parameter) in mixin.parameters.iter().enumerate() {
             let evaluated = include
                 .arguments
@@ -1591,6 +2382,7 @@ impl<'a> ScssEvaluator<'a> {
                     kind: ScssOriginKind::Definition,
                     name: Some(parameter.name.clone()),
                     range: parameter.source_range,
+                    module_uri: located_mixin.module_uri.clone(),
                 });
                 call_scope.variables.insert(
                     normalize_name(&parameter.name),
@@ -1606,12 +2398,18 @@ impl<'a> ScssEvaluator<'a> {
             kind: ScssOriginKind::Definition,
             name: Some(mixin.name.clone()),
             range: mixin.source_range,
+            module_uri: located_mixin.module_uri.clone(),
         });
         call_frames.push(OriginSpec {
             kind: ScssOriginKind::CallSite,
             name: Some(include.name.clone()),
             range: include.source_range,
+            module_uri: self.current_module_uri.clone(),
         });
+        let caller_module_uri = std::mem::replace(
+            &mut self.current_module_uri,
+            located_mixin.module_uri.clone(),
+        );
         self.evaluate_rule_body(
             &mixin.body,
             &mut call_scope,
@@ -1630,6 +2428,8 @@ impl<'a> ScssEvaluator<'a> {
                 &call_frames,
             );
         }
+        self.current_module_uri = caller_module_uri;
+        self.leave_recursion();
     }
 
     fn bind_variable(
@@ -1644,6 +2444,7 @@ impl<'a> ScssEvaluator<'a> {
             kind: ScssOriginKind::Definition,
             name: Some(declaration.name.clone()),
             range: declaration.source_range,
+            module_uri: self.current_module_uri.clone(),
         });
         scope.variables.insert(
             normalize_name(&declaration.name),
@@ -1692,12 +2493,20 @@ impl<'a> ScssEvaluator<'a> {
         frames: &[OriginSpec],
         selector_mode: bool,
     ) -> EvaluatedValue {
+        if !self.enter_recursion(range, "evaluating an expression or interpolation") {
+            return EvaluatedValue {
+                text: String::new(),
+                origins: frames.to_vec(),
+            };
+        }
         let mut text = raw.to_owned();
         let mut origins = frames.to_vec();
         text = self.expand_custom_functions(&text, range, scope, frames, &mut origins);
+        let module_uri = self.current_module_uri.clone();
         text = expand_interpolations(
             &text,
             range,
+            &module_uri,
             |inner| self.evaluate_text(inner, range, scope, frames, false),
             &mut origins,
         );
@@ -1708,6 +2517,7 @@ impl<'a> ScssEvaluator<'a> {
         if selector_mode {
             text = text.trim().to_owned();
         }
+        self.leave_recursion();
         EvaluatedValue { text, origins }
     }
 
@@ -1721,7 +2531,10 @@ impl<'a> ScssEvaluator<'a> {
     ) -> String {
         let mut output = String::new();
         let mut cursor = 0usize;
-        while cursor < raw.len() {
+        while cursor < raw.len() && !self.halted {
+            if !self.consume_work(range, "expanding a function call") {
+                break;
+            }
             let Some((name_start, name_end, open, close)) = next_function_call(raw, cursor) else {
                 output.push_str(&raw[cursor..]);
                 break;
@@ -1745,13 +2558,23 @@ impl<'a> ScssEvaluator<'a> {
 
     fn evaluate_function(
         &mut self,
-        function: &ScssFunctionDeclaration,
+        located_function: &LocatedFunction,
         arguments: &[String],
         call_range: ScssSourceRange,
         scope: &EvaluationScope,
         frames: &[OriginSpec],
     ) -> EvaluatedValue {
+        if !self.enter_recursion(call_range, "calling a SCSS function") {
+            return EvaluatedValue {
+                text: String::new(),
+                origins: frames.to_vec(),
+            };
+        }
+        let function = &located_function.declaration;
         let mut function_scope = scope.clone();
+        function_scope
+            .variables
+            .extend(located_function.closure.variables.clone());
         for (index, parameter) in function.parameters.iter().enumerate() {
             let raw = arguments
                 .get(index)
@@ -1772,19 +2595,28 @@ impl<'a> ScssEvaluator<'a> {
             kind: ScssOriginKind::Definition,
             name: Some(function.name.clone()),
             range: function.source_range,
+            module_uri: located_function.module_uri.clone(),
         });
         function_frames.push(OriginSpec {
             kind: ScssOriginKind::CallSite,
             name: Some(function.name.clone()),
             range: call_range,
+            module_uri: self.current_module_uri.clone(),
         });
+        let caller_module_uri = std::mem::replace(
+            &mut self.current_module_uri,
+            located_function.module_uri.clone(),
+        );
         for statement in &function.body {
             match statement {
                 ScssStatement::Variable(value) => {
                     self.bind_variable(value, &mut function_scope, &function_frames)
                 }
                 ScssStatement::Return(value, _) => {
-                    return self.evaluate_expression(value, &function_scope, &function_frames)
+                    let result = self.evaluate_expression(value, &function_scope, &function_frames);
+                    self.current_module_uri = caller_module_uri;
+                    self.leave_recursion();
+                    return result;
                 }
                 ScssStatement::If(value) => {
                     let condition = self.evaluate_expression(
@@ -1799,11 +2631,11 @@ impl<'a> ScssEvaluator<'a> {
                     };
                     for nested in branch {
                         if let ScssStatement::Return(value, _) = nested {
-                            return self.evaluate_expression(
-                                value,
-                                &function_scope,
-                                &function_frames,
-                            );
+                            let result =
+                                self.evaluate_expression(value, &function_scope, &function_frames);
+                            self.current_module_uri = caller_module_uri;
+                            self.leave_recursion();
+                            return result;
                         }
                     }
                 }
@@ -1820,6 +2652,8 @@ impl<'a> ScssEvaluator<'a> {
             ),
             Some(function.source_range),
         ));
+        self.current_module_uri = caller_module_uri;
+        self.leave_recursion();
         EvaluatedValue {
             text: String::new(),
             origins: function_frames,
@@ -1829,7 +2663,8 @@ impl<'a> ScssEvaluator<'a> {
     fn css_document(&self, rules: Vec<GeneratedRule>) -> CssDocumentAst {
         let mut events = Vec::new();
         for rule in rules {
-            let selector_map = self.source_map(rule.source_range, &rule.selector_origins);
+            let selector_map =
+                self.source_map(&rule.module_uri, rule.source_range, &rule.selector_origins);
             push_css_event(
                 &mut events,
                 0,
@@ -1867,7 +2702,11 @@ impl<'a> ScssEvaluator<'a> {
                 selector_map,
             );
             for declaration in rule.declarations {
-                let source_map = self.source_map(declaration.source_range, &declaration.origins);
+                let source_map = self.source_map(
+                    &declaration.module_uri,
+                    declaration.source_range,
+                    &declaration.origins,
+                );
                 push_css_event(
                     &mut events,
                     1,
@@ -1932,7 +2771,7 @@ impl<'a> ScssEvaluator<'a> {
                     source_map,
                 );
             }
-            let closing_map = self.source_map(rule.source_range, &[]);
+            let closing_map = self.source_map(&rule.module_uri, rule.source_range, &[]);
             push_css_event(
                 &mut events,
                 0,
@@ -1976,31 +2815,26 @@ impl<'a> ScssEvaluator<'a> {
         }
     }
 
-    fn source_map(&self, range: ScssSourceRange, origins: &[OriginSpec]) -> SourceMapStack {
+    fn source_map(
+        &self,
+        module_uri: &str,
+        range: ScssSourceRange,
+        origins: &[OriginSpec],
+    ) -> SourceMapStack {
         let mut frames = vec![
-            scss_origin_frame(
-                &self.stylesheet.source.uri,
-                ScssOriginKind::Source,
-                None,
-                range,
-            ),
-            scss_origin_frame(
-                &self.stylesheet.source.uri,
-                ScssOriginKind::Module,
-                None,
-                range,
-            ),
+            scss_origin_frame(module_uri, ScssOriginKind::Source, None, range),
+            scss_origin_frame(module_uri, ScssOriginKind::Module, None, range),
         ];
         for origin in origins {
             frames.push(scss_origin_frame(
-                &self.stylesheet.source.uri,
+                &origin.module_uri,
                 origin.kind,
                 origin.name.clone(),
                 origin.range,
             ));
         }
         frames.push(scss_origin_frame(
-            &self.stylesheet.source.uri,
+            module_uri,
             ScssOriginKind::Expansion,
             None,
             range,
@@ -2087,6 +2921,41 @@ fn substitute_variables(
     while cursor < input.len() {
         let current = input[cursor..].chars().next().unwrap();
         if current != '$' {
+            if is_identifier_start(current) {
+                let qualified_start = cursor;
+                let mut qualified_end = cursor + current.len_utf8();
+                while qualified_end < input.len()
+                    && input[qualified_end..]
+                        .chars()
+                        .next()
+                        .is_some_and(is_identifier_continue)
+                {
+                    qualified_end += input[qualified_end..].chars().next().unwrap().len_utf8();
+                }
+                if input[qualified_end..].starts_with(".$") {
+                    let name_start = qualified_end + 2;
+                    let mut name_end = name_start;
+                    while name_end < input.len()
+                        && input[name_end..]
+                            .chars()
+                            .next()
+                            .is_some_and(is_identifier_continue)
+                    {
+                        name_end += input[name_end..].chars().next().unwrap().len_utf8();
+                    }
+                    let key = format!(
+                        "{}.{}",
+                        &input[qualified_start..qualified_end],
+                        &input[name_start..name_end]
+                    );
+                    if let Some(binding) = scope.variables.get(&normalize_name(&key)) {
+                        output.push_str(&binding.value);
+                        origins.extend(binding.origins.clone());
+                        cursor = name_end;
+                        continue;
+                    }
+                }
+            }
             output.push(current);
             cursor += current.len_utf8();
             continue;
@@ -2115,6 +2984,7 @@ fn substitute_variables(
 fn expand_interpolations(
     input: &str,
     range: ScssSourceRange,
+    module_uri: &str,
     mut evaluate: impl FnMut(&str) -> EvaluatedValue,
     origins: &mut Vec<OriginSpec>,
 ) -> String {
@@ -2134,6 +3004,7 @@ fn expand_interpolations(
             kind: ScssOriginKind::Interpolation,
             name: None,
             range,
+            module_uri: module_uri.to_owned(),
         });
         cursor = close + 1;
     }
@@ -2150,7 +3021,7 @@ fn next_function_call(input: &str, start: usize) -> Option<(usize, usize, usize,
             cursor += current.len_utf8();
             while cursor < input.len() {
                 let value = input[cursor..].chars().next()?;
-                if !is_identifier_continue(value) {
+                if !is_identifier_continue(value) && value != '.' {
                     break;
                 }
                 cursor += value.len_utf8();
@@ -2291,6 +3162,107 @@ fn normalize_name(value: &str) -> String {
     value.trim().replace('_', "-")
 }
 
+fn is_public_member(value: &str) -> bool {
+    !value.starts_with('_') && !value.starts_with('-')
+}
+
+fn merge_module_exports(target: &mut ModuleExports, source: &ModuleExports) {
+    target.variables.extend(source.variables.clone());
+    target.mixins.extend(source.mixins.clone());
+    target.functions.extend(source.functions.clone());
+}
+
+fn parse_module_directive(raw: &str, edge_kind: ModuleEdgeKind) -> Option<ParsedModuleDirective> {
+    let raw = raw.trim();
+    let quote = raw.chars().next()?;
+    if !matches!(quote, '\'' | '"') {
+        return None;
+    }
+    let close = raw[quote.len_utf8()..]
+        .find(quote)
+        .map(|index| quote.len_utf8() + index)?;
+    let specifier = raw[quote.len_utf8()..close].trim().to_owned();
+    if specifier.is_empty() {
+        return None;
+    }
+    let suffix = raw[close + quote.len_utf8()..].trim();
+    let namespace = if edge_kind == ModuleEdgeKind::Use {
+        suffix
+            .strip_prefix("as ")
+            .and_then(|value| value.split_whitespace().next())
+            .map(str::to_owned)
+            .unwrap_or_else(|| default_module_namespace(&specifier))
+    } else {
+        String::new()
+    };
+    let configuration = suffix
+        .find("with")
+        .map(|index| suffix[index..].trim().to_owned())
+        .unwrap_or_default();
+    Some(ParsedModuleDirective {
+        specifier,
+        namespace,
+        configuration,
+    })
+}
+
+fn default_module_namespace(specifier: &str) -> String {
+    specifier
+        .rsplit('/')
+        .next()
+        .unwrap_or(specifier)
+        .trim_start_matches('_')
+        .strip_suffix(".scss")
+        .unwrap_or_else(|| {
+            specifier
+                .rsplit('/')
+                .next()
+                .unwrap_or(specifier)
+                .trim_start_matches('_')
+        })
+        .to_owned()
+}
+
+fn is_css_import(raw: &str) -> bool {
+    let value = raw.trim();
+    value.starts_with("url(")
+        || value.contains(".css")
+        || value.contains("http://")
+        || value.contains("https://")
+}
+
+fn module_resolution_candidates(specifier: &str) -> Vec<String> {
+    let (directory, basename) = specifier
+        .rsplit_once('/')
+        .map_or(("", specifier), |(directory, basename)| {
+            (directory, basename)
+        });
+    let join = |name: &str| {
+        if directory.is_empty() {
+            name.to_owned()
+        } else {
+            format!("{directory}/{name}")
+        }
+    };
+    let mut candidates = Vec::new();
+    if basename.ends_with(".scss") {
+        candidates.push(specifier.to_owned());
+        if !basename.starts_with('_') {
+            candidates.push(join(&format!("_{basename}")));
+        }
+    } else {
+        candidates.push(format!("{specifier}.scss"));
+        if !basename.starts_with('_') {
+            candidates.push(join(&format!("_{basename}.scss")));
+        }
+        candidates.push(format!("{specifier}/index.scss"));
+        candidates.push(format!("{specifier}/_index.scss"));
+    }
+    candidates.sort();
+    candidates.dedup();
+    candidates
+}
+
 fn is_truthy(value: &str) -> bool {
     !matches!(value.trim(), "" | "false" | "null")
 }
@@ -2344,6 +3316,92 @@ fn scss_diagnostic(
             frames: vec![scss_origin_frame(uri, ScssOriginKind::Source, None, range)],
         }),
         ..Diagnostic::default()
+    }
+}
+
+fn scss_policy_diagnostic(
+    uri: &str,
+    code: &str,
+    message: impl Into<String>,
+    range: ScssSourceRange,
+    resolver_policy_stamp: &str,
+    safety_policy_stamp: &str,
+) -> Diagnostic {
+    let mut diagnostic = scss_diagnostic(uri, code, Severity::Error, message, Some(range));
+    if let Some(details) = diagnostic
+        .details
+        .as_mut()
+        .and_then(|value| value.as_object_mut())
+    {
+        details.insert(
+            "resolverPolicyStamp".to_owned(),
+            serde_json::json!(resolver_policy_stamp),
+        );
+        details.insert(
+            "safetyPolicyStamp".to_owned(),
+            serde_json::json!(safety_policy_stamp),
+        );
+    }
+    diagnostic
+}
+
+#[allow(clippy::too_many_arguments)]
+fn scss_resolution_diagnostic(
+    uri: &str,
+    code: &str,
+    message: impl Into<String>,
+    range: ScssSourceRange,
+    resolver_policy_stamp: &str,
+    safety_policy_stamp: &str,
+    request: &ResolveRequest,
+    effective_uri: Option<&str>,
+    canonical_uris: Option<&[String]>,
+) -> Diagnostic {
+    let mut diagnostic = scss_policy_diagnostic(
+        uri,
+        code,
+        message,
+        range,
+        resolver_policy_stamp,
+        safety_policy_stamp,
+    );
+    if let Some(details) = diagnostic
+        .details
+        .as_mut()
+        .and_then(|value| value.as_object_mut())
+    {
+        details.insert("requestedUri".to_owned(), serde_json::json!(request.uri));
+        details.insert(
+            "normalizedUri".to_owned(),
+            serde_json::json!(request.uri.trim()),
+        );
+        details.insert("baseUri".to_owned(), serde_json::json!(request.base_uri));
+        details.insert(
+            "purpose".to_owned(),
+            serde_json::json!(request.purpose.as_str()),
+        );
+        if let Some(effective_uri) = effective_uri {
+            details.insert("effectiveUri".to_owned(), serde_json::json!(effective_uri));
+        }
+        if let Some(canonical_uris) = canonical_uris {
+            details.insert(
+                "canonicalUris".to_owned(),
+                serde_json::json!(canonical_uris),
+            );
+        }
+    }
+    diagnostic
+}
+
+fn stylesheet_range(stylesheet: &ScssStylesheetAst) -> ScssSourceRange {
+    let end = stylesheet.source.byte_length as u64;
+    ScssSourceRange {
+        start: ScssSourcePosition {
+            line: 1,
+            column: 1,
+            byte_offset: 0,
+        },
+        byte_length: end,
     }
 }
 
