@@ -10,9 +10,8 @@ history is preserved in
 
 The CSS selector query and SCSS-to-CSS lifecycle slices are complete. The active
 work is closing the Phase 4 component state matrix in priority order. The
-`layout:loading` slice and package verification gate are complete. The active
-item is the audit-recommended `action:hover` ownership and executable-acceptance
-decision.
+`action:hover` ownership and executable-acceptance decision is complete. The
+active item is implementing that accepted contract tests-first.
 
 The cross-layer architecture remains serializer-free: lifecycle loading, graph
 routing, joins, evaluators, CEM-QL, CEMT, and XSLT adapters must exchange
@@ -459,8 +458,43 @@ mediate between internal layers.
     created no browser failure artifacts. The audit remains at 25
     browser-covered rows, 0 static-only rows, and 14 gaps, with `action:hover`
     recommended next.
-- [ ] Decide and document the Phase 4 `action:hover` owner and executable
+- [x] Decide and document the Phase 4 `action:hover` owner and executable
       acceptance before adding a fixture or changing runtime/style behavior.
+  - Accepted and documented
+    [`packages/cem-components/docs/action-hover-contract.md`](../packages/cem-components/docs/action-hover-contract.md):
+    each primitive's direct native `button:enabled:hover` owns the ephemeral
+    pointer state; no JavaScript handler, host attribute, private state class,
+    slice, ARIA state, focus change, or activation behavior is added.
+  - Assigned scoped selectors and an explicit, author-imported `./styles.css`
+    export to `@epa-wg/cem-components`, while `@epa-wg/cem-theme` retains the
+    generated default/hover token values. The JavaScript entry remains free of
+    stylesheet side effects.
+  - Bound `cem-action` to the primary action token pairs and the quiet
+    `cem-icon-button` plus `cem-menu-item` to contextual action pairs. Additional
+    intents and arbitrary variant mappings remain separate API decisions.
+  - Limited hover to paired background/text color changes, with no geometry,
+    content, motion, or forced-color override. Native disabled buttons are
+    excluded with `:enabled`; focus-visible treatment must survive overlapping
+    hover.
+  - Selected direct `:hover` without pointer/hover media-query gating because
+    the media features describe device capabilities rather than the exact
+    designation state. Actions remain fully operable and complete when hover
+    never matches.
+  - Defined a real-pointer browser acceptance owner covering token treatment,
+    unhover restoration, stable rectangles/DOM/semantics/focus/runtime state,
+    disabled non-treatment, event absence, style-token verification, and
+    promotion of only the `action:hover` audit row.
+- [ ] Implement the accepted `action:hover` contract tests-first.
+  - [ ] Add the focused `states.browser.spec.ts` real-pointer fixture first and
+        confirm it fails only because the public component stylesheet and hover
+        bindings do not exist.
+  - [ ] Publish the side-effect-free `@epa-wg/cem-components/styles.css` export
+        and add the minimal enabled default/hover token bindings without runtime
+        or geometry changes.
+  - [ ] Make the focused fixture green, update only the `action:hover` audit row
+        and directly affected component/style docs, then run focused browser,
+        style, state-matrix, lint, and aggregate package verification through
+        Nx.
 
 ## Current Verification Commands
 
