@@ -132,6 +132,8 @@ mediate between internal layers.
         syntax and expansion facts lower directly into a lifecycle-owned typed
         CSS AST stream with exact origin chains. Do not emit CSS text and reparse
         it, construct a JSON/generic DTO bridge, or lose SCSS-to-CSS source maps.
+  - [x] Isolate SCSS-only CLI verification in a dedicated Cargo integration test
+        and Nx target so SCSS package gates do not select the broad CLI suite.
   - [ ] Route imports, modules, functions, mixins, interpolation, generated
         selectors, and expansion limits through explicit resolver, safety,
         cancellation, recursion, output-size, and work-budget policies.

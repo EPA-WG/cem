@@ -110,6 +110,10 @@ schema-package structure, native SCSS parser/lowering contracts, CLI source
 validation, manifest-owned examples, CLI dependency gates, and source-only
 README preview policy.
 
+For the CLI boundary alone, `yarn nx run cem_ml_cli:test:scss` runs the five
+SCSS-specific integration tests without selecting the broad CLI unit or
+schema-example suites.
+
 ## Examples
 
 This section is generated from `package.cem` `{example}` metadata by the

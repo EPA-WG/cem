@@ -1409,7 +1409,6 @@ schema_owned_package_validation_test!(
     "cem-transform"
 );
 schema_owned_package_validation_test!(schema_owned_css_examples_validate_through_cli, "css");
-schema_owned_package_validation_test!(schema_owned_scss_examples_validate_through_cli, "scss");
 schema_owned_package_validation_test!(
     schema_owned_css_selector_examples_validate_through_cli,
     "css-selector"
@@ -7003,10 +7002,6 @@ builtin_schema_package_manifest_validation_test!(
     "cem-transform"
 );
 builtin_schema_package_manifest_validation_test!(builtin_css_manifest_validates_through_cli, "css");
-builtin_schema_package_manifest_validation_test!(
-    builtin_scss_manifest_validates_through_cli,
-    "scss"
-);
 builtin_schema_package_manifest_validation_test!(builtin_csv_manifest_validates_through_cli, "csv");
 builtin_schema_package_manifest_validation_test!(
     builtin_html_manifest_validates_through_cli,
