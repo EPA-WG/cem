@@ -11,9 +11,10 @@ history is preserved in
 The CSS selector query and SCSS-to-CSS lifecycle slices are complete. The active
 work is closing the Phase 4 component state matrix in priority order. The
 component stylesheet publication, `action:hover`, and `action:active` contracts
-are implemented and verified. The active item is deciding and documenting the
-`input:hover` owners and token mappings before adding another fixture or style
-rule.
+are implemented and verified. The `input:hover` native-owner inventory is
+complete, but the generated theme has no semantic input-hover endpoint. Work is
+stopped at `CEM-CSS-001`: theme review must categorize the state and select its
+visual channels before another fixture or component style rule is added.
 
 The cross-layer architecture remains serializer-free: lifecycle loading, graph
 routing, joins, evaluators, CEM-QL, CEMT, and XSLT adapters must exchange
@@ -622,7 +623,7 @@ mediate between internal layers.
     and 12 gaps with `input:hover` recommended next.
 - [ ] Decide and document the Phase 4 `input:hover` owners and executable
       acceptance before adding another fixture or changing component CSS.
-  - [ ] Inventory the actual native hover targets for `cem-field`,
+  - [x] Inventory the actual native hover targets for `cem-field`,
         `cem-text-field`, `cem-textarea`, `cem-select`, `cem-checkbox`,
         `cem-radio`, and `cem-switch`; keep wrapper/label hover from becoming a
         substitute for the native control state.
@@ -630,11 +631,26 @@ mediate between internal layers.
         select, and binary controls. Search the generated CEM catalog first and
         stop with a proposed `components-css-exceptions.md` entry if no existing
         input-hover endpoints can express the treatment.
+    - [x] Confirm the generated catalog exposes only action-family hover colors;
+          `--cem-control-*` is geometry-only, `--cem-stroke-*` supplies generic
+          width/ring geometry, and no generated input/field/form hover endpoint
+          exists.
+    - [x] Record proposed exception `CEM-CSS-001` without granting a waiver or
+          adding component CSS. Reusing contextual action tokens or raw palette
+          colors would miscategorize input semantics.
+    - [ ] Decide whether text-entry, select, and binary controls share a theme
+          state family or need separate families, and which fill/text/boundary
+          channels must receive mode and forced-colors mappings.
   - [ ] Pin real hover/unhover evidence, disabled and readonly boundaries,
         label/control overlap, focus-visible coexistence, restoration, geometry,
         DOM/ARIA, value/checked state, forced-colors, and event absence.
   - [ ] Keep hover presentation CSS-only and author-imported: no host state,
         synthetic pointer events, runtime slice, or JavaScript style side effect.
+  - Native owners are `cem-field input`, `cem-text-field input`,
+    `cem-textarea textarea`, `cem-select select`, `cem-checkbox input`,
+    `cem-radio input`, and `cem-switch input`. No fixture, CSS selector, token,
+    verifier binding, or `input:hover` audit promotion was added after the token
+    stop condition fired.
 
 ## Current Verification Commands
 
