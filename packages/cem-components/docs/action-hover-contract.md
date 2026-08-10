@@ -163,9 +163,11 @@ activation states; nothing is available only through hover.
 - Applications own when and where they load theme/component CSS and may theme
   by overriding semantic endpoints. They MUST NOT need to recreate the baseline
   hover selectors.
-- `action:active`, `action:disabled`, `action:loading`, navigation hover, input
-  hover, content hover, selected rows, tooltips, menus, and richer action
-  variants remain separate state or component contracts.
+- `action:active` is implemented by the companion
+  [`action active contract`](./action-active-contract.md). `action:disabled`,
+  `action:loading`, navigation hover, input hover, content hover, selected rows,
+  tooltips, menus, and richer action variants remain separate state or
+  component contracts.
 
 ## Executable acceptance
 
@@ -210,13 +212,14 @@ harness without simulating hover or injecting runtime styles.
 - `src/styles.css` contains only the accepted component-scoped default and
   `:enabled:hover` selectors, paired with eight generated `--cem-action-*`
   tokens. No component CSS exception is required.
-- The focused browser target passes all 11 state tests and proves treatment,
+- The focused browser target passes all 12 state tests and proves treatment,
   restoration, focus, geometry, DOM/ARIA, disabled, runtime, and event
   invariants for the three action primitives.
 - `@epa-wg/cem-theme:verify-package` proves the public `./styles.css` export and
   dry-run npm inclusion of `dist/lib/css/cem-combined.css`; the component style
   gate validates exact generated-token mappings and selector scope.
-- The state-matrix audit promotes only `action:hover`, yielding 26 covered,
-  0 static-only, and 13 gap rows with `action:active` recommended next.
-- The uncached aggregate gate passes 16 dependencies and all 38 package tests
-  across five files, including the 11-case focused state suite.
+- The state-matrix audit now covers both `action:hover` and the separately owned
+  `action:active`, yielding 27 covered, 0 static-only, and 12 gap rows with
+  `input:hover` recommended next.
+- The uncached aggregate gate passes 16 dependencies and all 39 package tests
+  across five files, including the 12-case focused state suite.

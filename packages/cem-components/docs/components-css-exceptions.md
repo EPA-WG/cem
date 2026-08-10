@@ -37,7 +37,8 @@ does not authorize component CSS to bypass the style verifier.
 5. Close the row only after the component uses the accepted token or the
    separately approved bounded exception is executable and documented.
 
-The implemented `action:hover` bindings require no exception. Every default and
-hover background/text declaration maps directly to generated
-`--cem-action-primary-*` or `--cem-action-contextual-*` semantic tokens, and the
-style verifier rejects unknown or non-CEM variables.
+The implemented `action:hover` and `action:active` bindings require no
+exception. Every default, hover, and active background/text declaration maps
+directly to generated `--cem-action-primary-*` or
+`--cem-action-contextual-*` semantic tokens, and the style verifier rejects
+unknown or non-CEM variables.

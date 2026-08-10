@@ -10,9 +10,10 @@ history is preserved in
 
 The CSS selector query and SCSS-to-CSS lifecycle slices are complete. The active
 work is closing the Phase 4 component state matrix in priority order. The
-component stylesheet publication and `action:hover` contracts are implemented
-and verified. The active item is deciding and documenting the `action:active`
-owner and executable acceptance before adding another fixture or style rule.
+component stylesheet publication, `action:hover`, and `action:active` contracts
+are implemented and verified. The active item is deciding and documenting the
+`input:hover` owners and token mappings before adding another fixture or style
+rule.
 
 The cross-layer architecture remains serializer-free: lifecycle loading, graph
 routing, joins, evaluators, CEM-QL, CEMT, and XSLT adapters must exchange
@@ -568,22 +569,72 @@ mediate between internal layers.
     passed. The uncached aggregate passed 16 dependencies and 38 tests across
     five files. Only `action:hover` moved to covered, yielding 26 covered,
     0 static-only, and 13 gaps with `action:active` recommended next.
-- [ ] Decide and document the Phase 4 `action:active` owner and executable
+- [x] Decide and document the Phase 4 `action:active` owner and executable
       acceptance before adding a fixture or changing component CSS.
-  - [ ] Pin enabled native-button `:active` ownership and primary/contextual
+  - [x] Pin enabled native-button `:active` ownership and primary/contextual
         active-token mappings for `cem-action`, `cem-icon-button`, and
         `cem-menu-item`; keep disabled buttons excluded and CEM tokens mandatory.
-  - [ ] Define real pointer-down/hold/release evidence that observes the
+  - [x] Define real pointer-down/hold/release evidence that observes the
         transient active treatment without replacing `:active` with a class,
         attribute, synthetic event, or runtime slice.
-  - [ ] Separate presentation invariants during pointer hold from the native
+  - [x] Separate presentation invariants during pointer hold from the native
         click and existing `pressed`/`selected` slice aftermath on release;
         decide the matching keyboard-activation evidence and pseudo-class
         overlap with hover/focus-visible.
-  - [ ] Pin paired contrast, unpressed restoration, geometry, DOM/ARIA, focus,
+  - [x] Pin paired contrast, unpressed restoration, geometry, DOM/ARIA, focus,
         disabled, forced-colors, and event expectations. Stop and promote a
         runner or token substrate issue if real held-pointer state cannot be
         observed or existing CEM active tokens cannot express the treatment.
+  - Accepted
+    [`packages/cem-components/docs/action-active-contract.md`](../packages/cem-components/docs/action-active-contract.md):
+    use direct native `button:enabled:active` selectors; inspect computed styles
+    after trusted provider `pointerdown` while delayed pointer-up is pending;
+    use a retained Space keydown/keyup for keyboard parity; and keep click plus
+    `pressed`/`selected` slices strictly in the release aftermath.
+  - Existing generated primary/contextual active background/text pairs cover
+    every declaration. Active overrides hover only while held, preserves focus
+    and 4.5:1 paired contrast, restores hover/default on release/unhover, and
+    leaves `forced-color-adjust: auto`; no component CSS exception is required.
+- [x] Implement the accepted `action:active` contract tests-first.
+  - [x] Add the focused `states.browser.spec.ts` native pointer/keyboard fixture
+        first and confirm it fails at the missing active-token treatment while
+        all existing state tests remain green.
+  - [x] Add only the accepted `:enabled:active` background/text bindings and
+        extend the exact-selector style verifier without adding a CSS exception.
+  - [x] Make the focused fixture green, promote only `action:active`, update the
+        directly affected component/style docs, and run focused browser, style,
+        state-matrix, lint, package, and aggregate verification through Nx.
+  - The tests-first run kept all 11 prior state tests green, observed the trusted
+    held button matching `:active`, and failed at the hover-painted background
+    versus the required generated active token. The implemented focused target
+    passes all 12 state tests.
+  - Added only component-scoped `:enabled:active` background/text rules after
+    their hover rules. The primary/contextual bindings use four existing
+    generated `--cem-action-*-active-*` endpoints, retain
+    `forced-color-adjust: auto`, and need no CSS exception.
+  - The fixture proves real pointer and Space holds, 4.5:1 paired contrast,
+    active-over-hover priority, release/unhover restoration, geometry,
+    DOM/ARIA, focus, disabled suppression, runtime timing, and native descendant
+    event targeting across all three action primitives.
+  - The exact style gate passed 32 primitives and 371 generated theme tokens.
+    Focused browser, state, lint, package, and aggregate verification passed;
+    only `action:active` moved to covered, yielding 27 covered, 0 static-only,
+    and 12 gaps with `input:hover` recommended next.
+- [ ] Decide and document the Phase 4 `input:hover` owners and executable
+      acceptance before adding another fixture or changing component CSS.
+  - [ ] Inventory the actual native hover targets for `cem-field`,
+        `cem-text-field`, `cem-textarea`, `cem-select`, `cem-checkbox`,
+        `cem-radio`, and `cem-switch`; keep wrapper/label hover from becoming a
+        substitute for the native control state.
+  - [ ] Decide semantic token mappings and visual channels for text-entry,
+        select, and binary controls. Search the generated CEM catalog first and
+        stop with a proposed `components-css-exceptions.md` entry if no existing
+        input-hover endpoints can express the treatment.
+  - [ ] Pin real hover/unhover evidence, disabled and readonly boundaries,
+        label/control overlap, focus-visible coexistence, restoration, geometry,
+        DOM/ARIA, value/checked state, forced-colors, and event absence.
+  - [ ] Keep hover presentation CSS-only and author-imported: no host state,
+        synthetic pointer events, runtime slice, or JavaScript style side effect.
 
 ## Current Verification Commands
 

@@ -10,9 +10,10 @@
         "content:loading",
         "layout:loading",
         "action:hover",
-        "action:active"
+        "action:active",
+        "input:hover"
     ],
-    "recommendedNext": "action:active",
+    "recommendedNext": "input:hover",
     "coverage": [
         {
             "id": "action:default",
@@ -61,8 +62,18 @@
             "state": "active",
             "components": ["cem-action", "cem-icon-button", "cem-menu-item"],
             "interaction": "Activate an action and prove the active treatment preserves readable contrast.",
-            "status": "gap",
-            "reason": "Click payload coverage exists, but no browser assertion observes active-state presentation."
+            "status": "covered",
+            "owner": "packages/cem-components/src/lib/states.browser.spec.ts",
+            "test": "applies shared native active treatment during pointer and keyboard activation",
+            "assertions": [
+                "expect(button.matches(':active')).toBe(true);",
+                "expectPaintedColorToResolveFromToken(active.backgroundColor, button, tokens.activeBackground);",
+                "expect(contrastRatio(active.backgroundColor, active.color)).toBeGreaterThanOrEqual(4.5);",
+                "expectActionStructureAndGeometry(active, hovered);",
+                "expect(held.backgroundColor).toBe(baseline.backgroundColor);",
+                "expect(keyboardActive.backgroundColor).not.toBe(keyboardBaseline.backgroundColor);",
+                "expect(keyboardReleased.backgroundColor).toBe(keyboardBaseline.backgroundColor);"
+            ]
         },
         {
             "id": "action:disabled",

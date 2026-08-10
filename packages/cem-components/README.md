@@ -46,8 +46,9 @@ import '@epa-wg/cem-components/styles.css';
 The JavaScript entry does not import or inject CSS. The public stylesheet is
 built byte-for-byte from `src/styles.css` and published only as
 `dist/styles.css` through the `./styles.css` package export. It binds enabled
-`cem-action` buttons to primary default/hover tokens and enabled
-`cem-icon-button`/`cem-menu-item` buttons to contextual default/hover tokens.
+`cem-action` buttons to primary default/hover/active tokens and enabled
+`cem-icon-button`/`cem-menu-item` buttons to contextual default/hover/active
+tokens.
 
 ## Build & Verify
 

@@ -73,11 +73,12 @@ Known deferrals remain outside the Phase 3.2 trigger:
 | `cem-menu-item` | Menu command row. | Default slot is command text. | action, palette, gap, inset, typography | Renders `role="menuitem"` and must be contained by a menu/list context in full menus. |
 
 States: `default`, `hover`, `focus-visible`, `active`, `disabled`, `loading`.
-The public component stylesheet implements `default` and enabled native-button
-`hover` for all three primitives with paired CEM action tokens. Hover changes
-only background/text color; it adds no ARIA or runtime state and excludes
-disabled buttons through `:enabled`. See the
-[action hover contract](./action-hover-contract.md).
+The public component stylesheet implements `default`, enabled native-button
+`hover`, and held native-button `active` for all three primitives with paired
+CEM action tokens. Hover and active change only background/text color; they add
+no ARIA or active runtime state and exclude disabled buttons through `:enabled`.
+See the [action hover contract](./action-hover-contract.md) and
+[action active contract](./action-active-contract.md).
 
 ## Inputs
 

@@ -8,6 +8,11 @@ cem-action > button:enabled:hover {
     color: var(--cem-action-primary-hover-text);
 }
 
+cem-action > button:enabled:active {
+    background-color: var(--cem-action-primary-active-background);
+    color: var(--cem-action-primary-active-text);
+}
+
 cem-icon-button > button,
 cem-menu-item > button {
     background-color: var(--cem-action-contextual-default-background);
@@ -18,4 +23,10 @@ cem-icon-button > button:enabled:hover,
 cem-menu-item > button:enabled:hover {
     background-color: var(--cem-action-contextual-hover-background);
     color: var(--cem-action-contextual-hover-text);
+}
+
+cem-icon-button > button:enabled:active,
+cem-menu-item > button:enabled:active {
+    background-color: var(--cem-action-contextual-active-background);
+    color: var(--cem-action-contextual-active-text);
 }

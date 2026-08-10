@@ -51,6 +51,13 @@ const ACTION_BINDINGS = new Map([
         ]),
     ],
     [
+        'cem-action > button:enabled:active',
+        new Map([
+            ['background-color', 'var(--cem-action-primary-active-background)'],
+            ['color', 'var(--cem-action-primary-active-text)'],
+        ]),
+    ],
+    [
         'cem-icon-button > button',
         new Map([
             ['background-color', 'var(--cem-action-contextual-default-background)'],
@@ -65,6 +72,13 @@ const ACTION_BINDINGS = new Map([
         ]),
     ],
     [
+        'cem-icon-button > button:enabled:active',
+        new Map([
+            ['background-color', 'var(--cem-action-contextual-active-background)'],
+            ['color', 'var(--cem-action-contextual-active-text)'],
+        ]),
+    ],
+    [
         'cem-menu-item > button',
         new Map([
             ['background-color', 'var(--cem-action-contextual-default-background)'],
@@ -76,6 +90,13 @@ const ACTION_BINDINGS = new Map([
         new Map([
             ['background-color', 'var(--cem-action-contextual-hover-background)'],
             ['color', 'var(--cem-action-contextual-hover-text)'],
+        ]),
+    ],
+    [
+        'cem-menu-item > button:enabled:active',
+        new Map([
+            ['background-color', 'var(--cem-action-contextual-active-background)'],
+            ['color', 'var(--cem-action-contextual-active-text)'],
         ]),
     ],
 ]);
@@ -281,7 +302,9 @@ function assertPublicComponentStyles(components, tokenNames) {
 
     for (const selector of actionRules.keys()) {
         if (!ACTION_BINDINGS.has(selector)) {
-            fail(`${pathLabel}: unexpected action selector \`${selector}\` is outside the accepted hover contract`);
+            fail(
+                `${pathLabel}: unexpected action selector \`${selector}\` is outside the accepted action-state contracts`,
+            );
         }
     }
 }
