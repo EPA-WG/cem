@@ -15,9 +15,10 @@ are implemented and verified. The `input:hover` contract is also implemented:
 all seven native owners share a theme-tokenized three-stripe indicator, with
 underline and outline as geometry variants, not separate semantics.
 `CEM-CSS-001` is closed through D0/D5 theme adoption without a component CSS
-exception. Dedicated keyboard and forced-colors coverage now completes
-`input:focus-visible` across all seven owners. The state-matrix audit recommends
-`input:loading` next.
+exception. Dedicated keyboard and forced-colors coverage completes
+`input:focus-visible`, and explicit presence-only busy projection now completes
+`input:loading` across all seven owners. The state-matrix audit recommends
+`input:expanded` next.
 
 The cross-layer architecture remains serializer-free: lifecycle loading, graph
 routing, joins, evaluators, CEM-QL, CEMT, and XSLT adapters must exchange
@@ -727,6 +728,37 @@ mediate between internal layers.
     aggregate 41-test gate pass. Only `input:focus-visible` moved to covered,
     yielding 29 covered, 0 static-only, and 10 gaps with `input:loading`
     recommended next.
+- [x] Define and implement the Phase 4 `input:loading` projection contract
+      across all seven native input owners.
+  - [x] Document presence-only host `busy`, native `data-state="loading"` and
+        `aria-busy="true"` reflection, lifecycle non-ownership, unchanged
+        interaction, value/focus/node/dimension preservation, and state
+        precedence.
+  - [x] Add a generated CEM pending-stroke endpoint so the existing anchor
+        stripe changes thickness as well as color; keep component CSS free of
+        raw values and leave the CSS exception queue closed.
+  - [x] Add the focused browser fixture before promoting `input:loading`,
+        covering all seven owners, presence semantics, transitions, tokenized
+        paint, forced colors, coexistence, identity, geometry, runtime state,
+        and event absence.
+  - [x] Run focused browser, theme-token, style, forced-colors, state-matrix,
+        lint, package, and aggregate verification through Nx; promote only
+        `input:loading` after every gate passes.
+  - Presence-only `busy`, including `busy="false"`, now projects exact loading
+    and ARIA markers to the same native owner without creating work, slices,
+    lifecycle events, status content, interaction suppression, or node/value/
+    focus/dimension changes.
+  - D0 pending color composes with the new generated D5
+    `--cem-stroke-pending` width. Invalid and disabled keep higher anchor
+    precedence; focus and selection remain independent. Forced colors use a
+    full `CanvasText` pending outline and retain the stronger focus width.
+    `CEM-CSS-001` remains closed and the component exception queue remains
+    empty.
+  - Focused state coverage passes 15/15. The uncached aggregate component gate
+    passes all 17 dependencies and 42 tests across 5 files; the style contract
+    verifies 32 primitives and 383 generated visual tokens. Only
+    `input:loading` moved to covered, yielding 30 covered, 0 static-only, and 9
+    gaps with `input:expanded` recommended next.
 
 ## Current Verification Commands
 

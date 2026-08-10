@@ -39,12 +39,38 @@ try {
             </label>
         </cem-radio>
         <button id="focus-end" type="button">End</button>
+        <cem-field><input id="pending-field" data-state="loading" aria-busy="true" value="pending"></cem-field>
+        <cem-checkbox>
+            <label id="pending-binary-label">
+                <input id="pending-binary" type="checkbox" data-state="loading" aria-busy="true">
+                <span>Pending choice</span>
+            </label>
+        </cem-checkbox>
     `);
 
     const baseline = await page.evaluate(captureForcedColorState);
     assert(baseline.forcedColors, 'forced-colors media query did not activate');
     assert(baseline.field.boxShadow === 'none', 'field indicator shadow did not collapse in forced colors');
     assert(baseline.binary.boxShadow === 'none', 'binary indicator shadow did not collapse in forced colors');
+    assert(baseline.pendingField.boxShadow === 'none', 'pending field restored a shadow in forced colors');
+    assert(baseline.pendingField.outlineStyle === 'solid', 'pending field fallback is not a solid outline');
+    assert(baseline.pendingField.outlineWidth === baseline.tokens.pending, 'pending field fallback has the wrong width');
+    assert(baseline.pendingField.outlineColor === baseline.system.canvasText, 'pending field did not map to CanvasText');
+    assert(baseline.pendingBinary.boxShadow === 'none', 'pending binary restored a shadow in forced colors');
+    assert(baseline.pendingBinary.outlineStyle === 'solid', 'pending binary fallback is not a solid outline');
+    assert(
+        baseline.pendingBinary.outlineWidth === baseline.tokens.pending,
+        'pending binary fallback has the wrong width',
+    );
+    assert(baseline.pendingBinary.outlineColor === baseline.system.canvasText, 'pending binary did not map to CanvasText');
+
+    await page.locator('#pending-field').focus();
+    const pendingFocus = await page.evaluate(captureForcedColorState);
+    assert(pendingFocus.pendingField.focusVisible, 'pending field did not match :focus-visible');
+    assert(
+        pendingFocus.pendingField.outlineWidth === pendingFocus.tokens.focus,
+        'focus did not replace the pending outline width',
+    );
 
     await page.locator('#field').hover();
     const fieldHover = await page.evaluate(captureForcedColorState);
@@ -161,11 +187,21 @@ function captureForcedColorState() {
     const binary = document.querySelector('#binary');
     const binaryLabel = document.querySelector('#binary-label');
     const disabledBinaryLabel = document.querySelector('#disabled-binary-label');
+    const pendingField = document.querySelector('#pending-field');
+    const pendingBinaryLabel = document.querySelector('#pending-binary-label');
 
-    if (!(field instanceof HTMLInputElement) || !(binary instanceof HTMLInputElement)) {
+    if (
+        !(field instanceof HTMLInputElement) ||
+        !(binary instanceof HTMLInputElement) ||
+        !(pendingField instanceof HTMLInputElement)
+    ) {
         throw new Error('Expected forced-colors input owners');
     }
-    if (!(binaryLabel instanceof HTMLLabelElement) || !(disabledBinaryLabel instanceof HTMLLabelElement)) {
+    if (
+        !(binaryLabel instanceof HTMLLabelElement) ||
+        !(disabledBinaryLabel instanceof HTMLLabelElement) ||
+        !(pendingBinaryLabel instanceof HTMLLabelElement)
+    ) {
         throw new Error('Expected forced-colors binary label owners');
     }
 
@@ -173,6 +209,8 @@ function captureForcedColorState() {
     const fieldStyles = getComputedStyle(field);
     const binaryStyles = getComputedStyle(binaryLabel);
     const disabledBinaryStyles = getComputedStyle(disabledBinaryLabel);
+    const pendingFieldStyles = getComputedStyle(pendingField);
+    const pendingBinaryStyles = getComputedStyle(pendingBinaryLabel);
 
     return {
         binary: readIndicatorStyles(binaryStyles),
@@ -184,6 +222,11 @@ function captureForcedColorState() {
             focusVisible: field.matches(':focus-visible'),
         },
         forcedColors: matchMedia('(forced-colors: active)').matches,
+        pendingBinary: readIndicatorStyles(pendingBinaryStyles),
+        pendingField: {
+            ...readIndicatorStyles(pendingFieldStyles),
+            focusVisible: pendingField.matches(':focus-visible'),
+        },
         system: {
             canvasText: readSystemColor('CanvasText'),
             highlight: readSystemColor('Highlight'),
@@ -192,6 +235,7 @@ function captureForcedColorState() {
             boundary: rootStyles.getPropertyValue('--cem-stroke-boundary').trim(),
             focus: rootStyles.getPropertyValue('--cem-stroke-focus').trim(),
             none: rootStyles.getPropertyValue('--cem-stroke-none').trim(),
+            pending: rootStyles.getPropertyValue('--cem-stroke-pending').trim(),
         },
     };
 }

@@ -85,16 +85,22 @@ See the [action hover contract](./action-hover-contract.md) and
 
 | Component | Semantics | Content and Attributes | Token Families | Required A11y |
 | --- | --- | --- | --- | --- |
-| `cem-field` | Generic labeled single-line field. | `name`, `value`, `type`, `placeholder`, `indicator`; named label/help slots. | input indicator, stroke, zebra, bend, gap, typography | Label slot or `label` attribute must name the input. |
-| `cem-text-field` | Single-line text entry. | `name`, `value`, `placeholder`, `indicator`; `slot="label"` and `slot="help"`. | input indicator, stroke, zebra, bend, gap, typography | Label slot or `label` attribute must name the input. Help text must not become the accessible name. |
-| `cem-textarea` | Multi-line text entry. | `name`, `value`, `placeholder`, `indicator`; `slot="label"` and `slot="help"`. | input indicator, stroke, zebra, bend, gap, typography | Same label and help rules as text field. |
-| `cem-select` | Native single-value choice. | Project `<option>` children; `indicator`; `slot="label"` names the control. | input indicator, stroke, zebra, bend, control, typography | Label slot or `label` attribute must name the select. |
-| `cem-checkbox` | Binary form choice. | Default slot is label; `name` and `value` forward to native input; `indicator`. | input indicator, stroke, zebra, control, bend, typography | Wrapping label must expose the visible text as the accessible name. |
-| `cem-radio` | Mutually exclusive form choice. | Default slot is label; shared `name` groups radios; `indicator`. | input indicator, stroke, zebra, control, typography | Radio group context should provide the set label. |
-| `cem-switch` | Immediate boolean setting. | Default slot is label; renders checkbox with `role="switch"`; `indicator`. | input indicator, stroke, zebra, action, control, bend | Visible label must name the switch. |
+| `cem-field` | Generic labeled single-line field. | `name`, `value`, `type`, `placeholder`, `indicator`, `busy`; named label/help slots. | input indicator, stroke, zebra, bend, gap, typography | Label slot or `label` attribute must name the input. |
+| `cem-text-field` | Single-line text entry. | `name`, `value`, `placeholder`, `indicator`, `busy`; `slot="label"` and `slot="help"`. | input indicator, stroke, zebra, bend, gap, typography | Label slot or `label` attribute must name the input. Help text must not become the accessible name. |
+| `cem-textarea` | Multi-line text entry. | `name`, `value`, `placeholder`, `indicator`, `busy`; `slot="label"` and `slot="help"`. | input indicator, stroke, zebra, bend, gap, typography | Same label and help rules as text field. |
+| `cem-select` | Native single-value choice. | Project `<option>` children; `indicator`; `busy`; `slot="label"` names the control. | input indicator, stroke, zebra, bend, control, typography | Label slot or `label` attribute must name the select. |
+| `cem-checkbox` | Binary form choice. | Default slot is label; `name` and `value` forward to native input; `indicator`; `busy`. | input indicator, stroke, zebra, control, bend, typography | Wrapping label must expose the visible text as the accessible name. |
+| `cem-radio` | Mutually exclusive form choice. | Default slot is label; shared `name` groups radios; `indicator`; `busy`. | input indicator, stroke, zebra, control, typography | Radio group context should provide the set label. |
+| `cem-switch` | Immediate boolean setting. | Default slot is label; renders checkbox with `role="switch"`; `indicator`; `busy`. | input indicator, stroke, zebra, action, control, bend | Visible label must name the switch. |
 
 States: `default`, `hover`, `focus-visible`, `disabled`, `loading`, `expanded`, `invalid`, `required`, `readonly`,
 `checked`, `indeterminate`.
+
+Presence-only host `busy` projects exact `data-state="loading"` and
+`aria-busy="true"` markers to the same native control. It does not infer or
+perform asynchronous work, disable editing, create runtime state, or replace
+the control; label, value, focus, and dimensions remain stable. See the
+[input loading contract](./input-loading-contract.md).
 
 The input indicator is one three-stripe stack: anchor/state is always present,
 focus is independent, and checked/indeterminate selection is independent.
@@ -109,8 +115,10 @@ Advanced custom elements can set the inherited
 `var(--cem-indicator-appearance-underline)` or
 `var(--cem-indicator-appearance-outline)`; this adapter wins over the host
 attribute. The stripe colors and widths remain generated CEM theme tokens and
-are not component-local customization endpoints. In forced colors, shadows are
-removed: hover uses `Highlight`, while focus uses a full `CanvasText` outline.
+are not component-local customization endpoints. Pending also consumes the
+generated `--cem-stroke-pending` endpoint so it changes thickness as well as
+color. In forced colors, shadows are removed: hover uses `Highlight`, while
+pending and focus use full `CanvasText` outlines at their semantic widths.
 The state fixture drives real Tab navigation through every enabled input owner,
 proves disabled controls are skipped, and requires focus/blur to preserve DOM,
 ARIA, values, runtime snapshots, and layout geometry.

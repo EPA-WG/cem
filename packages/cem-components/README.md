@@ -149,6 +149,8 @@ Known deferrals stay outside this trigger:
   regions; mirrors the Tier A semantic-validation catalog enforced by `cem_ml`.
 - [Selectable list contract](./docs/selectable-list-contract.md) — accepted Phase 4 single-select listbox ownership,
   declarative option payload, native interaction boundary, and executable acceptance criteria.
+- [Input loading contract](./docs/input-loading-contract.md) — explicit presence-only busy projection, native state
+  and ARIA markers, tokenized pending indicator, interaction boundaries, and executable acceptance criteria.
 - [Stylesheet publication contract](./docs/stylesheet-publication-contract.md) — single-source CSS build, package
   export, cache, release, and npm-pack boundary.
 - [Component CSS exceptions](./docs/components-css-exceptions.md) — token-first review queue for proposed values that

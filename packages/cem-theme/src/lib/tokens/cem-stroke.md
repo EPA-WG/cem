@@ -138,6 +138,7 @@ These are the **canonical semantic endpoints** that components consume.
   --cem-stroke-focus:             var(--cem-stroke-strong);
   --cem-stroke-selected:          var(--cem-stroke-standard);
   --cem-stroke-target:            var(--cem-stroke-standard);
+  --cem-stroke-pending:           var(--cem-stroke-standard);
 
   /* Placement */
   --cem-stroke-indicator-offset:  2px; /* distance outside the edge, not thickness */
@@ -158,6 +159,7 @@ These are the **canonical semantic endpoints** that components consume.
 | `--cem-stroke-focus`            | `var(--cem-stroke-strong)`  | Keyboard focus indicator thickness                              | required    |
 | `--cem-stroke-selected`         | `var(--cem-stroke-standard)`| Selection indicator thickness                                   | required    |
 | `--cem-stroke-target`           | `var(--cem-stroke-standard)`| Deep-link target indicator thickness                            | required    |
+| `--cem-stroke-pending`          | `var(--cem-stroke-standard)`| Persistent pending-state boundary/indicator thickness           | recommended |
 | `--cem-stroke-indicator-offset` | `2px`                       | External ring/outline offset (distance, not thickness)          | required    |
 
 ### 4.2 Semantics (normative)
@@ -167,6 +169,8 @@ These are the **canonical semantic endpoints** that components consume.
 - `--cem-stroke-focus` is for **keyboard focus** (and must meet §8).
 - `--cem-stroke-selected` marks **selection** where background does not carry the whole burden of state (CEM preference).
 - `--cem-stroke-target` marks a **deep-linked / navigated-to** target (e.g., URL fragment target, “jump to result”).
+- `--cem-stroke-pending` strengthens a persistent **pending/loading** boundary so the state does not rely on color
+  alone. It does not imply focus, selection, disabled, or progress semantics.
 - `--cem-stroke-indicator-offset` prevents rings/indicators from visually merging with the component edge.
 
 Optional convenience endpoints (aliases):
@@ -192,6 +196,7 @@ The D5 contract intentionally avoids per-component thickness tokens (e.g., `--ce
 | Table borders / grid lines               | `--cem-stroke-grid`                                    | Cell/row separators            | Use `grid` to distinguish “structured separators” from generic dividers; same thickness by default.                        |
 | Text field outline (outlined pattern)    | `--cem-stroke-boundary`                                | Control container edge         | Focus indication should be a ring (`--cem-stroke-focus`) rather than mutating border width.                                |
 | Text field underline (filled pattern)    | `--cem-stroke-boundary` or `--cem-stroke-divider`      | Baseline boundary              | Underline is a boundary of the control, not a sibling divider; map to divider only when visually used as “row separation”. |
+| Pending input boundary                   | `--cem-stroke-pending`                                 | Persistent thicker anchor      | Pair with a pending color and programmatic busy state; do not infer pending from focus, validation, or value changes.       |
 | Outlined button border                   | `--cem-stroke-boundary`                                | Variant boundary               | Use `boundary-strong` only for “hard separation” themes (e.g., low-elevation UIs).                                         |
 | Card / tile border                       | `--cem-stroke-boundary` (often `--cem-stroke-none`)    | Optional edge                  | Prefer D4 elevation or D0 surface contrast; use boundary only when needed for scannability.                                |
 | Checkbox / radio container border        | `--cem-stroke-boundary`                                | Control boundary               | The checkmark/dot is not a stroke token concern; it is icon geometry (D3) + color (D0).                                    |
@@ -519,6 +524,7 @@ Joy exposes per-component CSS variables for focus ring geometry (examples):
 | `--cem-stroke-focus` | Semantic | ✓ | Focus-visible indicator width |
 | `--cem-stroke-selected` | Semantic | ✓ | Selection indicator width |
 | `--cem-stroke-target` | Semantic | ✓ | Target indicator width |
+| `--cem-stroke-pending` | Semantic | Optional | Persistent pending/loading indicator width |
 | `--cem-stroke-indicator-offset` | Placement | ✓ | Ring/outline offset distance |
 | `--cem-zebra-strip-size` | Pattern | Optional | Stripe thickness for zebra indicators |
 | `--cem-zebra-angle` | Pattern | Optional | Stripe angle for gradient zebra |
@@ -552,7 +558,7 @@ Treat as **minor/patch** if you:
 | Source table               | Section | Description                                                                                                       |
 |----------------------------|---------|-------------------------------------------------------------------------------------------------------------------|
 | `cem-stroke-basis`         | §3.1    | Stroke basis: `--cem-stroke-{none,hair,standard,strong}`                                                          |
-| `cem-stroke-semantic`      | §4.1    | Semantic endpoints: `--cem-stroke-{boundary,boundary-strong,divider,grid,focus,selected,target,indicator-offset}` |
+| `cem-stroke-semantic`      | §4.1    | Semantic endpoints: `--cem-stroke-{boundary,boundary-strong,divider,grid,focus,selected,target,pending,indicator-offset}` |
 | `cem-stroke-zebra-pattern` | §5.2    | `--cem-zebra-angle` (gradient-mode geometry)                                                                      |
 | `cem-stroke-rings`         | §5.3    | Ring composition recipes: `--cem-ring-zebra-3`, `--cem-ring-zebra-4`                                              |
 | `cem-stroke-rings-forced`  | §5.3    | Forced-colors fallback values for the rings (generator-only; no new tokens)                                       |

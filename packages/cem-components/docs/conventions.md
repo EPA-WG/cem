@@ -234,6 +234,13 @@ SHOULD retain last-known content and placement. See the
 [content loading](./content-loading-contract.md) and
 [layout loading](./layout-loading-contract.md) contracts.
 
+The seven input primitives use the same presence-only projection boundary at
+the native control: explicit host `busy` produces `data-state="loading"` and
+`aria-busy="true"` without starting work or changing value, focus, dimensions,
+or interaction. D0 pending color and D5 pending stroke thickness compose the
+anchor cue without relying on hue alone. See the
+[input loading contract](./input-loading-contract.md).
+
 ## 7. Progressive Enhancement
 
 Every component MUST degrade gracefully when its custom element is not upgraded yet

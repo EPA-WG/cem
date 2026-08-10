@@ -519,9 +519,9 @@ The stack has three physical classes:
 
 Invalidity changes the anchor/state stripe color; it does not add geometry. Focus and selection therefore remain
 independently visible when an input is also invalid. Required state remains a marker/text concern and does not acquire
-an indicator stripe. Loading reserves the pending anchor color, but a component binds it only after that component has
-a truthful loading-state source. Native-select expanded state is likewise deferred until a disclosure contract defines
-a truthful source.
+an indicator stripe. A component with an explicit, truthful busy source binds loading to the pending anchor color and
+the D5 `--cem-stroke-pending` width so pending does not rely on hue alone. Native-select expanded state remains deferred
+until a disclosure contract defines a truthful source.
 
 ###### cem-input-indicator-colors
 | Token | value-type | default-formula | notes | tier |

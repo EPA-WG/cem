@@ -13,9 +13,10 @@
         "action:active",
         "input:hover",
         "input:focus-visible",
-        "input:loading"
+        "input:loading",
+        "input:expanded"
     ],
-    "recommendedNext": "input:loading",
+    "recommendedNext": "input:expanded",
     "coverage": [
         {
             "id": "action:default",
@@ -195,8 +196,14 @@
                 "cem-switch"
             ],
             "interaction": "Mark an input busy while preserving its label, value, and dimensions.",
-            "status": "gap",
-            "reason": "No input primitive currently mirrors loading or busy state in a browser assertion."
+            "status": "covered",
+            "owner": "packages/cem-components/src/lib/states.browser.spec.ts",
+            "test": "projects explicit busy state across every input without taking over its lifecycle",
+            "assertions": [
+                "expect(control.getAttribute('data-state')).toBe('loading');",
+                "expect(control.getAttribute('aria-busy')).toBe('true');",
+                "expect(busyField.controlRect).toEqual(fieldBaseline.controlRect);"
+            ]
         },
         {
             "id": "input:expanded",

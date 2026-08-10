@@ -24,7 +24,7 @@ None.
 
 | ID | Status | Requirement | Resolution |
 | --- | --- | --- | --- |
-| CEM-CSS-001 | Closed — adopted into theme, no exception | Distinguishable default, hover, disabled, readonly, invalid, focus, and selection indicators across field-like and binary input controls. | D0 owns generated semantic input-indicator colors; D5 owns generated outline/underline geometry selectors. Component CSS composes one local three-stripe shadow stack exclusively from those endpoints, with system-color forced-colors fallbacks. |
+| CEM-CSS-001 | Closed — adopted into theme, no exception | Distinguishable default, hover, disabled, readonly, invalid, pending, focus, and selection indicators across field-like and binary input controls. | D0 owns generated semantic input-indicator colors; D5 owns pending thickness and outline/underline geometry selectors. Component CSS composes one local three-stripe shadow stack exclusively from those endpoints, with system-color forced-colors fallbacks. |
 
 ### CEM-CSS-001 discovery evidence
 
@@ -77,11 +77,14 @@ focus, and selection to coexist.
 
 Normal rendering consumes generated `--cem-input-indicator-*`,
 `--cem-stroke-*`, `--cem-zebra-*`, and `--cem-indicator-appearance-*` tokens.
+Explicit input `busy` also strengthens the anchor through generated
+`--cem-stroke-pending`, making pending distinguishable without hue or layout
+shift while invalid and disabled keep higher anchor precedence.
 In forced colors, the component removes shadows, maps hover to `Highlight`, and
-uses a full `CanvasText` focus outline. The focused runtime fixture and the
-forced-colors Chromium gate make the resolution executable. Because no raw or
-component-local styling value was needed, `CEM-CSS-001` closes as theme
-adoption—not as an exception.
+uses full `CanvasText` pending and focus outlines at their semantic widths. The
+focused runtime fixture and the forced-colors Chromium gate make the resolution
+executable. Because no raw or component-local styling value was needed,
+`CEM-CSS-001` closes as theme adoption—not as an exception.
 
 ## Review procedure
 

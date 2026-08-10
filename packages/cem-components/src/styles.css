@@ -112,11 +112,20 @@ cem-textarea textarea[readonly]:enabled {
     --_cem-input-indicator-anchor-color: var(--cem-input-indicator-anchor-readonly-color);
 }
 
+cem-field input[data-state='loading']:enabled,
+cem-text-field input[data-state='loading']:enabled,
+cem-textarea textarea[data-state='loading']:enabled,
+cem-select select[data-state='loading']:enabled {
+    --_cem-input-indicator-anchor-color: var(--cem-input-indicator-anchor-pending-color);
+    --_cem-input-indicator-anchor-width: var(--cem-stroke-pending);
+}
+
 cem-field input[aria-invalid='true']:enabled,
 cem-text-field input[aria-invalid='true']:enabled,
 cem-textarea textarea[aria-invalid='true']:enabled,
 cem-select select[aria-invalid='true']:enabled {
     --_cem-input-indicator-anchor-color: var(--cem-input-indicator-anchor-invalid-color);
+    --_cem-input-indicator-anchor-width: var(--cem-stroke-boundary);
 }
 
 cem-field input[aria-invalid='true']:enabled:hover,
@@ -124,6 +133,7 @@ cem-text-field input[aria-invalid='true']:enabled:hover,
 cem-textarea textarea[aria-invalid='true']:enabled:hover,
 cem-select select[aria-invalid='true']:enabled:hover {
     --_cem-input-indicator-anchor-color: var(--cem-input-indicator-anchor-invalid-hover-color);
+    --_cem-input-indicator-anchor-width: var(--cem-stroke-boundary);
 }
 
 cem-field input:disabled,
@@ -131,6 +141,7 @@ cem-text-field input:disabled,
 cem-textarea textarea:disabled,
 cem-select select:disabled {
     --_cem-input-indicator-anchor-color: var(--cem-input-indicator-anchor-disabled-color);
+    --_cem-input-indicator-anchor-width: var(--cem-stroke-boundary);
 }
 
 cem-field input:focus-visible,
@@ -165,22 +176,32 @@ cem-switch > label:has(> input:enabled:hover) {
     --_cem-input-indicator-anchor-color: var(--cem-input-indicator-anchor-hover-color);
 }
 
-cem-checkbox > label:has(> input[aria-invalid='true']),
-cem-radio > label:has(> input[aria-invalid='true']),
-cem-switch > label:has(> input[aria-invalid='true']) {
+cem-checkbox > label:has(> input[data-state='loading']:enabled),
+cem-radio > label:has(> input[data-state='loading']:enabled),
+cem-switch > label:has(> input[data-state='loading']:enabled) {
+    --_cem-input-indicator-anchor-color: var(--cem-input-indicator-anchor-pending-color);
+    --_cem-input-indicator-anchor-width: var(--cem-stroke-pending);
+}
+
+cem-checkbox > label:has(> input[aria-invalid='true']:enabled),
+cem-radio > label:has(> input[aria-invalid='true']:enabled),
+cem-switch > label:has(> input[aria-invalid='true']:enabled) {
     --_cem-input-indicator-anchor-color: var(--cem-input-indicator-anchor-invalid-color);
+    --_cem-input-indicator-anchor-width: var(--cem-stroke-boundary);
 }
 
 cem-checkbox > label:has(> input[aria-invalid='true']:enabled:hover),
 cem-radio > label:has(> input[aria-invalid='true']:enabled:hover),
 cem-switch > label:has(> input[aria-invalid='true']:enabled:hover) {
     --_cem-input-indicator-anchor-color: var(--cem-input-indicator-anchor-invalid-hover-color);
+    --_cem-input-indicator-anchor-width: var(--cem-stroke-boundary);
 }
 
 cem-checkbox > label:has(> input:disabled),
 cem-radio > label:has(> input:disabled),
 cem-switch > label:has(> input:disabled) {
     --_cem-input-indicator-anchor-color: var(--cem-input-indicator-anchor-disabled-color);
+    --_cem-input-indicator-anchor-width: var(--cem-stroke-boundary);
 }
 
 cem-checkbox > label:has(> input:enabled:focus-visible),
@@ -231,13 +252,31 @@ cem-switch input:focus-visible {
         outline-offset: var(--cem-stroke-indicator-offset);
     }
 
+    cem-field input[data-state='loading']:enabled:not([aria-invalid='true']),
+    cem-text-field input[data-state='loading']:enabled:not([aria-invalid='true']),
+    cem-textarea textarea[data-state='loading']:enabled:not([aria-invalid='true']),
+    cem-select select[data-state='loading']:enabled:not([aria-invalid='true']),
+    cem-checkbox > label:has(> input[data-state='loading']:enabled:not([aria-invalid='true'])),
+    cem-radio > label:has(> input[data-state='loading']:enabled:not([aria-invalid='true'])),
+    cem-switch > label:has(> input[data-state='loading']:enabled:not([aria-invalid='true'])) {
+        outline: var(--cem-stroke-pending) solid CanvasText;
+        outline-offset: var(--cem-stroke-indicator-offset);
+    }
+
     cem-field input:focus-visible,
     cem-text-field input:focus-visible,
     cem-textarea textarea:focus-visible,
     cem-select select:focus-visible,
     cem-checkbox > label:has(> input:enabled:focus-visible),
     cem-radio > label:has(> input:enabled:focus-visible),
-    cem-switch > label:has(> input:enabled:focus-visible) {
+    cem-switch > label:has(> input:enabled:focus-visible),
+    cem-field input[data-state='loading']:enabled:focus-visible,
+    cem-text-field input[data-state='loading']:enabled:focus-visible,
+    cem-textarea textarea[data-state='loading']:enabled:focus-visible,
+    cem-select select[data-state='loading']:enabled:focus-visible,
+    cem-checkbox > label:has(> input[data-state='loading']:enabled:focus-visible),
+    cem-radio > label:has(> input[data-state='loading']:enabled:focus-visible),
+    cem-switch > label:has(> input[data-state='loading']:enabled:focus-visible) {
         outline: var(--cem-stroke-focus) solid CanvasText;
         outline-offset: var(--cem-stroke-indicator-offset);
     }

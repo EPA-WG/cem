@@ -958,6 +958,204 @@ describe('CEM component primitive states and ARIA behavior', () => {
         expect(() => assertAriaReferenceIntegrity(harness.root)).not.toThrow();
     });
 
+    it('projects explicit busy state across every input without taking over its lifecycle', async () => {
+        harness = createComponentHarness();
+        const root = await harness.render(`
+            <cem-stack class="cem-theme-light" gap="sm">
+                <cem-field name="busy-field" label="Generic field" value="alpha"></cem-field>
+                <cem-text-field
+                    name="busy-text-field"
+                    label="Outlined field"
+                    value="bravo"
+                    indicator="outline"
+                    busy="false"
+                ></cem-text-field>
+                <cem-textarea name="busy-textarea" label="Readonly notes" value="charlie" readonly busy></cem-textarea>
+                <cem-select name="busy-select" label="Role" busy>
+                    <option value="delta" selected>Delta</option>
+                </cem-select>
+                <cem-checkbox name="busy-checkbox" busy checked>Checked option</cem-checkbox>
+                <cem-radio name="busy-radio" indicator="underline" busy checked>Selected radio</cem-radio>
+                <cem-switch name="busy-switch" busy checked invalid="true">Invalid switch</cem-switch>
+                <cem-text-field name="busy-disabled" label="Disabled field" busy disabled></cem-text-field>
+            </cem-stack>
+        `);
+        await waitForStateSelector(root, 'cem-text-field[name="busy-disabled"] input');
+
+        const fieldHost = harness.query<HTMLElement>('cem-field[name="busy-field"]');
+        const fieldControl = harness.query<HTMLInputElement>('cem-field[name="busy-field"] input');
+        const fieldBaseline = captureInputIndicatorState(runtime, fieldHost, fieldControl, fieldControl);
+        const cases = [
+            {
+                anchorToken: '--cem-input-indicator-anchor-pending-color',
+                anchorWidthToken: '--cem-stroke-pending',
+                appearance: 'underline',
+                control: fieldControl,
+                host: fieldHost,
+                label: 'Generic field',
+                target: fieldControl,
+            },
+            {
+                anchorToken: '--cem-input-indicator-anchor-pending-color',
+                anchorWidthToken: '--cem-stroke-pending',
+                appearance: 'outline',
+                control: harness.query<HTMLInputElement>('cem-text-field[name="busy-text-field"] input'),
+                host: harness.query<HTMLElement>('cem-text-field[name="busy-text-field"]'),
+                label: 'Outlined field',
+                target: harness.query<HTMLInputElement>('cem-text-field[name="busy-text-field"] input'),
+            },
+            {
+                anchorToken: '--cem-input-indicator-anchor-pending-color',
+                anchorWidthToken: '--cem-stroke-pending',
+                appearance: 'underline',
+                control: harness.query<HTMLTextAreaElement>('cem-textarea[name="busy-textarea"] textarea'),
+                host: harness.query<HTMLElement>('cem-textarea[name="busy-textarea"]'),
+                label: 'Readonly notes',
+                target: harness.query<HTMLTextAreaElement>('cem-textarea[name="busy-textarea"] textarea'),
+            },
+            {
+                anchorToken: '--cem-input-indicator-anchor-pending-color',
+                anchorWidthToken: '--cem-stroke-pending',
+                appearance: 'underline',
+                control: harness.query<HTMLSelectElement>('cem-select[name="busy-select"] select'),
+                host: harness.query<HTMLElement>('cem-select[name="busy-select"]'),
+                label: 'Role',
+                target: harness.query<HTMLSelectElement>('cem-select[name="busy-select"] select'),
+            },
+            {
+                anchorToken: '--cem-input-indicator-anchor-pending-color',
+                anchorWidthToken: '--cem-stroke-pending',
+                appearance: 'outline',
+                control: harness.query<HTMLInputElement>('cem-checkbox[name="busy-checkbox"] input'),
+                host: harness.query<HTMLElement>('cem-checkbox[name="busy-checkbox"]'),
+                label: 'Checked option',
+                selection: true,
+                target: harness.query<HTMLLabelElement>('cem-checkbox[name="busy-checkbox"] > label'),
+            },
+            {
+                anchorToken: '--cem-input-indicator-anchor-pending-color',
+                anchorWidthToken: '--cem-stroke-pending',
+                appearance: 'underline',
+                control: harness.query<HTMLInputElement>('cem-radio[name="busy-radio"] input'),
+                host: harness.query<HTMLElement>('cem-radio[name="busy-radio"]'),
+                label: 'Selected radio',
+                selection: true,
+                target: harness.query<HTMLLabelElement>('cem-radio[name="busy-radio"] > label'),
+            },
+            {
+                anchorToken: '--cem-input-indicator-anchor-invalid-color',
+                anchorWidthToken: '--cem-stroke-boundary',
+                appearance: 'outline',
+                control: harness.query<HTMLInputElement>('cem-switch[name="busy-switch"] input'),
+                host: harness.query<HTMLElement>('cem-switch[name="busy-switch"]'),
+                label: 'Invalid switch',
+                selection: true,
+                target: harness.query<HTMLLabelElement>('cem-switch[name="busy-switch"] > label'),
+            },
+            {
+                anchorToken: '--cem-input-indicator-anchor-disabled-color',
+                anchorWidthToken: '--cem-stroke-boundary',
+                appearance: 'underline',
+                control: harness.query<HTMLInputElement>('cem-text-field[name="busy-disabled"] input'),
+                host: harness.query<HTMLElement>('cem-text-field[name="busy-disabled"]'),
+                label: 'Disabled field',
+                target: harness.query<HTMLInputElement>('cem-text-field[name="busy-disabled"] input'),
+            },
+        ] as const;
+        const mutationEvents: string[] = [];
+        for (const eventName of ['click', 'input', 'change', 'cem-loaded', 'cem-error', 'cem-cancel']) {
+            harness.root.addEventListener(eventName, () => mutationEvents.push(eventName));
+        }
+
+        expect(fieldControl.hasAttribute('data-state')).toBe(false);
+        expect(fieldControl.hasAttribute('aria-busy')).toBe(false);
+        fieldControl.focus();
+        expect(document.activeElement).toBe(fieldControl);
+        fieldHost.setAttribute('busy', '');
+        await nextRenderFrame();
+        await runtime.whenRenderSettled(fieldHost);
+        await nextRenderFrame();
+
+        const busyField = captureInputIndicatorState(runtime, fieldHost, fieldControl, fieldControl);
+        expect(harness.query<HTMLInputElement>('cem-field[name="busy-field"] input')).toBe(fieldControl);
+        expect(document.activeElement).toBe(fieldControl);
+        expect(busyField.controlRect).toEqual(fieldBaseline.controlRect);
+        expect(busyField.hostRect).toEqual(fieldBaseline.hostRect);
+        expect(busyField.targetRect).toEqual(fieldBaseline.targetRect);
+        expect(busyField.runtime).toBe(fieldBaseline.runtime);
+
+        for (const indicatorCase of cases) {
+            const { anchorToken, anchorWidthToken, appearance, control, host, label, target } = indicatorCase;
+            const focus = control === fieldControl;
+            const selection = 'selection' in indicatorCase && indicatorCase.selection;
+            const busy = captureInputIndicatorState(runtime, host, control, target);
+
+            expect(control.getAttribute('data-state')).toBe('loading');
+            expect(control.getAttribute('aria-busy')).toBe('true');
+            expect(assertAccessibleName(control, label)).toBe(label);
+            expect(control.hasAttribute('inert')).toBe(false);
+            expectInputIndicatorGeometry(busy, target, appearance, {
+                anchorWidthToken,
+                focus,
+                selection,
+            });
+            expectPaintedColorToResolveFromToken(busy.layers[0].color, target, anchorToken);
+            if (focus) {
+                expectPaintedColorToResolveFromToken(busy.layers[1].color, target, '--cem-zebra-color-1');
+            }
+            if (selection) {
+                expectPaintedColorToResolveFromToken(
+                    busy.layers[2].color,
+                    target,
+                    '--cem-input-indicator-selection-color',
+                );
+            }
+
+            const snapshot = runtime.snapshotInstance(host);
+            expect(snapshot.slices).not.toHaveProperty('busy');
+            expect(snapshot.slices).not.toHaveProperty('loading');
+            expect(snapshot.eventPayloads).not.toHaveProperty('busy');
+            expect(snapshot.eventPayloads).not.toHaveProperty('loading');
+        }
+
+        expect(cases[1].host.getAttribute('busy')).toBe('false');
+        expect(cases[2].control.readOnly).toBe(true);
+        expect(cases[6].control.getAttribute('aria-invalid')).toBe('true');
+        expect(cases[7].control.disabled).toBe(true);
+        expect(cases[0].control.value).toBe('alpha');
+        expect(cases[1].control.value).toBe('bravo');
+        expect(cases[2].control.value).toBe('charlie');
+        expect(cases[3].control.value).toBe('delta');
+        expect(cases[4].control.checked).toBe(true);
+        expect(cases[5].control.checked).toBe(true);
+        expect(cases[6].control.checked).toBe(true);
+        expect(harness.root.querySelector('[role="status"], [role="alert"], [aria-live]')).toBeNull();
+
+        for (const { host } of cases) {
+            host.removeAttribute('busy');
+        }
+        await nextRenderFrame();
+        for (const { host } of cases) {
+            await runtime.whenRenderSettled(host);
+        }
+        await nextRenderFrame();
+
+        for (const { control, host } of cases) {
+            expect(control.hasAttribute('data-state')).toBe(false);
+            expect(control.hasAttribute('aria-busy')).toBe(false);
+            expect(host.querySelector('input, textarea, select')).toBe(control);
+        }
+        expect(document.activeElement).toBe(fieldControl);
+        const settledField = captureInputIndicatorState(runtime, fieldHost, fieldControl, fieldControl);
+        expectInputIndicatorGeometry(settledField, fieldControl, 'underline', { focus: true });
+        expect(settledField.controlRect).toEqual(fieldBaseline.controlRect);
+        expect(settledField.hostRect).toEqual(fieldBaseline.hostRect);
+        expect(settledField.targetRect).toEqual(fieldBaseline.targetRect);
+        expect(settledField.runtime).toBe(fieldBaseline.runtime);
+        expect(mutationEvents).toEqual([]);
+        expect(() => assertAriaReferenceIntegrity(harness.root)).not.toThrow();
+    });
+
     it('reflects form disabled, invalid, required, readonly, checked, and indeterminate states', async () => {
         harness = createComponentHarness();
         const root = await harness.render(`
@@ -2006,9 +2204,9 @@ function expectInputIndicatorGeometry(
     snapshot: InputIndicatorStateSnapshot,
     target: HTMLElement,
     appearance: 'outline' | 'underline',
-    states: { focus?: boolean; selection?: boolean } = {},
+    states: { anchorWidthToken?: string; focus?: boolean; selection?: boolean } = {},
 ): void {
-    const boundary = resolveTokenLength(target, '--cem-stroke-boundary');
+    const boundary = resolveTokenLength(target, states.anchorWidthToken ?? '--cem-stroke-boundary');
     const stripe = resolveTokenLength(target, '--cem-zebra-strip-size');
     const cumulativeWidths = [
         boundary,
