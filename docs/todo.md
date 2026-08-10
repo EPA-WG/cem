@@ -11,9 +11,10 @@ history is preserved in
 The CSS selector query and SCSS-to-CSS lifecycle slices are complete. The Phase
 4 component state matrix is also complete: all 39 required states are backed by
 browser coverage with no static-only rows or gaps. The active M4 expansion now
-starts with a versioned Angular Material parity inventory; no new parity
-component is selected until every official catalog entry is classified as a
-CEM component mapping, CEM behavior mapping, or explicit gap. The component
+uses the versioned Angular Material parity inventory; all official entries are
+classified, and `cem-autocomplete` is the accepted first gap with its owner,
+interaction, form, theme, fixture, forced-colors, and assertion contract fixed
+before runtime or CSS implementation. The component
 stylesheet publication, `action:hover`, and `action:active` contracts are
 implemented and verified. The `input:hover` contract is also implemented:
 all seven native owners share a theme-tokenized three-stripe indicator, with
@@ -80,14 +81,36 @@ mediate between internal layers.
       is not a spinner, and navigation disclosure is not an expansion panel.
     - The verifier now rejects regression to unreviewed rows and stale evidence
       locators. No component CSS or theme exception was added during the audit.
-  - [ ] Accept the first implementation priority from the audited gaps. Define
+  - [x] Accept the first implementation priority from the audited gaps. Define
         its semantic owner, state and event model, keyboard/accessibility
         contract, theme-token coverage, focused fixture, forced-colors boundary,
         and matrix assertions before component CSS or runtime implementation.
+    - Accepted a new form-associated `cem-autocomplete` editable-combobox owner;
+      `cem-select` remains selection-only and legacy `cem-elements` fixtures
+      remain runtime/template evidence only.
+    - Fixed string value/display semantics, free-form and `require-selection`
+      modes, native input/change ordering, live declarative option refresh,
+      application/CEM-QL-owned filtering, exact keyboard/ARIA behavior, stable
+      geometry, disabled/readonly/loading/validation boundaries, and the focused
+      fixture/assertion matrix in the autocomplete contract.
+    - Audited theme coverage before CSS. Input indicators plus the shared
+      `--cem-select-*` choice-popup states, D5, layering, control, shape, and
+      typography categories cover the contract; theme documentation now names
+      autocomplete semantics and no CSS exception is proposed.
   - [ ] Implement accepted parity rows one contract at a time, keeping the
         versioned inventory, public component documentation, and aggregate Nx
         gate current. Record a CSS exception only when no appropriate theme
         category can represent accepted styling.
+    - [ ] Add the focused `tests/autocomplete/contract.html` fixture and failing
+          browser assertions for the accepted state, event/form, keyboard,
+          accessibility, live-option, geometry, and forced-colors matrix.
+    - [ ] Refactor shared option normalization without changing `cem-select`,
+          then add the `cem-autocomplete` primitive and behavior with no CSS.
+    - [ ] Extend component CSS only with accepted CEM tokens, add the focused
+          forced-colors gate, and keep hover/focus/expanded/selected/active/
+          disabled state ownership independent and geometry-stable.
+    - [ ] Promote the state matrix, component reference, package verification,
+          and Angular Material inventory only after all contract assertions pass.
 
 ### Immediate: CSS Selector Query Schema and Unified CLI Query Execution
 

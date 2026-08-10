@@ -1,7 +1,7 @@
 # Angular Material Parity Inventory
 
-**Status:** All pinned product mappings are audited; implementation priority is
-not yet accepted. The active decision is tracked in
+**Status:** All pinned product mappings are audited; `autocomplete` is the
+accepted first implementation priority. Active work is tracked in
 [`docs/todo.md`](../../../docs/todo.md).
 
 ## Benchmark
@@ -79,13 +79,25 @@ Each row in the executable inventory explains its boundary. In particular,
 `cem-progress` is not treated as a circular spinner, and navigation-specific
 disclosure is not treated as a general expansion panel.
 
+## Accepted implementation priority
+
+`autocomplete` is accepted as the first gap to close. It has high reuse of the
+existing input, option, listbox, form, popup, and forced-colors foundations while
+requiring a distinct editable-combobox owner rather than expanding
+selection-only `cem-select` semantics.
+
+The [autocomplete contract](./autocomplete-contract.md) fixes the owner, author
+vocabulary, value/form/event model, application-owned filtering boundary,
+keyboard and accessibility behavior, theme-token coverage, focused fixture,
+forced-colors behavior, and assertion matrix before runtime or CSS work. The row
+remains a gap until that contract has executable product evidence.
+
 Run the invariant with:
 
 ```bash
 yarn nx run @epa-wg/cem-components:verify-material-parity
 ```
 
-The gate verifies the exact 37-entry pin and every audited mapping. It reports
-six covered rows, nineteen partial rows, twelve gaps, and no remaining audit.
-It does not select the first implementation gap; choosing whether to close a gap
-or deepen a partial mapping is the next explicit product decision.
+The gate verifies the exact 37-entry pin, every audited mapping, and the accepted
+implementation priority. It reports six covered rows, nineteen partial rows,
+twelve gaps, no remaining audit, and `autocomplete` as the next implementation.

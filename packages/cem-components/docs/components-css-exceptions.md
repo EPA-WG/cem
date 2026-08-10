@@ -110,6 +110,10 @@ unknown or non-CEM variables.
 The custom select likewise requires no exception. D0 owns the generated
 `--cem-select-*` popup/option state colors and D2c owns
 `--cem-list-popup-rows`; all remaining geometry composes existing CEM tokens.
+The accepted autocomplete contract broadens that same theme family to shared
+select/autocomplete choice-popup semantics and reuses the existing input
+indicator, D5, layering, control, shape, and typography categories. No
+autocomplete exception is proposed before implementation.
 
 The navigation hover contract also requires no exception. D0 owns generated
 `--cem-navigation-item-*` default, hover, current, current-hover, and disabled

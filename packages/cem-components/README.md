@@ -75,6 +75,7 @@ activation before target and application bubble listeners.
 ```bash
 yarn nx run @epa-wg/cem-components:verify
 yarn nx run @epa-wg/cem-components:verify-primitives
+yarn nx run @epa-wg/cem-components:verify-material-parity
 yarn nx run @epa-wg/cem-components:verify-state-matrix
 yarn nx run @epa-wg/cem-components:verify-style-contract
 yarn nx run @epa-wg/cem-components:verify-input-indicator-forced-colors
@@ -106,6 +107,8 @@ JavaScript boundary, and exact dry-run npm inclusion of one `dist/styles.css`.
 | Surface | Path |
 | ------- | ---- |
 | Primitive manifest gate | `tools/scripts/verify-cem-components-primitives.mjs` |
+| Angular Material parity inventory | `tests/angular-material-parity.json` |
+| Angular Material parity gate | `tools/scripts/verify-cem-components-material-parity.mjs` |
 | State-matrix inventory | `tests/state-matrix-coverage.json` |
 | State-matrix audit gate | `tools/scripts/verify-cem-components-state-matrix.mjs` |
 | Token-only style gate | `tools/scripts/verify-cem-components-styles.mjs` |
@@ -158,6 +161,10 @@ Known deferrals stay outside this trigger:
 
 - [Component reference](./docs/component-reference.md) — MVP component semantics, token families, states, and
   accessibility notes.
+- [Angular Material parity inventory](./docs/angular-material-parity.md) — pinned catalog mappings, gaps, and accepted
+  implementation sequencing.
+- [Autocomplete contract](./docs/autocomplete-contract.md) — accepted editable-combobox owner, form/events,
+  keyboard/accessibility, token audit, focused fixture, forced-colors boundary, and assertion matrix.
 - [Conventions](./docs/conventions.md) — naming, attributes, events, form participation, validation, loading states,
   progressive enhancement.
 - [Light-DOM rendering rules](./docs/light-dom-rendering.md) — `@epa-wg/custom-element` compatibility, no shadow DOM,

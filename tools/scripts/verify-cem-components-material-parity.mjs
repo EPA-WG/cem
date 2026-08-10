@@ -60,6 +60,12 @@ const EXPECTED_CATALOG = [
 ];
 const ALLOWED_STATUSES = new Set(['unreviewed', 'gap', 'partial', 'covered']);
 const ALLOWED_MAPPING_KINDS = new Set(['component', 'behavior', 'gap']);
+const EXPECTED_IMPLEMENTATION_PRIORITY = {
+    id: 'autocomplete',
+    acceptedAt: '2026-08-10',
+    contract: 'packages/cem-components/docs/autocomplete-contract.md',
+    targetStatus: 'covered',
+};
 
 const inventory = JSON.parse(readFileSync(inventoryPath, 'utf8'));
 const primitiveSource = readFileSync(primitivesPath, 'utf8');
@@ -105,6 +111,7 @@ if (inventory.recommendedAudit !== expectedRecommendedAudit) {
 if (records.some((record) => record?.status === 'unreviewed')) {
     fail('the pinned v22.1.1 catalog audit must not contain unreviewed rows');
 }
+validateImplementationPriority(inventory.implementationPriority);
 
 if (failures.length > 0) {
     for (const failure of failures) {
@@ -119,8 +126,44 @@ const counts = Object.fromEntries(
 console.log(
     `cem-components Angular Material parity inventory verified (${records.length} entries pinned to ` +
         `${inventory.benchmark.tag}: ${counts.covered} covered, ${counts.partial} partial, ${counts.gap} gaps, ` +
-        `${counts.unreviewed} unreviewed; next audit: ${inventory.recommendedAudit ?? 'none'}).`,
+        `${counts.unreviewed} unreviewed; next audit: ${inventory.recommendedAudit ?? 'none'}; next implementation: ` +
+        `${inventory.implementationPriority.id}).`,
 );
+
+function validateImplementationPriority(priority) {
+    if (!priority || typeof priority !== 'object' || Array.isArray(priority)) {
+        fail('implementationPriority must be an accepted priority object');
+        return;
+    }
+    for (const [field, expectedValue] of Object.entries(EXPECTED_IMPLEMENTATION_PRIORITY)) {
+        if (priority[field] !== expectedValue) {
+            fail(`implementationPriority.${field} must equal ${expectedValue}`);
+        }
+    }
+    const record = records.find((candidate) => candidate?.id === priority.id);
+    if (!record || record.status !== 'gap' || record.mapping?.kind !== 'gap') {
+        fail(`implementationPriority ${String(priority.id)} must identify a currently audited gap`);
+    }
+    const contractPath = resolve(repoRoot, String(priority.contract ?? ''));
+    if (!existsSync(contractPath)) {
+        fail(`implementationPriority contract does not exist: ${String(priority.contract)}`);
+        return;
+    }
+    const contractSource = readFileSync(contractPath, 'utf8');
+    for (const heading of [
+        '# Autocomplete Contract',
+        '## Event contract',
+        '## Keyboard contract',
+        '## Accessibility contract',
+        '## Theme-token audit',
+        '## Forced-colors boundary',
+        '## Focused fixture and assertion matrix',
+    ]) {
+        if (!contractSource.includes(heading)) {
+            fail(`implementationPriority contract must contain ${heading}`);
+        }
+    }
+}
 
 function validateRecord(record) {
     const label = typeof record.id === 'string' && record.id ? record.id : 'unknown row';

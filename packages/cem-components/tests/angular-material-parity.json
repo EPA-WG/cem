@@ -10,6 +10,12 @@
         "sourceUrl": "https://github.com/angular/components/blob/v22.1.1/docs/src/app/shared/documentation-items/documentation-items.ts"
     },
     "recommendedAudit": null,
+    "implementationPriority": {
+        "id": "autocomplete",
+        "acceptedAt": "2026-08-10",
+        "contract": "packages/cem-components/docs/autocomplete-contract.md",
+        "targetStatus": "covered"
+    },
     "components": [
         {
             "id": "autocomplete",
