@@ -1,3 +1,5 @@
+import '@epa-wg/cem-theme/styles.css';
+import '../styles.css';
 import { CemElementRuntime } from '@epa-wg/cem-elements';
 import { userEvent } from 'vitest/browser';
 
@@ -19,9 +21,10 @@ interface CemDialogDismissDetail {
 
 describe('feedback expanded acceptance fixture', () => {
     let harness: ComponentHarness;
+    let runtime: CemElementRuntime;
 
     beforeAll(() => {
-        const runtime = new CemElementRuntime({ declarationTag: 'cem-components-feedback-expanded-declaration' });
+        runtime = new CemElementRuntime({ declarationTag: 'cem-components-feedback-expanded-declaration' });
         const result = installCemComponentPrimitives(runtime);
         expect(result.diagnostics).toEqual([]);
     });
@@ -193,6 +196,248 @@ describe('feedback expanded acceptance fixture', () => {
             { reason: 'cancel', returnValue: '' },
             { reason: 'close', returnValue: 'confirm' },
         ]);
+    });
+
+    it('keeps focus-visible ownership on native dialog fallbacks and authored descendants', async () => {
+        const root = await renderFixture();
+        const authoredDialogCases = [
+            {
+                family: 'dialog',
+                host: requiredElement<HTMLElement>(root, '#feedback-transient-dialog'),
+                opener: requiredElement<HTMLButtonElement>(root, '[data-opener="dialog"]'),
+                owner: '.cem-dialog',
+            },
+            {
+                family: 'dialog-shell',
+                host: requiredElement<HTMLElement>(root, '#feedback-transient-dialog-shell'),
+                opener: requiredElement<HTMLButtonElement>(root, '[data-opener="dialog-shell"]'),
+                owner: '.cem-dialog-shell',
+            },
+        ];
+
+        for (const dialogCase of authoredDialogCases) {
+            const dialog = requiredElement<HTMLDialogElement>(dialogCase.host, 'dialog');
+            const authoredTarget = requiredElement<HTMLElement>(dialog, '[autofocus]');
+            const staticHost = requiredElement<HTMLElement>(
+                root,
+                `[data-passive-pair="${dialogCase.family}"] [data-passive="baseline"]`,
+            );
+            const staticOwner = requiredElement<HTMLElement>(staticHost, dialogCase.owner);
+
+            await enterKeyboardModality(dialogCase.opener);
+            setExternalExpanded(dialogCase.opener, dialogCase.host, true);
+            await waitFor(
+                () => dialog.open && document.activeElement === authoredTarget,
+                `${dialogCase.family} focuses its authored target`,
+            );
+            expect(authoredTarget.matches(':focus-visible')).toBe(true);
+            expect(dialog.matches(':focus-visible')).toBe(false);
+            expect(dialogCase.host.matches(':focus-visible')).toBe(false);
+            expect(staticOwner.matches(':focus-visible')).toBe(false);
+            expect(staticHost.matches(':focus-visible')).toBe(false);
+            expect(staticOwner.hasAttribute('tabindex')).toBe(false);
+            expect(staticHost.hasAttribute('tabindex')).toBe(false);
+
+            setExternalExpanded(dialogCase.opener, dialogCase.host, false);
+            await waitFor(
+                () => !dialog.open && document.activeElement === dialogCase.opener,
+                `${dialogCase.family} restores its opener`,
+            );
+        }
+
+        const sheetHost = requiredElement<HTMLElement>(root, '#feedback-transient-sheet');
+        const sheetOpener = requiredElement<HTMLButtonElement>(root, '[data-opener="sheet"]');
+        const sheet = requiredElement<HTMLElement>(sheetHost, 'aside');
+        const sheetTarget = requiredElement<HTMLInputElement>(sheet, '[data-state="sheet"]');
+        const sheetEvents: string[] = [];
+        const sheetDismissals: unknown[] = [];
+        for (const eventName of ['click', 'input', 'change']) {
+            sheetHost.addEventListener(eventName, () => sheetEvents.push(eventName));
+        }
+        sheetHost.addEventListener('cem-dismiss', (event) => {
+            sheetDismissals.push((event as CustomEvent).detail);
+        });
+
+        await enterKeyboardModality(sheetOpener);
+        setExternalExpanded(sheetOpener, sheetHost, true);
+        await waitFor(() => !sheet.hidden, 'sheet opens before descendant focus');
+        expect(document.activeElement).toBe(sheetOpener);
+        const sheetGeometry = rectSnapshot(sheet);
+        const sheetHtml = sheet.outerHTML;
+        const sheetRuntime = feedbackRuntimeState(runtime, sheetHost);
+
+        await userEvent.tab();
+        expect(document.activeElement).toBe(sheetTarget);
+        expect(sheetTarget.matches(':focus-visible')).toBe(true);
+        expect(sheet.matches(':focus-visible')).toBe(false);
+        expect(sheetHost.matches(':focus-visible')).toBe(false);
+        expect(sheet.hasAttribute('tabindex')).toBe(false);
+        expect(sheetHost.hasAttribute('tabindex')).toBe(false);
+
+        await userEvent.keyboard('{Escape}');
+        await nextRenderFrame();
+        expect(document.activeElement).toBe(sheetTarget);
+        expect(sheetTarget.matches(':focus-visible')).toBe(true);
+        expect(sheet.hidden).toBe(false);
+        expect(sheetHost.hasAttribute('expanded')).toBe(true);
+        expect(rectSnapshot(sheet)).toEqual(sheetGeometry);
+        expect(sheet.outerHTML).toBe(sheetHtml);
+        expect(feedbackRuntimeState(runtime, sheetHost)).toBe(sheetRuntime);
+        expect(sheetEvents).toEqual([]);
+        expect(sheetDismissals).toEqual([]);
+
+        sheetOpener.focus();
+        setExternalExpanded(sheetOpener, sheetHost, false);
+        await waitFor(() => sheet.hidden === true, 'sheet closes after focus ownership assertions');
+    });
+
+    it('preserves native fallback focus, modal boundaries, and state through cancel and close', async () => {
+        const root = await renderFixture();
+        const before = requiredElement<HTMLButtonElement>(root, '[data-outside="before"]');
+        const after = requiredElement<HTMLButtonElement>(root, '[data-outside="after"]');
+        const fallbackCases = [
+            {
+                family: 'dialog',
+                host: requiredElement<HTMLElement>(root, '#feedback-transient-dialog-fallback'),
+                opener: requiredElement<HTMLButtonElement>(root, '[data-opener="dialog-fallback"]'),
+            },
+            {
+                family: 'dialog-shell',
+                host: requiredElement<HTMLElement>(root, '#feedback-transient-dialog-shell-fallback'),
+                opener: requiredElement<HTMLButtonElement>(root, '[data-opener="dialog-shell-fallback"]'),
+            },
+        ];
+
+        for (const fallbackCase of fallbackCases) {
+            const dialog = requiredElement<HTMLDialogElement>(fallbackCase.host, 'dialog');
+            const disabled = requiredElement<HTMLButtonElement>(dialog, '[data-focus="disabled"]');
+            const dismissals: CemDialogDismissDetail[] = [];
+            const mutationEvents: string[] = [];
+            for (const eventName of ['click', 'input', 'change']) {
+                fallbackCase.host.addEventListener(eventName, () => mutationEvents.push(eventName));
+            }
+            fallbackCase.host.addEventListener('cem-dismiss', (event) => {
+                dismissals.push((event as CustomEvent<CemDialogDismissDetail>).detail);
+                fallbackCase.opener.setAttribute('aria-expanded', 'false');
+            });
+
+            await enterKeyboardModality(fallbackCase.opener);
+            setExternalExpanded(fallbackCase.opener, fallbackCase.host, true);
+            await waitFor(
+                () => dialog.open && dialog.matches(':modal') && document.activeElement === dialog,
+                `${fallbackCase.family} focuses its native fallback owner`,
+            );
+            expect(dialog.matches(':focus-visible')).toBe(true);
+            expect(fallbackCase.host.matches(':focus-visible')).toBe(false);
+            expect(disabled.disabled).toBe(true);
+            expect(document.activeElement).not.toBe(disabled);
+            expect(dialog.hasAttribute('tabindex')).toBe(false);
+            expect(fallbackCase.host.hasAttribute('tabindex')).toBe(false);
+
+            for (let index = 0; index < 3; index += 1) {
+                await userEvent.tab();
+                expect([before, after, disabled]).not.toContain(document.activeElement);
+                expect(
+                    document.activeElement === document.body
+                        || document.activeElement === dialog
+                        || dialog.contains(document.activeElement),
+                ).toBe(true);
+            }
+            for (let index = 0; index < 3; index += 1) {
+                await userEvent.tab({ shift: true });
+                expect([before, after, disabled]).not.toContain(document.activeElement);
+                expect(
+                    document.activeElement === document.body
+                        || document.activeElement === dialog
+                        || dialog.contains(document.activeElement),
+                ).toBe(true);
+            }
+
+            dialog.focus();
+            await nextRenderFrame();
+            expect(document.activeElement).toBe(dialog);
+            expect(dialog.matches(':focus-visible')).toBe(true);
+            const dialogGeometry = rectSnapshot(dialog);
+            const hostGeometry = rectSnapshot(fallbackCase.host);
+            const dialogHtml = dialog.outerHTML;
+            const hostHtml = fallbackCase.host.outerHTML;
+            const runtimeState = feedbackRuntimeState(runtime, fallbackCase.host);
+            const mutations: MutationRecord[] = [];
+            const observer = new MutationObserver((records) => mutations.push(...records));
+            observer.observe(fallbackCase.host, { attributes: true, subtree: true });
+
+            dialog.addEventListener('cancel', (event) => event.preventDefault(), { once: true });
+            await userEvent.keyboard('{Escape}');
+            await nextRenderFrame();
+            mutations.push(...observer.takeRecords());
+            observer.disconnect();
+            expect(document.activeElement).toBe(dialog);
+            expect(dialog.matches(':focus-visible')).toBe(true);
+            expect(dialog.open).toBe(true);
+            expect(fallbackCase.host.hasAttribute('expanded')).toBe(true);
+            expect(rectSnapshot(dialog)).toEqual(dialogGeometry);
+            expect(rectSnapshot(fallbackCase.host)).toEqual(hostGeometry);
+            expect(dialog.outerHTML).toBe(dialogHtml);
+            expect(fallbackCase.host.outerHTML).toBe(hostHtml);
+            expect(feedbackRuntimeState(runtime, fallbackCase.host)).toBe(runtimeState);
+            expect(mutations).toEqual([]);
+            expect(mutationEvents).toEqual([]);
+            expect(dismissals).toEqual([]);
+
+            await expectComponentEvent<CemDialogDismissDetail>(
+                fallbackCase.host,
+                'cem-dismiss',
+                () => userEvent.keyboard('{Escape}'),
+                { detail: { reason: 'cancel', returnValue: '' } },
+            );
+            await waitFor(
+                () => !dialog.open && document.activeElement === fallbackCase.opener,
+                `${fallbackCase.family} restores its opener after Escape`,
+            );
+            expect(dialog.matches(':focus-visible')).toBe(false);
+            expect(fallbackCase.host.hasAttribute('expanded')).toBe(false);
+            expect(fallbackCase.opener.getAttribute('aria-expanded')).toBe('false');
+            expect(mutationEvents).toEqual([]);
+            expect(dismissals).toEqual([{ reason: 'cancel', returnValue: '' }]);
+        }
+    });
+
+    it.fails('paints only focused native dialog fallbacks with the D5 zebra outline', async () => {
+        const root = await renderFixture();
+        const fallbackCases = [
+            {
+                host: requiredElement<HTMLElement>(root, '#feedback-transient-dialog-fallback'),
+                opener: requiredElement<HTMLButtonElement>(root, '[data-opener="dialog-fallback"]'),
+            },
+            {
+                host: requiredElement<HTMLElement>(root, '#feedback-transient-dialog-shell-fallback'),
+                opener: requiredElement<HTMLButtonElement>(root, '[data-opener="dialog-shell-fallback"]'),
+            },
+        ];
+        const actualTreatments: FocusTreatment[] = [];
+        const expectedTreatments: FocusTreatment[] = [];
+
+        for (const fallbackCase of fallbackCases) {
+            const dialog = requiredElement<HTMLDialogElement>(fallbackCase.host, 'dialog');
+            await enterKeyboardModality(fallbackCase.opener);
+            setExternalExpanded(fallbackCase.opener, fallbackCase.host, true);
+            await waitFor(
+                () => document.activeElement === dialog && dialog.matches(':focus-visible'),
+                'native dialog fallback becomes keyboard-focus-visible',
+            );
+            actualTreatments.push(captureFocusTreatment(dialog));
+            expectedTreatments.push(expectedFeedbackFocusTreatment(dialog));
+            expect(fallbackCase.host.matches(':focus-visible')).toBe(false);
+
+            setExternalExpanded(fallbackCase.opener, fallbackCase.host, false);
+            await waitFor(
+                () => !dialog.open && document.activeElement === fallbackCase.opener,
+                'dialog closes after focus paint capture',
+            );
+            expect(dialog.matches(':focus-visible')).toBe(false);
+        }
+
+        expect(actualTreatments).toEqual(expectedTreatments);
     });
 
     it('keeps a transient sheet non-modal, focus-neutral, and application-controlled', async () => {
@@ -381,4 +626,77 @@ function closeOpenDialogs(): void {
     for (const dialog of Array.from(document.querySelectorAll<HTMLDialogElement>('dialog[open]'))) {
         dialog.close();
     }
+}
+
+interface FocusTreatment {
+    boxShadow: string;
+    forcedColorAdjust: string;
+    outlineColor: string;
+    outlineOffset: string;
+    outlineStyle: string;
+    outlineWidth: string;
+}
+
+async function enterKeyboardModality(opener: HTMLButtonElement): Promise<void> {
+    opener.focus();
+    await userEvent.keyboard('{ArrowDown}');
+    expect(document.activeElement).toBe(opener);
+}
+
+function captureFocusTreatment(element: Element): FocusTreatment {
+    const styles = getComputedStyle(element);
+    return {
+        boxShadow: styles.boxShadow,
+        forcedColorAdjust: styles.forcedColorAdjust,
+        outlineColor: styles.outlineColor,
+        outlineOffset: styles.outlineOffset,
+        outlineStyle: styles.outlineStyle,
+        outlineWidth: styles.outlineWidth,
+    };
+}
+
+function expectedFeedbackFocusTreatment(element: Element): FocusTreatment {
+    return {
+        boxShadow: 'none',
+        forcedColorAdjust: 'auto',
+        outlineColor: resolveTokenColor(element, '--cem-zebra-color-1'),
+        outlineOffset: resolveTokenLength(element, '--cem-stroke-indicator-offset'),
+        outlineStyle: 'solid',
+        outlineWidth: resolveTokenLength(element, '--cem-stroke-focus'),
+    };
+}
+
+function resolveTokenColor(element: Element, tokenName: string): string {
+    const styles = getComputedStyle(element);
+    const tokenValue = styles.getPropertyValue(tokenName).trim();
+    if (!tokenValue) throw new Error(`Expected generated color token ${tokenName}`);
+    const probe = document.createElement('span');
+    probe.hidden = true;
+    probe.style.colorScheme = styles.colorScheme;
+    probe.style.setProperty(tokenName, tokenValue);
+    probe.style.color = `var(${tokenName})`;
+    document.body.append(probe);
+    const color = getComputedStyle(probe).color;
+    probe.remove();
+    if (!color) throw new Error(`Expected generated color token ${tokenName} to resolve`);
+    return color;
+}
+
+function resolveTokenLength(element: Element, tokenName: string): string {
+    const value = getComputedStyle(element).getPropertyValue(tokenName).trim();
+    if (!/^-?\d*\.?\d+px$/.test(value)) {
+        throw new Error(`Expected generated length token ${tokenName}, received ${value || '<empty>'}`);
+    }
+    return value;
+}
+
+function feedbackRuntimeState(runtime: CemElementRuntime, host: HTMLElement): string {
+    const snapshot = runtime.snapshotInstance(host);
+    return JSON.stringify({
+        eventPayloads: snapshot.eventPayloads,
+        formData: snapshot.formData,
+        payload: snapshot.payload,
+        slices: snapshot.slices,
+        validationState: snapshot.validationState,
+    });
 }

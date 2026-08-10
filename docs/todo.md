@@ -1188,11 +1188,28 @@ mediate between internal layers.
       forced colors use `CanvasText` with `forced-color-adjust: auto`. No D0
       semantic, raw value, local property, or CSS exception is required.
 - [ ] Implement the accepted `feedback:focus-visible` contract tests-first.
-  - [ ] Add focused Chromium cases for both transient dialog aliases, authored
+  - [x] Add focused Chromium cases for both transient dialog aliases, authored
         target versus native-owner fallback, disabled skipping, native
         forward/reverse Tab boundaries, prevented/successful Escape,
         restoration, sheet descendant ownership, wrapper isolation, stable
         geometry/DOM/ARIA/state, and absence of focus-driven events or mutation.
+    - Extended the declarative feedback fixture with one fallback instance per
+      dialog alias; each contains only a disabled autofocus candidate so native
+      owner focus is truthful without injected `tabindex`. Existing authored
+      autofocus and sheet controls provide the descendant-owned comparisons.
+    - Added ordinary passing Chromium coverage for both authored-target and
+      native-fallback paths, disabled skipping, forward/reverse modal Tab
+      boundaries, prevented and successful Escape, opener restoration, sheet
+      focus neutrality, exact wrapper isolation, stable geometry/DOM/ARIA and
+      runtime snapshots, and zero focus-driven click/input/change/dismiss or
+      attribute mutations.
+    - Added one executable `it.fails` paint assertion after all ownership and
+      lifecycle paths run. A promoted red run reached the intended boundary for
+      both aliases: the UA supplied `1px auto` at `0px` with its default color,
+      versus the required `3px solid` D5 ring at `2px` with zebra focus color.
+      The aggregate suite passes 56 tests plus this one expected failure; type
+      checking and lint pass. No production CSS, theme token, exception,
+      forced-colors gate, documentation claim, or matrix coverage changed.
   - [ ] Add only the accepted direct native-dialog `:focus-visible` bindings,
         extend the exact style verifier, and add a focused forced-colors gate
         for D5/zebra resolution, `CanvasText`, automatic color adjustment, and

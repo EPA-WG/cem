@@ -62,6 +62,36 @@
 
     <button
         type="button"
+        data-opener="dialog-fallback"
+        aria-controls="feedback-transient-dialog-fallback"
+        aria-expanded="false"
+    >
+        Open fallback dialog
+    </button>
+    <cem-dialog id="feedback-transient-dialog-fallback" label="Fallback dialog" transient>
+        <p>No eligible authored focus target.</p>
+        <button type="button" autofocus disabled data-focus="disabled">Unavailable action</button>
+    </cem-dialog>
+
+    <button
+        type="button"
+        data-opener="dialog-shell-fallback"
+        aria-controls="feedback-transient-dialog-shell-fallback"
+        aria-expanded="false"
+    >
+        Open fallback dialog shell
+    </button>
+    <cem-dialog-shell
+        id="feedback-transient-dialog-shell-fallback"
+        label="Fallback dialog shell"
+        transient
+    >
+        <p>No eligible authored shell focus target.</p>
+        <button type="button" autofocus disabled data-focus="disabled">Unavailable shell action</button>
+    </cem-dialog-shell>
+
+    <button
+        type="button"
         data-opener="sheet"
         aria-controls="feedback-transient-sheet"
         aria-expanded="false"

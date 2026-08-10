@@ -614,7 +614,7 @@
             "components": ["cem-dialog", "cem-dialog-shell", "cem-sheet"],
             "interaction": "Move keyboard focus into a feedback surface and retain a visible focus indicator.",
             "status": "gap",
-            "reason": "The accepted focus-visible contract limits component paint to a transient native dialog when it is itself the browser's focused fallback; authored descendants keep their own focus treatment and the non-modal sheet stays focus-neutral. Focused browser, CSS, forced-colors, and exact-selector evidence have not landed yet."
+            "reason": "Focused Chromium coverage now proves the accepted native dialog fallback, authored-descendant, and focus-neutral sheet ownership/lifecycle boundaries, with one expected failure at the missing D5/zebra dialog outline. Component CSS, forced-colors, exact-selector, and promoted passing evidence have not landed yet."
         },
         {
             "id": "feedback:loading",

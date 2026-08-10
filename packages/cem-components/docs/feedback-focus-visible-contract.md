@@ -1,8 +1,9 @@
 # Feedback Focus-Visible Contract
 
-**Status:** Accepted Phase 4 implementation contract. This decision pins the
-owner, selector, token, and executable boundaries before a focused fixture or
-component CSS lands. It is promoted by
+**Status:** Accepted Phase 4 implementation contract with the focused Chromium
+fixture landed. Native ownership/lifecycle cases pass normally, and one
+executable expected failure now isolates the missing D5/zebra dialog-owner
+outline before component CSS or forced-colors work. It is promoted by
 [`docs/todo.md`](../../../docs/todo.md).
 
 ## Scope
@@ -127,3 +128,13 @@ The style verifier must lock the exact direct-owner selectors and reject
 structural, descendant-wide, raw-value, or unknown-token alternatives. Only
 after the focused browser, forced-colors, style, documentation, and aggregate
 gates pass may `feedback:focus-visible` become covered.
+
+The focused cases live in
+[`feedback-expanded.browser.spec.ts`](../src/lib/feedback-expanded.browser.spec.ts)
+and reuse the declarative
+[`tests/feedback/expanded.html`](../tests/feedback/expanded.html) fixture. Two
+ordinary tests prove authored-descendant versus native-fallback ownership and
+the full lifecycle boundary above. The paint case currently uses executable
+expected-failure mode: its promoted red run observed the UA's `1px auto`
+outline at `0px` for both aliases instead of the required tokenized `3px solid`
+outline at `2px` and zebra focus color.
