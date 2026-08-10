@@ -127,3 +127,11 @@ Navigation disabled requires no exception. D0's existing generated
 `--cem-navigation-item-disabled-*` pair represents the paint, D5/zebra already
 represent retained ARIA-disabled focus, and forced colors use platform system
 colors. Activation suppression is component behavior, not CSS paint.
+
+Content hover also requires no exception. The pre-CSS audit found that action
+and custom-select option endpoints could not jointly represent checkable chips
+and a native selectable-list composite, so D0 now owns generated
+`--cem-content-interaction-*` default, hover, selected, selected-hover, and
+disabled pairs. Component CSS binds only those endpoints in normal modes.
+Forced colors use platform system colors; the native listbox retains its
+platform surface and recolors its existing border without adding geometry.

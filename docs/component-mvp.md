@@ -33,10 +33,10 @@ contract for `@epa-wg/cem-components`, the CEM core schema state vocabulary, and
 | Content | `icon` | `cem-icon` | Decorative or labeled icon text primitive | action, palette, stroke, typography |
 | Layout | `stack` | `cem-stack` | Single-axis layout container | gap, responsive |
 | Layout | `grid` | `cem-grid` | Responsive grid layout container | gap, responsive |
-| Content | `list` | `cem-list` | Ordered or unordered collection, including empty state | palette, stroke, gap, typography |
+| Content | `list` | `cem-list` | Ordered or unordered collection, including empty state | palette, content, stroke, gap, typography |
 | Content | `card` | `cem-card` | Summary container for profile, asset, and message content | palette, stroke, bend, gap, inset |
 | Content | `table` | `cem-table` | Structured data comparison and asset grids | palette, stroke, gap, typography |
-| Content | `chip` | `cem-chip` | Compact filter, token, or removable label | palette, action, bend, inset, typography |
+| Content | `chip` | `cem-chip` | Compact filter, token, or removable label | palette, content, action, bend, inset, typography |
 | Content | `badge` | `cem-badge` | Status, count, priority, and severity labels | palette, bend, inset, typography |
 | Content | `avatar` | `cem-avatar` | Person or organization visual identity | palette, bend, typography |
 | Content | `media-preview` | `cem-media-preview` | Asset thumbnail, file, or object preview | palette, stroke, bend, gap |

@@ -31,6 +31,35 @@ cem-menu-item > button:enabled:active {
     color: var(--cem-action-contextual-active-text);
 }
 
+cem-list[selectable] > select.cem-list.cem-list--selectable,
+cem-chip[checkable] > button.cem-chip {
+    background-color: var(--cem-content-interaction-default-background);
+    color: var(--cem-content-interaction-default-text);
+}
+
+cem-chip[checkable] > button.cem-chip[aria-pressed='true'] {
+    background-color: var(--cem-content-interaction-selected-background);
+    color: var(--cem-content-interaction-selected-text);
+}
+
+cem-list[selectable] > select.cem-list.cem-list--selectable:enabled:hover,
+cem-chip[checkable] > button.cem-chip:enabled:hover {
+    background-color: var(--cem-content-interaction-hover-background);
+    color: var(--cem-content-interaction-hover-text);
+}
+
+cem-chip[checkable] > button.cem-chip[aria-pressed='true']:enabled:hover {
+    background-color: var(--cem-content-interaction-selected-hover-background);
+    color: var(--cem-content-interaction-selected-hover-text);
+}
+
+cem-list[selectable] > select.cem-list.cem-list--selectable:disabled,
+cem-chip[checkable] > button.cem-chip:disabled,
+cem-chip[checkable] > button.cem-chip[aria-pressed='true']:disabled {
+    background-color: var(--cem-content-interaction-disabled-background);
+    color: var(--cem-content-interaction-disabled-text);
+}
+
 cem-nav > nav > :is(a[href], button),
 cem-nav > nav > .cem-nav__content > :is(a[href], button),
 cem-tabs > [role='tablist'] > button[role='tab'] {
@@ -425,6 +454,36 @@ cem-select .cem-select__option[aria-disabled='true'] {
 }
 
 @media (forced-colors: active) {
+    cem-list[selectable] > select.cem-list.cem-list--selectable,
+    cem-chip[checkable] > button.cem-chip {
+        background-color: Canvas;
+        color: CanvasText;
+    }
+
+    cem-chip[checkable] > button.cem-chip[aria-pressed='true'] {
+        background-color: SelectedItem;
+        color: SelectedItemText;
+    }
+
+    cem-list[selectable] > select.cem-list.cem-list--selectable:enabled:hover {
+        background-color: Canvas;
+        border-color: Highlight;
+        color: CanvasText;
+    }
+
+    cem-chip[checkable] > button.cem-chip:enabled:hover,
+    cem-chip[checkable] > button.cem-chip[aria-pressed='true']:enabled:hover {
+        background-color: Highlight;
+        color: HighlightText;
+    }
+
+    cem-list[selectable] > select.cem-list.cem-list--selectable:disabled,
+    cem-chip[checkable] > button.cem-chip:disabled,
+    cem-chip[checkable] > button.cem-chip[aria-pressed='true']:disabled {
+        background-color: Canvas;
+        color: GrayText;
+    }
+
     cem-nav > nav > :is(a[href], button)[aria-current]:not([aria-current='false']),
     cem-nav > nav > .cem-nav__content > :is(a[href], button)[aria-current]:not([aria-current='false']),
     cem-tabs > [role='tablist'] > button[role='tab'][aria-selected='true'] {

@@ -82,6 +82,10 @@ NOT mutate the value. Selection may follow native keyboard navigation. The
 component does not expose `aria-activedescendant`, roving `tabindex`,
 `aria-multiselectable`, or nested option controls in v1.
 
+The package's [content hover contract](./content-hover-contract.md) styles the
+native `<select>` composite, not its host or individual native options. Passive
+lists remain excluded, and pointer enter/leave cannot change selectedness.
+
 `cem-list` remains a Content component, not a form Input component. Listbox mode
 does not forward `name`, `required`, `form`, or `multiple`, and it does not
 contribute a value to `FormData`; authors needing form submission use

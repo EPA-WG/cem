@@ -67,6 +67,8 @@ This spec defines **consumer-semantic color tokens** for CEM:
 - **Action intent and state tokens** (`--cem-action-*`) for buttons/steps and other “do something” controls.
 - **Navigation-item state tokens** (`--cem-navigation-item-*`) for links, disclosures, and tabs that move or switch
   context while preserving current/selected meaning.
+- **Interactive-content state tokens** (`--cem-content-interaction-*`) for content-owned native controls such as
+  checkable chips and selectable-list composites, without classifying them as actions, navigation, or form inputs.
 - **Zebra outline colors** (`--cem-zebra-*`) used with D5 Stroke to express selection/focus/target without relying on
   fill.
 - **System/forced-colors integration** so CEM remains accessible and compatible with platform theming.
@@ -594,6 +596,28 @@ navigation endpoints remain independently themeable. Disabled wins over current,
 | `--cem-navigation-item-disabled-background` | `<color>` | `var(--cem-action-contextual-disabled-background)` | Unavailable navigation item fill; wins over hover/active/current | required |
 | `--cem-navigation-item-disabled-text` | `<color>` | `var(--cem-action-contextual-disabled-text)` | Unavailable navigation item text | required |
 
+### 7.10 Interactive content state colors
+
+Interactive content controls expose content selection or filtering without becoming action-intent, navigation, or
+form-input components. Their state colors therefore need an independently themeable category even when the reference
+formulas align with existing action or palette endpoints. Selected-hover keeps the selected/checked meaning visible
+during transient pointer feedback, and disabled wins over selected and hover. Focus remains a separate D5/zebra
+geometry channel.
+
+###### cem-content-interaction-state-colors
+| Token | value-type | default-formula | notes | tier |
+|---|---|---|---|---|
+| `--cem-content-interaction-default-background` | `<color>` | `transparent` | Resting interactive-content owner fill | required |
+| `--cem-content-interaction-default-text` | `<color>` | `var(--cem-palette-comfort-text)` | Resting interactive-content owner text | required |
+| `--cem-content-interaction-hover-background` | `<color>` | `var(--cem-action-contextual-hover-background)` | Enabled unselected content owner under pointer hover | required |
+| `--cem-content-interaction-hover-text` | `<color>` | `var(--cem-action-contextual-hover-text)` | Enabled unselected hover text | required |
+| `--cem-content-interaction-selected-background` | `<color>` | `var(--cem-palette-creativity)` | Selected or checked content owner fill | required |
+| `--cem-content-interaction-selected-text` | `<color>` | `var(--cem-palette-creativity-text)` | Selected or checked content owner text | required |
+| `--cem-content-interaction-selected-hover-background` | `<color>` | `color-mix(in srgb, var(--cem-palette-creativity) 70%, var(--cem-palette-creativity-x))` | Enabled selected or checked owner under pointer hover | required |
+| `--cem-content-interaction-selected-hover-text` | `<color>` | `var(--cem-palette-creativity-text)` | Selected or checked hover text | required |
+| `--cem-content-interaction-disabled-background` | `<color>` | `var(--cem-action-contextual-disabled-background)` | Disabled content owner fill; wins over selected and hover | required |
+| `--cem-content-interaction-disabled-text` | `<color>` | `var(--cem-action-contextual-disabled-text)` | Disabled content owner text | required |
+
 ## 8. Zebra outline colors
 
 ### 8.1 Outline-driven state mapping (zebra)
@@ -884,6 +908,14 @@ For each shipped intent (`primary`, `explicit`, `contextual`, `alternate`, `dest
 - `--cem-navigation-item-current-active-{background,text}`
 - `--cem-navigation-item-disabled-{background,text}`
 
+**Interactive content:**
+
+- `--cem-content-interaction-default-{background,text}`
+- `--cem-content-interaction-hover-{background,text}`
+- `--cem-content-interaction-selected-{background,text}`
+- `--cem-content-interaction-selected-hover-{background,text}`
+- `--cem-content-interaction-disabled-{background,text}`
+
 ### 14.2 Recommended (implementation substrate)
 
 - Branded hues: `--cem-color-*` (brand-controlled; used to derive palette tokens)
@@ -904,6 +936,7 @@ from these tables using the same logic as `cem-colors.html`.
 | `cem-input-indicator-colors`                           | `--cem-input-indicator-*` (9 tokens) | one token per row             |
 | `cem-select-state-colors`                              | `--cem-select-*` (12 tokens) | one token per row                    |
 | `cem-navigation-item-state-colors`                     | `--cem-navigation-item-*` (14 tokens) | one token per row             |
+| `cem-content-interaction-state-colors`                  | `--cem-content-interaction-*` (10 tokens) | one token per row          |
 | `cem-action-intent-emotion` × `cem-action-state-color` | `--cem-action-*` (80 tokens)  | intent × state × {background, text} |
 ## 15. References
 

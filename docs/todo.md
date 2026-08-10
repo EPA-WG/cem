@@ -23,8 +23,10 @@ canonical `cem-option` authoring, native-option migration input, and
 theme-tokenized popup/listbox states. Navigation hover, keyboard focus, held
 active paint, and disabled behavior now apply only to the real nav links/buttons
 and tab buttons through generated navigation-item, D5 focus, zebra semantics,
-and bounded host capture; the state-matrix audit recommends `content:hover`
-next.
+and bounded host capture. Content hover now applies only to the checkable-chip
+button and selectable-list composite through generated content-interaction
+semantics, with passive list/chip/table wrappers excluded; the state-matrix
+audit recommends `content:focus-visible` next.
 
 The cross-layer architecture remains serializer-free: lifecycle loading, graph
 routing, joins, evaluators, CEM-QL, CEMT, and XSLT adapters must exchange
@@ -948,22 +950,67 @@ mediate between internal layers.
   - The uncached aggregate component gate passes all 18 dependencies and 47
     tests across five files. The package gate publishes 24 files; the exact
     style gate still verifies 34 primitives and 410 generated visual tokens.
-- [ ] Decide the Phase 4 `content:hover` owner set before adding a fixture or
+- [x] Decide the Phase 4 `content:hover` owner set before adding a fixture or
       component CSS.
-  - [ ] Reconcile the matrix's “interactive content row or chip” wording with
+  - [x] Reconcile the matrix's “interactive content row or chip” wording with
         the shipped DOM: `cem-chip[checkable]` has a clear native button owner;
         `cem-list[selectable]` exposes one native `select` composite rather than
         themeable option-row hover; and `cem-table` owns only a passive table
         wrapper while projected rows remain application-authored.
-  - [ ] Choose whether to narrow this state to existing interactive owners
+  - [x] Choose whether to narrow this state to existing interactive owners
         (recommended: checkable chip plus the selectable-list composite, with
         passive chip/list/table explicitly excluded) or first accept new
         component-owned interactive table/list-row vocabulary. Stop before CSS
         or behavior if that ownership choice is not accepted.
-  - [ ] After owner acceptance, audit action/select/content theme categories,
+  - [x] After owner acceptance, audit action/select/content theme categories,
         add theme semantics before CSS if needed, and cover trusted pointer
         enter/leave, selected/checked/disabled/focus coexistence, stable
         geometry/state, forced colors, exact style bindings, docs, and matrix.
+  - The token audit rejected action-intent coupling for content and rejected
+    custom-`cem-select` option semantics for the native list composite. D0 now
+    generates ten `--cem-content-interaction-*` default, hover, selected,
+    selected-hover, and disabled endpoints. The theme build reports 193 color
+    tokens, 458/458 required coverage, 470 extracted tokens, and 420 visual
+    tokens; no component CSS exception was needed.
+  - Exact selectors bind only `cem-list[selectable] > select` and
+    `cem-chip[checkable] > button`. Checked chips retain distinct selected and
+    selected-hover paint; disabled native owners suppress hover through
+    `:enabled`; passive chip/list/table output receives no binding. This slice
+    does not introduce host-level disabled behavior or interactive table rows.
+  - The focused Chromium state suite passes 21/21 and proves trusted pointer
+    enter/leave, exact theme paint and contrast, selected-option and checked-chip
+    coexistence, native-disabled suppression, retained focus treatment, stable
+    dimensions/DOM/ARIA/runtime state, restoration, passive exclusions, and no
+    mutation events.
+  - The dedicated forced-colors gate maps chip hover to
+    `Highlight`/`HighlightText`, checked rest to
+    `SelectedItem`/`SelectedItemText`, and disabled owners to
+    `Canvas`/`GrayText`. The native listbox retains its platform Canvas surface
+    and uses an existing `Highlight` border for hover without changing geometry
+    or its independent focus outline.
+  - The state matrix now reports 36 browser-covered, 0 static-only, and 3 gaps
+    with `content:focus-visible` recommended next. The exact style gate verifies
+    34 primitives and 420 generated visual tokens.
+  - The uncached aggregate component gate passes all 19 dependencies and 48
+    tests across five files, including the new content-hover forced-colors
+    verifier. The package gate still publishes 24 dist-only files with one
+    canonical stylesheet.
+- [ ] Decide and implement the Phase 4 `content:focus-visible` owner and paint
+      contract.
+  - [ ] Reuse the shipped interactive owner boundary unless evidence requires a
+        different one (recommended: the selectable-list `<select>` and
+        checkable-chip `<button>` only; keep passive list/chip/table output and
+        application-authored table rows excluded).
+  - [ ] Audit D5 focus geometry and zebra focus color before adding CSS. Prefer
+        the existing external `--cem-stroke-focus` /
+        `--cem-stroke-indicator-offset` ring with `--cem-zebra-color-1`; add D0
+        semantics only if checked/selected focus coexistence cannot be expressed
+        independently, and record an exception only if no theme category fits.
+  - [ ] Prove sequential keyboard order, native-disabled skipping, exact
+        `:focus-visible` ownership, selected-option and checked-chip coexistence,
+        hover coexistence/restoration, stable geometry/DOM/runtime state,
+        wrapper isolation, and normal/forced-colors behavior without adding
+        focus handlers or mutating selection/checked state.
 
 ## Current Verification Commands
 

@@ -22,6 +22,7 @@ export const COVERAGE_CATEGORIES = [
     { id: "d0-zebra", label: "Zebra tokens (D0)", spec: "cem-colors" },
     { id: "d0-select", label: "Select state tokens (D0)", spec: "cem-colors" },
     { id: "d0-navigation", label: "Navigation item state tokens (D0)", spec: "cem-colors" },
+    { id: "d0-content-interaction", label: "Interactive content state tokens (D0)", spec: "cem-colors" },
     { id: "cem-dimension", label: "Dimension & rhythm (D1)", spec: "cem-dimension" },
     { id: "cem-breakpoints", label: "Breakpoints (D1x)", spec: "cem-breakpoints" },
     { id: "cem-coupling", label: "Coupling safety (D2)", spec: "cem-coupling" },
@@ -176,6 +177,13 @@ function deriveColorManifest(xhtml) {
     addTableCategory(xhtml, "cem-input-indicator-colors", "d0-input-indicator", tokens, warnings);
     addTableCategory(xhtml, "cem-select-state-colors", "d0-select", tokens, warnings);
     addTableCategory(xhtml, "cem-navigation-item-state-colors", "d0-navigation", tokens, warnings);
+    addTableCategory(
+        xhtml,
+        "cem-content-interaction-state-colors",
+        "d0-content-interaction",
+        tokens,
+        warnings,
+    );
 
     const intentRows = extractTable(xhtml, "cem-action-intent-emotion");
     const stateRows = extractTable(xhtml, "cem-action-state-color");

@@ -19,9 +19,10 @@
         "navigation:focus-visible",
         "navigation:active",
         "navigation:disabled",
-        "content:hover"
+        "content:hover",
+        "content:focus-visible"
     ],
-    "recommendedNext": "content:hover",
+    "recommendedNext": "content:focus-visible",
     "coverage": [
         {
             "id": "action:default",
@@ -485,10 +486,21 @@
             "id": "content:hover",
             "category": "Content",
             "state": "hover",
-            "components": ["cem-list", "cem-table", "cem-chip"],
-            "interaction": "Move the pointer over an interactive content row or chip without changing layout.",
-            "status": "gap",
-            "reason": "No content browser assertion drives pointer hover."
+            "components": ["cem-list", "cem-chip"],
+            "interaction": "Move the pointer over the selectable-list composite or checkable chip without changing layout, selection, checked state, or passive content wrappers.",
+            "status": "covered",
+            "owner": "packages/cem-components/src/lib/states.browser.spec.ts",
+            "test": "styles only interactive content hover owners without changing selection or component state",
+            "assertions": [
+                "expect(owner.matches(':hover')).toBe(true);",
+                "expect(hovered.backgroundColor).toBe(resolveTokenColor(owner, tokens.hoverBackground));",
+                "expectContentInteractionStructureAndGeometry(hovered, baseline);",
+                "expect(hovered.focusTreatment).toEqual(baseline.focusTreatment);",
+                "expect(pointerEvents).toEqual(['pointerenter:true', 'pointerleave:true']);",
+                "expect(listOwner.options[1]?.getAttribute('aria-selected')).toBe('true');",
+                "expect(checkedOwner.getAttribute('aria-pressed')).toBe('true');",
+                "expect(mutationEvents).toEqual([]);"
+            ]
         },
         {
             "id": "content:focus-visible",

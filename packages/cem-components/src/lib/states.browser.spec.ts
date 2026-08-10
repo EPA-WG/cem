@@ -2668,6 +2668,213 @@ describe('CEM component primitive states and ARIA behavior', () => {
         expect(() => assertAriaReferenceIntegrity(harness.root)).not.toThrow();
     });
 
+    it('styles only interactive content hover owners without changing selection or component state', async () => {
+        harness = createComponentHarness();
+        const root = await harness.render(`
+            <cem-stack class="cem-theme-light" gap="sm">
+                <cem-list id="passive-content-list" label="Static topics">
+                    <li>Static topic</li>
+                </cem-list>
+                <cem-list id="interactive-content-list" label="Asset type" selectable value="document" size="3">
+                    <cem-list-option value="image">Image</cem-list-option>
+                    <cem-list-option value="document" selected>Document</cem-list-option>
+                    <cem-list-option value="archive" disabled>Archive</cem-list-option>
+                </cem-list>
+                <cem-list id="disabled-content-list" label="Unavailable asset type" selectable size="2">
+                    <cem-list-option value="image" selected>Image</cem-list-option>
+                    <cem-list-option value="document">Document</cem-list-option>
+                </cem-list>
+                <cem-chip id="passive-content-chip">Passive chip</cem-chip>
+                <cem-chip id="unchecked-content-chip" checkable>Unchecked chip</cem-chip>
+                <cem-chip id="checked-content-chip" checkable checked>Checked chip</cem-chip>
+                <cem-chip id="disabled-content-chip" checkable checked>Unavailable chip</cem-chip>
+                <cem-table id="passive-content-table" label="Static comparison">
+                    <div role="row"><span role="cell">Static cell</span></div>
+                </cem-table>
+            </cem-stack>
+        `);
+        await waitForStateSelector(root, '#passive-content-table > .cem-table');
+
+        const listHost = harness.query<HTMLElement>('#interactive-content-list');
+        const listOwner = harness.query<HTMLSelectElement>('#interactive-content-list > select');
+        const uncheckedHost = harness.query<HTMLElement>('#unchecked-content-chip');
+        const uncheckedOwner = harness.query<HTMLButtonElement>('#unchecked-content-chip > button');
+        const checkedHost = harness.query<HTMLElement>('#checked-content-chip');
+        const checkedOwner = harness.query<HTMLButtonElement>('#checked-content-chip > button');
+        const disabledListHost = harness.query<HTMLElement>('#disabled-content-list');
+        const disabledListOwner = harness.query<HTMLSelectElement>('#disabled-content-list > select');
+        const disabledChipHost = harness.query<HTMLElement>('#disabled-content-chip');
+        const disabledChipOwner = harness.query<HTMLButtonElement>('#disabled-content-chip > button');
+        disabledListOwner.disabled = true;
+        disabledChipOwner.disabled = true;
+
+        const interactiveCases = [
+            {
+                host: listHost,
+                owner: listOwner,
+                tokens: {
+                    defaultBackground: '--cem-content-interaction-default-background',
+                    defaultText: '--cem-content-interaction-default-text',
+                    hoverBackground: '--cem-content-interaction-hover-background',
+                    hoverText: '--cem-content-interaction-hover-text',
+                },
+            },
+            {
+                host: uncheckedHost,
+                owner: uncheckedOwner,
+                tokens: {
+                    defaultBackground: '--cem-content-interaction-default-background',
+                    defaultText: '--cem-content-interaction-default-text',
+                    hoverBackground: '--cem-content-interaction-hover-background',
+                    hoverText: '--cem-content-interaction-hover-text',
+                },
+            },
+            {
+                host: checkedHost,
+                owner: checkedOwner,
+                tokens: {
+                    defaultBackground: '--cem-content-interaction-selected-background',
+                    defaultText: '--cem-content-interaction-selected-text',
+                    hoverBackground: '--cem-content-interaction-selected-hover-background',
+                    hoverText: '--cem-content-interaction-selected-hover-text',
+                },
+            },
+        ] as const;
+        const disabledCases = [
+            { host: disabledListHost, owner: disabledListOwner },
+            { host: disabledChipHost, owner: disabledChipOwner },
+        ] as const;
+        const passiveCases = [
+            {
+                host: harness.query<HTMLElement>('#passive-content-list'),
+                owner: harness.query<HTMLElement>('#passive-content-list > ul'),
+            },
+            {
+                host: harness.query<HTMLElement>('#passive-content-chip'),
+                owner: harness.query<HTMLElement>('#passive-content-chip > span'),
+            },
+            {
+                host: harness.query<HTMLElement>('#passive-content-table'),
+                owner: harness.query<HTMLElement>('#passive-content-table > .cem-table'),
+            },
+        ] as const;
+        const mutationEvents: string[] = [];
+        for (const eventName of ['click', 'input', 'change', 'cem-loaded', 'cem-error', 'cem-cancel']) {
+            harness.root.addEventListener(eventName, () => mutationEvents.push(eventName));
+        }
+
+        assertStateHostsRendered(harness.root, 'cem-list, cem-chip, cem-table');
+        expect(listOwner.value).toBe('document');
+        expect(listOwner.options[1]?.getAttribute('aria-selected')).toBe('true');
+        expect(listOwner.options[2]?.disabled).toBe(true);
+        expect(uncheckedOwner.getAttribute('aria-pressed')).toBe('false');
+        expect(checkedOwner.getAttribute('aria-pressed')).toBe('true');
+
+        for (const contentCase of interactiveCases) {
+            const { host, owner, tokens } = contentCase;
+            const pointerEvents: string[] = [];
+            owner.addEventListener('pointerenter', (event) => pointerEvents.push(`pointerenter:${event.isTrusted}`));
+            owner.addEventListener('pointerleave', (event) => pointerEvents.push(`pointerleave:${event.isTrusted}`));
+            await assertFocusVisible(owner);
+
+            const baseline = captureContentInteractionState(runtime, host, owner);
+            expect(baseline.backgroundColor).toBe(resolveTokenColor(owner, tokens.defaultBackground));
+            expect(baseline.color).toBe(resolveTokenColor(owner, tokens.defaultText));
+
+            await userEvent.hover(owner);
+            await nextRenderFrame();
+
+            const hovered = captureContentInteractionState(runtime, host, owner);
+            expect(owner.matches(':hover')).toBe(true);
+            expect(hovered.backgroundColor).toBe(resolveTokenColor(owner, tokens.hoverBackground));
+            expect(hovered.color).toBe(resolveTokenColor(owner, tokens.hoverText));
+            expect(hovered.backgroundColor).not.toBe(baseline.backgroundColor);
+            expect(contrastRatio(hovered.backgroundColor, hovered.color)).toBeGreaterThanOrEqual(4.5);
+            expectContentInteractionStructureAndGeometry(hovered, baseline);
+            expect(hovered.focusTreatment).toEqual(baseline.focusTreatment);
+            expect(hovered.hostBackgroundColor).toBe(baseline.hostBackgroundColor);
+            expect(document.activeElement).toBe(owner);
+
+            await userEvent.unhover(owner);
+            await nextRenderFrame();
+
+            const restored = captureContentInteractionState(runtime, host, owner);
+            expect(restored.backgroundColor).toBe(baseline.backgroundColor);
+            expect(restored.color).toBe(baseline.color);
+            expectContentInteractionStructureAndGeometry(restored, baseline);
+            expect(restored.focusTreatment).toEqual(baseline.focusTreatment);
+            expect(restored.hostBackgroundColor).toBe(baseline.hostBackgroundColor);
+            expect(document.activeElement).toBe(owner);
+            expect(pointerEvents).toEqual(['pointerenter:true', 'pointerleave:true']);
+        }
+
+        for (const disabledCase of disabledCases) {
+            const { host, owner } = disabledCase;
+            const pointerEvents: string[] = [];
+            owner.addEventListener('pointerenter', (event) => pointerEvents.push(`pointerenter:${event.isTrusted}`));
+            owner.addEventListener('pointerleave', (event) => pointerEvents.push(`pointerleave:${event.isTrusted}`));
+            const focusOwner = document.activeElement;
+            owner.focus();
+            expect(document.activeElement).toBe(focusOwner);
+
+            const baseline = captureContentInteractionState(runtime, host, owner);
+            expect(baseline.backgroundColor).toBe(
+                resolveTokenColor(owner, '--cem-content-interaction-disabled-background'),
+            );
+            expect(baseline.color).toBe(resolveTokenColor(owner, '--cem-content-interaction-disabled-text'));
+
+            await userEvent.hover(owner);
+            await nextRenderFrame();
+
+            const hovered = captureContentInteractionState(runtime, host, owner);
+            expect(owner.matches(':hover')).toBe(true);
+            expect(hovered.backgroundColor).toBe(baseline.backgroundColor);
+            expect(hovered.color).toBe(baseline.color);
+            expectContentInteractionStructureAndGeometry(hovered, baseline);
+            expect(hovered.hostBackgroundColor).toBe(baseline.hostBackgroundColor);
+            expect(document.activeElement).toBe(focusOwner);
+
+            await userEvent.unhover(owner);
+            await nextRenderFrame();
+
+            const restored = captureContentInteractionState(runtime, host, owner);
+            expectContentInteractionStructureAndGeometry(restored, baseline);
+            expect(pointerEvents).toEqual(['pointerenter:true', 'pointerleave:true']);
+        }
+
+        for (const passiveCase of passiveCases) {
+            const { host, owner } = passiveCase;
+            const pointerEvents: string[] = [];
+            owner.addEventListener('pointerenter', (event) => pointerEvents.push(`pointerenter:${event.isTrusted}`));
+            owner.addEventListener('pointerleave', (event) => pointerEvents.push(`pointerleave:${event.isTrusted}`));
+            const baseline = captureContentInteractionState(runtime, host, owner);
+
+            await userEvent.hover(owner);
+            await nextRenderFrame();
+            const hovered = captureContentInteractionState(runtime, host, owner);
+            expect(owner.matches(':hover')).toBe(true);
+            expect(hovered.backgroundColor).toBe(baseline.backgroundColor);
+            expect(hovered.color).toBe(baseline.color);
+            expectContentInteractionStructureAndGeometry(hovered, baseline);
+
+            await userEvent.unhover(owner);
+            await nextRenderFrame();
+            expectContentInteractionStructureAndGeometry(
+                captureContentInteractionState(runtime, host, owner),
+                baseline,
+            );
+            expect(pointerEvents).toEqual(['pointerenter:true', 'pointerleave:true']);
+        }
+
+        expect(listOwner.value).toBe('document');
+        expect(listOwner.options[1]?.getAttribute('aria-selected')).toBe('true');
+        expect(listOwner.options[2]?.disabled).toBe(true);
+        expect(uncheckedOwner.getAttribute('aria-pressed')).toBe('false');
+        expect(checkedOwner.getAttribute('aria-pressed')).toBe('true');
+        expect(mutationEvents).toEqual([]);
+        expect(() => assertAriaReferenceIntegrity(harness.root)).not.toThrow();
+    });
+
     it('toggles collapsible navigation without changing passive landmark semantics', async () => {
         harness = createComponentHarness();
         const root = await harness.render(`
@@ -3564,6 +3771,87 @@ function expectInputIndicatorStructureAndGeometry(
     expect(actual.targetRect).toEqual(expected.targetRect);
 }
 
+interface ContentInteractionStateSnapshot {
+    backgroundColor: string;
+    color: string;
+    focusTreatment: readonly string[];
+    forcedColorAdjust: string;
+    hostAttributes: readonly string[];
+    hostBackgroundColor: string;
+    hostHtml: string;
+    hostRect: readonly number[];
+    ownerHtml: string;
+    ownerRect: readonly number[];
+    runtime: string;
+    semanticState: string;
+}
+
+function captureContentInteractionState(
+    runtime: CemElementRuntime,
+    host: HTMLElement,
+    owner: HTMLElement,
+): ContentInteractionStateSnapshot {
+    const hostStyles = getComputedStyle(host);
+    const ownerStyles = getComputedStyle(owner);
+    const runtimeSnapshot = runtime.snapshotInstance(host);
+    const semanticState =
+        owner instanceof HTMLSelectElement
+            ? JSON.stringify({
+                  disabled: owner.disabled,
+                  options: Array.from(owner.options, (option) => ({
+                      ariaSelected: option.getAttribute('aria-selected'),
+                      disabled: option.disabled,
+                      selected: option.selected,
+                      value: option.value,
+                  })),
+                  value: owner.value,
+              })
+            : JSON.stringify({
+                  ariaPressed: owner.getAttribute('aria-pressed'),
+                  disabled: owner instanceof HTMLButtonElement ? owner.disabled : null,
+              });
+
+    return {
+        backgroundColor: paintedColor(ownerStyles.backgroundColor),
+        color: paintedColor(ownerStyles.color),
+        focusTreatment: [
+            ownerStyles.outlineColor,
+            ownerStyles.outlineStyle,
+            ownerStyles.outlineWidth,
+            ownerStyles.outlineOffset,
+            ownerStyles.boxShadow,
+        ],
+        forcedColorAdjust: ownerStyles.forcedColorAdjust,
+        hostAttributes: Array.from(host.attributes, ({ name, value }) => `${name}=${value}`),
+        hostBackgroundColor: paintedColor(hostStyles.backgroundColor),
+        hostHtml: host.outerHTML,
+        hostRect: sizeTuple(host),
+        ownerHtml: owner.outerHTML,
+        ownerRect: sizeTuple(owner),
+        runtime: JSON.stringify({
+            eventPayloads: runtimeSnapshot.eventPayloads,
+            formData: runtimeSnapshot.formData,
+            payload: runtimeSnapshot.payload,
+            slices: runtimeSnapshot.slices,
+            validationState: runtimeSnapshot.validationState,
+        }),
+        semanticState,
+    };
+}
+
+function expectContentInteractionStructureAndGeometry(
+    actual: ContentInteractionStateSnapshot,
+    expected: ContentInteractionStateSnapshot,
+): void {
+    expect(actual.hostAttributes).toEqual(expected.hostAttributes);
+    expect(actual.hostHtml).toBe(expected.hostHtml);
+    expect(actual.hostRect).toEqual(expected.hostRect);
+    expect(actual.ownerHtml).toBe(expected.ownerHtml);
+    expect(actual.ownerRect).toEqual(expected.ownerRect);
+    expect(actual.runtime).toBe(expected.runtime);
+    expect(actual.semanticState).toBe(expected.semanticState);
+}
+
 function resolveTokenLength(element: Element, tokenName: string): number {
     const value = getComputedStyle(element).getPropertyValue(tokenName).trim();
     const match = value.match(/^(-?\d*\.?\d+)px$/);
@@ -3767,6 +4055,11 @@ function relativeLuminance(painted: string): number {
 function rectTuple(element: Element): readonly number[] {
     const rect = element.getBoundingClientRect();
     return [rect.x, rect.y, rect.width, rect.height];
+}
+
+function sizeTuple(element: Element): readonly number[] {
+    const rect = element.getBoundingClientRect();
+    return [rect.width, rect.height];
 }
 
 function resolveTokenColor(element: Element, tokenName: string): string {

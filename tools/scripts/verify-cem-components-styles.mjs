@@ -20,6 +20,7 @@ const tokenCssPath = join(repoRoot, 'packages/cem-theme/dist/lib/css/cem-combine
 const TOKEN_FAMILY_PREFIXES = {
     action: ['--cem-action-'],
     bend: ['--cem-bend', '--cem-bend-'],
+    content: ['--cem-content-interaction-'],
     control: ['--cem-control-', '--cem-list-', '--cem-menu-', '--cem-table-'],
     gap: ['--cem-gap-'],
     inset: ['--cem-inset-'],
@@ -39,6 +40,7 @@ const CSS_SPACING_PROPERTY =
 const CSS_SPACING_LITERAL = /\b\d*\.?\d+(?:px|rem|em|vh|vw|vmin|vmax|ch|ex|%)\b|calc\s*\(/i;
 const CSS_VAR_REFERENCE = /var\(\s*(--[^\s,)]+)/g;
 const ACTION_TAGS = new Set(['cem-action', 'cem-icon-button', 'cem-menu-item']);
+const CONTENT_INTERACTION_TAGS = new Set(['cem-chip', 'cem-list']);
 const NAVIGATION_TAGS = new Set(['cem-nav', 'cem-tabs']);
 const PUBLIC_COMPONENT_ADAPTERS = new Set(['--cem-input-indicator-appearance']);
 const ACTION_BINDINGS = new Map([
@@ -105,6 +107,41 @@ const ACTION_BINDINGS = new Map([
             ['color', 'var(--cem-action-contextual-active-text)'],
         ]),
     ],
+]);
+const CONTENT_INTERACTION_BINDINGS = new Map([
+    ...[
+        'cem-list[selectable] > select.cem-list.cem-list--selectable',
+        'cem-chip[checkable] > button.cem-chip',
+    ].map((selector) => [
+        selector,
+        colorBinding('--cem-content-interaction-default-background', '--cem-content-interaction-default-text'),
+    ]),
+    [
+        "cem-chip[checkable] > button.cem-chip[aria-pressed='true']",
+        colorBinding('--cem-content-interaction-selected-background', '--cem-content-interaction-selected-text'),
+    ],
+    ...[
+        'cem-list[selectable] > select.cem-list.cem-list--selectable:enabled:hover',
+        'cem-chip[checkable] > button.cem-chip:enabled:hover',
+    ].map((selector) => [
+        selector,
+        colorBinding('--cem-content-interaction-hover-background', '--cem-content-interaction-hover-text'),
+    ]),
+    [
+        "cem-chip[checkable] > button.cem-chip[aria-pressed='true']:enabled:hover",
+        colorBinding(
+            '--cem-content-interaction-selected-hover-background',
+            '--cem-content-interaction-selected-hover-text',
+        ),
+    ],
+    ...[
+        'cem-list[selectable] > select.cem-list.cem-list--selectable:disabled',
+        'cem-chip[checkable] > button.cem-chip:disabled',
+        "cem-chip[checkable] > button.cem-chip[aria-pressed='true']:disabled",
+    ].map((selector) => [
+        selector,
+        colorBinding('--cem-content-interaction-disabled-background', '--cem-content-interaction-disabled-text'),
+    ]),
 ]);
 const NAVIGATION_BINDINGS = new Map([
     ...[
@@ -344,6 +381,7 @@ function assertPublicComponentStyles(components, tokenNames) {
     const componentTags = new Set(components.map(({ tag }) => tag));
     const rules = parseCssRules(pathLabel, cssText);
     const actionRules = new Map();
+    const contentInteractionRules = new Map();
     const navigationRules = new Map();
     const privateProperties = new Set(
         rules.flatMap(({ declarations }) => [...declarations.keys()].filter((name) => name.startsWith('--_cem-'))),
@@ -377,6 +415,12 @@ function assertPublicComponentStyles(components, tokenNames) {
             }
             actionRules.set(rule.selector, rule.declarations);
         }
+        if (!rule.media && CONTENT_INTERACTION_TAGS.has(tag)) {
+            if (contentInteractionRules.has(rule.selector)) {
+                fail(`${pathLabel}: duplicate content-interaction selector \`${rule.selector}\``);
+            }
+            contentInteractionRules.set(rule.selector, rule.declarations);
+        }
         if (!rule.media && NAVIGATION_TAGS.has(tag)) {
             if (navigationRules.has(rule.selector)) {
                 fail(`${pathLabel}: duplicate navigation selector \`${rule.selector}\``);
@@ -409,6 +453,34 @@ function assertPublicComponentStyles(components, tokenNames) {
         if (!ACTION_BINDINGS.has(selector)) {
             fail(
                 `${pathLabel}: unexpected action selector \`${selector}\` is outside the accepted action-state contracts`,
+            );
+        }
+    }
+
+    for (const [selector, expectedDeclarations] of CONTENT_INTERACTION_BINDINGS) {
+        const declarations = contentInteractionRules.get(selector);
+        if (!declarations) {
+            fail(`${pathLabel}: missing accepted content-interaction binding selector \`${selector}\``);
+            continue;
+        }
+
+        if (declarations.size !== expectedDeclarations.size) {
+            fail(`${pathLabel}: \`${selector}\` has declarations outside its accepted content-state binding`);
+        }
+        for (const [property, expectedValue] of expectedDeclarations) {
+            const actualValue = declarations.get(property);
+            if (actualValue !== expectedValue) {
+                fail(
+                    `${pathLabel}: \`${selector}\` must bind ${property} to ${expectedValue}, received ${actualValue}`,
+                );
+            }
+        }
+    }
+
+    for (const selector of contentInteractionRules.keys()) {
+        if (!CONTENT_INTERACTION_BINDINGS.has(selector)) {
+            fail(
+                `${pathLabel}: unexpected content-interaction selector \`${selector}\` is outside the accepted content-state contract`,
             );
         }
     }
