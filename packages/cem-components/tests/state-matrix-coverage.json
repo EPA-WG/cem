@@ -614,7 +614,7 @@
             "components": ["cem-dialog", "cem-dialog-shell", "cem-sheet"],
             "interaction": "Move keyboard focus into a feedback surface and retain a visible focus indicator.",
             "status": "gap",
-            "reason": "The implemented transient lifecycle moves focus into native modal dialogs, but no feedback focus-paint owner is accepted; the non-modal sheet still has only application-authored focus descendants."
+            "reason": "The accepted focus-visible contract limits component paint to a transient native dialog when it is itself the browser's focused fallback; authored descendants keep their own focus treatment and the non-modal sheet stays focus-neutral. Focused browser, CSS, forced-colors, and exact-selector evidence have not landed yet."
         },
         {
             "id": "feedback:loading",

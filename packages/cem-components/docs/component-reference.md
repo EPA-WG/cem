@@ -204,5 +204,7 @@ States: `default`, `focus-visible`, `loading`, `expanded`, `invalid`.
 
 The transient feedback lifecycle is defined by the
 [feedback expanded contract](./feedback-expanded-contract.md). It does not add
-focus paint to a structural surface; `feedback:focus-visible` remains a
-separate owner and token decision.
+focus paint to a structural surface. The separate
+[feedback focus-visible contract](./feedback-focus-visible-contract.md) accepts
+only a transient native dialog when it is itself the browser's focused fallback;
+authored descendants and sheets retain their existing focus ownership.

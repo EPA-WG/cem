@@ -5,7 +5,7 @@ rendered-attribute ownership boundary, shared native-dialog behavior,
 declarative transient branches, focused five-test component fixture,
 component/accessibility documentation, executable matrix promotion, and
 aggregate component verification are implemented and passing. The separate
-feedback focus-owner decision is tracked by
+feedback focus-visible implementation is tracked by
 [`docs/todo.md`](../../../docs/todo.md).
 
 ## Decision
@@ -303,8 +303,9 @@ ordinary tests. The shared adapter uses the native dialog lifecycle for both
 dialog aliases, the sheet branch derives only native visibility, and the suite
 proves the full acceptance list above without expected-failure modifiers.
 
-This expanded-state slice does not add feedback focus paint. After its lifecycle
-is executable, the separate feedback focus decision must identify actual native
-focus owners and audit theme semantics before adding component CSS. A CSS
-exception remains forbidden unless no appropriate theme category represents the
-accepted visual treatment.
+This expanded-state slice does not add feedback focus paint. The separate
+[feedback focus-visible contract](./feedback-focus-visible-contract.md) now
+accepts only a transient native dialog that is itself the browser's focused
+fallback as a component paint owner; static wrappers, sheets, and authored
+descendants remain outside that rule. Existing D5/zebra semantics cover that
+future binding without a CSS exception.

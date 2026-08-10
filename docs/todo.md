@@ -29,9 +29,11 @@ content-interaction, D5 focus, and zebra semantics, with passive
 list/chip/table wrappers excluded. `feedback:expanded` is now implemented
 through opt-in native transient dialog owners and declarative non-modal sheet
 visibility while static output remains compatible; the state matrix therefore
-advances to `feedback:focus-visible`. That next slice still needs an accepted
-focus-paint owner and must not put structural focusability or `:focus-within`
-paint on passive wrappers merely to close the final row.
+advances to `feedback:focus-visible`. Its accepted contract limits component
+paint to a transient native dialog when the browser focuses that owner as its
+fallback; implementation must not put structural focusability,
+`:focus-within`, or descendant-wide paint on passive wrappers merely to close
+the final row.
 
 The cross-layer architecture remains serializer-free: lifecycle loading, graph
 routing, joins, evaluators, CEM-QL, CEMT, and XSLT adapters must exchange
@@ -1038,7 +1040,7 @@ mediate between internal layers.
   - The uncached aggregate component gate passes all 19 dependencies and 49
     tests across five files. The package gate still publishes 24 dist-only files
     with one canonical stylesheet.
-- [ ] Decide the Phase 4 feedback focus owner and lifecycle boundary before
+- [x] Decide the Phase 4 feedback focus owner and lifecycle boundary before
       implementing `feedback:focus-visible`.
   - [x] Reconcile the matrix's “move keyboard focus into a feedback surface”
         wording with shipped output: `cem-dialog` and `cem-dialog-shell` render
@@ -1167,12 +1169,37 @@ mediate between internal layers.
         ran the focused feedback fixture 5/5, all 54 tests across six files, all
         19 dependent primitive/style/workflow/state/forced-colors gates, and the
         27-file package dry run. No CSS, theme token, or exception changed.
-  - [ ] After ownership acceptance, audit D5/zebra and the relevant descendant
-        component token family, then cover keyboard entry/order, modal versus
-        non-modal behavior, disabled skipping, focus restoration, stable
-        geometry/DOM/runtime state, forced colors, exact bindings, docs, and the
-        matrix. Record a CSS exception only if no theme category represents the
-        accepted paint.
+  - [x] Accept the exact native focus owner and audit theme coverage before
+        adding a fixture or component CSS.
+    - Accepted the
+      [`feedback focus-visible contract`](../packages/cem-components/docs/feedback-focus-visible-contract.md):
+      only a transient native dialog that is itself the browser's focused
+      fallback receives component focus paint. Authored descendants retain
+      their own focus styling; static wrappers and the non-modal sheet remain
+      structural and receive no `tabindex`, `:focus-within`, or descendant-wide
+      component rule.
+    - A keyboard-modality Chromium spike proved the boundary with no eligible
+      authored target: the native dialog became `document.activeElement`,
+      matched `:modal` and `:focus-visible`, skipped a disabled autofocus
+      control, and restored the opener on native close without injected
+      focusability.
+    - D5 `--cem-stroke-focus` / `--cem-stroke-indicator-offset` and zebra
+      `--cem-zebra-color-1` fully represent the external normal-mode ring;
+      forced colors use `CanvasText` with `forced-color-adjust: auto`. No D0
+      semantic, raw value, local property, or CSS exception is required.
+- [ ] Implement the accepted `feedback:focus-visible` contract tests-first.
+  - [ ] Add focused Chromium cases for both transient dialog aliases, authored
+        target versus native-owner fallback, disabled skipping, native
+        forward/reverse Tab boundaries, prevented/successful Escape,
+        restoration, sheet descendant ownership, wrapper isolation, stable
+        geometry/DOM/ARIA/state, and absence of focus-driven events or mutation.
+  - [ ] Add only the accepted direct native-dialog `:focus-visible` bindings,
+        extend the exact style verifier, and add a focused forced-colors gate
+        for D5/zebra resolution, `CanvasText`, automatic color adjustment, and
+        sheet/authored-descendant isolation.
+  - [ ] Update component/accessibility docs and the executable matrix, then run
+        focused browser, style, state-matrix, lint, package, and aggregate Nx
+        gates before marking the final Phase 4 state covered.
 
 ## Current Verification Commands
 
