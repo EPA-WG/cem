@@ -77,7 +77,12 @@ try {
             }
         }
         for (const eventName of ['click', 'input', 'change']) {
-            document.addEventListener(eventName, () => window.__navigationMutationEvents.push(eventName));
+            document.addEventListener(eventName, (event) => {
+                if (eventName === 'click' && event.target instanceof HTMLAnchorElement) {
+                    event.preventDefault();
+                }
+                window.__navigationMutationEvents.push(eventName);
+            });
         }
         document.addEventListener('focusin', (event) => {
             if (
@@ -284,8 +289,117 @@ try {
     assert(restoredFocus.items.navCurrent.ariaCurrent === 'page', 'focus changed current navigation state');
     assert(restoredFocus.items.tabSelected.ariaSelected === 'true', 'focus changed selected tab state');
 
+    await page.evaluate(() => {
+        window.__navigationMutationEvents = [];
+    });
+    for (const id of ['nav-default', 'nav-current', 'nav-disclosure', 'nav-content', 'tab-default', 'tab-selected']) {
+        const key = id.replace(/-([a-z])/g, (_, letter) => letter.toUpperCase());
+        const needsForcedPseudoState = ['nav-disclosure', 'tab-default', 'tab-selected'].includes(id);
+        if (id === 'nav-current') {
+            await page.locator('#focus-start').focus();
+            await page.keyboard.press('Tab');
+            await page.keyboard.press('Tab');
+            await page.evaluate(nextFrame);
+        }
+        const before = await page.evaluate(captureNavigationForcedColorState);
+        const mutationCount = before.mutationEvents.length;
+        await hoverOwner(page, id);
+        if (needsForcedPseudoState) {
+            await forcePseudoState(cdp, id, ['hover', 'active']);
+        } else {
+            await page.mouse.down();
+        }
+        await page.evaluate(nextFrame);
+        const active = await page.evaluate(captureNavigationForcedColorState);
+        if (!needsForcedPseudoState) {
+            assert(active.items[key].active, `${id} did not match :active during a trusted pointer hold`);
+        }
+        assert(active.items[key].backgroundColor === active.system.highlight, `${id} active did not map to Highlight`);
+        assert(
+            active.items[key].color === active.system.highlightText,
+            `${id} active text did not map to HighlightText`,
+        );
+        assert(equalRect(active.items[key].rect, before.items[key].rect), `${id} active changed owner geometry`);
+        assert(equalRect(active.hosts[key].rect, before.hosts[key].rect), `${id} active changed host geometry`);
+        assert(active.hosts[key].html === before.hosts[key].html, `${id} active changed host DOM/ARIA`);
+        assert(active.mutationEvents.length === mutationCount, `${id} mutated before pointer release`);
+        assert(
+            active.wrappers[key].backgroundColor === before.wrappers[key].backgroundColor,
+            `${id} active styled a structural wrapper`,
+        );
+        if (id === 'nav-current') {
+            assert(active.items[key].focusVisible, 'active removed :focus-visible from the current navigation link');
+            assert(equalOutline(active.items[key], before.items[key]), 'active changed the navigation focus outline');
+        }
+        if (needsForcedPseudoState) {
+            await forcePseudoState(cdp, id, ['hover']);
+            await page.evaluate(nextFrame);
+            const released = await page.evaluate(captureNavigationForcedColorState);
+            assert(!released.items[key].active, `${id} retained :active after inspection release`);
+            await forcePseudoState(cdp, id, []);
+        } else {
+            await page.mouse.up();
+        }
+        await page.mouse.move(0, 0);
+        await page.evaluate(nextFrame);
+        const restored = await page.evaluate(captureNavigationForcedColorState);
+        assert(!restored.items[key].active, `${id} retained :active after pointer release`);
+        assert(
+            restored.items[key].backgroundColor === before.items[key].backgroundColor,
+            `${id} did not restore its fill after active: ${restored.items[key].backgroundColor} !== ${before.items[key].backgroundColor}`,
+        );
+        assert(restored.items[key].color === before.items[key].color, `${id} did not restore its text after active`);
+        const expectedClicks = needsForcedPseudoState ? 0 : 1;
+        assert(
+            restored.mutationEvents.length === mutationCount + expectedClicks,
+            `${id} release-time click boundary changed`,
+        );
+    }
+
+    for (const id of ['nav-aria-disabled', 'nav-disabled', 'tab-disabled']) {
+        const key = id.replace(/-([a-z])/g, (_, letter) => letter.toUpperCase());
+        const needsForcedPseudoState = ['nav-disabled', 'tab-disabled'].includes(id);
+        const before = await page.evaluate(captureNavigationForcedColorState);
+        const mutationCount = before.mutationEvents.length;
+        await hoverOwner(page, id);
+        if (needsForcedPseudoState) {
+            await forcePseudoState(cdp, id, ['hover', 'active']);
+        } else {
+            await page.mouse.down();
+        }
+        await page.evaluate(nextFrame);
+        const active = await page.evaluate(captureNavigationForcedColorState);
+        assert(active.items[key].backgroundColor === before.items[key].backgroundColor, `${id} acquired active fill`);
+        assert(active.items[key].color === before.items[key].color, `${id} acquired active text`);
+        assert(equalRect(active.items[key].rect, before.items[key].rect), `${id} active changed geometry`);
+        assert(active.mutationEvents.length === mutationCount, `${id} mutated before pointer release`);
+        if (needsForcedPseudoState) {
+            await forcePseudoState(cdp, id, ['hover']);
+            await page.evaluate(nextFrame);
+            await forcePseudoState(cdp, id, []);
+        } else {
+            await page.mouse.up();
+        }
+        await page.mouse.move(0, 0);
+        await page.evaluate(nextFrame);
+        const restored = await page.evaluate(captureNavigationForcedColorState);
+        const expectedClicks = id === 'nav-aria-disabled' ? 1 : 0;
+        assert(
+            restored.mutationEvents.length === mutationCount + expectedClicks,
+            `${id} release-time click boundary changed`,
+        );
+    }
+
+    const finalActiveState = await page.evaluate(captureNavigationForcedColorState);
+    assert(
+        finalActiveState.mutationEvents.every((eventName) => eventName === 'click'),
+        'forced active interaction dispatched a non-click mutation event',
+    );
+    assert(finalActiveState.items.navCurrent.ariaCurrent === 'page', 'active changed current navigation state');
+    assert(finalActiveState.items.tabSelected.ariaSelected === 'true', 'active changed selected tab state');
+
     await context.close();
-    console.log('cem-components navigation hover/focus forced-colors contract verified.');
+    console.log('cem-components navigation hover/focus/active forced-colors contract verified.');
 } finally {
     await browser.close();
 }
@@ -305,6 +419,7 @@ function captureNavigationForcedColorState() {
         const styles = getComputedStyle(element);
         const rect = element.getBoundingClientRect();
         return {
+            active: element.matches(':active'),
             ariaCurrent: element.getAttribute('aria-current'),
             ariaSelected: element.getAttribute('aria-selected'),
             backgroundColor: styles.backgroundColor,

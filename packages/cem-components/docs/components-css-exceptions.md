@@ -117,3 +117,8 @@ color pairs. Component CSS binds only those endpoints in normal modes and uses
 platform system colors in forced colors. Navigation focus-visible likewise
 requires no exception: D5 already owns focus thickness and external offset,
 while the zebra focus category owns the mode-aware ring color.
+
+Navigation active also requires no exception. D0 now owns distinct generated
+`--cem-navigation-item-active-*` and
+`--cem-navigation-item-current-active-*` pairs, normal component CSS binds only
+those endpoints, and forced colors use platform system colors.

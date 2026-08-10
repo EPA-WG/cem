@@ -44,7 +44,10 @@ Focus is an independent paint channel. A current link and selected tab retain
 their current fill/text pair while focused. Pointer hover can replace that
 fill/text pair with the corresponding hover pair without changing the focus
 ring. Leaving hover restores the focused default/current pair; moving focus
-restores the previous owner's unfocused paint.
+restores the previous owner's unfocused paint. Held native activation likewise
+uses the independent fill/text treatment defined by the
+[navigation active contract](./navigation-active-contract.md) without replacing
+the ring.
 
 An authored `aria-disabled="true"` link or enabled button can remain in the
 tab order until the later `navigation:disabled` behavior contract defines and

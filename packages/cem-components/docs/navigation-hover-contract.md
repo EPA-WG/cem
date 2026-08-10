@@ -58,6 +58,8 @@ disabled`. The distinct current-hover pair makes pointer feedback observable
 without discarding current/selected semantics. Focus-visible uses the native
 owner's independent, tokenized outline channel; hover must not replace it. See
 the [navigation focus-visible contract](./navigation-focus-visible-contract.md).
+Held input feedback remains a separate paint layer defined by the
+[navigation active contract](./navigation-active-contract.md).
 
 ARIA-disabled links and tabs are presentation-suppressed by this slice. Their
 activation and tab-stop policy remains the responsibility of the later

@@ -17,9 +17,10 @@
         "input:expanded",
         "navigation:hover",
         "navigation:focus-visible",
-        "navigation:active"
+        "navigation:active",
+        "navigation:disabled"
     ],
-    "recommendedNext": "navigation:active",
+    "recommendedNext": "navigation:disabled",
     "coverage": [
         {
             "id": "action:default",
@@ -343,8 +344,19 @@
             "state": "active",
             "components": ["cem-nav", "cem-tabs"],
             "interaction": "Activate a navigation item while retaining selection and readable contrast.",
-            "status": "gap",
-            "reason": "No trusted pointer or native keyboard hold asserts active paint, current/selected and focus coexistence, release restoration, or disabled suppression."
+            "status": "covered",
+            "owner": "packages/cem-components/src/lib/states.browser.spec.ts",
+            "test": "applies navigation active treatment during trusted pointer and native keyboard activation",
+            "assertions": [
+                "expect(owner.matches(':active')).toBe(true);",
+                "expectPaintedColorToResolveFromToken(active.backgroundColor, owner, tokens.activeBackground);",
+                "expectNavigationStructureAndGeometry(active, hovered);",
+                "expect(clickEvents).toHaveLength(clickCount);",
+                "expect(owner.getAttribute(state.attribute)).toBe(state.value);",
+                "expect(releaseSnapshot.slices.expanded).toBe(false);",
+                "expect(disclosure.getAttribute('aria-expanded')).toBe('false');",
+                "expect(mutationEvents).toEqual([]);"
+            ]
         },
         {
             "id": "navigation:disabled",
@@ -353,7 +365,7 @@
             "components": ["cem-nav", "cem-tabs"],
             "interaction": "Disable a navigation item and remove activation and tab-stop behavior where appropriate.",
             "status": "gap",
-            "reason": "Hover suppression is covered for native and ARIA-disabled owners, but activation and tab-stop behavior are not asserted."
+            "reason": "Hover and active-paint suppression are covered for native and ARIA-disabled owners, but native-versus-ARIA activation and tab-stop policy are not asserted."
         },
         {
             "id": "navigation:selected",

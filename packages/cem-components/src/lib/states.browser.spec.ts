@@ -715,6 +715,373 @@ describe('CEM component primitive states and ARIA behavior', () => {
         expect(() => assertAriaReferenceIntegrity(harness.root)).not.toThrow();
     });
 
+    it('applies navigation active treatment during trusted pointer and native keyboard activation', async () => {
+        harness = createComponentHarness();
+        const root = await harness.render(`
+            <cem-stack class="cem-theme-light" gap="sm">
+                <cem-nav label="Active primary navigation">
+                    <a id="active-nav-default" href="#active-overview">Overview</a>
+                    <a id="active-nav-current" href="#active-current" aria-current="page">Current page</a>
+                    <a id="active-nav-aria-disabled" href="#active-unavailable" aria-disabled="true">
+                        Unavailable link
+                    </a>
+                    <button id="active-nav-disabled" type="button" disabled>Unavailable action</button>
+                </cem-nav>
+                <cem-nav label="Active workspace navigation" collapsible expanded>
+                    <a id="active-nav-content" href="#active-workspace">Workspace</a>
+                </cem-nav>
+                <cem-tabs label="Active profile sections">
+                    <button id="active-tab-default" type="button" role="tab" aria-selected="false">
+                        Overview tab
+                    </button>
+                    <button id="active-tab-selected" type="button" role="tab" aria-selected="true">
+                        Security tab
+                    </button>
+                    <button
+                        id="active-tab-aria-disabled"
+                        type="button"
+                        role="tab"
+                        aria-selected="false"
+                        aria-disabled="true"
+                    >
+                        Billing tab
+                    </button>
+                    <button
+                        id="active-tab-disabled"
+                        type="button"
+                        role="tab"
+                        aria-selected="false"
+                        disabled
+                    >
+                        Disabled tab
+                    </button>
+                </cem-tabs>
+            </cem-stack>
+        `);
+        await waitForStateSelector(root, '#active-tab-disabled:disabled');
+
+        const primaryHost = harness.query<HTMLElement>('cem-nav[label="Active primary navigation"]');
+        const primaryWrapper = harness.query<HTMLElement>('cem-nav[label="Active primary navigation"] > nav');
+        const disclosureHost = harness.query<HTMLElement>('cem-nav[label="Active workspace navigation"]');
+        const disclosureWrapper = harness.query<HTMLElement>('cem-nav[label="Active workspace navigation"] > nav');
+        const tabsHost = harness.query<HTMLElement>('cem-tabs[label="Active profile sections"]');
+        const tabsWrapper = harness.query<HTMLElement>(
+            'cem-tabs[label="Active profile sections"] > [role="tablist"]',
+        );
+        const activeTokens = {
+            activeBackground: '--cem-navigation-item-active-background',
+            activeText: '--cem-navigation-item-active-text',
+            defaultBackground: '--cem-navigation-item-default-background',
+            defaultText: '--cem-navigation-item-default-text',
+            hoverBackground: '--cem-navigation-item-hover-background',
+            hoverText: '--cem-navigation-item-hover-text',
+        } as const;
+        const currentActiveTokens = {
+            activeBackground: '--cem-navigation-item-current-active-background',
+            activeText: '--cem-navigation-item-current-active-text',
+            defaultBackground: '--cem-navigation-item-current-background',
+            defaultText: '--cem-navigation-item-current-text',
+            hoverBackground: '--cem-navigation-item-current-hover-background',
+            hoverText: '--cem-navigation-item-current-hover-text',
+        } as const;
+        const disclosure = harness.query<HTMLButtonElement>(
+            'cem-nav[label="Active workspace navigation"] > nav > .cem-nav__disclosure',
+        );
+        const activeCases = [
+            {
+                host: primaryHost,
+                owner: harness.query<HTMLAnchorElement>('#active-nav-default'),
+                state: null,
+                tokens: activeTokens,
+                wrapper: primaryWrapper,
+            },
+            {
+                host: primaryHost,
+                owner: harness.query<HTMLAnchorElement>('#active-nav-current'),
+                state: { attribute: 'aria-current', value: 'page' },
+                tokens: currentActiveTokens,
+                wrapper: primaryWrapper,
+            },
+            {
+                host: disclosureHost,
+                owner: harness.query<HTMLAnchorElement>('#active-nav-content'),
+                state: null,
+                tokens: activeTokens,
+                wrapper: disclosureWrapper,
+            },
+            {
+                host: tabsHost,
+                owner: harness.query<HTMLButtonElement>('#active-tab-default'),
+                state: { attribute: 'aria-selected', value: 'false' },
+                tokens: activeTokens,
+                wrapper: tabsWrapper,
+            },
+            {
+                host: tabsHost,
+                owner: harness.query<HTMLButtonElement>('#active-tab-selected'),
+                state: { attribute: 'aria-selected', value: 'true' },
+                tokens: currentActiveTokens,
+                wrapper: tabsWrapper,
+            },
+            {
+                host: disclosureHost,
+                owner: disclosure,
+                state: { attribute: 'aria-expanded', value: 'true' },
+                tokens: activeTokens,
+                wrapper: disclosureWrapper,
+            },
+        ] as const;
+        const disabledCases = [
+            {
+                host: primaryHost,
+                owner: harness.query<HTMLAnchorElement>('#active-nav-aria-disabled'),
+                wrapper: primaryWrapper,
+            },
+            {
+                host: primaryHost,
+                owner: harness.query<HTMLButtonElement>('#active-nav-disabled'),
+                wrapper: primaryWrapper,
+            },
+            {
+                host: tabsHost,
+                owner: harness.query<HTMLButtonElement>('#active-tab-aria-disabled'),
+                wrapper: tabsWrapper,
+            },
+            {
+                host: tabsHost,
+                owner: harness.query<HTMLButtonElement>('#active-tab-disabled'),
+                wrapper: tabsWrapper,
+            },
+        ] as const;
+        const clickEvents: string[] = [];
+        const mutationEvents: string[] = [];
+        harness.root.addEventListener('click', (event) => {
+            const target = event.target;
+            if (target instanceof HTMLAnchorElement) {
+                event.preventDefault();
+            }
+            if (target instanceof HTMLElement) {
+                clickEvents.push(`${target.id || target.className}:${event.isTrusted}`);
+            }
+        });
+        for (const eventName of ['input', 'change', 'cem-loaded', 'cem-error', 'cem-cancel']) {
+            harness.root.addEventListener(eventName, () => mutationEvents.push(eventName));
+        }
+
+        assertStateHostsRendered(harness.root, 'cem-nav, cem-tabs');
+        for (const navigationCase of activeCases) {
+            const { host, owner, state, tokens, wrapper } = navigationCase;
+            await assertFocusVisible(owner);
+            await userEvent.hover(owner);
+            await nextRenderFrame();
+
+            const hovered = captureNavigationState(runtime, host, wrapper, owner);
+            const clickCount = clickEvents.length;
+            expect(hovered.backgroundColor).toBe(resolveTokenColor(owner, tokens.hoverBackground));
+            expect(hovered.color).toBe(resolveTokenColor(owner, tokens.hoverText));
+            expect(hovered.forcedColorAdjust).toBe('auto');
+
+            const pointerDown = nextTrustedPointerDown(owner);
+            const click = userEvent.click(owner, { delay: 200 });
+            const downEvent = await eventBeforeInteractionCompletes(pointerDown, click, 'navigation pointerdown');
+            expect(downEvent.isTrusted).toBe(true);
+            await waitForPseudoClass(owner, ':active');
+            await nextRenderFrame();
+
+            const active = captureNavigationState(runtime, host, wrapper, owner);
+            expect(owner.matches(':active')).toBe(true);
+            expectPaintedColorToResolveFromToken(active.backgroundColor, owner, tokens.activeBackground);
+            expectPaintedColorToResolveFromToken(active.color, owner, tokens.activeText);
+            expect(active.backgroundColor).not.toBe(hovered.backgroundColor);
+            expect(contrastRatio(active.backgroundColor, active.color)).toBeGreaterThanOrEqual(4.5);
+            expectNavigationStructureAndGeometry(active, hovered);
+            expect(active.focusTreatment).toEqual(hovered.focusTreatment);
+            expect(active.forcedColorAdjust).toBe('auto');
+            expect(document.activeElement).toBe(owner);
+            expect(clickEvents).toHaveLength(clickCount);
+            if (state) {
+                expect(owner.getAttribute(state.attribute)).toBe(state.value);
+            }
+
+            await click;
+            await runtime.whenRenderSettled(host);
+            await nextRenderFrame();
+            const released = captureNavigationState(runtime, host, wrapper, owner);
+            expect(owner.matches(':active')).toBe(false);
+            expect(released.backgroundColor).toBe(resolveTokenColor(owner, tokens.hoverBackground));
+            expect(released.color).toBe(resolveTokenColor(owner, tokens.hoverText));
+            expect(released.focusTreatment).toEqual(hovered.focusTreatment);
+            expect(released.forcedColorAdjust).toBe('auto');
+            expect(document.activeElement).toBe(owner);
+            expect(clickEvents).toHaveLength(clickCount + 1);
+            expect(clickEvents.at(-1)).toBe(`${owner.id || owner.className}:true`);
+
+            if (owner === disclosure) {
+                expect(
+                    harness.query<HTMLButtonElement>(
+                        'cem-nav[label="Active workspace navigation"] > nav > .cem-nav__disclosure',
+                    ),
+                ).toBe(disclosure);
+                expect(owner.getAttribute('aria-expanded')).toBe('false');
+                expect(harness.query<HTMLDivElement>('#active-nav-content').parentElement?.hidden).toBe(true);
+                const releaseSnapshot = runtime.snapshotInstance(host);
+                expect(releaseSnapshot.slices.expanded).toBe(false);
+                expect(eventPayload(releaseSnapshot, 'expanded')).toMatchObject({
+                    sliceValue: false,
+                    type: 'click',
+                });
+            } else {
+                expectNavigationStructureAndGeometry(released, hovered);
+                if (state) {
+                    expect(owner.getAttribute(state.attribute)).toBe(state.value);
+                }
+            }
+
+            await userEvent.unhover(owner);
+            await nextRenderFrame();
+            const restored = captureNavigationState(runtime, host, wrapper, owner);
+            expect(restored.backgroundColor).toBe(resolveTokenColor(owner, tokens.defaultBackground));
+            expect(restored.color).toBe(resolveTokenColor(owner, tokens.defaultText));
+            expect(restored.focusTreatment).toEqual(released.focusTreatment);
+            expect(restored.forcedColorAdjust).toBe('auto');
+        }
+
+        for (const disabledCase of disabledCases) {
+            const { host, owner, wrapper } = disabledCase;
+            const baseline = captureNavigationState(runtime, host, wrapper, owner);
+            const clickCount = clickEvents.length;
+            expect(baseline.backgroundColor).toBe(
+                resolveTokenColor(owner, '--cem-navigation-item-disabled-background'),
+            );
+            expect(baseline.color).toBe(resolveTokenColor(owner, '--cem-navigation-item-disabled-text'));
+
+            const pointerDown = nextTrustedPointerDown(owner);
+            const click = userEvent.click(owner, { delay: 200, force: true });
+            const downEvent = await eventBeforeInteractionCompletes(
+                pointerDown,
+                click,
+                'disabled navigation pointerdown',
+            );
+            expect(downEvent.isTrusted).toBe(true);
+            await nextRenderFrame();
+
+            const held = captureNavigationState(runtime, host, wrapper, owner);
+            expect(held.backgroundColor).toBe(baseline.backgroundColor);
+            expect(held.color).toBe(baseline.color);
+            expect(held.backgroundColor).not.toBe(
+                resolveTokenColor(owner, '--cem-navigation-item-active-background'),
+            );
+            expectNavigationStructureAndGeometry(held, baseline);
+            expect(clickEvents).toHaveLength(clickCount);
+
+            await click;
+            await nextRenderFrame();
+            const expectedClicks = owner.getAttribute('aria-disabled') === 'true' ? 1 : 0;
+            expect(clickEvents).toHaveLength(clickCount + expectedClicks);
+            const restored = captureNavigationState(runtime, host, wrapper, owner);
+            expect(restored.backgroundColor).toBe(baseline.backgroundColor);
+            expect(restored.color).toBe(baseline.color);
+            expectNavigationStructureAndGeometry(restored, baseline);
+            await userEvent.unhover(owner);
+        }
+
+        const defaultLink = activeCases[0].owner;
+        const currentLink = activeCases[1].owner;
+        const selectedTab = activeCases[4].owner;
+        await userEvent.unhover(defaultLink);
+        await userEvent.keyboard('{Tab}');
+        await assertFocusVisible(defaultLink);
+        let keyboardClickCount = clickEvents.length;
+        await userEvent.keyboard('{Enter}');
+        await nextRenderFrame();
+        expect(clickEvents).toHaveLength(keyboardClickCount + 1);
+        expect(defaultLink.matches(':active')).toBe(false);
+        expect(document.activeElement).toBe(defaultLink);
+
+        await assertFocusVisible(selectedTab);
+        keyboardClickCount = clickEvents.length;
+        await userEvent.keyboard('{Enter}');
+        await nextRenderFrame();
+        expect(clickEvents).toHaveLength(keyboardClickCount + 1);
+        expect(selectedTab.getAttribute('aria-selected')).toBe('true');
+        expect(document.activeElement).toBe(selectedTab);
+
+        await assertFocusVisible(currentLink);
+        keyboardClickCount = clickEvents.length;
+        await userEvent.keyboard(' ');
+        await nextRenderFrame();
+        expect(clickEvents).toHaveLength(keyboardClickCount);
+        expect(currentLink.getAttribute('aria-current')).toBe('page');
+
+        await assertFocusVisible(selectedTab);
+        const selectedKeyboardBaseline = captureNavigationState(runtime, tabsHost, tabsWrapper, selectedTab);
+        keyboardClickCount = clickEvents.length;
+        await userEvent.keyboard('[Space>]');
+        await waitForPseudoClass(selectedTab, ':active');
+        await nextRenderFrame();
+        const selectedKeyboardActive = captureNavigationState(runtime, tabsHost, tabsWrapper, selectedTab);
+        expectPaintedColorToResolveFromToken(
+            selectedKeyboardActive.backgroundColor,
+            selectedTab,
+            '--cem-navigation-item-current-active-background',
+        );
+        expectPaintedColorToResolveFromToken(
+            selectedKeyboardActive.color,
+            selectedTab,
+            '--cem-navigation-item-current-active-text',
+        );
+        expect(selectedKeyboardActive.focusTreatment).toEqual(selectedKeyboardBaseline.focusTreatment);
+        expectNavigationStructureAndGeometry(selectedKeyboardActive, selectedKeyboardBaseline);
+        expect(clickEvents).toHaveLength(keyboardClickCount);
+        await userEvent.keyboard('[/Space]');
+        await nextRenderFrame();
+        expect(clickEvents).toHaveLength(keyboardClickCount + 1);
+        expect(selectedTab.getAttribute('aria-selected')).toBe('true');
+
+        await assertFocusVisible(disclosure);
+        const disclosureKeyboardBaseline = captureNavigationState(
+            runtime,
+            disclosureHost,
+            disclosureWrapper,
+            disclosure,
+        );
+        keyboardClickCount = clickEvents.length;
+        expect(disclosure.getAttribute('aria-expanded')).toBe('false');
+        await userEvent.keyboard('[Space>]');
+        await waitForPseudoClass(disclosure, ':active');
+        await nextRenderFrame();
+        const disclosureKeyboardActive = captureNavigationState(
+            runtime,
+            disclosureHost,
+            disclosureWrapper,
+            disclosure,
+        );
+        expectPaintedColorToResolveFromToken(
+            disclosureKeyboardActive.backgroundColor,
+            disclosure,
+            '--cem-navigation-item-active-background',
+        );
+        expectPaintedColorToResolveFromToken(
+            disclosureKeyboardActive.color,
+            disclosure,
+            '--cem-navigation-item-active-text',
+        );
+        expectNavigationStructureAndGeometry(disclosureKeyboardActive, disclosureKeyboardBaseline);
+        expect(clickEvents).toHaveLength(keyboardClickCount);
+        expect(disclosure.getAttribute('aria-expanded')).toBe('false');
+        await userEvent.keyboard('[/Space]');
+        await runtime.whenRenderSettled(disclosureHost);
+        await nextRenderFrame();
+        expect(clickEvents).toHaveLength(keyboardClickCount + 1);
+        expect(disclosure.getAttribute('aria-expanded')).toBe('true');
+        expect(harness.query<HTMLDivElement>('#active-nav-content').parentElement?.hidden).toBe(false);
+        expect(runtime.snapshotInstance(disclosureHost).slices.expanded).toBe(true);
+        expect(document.activeElement).toBe(disclosure);
+
+        expect(mutationEvents).toEqual([]);
+        expect(() => assertAriaReferenceIntegrity(harness.root)).not.toThrow();
+    });
+
     it('applies shared native active treatment during pointer and keyboard activation', async () => {
         harness = createComponentHarness();
         const root = await harness.render(`
@@ -2881,6 +3248,7 @@ interface NavigationStateSnapshot {
     backgroundColor: string;
     color: string;
     focusTreatment: readonly string[];
+    forcedColorAdjust: string;
     hostAttributes: readonly string[];
     hostRect: readonly number[];
     ownerHtml: string;
@@ -2912,6 +3280,7 @@ function captureNavigationState(
             ownerStyles.outlineOffset,
             ownerStyles.boxShadow,
         ],
+        forcedColorAdjust: ownerStyles.forcedColorAdjust,
         hostAttributes: Array.from(host.attributes, ({ name, value }) => `${name}=${value}`),
         hostRect: rectTuple(host),
         ownerHtml: owner.outerHTML,
@@ -3003,7 +3372,7 @@ function expectActionStructureAndGeometryAfterActivation(
     expect(actual.hostRect).toEqual(expected.hostRect);
 }
 
-function nextTrustedPointerDown(button: HTMLButtonElement): Promise<PointerEvent> {
+function nextTrustedPointerDown(button: HTMLElement): Promise<PointerEvent> {
     return new Promise((resolve, reject) => {
         const timeout = window.setTimeout(() => {
             button.removeEventListener('pointerdown', onPointerDown);

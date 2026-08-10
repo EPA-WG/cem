@@ -34,7 +34,7 @@ The aggregate gate includes:
 | Primitive manifest | `yarn nx run @epa-wg/cem-components:verify-primitives` | `CEM_COMPONENT_PRIMITIVES` exactly matches `docs/component-mvp.md`, uses CEM-ML declarations, and does not depend on legacy `<custom-element>` wrappers. |
 | Token-only style contract | `yarn nx run @epa-wg/cem-components:verify-style-contract` | Depends on current theme tokens and the verified public theme stylesheet export; checks exact action bindings and component selector scope, and rejects inline styles, unknown/non-CEM variables, and raw component color or spacing literals. |
 | Input indicator forced colors | `yarn nx run @epa-wg/cem-components:verify-input-indicator-forced-colors` | Launches Chromium with forced colors active; proves component shadows collapse, field/binary hover uses `Highlight`, and keyboard focus traverses all seven input owners with full `CanvasText` outlines. |
-| Navigation hover/focus forced colors | `yarn nx run @epa-wg/cem-components:verify-navigation-hover-forced-colors` | Launches Chromium with forced colors active; proves system hover/current/disabled colors and full navigation keyboard traversal with `CanvasText` focus rings, native-disabled skipping, restoration, and wrapper/state isolation. |
+| Navigation hover/focus/active forced colors | `yarn nx run @epa-wg/cem-components:verify-navigation-hover-forced-colors` | Launches Chromium with forced colors active; proves system hover/current/active/disabled colors, full keyboard traversal, focus coexistence, native-disabled skipping, restoration, and wrapper/state isolation. |
 | Stylesheet publication | `yarn nx run @epa-wg/cem-components:verify-package` | Builds the canonical component stylesheet byte-for-byte into `dist`, verifies the side-effect-free `./styles.css` export, and checks the dry-run npm file inventory. |
 | Browser and unit behavior | `yarn nx run @epa-wg/cem-components:test` | Runs the Node smoke test plus Chromium-backed harness, primitive, state/ARIA, and workflow specs. |
 
@@ -155,9 +155,12 @@ structural wrappers. Generated navigation-item pairs preserve
 current-link/selected-tab meaning and suppress enabled hover styling for native
 or ARIA-disabled owners. Existing D5 stroke/offset and zebra color semantics
 provide an external focus ring that coexists with hover and selection without
-changing geometry. Forced colors use platform system colors. See the
+changing geometry. Navigation active/current-active pairs provide native held
+feedback; disclosure release remains owned by its expanded contract. Forced
+colors use platform system colors. See the
 [navigation hover contract](./navigation-hover-contract.md) and
-[navigation focus-visible contract](./navigation-focus-visible-contract.md).
+[navigation focus-visible contract](./navigation-focus-visible-contract.md),
+plus the [navigation active contract](./navigation-active-contract.md).
 
 ## Content
 

@@ -20,10 +20,10 @@ exception. Dedicated keyboard and forced-colors coverage completes
 `input:loading` across all seven owners. The custom form-associated `cem-select`
 now completes `input:expanded` with CEM-QL-owned rich option projection,
 canonical `cem-option` authoring, native-option migration input, and
-theme-tokenized popup/listbox states. Navigation hover and keyboard focus now
-style only the real nav links/buttons and tab buttons through generated
-navigation-item, D5 focus, and zebra semantics; the state-matrix audit
-recommends `navigation:active` next.
+theme-tokenized popup/listbox states. Navigation hover, keyboard focus, and
+held active paint now style only the real nav links/buttons and tab buttons
+through generated navigation-item, D5 focus, and zebra semantics; the
+state-matrix audit recommends `navigation:disabled` next.
 
 The cross-layer architecture remains serializer-free: lifecycle loading, graph
 routing, joins, evaluators, CEM-QL, CEMT, and XSLT adapters must exchange
@@ -859,24 +859,62 @@ mediate between internal layers.
   - The uncached aggregate component gate passes all 18 dependencies and 45
     tests across five files. The exact style gate continues to verify 34
     primitives and 406 generated visual tokens.
-- [ ] Implement the Phase 4 `navigation:active` contract on the actual nav-item
+- [x] Implement the Phase 4 `navigation:active` contract on the actual nav-item
       and tab owners after resolving the disclosure activation boundary.
-  - [ ] Decide scope before CSS: the disclosure button shares navigation paint
+  - [x] Decide scope before CSS: the disclosure button shares navigation paint
         ownership, but release legitimately mutates `expanded`. Choose whether
         this contract owns only its held `:active` paint and delegates release
         to `navigation:expanded`, or owns the full disclosure transition.
-  - [ ] Audit D0 navigation-item and action active endpoints before CSS. Adopt
+    - Accepted the held-paint boundary: `navigation:active` owns the transient
+      native pseudo-class and asserts no pre-release mutation. On release it
+      verifies only the already-authorized toggle, while
+      `navigation:expanded` remains the canonical transition owner.
+  - [x] Audit D0 navigation-item and action active endpoints before CSS. Adopt
         navigation-specific active/current-active semantics if action-intent
         tokens cannot preserve navigation and current/selected meaning.
-  - [ ] Add trusted pointer hold/release coverage and native keyboard activation
+  - [x] Add trusted pointer hold/release coverage and native keyboard activation
         coverage: Enter for links/buttons and Space for buttons only.
-  - [ ] Prove current/selected and focus-visible coexistence, disabled
+  - [x] Prove current/selected and focus-visible coexistence, disabled
         suppression, readable contrast, release restoration, stable geometry,
         no pre-release mutation, and only the explicitly accepted click/state
         transition after release.
-  - [ ] Define forced-colors active paint on the real owners and update the
+  - [x] Define forced-colors active paint on the real owners and update the
         exact style contract, state matrix, docs, and aggregate Nx gate without
         opening an exception unless theme review proves one unavoidable.
+  - D0 now exposes distinct navigation active and current-active background/text
+    endpoints. They resolve through generated theme artifacts (183 color tokens,
+    448/448 required coverage, and 410 visual tokens), so the component layer
+    needs no local value and the CSS exception queue remains empty.
+  - The focused state suite passes 19/19. Trusted pointer holds and native
+    keyboard activation cover direct nav links, disclosure content, tabs, and
+    the disclosure button; active paint coexists with focus and current/selected
+    state without geometry, DOM, ARIA, or pre-release runtime mutation.
+    Disclosure release performs only its accepted expanded toggle, owned by the
+    later `navigation:expanded` contract.
+  - The forced-colors gate verifies active system paint, disabled suppression,
+    wrapper isolation, stable geometry, and release restoration. The state
+    matrix now reports 34 covered, 0 static-only, and 5 gaps with
+    `navigation:disabled` recommended next.
+  - The uncached aggregate component gate passes all 18 dependencies and 46
+    tests across five files. The exact style gate verifies 34 primitives and
+    410 generated visual tokens.
+- [ ] Decide and implement the Phase 4 `navigation:disabled` behavior for
+      `cem-nav` and `cem-tabs` before changing runtime activation.
+  - [ ] Resolve the owner/API policy first: native-disabled buttons already
+        suppress focus and activation, while ARIA-disabled links and buttons
+        remain focusable and actionable unless component behavior intervenes.
+        Decide whether CEM keeps ARIA-disabled owners discoverable in tab order,
+        requires authored `tabindex="-1"`, or normalizes to native `disabled`
+        where that attribute is valid.
+  - [ ] Define who suppresses activation on projected authored descendants:
+        component event delegation or a documented author responsibility. Stop
+        before adding behavior if that ownership has not been accepted.
+  - [ ] Add trusted pointer, click, Enter, Space, and Tab coverage for the chosen
+        policy, including current/selected coexistence, focus-visible behavior,
+        form neutrality, stable state/geometry, and exact event suppression.
+  - [ ] Recheck existing disabled theme and forced-colors paint, then update the
+        state matrix, component docs, and uncached aggregate Nx gate. Add a CSS
+        exception only if no theme category can represent required paint.
 
 ## Current Verification Commands
 

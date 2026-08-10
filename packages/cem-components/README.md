@@ -63,7 +63,9 @@ owners rather than their nav/content/tablist wrappers, preserves current and
 selected semantics, and suppresses enabled treatment for disabled owners.
 Keyboard focus uses the existing D5 focus width/offset and zebra focus color on
 the same native owners without changing geometry or replacing hover/current
-paint.
+paint. Held native activation uses distinct navigation active/current-active
+pairs; the disclosure delegates its release-time toggle to the existing
+expanded contract.
 
 ## Build & Verify
 
@@ -104,7 +106,7 @@ JavaScript boundary, and exact dry-run npm inclusion of one `dist/styles.css`.
 | State-matrix audit gate | `tools/scripts/verify-cem-components-state-matrix.mjs` |
 | Token-only style gate | `tools/scripts/verify-cem-components-styles.mjs` |
 | Input indicator forced-colors gate | `scripts/verify-input-indicator-forced-colors.mjs` |
-| Navigation hover/focus forced-colors gate | `scripts/verify-navigation-hover-forced-colors.mjs` |
+| Navigation hover/focus/active forced-colors gate | `scripts/verify-navigation-hover-forced-colors.mjs` |
 | Package publication gate | `scripts/verify-package.mjs` |
 | Stylesheet copy | `scripts/copy-styles.mjs` |
 | Primitive browser coverage | `src/lib/primitives.browser.spec.ts` |
@@ -165,6 +167,8 @@ Known deferrals stay outside this trigger:
   coexistence, disabled suppression, forced-colors mapping, and executable acceptance criteria.
 - [Navigation focus-visible contract](./docs/navigation-focus-visible-contract.md) — keyboard order, native-disabled
   skipping, tokenized external rings, state coexistence, restoration, and forced-colors mapping.
+- [Navigation active contract](./docs/navigation-active-contract.md) — trusted pointer and native keyboard holds,
+  current/selected coexistence, disclosure release ownership, disabled suppression, and forced-colors mapping.
 - [Stylesheet publication contract](./docs/stylesheet-publication-contract.md) — single-source CSS build, package
   export, cache, release, and npm-pack boundary.
 - [Component CSS exceptions](./docs/components-css-exceptions.md) — token-first review queue for proposed values that
