@@ -56,10 +56,13 @@ for (const id of priority) {
     }
 }
 const expectedNext = priority.find((id) => recordsById.get(id)?.status !== 'covered');
-if (!expectedNext) {
+const uncoveredRecords = records.filter((record) => record.status !== 'covered');
+if (!expectedNext && uncoveredRecords.length > 0) {
     fail('priority must contain at least one uncovered state requirement');
-} else if (inventory.recommendedNext !== expectedNext) {
+} else if (expectedNext && inventory.recommendedNext !== expectedNext) {
     fail(`recommendedNext must be the first uncovered priority row (${expectedNext})`);
+} else if (!expectedNext && inventory.recommendedNext !== null) {
+    fail('recommendedNext must be null when every state requirement is covered');
 }
 
 if (failures.length > 0) {
@@ -92,7 +95,8 @@ for (const record of records.filter((entry) => entry.status !== 'covered')) {
 }
 console.log(
     `cem-components state matrix verified (${summary.total} requirements: ${summary.covered} browser-covered, ` +
-        `${summary.staticOnly} static-only, ${summary.gaps} gaps; next: ${inventory.recommendedNext}).`,
+        `${summary.staticOnly} static-only, ${summary.gaps} gaps; ` +
+        `next: ${inventory.recommendedNext ?? 'none (matrix complete)'}).`,
 );
 
 function validateRecord(record, index) {
@@ -339,7 +343,9 @@ function renderMarkdownReport(report) {
         `Summary: ${report.summary.covered} browser-covered, ${report.summary.staticOnly} static-only, ` +
             `${report.summary.gaps} gaps across ${report.summary.total} requirements.`,
         '',
-        `Recommended next requirement: \`${report.recommendedNext}\`.`,
+        report.recommendedNext
+            ? `Recommended next requirement: \`${report.recommendedNext}\`.`
+            : 'Recommended next requirement: none; every required state is browser-covered.',
         '',
         '| Requirement | Components | Interaction / transition | Status | Executable owner |',
         '| --- | --- | --- | --- | --- |',

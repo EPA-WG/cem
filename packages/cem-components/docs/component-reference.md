@@ -32,10 +32,11 @@ The aggregate gate includes:
 | Gate | Command | Coverage |
 | --- | --- | --- |
 | Primitive manifest | `yarn nx run @epa-wg/cem-components:verify-primitives` | `CEM_COMPONENT_PRIMITIVES` exactly matches `docs/component-mvp.md`, uses CEM-ML declarations, and does not depend on legacy `<custom-element>` wrappers. |
-| Token-only style contract | `yarn nx run @epa-wg/cem-components:verify-style-contract` | Depends on current theme tokens and the verified public theme stylesheet export; checks exact action bindings and component selector scope, and rejects inline styles, unknown/non-CEM variables, and raw component color or spacing literals. |
+| Token-only style contract | `yarn nx run @epa-wg/cem-components:verify-style-contract` | Depends on current theme tokens and the verified public theme stylesheet export; checks exact action, content-interaction, navigation, and feedback bindings plus component selector scope, and rejects inline styles, unknown/non-CEM variables, and raw component color or spacing literals. |
 | Input indicator forced colors | `yarn nx run @epa-wg/cem-components:verify-input-indicator-forced-colors` | Launches Chromium with forced colors active; proves component shadows collapse, field/binary hover uses `Highlight`, and keyboard focus traverses all seven input owners with full `CanvasText` outlines. |
 | Navigation hover/focus/active/disabled forced colors | `yarn nx run @epa-wg/cem-components:verify-navigation-hover-forced-colors` | Launches Chromium with forced colors active; proves system hover/current/active/disabled colors, ARIA-disabled current/selected precedence, full keyboard traversal, focus coexistence, native-disabled skipping, restoration, and wrapper/state isolation. |
 | Content hover/focus forced colors | `yarn nx run @epa-wg/cem-components:verify-content-hover-forced-colors` | Launches Chromium with forced colors active; proves exact content-owner keyboard order and `CanvasText` rings alongside checkable-chip system fills, native-listbox hover boundary color, selected/checked coexistence, disabled skipping, restoration, and passive wrapper isolation. |
+| Feedback focus forced colors | `yarn nx run @epa-wg/cem-components:verify-feedback-focus-forced-colors` | Launches Chromium with forced colors active; proves both transient native-dialog fallback owners retain the D5 width/offset with `CanvasText` and automatic color adjustment while static wrappers, hosts, sheets, and authored descendants remain outside component focus paint. |
 | Stylesheet publication | `yarn nx run @epa-wg/cem-components:verify-package` | Builds the canonical component stylesheet byte-for-byte into `dist`, verifies the side-effect-free `./styles.css` export, and checks the dry-run npm file inventory. |
 | Browser and unit behavior | `yarn nx run @epa-wg/cem-components:test` | Runs the Node smoke test plus Chromium-backed harness, primitive, state/ARIA, and workflow specs. |
 
@@ -46,12 +47,14 @@ Executable fixture locations:
 | Primitive declarations | `../src/lib/primitives.ts` |
 | Primitive family coverage | `../src/lib/primitives.browser.spec.ts` |
 | State, ARIA, focus, and event payload coverage | `../src/lib/states.browser.spec.ts` |
+| Feedback lifecycle and focus coverage | `../src/lib/feedback-expanded.browser.spec.ts` |
 | Workflow fixture coverage | `../src/lib/workflows.browser.spec.ts` |
 | Declarative workflow fixtures | `../tests/workflows/` |
+| Declarative feedback fixture | `../tests/feedback/expanded.html` |
 | Component harness helpers | `../src/lib/testing/component-harness.ts` |
 | Style and manifest verifier scripts | `../../../tools/scripts/verify-cem-components-*.mjs` |
 | Package stylesheet source | `../src/styles.css` |
-| Package publication and forced-colors scripts | `../scripts/copy-styles.mjs`, `../scripts/verify-package.mjs`, `../scripts/verify-input-indicator-forced-colors.mjs`, `../scripts/verify-navigation-hover-forced-colors.mjs`, `../scripts/verify-content-hover-forced-colors.mjs` |
+| Package publication and forced-colors scripts | `../scripts/copy-styles.mjs`, `../scripts/verify-package.mjs`, `../scripts/verify-input-indicator-forced-colors.mjs`, `../scripts/verify-navigation-hover-forced-colors.mjs`, `../scripts/verify-content-hover-forced-colors.mjs`, `../scripts/verify-feedback-focus-forced-colors.mjs` |
 
 Handoff condition: Phase 4 component expansion can build on this primitive package after the aggregate verify gate is
 green and the promoted branch has no uncommitted gate changes. The handoff covers the MVP primitive declaration set,
@@ -203,8 +206,12 @@ during refresh or provide visible loading text plus layout-preserving
 States: `default`, `focus-visible`, `loading`, `expanded`, `invalid`.
 
 The transient feedback lifecycle is defined by the
-[feedback expanded contract](./feedback-expanded-contract.md). It does not add
-focus paint to a structural surface. The separate
+[feedback expanded contract](./feedback-expanded-contract.md). The separate
 [feedback focus-visible contract](./feedback-focus-visible-contract.md) accepts
-only a transient native dialog when it is itself the browser's focused fallback;
-authored descendants and sheets retain their existing focus ownership.
+only a transient native dialog when it is itself the browser's focused fallback.
+That owner receives the external D5 width/offset and zebra-color outline; forced
+colors retain its dimensions with `CanvasText` and automatic color adjustment.
+Eligible authored descendants retain their own focus styling. Static dialog
+wrappers, feedback hosts, and sheets receive no `tabindex`, `:focus-within`, or
+component focus paint, and focus never changes their geometry, DOM, ARIA, or
+lifecycle state.

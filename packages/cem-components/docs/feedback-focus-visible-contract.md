@@ -1,10 +1,9 @@
 # Feedback Focus-Visible Contract
 
-**Status:** Accepted Phase 4 implementation contract with the focused Chromium
-fixture, direct-owner component bindings, exact-selector style guard, and
-forced-colors gate landed and passing. Component/accessibility documentation,
-matrix promotion, and final aggregate verification remain tracked by
-[`docs/todo.md`](../../../docs/todo.md).
+**Status:** Implemented and verified. The focused Chromium fixture,
+direct-owner component bindings, exact-selector style guard, forced-colors
+gate, public documentation, and executable state-matrix coverage are complete.
+The completion record is maintained in [`docs/todo.md`](../../../docs/todo.md).
 
 ## Scope
 
@@ -137,6 +136,5 @@ ordinary tests prove authored-descendant versus native-fallback ownership and
 the full lifecycle boundary above. The paint case now passes normally with the
 required tokenized `3px solid` outline at `2px` and zebra focus color. The
 dedicated `verify-feedback-focus-forced-colors` Nx gate proves the corresponding
-`CanvasText` treatment and isolation requirements for both aliases; matrix
-promotion remains intentionally pending until the final documentation and
-aggregate-verification slice.
+`CanvasText` treatment and isolation requirements for both aliases. The
+executable matrix records this final Phase 4 row as browser-covered.

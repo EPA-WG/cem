@@ -24,7 +24,7 @@
         "feedback:expanded",
         "feedback:focus-visible"
     ],
-    "recommendedNext": "feedback:focus-visible",
+    "recommendedNext": null,
     "coverage": [
         {
             "id": "action:default",
@@ -613,8 +613,18 @@
             "state": "focus-visible",
             "components": ["cem-dialog", "cem-dialog-shell", "cem-sheet"],
             "interaction": "Move keyboard focus into a feedback surface and retain a visible focus indicator.",
-            "status": "gap",
-            "reason": "Focused Chromium coverage now proves the accepted native dialog fallback, authored-descendant, and focus-neutral sheet ownership/lifecycle boundaries, with one expected failure at the missing D5/zebra dialog outline. Component CSS, forced-colors, exact-selector, and promoted passing evidence have not landed yet."
+            "status": "covered",
+            "owner": "packages/cem-components/src/lib/feedback-expanded.browser.spec.ts",
+            "test": "keeps focus-visible ownership on native dialog fallbacks and authored descendants",
+            "assertions": [
+                "expect(authoredTarget.matches(':focus-visible')).toBe(true);",
+                "expect(dialog.matches(':focus-visible')).toBe(false);",
+                "expect(sheetTarget.matches(':focus-visible')).toBe(true);",
+                "expect(sheet.matches(':focus-visible')).toBe(false);",
+                "expect(sheetHost.matches(':focus-visible')).toBe(false);",
+                "expect(rectSnapshot(sheet)).toEqual(sheetGeometry);",
+                "expect(sheetEvents).toEqual([]);"
+            ]
         },
         {
             "id": "feedback:loading",

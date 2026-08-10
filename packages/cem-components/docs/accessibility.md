@@ -140,6 +140,14 @@ For every component that emits `id`/`for`/`aria-*` references at runtime:
 
 - Components MUST render a visible focus ring under `:focus-visible`, using
   cem-theme tokens (`--cem-stroke-focus`, `--cem-control-focus-ring`).
+- When a transient `cem-dialog` or `cem-dialog-shell` is itself the browser's
+  native fallback focus owner, its direct `<dialog>` receives the external D5
+  `--cem-stroke-focus` / `--cem-stroke-indicator-offset` ring with zebra focus
+  color. Forced colors retain that geometry with `CanvasText` and
+  `forced-color-adjust: auto`.
+- Static dialog wrappers, feedback hosts, and `cem-sheet` regions MUST NOT gain
+  `tabindex`, `:focus-within` paint, or a descendant-wide ring. Eligible
+  authored dialog and sheet controls retain their own focus indicators.
 - A component MUST NOT suppress the focus ring via `outline: none` without
   providing a replacement that meets WCAG 2.2 SC 2.4.11 (Focus Not Obscured) and
   SC 1.4.11 (Non-Text Contrast).

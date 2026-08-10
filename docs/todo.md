@@ -8,10 +8,11 @@ history is preserved in
 
 ## Immediate Goal
 
-The CSS selector query and SCSS-to-CSS lifecycle slices are complete. The active
-work is closing the Phase 4 component state matrix in priority order. The
-component stylesheet publication, `action:hover`, and `action:active` contracts
-are implemented and verified. The `input:hover` contract is also implemented:
+The CSS selector query and SCSS-to-CSS lifecycle slices are complete. The Phase
+4 component state matrix is also complete: all 39 required states are backed by
+browser coverage with no static-only rows or gaps. The component stylesheet
+publication, `action:hover`, and `action:active` contracts are implemented and
+verified. The `input:hover` contract is also implemented:
 all seven native owners share a theme-tokenized three-stripe indicator, with
 underline and outline as geometry variants, not separate semantics.
 `CEM-CSS-001` is closed through D0/D5 theme adoption without a component CSS
@@ -26,14 +27,13 @@ and tab buttons through generated navigation-item, D5 focus, zebra semantics,
 and bounded host capture. Content hover and keyboard focus now apply only to the
 checkable-chip button and selectable-list composite through generated
 content-interaction, D5 focus, and zebra semantics, with passive
-list/chip/table wrappers excluded. `feedback:expanded` is now implemented
-through opt-in native transient dialog owners and declarative non-modal sheet
-visibility while static output remains compatible; the state matrix therefore
-advances to `feedback:focus-visible`. Its accepted contract limits component
-paint to a transient native dialog when the browser focuses that owner as its
-fallback; implementation must not put structural focusability,
-`:focus-within`, or descendant-wide paint on passive wrappers merely to close
-the final row.
+list/chip/table wrappers excluded. `feedback:expanded` and
+`feedback:focus-visible` are now implemented through opt-in native transient
+dialog owners and declarative non-modal sheet visibility while static output
+remains compatible. Component focus paint is limited to a transient native
+dialog when the browser focuses that owner as its fallback; static wrappers,
+hosts, sheets, and authored descendants do not acquire structural focusability,
+`:focus-within`, or descendant-wide component paint.
 
 The cross-layer architecture remains serializer-free: lifecycle loading, graph
 routing, joins, evaluators, CEM-QL, CEMT, and XSLT adapters must exchange
@@ -1187,7 +1187,7 @@ mediate between internal layers.
       `--cem-zebra-color-1` fully represent the external normal-mode ring;
       forced colors use `CanvasText` with `forced-color-adjust: auto`. No D0
       semantic, raw value, local property, or CSS exception is required.
-- [ ] Implement the accepted `feedback:focus-visible` contract tests-first.
+- [x] Implement the accepted `feedback:focus-visible` contract tests-first.
   - [x] Add focused Chromium cases for both transient dialog aliases, authored
         target versus native-owner fallback, disabled skipping, native
         forward/reverse Tab boundaries, prevented/successful Escape,
@@ -1239,9 +1239,26 @@ mediate between internal layers.
       token or `components-css-exceptions.md` entry was added. Matrix promotion
       and the final component/accessibility documentation remain the next
       checklist item.
-  - [ ] Update component/accessibility docs and the executable matrix, then run
+  - [x] Update component/accessibility docs and the executable matrix, then run
         focused browser, style, state-matrix, lint, package, and aggregate Nx
         gates before marking the final Phase 4 state covered.
+    - Updated the component reference and binding accessibility contract with
+      the exact transient native-dialog fallback owner, D5/zebra outline,
+      `CanvasText` forced-colors behavior, authored-descendant ownership, and
+      explicit exclusion of static wrappers, hosts, sheets, `tabindex`, and
+      `:focus-within` paint. The production-gate and fixture tables now include
+      the focused feedback browser fixture and forced-colors target.
+    - Promoted `feedback:focus-visible` using exact assertions from the focused
+      Chromium fixture. The matrix now reports 39 browser-covered, 0
+      static-only, and 0 gap rows. Its completed-state representation is
+      `recommendedNext: null`; the verifier requires that value only when every
+      required row is covered and still requires the first uncovered priority
+      row otherwise.
+    - The focused component suite passes all 57 tests across six files. The
+      exact style, feedback forced-colors, state-matrix, lint, and 27-file
+      package gates pass, followed by an uncached aggregate run of all 20
+      dependencies. No new theme token or `components-css-exceptions.md` entry
+      was required.
 
 ## Current Verification Commands
 
