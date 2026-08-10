@@ -1,8 +1,9 @@
 # Feedback Expanded Contract
 
-**Status:** Accepted Phase 4 contract; implementation blocked on the generic
-rendered-attribute ownership boundary recorded below. This contract is promoted
-by [`docs/todo.md`](../../../docs/todo.md). No component fixture or runtime
+**Status:** Accepted Phase 4 contract; the generic rendered-attribute ownership
+boundary is implemented and verified, so the focused component fixture is the
+next work item. This contract is promoted by
+[`docs/todo.md`](../../../docs/todo.md). No component fixture or feedback runtime
 behavior has landed yet.
 
 ## Decision
@@ -223,10 +224,10 @@ does not become a component-owned trigger merely by being projected.
 - Multiple component instances keep independent state. One instance MUST NOT
   close, focus, or mutate another.
 
-## Implementation blocker: browser-owned attributes
+## Resolved substrate boundary: browser-owned attributes
 
-The first red component fixture proved that the current `cem-elements` DOM merge
-cannot yet preserve the native dialog lifecycle safely. With a transient dialog
+The first red component fixture proved that the prior `cem-elements` DOM merge
+could not preserve the native dialog lifecycle safely. With a transient dialog
 open through `showModal()`, changing only the host `label` retained the same
 `HTMLDialogElement` but produced these observed `open` mutations:
 
@@ -240,19 +241,22 @@ dialog appeared open and still matched `:modal`, but the second call captured a
 new restoration target. A later native close therefore focused `body` instead
 of the opener captured by the original open transition.
 
-This is the contract's explicit stop condition. The component MUST NOT mask it
+This was the contract's explicit stop condition. The component MUST NOT mask it
 by manually removing/re-adding `open`, rendering `open` before calling
 `showModal()`, or installing a component-specific mutation observer. Those
 approaches either violate the HTML dialog cleanup lifecycle, open a non-modal
 dialog before the modal call, or reproduce the same restoration loss.
 
-The recommended substrate follow-up is a generic opt-in preservation hook:
+The accepted substrate follow-up is now implemented as a generic opt-in
+preservation hook:
 
-1. Extend the DOM merge options with a predicate for attributes that are
-   runtime/browser-owned on a particular current/desired element pair.
-2. Expose that predicate through the browser-only
-   `CemProducedElementBehavior` boundary and forward it from
-   `CemElementRuntime.commitRenderPlan`; do not serialize it into render plans.
+1. `RenderedFragmentMergeOptions.preserveElementAttribute` identifies an exact
+   current attribute that is runtime/browser-owned for a current/desired
+   element pair.
+2. `CemProducedElementBehavior.preserveRenderedAttribute` exposes the predicate
+   through the browser-only behavior boundary, and `CemElementRuntime` forwards
+   it for the current produced instance without serializing it into render
+   plans.
 3. During attribute synchronization, skip removal only when the predicate owns
    that exact current attribute. Desired render-plan attributes remain
    authoritative, and unrelated undeclared attributes must still be removed.
@@ -260,9 +264,13 @@ The recommended substrate follow-up is a generic opt-in preservation hook:
    transient modal is active. The normal `beforeRender` close path still calls
    `close()` before an authored state transition or owner replacement.
 
-That substrate API and its projection/runtime tests require acceptance before
-the component fixture is retried. No special case for `dialog`, `open`, or CEM
-feedback components belongs in the generic projection module.
+Direct render-plan and produced-element Chromium stories now prove that contract,
+including zero `open` mutations during an unrelated label render, retained modal
+and focused-descendant identity, original-opener restoration, desired-value
+override, removal of unclaimed attributes, and native cleanup before authored
+state change, owner replacement, and disconnect. No special case for `dialog`,
+`open`, or CEM feedback components exists in the generic projection module. The
+component fixture may now be retried using the fourth rule above.
 
 ## Executable acceptance
 

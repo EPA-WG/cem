@@ -113,6 +113,14 @@ export interface RenderPlanDomRange {
 }
 
 export interface RenderedFragmentMergeOptions {
+    /**
+     * Retain an attribute that exists on the current DOM element but is absent
+     * from the desired render output. The predicate claims only the exact
+     * current attribute it receives; explicitly desired attributes always win.
+     * The predicate is an ownership check and must not mutate DOM or render
+     * state.
+     */
+    preserveElementAttribute?: (current: Element, desired: Element, attribute: Attr) => boolean;
     preserveElementChildren?: (current: Element, desired: Element) => boolean;
 }
 
@@ -1571,8 +1579,19 @@ function mergeRenderPlanNode(match: RenderPlanNodeMatch, desired: RenderPlanNode
 
     const element = match.first as Element;
     mirrorRenderIdentity(element, desired.renderNodeId);
-    syncAttributes(element, renderPlanElementAttributes(desired, context.plan));
-    if (context.options.preserveElementChildren?.(element, renderPlanElementPreview(desired, context))) {
+    const preserveElementAttribute = context.options.preserveElementAttribute;
+    const preserveElementChildren = context.options.preserveElementChildren;
+    const desiredElement = preserveElementAttribute || preserveElementChildren
+        ? renderPlanElementPreview(desired, context)
+        : null;
+    syncAttributes(
+        element,
+        renderPlanElementAttributes(desired, context.plan),
+        preserveElementAttribute && desiredElement
+            ? (attribute) => preserveElementAttribute(element, desiredElement, attribute)
+            : undefined
+    );
+    if (desiredElement && preserveElementChildren?.(element, desiredElement)) {
         return;
     }
     mergeRenderPlanChildNodes(element, element.firstChild as ChildNode | null, null, desired.children, context);
@@ -1774,7 +1793,11 @@ function mergeNode(current: Node, desired: Node, options: RenderedFragmentMergeO
     if (desiredId) {
         mirrorRenderIdentity(currentElement, desiredId);
     }
-    syncAttributes(currentElement, desiredElement);
+    syncAttributes(
+        currentElement,
+        desiredElement,
+        (attribute) => options.preserveElementAttribute?.(currentElement, desiredElement, attribute) ?? false
+    );
     if (options.preserveElementChildren?.(currentElement, desiredElement)) {
         return;
     }
@@ -1787,12 +1810,16 @@ function mergeNode(current: Node, desired: Node, options: RenderedFragmentMergeO
     );
 }
 
-function syncAttributes(current: Element, desired: Element | ReadonlyMap<string, string>): void {
+function syncAttributes(
+    current: Element,
+    desired: Element | ReadonlyMap<string, string>,
+    preserveCurrentAttribute?: (attribute: Attr) => boolean
+): void {
     const desiredAttributes = isAttributeElement(desired)
         ? new Map(Array.from(desired.attributes).map((attribute) => [attribute.name, attribute.value]))
         : desired;
     for (const attribute of Array.from(current.attributes)) {
-        if (!desiredAttributes.has(attribute.name)) {
+        if (!desiredAttributes.has(attribute.name) && !preserveCurrentAttribute?.(attribute)) {
             current.removeAttribute(attribute.name);
         }
     }

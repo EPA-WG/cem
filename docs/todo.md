@@ -1084,7 +1084,7 @@ mediate between internal layers.
         dialog, and later close restored `body` rather than the original opener.
         Per the accepted stop condition, the experimental fixture/behavior was
         not landed and the existing component sources were restored.
-    - [ ] Accept and implement a generic `cem-elements` rendered-attribute
+    - [x] Accept and implement a generic `cem-elements` rendered-attribute
           ownership boundary before retrying the feedback fixture.
       - Recommended: add an opt-in attribute-preservation predicate to the DOM
         merge options, expose it through browser-only
@@ -1098,6 +1098,19 @@ mediate between internal layers.
         through `close()` before an authored state change, owner replacement, or
         disconnect. Keep dialog/component names out of the generic projection
         module.
+      - Implemented `preserveElementAttribute` on the projection merge options
+        and browser-only `preserveRenderedAttribute` on
+        `CemProducedElementBehavior`; `CemElementRuntime` forwards the predicate
+        only while patching the current produced instance. The synchronizer asks
+        only about omitted current attributes, so desired plan values remain
+        authoritative and unclaimed extras are removed normally.
+      - Added direct render-plan and produced-element Chromium stories. The red
+        run observed the claimed attribute being removed and two native `open`
+        mutations; the green run proves exact retention/override semantics, zero
+        `open` mutations through a label render, stable modal/focused-owner
+        identity, original-opener restoration, and native close before authored
+        state, recovery replacement, and disconnect. No dialog or feedback name
+        was added to the generic projection implementation.
     - [ ] Add a focused browser fixture covering passive compatibility;
           transient initialization and host-attribute transitions; native modal
           state for both dialog tags; non-modal sheet visibility; initial focus,

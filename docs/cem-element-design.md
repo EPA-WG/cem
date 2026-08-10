@@ -596,6 +596,14 @@ serializable render-plan/WASM boundary:
 - If the previous and next plans are equivalent, the UI adapter performs no DOM
   mutation. Data revision advancement alone is not a reason to replace or touch the
   visible DOM tree.
+- Desired render-plan attributes are authoritative by default. A browser-only
+  `CemProducedElementBehavior.preserveRenderedAttribute` predicate may opt one exact
+  current attribute into runtime/browser ownership when that attribute is absent from
+  the desired element. The UI adapter forwards that predicate to the DOM merge without
+  serializing it into a render plan; desired values still overwrite current values,
+  unclaimed undeclared attributes are removed, and the predicate does not prevent owner
+  replacement. Behaviors close or otherwise settle native state in `beforeRender`
+  before a render that replaces its owner.
 - When a parent render contains another initialized `cem-element` produced tag, the
   parent patcher owns the nested element shell and attributes, not the nested element's
   rendered body. After the nested element has a runtime-owned data island or render

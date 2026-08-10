@@ -3001,6 +3001,72 @@ export const DirectRenderPlanPatchPreservesFocusedControl: Story = {
     },
 };
 
+export const DirectRenderPlanPatchPreservesClaimedRuntimeAttribute: Story = {
+    render: () => {
+        const root = document.createElement('section') as HTMLElement & {
+            __bounds?: { start: Comment; end: Comment };
+        };
+        root.setAttribute('aria-label', 'direct runtime-owned attribute patch story');
+        const host = document.createElement('div');
+        host.className = 'direct-runtime-attribute-host';
+        const start = document.createComment('cem-render-start');
+        const end = document.createComment('cem-render-end');
+        host.append(start, end);
+        root.__bounds = { start, end };
+        root.append(host);
+        return root;
+    },
+    play: ({ canvasElement }) => {
+        const root = requiredElement(
+            canvasElement,
+            '[aria-label="direct runtime-owned attribute patch story"]'
+        ) as HTMLElement & { __bounds?: { start: Comment; end: Comment } };
+        const bounds = root.__bounds;
+        assert(bounds !== undefined, 'direct runtime-owned attribute render bounds are available');
+        const host = requiredElement(root, '.direct-runtime-attribute-host');
+
+        applyRenderPlanToRange(bounds, directRuntimeAttributePatchPlan('First', 'one'), document);
+        const owner = requiredElement(host, 'section.runtime-owner');
+        owner.setAttribute('data-runtime-owned', 'browser');
+        owner.setAttribute('data-unclaimed', 'remove me');
+
+        const preserveElementAttribute = (_current: Element, _desired: Element, attribute: Attr) =>
+            attribute.name === 'data-runtime-owned';
+        const patched = applyRenderPlanToRange(
+            bounds,
+            directRuntimeAttributePatchPlan('Second', 'two'),
+            document,
+            { preserveElementAttribute }
+        );
+        const retained = requiredElement(host, 'section.runtime-owner');
+        assertEqual(patched.mode, 'patch', 'runtime-owned attribute update patches in place');
+        assertEqual(retained === owner, true, 'runtime-owned attribute owner retains DOM identity');
+        assertEqual(
+            retained.getAttribute('data-runtime-owned'),
+            'browser',
+            'the exact attribute claimed by the runtime predicate is retained'
+        );
+        assertEqual(
+            retained.hasAttribute('data-unclaimed'),
+            false,
+            'an undeclared attribute that was not claimed is still removed'
+        );
+        assertEqual(retained.getAttribute('aria-label'), 'Second', 'desired render-plan attributes stay authoritative');
+
+        applyRenderPlanToRange(
+            bounds,
+            directRuntimeAttributePatchPlan('Third', 'three', 'plan'),
+            document,
+            { preserveElementAttribute }
+        );
+        assertEqual(
+            retained.getAttribute('data-runtime-owned'),
+            'plan',
+            'an explicitly desired value overrides a retained runtime-owned value'
+        );
+    },
+};
+
 export const UnchangedRenderPlanSkipsDomReplacement: Story = {
     render: () => {
         const root = document.createElement('section') as HTMLElement & {
@@ -4578,6 +4644,178 @@ export const ProducedElementBehaviorAndFormAssociation: Story = {
     },
 };
 
+export const ProducedElementBehaviorOwnsNativeDialogOpenAttribute: Story = {
+    render: () => {
+        const root = document.createElement('section');
+        root.setAttribute('aria-label', 'produced behavior runtime-owned dialog attribute story');
+        const runtime = new CemElementRuntime({ declarationTag: 'cem-element-story-runtime-attribute' });
+        const declaration = buildCemMlDeclaration(
+            'cem-element-story-runtime-attribute',
+            'story-runtime-attribute-dialog',
+            [
+                '{dialog @aria-label="{$datadom.attributes.label}" |',
+                ' {button @type=button @autofocus=true @data-role=focus | Focus target}',
+                '}',
+            ].join('\n')
+        );
+        root.appendChild(declaration);
+        runtime.registerDeclaration(declaration, {
+            behavior: {
+                constructed(instance) {
+                    Object.defineProperty(instance, 'runtimeAttributeBehaviorEvidence', {
+                        configurable: true,
+                        value: {
+                            authoredStateCloses: 0,
+                            disconnectCloses: 0,
+                            ownerReplacementCloses: 0,
+                        },
+                    });
+                },
+                beforeRender(instance) {
+                    const dialog = instance.querySelector('dialog');
+                    if (!dialog?.open) {
+                        return;
+                    }
+                    if (instance.hasAttribute('replace')) {
+                        runtimeAttributeBehaviorEvidence(instance).ownerReplacementCloses += 1;
+                        dialog.close();
+                        (dialog as Element & { cemRenderNodeId?: string }).cemRenderNodeId = 'foreign-owner';
+                    } else if (!instance.hasAttribute('expanded')) {
+                        runtimeAttributeBehaviorEvidence(instance).authoredStateCloses += 1;
+                        dialog.close();
+                    }
+                },
+                preserveRenderedAttribute(instance, current, desired, attribute) {
+                    return instance.hasAttribute('expanded')
+                        && !instance.hasAttribute('replace')
+                        && current.localName === 'dialog'
+                        && desired.localName === 'dialog'
+                        && attribute.name === 'open';
+                },
+                rendered(instance) {
+                    const dialog = instance.querySelector('dialog');
+                    if (
+                        instance.hasAttribute('expanded')
+                        && !instance.hasAttribute('replace')
+                        && dialog
+                        && !dialog.open
+                    ) {
+                        dialog.showModal();
+                    }
+                },
+                disconnected(instance) {
+                    const dialog = instance.querySelector('dialog');
+                    if (dialog?.open) {
+                        runtimeAttributeBehaviorEvidence(instance).disconnectCloses += 1;
+                        dialog.close();
+                    }
+                },
+            },
+        });
+
+        const opener = document.createElement('button');
+        opener.type = 'button';
+        opener.textContent = 'Open';
+        opener.setAttribute('data-role', 'opener');
+        const instance = document.createElement('story-runtime-attribute-dialog');
+        instance.setAttribute('label', 'Initial label');
+        root.append(opener, instance);
+        return root;
+    },
+    play: async ({ canvasElement }) => {
+        const opener = requiredElement(canvasElement, '[data-role="opener"]') as HTMLButtonElement;
+        const instance = requiredElement(canvasElement, 'story-runtime-attribute-dialog') as HTMLElement;
+        const dialog = await waitForElement(instance, 'dialog') as HTMLDialogElement;
+        assertEqual(dialog.open, false, 'native dialog begins closed without authored expanded state');
+
+        opener.focus();
+        instance.setAttribute('expanded', '');
+        await waitForCondition(
+            () => dialog.open && dialog.matches(':modal'),
+            'expanded state opens the native dialog modally'
+        );
+        const focused = requiredElement(dialog, '[data-role="focus"]');
+        assertEqual(document.activeElement === focused, true, 'native autofocus chooses the authored focus target');
+
+        dialog.setAttribute('data-unclaimed', 'remove me');
+        const openMutations: MutationRecord[] = [];
+        const ownerObserver = new MutationObserver((records) => openMutations.push(...records));
+        ownerObserver.observe(dialog, { attributes: true });
+        instance.setAttribute('label', 'Updated label');
+        await waitForCondition(
+            () => dialog.getAttribute('aria-label') === 'Updated label',
+            'an unrelated host label change commits to the retained dialog'
+        );
+        await nextFrame();
+        openMutations.push(...ownerObserver.takeRecords());
+        ownerObserver.disconnect();
+
+        assertEqual(requiredElement(instance, 'dialog') === dialog, true, 'the open native dialog retains DOM identity');
+        assertEqual(dialog.open, true, 'the unrelated render retains native open state');
+        assertEqual(dialog.matches(':modal'), true, 'the unrelated render retains top-layer modal state');
+        assertEqual(document.activeElement === focused, true, 'the unrelated render retains focused descendant identity');
+        assertEqual(
+            openMutations.filter((record) => record.attributeName === 'open').length,
+            0,
+            'the unrelated render produces zero native open mutations'
+        );
+        assertEqual(
+            dialog.hasAttribute('data-unclaimed'),
+            false,
+            'runtime forwarding does not preserve an unclaimed undeclared attribute'
+        );
+
+        instance.removeAttribute('expanded');
+        await waitForCondition(
+            () => !dialog.open && document.activeElement === opener,
+            'authored closed state uses native close and restores the original opener'
+        );
+        assertEqual(
+            runtimeAttributeBehaviorEvidence(instance).authoredStateCloses,
+            1,
+            'beforeRender closes before applying authored closed state'
+        );
+
+        opener.focus();
+        instance.setAttribute('expanded', '');
+        await waitForCondition(() => dialog.open && dialog.matches(':modal'), 'dialog reopens before owner replacement');
+        instance.setAttribute('replace', '');
+        instance.setAttribute('label', 'Replacement label');
+        await waitForCondition(
+            () => runtimeAttributeBehaviorEvidence(instance).ownerReplacementCloses === 1
+                && instance.querySelector('dialog') !== dialog,
+            'beforeRender closes the old dialog and the render replaces its owner'
+        );
+        const replacement = requiredElement(instance, 'dialog') as HTMLDialogElement;
+        assertEqual(replacement === dialog, false, 'render recovery replaces the corrupted dialog owner');
+        assertEqual(replacement.open, false, 'the replacement owner remains closed during replacement state');
+        assertEqual(dialog.open, false, 'the old owner is closed before replacement');
+        assertEqual(dialog.matches(':modal'), false, 'the replaced owner no longer occupies the modal top layer');
+        assertEqual(
+            runtimeAttributeBehaviorEvidence(instance).ownerReplacementCloses,
+            1,
+            'beforeRender closes before replacing an open owner'
+        );
+
+        instance.removeAttribute('replace');
+        instance.setAttribute('label', 'Reconnected label');
+        const reconnectedDialog = requiredElement(instance, 'dialog') as HTMLDialogElement;
+        await waitForCondition(
+            () => reconnectedDialog.open && reconnectedDialog.matches(':modal'),
+            'expanded state opens the replacement dialog owner'
+        );
+        instance.remove();
+        await nextFrame();
+        assertEqual(reconnectedDialog.open, false, 'disconnect closes the native dialog owner');
+        assertEqual(reconnectedDialog.matches(':modal'), false, 'disconnect releases the modal top layer');
+        assertEqual(
+            runtimeAttributeBehaviorEvidence(instance).disconnectCloses,
+            1,
+            'disconnected behavior owns the final native close'
+        );
+    },
+};
+
 export const DeclarationDiagnosticsAreExposed: Story = {
     render: () => storyPanel('Declaration diagnostics', 'invalid declaration shapes surface through diagnosticsFor'),
     play: () => {
@@ -5048,6 +5286,20 @@ function behaviorEvidence(instance: HTMLElement): ProducedBehaviorEvidence {
     return evidence;
 }
 
+interface RuntimeAttributeBehaviorEvidence {
+    authoredStateCloses: number;
+    disconnectCloses: number;
+    ownerReplacementCloses: number;
+}
+
+function runtimeAttributeBehaviorEvidence(instance: HTMLElement): RuntimeAttributeBehaviorEvidence {
+    const evidence = (instance as HTMLElement & {
+        runtimeAttributeBehaviorEvidence?: RuntimeAttributeBehaviorEvidence;
+    }).runtimeAttributeBehaviorEvidence;
+    if (!evidence) throw new Error('Expected runtime-owned attribute behavior evidence');
+    return evidence;
+}
+
 async function appendResolutionPolicyFrame(parent: HTMLElement, baseHref: string): Promise<HTMLIFrameElement> {
     const frame = document.createElement('iframe');
     frame.hidden = true;
@@ -5277,6 +5529,36 @@ function directInputPatchPlan(value: string, revision: string): RenderPlan {
                 sourceMapRef: { fidelity: 'dom-canonical', frame: 'direct-focus:0/0' },
                 children: [],
             }],
+        }],
+    };
+}
+
+function directRuntimeAttributePatchPlan(
+    label: string,
+    revision: string,
+    runtimeOwnedValue?: string
+): RenderPlan {
+    return {
+        producedTag: 'direct-runtime-attribute-host',
+        instanceId: 'direct-runtime-attribute-instance',
+        templateArtifactId: 'direct-runtime-attribute-template',
+        dataRevision: revision,
+        outputTarget: 'light-dom',
+        scopePolicyStamp: 'direct-runtime-attribute-scope',
+        nodes: [{
+            kind: 'element',
+            namespace: null,
+            tag: 'section',
+            renderNodeId: 'direct-runtime-attribute-owner',
+            attributes: [
+                { name: 'class', value: 'runtime-owner' },
+                { name: 'aria-label', value: label },
+                ...(runtimeOwnedValue === undefined
+                    ? []
+                    : [{ name: 'data-runtime-owned', value: runtimeOwnedValue }]),
+            ],
+            sourceMapRef: { fidelity: 'dom-canonical', frame: 'direct-runtime-attribute:0' },
+            children: [],
         }],
     };
 }

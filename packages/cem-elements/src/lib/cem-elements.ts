@@ -345,6 +345,18 @@ export interface CemProducedElementBehavior {
     constructed?(instance: HTMLElement, context: CemProducedElementBehaviorContext): void;
     connected?(instance: HTMLElement, context: CemProducedElementBehaviorContext): void;
     beforeRender?(instance: HTMLElement, context: CemProducedElementBehaviorContext): void;
+    /**
+     * Claim a browser/runtime-owned attribute that the desired render output
+     * omits. Called only during DOM merge; desired attributes remain
+     * authoritative and this browser-only predicate is never serialized. This
+     * is a side-effect-free ownership check, not a lifecycle callback.
+     */
+    preserveRenderedAttribute?(
+        instance: HTMLElement,
+        current: Element,
+        desired: Element,
+        attribute: Attr
+    ): boolean;
     rendered?(instance: HTMLElement, context: CemProducedElementBehaviorContext): void;
     disconnected?(instance: HTMLElement, context: CemProducedElementBehaviorContext): void;
     formDisabled?(instance: HTMLElement, disabled: boolean, context: CemProducedElementBehaviorContext): void;
@@ -2527,7 +2539,18 @@ export class CemElementRuntime {
             return Promise.resolve();
         }
 
+        const behavior = compiled.behavior;
+        const preserveRenderedAttribute = behavior?.preserveRenderedAttribute?.bind(behavior);
+        const preserveElementAttribute = preserveRenderedAttribute
+            ? (current: Element, desired: Element, attribute: Attr) => preserveRenderedAttribute(
+                instance,
+                current,
+                desired,
+                attribute
+            )
+            : undefined;
         const mergeOptions = {
+            preserveElementAttribute,
             preserveElementChildren: (current: Element) =>
                 this.declarations.has(current.localName) && directDataIsland(current) !== undefined,
             transientElementTags: ['module-url', 'http-request', 'local-storage', 'location-element'],
