@@ -1489,11 +1489,12 @@ function mergeRenderPlanChildNodes(
     for (const desired of desiredNodes) {
         const match = matchRenderPlanNode(current, end, desired, context);
         if (match) {
-            if (match.first !== current) {
-                parent.insertBefore(match.first, current ?? end);
-            }
+            const moved = match.first !== current;
+            if (moved) moveRenderPlanMatchBefore(parent, match, current ?? end);
             mergeRenderPlanNode(match, desired, context);
-            current = match.after;
+            current = moved
+                ? (match.rangeEnd ?? match.first).nextSibling as ChildNode | null
+                : match.after;
             continue;
         }
 
@@ -1506,6 +1507,16 @@ function mergeRenderPlanChildNodes(
     while (current && current !== end) {
         const next = current.nextSibling as ChildNode | null;
         parent.removeChild(current);
+        current = next;
+    }
+}
+
+function moveRenderPlanMatchBefore(parent: Node, match: RenderPlanNodeMatch, reference: Node | null): void {
+    const after = (match.rangeEnd ?? match.first).nextSibling;
+    let current: Node | null = match.first;
+    while (current && current !== after) {
+        const next: ChildNode | null = current.nextSibling as ChildNode | null;
+        parent.insertBefore(current, reference);
         current = next;
     }
 }

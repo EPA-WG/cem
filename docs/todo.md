@@ -101,11 +101,24 @@ mediate between internal layers.
         versioned inventory, public component documentation, and aggregate Nx
         gate current. Record a CSS exception only when no appropriate theme
         category can represent accepted styling.
-    - [ ] Add the focused `tests/autocomplete/contract.html` fixture and failing
-          browser assertions for the accepted state, event/form, keyboard,
-          accessibility, live-option, geometry, and forced-colors matrix.
-    - [ ] Refactor shared option normalization without changing `cem-select`,
+    - [ ] Complete the focused `tests/autocomplete/contract.html` fixture and
+          browser matrix.
+      - [x] Add the declarative fixture and failing-then-green assertions for
+            the public surface, event/form model, keyboard/accessibility
+            behavior, live-option replacement, disabled/readonly/loading
+            suppression, and native-option migration.
+      - [ ] Add the geometry, hover/focus/active/selected coexistence, and
+            forced-colors assertions after the physical popup-stacking policy
+            is resolved.
+    - [x] Refactor shared option normalization without changing `cem-select`,
           then add the `cem-autocomplete` primitive and behavior with no CSS.
+      - Added the form-associated native-input owner, free-form and
+        `require-selection` value models, exact native/synthetic event
+        boundaries, popup keyboard/pointer behavior, live inert-island option
+        refresh, rich CEM-QL projection, and native option migration.
+      - Corrected render-plan sibling reconciliation so a projected payload
+        node changing from an element to text removes the displaced stale
+        sibling while retaining the focused input.
     - [ ] Extend component CSS only with accepted CEM tokens, add the focused
           forced-colors gate, and keep hover/focus/expanded/selected/active/
           disabled state ownership independent and geometry-stable.

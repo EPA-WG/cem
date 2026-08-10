@@ -3,6 +3,7 @@ import type {
     CemElementRuntime,
     CemProducedElementBehavior,
 } from '@epa-wg/cem-elements';
+import { CEM_AUTOCOMPLETE_BEHAVIOR } from './autocomplete-behavior.js';
 import { CEM_FEEDBACK_DIALOG_BEHAVIOR } from './feedback-behavior.js';
 import { CEM_NAVIGATION_BEHAVIOR } from './navigation-behavior.js';
 import { CEM_SELECT_BEHAVIOR } from './select-behavior.js';
@@ -80,6 +81,44 @@ export const CEM_COMPONENT_PRIMITIVES = [
             ' {span @class=cem-textarea__help | {slot @name=help}}}',
     },
     {
+        tag: 'cem-autocomplete',
+        description: 'Form-associated editable combobox with declarative suggestions.',
+        behavior: CEM_AUTOCOMPLETE_BEHAVIOR,
+        cemMl:
+            '{module |' +
+            ' {attribute @name=label | Autocomplete}' +
+            ' {attribute @name=indicator | underline}' +
+            ' {slice @name=groups}' +
+            ' {slice @name=displayValue | }' +
+            ' {slice @name=expanded | false}' +
+            ' {template @name=autocomplete-option |' +
+            '  {param @name=option}' +
+            '  {body |' +
+            '   {div @id="{$option.id}" @class=cem-autocomplete__option @role=option @data-option-index="{$option.index}" @data-active="{$option.active}" @aria-selected="{$option.selected}" @aria-disabled="{$option.disabled}" |' +
+            '    {cem:choose |' +
+            '     {cem:when @test="option.hasChildren" | {cem:project-payload @select="option.children" | }}' +
+            '     {cem:otherwise | {$option.label}}}}}}}' +
+            ' {template @name=autocomplete-options |' +
+            '  {param @name=groups}' +
+            '  {body |' +
+            '   {cem:for-each @select="groups" @as=group |' +
+            '    {cem:choose |' +
+            '     {cem:when @test="group.label" |' +
+            '      {div @class=cem-autocomplete__group @role=group @aria-label="{$group.label}" @aria-disabled="{$group.disabled}" |' +
+            '       {div @class=cem-autocomplete__group-label @aria-hidden=true | {$group.label}}' +
+            '       {cem:for-each @select="group.options" @as=option | {call @template=autocomplete-option @with:option="{$option}"}}}}' +
+            '     {cem:otherwise |' +
+            '      {cem:for-each @select="group.options" @as=option | {call @template=autocomplete-option @with:option="{$option}"}}}}}}}' +
+            ' {body |' +
+            '  {div @class=cem-autocomplete |' +
+            '   {span @id="{$datadom.slices.labelId}" @class=cem-autocomplete__label | {slot @name=label | {$label}}}' +
+            '   {input @type=text @class=cem-autocomplete__control @role=combobox @value="{$datadom.slices.displayValue}" @placeholder="{$datadom.attributes.placeholder}" @autocomplete="{$datadom.attributes.autocomplete}" @aria-labelledby="{$datadom.slices.labelId}" @aria-autocomplete=list @aria-haspopup=listbox @aria-expanded="{$datadom.slices.expanded}" @aria-controls={if datadom.slices.expanded { datadom.slices.listboxId } else { null }} @aria-activedescendant={if datadom.slices.expanded && datadom.slices.activeOptionId { datadom.slices.activeOptionId } else { null }} @disabled={if datadom.attributes.disabled || datadom.slices.behaviorDisabled { true } else { null }} @readonly={datadom.attributes.readonly} @required={datadom.attributes.required} @data-state={if datadom.attributes.busy { "loading" } else { null }} @aria-busy={if datadom.attributes.busy { true } else { null }} @aria-invalid={datadom.attributes.invalid} @aria-describedby={datadom.attributes.describedby} @aria-errormessage={datadom.attributes.error} | }' +
+            '   {cem:if @test="datadom.slices.expanded" |' +
+            '    {div @id="{$datadom.slices.listboxId}" @class=cem-autocomplete__popup @role=listbox @aria-labelledby="{$datadom.slices.labelId}" |' +
+            '     {call @template=autocomplete-options @with:groups="{$datadom.slices.groups}"}}}' +
+            '   {span @class=cem-autocomplete__help | {slot @name=help}}}}}',
+    },
+    {
         tag: 'cem-select',
         description: 'Form-associated custom select with rich cem-option content.',
         behavior: CEM_SELECT_BEHAVIOR,
@@ -131,12 +170,12 @@ export const CEM_COMPONENT_PRIMITIVES = [
     },
     {
         tag: 'cem-option',
-        description: 'Canonical rich-content option consumed by cem-select.',
+        description: 'Canonical rich-content option consumed by cem-select and cem-autocomplete.',
         cemMl: '{span @class=cem-option | {slot}}',
     },
     {
         tag: 'cem-option-group',
-        description: 'Labeled canonical option group consumed by cem-select.',
+        description: 'Labeled canonical option group consumed by cem-select and cem-autocomplete.',
         cemMl: '{div @class=cem-option-group | {slot}}',
     },
     {

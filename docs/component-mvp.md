@@ -22,9 +22,10 @@ contract for `@epa-wg/cem-components`, the CEM core schema state vocabulary, and
 | Input | `field` | `cem-field` | Generic labeled field wrapper for simple form controls | palette, stroke, bend, gap, typography |
 | Input | `text-field` | `cem-text-field` | Single-line text entry with label, help, and validation | palette, stroke, bend, gap, typography |
 | Input | `textarea` | `cem-textarea` | Multi-line text entry with label, help, and validation | palette, stroke, bend, gap, typography |
+| Input | `autocomplete` | `cem-autocomplete` | Form-associated editable combobox with declarative suggestions | palette, select, stroke, bend, layering, control, typography |
 | Input | `select` | `cem-select` | Form-associated rich single/multiple choice | palette, select, stroke, bend, layering, control, typography |
-| Input | `option` | `cem-option` | Canonical rich option payload for `cem-select` | palette, typography |
-| Input | `option-group` | `cem-option-group` | Labeled option grouping payload for `cem-select` | palette, typography |
+| Input | `option` | `cem-option` | Canonical rich option payload for select and autocomplete | palette, typography |
+| Input | `option-group` | `cem-option-group` | Labeled option grouping payload for select and autocomplete | palette, typography |
 | Input | `checkbox` | `cem-checkbox` | Binary consent, settings, and filters | palette, stroke, control, bend, typography |
 | Input | `radio` | `cem-radio` | Mutually exclusive choice inside a radio group | palette, stroke, control, typography |
 | Input | `switch` | `cem-switch` | Immediate boolean setting toggle | palette, stroke, action, control, bend |

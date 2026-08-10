@@ -1,0 +1,43 @@
+<section data-autocomplete-contract-fixture aria-label="Autocomplete contract fixture">
+  <form id="autocomplete-form">
+    <cem-autocomplete id="person-autocomplete" name="person" required auto-active-first>
+      <span slot="label">Person</span>
+      <span slot="help">Choose a suggested person or enter another name.</span>
+      <cem-option value="ada" label="Ada Lovelace" selected><strong>Ada</strong> Lovelace</cem-option>
+      <cem-option-group label="Engineering">
+        <cem-option value="grace" label="Grace Hopper">Grace Hopper</cem-option>
+        <cem-option value="disabled" disabled>Unavailable</cem-option>
+      </cem-option-group>
+    </cem-autocomplete>
+
+    <cem-autocomplete id="selection-autocomplete" name="selection" require-selection>
+      <span slot="label">Required suggestion</span>
+      <cem-option value="alpha" label="Alpha">Alpha</cem-option>
+      <cem-option value="beta" label="Beta">Beta</cem-option>
+    </cem-autocomplete>
+
+    <cem-autocomplete id="native-autocomplete" name="native" label="Native migration">
+      <option value="one">One</option>
+      <optgroup label="More">
+        <option value="two" selected>Two</option>
+      </optgroup>
+    </cem-autocomplete>
+
+    <cem-autocomplete id="readonly-autocomplete" name="readonly" label="Readonly" value="fixed" readonly>
+      <cem-option value="fixed" label="Fixed value">Fixed value</cem-option>
+      <cem-option value="other">Other</cem-option>
+    </cem-autocomplete>
+
+    <cem-autocomplete id="disabled-autocomplete" name="disabled" label="Disabled" value="fixed" disabled>
+      <cem-option value="fixed" label="Fixed value">Fixed value</cem-option>
+      <cem-option value="other">Other</cem-option>
+    </cem-autocomplete>
+
+    <cem-autocomplete id="busy-autocomplete" name="busy" label="Busy" busy>
+      <cem-option value="ready">Ready</cem-option>
+    </cem-autocomplete>
+
+    <button id="autocomplete-reset" type="reset">Reset</button>
+    <button id="autocomplete-submit" type="submit">Submit</button>
+  </form>
+</section>
