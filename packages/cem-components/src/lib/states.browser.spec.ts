@@ -1,3 +1,6 @@
+import '@epa-wg/cem-theme/styles.css';
+import '../styles.css';
+
 import { CemElementRuntime, type DataIslandSnapshot } from '@epa-wg/cem-elements';
 import { userEvent } from 'vitest/browser';
 
@@ -82,6 +85,161 @@ describe('CEM component primitive states and ARIA behavior', () => {
         expect(payload.type).toBe('click');
         expect(payload.sliceValue).toBe('click');
         expect(payload.target?.tag).toBe('button');
+        expect(() => assertAriaReferenceIntegrity(harness.root)).not.toThrow();
+    });
+
+    it('applies shared native hover treatment without changing action geometry or semantics', async () => {
+        harness = createComponentHarness();
+        const root = await harness.render(`
+            <cem-stack class="cem-theme-light" gap="sm">
+                <cem-action>Save changes</cem-action>
+                <cem-icon-button name="settings" label="Open settings"></cem-icon-button>
+                <cem-menu-item>Open menu</cem-menu-item>
+                <cem-action disabled>Disabled save</cem-action>
+                <cem-icon-button name="settings" label="Disabled settings" disabled></cem-icon-button>
+                <cem-menu-item disabled>Disabled menu</cem-menu-item>
+            </cem-stack>
+        `);
+        await waitForStateSelector(root, 'cem-menu-item[disabled] button');
+
+        const actionCases = [
+            {
+                host: harness.query<HTMLElement>('cem-action:not([disabled])'),
+                button: harness.query<HTMLButtonElement>('cem-action:not([disabled]) button'),
+                name: 'Save changes',
+                role: null,
+                tokens: {
+                    defaultBackground: '--cem-action-primary-default-background',
+                    defaultText: '--cem-action-primary-default-text',
+                    hoverBackground: '--cem-action-primary-hover-background',
+                    hoverText: '--cem-action-primary-hover-text',
+                },
+            },
+            {
+                host: harness.query<HTMLElement>('cem-icon-button:not([disabled])'),
+                button: harness.query<HTMLButtonElement>('cem-icon-button:not([disabled]) button'),
+                name: 'Open settings',
+                role: null,
+                tokens: {
+                    defaultBackground: '--cem-action-contextual-default-background',
+                    defaultText: '--cem-action-contextual-default-text',
+                    hoverBackground: '--cem-action-contextual-hover-background',
+                    hoverText: '--cem-action-contextual-hover-text',
+                },
+            },
+            {
+                host: harness.query<HTMLElement>('cem-menu-item:not([disabled])'),
+                button: harness.query<HTMLButtonElement>('cem-menu-item:not([disabled]) button'),
+                name: 'Open menu',
+                role: 'menuitem',
+                tokens: {
+                    defaultBackground: '--cem-action-contextual-default-background',
+                    defaultText: '--cem-action-contextual-default-text',
+                    hoverBackground: '--cem-action-contextual-hover-background',
+                    hoverText: '--cem-action-contextual-hover-text',
+                },
+            },
+        ] as const;
+        const disabledCases = [
+            {
+                host: harness.query<HTMLElement>('cem-action[disabled]'),
+                button: harness.query<HTMLButtonElement>('cem-action[disabled] button'),
+                name: 'Disabled save',
+                role: null,
+                tokens: actionCases[0].tokens,
+            },
+            {
+                host: harness.query<HTMLElement>('cem-icon-button[disabled]'),
+                button: harness.query<HTMLButtonElement>('cem-icon-button[disabled] button'),
+                name: 'Disabled settings',
+                role: null,
+                tokens: actionCases[1].tokens,
+            },
+            {
+                host: harness.query<HTMLElement>('cem-menu-item[disabled]'),
+                button: harness.query<HTMLButtonElement>('cem-menu-item[disabled] button'),
+                name: 'Disabled menu',
+                role: 'menuitem',
+                tokens: actionCases[2].tokens,
+            },
+        ] as const;
+        const activationEvents: string[] = [];
+        for (const eventName of ['click', 'input', 'change', 'cem-loaded', 'cem-error', 'cem-cancel']) {
+            harness.root.addEventListener(eventName, () => activationEvents.push(eventName));
+        }
+
+        assertStateHostsRendered(harness.root, 'cem-action, cem-icon-button, cem-menu-item');
+
+        for (const actionCase of actionCases) {
+            const { button, host, name, role, tokens } = actionCase;
+            expect(button.type).toBe('button');
+            expect(button.disabled).toBe(false);
+            expect(button.getAttribute('role')).toBe(role);
+            expect(assertAccessibleName(button, name)).toBe(name);
+            await assertFocusVisible(button);
+
+            const baseline = captureActionState(runtime, host, button);
+            expect(baseline.backgroundColor).toBe(resolveTokenColor(button, tokens.defaultBackground));
+            expect(baseline.color).toBe(resolveTokenColor(button, tokens.defaultText));
+
+            await userEvent.hover(button);
+            await nextRenderFrame();
+
+            const hovered = captureActionState(runtime, host, button);
+            expect(hovered.backgroundColor).toBe(resolveTokenColor(button, tokens.hoverBackground));
+            expect(hovered.color).toBe(resolveTokenColor(button, tokens.hoverText));
+            expect(hovered.backgroundColor).not.toBe(baseline.backgroundColor);
+            expectActionStructureAndGeometry(hovered, baseline);
+            expect(hovered.focusTreatment).toEqual(baseline.focusTreatment);
+            expect(document.activeElement).toBe(button);
+
+            await userEvent.unhover(button);
+            await nextRenderFrame();
+
+            const restored = captureActionState(runtime, host, button);
+            expect(restored.backgroundColor).toBe(baseline.backgroundColor);
+            expect(restored.color).toBe(baseline.color);
+            expectActionStructureAndGeometry(restored, baseline);
+            expect(restored.focusTreatment).toEqual(baseline.focusTreatment);
+            expect(document.activeElement).toBe(button);
+        }
+
+        for (const actionCase of disabledCases) {
+            const { button, host, name, role, tokens } = actionCase;
+            expect(button.type).toBe('button');
+            expect(button.disabled).toBe(true);
+            expect(button.getAttribute('role')).toBe(role);
+            expect(assertAccessibleName(button, name)).toBe(name);
+
+            const focusOwner = document.activeElement;
+            button.focus();
+            expect(document.activeElement).toBe(focusOwner);
+
+            const baseline = captureActionState(runtime, host, button);
+            expect(baseline.backgroundColor).toBe(resolveTokenColor(button, tokens.defaultBackground));
+            expect(baseline.color).toBe(resolveTokenColor(button, tokens.defaultText));
+            expect(baseline.backgroundColor).not.toBe(resolveTokenColor(button, tokens.hoverBackground));
+
+            await userEvent.hover(button);
+            await nextRenderFrame();
+
+            const hovered = captureActionState(runtime, host, button);
+            expect(hovered.backgroundColor).toBe(baseline.backgroundColor);
+            expect(hovered.color).toBe(baseline.color);
+            expectActionStructureAndGeometry(hovered, baseline);
+            expect(document.activeElement).toBe(focusOwner);
+
+            await userEvent.unhover(button);
+            await nextRenderFrame();
+
+            const restored = captureActionState(runtime, host, button);
+            expect(restored.backgroundColor).toBe(baseline.backgroundColor);
+            expect(restored.color).toBe(baseline.color);
+            expectActionStructureAndGeometry(restored, baseline);
+            expect(document.activeElement).toBe(focusOwner);
+        }
+
+        expect(activationEvents).toEqual([]);
         expect(() => assertAriaReferenceIntegrity(harness.root)).not.toThrow();
     });
 
@@ -295,9 +453,7 @@ describe('CEM component primitive states and ARIA behavior', () => {
         const closedHost = harness.query<HTMLElement>('cem-nav[collapsible]:not([expanded])');
         const closedNav = harness.query<HTMLElement>('cem-nav[collapsible]:not([expanded]) nav');
         const closedButton = harness.query<HTMLButtonElement>('cem-nav[collapsible]:not([expanded]) button');
-        const closedContent = harness.query<HTMLDivElement>(
-            'cem-nav[collapsible]:not([expanded]) .cem-nav__content',
-        );
+        const closedContent = harness.query<HTMLDivElement>('cem-nav[collapsible]:not([expanded]) .cem-nav__content');
         const closedLink = harness.query<HTMLAnchorElement>('cem-nav[collapsible]:not([expanded]) a');
         const openNav = harness.query<HTMLElement>('cem-nav[collapsible][expanded] nav');
         const openButton = harness.query<HTMLButtonElement>('cem-nav[collapsible][expanded] button');
@@ -318,9 +474,9 @@ describe('CEM component primitive states and ARIA behavior', () => {
         expect(openButton.getAttribute('aria-expanded')).toBe('true');
         expect(closedContent.hidden).toBe(true);
         expect(openContent.hidden).toBe(false);
-        expect(Array.from(form.querySelectorAll('button')).every((button) => !button.hasAttribute('aria-controls'))).toBe(
-            true,
-        );
+        expect(
+            Array.from(form.querySelectorAll('button')).every((button) => !button.hasAttribute('aria-controls')),
+        ).toBe(true);
         expect(form.querySelector('[role="menu"], [role="menubar"], [role="menuitem"], [aria-haspopup]')).toBeNull();
         expect(form.querySelector('details, summary')).toBeNull();
         expect(Array.from(new FormData(form).entries())).toEqual([]);
@@ -329,9 +485,7 @@ describe('CEM component primitive states and ARIA behavior', () => {
         await nextRenderFrame();
 
         const pointerButton = harness.query<HTMLButtonElement>('cem-nav[collapsible]:not([expanded]) button');
-        const pointerContent = harness.query<HTMLDivElement>(
-            'cem-nav[collapsible]:not([expanded]) .cem-nav__content',
-        );
+        const pointerContent = harness.query<HTMLDivElement>('cem-nav[collapsible]:not([expanded]) .cem-nav__content');
         const pointerSnapshot = runtime.snapshotInstance(closedHost);
         expect(pointerButton).toBe(closedButton);
         expect(pointerContent).toBe(closedContent);
@@ -429,9 +583,15 @@ describe('CEM component primitive states and ARIA behavior', () => {
         expect(options.map((option) => option.getAttribute('aria-selected')).join('|')).toBe('false|true|false');
         expect(options[2]?.disabled).toBe(true);
         expect(fallback.value).toBe('document');
-        expect(Array.from(fallback.options).map((option) => option.selected).join('|')).toBe('false|true');
         expect(
-            Array.from(fallback.options).map((option) => option.getAttribute('aria-selected')).join('|'),
+            Array.from(fallback.options)
+                .map((option) => option.selected)
+                .join('|'),
+        ).toBe('false|true');
+        expect(
+            Array.from(fallback.options)
+                .map((option) => option.getAttribute('aria-selected'))
+                .join('|'),
         ).toBe('false|true');
 
         await userEvent.selectOptions(listbox, 'image');
@@ -1060,4 +1220,138 @@ function isSerializedEventPayload(value: unknown): value is SerializedEventPaylo
     const record = value as Partial<SerializedEventPayload>;
 
     return typeof record.type === 'string' && 'sliceValue' in record;
+}
+
+interface ActionStateSnapshot {
+    backgroundColor: string;
+    buttonHtml: string;
+    buttonRect: readonly number[];
+    color: string;
+    focusTreatment: readonly string[];
+    hostAttributes: readonly string[];
+    hostRect: readonly number[];
+    runtime: string;
+}
+
+function captureActionState(
+    runtime: CemElementRuntime,
+    host: HTMLElement,
+    button: HTMLButtonElement,
+): ActionStateSnapshot {
+    const styles = getComputedStyle(button);
+    const runtimeSnapshot = runtime.snapshotInstance(host);
+
+    return {
+        backgroundColor: paintedColor(styles.backgroundColor),
+        buttonHtml: button.outerHTML,
+        buttonRect: rectTuple(button),
+        color: paintedColor(styles.color),
+        focusTreatment: [styles.outlineColor, styles.outlineStyle, styles.outlineWidth, styles.boxShadow],
+        hostAttributes: Array.from(host.attributes, ({ name, value }) => `${name}=${value}`),
+        hostRect: rectTuple(host),
+        runtime: JSON.stringify({
+            eventPayloads: runtimeSnapshot.eventPayloads,
+            formData: runtimeSnapshot.formData,
+            payload: runtimeSnapshot.payload,
+            slices: runtimeSnapshot.slices,
+            validationState: runtimeSnapshot.validationState,
+        }),
+    };
+}
+
+function expectActionStructureAndGeometry(actual: ActionStateSnapshot, expected: ActionStateSnapshot): void {
+    expect(actual.buttonHtml).toBe(expected.buttonHtml);
+    expect(actual.buttonRect).toEqual(expected.buttonRect);
+    expect(actual.hostAttributes).toEqual(expected.hostAttributes);
+    expect(actual.hostRect).toEqual(expected.hostRect);
+    expect(actual.runtime).toBe(expected.runtime);
+}
+
+function rectTuple(element: Element): readonly number[] {
+    const rect = element.getBoundingClientRect();
+    return [rect.x, rect.y, rect.width, rect.height];
+}
+
+function resolveTokenColor(element: Element, tokenName: string): string {
+    const styles = getComputedStyle(element);
+    const tokenValue = styles.getPropertyValue(tokenName).trim();
+
+    if (!tokenValue) {
+        throw new Error(`Expected generated theme token ${tokenName}`);
+    }
+
+    return paintedColor(resolveLightDark(tokenValue, styles.colorScheme));
+}
+
+function resolveLightDark(value: string, colorScheme: string): string {
+    let resolved = value;
+    let start = resolved.indexOf('light-dark(');
+
+    while (start >= 0) {
+        const open = start + 'light-dark'.length;
+        const close = matchingParen(resolved, open);
+        const choices = splitTopLevel(resolved.slice(open + 1, close));
+
+        if (choices.length !== 2) {
+            throw new Error(`Expected light-dark() token value to contain two colors: ${value}`);
+        }
+
+        const choice = colorScheme.includes('dark') ? choices[1] : choices[0];
+        resolved = `${resolved.slice(0, start)}${choice.trim()}${resolved.slice(close + 1)}`;
+        start = resolved.indexOf('light-dark(');
+    }
+
+    return resolved;
+}
+
+function matchingParen(value: string, open: number): number {
+    let depth = 0;
+
+    for (let index = open; index < value.length; index += 1) {
+        if (value[index] === '(') {
+            depth += 1;
+        } else if (value[index] === ')') {
+            depth -= 1;
+            if (depth === 0) {
+                return index;
+            }
+        }
+    }
+
+    throw new Error(`Unclosed CSS function in token value: ${value}`);
+}
+
+function splitTopLevel(value: string): string[] {
+    const values: string[] = [];
+    let depth = 0;
+    let start = 0;
+
+    for (let index = 0; index < value.length; index += 1) {
+        if (value[index] === '(') {
+            depth += 1;
+        } else if (value[index] === ')') {
+            depth -= 1;
+        } else if (value[index] === ',' && depth === 0) {
+            values.push(value.slice(start, index));
+            start = index + 1;
+        }
+    }
+
+    values.push(value.slice(start));
+    return values;
+}
+
+function paintedColor(value: string): string {
+    const canvas = document.createElement('canvas');
+    canvas.width = 1;
+    canvas.height = 1;
+    const context = canvas.getContext('2d', { willReadFrequently: true });
+
+    if (!context) {
+        throw new Error('Expected a 2D canvas context for computed color comparison');
+    }
+
+    context.fillStyle = value;
+    context.fillRect(0, 0, 1, 1);
+    return Array.from(context.getImageData(0, 0, 1, 1).data).join(',');
 }

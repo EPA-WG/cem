@@ -39,13 +39,15 @@ This registers the minimal primitive tags: `cem-action`, `cem-icon-button`, `cem
 Load generated theme CSS first, then explicitly load the component bindings:
 
 ```ts
-import '@epa-wg/cem-theme/dist/lib/css/cem-combined.css';
+import '@epa-wg/cem-theme/styles.css';
 import '@epa-wg/cem-components/styles.css';
 ```
 
 The JavaScript entry does not import or inject CSS. The public stylesheet is
 built byte-for-byte from `src/styles.css` and published only as
-`dist/styles.css` through the `./styles.css` package export.
+`dist/styles.css` through the `./styles.css` package export. It binds enabled
+`cem-action` buttons to primary default/hover tokens and enabled
+`cem-icon-button`/`cem-menu-item` buttons to contextual default/hover tokens.
 
 ## Build & Verify
 
@@ -68,7 +70,8 @@ state-matrix audit, token-only style contract, package publication contract, and
 every category/state requirement classified as browser-covered, static-only, or a gap and rejects stale test and
 assertion references. Intentional gaps remain visible in its generated JSON/Markdown reports so the audit can select
 the next fixture without claiming that it already exists. The style contract depends on `@epa-wg/cem-theme:build:tokens`,
-so the component gate checks against current generated theme token artifacts.
+and `@epa-wg/cem-theme:verify-package`, so the component gate checks current
+generated tokens and the public theme stylesheet export.
 The package verifier proves source/built CSS byte identity, the side-effect-free
 JavaScript boundary, and exact dry-run npm inclusion of one `dist/styles.css`.
 

@@ -31,6 +31,12 @@ yarn add @epa-wg/cem-theme
 The package provides generated CSS custom properties under `dist/lib/css/`. A typical page loads the combined
 `cem-combined.css` entrypoint, then scopes a theme mode with a class or `data-theme` attribute.
 
+Bundlers load that generated artifact through the public package export:
+
+```javascript
+import '@epa-wg/cem-theme/styles.css';
+```
+
 ```html
 
 <link rel="stylesheet" href="/node_modules/@epa-wg/cem-theme/dist/lib/css/cem-combined.css" />

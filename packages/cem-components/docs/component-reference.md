@@ -32,7 +32,7 @@ The aggregate gate includes:
 | Gate | Command | Coverage |
 | --- | --- | --- |
 | Primitive manifest | `yarn nx run @epa-wg/cem-components:verify-primitives` | `CEM_COMPONENT_PRIMITIVES` exactly matches `docs/component-mvp.md`, uses CEM-ML declarations, and does not depend on legacy `<custom-element>` wrappers. |
-| Token-only style contract | `yarn nx run @epa-wg/cem-components:verify-style-contract` | Depends on `@epa-wg/cem-theme:build:tokens`, checks MVP token families against generated theme tokens/CSS, and rejects inline component styles plus raw component color or spacing literals. |
+| Token-only style contract | `yarn nx run @epa-wg/cem-components:verify-style-contract` | Depends on current theme tokens and the verified public theme stylesheet export; checks exact action bindings and component selector scope, and rejects inline styles, unknown/non-CEM variables, and raw component color or spacing literals. |
 | Stylesheet publication | `yarn nx run @epa-wg/cem-components:verify-package` | Builds the canonical component stylesheet byte-for-byte into `dist`, verifies the side-effect-free `./styles.css` export, and checks the dry-run npm file inventory. |
 | Browser and unit behavior | `yarn nx run @epa-wg/cem-components:test` | Runs the Node smoke test plus Chromium-backed harness, primitive, state/ARIA, and workflow specs. |
 
@@ -73,6 +73,11 @@ Known deferrals remain outside the Phase 3.2 trigger:
 | `cem-menu-item` | Menu command row. | Default slot is command text. | action, palette, gap, inset, typography | Renders `role="menuitem"` and must be contained by a menu/list context in full menus. |
 
 States: `default`, `hover`, `focus-visible`, `active`, `disabled`, `loading`.
+The public component stylesheet implements `default` and enabled native-button
+`hover` for all three primitives with paired CEM action tokens. Hover changes
+only background/text color; it adds no ARIA or runtime state and excludes
+disabled buttons through `:enabled`. See the
+[action hover contract](./action-hover-contract.md).
 
 ## Inputs
 

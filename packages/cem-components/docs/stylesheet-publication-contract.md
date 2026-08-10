@@ -161,12 +161,13 @@ count.
 Installed-package authors use the public export after loading a CEM theme:
 
 ```js
-import '@epa-wg/cem-theme/dist/lib/css/cem-combined.css';
+import '@epa-wg/cem-theme/styles.css';
 import '@epa-wg/cem-components/styles.css';
 ```
 
-The exact theme CSS artifact remains owned by `@epa-wg/cem-theme`; this contract
-does not add or rename a theme export.
+The exact theme CSS artifact remains owned by `@epa-wg/cem-theme`. Its public
+`./styles.css` export resolves to the generated `dist/lib/css/cem-combined.css`
+artifact and is verified through `@epa-wg/cem-theme:verify-package`.
 
 Package-local browser specs import the canonical source with
 `import '../styles.css'` from `src/lib/*.browser.spec.ts`. That exercises the

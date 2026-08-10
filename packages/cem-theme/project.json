@@ -8,10 +8,7 @@
             "dependsOn": ["^build", "build:tokens"],
             "executor": "nx:run-commands",
             "options": {
-                "commands": [
-                    "tsc --build tsconfig.lib.json",
-                    "node ../../tools/scripts/compile-markdown.mjs"
-                ],
+                "commands": ["tsc --build tsconfig.lib.json", "node ../../tools/scripts/compile-markdown.mjs"],
                 "parallel": true,
                 "cwd": "packages/cem-theme"
             },
@@ -25,9 +22,7 @@
                 "{projectRoot}/src/**/*.gif",
                 "{projectRoot}/src/**/*.webp"
             ],
-            "outputs": [
-                "{projectRoot}/dist"
-            ]
+            "outputs": ["{projectRoot}/dist"]
         },
         "build:css": {
             "dependsOn": ["build:html"],
@@ -98,14 +93,29 @@
                 "{projectRoot}/dist/lib/tokens/figma"
             ]
         },
+        "verify-package": {
+            "dependsOn": ["build:css"],
+            "executor": "nx:run-commands",
+            "options": {
+                "command": "node scripts/verify-package.mjs",
+                "cwd": "packages/cem-theme"
+            },
+            "cache": true,
+            "inputs": [
+                "{projectRoot}/scripts/verify-package.mjs",
+                "{projectRoot}/package.json",
+                {
+                    "dependentTasksOutputFiles": "dist/lib/css/cem-combined.css",
+                    "transitive": false
+                }
+            ],
+            "outputs": []
+        },
         "build:token-platforms": {
             "dependsOn": ["build:tokens"],
             "executor": "nx:run-commands",
             "options": {
-                "commands": [
-                    "node scripts/build-token-platforms.mjs",
-                    "node scripts/validate-platforms.mjs"
-                ],
+                "commands": ["node scripts/build-token-platforms.mjs", "node scripts/validate-platforms.mjs"],
                 "parallel": false,
                 "cwd": "packages/cem-theme"
             },
@@ -126,10 +136,7 @@
             "dependsOn": ["build:tokens"],
             "executor": "nx:run-commands",
             "options": {
-                "commands": [
-                    "node scripts/validate-figma.mjs",
-                    "node scripts/smoke-figma-propagation.mjs"
-                ],
+                "commands": ["node scripts/validate-figma.mjs", "node scripts/smoke-figma-propagation.mjs"],
                 "parallel": false,
                 "cwd": "packages/cem-theme"
             },

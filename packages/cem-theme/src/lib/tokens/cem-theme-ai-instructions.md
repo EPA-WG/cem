@@ -7,20 +7,20 @@ AI coding assistants and are shipped with the npm package so they match the inst
 
 Start here, then read the relevant token specs in this same directory:
 
-| Situation | Read |
-| --------- | ---- |
-| Token map and overall principles | [`index.md`](./index.md) |
-| Color, action intent, theme modes, forced colors | [`cem-colors.md`](./cem-colors.md) |
-| Spacing, rhythm, insets, layout gaps | [`cem-dimension.md`](./cem-dimension.md) |
-| Hit targets, compactness, interaction safety | [`cem-coupling.md`](./cem-coupling.md) |
-| Button/control geometry | [`cem-controls.md`](./cem-controls.md) |
-| Corner radius and shape modes | [`cem-shape.md`](./cem-shape.md) |
-| Borders, dividers, focus, selection, target indicators | [`cem-stroke.md`](./cem-stroke.md), [`cem-zebra.md`](./cem-zebra.md) |
-| Depth, surfaces, overlays, elevation/recess | [`cem-layering.md`](./cem-layering.md) |
-| Motion durations and easing | [`cem-timing.md`](./cem-timing.md) |
-| Text, typography, reading rhythm | [`cem-voice-fonts-typography.md`](./cem-voice-fonts-typography.md) |
-| Responsive layout strategy | [`cem-breakpoints.md`](./cem-breakpoints.md), [`cem-responsive.md`](./cem-responsive.md) |
-| Material/framework mapping | [`cem-m3-parity.md`](./cem-m3-parity.md) |
+| Situation                                              | Read                                                                                     |
+| ------------------------------------------------------ | ---------------------------------------------------------------------------------------- |
+| Token map and overall principles                       | [`index.md`](./index.md)                                                                 |
+| Color, action intent, theme modes, forced colors       | [`cem-colors.md`](./cem-colors.md)                                                       |
+| Spacing, rhythm, insets, layout gaps                   | [`cem-dimension.md`](./cem-dimension.md)                                                 |
+| Hit targets, compactness, interaction safety           | [`cem-coupling.md`](./cem-coupling.md)                                                   |
+| Button/control geometry                                | [`cem-controls.md`](./cem-controls.md)                                                   |
+| Corner radius and shape modes                          | [`cem-shape.md`](./cem-shape.md)                                                         |
+| Borders, dividers, focus, selection, target indicators | [`cem-stroke.md`](./cem-stroke.md), [`cem-zebra.md`](./cem-zebra.md)                     |
+| Depth, surfaces, overlays, elevation/recess            | [`cem-layering.md`](./cem-layering.md)                                                   |
+| Motion durations and easing                            | [`cem-timing.md`](./cem-timing.md)                                                       |
+| Text, typography, reading rhythm                       | [`cem-voice-fonts-typography.md`](./cem-voice-fonts-typography.md)                       |
+| Responsive layout strategy                             | [`cem-breakpoints.md`](./cem-breakpoints.md), [`cem-responsive.md`](./cem-responsive.md) |
+| Material/framework mapping                             | [`cem-m3-parity.md`](./cem-m3-parity.md)                                                 |
 
 Use `cem.tokens.ts`, `cem.tokens.json`, and generated CSS only to confirm exact token names, tiers, specs, values, and
 implementation syntax. Do not infer semantics from CSS values alone.
@@ -30,7 +30,7 @@ implementation syntax. Do not infer semantics from CSS values alone.
 Load the generated stylesheet once:
 
 ```js
-import '@epa-wg/cem-theme/dist/lib/css/cem-combined.css';
+import '@epa-wg/cem-theme/styles.css';
 ```
 
 For non-bundled HTML, use:
@@ -42,9 +42,7 @@ For non-bundled HTML, use:
 Add one theme scope at the app shell or document root:
 
 ```html
-<main class="cem-theme-light">
-  ...
-</main>
+<main class="cem-theme-light">...</main>
 ```
 
 Supported theme modes are `cem-theme-light`, `cem-theme-dark`, `cem-theme-contrast-light`,

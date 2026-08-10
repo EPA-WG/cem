@@ -23,6 +23,7 @@
             "import": "./dist/index.js",
             "default": "./dist/index.js"
         },
+        "./styles.css": "./dist/lib/css/cem-combined.css",
         "./tokens/cem.tokens.json": "./dist/lib/tokens/cem.tokens.json",
         "./tokens/cem.voice.tokens.json": "./dist/lib/tokens/cem.voice.tokens.json",
         "./tokens/cem.tokens.report.json": "./dist/lib/tokens/cem.tokens.report.json",

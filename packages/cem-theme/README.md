@@ -38,8 +38,12 @@ yarn add @epa-wg/cem-theme
 
 ```js
 // Bundlers that handle CSS imports
-import '@epa-wg/cem-theme/dist/lib/css/cem-combined.css';
+import '@epa-wg/cem-theme/styles.css';
 ```
+
+The `./styles.css` package export resolves to the generated
+`dist/lib/css/cem-combined.css` artifact. Direct `<link>` and CDN URLs continue
+to use the physical `dist` path.
 
 ### Prompt for applying CEM styling to an existing project
 
@@ -75,6 +79,7 @@ The same paths work for individual specs, e.g.
 | Path                                              | Contents                                            |
 |---------------------------------------------------|-----------------------------------------------------|
 | `@epa-wg/cem-theme`                               | Theme entry (TypeScript).                           |
+| `@epa-wg/cem-theme/styles.css`                    | Generated combined CSS token stylesheet.           |
 | `@epa-wg/cem-theme/tokens/cem.tokens.json`        | Canonical DTCG-compatible visual tokens.            |
 | `@epa-wg/cem-theme/tokens/cem.voice.tokens.json`  | Voice/audio metadata, separate from visual outputs. |
 | `@epa-wg/cem-theme/tokens/cem.tokens.ts`          | Token names + metadata for docs/tests/autocomplete. |
@@ -94,6 +99,7 @@ yarn build:theme                                # full theme build via Nx
 nx run @epa-wg/cem-theme:build:css              # token CSS only
 nx run @epa-wg/cem-theme:build:tokens           # JSON / TS / Figma exports (depends on build:css)
 nx run @epa-wg/cem-theme:build:token-platforms  # iOS Swift + Android XML/Compose + per-mode JSON
+nx run @epa-wg/cem-theme:verify-package         # public CSS export + npm package inventory
 nx run @epa-wg/cem-theme:test
 nx run @epa-wg/cem-theme:lint
 ```

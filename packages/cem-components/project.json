@@ -34,7 +34,10 @@
         "verify-style-contract": {
             "cache": true,
             "executor": "nx:run-commands",
-            "dependsOn": [{ "projects": ["@epa-wg/cem-theme"], "target": "build:tokens" }],
+            "dependsOn": [
+                { "projects": ["@epa-wg/cem-theme"], "target": "build:tokens" },
+                { "projects": ["@epa-wg/cem-theme"], "target": "verify-package" }
+            ],
             "options": {
                 "command": "node tools/scripts/verify-cem-components-styles.mjs",
                 "cwd": "{workspaceRoot}"
@@ -49,6 +52,7 @@
                 "{projectRoot}/**/*.css",
                 "{projectRoot}/**/*.scss",
                 "{projectRoot}/**/*.less",
+                "{workspaceRoot}/packages/cem-theme/package.json",
                 "{workspaceRoot}/packages/cem-theme/dist/lib/tokens/cem.tokens.json",
                 "{workspaceRoot}/packages/cem-theme/dist/lib/css/cem-combined.css"
             ],

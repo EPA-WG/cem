@@ -10,8 +10,9 @@ history is preserved in
 
 The CSS selector query and SCSS-to-CSS lifecycle slices are complete. The active
 work is closing the Phase 4 component state matrix in priority order. The
-component stylesheet publication contract is implemented and verified. The
-active item is implementing the accepted `action:hover` contract tests-first.
+component stylesheet publication and `action:hover` contracts are implemented
+and verified. The active item is deciding and documenting the `action:active`
+owner and executable acceptance before adding another fixture or style rule.
 
 The cross-layer architecture remains serializer-free: lifecycle loading, graph
 routing, joins, evaluators, CEM-QL, CEMT, and XSLT adapters must exchange
@@ -536,17 +537,53 @@ mediate between internal layers.
     [`components-css-exceptions.md`](../packages/cem-components/docs/components-css-exceptions.md)
     review queue requested for future unrepresentable component values. This
     declaration-free slice needs no exception, and the queue grants no waiver.
-- [ ] Implement the accepted `action:hover` contract tests-first.
-  - [ ] Add the focused `states.browser.spec.ts` real-pointer fixture first and
-        confirm it fails only because the public component stylesheet and hover
-        bindings do not exist.
-  - [ ] Publish the side-effect-free `@epa-wg/cem-components/styles.css` export
+- [x] Implement the accepted `action:hover` contract tests-first.
+  - [x] Add the focused `states.browser.spec.ts` real-pointer fixture first and
+        confirm it fails only because the published component stylesheet has no
+        action default/hover bindings yet.
+  - [x] Publish the side-effect-free `@epa-wg/cem-components/styles.css` export
         and add the minimal enabled default/hover token bindings without runtime
         or geometry changes.
-  - [ ] Make the focused fixture green, update only the `action:hover` audit row
+  - [x] Make the focused fixture green, update only the `action:hover` audit row
         and directly affected component/style docs, then run focused browser,
         style, state-matrix, lint, and aggregate package verification through
         Nx.
+  - Added the real-pointer fixture first: all 10 existing state cases stayed
+    green while the new case failed at the native button background versus the
+    required primary default token. The implemented fixture passes 11/11 and
+    covers all three enabled and disabled action primitives, token treatment,
+    unhover restoration, focus, geometry, DOM/ARIA, runtime state, and event
+    absence.
+  - Added only component-scoped default and `:enabled:hover` background/text
+    rules, using eight generated primary/contextual `--cem-action-*` endpoints.
+    The strengthened style verifier rejects unknown/non-CEM variables, raw
+    color/geometry literals, unscoped selectors, and mappings outside the
+    accepted action contract. No component CSS exception is required.
+  - Resolved the export-aware bundler boundary with the approved
+    `@epa-wg/cem-theme/styles.css` export to generated
+    `dist/lib/css/cem-combined.css`. The theme-owned package verifier passed a
+    151-file npm dry run, and the component verifier retained exactly one
+    `dist/styles.css` in its 18-file dry run.
+  - Theme/component lint, focused browser, style, package, and state gates all
+    passed. The uncached aggregate passed 16 dependencies and 38 tests across
+    five files. Only `action:hover` moved to covered, yielding 26 covered,
+    0 static-only, and 13 gaps with `action:active` recommended next.
+- [ ] Decide and document the Phase 4 `action:active` owner and executable
+      acceptance before adding a fixture or changing component CSS.
+  - [ ] Pin enabled native-button `:active` ownership and primary/contextual
+        active-token mappings for `cem-action`, `cem-icon-button`, and
+        `cem-menu-item`; keep disabled buttons excluded and CEM tokens mandatory.
+  - [ ] Define real pointer-down/hold/release evidence that observes the
+        transient active treatment without replacing `:active` with a class,
+        attribute, synthetic event, or runtime slice.
+  - [ ] Separate presentation invariants during pointer hold from the native
+        click and existing `pressed`/`selected` slice aftermath on release;
+        decide the matching keyboard-activation evidence and pseudo-class
+        overlap with hover/focus-visible.
+  - [ ] Pin paired contrast, unpressed restoration, geometry, DOM/ARIA, focus,
+        disabled, forced-colors, and event expectations. Stop and promote a
+        runner or token substrate issue if real held-pointer state cannot be
+        observed or existing CEM active tokens cannot express the treatment.
 
 ## Current Verification Commands
 

@@ -9,9 +9,10 @@
         "layout:empty",
         "content:loading",
         "layout:loading",
-        "action:hover"
+        "action:hover",
+        "action:active"
     ],
-    "recommendedNext": "action:hover",
+    "recommendedNext": "action:active",
     "coverage": [
         {
             "id": "action:default",
@@ -33,8 +34,15 @@
             "state": "hover",
             "components": ["cem-action", "cem-icon-button", "cem-menu-item"],
             "interaction": "Move the pointer onto and away from an action without changing layout.",
-            "status": "gap",
-            "reason": "No browser assertion drives pointer hover and compares the action treatment or geometry."
+            "status": "covered",
+            "owner": "packages/cem-components/src/lib/states.browser.spec.ts",
+            "test": "applies shared native hover treatment without changing action geometry or semantics",
+            "assertions": [
+                "expect(hovered.backgroundColor).toBe(resolveTokenColor(button, tokens.hoverBackground));",
+                "expectActionStructureAndGeometry(hovered, baseline);",
+                "expect(restored.backgroundColor).toBe(baseline.backgroundColor);",
+                "expect(hovered.focusTreatment).toEqual(baseline.focusTreatment);"
+            ]
         },
         {
             "id": "action:focus-visible",

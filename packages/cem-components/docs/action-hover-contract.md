@@ -1,11 +1,10 @@
 # Action Hover Contract
 
-**Status:** Accepted Phase 4 design, pending implementation. This contract is
-promoted by [`docs/todo.md`](../../../docs/todo.md). Its public stylesheet path
-is pinned by the accepted
-[`stylesheet publication contract`](./stylesheet-publication-contract.md). No
-browser fixture, runtime behavior, or component stylesheet changed as part of
-this decision.
+**Status:** Implemented Phase 4 contract. This contract is promoted by
+[`docs/todo.md`](../../../docs/todo.md), implemented by the public component
+stylesheet and focused browser fixture, and uses the verified theme/component
+stylesheet exports pinned by the
+[`stylesheet publication contract`](./stylesheet-publication-contract.md).
 
 ## Decision
 
@@ -59,7 +58,7 @@ The implementation MUST publish an explicit component stylesheet export that
 authors can load after the generated theme CSS. Its stable public shape is:
 
 ```css
-@import '@epa-wg/cem-theme/dist/lib/css/cem-combined.css';
+@import '@epa-wg/cem-theme/styles.css';
 @import '@epa-wg/cem-components/styles.css';
 ```
 
@@ -72,8 +71,9 @@ stylesheet.
 The canonical source, cacheable copy target, `dist/styles.css` output,
 package-export mapping, release path, and npm-pack evidence are defined by the
 [`component stylesheet publication contract`](./stylesheet-publication-contract.md).
-That contract is implemented and verified; the hover fixture can add the first
-behavioral rules to its canonical source.
+That contract is implemented and verified; the hover bindings are the first
+behavioral rules in its canonical source. The theme package also exposes and
+verifies `@epa-wg/cem-theme/styles.css` for export-aware bundlers.
 
 Rules MUST be scoped through the public custom-element tag and then target its
 direct native button. A global `.cem-action`, `.cem-icon-button`, or
@@ -169,13 +169,13 @@ activation states; nothing is available only through hover.
 
 ## Executable acceptance
 
-Implementation starts with one focused browser test in
-[`states.browser.spec.ts`](../src/lib/states.browser.spec.ts). The fixture must
-load generated theme CSS followed by the author-imported component stylesheet,
-then use the browser runner's real pointer hover/unhover interaction rather than
+Implementation is owned by one focused browser test in
+[`states.browser.spec.ts`](../src/lib/states.browser.spec.ts). The fixture loads
+generated theme CSS followed by the author-imported component stylesheet, then
+uses the browser runner's real pointer hover/unhover interaction rather than
 dispatching synthetic pointer events or adding a test-only state class.
 
-The implementation slice is complete only when that test proves:
+The fixture proves:
 
 - enabled `cem-action`, `cem-icon-button`, and `cem-menu-item` render the same
   native buttons and accessible names before interaction;
@@ -199,10 +199,24 @@ The implementation slice is complete only when that test proves:
 - only the `action:hover` state-matrix row changes from `gap` to `covered`, with
   the exact browser test name and assertions recorded after the fixture passes.
 
-The focused test should be named `applies shared native hover treatment without
-changing action geometry or semantics`. The previously discovered stylesheet
-build boundary is resolved by the promoted publication contract. If real
-pointer hover does not produce the expected pseudo-class in the existing
-browser harness, or implementing that publication contract triggers its Nx
-target-composition stop condition, stop and promote the substrate issue rather
-than simulating hover or injecting styles at runtime.
+The focused test is named `applies shared native hover treatment without
+changing action geometry or semantics`. The previously discovered component
+and theme stylesheet export boundaries are resolved by their package-owned
+verification targets. Real pointer hover works in the existing Chromium
+harness without simulating hover or injecting runtime styles.
+
+## Implementation evidence
+
+- `src/styles.css` contains only the accepted component-scoped default and
+  `:enabled:hover` selectors, paired with eight generated `--cem-action-*`
+  tokens. No component CSS exception is required.
+- The focused browser target passes all 11 state tests and proves treatment,
+  restoration, focus, geometry, DOM/ARIA, disabled, runtime, and event
+  invariants for the three action primitives.
+- `@epa-wg/cem-theme:verify-package` proves the public `./styles.css` export and
+  dry-run npm inclusion of `dist/lib/css/cem-combined.css`; the component style
+  gate validates exact generated-token mappings and selector scope.
+- The state-matrix audit promotes only `action:hover`, yielding 26 covered,
+  0 static-only, and 13 gap rows with `action:active` recommended next.
+- The uncached aggregate gate passes 16 dependencies and all 38 package tests
+  across five files, including the 11-case focused state suite.

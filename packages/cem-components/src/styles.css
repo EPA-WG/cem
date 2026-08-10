@@ -1,1 +1,21 @@
-/* Public component bindings are added only through accepted state contracts. */
+cem-action > button {
+    background-color: var(--cem-action-primary-default-background);
+    color: var(--cem-action-primary-default-text);
+}
+
+cem-action > button:enabled:hover {
+    background-color: var(--cem-action-primary-hover-background);
+    color: var(--cem-action-primary-hover-text);
+}
+
+cem-icon-button > button,
+cem-menu-item > button {
+    background-color: var(--cem-action-contextual-default-background);
+    color: var(--cem-action-contextual-default-text);
+}
+
+cem-icon-button > button:enabled:hover,
+cem-menu-item > button:enabled:hover {
+    background-color: var(--cem-action-contextual-hover-background);
+    color: var(--cem-action-contextual-hover-text);
+}
