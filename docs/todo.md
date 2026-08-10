@@ -859,8 +859,12 @@ mediate between internal layers.
   - The uncached aggregate component gate passes all 18 dependencies and 45
     tests across five files. The exact style gate continues to verify 34
     primitives and 406 generated visual tokens.
-- [ ] Implement the Phase 4 `navigation:active` contract on the actual link,
-      disclosure-button, disclosed-content, and tab owners.
+- [ ] Implement the Phase 4 `navigation:active` contract on the actual nav-item
+      and tab owners after resolving the disclosure activation boundary.
+  - [ ] Decide scope before CSS: the disclosure button shares navigation paint
+        ownership, but release legitimately mutates `expanded`. Choose whether
+        this contract owns only its held `:active` paint and delegates release
+        to `navigation:expanded`, or owns the full disclosure transition.
   - [ ] Audit D0 navigation-item and action active endpoints before CSS. Adopt
         navigation-specific active/current-active semantics if action-intent
         tokens cannot preserve navigation and current/selected meaning.
@@ -868,7 +872,8 @@ mediate between internal layers.
         coverage: Enter for links/buttons and Space for buttons only.
   - [ ] Prove current/selected and focus-visible coexistence, disabled
         suppression, readable contrast, release restoration, stable geometry,
-        expected click events, and no component state/lifecycle mutation.
+        no pre-release mutation, and only the explicitly accepted click/state
+        transition after release.
   - [ ] Define forced-colors active paint on the real owners and update the
         exact style contract, state matrix, docs, and aggregate Nx gate without
         opening an exception unless theme review proves one unavoidable.
