@@ -1210,10 +1210,35 @@ mediate between internal layers.
       The aggregate suite passes 56 tests plus this one expected failure; type
       checking and lint pass. No production CSS, theme token, exception,
       forced-colors gate, documentation claim, or matrix coverage changed.
-  - [ ] Add only the accepted direct native-dialog `:focus-visible` bindings,
+  - [x] Add only the accepted direct native-dialog `:focus-visible` bindings,
         extend the exact style verifier, and add a focused forced-colors gate
         for D5/zebra resolution, `CanvasText`, automatic color adjustment, and
         sheet/authored-descendant isolation.
+    - Added the same external D5 outline to only
+      `cem-dialog[transient] > dialog.cem-dialog:focus-visible` and
+      `cem-dialog-shell[transient] > dialog.cem-dialog-shell:focus-visible`;
+      normal mode resolves through zebra color and forced colors through
+      `CanvasText`, with no fill, border, spacing, structural-wrapper, sheet,
+      descendant-wide, or lifecycle-state rule.
+    - Promoted the focused paint case to an ordinary pass. The component suite
+      now passes all 57 tests across six files, including both fallback aliases,
+      authored-target and sheet isolation, stable geometry/DOM/ARIA/state, and
+      absence of focus-driven component events or attribute mutation.
+    - Extended the component style verifier to require the exact normal and
+      forced-colors selector/declaration maps and reject any other feedback
+      selector, including host, static-wrapper, sheet, and `:focus-within`
+      alternatives.
+    - Added the aggregate
+      `verify-feedback-focus-forced-colors` Nx dependency. Its focused Chromium
+      gate proves both native fallback owners resolve the D5 width/offset and
+      `CanvasText` outline with `forced-color-adjust: auto`, restore after blur
+      and close, preserve geometry/DOM/ARIA/state, and leave static wrappers,
+      authored targets, sheets, and hosts unpainted. The focused forced-colors,
+      exact style, component test, and lint gates pass.
+    - The existing D5 and zebra theme semantics were sufficient, so no theme
+      token or `components-css-exceptions.md` entry was added. Matrix promotion
+      and the final component/accessibility documentation remain the next
+      checklist item.
   - [ ] Update component/accessibility docs and the executable matrix, then run
         focused browser, style, state-matrix, lint, package, and aggregate Nx
         gates before marking the final Phase 4 state covered.

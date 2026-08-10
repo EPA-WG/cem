@@ -402,7 +402,7 @@ describe('feedback expanded acceptance fixture', () => {
         }
     });
 
-    it.fails('paints only focused native dialog fallbacks with the D5 zebra outline', async () => {
+    it('paints only focused native dialog fallbacks with the D5 zebra outline', async () => {
         const root = await renderFixture();
         const fallbackCases = [
             {

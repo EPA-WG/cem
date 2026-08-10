@@ -41,6 +41,7 @@ const CSS_SPACING_LITERAL = /\b\d*\.?\d+(?:px|rem|em|vh|vw|vmin|vmax|ch|ex|%)\b|
 const CSS_VAR_REFERENCE = /var\(\s*(--[^\s,)]+)/g;
 const ACTION_TAGS = new Set(['cem-action', 'cem-icon-button', 'cem-menu-item']);
 const CONTENT_INTERACTION_TAGS = new Set(['cem-chip', 'cem-list']);
+const FEEDBACK_TAGS = new Set(['cem-dialog', 'cem-dialog-shell', 'cem-sheet']);
 const NAVIGATION_TAGS = new Set(['cem-nav', 'cem-tabs']);
 const PUBLIC_COMPONENT_ADAPTERS = new Set(['--cem-input-indicator-appearance']);
 const ACTION_BINDINGS = new Map([
@@ -216,6 +217,14 @@ const NAVIGATION_BINDINGS = new Map([
         "cem-tabs > [role='tablist'] > button[role='tab']:enabled:focus-visible",
     ].map((selector) => [selector, focusBinding()]),
 ]);
+const FEEDBACK_BINDINGS = new Map([
+    ['cem-dialog[transient] > dialog.cem-dialog:focus-visible', focusBinding()],
+    ['cem-dialog-shell[transient] > dialog.cem-dialog-shell:focus-visible', focusBinding()],
+]);
+const FEEDBACK_FORCED_COLOR_BINDINGS = new Map([
+    ['cem-dialog[transient] > dialog.cem-dialog:focus-visible', forcedColorFocusBinding()],
+    ['cem-dialog-shell[transient] > dialog.cem-dialog-shell:focus-visible', forcedColorFocusBinding()],
+]);
 
 const failures = [];
 
@@ -233,6 +242,13 @@ function colorBinding(backgroundToken, textToken) {
 function focusBinding() {
     return new Map([
         ['outline', 'var(--cem-stroke-focus) solid var(--cem-zebra-color-1)'],
+        ['outline-offset', 'var(--cem-stroke-indicator-offset)'],
+    ]);
+}
+
+function forcedColorFocusBinding() {
+    return new Map([
+        ['outline', 'var(--cem-stroke-focus) solid CanvasText'],
         ['outline-offset', 'var(--cem-stroke-indicator-offset)'],
     ]);
 }
@@ -386,6 +402,8 @@ function assertPublicComponentStyles(components, tokenNames) {
     const rules = parseCssRules(pathLabel, cssText);
     const actionRules = new Map();
     const contentInteractionRules = new Map();
+    const feedbackRules = new Map();
+    const feedbackForcedColorRules = new Map();
     const navigationRules = new Map();
     const privateProperties = new Set(
         rules.flatMap(({ declarations }) => [...declarations.keys()].filter((name) => name.startsWith('--_cem-'))),
@@ -430,6 +448,13 @@ function assertPublicComponentStyles(components, tokenNames) {
                 fail(`${pathLabel}: duplicate navigation selector \`${rule.selector}\``);
             }
             navigationRules.set(rule.selector, rule.declarations);
+        }
+        if (FEEDBACK_TAGS.has(tag)) {
+            const feedbackRuleSet = rule.media ? feedbackForcedColorRules : feedbackRules;
+            if (feedbackRuleSet.has(rule.selector)) {
+                fail(`${pathLabel}: duplicate feedback selector \`${rule.selector}\``);
+            }
+            feedbackRuleSet.set(rule.selector, rule.declarations);
         }
     }
 
@@ -514,6 +539,42 @@ function assertPublicComponentStyles(components, tokenNames) {
             fail(
                 `${pathLabel}: unexpected navigation selector \`${selector}\` is outside the accepted navigation-state contract`,
             );
+        }
+    }
+
+    assertExactStateBindings(pathLabel, 'feedback', feedbackRules, FEEDBACK_BINDINGS);
+    assertExactStateBindings(
+        pathLabel,
+        'forced-colors feedback',
+        feedbackForcedColorRules,
+        FEEDBACK_FORCED_COLOR_BINDINGS,
+    );
+}
+
+function assertExactStateBindings(pathLabel, contract, actualRules, expectedRules) {
+    for (const [selector, expectedDeclarations] of expectedRules) {
+        const declarations = actualRules.get(selector);
+        if (!declarations) {
+            fail(`${pathLabel}: missing accepted ${contract} binding selector \`${selector}\``);
+            continue;
+        }
+
+        if (declarations.size !== expectedDeclarations.size) {
+            fail(`${pathLabel}: \`${selector}\` has declarations outside its accepted ${contract} binding`);
+        }
+        for (const [property, expectedValue] of expectedDeclarations) {
+            const actualValue = declarations.get(property);
+            if (actualValue !== expectedValue) {
+                fail(
+                    `${pathLabel}: \`${selector}\` must bind ${property} to ${expectedValue}, received ${actualValue}`,
+                );
+            }
+        }
+    }
+
+    for (const selector of actualRules.keys()) {
+        if (!expectedRules.has(selector)) {
+            fail(`${pathLabel}: unexpected ${contract} selector \`${selector}\` is outside the accepted contract`);
         }
     }
 }

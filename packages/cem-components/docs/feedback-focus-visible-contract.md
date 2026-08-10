@@ -1,9 +1,9 @@
 # Feedback Focus-Visible Contract
 
 **Status:** Accepted Phase 4 implementation contract with the focused Chromium
-fixture landed. Native ownership/lifecycle cases pass normally, and one
-executable expected failure now isolates the missing D5/zebra dialog-owner
-outline before component CSS or forced-colors work. It is promoted by
+fixture, direct-owner component bindings, exact-selector style guard, and
+forced-colors gate landed and passing. Component/accessibility documentation,
+matrix promotion, and final aggregate verification remain tracked by
 [`docs/todo.md`](../../../docs/todo.md).
 
 ## Scope
@@ -134,7 +134,9 @@ The focused cases live in
 and reuse the declarative
 [`tests/feedback/expanded.html`](../tests/feedback/expanded.html) fixture. Two
 ordinary tests prove authored-descendant versus native-fallback ownership and
-the full lifecycle boundary above. The paint case currently uses executable
-expected-failure mode: its promoted red run observed the UA's `1px auto`
-outline at `0px` for both aliases instead of the required tokenized `3px solid`
-outline at `2px` and zebra focus color.
+the full lifecycle boundary above. The paint case now passes normally with the
+required tokenized `3px solid` outline at `2px` and zebra focus color. The
+dedicated `verify-feedback-focus-forced-colors` Nx gate proves the corresponding
+`CanvasText` treatment and isolation requirements for both aliases; matrix
+promotion remains intentionally pending until the final documentation and
+aggregate-verification slice.
