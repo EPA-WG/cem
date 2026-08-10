@@ -42,6 +42,8 @@ artifacts as the CSS generator pages.
   rationale and verification evidence.
 - [`cem-element` design](docs/cem-element-design.md) — successor substrate for `@epa-wg/custom-element`: data
   islands, event wiring, render loop, follow-up adoption sequencing, and parity gates.
+- [Angular Material parity inventory](packages/cem-components/docs/angular-material-parity.md) — version-pinned
+  product UI benchmark for the styled `cem-components` layer, distinct from barebone `cem-elements` runtime parity.
 - [Token export architecture](packages/cem-theme/docs/token-export.md)
 - [CEM ML parser/runtime acceptance criteria](docs/cem-ml-ac.md)
 - [CEM ML CLI feature summary](docs/cem-ml-cli-contract.md)
@@ -49,11 +51,25 @@ artifacts as the CSS generator pages.
 
 # Package map
 
+The component stack has two deliberately separate layers:
+
+- `@epa-wg/cem-elements` is the barebone layer. It supplies `<cem-element>` as
+  the declarative component base and browser/API primitives such as URL and HTTP
+  resource access. It does not own Material UI parity or Consumer Semantic Theme
+  styling.
+- `@epa-wg/cem-components` is the Material-superset UI layer built on
+  `cem-elements`. It owns public UI components plus their Consumer Semantic
+  Theme styling, state, keyboard, accessibility, forced-colors, and workflow
+  contracts.
+
+Runtime/template compatibility fixtures in `cem-elements` therefore do not, by
+themselves, establish product-component parity in `cem-components`.
+
 | Package                                                       | Status            | Purpose                                                                                                                         |
 |---------------------------------------------------------------|-------------------|---------------------------------------------------------------------------------------------------------------------------------|
 | [`@epa-wg/cem-theme`](packages/cem-theme/README.md)           | published         | Canonical token specs, generated CSS, DTCG JSON, TypeScript metadata, native (iOS/Android) outputs, and Figma library files.    |
-| `@epa-wg/cem-elements`                                        | planned substrate | Staging package for `<cem-element>` until it reaches browser substrate parity; edge/SSR and `<custom-element>` adoption are follow-up phases. |
-| [`@epa-wg/cem-components`](packages/cem-components/README.md) | shell             | Declarative custom-element primitives that consume the theme. Component implementations land in Phase 3.                        |
+| `@epa-wg/cem-elements`                                        | active substrate  | Barebone `<cem-element>` component base and browser/API primitives, including URL and HTTP resource accessors; edge/SSR and `<custom-element>` adoption remain follow-up phases. |
+| [`@epa-wg/cem-components`](packages/cem-components/README.md) | active MVP        | Material-superset declarative UI components built on `cem-elements` with Consumer Semantic Theme styling and behavioral/accessibility contracts. |
 | `@epa-wg/custom-element`                                      | external today    | Current production custom-element package; monorepo migration and `cem-element`-based next major are deferred until after the Edge/SSR follow-up phase. |
 | [`@epa-wg/cem-ml`](packages/cem_ml/Cargo.toml)                | active scaffold   | Active Rust parser/runtime library (Cargo: `cem-ml`) for canonical CEM-ML plus XML/HTML parity inputs.                          |
 | [`@epa-wg/cem-ml-cli`](packages/cem_ml_cli/Cargo.toml)        | active scaffold   | Active Rust CLI (Cargo: `cem-ml-cli`, binary: `cem-ml`) for CEM parsing, validation, reports, fixtures, and migration workflows. |

@@ -10,9 +10,12 @@ history is preserved in
 
 The CSS selector query and SCSS-to-CSS lifecycle slices are complete. The Phase
 4 component state matrix is also complete: all 39 required states are backed by
-browser coverage with no static-only rows or gaps. The component stylesheet
-publication, `action:hover`, and `action:active` contracts are implemented and
-verified. The `input:hover` contract is also implemented:
+browser coverage with no static-only rows or gaps. The active M4 expansion now
+starts with a versioned Angular Material parity inventory; no new parity
+component is selected until every official catalog entry is classified as a
+CEM component mapping, CEM behavior mapping, or explicit gap. The component
+stylesheet publication, `action:hover`, and `action:active` contracts are
+implemented and verified. The `input:hover` contract is also implemented:
 all seven native owners share a theme-tokenized three-stripe indicator, with
 underline and outline as geometry variants, not separate semantics.
 `CEM-CSS-001` is closed through D0/D5 theme adoption without a component CSS
@@ -41,6 +44,40 @@ borrowed native AST streams or typed evaluator values directly. JSON and other
 encodings are allowed only at explicit lifecycle parse or registered export
 boundaries; no serializer, generic DTO, shape inference, or replacement tree may
 mediate between internal layers.
+
+### Immediate: Angular Material Parity Baseline
+
+- [ ] Establish the versioned Angular Material-to-CEM parity program before
+      broad component expansion or Studio UI implementation.
+  - [x] Pin the current stable official Angular Material catalog, add one exact
+        executable inventory row per catalog entry, distinguish it from the
+        legacy `cem-elements` Material rendering fixtures, and wire its verifier
+        into the component Nx aggregate gate.
+    - Pinned Angular Material `v22.1.1` at commit
+      `0b67c3c38141049657b1167479accc80e455d2bd` with all 37 tagged catalog
+      entries in official order. Every mapping starts explicitly unreviewed;
+      `autocomplete` is the first recommended audit, not an accepted parity
+      implementation.
+    - Added an executable schema/verifier that locks the benchmark metadata,
+      catalog membership and order, mapping evidence, public primitive owners,
+      and product-layer evidence. The eight legacy `cem-elements` Material
+      fixtures remain runtime/template compatibility evidence only.
+    - Documented the `cem-elements` barebone browser/API substrate versus the
+      styled Material-superset `cem-components` product layer in the root README
+      and component reference. The uncached 21-task aggregate gate, all 57
+      browser tests, and component lint pass.
+  - [ ] Audit every pinned row as an existing CEM component, cross-cutting CEM
+        behavior, partial mapping, or explicit gap. Record exact CEM tags,
+        states, keyboard behavior, accessibility semantics, and executable
+        evidence without treating element existence as behavioral parity.
+  - [ ] Accept the first implementation priority from the audited gaps. Define
+        its semantic owner, state and event model, keyboard/accessibility
+        contract, theme-token coverage, focused fixture, forced-colors boundary,
+        and matrix assertions before component CSS or runtime implementation.
+  - [ ] Implement accepted parity rows one contract at a time, keeping the
+        versioned inventory, public component documentation, and aggregate Nx
+        gate current. Record a CSS exception only when no appropriate theme
+        category can represent accepted styling.
 
 ### Immediate: CSS Selector Query Schema and Unified CLI Query Execution
 

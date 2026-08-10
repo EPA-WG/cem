@@ -31,6 +31,20 @@
             ],
             "outputs": []
         },
+        "verify-material-parity": {
+            "cache": true,
+            "executor": "nx:run-commands",
+            "options": {
+                "command": "node tools/scripts/verify-cem-components-material-parity.mjs",
+                "cwd": "{workspaceRoot}"
+            },
+            "inputs": [
+                "{workspaceRoot}/tools/scripts/verify-cem-components-material-parity.mjs",
+                "{projectRoot}/tests/angular-material-parity.json",
+                "{projectRoot}/src/lib/primitives.ts"
+            ],
+            "outputs": []
+        },
         "verify-style-contract": {
             "cache": true,
             "executor": "nx:run-commands",
@@ -188,6 +202,7 @@
             "executor": "nx:run-commands",
             "dependsOn": [
                 "verify-primitives",
+                "verify-material-parity",
                 "verify-style-contract",
                 "verify-input-indicator-forced-colors",
                 "verify-navigation-hover-forced-colors",
@@ -199,7 +214,7 @@
                 "test"
             ],
             "options": {
-                "command": "echo \"cem-components verification gate green: primitive manifest + state matrix + style contract + workflow examples + browser harness tests passed.\"",
+                "command": "echo \"cem-components verification gate green: primitive manifest + Angular Material parity inventory + state matrix + style contract + workflow examples + browser harness tests passed.\"",
                 "cwd": "{workspaceRoot}"
             },
             "outputs": []
