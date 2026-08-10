@@ -1,11 +1,10 @@
 # Feedback Expanded Contract
 
-**Status:** Accepted Phase 4 contract; the generic rendered-attribute ownership
-boundary is implemented and verified, and the focused component fixture has
-landed as passive passing coverage plus four executable expected failures. The
-shared feedback behavior is the next work item. This contract is promoted by
-[`docs/todo.md`](../../../docs/todo.md). No feedback runtime behavior has landed
-yet.
+**Status:** Implemented Phase 4 runtime contract; the generic rendered-attribute
+ownership boundary, shared native-dialog behavior, declarative transient
+branches, and focused five-test component fixture are implemented and passing.
+Documentation/matrix promotion and the aggregate verification gate remain the
+next work item tracked by [`docs/todo.md`](../../../docs/todo.md).
 
 ## Decision
 
@@ -297,11 +296,10 @@ coverage proves:
 The declarative fixture is
 [`tests/feedback/expanded.html`](../tests/feedback/expanded.html), exercised by
 [`feedback-expanded.browser.spec.ts`](../src/lib/feedback-expanded.browser.spec.ts).
-Passive compatibility passes normally. Four behavior-dependent cases use
-Vitest's executable expected-failure mode and currently fail at the absent
-native-dialog and hidden-sheet boundaries. The behavior implementation must
-remove those expected-failure modifiers and make every assertion pass; expected
-failures do not count as state-matrix coverage.
+Passive compatibility and all four behavior-dependent cases now pass as
+ordinary tests. The shared adapter uses the native dialog lifecycle for both
+dialog aliases, the sheet branch derives only native visibility, and the suite
+proves the full acceptance list above without expected-failure modifiers.
 
 This expanded-state slice does not add feedback focus paint. After its lifecycle
 is executable, the separate feedback focus decision must identify actual native

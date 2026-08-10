@@ -3,6 +3,7 @@ import type {
     CemElementRuntime,
     CemProducedElementBehavior,
 } from '@epa-wg/cem-elements';
+import { CEM_FEEDBACK_DIALOG_BEHAVIOR } from './feedback-behavior.js';
 import { CEM_NAVIGATION_BEHAVIOR } from './navigation-behavior.js';
 import { CEM_SELECT_BEHAVIOR } from './select-behavior.js';
 
@@ -325,23 +326,31 @@ export const CEM_COMPONENT_PRIMITIVES = [
     {
         tag: 'cem-dialog',
         description: 'MVP modal decision or focused task surface.',
+        behavior: CEM_FEEDBACK_DIALOG_BEHAVIOR,
         cemMl:
             '{attribute @name=label | Dialog}' +
-            '{div @class=cem-dialog @role=dialog @aria-modal=true @aria-label="{$label}" | {slot}}',
+            '{cem:choose |' +
+            ' {cem:when @test="datadom.attributes.transient" | {dialog @class=cem-dialog @aria-label="{$label}" | {slot}}}' +
+            ' {cem:otherwise | {div @class=cem-dialog @role=dialog @aria-modal=true @aria-label="{$label}" | {slot}}}}',
     },
     {
         tag: 'cem-dialog-shell',
         description: 'Dialog shell with labeled light-DOM content.',
+        behavior: CEM_FEEDBACK_DIALOG_BEHAVIOR,
         cemMl:
             '{attribute @name=label | Dialog}' +
-            '{div @class=cem-dialog-shell @role=dialog @aria-modal=true @aria-label="{$label}" | {slot}}',
+            '{cem:choose |' +
+            ' {cem:when @test="datadom.attributes.transient" | {dialog @class=cem-dialog-shell @aria-label="{$label}" | {slot}}}' +
+            ' {cem:otherwise | {div @class=cem-dialog-shell @role=dialog @aria-modal=true @aria-label="{$label}" | {slot}}}}',
     },
     {
         tag: 'cem-sheet',
         description: 'MVP non-modal or edge-attached task surface.',
         cemMl:
             '{attribute @name=label | Sheet}' +
-            '{aside @class=cem-sheet @role=region @aria-label="{$label}" | {slot}}',
+            '{cem:choose |' +
+            ' {cem:when @test="datadom.attributes.transient" | {aside @class=cem-sheet @role=region @aria-label="{$label}" @hidden={if datadom.attributes.expanded { null } else { true }} | {slot}}}' +
+            ' {cem:otherwise | {aside @class=cem-sheet @role=region @aria-label="{$label}" | {slot}}}}',
     },
     {
         tag: 'cem-toast',

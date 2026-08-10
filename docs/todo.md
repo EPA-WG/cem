@@ -1133,10 +1133,25 @@ mediate between internal layers.
         close, native-owner replacement, disconnect, and reconnect cleanup. No
         primitive behavior, CSS, theme token, or exception changed in this
         fixture-only slice.
-    - [ ] Add one shared dialog behavior adapter and declarative transient
+    - [x] Add one shared dialog behavior adapter and declarative transient
           branches without adding a custom inert sweep, Tab loop, structural
           wrapper focusability, sheet Escape/focus handling, or direct
           browser-owned `open` mutation.
+      - Added one browser-only feedback adapter shared by `cem-dialog` and
+        `cem-dialog-shell`. It calls only native `showModal()` / `close()`,
+        preserves only the current rendered owner's browser-owned `open`
+        attribute while expanded, synchronizes successful native dismissal,
+        suppresses application-close echoes, deduplicates owner listeners, and
+        releases/restores state across owner replacement and reconnect.
+      - Added presence-only declarative branches: transient dialog aliases render
+        their stable native `<dialog>` owner, while the transient sheet retains
+        its non-modal `<aside role="region">` and derives only `hidden` from
+        `expanded`. Static output remains unchanged and ignores `expanded`.
+      - Promoted all four transient expected failures to ordinary passing tests.
+        The focused fixture passes 5/5 and the aggregate component suite passes
+        54/54, including zero `open` churn, native focus/Tab/Escape/form-close
+        behavior, stable DOM/input/geometry, sheet focus neutrality, and
+        disconnect/reconnect cleanup. No CSS, theme token, or exception changed.
     - [ ] Update component/accessibility docs and the executable matrix, then
           run the focused state suite, state-matrix audit, lint, and aggregate
           package gate before marking implementation complete.

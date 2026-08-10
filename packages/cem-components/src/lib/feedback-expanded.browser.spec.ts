@@ -74,7 +74,7 @@ describe('feedback expanded acceptance fixture', () => {
         expect(() => assertAriaReferenceIntegrity(root)).not.toThrow();
     });
 
-    it.fails('uses native owners for transient initialization and live state transitions', async () => {
+    it('uses native owners for transient initialization and live state transitions', async () => {
         const root = await renderFixture();
         const dialogCases = [
             {
@@ -125,7 +125,7 @@ describe('feedback expanded acceptance fixture', () => {
         await waitFor(() => sheet.hidden === true, 'collapsed sheet becomes hidden');
     });
 
-    it.fails('delegates modal focus, keyboard dismissal, return value, and restoration to the native dialog', async () => {
+    it('delegates modal focus, keyboard dismissal, return value, and restoration to the native dialog', async () => {
         const root = await renderFixture();
         const host = requiredElement<HTMLElement>(root, '#feedback-transient-dialog');
         const opener = requiredElement<HTMLButtonElement>(root, '[data-opener="dialog"]');
@@ -195,7 +195,7 @@ describe('feedback expanded acceptance fixture', () => {
         ]);
     });
 
-    it.fails('keeps a transient sheet non-modal, focus-neutral, and application-controlled', async () => {
+    it('keeps a transient sheet non-modal, focus-neutral, and application-controlled', async () => {
         const root = await renderFixture();
         const host = requiredElement<HTMLElement>(root, '#feedback-transient-sheet');
         const opener = requiredElement<HTMLButtonElement>(root, '[data-opener="sheet"]');
@@ -237,7 +237,7 @@ describe('feedback expanded acceptance fixture', () => {
         expect(dismissals).toEqual([]);
     });
 
-    it.fails('preserves open-dialog identity and state while cleaning up close, replacement, and reconnect paths', async () => {
+    it('preserves open-dialog identity and state while cleaning up close, replacement, and reconnect paths', async () => {
         const root = await renderFixture();
         const host = requiredElement<HTMLElement>(root, '#feedback-transient-dialog');
         const opener = requiredElement<HTMLButtonElement>(root, '[data-opener="dialog"]');
