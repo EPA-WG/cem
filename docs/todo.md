@@ -27,7 +27,12 @@ and bounded host capture. Content hover and keyboard focus now apply only to the
 checkable-chip button and selectable-list composite through generated
 content-interaction, D5 focus, and zebra semantics, with passive
 list/chip/table wrappers excluded; the state-matrix audit now recommends
-`feedback:focus-visible` next.
+`feedback:expanded` before feedback focus so visibility, initial focus,
+dismissal, restoration, and modal/non-modal ownership are truthful first. The
+feedback lifecycle audit is complete, but implementation is stopped at the
+public owner/model decision: the shipped dialog and sheet surfaces are static,
+own no opener or close transition, and cannot truthfully receive
+`aria-expanded` or focus paint on their structural wrappers.
 
 The cross-layer architecture remains serializer-free: lifecycle loading, graph
 routing, joins, evaluators, CEM-QL, CEMT, and XSLT adapters must exchange
@@ -1035,17 +1040,42 @@ mediate between internal layers.
     with one canonical stylesheet.
 - [ ] Decide the Phase 4 feedback focus owner and lifecycle boundary before
       implementing `feedback:focus-visible`.
-  - [ ] Reconcile the matrix's “move keyboard focus into a feedback surface”
+  - [x] Reconcile the matrix's “move keyboard focus into a feedback surface”
         wording with shipped output: `cem-dialog` and `cem-dialog-shell` render
         non-focusable structural `div[role="dialog"]` wrappers, `cem-sheet`
         renders a non-focusable `aside[role="region"]`, and all focusable
         descendants are application-authored.
-  - [ ] Choose whether to sequence `feedback:expanded` first so open state,
+  - [x] Choose whether to sequence `feedback:expanded` first so open state,
         initial-focus ownership, dismissal, restoration, and modal trapping are
         truthful before focus coverage (recommended), or narrow feedback focus
         to an explicitly accepted component-owned descendant contract. Do not
         add `tabindex` or `:focus-within` paint to structural wrappers merely to
         close the matrix row.
+    - Accepted the recommended sequencing. The executable matrix now places
+      `feedback:expanded` before `feedback:focus-visible`; no runtime, fixture,
+      CSS, theme token, or exception changed in this audit-only slice.
+  - [ ] Decide the public `feedback:expanded` owner and lifecycle model before
+        adding a fixture or runtime behavior.
+    - Reconcile `cem-dialog` with `cem-dialog-shell`: the component reference
+      calls `cem-dialog` modal while deferring focus trapping, but the
+      accessibility contract assigns modal trapping, Escape dismissal, and
+      focus restoration specifically to `cem-dialog-shell`. Decide whether the
+      two tags share one lifecycle behavior, compose as surface plus shell, or
+      intentionally expose different contracts.
+    - Choose the public state input and compatibility boundary. The current
+      absent-state output is a visible static surface, so changing absence to
+      closed would be breaking; an opt-in controlled mode, a native `open`
+      contract, and a host `expanded` contract have materially different
+      attribute/event behavior.
+    - Choose whether modal dialogs become native `<dialog>` owners driven by a
+      behavior hook or retain ARIA dialog wrappers with component-owned inerting
+      and focus trapping. Pin initial focus, programmatic open, Escape/cancel,
+      outside interaction, close-event timing, focus capture/restoration, and
+      disconnect behavior before implementation.
+    - Keep `cem-sheet` explicitly non-modal and decide whether its external
+      application-owned opener retains `aria-expanded`/`aria-controls`; do not
+      place `aria-expanded` on the sheet, dialog, or shell surface merely to
+      satisfy the matrix wording.
   - [ ] After ownership acceptance, audit D5/zebra and the relevant descendant
         component token family, then cover keyboard entry/order, modal versus
         non-modal behavior, disabled skipping, focus restoration, stable

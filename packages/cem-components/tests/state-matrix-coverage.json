@@ -21,9 +21,10 @@
         "navigation:disabled",
         "content:hover",
         "content:focus-visible",
+        "feedback:expanded",
         "feedback:focus-visible"
     ],
-    "recommendedNext": "feedback:focus-visible",
+    "recommendedNext": "feedback:expanded",
     "coverage": [
         {
             "id": "action:default",
@@ -613,7 +614,7 @@
             "components": ["cem-dialog", "cem-dialog-shell", "cem-sheet"],
             "interaction": "Move keyboard focus into a feedback surface and retain a visible focus indicator.",
             "status": "gap",
-            "reason": "Dialog and sheet semantics are asserted, but focus movement and indication are not."
+            "reason": "The structural dialog and sheet surfaces are not focusable, all focusable descendants are application-authored, and no accepted open lifecycle owns initial focus or restoration."
         },
         {
             "id": "feedback:loading",
@@ -636,7 +637,7 @@
             "components": ["cem-dialog", "cem-dialog-shell", "cem-sheet"],
             "interaction": "Open and close a dialog or sheet and mirror disclosure state where applicable.",
             "status": "gap",
-            "reason": "Feedback surfaces render, but no open/close transition or aria-expanded owner is asserted."
+            "reason": "The static feedback surfaces own no opener, public open-state input, close transition, or accepted modal/non-modal lifecycle; aria-expanded belongs on a controlling trigger where applicable, not on the surface wrapper."
         },
         {
             "id": "feedback:invalid",
