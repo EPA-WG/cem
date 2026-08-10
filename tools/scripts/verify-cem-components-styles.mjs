@@ -142,6 +142,10 @@ const CONTENT_INTERACTION_BINDINGS = new Map([
         selector,
         colorBinding('--cem-content-interaction-disabled-background', '--cem-content-interaction-disabled-text'),
     ]),
+    ...[
+        'cem-list[selectable] > select.cem-list.cem-list--selectable:enabled:focus-visible',
+        'cem-chip[checkable] > button.cem-chip:enabled:focus-visible',
+    ].map((selector) => [selector, focusBinding()]),
 ]);
 const NAVIGATION_BINDINGS = new Map([
     ...[

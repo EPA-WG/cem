@@ -200,6 +200,105 @@ try {
         await page.evaluate(nextFrame);
     }
 
+    await page.locator('#focus-start').focus();
+    await page.evaluate(nextFrame);
+    const focusBaseline = await page.evaluate(captureContentForcedColorState);
+    const focusIds = ['list-owner', 'unchecked-owner', 'checked-owner'];
+    for (const [index, id] of focusIds.entries()) {
+        const key = camelCase(id);
+        await page.keyboard.press('Tab');
+        await page.evaluate(nextFrame);
+        const focusedOwner = await page.evaluate(captureContentForcedColorState);
+        assert(focusedOwner.activeElement === id, `${id} did not receive keyboard focus`);
+        assert(focusedOwner.owners[key].focusVisible, `${id} did not match :focus-visible`);
+        assert(
+            focusedOwner.owners[key].outlineColor === focusedOwner.system.canvasText,
+            `${id} focus outline did not map to CanvasText`,
+        );
+        assert(focusedOwner.owners[key].outlineStyle === 'solid', `${id} focus outline was not solid`);
+        assert(
+            focusedOwner.owners[key].outlineWidth === focusedOwner.tokens.focusWidth,
+            `${id} focus width did not resolve from --cem-stroke-focus`,
+        );
+        assert(
+            focusedOwner.owners[key].outlineOffset === focusedOwner.tokens.focusOffset,
+            `${id} focus offset did not resolve from --cem-stroke-indicator-offset`,
+        );
+        assert(
+            equalSize(focusedOwner.owners[key].size, focusBaseline.owners[key].size),
+            `${id} focus changed owner geometry`,
+        );
+        assert(
+            equalSize(focusedOwner.hosts[key].size, focusBaseline.hosts[key].size),
+            `${id} focus changed host geometry`,
+        );
+        assert(focusedOwner.hosts[key].html === focusBaseline.hosts[key].html, `${id} focus changed DOM or ARIA`);
+        assert(
+            equalOutline(focusedOwner.hosts[key], focusBaseline.hosts[key]),
+            `${id} focus styled its host wrapper`,
+        );
+        assert(
+            focusedOwner.owners[key].semanticState === focusBaseline.owners[key].semanticState,
+            `${id} focus changed selection or checked state`,
+        );
+
+        if (index > 0) {
+            const previousId = focusIds[index - 1];
+            const previousKey = camelCase(previousId);
+            assert(!focusedOwner.owners[previousKey].focusVisible, `${previousId} retained :focus-visible after Tab`);
+            assert(
+                equalOutline(focusedOwner.owners[previousKey], focusBaseline.owners[previousKey]),
+                `${previousId} focus outline did not restore`,
+            );
+        }
+
+        await forcePseudoState(cdp, id, ['hover']);
+        await page.evaluate(nextFrame);
+        const hoveredFocused = await page.evaluate(captureContentForcedColorState);
+        assert(hoveredFocused.owners[key].focusVisible, `${id} hover removed :focus-visible`);
+        assert(
+            equalOutline(hoveredFocused.owners[key], focusedOwner.owners[key]),
+            `${id} hover replaced its focus outline`,
+        );
+        assert(
+            hoveredFocused.owners[key].semanticState === focusedOwner.owners[key].semanticState,
+            `${id} focused hover changed selection or checked state`,
+        );
+        if (id === 'list-owner') {
+            assert(
+                hoveredFocused.owners[key].borderColor === hoveredFocused.system.highlight,
+                'focused listbox hover border did not map to Highlight',
+            );
+        } else {
+            assert(
+                hoveredFocused.owners[key].backgroundColor === hoveredFocused.system.highlight,
+                `${id} focused hover did not map to Highlight`,
+            );
+            assert(
+                hoveredFocused.owners[key].color === hoveredFocused.system.highlightText,
+                `${id} focused hover text did not map to HighlightText`,
+            );
+        }
+        await forcePseudoState(cdp, id, []);
+        await page.evaluate(nextFrame);
+
+        assert(focusedOwner.activeElement !== 'disabled-list-owner', 'disabled listbox entered the focus order');
+        assert(focusedOwner.activeElement !== 'disabled-chip-owner', 'disabled chip entered the focus order');
+    }
+
+    await page.keyboard.press('Tab');
+    await page.evaluate(nextFrame);
+    const restoredFocus = await page.evaluate(captureContentForcedColorState);
+    assert(restoredFocus.activeElement === 'focus-end', 'focus did not leave content at the end sentinel');
+    assert(!restoredFocus.owners.checkedOwner.focusVisible, 'checked chip retained :focus-visible after Tab');
+    assert(
+        equalOutline(restoredFocus.owners.checkedOwner, focusBaseline.owners.checkedOwner),
+        'checked chip focus outline did not restore',
+    );
+    for (const key of ['disabledListOwner', 'disabledChipOwner', 'passiveListOwner', 'passiveChipOwner', 'passiveTableOwner']) {
+        assert(!restoredFocus.owners[key].focusVisible, `${key} acquired focus-visible`);
+    }
+
     const finalState = await page.evaluate(captureContentForcedColorState);
     for (const id of [
         'list-owner',
@@ -216,7 +315,7 @@ try {
             `${id} did not receive one trusted pointer enter/leave pair`,
         );
     }
-    assert(finalState.mutationEvents.length === 0, 'content hover dispatched a mutation event');
+    assert(finalState.mutationEvents.length === 0, 'content hover/focus dispatched a mutation event');
     assert(finalState.owners.listOwner.semanticState === baseline.owners.listOwner.semanticState, 'selection mutated');
     assert(finalState.owners.checkedOwner.semanticState === baseline.owners.checkedOwner.semanticState, 'checked state mutated');
     assert(
@@ -225,7 +324,7 @@ try {
     );
 
     await context.close();
-    console.log('cem-components content hover forced-colors contract verified.');
+    console.log('cem-components content hover/focus forced-colors contract verified.');
 } finally {
     await browser.close();
 }
@@ -280,6 +379,10 @@ function captureContentForcedColorState() {
         return {
             backgroundColor: styles.backgroundColor,
             html: element.outerHTML,
+            outlineColor: styles.outlineColor,
+            outlineOffset: styles.outlineOffset,
+            outlineStyle: styles.outlineStyle,
+            outlineWidth: styles.outlineWidth,
             size: [rect.width, rect.height],
         };
     };
@@ -296,6 +399,17 @@ function captureContentForcedColorState() {
     const hostIds = Object.fromEntries(
         Object.entries(ownerIds).map(([key, id]) => [key, id.replace('-owner', '-host')]),
     );
+    const readFocusTokens = () => {
+        const probe = document.createElement('span');
+        probe.style.display = 'block';
+        probe.style.height = 'var(--cem-stroke-indicator-offset)';
+        probe.style.width = 'var(--cem-stroke-focus)';
+        document.querySelector('main').append(probe);
+        const styles = getComputedStyle(probe);
+        const tokens = { focusOffset: styles.height, focusWidth: styles.width };
+        probe.remove();
+        return tokens;
+    };
 
     return {
         activeElement: document.activeElement?.id ?? '',
@@ -313,6 +427,7 @@ function captureContentForcedColorState() {
             selectedItem: readSystemColor('SelectedItem'),
             selectedItemText: readSystemColor('SelectedItemText'),
         },
+        tokens: readFocusTokens(),
     };
 }
 

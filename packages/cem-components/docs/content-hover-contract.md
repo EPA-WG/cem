@@ -52,8 +52,9 @@ without expanding that public behavior contract; disabled list options remain
 option-owned.
 
 Focus is independently owned by the native control in this slice. Hover does
-not replace its visible outline or move focus. A tokenized package-wide content
-focus treatment remains the separate `content:focus-visible` work item.
+not replace its visible outline or move focus. The tokenized ring and keyboard
+order are defined by the
+[content focus-visible contract](./content-focus-visible-contract.md).
 
 ## Forced colors
 
@@ -87,7 +88,7 @@ The focused Chromium browser fixture proves:
   and
 - absence of click, input, change, and component lifecycle mutation events.
 
-The dedicated forced-colors Chromium gate verifies the system mappings,
+The combined hover/focus forced-colors Chromium gate verifies the system mappings,
 restoration, native listbox border treatment, selected/checked state, focus
 coexistence, disabled suppression, passive exclusions, trusted pointer boundary
 events, geometry, and DOM/ARIA isolation. Chromium's inspection-only forced

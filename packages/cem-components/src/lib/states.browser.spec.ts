@@ -2875,6 +2875,240 @@ describe('CEM component primitive states and ARIA behavior', () => {
         expect(() => assertAriaReferenceIntegrity(harness.root)).not.toThrow();
     });
 
+    it('moves keyboard focus through interactive content owners without changing selection or checked state', async () => {
+        harness = createComponentHarness();
+        const root = await harness.render(`
+            <section class="cem-theme-light">
+                <button id="content-focus-start" type="button">Start content focus sequence</button>
+                <cem-stack gap="sm">
+                    <cem-list id="focus-passive-list" label="Static topics">
+                        <li>Static topic</li>
+                    </cem-list>
+                    <cem-list id="focus-selectable-list" label="Asset type" selectable value="document" size="3">
+                        <cem-list-option value="image">Image</cem-list-option>
+                        <cem-list-option value="document" selected>Document</cem-list-option>
+                        <cem-list-option value="archive" disabled>Archive</cem-list-option>
+                    </cem-list>
+                    <cem-list id="focus-disabled-list" label="Unavailable asset type" selectable size="2">
+                        <cem-list-option value="image" selected>Image</cem-list-option>
+                        <cem-list-option value="document">Document</cem-list-option>
+                    </cem-list>
+                    <cem-chip id="focus-passive-chip">Passive chip</cem-chip>
+                    <cem-chip id="focus-unchecked-chip" checkable>Unchecked chip</cem-chip>
+                    <cem-chip id="focus-checked-chip" checkable checked>Checked chip</cem-chip>
+                    <cem-chip id="focus-disabled-chip" checkable checked>Unavailable chip</cem-chip>
+                    <cem-table id="focus-passive-table" label="Static comparison">
+                        <div role="row"><span role="cell">Static cell</span></div>
+                    </cem-table>
+                </cem-stack>
+                <button id="content-focus-end" type="button">End content focus sequence</button>
+            </section>
+        `);
+        await waitForStateSelector(root, '#focus-passive-table > .cem-table');
+
+        const start = harness.query<HTMLButtonElement>('#content-focus-start');
+        const end = harness.query<HTMLButtonElement>('#content-focus-end');
+        const listHost = harness.query<HTMLElement>('#focus-selectable-list');
+        const listOwner = harness.query<HTMLSelectElement>('#focus-selectable-list > select');
+        const uncheckedHost = harness.query<HTMLElement>('#focus-unchecked-chip');
+        const uncheckedOwner = harness.query<HTMLButtonElement>('#focus-unchecked-chip > button');
+        const checkedHost = harness.query<HTMLElement>('#focus-checked-chip');
+        const checkedOwner = harness.query<HTMLButtonElement>('#focus-checked-chip > button');
+        const disabledListOwner = harness.query<HTMLSelectElement>('#focus-disabled-list > select');
+        const disabledChipOwner = harness.query<HTMLButtonElement>('#focus-disabled-chip > button');
+        disabledListOwner.disabled = true;
+        disabledChipOwner.disabled = true;
+
+        const cases = [
+            {
+                host: listHost,
+                owner: listOwner,
+                tokens: {
+                    defaultBackground: '--cem-content-interaction-default-background',
+                    defaultText: '--cem-content-interaction-default-text',
+                    hoverBackground: '--cem-content-interaction-hover-background',
+                    hoverText: '--cem-content-interaction-hover-text',
+                },
+            },
+            {
+                host: uncheckedHost,
+                owner: uncheckedOwner,
+                tokens: {
+                    defaultBackground: '--cem-content-interaction-default-background',
+                    defaultText: '--cem-content-interaction-default-text',
+                    hoverBackground: '--cem-content-interaction-hover-background',
+                    hoverText: '--cem-content-interaction-hover-text',
+                },
+            },
+            {
+                host: checkedHost,
+                owner: checkedOwner,
+                tokens: {
+                    defaultBackground: '--cem-content-interaction-selected-background',
+                    defaultText: '--cem-content-interaction-selected-text',
+                    hoverBackground: '--cem-content-interaction-selected-hover-background',
+                    hoverText: '--cem-content-interaction-selected-hover-text',
+                },
+            },
+        ] as const;
+        const passiveCases = [
+            {
+                host: harness.query<HTMLElement>('#focus-passive-list'),
+                owner: harness.query<HTMLElement>('#focus-passive-list > ul'),
+            },
+            {
+                host: harness.query<HTMLElement>('#focus-passive-chip'),
+                owner: harness.query<HTMLElement>('#focus-passive-chip > span'),
+            },
+            {
+                host: harness.query<HTMLElement>('#focus-passive-table'),
+                owner: harness.query<HTMLElement>('#focus-passive-table > .cem-table'),
+            },
+        ] as const;
+        const baselines = cases.map(({ host, owner }) => captureContentInteractionState(runtime, host, owner));
+        const passiveBaselines = passiveCases.map(({ host, owner }) =>
+            captureContentInteractionState(runtime, host, owner),
+        );
+        const focusOrder: string[] = [];
+        const focusOwnerNames = new Map<HTMLElement, string>([
+            [listOwner, 'selectable-list'],
+            [uncheckedOwner, 'unchecked-chip'],
+            [checkedOwner, 'checked-chip'],
+            [end, 'end'],
+        ]);
+        const mutationEvents: string[] = [];
+        harness.root.addEventListener('focusin', (event) => {
+            if (event.target instanceof HTMLElement) {
+                const ownerName = focusOwnerNames.get(event.target);
+                if (ownerName) {
+                    focusOrder.push(ownerName);
+                }
+            }
+        });
+        for (const eventName of ['click', 'input', 'change', 'cem-loaded', 'cem-error', 'cem-cancel']) {
+            harness.root.addEventListener(eventName, () => mutationEvents.push(eventName));
+        }
+
+        for (const [index, contentCase] of cases.entries()) {
+            const { owner, tokens } = contentCase;
+            const baseline = baselines[index];
+            if (!baseline) {
+                throw new Error(`Expected content focus baseline ${index}`);
+            }
+            expect(baseline.backgroundColor).toBe(resolveTokenColor(owner, tokens.defaultBackground));
+            expect(baseline.color).toBe(resolveTokenColor(owner, tokens.defaultText));
+        }
+
+        start.focus();
+        expect(document.activeElement).toBe(start);
+
+        for (const [index, contentCase] of cases.entries()) {
+            const { host, owner, tokens } = contentCase;
+            const baseline = baselines[index];
+            if (!baseline) {
+                throw new Error(`Expected content focus baseline ${index}`);
+            }
+
+            await userEvent.tab();
+            await nextRenderFrame();
+
+            const focused = captureContentInteractionState(runtime, host, owner);
+            expect(document.activeElement).toBe(owner);
+            expect(owner.matches(':focus-visible')).toBe(true);
+            expect(paintedColor(focused.focusTreatment[0])).toBe(resolveTokenColor(owner, '--cem-zebra-color-1'));
+            expect(focused.focusTreatment[1]).toBe('solid');
+            expect(focused.focusTreatment[2]).toBe(`${resolveTokenLength(owner, '--cem-stroke-focus')}px`);
+            expect(focused.focusTreatment[3]).toBe(
+                `${resolveTokenLength(owner, '--cem-stroke-indicator-offset')}px`,
+            );
+            expect(focused.backgroundColor).toBe(baseline.backgroundColor);
+            expect(focused.color).toBe(baseline.color);
+            expect(focused.hostFocusTreatment).toEqual(baseline.hostFocusTreatment);
+            expectContentInteractionStructureAndGeometry(focused, baseline);
+
+            if (index > 0) {
+                const previousCase = cases[index - 1];
+                const previousBaseline = baselines[index - 1];
+                if (!previousCase || !previousBaseline) {
+                    throw new Error(`Expected previous content focus case ${index - 1}`);
+                }
+                const restoredPrevious = captureContentInteractionState(
+                    runtime,
+                    previousCase.host,
+                    previousCase.owner,
+                );
+                expect(previousCase.owner.matches(':focus-visible')).toBe(false);
+                expect(restoredPrevious.focusTreatment).toEqual(previousBaseline.focusTreatment);
+                expectContentInteractionStructureAndGeometry(restoredPrevious, previousBaseline);
+            }
+
+            await userEvent.hover(owner);
+            await nextRenderFrame();
+            const hoveredFocused = captureContentInteractionState(runtime, host, owner);
+            expect(owner.matches(':hover')).toBe(true);
+            expect(owner.matches(':focus-visible')).toBe(true);
+            expect(hoveredFocused.backgroundColor).toBe(resolveTokenColor(owner, tokens.hoverBackground));
+            expect(hoveredFocused.color).toBe(resolveTokenColor(owner, tokens.hoverText));
+            expect(hoveredFocused.focusTreatment).toEqual(focused.focusTreatment);
+            expectContentInteractionStructureAndGeometry(hoveredFocused, focused);
+
+            await userEvent.unhover(owner);
+            await nextRenderFrame();
+            const restoredFocus = captureContentInteractionState(runtime, host, owner);
+            expect(restoredFocus.backgroundColor).toBe(focused.backgroundColor);
+            expect(restoredFocus.color).toBe(focused.color);
+            expect(restoredFocus.focusTreatment).toEqual(focused.focusTreatment);
+            expectContentInteractionStructureAndGeometry(restoredFocus, focused);
+
+            expect(document.activeElement).not.toBe(disabledListOwner);
+            expect(document.activeElement).not.toBe(disabledChipOwner);
+            expect(disabledListOwner.matches(':focus-visible')).toBe(false);
+            expect(disabledChipOwner.matches(':focus-visible')).toBe(false);
+        }
+
+        await userEvent.tab();
+        await nextRenderFrame();
+        expect(document.activeElement).toBe(end);
+        expect(checkedOwner.matches(':focus-visible')).toBe(false);
+        const lastBaseline = baselines.at(-1);
+        if (!lastBaseline) {
+            throw new Error('Expected final content focus baseline');
+        }
+        const restoredLast = captureContentInteractionState(runtime, checkedHost, checkedOwner);
+        expect(restoredLast.focusTreatment).toEqual(lastBaseline.focusTreatment);
+        expectContentInteractionStructureAndGeometry(restoredLast, lastBaseline);
+
+        for (const [index, passiveCase] of passiveCases.entries()) {
+            const { host, owner } = passiveCase;
+            const baseline = passiveBaselines[index];
+            if (!baseline) {
+                throw new Error(`Expected passive content focus baseline ${index}`);
+            }
+            owner.focus();
+            expect(document.activeElement).toBe(end);
+            expect(owner.tabIndex).toBe(-1);
+            expect(owner.matches(':focus-visible')).toBe(false);
+            expectContentInteractionStructureAndGeometry(
+                captureContentInteractionState(runtime, host, owner),
+                baseline,
+            );
+        }
+
+        expect(focusOrder).toEqual([
+            'selectable-list',
+            'unchecked-chip',
+            'checked-chip',
+            'end',
+        ]);
+        expect(listOwner.value).toBe('document');
+        expect(listOwner.options[1]?.getAttribute('aria-selected')).toBe('true');
+        expect(listOwner.options[2]?.disabled).toBe(true);
+        expect(uncheckedOwner.getAttribute('aria-pressed')).toBe('false');
+        expect(checkedOwner.getAttribute('aria-pressed')).toBe('true');
+        expect(mutationEvents).toEqual([]);
+        expect(() => assertAriaReferenceIntegrity(harness.root)).not.toThrow();
+    });
+
     it('toggles collapsible navigation without changing passive landmark semantics', async () => {
         harness = createComponentHarness();
         const root = await harness.render(`
@@ -3778,6 +4012,7 @@ interface ContentInteractionStateSnapshot {
     forcedColorAdjust: string;
     hostAttributes: readonly string[];
     hostBackgroundColor: string;
+    hostFocusTreatment: readonly string[];
     hostHtml: string;
     hostRect: readonly number[];
     ownerHtml: string;
@@ -3824,6 +4059,13 @@ function captureContentInteractionState(
         forcedColorAdjust: ownerStyles.forcedColorAdjust,
         hostAttributes: Array.from(host.attributes, ({ name, value }) => `${name}=${value}`),
         hostBackgroundColor: paintedColor(hostStyles.backgroundColor),
+        hostFocusTreatment: [
+            hostStyles.outlineColor,
+            hostStyles.outlineStyle,
+            hostStyles.outlineWidth,
+            hostStyles.outlineOffset,
+            hostStyles.boxShadow,
+        ],
         hostHtml: host.outerHTML,
         hostRect: sizeTuple(host),
         ownerHtml: owner.outerHTML,
@@ -3846,6 +4088,7 @@ function expectContentInteractionStructureAndGeometry(
     expect(actual.hostAttributes).toEqual(expected.hostAttributes);
     expect(actual.hostHtml).toBe(expected.hostHtml);
     expect(actual.hostRect).toEqual(expected.hostRect);
+    expect(actual.hostFocusTreatment).toEqual(expected.hostFocusTreatment);
     expect(actual.ownerHtml).toBe(expected.ownerHtml);
     expect(actual.ownerRect).toEqual(expected.ownerRect);
     expect(actual.runtime).toBe(expected.runtime);

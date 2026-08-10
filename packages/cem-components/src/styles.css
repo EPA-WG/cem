@@ -60,6 +60,12 @@ cem-chip[checkable] > button.cem-chip[aria-pressed='true']:disabled {
     color: var(--cem-content-interaction-disabled-text);
 }
 
+cem-list[selectable] > select.cem-list.cem-list--selectable:enabled:focus-visible,
+cem-chip[checkable] > button.cem-chip:enabled:focus-visible {
+    outline: var(--cem-stroke-focus) solid var(--cem-zebra-color-1);
+    outline-offset: var(--cem-stroke-indicator-offset);
+}
+
 cem-nav > nav > :is(a[href], button),
 cem-nav > nav > .cem-nav__content > :is(a[href], button),
 cem-tabs > [role='tablist'] > button[role='tab'] {
@@ -482,6 +488,12 @@ cem-select .cem-select__option[aria-disabled='true'] {
     cem-chip[checkable] > button.cem-chip[aria-pressed='true']:disabled {
         background-color: Canvas;
         color: GrayText;
+    }
+
+    cem-list[selectable] > select.cem-list.cem-list--selectable:enabled:focus-visible,
+    cem-chip[checkable] > button.cem-chip:enabled:focus-visible {
+        outline: var(--cem-stroke-focus) solid CanvasText;
+        outline-offset: var(--cem-stroke-indicator-offset);
     }
 
     cem-nav > nav > :is(a[href], button)[aria-current]:not([aria-current='false']),

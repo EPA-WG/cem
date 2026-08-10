@@ -23,10 +23,11 @@ canonical `cem-option` authoring, native-option migration input, and
 theme-tokenized popup/listbox states. Navigation hover, keyboard focus, held
 active paint, and disabled behavior now apply only to the real nav links/buttons
 and tab buttons through generated navigation-item, D5 focus, zebra semantics,
-and bounded host capture. Content hover now applies only to the checkable-chip
-button and selectable-list composite through generated content-interaction
-semantics, with passive list/chip/table wrappers excluded; the state-matrix
-audit recommends `content:focus-visible` next.
+and bounded host capture. Content hover and keyboard focus now apply only to the
+checkable-chip button and selectable-list composite through generated
+content-interaction, D5 focus, and zebra semantics, with passive
+list/chip/table wrappers excluded; the state-matrix audit now recommends
+`feedback:focus-visible` next.
 
 The cross-layer architecture remains serializer-free: lifecycle loading, graph
 routing, joins, evaluators, CEM-QL, CEMT, and XSLT adapters must exchange
@@ -995,22 +996,62 @@ mediate between internal layers.
     tests across five files, including the new content-hover forced-colors
     verifier. The package gate still publishes 24 dist-only files with one
     canonical stylesheet.
-- [ ] Decide and implement the Phase 4 `content:focus-visible` owner and paint
+- [x] Decide and implement the Phase 4 `content:focus-visible` owner and paint
       contract.
-  - [ ] Reuse the shipped interactive owner boundary unless evidence requires a
+  - [x] Reuse the shipped interactive owner boundary unless evidence requires a
         different one (recommended: the selectable-list `<select>` and
         checkable-chip `<button>` only; keep passive list/chip/table output and
         application-authored table rows excluded).
-  - [ ] Audit D5 focus geometry and zebra focus color before adding CSS. Prefer
+  - [x] Audit D5 focus geometry and zebra focus color before adding CSS. Prefer
         the existing external `--cem-stroke-focus` /
         `--cem-stroke-indicator-offset` ring with `--cem-zebra-color-1`; add D0
         semantics only if checked/selected focus coexistence cannot be expressed
         independently, and record an exception only if no theme category fits.
-  - [ ] Prove sequential keyboard order, native-disabled skipping, exact
+  - [x] Prove sequential keyboard order, native-disabled skipping, exact
         `:focus-visible` ownership, selected-option and checked-chip coexistence,
         hover coexistence/restoration, stable geometry/DOM/runtime state,
         wrapper isolation, and normal/forced-colors behavior without adding
         focus handlers or mutating selection/checked state.
+  - D5's existing focus width/offset and the zebra focus color fully represent
+    the ring, so no D0 token or CSS exception was needed. Exact
+    `:enabled:focus-visible` selectors bind only the selectable-list `<select>`
+    and checkable-chip `<button>`; the chip's documented token surface now
+    includes stroke semantics.
+  - The focused Chromium state suite passes 22/22 and proves the exact native
+    Tab order from listbox to unchecked chip to checked chip, then the end
+    sentinel. Disabled native owners and passive list/chip/table output are
+    skipped, the D5/zebra ring resolves exactly, hover retains the ring, and
+    selected/checked/DOM/runtime state and dimensions remain stable.
+  - The combined content hover/focus forced-colors gate verifies `CanvasText`
+    focus width/offset on every enabled owner alongside checked
+    `SelectedItem`, chip hover `Highlight`, and the listbox's independent
+    `Highlight` hover border. It also proves native-disabled skipping,
+    restoration, wrapper isolation, and no mutation events.
+  - The state matrix now reports 37 browser-covered, 0 static-only, and 2 gaps
+    with `feedback:focus-visible` recommended next. The exact style gate remains
+    at 34 primitives and 420 generated visual tokens.
+  - The uncached aggregate component gate passes all 19 dependencies and 49
+    tests across five files. The package gate still publishes 24 dist-only files
+    with one canonical stylesheet.
+- [ ] Decide the Phase 4 feedback focus owner and lifecycle boundary before
+      implementing `feedback:focus-visible`.
+  - [ ] Reconcile the matrix's “move keyboard focus into a feedback surface”
+        wording with shipped output: `cem-dialog` and `cem-dialog-shell` render
+        non-focusable structural `div[role="dialog"]` wrappers, `cem-sheet`
+        renders a non-focusable `aside[role="region"]`, and all focusable
+        descendants are application-authored.
+  - [ ] Choose whether to sequence `feedback:expanded` first so open state,
+        initial-focus ownership, dismissal, restoration, and modal trapping are
+        truthful before focus coverage (recommended), or narrow feedback focus
+        to an explicitly accepted component-owned descendant contract. Do not
+        add `tabindex` or `:focus-within` paint to structural wrappers merely to
+        close the matrix row.
+  - [ ] After ownership acceptance, audit D5/zebra and the relevant descendant
+        component token family, then cover keyboard entry/order, modal versus
+        non-modal behavior, disabled skipping, focus restoration, stable
+        geometry/DOM/runtime state, forced colors, exact bindings, docs, and the
+        matrix. Record a CSS exception only if no theme category represents the
+        accepted paint.
 
 ## Current Verification Commands
 

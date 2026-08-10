@@ -135,3 +135,8 @@ and a native selectable-list composite, so D0 now owns generated
 disabled pairs. Component CSS binds only those endpoints in normal modes.
 Forced colors use platform system colors; the native listbox retains its
 platform surface and recolors its existing border without adding geometry.
+
+Content focus-visible requires no exception. D5 already owns external focus
+width and offset, and zebra owns the mode-aware focus color. Component CSS
+binds those generated endpoints directly to the accepted native owners; forced
+colors use `CanvasText` without changing geometry or content-state paint.

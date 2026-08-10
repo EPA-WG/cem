@@ -111,7 +111,7 @@ JavaScript boundary, and exact dry-run npm inclusion of one `dist/styles.css`.
 | Token-only style gate | `tools/scripts/verify-cem-components-styles.mjs` |
 | Input indicator forced-colors gate | `scripts/verify-input-indicator-forced-colors.mjs` |
 | Navigation hover/focus/active/disabled forced-colors gate | `scripts/verify-navigation-hover-forced-colors.mjs` |
-| Content hover forced-colors gate | `scripts/verify-content-hover-forced-colors.mjs` |
+| Content hover/focus forced-colors gate | `scripts/verify-content-hover-forced-colors.mjs` |
 | Package publication gate | `scripts/verify-package.mjs` |
 | Stylesheet copy | `scripts/copy-styles.mjs` |
 | Primitive browser coverage | `src/lib/primitives.browser.spec.ts` |
@@ -170,6 +170,8 @@ Known deferrals stay outside this trigger:
   and ARIA markers, tokenized pending indicator, interaction boundaries, and executable acceptance criteria.
 - [Content hover contract](./docs/content-hover-contract.md) — actual native content owners, passive exclusions,
   checked/selected coexistence, disabled suppression, and forced-colors mapping.
+- [Content focus-visible contract](./docs/content-focus-visible-contract.md) — native keyboard order, tokenized
+  external rings, state/hover coexistence, disabled skipping, and forced-colors mapping.
 - [Navigation hover contract](./docs/navigation-hover-contract.md) — owner-only pointer paint, current/selected
   coexistence, disabled suppression, forced-colors mapping, and executable acceptance criteria.
 - [Navigation focus-visible contract](./docs/navigation-focus-visible-contract.md) — keyboard order, native-disabled

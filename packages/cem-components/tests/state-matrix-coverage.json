@@ -20,9 +20,10 @@
         "navigation:active",
         "navigation:disabled",
         "content:hover",
-        "content:focus-visible"
+        "content:focus-visible",
+        "feedback:focus-visible"
     ],
-    "recommendedNext": "content:focus-visible",
+    "recommendedNext": "feedback:focus-visible",
     "coverage": [
         {
             "id": "action:default",
@@ -506,10 +507,23 @@
             "id": "content:focus-visible",
             "category": "Content",
             "state": "focus-visible",
-            "components": ["cem-list", "cem-table", "cem-chip"],
-            "interaction": "Move keyboard focus to interactive content with a visible focus indicator.",
-            "status": "gap",
-            "reason": "No content-family test invokes the focus-visible harness."
+            "components": ["cem-list", "cem-chip"],
+            "interaction": "Move keyboard focus through the selectable-list composite and checkable chips with a tokenized visible ring while skipping disabled and passive content.",
+            "status": "covered",
+            "owner": "packages/cem-components/src/lib/states.browser.spec.ts",
+            "test": "moves keyboard focus through interactive content owners without changing selection or checked state",
+            "assertions": [
+                "expect(owner.matches(':focus-visible')).toBe(true);",
+                "expect(paintedColor(focused.focusTreatment[0])).toBe(resolveTokenColor(owner, '--cem-zebra-color-1'));",
+                "expect(focused.focusTreatment[2]).toBe(`${resolveTokenLength(owner, '--cem-stroke-focus')}px`);",
+                "expect(hoveredFocused.focusTreatment).toEqual(focused.focusTreatment);",
+                "expectContentInteractionStructureAndGeometry(focused, baseline);",
+                "expect(disabledListOwner.matches(':focus-visible')).toBe(false);",
+                "expect(focusOrder).toEqual([",
+                "expect(listOwner.options[1]?.getAttribute('aria-selected')).toBe('true');",
+                "expect(checkedOwner.getAttribute('aria-pressed')).toBe('true');",
+                "expect(mutationEvents).toEqual([]);"
+            ]
         },
         {
             "id": "content:selected",
