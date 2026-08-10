@@ -12,9 +12,10 @@ The CSS selector query and SCSS-to-CSS lifecycle slices are complete. The active
 work is closing the Phase 4 component state matrix in priority order. The
 component stylesheet publication, `action:hover`, and `action:active` contracts
 are implemented and verified. The `input:hover` native-owner inventory is
-complete, but the generated theme has no semantic input-hover endpoint. Work is
-stopped at `CEM-CSS-001`: theme review must categorize the state and select its
-visual channels before another fixture or component style rule is added.
+complete, and the recommended theme taxonomy is accepted: field-like and binary
+controls use separate semantic hover families. Work remains stopped at
+`CEM-CSS-001` because CEM does not yet select the exact visual channels or
+values for either family.
 
 The cross-layer architecture remains serializer-free: lifecycle loading, graph
 routing, joins, evaluators, CEM-QL, CEMT, and XSLT adapters must exchange
@@ -638,9 +639,14 @@ mediate between internal layers.
     - [x] Record proposed exception `CEM-CSS-001` without granting a waiver or
           adding component CSS. Reusing contextual action tokens or raw palette
           colors would miscategorize input semantics.
-    - [ ] Decide whether text-entry, select, and binary controls share a theme
-          state family or need separate families, and which fill/text/boundary
-          channels must receive mode and forced-colors mappings.
+    - [x] Categorize `cem-field`, `cem-text-field`, `cem-textarea`, and
+          `cem-select` as one field-like hover family, separate from the binary
+          hover family shared by `cem-checkbox`, `cem-radio`, and `cem-switch`.
+    - [ ] Decide the exact field-like fill/text/boundary treatment and binary
+          accent/boundary/indicator treatment, including token names, formulas,
+          theme-mode mappings, and forced-colors behavior. The current D0/D5
+          contracts do not choose among these channels, and native binary
+          controls do not expose one reliable shared painted property.
   - [ ] Pin real hover/unhover evidence, disabled and readonly boundaries,
         label/control overlap, focus-visible coexistence, restoration, geometry,
         DOM/ARIA, value/checked state, forced-colors, and event absence.
@@ -650,7 +656,8 @@ mediate between internal layers.
     `cem-textarea textarea`, `cem-select select`, `cem-checkbox input`,
     `cem-radio input`, and `cem-switch input`. No fixture, CSS selector, token,
     verifier binding, or `input:hover` audit promotion was added after the token
-    stop condition fired.
+    stop condition fired. The accepted family split is taxonomy only; it does
+    not authorize token names, values, component properties, or an exception.
 
 ## Current Verification Commands
 
