@@ -1,8 +1,8 @@
 # Component CSS Exceptions
 
-**Status:** Active review queue. One proposed exception has an accepted theme
-taxonomy but still requires a channel/value decision; no component CSS
-exception is authorized.
+**Status:** Active review queue. One proposed exception has an accepted taxonomy
+and field-like channel but still requires a binary channel and theme-token
+decision; no component CSS exception is authorized.
 
 ## Token-first rule
 
@@ -19,9 +19,9 @@ does not authorize component CSS to bypass the style verifier.
 
 ## Review queue
 
-| ID          | Status                            | Component/property                                                                                                                                                               | Proposed value                                                                                     | Missing semantic category                                                   | Analysis and theme-adoption path                                                                                                                                                                                                                                                                                                                               |
-| ----------- | --------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| CEM-CSS-001 | Proposed — categorized, no waiver | Native controls rendered by `cem-field`, `cem-text-field`, `cem-textarea`, `cem-select`, `cem-checkbox`, `cem-radio`, and `cem-switch`; exact hover properties remain undecided. | No component-local value. Add generated theme-owned semantic input-hover endpoint(s) after review. | Separate field-like and binary-control interaction-state families: `hover`. | The catalog has only action-family hover colors; `--cem-control-*` is geometry and `--cem-stroke-*` is width/ring geometry. Do not reuse action or raw palette tokens. The family split is accepted; decide each family's painted channels and values, then add D0/D5 source tokens, mode/forced-colors mappings, generation coverage, and component bindings. |
+| ID          | Status                                       | Component/property                                                                                                        | Proposed value                                                                                     | Missing semantic category                                                       | Analysis and theme-adoption path                                                                                                                                                                                                                                                                                 |
+| ----------- | -------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| CEM-CSS-001 | Proposed — field channel accepted, no waiver | Field-like native controls: accepted `border-color` only. Binary native controls: exact hover property remains undecided. | No component-local value. Add generated theme-owned semantic input-hover endpoint(s) after review. | Field-like hover boundary color plus a separate binary-control hover indicator. | Do not reuse action or raw palette tokens. Add the accepted field boundary to D0 after naming/value review. Decide whether binary hover uses an outline below zebra focus priority or custom appearance, then add D0/D5 source tokens, mode/forced-colors mappings, generation coverage, and component bindings. |
 
 ### CEM-CSS-001 discovery evidence
 
@@ -45,17 +45,39 @@ family owns `cem-checkbox`, `cem-radio`, and `cem-switch`. A field-like control
 must not borrow binary selection semantics, and an unchecked binary control
 must not acquire selected semantics merely because it is hovered.
 
-The remaining decision is the concrete paint contract. D0 says field controls
-use the comfort surface and that selection controls distinguish selected and
-indeterminate states, but it does not say whether hover changes field fill,
-text, boundary, or a combination. Native checkbox, radio, and switch controls
-also do not expose one reliable shared background/border/indicator paint
-channel across user agents. Token names, values/formulas, theme-mode mappings,
-and forced-colors mappings therefore remain unaccepted.
+The field-like paint channel is accepted as boundary-only. Hover changes the
+native control's `border-color` while preserving its comfort fill and text. A
+temporary repository-Playwright Chromium spike confirmed that authored boundary
+color visibly repaints native text input, textarea, and select controls. With a
+`Highlight` forced-colors mapping, the boundary also remained visible in that
+mode. This accepts the property channel, not a component-local value or final
+token name.
 
-Until that channel/value decision is accepted and generated, component CSS and
-the `input:hover` browser fixture remain blocked. The accepted taxonomy grants
-no verifier waiver.
+### CEM-CSS-001 binary paint evidence
+
+The temporary spike compared each authored hover result directly with the same
+native control's hovered pixels, avoiding false positives from Chromium's own
+hover repaint. It covered unchecked and checked checkbox, radio, and
+checkbox-backed switch controls in normal and forced-colors modes.
+
+- `accent-color` changed checked controls but added no painted pixels for
+  unchecked controls.
+- Native `border-color` and `background-color` added no painted pixels in either
+  checked state.
+- A two-pixel `box-shadow` added 208 pixels around every normal-mode control but
+  added none in forced colors.
+- A two-pixel outline added 208 pixels around every control in every checked
+  state and survived forced colors.
+
+The outline result is technically reliable but creates a semantic decision: a
+binary hover outline must remain unmistakably subordinate to the D5 zebra focus
+ring. The alternative is custom control appearance, which would replace native
+rendering and substantially enlarge the component contract. Neither direction
+is authorized by this evidence alone.
+
+Until the binary direction and both families' token names/values are accepted
+and generated, component CSS and the `input:hover` browser fixture remain
+blocked. The accepted taxonomy and field channel grant no verifier waiver.
 
 ## Review procedure
 

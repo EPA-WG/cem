@@ -13,9 +13,11 @@ work is closing the Phase 4 component state matrix in priority order. The
 component stylesheet publication, `action:hover`, and `action:active` contracts
 are implemented and verified. The `input:hover` native-owner inventory is
 complete, and the recommended theme taxonomy is accepted: field-like and binary
-controls use separate semantic hover families. Work remains stopped at
-`CEM-CSS-001` because CEM does not yet select the exact visual channels or
-values for either family.
+controls use separate semantic hover families. Field-like hover is accepted as
+a boundary-only treatment and verified against native controls. Work remains
+stopped at `CEM-CSS-001` because the only binary channel that survives every
+checked state and forced colors is an outline, whose relationship to the zebra
+focus ring is not yet accepted.
 
 The cross-layer architecture remains serializer-free: lifecycle loading, graph
 routing, joins, evaluators, CEM-QL, CEMT, and XSLT adapters must exchange
@@ -642,11 +644,26 @@ mediate between internal layers.
     - [x] Categorize `cem-field`, `cem-text-field`, `cem-textarea`, and
           `cem-select` as one field-like hover family, separate from the binary
           hover family shared by `cem-checkbox`, `cem-radio`, and `cem-switch`.
-    - [ ] Decide the exact field-like fill/text/boundary treatment and binary
-          accent/boundary/indicator treatment, including token names, formulas,
-          theme-mode mappings, and forced-colors behavior. The current D0/D5
-          contracts do not choose among these channels, and native binary
-          controls do not expose one reliable shared painted property.
+    - [x] Accept a boundary-only field-like hover treatment: change native
+          `border-color` without changing fill or text, and map the boundary to
+          a system color such as `Highlight` in forced colors.
+    - [x] Run a temporary Playwright Chromium paint-channel spike before
+          selecting the binary treatment. Compare native-hover-normalized
+          pixels for unchecked and checked checkbox, radio, and switch controls
+          across accent, border, background, outline, and box-shadow channels
+          in normal and forced-colors modes.
+      - `accent-color` changed checked controls but produced zero additional
+        pixels for unchecked controls. Native `border-color` and
+        `background-color` produced zero additional painted pixels, while
+        `box-shadow` disappeared in forced colors.
+      - A two-pixel outline produced 208 additional pixels for every binary
+        control/state combination in both modes. It is technically reliable but
+        remains unaccepted because it may be confused with keyboard focus.
+    - [ ] Decide whether binary hover uses a dedicated single-stroke outline
+          below zebra focus priority or opts into custom control appearance to
+          expose another boundary/indicator channel. Then accept exact token
+          names, values/formulas, theme-mode mappings, and forced-colors
+          behavior for both families.
   - [ ] Pin real hover/unhover evidence, disabled and readonly boundaries,
         label/control overlap, focus-visible coexistence, restoration, geometry,
         DOM/ARIA, value/checked state, forced-colors, and event absence.
@@ -657,7 +674,9 @@ mediate between internal layers.
     `cem-radio input`, and `cem-switch input`. No fixture, CSS selector, token,
     verifier binding, or `input:hover` audit promotion was added after the token
     stop condition fired. The accepted family split is taxonomy only; it does
-    not authorize token names, values, component properties, or an exception.
+    not authorize token names, values, or an exception. The field boundary
+    channel is accepted, but no component property is executable until its
+    semantic theme endpoint exists; the binary property remains undecided.
 
 ## Current Verification Commands
 
