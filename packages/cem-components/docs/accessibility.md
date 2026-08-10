@@ -81,7 +81,7 @@ attributes consistent with reflected state.
 | `data-state="loading"` | `aria-busy="true"` for the duration of the loading state. `cem-card[busy]` and `cem-surface[busy]` place both on their stable named sections and remove both when their respective content or layout workflow settles. |
 | `data-state="empty"` | No ARIA attribute. `cem-surface[empty]` reflects this marker on its named section while the visible authored guidance and next action carry their own semantics; the surface does not become a live region. |
 | `aria-invalid="true"` | Required when the field validity is failed. Pair with `aria-describedby` pointing at the error message. |
-| `aria-expanded` | Required on disclosure / popover / menu triggers; reflects open/closed. `cem-nav[collapsible]` puts it on its native button and keeps the sibling content container's `hidden` state in exact agreement. |
+| `aria-expanded` | Required on disclosure / popover / menu triggers; reflects open/closed. `cem-nav[collapsible]` puts it on its native button and keeps the sibling content container's `hidden` state in exact agreement. Applications opening a transient `cem-dialog`, `cem-dialog-shell`, or `cem-sheet` put it on their own opener alongside `aria-controls`; the controlled feedback surface does not describe itself as expanded. |
 | `aria-selected` | Required on selectable list options and navigation rows. `cem-list[selectable]` mirrors the native option selectedness exactly; passive lists and static table rows do not expose it. |
 | `checked` | A `cem-chip[checkable]` native toggle button MUST expose the current boolean state through `aria-pressed`; passive chips do not expose pressed state. |
 | `aria-current` | Required on the active nav item; value `"page"` or `"step"` per WHATWG/ARIA. |
@@ -122,6 +122,12 @@ For every component that emits `id`/`for`/`aria-*` references at runtime:
   whole workflow layout. Its section, surviving descendants, placement, and
   focused control remain stable through busy transitions; the workflow owns
   recovery when it replaces the focused node.
+- Static `cem-dialog`, `cem-dialog-shell`, and `cem-sheet` owners remain
+  structural and do not acquire `tabindex` or move focus. In transient mode,
+  the two dialog tags render a native `<dialog>` and let `showModal()` choose an
+  authored `autofocus` target or the browser fallback. A transient sheet
+  remains a focus-neutral region whose authored controls participate in normal
+  document order.
 - Composite components decide tabindex per the WAI-ARIA Authoring Practices for
   their composite pattern (e.g. menubar = one tabstop, internal arrow keys). Per
   pattern, the component MUST set `tabindex="0"` on the entrypoint and
@@ -140,11 +146,14 @@ For every component that emits `id`/`for`/`aria-*` references at runtime:
 
 ### 5.3 Focus restoration
 
-- Components that open transient surfaces (`cem-dialog-shell`, popovers) MUST
-  return focus to the previously focused element on dismissal.
-- The previously focused element is captured at open time, not at activation
-  time, so a programmatic open from non-focused context returns to the document's
-  active element at that moment.
+- Transient `cem-dialog` and `cem-dialog-shell` delegate normal close
+  restoration to the native dialog lifecycle. The component separately
+  remembers the active element at `showModal()` time only to recover focus when
+  a still-open dialog host disconnects and that element remains connected.
+- Focus is captured at open time, not at application-trigger activation time,
+  so programmatic opening uses the document's active element at that moment.
+- `cem-sheet[transient]` does not move or restore focus. The application owns
+  recovery if it removes a focused authored descendant.
 
 ## 6. Keyboard behavior
 
@@ -161,7 +170,8 @@ patterns below are the contract for the Phase 3 primitive set.
 | `cem-navigation-list` | `ArrowUp`/`ArrowDown` move focus; `Home`/`End` jump to ends; `Enter` activates. Composite tabstop = single. |
 | `cem-data-list` | `ArrowUp`/`ArrowDown` move focus among rows; `Enter` activates row's primary action. |
 | `cem-message-thread` | `ArrowUp`/`ArrowDown` move between messages; `Home`/`End` for ends. `role="log"` does not normally take focus; the thread does so its messages are reachable. |
-| `cem-dialog-shell` | Focus is trapped while open. `Escape` dismisses if non-modal-blocking allows. `Tab`/`Shift+Tab` cycle within. |
+| `cem-dialog[transient]`, `cem-dialog-shell[transient]` | Native modal Tab/Shift+Tab containment. Escape dispatches the cancellable native `cancel` request; successful native dismissal closes, restores focus, removes host `expanded`, and then emits `cem-dismiss`. Prevented cancel stays open. Static mode adds no component keyboard handling. |
+| `cem-sheet[transient]` | No component-owned keys. Escape is not intercepted, and authored controls keep their native behavior and document tab order. |
 | `cem-app-shell` | Skip-link target MUST be focusable (`tabindex="-1"`). |
 | `cem-top-bar` | Native focus order; primary actions follow `cem-button` rules. |
 | `cem-form` | `Enter` in any text field submits if the form has exactly one submit button; otherwise activates the default submit per WHATWG. |
@@ -183,8 +193,12 @@ so the catalog can verify there is exactly one entrypoint per composite.
   count exceeds the documented threshold) with `aria-live` per §8.
 - `cem-alert` MUST use `role="alert"` (assertive) for error/destructive intent or
   `role="status"` (polite) for info/success intent.
-- `cem-dialog-shell` MUST use `role="dialog"` with `aria-modal="true"` when the
-  dialog blocks the rest of the page.
+- Static `cem-dialog` and `cem-dialog-shell` retain their labeled
+  `div[role="dialog"][aria-modal="true"]` compatibility owner. With
+  `transient`, each renders a labeled native `<dialog>` and MUST NOT add
+  redundant `role`, `aria-modal`, or `tabindex`; the browser owns modal state.
+- `cem-sheet` remains a labeled `<aside role="region">` in both modes. Its
+  transient visibility uses native `hidden` and never claims dialog semantics.
 
 ## 8. Live regions
 

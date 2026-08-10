@@ -24,7 +24,7 @@
         "feedback:expanded",
         "feedback:focus-visible"
     ],
-    "recommendedNext": "feedback:expanded",
+    "recommendedNext": "feedback:focus-visible",
     "coverage": [
         {
             "id": "action:default",
@@ -614,7 +614,7 @@
             "components": ["cem-dialog", "cem-dialog-shell", "cem-sheet"],
             "interaction": "Move keyboard focus into a feedback surface and retain a visible focus indicator.",
             "status": "gap",
-            "reason": "The accepted transient lifecycle will move focus into native modal dialogs, but it is not implemented and no feedback focus-paint owner is accepted; the non-modal sheet still has only application-authored focus descendants."
+            "reason": "The implemented transient lifecycle moves focus into native modal dialogs, but no feedback focus-paint owner is accepted; the non-modal sheet still has only application-authored focus descendants."
         },
         {
             "id": "feedback:loading",
@@ -636,8 +636,17 @@
             "state": "expanded",
             "components": ["cem-dialog", "cem-dialog-shell", "cem-sheet"],
             "interaction": "Open and close a dialog or sheet and mirror disclosure state where applicable.",
-            "status": "gap",
-            "reason": "The transient feedback lifecycle contract and generic browser-owned attribute boundary are accepted. A focused fixture now passes passive compatibility and executes four expected-failure transient scenarios; shared lifecycle behavior must make them pass before this row is covered. aria-expanded remains owned by the application trigger, not the surface wrapper."
+            "status": "covered",
+            "owner": "packages/cem-components/src/lib/feedback-expanded.browser.spec.ts",
+            "test": "uses native owners for transient initialization and live state transitions",
+            "assertions": [
+                "await waitFor(() => dialog.open && dialog.matches(':modal'), 'transient dialog opens modally');",
+                "expect(dialogCase.opener.getAttribute('aria-expanded')).toBe('true');",
+                "await waitFor(() => !dialog.open && !dialog.matches(':modal'), 'transient dialog closes natively');",
+                "expect(sheet.hidden).toBe(true);",
+                "await waitFor(() => !sheet.hidden, 'expanded sheet becomes visible');",
+                "await waitFor(() => sheet.hidden === true, 'collapsed sheet becomes hidden');"
+            ]
         },
         {
             "id": "feedback:invalid",

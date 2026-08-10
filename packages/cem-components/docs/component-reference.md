@@ -192,11 +192,17 @@ during refresh or provide visible loading text plus layout-preserving
 
 | Component | Semantics | Content and Attributes | Token Families | Required A11y |
 | --- | --- | --- | --- | --- |
-| `cem-dialog` | Modal decision or task surface. | `label` names dialog; default slot is body. | palette, stroke, bend, gap, inset | Renders `role="dialog"` and `aria-modal="true"`; full focus trapping is follow-up runtime behavior. |
-| `cem-sheet` | Non-modal task surface. | `label` names region; default slot is body. | palette, stroke, bend, gap, inset | Renders labeled `role="region"`. |
+| `cem-dialog` | Static dialog surface by default; native modal decision or task surface with `transient`. | `label` names the owner; default slot is body. Presence-only `transient` opts into lifecycle behavior and `expanded` supplies open state in that mode. | palette, stroke, bend, gap, inset | Static mode retains `div[role="dialog"][aria-modal="true"]`. Transient mode renders a native `<dialog>` and delegates modality, focus entry/containment, Escape, and restoration to the browser. The application-owned opener carries `aria-expanded` and `aria-controls`. |
+| `cem-dialog-shell` | Compatibility dialog-shell alias sharing the `cem-dialog` lifecycle boundary. | `label`, default body slot, and presence-only `transient` / `expanded` follow `cem-dialog`. | palette, stroke, bend, gap, inset | Uses the same static ARIA-wrapper versus transient native-dialog split as `cem-dialog`; it does not add another focus model. |
+| `cem-sheet` | Static non-modal task surface by default; application-controlled visible/hidden region with `transient`. | `label` names the region; default slot is body. In transient mode, presence-only `expanded` removes `hidden`. | palette, stroke, bend, gap, inset | Always remains a labeled `<aside role="region">`. It does not trap or move focus, intercept Escape, make the document inert, or dispatch dialog dismissal. |
 | `cem-toast` | Transient status message. | Default slot is message text. | palette, action, stroke, gap, typography | Renders polite `role="status"` live region. |
 | `cem-progress` | Determinate or indeterminate progress. | `value`, `max`, and `label`. | palette, action, control, typography | Native progress must have an accessible name. |
 | `cem-skeleton` | Loading placeholder. | `label` describes placeholder for author/debug context. | palette, control, bend | Rendered placeholder is `aria-hidden`; pair with visible status when needed. |
 | `cem-alert` | Inline feedback. | `tone` controls visual severity; `role` defaults to `status`. | palette, action, stroke, gap, typography | Use `role="alert"` for urgent warnings/errors only. |
 
 States: `default`, `focus-visible`, `loading`, `expanded`, `invalid`.
+
+The transient feedback lifecycle is defined by the
+[feedback expanded contract](./feedback-expanded-contract.md). It does not add
+focus paint to a structural surface; `feedback:focus-visible` remains a
+separate owner and token decision.

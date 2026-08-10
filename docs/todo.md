@@ -26,13 +26,12 @@ and tab buttons through generated navigation-item, D5 focus, zebra semantics,
 and bounded host capture. Content hover and keyboard focus now apply only to the
 checkable-chip button and selectable-list composite through generated
 content-interaction, D5 focus, and zebra semantics, with passive
-list/chip/table wrappers excluded; the state-matrix audit now recommends
-`feedback:expanded` before feedback focus so visibility, initial focus,
-dismissal, restoration, and modal/non-modal ownership are truthful first. The
-feedback lifecycle audit is complete, but implementation is stopped at the
-public owner/model decision: the shipped dialog and sheet surfaces are static,
-own no opener or close transition, and cannot truthfully receive
-`aria-expanded` or focus paint on their structural wrappers.
+list/chip/table wrappers excluded. `feedback:expanded` is now implemented
+through opt-in native transient dialog owners and declarative non-modal sheet
+visibility while static output remains compatible; the state matrix therefore
+advances to `feedback:focus-visible`. That next slice still needs an accepted
+focus-paint owner and must not put structural focusability or `:focus-within`
+paint on passive wrappers merely to close the final row.
 
 The cross-layer architecture remains serializer-free: lifecycle loading, graph
 routing, joins, evaluators, CEM-QL, CEMT, and XSLT adapters must exchange
@@ -1070,7 +1069,7 @@ mediate between internal layers.
       and the absence of component-owned sheet focus or dismissal are pinned
       before runtime work. No theme token, component CSS, fixture, or exception
       changed in this decision slice.
-  - [ ] Implement the accepted `feedback:expanded` contract tests-first.
+  - [x] Implement the accepted `feedback:expanded` contract tests-first.
     - [x] Exercise the native-dialog renderer stop condition with the red
           fixture before landing component behavior.
       - Both `userEvent.tab()` and a trusted keyboard Tab characterized native
@@ -1152,9 +1151,22 @@ mediate between internal layers.
         54/54, including zero `open` churn, native focus/Tab/Escape/form-close
         behavior, stable DOM/input/geometry, sheet focus neutrality, and
         disconnect/reconnect cleanup. No CSS, theme token, or exception changed.
-    - [ ] Update component/accessibility docs and the executable matrix, then
+    - [x] Update component/accessibility docs and the executable matrix, then
           run the focused state suite, state-matrix audit, lint, and aggregate
           package gate before marking implementation complete.
+      - Updated the component reference and binding accessibility contract with
+        the exact static-versus-transient owner split, native modal keyboard and
+        restoration boundary, application-owned opener ARIA, and the sheet's
+        non-modal focus-neutral behavior. Feedback focus paint remains
+        explicitly outside this expanded-state slice.
+      - Promoted only `feedback:expanded` to executable coverage using exact
+        assertions from the focused five-test Chromium fixture. The matrix now
+        reports 38 browser-covered, 0 static-only, and 1 gap, with
+        `feedback:focus-visible` recommended next.
+      - Component lint and the aggregate verification gate passed. The aggregate
+        ran the focused feedback fixture 5/5, all 54 tests across six files, all
+        19 dependent primitive/style/workflow/state/forced-colors gates, and the
+        27-file package dry run. No CSS, theme token, or exception changed.
   - [ ] After ownership acceptance, audit D5/zebra and the relevant descendant
         component token family, then cover keyboard entry/order, modal versus
         non-modal behavior, disabled skipping, focus restoration, stable

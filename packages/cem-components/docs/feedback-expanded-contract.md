@@ -1,10 +1,12 @@
 # Feedback Expanded Contract
 
-**Status:** Implemented Phase 4 runtime contract; the generic rendered-attribute
-ownership boundary, shared native-dialog behavior, declarative transient
-branches, and focused five-test component fixture are implemented and passing.
-Documentation/matrix promotion and the aggregate verification gate remain the
-next work item tracked by [`docs/todo.md`](../../../docs/todo.md).
+**Status:** Complete Phase 4 expanded-state contract; the generic
+rendered-attribute ownership boundary, shared native-dialog behavior,
+declarative transient branches, focused five-test component fixture,
+component/accessibility documentation, executable matrix promotion, and
+aggregate component verification are implemented and passing. The separate
+feedback focus-owner decision is tracked by
+[`docs/todo.md`](../../../docs/todo.md).
 
 ## Decision
 
