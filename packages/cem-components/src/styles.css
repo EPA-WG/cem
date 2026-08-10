@@ -38,15 +38,21 @@ cem-tabs > [role='tablist'] > button[role='tab'] {
     color: var(--cem-navigation-item-default-text);
 }
 
-cem-nav > nav > :is(a[href]:not([aria-disabled='true']), button:enabled):hover,
-cem-nav > nav > .cem-nav__content > :is(a[href]:not([aria-disabled='true']), button:enabled):hover,
+cem-nav > nav > :is(a[href]:not([aria-disabled='true']), button:enabled:not([aria-disabled='true'])):hover,
+cem-nav
+    > nav
+    > .cem-nav__content
+    > :is(a[href]:not([aria-disabled='true']), button:enabled:not([aria-disabled='true'])):hover,
 cem-tabs > [role='tablist'] > button[role='tab']:enabled:not([aria-disabled='true']):hover {
     background-color: var(--cem-navigation-item-hover-background);
     color: var(--cem-navigation-item-hover-text);
 }
 
-cem-nav > nav > :is(a[href]:not([aria-disabled='true']), button:enabled):active,
-cem-nav > nav > .cem-nav__content > :is(a[href]:not([aria-disabled='true']), button:enabled):active,
+cem-nav > nav > :is(a[href]:not([aria-disabled='true']), button:enabled:not([aria-disabled='true'])):active,
+cem-nav
+    > nav
+    > .cem-nav__content
+    > :is(a[href]:not([aria-disabled='true']), button:enabled:not([aria-disabled='true'])):active,
 cem-tabs > [role='tablist'] > button[role='tab']:enabled:not([aria-disabled='true']):active {
     background-color: var(--cem-navigation-item-active-background);
     color: var(--cem-navigation-item-active-text);
@@ -61,11 +67,11 @@ cem-tabs > [role='tablist'] > button[role='tab'][aria-selected='true'] {
 
 cem-nav
     > nav
-    > :is(a[href]:not([aria-disabled='true']), button:enabled)[aria-current]:not([aria-current='false']):hover,
+    > :is(a[href]:not([aria-disabled='true']), button:enabled:not([aria-disabled='true']))[aria-current]:not([aria-current='false']):hover,
 cem-nav
     > nav
     > .cem-nav__content
-    > :is(a[href]:not([aria-disabled='true']), button:enabled)[aria-current]:not([aria-current='false']):hover,
+    > :is(a[href]:not([aria-disabled='true']), button:enabled:not([aria-disabled='true']))[aria-current]:not([aria-current='false']):hover,
 cem-tabs > [role='tablist'] > button[role='tab'][aria-selected='true']:enabled:not([aria-disabled='true']):hover {
     background-color: var(--cem-navigation-item-current-hover-background);
     color: var(--cem-navigation-item-current-hover-text);
@@ -73,11 +79,11 @@ cem-tabs > [role='tablist'] > button[role='tab'][aria-selected='true']:enabled:n
 
 cem-nav
     > nav
-    > :is(a[href]:not([aria-disabled='true']), button:enabled)[aria-current]:not([aria-current='false']):active,
+    > :is(a[href]:not([aria-disabled='true']), button:enabled:not([aria-disabled='true']))[aria-current]:not([aria-current='false']):active,
 cem-nav
     > nav
     > .cem-nav__content
-    > :is(a[href]:not([aria-disabled='true']), button:enabled)[aria-current]:not([aria-current='false']):active,
+    > :is(a[href]:not([aria-disabled='true']), button:enabled:not([aria-disabled='true']))[aria-current]:not([aria-current='false']):active,
 cem-tabs > [role='tablist'] > button[role='tab'][aria-selected='true']:enabled:not([aria-disabled='true']):active {
     background-color: var(--cem-navigation-item-current-active-background);
     color: var(--cem-navigation-item-current-active-text);
@@ -85,7 +91,17 @@ cem-tabs > [role='tablist'] > button[role='tab'][aria-selected='true']:enabled:n
 
 cem-nav > nav > :is(a[href], button):is(button:disabled, [aria-disabled='true']),
 cem-nav > nav > .cem-nav__content > :is(a[href], button):is(button:disabled, [aria-disabled='true']),
-cem-tabs > [role='tablist'] > button[role='tab']:is(:disabled, [aria-disabled='true']) {
+cem-tabs > [role='tablist'] > button[role='tab']:is(:disabled, [aria-disabled='true']),
+cem-nav
+    > nav
+    > :is(a[href], button)[aria-current]:not([aria-current='false']):is(button:disabled, [aria-disabled='true']),
+cem-nav
+    > nav
+    > .cem-nav__content
+    > :is(a[href], button)[aria-current]:not([aria-current='false']):is(button:disabled, [aria-disabled='true']),
+cem-tabs
+    > [role='tablist']
+    > button[role='tab'][aria-selected='true']:is(:disabled, [aria-disabled='true']) {
     background-color: var(--cem-navigation-item-disabled-background);
     color: var(--cem-navigation-item-disabled-text);
 }
@@ -416,31 +432,37 @@ cem-select .cem-select__option[aria-disabled='true'] {
         color: SelectedItemText;
     }
 
-    cem-nav > nav > :is(a[href]:not([aria-disabled='true']), button:enabled):hover,
-    cem-nav > nav > .cem-nav__content > :is(a[href]:not([aria-disabled='true']), button:enabled):hover,
-    cem-tabs > [role='tablist'] > button[role='tab']:enabled:not([aria-disabled='true']):hover,
-    cem-nav
-        > nav
-        > :is(a[href]:not([aria-disabled='true']), button:enabled)[aria-current]:not([aria-current='false']):hover,
+    cem-nav > nav > :is(a[href]:not([aria-disabled='true']), button:enabled:not([aria-disabled='true'])):hover,
     cem-nav
         > nav
         > .cem-nav__content
-        > :is(a[href]:not([aria-disabled='true']), button:enabled)[aria-current]:not([aria-current='false']):hover,
+        > :is(a[href]:not([aria-disabled='true']), button:enabled:not([aria-disabled='true'])):hover,
+    cem-tabs > [role='tablist'] > button[role='tab']:enabled:not([aria-disabled='true']):hover,
+    cem-nav
+        > nav
+        > :is(a[href]:not([aria-disabled='true']), button:enabled:not([aria-disabled='true']))[aria-current]:not([aria-current='false']):hover,
+    cem-nav
+        > nav
+        > .cem-nav__content
+        > :is(a[href]:not([aria-disabled='true']), button:enabled:not([aria-disabled='true']))[aria-current]:not([aria-current='false']):hover,
     cem-tabs > [role='tablist'] > button[role='tab'][aria-selected='true']:enabled:not([aria-disabled='true']):hover {
         background-color: Highlight;
         color: HighlightText;
     }
 
-    cem-nav > nav > :is(a[href]:not([aria-disabled='true']), button:enabled):active,
-    cem-nav > nav > .cem-nav__content > :is(a[href]:not([aria-disabled='true']), button:enabled):active,
-    cem-tabs > [role='tablist'] > button[role='tab']:enabled:not([aria-disabled='true']):active,
-    cem-nav
-        > nav
-        > :is(a[href]:not([aria-disabled='true']), button:enabled)[aria-current]:not([aria-current='false']):active,
+    cem-nav > nav > :is(a[href]:not([aria-disabled='true']), button:enabled:not([aria-disabled='true'])):active,
     cem-nav
         > nav
         > .cem-nav__content
-        > :is(a[href]:not([aria-disabled='true']), button:enabled)[aria-current]:not([aria-current='false']):active,
+        > :is(a[href]:not([aria-disabled='true']), button:enabled:not([aria-disabled='true'])):active,
+    cem-tabs > [role='tablist'] > button[role='tab']:enabled:not([aria-disabled='true']):active,
+    cem-nav
+        > nav
+        > :is(a[href]:not([aria-disabled='true']), button:enabled:not([aria-disabled='true']))[aria-current]:not([aria-current='false']):active,
+    cem-nav
+        > nav
+        > .cem-nav__content
+        > :is(a[href]:not([aria-disabled='true']), button:enabled:not([aria-disabled='true']))[aria-current]:not([aria-current='false']):active,
     cem-tabs > [role='tablist'] > button[role='tab'][aria-selected='true']:enabled:not([aria-disabled='true']):active {
         background-color: Highlight;
         color: HighlightText;
@@ -448,7 +470,17 @@ cem-select .cem-select__option[aria-disabled='true'] {
 
     cem-nav > nav > :is(a[href], button):is(button:disabled, [aria-disabled='true']),
     cem-nav > nav > .cem-nav__content > :is(a[href], button):is(button:disabled, [aria-disabled='true']),
-    cem-tabs > [role='tablist'] > button[role='tab']:is(:disabled, [aria-disabled='true']) {
+    cem-tabs > [role='tablist'] > button[role='tab']:is(:disabled, [aria-disabled='true']),
+    cem-nav
+        > nav
+        > :is(a[href], button)[aria-current]:not([aria-current='false']):is(button:disabled, [aria-disabled='true']),
+    cem-nav
+        > nav
+        > .cem-nav__content
+        > :is(a[href], button)[aria-current]:not([aria-current='false']):is(button:disabled, [aria-disabled='true']),
+    cem-tabs
+        > [role='tablist']
+        > button[role='tab'][aria-selected='true']:is(:disabled, [aria-disabled='true']) {
         background-color: Canvas;
         color: GrayText;
     }

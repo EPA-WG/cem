@@ -34,7 +34,8 @@ action endpoints. D0 exposed complete action-intent hover pairs, but those
 tokens mean “do something” and cannot independently theme links/tabs or preserve
 current/selected meaning. No generated navigation category existed.
 
-D0 now owns ten required `--cem-navigation-item-*` endpoints: paired
+This hover slice originally adopted ten required `--cem-navigation-item-*`
+endpoints: paired
 `background` and `text` values for `default`, `hover`, `current`,
 `current-hover`, and `disabled`. Current links (`aria-current` except the
 explicit value `false`) and selected tabs (`aria-selected="true"`) share the
@@ -61,10 +62,10 @@ the [navigation focus-visible contract](./navigation-focus-visible-contract.md).
 Held input feedback remains a separate paint layer defined by the
 [navigation active contract](./navigation-active-contract.md).
 
-ARIA-disabled links and tabs are presentation-suppressed by this slice. Their
-activation and tab-stop policy remains the responsibility of the later
-`navigation:disabled` behavior contract; this hover slice does not synthesize
-that behavior.
+ARIA-disabled links and buttons are presentation-suppressed by this slice. The
+[navigation disabled contract](./navigation-disabled-contract.md) keeps them
+discoverable in sequential focus while component behavior suppresses
+activation.
 
 ## Forced colors
 

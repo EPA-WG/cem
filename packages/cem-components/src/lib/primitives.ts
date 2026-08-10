@@ -3,6 +3,7 @@ import type {
     CemElementRuntime,
     CemProducedElementBehavior,
 } from '@epa-wg/cem-elements';
+import { CEM_NAVIGATION_BEHAVIOR } from './navigation-behavior.js';
 import { CEM_SELECT_BEHAVIOR } from './select-behavior.js';
 
 export interface CemComponentPrimitiveDeclaration {
@@ -299,6 +300,7 @@ export const CEM_COMPONENT_PRIMITIVES = [
     {
         tag: 'cem-nav',
         description: 'Labeled navigation landmark with an opt-in disclosure mode.',
+        behavior: CEM_NAVIGATION_BEHAVIOR,
         cemMl:
             '{attribute @name=label | Navigation}' +
             '{cem:choose |' +
@@ -315,6 +317,7 @@ export const CEM_COMPONENT_PRIMITIVES = [
     {
         tag: 'cem-tabs',
         description: 'MVP tablist container for local view switching.',
+        behavior: CEM_NAVIGATION_BEHAVIOR,
         cemMl:
             '{attribute @name=label | Tabs}' +
             '{div @class=cem-tabs @role=tablist @aria-label="{$label}" | {slot | {button @type=button @role=tab @aria-selected=true | Tab}}}',

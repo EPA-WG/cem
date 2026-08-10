@@ -976,8 +976,7 @@ describe('CEM component primitive states and ARIA behavior', () => {
 
             await click;
             await nextRenderFrame();
-            const expectedClicks = owner.getAttribute('aria-disabled') === 'true' ? 1 : 0;
-            expect(clickEvents).toHaveLength(clickCount + expectedClicks);
+            expect(clickEvents).toHaveLength(clickCount);
             const restored = captureNavigationState(runtime, host, wrapper, owner);
             expect(restored.backgroundColor).toBe(baseline.backgroundColor);
             expect(restored.color).toBe(baseline.color);
@@ -1078,6 +1077,338 @@ describe('CEM component primitive states and ARIA behavior', () => {
         expect(runtime.snapshotInstance(disclosureHost).slices.expanded).toBe(true);
         expect(document.activeElement).toBe(disclosure);
 
+        expect(mutationEvents).toEqual([]);
+        expect(() => assertAriaReferenceIntegrity(harness.root)).not.toThrow();
+    });
+
+    it('keeps aria-disabled navigation owners discoverable while suppressing activation', async () => {
+        harness = createComponentHarness();
+        const root = await harness.render(`
+            <section class="cem-theme-light">
+                <form id="disabled-navigation-form">
+                    <button id="disabled-navigation-start" type="button">Start</button>
+                    <cem-nav label="Disabled primary navigation">
+                        <a id="disabled-nav-enabled" href="#enabled">Enabled link</a>
+                        <a
+                            id="disabled-nav-current"
+                            href="#disabled-current"
+                            aria-current="page"
+                            aria-disabled="true"
+                        >
+                            <span id="disabled-nav-current-label">Unavailable current page</span>
+                        </a>
+                        <button id="disabled-nav-submit" type="submit" aria-disabled="true">
+                            Unavailable submit action
+                        </button>
+                        <button id="disabled-nav-native" type="submit" disabled>Native disabled action</button>
+                        <a id="disabled-nav-tail" href="#tail">Tail link</a>
+                        <div>
+                            <button id="disabled-nav-nested" type="button" aria-disabled="true" tabindex="-1">
+                                Nested component-owned control
+                            </button>
+                        </div>
+                    </cem-nav>
+                    <cem-tabs label="Disabled profile sections">
+                        <button id="disabled-tab-enabled" type="button" role="tab" aria-selected="false">
+                            Enabled tab
+                        </button>
+                        <button
+                            id="disabled-tab-selected"
+                            type="button"
+                            role="tab"
+                            aria-selected="true"
+                            aria-disabled="true"
+                        >
+                            Unavailable selected tab
+                        </button>
+                        <button
+                            id="disabled-tab-native"
+                            type="button"
+                            role="tab"
+                            aria-selected="false"
+                            disabled
+                        >
+                            Native disabled tab
+                        </button>
+                    </cem-tabs>
+                    <button id="disabled-navigation-end" type="button">End</button>
+                </form>
+            </section>
+        `);
+        await waitForStateSelector(root, '#disabled-tab-native:disabled');
+
+        const form = harness.query<HTMLFormElement>('#disabled-navigation-form');
+        const start = harness.query<HTMLButtonElement>('#disabled-navigation-start');
+        const end = harness.query<HTMLButtonElement>('#disabled-navigation-end');
+        const navHost = harness.query<HTMLElement>('cem-nav[label="Disabled primary navigation"]');
+        const navWrapper = harness.query<HTMLElement>('cem-nav[label="Disabled primary navigation"] > nav');
+        const tabsHost = harness.query<HTMLElement>('cem-tabs[label="Disabled profile sections"]');
+        const tabsWrapper = harness.query<HTMLElement>(
+            'cem-tabs[label="Disabled profile sections"] > [role="tablist"]',
+        );
+        const ariaDisabledLink = harness.query<HTMLAnchorElement>('#disabled-nav-current');
+        const ariaDisabledLinkLabel = harness.query<HTMLElement>('#disabled-nav-current-label');
+        const ariaDisabledButton = harness.query<HTMLButtonElement>('#disabled-nav-submit');
+        const ariaDisabledTab = harness.query<HTMLButtonElement>('#disabled-tab-selected');
+        const nativeDisabledButton = harness.query<HTMLButtonElement>('#disabled-nav-native');
+        const nativeDisabledTab = harness.query<HTMLButtonElement>('#disabled-tab-native');
+        const nestedDisabledButton = harness.query<HTMLButtonElement>('#disabled-nav-nested');
+        const ariaCases = [
+            {
+                host: navHost,
+                owner: ariaDisabledLink,
+                pointerTarget: ariaDisabledLinkLabel,
+                state: { attribute: 'aria-current', value: 'page' },
+                activationKeys: ['Enter'],
+                wrapper: navWrapper,
+            },
+            {
+                host: navHost,
+                owner: ariaDisabledButton,
+                pointerTarget: ariaDisabledButton,
+                state: null,
+                activationKeys: ['Enter', ' '],
+                wrapper: navWrapper,
+            },
+            {
+                host: tabsHost,
+                owner: ariaDisabledTab,
+                pointerTarget: ariaDisabledTab,
+                state: { attribute: 'aria-selected', value: 'true' },
+                activationKeys: ['Enter', ' '],
+                wrapper: tabsWrapper,
+            },
+        ] as const;
+        const nativeCases = [
+            { host: navHost, owner: nativeDisabledButton, wrapper: navWrapper },
+            { host: tabsHost, owner: nativeDisabledTab, wrapper: tabsWrapper },
+        ] as const;
+        const focusOrder: readonly HTMLElement[] = [
+            harness.query<HTMLAnchorElement>('#disabled-nav-enabled'),
+            ariaDisabledLink,
+            ariaDisabledButton,
+            harness.query<HTMLAnchorElement>('#disabled-nav-tail'),
+            harness.query<HTMLButtonElement>('#disabled-tab-enabled'),
+            ariaDisabledTab,
+        ];
+        const focusEvents: string[] = [];
+        harness.root.addEventListener('focusin', (event) => {
+            if (event.target instanceof HTMLElement && focusOrder.includes(event.target)) {
+                focusEvents.push(event.target.id);
+            }
+        });
+
+        assertStateHostsRendered(harness.root, 'cem-nav, cem-tabs');
+        start.focus();
+        for (const owner of focusOrder) {
+            await userEvent.tab();
+            await nextRenderFrame();
+            expect(document.activeElement).toBe(owner);
+            expect(owner.matches(':focus-visible')).toBe(true);
+            if (owner.getAttribute('aria-disabled') === 'true') {
+                const styles = getComputedStyle(owner);
+                expect(paintedColor(styles.backgroundColor)).toBe(
+                    resolveTokenColor(owner, '--cem-navigation-item-disabled-background'),
+                );
+                expect(paintedColor(styles.color)).toBe(
+                    resolveTokenColor(owner, '--cem-navigation-item-disabled-text'),
+                );
+                expect(paintedColor(styles.outlineColor)).toBe(resolveTokenColor(owner, '--cem-zebra-color-1'));
+            }
+            expect(document.activeElement).not.toBe(nativeDisabledButton);
+            expect(document.activeElement).not.toBe(nativeDisabledTab);
+        }
+        await userEvent.tab();
+        expect(document.activeElement).toBe(end);
+        expect(focusEvents).toEqual(focusOrder.map((owner) => owner.id));
+
+        const capturedClicks: MouseEvent[] = [];
+        const capturedKeys: KeyboardEvent[] = [];
+        const leakedActivationEvents: string[] = [];
+        const targetActivationEvents: string[] = [];
+        const linkSpaceEvents: string[] = [];
+        const mutationEvents: string[] = [];
+        let submissions = 0;
+        const ariaOwners: readonly HTMLElement[] = ariaCases.map(({ owner }) => owner);
+        const eventOwner = (event: Event): HTMLElement | undefined => {
+            const target = event.target;
+            return target instanceof Node
+                ? ariaOwners.find((owner) => owner === target || owner.contains(target))
+                : undefined;
+        };
+        const isActivationKey = (owner: HTMLElement | undefined, event: KeyboardEvent): boolean =>
+            Boolean(owner && (event.key === 'Enter' || (event.key === ' ' && owner instanceof HTMLButtonElement)));
+
+        harness.root.addEventListener(
+            'click',
+            (event) => {
+                if (eventOwner(event) && event instanceof MouseEvent) capturedClicks.push(event);
+            },
+            true,
+        );
+        for (const eventName of ['keydown', 'keyup'] as const) {
+            harness.root.addEventListener(
+                eventName,
+                (event) => {
+                    if (event instanceof KeyboardEvent && eventOwner(event)) capturedKeys.push(event);
+                },
+                true,
+            );
+            harness.root.addEventListener(eventName, (event) => {
+                const owner = eventOwner(event);
+                if (event instanceof KeyboardEvent && isActivationKey(owner, event)) {
+                    leakedActivationEvents.push(`${owner?.id}:${event.type}:${event.key}`);
+                }
+            });
+        }
+        harness.root.addEventListener('click', (event) => {
+            const owner = eventOwner(event);
+            if (owner) leakedActivationEvents.push(`${owner.id}:click`);
+        });
+        for (const owner of ariaOwners) {
+            owner.addEventListener('click', () => targetActivationEvents.push(`${owner.id}:click`));
+            for (const eventName of ['keydown', 'keyup'] as const) {
+                owner.addEventListener(eventName, (event) => {
+                    if (event instanceof KeyboardEvent && isActivationKey(owner, event)) {
+                        targetActivationEvents.push(`${owner.id}:${event.type}:${event.key}`);
+                    }
+                });
+            }
+        }
+        for (const eventName of ['keydown', 'keyup'] as const) {
+            ariaDisabledLink.addEventListener(eventName, (event) => {
+                if (event.key === ' ') linkSpaceEvents.push(`${event.type}:${event.defaultPrevented}`);
+            });
+        }
+        form.addEventListener('submit', (event) => {
+            submissions += 1;
+            event.preventDefault();
+        });
+        for (const eventName of ['input', 'change', 'cem-loaded', 'cem-error', 'cem-cancel']) {
+            harness.root.addEventListener(eventName, () => mutationEvents.push(eventName));
+        }
+
+        const baselines = new Map<HTMLElement, NavigationStateSnapshot>();
+        for (const navigationCase of [...ariaCases, ...nativeCases]) {
+            const baseline = captureNavigationState(
+                runtime,
+                navigationCase.host,
+                navigationCase.wrapper,
+                navigationCase.owner,
+            );
+            baselines.set(navigationCase.owner, baseline);
+            expect(baseline.backgroundColor).toBe(
+                resolveTokenColor(navigationCase.owner, '--cem-navigation-item-disabled-background'),
+            );
+            expect(baseline.color).toBe(
+                resolveTokenColor(navigationCase.owner, '--cem-navigation-item-disabled-text'),
+            );
+        }
+
+        for (const navigationCase of ariaCases) {
+            const { host, owner, pointerTarget, state, activationKeys, wrapper } = navigationCase;
+            const baseline = baselines.get(owner);
+            if (!baseline) throw new Error(`Missing disabled navigation baseline for ${owner.id}`);
+
+            let clickCount = capturedClicks.length;
+            let targetCount = targetActivationEvents.length;
+            let leakedCount = leakedActivationEvents.length;
+            await userEvent.click(pointerTarget, { force: true });
+            await nextRenderFrame();
+            expect(capturedClicks).toHaveLength(clickCount + 1);
+            expect(capturedClicks.at(-1)?.isTrusted).toBe(true);
+            expect(capturedClicks.at(-1)?.defaultPrevented).toBe(true);
+            expect(targetActivationEvents).toHaveLength(targetCount);
+            expect(leakedActivationEvents).toHaveLength(leakedCount);
+            expect(submissions).toBe(0);
+
+            clickCount = capturedClicks.length;
+            targetCount = targetActivationEvents.length;
+            leakedCount = leakedActivationEvents.length;
+            owner.click();
+            await nextRenderFrame();
+            expect(capturedClicks).toHaveLength(clickCount + 1);
+            expect(capturedClicks.at(-1)?.isTrusted).toBe(false);
+            expect(capturedClicks.at(-1)?.defaultPrevented).toBe(true);
+            expect(targetActivationEvents).toHaveLength(targetCount);
+            expect(leakedActivationEvents).toHaveLength(leakedCount);
+            expect(submissions).toBe(0);
+
+            await userEvent.keyboard('{Tab}');
+            await assertFocusVisible(owner);
+            for (const key of activationKeys) {
+                clickCount = capturedClicks.length;
+                targetCount = targetActivationEvents.length;
+                leakedCount = leakedActivationEvents.length;
+                const keyCount = capturedKeys.length;
+                await userEvent.keyboard(key === 'Enter' ? '{Enter}' : ' ');
+                await nextRenderFrame();
+                const keyEvents = capturedKeys.slice(keyCount);
+                expect(keyEvents.map((event) => event.type)).toEqual(['keydown', 'keyup']);
+                expect(keyEvents.every((event) => event.defaultPrevented)).toBe(true);
+                expect(capturedClicks).toHaveLength(clickCount);
+                expect(targetActivationEvents).toHaveLength(targetCount);
+                expect(leakedActivationEvents).toHaveLength(leakedCount);
+                expect(document.activeElement).toBe(owner);
+                expect(submissions).toBe(0);
+            }
+
+            const after = captureNavigationState(runtime, host, wrapper, owner);
+            expectNavigationStructureAndGeometry(after, baseline);
+            expect(after.backgroundColor, `${owner.id} changed disabled fill`).toBe(baseline.backgroundColor);
+            expect(after.color, `${owner.id} changed disabled text`).toBe(baseline.color);
+            if (state) expect(owner.getAttribute(state.attribute)).toBe(state.value);
+        }
+
+        await userEvent.keyboard('{Tab}');
+        await assertFocusVisible(ariaDisabledLink);
+        const linkClickCount = capturedClicks.length;
+        const linkKeyCount = capturedKeys.length;
+        const linkTargetCount = targetActivationEvents.length;
+        const linkLeakedCount = leakedActivationEvents.length;
+        await userEvent.keyboard(' ');
+        await nextRenderFrame();
+        expect(capturedKeys.slice(linkKeyCount).map((event) => `${event.type}:${event.defaultPrevented}`)).toEqual([
+            'keydown:false',
+            'keyup:false',
+        ]);
+        expect(capturedClicks).toHaveLength(linkClickCount);
+        expect(targetActivationEvents).toHaveLength(linkTargetCount);
+        expect(leakedActivationEvents).toHaveLength(linkLeakedCount);
+        expect(linkSpaceEvents).toEqual(['keydown:false', 'keyup:false']);
+
+        for (const navigationCase of nativeCases) {
+            const { host, owner, wrapper } = navigationCase;
+            const baseline = baselines.get(owner);
+            if (!baseline) throw new Error(`Missing native-disabled navigation baseline for ${owner.id}`);
+            const clickCount = capturedClicks.length;
+            owner.focus();
+            expect(document.activeElement).not.toBe(owner);
+            owner.click();
+            await userEvent.click(owner, { force: true });
+            await nextRenderFrame();
+            expect(capturedClicks).toHaveLength(clickCount);
+            expect(submissions).toBe(0);
+            expectNavigationStructureAndGeometry(
+                captureNavigationState(runtime, host, wrapper, owner),
+                baseline,
+            );
+        }
+
+        let nestedClicks = 0;
+        nestedDisabledButton.addEventListener('click', (event) => {
+            nestedClicks += 1;
+            event.preventDefault();
+        });
+        await userEvent.click(nestedDisabledButton, { force: true });
+        expect(nestedClicks).toBe(1);
+
+        await userEvent.keyboard('{Tab}');
+
+        expect(Array.from(new FormData(form).entries())).toEqual([]);
+        expect(ariaOwners.map((owner) => owner.getAttribute('tabindex'))).toEqual([null, null, null]);
+        expect(ariaDisabledLink.getAttribute('aria-current')).toBe('page');
+        expect(ariaDisabledTab.getAttribute('aria-selected')).toBe('true');
         expect(mutationEvents).toEqual([]);
         expect(() => assertAriaReferenceIntegrity(harness.root)).not.toThrow();
     });

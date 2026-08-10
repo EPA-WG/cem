@@ -18,9 +18,10 @@
         "navigation:hover",
         "navigation:focus-visible",
         "navigation:active",
-        "navigation:disabled"
+        "navigation:disabled",
+        "content:hover"
     ],
-    "recommendedNext": "navigation:disabled",
+    "recommendedNext": "content:hover",
     "coverage": [
         {
             "id": "action:default",
@@ -364,8 +365,23 @@
             "state": "disabled",
             "components": ["cem-nav", "cem-tabs"],
             "interaction": "Disable a navigation item and remove activation and tab-stop behavior where appropriate.",
-            "status": "gap",
-            "reason": "Hover and active-paint suppression are covered for native and ARIA-disabled owners, but native-versus-ARIA activation and tab-stop policy are not asserted."
+            "status": "covered",
+            "owner": "packages/cem-components/src/lib/states.browser.spec.ts",
+            "test": "keeps aria-disabled navigation owners discoverable while suppressing activation",
+            "assertions": [
+                "expect(focusEvents).toEqual(focusOrder.map((owner) => owner.id));",
+                "expect(capturedClicks.at(-1)?.defaultPrevented).toBe(true);",
+                "expect(keyEvents.every((event) => event.defaultPrevented)).toBe(true);",
+                "expect(targetActivationEvents).toHaveLength(targetCount);",
+                "expect(leakedActivationEvents).toHaveLength(leakedCount);",
+                "expect(document.activeElement).not.toBe(owner);",
+                "expect(submissions).toBe(0);",
+                "expect(nestedClicks).toBe(1);",
+                "expect(linkSpaceEvents).toEqual(['keydown:false', 'keyup:false']);",
+                "expect(ariaOwners.map((owner) => owner.getAttribute('tabindex'))).toEqual([null, null, null]);",
+                "expect(ariaDisabledLink.getAttribute('aria-current')).toBe('page');",
+                "expect(ariaDisabledTab.getAttribute('aria-selected')).toBe('true');"
+            ]
         },
         {
             "id": "navigation:selected",

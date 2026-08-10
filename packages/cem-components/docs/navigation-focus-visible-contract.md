@@ -49,11 +49,11 @@ uses the independent fill/text treatment defined by the
 [navigation active contract](./navigation-active-contract.md) without replacing
 the ring.
 
-An authored `aria-disabled="true"` link or enabled button can remain in the
-tab order until the later `navigation:disabled` behavior contract defines and
-implements its activation and tab-stop policy. If such an owner is focusable,
-this contract intentionally keeps its focus visible. Native-disabled buttons
-are skipped and never match the focus selector.
+An authored `aria-disabled="true"` link or enabled button remains in the tab
+order and intentionally keeps its focus indicator while component behavior
+suppresses activation. Native-disabled buttons are skipped and never match the
+focus selector. See the
+[navigation disabled contract](./navigation-disabled-contract.md).
 
 ## Forced colors
 
@@ -77,9 +77,9 @@ The focused Chromium state fixture proves:
 - absence of click, input, change, and component lifecycle mutation events.
 
 The navigation forced-colors Chromium gate repeats the full keyboard order,
-including the still-focusable ARIA-disabled link boundary, and verifies
-`CanvasText`, tokenized width/offset, native-disabled skipping, restoration,
-geometry, DOM/ARIA, wrapper isolation, and event/state absence.
+including focusable ARIA-disabled link and selected-tab boundaries, and
+verifies `CanvasText`, tokenized width/offset, native-disabled skipping,
+restoration, geometry, DOM/ARIA, wrapper isolation, and event/state absence.
 
 ## Failure conditions
 

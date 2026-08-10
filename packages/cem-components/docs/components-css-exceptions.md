@@ -122,3 +122,8 @@ Navigation active also requires no exception. D0 now owns distinct generated
 `--cem-navigation-item-active-*` and
 `--cem-navigation-item-current-active-*` pairs, normal component CSS binds only
 those endpoints, and forced colors use platform system colors.
+
+Navigation disabled requires no exception. D0's existing generated
+`--cem-navigation-item-disabled-*` pair represents the paint, D5/zebra already
+represent retained ARIA-disabled focus, and forced colors use platform system
+colors. Activation suppression is component behavior, not CSS paint.

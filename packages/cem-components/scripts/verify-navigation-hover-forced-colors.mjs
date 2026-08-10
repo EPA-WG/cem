@@ -50,6 +50,19 @@ try {
                     </button>
                 </div>
             </cem-tabs>
+            <cem-tabs id="disabled-tabs-host">
+                <div id="disabled-tabs-wrapper" class="cem-tabs" role="tablist" aria-label="Unavailable profile sections">
+                    <button
+                        id="tab-aria-disabled"
+                        type="button"
+                        role="tab"
+                        aria-selected="true"
+                        aria-disabled="true"
+                    >
+                        Unavailable selected tab
+                    </button>
+                </div>
+            </cem-tabs>
             <button id="focus-end" type="button">End</button>
         </main>
     `);
@@ -64,6 +77,7 @@ try {
             'nav-content',
             'tab-default',
             'tab-selected',
+            'tab-aria-disabled',
             'nav-aria-disabled',
             'nav-disabled',
             'tab-disabled',
@@ -108,7 +122,7 @@ try {
         baseline.items.tabSelected.backgroundColor === baseline.system.selectedItem,
         'selected tab did not map to SelectedItem',
     );
-    for (const id of ['navAriaDisabled', 'navDisabled', 'tabDisabled']) {
+    for (const id of ['navAriaDisabled', 'navDisabled', 'tabAriaDisabled', 'tabDisabled']) {
         assert(baseline.items[id].backgroundColor === baseline.system.canvas, `${id} did not map to Canvas`);
         assert(baseline.items[id].color === baseline.system.grayText, `${id} did not map to GrayText`);
     }
@@ -171,9 +185,9 @@ try {
         assert(restored.items[key].color === before.items[key].color, `${id} did not restore its text`);
     }
 
-    for (const id of ['nav-aria-disabled', 'nav-disabled', 'tab-disabled']) {
+    for (const id of ['nav-aria-disabled', 'nav-disabled', 'tab-aria-disabled', 'tab-disabled']) {
         const key = id.replace(/-([a-z])/g, (_, letter) => letter.toUpperCase());
-        const needsForcedPseudoState = ['nav-disabled', 'tab-disabled'].includes(id);
+        const needsForcedPseudoState = ['nav-disabled', 'tab-aria-disabled', 'tab-disabled'].includes(id);
         const before = await page.evaluate(captureNavigationForcedColorState);
         await hoverOwner(page, id);
         if (needsForcedPseudoState) {
@@ -202,6 +216,7 @@ try {
         'nav-content',
         'tab-default',
         'tab-selected',
+        'tab-aria-disabled',
         'nav-aria-disabled',
         'nav-disabled',
         'tab-disabled',
@@ -228,6 +243,7 @@ try {
         'nav-content',
         'tab-default',
         'tab-selected',
+        'tab-aria-disabled',
     ];
     for (const [index, id] of focusOrder.entries()) {
         await page.keyboard.press('Tab');
@@ -276,6 +292,11 @@ try {
     await page.evaluate(nextFrame);
     const restoredFocus = await page.evaluate(captureNavigationForcedColorState);
     assert(restoredFocus.activeElement === 'focus-end', 'focus did not leave navigation at the end sentinel');
+    assert(!restoredFocus.items.tabAriaDisabled.focusVisible, 'ARIA-disabled selected tab retained :focus-visible');
+    assert(
+        equalOutline(restoredFocus.items.tabAriaDisabled, focusBaseline.items.tabAriaDisabled),
+        'ARIA-disabled selected tab focus outline did not restore',
+    );
     assert(!restoredFocus.items.tabSelected.focusVisible, 'selected tab retained :focus-visible after Tab');
     assert(
         equalOutline(restoredFocus.items.tabSelected, focusBaseline.items.tabSelected),
@@ -288,6 +309,10 @@ try {
     assert(restoredFocus.mutationEvents.length === 0, 'navigation focus dispatched a mutation event');
     assert(restoredFocus.items.navCurrent.ariaCurrent === 'page', 'focus changed current navigation state');
     assert(restoredFocus.items.tabSelected.ariaSelected === 'true', 'focus changed selected tab state');
+    assert(
+        restoredFocus.items.tabAriaDisabled.ariaSelected === 'true',
+        'focus changed the ARIA-disabled selected tab state',
+    );
 
     await page.evaluate(() => {
         window.__navigationMutationEvents = [];
@@ -356,9 +381,9 @@ try {
         );
     }
 
-    for (const id of ['nav-aria-disabled', 'nav-disabled', 'tab-disabled']) {
+    for (const id of ['nav-aria-disabled', 'nav-disabled', 'tab-aria-disabled', 'tab-disabled']) {
         const key = id.replace(/-([a-z])/g, (_, letter) => letter.toUpperCase());
-        const needsForcedPseudoState = ['nav-disabled', 'tab-disabled'].includes(id);
+        const needsForcedPseudoState = ['nav-disabled', 'tab-aria-disabled', 'tab-disabled'].includes(id);
         const before = await page.evaluate(captureNavigationForcedColorState);
         const mutationCount = before.mutationEvents.length;
         await hoverOwner(page, id);
@@ -397,9 +422,13 @@ try {
     );
     assert(finalActiveState.items.navCurrent.ariaCurrent === 'page', 'active changed current navigation state');
     assert(finalActiveState.items.tabSelected.ariaSelected === 'true', 'active changed selected tab state');
+    assert(
+        finalActiveState.items.tabAriaDisabled.ariaSelected === 'true',
+        'active changed the ARIA-disabled selected tab state',
+    );
 
     await context.close();
-    console.log('cem-components navigation hover/focus/active forced-colors contract verified.');
+    console.log('cem-components navigation hover/focus/active/disabled forced-colors contract verified.');
 } finally {
     await browser.close();
 }
@@ -467,6 +496,7 @@ function captureNavigationForcedColorState() {
         navDisabled: 'nav-disabled',
         navDisclosure: 'nav-disclosure',
         tabDefault: 'tab-default',
+        tabAriaDisabled: 'tab-aria-disabled',
         tabDisabled: 'tab-disabled',
         tabSelected: 'tab-selected',
     };
@@ -478,6 +508,7 @@ function captureNavigationForcedColorState() {
         navDisabled: ['primary-host', 'primary-wrapper'],
         navDisclosure: ['collapsible-host', 'collapsible-wrapper'],
         tabDefault: ['tabs-host', 'tabs-wrapper'],
+        tabAriaDisabled: ['disabled-tabs-host', 'disabled-tabs-wrapper'],
         tabDisabled: ['tabs-host', 'tabs-wrapper'],
         tabSelected: ['tabs-host', 'tabs-wrapper'],
     };

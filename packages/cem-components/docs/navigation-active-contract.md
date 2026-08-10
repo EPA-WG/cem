@@ -73,8 +73,10 @@ Native keyboard behavior is preserved rather than synthesized:
   the expanded contract described above.
 
 ARIA-disabled and native-disabled owners keep disabled paint even if an
-inspection path makes them match `:active`. The later `navigation:disabled`
-contract owns their complete activation and tab-stop policy.
+inspection path makes them match `:active`. The
+[navigation disabled contract](./navigation-disabled-contract.md) keeps
+ARIA-disabled owners focusable while suppressing activation and leaves native
+disabled focus/activation suppression to the browser.
 
 ## Forced colors
 

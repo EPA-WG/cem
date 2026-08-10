@@ -116,16 +116,16 @@ const NAVIGATION_BINDINGS = new Map([
         colorBinding('--cem-navigation-item-default-background', '--cem-navigation-item-default-text'),
     ]),
     ...[
-        "cem-nav > nav > :is(a[href]:not([aria-disabled='true']), button:enabled):hover",
-        "cem-nav > nav > .cem-nav__content > :is(a[href]:not([aria-disabled='true']), button:enabled):hover",
+        "cem-nav > nav > :is(a[href]:not([aria-disabled='true']), button:enabled:not([aria-disabled='true'])):hover",
+        "cem-nav > nav > .cem-nav__content > :is(a[href]:not([aria-disabled='true']), button:enabled:not([aria-disabled='true'])):hover",
         "cem-tabs > [role='tablist'] > button[role='tab']:enabled:not([aria-disabled='true']):hover",
     ].map((selector) => [
         selector,
         colorBinding('--cem-navigation-item-hover-background', '--cem-navigation-item-hover-text'),
     ]),
     ...[
-        "cem-nav > nav > :is(a[href]:not([aria-disabled='true']), button:enabled):active",
-        "cem-nav > nav > .cem-nav__content > :is(a[href]:not([aria-disabled='true']), button:enabled):active",
+        "cem-nav > nav > :is(a[href]:not([aria-disabled='true']), button:enabled:not([aria-disabled='true'])):active",
+        "cem-nav > nav > .cem-nav__content > :is(a[href]:not([aria-disabled='true']), button:enabled:not([aria-disabled='true'])):active",
         "cem-tabs > [role='tablist'] > button[role='tab']:enabled:not([aria-disabled='true']):active",
     ].map((selector) => [
         selector,
@@ -140,16 +140,16 @@ const NAVIGATION_BINDINGS = new Map([
         colorBinding('--cem-navigation-item-current-background', '--cem-navigation-item-current-text'),
     ]),
     ...[
-        "cem-nav > nav > :is(a[href]:not([aria-disabled='true']), button:enabled)[aria-current]:not([aria-current='false']):hover",
-        "cem-nav > nav > .cem-nav__content > :is(a[href]:not([aria-disabled='true']), button:enabled)[aria-current]:not([aria-current='false']):hover",
+        "cem-nav > nav > :is(a[href]:not([aria-disabled='true']), button:enabled:not([aria-disabled='true']))[aria-current]:not([aria-current='false']):hover",
+        "cem-nav > nav > .cem-nav__content > :is(a[href]:not([aria-disabled='true']), button:enabled:not([aria-disabled='true']))[aria-current]:not([aria-current='false']):hover",
         "cem-tabs > [role='tablist'] > button[role='tab'][aria-selected='true']:enabled:not([aria-disabled='true']):hover",
     ].map((selector) => [
         selector,
         colorBinding('--cem-navigation-item-current-hover-background', '--cem-navigation-item-current-hover-text'),
     ]),
     ...[
-        "cem-nav > nav > :is(a[href]:not([aria-disabled='true']), button:enabled)[aria-current]:not([aria-current='false']):active",
-        "cem-nav > nav > .cem-nav__content > :is(a[href]:not([aria-disabled='true']), button:enabled)[aria-current]:not([aria-current='false']):active",
+        "cem-nav > nav > :is(a[href]:not([aria-disabled='true']), button:enabled:not([aria-disabled='true']))[aria-current]:not([aria-current='false']):active",
+        "cem-nav > nav > .cem-nav__content > :is(a[href]:not([aria-disabled='true']), button:enabled:not([aria-disabled='true']))[aria-current]:not([aria-current='false']):active",
         "cem-tabs > [role='tablist'] > button[role='tab'][aria-selected='true']:enabled:not([aria-disabled='true']):active",
     ].map((selector) => [
         selector,
@@ -162,6 +162,9 @@ const NAVIGATION_BINDINGS = new Map([
         "cem-nav > nav > :is(a[href], button):is(button:disabled, [aria-disabled='true'])",
         "cem-nav > nav > .cem-nav__content > :is(a[href], button):is(button:disabled, [aria-disabled='true'])",
         "cem-tabs > [role='tablist'] > button[role='tab']:is(:disabled, [aria-disabled='true'])",
+        "cem-nav > nav > :is(a[href], button)[aria-current]:not([aria-current='false']):is(button:disabled, [aria-disabled='true'])",
+        "cem-nav > nav > .cem-nav__content > :is(a[href], button)[aria-current]:not([aria-current='false']):is(button:disabled, [aria-disabled='true'])",
+        "cem-tabs > [role='tablist'] > button[role='tab'][aria-selected='true']:is(:disabled, [aria-disabled='true'])",
     ].map((selector) => [
         selector,
         colorBinding('--cem-navigation-item-disabled-background', '--cem-navigation-item-disabled-text'),

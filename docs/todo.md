@@ -20,10 +20,11 @@ exception. Dedicated keyboard and forced-colors coverage completes
 `input:loading` across all seven owners. The custom form-associated `cem-select`
 now completes `input:expanded` with CEM-QL-owned rich option projection,
 canonical `cem-option` authoring, native-option migration input, and
-theme-tokenized popup/listbox states. Navigation hover, keyboard focus, and
-held active paint now style only the real nav links/buttons and tab buttons
-through generated navigation-item, D5 focus, and zebra semantics; the
-state-matrix audit recommends `navigation:disabled` next.
+theme-tokenized popup/listbox states. Navigation hover, keyboard focus, held
+active paint, and disabled behavior now apply only to the real nav links/buttons
+and tab buttons through generated navigation-item, D5 focus, zebra semantics,
+and bounded host capture; the state-matrix audit recommends `content:hover`
+next.
 
 The cross-layer architecture remains serializer-free: lifecycle loading, graph
 routing, joins, evaluators, CEM-QL, CEMT, and XSLT adapters must exchange
@@ -898,23 +899,71 @@ mediate between internal layers.
   - The uncached aggregate component gate passes all 18 dependencies and 46
     tests across five files. The exact style gate verifies 34 primitives and
     410 generated visual tokens.
-- [ ] Decide and implement the Phase 4 `navigation:disabled` behavior for
+- [x] Decide and implement the Phase 4 `navigation:disabled` behavior for
       `cem-nav` and `cem-tabs` before changing runtime activation.
-  - [ ] Resolve the owner/API policy first: native-disabled buttons already
+  - [x] Resolve the owner/API policy first: native-disabled buttons already
         suppress focus and activation, while ARIA-disabled links and buttons
         remain focusable and actionable unless component behavior intervenes.
         Decide whether CEM keeps ARIA-disabled owners discoverable in tab order,
         requires authored `tabindex="-1"`, or normalizes to native `disabled`
         where that attribute is valid.
-  - [ ] Define who suppresses activation on projected authored descendants:
+    - Accepted: native buttons use `disabled` and retain browser-owned tab/activation
+      suppression. Authored `aria-disabled="true"` owners remain discoverable in
+      sequential focus with their existing focus indicator; CEM does not add or
+      rewrite `tabindex`.
+  - [x] Define who suppresses activation on projected authored descendants:
         component event delegation or a documented author responsibility. Stop
         before adding behavior if that ownership has not been accepted.
-  - [ ] Add trusted pointer, click, Enter, Space, and Tab coverage for the chosen
+    - Accepted component ownership: `cem-nav` and `cem-tabs` intercept activation
+      at their host capture boundary for only their direct rendered navigation
+      owners. Pointer/programmatic click, Enter, and native-button Space cannot
+      reach the target, trigger default action, submit a form, or escape to an
+      application bubble listener. Earlier ancestor capture observation follows
+      normal DOM dispatch; non-activation keys and unrelated nested controls
+      remain outside the behavior.
+  - [x] Add trusted pointer, click, Enter, Space, and Tab coverage for the chosen
         policy, including current/selected coexistence, focus-visible behavior,
         form neutrality, stable state/geometry, and exact event suppression.
-  - [ ] Recheck existing disabled theme and forced-colors paint, then update the
+  - [x] Recheck existing disabled theme and forced-colors paint, then update the
         state matrix, component docs, and uncached aggregate Nx gate. Add a CSS
         exception only if no theme category can represent required paint.
+  - One package-owned capture behavior now guards only the direct rendered
+    navigation owners. It prevents default action and target/application
+    propagation for pointer, programmatic, Enter, and native-button Space
+    activation while preserving ARIA-disabled focus discovery, link Space,
+    unrelated nested behavior, owner identity, and serializable runtime state.
+  - D0's existing navigation disabled pair and D5/zebra focus semantics fully
+    represent paint. Enabled nav-button hover/active selectors now exclude
+    ARIA-disabled buttons symmetrically with links, and explicit
+    current/selected-disabled bindings make disabled paint win. No new theme
+    token or CSS exception is required.
+  - The focused state suite passes 20/20 with native-disabled tab skipping,
+    ARIA-disabled focus retention, current/selected coexistence, exact trusted
+    and programmatic click cancellation, Enter/Space boundaries, form
+    neutrality, stable geometry/DOM/ARIA/runtime state, and no mutation events.
+  - The forced-colors gate includes an ARIA-disabled selected tab and verifies
+    `Canvas`/`GrayText`, `CanvasText` focus, restoration, wrapper isolation, and
+    native-disabled skipping. The state matrix now reports 35 covered,
+    0 static-only, and 4 gaps with `content:hover` recommended next.
+  - The uncached aggregate component gate passes all 18 dependencies and 47
+    tests across five files. The package gate publishes 24 files; the exact
+    style gate still verifies 34 primitives and 410 generated visual tokens.
+- [ ] Decide the Phase 4 `content:hover` owner set before adding a fixture or
+      component CSS.
+  - [ ] Reconcile the matrix's “interactive content row or chip” wording with
+        the shipped DOM: `cem-chip[checkable]` has a clear native button owner;
+        `cem-list[selectable]` exposes one native `select` composite rather than
+        themeable option-row hover; and `cem-table` owns only a passive table
+        wrapper while projected rows remain application-authored.
+  - [ ] Choose whether to narrow this state to existing interactive owners
+        (recommended: checkable chip plus the selectable-list composite, with
+        passive chip/list/table explicitly excluded) or first accept new
+        component-owned interactive table/list-row vocabulary. Stop before CSS
+        or behavior if that ownership choice is not accepted.
+  - [ ] After owner acceptance, audit action/select/content theme categories,
+        add theme semantics before CSS if needed, and cover trusted pointer
+        enter/leave, selected/checked/disabled/focus coexistence, stable
+        geometry/state, forced colors, exact style bindings, docs, and matrix.
 
 ## Current Verification Commands
 
