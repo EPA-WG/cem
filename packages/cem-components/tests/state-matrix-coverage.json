@@ -15,9 +15,11 @@
         "input:focus-visible",
         "input:loading",
         "input:expanded",
-        "navigation:hover"
+        "navigation:hover",
+        "navigation:focus-visible",
+        "navigation:active"
     ],
-    "recommendedNext": "navigation:hover",
+    "recommendedNext": "navigation:active",
     "coverage": [
         {
             "id": "action:default",
@@ -303,8 +305,18 @@
             "state": "hover",
             "components": ["cem-nav", "cem-tabs"],
             "interaction": "Move the pointer across navigation items without changing layout.",
-            "status": "gap",
-            "reason": "No navigation browser assertion drives pointer hover."
+            "status": "covered",
+            "owner": "packages/cem-components/src/lib/states.browser.spec.ts",
+            "test": "styles only navigation hover owners without changing current selection or component state",
+            "assertions": [
+                "expect(owner.matches(':hover')).toBe(true);",
+                "expect(hovered.backgroundColor).toBe(resolveTokenColor(owner, tokens.hoverBackground));",
+                "expectNavigationStructureAndGeometry(hovered, baseline);",
+                "expect(hovered.focusTreatment).toEqual(baseline.focusTreatment);",
+                "expect(owner.getAttribute(state.attribute)).toBe(state.value);",
+                "expect(pointerEvents).toEqual(['pointerenter:true', 'pointerleave:true']);",
+                "expect(mutationEvents).toEqual([]);"
+            ]
         },
         {
             "id": "navigation:focus-visible",
@@ -312,8 +324,18 @@
             "state": "focus-visible",
             "components": ["cem-nav", "cem-tabs"],
             "interaction": "Move keyboard focus through navigation items with a visible focus indicator.",
-            "status": "gap",
-            "reason": "Navigation roles are covered, but their focus-visible treatment is not asserted."
+            "status": "covered",
+            "owner": "packages/cem-components/src/lib/states.browser.spec.ts",
+            "test": "moves keyboard focus through navigation owners without changing selection or component state",
+            "assertions": [
+                "expect(document.activeElement).toBe(owner);",
+                "expect(owner.matches(':focus-visible')).toBe(true);",
+                "expect(focused.wrapperFocusTreatment).toEqual(baselines[index].wrapperFocusTreatment);",
+                "expectNavigationStructureAndGeometry(focused, baselines[index]);",
+                "expect(restored.focusTreatment).toEqual(baselines[index - 1].focusTreatment);",
+                "expect(disabledOwner.matches(':focus-visible')).toBe(false);",
+                "expect(mutationEvents).toEqual([]);"
+            ]
         },
         {
             "id": "navigation:active",
@@ -322,7 +344,7 @@
             "components": ["cem-nav", "cem-tabs"],
             "interaction": "Activate a navigation item while retaining selection and readable contrast.",
             "status": "gap",
-            "reason": "No browser assertion performs a navigation activation transition."
+            "reason": "No trusted pointer or native keyboard hold asserts active paint, current/selected and focus coexistence, release restoration, or disabled suppression."
         },
         {
             "id": "navigation:disabled",
@@ -331,7 +353,7 @@
             "components": ["cem-nav", "cem-tabs"],
             "interaction": "Disable a navigation item and remove activation and tab-stop behavior where appropriate.",
             "status": "gap",
-            "reason": "No disabled navigation item is asserted in the browser suite."
+            "reason": "Hover suppression is covered for native and ARIA-disabled owners, but activation and tab-stop behavior are not asserted."
         },
         {
             "id": "navigation:selected",

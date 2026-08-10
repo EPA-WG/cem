@@ -20,8 +20,10 @@ exception. Dedicated keyboard and forced-colors coverage completes
 `input:loading` across all seven owners. The custom form-associated `cem-select`
 now completes `input:expanded` with CEM-QL-owned rich option projection,
 canonical `cem-option` authoring, native-option migration input, and
-theme-tokenized popup/listbox states. The state-matrix audit recommends
-`navigation:hover` next.
+theme-tokenized popup/listbox states. Navigation hover and keyboard focus now
+style only the real nav links/buttons and tab buttons through generated
+navigation-item, D5 focus, and zebra semantics; the state-matrix audit
+recommends `navigation:active` next.
 
 The cross-layer architecture remains serializer-free: lifecycle loading, graph
 routing, joins, evaluators, CEM-QL, CEMT, and XSLT adapters must exchange
@@ -796,6 +798,80 @@ mediate between internal layers.
     aggregate component gate verifies 34 primitives and 396 generated visual
     tokens. State coverage is 31 browser-covered, 0 static-only, and 8 gaps,
     with `navigation:hover` recommended next.
+- [x] Implement the Phase 4 `navigation:hover` contract for the real interactive
+      owners in `cem-nav` and `cem-tabs`.
+  - [x] Add focused browser coverage for trusted pointer enter/leave,
+        current/selected coexistence, disabled suppression, focus-visible
+        coexistence, stable geometry/DOM/ARIA/runtime state, and event absence.
+  - [x] Add a forced-colors browser gate for navigation hover, current/selected,
+        disabled, focus, restoration, and structural-wrapper isolation.
+  - [x] Audit generated navigation/action tokens, adopt a D0 navigation-item
+        state family if action semantics cannot represent the contract, and
+        bind only the interactive owners in component CSS.
+  - [x] Update the exact style contract, state matrix, component docs, and
+        aggregate Nx verification without opening a CSS exception unless no
+        theme category can represent the accepted styling.
+  - Exact owners are direct nav links/buttons, disclosed-content links/buttons,
+    the native disclosure button, and direct tab buttons. Nav, content, and
+    tablist wrappers receive no navigation state declarations.
+  - D0 now generates ten required default/hover/current/current-hover/disabled
+    navigation-item color endpoints. Current links and selected tabs retain a
+    distinct hover pair; disabled wins. Normal component CSS uses only generated
+    tokens, forced colors uses system colors, and the exception queue stays
+    empty.
+  - The focused state suite passes 17/17 with trusted pointer boundary events,
+    exact token/contrast assertions, focus and selection coexistence, disabled
+    suppression, restoration, stable geometry/DOM/ARIA/runtime snapshots, and
+    zero mutation events. The dedicated forced-colors gate verifies system
+    mappings and wrapper isolation.
+  - The uncached aggregate component gate passes all 18 dependencies and 44
+    tests across five files. The exact style gate verifies 34 primitives and
+    406 generated visual tokens. Only `navigation:hover` moved to covered,
+    yielding 32 covered, 0 static-only, and 7 gaps with
+    `navigation:focus-visible` recommended next.
+- [x] Implement the Phase 4 `navigation:focus-visible` contract for the same
+      interactive owners in `cem-nav` and `cem-tabs`.
+  - [x] Add focused keyboard traversal coverage for direct and disclosed nav
+        items and tabs, including native-disabled skipping, current/selected
+        coexistence, restoration, and focus/hover coexistence.
+  - [x] Bind the existing D5 focus stroke/offset and zebra focus color only to
+        focusable navigation owners, preserving stable geometry and leaving
+        structural wrappers unstyled.
+  - [x] Extend the forced-colors browser gate for focus traversal, system-color
+        focus paint, disabled skipping, restoration, and event/state absence.
+  - [x] Update the exact style contract, state matrix, component docs, and
+        aggregate Nx verification without opening a CSS exception.
+  - D5's existing `--cem-stroke-focus` and
+    `--cem-stroke-indicator-offset` endpoints plus the zebra focus color fully
+    represent the ring. CSS binds only the native owners; normal mode contains
+    no raw/local value, forced colors uses `CanvasText`, and the exception queue
+    remains empty.
+  - The focused state suite passes 18/18. Real Tab traversal covers direct nav
+    links, the disclosure, disclosed content, and tabs; native-disabled buttons
+    are skipped, while current/selected/expanded state, hover coexistence,
+    geometry, DOM/ARIA, serializable runtime state, restoration, and event
+    absence remain stable.
+  - The forced-colors gate repeats the full order, including the intentionally
+    still-focusable ARIA-disabled boundary owned by the later disabled contract,
+    and verifies exact system paint, token geometry, wrapper isolation, and
+    restoration. The state matrix now reports 33 covered, 0 static-only, and 6
+    gaps with `navigation:active` recommended next.
+  - The uncached aggregate component gate passes all 18 dependencies and 45
+    tests across five files. The exact style gate continues to verify 34
+    primitives and 406 generated visual tokens.
+- [ ] Implement the Phase 4 `navigation:active` contract on the actual link,
+      disclosure-button, disclosed-content, and tab owners.
+  - [ ] Audit D0 navigation-item and action active endpoints before CSS. Adopt
+        navigation-specific active/current-active semantics if action-intent
+        tokens cannot preserve navigation and current/selected meaning.
+  - [ ] Add trusted pointer hold/release coverage and native keyboard activation
+        coverage: Enter for links/buttons and Space for buttons only.
+  - [ ] Prove current/selected and focus-visible coexistence, disabled
+        suppression, readable contrast, release restoration, stable geometry,
+        expected click events, and no component state/lifecycle mutation.
+  - [ ] Define forced-colors active paint on the real owners and update the
+        exact style contract, state matrix, docs, and aggregate Nx gate without
+        opening an exception unless theme review proves one unavoidable.
 
 ## Current Verification Commands
 

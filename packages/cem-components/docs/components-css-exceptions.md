@@ -110,3 +110,10 @@ unknown or non-CEM variables.
 The custom select likewise requires no exception. D0 owns the generated
 `--cem-select-*` popup/option state colors and D2c owns
 `--cem-list-popup-rows`; all remaining geometry composes existing CEM tokens.
+
+The navigation hover contract also requires no exception. D0 owns generated
+`--cem-navigation-item-*` default, hover, current, current-hover, and disabled
+color pairs. Component CSS binds only those endpoints in normal modes and uses
+platform system colors in forced colors. Navigation focus-visible likewise
+requires no exception: D5 already owns focus thickness and external offset,
+while the zebra focus category owns the mode-aware ring color.

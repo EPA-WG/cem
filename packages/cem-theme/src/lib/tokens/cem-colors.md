@@ -65,6 +65,8 @@ This spec defines **consumer-semantic color tokens** for CEM:
 - A compact **branded color family** (`--cem-color-*`) used as implementation substrate.
 - An **emotional palette** (`--cem-palette-*`) that expresses *meaning* in user language (comfort, trust, danger, etc.).
 - **Action intent and state tokens** (`--cem-action-*`) for buttons/steps and other “do something” controls.
+- **Navigation-item state tokens** (`--cem-navigation-item-*`) for links, disclosures, and tabs that move or switch
+  context while preserving current/selected meaning.
 - **Zebra outline colors** (`--cem-zebra-*`) used with D5 Stroke to express selection/focus/target without relying on
   fill.
 - **System/forced-colors integration** so CEM remains accessible and compatible with platform theming.
@@ -566,6 +568,27 @@ continue to use the input indicator/zebra contract.
 | `--cem-select-option-disabled-text` | `<color>` | `var(--cem-action-contextual-disabled-text)` | Unavailable option text | required |
 | `--cem-select-group-text` | `<color>` | `var(--cem-palette-conservative-text-x)` | Option-group heading | recommended |
 
+### 7.9 Navigation item state colors
+
+Navigation items move between locations or switch the current local view. They are not action-intent controls: a
+theme must be able to change navigation styling without also changing primary/contextual commands. Current links and
+selected tabs share one semantic state, including a distinct hover pair so pointer feedback does not erase the
+current/selected meaning. Disabled wins over both current and hover.
+
+###### cem-navigation-item-state-colors
+| Token | value-type | default-formula | notes | tier |
+|---|---|---|---|---|
+| `--cem-navigation-item-default-background` | `<color>` | `transparent` | Resting navigation item fill | required |
+| `--cem-navigation-item-default-text` | `<color>` | `var(--cem-palette-comfort-text)` | Resting navigation item text | required |
+| `--cem-navigation-item-hover-background` | `<color>` | `var(--cem-action-contextual-hover-background)` | Enabled unselected item under pointer hover | required |
+| `--cem-navigation-item-hover-text` | `<color>` | `var(--cem-action-contextual-hover-text)` | Enabled unselected hover text | required |
+| `--cem-navigation-item-current-background` | `<color>` | `var(--cem-action-primary-default-background)` | Current link or selected tab fill | required |
+| `--cem-navigation-item-current-text` | `<color>` | `var(--cem-action-primary-default-text)` | Current link or selected tab text | required |
+| `--cem-navigation-item-current-hover-background` | `<color>` | `var(--cem-action-primary-hover-background)` | Current/selected item under pointer hover | required |
+| `--cem-navigation-item-current-hover-text` | `<color>` | `var(--cem-action-primary-hover-text)` | Current/selected hover text | required |
+| `--cem-navigation-item-disabled-background` | `<color>` | `var(--cem-action-contextual-disabled-background)` | Unavailable navigation item fill; wins over hover/current | required |
+| `--cem-navigation-item-disabled-text` | `<color>` | `var(--cem-action-contextual-disabled-text)` | Unavailable navigation item text | required |
+
 ## 8. Zebra outline colors
 
 ### 8.1 Outline-driven state mapping (zebra)
@@ -846,6 +869,14 @@ For each shipped intent (`primary`, `explicit`, `contextual`, `alternate`, `dest
 - `--cem-action-{intent}-disabled-background`, `--cem-action-{intent}-disabled-text`
 - `--cem-action-{intent}-selected-background`, `--cem-action-{intent}-selected-text`
 
+**Navigation items:**
+
+- `--cem-navigation-item-default-{background,text}`
+- `--cem-navigation-item-hover-{background,text}`
+- `--cem-navigation-item-current-{background,text}`
+- `--cem-navigation-item-current-hover-{background,text}`
+- `--cem-navigation-item-disabled-{background,text}`
+
 ### 14.2 Recommended (implementation substrate)
 
 - Branded hues: `--cem-color-*` (brand-controlled; used to derive palette tokens)
@@ -865,6 +896,7 @@ from these tables using the same logic as `cem-colors.html`.
 | `cem-zebra-tokens`                                     | `--cem-zebra-*` (5 tokens)    | one token per row                   |
 | `cem-input-indicator-colors`                           | `--cem-input-indicator-*` (9 tokens) | one token per row             |
 | `cem-select-state-colors`                              | `--cem-select-*` (12 tokens) | one token per row                    |
+| `cem-navigation-item-state-colors`                     | `--cem-navigation-item-*` (10 tokens) | one token per row             |
 | `cem-action-intent-emotion` × `cem-action-state-color` | `--cem-action-*` (80 tokens)  | intent × state × {background, text} |
 ## 15. References
 

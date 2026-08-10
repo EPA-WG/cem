@@ -32,7 +32,7 @@
 <template type="cem-ml; version=0.0"
           id="cem-colors-template"
           data-token-url="../../../dist/lib/tokens/cem-colors.xhtml"
-          data-slices="hue=cem-color-hue-variant shift=cem-palette-emotion-shift intent=cem-action-intent-emotion state=cem-action-state-color input=cem-input-indicator-colors select=cem-select-state-colors zmap=cem-zebra-mode-mapping">
+          data-slices="hue=cem-color-hue-variant shift=cem-palette-emotion-shift intent=cem-action-intent-emotion state=cem-action-state-color input=cem-input-indicator-colors select=cem-select-state-colors navigation=cem-navigation-item-state-colors zmap=cem-zebra-mode-mapping">
 {table |
     {caption | {a @href="../../../dist/lib/tokens/cem-colors.xhtml#cem-color-hue-variant" | cem-color-hue-variant} — branded color ramp}
     {thead | {tr | {th | Token}{th | Value}{th | Tier}}}
@@ -68,6 +68,13 @@
         {tr | {th | {code | {$row.td1}}}{td | {code | {$row.td3}}}{td | {$row.td5}}{td | {$row.td4}}}}}
 }
 {hr | }
+{table |
+    {caption | {a @href="../../../dist/lib/tokens/cem-colors.xhtml#cem-navigation-item-state-colors" | cem-navigation-item-state-colors} — navigation item state colors}
+    {thead | {tr | {th | Token}{th | Formula}{th | Tier}{th | Notes}}}
+    {tbody | {cem:for-each @select="$datadom.slices.navigation" @as="row" |
+        {tr | {th | {code | {$row.td1}}}{td | {code | {$row.td3}}}{td | {$row.td5}}{td | {$row.td4}}}}}
+}
+{hr | }
 {pre @class=language-css | {code @class=language-css @data-generated-css |```:root {
   /* region branded colors: cem-color-[hue]-[variant] */```{cem:for-each @select="$datadom.slices.hue" @as="row" |```
   ```{$row.td1}: {$row.td4};}```
@@ -93,6 +100,10 @@
   ```{$row.td1}: {$row.td3};}```
   /* endregion select popup and option state colors */
 
+  /* region navigation item state colors */```{cem:for-each @select="$datadom.slices.navigation" @as="row" |```
+  ```{$row.td1}: {$row.td3};}```
+  /* endregion navigation item state colors */
+
   /* region common for cem themes */
   [data-theme*="cem-theme-"], .cem-theme-native, .cem-theme-contrast-light, .cem-theme-contrast-dark, .cem-theme-light, .cem-theme-dark {
     /* action intent tokens: cem-action-[intent]-[state]-[background|text] */```{cem:for-each @select="$datadom.slices.intent" @as="intent" |{cem:for-each @select="$datadom.slices.state" @as="state" |```
@@ -105,6 +116,8 @@
     /* input indicator colors resolve against the active theme palette */```{cem:for-each @select="$datadom.slices.input" @as="row" |```
     ```{$row.td1}: {$row.td3};}```
     /* select popup and option state colors resolve against the active theme palette */```{cem:for-each @select="$datadom.slices.select" @as="row" |```
+    ```{$row.td1}: {$row.td3};}```
+    /* navigation item state colors resolve against the active theme palette */```{cem:for-each @select="$datadom.slices.navigation" @as="row" |```
     ```{$row.td1}: {$row.td3};}```
     background-color: var(--cem-palette-comfort);
     color: var(--cem-palette-comfort-text);

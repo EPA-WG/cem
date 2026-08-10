@@ -65,6 +65,7 @@ function deriveColorTokens(xhtml) {
     addTableTokens(xhtml, "cem-zebra-tokens", spec, "d0-zebra", tokens, warnings);
     addTableTokens(xhtml, "cem-input-indicator-colors", spec, "d0-input-indicator", tokens, warnings);
     addTableTokens(xhtml, "cem-select-state-colors", spec, "d0-select", tokens, warnings);
+    addTableTokens(xhtml, "cem-navigation-item-state-colors", spec, "d0-navigation", tokens, warnings);
 
     // Action tokens: cross-product of intent × state
     const intentRows = extractTable(xhtml, "cem-action-intent-emotion");

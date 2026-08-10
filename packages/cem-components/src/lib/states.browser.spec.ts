@@ -259,6 +259,462 @@ describe('CEM component primitive states and ARIA behavior', () => {
         expect(() => assertAriaReferenceIntegrity(harness.root)).not.toThrow();
     });
 
+    it('styles only navigation hover owners without changing current selection or component state', async () => {
+        harness = createComponentHarness();
+        const root = await harness.render(`
+            <cem-stack class="cem-theme-light" gap="sm">
+                <cem-nav label="Primary navigation">
+                    <a href="#overview">Overview</a>
+                    <a href="#current" aria-current="page">Current page</a>
+                    <a href="#unavailable" aria-disabled="true">Unavailable link</a>
+                    <button type="button" disabled>Unavailable action</button>
+                </cem-nav>
+                <cem-nav label="Workspace navigation" collapsible expanded>
+                    <a href="#workspace">Workspace</a>
+                </cem-nav>
+                <cem-tabs label="Profile sections">
+                    <button type="button" role="tab" aria-selected="false">Overview tab</button>
+                    <button type="button" role="tab" aria-selected="true">Security tab</button>
+                    <button type="button" role="tab" aria-selected="false" aria-disabled="true">
+                        Billing tab
+                    </button>
+                    <button type="button" role="tab" aria-selected="false" disabled>Disabled tab</button>
+                </cem-tabs>
+            </cem-stack>
+        `);
+        await waitForStateSelector(root, 'cem-tabs button[role="tab"]:disabled');
+
+        const primaryHost = harness.query<HTMLElement>('cem-nav[label="Primary navigation"]');
+        const primaryWrapper = harness.query<HTMLElement>('cem-nav[label="Primary navigation"] > nav');
+        const disclosureHost = harness.query<HTMLElement>('cem-nav[collapsible]');
+        const disclosureWrapper = harness.query<HTMLElement>('cem-nav[collapsible] > nav');
+        const tabsHost = harness.query<HTMLElement>('cem-tabs');
+        const tabsWrapper = harness.query<HTMLElement>('cem-tabs > [role="tablist"]');
+        const navigationCases = [
+            {
+                host: primaryHost,
+                owner: harness.query<HTMLAnchorElement>('cem-nav[label="Primary navigation"] a[href="#overview"]'),
+                state: null,
+                tokens: {
+                    defaultBackground: '--cem-navigation-item-default-background',
+                    defaultText: '--cem-navigation-item-default-text',
+                    hoverBackground: '--cem-navigation-item-hover-background',
+                    hoverText: '--cem-navigation-item-hover-text',
+                },
+                wrapper: primaryWrapper,
+            },
+            {
+                host: primaryHost,
+                owner: harness.query<HTMLAnchorElement>('cem-nav[label="Primary navigation"] a[aria-current="page"]'),
+                state: { attribute: 'aria-current', value: 'page' },
+                tokens: {
+                    defaultBackground: '--cem-navigation-item-current-background',
+                    defaultText: '--cem-navigation-item-current-text',
+                    hoverBackground: '--cem-navigation-item-current-hover-background',
+                    hoverText: '--cem-navigation-item-current-hover-text',
+                },
+                wrapper: primaryWrapper,
+            },
+            {
+                host: disclosureHost,
+                owner: harness.query<HTMLButtonElement>('cem-nav[collapsible] > nav > .cem-nav__disclosure'),
+                state: { attribute: 'aria-expanded', value: 'true' },
+                tokens: {
+                    defaultBackground: '--cem-navigation-item-default-background',
+                    defaultText: '--cem-navigation-item-default-text',
+                    hoverBackground: '--cem-navigation-item-hover-background',
+                    hoverText: '--cem-navigation-item-hover-text',
+                },
+                wrapper: disclosureWrapper,
+            },
+            {
+                host: disclosureHost,
+                owner: harness.query<HTMLAnchorElement>('cem-nav[collapsible] > nav > .cem-nav__content > a[href]'),
+                state: null,
+                tokens: {
+                    defaultBackground: '--cem-navigation-item-default-background',
+                    defaultText: '--cem-navigation-item-default-text',
+                    hoverBackground: '--cem-navigation-item-hover-background',
+                    hoverText: '--cem-navigation-item-hover-text',
+                },
+                wrapper: disclosureWrapper,
+            },
+            {
+                host: tabsHost,
+                owner: harness.query<HTMLButtonElement>('cem-tabs button[role="tab"][aria-selected="false"]'),
+                state: { attribute: 'aria-selected', value: 'false' },
+                tokens: {
+                    defaultBackground: '--cem-navigation-item-default-background',
+                    defaultText: '--cem-navigation-item-default-text',
+                    hoverBackground: '--cem-navigation-item-hover-background',
+                    hoverText: '--cem-navigation-item-hover-text',
+                },
+                wrapper: tabsWrapper,
+            },
+            {
+                host: tabsHost,
+                owner: harness.query<HTMLButtonElement>('cem-tabs button[role="tab"][aria-selected="true"]'),
+                state: { attribute: 'aria-selected', value: 'true' },
+                tokens: {
+                    defaultBackground: '--cem-navigation-item-current-background',
+                    defaultText: '--cem-navigation-item-current-text',
+                    hoverBackground: '--cem-navigation-item-current-hover-background',
+                    hoverText: '--cem-navigation-item-current-hover-text',
+                },
+                wrapper: tabsWrapper,
+            },
+        ] as const;
+        const disabledCases = [
+            {
+                host: primaryHost,
+                owner: harness.query<HTMLAnchorElement>('cem-nav a[aria-disabled="true"]'),
+                wrapper: primaryWrapper,
+            },
+            {
+                host: primaryHost,
+                owner: harness.query<HTMLButtonElement>('cem-nav button:disabled'),
+                wrapper: primaryWrapper,
+            },
+            {
+                host: tabsHost,
+                owner: harness.query<HTMLButtonElement>('cem-tabs button[aria-disabled="true"]'),
+                wrapper: tabsWrapper,
+            },
+            {
+                host: tabsHost,
+                owner: harness.query<HTMLButtonElement>('cem-tabs button:disabled'),
+                wrapper: tabsWrapper,
+            },
+        ] as const;
+        const mutationEvents: string[] = [];
+        for (const eventName of ['click', 'input', 'change', 'cem-loaded', 'cem-error', 'cem-cancel']) {
+            harness.root.addEventListener(eventName, () => mutationEvents.push(eventName));
+        }
+
+        assertStateHostsRendered(harness.root, 'cem-nav, cem-tabs');
+
+        for (const navigationCase of navigationCases) {
+            const { host, owner, state, tokens, wrapper } = navigationCase;
+            const pointerEvents: string[] = [];
+            owner.addEventListener('pointerenter', (event) => pointerEvents.push(`pointerenter:${event.isTrusted}`));
+            owner.addEventListener('pointerleave', (event) => pointerEvents.push(`pointerleave:${event.isTrusted}`));
+            await assertFocusVisible(owner);
+
+            const baseline = captureNavigationState(runtime, host, wrapper, owner);
+            expect(baseline.backgroundColor).toBe(resolveTokenColor(owner, tokens.defaultBackground));
+            expect(baseline.color).toBe(resolveTokenColor(owner, tokens.defaultText));
+            if (state) {
+                expect(owner.getAttribute(state.attribute)).toBe(state.value);
+            }
+
+            await userEvent.hover(owner);
+            await nextRenderFrame();
+
+            const hovered = captureNavigationState(runtime, host, wrapper, owner);
+            expect(owner.matches(':hover')).toBe(true);
+            expect(hovered.backgroundColor).toBe(resolveTokenColor(owner, tokens.hoverBackground));
+            expect(hovered.color).toBe(resolveTokenColor(owner, tokens.hoverText));
+            expect(hovered.backgroundColor).not.toBe(baseline.backgroundColor);
+            expect(contrastRatio(hovered.backgroundColor, hovered.color)).toBeGreaterThanOrEqual(4.5);
+            expectNavigationStructureAndGeometry(hovered, baseline);
+            expect(hovered.focusTreatment).toEqual(baseline.focusTreatment);
+            expect(hovered.wrapperBackgroundColor).toBe(baseline.wrapperBackgroundColor);
+            expect(document.activeElement).toBe(owner);
+            if (state) {
+                expect(owner.getAttribute(state.attribute)).toBe(state.value);
+            }
+
+            await userEvent.unhover(owner);
+            await nextRenderFrame();
+
+            const restored = captureNavigationState(runtime, host, wrapper, owner);
+            expect(restored.backgroundColor).toBe(baseline.backgroundColor);
+            expect(restored.color).toBe(baseline.color);
+            expectNavigationStructureAndGeometry(restored, baseline);
+            expect(restored.focusTreatment).toEqual(baseline.focusTreatment);
+            expect(restored.wrapperBackgroundColor).toBe(baseline.wrapperBackgroundColor);
+            expect(document.activeElement).toBe(owner);
+            expect(pointerEvents).toEqual(['pointerenter:true', 'pointerleave:true']);
+        }
+
+        for (const disabledCase of disabledCases) {
+            const { host, owner, wrapper } = disabledCase;
+            const pointerEvents: string[] = [];
+            owner.addEventListener('pointerenter', (event) => pointerEvents.push(`pointerenter:${event.isTrusted}`));
+            owner.addEventListener('pointerleave', (event) => pointerEvents.push(`pointerleave:${event.isTrusted}`));
+            const focusOwner = document.activeElement;
+            const baseline = captureNavigationState(runtime, host, wrapper, owner);
+            expect(baseline.backgroundColor).toBe(
+                resolveTokenColor(owner, '--cem-navigation-item-disabled-background'),
+            );
+            expect(baseline.color).toBe(resolveTokenColor(owner, '--cem-navigation-item-disabled-text'));
+
+            await userEvent.hover(owner);
+            await nextRenderFrame();
+
+            const hovered = captureNavigationState(runtime, host, wrapper, owner);
+            expect(owner.matches(':hover')).toBe(true);
+            expect(hovered.backgroundColor).toBe(baseline.backgroundColor);
+            expect(hovered.color).toBe(baseline.color);
+            expectNavigationStructureAndGeometry(hovered, baseline);
+            expect(hovered.wrapperBackgroundColor).toBe(baseline.wrapperBackgroundColor);
+            expect(document.activeElement).toBe(focusOwner);
+
+            await userEvent.unhover(owner);
+            await nextRenderFrame();
+
+            const restored = captureNavigationState(runtime, host, wrapper, owner);
+            expectNavigationStructureAndGeometry(restored, baseline);
+            expect(pointerEvents).toEqual(['pointerenter:true', 'pointerleave:true']);
+        }
+
+        expect(mutationEvents).toEqual([]);
+        expect(() => assertAriaReferenceIntegrity(harness.root)).not.toThrow();
+    });
+
+    it('moves keyboard focus through navigation owners without changing selection or component state', async () => {
+        harness = createComponentHarness();
+        const root = await harness.render(`
+            <section class="cem-theme-light">
+                <button id="navigation-focus-start" type="button">Start navigation focus sequence</button>
+                <cem-stack gap="sm">
+                    <cem-nav label="Focus primary navigation">
+                        <a id="focus-nav-default" href="#overview">Overview</a>
+                        <a id="focus-nav-current" href="#current" aria-current="page">Current page</a>
+                        <button id="focus-nav-disabled" type="button" disabled>Unavailable action</button>
+                    </cem-nav>
+                    <cem-nav label="Focus workspace navigation" collapsible expanded>
+                        <a id="focus-nav-content" href="#workspace">Workspace</a>
+                        <button id="focus-content-disabled" type="button" disabled>Unavailable workspace</button>
+                    </cem-nav>
+                    <cem-tabs label="Focus profile sections">
+                        <button id="focus-tab-default" type="button" role="tab" aria-selected="false">
+                            Overview tab
+                        </button>
+                        <button id="focus-tab-selected" type="button" role="tab" aria-selected="true">
+                            Security tab
+                        </button>
+                        <button id="focus-tab-disabled" type="button" role="tab" aria-selected="false" disabled>
+                            Disabled tab
+                        </button>
+                    </cem-tabs>
+                </cem-stack>
+                <button id="navigation-focus-end" type="button">End navigation focus sequence</button>
+            </section>
+        `);
+        await waitForStateSelector(root, '#focus-tab-disabled:disabled');
+
+        const start = harness.query<HTMLButtonElement>('#navigation-focus-start');
+        const end = harness.query<HTMLButtonElement>('#navigation-focus-end');
+        const primaryHost = harness.query<HTMLElement>('cem-nav[label="Focus primary navigation"]');
+        const primaryWrapper = harness.query<HTMLElement>('cem-nav[label="Focus primary navigation"] > nav');
+        const disclosureHost = harness.query<HTMLElement>('cem-nav[label="Focus workspace navigation"]');
+        const disclosureWrapper = harness.query<HTMLElement>('cem-nav[label="Focus workspace navigation"] > nav');
+        const tabsHost = harness.query<HTMLElement>('cem-tabs[label="Focus profile sections"]');
+        const tabsWrapper = harness.query<HTMLElement>('cem-tabs[label="Focus profile sections"] > [role="tablist"]');
+        const cases = [
+            {
+                host: primaryHost,
+                owner: harness.query<HTMLAnchorElement>('#focus-nav-default'),
+                state: null,
+                tokens: {
+                    defaultBackground: '--cem-navigation-item-default-background',
+                    defaultText: '--cem-navigation-item-default-text',
+                    hoverBackground: '--cem-navigation-item-hover-background',
+                    hoverText: '--cem-navigation-item-hover-text',
+                },
+                wrapper: primaryWrapper,
+            },
+            {
+                host: primaryHost,
+                owner: harness.query<HTMLAnchorElement>('#focus-nav-current'),
+                state: { attribute: 'aria-current', value: 'page' },
+                tokens: {
+                    defaultBackground: '--cem-navigation-item-current-background',
+                    defaultText: '--cem-navigation-item-current-text',
+                    hoverBackground: '--cem-navigation-item-current-hover-background',
+                    hoverText: '--cem-navigation-item-current-hover-text',
+                },
+                wrapper: primaryWrapper,
+            },
+            {
+                host: disclosureHost,
+                owner: harness.query<HTMLButtonElement>(
+                    'cem-nav[label="Focus workspace navigation"] > nav > .cem-nav__disclosure',
+                ),
+                state: { attribute: 'aria-expanded', value: 'true' },
+                tokens: {
+                    defaultBackground: '--cem-navigation-item-default-background',
+                    defaultText: '--cem-navigation-item-default-text',
+                    hoverBackground: '--cem-navigation-item-hover-background',
+                    hoverText: '--cem-navigation-item-hover-text',
+                },
+                wrapper: disclosureWrapper,
+            },
+            {
+                host: disclosureHost,
+                owner: harness.query<HTMLAnchorElement>('#focus-nav-content'),
+                state: null,
+                tokens: {
+                    defaultBackground: '--cem-navigation-item-default-background',
+                    defaultText: '--cem-navigation-item-default-text',
+                    hoverBackground: '--cem-navigation-item-hover-background',
+                    hoverText: '--cem-navigation-item-hover-text',
+                },
+                wrapper: disclosureWrapper,
+            },
+            {
+                host: tabsHost,
+                owner: harness.query<HTMLButtonElement>('#focus-tab-default'),
+                state: { attribute: 'aria-selected', value: 'false' },
+                tokens: {
+                    defaultBackground: '--cem-navigation-item-default-background',
+                    defaultText: '--cem-navigation-item-default-text',
+                    hoverBackground: '--cem-navigation-item-hover-background',
+                    hoverText: '--cem-navigation-item-hover-text',
+                },
+                wrapper: tabsWrapper,
+            },
+            {
+                host: tabsHost,
+                owner: harness.query<HTMLButtonElement>('#focus-tab-selected'),
+                state: { attribute: 'aria-selected', value: 'true' },
+                tokens: {
+                    defaultBackground: '--cem-navigation-item-current-background',
+                    defaultText: '--cem-navigation-item-current-text',
+                    hoverBackground: '--cem-navigation-item-current-hover-background',
+                    hoverText: '--cem-navigation-item-current-hover-text',
+                },
+                wrapper: tabsWrapper,
+            },
+        ] as const;
+        const disabled = [
+            harness.query<HTMLButtonElement>('#focus-nav-disabled'),
+            harness.query<HTMLButtonElement>('#focus-content-disabled'),
+            harness.query<HTMLButtonElement>('#focus-tab-disabled'),
+        ];
+        const baselines = cases.map(({ host, owner, wrapper }) =>
+            captureNavigationState(runtime, host, wrapper, owner),
+        );
+        const focusOrder: string[] = [];
+        const mutationEvents: string[] = [];
+        harness.root.addEventListener('focusin', (event) => {
+            const target = event.target;
+            if (target instanceof HTMLElement && cases.some(({ owner }) => owner === target)) {
+                focusOrder.push(target.id || target.className);
+            }
+        });
+        for (const eventName of ['click', 'input', 'change', 'cem-loaded', 'cem-error', 'cem-cancel']) {
+            harness.root.addEventListener(eventName, () => mutationEvents.push(eventName));
+        }
+
+        assertStateHostsRendered(harness.root, 'cem-nav, cem-tabs');
+        expect(disabled.every((owner) => owner.disabled)).toBe(true);
+        start.focus();
+        expect(document.activeElement).toBe(start);
+
+        for (const [index, navigationCase] of cases.entries()) {
+            await userEvent.tab();
+            await nextRenderFrame();
+
+            const { owner, state, tokens } = navigationCase;
+            const focused = captureNavigationState(
+                runtime,
+                navigationCase.host,
+                navigationCase.wrapper,
+                owner,
+            );
+            expect(document.activeElement).toBe(owner);
+            expect(owner.matches(':focus-visible')).toBe(true);
+            expect(paintedColor(focused.focusTreatment[0])).toBe(resolveTokenColor(owner, '--cem-zebra-color-1'));
+            expect(focused.focusTreatment[1]).toBe('solid');
+            expect(focused.focusTreatment[2]).toBe(`${resolveTokenLength(owner, '--cem-stroke-focus')}px`);
+            expect(focused.focusTreatment[3]).toBe(
+                `${resolveTokenLength(owner, '--cem-stroke-indicator-offset')}px`,
+            );
+            expect(focused.backgroundColor).toBe(resolveTokenColor(owner, tokens.defaultBackground));
+            expect(focused.color).toBe(resolveTokenColor(owner, tokens.defaultText));
+            expect(focused.wrapperFocusTreatment).toEqual(baselines[index].wrapperFocusTreatment);
+            expectNavigationStructureAndGeometry(focused, baselines[index]);
+            if (state) {
+                expect(owner.getAttribute(state.attribute)).toBe(state.value);
+            }
+
+            if (index > 0) {
+                const previous = cases[index - 1];
+                const restored = captureNavigationState(
+                    runtime,
+                    previous.host,
+                    previous.wrapper,
+                    previous.owner,
+                );
+                expect(previous.owner.matches(':focus-visible')).toBe(false);
+                expect(restored.focusTreatment).toEqual(baselines[index - 1].focusTreatment);
+                expect(restored.backgroundColor).toBe(
+                    resolveTokenColor(previous.owner, previous.tokens.defaultBackground),
+                );
+                expect(restored.color).toBe(resolveTokenColor(previous.owner, previous.tokens.defaultText));
+                expectNavigationStructureAndGeometry(restored, baselines[index - 1]);
+            }
+
+            await userEvent.hover(owner);
+            await nextRenderFrame();
+            const hoveredFocused = captureNavigationState(
+                runtime,
+                navigationCase.host,
+                navigationCase.wrapper,
+                owner,
+            );
+            expect(owner.matches(':hover')).toBe(true);
+            expect(owner.matches(':focus-visible')).toBe(true);
+            expect(hoveredFocused.backgroundColor).toBe(resolveTokenColor(owner, tokens.hoverBackground));
+            expect(hoveredFocused.color).toBe(resolveTokenColor(owner, tokens.hoverText));
+            expect(hoveredFocused.focusTreatment).toEqual(focused.focusTreatment);
+            expectNavigationStructureAndGeometry(hoveredFocused, focused);
+            if (state) {
+                expect(owner.getAttribute(state.attribute)).toBe(state.value);
+            }
+            await userEvent.unhover(owner);
+            await nextRenderFrame();
+            const restoredFocus = captureNavigationState(
+                runtime,
+                navigationCase.host,
+                navigationCase.wrapper,
+                owner,
+            );
+            expect(restoredFocus.backgroundColor).toBe(focused.backgroundColor);
+            expect(restoredFocus.color).toBe(focused.color);
+            expect(restoredFocus.focusTreatment).toEqual(focused.focusTreatment);
+            expectNavigationStructureAndGeometry(restoredFocus, focused);
+
+            for (const disabledOwner of disabled) {
+                expect(document.activeElement).not.toBe(disabledOwner);
+                expect(disabledOwner.matches(':focus-visible')).toBe(false);
+            }
+        }
+
+        const lastCase = cases.at(-1);
+        const lastBaseline = baselines.at(-1);
+        if (!lastCase || !lastBaseline) {
+            throw new Error('Expected the final navigation focus case');
+        }
+        await userEvent.tab();
+        await nextRenderFrame();
+        expect(document.activeElement).toBe(end);
+        expect(lastCase.owner.matches(':focus-visible')).toBe(false);
+        const restoredLast = captureNavigationState(runtime, lastCase.host, lastCase.wrapper, lastCase.owner);
+        expect(restoredLast.focusTreatment).toEqual(lastBaseline.focusTreatment);
+        expectNavigationStructureAndGeometry(restoredLast, lastBaseline);
+
+        expect(focusOrder).toEqual(cases.map(({ owner }) => owner.id || owner.className));
+        expect(cases[1].owner.getAttribute('aria-current')).toBe('page');
+        expect(cases[2].owner.getAttribute('aria-expanded')).toBe('true');
+        expect(cases[4].owner.getAttribute('aria-selected')).toBe('false');
+        expect(cases[5].owner.getAttribute('aria-selected')).toBe('true');
+        expect(mutationEvents).toEqual([]);
+        expect(() => assertAriaReferenceIntegrity(harness.root)).not.toThrow();
+    });
+
     it('applies shared native active treatment during pointer and keyboard activation', async () => {
         harness = createComponentHarness();
         const root = await harness.render(`
@@ -2419,6 +2875,78 @@ function resolveTokenLength(element: Element, tokenName: string): number {
     }
 
     return Number(match[1]);
+}
+
+interface NavigationStateSnapshot {
+    backgroundColor: string;
+    color: string;
+    focusTreatment: readonly string[];
+    hostAttributes: readonly string[];
+    hostRect: readonly number[];
+    ownerHtml: string;
+    ownerRect: readonly number[];
+    runtime: string;
+    wrapperBackgroundColor: string;
+    wrapperFocusTreatment: readonly string[];
+    wrapperHtml: string;
+    wrapperRect: readonly number[];
+}
+
+function captureNavigationState(
+    runtime: CemElementRuntime,
+    host: HTMLElement,
+    wrapper: HTMLElement,
+    owner: HTMLElement,
+): NavigationStateSnapshot {
+    const ownerStyles = getComputedStyle(owner);
+    const wrapperStyles = getComputedStyle(wrapper);
+    const runtimeSnapshot = runtime.snapshotInstance(host);
+
+    return {
+        backgroundColor: paintedColor(ownerStyles.backgroundColor),
+        color: paintedColor(ownerStyles.color),
+        focusTreatment: [
+            ownerStyles.outlineColor,
+            ownerStyles.outlineStyle,
+            ownerStyles.outlineWidth,
+            ownerStyles.outlineOffset,
+            ownerStyles.boxShadow,
+        ],
+        hostAttributes: Array.from(host.attributes, ({ name, value }) => `${name}=${value}`),
+        hostRect: rectTuple(host),
+        ownerHtml: owner.outerHTML,
+        ownerRect: rectTuple(owner),
+        runtime: JSON.stringify({
+            eventPayloads: runtimeSnapshot.eventPayloads,
+            formData: runtimeSnapshot.formData,
+            payload: runtimeSnapshot.payload,
+            slices: runtimeSnapshot.slices,
+            validationState: runtimeSnapshot.validationState,
+        }),
+        wrapperBackgroundColor: paintedColor(wrapperStyles.backgroundColor),
+        wrapperFocusTreatment: [
+            wrapperStyles.outlineColor,
+            wrapperStyles.outlineStyle,
+            wrapperStyles.outlineWidth,
+            wrapperStyles.outlineOffset,
+            wrapperStyles.boxShadow,
+        ],
+        wrapperHtml: wrapper.outerHTML,
+        wrapperRect: rectTuple(wrapper),
+    };
+}
+
+function expectNavigationStructureAndGeometry(
+    actual: NavigationStateSnapshot,
+    expected: NavigationStateSnapshot,
+): void {
+    expect(actual.hostAttributes).toEqual(expected.hostAttributes);
+    expect(actual.hostRect).toEqual(expected.hostRect);
+    expect(actual.ownerHtml).toBe(expected.ownerHtml);
+    expect(actual.ownerRect).toEqual(expected.ownerRect);
+    expect(actual.runtime).toBe(expected.runtime);
+    expect(actual.wrapperHtml).toBe(expected.wrapperHtml);
+    expect(actual.wrapperRect).toEqual(expected.wrapperRect);
 }
 
 interface ActionStateSnapshot {

@@ -57,6 +57,14 @@ can select `indicator="underline|outline"`. Advanced custom elements may set
 `--cem-indicator-appearance-*` tokens. All stripe color and geometry values
 remain theme-owned.
 
+Navigation links, disclosure buttons, and tabs consume the generated
+`--cem-navigation-item-*` state family. Hover styling is applied to those native
+owners rather than their nav/content/tablist wrappers, preserves current and
+selected semantics, and suppresses enabled treatment for disabled owners.
+Keyboard focus uses the existing D5 focus width/offset and zebra focus color on
+the same native owners without changing geometry or replacing hover/current
+paint.
+
 ## Build & Verify
 
 ```bash
@@ -65,6 +73,7 @@ yarn nx run @epa-wg/cem-components:verify-primitives
 yarn nx run @epa-wg/cem-components:verify-state-matrix
 yarn nx run @epa-wg/cem-components:verify-style-contract
 yarn nx run @epa-wg/cem-components:verify-input-indicator-forced-colors
+yarn nx run @epa-wg/cem-components:verify-navigation-hover-forced-colors
 yarn nx run @epa-wg/cem-components:verify-package
 yarn nx run @epa-wg/cem-components:test
 yarn nx run @epa-wg/cem-components:build
@@ -95,6 +104,7 @@ JavaScript boundary, and exact dry-run npm inclusion of one `dist/styles.css`.
 | State-matrix audit gate | `tools/scripts/verify-cem-components-state-matrix.mjs` |
 | Token-only style gate | `tools/scripts/verify-cem-components-styles.mjs` |
 | Input indicator forced-colors gate | `scripts/verify-input-indicator-forced-colors.mjs` |
+| Navigation hover/focus forced-colors gate | `scripts/verify-navigation-hover-forced-colors.mjs` |
 | Package publication gate | `scripts/verify-package.mjs` |
 | Stylesheet copy | `scripts/copy-styles.mjs` |
 | Primitive browser coverage | `src/lib/primitives.browser.spec.ts` |
@@ -151,6 +161,10 @@ Known deferrals stay outside this trigger:
   declarative option payload, native interaction boundary, and executable acceptance criteria.
 - [Input loading contract](./docs/input-loading-contract.md) — explicit presence-only busy projection, native state
   and ARIA markers, tokenized pending indicator, interaction boundaries, and executable acceptance criteria.
+- [Navigation hover contract](./docs/navigation-hover-contract.md) — owner-only pointer paint, current/selected
+  coexistence, disabled suppression, forced-colors mapping, and executable acceptance criteria.
+- [Navigation focus-visible contract](./docs/navigation-focus-visible-contract.md) — keyboard order, native-disabled
+  skipping, tokenized external rings, state coexistence, restoration, and forced-colors mapping.
 - [Stylesheet publication contract](./docs/stylesheet-publication-contract.md) — single-source CSS build, package
   export, cache, release, and npm-pack boundary.
 - [Component CSS exceptions](./docs/components-css-exceptions.md) — token-first review queue for proposed values that

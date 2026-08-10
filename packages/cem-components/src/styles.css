@@ -31,6 +31,53 @@ cem-menu-item > button:enabled:active {
     color: var(--cem-action-contextual-active-text);
 }
 
+cem-nav > nav > :is(a[href], button),
+cem-nav > nav > .cem-nav__content > :is(a[href], button),
+cem-tabs > [role='tablist'] > button[role='tab'] {
+    background-color: var(--cem-navigation-item-default-background);
+    color: var(--cem-navigation-item-default-text);
+}
+
+cem-nav > nav > :is(a[href]:not([aria-disabled='true']), button:enabled):hover,
+cem-nav > nav > .cem-nav__content > :is(a[href]:not([aria-disabled='true']), button:enabled):hover,
+cem-tabs > [role='tablist'] > button[role='tab']:enabled:not([aria-disabled='true']):hover {
+    background-color: var(--cem-navigation-item-hover-background);
+    color: var(--cem-navigation-item-hover-text);
+}
+
+cem-nav > nav > :is(a[href], button)[aria-current]:not([aria-current='false']),
+cem-nav > nav > .cem-nav__content > :is(a[href], button)[aria-current]:not([aria-current='false']),
+cem-tabs > [role='tablist'] > button[role='tab'][aria-selected='true'] {
+    background-color: var(--cem-navigation-item-current-background);
+    color: var(--cem-navigation-item-current-text);
+}
+
+cem-nav
+    > nav
+    > :is(a[href]:not([aria-disabled='true']), button:enabled)[aria-current]:not([aria-current='false']):hover,
+cem-nav
+    > nav
+    > .cem-nav__content
+    > :is(a[href]:not([aria-disabled='true']), button:enabled)[aria-current]:not([aria-current='false']):hover,
+cem-tabs > [role='tablist'] > button[role='tab'][aria-selected='true']:enabled:not([aria-disabled='true']):hover {
+    background-color: var(--cem-navigation-item-current-hover-background);
+    color: var(--cem-navigation-item-current-hover-text);
+}
+
+cem-nav > nav > :is(a[href], button):is(button:disabled, [aria-disabled='true']),
+cem-nav > nav > .cem-nav__content > :is(a[href], button):is(button:disabled, [aria-disabled='true']),
+cem-tabs > [role='tablist'] > button[role='tab']:is(:disabled, [aria-disabled='true']) {
+    background-color: var(--cem-navigation-item-disabled-background);
+    color: var(--cem-navigation-item-disabled-text);
+}
+
+cem-nav > nav > :is(a[href], button:enabled):focus-visible,
+cem-nav > nav > .cem-nav__content > :is(a[href], button:enabled):focus-visible,
+cem-tabs > [role='tablist'] > button[role='tab']:enabled:focus-visible {
+    outline: var(--cem-stroke-focus) solid var(--cem-zebra-color-1);
+    outline-offset: var(--cem-stroke-indicator-offset);
+}
+
 cem-field input,
 cem-text-field input,
 cem-textarea textarea,
@@ -343,6 +390,42 @@ cem-select .cem-select__option[aria-disabled='true'] {
 }
 
 @media (forced-colors: active) {
+    cem-nav > nav > :is(a[href], button)[aria-current]:not([aria-current='false']),
+    cem-nav > nav > .cem-nav__content > :is(a[href], button)[aria-current]:not([aria-current='false']),
+    cem-tabs > [role='tablist'] > button[role='tab'][aria-selected='true'] {
+        background-color: SelectedItem;
+        color: SelectedItemText;
+    }
+
+    cem-nav > nav > :is(a[href]:not([aria-disabled='true']), button:enabled):hover,
+    cem-nav > nav > .cem-nav__content > :is(a[href]:not([aria-disabled='true']), button:enabled):hover,
+    cem-tabs > [role='tablist'] > button[role='tab']:enabled:not([aria-disabled='true']):hover,
+    cem-nav
+        > nav
+        > :is(a[href]:not([aria-disabled='true']), button:enabled)[aria-current]:not([aria-current='false']):hover,
+    cem-nav
+        > nav
+        > .cem-nav__content
+        > :is(a[href]:not([aria-disabled='true']), button:enabled)[aria-current]:not([aria-current='false']):hover,
+    cem-tabs > [role='tablist'] > button[role='tab'][aria-selected='true']:enabled:not([aria-disabled='true']):hover {
+        background-color: Highlight;
+        color: HighlightText;
+    }
+
+    cem-nav > nav > :is(a[href], button):is(button:disabled, [aria-disabled='true']),
+    cem-nav > nav > .cem-nav__content > :is(a[href], button):is(button:disabled, [aria-disabled='true']),
+    cem-tabs > [role='tablist'] > button[role='tab']:is(:disabled, [aria-disabled='true']) {
+        background-color: Canvas;
+        color: GrayText;
+    }
+
+    cem-nav > nav > :is(a[href], button:enabled):focus-visible,
+    cem-nav > nav > .cem-nav__content > :is(a[href], button:enabled):focus-visible,
+    cem-tabs > [role='tablist'] > button[role='tab']:enabled:focus-visible {
+        outline: var(--cem-stroke-focus) solid CanvasText;
+        outline-offset: var(--cem-stroke-indicator-offset);
+    }
+
     cem-field input,
     cem-text-field input,
     cem-textarea textarea,

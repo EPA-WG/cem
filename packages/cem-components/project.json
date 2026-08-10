@@ -78,6 +78,24 @@
             ],
             "outputs": []
         },
+        "verify-navigation-hover-forced-colors": {
+            "cache": true,
+            "executor": "nx:run-commands",
+            "dependsOn": [{ "projects": ["@epa-wg/cem-theme"], "target": "build:tokens" }],
+            "options": {
+                "command": "node scripts/verify-navigation-hover-forced-colors.mjs",
+                "cwd": "{projectRoot}"
+            },
+            "inputs": [
+                "{projectRoot}/scripts/verify-navigation-hover-forced-colors.mjs",
+                "{projectRoot}/src/styles.css",
+                {
+                    "dependentTasksOutputFiles": "**/*.css",
+                    "transitive": false
+                }
+            ],
+            "outputs": []
+        },
         "verify-workflows": {
             "cache": true,
             "executor": "nx:run-commands",
@@ -136,6 +154,7 @@
                 "verify-primitives",
                 "verify-style-contract",
                 "verify-input-indicator-forced-colors",
+                "verify-navigation-hover-forced-colors",
                 "verify-workflows",
                 "verify-state-matrix",
                 "verify-package",

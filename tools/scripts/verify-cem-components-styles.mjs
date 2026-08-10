@@ -24,6 +24,7 @@ const TOKEN_FAMILY_PREFIXES = {
     gap: ['--cem-gap-'],
     inset: ['--cem-inset-'],
     layering: ['--cem-layer-', '--cem-elevation-'],
+    navigation: ['--cem-navigation-item-'],
     palette: ['--cem-palette-'],
     responsive: ['--cem-bp-', '--cem-cq-'],
     select: ['--cem-select-'],
@@ -38,6 +39,7 @@ const CSS_SPACING_PROPERTY =
 const CSS_SPACING_LITERAL = /\b\d*\.?\d+(?:px|rem|em|vh|vw|vmin|vmax|ch|ex|%)\b|calc\s*\(/i;
 const CSS_VAR_REFERENCE = /var\(\s*(--[^\s,)]+)/g;
 const ACTION_TAGS = new Set(['cem-action', 'cem-icon-button', 'cem-menu-item']);
+const NAVIGATION_TAGS = new Set(['cem-nav', 'cem-tabs']);
 const PUBLIC_COMPONENT_ADAPTERS = new Set(['--cem-input-indicator-appearance']);
 const ACTION_BINDINGS = new Map([
     [
@@ -104,11 +106,72 @@ const ACTION_BINDINGS = new Map([
         ]),
     ],
 ]);
+const NAVIGATION_BINDINGS = new Map([
+    ...[
+        'cem-nav > nav > :is(a[href], button)',
+        'cem-nav > nav > .cem-nav__content > :is(a[href], button)',
+        "cem-tabs > [role='tablist'] > button[role='tab']",
+    ].map((selector) => [
+        selector,
+        colorBinding('--cem-navigation-item-default-background', '--cem-navigation-item-default-text'),
+    ]),
+    ...[
+        "cem-nav > nav > :is(a[href]:not([aria-disabled='true']), button:enabled):hover",
+        "cem-nav > nav > .cem-nav__content > :is(a[href]:not([aria-disabled='true']), button:enabled):hover",
+        "cem-tabs > [role='tablist'] > button[role='tab']:enabled:not([aria-disabled='true']):hover",
+    ].map((selector) => [
+        selector,
+        colorBinding('--cem-navigation-item-hover-background', '--cem-navigation-item-hover-text'),
+    ]),
+    ...[
+        "cem-nav > nav > :is(a[href], button)[aria-current]:not([aria-current='false'])",
+        "cem-nav > nav > .cem-nav__content > :is(a[href], button)[aria-current]:not([aria-current='false'])",
+        "cem-tabs > [role='tablist'] > button[role='tab'][aria-selected='true']",
+    ].map((selector) => [
+        selector,
+        colorBinding('--cem-navigation-item-current-background', '--cem-navigation-item-current-text'),
+    ]),
+    ...[
+        "cem-nav > nav > :is(a[href]:not([aria-disabled='true']), button:enabled)[aria-current]:not([aria-current='false']):hover",
+        "cem-nav > nav > .cem-nav__content > :is(a[href]:not([aria-disabled='true']), button:enabled)[aria-current]:not([aria-current='false']):hover",
+        "cem-tabs > [role='tablist'] > button[role='tab'][aria-selected='true']:enabled:not([aria-disabled='true']):hover",
+    ].map((selector) => [
+        selector,
+        colorBinding('--cem-navigation-item-current-hover-background', '--cem-navigation-item-current-hover-text'),
+    ]),
+    ...[
+        "cem-nav > nav > :is(a[href], button):is(button:disabled, [aria-disabled='true'])",
+        "cem-nav > nav > .cem-nav__content > :is(a[href], button):is(button:disabled, [aria-disabled='true'])",
+        "cem-tabs > [role='tablist'] > button[role='tab']:is(:disabled, [aria-disabled='true'])",
+    ].map((selector) => [
+        selector,
+        colorBinding('--cem-navigation-item-disabled-background', '--cem-navigation-item-disabled-text'),
+    ]),
+    ...[
+        'cem-nav > nav > :is(a[href], button:enabled):focus-visible',
+        'cem-nav > nav > .cem-nav__content > :is(a[href], button:enabled):focus-visible',
+        "cem-tabs > [role='tablist'] > button[role='tab']:enabled:focus-visible",
+    ].map((selector) => [selector, focusBinding()]),
+]);
 
 const failures = [];
 
 function fail(message) {
     failures.push(message);
+}
+
+function colorBinding(backgroundToken, textToken) {
+    return new Map([
+        ['background-color', `var(${backgroundToken})`],
+        ['color', `var(${textToken})`],
+    ]);
+}
+
+function focusBinding() {
+    return new Map([
+        ['outline', 'var(--cem-stroke-focus) solid var(--cem-zebra-color-1)'],
+        ['outline-offset', 'var(--cem-stroke-indicator-offset)'],
+    ]);
 }
 
 function readText(path) {
@@ -259,6 +322,7 @@ function assertPublicComponentStyles(components, tokenNames) {
     const componentTags = new Set(components.map(({ tag }) => tag));
     const rules = parseCssRules(pathLabel, cssText);
     const actionRules = new Map();
+    const navigationRules = new Map();
     const privateProperties = new Set(
         rules.flatMap(({ declarations }) => [...declarations.keys()].filter((name) => name.startsWith('--_cem-'))),
     );
@@ -285,11 +349,17 @@ function assertPublicComponentStyles(components, tokenNames) {
             continue;
         }
 
-        if (ACTION_TAGS.has(tag)) {
+        if (!rule.media && ACTION_TAGS.has(tag)) {
             if (actionRules.has(rule.selector)) {
                 fail(`${pathLabel}: duplicate action selector \`${rule.selector}\``);
             }
             actionRules.set(rule.selector, rule.declarations);
+        }
+        if (!rule.media && NAVIGATION_TAGS.has(tag)) {
+            if (navigationRules.has(rule.selector)) {
+                fail(`${pathLabel}: duplicate navigation selector \`${rule.selector}\``);
+            }
+            navigationRules.set(rule.selector, rule.declarations);
         }
     }
 
@@ -317,6 +387,34 @@ function assertPublicComponentStyles(components, tokenNames) {
         if (!ACTION_BINDINGS.has(selector)) {
             fail(
                 `${pathLabel}: unexpected action selector \`${selector}\` is outside the accepted action-state contracts`,
+            );
+        }
+    }
+
+    for (const [selector, expectedDeclarations] of NAVIGATION_BINDINGS) {
+        const declarations = navigationRules.get(selector);
+        if (!declarations) {
+            fail(`${pathLabel}: missing accepted navigation binding selector \`${selector}\``);
+            continue;
+        }
+
+        if (declarations.size !== expectedDeclarations.size) {
+            fail(`${pathLabel}: \`${selector}\` has declarations outside its accepted navigation-state binding`);
+        }
+        for (const [property, expectedValue] of expectedDeclarations) {
+            const actualValue = declarations.get(property);
+            if (actualValue !== expectedValue) {
+                fail(
+                    `${pathLabel}: \`${selector}\` must bind ${property} to ${expectedValue}, received ${actualValue}`,
+                );
+            }
+        }
+    }
+
+    for (const selector of navigationRules.keys()) {
+        if (!NAVIGATION_BINDINGS.has(selector)) {
+            fail(
+                `${pathLabel}: unexpected navigation selector \`${selector}\` is outside the accepted navigation-state contract`,
             );
         }
     }
@@ -348,7 +446,11 @@ function parseCssRules(pathLabel, cssText) {
                 fail(`${pathLabel}: empty component selector`);
                 continue;
             }
-            rules.push({ declarations, selector });
+            rules.push({
+                declarations,
+                media: rule.parent?.type === 'atrule' ? rule.parent.params : null,
+                selector: selector.replace(/\s+/g, ' ').trim(),
+            });
         }
     });
 
