@@ -1032,8 +1032,9 @@ mediate between internal layers.
     `SelectedItem`, chip hover `Highlight`, and the listbox's independent
     `Highlight` hover border. It also proves native-disabled skipping,
     restoration, wrapper isolation, and no mutation events.
-  - The state matrix now reports 37 browser-covered, 0 static-only, and 2 gaps
-    with `feedback:focus-visible` recommended next. The exact style gate remains
+  - The state matrix now reports 37 browser-covered, 0 static-only, and 2 gaps;
+    the later lifecycle audit reprioritized `feedback:expanded` before feedback
+    focus. The exact style gate remains
     at 34 primitives and 420 generated visual tokens.
   - The uncached aggregate component gate passes all 19 dependencies and 49
     tests across five files. The package gate still publishes 24 dist-only files
@@ -1054,28 +1055,38 @@ mediate between internal layers.
     - Accepted the recommended sequencing. The executable matrix now places
       `feedback:expanded` before `feedback:focus-visible`; no runtime, fixture,
       CSS, theme token, or exception changed in this audit-only slice.
-  - [ ] Decide the public `feedback:expanded` owner and lifecycle model before
+  - [x] Decide the public `feedback:expanded` owner and lifecycle model before
         adding a fixture or runtime behavior.
-    - Reconcile `cem-dialog` with `cem-dialog-shell`: the component reference
-      calls `cem-dialog` modal while deferring focus trapping, but the
-      accessibility contract assigns modal trapping, Escape dismissal, and
-      focus restoration specifically to `cem-dialog-shell`. Decide whether the
-      two tags share one lifecycle behavior, compose as surface plus shell, or
-      intentionally expose different contracts.
-    - Choose the public state input and compatibility boundary. The current
-      absent-state output is a visible static surface, so changing absence to
-      closed would be breaking; an opt-in controlled mode, a native `open`
-      contract, and a host `expanded` contract have materially different
-      attribute/event behavior.
-    - Choose whether modal dialogs become native `<dialog>` owners driven by a
-      behavior hook or retain ARIA dialog wrappers with component-owned inerting
-      and focus trapping. Pin initial focus, programmatic open, Escape/cancel,
-      outside interaction, close-event timing, focus capture/restoration, and
-      disconnect behavior before implementation.
-    - Keep `cem-sheet` explicitly non-modal and decide whether its external
-      application-owned opener retains `aria-expanded`/`aria-controls`; do not
-      place `aria-expanded` on the sheet, dialog, or shell surface merely to
-      satisfy the matrix wording.
+    - Accepted the
+      [`feedback expanded contract`](../packages/cem-components/docs/feedback-expanded-contract.md):
+      preserve byte-equivalent static defaults; use presence-only `transient`
+      plus current `expanded` state as the opt-in lifecycle; give `cem-dialog`
+      and `cem-dialog-shell` one shared native `<dialog>` / `showModal()`
+      behavior; keep `cem-sheet` a non-modal hidden/visible region; and leave
+      `aria-expanded`/`aria-controls` on the application-owned opener.
+    - Native dialog cancel/close, initial focus, modal containment, restoration,
+      serializable post-close `cem-dismiss`, host-state synchronization,
+      stable payload identity, redundant calls, disconnect/reconnect cleanup,
+      and the absence of component-owned sheet focus or dismissal are pinned
+      before runtime work. No theme token, component CSS, fixture, or exception
+      changed in this decision slice.
+  - [ ] Implement the accepted `feedback:expanded` contract tests-first.
+    - [ ] Add a focused browser fixture covering passive compatibility;
+          transient initialization and host-attribute transitions; native modal
+          state for both dialog tags; non-modal sheet visibility; initial focus,
+          forward/reverse Tab containment, Escape/prevented cancel, native close
+          return value, focus restoration; exact external trigger ARIA;
+          serialized `cem-dismiss`; stable DOM/state/geometry; and
+          close/disconnect/reconnect cleanup before adding behavior.
+    - [ ] Add one shared dialog behavior adapter and declarative transient
+          branches without adding a custom inert sweep, Tab loop, structural
+          wrapper focusability, or sheet Escape/focus handling. Stop if the
+          renderer cannot preserve a browser-owned native `open` state across
+          unrelated host renders; promote that substrate limitation instead of
+          manually removing `open` from a modal dialog.
+    - [ ] Update component/accessibility docs and the executable matrix, then
+          run the focused state suite, state-matrix audit, lint, and aggregate
+          package gate before marking implementation complete.
   - [ ] After ownership acceptance, audit D5/zebra and the relevant descendant
         component token family, then cover keyboard entry/order, modal versus
         non-modal behavior, disabled skipping, focus restoration, stable

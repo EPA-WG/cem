@@ -614,7 +614,7 @@
             "components": ["cem-dialog", "cem-dialog-shell", "cem-sheet"],
             "interaction": "Move keyboard focus into a feedback surface and retain a visible focus indicator.",
             "status": "gap",
-            "reason": "The structural dialog and sheet surfaces are not focusable, all focusable descendants are application-authored, and no accepted open lifecycle owns initial focus or restoration."
+            "reason": "The accepted transient lifecycle will move focus into native modal dialogs, but it is not implemented and no feedback focus-paint owner is accepted; the non-modal sheet still has only application-authored focus descendants."
         },
         {
             "id": "feedback:loading",
@@ -637,7 +637,7 @@
             "components": ["cem-dialog", "cem-dialog-shell", "cem-sheet"],
             "interaction": "Open and close a dialog or sheet and mirror disclosure state where applicable.",
             "status": "gap",
-            "reason": "The static feedback surfaces own no opener, public open-state input, close transition, or accepted modal/non-modal lifecycle; aria-expanded belongs on a controlling trigger where applicable, not on the surface wrapper."
+            "reason": "The transient feedback lifecycle contract is accepted, but no fixture or runtime open/close transition implements it yet; aria-expanded remains owned by the application trigger, not the surface wrapper."
         },
         {
             "id": "feedback:invalid",
