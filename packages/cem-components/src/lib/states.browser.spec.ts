@@ -731,6 +731,233 @@ describe('CEM component primitive states and ARIA behavior', () => {
         expect(() => assertAriaReferenceIntegrity(harness.root)).not.toThrow();
     });
 
+    it('moves keyboard focus through every enabled input indicator without changing component state', async () => {
+        harness = createComponentHarness();
+        const root = await harness.render(`
+            <section class="cem-theme-light">
+                <button id="input-focus-start" type="button">Start input focus sequence</button>
+                <cem-stack gap="sm">
+                    <cem-field name="focus-field" label="Generic field" value="alpha"></cem-field>
+                    <cem-text-field name="disabled-field" label="Disabled field" disabled></cem-text-field>
+                    <cem-text-field
+                        name="focus-text-field"
+                        label="Outlined text field"
+                        indicator="outline"
+                    ></cem-text-field>
+                    <cem-textarea name="focus-textarea" label="Readonly notes" readonly>Notes</cem-textarea>
+                    <cem-select name="focus-select" label="Invalid role" invalid="true">
+                        <option value="admin">Admin</option>
+                    </cem-select>
+                    <cem-checkbox name="focus-checkbox" indeterminate="mixed">Mixed option</cem-checkbox>
+                    <cem-checkbox name="disabled-checkbox" disabled>Disabled option</cem-checkbox>
+                    <cem-radio name="focus-radio" indicator="underline" checked>Selected radio</cem-radio>
+                    <cem-switch name="focus-switch" checked invalid="true">Invalid switch</cem-switch>
+                </cem-stack>
+                <button id="input-focus-end" type="button">End input focus sequence</button>
+            </section>
+        `);
+        await waitForStateSelector(root, 'cem-switch[name="focus-switch"] input');
+
+        const start = harness.query<HTMLButtonElement>('#input-focus-start');
+        const end = harness.query<HTMLButtonElement>('#input-focus-end');
+        const cases = [
+            {
+                anchorToken: '--cem-input-indicator-anchor-color',
+                appearance: 'underline',
+                control: harness.query<HTMLInputElement>('cem-field[name="focus-field"] input'),
+                host: harness.query<HTMLElement>('cem-field[name="focus-field"]'),
+                target: harness.query<HTMLElement>('cem-field[name="focus-field"] input'),
+            },
+            {
+                anchorToken: '--cem-input-indicator-anchor-color',
+                appearance: 'outline',
+                control: harness.query<HTMLInputElement>('cem-text-field[name="focus-text-field"] input'),
+                host: harness.query<HTMLElement>('cem-text-field[name="focus-text-field"]'),
+                target: harness.query<HTMLElement>('cem-text-field[name="focus-text-field"] input'),
+            },
+            {
+                anchorToken: '--cem-input-indicator-anchor-readonly-color',
+                appearance: 'underline',
+                control: harness.query<HTMLTextAreaElement>('cem-textarea[name="focus-textarea"] textarea'),
+                host: harness.query<HTMLElement>('cem-textarea[name="focus-textarea"]'),
+                target: harness.query<HTMLElement>('cem-textarea[name="focus-textarea"] textarea'),
+            },
+            {
+                anchorToken: '--cem-input-indicator-anchor-invalid-color',
+                appearance: 'underline',
+                control: harness.query<HTMLSelectElement>('cem-select[name="focus-select"] select'),
+                host: harness.query<HTMLElement>('cem-select[name="focus-select"]'),
+                target: harness.query<HTMLElement>('cem-select[name="focus-select"] select'),
+            },
+            {
+                anchorToken: '--cem-input-indicator-anchor-color',
+                appearance: 'outline',
+                control: harness.query<HTMLInputElement>('cem-checkbox[name="focus-checkbox"] input'),
+                host: harness.query<HTMLElement>('cem-checkbox[name="focus-checkbox"]'),
+                selectionToken: '--cem-input-indicator-indeterminate-color',
+                target: harness.query<HTMLLabelElement>('cem-checkbox[name="focus-checkbox"] > label'),
+            },
+            {
+                anchorToken: '--cem-input-indicator-anchor-color',
+                appearance: 'underline',
+                control: harness.query<HTMLInputElement>('cem-radio[name="focus-radio"] input'),
+                host: harness.query<HTMLElement>('cem-radio[name="focus-radio"]'),
+                selectionToken: '--cem-input-indicator-selection-color',
+                target: harness.query<HTMLLabelElement>('cem-radio[name="focus-radio"] > label'),
+            },
+            {
+                anchorToken: '--cem-input-indicator-anchor-invalid-color',
+                appearance: 'outline',
+                control: harness.query<HTMLInputElement>('cem-switch[name="focus-switch"] input'),
+                host: harness.query<HTMLElement>('cem-switch[name="focus-switch"]'),
+                selectionToken: '--cem-input-indicator-selection-color',
+                target: harness.query<HTMLLabelElement>('cem-switch[name="focus-switch"] > label'),
+            },
+        ] as const;
+        const disabledControls = [
+            harness.query<HTMLInputElement>('cem-text-field[name="disabled-field"] input'),
+            harness.query<HTMLInputElement>('cem-checkbox[name="disabled-checkbox"] input'),
+        ];
+        const baselines = cases.map(({ control, host, target }) =>
+            captureInputIndicatorState(runtime, host, control, target),
+        );
+        const focusOrder: string[] = [];
+        const mutationEvents: string[] = [];
+        harness.root.addEventListener('focusin', (event) => {
+            const target = event.target;
+            if (target instanceof HTMLInputElement || target instanceof HTMLSelectElement || target instanceof HTMLTextAreaElement) {
+                focusOrder.push(target.name);
+            }
+        });
+        for (const eventName of ['click', 'input', 'change', 'cem-loaded', 'cem-error', 'cem-cancel']) {
+            harness.root.addEventListener(eventName, () => mutationEvents.push(eventName));
+        }
+
+        assertStateHostsRendered(
+            harness.root,
+            'cem-field, cem-text-field, cem-textarea, cem-select, cem-checkbox, cem-radio, cem-switch',
+        );
+        for (const control of disabledControls) {
+            expect(control.disabled).toBe(true);
+        }
+
+        start.focus();
+        expect(document.activeElement).toBe(start);
+
+        for (const [index, indicatorCase] of cases.entries()) {
+            await userEvent.tab();
+            await nextRenderFrame();
+
+            const { anchorToken, appearance, control, host, target } = indicatorCase;
+            const selectionToken = 'selectionToken' in indicatorCase ? indicatorCase.selectionToken : null;
+            const focused = captureInputIndicatorState(runtime, host, control, target);
+
+            expect(document.activeElement).toBe(control);
+            expect(control.matches(':focus-visible')).toBe(true);
+            expectInputIndicatorGeometry(focused, target, appearance, {
+                focus: true,
+                selection: selectionToken !== null,
+            });
+            expectPaintedColorToResolveFromToken(focused.layers[0].color, target, anchorToken);
+            expectPaintedColorToResolveFromToken(focused.layers[1].color, target, '--cem-zebra-color-1');
+            if (selectionToken) {
+                expectPaintedColorToResolveFromToken(focused.layers[2].color, target, selectionToken);
+            }
+            expectInputIndicatorStructureAndGeometry(focused, baselines[index]);
+
+            if (index > 0) {
+                const previous = cases[index - 1];
+                const previousSelectionToken =
+                    'selectionToken' in previous ? previous.selectionToken : null;
+                const restored = captureInputIndicatorState(
+                    runtime,
+                    previous.host,
+                    previous.control,
+                    previous.target,
+                );
+                expect(previous.control.matches(':focus-visible')).toBe(false);
+                expectInputIndicatorGeometry(restored, previous.target, previous.appearance, {
+                    selection: previousSelectionToken !== null,
+                });
+                expectPaintedColorToResolveFromToken(
+                    restored.layers[0].color,
+                    previous.target,
+                    previous.anchorToken,
+                );
+                if (previousSelectionToken) {
+                    expectPaintedColorToResolveFromToken(
+                        restored.layers[2].color,
+                        previous.target,
+                        previousSelectionToken,
+                    );
+                }
+                expectInputIndicatorStructureAndGeometry(restored, baselines[index - 1]);
+            }
+            for (const disabled of disabledControls) {
+                expect(document.activeElement).not.toBe(disabled);
+            }
+        }
+
+        const switchCase = cases.at(-1);
+        const switchBaseline = baselines.at(-1);
+        if (!switchCase || !switchBaseline) {
+            throw new Error('Expected the switch focus case');
+        }
+        const focusedSwitch = captureInputIndicatorState(
+            runtime,
+            switchCase.host,
+            switchCase.control,
+            switchCase.target,
+        );
+        await userEvent.hover(switchCase.control);
+        await nextRenderFrame();
+        const focusedHoveredSwitch = captureInputIndicatorState(
+            runtime,
+            switchCase.host,
+            switchCase.control,
+            switchCase.target,
+        );
+        expectInputIndicatorGeometry(focusedHoveredSwitch, switchCase.target, 'outline', {
+            focus: true,
+            selection: true,
+        });
+        expectPaintedColorToResolveFromToken(
+            focusedHoveredSwitch.layers[0].color,
+            switchCase.target,
+            '--cem-input-indicator-anchor-invalid-hover-color',
+        );
+        expectInputIndicatorStructureAndGeometry(focusedHoveredSwitch, focusedSwitch);
+        await userEvent.unhover(switchCase.control);
+        await nextRenderFrame();
+        expect(
+            captureInputIndicatorState(runtime, switchCase.host, switchCase.control, switchCase.target).boxShadow,
+        ).toBe(focusedSwitch.boxShadow);
+
+        await userEvent.tab();
+        await nextRenderFrame();
+        expect(document.activeElement).toBe(end);
+        expect(switchCase.control.matches(':focus-visible')).toBe(false);
+        const restoredSwitch = captureInputIndicatorState(
+            runtime,
+            switchCase.host,
+            switchCase.control,
+            switchCase.target,
+        );
+        expect(restoredSwitch.boxShadow).toBe(switchBaseline.boxShadow);
+        expectInputIndicatorStructureAndGeometry(restoredSwitch, switchBaseline);
+
+        expect(focusOrder).toEqual(cases.map(({ control }) => control.name));
+        expect(cases[0].control.value).toBe('alpha');
+        expect(cases[2].control.readOnly).toBe(true);
+        expect(cases[3].control.getAttribute('aria-invalid')).toBe('true');
+        expect(cases[4].control.getAttribute('aria-checked')).toBe('mixed');
+        expect(cases[5].control.checked).toBe(true);
+        expect(cases[6].control.checked).toBe(true);
+        expect(cases[6].control.getAttribute('role')).toBe('switch');
+        expect(mutationEvents).toEqual([]);
+        expect(() => assertAriaReferenceIntegrity(harness.root)).not.toThrow();
+    });
+
     it('reflects form disabled, invalid, required, readonly, checked, and indeterminate states', async () => {
         harness = createComponentHarness();
         const root = await harness.render(`

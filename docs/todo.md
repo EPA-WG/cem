@@ -15,8 +15,9 @@ are implemented and verified. The `input:hover` contract is also implemented:
 all seven native owners share a theme-tokenized three-stripe indicator, with
 underline and outline as geometry variants, not separate semantics.
 `CEM-CSS-001` is closed through D0/D5 theme adoption without a component CSS
-exception. The state-matrix audit now recommends the dedicated
-`input:focus-visible` slice next.
+exception. Dedicated keyboard and forced-colors coverage now completes
+`input:focus-visible` across all seven owners. The state-matrix audit recommends
+`input:loading` next.
 
 The cross-layer architecture remains serializer-free: lifecycle loading, graph
 routing, joins, evaluators, CEM-QL, CEMT, and XSLT adapters must exchange
@@ -697,6 +698,35 @@ mediate between internal layers.
     32 primitives and 382 generated visual theme tokens. `input:hover` is now
     browser-covered, yielding 28 covered, 0 static-only, and 11 gaps with
     `input:focus-visible` recommended next.
+- [x] Complete the Phase 4 `input:focus-visible` acceptance using the existing
+      CEM input-indicator contract; stop if evidence requires a new role,
+      geometry, token, or component CSS exception.
+  - [x] Add a dedicated Playwright-backed fixture that tabs through every
+        enabled native owner in document order and proves disabled controls are
+        skipped.
+  - [x] Prove the focus stripe preserves each family appearance, anchor state,
+        checked/indeterminate selection, geometry, DOM/ARIA, values, runtime
+        snapshots, and event absence; prove blur restores the baseline stack.
+  - [x] Extend the active forced-colors gate from representative field/binary
+        owners to all seven inputs with full `CanvasText` focus outlines.
+  - [x] Promote only `input:focus-visible`, update directly affected docs, and
+        run focused browser, forced-colors, state-matrix, lint, package, and
+        aggregate verification through Nx.
+  - The dedicated fixture uses trusted Tab navigation to visit `cem-field`,
+    `cem-text-field`, `cem-textarea`, `cem-select`, `cem-checkbox`, `cem-radio`,
+    and `cem-switch` in order while skipping disabled field and checkbox
+    controls. It proves underline/outline focus geometry, anchor colors,
+    checked/indeterminate stripes, hover coexistence, blur restoration, stable
+    DOM/ARIA/layout/runtime/value state, and zero mutation events.
+  - The forced-colors gate now repeats the seven-owner keyboard sequence and
+    proves every shadow collapses to a full `CanvasText` focus outline. Existing
+    CEM tokens expressed the contract completely; component CSS and the closed
+    exception queue required no change.
+  - Focused state tests pass 14/14. Component lint, forced-colors verification,
+    the exact 32-primitive/382-token style gate, package publication, and the
+    aggregate 41-test gate pass. Only `input:focus-visible` moved to covered,
+    yielding 29 covered, 0 static-only, and 10 gaps with `input:loading`
+    recommended next.
 
 ## Current Verification Commands
 

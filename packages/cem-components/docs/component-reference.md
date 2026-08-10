@@ -33,7 +33,7 @@ The aggregate gate includes:
 | --- | --- | --- |
 | Primitive manifest | `yarn nx run @epa-wg/cem-components:verify-primitives` | `CEM_COMPONENT_PRIMITIVES` exactly matches `docs/component-mvp.md`, uses CEM-ML declarations, and does not depend on legacy `<custom-element>` wrappers. |
 | Token-only style contract | `yarn nx run @epa-wg/cem-components:verify-style-contract` | Depends on current theme tokens and the verified public theme stylesheet export; checks exact action bindings and component selector scope, and rejects inline styles, unknown/non-CEM variables, and raw component color or spacing literals. |
-| Input indicator forced colors | `yarn nx run @epa-wg/cem-components:verify-input-indicator-forced-colors` | Launches Chromium with forced colors active; proves component shadows collapse and field hover, binary hover, and field/binary focus use the accepted system-color fallbacks. |
+| Input indicator forced colors | `yarn nx run @epa-wg/cem-components:verify-input-indicator-forced-colors` | Launches Chromium with forced colors active; proves component shadows collapse, field/binary hover uses `Highlight`, and keyboard focus traverses all seven input owners with full `CanvasText` outlines. |
 | Stylesheet publication | `yarn nx run @epa-wg/cem-components:verify-package` | Builds the canonical component stylesheet byte-for-byte into `dist`, verifies the side-effect-free `./styles.css` export, and checks the dry-run npm file inventory. |
 | Browser and unit behavior | `yarn nx run @epa-wg/cem-components:test` | Runs the Node smoke test plus Chromium-backed harness, primitive, state/ARIA, and workflow specs. |
 
@@ -111,6 +111,9 @@ Advanced custom elements can set the inherited
 attribute. The stripe colors and widths remain generated CEM theme tokens and
 are not component-local customization endpoints. In forced colors, shadows are
 removed: hover uses `Highlight`, while focus uses a full `CanvasText` outline.
+The state fixture drives real Tab navigation through every enabled input owner,
+proves disabled controls are skipped, and requires focus/blur to preserve DOM,
+ARIA, values, runtime snapshots, and layout geometry.
 
 ## Layout
 

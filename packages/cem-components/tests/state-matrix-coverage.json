@@ -15,7 +15,7 @@
         "input:focus-visible",
         "input:loading"
     ],
-    "recommendedNext": "input:focus-visible",
+    "recommendedNext": "input:loading",
     "coverage": [
         {
             "id": "action:default",
@@ -156,8 +156,19 @@
                 "cem-switch"
             ],
             "interaction": "Move keyboard focus between input controls and retain a visible focus indicator.",
-            "status": "gap",
-            "reason": "The hover fixture proves field and binary focus-stripe coexistence, but no dedicated fixture yet moves keyboard focus across every enabled input primitive and forced-colors fallback."
+            "status": "covered",
+            "owner": "packages/cem-components/src/lib/states.browser.spec.ts",
+            "test": "moves keyboard focus through every enabled input indicator without changing component state",
+            "assertions": [
+                "expect(document.activeElement).toBe(control);",
+                "expect(control.matches(':focus-visible')).toBe(true);",
+                "expectPaintedColorToResolveFromToken(focused.layers[1].color, target, '--cem-zebra-color-1');",
+                "expectInputIndicatorStructureAndGeometry(focused, baselines[index]);",
+                "expect(document.activeElement).not.toBe(disabled);",
+                "expect(restoredSwitch.boxShadow).toBe(switchBaseline.boxShadow);",
+                "expect(focusOrder).toEqual(cases.map(({ control }) => control.name));",
+                "expect(mutationEvents).toEqual([]);"
+            ]
         },
         {
             "id": "input:disabled",

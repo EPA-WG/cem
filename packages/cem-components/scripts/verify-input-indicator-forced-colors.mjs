@@ -17,15 +17,28 @@ try {
     const page = await context.newPage();
     await page.setContent(`
         <style>${themeCss}\n${componentCss}</style>
+        <button id="focus-start" type="button">Start</button>
         <cem-field><input id="field" value="alpha"></cem-field>
+        <cem-text-field><input id="text-field" value="bravo"></cem-text-field>
+        <cem-textarea><textarea id="textarea">charlie</textarea></cem-textarea>
+        <cem-select><select id="select"><option value="delta">Delta</option></select></cem-select>
         <cem-checkbox>
             <label id="binary-label"><input id="binary" type="checkbox"><span>Choice</span></label>
         </cem-checkbox>
+        <cem-radio>
+            <label id="radio-label"><input id="radio" type="radio"><span>Radio</span></label>
+        </cem-radio>
+        <cem-switch>
+            <label id="switch-label">
+                <input id="switch" type="checkbox" role="switch"><span>Switch</span>
+            </label>
+        </cem-switch>
         <cem-radio>
             <label id="disabled-binary-label">
                 <input id="disabled-binary" type="radio" disabled><span>Disabled</span>
             </label>
         </cem-radio>
+        <button id="focus-end" type="button">End</button>
     `);
 
     const baseline = await page.evaluate(captureForcedColorState);
@@ -65,10 +78,67 @@ try {
         'disabled binary control acquired a hover outline',
     );
 
+    const focusCases = [
+        { control: '#field', target: '#field' },
+        { control: '#text-field', target: '#text-field' },
+        { control: '#textarea', target: '#textarea' },
+        { control: '#select', target: '#select' },
+        { control: '#binary', target: '#binary-label' },
+        { control: '#radio', target: '#radio-label' },
+        { control: '#switch', target: '#switch-label' },
+    ];
+    await page.mouse.move(0, 0);
+    await page.locator('#focus-start').focus();
+
+    for (const focusCase of focusCases) {
+        await page.keyboard.press('Tab');
+        const focused = await page.evaluate(captureForcedFocusState, focusCase);
+        assert(focused.activeSelector === focusCase.control, `${focusCase.control} did not receive keyboard focus`);
+        assert(focused.focusVisible, `${focusCase.control} did not match :focus-visible`);
+        assert(focused.boxShadow === 'none', `${focusCase.target} restored a shadow in forced colors`);
+        assert(focused.outlineStyle === 'solid', `${focusCase.target} focus fallback is not a solid outline`);
+        assert(focused.outlineWidth === focused.focusWidth, `${focusCase.target} focus fallback has the wrong width`);
+        assert(focused.outlineColor === focused.canvasText, `${focusCase.target} focus did not map to CanvasText`);
+    }
+
+    await page.keyboard.press('Tab');
+    assert(
+        await page.locator('#focus-end').evaluate((element) => document.activeElement === element),
+        'disabled input was not skipped before the focus sequence ended',
+    );
+
     await context.close();
     console.log('cem-components input indicator forced-colors contract verified.');
 } finally {
     await browser.close();
+}
+
+function captureForcedFocusState({ control, target }) {
+    const controlElement = document.querySelector(control);
+    const targetElement = document.querySelector(target);
+
+    if (!(controlElement instanceof HTMLElement) || !(targetElement instanceof HTMLElement)) {
+        throw new Error(`Expected forced-colors focus owners ${control} and ${target}`);
+    }
+
+    const probe = document.createElement('span');
+    probe.style.color = 'CanvasText';
+    probe.style.forcedColorAdjust = 'none';
+    document.body.append(probe);
+    const canvasText = getComputedStyle(probe).color;
+    probe.remove();
+
+    const styles = getComputedStyle(targetElement);
+    return {
+        activeSelector: document.activeElement === controlElement ? control : null,
+        boxShadow: styles.boxShadow,
+        canvasText,
+        focusVisible: controlElement.matches(':focus-visible'),
+        focusWidth: getComputedStyle(document.documentElement).getPropertyValue('--cem-stroke-focus').trim(),
+        outlineColor: styles.outlineColor,
+        outlineStyle: styles.outlineStyle,
+        outlineWidth: styles.outlineWidth,
+    };
 }
 
 function captureForcedColorState() {
