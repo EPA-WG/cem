@@ -171,6 +171,7 @@ function deriveColorManifest(xhtml) {
     addTableCategory(xhtml, "cem-color-hue-variant", "d0-branded", tokens, warnings);
     addTableCategory(xhtml, "cem-palette-emotion-shift", "d0-palette", tokens, warnings);
     addTableCategory(xhtml, "cem-zebra-tokens", "d0-zebra", tokens, warnings);
+    addTableCategory(xhtml, "cem-input-indicator-colors", "d0-input-indicator", tokens, warnings);
 
     const intentRows = extractTable(xhtml, "cem-action-intent-emotion");
     const stateRows = extractTable(xhtml, "cem-action-state-color");
@@ -279,6 +280,7 @@ function deriveStrokeManifest(xhtml) {
         "cem-stroke-semantic",
         "cem-stroke-zebra-pattern",
         "cem-stroke-rings",
+        "cem-stroke-indicator-appearance",
     ]) {
         addTableCategory(xhtml, tableId, categoryId, tokens, warnings);
     }

@@ -50,6 +50,13 @@ built byte-for-byte from `src/styles.css` and published only as
 `cem-icon-button`/`cem-menu-item` buttons to contextual default/hover/active
 tokens.
 
+Input primitives use the shared CEM indicator stack. Field-like controls
+default to an underline and binary controls to a whole-label outline; authors
+can select `indicator="underline|outline"`. Advanced custom elements may set
+`--cem-input-indicator-appearance` to one of the generated
+`--cem-indicator-appearance-*` tokens. All stripe color and geometry values
+remain theme-owned.
+
 ## Build & Verify
 
 ```bash
@@ -57,6 +64,7 @@ yarn nx run @epa-wg/cem-components:verify
 yarn nx run @epa-wg/cem-components:verify-primitives
 yarn nx run @epa-wg/cem-components:verify-state-matrix
 yarn nx run @epa-wg/cem-components:verify-style-contract
+yarn nx run @epa-wg/cem-components:verify-input-indicator-forced-colors
 yarn nx run @epa-wg/cem-components:verify-package
 yarn nx run @epa-wg/cem-components:test
 yarn nx run @epa-wg/cem-components:build
@@ -86,6 +94,7 @@ JavaScript boundary, and exact dry-run npm inclusion of one `dist/styles.css`.
 | State-matrix inventory | `tests/state-matrix-coverage.json` |
 | State-matrix audit gate | `tools/scripts/verify-cem-components-state-matrix.mjs` |
 | Token-only style gate | `tools/scripts/verify-cem-components-styles.mjs` |
+| Input indicator forced-colors gate | `scripts/verify-input-indicator-forced-colors.mjs` |
 | Package publication gate | `scripts/verify-package.mjs` |
 | Stylesheet copy | `scripts/copy-styles.mjs` |
 | Primitive browser coverage | `src/lib/primitives.browser.spec.ts` |

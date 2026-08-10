@@ -1,8 +1,7 @@
 # Component CSS Exceptions
 
-**Status:** Active review queue. One proposed exception has an accepted taxonomy
-and field-like channel but still requires a binary channel and theme-token
-decision; no component CSS exception is authorized.
+**Status:** No open exceptions. `CEM-CSS-001` was resolved by adopting generated
+theme tokens; no component-local value or verifier waiver was authorized.
 
 ## Token-first rule
 
@@ -19,9 +18,13 @@ does not authorize component CSS to bypass the style verifier.
 
 ## Review queue
 
-| ID          | Status                                       | Component/property                                                                                                        | Proposed value                                                                                     | Missing semantic category                                                       | Analysis and theme-adoption path                                                                                                                                                                                                                                                                                 |
-| ----------- | -------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| CEM-CSS-001 | Proposed — field channel accepted, no waiver | Field-like native controls: accepted `border-color` only. Binary native controls: exact hover property remains undecided. | No component-local value. Add generated theme-owned semantic input-hover endpoint(s) after review. | Field-like hover boundary color plus a separate binary-control hover indicator. | Do not reuse action or raw palette tokens. Add the accepted field boundary to D0 after naming/value review. Decide whether binary hover uses an outline below zebra focus priority or custom appearance, then add D0/D5 source tokens, mode/forced-colors mappings, generation coverage, and component bindings. |
+None.
+
+## Closed decisions
+
+| ID | Status | Requirement | Resolution |
+| --- | --- | --- | --- |
+| CEM-CSS-001 | Closed — adopted into theme, no exception | Distinguishable default, hover, disabled, readonly, invalid, focus, and selection indicators across field-like and binary input controls. | D0 owns generated semantic input-indicator colors; D5 owns generated outline/underline geometry selectors. Component CSS composes one local three-stripe shadow stack exclusively from those endpoints, with system-color forced-colors fallbacks. |
 
 ### CEM-CSS-001 discovery evidence
 
@@ -31,13 +34,10 @@ The exact native hover owners are `cem-field input`, `cem-text-field input`,
 may also match `:hover`, but they are not substitutes for the interactive
 control owner.
 
-The generated catalog contains ten hover color endpoints, all under
-`--cem-action-{intent}-hover-{background,text}`. It contains no generated
-`--cem-input-*`, `--cem-field-*`, or form-control hover color endpoint. The
-controls specification generates only height and padding, while D5 explicitly
-rejects a canonical per-component `--cem-input-outline` thickness token in
-favor of generic stroke geometry. None of those tokens defines the missing
-input hover color/boundary semantics.
+At discovery time the generated catalog exposed only action-family hover
+colors, while controls supplied geometry only. Reusing action tokens or raw
+palette values would have miscategorized input semantics, so implementation
+correctly stopped at the exception queue.
 
 Theme review accepts two semantic families. The field-like family owns
 `cem-field`, `cem-text-field`, `cem-textarea`, and `cem-select`; the binary
@@ -45,13 +45,12 @@ family owns `cem-checkbox`, `cem-radio`, and `cem-switch`. A field-like control
 must not borrow binary selection semantics, and an unchecked binary control
 must not acquire selected semantics merely because it is hovered.
 
-The field-like paint channel is accepted as boundary-only. Hover changes the
-native control's `border-color` while preserving its comfort fill and text. A
-temporary repository-Playwright Chromium spike confirmed that authored boundary
-color visibly repaints native text input, textarea, and select controls. With a
-`Highlight` forced-colors mapping, the boundary also remained visible in that
-mode. This accepts the property channel, not a component-local value or final
-token name.
+The accepted CEM direction supersedes the initial field-border-only candidate.
+Both families use the same stripe-stack transform: field-like controls default
+to its underline geometry, while binary controls default to its whole-label
+outline geometry. Either family may select the other appearance. A public
+`--cem-input-indicator-appearance` adapter accepts references to the generated
+D5 appearance tokens; it does not authorize raw component geometry.
 
 ### CEM-CSS-001 binary paint evidence
 
@@ -69,15 +68,20 @@ checkbox-backed switch controls in normal and forced-colors modes.
 - A two-pixel outline added 208 pixels around every control in every checked
   state and survived forced colors.
 
-The outline result is technically reliable but creates a semantic decision: a
-binary hover outline must remain unmistakably subordinate to the D5 zebra focus
-ring. The alternative is custom control appearance, which would replace native
-rendering and substantially enlarge the component contract. Neither direction
-is authorized by this evidence alone.
+The reliable outline result is now adopted without custom native-control
+appearance. The always-present anchor/state stripe uses
+`--cem-stroke-boundary`; focus and selection independently add
+`--cem-zebra-strip-size`. Invalidity recolors the anchor rather than adding a
+fourth geometry role. This keeps hover subordinate to focus and allows invalid,
+focus, and selection to coexist.
 
-Until the binary direction and both families' token names/values are accepted
-and generated, component CSS and the `input:hover` browser fixture remain
-blocked. The accepted taxonomy and field channel grant no verifier waiver.
+Normal rendering consumes generated `--cem-input-indicator-*`,
+`--cem-stroke-*`, `--cem-zebra-*`, and `--cem-indicator-appearance-*` tokens.
+In forced colors, the component removes shadows, maps hover to `Highlight`, and
+uses a full `CanvasText` focus outline. The focused runtime fixture and the
+forced-colors Chromium gate make the resolution executable. Because no raw or
+component-local styling value was needed, `CEM-CSS-001` closes as theme
+adoption—not as an exception.
 
 ## Review procedure
 

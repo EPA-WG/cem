@@ -11,13 +11,12 @@ history is preserved in
 The CSS selector query and SCSS-to-CSS lifecycle slices are complete. The active
 work is closing the Phase 4 component state matrix in priority order. The
 component stylesheet publication, `action:hover`, and `action:active` contracts
-are implemented and verified. The `input:hover` native-owner inventory is
-complete, and the recommended theme taxonomy is accepted: field-like and binary
-controls use separate semantic hover families. Field-like hover is accepted as
-a boundary-only treatment and verified against native controls. Work remains
-stopped at `CEM-CSS-001` because the only binary channel that survives every
-checked state and forced colors is an outline, whose relationship to the zebra
-focus ring is not yet accepted.
+are implemented and verified. The `input:hover` contract is also implemented:
+all seven native owners share a theme-tokenized three-stripe indicator, with
+underline and outline as geometry variants, not separate semantics.
+`CEM-CSS-001` is closed through D0/D5 theme adoption without a component CSS
+exception. The state-matrix audit now recommends the dedicated
+`input:focus-visible` slice next.
 
 The cross-layer architecture remains serializer-free: lifecycle loading, graph
 routing, joins, evaluators, CEM-QL, CEMT, and XSLT adapters must exchange
@@ -624,13 +623,13 @@ mediate between internal layers.
     Focused browser, state, lint, package, and aggregate verification passed;
     only `action:active` moved to covered, yielding 27 covered, 0 static-only,
     and 12 gaps with `input:hover` recommended next.
-- [ ] Decide and document the Phase 4 `input:hover` owners and executable
+- [x] Decide and document the Phase 4 `input:hover` owners and executable
       acceptance before adding another fixture or changing component CSS.
   - [x] Inventory the actual native hover targets for `cem-field`,
         `cem-text-field`, `cem-textarea`, `cem-select`, `cem-checkbox`,
         `cem-radio`, and `cem-switch`; keep wrapper/label hover from becoming a
         substitute for the native control state.
-  - [ ] Decide semantic token mappings and visual channels for text-entry,
+  - [x] Decide semantic token mappings and visual channels for text-entry,
         select, and binary controls. Search the generated CEM catalog first and
         stop with a proposed `components-css-exceptions.md` entry if no existing
         input-hover endpoints can express the treatment.
@@ -659,24 +658,45 @@ mediate between internal layers.
       - A two-pixel outline produced 208 additional pixels for every binary
         control/state combination in both modes. It is technically reliable but
         remains unaccepted because it may be confused with keyboard focus.
-    - [ ] Decide whether binary hover uses a dedicated single-stroke outline
+    - [x] Decide whether binary hover uses a dedicated single-stroke outline
           below zebra focus priority or opts into custom control appearance to
           expose another boundary/indicator channel. Then accept exact token
           names, values/formulas, theme-mode mappings, and forced-colors
           behavior for both families.
-  - [ ] Pin real hover/unhover evidence, disabled and readonly boundaries,
+      - Accepted one three-stripe stack with anchor/state, focus, and selection
+        roles. Invalidity recolors the anchor rather than adding geometry.
+        Fields default to underline; binary controls default to whole-label
+        outline; `indicator` or the public appearance adapter selects the other
+        geometry without changing state semantics.
+      - Added nine generated D0 input-indicator color endpoints and two D5
+        numeric appearance selectors. All component colors and widths resolve
+        through CEM tokens; no CSS exception or raw component value was added.
+  - [x] Pin real hover/unhover evidence, disabled and readonly boundaries,
         label/control overlap, focus-visible coexistence, restoration, geometry,
         DOM/ARIA, value/checked state, forced-colors, and event absence.
-  - [ ] Keep hover presentation CSS-only and author-imported: no host state,
+    - [x] Add Playwright-backed input-indicator acceptance covering
+          all seven native owners, both appearance geometries, token-resolved
+          state colors, disabled/readonly precedence, focus and selection
+          coexistence, restoration, structure/runtime stability, and the
+          forced-colors fallback contract.
+      - The focused state fixture passes 13 tests and proves real native hover,
+        unhover, family defaults, explicit and adapter overrides, invalid and
+        readonly precedence, disabled suppression, checked/focus coexistence,
+        stable geometry/DOM/runtime, unchanged values/ARIA, and zero mutation
+        events.
+      - The component-owned forced-colors target launches Chromium with
+        `forcedColors: active`, collapses the normal shadow stack, verifies
+        `Highlight` hover and full `CanvasText` focus outlines, and confirms
+        disabled binary controls do not acquire hover treatment.
+  - [x] Keep hover presentation CSS-only and author-imported: no host state,
         synthetic pointer events, runtime slice, or JavaScript style side effect.
-  - Native owners are `cem-field input`, `cem-text-field input`,
+  - Native interaction owners remain `cem-field input`, `cem-text-field input`,
     `cem-textarea textarea`, `cem-select select`, `cem-checkbox input`,
-    `cem-radio input`, and `cem-switch input`. No fixture, CSS selector, token,
-    verifier binding, or `input:hover` audit promotion was added after the token
-    stop condition fired. The accepted family split is taxonomy only; it does
-    not authorize token names, values, or an exception. The field boundary
-    channel is accepted, but no component property is executable until its
-    semantic theme endpoint exists; the binary property remains undecided.
+    `cem-radio input`, and `cem-switch input`; binary paint targets are their
+    wrapping labels through `:has()`. The exact style contract passes against
+    32 primitives and 382 generated visual theme tokens. `input:hover` is now
+    browser-covered, yielding 28 covered, 0 static-only, and 11 gaps with
+    `input:focus-visible` recommended next.
 
 ## Current Verification Commands
 

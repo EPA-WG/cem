@@ -462,6 +462,9 @@ function inferDtcgType(token) {
     const rawVal = (token.valueRaw ?? "").trim();
     const tableId = token.sourceTable ?? "";
 
+    if (tableId === "cem-stroke-indicator-appearance") return "number";
+    if (tableId === "cem-stroke-rings") return "string";
+
     // Typography tokens: classify by source table first to avoid numeric false-positives.
     // Font weight values (200, 400, 700…) and voice speech parameters both look like numbers;
     // the table id gives us the semantic intent.

@@ -33,6 +33,7 @@ The aggregate gate includes:
 | --- | --- | --- |
 | Primitive manifest | `yarn nx run @epa-wg/cem-components:verify-primitives` | `CEM_COMPONENT_PRIMITIVES` exactly matches `docs/component-mvp.md`, uses CEM-ML declarations, and does not depend on legacy `<custom-element>` wrappers. |
 | Token-only style contract | `yarn nx run @epa-wg/cem-components:verify-style-contract` | Depends on current theme tokens and the verified public theme stylesheet export; checks exact action bindings and component selector scope, and rejects inline styles, unknown/non-CEM variables, and raw component color or spacing literals. |
+| Input indicator forced colors | `yarn nx run @epa-wg/cem-components:verify-input-indicator-forced-colors` | Launches Chromium with forced colors active; proves component shadows collapse and field hover, binary hover, and field/binary focus use the accepted system-color fallbacks. |
 | Stylesheet publication | `yarn nx run @epa-wg/cem-components:verify-package` | Builds the canonical component stylesheet byte-for-byte into `dist`, verifies the side-effect-free `./styles.css` export, and checks the dry-run npm file inventory. |
 | Browser and unit behavior | `yarn nx run @epa-wg/cem-components:test` | Runs the Node smoke test plus Chromium-backed harness, primitive, state/ARIA, and workflow specs. |
 
@@ -48,7 +49,7 @@ Executable fixture locations:
 | Component harness helpers | `../src/lib/testing/component-harness.ts` |
 | Style and manifest verifier scripts | `../../../tools/scripts/verify-cem-components-*.mjs` |
 | Package stylesheet source | `../src/styles.css` |
-| Package publication scripts | `../scripts/copy-styles.mjs`, `../scripts/verify-package.mjs` |
+| Package publication and forced-colors scripts | `../scripts/copy-styles.mjs`, `../scripts/verify-package.mjs`, `../scripts/verify-input-indicator-forced-colors.mjs` |
 
 Handoff condition: Phase 4 component expansion can build on this primitive package after the aggregate verify gate is
 green and the promoted branch has no uncommitted gate changes. The handoff covers the MVP primitive declaration set,
@@ -84,15 +85,32 @@ See the [action hover contract](./action-hover-contract.md) and
 
 | Component | Semantics | Content and Attributes | Token Families | Required A11y |
 | --- | --- | --- | --- | --- |
-| `cem-text-field` | Single-line text entry. | `name`, `value`, `placeholder`; `slot="label"` and `slot="help"`. | palette, stroke, bend, gap, typography | Label slot or `label` attribute must name the input. Help text must not become the accessible name. |
-| `cem-textarea` | Multi-line text entry. | `name`, `value`, `placeholder`; `slot="label"` and `slot="help"`. | palette, stroke, bend, gap, typography | Same label and help rules as text field. |
-| `cem-select` | Native single-value choice. | Project `<option>` children; `slot="label"` names the control. | palette, stroke, bend, control, typography | Label slot or `label` attribute must name the select. |
-| `cem-checkbox` | Binary form choice. | Default slot is label; `name` and `value` forward to native input. | palette, stroke, control, bend, typography | Wrapping label must expose the visible text as the accessible name. |
-| `cem-radio` | Mutually exclusive form choice. | Default slot is label; shared `name` groups radios. | palette, stroke, control, typography | Radio group context should provide the set label. |
-| `cem-switch` | Immediate boolean setting. | Default slot is label; renders checkbox with `role="switch"`. | palette, stroke, action, control, bend | Visible label must name the switch. |
+| `cem-field` | Generic labeled single-line field. | `name`, `value`, `type`, `placeholder`, `indicator`; named label/help slots. | input indicator, stroke, zebra, bend, gap, typography | Label slot or `label` attribute must name the input. |
+| `cem-text-field` | Single-line text entry. | `name`, `value`, `placeholder`, `indicator`; `slot="label"` and `slot="help"`. | input indicator, stroke, zebra, bend, gap, typography | Label slot or `label` attribute must name the input. Help text must not become the accessible name. |
+| `cem-textarea` | Multi-line text entry. | `name`, `value`, `placeholder`, `indicator`; `slot="label"` and `slot="help"`. | input indicator, stroke, zebra, bend, gap, typography | Same label and help rules as text field. |
+| `cem-select` | Native single-value choice. | Project `<option>` children; `indicator`; `slot="label"` names the control. | input indicator, stroke, zebra, bend, control, typography | Label slot or `label` attribute must name the select. |
+| `cem-checkbox` | Binary form choice. | Default slot is label; `name` and `value` forward to native input; `indicator`. | input indicator, stroke, zebra, control, bend, typography | Wrapping label must expose the visible text as the accessible name. |
+| `cem-radio` | Mutually exclusive form choice. | Default slot is label; shared `name` groups radios; `indicator`. | input indicator, stroke, zebra, control, typography | Radio group context should provide the set label. |
+| `cem-switch` | Immediate boolean setting. | Default slot is label; renders checkbox with `role="switch"`; `indicator`. | input indicator, stroke, zebra, action, control, bend | Visible label must name the switch. |
 
 States: `default`, `hover`, `focus-visible`, `disabled`, `loading`, `expanded`, `invalid`, `required`, `readonly`,
 `checked`, `indeterminate`.
+
+The input indicator is one three-stripe stack: anchor/state is always present,
+focus is independent, and checked/indeterminate selection is independent.
+Invalidity changes the anchor color rather than adding geometry, so invalid,
+focus, and selection remain simultaneously legible without defining a fourth
+role. Field-like controls default to `indicator="underline"`; checkbox, radio,
+and switch default to `indicator="outline"`. Either family accepts the other
+value, and a missing or unsupported value falls back to its family default.
+
+Advanced custom elements can set the inherited
+`--cem-input-indicator-appearance` adapter to
+`var(--cem-indicator-appearance-underline)` or
+`var(--cem-indicator-appearance-outline)`; this adapter wins over the host
+attribute. The stripe colors and widths remain generated CEM theme tokens and
+are not component-local customization endpoints. In forced colors, shadows are
+removed: hover uses `Highlight`, while focus uses a full `CanvasText` outline.
 
 ## Layout
 

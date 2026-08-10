@@ -11,9 +11,11 @@
         "layout:loading",
         "action:hover",
         "action:active",
-        "input:hover"
+        "input:hover",
+        "input:focus-visible",
+        "input:loading"
     ],
-    "recommendedNext": "input:hover",
+    "recommendedNext": "input:focus-visible",
     "coverage": [
         {
             "id": "action:default",
@@ -128,8 +130,17 @@
                 "cem-switch"
             ],
             "interaction": "Move the pointer onto and away from an input without changing layout.",
-            "status": "gap",
-            "reason": "No browser assertion drives pointer hover over an input control."
+            "status": "covered",
+            "owner": "packages/cem-components/src/lib/states.browser.spec.ts",
+            "test": "composes tokenized input indicators across appearance, hover, focus, validation, and selection states",
+            "assertions": [
+                "expect(control.matches(':hover')).toBe(true);",
+                "expectPaintedColorToResolveFromToken(hovered.layers[0].color, target, hoverToken);",
+                "expectInputIndicatorGeometry(hovered, target, appearance, { selection });",
+                "expectInputIndicatorStructureAndGeometry(hovered, baseline);",
+                "expect(restored.boxShadow).toBe(baseline.boxShadow);",
+                "expect(mutationEvents).toEqual([]);"
+            ]
         },
         {
             "id": "input:focus-visible",
@@ -146,7 +157,7 @@
             ],
             "interaction": "Move keyboard focus between input controls and retain a visible focus indicator.",
             "status": "gap",
-            "reason": "The focus-visible harness is covered, but no input-family test invokes it."
+            "reason": "The hover fixture proves field and binary focus-stripe coexistence, but no dedicated fixture yet moves keyboard focus across every enabled input primitive and forced-colors fallback."
         },
         {
             "id": "input:disabled",

@@ -292,7 +292,39 @@ D5 treats these as canonical *indicator-pattern tokens*:
 `cem-stroke-rings-forced` carries forced-colors fallback values for the rings (Principle P4). Generator-only — no
 new tokens. The same ring names are redeclared inside `@media (forced-colors: active) :root { … }`.
 
-### 5.4 Focus heuristics
+### 5.4 Outline/underline stripe-stack transform
+
+Input indicators may reuse one locally composed stripe stack for both full-boundary and bottom-boundary appearances.
+D5 represents the appearance as a unitless geometry selector rather than an inherited `box-shadow` recipe:
+
+###### cem-stroke-indicator-appearance
+| Token | Value | Description | tier |
+|---|---|---|---|
+| `--cem-indicator-appearance-outline` | `0` | Put cumulative stripe width in `box-shadow` spread, producing a full outline | recommended |
+| `--cem-indicator-appearance-underline` | `1` | Put cumulative stripe width in positive block-axis offset and zero the spread, producing an underline | recommended |
+
+For appearance selector `a` and cumulative stripe width `w`, every shadow uses:
+
+```css
+0 calc(a * w) 0 calc((1 - a) * w) <stripe-color>
+```
+
+At `0`, the Y offset is zero and spread produces a concentric outline. At `1`, spread is zero and positive cumulative
+Y offsets leave only the bottom portions visible. Components MUST compose the shadow list locally so state-local stripe
+colors and widths resolve at the paint target. A root-declared recipe containing nested `var(--stripe-color)` references
+resolves those references at the declaration scope and can freeze descendant state overrides.
+
+The transform does not fix a semantic-role count. Input components currently compose an anchor/state stripe using
+`--cem-stroke-boundary`, then activate focus and selection stripes using `--cem-zebra-strip-size`. Invalidity recolors
+the anchor instead of adding another stripe. A component-friendly property such as
+`--cem-input-indicator-appearance` is an adapter hook, not a canonical D5 token; its supported values are references to
+the two tokens above.
+
+`box-shadow` is not a forced-colors fallback. Components MUST remove the shadow stack in forced colors, preserve native
+state semantics, and provide a system-color full outline for focus-visible. An underline selection in normal rendering
+does not weaken that forced-colors focus requirement.
+
+### 5.5 Focus heuristics
 
 Prefer `:focus-visible` semantics. If the platform needs a polyfilled focus-ring behavior, align with heuristics similar to Material Web’s focus ring utilities (see references).
 
@@ -524,10 +556,11 @@ Treat as **minor/patch** if you:
 | `cem-stroke-zebra-pattern` | §5.2    | `--cem-zebra-angle` (gradient-mode geometry)                                                                      |
 | `cem-stroke-rings`         | §5.3    | Ring composition recipes: `--cem-ring-zebra-3`, `--cem-ring-zebra-4`                                              |
 | `cem-stroke-rings-forced`  | §5.3    | Forced-colors fallback values for the rings (generator-only; no new tokens)                                       |
+| `cem-stroke-indicator-appearance` | §5.4 | Unitless outline/underline geometry selectors                                                               |
 
 Generator derivation rules:
-- `cem-stroke-basis`, `cem-stroke-semantic`, `cem-stroke-zebra-pattern`, `cem-stroke-rings` → token list (tier in
-  last column).
+- `cem-stroke-basis`, `cem-stroke-semantic`, `cem-stroke-zebra-pattern`, `cem-stroke-rings`,
+  `cem-stroke-indicator-appearance` → token list (tier in last column).
 - `cem-stroke-rings-forced` → override data emitted inside `@media (forced-colors: active) :root { … }`; no new
   tokens.
 - `--cem-zebra-strip-size` and `--cem-zebra-color-{0..3}` are owned by D0 (`cem-colors.md`) and NOT emitted here;

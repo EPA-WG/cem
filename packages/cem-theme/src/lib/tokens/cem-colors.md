@@ -507,6 +507,42 @@ In `contrast-light` and `contrast-dark`, background tokens SHOULD converge on th
 | `--cem-action-alternate-*`   | `palette.secondary.*` (or custom) | `accent` (or custom)                    |
 | zebra focus/selected/target  | focus ring / outline styles       | focus indicator / ripple-outline styles |
 
+### 7.7 Input indicator stripe colors
+
+Input controls use a state-composed stripe stack rather than assigning one physical stripe to every possible state.
+The stack has three physical classes:
+
+1. an **anchor/state stripe**, always present, whose color changes for interaction, availability, pending, and invalid
+   states;
+2. a **focus stripe**, activated by `:focus-visible` and colored by `--cem-zebra-color-1`;
+3. a **selection stripe**, activated by checked, selected, or indeterminate state.
+
+Invalidity changes the anchor/state stripe color; it does not add geometry. Focus and selection therefore remain
+independently visible when an input is also invalid. Required state remains a marker/text concern and does not acquire
+an indicator stripe. Loading reserves the pending anchor color, but a component binds it only after that component has
+a truthful loading-state source. Native-select expanded state is likewise deferred until a disclosure contract defines
+a truthful source.
+
+###### cem-input-indicator-colors
+| Token | value-type | default-formula | notes | tier |
+|---|---|---|---|---|
+| `--cem-input-indicator-anchor-color` | `<color>` | `color-mix(in srgb, var(--cem-palette-comfort-text) 62%, transparent)` | Resting boundary/anchor stripe | required |
+| `--cem-input-indicator-anchor-hover-color` | `<color>` | `var(--cem-palette-comfort-text)` | Enabled native-control hover | required |
+| `--cem-input-indicator-anchor-disabled-color` | `<color>` | `color-mix(in srgb, var(--cem-palette-conservative-text-x) 38%, transparent)` | Unavailable control; wins over pointer interaction | required |
+| `--cem-input-indicator-anchor-readonly-color` | `<color>` | `color-mix(in srgb, var(--cem-palette-comfort-text) 50%, transparent)` | Readonly field; wins over hover | recommended |
+| `--cem-input-indicator-anchor-pending-color` | `<color>` | `var(--cem-palette-enthusiasm-x)` | Reserved loading/pending anchor | recommended |
+| `--cem-input-indicator-anchor-invalid-color` | `<color>` | `var(--cem-palette-danger)` | Invalid anchor; wins over ordinary hover | required |
+| `--cem-input-indicator-anchor-invalid-hover-color` | `<color>` | `var(--cem-palette-danger-x)` | Invalid enabled control under native hover | required |
+| `--cem-input-indicator-selection-color` | `<color>` | `var(--cem-palette-creativity-x)` | Checked or selected stripe | required |
+| `--cem-input-indicator-indeterminate-color` | `<color>` | `var(--cem-palette-enthusiasm-x)` | Mixed-selection stripe | recommended |
+
+The anchor precedence is `disabled > invalid-hover > invalid > pending > readonly > hover > default`. Focus and
+selection do not participate in that precedence chain because they occupy independent stripes. If invalid and
+indeterminate coexist, invalid controls the anchor while indeterminate controls the selection stripe.
+
+D5 owns the outline/underline geometry transform and stripe widths. Component libraries may expose a public adapter
+property that selects that transform, but the adapter is not a replacement for these D0 semantic color endpoints.
+
 ## 8. Zebra outline colors
 
 ### 8.1 Outline-driven state mapping (zebra)
@@ -802,6 +838,7 @@ from these tables using the same logic as `cem-colors.html`.
 | `cem-color-hue-variant`                                | `--cem-color-*` (35 tokens)   | one token per row                   |
 | `cem-palette-emotion-shift`                            | `--cem-palette-*` (28 tokens) | one token per row                   |
 | `cem-zebra-tokens`                                     | `--cem-zebra-*` (5 tokens)    | one token per row                   |
+| `cem-input-indicator-colors`                           | `--cem-input-indicator-*` (9 tokens) | one token per row             |
 | `cem-action-intent-emotion` × `cem-action-state-color` | `--cem-action-*` (80 tokens)  | intent × state × {background, text} |
 ## 15. References
 

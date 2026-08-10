@@ -3,6 +3,7 @@
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { dirname, extname, join, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import postcss from 'postcss';
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
 const componentMvpPath = join(repoRoot, 'docs/component-mvp.md');
@@ -35,6 +36,7 @@ const CSS_SPACING_PROPERTY =
 const CSS_SPACING_LITERAL = /\b\d*\.?\d+(?:px|rem|em|vh|vw|vmin|vmax|ch|ex|%)\b|calc\s*\(/i;
 const CSS_VAR_REFERENCE = /var\(\s*(--[^\s,)]+)/g;
 const ACTION_TAGS = new Set(['cem-action', 'cem-icon-button', 'cem-menu-item']);
+const PUBLIC_COMPONENT_ADAPTERS = new Set(['--cem-input-indicator-appearance']);
 const ACTION_BINDINGS = new Map([
     [
         'cem-action > button',
@@ -253,12 +255,21 @@ function assertPublicComponentStyles(components, tokenNames) {
     const pathLabel = repoPath(componentStylesPath);
     const cssText = readText(componentStylesPath);
     const componentTags = new Set(components.map(({ tag }) => tag));
-    const rules = parseFlatCssRules(pathLabel, cssText);
+    const rules = parseCssRules(pathLabel, cssText);
     const actionRules = new Map();
+    const privateProperties = new Set(
+        rules.flatMap(({ declarations }) => [...declarations.keys()].filter((name) => name.startsWith('--_cem-'))),
+    );
 
     for (const match of cssText.matchAll(CSS_VAR_REFERENCE)) {
         const tokenName = match[1];
-        if (!tokenName.startsWith('--cem-')) {
+        if (tokenName.startsWith('--_cem-')) {
+            if (!privateProperties.has(tokenName)) {
+                fail(`${pathLabel}: undeclared private component calculation property ${tokenName}`);
+            }
+        } else if (PUBLIC_COMPONENT_ADAPTERS.has(tokenName)) {
+            continue;
+        } else if (!tokenName.startsWith('--cem-')) {
             fail(`${pathLabel}: component styles must prefer generated CEM tokens; found ${tokenName}`);
         } else if (!tokenNames.has(tokenName)) {
             fail(`${pathLabel}: unknown generated CEM theme token ${tokenName}`);
@@ -309,49 +320,53 @@ function assertPublicComponentStyles(components, tokenNames) {
     }
 }
 
-function parseFlatCssRules(pathLabel, cssText) {
-    const withoutComments = cssText.replace(/\/\*[\s\S]*?\*\//g, '');
+function parseCssRules(pathLabel, cssText) {
+    let root;
+
+    try {
+        root = postcss.parse(cssText, { from: pathLabel });
+    } catch (error) {
+        fail(`${pathLabel}: invalid CSS: ${error instanceof Error ? error.message : String(error)}`);
+        return [];
+    }
+
     const rules = [];
-    const rulePattern = /([^{}]+)\{([^{}]*)\}/g;
-    let consumed = '';
 
-    for (const match of withoutComments.matchAll(rulePattern)) {
-        const selectorList = match[1].trim();
-        const declarations = parseDeclarations(pathLabel, selectorList, match[2]);
-        consumed += match[0];
+    root.walkAtRules((atRule) => {
+        if (atRule.name !== 'media' || atRule.params !== '(forced-colors: active)') {
+            fail(`${pathLabel}: unsupported component stylesheet at-rule @${atRule.name} ${atRule.params}`);
+        }
+    });
 
-        for (const selector of selectorList.split(',').map((value) => value.trim())) {
+    root.walkRules((rule) => {
+        const declarations = parseDeclarations(pathLabel, rule.selector, rule.nodes);
+
+        for (const selector of postcss.list.comma(rule.selector)) {
             if (!selector) {
                 fail(`${pathLabel}: empty component selector`);
                 continue;
             }
             rules.push({ declarations, selector });
         }
-    }
-
-    const remainder = withoutComments.replace(rulePattern, '').trim();
-    if (remainder || (withoutComments.trim() && !consumed)) {
-        fail(`${pathLabel}: component stylesheet must contain flat, statically verifiable rules`);
-    }
+    });
 
     return rules;
 }
 
-function parseDeclarations(pathLabel, selectorList, declarationText) {
+function parseDeclarations(pathLabel, selectorList, nodes) {
     const declarations = new Map();
 
-    for (const declaration of declarationText
-        .split(';')
-        .map((value) => value.trim())
-        .filter(Boolean)) {
-        const separator = declaration.indexOf(':');
-        if (separator <= 0) {
-            fail(`${pathLabel}: invalid declaration \`${declaration}\` in \`${selectorList}\``);
+    for (const node of nodes ?? []) {
+        if (node.type === 'comment') {
+            continue;
+        }
+        if (node.type !== 'decl') {
+            fail(`${pathLabel}: unsupported ${node.type} inside \`${selectorList}\``);
             continue;
         }
 
-        const property = declaration.slice(0, separator).trim();
-        const value = declaration.slice(separator + 1).trim();
+        const property = node.prop;
+        const value = node.value;
         if (declarations.has(property)) {
             fail(`${pathLabel}: duplicate ${property} declaration in \`${selectorList}\``);
         }

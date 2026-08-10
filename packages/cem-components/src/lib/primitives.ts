@@ -45,6 +45,7 @@ export const CEM_COMPONENT_PRIMITIVES = [
         cemMl:
             '{attribute @name=label | Field}' +
             '{attribute @name=type | text}' +
+            '{attribute @name=indicator | underline}' +
             '{div @class=cem-field |' +
             ' {label @class=cem-field__label | {span | {slot @name=label | {$label}}} {input @class=cem-field__control @type="{$type}" @name="{$datadom.attributes.name}" @value={datadom.slices.value ?? datadom.attributes.value} @placeholder="{$datadom.attributes.placeholder}" @disabled={datadom.attributes.disabled} @required={datadom.attributes.required} @readonly={datadom.attributes.readonly} @aria-invalid={datadom.attributes.invalid} @aria-describedby={datadom.attributes.describedby} @aria-errormessage={datadom.attributes.error} @slice=value @slice-event=input @slice-value="{$target.value}" | }}' +
             ' {span @class=cem-field__help | {slot @name=help}}}',
@@ -55,6 +56,7 @@ export const CEM_COMPONENT_PRIMITIVES = [
         cemMl:
             '{attribute @name=label | Text field}' +
             '{attribute @name=type | text}' +
+            '{attribute @name=indicator | underline}' +
             '{div @class=cem-text-field |' +
             ' {label @class=cem-text-field__label | {span | {slot @name=label | {$label}}} {input @class=cem-text-field__control @type="{$type}" @name="{$datadom.attributes.name}" @value={datadom.slices.value ?? datadom.attributes.value} @placeholder="{$datadom.attributes.placeholder}" @disabled={datadom.attributes.disabled} @required={datadom.attributes.required} @readonly={datadom.attributes.readonly} @aria-invalid={datadom.attributes.invalid} @aria-describedby={datadom.attributes.describedby} @aria-errormessage={datadom.attributes.error} @slice=value @slice-event=input @slice-value="{$target.value}" | }}' +
             ' {span @class=cem-text-field__help | {slot @name=help}}}',
@@ -64,6 +66,7 @@ export const CEM_COMPONENT_PRIMITIVES = [
         description: 'MVP multi-line text field with label and help slots.',
         cemMl:
             '{attribute @name=label | Textarea}' +
+            '{attribute @name=indicator | underline}' +
             '{div @class=cem-textarea |' +
             ' {label @class=cem-textarea__label | {span | {slot @name=label | {$label}}} {textarea @class=cem-textarea__control @name="{$datadom.attributes.name}" @placeholder="{$datadom.attributes.placeholder}" @disabled={datadom.attributes.disabled} @required={datadom.attributes.required} @readonly={datadom.attributes.readonly} @aria-invalid={datadom.attributes.invalid} @aria-describedby={datadom.attributes.describedby} @aria-errormessage={datadom.attributes.error} @slice=value @slice-event=input @slice-value="{$target.value}" | {$datadom.slices.value ?? datadom.attributes.value}}}' +
             ' {span @class=cem-textarea__help | {slot @name=help}}}',
@@ -73,6 +76,7 @@ export const CEM_COMPONENT_PRIMITIVES = [
         description: 'MVP native select field with projected option content.',
         cemMl:
             '{attribute @name=label | Select}' +
+            '{attribute @name=indicator | underline}' +
             '{div @class=cem-select |' +
             ' {label @class=cem-select__label | {span | {slot @name=label | {$label}}} {select @class=cem-select__control @name="{$datadom.attributes.name}" @disabled={datadom.attributes.disabled} @required={datadom.attributes.required} @aria-invalid={datadom.attributes.invalid} @aria-describedby={datadom.attributes.describedby} @aria-errormessage={datadom.attributes.error} @slice=value @slice-event=change @slice-value="{$target.value}" | {slot | {option @value="" | Choose}}}}' +
             ' {span @class=cem-select__help | {slot @name=help}}}',
@@ -83,6 +87,7 @@ export const CEM_COMPONENT_PRIMITIVES = [
         cemMl:
             '{attribute @name=label | Checkbox}' +
             '{attribute @name=value | on}' +
+            '{attribute @name=indicator | outline}' +
             '{label @class=cem-checkbox |' +
             ' {input @class=cem-checkbox__control @type=checkbox @name="{$datadom.attributes.name}" @value="{$value}" @checked={datadom.slices.checked ?? datadom.attributes.checked} @disabled={datadom.attributes.disabled} @required={datadom.attributes.required} @aria-invalid={datadom.attributes.invalid} @aria-checked={datadom.attributes.indeterminate} @slice=checked @slice-event=change @slice-value="$target.checked" | }' +
             ' {span @class=cem-checkbox__label | {slot | {$label}}}}',
@@ -93,6 +98,7 @@ export const CEM_COMPONENT_PRIMITIVES = [
         cemMl:
             '{attribute @name=label | Radio}' +
             '{attribute @name=value | on}' +
+            '{attribute @name=indicator | outline}' +
             '{label @class=cem-radio |' +
             ' {input @class=cem-radio__control @type=radio @name="{$datadom.attributes.name}" @value="{$value}" @checked={datadom.slices.checked ?? datadom.attributes.checked} @disabled={datadom.attributes.disabled} @required={datadom.attributes.required} @aria-invalid={datadom.attributes.invalid} @slice=checked @slice-event=change @slice-value="$target.checked" | }' +
             ' {span @class=cem-radio__label | {slot | {$label}}}}',
@@ -103,6 +109,7 @@ export const CEM_COMPONENT_PRIMITIVES = [
         cemMl:
             '{attribute @name=label | Switch}' +
             '{attribute @name=value | on}' +
+            '{attribute @name=indicator | outline}' +
             '{label @class=cem-switch |' +
             ' {input @class=cem-switch__control @type=checkbox @role=switch @name="{$datadom.attributes.name}" @value="{$value}" @checked={datadom.slices.checked ?? datadom.attributes.checked} @disabled={datadom.attributes.disabled} @required={datadom.attributes.required} @aria-invalid={datadom.attributes.invalid} @slice=checked @slice-event=change @slice-value="$target.checked" | }' +
             ' {span @class=cem-switch__label | {slot | {$label}}}}',

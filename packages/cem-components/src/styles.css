@@ -30,3 +30,215 @@ cem-menu-item > button:enabled:active {
     background-color: var(--cem-action-contextual-active-background);
     color: var(--cem-action-contextual-active-text);
 }
+
+cem-field input,
+cem-text-field input,
+cem-textarea textarea,
+cem-select select,
+cem-checkbox > label,
+cem-radio > label,
+cem-switch > label {
+    --_cem-input-indicator-anchor-width: var(--cem-stroke-boundary);
+    --_cem-input-indicator-focus-width: var(--cem-stroke-none);
+    --_cem-input-indicator-selection-width: var(--cem-stroke-none);
+    --_cem-input-indicator-anchor-color: var(--cem-input-indicator-anchor-color);
+    --_cem-input-indicator-focus-color: var(--cem-zebra-color-1);
+    --_cem-input-indicator-selection-color: var(--cem-input-indicator-selection-color);
+    box-shadow:
+        0 calc(var(--_cem-input-indicator-appearance) * var(--_cem-input-indicator-anchor-width)) 0
+            calc((1 - var(--_cem-input-indicator-appearance)) * var(--_cem-input-indicator-anchor-width))
+            var(--_cem-input-indicator-anchor-color),
+        0
+            calc(
+                var(--_cem-input-indicator-appearance) *
+                    (var(--_cem-input-indicator-anchor-width) + var(--_cem-input-indicator-focus-width))
+            )
+            0
+            calc(
+                (1 - var(--_cem-input-indicator-appearance)) *
+                    (var(--_cem-input-indicator-anchor-width) + var(--_cem-input-indicator-focus-width))
+            )
+            var(--_cem-input-indicator-focus-color),
+        0
+            calc(
+                var(--_cem-input-indicator-appearance) *
+                    (
+                        var(--_cem-input-indicator-anchor-width) + var(--_cem-input-indicator-focus-width) +
+                            var(--_cem-input-indicator-selection-width)
+                    )
+            )
+            0
+            calc(
+                (1 - var(--_cem-input-indicator-appearance)) *
+                    (
+                        var(--_cem-input-indicator-anchor-width) + var(--_cem-input-indicator-focus-width) +
+                            var(--_cem-input-indicator-selection-width)
+                    )
+            )
+            var(--_cem-input-indicator-selection-color);
+    outline: var(--cem-stroke-none) solid transparent;
+}
+
+cem-field input,
+cem-text-field input,
+cem-textarea textarea,
+cem-select select {
+    --_cem-input-indicator-appearance: var(
+        --cem-input-indicator-appearance,
+        var(--cem-indicator-appearance-underline)
+    );
+}
+
+cem-field[indicator='outline'] input,
+cem-text-field[indicator='outline'] input,
+cem-textarea[indicator='outline'] textarea,
+cem-select[indicator='outline'] select {
+    --_cem-input-indicator-appearance: var(
+        --cem-input-indicator-appearance,
+        var(--cem-indicator-appearance-outline)
+    );
+}
+
+cem-field input:enabled:hover,
+cem-text-field input:enabled:hover,
+cem-textarea textarea:enabled:hover,
+cem-select select:enabled:hover {
+    --_cem-input-indicator-anchor-color: var(--cem-input-indicator-anchor-hover-color);
+}
+
+cem-field input[readonly]:enabled,
+cem-text-field input[readonly]:enabled,
+cem-textarea textarea[readonly]:enabled {
+    --_cem-input-indicator-anchor-color: var(--cem-input-indicator-anchor-readonly-color);
+}
+
+cem-field input[aria-invalid='true']:enabled,
+cem-text-field input[aria-invalid='true']:enabled,
+cem-textarea textarea[aria-invalid='true']:enabled,
+cem-select select[aria-invalid='true']:enabled {
+    --_cem-input-indicator-anchor-color: var(--cem-input-indicator-anchor-invalid-color);
+}
+
+cem-field input[aria-invalid='true']:enabled:hover,
+cem-text-field input[aria-invalid='true']:enabled:hover,
+cem-textarea textarea[aria-invalid='true']:enabled:hover,
+cem-select select[aria-invalid='true']:enabled:hover {
+    --_cem-input-indicator-anchor-color: var(--cem-input-indicator-anchor-invalid-hover-color);
+}
+
+cem-field input:disabled,
+cem-text-field input:disabled,
+cem-textarea textarea:disabled,
+cem-select select:disabled {
+    --_cem-input-indicator-anchor-color: var(--cem-input-indicator-anchor-disabled-color);
+}
+
+cem-field input:focus-visible,
+cem-text-field input:focus-visible,
+cem-textarea textarea:focus-visible,
+cem-select select:focus-visible {
+    --_cem-input-indicator-focus-width: var(--cem-zebra-strip-size);
+}
+
+cem-checkbox > label,
+cem-radio > label,
+cem-switch > label {
+    --_cem-input-indicator-appearance: var(
+        --cem-input-indicator-appearance,
+        var(--cem-indicator-appearance-outline)
+    );
+    display: inline-block;
+}
+
+cem-checkbox[indicator='underline'] > label,
+cem-radio[indicator='underline'] > label,
+cem-switch[indicator='underline'] > label {
+    --_cem-input-indicator-appearance: var(
+        --cem-input-indicator-appearance,
+        var(--cem-indicator-appearance-underline)
+    );
+}
+
+cem-checkbox > label:has(> input:enabled:hover),
+cem-radio > label:has(> input:enabled:hover),
+cem-switch > label:has(> input:enabled:hover) {
+    --_cem-input-indicator-anchor-color: var(--cem-input-indicator-anchor-hover-color);
+}
+
+cem-checkbox > label:has(> input[aria-invalid='true']),
+cem-radio > label:has(> input[aria-invalid='true']),
+cem-switch > label:has(> input[aria-invalid='true']) {
+    --_cem-input-indicator-anchor-color: var(--cem-input-indicator-anchor-invalid-color);
+}
+
+cem-checkbox > label:has(> input[aria-invalid='true']:enabled:hover),
+cem-radio > label:has(> input[aria-invalid='true']:enabled:hover),
+cem-switch > label:has(> input[aria-invalid='true']:enabled:hover) {
+    --_cem-input-indicator-anchor-color: var(--cem-input-indicator-anchor-invalid-hover-color);
+}
+
+cem-checkbox > label:has(> input:disabled),
+cem-radio > label:has(> input:disabled),
+cem-switch > label:has(> input:disabled) {
+    --_cem-input-indicator-anchor-color: var(--cem-input-indicator-anchor-disabled-color);
+}
+
+cem-checkbox > label:has(> input:enabled:focus-visible),
+cem-radio > label:has(> input:enabled:focus-visible),
+cem-switch > label:has(> input:enabled:focus-visible) {
+    --_cem-input-indicator-focus-width: var(--cem-zebra-strip-size);
+}
+
+cem-checkbox > label:has(> input:checked),
+cem-radio > label:has(> input:checked),
+cem-switch > label:has(> input:checked) {
+    --_cem-input-indicator-selection-width: var(--cem-zebra-strip-size);
+}
+
+cem-checkbox > label:has(> input[aria-checked='mixed']) {
+    --_cem-input-indicator-selection-color: var(--cem-input-indicator-indeterminate-color);
+    --_cem-input-indicator-selection-width: var(--cem-zebra-strip-size);
+}
+
+cem-checkbox input:focus-visible,
+cem-radio input:focus-visible,
+cem-switch input:focus-visible {
+    outline: var(--cem-stroke-none) solid transparent;
+}
+
+@media (forced-colors: active) {
+    cem-field input,
+    cem-text-field input,
+    cem-textarea textarea,
+    cem-select select,
+    cem-checkbox > label,
+    cem-radio > label,
+    cem-switch > label {
+        box-shadow: none;
+    }
+
+    cem-field input:enabled:hover,
+    cem-text-field input:enabled:hover,
+    cem-textarea textarea:enabled:hover,
+    cem-select select:enabled:hover {
+        border-color: Highlight;
+    }
+
+    cem-checkbox > label:has(> input:enabled:hover),
+    cem-radio > label:has(> input:enabled:hover),
+    cem-switch > label:has(> input:enabled:hover) {
+        outline: var(--cem-stroke-boundary) solid Highlight;
+        outline-offset: var(--cem-stroke-indicator-offset);
+    }
+
+    cem-field input:focus-visible,
+    cem-text-field input:focus-visible,
+    cem-textarea textarea:focus-visible,
+    cem-select select:focus-visible,
+    cem-checkbox > label:has(> input:enabled:focus-visible),
+    cem-radio > label:has(> input:enabled:focus-visible),
+    cem-switch > label:has(> input:enabled:focus-visible) {
+        outline: var(--cem-stroke-focus) solid CanvasText;
+        outline-offset: var(--cem-stroke-indicator-offset);
+    }
+}

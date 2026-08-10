@@ -497,6 +497,240 @@ describe('CEM component primitive states and ARIA behavior', () => {
         expect(() => assertAriaReferenceIntegrity(harness.root)).not.toThrow();
     });
 
+    it('composes tokenized input indicators across appearance, hover, focus, validation, and selection states', async () => {
+        harness = createComponentHarness();
+        const root = await harness.render(`
+            <cem-stack class="cem-theme-light" gap="sm">
+                <cem-field name="field" label="Field" value="alpha"></cem-field>
+                <cem-text-field name="outlined" label="Outlined field" indicator="outline"></cem-text-field>
+                <cem-textarea name="readonly" label="Readonly notes" readonly>Notes</cem-textarea>
+                <cem-select name="invalid-select" label="Invalid role" invalid="true">
+                    <option value="admin">Admin</option>
+                </cem-select>
+                <cem-checkbox name="checked" checked>Checked option</cem-checkbox>
+                <cem-radio name="fallback" indicator="unsupported">Fallback option</cem-radio>
+                <cem-switch name="invalid-switch" indicator="underline" checked invalid="true">
+                    Invalid switch
+                </cem-switch>
+                <cem-select name="disabled-select" label="Disabled role" disabled>
+                    <option value="viewer">Viewer</option>
+                </cem-select>
+                <cem-radio name="disabled-radio" disabled>Disabled option</cem-radio>
+            </cem-stack>
+        `);
+        await waitForStateSelector(root, 'cem-radio[name="disabled-radio"] input');
+
+        const cases = [
+            {
+                appearance: 'underline',
+                control: harness.query<HTMLInputElement>('cem-field input'),
+                host: harness.query<HTMLElement>('cem-field'),
+                target: harness.query<HTMLElement>('cem-field input'),
+                baselineToken: '--cem-input-indicator-anchor-color',
+                hoverToken: '--cem-input-indicator-anchor-hover-color',
+            },
+            {
+                appearance: 'outline',
+                control: harness.query<HTMLInputElement>('cem-text-field input'),
+                host: harness.query<HTMLElement>('cem-text-field'),
+                target: harness.query<HTMLElement>('cem-text-field input'),
+                baselineToken: '--cem-input-indicator-anchor-color',
+                hoverToken: '--cem-input-indicator-anchor-hover-color',
+            },
+            {
+                appearance: 'underline',
+                control: harness.query<HTMLTextAreaElement>('cem-textarea textarea'),
+                host: harness.query<HTMLElement>('cem-textarea'),
+                target: harness.query<HTMLElement>('cem-textarea textarea'),
+                baselineToken: '--cem-input-indicator-anchor-readonly-color',
+                hoverToken: '--cem-input-indicator-anchor-readonly-color',
+            },
+            {
+                appearance: 'underline',
+                control: harness.query<HTMLSelectElement>('cem-select[name="invalid-select"] select'),
+                host: harness.query<HTMLElement>('cem-select[name="invalid-select"]'),
+                target: harness.query<HTMLElement>('cem-select[name="invalid-select"] select'),
+                baselineToken: '--cem-input-indicator-anchor-invalid-color',
+                hoverToken: '--cem-input-indicator-anchor-invalid-hover-color',
+            },
+            {
+                appearance: 'outline',
+                control: harness.query<HTMLInputElement>('cem-checkbox input'),
+                host: harness.query<HTMLElement>('cem-checkbox'),
+                selection: true,
+                target: harness.query<HTMLLabelElement>('cem-checkbox > label'),
+                baselineToken: '--cem-input-indicator-anchor-color',
+                hoverToken: '--cem-input-indicator-anchor-hover-color',
+            },
+            {
+                appearance: 'outline',
+                control: harness.query<HTMLInputElement>('cem-radio[name="fallback"] input'),
+                host: harness.query<HTMLElement>('cem-radio[name="fallback"]'),
+                target: harness.query<HTMLLabelElement>('cem-radio[name="fallback"] > label'),
+                baselineToken: '--cem-input-indicator-anchor-color',
+                hoverToken: '--cem-input-indicator-anchor-hover-color',
+            },
+            {
+                appearance: 'underline',
+                control: harness.query<HTMLInputElement>('cem-switch input'),
+                host: harness.query<HTMLElement>('cem-switch'),
+                selection: true,
+                target: harness.query<HTMLLabelElement>('cem-switch > label'),
+                baselineToken: '--cem-input-indicator-anchor-invalid-color',
+                hoverToken: '--cem-input-indicator-anchor-invalid-hover-color',
+            },
+        ] as const;
+        const disabledCases = [
+            {
+                appearance: 'underline',
+                control: harness.query<HTMLSelectElement>('cem-select[name="disabled-select"] select'),
+                host: harness.query<HTMLElement>('cem-select[name="disabled-select"]'),
+                target: harness.query<HTMLElement>('cem-select[name="disabled-select"] select'),
+            },
+            {
+                appearance: 'outline',
+                control: harness.query<HTMLInputElement>('cem-radio[name="disabled-radio"] input'),
+                host: harness.query<HTMLElement>('cem-radio[name="disabled-radio"]'),
+                target: harness.query<HTMLLabelElement>('cem-radio[name="disabled-radio"] > label'),
+            },
+        ] as const;
+        const mutationEvents: string[] = [];
+        for (const eventName of ['click', 'input', 'change', 'cem-loaded', 'cem-error', 'cem-cancel']) {
+            harness.root.addEventListener(eventName, () => mutationEvents.push(eventName));
+        }
+
+        assertStateHostsRendered(
+            harness.root,
+            'cem-field, cem-text-field, cem-textarea, cem-select, cem-checkbox, cem-radio, cem-switch',
+        );
+
+        for (const indicatorCase of cases) {
+            const { appearance, baselineToken, control, host, hoverToken, target } = indicatorCase;
+            const selection = 'selection' in indicatorCase && indicatorCase.selection;
+            const baseline = captureInputIndicatorState(runtime, host, control, target);
+
+            expectInputIndicatorGeometry(baseline, target, appearance, { selection });
+            expectPaintedColorToResolveFromToken(baseline.layers[0].color, target, baselineToken);
+            if (selection) {
+                expectPaintedColorToResolveFromToken(
+                    baseline.layers[2].color,
+                    target,
+                    '--cem-input-indicator-selection-color',
+                );
+            }
+
+            await userEvent.hover(control);
+            await nextRenderFrame();
+
+            const hovered = captureInputIndicatorState(runtime, host, control, target);
+            expect(control.matches(':hover')).toBe(true);
+            if (target !== control) {
+                expect(target.matches(':hover')).toBe(true);
+            }
+            expectPaintedColorToResolveFromToken(hovered.layers[0].color, target, hoverToken);
+            expectInputIndicatorGeometry(hovered, target, appearance, { selection });
+            expectInputIndicatorStructureAndGeometry(hovered, baseline);
+
+            await userEvent.unhover(control);
+            await nextRenderFrame();
+
+            const restored = captureInputIndicatorState(runtime, host, control, target);
+            expectPaintedColorToResolveFromToken(restored.layers[0].color, target, baselineToken);
+            expect(restored.boxShadow).toBe(baseline.boxShadow);
+            expectInputIndicatorStructureAndGeometry(restored, baseline);
+        }
+
+        for (const indicatorCase of disabledCases) {
+            const { appearance, control, host, target } = indicatorCase;
+            expect(control.disabled).toBe(true);
+
+            const baseline = captureInputIndicatorState(runtime, host, control, target);
+            expectInputIndicatorGeometry(baseline, target, appearance);
+            expectPaintedColorToResolveFromToken(
+                baseline.layers[0].color,
+                target,
+                '--cem-input-indicator-anchor-disabled-color',
+            );
+
+            await userEvent.hover(control);
+            await nextRenderFrame();
+
+            const hovered = captureInputIndicatorState(runtime, host, control, target);
+            expectPaintedColorToResolveFromToken(
+                hovered.layers[0].color,
+                target,
+                '--cem-input-indicator-anchor-disabled-color',
+            );
+            expect(hovered.boxShadow).toBe(baseline.boxShadow);
+            expectInputIndicatorStructureAndGeometry(hovered, baseline);
+
+            await userEvent.unhover(control);
+        }
+
+        const fieldHost = cases[0].host;
+        const field = cases[0].control;
+        fieldHost.style.setProperty(
+            '--cem-input-indicator-appearance',
+            'var(--cem-indicator-appearance-outline)',
+        );
+        await nextRenderFrame();
+        expectInputIndicatorGeometry(captureInputIndicatorState(runtime, fieldHost, field, field), field, 'outline');
+        fieldHost.style.removeProperty('--cem-input-indicator-appearance');
+        await nextRenderFrame();
+        expectInputIndicatorGeometry(captureInputIndicatorState(runtime, fieldHost, field, field), field, 'underline');
+
+        field.focus();
+        await nextRenderFrame();
+        const focusedField = captureInputIndicatorState(runtime, fieldHost, field, field);
+        expect(document.activeElement).toBe(field);
+        expect(field.matches(':focus-visible')).toBe(true);
+        expectInputIndicatorGeometry(focusedField, field, 'underline', { focus: true });
+        expectPaintedColorToResolveFromToken(focusedField.layers[1].color, field, '--cem-zebra-color-1');
+
+        const switchCase = cases[6];
+        switchCase.control.focus();
+        await nextRenderFrame();
+        await userEvent.hover(switchCase.control);
+        await nextRenderFrame();
+        const focusedInvalidSelection = captureInputIndicatorState(
+            runtime,
+            switchCase.host,
+            switchCase.control,
+            switchCase.target,
+        );
+        expect(document.activeElement).toBe(switchCase.control);
+        expect(switchCase.control.matches(':focus-visible')).toBe(true);
+        expectInputIndicatorGeometry(focusedInvalidSelection, switchCase.target, 'underline', {
+            focus: true,
+            selection: true,
+        });
+        expectPaintedColorToResolveFromToken(
+            focusedInvalidSelection.layers[0].color,
+            switchCase.target,
+            '--cem-input-indicator-anchor-invalid-hover-color',
+        );
+        expectPaintedColorToResolveFromToken(
+            focusedInvalidSelection.layers[1].color,
+            switchCase.target,
+            '--cem-zebra-color-1',
+        );
+        expectPaintedColorToResolveFromToken(
+            focusedInvalidSelection.layers[2].color,
+            switchCase.target,
+            '--cem-input-indicator-selection-color',
+        );
+        await userEvent.unhover(switchCase.control);
+
+        expect(cases[0].control.value).toBe('alpha');
+        expect(cases[2].control.readOnly).toBe(true);
+        expect(cases[3].control.getAttribute('aria-invalid')).toBe('true');
+        expect(cases[4].control.checked).toBe(true);
+        expect(cases[6].control.checked).toBe(true);
+        expect(cases[6].control.getAttribute('role')).toBe('switch');
+        expect(mutationEvents).toEqual([]);
+        expect(() => assertAriaReferenceIntegrity(harness.root)).not.toThrow();
+    });
+
     it('reflects form disabled, invalid, required, readonly, checked, and indeterminate states', async () => {
         harness = createComponentHarness();
         const root = await harness.render(`
@@ -1474,6 +1708,119 @@ function isSerializedEventPayload(value: unknown): value is SerializedEventPaylo
     const record = value as Partial<SerializedEventPayload>;
 
     return typeof record.type === 'string' && 'sliceValue' in record;
+}
+
+interface InputIndicatorLayer {
+    color: string;
+    geometry: readonly number[];
+}
+
+interface InputIndicatorStateSnapshot {
+    boxShadow: string;
+    controlHtml: string;
+    controlRect: readonly number[];
+    hostAttributes: readonly string[];
+    hostRect: readonly number[];
+    layers: readonly InputIndicatorLayer[];
+    runtime: string;
+    targetHtml: string;
+    targetRect: readonly number[];
+}
+
+function captureInputIndicatorState(
+    runtime: CemElementRuntime,
+    host: HTMLElement,
+    control: HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement,
+    target: HTMLElement,
+): InputIndicatorStateSnapshot {
+    const boxShadow = getComputedStyle(target).boxShadow;
+    const runtimeSnapshot = runtime.snapshotInstance(host);
+
+    return {
+        boxShadow,
+        controlHtml: control.outerHTML,
+        controlRect: rectTuple(control),
+        hostAttributes: Array.from(host.attributes, ({ name, value }) => `${name}=${value}`),
+        hostRect: rectTuple(host),
+        layers: parseInputIndicatorLayers(boxShadow),
+        runtime: JSON.stringify({
+            eventPayloads: runtimeSnapshot.eventPayloads,
+            formData: runtimeSnapshot.formData,
+            payload: runtimeSnapshot.payload,
+            slices: runtimeSnapshot.slices,
+            validationState: runtimeSnapshot.validationState,
+        }),
+        targetHtml: target.outerHTML,
+        targetRect: rectTuple(target),
+    };
+}
+
+function parseInputIndicatorLayers(boxShadow: string): readonly InputIndicatorLayer[] {
+    if (boxShadow === 'none') {
+        throw new Error('Expected a composed input indicator box shadow');
+    }
+
+    return splitTopLevel(boxShadow).map((layer) => {
+        const color = layer.match(/(?:rgba?|hsla?|color)\([^)]*\)/)?.[0];
+        const lengths = Array.from(layer.matchAll(/(-?\d*\.?\d+)px/g), (match) => Number(match[1]));
+
+        if (!color || lengths.length < 4) {
+            throw new Error(`Expected an input indicator shadow layer, received ${layer}`);
+        }
+
+        return {
+            color: paintedColor(color),
+            geometry: lengths.slice(-4),
+        };
+    });
+}
+
+function expectInputIndicatorGeometry(
+    snapshot: InputIndicatorStateSnapshot,
+    target: HTMLElement,
+    appearance: 'outline' | 'underline',
+    states: { focus?: boolean; selection?: boolean } = {},
+): void {
+    const boundary = resolveTokenLength(target, '--cem-stroke-boundary');
+    const stripe = resolveTokenLength(target, '--cem-zebra-strip-size');
+    const cumulativeWidths = [
+        boundary,
+        boundary + (states.focus ? stripe : 0),
+        boundary + (states.focus ? stripe : 0) + (states.selection ? stripe : 0),
+    ];
+
+    expect(snapshot.layers).toHaveLength(3);
+    for (const [index, layer] of snapshot.layers.entries()) {
+        const expected =
+            appearance === 'underline'
+                ? [0, cumulativeWidths[index], 0, 0]
+                : [0, 0, 0, cumulativeWidths[index]];
+        expect(layer.geometry).toEqual(expected);
+    }
+}
+
+function expectInputIndicatorStructureAndGeometry(
+    actual: InputIndicatorStateSnapshot,
+    expected: InputIndicatorStateSnapshot,
+): void {
+    expect(actual.controlHtml).toBe(expected.controlHtml);
+    expect(actual.controlRect).toEqual(expected.controlRect);
+    expect(actual.hostAttributes).toEqual(expected.hostAttributes);
+    expect(actual.hostRect).toEqual(expected.hostRect);
+    expect(actual.runtime).toBe(expected.runtime);
+    expect(actual.targetHtml).toBe(expected.targetHtml);
+    expect(actual.targetRect).toEqual(expected.targetRect);
+}
+
+function resolveTokenLength(element: Element, tokenName: string): number {
+    const value = getComputedStyle(element).getPropertyValue(tokenName).trim();
+    const match = value.match(/^(-?\d*\.?\d+)px$/);
+
+    if (!match) {
+        throw new Error(`Expected generated length token ${tokenName}, received ${value || '<empty>'}`);
+    }
+
+    return Number(match[1]);
 }
 
 interface ActionStateSnapshot {

@@ -63,6 +63,7 @@ function deriveColorTokens(xhtml) {
     }
 
     addTableTokens(xhtml, "cem-zebra-tokens", spec, "d0-zebra", tokens, warnings);
+    addTableTokens(xhtml, "cem-input-indicator-colors", spec, "d0-input-indicator", tokens, warnings);
 
     // Action tokens: cross-product of intent × state
     const intentRows = extractTable(xhtml, "cem-action-intent-emotion");
@@ -209,6 +210,7 @@ function deriveStrokeTokens(xhtml) {
         "cem-stroke-semantic",
         "cem-stroke-zebra-pattern",
         "cem-stroke-rings",
+        "cem-stroke-indicator-appearance",
     ]) {
         addTableTokens(xhtml, tableId, spec, spec, tokens, warnings);
     }
