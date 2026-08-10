@@ -1,7 +1,7 @@
 # Angular Material Parity Inventory
 
-**Status:** Pinned inventory landed; product mappings remain intentionally
-unreviewed. The active audit is tracked in
+**Status:** All pinned product mappings are audited; implementation priority is
+not yet accepted. The active decision is tracked in
 [`docs/todo.md`](../../../docs/todo.md).
 
 ## Benchmark
@@ -52,11 +52,32 @@ The mapping audit may use these states:
 - `covered`: the accepted mapping has exact state, keyboard, accessibility, and
   executable product-layer evidence.
 
-Every reviewed row must record one mapping kind (`component`, `behavior`, or
+Every reviewed row records one mapping kind (`component`, `behavior`, or
 `gap`), exact owners, required states, keyboard behavior, accessibility
 semantics, evidence, and notes. Component owners must be public
 `CEM_COMPONENT_PRIMITIVES` tags. Behavior owners use a `behavior:` identity.
 Evidence cannot point only at `packages/cem-elements` compatibility fixtures.
+
+The audit compares behavioral capability, not Angular directive, service, or
+TypeScript API compatibility. `covered` means that the accepted CEM semantic
+owner has executable state, keyboard, and accessibility evidence for the
+capability. `partial` means a real owner exists but the row names at least one
+Material-facing behavior that owner does not support. `gap` means no semantically
+appropriate public owner exists; a similarly shaped layout primitive is not
+substituted for the missing component.
+
+## Audit result
+
+| Classification | Count | Catalog entries |
+| --- | ---: | --- |
+| Covered | 6 | card, checkbox, dialog, input, select, slide-toggle |
+| Partial | 19 | badge, bottom-sheet, button, button-toggle, chips, core, form-field, grid-list, icon, list, menu, progress-bar, radio, ripple, sidenav, snack-bar, table, tabs, toolbar |
+| Gap | 12 | autocomplete, datepicker, divider, expansion, paginator, progress-spinner, slider, sort, stepper, timepicker, tooltip, tree |
+
+Each row in the executable inventory explains its boundary. In particular,
+`cem-grid` is not treated as a grid-list, `cem-tabs` is not treated as a stepper,
+`cem-progress` is not treated as a circular spinner, and navigation-specific
+disclosure is not treated as a general expansion panel.
 
 Run the invariant with:
 
@@ -64,7 +85,7 @@ Run the invariant with:
 yarn nx run @epa-wg/cem-components:verify-material-parity
 ```
 
-The gate currently verifies the exact 37-entry pin and reports all 37 rows as
-unreviewed, with `autocomplete` recommended as the first mapping audit. It does
-not select the first implementation gap; implementation priority is accepted
-only after all mappings are reviewed.
+The gate verifies the exact 37-entry pin and every audited mapping. It reports
+six covered rows, nineteen partial rows, twelve gaps, and no remaining audit.
+It does not select the first implementation gap; choosing whether to close a gap
+or deepen a partial mapping is the next explicit product decision.

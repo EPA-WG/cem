@@ -102,6 +102,9 @@ const expectedRecommendedAudit = records.find((record) => record?.status === 'un
 if (inventory.recommendedAudit !== expectedRecommendedAudit) {
     fail(`recommendedAudit must be the first unreviewed row (${String(expectedRecommendedAudit)})`);
 }
+if (records.some((record) => record?.status === 'unreviewed')) {
+    fail('the pinned v22.1.1 catalog audit must not contain unreviewed rows');
+}
 
 if (failures.length > 0) {
     for (const failure of failures) {
@@ -193,9 +196,20 @@ function validateEvidence(label, reference) {
         fail(`${label}: evidence must be rooted in packages/cem-components, received ${String(reference)}`);
         return;
     }
-    const path = reference.split('::', 1)[0];
-    if (!existsSync(resolve(repoRoot, path))) {
+    const separatorIndex = reference.indexOf('::');
+    const path = separatorIndex === -1 ? reference : reference.slice(0, separatorIndex);
+    const locator = separatorIndex === -1 ? '' : reference.slice(separatorIndex + 2);
+    const absolutePath = resolve(repoRoot, path);
+    if (!existsSync(absolutePath)) {
         fail(`${label}: evidence path does not exist: ${path}`);
+        return;
+    }
+    if (separatorIndex !== -1 && !locator) {
+        fail(`${label}: evidence locator must not be empty: ${reference}`);
+        return;
+    }
+    if (locator && !readFileSync(absolutePath, 'utf8').includes(locator)) {
+        fail(`${label}: evidence locator does not exist in ${path}: ${locator}`);
     }
 }
 

@@ -66,10 +66,20 @@ mediate between internal layers.
       styled Material-superset `cem-components` product layer in the root README
       and component reference. The uncached 21-task aggregate gate, all 57
       browser tests, and component lint pass.
-  - [ ] Audit every pinned row as an existing CEM component, cross-cutting CEM
+  - [x] Audit every pinned row as an existing CEM component, cross-cutting CEM
         behavior, partial mapping, or explicit gap. Record exact CEM tags,
         states, keyboard behavior, accessibility semantics, and executable
         evidence without treating element existence as behavioral parity.
+    - Classified all 37 Angular Material `v22.1.1` entries: 6 covered, 19
+      partial, 12 gaps, and 0 unreviewed. Each reviewed row records its semantic
+      owner boundary, states, keyboard contract, accessibility semantics,
+      executable `cem-components` evidence, and an explicit limitation note.
+    - Covered means behavioral capability rather than Angular directive,
+      service, or TypeScript API compatibility. Shape-only substitutions are
+      rejected: grid is not grid-list, tabs are not a stepper, linear progress
+      is not a spinner, and navigation disclosure is not an expansion panel.
+    - The verifier now rejects regression to unreviewed rows and stale evidence
+      locators. No component CSS or theme exception was added during the audit.
   - [ ] Accept the first implementation priority from the audited gaps. Define
         its semantic owner, state and event model, keyboard/accessibility
         contract, theme-token coverage, focused fixture, forced-colors boundary,
