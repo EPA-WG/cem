@@ -88,7 +88,9 @@ See the [action hover contract](./action-hover-contract.md) and
 | `cem-field` | Generic labeled single-line field. | `name`, `value`, `type`, `placeholder`, `indicator`, `busy`; named label/help slots. | input indicator, stroke, zebra, bend, gap, typography | Label slot or `label` attribute must name the input. |
 | `cem-text-field` | Single-line text entry. | `name`, `value`, `placeholder`, `indicator`, `busy`; `slot="label"` and `slot="help"`. | input indicator, stroke, zebra, bend, gap, typography | Label slot or `label` attribute must name the input. Help text must not become the accessible name. |
 | `cem-textarea` | Multi-line text entry. | `name`, `value`, `placeholder`, `indicator`, `busy`; `slot="label"` and `slot="help"`. | input indicator, stroke, zebra, bend, gap, typography | Same label and help rules as text field. |
-| `cem-select` | Native single-value choice. | Project `<option>` children; `indicator`; `busy`; `slot="label"` names the control. | input indicator, stroke, zebra, bend, control, typography | Label slot or `label` attribute must name the select. |
+| `cem-select` | Form-associated custom single/multiple choice with HTML-rendered options. | Canonical direct `cem-option`/`cem-option-group`; all-native `option`/`optgroup` migration adapter; `multiple`, `size`, `indicator`, `busy`, label/help slots. See the [custom select contract](./select-contract.md). | select, input indicator, stroke, zebra, bend, layering, control, typography | Label slot or `label` attribute names the combobox/listbox; focus remains on the composite owner with `aria-activedescendant`. |
+| `cem-option` | Canonical rich option payload consumed by `cem-select`. | Required `value`; optional `label`, `selected`, and `disabled`; static HTML descendants. | palette, typography | Does not create a nested tab stop or interaction owner. |
+| `cem-option-group` | Canonical labeled grouping payload consumed by `cem-select`. | Required `label`; optional `disabled`; direct `cem-option` children. | palette, typography | The select projects `role="group"` and its accessible label. |
 | `cem-checkbox` | Binary form choice. | Default slot is label; `name` and `value` forward to native input; `indicator`; `busy`. | input indicator, stroke, zebra, control, bend, typography | Wrapping label must expose the visible text as the accessible name. |
 | `cem-radio` | Mutually exclusive form choice. | Default slot is label; shared `name` groups radios; `indicator`; `busy`. | input indicator, stroke, zebra, control, typography | Radio group context should provide the set label. |
 | `cem-switch` | Immediate boolean setting. | Default slot is label; renders checkbox with `role="switch"`; `indicator`; `busy`. | input indicator, stroke, zebra, action, control, bend | Visible label must name the switch. |
@@ -97,7 +99,7 @@ States: `default`, `hover`, `focus-visible`, `disabled`, `loading`, `expanded`, 
 `checked`, `indeterminate`.
 
 Presence-only host `busy` projects exact `data-state="loading"` and
-`aria-busy="true"` markers to the same native control. It does not infer or
+`aria-busy="true"` markers to the same interactive control. It does not infer or
 perform asynchronous work, disable editing, create runtime state, or replace
 the control; label, value, focus, and dimensions remain stable. See the
 [input loading contract](./input-loading-contract.md).

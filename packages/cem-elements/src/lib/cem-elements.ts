@@ -334,6 +334,41 @@ export interface CemElementRuntimeOptions {
     validateGeneratedIds?: boolean;
 }
 
+/** Browser-only lifecycle adapter for a produced custom element.
+ *
+ * The adapter is deliberately excluded from snapshots and render plans: CEM-QL
+ * remains the authoritative renderer while behavior owns browser interaction,
+ * focus, and form-associated callbacks.
+ */
+export interface CemProducedElementBehavior {
+    formAssociated?: boolean;
+    constructed?(instance: HTMLElement, context: CemProducedElementBehaviorContext): void;
+    connected?(instance: HTMLElement, context: CemProducedElementBehaviorContext): void;
+    beforeRender?(instance: HTMLElement, context: CemProducedElementBehaviorContext): void;
+    rendered?(instance: HTMLElement, context: CemProducedElementBehaviorContext): void;
+    disconnected?(instance: HTMLElement, context: CemProducedElementBehaviorContext): void;
+    formDisabled?(instance: HTMLElement, disabled: boolean, context: CemProducedElementBehaviorContext): void;
+    formReset?(instance: HTMLElement, context: CemProducedElementBehaviorContext): void;
+    formStateRestore?(
+        instance: HTMLElement,
+        state: File | FormData | string | null,
+        mode: 'restore' | 'autocomplete',
+        context: CemProducedElementBehaviorContext
+    ): void;
+}
+
+export interface CemDeclarationRegistrationOptions {
+    behavior?: CemProducedElementBehavior;
+}
+
+export interface CemProducedElementBehaviorContext {
+    readonly runtime: CemElementRuntime;
+    readonly internals: ElementInternals | null;
+    snapshot(): DataIslandSnapshot;
+    setSlices(values: Readonly<Record<string, unknown>>, options?: { render?: boolean }): boolean;
+    requestRender(): void;
+}
+
 export interface CemElementUidSeedInput {
     declarationElement: HTMLElement;
     declarationTag: string;
@@ -386,6 +421,7 @@ interface CompiledDeclaration {
     declaredAttributes: AttributeDeclaration[];
     declaredSlices: SliceDeclaration[];
     diagnostics: CemElementDiagnostic[];
+    behavior?: CemProducedElementBehavior;
 }
 
 interface RenderBounds {
@@ -710,6 +746,7 @@ export class CemElementRuntime {
     private readonly diagnostics = new WeakMap<object, CemElementDiagnostic[]>();
     private readonly initializedInstances = new WeakSet<HTMLElement>();
     private readonly registeredDeclarationElements = new WeakSet<object>();
+    private readonly registrationOptions = new WeakMap<object, CemDeclarationRegistrationOptions>();
     private readonly hydratedServerRenders = new WeakSet<HTMLElement>();
     private readonly hydrationSnapshots = new WeakMap<HTMLElement, DataIslandSnapshot>();
     private readonly instanceIds = new WeakMap<HTMLElement, string>();
@@ -724,6 +761,7 @@ export class CemElementRuntime {
     private readonly customValidationMessages = new WeakMap<Element, string>();
     private readonly renderTokens = new WeakMap<HTMLElement, number>();
     private readonly renderSettled = new WeakMap<HTMLElement, Promise<void>>();
+    private readonly elementInternals = new WeakMap<HTMLElement, ElementInternals>();
     private readonly declarationSettled = new WeakMap<object, Promise<void>>();
     /** Dedupes the async engine lowering of a legacy-xslt declaration across its instances. */
     private readonly legacyConversions = new WeakMap<CompiledDeclaration, Promise<void>>();
@@ -786,10 +824,15 @@ export class CemElementRuntime {
         host.customElements.define(this.declarationTag, CemElementDeclarationElement);
     }
 
-    registerDeclaration(declarationElement: HTMLElement): boolean {
+    registerDeclaration(
+        declarationElement: HTMLElement,
+        options: CemDeclarationRegistrationOptions = {}
+    ): boolean {
         if (this.registeredDeclarationElements.has(declarationElement)) {
             return true;
         }
+
+        this.registrationOptions.set(declarationElement, options);
 
         const shape = analyzeDeclarationElement(declarationElement);
         if (!shape.ok || !shape.tag) {
@@ -862,6 +905,7 @@ export class CemElementRuntime {
             declarationTag: this.declarationTag,
             uidSeed: this.uidSeedOption,
             uidSeedFallback: this.uidSeedFallback,
+            behavior: this.registrationOptions.get(declarationElement)?.behavior,
         });
         if (!this.validateGeneratedDeclarationIds(compiled)) {
             return Promise.resolve();
@@ -1006,6 +1050,46 @@ export class CemElementRuntime {
         return this.createSnapshot(instance, declaration, island);
     }
 
+    /** Update serializable instance slices from an opt-in browser behavior adapter. */
+    setInstanceSlices(
+        instance: HTMLElement,
+        values: Readonly<Record<string, unknown>>,
+        options: { render?: boolean } = {}
+    ): boolean {
+        const compiled = this.declarationForInstance(instance);
+        if (!compiled) {
+            throw new Error(`No <${this.declarationTag}> declaration registered for <${instance.localName}>`);
+        }
+        const island = this.ensureDataIsland(instance);
+        const state = this.ensureInstanceState(instance, compiled, island);
+        let changed = false;
+        for (const [name, value] of Object.entries(values)) {
+            if (!resourceValuesEqual(state.slices[name], value)) {
+                state.slices[name] = value;
+                changed = true;
+            }
+        }
+        if (changed && options.render !== false && instance.isConnected) {
+            this.renderInstance(instance, compiled);
+        }
+        return changed;
+    }
+
+    private behaviorContext(instance: HTMLElement): CemProducedElementBehaviorContext {
+        return {
+            runtime: this,
+            internals: this.elementInternals.get(instance) ?? null,
+            snapshot: () => this.snapshotInstance(instance),
+            setSlices: (values, options) => this.setInstanceSlices(instance, values, options),
+            requestRender: () => {
+                const compiled = this.declarationForInstance(instance);
+                if (compiled && instance.isConnected) {
+                    this.renderInstance(instance, compiled);
+                }
+            },
+        };
+    }
+
     private defineProducedElement(declarationElement: HTMLElement, compiled: CompiledDeclaration): void {
         const registry = declarationElement.ownerDocument.defaultView?.customElements;
         const baseElement = declarationElement.ownerDocument.defaultView?.HTMLElement;
@@ -1033,6 +1117,8 @@ export class CemElementRuntime {
 
         const connectProducedInstance = this.connectProducedInstance.bind(this);
         const disconnectProducedInstance = this.disconnectProducedInstance.bind(this);
+        const behaviorContext = this.behaviorContext.bind(this);
+        const internals = this.elementInternals;
         // No `observedAttributes`/`attributeChangedCallback`: the declared-attribute list
         // is only known after the async WASM compile, but `observedAttributes` is read once
         // at definition time. Instead a per-instance MutationObserver (set up on connect)
@@ -1040,12 +1126,44 @@ export class CemElementRuntime {
         // `observeInstance`. This keeps the element defined synchronously and observes
         // attributes the synchronous path could not have known.
         class ProducedCemElement extends baseElement {
+            static formAssociated = compiled.behavior?.formAssociated ?? false;
+
+            constructor() {
+                super();
+                const registeredConstructor = this.ownerDocument.defaultView?.customElements.get(
+                    compiled.producedTag
+                );
+                if (
+                    ProducedCemElement.formAssociated
+                    && registeredConstructor === ProducedCemElement
+                    && typeof this.attachInternals === 'function'
+                ) {
+                    internals.set(this, this.attachInternals());
+                }
+                compiled.behavior?.constructed?.(this, behaviorContext(this));
+            }
+
             connectedCallback(): void {
                 connectProducedInstance(this, compiled);
             }
 
             disconnectedCallback(): void {
                 disconnectProducedInstance(this);
+            }
+
+            formDisabledCallback(disabled: boolean): void {
+                compiled.behavior?.formDisabled?.(this, disabled, behaviorContext(this));
+            }
+
+            formResetCallback(): void {
+                compiled.behavior?.formReset?.(this, behaviorContext(this));
+            }
+
+            formStateRestoreCallback(
+                state: File | FormData | string | null,
+                mode: 'restore' | 'autocomplete'
+            ): void {
+                compiled.behavior?.formStateRestore?.(this, state, mode, behaviorContext(this));
             }
         }
 
@@ -1057,14 +1175,20 @@ export class CemElementRuntime {
         this.ensureInstanceScope(instance, compiled);
         const state = this.ensureInstanceState(instance, compiled, island);
         this.observeInstance(instance, island, state);
+        compiled.behavior?.connected?.(instance, this.behaviorContext(instance));
         if (this.hydratedServerRenders.has(instance)) {
             this.renderSettled.set(instance, Promise.resolve());
+            compiled.behavior?.rendered?.(instance, this.behaviorContext(instance));
             return;
         }
         this.renderInstance(instance, compiled);
     }
 
     private disconnectProducedInstance(instance: HTMLElement): void {
+        this.declarationForInstance(instance)?.behavior?.disconnected?.(
+            instance,
+            this.behaviorContext(instance)
+        );
         const state = this.instanceStates.get(instance);
         state?.observer?.disconnect();
         if (state) {
@@ -1122,13 +1246,21 @@ export class CemElementRuntime {
     private renderInstance(instance: HTMLElement, compiled: CompiledDeclaration): void {
         const island = this.ensureDataIsland(instance);
         this.ensureInstanceState(instance, compiled, island);
+        compiled.behavior?.beforeRender?.(instance, this.behaviorContext(instance));
         const snapshot = this.createSnapshot(instance, compiled, island);
         const token = this.nextRenderToken(instance);
 
         if (compiled.wasmEligible && (compiled.cemMlSource !== null || compiled.legacySource !== null)) {
             // Canonical CEM-ML — and legacy HTML+XSLT (lowered by the engine on first render) —
             // render through the authoritative `cem_ql` WASM boundary.
-            this.renderSettled.set(instance, this.renderViaWasm(instance, compiled, snapshot, token));
+            this.renderSettled.set(
+                instance,
+                this.renderViaWasm(instance, compiled, snapshot, token).then(() => {
+                    if (this.renderTokens.get(instance) === token) {
+                        compiled.behavior?.rendered?.(instance, this.behaviorContext(instance));
+                    }
+                })
+            );
             return;
         }
 
@@ -1137,7 +1269,13 @@ export class CemElementRuntime {
         const renderPlan = this.renderFromDeclaration(instance, compiled, snapshot);
         this.renderSettled.set(
             instance,
-            renderPlan ? this.commitRenderPlan(instance, compiled, island, renderPlan, token) : Promise.resolve()
+            (renderPlan ? this.commitRenderPlan(instance, compiled, island, renderPlan, token) : Promise.resolve()).then(
+                () => {
+                    if (this.renderTokens.get(instance) === token) {
+                        compiled.behavior?.rendered?.(instance, this.behaviorContext(instance));
+                    }
+                }
+            )
         );
     }
 
@@ -2729,6 +2867,7 @@ function compileInlineDeclaration(
         declaredAttributes,
         declaredSlices,
         diagnostics,
+        behavior: options.behavior,
     };
 }
 
@@ -2736,6 +2875,7 @@ interface InlineDeclarationCompileOptions {
     declarationTag: string;
     uidSeed?: CemElementRuntimeOptions['uidSeed'];
     uidSeedFallback: NonNullable<CemElementRuntimeOptions['uidSeedFallback']>;
+    behavior?: CemProducedElementBehavior;
 }
 
 interface ResolvedUidSeed {

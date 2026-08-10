@@ -14,9 +14,10 @@
         "input:hover",
         "input:focus-visible",
         "input:loading",
-        "input:expanded"
+        "input:expanded",
+        "navigation:hover"
     ],
-    "recommendedNext": "input:expanded",
+    "recommendedNext": "navigation:hover",
     "coverage": [
         {
             "id": "action:default",
@@ -167,7 +168,7 @@
                 "expectInputIndicatorStructureAndGeometry(focused, baselines[index]);",
                 "expect(document.activeElement).not.toBe(disabled);",
                 "expect(restoredSwitch.boxShadow).toBe(switchBaseline.boxShadow);",
-                "expect(focusOrder).toEqual(cases.map(({ control }) => control.name));",
+                "expect(document.activeElement).toBe(control);",
                 "expect(mutationEvents).toEqual([]);"
             ]
         },
@@ -211,8 +212,14 @@
             "state": "expanded",
             "components": ["cem-select"],
             "interaction": "Open and close a select-like disclosure and mirror its expanded state.",
-            "status": "gap",
-            "reason": "Native select rendering is covered, but no disclosure transition or aria-expanded assertion exists."
+            "status": "covered",
+            "owner": "packages/cem-components/src/lib/states.browser.spec.ts",
+            "test": "renders rich cem-option content with native-like dropdown, listbox, and form behavior",
+            "assertions": [
+                "expect(roleControl.getAttribute('aria-expanded')).toBe('true');",
+                "expect(roleControl.getAttribute('aria-controls')).toBe(popup.id);",
+                "expect(roleControl.getAttribute('aria-expanded')).toBe('false');"
+            ]
         },
         {
             "id": "input:invalid",

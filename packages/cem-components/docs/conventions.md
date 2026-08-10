@@ -152,7 +152,7 @@ through a documented event, it does not belong in a component.
 
 ## 4. Form Participation
 
-Form components (`cem-text-field`, `cem-select-field`, `cem-checkbox`, `cem-form`)
+Form components (`cem-text-field`, `cem-select`, `cem-checkbox`, `cem-form`)
 MUST participate in WHATWG form-associated custom elements:
 
 - `static formAssociated = true` so the component shows up in the implicit
@@ -235,7 +235,7 @@ SHOULD retain last-known content and placement. See the
 [layout loading](./layout-loading-contract.md) contracts.
 
 The seven input primitives use the same presence-only projection boundary at
-the native control: explicit host `busy` produces `data-state="loading"` and
+their interactive control: explicit host `busy` produces `data-state="loading"` and
 `aria-busy="true"` without starting work or changing value, focus, dimensions,
 or interaction. D0 pending color and D5 pending stroke thickness compose the
 anchor cue without relying on hue alone. See the

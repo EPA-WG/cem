@@ -98,6 +98,13 @@ pub enum TemplateNode {
         children: Vec<TemplateNode>,
         source_map: SourceMapStack,
     },
+    /// `cem:project-payload` — materializes the runtime's serialized payload-node records
+    /// as render-plan nodes. This is the authoritative bridge for rich declarative payload;
+    /// it never carries live DOM identity, JavaScript properties, or event listeners.
+    ProjectPayload {
+        select: Option<CompiledTemplateExpression>,
+        source_map: SourceMapStack,
+    },
 }
 
 #[derive(Debug, Clone)]
@@ -661,6 +668,9 @@ impl TemplateCompiler<'_> {
             SchemaTokenKind::NodeStart { name } if is_for_each_name(name) => {
                 Some(self.compile_for_each())
             }
+            SchemaTokenKind::NodeStart { name } if is_project_payload_name(name) => {
+                Some(self.compile_project_payload())
+            }
             SchemaTokenKind::NodeStart { .. } => Some(self.compile_element()),
             SchemaTokenKind::Text(text) | SchemaTokenKind::Trivia(text) => {
                 let text = text.clone();
@@ -917,6 +927,48 @@ impl TemplateCompiler<'_> {
             select,
             as_name: loop_name,
             children,
+            source_map: frame_for(&start),
+        }
+    }
+
+    fn compile_project_payload(&mut self) -> TemplateNode {
+        let start = self.tokens[self.index].clone();
+        let tag = node_start_name(&start);
+        self.index += 1;
+        let mut select = None;
+        while self.index < self.tokens.len() {
+            match &self.tokens[self.index].kind {
+                SchemaTokenKind::Attribute { name, value, .. } => {
+                    let token = self.tokens[self.index].clone();
+                    let raw = value.clone().unwrap_or_default();
+                    self.index += 1;
+                    if name == "select" {
+                        select = Some(self.compile_expression(&raw, &token));
+                    }
+                }
+                SchemaTokenKind::Trivia(_) => self.index += 1,
+                _ => break,
+            }
+        }
+        if select.is_none() {
+            self.diagnostics.push(render_diagnostic(
+                "cem.ql.render.project_payload_missing_select",
+                "`cem:project-payload` requires a `@select` expression".to_owned(),
+                start.byte_range.start,
+                frame_for(&start),
+            ));
+        }
+        let children = self.parse_children(&tag);
+        if !children.is_empty() {
+            self.diagnostics.push(render_diagnostic(
+                "cem.ql.render.project_payload_children_ignored",
+                "`cem:project-payload` does not accept template children".to_owned(),
+                start.byte_range.start,
+                frame_for(&start),
+            ));
+        }
+        TemplateNode::ProjectPayload {
+            select,
             source_map: frame_for(&start),
         }
     }
@@ -1288,6 +1340,20 @@ impl PlanRenderer {
                         self.evaluation_context
                             .policy_bindings
                             .remove(POSITION_BINDING);
+                    }
+                }
+            }
+            TemplateNode::ProjectPayload { select, source_map } => {
+                for item in self.evaluate_select(select.as_ref()) {
+                    match payload_item_to_render_node(&item, source_map) {
+                        Some(node) => out.push(node),
+                        None => self.diagnostics.push(render_diagnostic(
+                            "cem.ql.render.project_payload_invalid_node",
+                            "`cem:project-payload` selected a value that is not a serialized payload node"
+                                .to_owned(),
+                            source_map_start(source_map),
+                            source_map.clone(),
+                        )),
                     }
                 }
             }
@@ -2038,6 +2104,72 @@ fn is_for_each_name(name: &str) -> bool {
     conditional_local_name(name) == "for-each"
 }
 
+fn is_project_payload_name(name: &str) -> bool {
+    conditional_local_name(name) == "project-payload"
+}
+
+fn payload_item_to_render_node(item: &Item, source_map: &SourceMapStack) -> Option<RenderPlanNode> {
+    let Item::Record(record) = item else {
+        return None;
+    };
+    match record_string(record, "kind")?.as_str() {
+        "text" => Some(RenderPlanNode::Text {
+            text: record_string(record, "text").unwrap_or_default(),
+            source_map: source_map.clone(),
+        }),
+        "comment" => Some(RenderPlanNode::Comment {
+            text: record_string(record, "text").unwrap_or_default(),
+            source_map: source_map.clone(),
+        }),
+        "element" => {
+            let tag = record_string(record, "tag")?;
+            let namespace = record_string(record, "namespace").filter(|value| !value.is_empty());
+            let attributes = record_record(record, "attributes")
+                .map(|attributes| {
+                    attributes
+                        .iter()
+                        .map(|(name, values)| RenderPlanAttribute {
+                            name: name.clone(),
+                            namespace: None,
+                            value: values.iter().map(item_to_string).collect::<String>(),
+                            value_stream: ItemStream::from_items(values.clone()),
+                            source_map: source_map.clone(),
+                        })
+                        .collect::<Vec<_>>()
+                })
+                .unwrap_or_default();
+            let children = record_items(record, "children")
+                .into_iter()
+                .flat_map(|item| item.members().unwrap_or_else(|| vec![item]))
+                .filter_map(|item| payload_item_to_render_node(&item, source_map))
+                .collect::<Vec<_>>();
+            Some(RenderPlanNode::Element {
+                tag,
+                namespace,
+                attributes,
+                children,
+                source_map: source_map.clone(),
+            })
+        }
+        _ => None,
+    }
+}
+
+fn record_items(record: &BTreeMap<String, Vec<Item>>, name: &str) -> Vec<Item> {
+    record.get(name).cloned().unwrap_or_default()
+}
+
+fn record_record<'a>(record: &'a BTreeMap<String, Vec<Item>>, name: &str) -> Option<&'a BTreeMap<String, Vec<Item>>> {
+    record.get(name)?.first().and_then(|item| match item {
+        Item::Record(value) => Some(value),
+        _ => None,
+    })
+}
+
+fn record_string(record: &BTreeMap<String, Vec<Item>>, name: &str) -> Option<String> {
+    record.get(name)?.first().map(item_to_string)
+}
+
 /// Build a per-node source-map stack from a token's real absolute `byte_range`.
 ///
 /// The CEM tokenizer stamps every token's `source_map` with the whole-document
@@ -2205,6 +2337,66 @@ mod tests {
             render_plan_to_html_with_source_map(&plan).rendered,
             render_plan_to_html(&plan)
         );
+    }
+
+    #[test]
+    fn project_payload_materializes_serialized_rich_nodes() {
+        let text = record([
+            ("kind", vec![Item::Atomic(AtomValue::String("text".to_owned()))]),
+            ("key", vec![Item::Atomic(AtomValue::String("0/0/0".to_owned()))]),
+            ("text", vec![Item::Atomic(AtomValue::String("Ada".to_owned()))]),
+        ]);
+        let strong = record([
+            ("kind", vec![Item::Atomic(AtomValue::String("element".to_owned()))]),
+            ("key", vec![Item::Atomic(AtomValue::String("0/0".to_owned()))]),
+            ("tag", vec![Item::Atomic(AtomValue::String("strong".to_owned()))]),
+            ("namespace", vec![Item::Atomic(AtomValue::Null)]),
+            ("attributes", vec![Item::Record(BTreeMap::new())]),
+            ("children", vec![Item::Array(vec![text])]),
+        ]);
+        let comment = record([
+            ("kind", vec![Item::Atomic(AtomValue::String("comment".to_owned()))]),
+            ("key", vec![Item::Atomic(AtomValue::String("0/1".to_owned()))]),
+            ("text", vec![Item::Atomic(AtomValue::String("note".to_owned()))]),
+        ]);
+        let span = record([
+            ("kind", vec![Item::Atomic(AtomValue::String("element".to_owned()))]),
+            ("key", vec![Item::Atomic(AtomValue::String("0".to_owned()))]),
+            ("tag", vec![Item::Atomic(AtomValue::String("span".to_owned()))]),
+            ("namespace", vec![Item::Atomic(AtomValue::Null)]),
+            (
+                "attributes",
+                vec![Item::Record(BTreeMap::from([(
+                    "class".to_owned(),
+                    vec![Item::Atomic(AtomValue::String("rich".to_owned()))],
+                )]))],
+            ),
+            ("children", vec![Item::Array(vec![strong, comment])]),
+        ]);
+        let payload = record([("nodes", vec![Item::Array(vec![span])])]);
+        let datadom = record([("payload", vec![payload])]);
+        let data = TemplateData::default()
+            .with_binding("datadom", ItemStream::once(datadom));
+
+        let rendered = render_template(
+            r#"{div | {cem:project-payload @select="datadom.payload.nodes" | }}"#,
+            &data,
+        );
+
+        assert_eq!(rendered.rendered, r#"<div><span class="rich"><strong>Ada</strong><!--note--></span></div>"#);
+        assert!(rendered.diagnostics.is_empty(), "{:?}", rendered.diagnostics);
+    }
+
+    #[test]
+    fn project_payload_requires_select() {
+        let rendered = render_template(
+            "{cem:project-payload | }",
+            &TemplateData::default(),
+        );
+        assert!(rendered
+            .diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.code == "cem.ql.render.project_payload_missing_select"));
     }
 
     #[test]

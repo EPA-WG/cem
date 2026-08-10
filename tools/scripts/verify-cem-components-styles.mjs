@@ -20,11 +20,13 @@ const tokenCssPath = join(repoRoot, 'packages/cem-theme/dist/lib/css/cem-combine
 const TOKEN_FAMILY_PREFIXES = {
     action: ['--cem-action-'],
     bend: ['--cem-bend', '--cem-bend-'],
-    control: ['--cem-control-'],
+    control: ['--cem-control-', '--cem-list-', '--cem-menu-', '--cem-table-'],
     gap: ['--cem-gap-'],
     inset: ['--cem-inset-'],
+    layering: ['--cem-layer-', '--cem-elevation-'],
     palette: ['--cem-palette-'],
     responsive: ['--cem-bp-', '--cem-cq-'],
+    select: ['--cem-select-'],
     stroke: ['--cem-stroke-'],
     typography: ['--cem-typography-', '--cem-fontography-'],
 };

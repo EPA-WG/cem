@@ -1,9 +1,15 @@
-import type { CemElementDiagnostic, CemElementRuntime } from '@epa-wg/cem-elements';
+import type {
+    CemElementDiagnostic,
+    CemElementRuntime,
+    CemProducedElementBehavior,
+} from '@epa-wg/cem-elements';
+import { CEM_SELECT_BEHAVIOR } from './select-behavior.js';
 
 export interface CemComponentPrimitiveDeclaration {
     readonly tag: string;
     readonly description: string;
     readonly cemMl: string;
+    readonly behavior?: CemProducedElementBehavior;
 }
 
 export interface CemComponentPrimitiveInstallResult {
@@ -73,13 +79,63 @@ export const CEM_COMPONENT_PRIMITIVES = [
     },
     {
         tag: 'cem-select',
-        description: 'MVP native select field with projected option content.',
+        description: 'Form-associated custom select with rich cem-option content.',
+        behavior: CEM_SELECT_BEHAVIOR,
         cemMl:
-            '{attribute @name=label | Select}' +
-            '{attribute @name=indicator | underline}' +
-            '{div @class=cem-select |' +
-            ' {label @class=cem-select__label | {span | {slot @name=label | {$label}}} {select @class=cem-select__control @name="{$datadom.attributes.name}" @disabled={datadom.attributes.disabled} @required={datadom.attributes.required} @data-state={if datadom.attributes.busy { "loading" } else { null }} @aria-busy={if datadom.attributes.busy { true } else { null }} @aria-invalid={datadom.attributes.invalid} @aria-describedby={datadom.attributes.describedby} @aria-errormessage={datadom.attributes.error} @slice=value @slice-event=change @slice-value="{$target.value}" | {slot | {option @value="" | Choose}}}}' +
-            ' {span @class=cem-select__help | {slot @name=help}}}',
+            '{module |' +
+            ' {attribute @name=label | Select}' +
+            ' {attribute @name=indicator | underline}' +
+            ' {slice @name=groups}' +
+            ' {slice @name=value | }' +
+            ' {slice @name=selectedValues}' +
+            ' {slice @name=expanded | false}' +
+            ' {slice @name=mode | dropdown}' +
+            ' {template @name=select-option |' +
+            '  {param @name=option}' +
+            '  {body |' +
+            '   {div @id="{$option.id}" @class=cem-select__option @role=option @data-option-index="{$option.index}" @data-active="{$option.active}" @aria-selected="{$option.selected}" @aria-disabled="{$option.disabled}" |' +
+            '    {cem:choose |' +
+            '     {cem:when @test="option.rich" | {cem:project-payload @select="option.children" | }}' +
+            '     {cem:otherwise | {$option.label}}}}}}}' +
+            ' {template @name=select-options |' +
+            '  {param @name=groups}' +
+            '  {body |' +
+            '   {cem:for-each @select="groups" @as=group |' +
+            '    {cem:choose |' +
+            '     {cem:when @test="group.label" |' +
+            '      {div @class=cem-select__group @role=group @aria-label="{$group.label}" @aria-disabled="{$group.disabled}" |' +
+            '       {div @class=cem-select__group-label @aria-hidden=true | {$group.label}}' +
+            '       {cem:for-each @select="group.options" @as=option | {call @template=select-option @with:option="{$option}"}}}}' +
+            '     {cem:otherwise |' +
+            '      {cem:for-each @select="group.options" @as=option | {call @template=select-option @with:option="{$option}"}}}}}}}' +
+            ' {body |' +
+            '  {div @class=cem-select |' +
+            '   {span @id="{$datadom.slices.labelId}" @class=cem-select__label | {slot @name=label | {$label}}}' +
+            '   {cem:choose |' +
+            '    {cem:when @test=\'datadom.slices.mode == "dropdown"\' |' +
+            '     {button @type=button @class=cem-select__control @role=combobox @value="{$datadom.slices.value}" @aria-labelledby="{$datadom.slices.labelId}" @aria-haspopup=listbox @aria-expanded="{$datadom.slices.expanded}" @aria-controls={if datadom.slices.expanded { datadom.slices.popupId } else { null }} @aria-activedescendant={if datadom.slices.expanded { datadom.slices.activeOptionId } else { null }} @disabled={if datadom.attributes.disabled || datadom.slices.behaviorDisabled { true } else { null }} @data-state={if datadom.attributes.busy { "loading" } else { null }} @aria-busy={if datadom.attributes.busy { true } else { null }} @aria-invalid={datadom.attributes.invalid} @aria-describedby={datadom.attributes.describedby} @aria-errormessage={datadom.attributes.error} |' +
+            '      {span @class=cem-select__value |' +
+            '       {cem:choose |' +
+            '        {cem:when @test="datadom.slices.selectedRich" | {cem:project-payload @select="datadom.slices.selectedChildren" | }}' +
+            '        {cem:otherwise | {$datadom.slices.displayLabel}}}}' +
+            '      {span @class=cem-select__marker @aria-hidden=true | ▾}}' +
+            '     {cem:if @test="datadom.slices.expanded" |' +
+            '      {div @id="{$datadom.slices.popupId}" @class=cem-select__popup @role=listbox @aria-labelledby="{$datadom.slices.labelId}" |' +
+            '       {call @template=select-options @with:groups="{$datadom.slices.groups}"}}}}' +
+            '    {cem:otherwise |' +
+            '     {div @id="{$datadom.slices.listboxId}" @class="cem-select__control cem-select__listbox" @role=listbox @tabindex={if datadom.attributes.disabled || datadom.slices.behaviorDisabled { -1 } else { 0 }} @aria-labelledby="{$datadom.slices.labelId}" @aria-multiselectable={if datadom.slices.mode == "multiple-listbox" { true } else { null }} @aria-activedescendant="{$datadom.slices.activeOptionId}" @aria-disabled="{$datadom.attributes.disabled || datadom.slices.behaviorDisabled}" @data-visible-rows="{$datadom.slices.visibleRows}" @data-state={if datadom.attributes.busy { "loading" } else { null }} @aria-busy={if datadom.attributes.busy { true } else { null }} @aria-invalid={datadom.attributes.invalid} @aria-describedby={datadom.attributes.describedby} @aria-errormessage={datadom.attributes.error} |' +
+            '      {call @template=select-options @with:groups="{$datadom.slices.groups}"}}}}' +
+            '   {span @class=cem-select__help | {slot @name=help}}}}}',
+    },
+    {
+        tag: 'cem-option',
+        description: 'Canonical rich-content option consumed by cem-select.',
+        cemMl: '{span @class=cem-option | {slot}}',
+    },
+    {
+        tag: 'cem-option-group',
+        description: 'Labeled canonical option group consumed by cem-select.',
+        cemMl: '{div @class=cem-option-group | {slot}}',
     },
     {
         tag: 'cem-checkbox',
@@ -331,7 +387,8 @@ export function installCemComponentPrimitives(runtime: CemElementRuntime): CemCo
             continue;
         }
 
-        if (runtime.registerDeclaration(declaration)) {
+        const behavior = 'behavior' in primitive ? primitive.behavior : undefined;
+        if (runtime.registerDeclaration(declaration, { behavior })) {
             registered.push(primitive.tag);
         } else {
             diagnostics.push(...runtime.diagnosticsFor(declaration));

@@ -13,7 +13,7 @@ application or workflow that owns the pending validation, persistence, option,
 or preference update. The component does not infer pending work from a busy
 ancestor, network activity, value changes, validation, or elapsed time.
 
-While `busy` is present, the same native `input`, `textarea`, or `select` gains
+While `busy` is present, the same interactive input, textarea, combobox, or listbox gains
 exactly `data-state="loading"` and `aria-busy="true"`. The label, help text,
 value, checked state, native node, dimensions, focus, tab order, and ordinary
 editability remain unchanged. `busy` is not `disabled`, `readonly`, or `inert`;
@@ -29,7 +29,7 @@ the attribute when the operation settles.
 
 | Shape | Decision | Reason |
 | --- | --- | --- |
-| Explicit host `busy` projected to the native control | Accepted | Supplies a deterministic state source without making the primitive own asynchronous work. |
+| Explicit host `busy` projected to the interactive control | Accepted | Supplies a deterministic state source without making the primitive own asynchronous work. |
 | Inherit from `cem-card[busy]` or `cem-surface[busy]` | Rejected | A pending region does not imply that each descendant value is pending, and inherited state would obscure the narrowest meaningful owner. |
 | Infer from input/change, validation, resource, or timer activity | Rejected | The primitive cannot know which operation owns the value, when it settles, or whether editing should remain available. |
 | Disable, make readonly, or make inert while busy | Rejected as an implicit effect | `aria-busy` communicates an update; it does not define interaction suppression. The workflow must author any independent availability state. |
@@ -39,15 +39,15 @@ the attribute when the operation settles.
 ## State and rendering algorithm
 
 1. Treat the input host's `busy` attribute as the only v1 loading source.
-2. When `busy` is absent, omit `data-state` and `aria-busy` from the native
+2. When `busy` is absent, omit `data-state` and `aria-busy` from the interactive
    control and preserve the existing primitive output.
-3. When `busy` is present with any value, patch the same native control to
+3. When `busy` is present with any value, patch the same interactive control to
    `data-state="loading"` and `aria-busy="true"`.
 4. Do not create a `busy` or `loading` slice, request, timer, `AbortSignal`,
    lifecycle event, status node, live region, overlay, or generated payload.
 5. The workflow sets `busy` before or with the pending operation and removes it
    after the current value or choice reaches the workflow's selected outcome.
-6. Busy-on and busy-off rendering must retain native node identity, value,
+6. Busy-on and busy-off rendering must retain control node identity, value,
    checked state, selection, focus, label relationships, and dimensions.
 
 ## Visual and state composition

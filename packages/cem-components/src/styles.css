@@ -34,7 +34,7 @@ cem-menu-item > button:enabled:active {
 cem-field input,
 cem-text-field input,
 cem-textarea textarea,
-cem-select select,
+cem-select .cem-select__control,
 cem-checkbox > label,
 cem-radio > label,
 cem-switch > label {
@@ -82,7 +82,7 @@ cem-switch > label {
 cem-field input,
 cem-text-field input,
 cem-textarea textarea,
-cem-select select {
+cem-select .cem-select__control {
     --_cem-input-indicator-appearance: var(
         --cem-input-indicator-appearance,
         var(--cem-indicator-appearance-underline)
@@ -92,7 +92,7 @@ cem-select select {
 cem-field[indicator='outline'] input,
 cem-text-field[indicator='outline'] input,
 cem-textarea[indicator='outline'] textarea,
-cem-select[indicator='outline'] select {
+cem-select[indicator='outline'] .cem-select__control {
     --_cem-input-indicator-appearance: var(
         --cem-input-indicator-appearance,
         var(--cem-indicator-appearance-outline)
@@ -102,7 +102,7 @@ cem-select[indicator='outline'] select {
 cem-field input:enabled:hover,
 cem-text-field input:enabled:hover,
 cem-textarea textarea:enabled:hover,
-cem-select select:enabled:hover {
+cem-select .cem-select__control:not(:disabled):not([aria-disabled='true']):hover {
     --_cem-input-indicator-anchor-color: var(--cem-input-indicator-anchor-hover-color);
 }
 
@@ -115,7 +115,7 @@ cem-textarea textarea[readonly]:enabled {
 cem-field input[data-state='loading']:enabled,
 cem-text-field input[data-state='loading']:enabled,
 cem-textarea textarea[data-state='loading']:enabled,
-cem-select select[data-state='loading']:enabled {
+cem-select .cem-select__control[data-state='loading']:not(:disabled):not([aria-disabled='true']) {
     --_cem-input-indicator-anchor-color: var(--cem-input-indicator-anchor-pending-color);
     --_cem-input-indicator-anchor-width: var(--cem-stroke-pending);
 }
@@ -123,7 +123,7 @@ cem-select select[data-state='loading']:enabled {
 cem-field input[aria-invalid='true']:enabled,
 cem-text-field input[aria-invalid='true']:enabled,
 cem-textarea textarea[aria-invalid='true']:enabled,
-cem-select select[aria-invalid='true']:enabled {
+cem-select .cem-select__control[aria-invalid='true']:not(:disabled):not([aria-disabled='true']) {
     --_cem-input-indicator-anchor-color: var(--cem-input-indicator-anchor-invalid-color);
     --_cem-input-indicator-anchor-width: var(--cem-stroke-boundary);
 }
@@ -131,7 +131,7 @@ cem-select select[aria-invalid='true']:enabled {
 cem-field input[aria-invalid='true']:enabled:hover,
 cem-text-field input[aria-invalid='true']:enabled:hover,
 cem-textarea textarea[aria-invalid='true']:enabled:hover,
-cem-select select[aria-invalid='true']:enabled:hover {
+cem-select .cem-select__control[aria-invalid='true']:not(:disabled):not([aria-disabled='true']):hover {
     --_cem-input-indicator-anchor-color: var(--cem-input-indicator-anchor-invalid-hover-color);
     --_cem-input-indicator-anchor-width: var(--cem-stroke-boundary);
 }
@@ -139,7 +139,8 @@ cem-select select[aria-invalid='true']:enabled:hover {
 cem-field input:disabled,
 cem-text-field input:disabled,
 cem-textarea textarea:disabled,
-cem-select select:disabled {
+cem-select .cem-select__control:disabled,
+cem-select .cem-select__control[aria-disabled='true'] {
     --_cem-input-indicator-anchor-color: var(--cem-input-indicator-anchor-disabled-color);
     --_cem-input-indicator-anchor-width: var(--cem-stroke-boundary);
 }
@@ -147,8 +148,12 @@ cem-select select:disabled {
 cem-field input:focus-visible,
 cem-text-field input:focus-visible,
 cem-textarea textarea:focus-visible,
-cem-select select:focus-visible {
+cem-select .cem-select__control:focus-visible {
     --_cem-input-indicator-focus-width: var(--cem-zebra-strip-size);
+}
+
+cem-select .cem-select__control[aria-expanded='true'] {
+    --_cem-input-indicator-selection-width: var(--cem-zebra-strip-size);
 }
 
 cem-checkbox > label,
@@ -227,11 +232,121 @@ cem-switch input:focus-visible {
     outline: var(--cem-stroke-none) solid transparent;
 }
 
+cem-select {
+    display: inline-block;
+    inline-size: 100%;
+}
+
+cem-select > .cem-select {
+    display: grid;
+    gap: var(--cem-gap-related);
+    position: relative;
+}
+
+cem-select .cem-select__label,
+cem-select .cem-select__help,
+cem-select .cem-select__group-label {
+    font-family: var(--cem-typography-ui-font-family);
+    font-size: var(--cem-typography-ui-font-size);
+    line-height: var(--cem-typography-ui-line-height);
+}
+
+cem-select .cem-select__control {
+    background-color: var(--cem-select-popup-background);
+    border: var(--cem-stroke-none) solid transparent;
+    box-sizing: border-box;
+    color: var(--cem-select-popup-text);
+    font-family: var(--cem-typography-ui-font-family);
+    font-size: var(--cem-typography-ui-font-size);
+    inline-size: 100%;
+    line-height: var(--cem-typography-ui-line-height);
+    min-block-size: var(--cem-control-height);
+    padding-block: var(--cem-control-padding-y);
+    padding-inline: var(--cem-control-padding-x);
+    text-align: start;
+}
+
+cem-select button.cem-select__control {
+    align-items: center;
+    cursor: pointer;
+    display: flex;
+    gap: var(--cem-gap-related);
+    justify-content: space-between;
+}
+
+cem-select button.cem-select__control:disabled,
+cem-select .cem-select__listbox[aria-disabled='true'] {
+    cursor: default;
+}
+
+cem-select .cem-select__value {
+    min-inline-size: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+cem-select .cem-select__popup,
+cem-select .cem-select__listbox {
+    background-color: var(--cem-select-popup-background);
+    color: var(--cem-select-popup-text);
+    overflow: auto;
+}
+
+cem-select .cem-select__popup {
+    border: var(--cem-stroke-standard) solid var(--cem-select-popup-border-color);
+    border-radius: var(--cem-bend-overlay);
+    box-shadow: var(--cem-elevation-3);
+    inset-block-start: 100%;
+    inset-inline: 0;
+    max-block-size: calc(var(--cem-list-row-height) * var(--cem-list-popup-rows));
+    position: absolute;
+    z-index: var(--cem-layer-overlay);
+}
+
+cem-select .cem-select__listbox {
+    padding-block: var(--cem-stroke-standard);
+}
+
+cem-select .cem-select__option,
+cem-select .cem-select__group-label {
+    align-items: center;
+    box-sizing: border-box;
+    display: flex;
+    min-block-size: var(--cem-list-row-height);
+    padding-block: var(--cem-control-padding-y);
+    padding-inline: var(--cem-control-padding-x);
+}
+
+cem-select .cem-select__group-label {
+    color: var(--cem-select-group-text);
+}
+
+cem-select .cem-select__option:not([aria-disabled='true']):hover {
+    background-color: var(--cem-select-option-hover-background);
+    color: var(--cem-select-option-hover-text);
+}
+
+cem-select .cem-select__option[aria-selected='true'] {
+    background-color: var(--cem-select-option-selected-background);
+    color: var(--cem-select-option-selected-text);
+}
+
+cem-select .cem-select__option[data-active='true'] {
+    background-color: var(--cem-select-option-active-background);
+    color: var(--cem-select-option-active-text);
+}
+
+cem-select .cem-select__option[aria-disabled='true'] {
+    background-color: var(--cem-select-option-disabled-background);
+    color: var(--cem-select-option-disabled-text);
+}
+
 @media (forced-colors: active) {
     cem-field input,
     cem-text-field input,
     cem-textarea textarea,
-    cem-select select,
+    cem-select .cem-select__control,
     cem-checkbox > label,
     cem-radio > label,
     cem-switch > label {
@@ -241,7 +356,7 @@ cem-switch input:focus-visible {
     cem-field input:enabled:hover,
     cem-text-field input:enabled:hover,
     cem-textarea textarea:enabled:hover,
-    cem-select select:enabled:hover {
+    cem-select .cem-select__control:not(:disabled):not([aria-disabled='true']):hover {
         border-color: Highlight;
     }
 
@@ -255,7 +370,7 @@ cem-switch input:focus-visible {
     cem-field input[data-state='loading']:enabled:not([aria-invalid='true']),
     cem-text-field input[data-state='loading']:enabled:not([aria-invalid='true']),
     cem-textarea textarea[data-state='loading']:enabled:not([aria-invalid='true']),
-    cem-select select[data-state='loading']:enabled:not([aria-invalid='true']),
+    cem-select .cem-select__control[data-state='loading']:not(:disabled):not([aria-disabled='true']):not([aria-invalid='true']),
     cem-checkbox > label:has(> input[data-state='loading']:enabled:not([aria-invalid='true'])),
     cem-radio > label:has(> input[data-state='loading']:enabled:not([aria-invalid='true'])),
     cem-switch > label:has(> input[data-state='loading']:enabled:not([aria-invalid='true'])) {
@@ -266,18 +381,39 @@ cem-switch input:focus-visible {
     cem-field input:focus-visible,
     cem-text-field input:focus-visible,
     cem-textarea textarea:focus-visible,
-    cem-select select:focus-visible,
+    cem-select .cem-select__control:focus-visible,
     cem-checkbox > label:has(> input:enabled:focus-visible),
     cem-radio > label:has(> input:enabled:focus-visible),
     cem-switch > label:has(> input:enabled:focus-visible),
     cem-field input[data-state='loading']:enabled:focus-visible,
     cem-text-field input[data-state='loading']:enabled:focus-visible,
     cem-textarea textarea[data-state='loading']:enabled:focus-visible,
-    cem-select select[data-state='loading']:enabled:focus-visible,
+    cem-select .cem-select__control[data-state='loading']:not(:disabled):not([aria-disabled='true']):focus-visible,
     cem-checkbox > label:has(> input[data-state='loading']:enabled:focus-visible),
     cem-radio > label:has(> input[data-state='loading']:enabled:focus-visible),
     cem-switch > label:has(> input[data-state='loading']:enabled:focus-visible) {
         outline: var(--cem-stroke-focus) solid CanvasText;
         outline-offset: var(--cem-stroke-indicator-offset);
+    }
+
+    cem-select .cem-select__popup,
+    cem-select .cem-select__listbox {
+        background-color: Canvas;
+        border-color: CanvasText;
+        color: CanvasText;
+    }
+
+    cem-select .cem-select__option[data-active='true'] {
+        background-color: Highlight;
+        color: HighlightText;
+    }
+
+    cem-select .cem-select__option[aria-selected='true'] {
+        outline: var(--cem-stroke-selected) solid SelectedItem;
+        outline-offset: calc(var(--cem-stroke-selected) * -1);
+    }
+
+    cem-select .cem-select__option[aria-disabled='true'] {
+        color: GrayText;
     }
 }

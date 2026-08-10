@@ -143,7 +143,8 @@ describe('CEM component primitives', () => {
 
         const textField = harness.query<HTMLInputElement>('cem-text-field input');
         const textarea = harness.query<HTMLTextAreaElement>('cem-textarea textarea');
-        const select = harness.query<HTMLSelectElement>('cem-select select');
+        const selectHost = harness.query<HTMLElement & { value: string; selectedValues: string[] }>('cem-select');
+        const select = harness.query<HTMLButtonElement>('cem-select .cem-select__control');
         const checkbox = harness.query<HTMLInputElement>('cem-checkbox input');
         const radio = harness.query<HTMLInputElement>('cem-radio input');
         const switchInput = harness.query<HTMLInputElement>('cem-switch input');
@@ -165,8 +166,11 @@ describe('CEM component primitives', () => {
         expect(textarea.getAttribute('name')).toBe('bio');
         expect(textarea.value).toBe('Short bio');
         expect(assertAccessibleName(textarea, 'Bio')).toBe('Bio');
-        expect(select.getAttribute('name')).toBe('role');
-        expect(select.querySelectorAll('option')).toHaveLength(2);
+        expect(selectHost.getAttribute('name')).toBe('role');
+        expect(select.getAttribute('role')).toBe('combobox');
+        expect(selectHost.value).toBe('admin');
+        expect(selectHost.selectedValues).toEqual(['admin']);
+        expect(harness.root.querySelectorAll('cem-select [role="option"]')).toHaveLength(0);
         expect(assertAccessibleName(select, 'Role')).toBe('Role');
         expect(checkbox.type).toBe('checkbox');
         expect(checkbox.getAttribute('name')).toBe('terms');

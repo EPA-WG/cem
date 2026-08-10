@@ -520,8 +520,8 @@ The stack has three physical classes:
 Invalidity changes the anchor/state stripe color; it does not add geometry. Focus and selection therefore remain
 independently visible when an input is also invalid. Required state remains a marker/text concern and does not acquire
 an indicator stripe. A component with an explicit, truthful busy source binds loading to the pending anchor color and
-the D5 `--cem-stroke-pending` width so pending does not rely on hue alone. Native-select expanded state remains deferred
-until a disclosure contract defines a truthful source.
+   the D5 `--cem-stroke-pending` width so pending does not rely on hue alone. A custom select owns a truthful
+   `aria-expanded` source and activates the existing selection stripe while its popup is open.
 
 ###### cem-input-indicator-colors
 | Token | value-type | default-formula | notes | tier |
@@ -542,6 +542,29 @@ indeterminate coexist, invalid controls the anchor while indeterminate controls 
 
 D5 owns the outline/underline geometry transform and stripe widths. Component libraries may expose a public adapter
 property that selects that transform, but the adapter is not a replacement for these D0 semantic color endpoints.
+
+### 7.8 Select popup and option state colors
+
+Custom selects require semantic fill/text pairs for the popup and its HTML-rendered options. These endpoints are
+component-family semantics, not raw palette aliases: themes may remap them while preserving the distinction between
+pointer hover, composite active-descendant, committed selection, and disabled content. Focus and open-state geometry
+continue to use the input indicator/zebra contract.
+
+###### cem-select-state-colors
+| Token | value-type | default-formula | notes | tier |
+|---|---|---|---|---|
+| `--cem-select-popup-background` | `<color>` | `var(--cem-palette-comfort)` | Popup and listbox surface | required |
+| `--cem-select-popup-text` | `<color>` | `var(--cem-palette-comfort-text)` | Default option text | required |
+| `--cem-select-popup-border-color` | `<color>` | `var(--cem-input-indicator-anchor-color)` | Popup boundary | required |
+| `--cem-select-option-hover-background` | `<color>` | `var(--cem-action-contextual-hover-background)` | Enabled option under pointer hover | required |
+| `--cem-select-option-hover-text` | `<color>` | `var(--cem-action-contextual-hover-text)` | Enabled option text under pointer hover | required |
+| `--cem-select-option-active-background` | `<color>` | `var(--cem-palette-trust)` | Keyboard/typeahead active descendant | required |
+| `--cem-select-option-active-text` | `<color>` | `var(--cem-palette-trust-text)` | Active-descendant text | required |
+| `--cem-select-option-selected-background` | `<color>` | `var(--cem-palette-creativity)` | Committed selection | required |
+| `--cem-select-option-selected-text` | `<color>` | `var(--cem-palette-creativity-text)` | Committed-selection text | required |
+| `--cem-select-option-disabled-background` | `<color>` | `var(--cem-action-contextual-disabled-background)` | Unavailable option fill | required |
+| `--cem-select-option-disabled-text` | `<color>` | `var(--cem-action-contextual-disabled-text)` | Unavailable option text | required |
+| `--cem-select-group-text` | `<color>` | `var(--cem-palette-conservative-text-x)` | Option-group heading | recommended |
 
 ## 8. Zebra outline colors
 
@@ -665,6 +688,7 @@ Use this as a quick “did we wire tokens correctly?” checklist.
 
 - [ ] Text fields use comfort surface; state uses zebra/underline + `readonly/editable/required`
 - [ ] Checkboxes/radios reflect `selected` and `indeterminate` distinctly
+- [ ] Custom select popups use `--cem-select-*` state pairs and retain zebra focus/open geometry
 - [ ] Targeted elements (`:target`) use target zebra strip
 
 ### 10.3 Informational semantics
@@ -810,6 +834,7 @@ Treat as **non-breaking** (minor/patch):
 
 - `--cem-zebra-color-0`, `--cem-zebra-color-1`, `--cem-zebra-color-2`, `--cem-zebra-color-3`
 - `--cem-zebra-strip-size`
+- `--cem-select-popup-*`, `--cem-select-option-*`
 
 **Actions (per shipped intent):**
 
@@ -839,6 +864,7 @@ from these tables using the same logic as `cem-colors.html`.
 | `cem-palette-emotion-shift`                            | `--cem-palette-*` (28 tokens) | one token per row                   |
 | `cem-zebra-tokens`                                     | `--cem-zebra-*` (5 tokens)    | one token per row                   |
 | `cem-input-indicator-colors`                           | `--cem-input-indicator-*` (9 tokens) | one token per row             |
+| `cem-select-state-colors`                              | `--cem-select-*` (12 tokens) | one token per row                    |
 | `cem-action-intent-emotion` × `cem-action-state-color` | `--cem-action-*` (80 tokens)  | intent × state × {background, text} |
 ## 15. References
 

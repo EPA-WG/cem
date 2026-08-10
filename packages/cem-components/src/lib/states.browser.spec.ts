@@ -31,6 +31,22 @@ interface SerializedEventPayload {
     type: string;
 }
 
+type TestCemSelect = HTMLElement & {
+    checkValidity(): boolean;
+    disabled: boolean;
+    form: HTMLFormElement | null;
+    multiple: boolean;
+    reportValidity(): boolean;
+    required: boolean;
+    selectedValues: string[];
+    setSelectedValues(values: readonly string[]): void;
+    size: number;
+    type: 'select-multiple' | 'select-one';
+    validationMessage: string;
+    value: string;
+    validity: ValidityState;
+};
+
 describe('CEM component primitive states and ARIA behavior', () => {
     let harness: ComponentHarness;
     let runtime: CemElementRuntime;
@@ -547,9 +563,9 @@ describe('CEM component primitive states and ARIA behavior', () => {
             },
             {
                 appearance: 'underline',
-                control: harness.query<HTMLSelectElement>('cem-select[name="invalid-select"] select'),
+                control: harness.query<HTMLButtonElement>('cem-select[name="invalid-select"] .cem-select__control'),
                 host: harness.query<HTMLElement>('cem-select[name="invalid-select"]'),
-                target: harness.query<HTMLElement>('cem-select[name="invalid-select"] select'),
+                target: harness.query<HTMLElement>('cem-select[name="invalid-select"] .cem-select__control'),
                 baselineToken: '--cem-input-indicator-anchor-invalid-color',
                 hoverToken: '--cem-input-indicator-anchor-invalid-hover-color',
             },
@@ -583,9 +599,9 @@ describe('CEM component primitive states and ARIA behavior', () => {
         const disabledCases = [
             {
                 appearance: 'underline',
-                control: harness.query<HTMLSelectElement>('cem-select[name="disabled-select"] select'),
+                control: harness.query<HTMLButtonElement>('cem-select[name="disabled-select"] .cem-select__control'),
                 host: harness.query<HTMLElement>('cem-select[name="disabled-select"]'),
-                target: harness.query<HTMLElement>('cem-select[name="disabled-select"] select'),
+                target: harness.query<HTMLElement>('cem-select[name="disabled-select"] .cem-select__control'),
             },
             {
                 appearance: 'outline',
@@ -785,9 +801,9 @@ describe('CEM component primitive states and ARIA behavior', () => {
             {
                 anchorToken: '--cem-input-indicator-anchor-invalid-color',
                 appearance: 'underline',
-                control: harness.query<HTMLSelectElement>('cem-select[name="focus-select"] select'),
+                control: harness.query<HTMLButtonElement>('cem-select[name="focus-select"] .cem-select__control'),
                 host: harness.query<HTMLElement>('cem-select[name="focus-select"]'),
-                target: harness.query<HTMLElement>('cem-select[name="focus-select"] select'),
+                target: harness.query<HTMLElement>('cem-select[name="focus-select"] .cem-select__control'),
             },
             {
                 anchorToken: '--cem-input-indicator-anchor-color',
@@ -825,8 +841,13 @@ describe('CEM component primitive states and ARIA behavior', () => {
         const mutationEvents: string[] = [];
         harness.root.addEventListener('focusin', (event) => {
             const target = event.target;
-            if (target instanceof HTMLInputElement || target instanceof HTMLSelectElement || target instanceof HTMLTextAreaElement) {
-                focusOrder.push(target.name);
+            if (
+                target instanceof HTMLInputElement
+                || target instanceof HTMLSelectElement
+                || target instanceof HTMLTextAreaElement
+                || (target instanceof HTMLButtonElement && target.matches('cem-select .cem-select__control'))
+            ) {
+                focusOrder.push(target.closest<HTMLElement>('cem-select')?.getAttribute('name') ?? target.getAttribute('name') ?? '');
             }
         });
         for (const eventName of ['click', 'input', 'change', 'cem-loaded', 'cem-error', 'cem-cancel']) {
@@ -946,7 +967,11 @@ describe('CEM component primitive states and ARIA behavior', () => {
         expect(restoredSwitch.boxShadow).toBe(switchBaseline.boxShadow);
         expectInputIndicatorStructureAndGeometry(restoredSwitch, switchBaseline);
 
-        expect(focusOrder).toEqual(cases.map(({ control }) => control.name));
+        expect(focusOrder).toEqual(
+            cases.map(({ control }) =>
+                control.closest<HTMLElement>('cem-select')?.getAttribute('name') ?? control.getAttribute('name') ?? '',
+            ),
+        );
         expect(cases[0].control.value).toBe('alpha');
         expect(cases[2].control.readOnly).toBe(true);
         expect(cases[3].control.getAttribute('aria-invalid')).toBe('true');
@@ -1017,10 +1042,10 @@ describe('CEM component primitive states and ARIA behavior', () => {
                 anchorToken: '--cem-input-indicator-anchor-pending-color',
                 anchorWidthToken: '--cem-stroke-pending',
                 appearance: 'underline',
-                control: harness.query<HTMLSelectElement>('cem-select[name="busy-select"] select'),
+                control: harness.query<HTMLButtonElement>('cem-select[name="busy-select"] .cem-select__control'),
                 host: harness.query<HTMLElement>('cem-select[name="busy-select"]'),
                 label: 'Role',
-                target: harness.query<HTMLSelectElement>('cem-select[name="busy-select"] select'),
+                target: harness.query<HTMLButtonElement>('cem-select[name="busy-select"] .cem-select__control'),
             },
             {
                 anchorToken: '--cem-input-indicator-anchor-pending-color',
@@ -1143,7 +1168,7 @@ describe('CEM component primitive states and ARIA behavior', () => {
         for (const { control, host } of cases) {
             expect(control.hasAttribute('data-state')).toBe(false);
             expect(control.hasAttribute('aria-busy')).toBe(false);
-            expect(host.querySelector('input, textarea, select')).toBe(control);
+            expect(host.querySelector('input, textarea, select, .cem-select__control')).toBe(control);
         }
         expect(document.activeElement).toBe(fieldControl);
         const settledField = captureInputIndicatorState(runtime, fieldHost, fieldControl, fieldControl);
@@ -1153,6 +1178,153 @@ describe('CEM component primitive states and ARIA behavior', () => {
         expect(settledField.targetRect).toEqual(fieldBaseline.targetRect);
         expect(settledField.runtime).toBe(fieldBaseline.runtime);
         expect(mutationEvents).toEqual([]);
+        expect(() => assertAriaReferenceIntegrity(harness.root)).not.toThrow();
+    });
+
+    it('renders rich cem-option content with native-like dropdown, listbox, and form behavior', async () => {
+        harness = createComponentHarness();
+        const root = await harness.render(`
+            <form id="select-form">
+                <cem-select id="role-select" name="role" required>
+                    <span slot="label">Role</span>
+                    <cem-option value="">Choose a role</cem-option>
+                    <cem-option-group label="People">
+                        <cem-option value="ada" selected><strong>Ada</strong> Lovelace</cem-option>
+                        <cem-option value="grace"><strong>Grace</strong> Hopper</cem-option>
+                        <cem-option value="disabled" disabled>Unavailable</cem-option>
+                    </cem-option-group>
+                </cem-select>
+                <cem-select id="tier-select" name="tier" size="3" label="Tier">
+                    <cem-option value="one">One</cem-option>
+                    <cem-option value="two" selected>Two</cem-option>
+                    <cem-option value="three">Three</cem-option>
+                </cem-select>
+                <cem-select id="tag-select" name="tag" multiple size="4" label="Tags">
+                    <cem-option value="alpha" selected>Alpha</cem-option>
+                    <cem-option value="beta">Beta</cem-option>
+                    <cem-option value="gamma" selected>Gamma</cem-option>
+                </cem-select>
+                <cem-select id="legacy-select" name="legacy" label="Legacy">
+                    <option value="admin">Admin</option>
+                    <option value="viewer" selected>Viewer</option>
+                </cem-select>
+                <button id="select-submit" type="submit">Submit</button>
+            </form>
+        `);
+        await waitForStateSelector(root, '#tag-select [role="listbox"]');
+
+        const form = harness.query<HTMLFormElement>('#select-form');
+        const role = harness.query<TestCemSelect>('#role-select');
+        const roleControl = harness.query<HTMLButtonElement>('#role-select .cem-select__control');
+        const tier = harness.query<TestCemSelect>('#tier-select');
+        const tierControl = harness.query<HTMLElement>('#tier-select [role="listbox"]');
+        const tags = harness.query<TestCemSelect>('#tag-select');
+        const tagsControl = harness.query<HTMLElement>('#tag-select [role="listbox"]');
+        const legacy = harness.query<TestCemSelect>('#legacy-select');
+        const mutationEvents: string[] = [];
+        for (const eventName of ['input', 'change']) {
+            role.addEventListener(eventName, () => mutationEvents.push(eventName));
+        }
+
+        expect(role.type).toBe('select-one');
+        expect(role.value).toBe('ada');
+        expect(role.selectedValues).toEqual(['ada']);
+        expect(role.required).toBe(true);
+        expect(role.checkValidity()).toBe(true);
+        expect(role.form).toBe(form);
+        expect(Array.from(new FormData(form).entries())).toEqual([
+            ['role', 'ada'],
+            ['tier', 'two'],
+            ['tag', 'alpha'],
+            ['tag', 'gamma'],
+            ['legacy', 'viewer'],
+        ]);
+        expect(assertAccessibleName(roleControl, 'Role')).toBe('Role');
+        expect(roleControl.getAttribute('aria-expanded')).toBe('false');
+        expect(roleControl.hasAttribute('aria-controls')).toBe(false);
+        expect(role.querySelector('cem-option')).toBeNull();
+
+        await userEvent.click(roleControl);
+        await nextRenderFrame();
+        await runtime.whenRenderSettled(role);
+        const popup = harness.query<HTMLElement>('#role-select .cem-select__popup');
+        expect(roleControl.getAttribute('aria-expanded')).toBe('true');
+        expect(roleControl.getAttribute('aria-controls')).toBe(popup.id);
+        expect(popup.querySelector('[role="group"]')?.getAttribute('aria-label')).toBe('People');
+        expect(popup.querySelector('[role="option"] strong')?.textContent).toBe('Ada');
+        expect(popup.querySelectorAll('[role="option"]')).toHaveLength(4);
+        const disabledOption = popup.querySelector<HTMLElement>('[role="option"][aria-disabled="true"]');
+        expect(disabledOption?.textContent?.trim()).toBe('Unavailable');
+        await userEvent.keyboard('{End}');
+        await nextRenderFrame();
+        const activeOption = role.querySelector<HTMLElement>(`#${roleControl.getAttribute('aria-activedescendant')}`);
+        expect(activeOption?.textContent?.trim()).toBe('Grace Hopper');
+        expect(role.value).toBe('ada');
+        expect(roleControl.getAttribute('aria-expanded')).toBe('true');
+        expect(() => assertAriaReferenceIntegrity(harness.root)).not.toThrow();
+
+        await userEvent.keyboard('{ArrowDown}');
+        await nextRenderFrame();
+        expect(role.value).toBe('ada');
+        await userEvent.keyboard('{Escape}');
+        await nextRenderFrame();
+        expect(role.value).toBe('ada');
+        expect(roleControl.getAttribute('aria-expanded')).toBe('false');
+        expect(mutationEvents).toEqual([]);
+
+        await userEvent.click(roleControl);
+        await userEvent.keyboard('{ArrowDown}');
+        await userEvent.keyboard('{Tab}');
+        await nextRenderFrame();
+        expect(role.value).toBe('grace');
+        expect(mutationEvents).toEqual(['input', 'change']);
+
+        role.value = 'ada';
+        await nextRenderFrame();
+        expect(role.value).toBe('ada');
+        expect(mutationEvents).toEqual(['input', 'change']);
+
+        await userEvent.click(roleControl);
+        await userEvent.keyboard('{ArrowDown}');
+        await userEvent.keyboard('{Enter}');
+        await nextRenderFrame();
+        expect(role.value).toBe('grace');
+        expect(role.selectedValues).toEqual(['grace']);
+        expect(mutationEvents).toEqual(['input', 'change', 'input', 'change']);
+        expect(new FormData(form).get('role')).toBe('grace');
+
+        role.setSelectedValues(['']);
+        await nextRenderFrame();
+        expect(role.value).toBe('');
+        expect(role.validity.valueMissing).toBe(true);
+        expect(role.validationMessage).not.toBe('');
+        expect(mutationEvents).toEqual(['input', 'change', 'input', 'change']);
+        form.reset();
+        await nextRenderFrame();
+        expect(role.value).toBe('ada');
+        expect(role.checkValidity()).toBe(true);
+
+        expect(tier.type).toBe('select-one');
+        expect(tier.size).toBe(3);
+        expect(tierControl.getAttribute('aria-multiselectable')).toBeNull();
+        tierControl.focus();
+        await userEvent.keyboard('{ArrowDown}');
+        await nextRenderFrame();
+        expect(tier.value).toBe('three');
+
+        expect(tags.type).toBe('select-multiple');
+        expect(tags.multiple).toBe(true);
+        expect(tags.selectedValues).toEqual(['alpha', 'gamma']);
+        expect(tagsControl.getAttribute('aria-multiselectable')).toBe('true');
+        tagsControl.focus();
+        await userEvent.keyboard('{ArrowDown}');
+        await userEvent.keyboard(' ');
+        await nextRenderFrame();
+        expect(tags.selectedValues).toEqual(['alpha', 'beta', 'gamma']);
+        expect(new FormData(form).getAll('tag')).toEqual(['alpha', 'beta', 'gamma']);
+
+        expect(legacy.value).toBe('viewer');
+        expect(legacy.selectedValues).toEqual(['viewer']);
         expect(() => assertAriaReferenceIntegrity(harness.root)).not.toThrow();
     });
 
@@ -1198,7 +1370,8 @@ describe('CEM component primitive states and ARIA behavior', () => {
 
         const textField = harness.query<HTMLInputElement>('cem-text-field input');
         const textarea = harness.query<HTMLTextAreaElement>('cem-textarea textarea');
-        const select = harness.query<HTMLSelectElement>('cem-select select');
+        const select = harness.query<HTMLButtonElement>('cem-select .cem-select__control');
+        const selectHost = harness.query<HTMLElement & { required: boolean }>('cem-select');
         const checkedBox = harness.query<HTMLInputElement>('cem-checkbox input[name="terms"]');
         const mixedBox = harness.query<HTMLInputElement>('cem-checkbox input[name="partial"]');
         const radio = harness.query<HTMLInputElement>('cem-radio input');
@@ -1216,7 +1389,7 @@ describe('CEM component primitive states and ARIA behavior', () => {
         expect(assertAccessibleName(textField, 'Email')).toBe('Email');
         expect(textarea.disabled).toBe(true);
         expect(textarea.getAttribute('aria-invalid')).toBe('true');
-        expect(select.required).toBe(true);
+        expect(selectHost.required).toBe(true);
         expect(select.getAttribute('aria-describedby')).toBe('role-help');
         expect(select.getAttribute('aria-errormessage')).toBe('role-error');
         expect(checkedBox.checked).toBe(true);
@@ -2155,7 +2328,7 @@ interface InputIndicatorStateSnapshot {
 function captureInputIndicatorState(
     runtime: CemElementRuntime,
     host: HTMLElement,
-    control: HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement,
+    control: HTMLButtonElement | HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement,
     target: HTMLElement,
 ): InputIndicatorStateSnapshot {
     const boxShadow = getComputedStyle(target).boxShadow;

@@ -29,7 +29,7 @@ None.
 ### CEM-CSS-001 discovery evidence
 
 The exact native hover owners are `cem-field input`, `cem-text-field input`,
-`cem-textarea textarea`, `cem-select select`, `cem-checkbox input`,
+`cem-textarea textarea`, the `cem-select .cem-select__control`, `cem-checkbox input`,
 `cem-radio input`, and `cem-switch input`. Their surrounding labels and wrappers
 may also match `:hover`, but they are not substitutes for the interactive
 control owner.
@@ -106,3 +106,7 @@ exception. Every default, hover, and active background/text declaration maps
 directly to generated `--cem-action-primary-*` or
 `--cem-action-contextual-*` semantic tokens, and the style verifier rejects
 unknown or non-CEM variables.
+
+The custom select likewise requires no exception. D0 owns the generated
+`--cem-select-*` popup/option state colors and D2c owns
+`--cem-list-popup-rows`; all remaining geometry composes existing CEM tokens.

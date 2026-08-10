@@ -21,7 +21,14 @@ try {
         <cem-field><input id="field" value="alpha"></cem-field>
         <cem-text-field><input id="text-field" value="bravo"></cem-text-field>
         <cem-textarea><textarea id="textarea">charlie</textarea></cem-textarea>
-        <cem-select><select id="select"><option value="delta">Delta</option></select></cem-select>
+        <cem-select>
+            <button id="select" class="cem-select__control" type="button" aria-expanded="true">Delta</button>
+            <div id="select-popup" class="cem-select__popup">
+                <div id="select-active" class="cem-select__option" data-active="true" aria-selected="false">Alpha</div>
+                <div id="select-selected" class="cem-select__option" aria-selected="true">Delta</div>
+                <div id="select-disabled" class="cem-select__option" aria-disabled="true">Unavailable</div>
+            </div>
+        </cem-select>
         <cem-checkbox>
             <label id="binary-label"><input id="binary" type="checkbox"><span>Choice</span></label>
         </cem-checkbox>
@@ -63,6 +70,21 @@ try {
         'pending binary fallback has the wrong width',
     );
     assert(baseline.pendingBinary.outlineColor === baseline.system.canvasText, 'pending binary did not map to CanvasText');
+    assert(baseline.select.popup.backgroundColor === baseline.system.canvas, 'select popup did not map to Canvas');
+    assert(baseline.select.popup.borderColor === baseline.system.canvasText, 'select popup border did not map to CanvasText');
+    assert(baseline.select.popup.color === baseline.system.canvasText, 'select popup text did not map to CanvasText');
+    assert(baseline.select.active.backgroundColor === baseline.system.highlight, 'active option did not map to Highlight');
+    assert(baseline.select.active.color === baseline.system.highlightText, 'active option did not map to HighlightText');
+    assert(baseline.select.selected.outlineStyle === 'solid', 'selected option fallback is not a solid outline');
+    assert(
+        baseline.select.selected.outlineWidth === baseline.tokens.selected,
+        'selected option fallback has the wrong width',
+    );
+    assert(
+        baseline.select.selected.outlineColor === baseline.system.selectedItem,
+        'selected option did not map to SelectedItem',
+    );
+    assert(baseline.select.disabled.color === baseline.system.grayText, 'disabled option did not map to GrayText');
 
     await page.locator('#pending-field').focus();
     const pendingFocus = await page.evaluate(captureForcedColorState);
@@ -189,6 +211,10 @@ function captureForcedColorState() {
     const disabledBinaryLabel = document.querySelector('#disabled-binary-label');
     const pendingField = document.querySelector('#pending-field');
     const pendingBinaryLabel = document.querySelector('#pending-binary-label');
+    const selectPopup = document.querySelector('#select-popup');
+    const selectActive = document.querySelector('#select-active');
+    const selectSelected = document.querySelector('#select-selected');
+    const selectDisabled = document.querySelector('#select-disabled');
 
     if (
         !(field instanceof HTMLInputElement) ||
@@ -204,6 +230,14 @@ function captureForcedColorState() {
     ) {
         throw new Error('Expected forced-colors binary label owners');
     }
+    if (
+        !(selectPopup instanceof HTMLElement) ||
+        !(selectActive instanceof HTMLElement) ||
+        !(selectSelected instanceof HTMLElement) ||
+        !(selectDisabled instanceof HTMLElement)
+    ) {
+        throw new Error('Expected forced-colors custom select owners');
+    }
 
     const rootStyles = getComputedStyle(document.documentElement);
     const fieldStyles = getComputedStyle(field);
@@ -211,6 +245,10 @@ function captureForcedColorState() {
     const disabledBinaryStyles = getComputedStyle(disabledBinaryLabel);
     const pendingFieldStyles = getComputedStyle(pendingField);
     const pendingBinaryStyles = getComputedStyle(pendingBinaryLabel);
+    const selectPopupStyles = getComputedStyle(selectPopup);
+    const selectActiveStyles = getComputedStyle(selectActive);
+    const selectSelectedStyles = getComputedStyle(selectSelected);
+    const selectDisabledStyles = getComputedStyle(selectDisabled);
 
     return {
         binary: readIndicatorStyles(binaryStyles),
@@ -227,15 +265,35 @@ function captureForcedColorState() {
             ...readIndicatorStyles(pendingFieldStyles),
             focusVisible: pendingField.matches(':focus-visible'),
         },
+        select: {
+            active: {
+                backgroundColor: selectActiveStyles.backgroundColor,
+                color: selectActiveStyles.color,
+            },
+            disabled: {
+                color: selectDisabledStyles.color,
+            },
+            popup: {
+                backgroundColor: selectPopupStyles.backgroundColor,
+                borderColor: selectPopupStyles.borderColor,
+                color: selectPopupStyles.color,
+            },
+            selected: readIndicatorStyles(selectSelectedStyles),
+        },
         system: {
+            canvas: readSystemColor('Canvas'),
             canvasText: readSystemColor('CanvasText'),
+            grayText: readSystemColor('GrayText'),
             highlight: readSystemColor('Highlight'),
+            highlightText: readSystemColor('HighlightText'),
+            selectedItem: readSystemColor('SelectedItem'),
         },
         tokens: {
             boundary: rootStyles.getPropertyValue('--cem-stroke-boundary').trim(),
             focus: rootStyles.getPropertyValue('--cem-stroke-focus').trim(),
             none: rootStyles.getPropertyValue('--cem-stroke-none').trim(),
             pending: rootStyles.getPropertyValue('--cem-stroke-pending').trim(),
+            selected: rootStyles.getPropertyValue('--cem-stroke-selected').trim(),
         },
     };
 }

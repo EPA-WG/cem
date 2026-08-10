@@ -4503,6 +4503,81 @@ export const EdgeRenderStateHybridStorageModel: Story = {
     },
 };
 
+export const ProducedElementBehaviorAndFormAssociation: Story = {
+    render: () => {
+        const root = document.createElement('section');
+        root.setAttribute('aria-label', 'produced element behavior and form association story');
+        const runtime = new CemElementRuntime({ declarationTag: 'cem-element-story-behavior' });
+        const declaration = buildCemMlDeclaration(
+            'cem-element-story-behavior',
+            'story-behavior-field',
+            '{slice @name=message | pending}\n{output @class=message | {$datadom.slices.message}}'
+        );
+        root.appendChild(declaration);
+        runtime.registerDeclaration(declaration, {
+            behavior: {
+                formAssociated: true,
+                constructed(instance, context) {
+                    Object.defineProperty(instance, 'behaviorEvidence', {
+                        configurable: true,
+                        value: {
+                            connected: 0,
+                            constructedInternals: context.internals !== null,
+                            disconnected: 0,
+                            rendered: 0,
+                            reset: 0,
+                        },
+                    });
+                },
+                connected(instance) {
+                    behaviorEvidence(instance).connected += 1;
+                },
+                beforeRender(_instance, context) {
+                    context.setSlices({ message: 'ready' }, { render: false });
+                    context.internals?.setFormValue('ready');
+                },
+                rendered(instance) {
+                    behaviorEvidence(instance).rendered += 1;
+                },
+                disconnected(instance) {
+                    behaviorEvidence(instance).disconnected += 1;
+                },
+                formReset(instance) {
+                    behaviorEvidence(instance).reset += 1;
+                },
+            },
+        });
+
+        const form = document.createElement('form');
+        const instance = document.createElement('story-behavior-field');
+        instance.setAttribute('name', 'behavior');
+        form.appendChild(instance);
+        root.appendChild(form);
+        return root;
+    },
+    play: async ({ canvasElement }) => {
+        const form = requiredElement(canvasElement, 'form') as HTMLFormElement;
+        const instance = await waitForElement(canvasElement, 'story-behavior-field');
+        await waitForCondition(
+            () => instance.querySelector('.message')?.textContent === 'ready',
+            'beforeRender behavior slices reach the authoritative renderer'
+        );
+        const evidence = behaviorEvidence(instance);
+        assert(evidence.constructedInternals, 'form-associated behavior receives ElementInternals in construction');
+        assertEqual(evidence.connected, 1, 'connected behavior runs once on first connection');
+        assert(evidence.rendered > 0, 'rendered behavior runs after the committed render plan');
+        assertEqual(new FormData(form).get('behavior'), 'ready', 'ElementInternals contributes the host form value');
+
+        form.reset();
+        assertEqual(evidence.reset, 1, 'form reset delegates to the opt-in behavior');
+        instance.remove();
+        assertEqual(evidence.disconnected, 1, 'disconnected behavior runs on removal');
+        form.appendChild(instance);
+        await nextFrame();
+        assertEqual(evidence.connected, 2, 'connected behavior runs again after reconnection');
+    },
+};
+
 export const DeclarationDiagnosticsAreExposed: Story = {
     render: () => storyPanel('Declaration diagnostics', 'invalid declaration shapes surface through diagnosticsFor'),
     play: () => {
@@ -4957,6 +5032,20 @@ function buildCemMlDeclaration(declarationTag: string, tag: string, text: string
     template.textContent = text;
     declaration.appendChild(template);
     return declaration;
+}
+
+interface ProducedBehaviorEvidence {
+    connected: number;
+    constructedInternals: boolean;
+    disconnected: number;
+    rendered: number;
+    reset: number;
+}
+
+function behaviorEvidence(instance: HTMLElement): ProducedBehaviorEvidence {
+    const evidence = (instance as HTMLElement & { behaviorEvidence?: ProducedBehaviorEvidence }).behaviorEvidence;
+    if (!evidence) throw new Error('Expected produced-element behavior evidence');
+    return evidence;
 }
 
 async function appendResolutionPolicyFrame(parent: HTMLElement, baseHref: string): Promise<HTMLIFrameElement> {

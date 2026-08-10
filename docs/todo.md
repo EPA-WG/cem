@@ -17,8 +17,11 @@ underline and outline as geometry variants, not separate semantics.
 `CEM-CSS-001` is closed through D0/D5 theme adoption without a component CSS
 exception. Dedicated keyboard and forced-colors coverage completes
 `input:focus-visible`, and explicit presence-only busy projection now completes
-`input:loading` across all seven owners. The state-matrix audit recommends
-`input:expanded` next.
+`input:loading` across all seven owners. The custom form-associated `cem-select`
+now completes `input:expanded` with CEM-QL-owned rich option projection,
+canonical `cem-option` authoring, native-option migration input, and
+theme-tokenized popup/listbox states. The state-matrix audit recommends
+`navigation:hover` next.
 
 The cross-layer architecture remains serializer-free: lifecycle loading, graph
 routing, joins, evaluators, CEM-QL, CEMT, and XSLT adapters must exchange
@@ -759,6 +762,40 @@ mediate between internal layers.
     verifies 32 primitives and 383 generated visual tokens. Only
     `input:loading` moved to covered, yielding 30 covered, 0 static-only, and 9
     gaps with `input:expanded` recommended next.
+- [x] Implement the accepted custom `cem-select` and close `input:expanded`.
+  - [x] Extend CEM-QL tests-first with generic recursive serialized-payload
+        projection so rich option HTML remains on the authoritative renderer.
+  - [x] Add the opt-in browser behavior/FACE seam without putting functions,
+        live DOM identity, or browser objects into snapshots or render plans.
+  - [x] Add the focused custom-select browser fixture before promoting the
+        state: canonical `cem-option`, legacy all-native option adaptation,
+        rich content, groups, dropdown preview/commit/cancel, sized and multiple
+        listboxes, keyboard/typeahead/pointer behavior, form participation,
+        validity/reset/restore, disabled and dynamic-source boundaries.
+  - [x] Adopt missing popup/option color and list-popup geometry endpoints into
+        CEM theme; update the exact style contract without opening a component
+        CSS exception.
+  - [x] Document the component contract, update the state matrix and affected
+        examples, then run focused and aggregate Nx verification before commit
+        and push.
+  - CEM-QL now owns generic `cem:project-payload` materialization with recursive
+    element/text/comment coverage and fail-closed diagnostics. The browser
+    runtime adds an opt-in behavior/FACE seam while snapshots and render plans
+    remain serializable and CEM-QL remains the authoritative DOM producer.
+  - `cem-select` implements dropdown, sized single-listbox, and multiple-listbox
+    modes; rich canonical options and grouped options; legacy all-native option
+    adaptation; keyboard, pointer, typeahead, preview/commit/cancel, repeated
+    multi-value form data, required validity, reset/restore, and disabled-state
+    behavior. Authored options are explicitly initialization payload rather than
+    a live options collection.
+  - Twelve D0 select-state colors and the D2c list-popup row endpoint are
+    generated and exported. Component CSS consumes CEM theme tokens, while
+    forced colors maps to platform system colors; the component CSS exception
+    queue remains empty.
+  - CEM-QL tests, 93 runtime Storybook tests, and 43 component tests pass. The
+    aggregate component gate verifies 34 primitives and 396 generated visual
+    tokens. State coverage is 31 browser-covered, 0 static-only, and 8 gaps,
+    with `navigation:hover` recommended next.
 
 ## Current Verification Commands
 

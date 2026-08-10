@@ -69,6 +69,7 @@ Boundary heuristic:
 
   /* Lists / menus */
   --cem-list-row-height: 3rem;
+  --cem-list-popup-rows: 8;
   --cem-menu-row-height: 3rem;
 
   /* Data tables */
@@ -85,6 +86,7 @@ Boundary heuristic:
 | `--cem-icon-button-size`      | `var(--cem-coupling-zone-min)` | Icon button visible container size; meets zone minimum by default | recommended |
 | `--cem-icon-button-icon-size` | `1.25rem`                      | Icon glyph size within an icon button                             | recommended |
 | `--cem-list-row-height`       | `3rem`                         | List row height                                                   | recommended |
+| `--cem-list-popup-rows`       | `8`                            | Default maximum visible rows in a transient list popup            | recommended |
 | `--cem-menu-row-height`       | `3rem`                         | Menu row height                                                   | recommended |
 | `--cem-table-row-height`      | `2.5rem`                       | Data table row height                                             | recommended |
 
@@ -177,6 +179,7 @@ If a product wants visible icon containers below `--cem-coupling-zone-min`, wrap
 
 ```css
 .cem-list-row  { min-block-size: var(--cem-list-row-height); }
+.cem-list-popup { max-block-size: calc(var(--cem-list-row-height) * var(--cem-list-popup-rows)); }
 .cem-menu-row  { min-block-size: var(--cem-menu-row-height); }
 .cem-table-row { block-size:     var(--cem-table-row-height); }
 ```
@@ -190,7 +193,7 @@ meet `--cem-coupling-zone-min` independently.
 
 A draft becomes "canonical" when all of the following are true:
 
-1. **Visual-only contract:** this spec emits only `--cem-control-*`, `--cem-icon-button-*`, and row-height tokens.
+1. **Visual-only contract:** this spec emits only `--cem-control-*`, `--cem-icon-button-*`, and list/menu/table geometry tokens.
    Safety tokens (`--cem-coupling-*`) are NOT emitted here.
 2. **Mode overrides only adjust visuals:** forgiving/compact mode tables touch geometry, never zone/guard.
 3. **Halo escape hatch documented:** any time visuals fall below `--cem-coupling-zone-min`, halo expansion is the

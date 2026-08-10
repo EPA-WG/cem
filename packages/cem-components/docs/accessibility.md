@@ -155,7 +155,8 @@ patterns below are the contract for the Phase 3 primitive set.
 | --- | --- |
 | `cem-button` | `Enter`, `Space` activate. `Escape` cancels when inside a transient surface. |
 | `cem-nav[collapsible]` | Native disclosure-button behavior: `Enter` and `Space` toggle; `Tab` reaches projected links only while open. |
-| `cem-text-field` / `cem-select-field` | Native input behavior. `Escape` clears the field's `aria-invalid` state on next valid input. |
+| `cem-text-field` | Native text-input behavior. `Escape` does not mutate authored validation state. |
+| `cem-select` | Dropdown arrows/Home/End/Page/typeahead move the preview; Enter/Space/Tab commit and Escape cancels. Sized single listboxes commit movement. Multiple listboxes use modifier-free Space/click toggle, Shift range, and Ctrl/Cmd+A. |
 | `cem-checkbox` | `Space` toggles. `Enter` MUST NOT toggle (matches native checkbox). |
 | `cem-navigation-list` | `ArrowUp`/`ArrowDown` move focus; `Home`/`End` jump to ends; `Enter` activates. Composite tabstop = single. |
 | `cem-data-list` | `ArrowUp`/`ArrowDown` move focus among rows; `Enter` activates row's primary action. |
