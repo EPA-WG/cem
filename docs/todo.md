@@ -1071,6 +1071,33 @@ mediate between internal layers.
       before runtime work. No theme token, component CSS, fixture, or exception
       changed in this decision slice.
   - [ ] Implement the accepted `feedback:expanded` contract tests-first.
+    - [x] Exercise the native-dialog renderer stop condition with the red
+          fixture before landing component behavior.
+      - Both `userEvent.tab()` and a trusted keyboard Tab characterized native
+        Chromium boundaries: focus may temporarily become `body`, outside page
+        controls remain inert, and the next sequential move re-enters the
+        dialog. The accepted contract now records this platform behavior without
+        adding a custom Tab loop.
+      - More importantly, changing only an open dialog host's `label` retained
+        node identity but produced exact `open` mutations `"" -> null -> ""`.
+        The merge removed the browser-owned attribute, the behavior reopened the
+        dialog, and later close restored `body` rather than the original opener.
+        Per the accepted stop condition, the experimental fixture/behavior was
+        not landed and the existing component sources were restored.
+    - [ ] Accept and implement a generic `cem-elements` rendered-attribute
+          ownership boundary before retrying the feedback fixture.
+      - Recommended: add an opt-in attribute-preservation predicate to the DOM
+        merge options, expose it through browser-only
+        `CemProducedElementBehavior`, and have `CemElementRuntime` forward it for
+        the current produced instance. Preserve only attributes explicitly
+        claimed by that predicate; desired plan attributes remain authoritative
+        and unrelated undeclared attributes must still be removed.
+      - Prove the projection primitive first, then browser integration: an open
+        native dialog must have zero `open` mutations across an unrelated host
+        render, retain the original focus-restoration target, and still close
+        through `close()` before an authored state change, owner replacement, or
+        disconnect. Keep dialog/component names out of the generic projection
+        module.
     - [ ] Add a focused browser fixture covering passive compatibility;
           transient initialization and host-attribute transitions; native modal
           state for both dialog tags; non-modal sheet visibility; initial focus,
@@ -1080,10 +1107,8 @@ mediate between internal layers.
           close/disconnect/reconnect cleanup before adding behavior.
     - [ ] Add one shared dialog behavior adapter and declarative transient
           branches without adding a custom inert sweep, Tab loop, structural
-          wrapper focusability, or sheet Escape/focus handling. Stop if the
-          renderer cannot preserve a browser-owned native `open` state across
-          unrelated host renders; promote that substrate limitation instead of
-          manually removing `open` from a modal dialog.
+          wrapper focusability, sheet Escape/focus handling, or direct
+          browser-owned `open` mutation.
     - [ ] Update component/accessibility docs and the executable matrix, then
           run the focused state suite, state-matrix audit, lint, and aggregate
           package gate before marking implementation complete.

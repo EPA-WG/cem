@@ -1,8 +1,9 @@
 # Feedback Expanded Contract
 
-**Status:** Accepted Phase 4 contract; implementation pending. This contract is
-promoted by [`docs/todo.md`](../../../docs/todo.md). No fixture or runtime
-behavior is part of the decision-only slice that accepts it.
+**Status:** Accepted Phase 4 contract; implementation blocked on the generic
+rendered-attribute ownership boundary recorded below. This contract is promoted
+by [`docs/todo.md`](../../../docs/todo.md). No component fixture or runtime
+behavior has landed yet.
 
 ## Decision
 
@@ -172,9 +173,12 @@ confirm, delete, or save; authors use the native dialog `returnValue`.
 - Native dialog focusing chooses an authored `autofocus` target, otherwise the
   browser focus delegate, otherwise the dialog. The component does not inject
   `autofocus` or `tabindex` and does not reorder authored descendants.
-- The browser owns modal Tab/Shift+Tab containment and document inertness. No
-  document-wide keydown handler, focus sentinels, `aria-hidden` sweep, or custom
-  Tab loop is allowed.
+- The browser owns modal Tab/Shift+Tab containment and document inertness. At a
+  native Chromium boundary, `document.activeElement` may temporarily become
+  `body` before the next sequential move re-enters the dialog; no outside page
+  control may receive focus. The component does not override that platform
+  boundary with a document-wide keydown handler, focus sentinels,
+  `aria-hidden` sweep, or custom Tab loop.
 - Escape follows native `cancel`/close behavior. Preventing `cancel` is the only
   Phase 4 modal-blocking override.
 - Normal `close()` restores the element captured by the platform at open time.
@@ -219,6 +223,47 @@ does not become a component-owned trigger merely by being projected.
 - Multiple component instances keep independent state. One instance MUST NOT
   close, focus, or mutate another.
 
+## Implementation blocker: browser-owned attributes
+
+The first red component fixture proved that the current `cem-elements` DOM merge
+cannot yet preserve the native dialog lifecycle safely. With a transient dialog
+open through `showModal()`, changing only the host `label` retained the same
+`HTMLDialogElement` but produced these observed `open` mutations:
+
+```text
+"" -> null -> ""
+```
+
+The generic attribute synchronizer removed `open` because it was absent from the
+render plan, then the behavior's rendered hook called `showModal()` again. The
+dialog appeared open and still matched `:modal`, but the second call captured a
+new restoration target. A later native close therefore focused `body` instead
+of the opener captured by the original open transition.
+
+This is the contract's explicit stop condition. The component MUST NOT mask it
+by manually removing/re-adding `open`, rendering `open` before calling
+`showModal()`, or installing a component-specific mutation observer. Those
+approaches either violate the HTML dialog cleanup lifecycle, open a non-modal
+dialog before the modal call, or reproduce the same restoration loss.
+
+The recommended substrate follow-up is a generic opt-in preservation hook:
+
+1. Extend the DOM merge options with a predicate for attributes that are
+   runtime/browser-owned on a particular current/desired element pair.
+2. Expose that predicate through the browser-only
+   `CemProducedElementBehavior` boundary and forward it from
+   `CemElementRuntime.commitRenderPlan`; do not serialize it into render plans.
+3. During attribute synchronization, skip removal only when the predicate owns
+   that exact current attribute. Desired render-plan attributes remain
+   authoritative, and unrelated undeclared attributes must still be removed.
+4. Let the feedback behavior preserve only native `dialog[open]` while its
+   transient modal is active. The normal `beforeRender` close path still calls
+   `close()` before an authored state transition or owner replacement.
+
+That substrate API and its projection/runtime tests require acceptance before
+the component fixture is retried. No special case for `dialog`, `open`, or CEM
+feedback components belongs in the generic projection module.
+
 ## Executable acceptance
 
 Before adding the fixture, `docs/todo.md` must contain an explicit actionable
@@ -229,8 +274,9 @@ coverage proves:
 - transient closed/open initialization and live host-attribute transitions;
 - native modal/top-layer state for both dialog tags and native-hidden state for
   the sheet;
-- `autofocus` initial focus, contained forward/reverse Tab order, Escape
-  dismissal, prevented cancel, native close return value, and focus restoration;
+- `autofocus` initial focus, forward/reverse native Tab boundaries with outside
+  controls inert, Escape dismissal, prevented cancel, native close return
+  value, and focus restoration;
 - non-modal sheet focus retention with no Escape interception or inert document;
 - exact `expanded`, native `open`/`hidden`, and external trigger ARIA agreement;
 - one serializable `cem-dismiss` per native dismissal and none for application

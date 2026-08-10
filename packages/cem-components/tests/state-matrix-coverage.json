@@ -637,7 +637,7 @@
             "components": ["cem-dialog", "cem-dialog-shell", "cem-sheet"],
             "interaction": "Open and close a dialog or sheet and mirror disclosure state where applicable.",
             "status": "gap",
-            "reason": "The transient feedback lifecycle contract is accepted, but no fixture or runtime open/close transition implements it yet; aria-expanded remains owned by the application trigger, not the surface wrapper."
+            "reason": "The transient feedback lifecycle contract is accepted, but implementation is blocked until the generic DOM merge can preserve browser-owned dialog open state across unrelated renders; aria-expanded remains owned by the application trigger, not the surface wrapper."
         },
         {
             "id": "feedback:invalid",
