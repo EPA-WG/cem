@@ -637,7 +637,7 @@
             "components": ["cem-dialog", "cem-dialog-shell", "cem-sheet"],
             "interaction": "Open and close a dialog or sheet and mirror disclosure state where applicable.",
             "status": "gap",
-            "reason": "The transient feedback lifecycle contract is accepted and the generic DOM merge now preserves explicitly claimed browser-owned attributes across unrelated renders. The focused feedback fixture and shared lifecycle behavior remain to be implemented; aria-expanded remains owned by the application trigger, not the surface wrapper."
+            "reason": "The transient feedback lifecycle contract and generic browser-owned attribute boundary are accepted. A focused fixture now passes passive compatibility and executes four expected-failure transient scenarios; shared lifecycle behavior must make them pass before this row is covered. aria-expanded remains owned by the application trigger, not the surface wrapper."
         },
         {
             "id": "feedback:invalid",

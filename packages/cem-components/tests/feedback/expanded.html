@@ -1,0 +1,77 @@
+<section data-feedback-expanded-fixture aria-label="Feedback expanded fixture">
+    <button type="button" data-outside="before">Before feedback surfaces</button>
+
+    <div data-passive-pair="dialog">
+        <cem-dialog label="Passive dialog" data-passive="baseline">
+            <label>Draft <input value="unchanged" /></label>
+        </cem-dialog>
+        <cem-dialog label="Passive dialog" data-passive="expanded" expanded>
+            <label>Draft <input value="unchanged" /></label>
+        </cem-dialog>
+    </div>
+
+    <div data-passive-pair="dialog-shell">
+        <cem-dialog-shell label="Passive shell" data-passive="baseline">
+            <label>Draft <input value="unchanged" /></label>
+        </cem-dialog-shell>
+        <cem-dialog-shell label="Passive shell" data-passive="expanded" expanded>
+            <label>Draft <input value="unchanged" /></label>
+        </cem-dialog-shell>
+    </div>
+
+    <div data-passive-pair="sheet">
+        <cem-sheet label="Passive sheet" data-passive="baseline">
+            <label>Draft <input value="unchanged" /></label>
+        </cem-sheet>
+        <cem-sheet label="Passive sheet" data-passive="expanded" expanded>
+            <label>Draft <input value="unchanged" /></label>
+        </cem-sheet>
+    </div>
+
+    <button
+        type="button"
+        data-opener="dialog"
+        aria-controls="feedback-transient-dialog"
+        aria-expanded="false"
+    >
+        Open dialog
+    </button>
+    <cem-dialog id="feedback-transient-dialog" label="Transient dialog" transient>
+        <form method="dialog">
+            <label>Dialog draft <input data-state="dialog" value="initial dialog value" /></label>
+            <button type="button" data-focus="first">First action</button>
+            <button type="submit" value="cancel">Cancel</button>
+            <button type="submit" value="confirm" autofocus data-focus="autofocus">Confirm</button>
+        </form>
+    </cem-dialog>
+
+    <button
+        type="button"
+        data-opener="dialog-shell"
+        aria-controls="feedback-transient-dialog-shell"
+        aria-expanded="false"
+    >
+        Open dialog shell
+    </button>
+    <cem-dialog-shell id="feedback-transient-dialog-shell" label="Transient dialog shell" transient>
+        <form method="dialog">
+            <p>Shell body</p>
+            <button type="submit" value="done" autofocus>Done</button>
+        </form>
+    </cem-dialog-shell>
+
+    <button
+        type="button"
+        data-opener="sheet"
+        aria-controls="feedback-transient-sheet"
+        aria-expanded="false"
+    >
+        Open sheet
+    </button>
+    <cem-sheet id="feedback-transient-sheet" label="Transient sheet" transient>
+        <label>Sheet draft <input data-state="sheet" value="initial sheet value" /></label>
+        <button type="button" data-sheet-action>Sheet action</button>
+    </cem-sheet>
+
+    <button type="button" data-outside="after">After feedback surfaces</button>
+</section>

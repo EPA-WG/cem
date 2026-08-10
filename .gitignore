@@ -50,3 +50,7 @@ Thumbs.db
 .github/instructions/nx.instructions.md
 
 vitest.config.*.timestamp*
+
+# Executable expected-failure browser fixtures emit diagnostic screenshots.
+packages/cem-components/.vitest-attachments/
+packages/cem-components/src/lib/__screenshots__/feedback-expanded.browser.spec.ts/

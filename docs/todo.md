@@ -1111,13 +1111,28 @@ mediate between internal layers.
         identity, original-opener restoration, and native close before authored
         state, recovery replacement, and disconnect. No dialog or feedback name
         was added to the generic projection implementation.
-    - [ ] Add a focused browser fixture covering passive compatibility;
+    - [x] Add a focused browser fixture covering passive compatibility;
           transient initialization and host-attribute transitions; native modal
           state for both dialog tags; non-modal sheet visibility; initial focus,
           forward/reverse Tab containment, Escape/prevented cancel, native close
           return value, focus restoration; exact external trigger ARIA;
           serialized `cem-dismiss`; stable DOM/state/geometry; and
           close/disconnect/reconnect cleanup before adding behavior.
+      - Added declarative `tests/feedback/expanded.html` markup plus a dedicated
+        Chromium acceptance spec. Passive output compatibility is an ordinary
+        passing test; the four behavior-dependent scenarios are executable
+        `it.fails` cases so the accepted contract remains red without leaving
+        the package gate failed before production behavior lands.
+      - The initial red run passed passive compatibility and failed all four
+        transient scenarios at the intended current boundaries: neither dialog
+        tag rendered a native `<dialog>`, and the closed transient sheet was not
+        hidden. The fixture already pins native owner/state transitions, modal
+        focus and Tab boundaries, prevented/successful Escape, form return
+        value, external opener ARIA, serializable dismissal, non-modal sheet
+        behavior, DOM/input/geometry stability, zero `open` churn, application
+        close, native-owner replacement, disconnect, and reconnect cleanup. No
+        primitive behavior, CSS, theme token, or exception changed in this
+        fixture-only slice.
     - [ ] Add one shared dialog behavior adapter and declarative transient
           branches without adding a custom inert sweep, Tab loop, structural
           wrapper focusability, sheet Escape/focus handling, or direct

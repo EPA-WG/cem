@@ -1,10 +1,11 @@
 # Feedback Expanded Contract
 
 **Status:** Accepted Phase 4 contract; the generic rendered-attribute ownership
-boundary is implemented and verified, so the focused component fixture is the
-next work item. This contract is promoted by
-[`docs/todo.md`](../../../docs/todo.md). No component fixture or feedback runtime
-behavior has landed yet.
+boundary is implemented and verified, and the focused component fixture has
+landed as passive passing coverage plus four executable expected failures. The
+shared feedback behavior is the next work item. This contract is promoted by
+[`docs/todo.md`](../../../docs/todo.md). No feedback runtime behavior has landed
+yet.
 
 ## Decision
 
@@ -292,6 +293,15 @@ coverage proves:
 - stable owner/payload identity, geometry while each state is stable, and no
   authored descendant state mutation; and
 - listener/top-layer cleanup across close, disconnect, and reconnect.
+
+The declarative fixture is
+[`tests/feedback/expanded.html`](../tests/feedback/expanded.html), exercised by
+[`feedback-expanded.browser.spec.ts`](../src/lib/feedback-expanded.browser.spec.ts).
+Passive compatibility passes normally. Four behavior-dependent cases use
+Vitest's executable expected-failure mode and currently fail at the absent
+native-dialog and hidden-sheet boundaries. The behavior implementation must
+remove those expected-failure modifiers and make every assertion pass; expected
+failures do not count as state-matrix coverage.
 
 This expanded-state slice does not add feedback focus paint. After its lifecycle
 is executable, the separate feedback focus decision must identify actual native
