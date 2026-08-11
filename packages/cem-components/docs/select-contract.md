@@ -90,7 +90,9 @@ Popup and option fills consume generated `--cem-select-*` D0 state tokens. Rows
 consume `--cem-list-row-height`; the transient row limit consumes
 `--cem-list-popup-rows`; remaining geometry consumes existing CEM families.
 Forced colors maps surface/active/selected/disabled states to system colors. No
-component CSS exception is open.
+visual theme exception is open. Physical popup draw order is separately bounded
+by `CEM-CSS-002`; D4 overlay tokens remain semantic shadow recipes and are not
+used as z-index values.
 
 ## Deliberate boundaries
 

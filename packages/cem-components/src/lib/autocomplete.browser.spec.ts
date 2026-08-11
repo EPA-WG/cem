@@ -1,6 +1,8 @@
+import '@epa-wg/cem-theme/styles.css';
 import { CemElementRuntime } from '@epa-wg/cem-elements';
 import { userEvent } from 'vitest/browser';
 
+import '../styles.css';
 import autocompleteContractFixture from '../../tests/autocomplete/contract.html?raw';
 import { installCemComponentPrimitives } from './primitives.js';
 import {
@@ -253,6 +255,8 @@ describe('autocomplete contract fixture', () => {
 
         input.focus();
         await nextRenderFrame();
+        const hostRect = rectTuple(host);
+        const inputRect = rectTuple(input);
         island.content.querySelectorAll('cem-option, cem-option-group').forEach((node) => node.remove());
         const replacement = document.createElement('cem-option');
         replacement.setAttribute('value', 'lin');
@@ -264,11 +268,145 @@ describe('autocomplete contract fixture', () => {
         expect(requiredElement(host, '[role="option"]').textContent?.trim()).toBe('Lin Chen');
         expect(requiredElement(host, '.cem-autocomplete__control')).toBe(input);
         expect(document.activeElement).toBe(input);
+        expect(rectTuple(host)).toEqual(hostRect);
+        expect(rectTuple(input)).toEqual(inputRect);
         expect(host.value).toBe('ada');
         expect(host.displayValue).toBe('Ada Lovelace');
         expect(host.selectedIndex).toBe(-1);
         expect(events).toEqual([]);
         expect(() => assertAriaReferenceIntegrity(root)).not.toThrow();
+    });
+
+    it('keeps hover, focus, active, selected, and disabled paint independent without geometry or state mutation', async () => {
+        const root = await renderFixture();
+        const focusStart = requiredElement<HTMLButtonElement>(root, '[data-autocomplete-focus-start]');
+        const host = requiredElement<TestCemAutocomplete>(root, '#person-autocomplete');
+        const input = requiredElement<HTMLInputElement>(host, '.cem-autocomplete__control');
+        const closedHostRect = rectTuple(host);
+        const closedInputRect = rectTuple(input);
+        const mutationEvents: string[] = [];
+        for (const eventName of ['input', 'change']) {
+            host.addEventListener(eventName, () => mutationEvents.push(eventName));
+        }
+
+        focusStart.focus();
+        await userEvent.tab();
+        await nextRenderFrame();
+
+        expect(document.activeElement).toBe(input);
+        expect(input.matches(':focus-visible')).toBe(true);
+        expect(host.expanded).toBe(true);
+        expect(rectTuple(host)).toEqual(closedHostRect);
+        expect(rectTuple(input)).toEqual(closedInputRect);
+
+        const popup = requiredElement<HTMLElement>(host, '.cem-autocomplete__popup');
+        const selectedActive = requiredElement<HTMLElement>(
+            host,
+            '.cem-autocomplete__option[aria-selected="true"][data-active="true"]',
+        );
+        const hoverOption = Array.from(host.querySelectorAll<HTMLElement>('.cem-autocomplete__option')).find(
+            (option) => option.textContent?.trim() === 'Grace Hopper',
+        );
+        if (!hoverOption) throw new Error('Expected Grace Hopper option');
+        const disabledOption = requiredElement<HTMLElement>(
+            host,
+            '.cem-autocomplete__option[aria-disabled="true"]',
+        );
+        const inputPointerEvents: string[] = [];
+        const optionPointerEvents: string[] = [];
+        input.addEventListener('pointerenter', (event) => inputPointerEvents.push(`pointerenter:${event.isTrusted}`));
+        input.addEventListener('pointerleave', (event) => inputPointerEvents.push(`pointerleave:${event.isTrusted}`));
+        hoverOption.addEventListener('pointerenter', (event) =>
+            optionPointerEvents.push(`pointerenter:${event.isTrusted}`),
+        );
+        hoverOption.addEventListener('pointerleave', (event) =>
+            optionPointerEvents.push(`pointerleave:${event.isTrusted}`),
+        );
+
+        expect(getComputedStyle(popup).zIndex).toBe('1');
+        expect(getComputedStyle(selectedActive).backgroundColor).toBe(
+            resolveTokenColor(selectedActive, '--cem-select-option-active-background'),
+        );
+        expect(getComputedStyle(selectedActive).outlineColor).toBe(
+            resolveTokenColor(selectedActive, '--cem-select-option-selected-background'),
+        );
+
+        await userEvent.hover(input);
+        await nextRenderFrame();
+        expect(input.matches(':hover')).toBe(true);
+        expect(input.matches(':focus-visible')).toBe(true);
+        await userEvent.unhover(input);
+        await nextRenderFrame();
+
+        const baselineRuntime = stableRuntimeSnapshot(runtime, host);
+        const baselineHtml = host.innerHTML;
+        const baselineHostRect = rectTuple(host);
+        const baselineInputRect = rectTuple(input);
+        const baselineOptionRect = rectTuple(hoverOption);
+        const baselineSelectedRect = rectTuple(selectedActive);
+        const baselineFocusTreatment = focusTreatment(input);
+        const baselineSelectedState = [
+            selectedActive.getAttribute('aria-selected'),
+            selectedActive.getAttribute('data-active'),
+            input.getAttribute('aria-activedescendant'),
+        ];
+
+        await userEvent.hover(hoverOption);
+        await nextRenderFrame();
+
+        expect(hoverOption.matches(':hover')).toBe(true);
+        expect(getComputedStyle(hoverOption).backgroundColor).toBe(
+            resolveTokenColor(hoverOption, '--cem-select-option-hover-background'),
+        );
+        expect(getComputedStyle(hoverOption).color).toBe(
+            resolveTokenColor(hoverOption, '--cem-select-option-hover-text'),
+        );
+        expect(getComputedStyle(selectedActive).backgroundColor).toBe(
+            resolveTokenColor(selectedActive, '--cem-select-option-active-background'),
+        );
+        expect(getComputedStyle(selectedActive).outlineColor).toBe(
+            resolveTokenColor(selectedActive, '--cem-select-option-selected-background'),
+        );
+        expect(input.matches(':focus-visible')).toBe(true);
+        expect(focusTreatment(input)).toEqual(baselineFocusTreatment);
+        expect(document.activeElement).toBe(input);
+        expect(rectTuple(host)).toEqual(baselineHostRect);
+        expect(rectTuple(input)).toEqual(baselineInputRect);
+        expect(rectTuple(hoverOption)).toEqual(baselineOptionRect);
+        expect(rectTuple(selectedActive)).toEqual(baselineSelectedRect);
+        expect(host.innerHTML).toBe(baselineHtml);
+        expect(stableRuntimeSnapshot(runtime, host)).toBe(baselineRuntime);
+        expect([
+            selectedActive.getAttribute('aria-selected'),
+            selectedActive.getAttribute('data-active'),
+            input.getAttribute('aria-activedescendant'),
+        ]).toEqual(baselineSelectedState);
+        expect(mutationEvents).toEqual([]);
+
+        await userEvent.unhover(hoverOption);
+        await nextRenderFrame();
+        const disabledBaseline = {
+            backgroundColor: getComputedStyle(disabledOption).backgroundColor,
+            color: getComputedStyle(disabledOption).color,
+            rect: rectTuple(disabledOption),
+        };
+        await userEvent.hover(disabledOption);
+        await nextRenderFrame();
+        expect(disabledOption.matches(':hover')).toBe(true);
+        expect(getComputedStyle(disabledOption).backgroundColor).toBe(disabledBaseline.backgroundColor);
+        expect(getComputedStyle(disabledOption).color).toBe(disabledBaseline.color);
+        expect(rectTuple(disabledOption)).toEqual(disabledBaseline.rect);
+        expect(document.activeElement).toBe(input);
+        expect(input.matches(':focus-visible')).toBe(true);
+        expect(stableRuntimeSnapshot(runtime, host)).toBe(baselineRuntime);
+        expect(mutationEvents).toEqual([]);
+        await userEvent.unhover(disabledOption);
+        await nextRenderFrame();
+
+        expect(inputPointerEvents).toEqual(['pointerenter:true', 'pointerleave:true']);
+        expect(optionPointerEvents).toEqual(['pointerenter:true', 'pointerleave:true']);
+        expect(rectTuple(host)).toEqual(closedHostRect);
+        expect(rectTuple(input)).toEqual(closedInputRect);
     });
 
     it('supports native migration and suppresses disabled, readonly, and busy state side effects', async () => {
@@ -330,6 +468,43 @@ function requiredElement<T extends Element = HTMLElement>(root: ParentNode, sele
     const element = root.querySelector<T>(selector);
     if (!element) throw new Error(`Expected fixture to contain ${selector}`);
     return element;
+}
+
+function rectTuple(element: Element): readonly number[] {
+    const rect = element.getBoundingClientRect();
+    return [rect.x, rect.y, rect.width, rect.height];
+}
+
+function resolveTokenColor(element: Element, tokenName: string): string {
+    const styles = getComputedStyle(element);
+    const tokenValue = styles.getPropertyValue(tokenName).trim();
+    if (!tokenValue) throw new Error(`Expected generated color token ${tokenName}`);
+    const probe = document.createElement('span');
+    probe.hidden = true;
+    probe.style.colorScheme = styles.colorScheme;
+    probe.style.setProperty(tokenName, tokenValue);
+    probe.style.color = `var(${tokenName})`;
+    document.body.append(probe);
+    const color = getComputedStyle(probe).color;
+    probe.remove();
+    if (!color) throw new Error(`Expected generated color token ${tokenName} to resolve`);
+    return color;
+}
+
+function focusTreatment(element: Element): readonly string[] {
+    const styles = getComputedStyle(element);
+    return [styles.outlineColor, styles.outlineStyle, styles.outlineWidth, styles.outlineOffset, styles.boxShadow];
+}
+
+function stableRuntimeSnapshot(runtime: CemElementRuntime, host: HTMLElement): string {
+    const snapshot = runtime.snapshotInstance(host);
+    return JSON.stringify({
+        eventPayloads: snapshot.eventPayloads,
+        formData: snapshot.formData,
+        payload: snapshot.payload,
+        slices: snapshot.slices,
+        validationState: snapshot.validationState,
+    });
 }
 
 async function waitFor(condition: () => boolean, message: string): Promise<void> {

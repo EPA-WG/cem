@@ -1,8 +1,9 @@
 # Autocomplete Contract
 
 **Status:** Accepted as the first Angular Material parity implementation
-priority. This document defines the contract before any `cem-autocomplete`
-primitive, browser behavior, component CSS, or focused fixture is added.
+priority. The primitive, browser behavior, tokenized CSS, focused fixture, and
+forced-colors gate are implemented; public inventory and state-matrix promotion
+remain deliberately separate.
 
 Benchmark behavior is pinned to the Angular Material `v22.1.1`
 [autocomplete guide](https://github.com/angular/components/blob/v22.1.1/src/material/autocomplete/autocomplete.md).
@@ -178,7 +179,10 @@ keeps focus on the input and commits exactly the clicked enabled option.
 
 ## Theme-token audit
 
-No missing theme category or CSS exception was found.
+No missing visual theme category was found. Implementation subsequently
+discovered that D4 intentionally excludes numeric physical draw order; the
+bounded `CEM-CSS-002` component exception supplies that non-semantic adapter for
+both select and autocomplete popups.
 
 - The input reuses the D0 `--cem-input-indicator-*` state colors and D5
   underline/outline, pending, focus, and selection stripe geometry.
@@ -187,12 +191,17 @@ No missing theme category or CSS exception was found.
   Their theme specification is broadened to cover both select and autocomplete
   listbox owners before component CSS is added.
 - Popup structure uses `--cem-stroke-standard`, `--cem-bend-overlay`,
-  `--cem-elevation-3`, `--cem-layer-overlay`, `--cem-list-row-height`,
+  `--cem-elevation-3`, `--cem-list-row-height`,
   `--cem-list-popup-rows`, control padding, gaps, and UI typography.
 
 The historical `--cem-select-*` prefix remains a stable public token name; its
 accepted semantic category is now a shared choice-popup/listbox state family,
 not a license to borrow unrelated component paint.
+
+`--cem-layer-overlay` continues to represent semantic overlay elevation through
+its shadow recipe and MUST NOT be assigned to `z-index`. Physical popup
+stacking uses only the private, verifier-bounded adapter accepted in
+`components-css-exceptions.md`.
 
 ## Forced-colors boundary
 

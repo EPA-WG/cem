@@ -1,7 +1,9 @@
 # Component CSS Exceptions
 
-**Status:** No open exceptions. `CEM-CSS-001` was resolved by adopting generated
-theme tokens; no component-local value or verifier waiver was authorized.
+**Status:** One accepted bounded exception. `CEM-CSS-001` was resolved by
+adopting generated theme tokens. `CEM-CSS-002` authorizes one private physical
+stacking adapter for transient choice popups because D4 deliberately does not
+provide numeric z-index values.
 
 ## Token-first rule
 
@@ -19,6 +21,30 @@ does not authorize component CSS to bypass the style verifier.
 ## Review queue
 
 None.
+
+## Accepted bounded exceptions
+
+| ID | Status | Requirement | Accepted scope |
+| --- | --- | --- | --- |
+| CEM-CSS-002 | Accepted — component-local physical adapter | A select/autocomplete popup must paint above later in-flow, positioned component content while remaining anchored to its input/control. | Only `cem-select .cem-select__popup` and `cem-autocomplete .cem-autocomplete__popup` may declare private `--_cem-choice-popup-z-index: 1` and consume it through `z-index`. The generated D4 overlay endpoint continues to own semantic elevation through `box-shadow`; the private integer carries no semantic tier and is not public API. |
+
+### CEM-CSS-002 rationale and verifier boundary
+
+D4 explicitly separates semantic layers from physical draw order:
+`--cem-layer-overlay` resolves to the overlay shadow recipe, and the layering
+contract forbids using elevation values as z-index values. The former select
+rule nevertheless assigned `var(--cem-layer-overlay)` to `z-index`; browsers
+discarded that invalid value, allowing later positioned fields to intercept
+pointer input intended for an open popup.
+
+No generated theme category can represent the missing integer because D4
+requires framework-specific stacking mechanics. The accepted value is the
+smallest positive local stacking level and is intentionally private. It does
+not create an overlay ladder, compete with command/modal policy, authorize
+portals, or alter dismissal/focus semantics. The style verifier accepts the
+declaration only on the two choice-popup selectors, requires the exact private
+property and value, rejects `--cem-layer-overlay` as a z-index value, and
+rejects any other component z-index declaration.
 
 ## Closed decisions
 
@@ -107,13 +133,15 @@ directly to generated `--cem-action-primary-*` or
 `--cem-action-contextual-*` semantic tokens, and the style verifier rejects
 unknown or non-CEM variables.
 
-The custom select likewise requires no exception. D0 owns the generated
-`--cem-select-*` popup/option state colors and D2c owns
+The custom select paint and geometry tokens require no exception. D0 owns the
+generated `--cem-select-*` popup/option state colors and D2c owns
 `--cem-list-popup-rows`; all remaining geometry composes existing CEM tokens.
 The accepted autocomplete contract broadens that same theme family to shared
 select/autocomplete choice-popup semantics and reuses the existing input
-indicator, D5, layering, control, shape, and typography categories. No
-autocomplete exception is proposed before implementation.
+indicator, D5, layering, control, shape, and typography categories. The later
+implementation discovery is limited to physical draw order, which is now
+governed by `CEM-CSS-002`; it does not introduce a missing visual theme
+category.
 
 The navigation hover contract also requires no exception. D0 owns generated
 `--cem-navigation-item-*` default, hover, current, current-hover, and disabled

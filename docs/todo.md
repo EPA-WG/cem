@@ -14,7 +14,12 @@ browser coverage with no static-only rows or gaps. The active M4 expansion now
 uses the versioned Angular Material parity inventory; all official entries are
 classified, and `cem-autocomplete` is the accepted first gap with its owner,
 interaction, form, theme, fixture, forced-colors, and assertion contract fixed
-before runtime or CSS implementation. The component
+before runtime or CSS implementation. The autocomplete primitive, browser
+behavior, tokenized CSS, focused fixture, and normal/forced-colors state gates
+are now implemented. One bounded `CEM-CSS-002` exception supplies only the
+private physical popup draw order that D4 explicitly excludes; semantic
+elevation remains theme-owned. Public state-matrix, reference, package, and
+parity-inventory promotion remains the next work item. The component
 stylesheet publication, `action:hover`, and `action:active` contracts are
 implemented and verified. The `input:hover` contract is also implemented:
 all seven native owners share a theme-tokenized three-stripe indicator, with
@@ -101,15 +106,24 @@ mediate between internal layers.
         versioned inventory, public component documentation, and aggregate Nx
         gate current. Record a CSS exception only when no appropriate theme
         category can represent accepted styling.
-    - [ ] Complete the focused `tests/autocomplete/contract.html` fixture and
+    - [x] Complete the focused `tests/autocomplete/contract.html` fixture and
           browser matrix.
       - [x] Add the declarative fixture and failing-then-green assertions for
             the public surface, event/form model, keyboard/accessibility
             behavior, live-option replacement, disabled/readonly/loading
             suppression, and native-option migration.
-      - [ ] Add the geometry, hover/focus/active/selected coexistence, and
+      - [x] Add the geometry, hover/focus/active/selected coexistence, and
             forced-colors assertions after the physical popup-stacking policy
             is resolved.
+        - Accepted the private component-local `CEM-CSS-002` value only for
+          select/autocomplete transient popup draw order. The style verifier
+          rejects all other component z-index declarations and preserves D4
+          semantic elevation independently through `--cem-elevation-3`.
+        - Added real pointer enter/leave, token-resolved hover, selected/active
+          coexistence, disabled suppression, keyboard focus-visible plus open
+          state, stable geometry/DOM/runtime, and zero event-mutation coverage.
+          The focused forced-colors target also proves system-color mappings
+          and that later positioned fields cannot intercept the popup.
     - [x] Refactor shared option normalization without changing `cem-select`,
           then add the `cem-autocomplete` primitive and behavior with no CSS.
       - Added the form-associated native-input owner, free-form and
@@ -119,9 +133,15 @@ mediate between internal layers.
       - Corrected render-plan sibling reconciliation so a projected payload
         node changing from an element to text removes the displaced stale
         sibling while retaining the focused input.
-    - [ ] Extend component CSS only with accepted CEM tokens, add the focused
+    - [x] Extend component CSS only with accepted CEM tokens, add the focused
           forced-colors gate, and keep hover/focus/expanded/selected/active/
           disabled state ownership independent and geometry-stable.
+      - Styled only the native input and projected option/listbox owners. All
+        visual paint and geometry consume accepted generated tokens; no
+        structural wrapper receives interaction paint.
+      - Added `verify-autocomplete-forced-colors` to the component aggregate Nx
+        gate and locked the bounded stacking rule into the static style
+        verifier.
     - [ ] Promote the state matrix, component reference, package verification,
           and Angular Material inventory only after all contract assertions pass.
 

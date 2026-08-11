@@ -43,6 +43,11 @@ const ACTION_TAGS = new Set(['cem-action', 'cem-icon-button', 'cem-menu-item']);
 const CONTENT_INTERACTION_TAGS = new Set(['cem-chip', 'cem-list']);
 const FEEDBACK_TAGS = new Set(['cem-dialog', 'cem-dialog-shell', 'cem-sheet']);
 const NAVIGATION_TAGS = new Set(['cem-nav', 'cem-tabs']);
+const CHOICE_POPUP_STACKING_SELECTORS = new Set([
+    'cem-autocomplete .cem-autocomplete__popup',
+    'cem-select .cem-select__popup',
+]);
+const CHOICE_POPUP_Z_INDEX_PROPERTY = '--_cem-choice-popup-z-index';
 const PUBLIC_COMPONENT_ADAPTERS = new Set(['--cem-input-indicator-appearance']);
 const ACTION_BINDINGS = new Map([
     [
@@ -405,6 +410,7 @@ function assertPublicComponentStyles(components, tokenNames) {
     const feedbackRules = new Map();
     const feedbackForcedColorRules = new Map();
     const navigationRules = new Map();
+    const choicePopupStackingRules = new Map();
     const privateProperties = new Set(
         rules.flatMap(({ declarations }) => [...declarations.keys()].filter((name) => name.startsWith('--_cem-'))),
     );
@@ -455,6 +461,30 @@ function assertPublicComponentStyles(components, tokenNames) {
                 fail(`${pathLabel}: duplicate feedback selector \`${rule.selector}\``);
             }
             feedbackRuleSet.set(rule.selector, rule.declarations);
+        }
+        if (rule.declarations.has('z-index')) {
+            if (rule.media || !CHOICE_POPUP_STACKING_SELECTORS.has(rule.selector)) {
+                fail(`${pathLabel}: z-index is allowed only on accepted choice-popup selectors`);
+            } else {
+                choicePopupStackingRules.set(rule.selector, rule.declarations);
+            }
+        }
+    }
+
+    for (const selector of CHOICE_POPUP_STACKING_SELECTORS) {
+        const declarations = choicePopupStackingRules.get(selector);
+        if (!declarations) {
+            fail(`${pathLabel}: missing CEM-CSS-002 physical stacking binding on \`${selector}\``);
+            continue;
+        }
+        if (declarations.get(CHOICE_POPUP_Z_INDEX_PROPERTY) !== '1') {
+            fail(`${pathLabel}: \`${selector}\` must declare ${CHOICE_POPUP_Z_INDEX_PROPERTY}: 1`);
+        }
+        if (declarations.get('z-index') !== `var(${CHOICE_POPUP_Z_INDEX_PROPERTY})`) {
+            fail(`${pathLabel}: \`${selector}\` must consume the private CEM-CSS-002 z-index adapter`);
+        }
+        if (declarations.get('box-shadow') !== 'var(--cem-elevation-3)') {
+            fail(`${pathLabel}: \`${selector}\` must retain D4 overlay elevation independently of physical stacking`);
         }
     }
 

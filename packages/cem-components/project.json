@@ -92,6 +92,24 @@
             ],
             "outputs": []
         },
+        "verify-autocomplete-forced-colors": {
+            "cache": true,
+            "executor": "nx:run-commands",
+            "dependsOn": [{ "projects": ["@epa-wg/cem-theme"], "target": "build:tokens" }],
+            "options": {
+                "command": "node scripts/verify-autocomplete-forced-colors.mjs",
+                "cwd": "{projectRoot}"
+            },
+            "inputs": [
+                "{projectRoot}/scripts/verify-autocomplete-forced-colors.mjs",
+                "{projectRoot}/src/styles.css",
+                {
+                    "dependentTasksOutputFiles": "**/*.css",
+                    "transitive": false
+                }
+            ],
+            "outputs": []
+        },
         "verify-navigation-hover-forced-colors": {
             "cache": true,
             "executor": "nx:run-commands",
@@ -205,6 +223,7 @@
                 "verify-material-parity",
                 "verify-style-contract",
                 "verify-input-indicator-forced-colors",
+                "verify-autocomplete-forced-colors",
                 "verify-navigation-hover-forced-colors",
                 "verify-content-hover-forced-colors",
                 "verify-feedback-focus-forced-colors",
