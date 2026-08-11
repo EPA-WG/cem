@@ -37,6 +37,7 @@ contract for `@epa-wg/cem-components`, the CEM core schema state vocabulary, and
 | Layout | `divider` | `cem-divider` | Semantic or decorative sibling-separation track | separator, stroke, gap, inset, coupling |
 | Content | `list` | `cem-list` | Ordered or unordered collection, including empty state | palette, content, stroke, gap, typography |
 | Content | `card` | `cem-card` | Summary container for profile, asset, and message content | palette, stroke, bend, gap, inset |
+| Content | `expansion` | `cem-expansion` | Independent general-purpose disclosure panel | action, palette, stroke, bend, gap, inset, coupling, control, typography |
 | Content | `table` | `cem-table` | Structured data comparison and asset grids | palette, stroke, gap, typography |
 | Content | `chip` | `cem-chip` | Compact filter, token, or removable label | palette, content, action, stroke, bend, inset, typography |
 | Content | `badge` | `cem-badge` | Status, count, priority, and severity labels | palette, bend, inset, typography |

@@ -81,7 +81,7 @@ attributes consistent with reflected state.
 | `data-state="loading"` | `aria-busy="true"` for the duration of the loading state. `cem-card[busy]` and `cem-surface[busy]` place both on their stable named sections and remove both when their respective content or layout workflow settles. |
 | `data-state="empty"` | No ARIA attribute. `cem-surface[empty]` reflects this marker on its named section while the visible authored guidance and next action carry their own semantics; the surface does not become a live region. |
 | `aria-invalid="true"` | Required when the field validity is failed. Pair with `aria-describedby` pointing at the error message. |
-| `aria-expanded` | Required on disclosure / popover / menu triggers; reflects open/closed. `cem-nav[collapsible]` puts it on its native button and keeps the sibling content container's `hidden` state in exact agreement. Applications opening a transient `cem-dialog`, `cem-dialog-shell`, or `cem-sheet` put it on their own opener alongside `aria-controls`; the controlled feedback surface does not describe itself as expanded. |
+| `aria-expanded` | Required on disclosure / popover / menu triggers; reflects open/closed. `cem-nav[collapsible]` puts it on its native button and keeps the sibling content container's `hidden` state in exact agreement. `cem-expansion` additionally exposes persistent header/panel IDs: its native header mirrors the live host `expanded` attribute and controls the panel while reciprocal `aria-labelledby` names that panel. Applications opening a transient `cem-dialog`, `cem-dialog-shell`, or `cem-sheet` put it on their own opener alongside `aria-controls`; the controlled feedback surface does not describe itself as expanded. |
 | `aria-selected` | Required on selectable list options and navigation rows. `cem-list[selectable]` mirrors the native option selectedness exactly; passive lists and static table rows do not expose it. |
 | `checked` | A `cem-chip[checkable]` native toggle button MUST expose the current boolean state through `aria-pressed`; passive chips do not expose pressed state. |
 | `aria-current` | Required on the active nav item; value `"page"` or `"step"` per WHATWG/ARIA. |
@@ -173,6 +173,7 @@ patterns below are the contract for the Phase 3 primitive set.
 | --- | --- |
 | `cem-button` | `Enter`, `Space` activate. `Escape` cancels when inside a transient surface. |
 | `cem-nav[collapsible]` | Native disclosure-button behavior: `Enter` and `Space` toggle; `Tab` reaches projected links only while open. |
+| `cem-expansion` | Native header-button behavior: `Enter` and `Space` toggle the live `expanded` state; collapsed panel content leaves the tab sequence; disabled suppresses user toggling without preventing programmatic state control. |
 | `cem-text-field` | Native text-input behavior. `Escape` does not mutate authored validation state. |
 | `cem-select` | Dropdown arrows/Home/End/Page/typeahead move the preview; Enter/Space/Tab commit and Escape cancels. Sized single listboxes commit movement. Multiple listboxes use modifier-free Space/click toggle, Shift range, and Ctrl/Cmd+A. |
 | `cem-checkbox` | `Space` toggles. `Enter` MUST NOT toggle (matches native checkbox). |

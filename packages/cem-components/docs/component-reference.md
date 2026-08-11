@@ -36,6 +36,7 @@ The aggregate gate includes:
 | State matrix | `yarn nx run @epa-wg/cem-components:verify-state-matrix` | Resolves every category state to exact browser tests/assertions and supports verifier-checked component-specific evidence so a newly promoted owner does not replace existing evidence. |
 | Token-only style contract | `yarn nx run @epa-wg/cem-components:verify-style-contract` | Depends on current theme tokens and the verified public theme stylesheet export; checks exact action, content-interaction, navigation, and feedback bindings plus component selector scope, and rejects inline styles, unknown/non-CEM variables, and raw component color or spacing literals. |
 | Divider forced colors | `yarn nx run @epa-wg/cem-components:verify-divider-forced-colors` | Proves `CanvasText` separator color, D5 thickness, D1 inset, and the complete D1/D2 line-plus-margins track in forced colors. |
+| Expansion forced colors | `yarn nx run @epa-wg/cem-components:verify-expansion-forced-colors` | Proves header/panel system colors, contextual hover/active/disabled paint, D5 focus, D2 target size, stable geometry, and event/state isolation. |
 | Input indicator forced colors | `yarn nx run @epa-wg/cem-components:verify-input-indicator-forced-colors` | Launches Chromium with forced colors active; proves component shadows collapse, field/binary hover uses `Highlight`, and keyboard focus traverses the original seven input owners with full `CanvasText` outlines. |
 | Autocomplete forced colors | `yarn nx run @epa-wg/cem-components:verify-autocomplete-forced-colors` | Proves popup draw order, input/option pointer ownership, system hover/active/selected/disabled colors, keyboard focus coexistence, stable geometry, and event/state isolation. |
 | Navigation hover/focus/active/disabled forced colors | `yarn nx run @epa-wg/cem-components:verify-navigation-hover-forced-colors` | Launches Chromium with forced colors active; proves system hover/current/active/disabled colors, ARIA-disabled current/selected precedence, full keyboard traversal, focus coexistence, native-disabled skipping, restoration, and wrapper/state isolation. |
@@ -52,16 +53,18 @@ Executable fixture locations:
 | Angular Material parity inventory | `../tests/angular-material-parity.json` |
 | Primitive family coverage | `../src/lib/primitives.browser.spec.ts` |
 | Autocomplete behavior and state coverage | `../src/lib/autocomplete.browser.spec.ts` |
+| Expansion behavior and state coverage | `../src/lib/expansion.browser.spec.ts` |
 | State, ARIA, focus, and event payload coverage | `../src/lib/states.browser.spec.ts` |
 | Feedback lifecycle and focus coverage | `../src/lib/feedback-expanded.browser.spec.ts` |
 | Workflow fixture coverage | `../src/lib/workflows.browser.spec.ts` |
 | Declarative workflow fixtures | `../tests/workflows/` |
 | Declarative feedback fixture | `../tests/feedback/expanded.html` |
 | Declarative autocomplete fixture | `../tests/autocomplete/contract.html` |
+| Declarative expansion fixture | `../tests/expansion/contract.html` |
 | Component harness helpers | `../src/lib/testing/component-harness.ts` |
 | Style and manifest verifier scripts | `../../../tools/scripts/verify-cem-components-*.mjs` |
 | Package stylesheet source | `../src/styles.css` |
-| Package publication and forced-colors scripts | `../scripts/copy-styles.mjs`, `../scripts/verify-package.mjs`, `../scripts/verify-input-indicator-forced-colors.mjs`, `../scripts/verify-autocomplete-forced-colors.mjs`, `../scripts/verify-navigation-hover-forced-colors.mjs`, `../scripts/verify-content-hover-forced-colors.mjs`, `../scripts/verify-feedback-focus-forced-colors.mjs` |
+| Package publication and forced-colors scripts | `../scripts/copy-styles.mjs`, `../scripts/verify-package.mjs`, `../scripts/verify-input-indicator-forced-colors.mjs`, `../scripts/verify-autocomplete-forced-colors.mjs`, `../scripts/verify-navigation-hover-forced-colors.mjs`, `../scripts/verify-content-hover-forced-colors.mjs`, `../scripts/verify-expansion-forced-colors.mjs`, `../scripts/verify-feedback-focus-forced-colors.mjs` |
 
 Handoff condition: Phase 4 component expansion can build on this primitive package after the aggregate verify gate is
 green and the promoted branch has no uncommitted gate changes. The handoff covers the MVP primitive declaration set,
@@ -195,6 +198,7 @@ before target/application bubble listeners or default action.
 | Component | Semantics | Content and Attributes | Token Families | Required A11y |
 | --- | --- | --- | --- | --- |
 | `cem-card` | Summary surface and explicit content-loading boundary. | `slot="title"` for heading; default slot for body. Presence-only `busy` retains the authored payload and reflects loading state without starting resource work. | palette, stroke, bend, gap, inset | `label` names the section. Busy state adds exact `data-state="loading"` and `aria-busy="true"` without a live region, inert subtree, or focus move. |
+| `cem-expansion` | One independent general-purpose disclosure panel. | `slot="summary"` or `label` names the native header; default slot supplies persistent panel content. Presence-only `expanded`, `disabled`, and `region`; `heading-level="1..6"` defaults to 3. See the [expansion contract](./expansion-contract.md). | action, palette, stroke, bend, gap, inset, coupling, control, typography | The header is the sole button owner inside a validated heading. Exact `aria-labelledby`, `aria-expanded`, `aria-controls`, and reciprocal panel references remain stable; collapsed content is hidden and disabled blocks only user toggling. |
 | `cem-list` | Passive collection wrapper by default; native single-select listbox with `selectable`. | Passive mode projects `<li>` rows. Selectable mode consumes direct `cem-list-option` payload with required `value` and optional `selected`/`disabled`; parent `label`, `value`, and `size` configure the listbox. | palette, content, stroke, gap, typography | The list or listbox must be named. Selectable mode keeps focus, hover, and keyboard behavior on the native `<select>`, reflects exact option `aria-selected`, and does not participate in forms. |
 | `cem-table` | Structured comparison or data grid surface. | Project ARIA rows/cells. | palette, stroke, gap, typography | Renders `role="table"` and needs a label. |
 | `cem-chip` | Compact label or filter toggle. | Default slot is visible label; `label` can provide a fuller name. Without `checkable`, renders a passive `<span>`. With `checkable`, renders a native toggle `<button>` and uses the presence-only `checked` attribute as its initial state. | palette, content, action, stroke, bend, inset, typography | Checkable chips mirror their boolean slice through `aria-pressed`; hover and keyboard focus retain checked meaning, while removable chips need a separate named remove action. |
@@ -203,6 +207,11 @@ before target/application bubble listeners or default action.
 | `cem-media-preview` | Asset thumbnail or object preview. | Project image/media; `slot="caption"` for caption. | palette, stroke, bend, gap | Media must carry its own accessible alternative text. |
 
 States: `default`, `hover`, `focus-visible`, `selected`, `loading`, `empty`, `checked`.
+
+`cem-expansion` additionally owns contextual `active`, `disabled`, and `expanded`
+states for its native header without turning content disclosure into navigation or
+selection. Multiple siblings are independent; exclusive accordion-group policy
+is not part of this contract.
 
 In v1, `content:loading` is owned only by `cem-card[busy]`; lists, tables, and
 media previews neither infer nor inherit it. Authors retain last-known content

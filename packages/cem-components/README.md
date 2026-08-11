@@ -31,7 +31,7 @@ installCemComponentPrimitives(runtime);
 This registers the minimal primitive tags: `cem-action`, `cem-icon-button`, `cem-menu-item`, `cem-field`,
 `cem-text-field`, `cem-textarea`, `cem-autocomplete`, `cem-select`, `cem-option`, `cem-option-group`, `cem-checkbox`,
 `cem-radio`, `cem-switch`, `cem-surface`, `cem-text`,
-`cem-icon`, `cem-stack`, `cem-grid`, `cem-divider`, `cem-list`, `cem-card`, `cem-table`, `cem-chip`, `cem-badge`, `cem-avatar`,
+`cem-icon`, `cem-stack`, `cem-grid`, `cem-divider`, `cem-list`, `cem-card`, `cem-expansion`, `cem-table`, `cem-chip`, `cem-badge`, `cem-avatar`,
 `cem-media-preview`, `cem-app-bar`, `cem-nav`, `cem-tabs`, `cem-dialog`, `cem-dialog-shell`, `cem-sheet`,
 `cem-toast`, `cem-progress`, `cem-skeleton`, and `cem-alert`.
 
@@ -82,6 +82,12 @@ derived from surface text at reduced salience, D5 supplies the hairline, D1 supp
 and D2 floors the complete line-plus-margins track at the coupling guard. Horizontal, vertical, inset, and decorative
 forms remain non-focusable and event-neutral; forced colors restore the line to `CanvasText`.
 
+`cem-expansion` owns one independent disclosure panel rather than reusing navigation-specific `cem-nav`. Its native
+header button is the sole hover/focus/active/disabled owner, the live `expanded` host attribute controls a persistent
+ARIA-linked panel, and the default slot remains instantiated while collapsed. Contextual action and existing
+palette/spacing/control/shape/focus tokens cover the full visual contract, including forced colors, without a CSS
+exception.
+
 ## Build & Verify
 
 ```bash
@@ -95,6 +101,7 @@ yarn nx run @epa-wg/cem-components:verify-autocomplete-forced-colors
 yarn nx run @epa-wg/cem-components:verify-navigation-hover-forced-colors
 yarn nx run @epa-wg/cem-components:verify-content-hover-forced-colors
 yarn nx run @epa-wg/cem-components:verify-divider-forced-colors
+yarn nx run @epa-wg/cem-components:verify-expansion-forced-colors
 yarn nx run @epa-wg/cem-components:verify-package
 yarn nx run @epa-wg/cem-components:test
 yarn nx run @epa-wg/cem-components:build
@@ -135,14 +142,17 @@ npm inclusion of one `dist/styles.css`.
 | Navigation hover/focus/active/disabled forced-colors gate | `scripts/verify-navigation-hover-forced-colors.mjs` |
 | Content hover/focus forced-colors gate | `scripts/verify-content-hover-forced-colors.mjs` |
 | Divider forced-colors gate | `scripts/verify-divider-forced-colors.mjs` |
+| Expansion forced-colors gate | `scripts/verify-expansion-forced-colors.mjs` |
 | Package publication gate | `scripts/verify-package.mjs` |
 | Stylesheet copy | `scripts/copy-styles.mjs` |
 | Primitive browser coverage | `src/lib/primitives.browser.spec.ts` |
 | Autocomplete browser coverage | `src/lib/autocomplete.browser.spec.ts` |
+| Expansion browser coverage | `src/lib/expansion.browser.spec.ts` |
 | State and ARIA coverage | `src/lib/states.browser.spec.ts` |
 | Workflow browser coverage | `src/lib/workflows.browser.spec.ts` |
 | Workflow fixtures | `tests/workflows/` |
 | Autocomplete contract fixture | `tests/autocomplete/contract.html` |
+| Expansion contract fixture | `tests/expansion/contract.html` |
 | Package examples | `examples/` |
 
 ## Handoff Condition
@@ -187,6 +197,8 @@ Known deferrals stay outside this trigger:
   implementation sequencing.
 - [Divider contract](./docs/divider-contract.md) — line-plus-margins geometry, semantic/decorative ownership, tokens,
   and forced-colors behavior.
+- [Expansion contract](./docs/expansion-contract.md) — independent disclosure ownership, live state, native events,
+  ARIA references, token audit, focused fixture, and forced-colors boundary.
 - [Autocomplete contract](./docs/autocomplete-contract.md) — accepted editable-combobox owner, form/events,
   keyboard/accessibility, token audit, focused fixture, forced-colors boundary, and assertion matrix.
 - [Conventions](./docs/conventions.md) — naming, attributes, events, form participation, validation, loading states,

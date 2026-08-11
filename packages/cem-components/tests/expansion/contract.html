@@ -1,0 +1,27 @@
+<section class="cem-theme-light" data-expansion-contract-fixture aria-label="Expansion contract fixture">
+  <button data-expansion-focus-start type="button">Focus start</button>
+
+  <cem-expansion id="account-expansion" label="Account details" heading-level="2" region>
+    <p id="account-content">Account content</p>
+    <a id="account-link" href="#account">Account action</a>
+  </cem-expansion>
+
+  <cem-expansion id="open-expansion" expanded>
+    <span slot="summary">Open <strong>summary</strong></span>
+    <button id="nested-action" type="button">Nested action</button>
+  </cem-expansion>
+
+  <cem-expansion id="disabled-expansion" label="Disabled details" disabled>
+    <a id="disabled-link" href="#disabled">Disabled panel content</a>
+  </cem-expansion>
+
+  <cem-expansion id="disabled-open-expansion" label="Disabled open details" disabled expanded>
+    <button id="disabled-open-action" type="button">Visible nested action</button>
+  </cem-expansion>
+
+  <cem-expansion id="fallback-expansion" label="Fallback heading" heading-level="9">
+    <p>Fallback content</p>
+  </cem-expansion>
+
+  <button data-expansion-focus-end type="button">Focus end</button>
+</section>

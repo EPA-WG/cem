@@ -46,6 +46,7 @@ const CONTENT_INTERACTION_TAGS = new Set(['cem-chip', 'cem-list']);
 const FEEDBACK_TAGS = new Set(['cem-dialog', 'cem-dialog-shell', 'cem-sheet']);
 const NAVIGATION_TAGS = new Set(['cem-nav', 'cem-tabs']);
 const DIVIDER_TAGS = new Set(['cem-divider']);
+const EXPANSION_TAGS = new Set(['cem-expansion']);
 const CHOICE_POPUP_STACKING_SELECTORS = new Set([
     'cem-autocomplete .cem-autocomplete__popup',
     'cem-select .cem-select__popup',
@@ -290,6 +291,90 @@ const DIVIDER_BINDINGS = new Map([
         new Map([['margin-block-start', 'var(--cem-inset-container)']]),
     ],
 ]);
+const EXPANSION_HEADER_SELECTOR =
+    'cem-expansion > .cem-expansion > .cem-expansion__heading > .cem-expansion__header';
+const EXPANSION_BINDINGS = new Map([
+    ['cem-expansion', new Map([['display', 'block']])],
+    [
+        'cem-expansion > .cem-expansion',
+        colorBinding('--cem-palette-comfort', '--cem-palette-comfort-text'),
+    ],
+    [
+        EXPANSION_HEADER_SELECTOR,
+        new Map([
+            ['align-items', 'center'],
+            ['appearance', 'none'],
+            ['background-color', 'var(--cem-action-contextual-default-background)'],
+            ['border', 'var(--cem-stroke-none) solid transparent'],
+            ['border-radius', 'var(--cem-bend-control)'],
+            ['box-sizing', 'border-box'],
+            ['color', 'var(--cem-action-contextual-default-text)'],
+            ['display', 'flex'],
+            ['font-family', 'var(--cem-typography-ui-font-family)'],
+            ['font-size', 'var(--cem-typography-ui-font-size)'],
+            ['font-weight', 'var(--cem-typography-ui-font-weight)'],
+            ['gap', 'var(--cem-gap-related)'],
+            ['letter-spacing', 'var(--cem-typography-ui-letter-spacing)'],
+            ['line-height', 'var(--cem-typography-ui-line-height)'],
+            ['margin', 'var(--cem-stroke-none)'],
+            ['min-block-size', 'var(--cem-coupling-zone-min)'],
+            ['padding-block', 'var(--cem-control-padding-y)'],
+            ['padding-inline', 'var(--cem-control-padding-x)'],
+            ['text-align', 'start'],
+        ]),
+    ],
+    [
+        `${EXPANSION_HEADER_SELECTOR}:enabled:hover`,
+        colorBinding('--cem-action-contextual-hover-background', '--cem-action-contextual-hover-text'),
+    ],
+    [
+        `${EXPANSION_HEADER_SELECTOR}:enabled:active`,
+        colorBinding('--cem-action-contextual-active-background', '--cem-action-contextual-active-text'),
+    ],
+    [
+        `${EXPANSION_HEADER_SELECTOR}:disabled`,
+        colorBinding('--cem-action-contextual-disabled-background', '--cem-action-contextual-disabled-text'),
+    ],
+    [`${EXPANSION_HEADER_SELECTOR}:enabled:focus-visible`, focusBinding()],
+    ['cem-expansion .cem-expansion__summary', new Map([['flex', '1 1 auto']])],
+    [
+        'cem-expansion .cem-expansion__indicator',
+        new Map([
+            ['align-items', 'center'],
+            ['block-size', 'var(--cem-icon-button-icon-size)'],
+            ['display', 'inline-flex'],
+            ['flex', '0 0 var(--cem-icon-button-icon-size)'],
+            ['inline-size', 'var(--cem-icon-button-icon-size)'],
+            ['justify-content', 'center'],
+        ]),
+    ],
+    [
+        'cem-expansion > .cem-expansion > .cem-expansion__panel',
+        new Map([
+            ['background-color', 'var(--cem-palette-comfort)'],
+            ['border-radius', 'var(--cem-bend-surface)'],
+            ['color', 'var(--cem-palette-comfort-text)'],
+            ['margin-block-start', 'var(--cem-gap-related)'],
+            ['padding', 'var(--cem-inset-container)'],
+        ]),
+    ],
+]);
+const EXPANSION_FORCED_COLOR_BINDINGS = new Map([
+    ...[
+        'cem-expansion > .cem-expansion',
+        EXPANSION_HEADER_SELECTOR,
+        'cem-expansion > .cem-expansion > .cem-expansion__panel',
+    ].map((selector) => [selector, new Map([['background-color', 'Canvas'], ['color', 'CanvasText']])]),
+    ...[
+        `${EXPANSION_HEADER_SELECTOR}:enabled:hover`,
+        `${EXPANSION_HEADER_SELECTOR}:enabled:active`,
+    ].map((selector) => [selector, new Map([['background-color', 'Highlight'], ['color', 'HighlightText']])]),
+    [
+        `${EXPANSION_HEADER_SELECTOR}:disabled`,
+        new Map([['background-color', 'Canvas'], ['color', 'GrayText']]),
+    ],
+    [`${EXPANSION_HEADER_SELECTOR}:enabled:focus-visible`, forcedColorFocusBinding()],
+]);
 
 const failures = [];
 
@@ -471,6 +556,8 @@ function assertPublicComponentStyles(components, tokenNames) {
     const feedbackForcedColorRules = new Map();
     const navigationRules = new Map();
     const dividerRules = new Map();
+    const expansionRules = new Map();
+    const expansionForcedColorRules = new Map();
     const choicePopupStackingRules = new Map();
     const privateProperties = new Set(
         rules.flatMap(({ declarations }) => [...declarations.keys()].filter((name) => name.startsWith('--_cem-'))),
@@ -521,6 +608,13 @@ function assertPublicComponentStyles(components, tokenNames) {
                 fail(`${pathLabel}: duplicate divider selector \`${rule.selector}\``);
             }
             dividerRules.set(rule.selector, rule.declarations);
+        }
+        if (EXPANSION_TAGS.has(tag)) {
+            const expansionRuleSet = rule.media ? expansionForcedColorRules : expansionRules;
+            if (expansionRuleSet.has(rule.selector)) {
+                fail(`${pathLabel}: duplicate expansion selector \`${rule.selector}\``);
+            }
+            expansionRuleSet.set(rule.selector, rule.declarations);
         }
         if (FEEDBACK_TAGS.has(tag)) {
             const feedbackRuleSet = rule.media ? feedbackForcedColorRules : feedbackRules;
@@ -640,6 +734,14 @@ function assertPublicComponentStyles(components, tokenNames) {
     }
 
     assertExactStateBindings(pathLabel, 'divider', dividerRules, DIVIDER_BINDINGS);
+
+    assertExactStateBindings(pathLabel, 'expansion', expansionRules, EXPANSION_BINDINGS);
+    assertExactStateBindings(
+        pathLabel,
+        'forced-colors expansion',
+        expansionForcedColorRules,
+        EXPANSION_FORCED_COLOR_BINDINGS,
+    );
 
     assertExactStateBindings(pathLabel, 'feedback', feedbackRules, FEEDBACK_BINDINGS);
     assertExactStateBindings(

@@ -11,10 +11,10 @@
     },
     "recommendedAudit": null,
     "implementationPriority": {
-        "id": "divider",
+        "id": "expansion",
         "acceptedAt": "2026-08-10",
         "completedAt": "2026-08-10",
-        "contract": "packages/cem-components/docs/divider-contract.md",
+        "contract": "packages/cem-components/docs/expansion-contract.md",
         "state": "completed",
         "targetStatus": "covered"
     },
@@ -190,15 +190,15 @@
         {
             "id": "expansion",
             "name": "Expansion Panel",
-            "status": "gap",
+            "status": "covered",
             "mapping": {
-                "kind": "gap",
-                "owners": [],
+                "kind": "component",
+                "owners": ["cem-expansion"],
                 "states": ["default", "hover", "focus-visible", "expanded", "disabled"],
                 "keyboard": ["Tab to the header control; Space/Enter toggles its panel while disabled headers suppress activation."],
                 "accessibility": ["Associate a button-like header and controlled content with aria-expanded and aria-controls."],
-                "evidence": [],
-                "notes": "cem-nav has navigation-specific disclosure behavior and is not an owner for general expandable content panels or accordions."
+                "evidence": ["packages/cem-components/src/lib/expansion.browser.spec.ts::exposes one exact heading, button, and persistent controlled-panel relationship", "packages/cem-components/src/lib/expansion.browser.spec.ts::uses one native click path for pointer, Enter, and Space while preserving owner identity", "packages/cem-components/src/lib/expansion.browser.spec.ts::keeps disabled activation suppressed while allowing silent programmatic state control", "packages/cem-components/src/lib/expansion.browser.spec.ts::keeps hover, focus-visible, and active paint on the header with stable transient geometry", "packages/cem-components/scripts/verify-expansion-forced-colors.mjs", "packages/cem-components/docs/expansion-contract.md"],
+                "notes": "cem-expansion owns one independent general-purpose disclosure panel with a native header button, live expanded host state, persistent controlled-panel references, disabled suppression, and tokenized normal/forced-color states. Multiple siblings remain independent; exclusive single-open accordion-group coordination is intentionally outside this parity slice, and navigation-specific cem-nav disclosure remains a separate owner."
             }
         },
         {

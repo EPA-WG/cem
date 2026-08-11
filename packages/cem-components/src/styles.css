@@ -210,6 +210,78 @@ cem-divider[inset] > .cem-divider[data-orientation='vertical'] {
     margin-block-start: var(--cem-inset-container);
 }
 
+cem-expansion {
+    display: block;
+}
+
+cem-expansion > .cem-expansion {
+    background-color: var(--cem-palette-comfort);
+    color: var(--cem-palette-comfort-text);
+}
+
+cem-expansion > .cem-expansion > .cem-expansion__heading > .cem-expansion__header {
+    align-items: center;
+    appearance: none;
+    background-color: var(--cem-action-contextual-default-background);
+    border: var(--cem-stroke-none) solid transparent;
+    border-radius: var(--cem-bend-control);
+    box-sizing: border-box;
+    color: var(--cem-action-contextual-default-text);
+    display: flex;
+    font-family: var(--cem-typography-ui-font-family);
+    font-size: var(--cem-typography-ui-font-size);
+    font-weight: var(--cem-typography-ui-font-weight);
+    gap: var(--cem-gap-related);
+    letter-spacing: var(--cem-typography-ui-letter-spacing);
+    line-height: var(--cem-typography-ui-line-height);
+    margin: var(--cem-stroke-none);
+    min-block-size: var(--cem-coupling-zone-min);
+    padding-block: var(--cem-control-padding-y);
+    padding-inline: var(--cem-control-padding-x);
+    text-align: start;
+}
+
+cem-expansion > .cem-expansion > .cem-expansion__heading > .cem-expansion__header:enabled:hover {
+    background-color: var(--cem-action-contextual-hover-background);
+    color: var(--cem-action-contextual-hover-text);
+}
+
+cem-expansion > .cem-expansion > .cem-expansion__heading > .cem-expansion__header:enabled:active {
+    background-color: var(--cem-action-contextual-active-background);
+    color: var(--cem-action-contextual-active-text);
+}
+
+cem-expansion > .cem-expansion > .cem-expansion__heading > .cem-expansion__header:disabled {
+    background-color: var(--cem-action-contextual-disabled-background);
+    color: var(--cem-action-contextual-disabled-text);
+}
+
+cem-expansion > .cem-expansion > .cem-expansion__heading > .cem-expansion__header:enabled:focus-visible {
+    outline: var(--cem-stroke-focus) solid var(--cem-zebra-color-1);
+    outline-offset: var(--cem-stroke-indicator-offset);
+}
+
+cem-expansion .cem-expansion__summary {
+    flex: 1 1 auto;
+}
+
+cem-expansion .cem-expansion__indicator {
+    align-items: center;
+    block-size: var(--cem-icon-button-icon-size);
+    display: inline-flex;
+    flex: 0 0 var(--cem-icon-button-icon-size);
+    inline-size: var(--cem-icon-button-icon-size);
+    justify-content: center;
+}
+
+cem-expansion > .cem-expansion > .cem-expansion__panel {
+    background-color: var(--cem-palette-comfort);
+    border-radius: var(--cem-bend-surface);
+    color: var(--cem-palette-comfort-text);
+    margin-block-start: var(--cem-gap-related);
+    padding: var(--cem-inset-container);
+}
+
 cem-field input,
 cem-text-field input,
 cem-textarea textarea,
@@ -559,6 +631,29 @@ cem-select .cem-select__option[aria-disabled='true'] {
 }
 
 @media (forced-colors: active) {
+    cem-expansion > .cem-expansion,
+    cem-expansion > .cem-expansion > .cem-expansion__heading > .cem-expansion__header,
+    cem-expansion > .cem-expansion > .cem-expansion__panel {
+        background-color: Canvas;
+        color: CanvasText;
+    }
+
+    cem-expansion > .cem-expansion > .cem-expansion__heading > .cem-expansion__header:enabled:hover,
+    cem-expansion > .cem-expansion > .cem-expansion__heading > .cem-expansion__header:enabled:active {
+        background-color: Highlight;
+        color: HighlightText;
+    }
+
+    cem-expansion > .cem-expansion > .cem-expansion__heading > .cem-expansion__header:disabled {
+        background-color: Canvas;
+        color: GrayText;
+    }
+
+    cem-expansion > .cem-expansion > .cem-expansion__heading > .cem-expansion__header:enabled:focus-visible {
+        outline: var(--cem-stroke-focus) solid CanvasText;
+        outline-offset: var(--cem-stroke-indicator-offset);
+    }
+
     cem-list[selectable] > select.cem-list.cem-list--selectable,
     cem-chip[checkable] > button.cem-chip {
         background-color: Canvas;

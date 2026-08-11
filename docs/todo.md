@@ -23,7 +23,11 @@ D4 explicitly excludes; semantic elevation remains theme-owned. The accepted
 `cem-divider` priority is also complete: its canonical D0/D1/D2/D5 contract,
 semantic and decorative owner, focused browser coverage, forced-colors gate,
 public documentation, and parity promotion are verified without a CSS
-exception. The pinned inventory now reports 8 covered, 19 partial, and 10 gaps.
+exception. The accepted `cem-expansion` priority is now complete as an
+independent general-purpose disclosure owner with live host state, persistent
+ARIA references, native pointer/keyboard activation, disabled suppression,
+token-only normal/forced-color paint, and no CSS exception. The pinned inventory
+now reports 9 covered, 19 partial, and 9 gaps.
 Selecting and contracting the next implementation priority is the current
 decision point.
 The component stylesheet publication, `action:hover`, and `action:active` contracts are
@@ -195,6 +199,31 @@ mediate between internal layers.
         - The public inventory now has 36 primitives. Angular Material parity is
           8 covered, 19 partial, and 10 gaps; the state matrix remains fully green
           at 39/39 requirements and the component aggregate passes 68/68 tests.
+    - [x] Select, contract, and implement `expansion` as the next audited parity
+          gap without reusing navigation-specific disclosure ownership.
+      - [x] Accept one independent `cem-expansion` panel as the semantic owner;
+            keep exclusive accordion-group coordination out of this slice and
+            make the live `expanded` host attribute the public state boundary.
+      - [x] Audit the complete theme surface before component CSS. The header is
+            a contextual action; the panel is a comfort surface; D1/D2c/D2/D3/D5
+            cover spacing, control geometry, target size, shape, and focus, so no
+            new token or CSS exception is required.
+      - [x] Add the declarative `tests/expansion/contract.html` fixture and focused
+            browser assertions for owner semantics, exact ARIA references,
+            pointer/keyboard toggling, disabled suppression, live attribute
+            control, DOM reuse, transient-state geometry, and event boundaries.
+      - [x] Add the primitive behavior and token-only CSS, styling the native
+            header button and revealed panel rather than the heading wrapper.
+      - [x] Add and aggregate a dedicated expansion forced-colors gate proving
+            default, hover, focus-visible, active, disabled, and expanded
+            coexistence with system colors and stable geometry.
+      - [x] Promote the component reference, state matrix, package verification,
+            and Angular Material inventory only after every expansion contract
+            assertion passes.
+        - The public inventory now has 37 primitives. Angular Material parity is
+          9 covered, 19 partial, and 9 gaps; the state matrix remains fully green
+          at 39/39 requirements and the aggregate passes all 72 browser/Node
+          tests plus the expansion forced-colors gate.
 
 ### Immediate: CSS Selector Query Schema and Unified CLI Query Execution
 

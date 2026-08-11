@@ -4,6 +4,7 @@ import type {
     CemProducedElementBehavior,
 } from '@epa-wg/cem-elements';
 import { CEM_AUTOCOMPLETE_BEHAVIOR } from './autocomplete-behavior.js';
+import { CEM_EXPANSION_BEHAVIOR } from './expansion-behavior.js';
 import { CEM_FEEDBACK_DIALOG_BEHAVIOR } from './feedback-behavior.js';
 import { CEM_NAVIGATION_BEHAVIOR } from './navigation-behavior.js';
 import { CEM_SELECT_BEHAVIOR } from './select-behavior.js';
@@ -298,6 +299,21 @@ export const CEM_COMPONENT_PRIMITIVES = [
             ' {cem:otherwise | {section @class=cem-card @aria-label="{$label}" |' +
             '  {header @class=cem-card__header | {slot @name=title | {$label}}}' +
             '  {div @class=cem-card__body | {slot}}}}}',
+    },
+    {
+        tag: 'cem-expansion',
+        description: 'Independent general-purpose disclosure panel with a native header button.',
+        behavior: CEM_EXPANSION_BEHAVIOR,
+        cemMl:
+            '{attribute @name=label | Expansion}' +
+            '{div @class=cem-expansion |' +
+            ' {div @class=cem-expansion__heading @role=heading @aria-level="{$datadom.slices.headingLevel}" |' +
+            '  {button @id="{$datadom.slices.headingId}" @type=button @class=cem-expansion__header @disabled={datadom.attributes.disabled} @aria-labelledby="{$datadom.slices.summaryId}" @aria-expanded={if datadom.attributes.expanded { true } else { false }} @aria-controls="{$datadom.slices.panelId}" |' +
+            '   {span @id="{$datadom.slices.summaryId}" @class=cem-expansion__summary | {slot @name=summary | {$label}}}' +
+            '   {span @class=cem-expansion__indicator @aria-hidden=true | {cem:choose |' +
+            '    {cem:when @test="datadom.attributes.expanded" | ▾}' +
+            '    {cem:otherwise | ▸}}}}}' +
+            ' {div @id="{$datadom.slices.panelId}" @class=cem-expansion__panel @role={if datadom.attributes.region { "region" } else { null }} @aria-labelledby="{$datadom.slices.headingId}" @hidden={if datadom.attributes.expanded { null } else { true }} | {slot}}}',
     },
     {
         tag: 'cem-table',

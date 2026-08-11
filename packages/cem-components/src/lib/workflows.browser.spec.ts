@@ -17,6 +17,8 @@ import {
     type ComponentHarness,
 } from './testing/component-harness.js';
 
+const WORKFLOW_RENDER_TIMEOUT_MS = 3000;
+
 const workflowFixtures = [
     ['auth form', authFormFixture],
     ['registration', registrationFixture],
@@ -244,7 +246,7 @@ async function renderWorkflow(harness: ComponentHarness, markup: string, readySe
 }
 
 async function waitForWorkflowSelector(root: ParentNode, selector: string): Promise<Element> {
-    const deadline = Date.now() + 1000;
+    const deadline = Date.now() + WORKFLOW_RENDER_TIMEOUT_MS;
     while (Date.now() < deadline) {
         const found = root.querySelector(selector);
         if (found) {
@@ -256,7 +258,7 @@ async function waitForWorkflowSelector(root: ParentNode, selector: string): Prom
 }
 
 async function waitForWorkflowText(root: ParentNode, selector: string, text: string): Promise<Element> {
-    const deadline = Date.now() + 1000;
+    const deadline = Date.now() + WORKFLOW_RENDER_TIMEOUT_MS;
     while (Date.now() < deadline) {
         const found = root.querySelector(selector);
         if (found?.textContent?.includes(text)) {

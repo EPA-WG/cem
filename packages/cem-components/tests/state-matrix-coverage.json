@@ -586,6 +586,7 @@
             "state": "default",
             "components": [
                 "cem-card",
+                "cem-expansion",
                 "cem-list",
                 "cem-table",
                 "cem-chip",
@@ -600,13 +601,24 @@
             "assertions": [
                 "expect(table.getAttribute('role')).toBe('table');",
                 "expect(avatar.getAttribute('role')).toBe('img');"
+            ],
+            "componentEvidence": [
+                {
+                    "component": "cem-expansion",
+                    "owner": "packages/cem-components/src/lib/expansion.browser.spec.ts",
+                    "test": "exposes one exact heading, button, and persistent controlled-panel relationship",
+                    "assertions": [
+                        "expect(account.heading.getAttribute('role')).toBe('heading');",
+                        "expect(account.button.getAttribute('aria-controls')).toBe(account.panel.id);"
+                    ]
+                }
             ]
         },
         {
             "id": "content:hover",
             "category": "Content",
             "state": "hover",
-            "components": ["cem-list", "cem-chip"],
+            "components": ["cem-list", "cem-chip", "cem-expansion"],
             "interaction": "Move the pointer over the selectable-list composite or checkable chip without changing layout, selection, checked state, or passive content wrappers.",
             "status": "covered",
             "owner": "packages/cem-components/src/lib/states.browser.spec.ts",
@@ -620,13 +632,25 @@
                 "expect(listOwner.options[1]?.getAttribute('aria-selected')).toBe('true');",
                 "expect(checkedOwner.getAttribute('aria-pressed')).toBe('true');",
                 "expect(mutationEvents).toEqual([]);"
+            ],
+            "componentEvidence": [
+                {
+                    "component": "cem-expansion",
+                    "owner": "packages/cem-components/src/lib/expansion.browser.spec.ts",
+                    "test": "keeps hover, focus-visible, and active paint on the header with stable transient geometry",
+                    "assertions": [
+                        "expect(hovered.backgroundColor).toBe(",
+                        "expectTransientGeometry(hovered, baseline);",
+                        "expect(pointerEvents).toEqual(['pointerenter:true', 'pointerleave:true']);"
+                    ]
+                }
             ]
         },
         {
             "id": "content:focus-visible",
             "category": "Content",
             "state": "focus-visible",
-            "components": ["cem-list", "cem-chip"],
+            "components": ["cem-list", "cem-chip", "cem-expansion"],
             "interaction": "Move keyboard focus through the selectable-list composite and checkable chips with a tokenized visible ring while skipping disabled and passive content.",
             "status": "covered",
             "owner": "packages/cem-components/src/lib/states.browser.spec.ts",
@@ -642,6 +666,18 @@
                 "expect(listOwner.options[1]?.getAttribute('aria-selected')).toBe('true');",
                 "expect(checkedOwner.getAttribute('aria-pressed')).toBe('true');",
                 "expect(mutationEvents).toEqual([]);"
+            ],
+            "componentEvidence": [
+                {
+                    "component": "cem-expansion",
+                    "owner": "packages/cem-components/src/lib/expansion.browser.spec.ts",
+                    "test": "keeps hover, focus-visible, and active paint on the header with stable transient geometry",
+                    "assertions": [
+                        "expect(parts.button.matches(':focus-visible')).toBe(true);",
+                        "expect(focused.outlineWidth).toBe(resolveTokenLength(parts.button, '--cem-stroke-focus'));",
+                        "expectTransientGeometry(focused, baseline);"
+                    ]
+                }
             ]
         },
         {
