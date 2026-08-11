@@ -401,7 +401,7 @@
             "id": "navigation:default",
             "category": "Navigation",
             "state": "default",
-            "components": ["cem-app-bar", "cem-nav", "cem-tabs"],
+            "components": ["cem-app-bar", "cem-nav", "cem-tabs", "cem-paginator"],
             "interaction": "Render navigation landmarks and a labeled tablist with native roles.",
             "status": "covered",
             "owner": "packages/cem-components/src/lib/primitives.browser.spec.ts",
@@ -409,13 +409,24 @@
             "assertions": [
                 "expect(appBar.getAttribute('role')).toBe('banner');",
                 "expect(tablist.getAttribute('role')).toBe('tablist');"
+            ],
+            "componentEvidence": [
+                {
+                    "component": "cem-paginator",
+                    "owner": "packages/cem-components/src/lib/paginator.browser.spec.ts",
+                    "test": "renders exact landmark, page-size, range, action, normalization, and optional-control semantics",
+                    "assertions": [
+                        "expect(records.owner.tagName).toBe('NAV');",
+                        "expect(records.range.getAttribute('role')).toBe('status');"
+                    ]
+                }
             ]
         },
         {
             "id": "navigation:hover",
             "category": "Navigation",
             "state": "hover",
-            "components": ["cem-nav", "cem-tabs"],
+            "components": ["cem-nav", "cem-tabs", "cem-paginator"],
             "interaction": "Move the pointer across navigation items without changing layout.",
             "status": "covered",
             "owner": "packages/cem-components/src/lib/states.browser.spec.ts",
@@ -428,13 +439,24 @@
                 "expect(owner.getAttribute(state.attribute)).toBe(state.value);",
                 "expect(pointerEvents).toEqual(['pointerenter:true', 'pointerleave:true']);",
                 "expect(mutationEvents).toEqual([]);"
+            ],
+            "componentEvidence": [
+                {
+                    "component": "cem-paginator",
+                    "owner": "packages/cem-components/src/lib/paginator.browser.spec.ts",
+                    "test": "keeps hover, focus-visible, and active paint on native controls with stable transient geometry",
+                    "assertions": [
+                        "expect(pointerEvents).toEqual(['pointerenter:true', 'pointerleave:true']);",
+                        "expectActionGeometry(hovered, baseline);"
+                    ]
+                }
             ]
         },
         {
             "id": "navigation:focus-visible",
             "category": "Navigation",
             "state": "focus-visible",
-            "components": ["cem-nav", "cem-tabs"],
+            "components": ["cem-nav", "cem-tabs", "cem-paginator"],
             "interaction": "Move keyboard focus through navigation items with a visible focus indicator.",
             "status": "covered",
             "owner": "packages/cem-components/src/lib/states.browser.spec.ts",
@@ -447,13 +469,24 @@
                 "expect(restored.focusTreatment).toEqual(baselines[index - 1].focusTreatment);",
                 "expect(disabledOwner.matches(':focus-visible')).toBe(false);",
                 "expect(mutationEvents).toEqual([]);"
+            ],
+            "componentEvidence": [
+                {
+                    "component": "cem-paginator",
+                    "owner": "packages/cem-components/src/lib/paginator.browser.spec.ts",
+                    "test": "keeps hover, focus-visible, and active paint on native controls with stable transient geometry",
+                    "assertions": [
+                        "expect(next.matches(':focus-visible')).toBe(true);",
+                        "expect(focusedHovered.outlineWidth).toBe(resolveTokenLength(next, '--cem-stroke-focus'));"
+                    ]
+                }
             ]
         },
         {
             "id": "navigation:active",
             "category": "Navigation",
             "state": "active",
-            "components": ["cem-nav", "cem-tabs"],
+            "components": ["cem-nav", "cem-tabs", "cem-paginator"],
             "interaction": "Activate a navigation item while retaining selection and readable contrast.",
             "status": "covered",
             "owner": "packages/cem-components/src/lib/states.browser.spec.ts",
@@ -467,13 +500,24 @@
                 "expect(releaseSnapshot.slices.expanded).toBe(false);",
                 "expect(disclosure.getAttribute('aria-expanded')).toBe('false');",
                 "expect(mutationEvents).toEqual([]);"
+            ],
+            "componentEvidence": [
+                {
+                    "component": "cem-paginator",
+                    "owner": "packages/cem-components/src/lib/paginator.browser.spec.ts",
+                    "test": "keeps hover, focus-visible, and active paint on native controls with stable transient geometry",
+                    "assertions": [
+                        "expect(parts.host.getAttribute('page-index')).toBe('1');",
+                        "expectActionGeometry(active, baseline);"
+                    ]
+                }
             ]
         },
         {
             "id": "navigation:disabled",
             "category": "Navigation",
             "state": "disabled",
-            "components": ["cem-nav", "cem-tabs"],
+            "components": ["cem-nav", "cem-tabs", "cem-paginator"],
             "interaction": "Disable a navigation item and remove activation and tab-stop behavior where appropriate.",
             "status": "covered",
             "owner": "packages/cem-components/src/lib/states.browser.spec.ts",
@@ -491,6 +535,17 @@
                 "expect(ariaOwners.map((owner) => owner.getAttribute('tabindex'))).toEqual([null, null, null]);",
                 "expect(ariaDisabledLink.getAttribute('aria-current')).toBe('page');",
                 "expect(ariaDisabledTab.getAttribute('aria-selected')).toBe('true');"
+            ],
+            "componentEvidence": [
+                {
+                    "component": "cem-paginator",
+                    "owner": "packages/cem-components/src/lib/paginator.browser.spec.ts",
+                    "test": "keeps global disabled and live programmatic control silent while retaining surviving owners",
+                    "assertions": [
+                        "expect(requiredSelect(disabled).disabled).toBe(true);",
+                        "expect(boundaryTargetEvents).toEqual([]);"
+                    ]
+                }
             ]
         },
         {

@@ -34,10 +34,11 @@ The aggregate gate includes:
 | Primitive manifest | `yarn nx run @epa-wg/cem-components:verify-primitives` | `CEM_COMPONENT_PRIMITIVES` exactly matches `docs/component-mvp.md`, uses CEM-ML declarations, and does not depend on legacy `<custom-element>` wrappers. |
 | Angular Material parity inventory | `yarn nx run @epa-wg/cem-components:verify-material-parity` | Pins the exact stable official catalog and requires every entry to remain visible until it is audited as a component mapping, cross-cutting behavior, partial mapping, or explicit gap. Barebone `cem-elements` compatibility fixtures cannot satisfy product UI parity evidence. |
 | State matrix | `yarn nx run @epa-wg/cem-components:verify-state-matrix` | Resolves every category state to exact browser tests/assertions and supports verifier-checked component-specific evidence so a newly promoted owner does not replace existing evidence. |
-| Token-only style contract | `yarn nx run @epa-wg/cem-components:verify-style-contract` | Depends on current theme tokens and the verified public theme stylesheet export; checks exact action, content-interaction, navigation, and feedback bindings plus component selector scope, and rejects inline styles, unknown/non-CEM variables, and raw component color or spacing literals. |
+| Token-only style contract | `yarn nx run @epa-wg/cem-components:verify-style-contract` | Depends on current theme tokens and the verified public theme stylesheet export; checks exact action, content-interaction, navigation, paginator, and feedback bindings plus component selector scope, and rejects inline styles, unknown/non-CEM variables, and raw component color or spacing literals. |
 | Divider forced colors | `yarn nx run @epa-wg/cem-components:verify-divider-forced-colors` | Proves `CanvasText` separator color, D5 thickness, D1 inset, and the complete D1/D2 line-plus-margins track in forced colors. |
 | Expansion forced colors | `yarn nx run @epa-wg/cem-components:verify-expansion-forced-colors` | Proves header/panel system colors, contextual hover/active/disabled paint, D5 focus, D2 target size, stable geometry, and event/state isolation. |
 | Sort-header forced colors | `yarn nx run @epa-wg/cem-components:verify-sort-header-forced-colors` | Proves character-distinct none/ascending/descending states, system hover/active/disabled colors, D5 focus coexistence, D2/D2c geometry, and transient-input state isolation. |
+| Paginator forced colors | `yarn nx run @epa-wg/cem-components:verify-paginator-forced-colors` | Proves native select/action ownership, system hover/active/disabled colors, D5 focus coexistence, D2/D2c geometry, surviving character icons, and transient-input state isolation. |
 | Input indicator forced colors | `yarn nx run @epa-wg/cem-components:verify-input-indicator-forced-colors` | Launches Chromium with forced colors active; proves component shadows collapse, field/binary hover uses `Highlight`, and keyboard focus traverses the original seven input owners with full `CanvasText` outlines. |
 | Autocomplete forced colors | `yarn nx run @epa-wg/cem-components:verify-autocomplete-forced-colors` | Proves popup draw order, input/option pointer ownership, system hover/active/selected/disabled colors, keyboard focus coexistence, stable geometry, and event/state isolation. |
 | Navigation hover/focus/active/disabled forced colors | `yarn nx run @epa-wg/cem-components:verify-navigation-hover-forced-colors` | Launches Chromium with forced colors active; proves system hover/current/active/disabled colors, ARIA-disabled current/selected precedence, full keyboard traversal, focus coexistence, native-disabled skipping, restoration, and wrapper/state isolation. |
@@ -56,6 +57,7 @@ Executable fixture locations:
 | Autocomplete behavior and state coverage | `../src/lib/autocomplete.browser.spec.ts` |
 | Expansion behavior and state coverage | `../src/lib/expansion.browser.spec.ts` |
 | Sort-header behavior and state coverage | `../src/lib/sort-header.browser.spec.ts` |
+| Paginator behavior and state coverage | `../src/lib/paginator.browser.spec.ts` |
 | State, ARIA, focus, and event payload coverage | `../src/lib/states.browser.spec.ts` |
 | Feedback lifecycle and focus coverage | `../src/lib/feedback-expanded.browser.spec.ts` |
 | Workflow fixture coverage | `../src/lib/workflows.browser.spec.ts` |
@@ -64,10 +66,11 @@ Executable fixture locations:
 | Declarative autocomplete fixture | `../tests/autocomplete/contract.html` |
 | Declarative expansion fixture | `../tests/expansion/contract.html` |
 | Declarative sort-header fixture | `../tests/sort-header/contract.html` |
+| Declarative paginator fixture | `../tests/paginator/contract.html` |
 | Component harness helpers | `../src/lib/testing/component-harness.ts` |
 | Style and manifest verifier scripts | `../../../tools/scripts/verify-cem-components-*.mjs` |
 | Package stylesheet source | `../src/styles.css` |
-| Package publication and forced-colors scripts | `../scripts/copy-styles.mjs`, `../scripts/verify-package.mjs`, `../scripts/verify-input-indicator-forced-colors.mjs`, `../scripts/verify-autocomplete-forced-colors.mjs`, `../scripts/verify-navigation-hover-forced-colors.mjs`, `../scripts/verify-content-hover-forced-colors.mjs`, `../scripts/verify-expansion-forced-colors.mjs`, `../scripts/verify-sort-header-forced-colors.mjs`, `../scripts/verify-feedback-focus-forced-colors.mjs` |
+| Package publication and forced-colors scripts | `../scripts/copy-styles.mjs`, `../scripts/verify-package.mjs`, `../scripts/verify-input-indicator-forced-colors.mjs`, `../scripts/verify-autocomplete-forced-colors.mjs`, `../scripts/verify-navigation-hover-forced-colors.mjs`, `../scripts/verify-content-hover-forced-colors.mjs`, `../scripts/verify-expansion-forced-colors.mjs`, `../scripts/verify-sort-header-forced-colors.mjs`, `../scripts/verify-paginator-forced-colors.mjs`, `../scripts/verify-feedback-focus-forced-colors.mjs` |
 
 Handoff condition: Phase 4 component expansion can build on this primitive package after the aggregate verify gate is
 green and the promoted branch has no uncommitted gate changes. The handoff covers the MVP primitive declaration set,
@@ -80,8 +83,8 @@ Known deferrals remain outside the Phase 3.2 trigger:
 - `@epa-wg/custom-element` monorepo adoption is Phase 3.6.
 - Full application behaviors such as dialog focus trapping, routed navigation, async data loading, and resource
   primitives are follow-up runtime/application work.
-- Post-MVP controls including split actions, sliders, date/time controls, side-nav variants, breadcrumbs, pagination,
-  and richer menu/dropdown families are Phase 4 expansion work.
+- Post-MVP controls including split actions, sliders, date/time controls, side-nav variants, breadcrumbs, and richer
+  menu/dropdown families are Phase 4 expansion work.
 
 ## Actions
 
@@ -176,6 +179,7 @@ spacing/inset, the D2 guard floor, and D5 line geometry as specified by the
 | `cem-app-bar` | Page or application banner. | `slot="title"` for title; default slot for global actions. | palette, stroke, gap, inset, typography | `label` names the banner when multiple landmarks exist. |
 | `cem-nav` | Labeled navigation region with an optional region-wide disclosure. | Default slot accepts links/actions. Presence-only `collapsible` adds a native disclosure button; presence-only `expanded` sets its initial open state. Without `collapsible`, the existing passive landmark output is unchanged. | palette, navigation, gap, inset, typography | `label` names both the nav landmark and disclosure button. The button mirrors the current boolean state through `aria-expanded`; hidden content leaves the tab order and links retain native semantics. |
 | `cem-tabs` | Local view switcher. | Project tab buttons with `role="tab"` and `aria-selected`. | palette, navigation, stroke, gap, typography | Tablist must be named and exactly one active tab should be selected. |
+| `cem-paginator` | Labeled paged-content navigation with application-owned data. | `length`, zero-based `page-index`, `page-size`, whitespace-separated `page-size-options`, `show-first-last`, `hide-page-size`, `disabled`, `name`, `label`, and localizable control/range labels. See the [paginator contract](./paginator-contract.md). | action, palette, select, control, stroke, bend, gap, inset, typography | A native navigation landmark owns a labeled page-size select, named native actions, focus-stable `aria-disabled` boundaries, and one atomic polite range status. Applications consume `cem-page` to load/render data. |
 
 States: `default`, `hover`, `focus-visible`, `active`, `disabled`, `selected`, `expanded`.
 The public stylesheet implements hover and focus-visible on the actual nav
@@ -195,6 +199,14 @@ disabled buttons leave the tab order and use browser suppression. Direct
 ARIA-disabled owners remain keyboard-discoverable while host capture behavior
 prevents pointer, programmatic, Enter, and native-button Space activation
 before target/application bubble listeners or default action.
+
+`cem-paginator` uses its native select and action buttons as the only hover,
+focus, active, and disabled owners; the landmark, range/actions group, and label
+remain structural. Render-only normalization does not rewrite invalid or
+out-of-range author attributes. Page-size changes preserve the first visible
+item, successful user requests emit one serializable `cem-page`, and boundary
+or globally disabled activation is suppressed. Existing theme semantics cover
+normal and forced colors without a CSS exception.
 
 ## Content
 

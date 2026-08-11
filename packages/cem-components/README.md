@@ -32,7 +32,7 @@ This registers the minimal primitive tags: `cem-action`, `cem-icon-button`, `cem
 `cem-text-field`, `cem-textarea`, `cem-autocomplete`, `cem-select`, `cem-option`, `cem-option-group`, `cem-checkbox`,
 `cem-radio`, `cem-switch`, `cem-surface`, `cem-text`,
 `cem-icon`, `cem-stack`, `cem-grid`, `cem-divider`, `cem-list`, `cem-card`, `cem-expansion`, `cem-table`, `cem-sort-header`, `cem-chip`, `cem-badge`, `cem-avatar`,
-`cem-media-preview`, `cem-app-bar`, `cem-nav`, `cem-tabs`, `cem-dialog`, `cem-dialog-shell`, `cem-sheet`,
+`cem-media-preview`, `cem-app-bar`, `cem-nav`, `cem-tabs`, `cem-paginator`, `cem-dialog`, `cem-dialog-shell`, `cem-sheet`,
 `cem-toast`, `cem-progress`, `cem-progress-spinner`, `cem-skeleton`, and `cem-alert`.
 
 ## Stylesheet install
@@ -106,6 +106,15 @@ retain row ordering and localized polite announcement ownership. Existing
 contextual-action and D1/D2/D2c/D3/D5/D6 semantics cover normal and forced-color
 paint without a CSS exception.
 
+`cem-paginator` owns a labeled paged-content navigation landmark while leaving
+data loading and item/row rendering to the application. Its native select and
+button owners expose a zero-based normalized page model, optional page-size and
+first/last controls, first-visible-item preservation, localizable labels, one
+serializable `cem-page` request event, focus-stable boundary suppression, and
+an atomic polite range status. Existing contextual-action, select/indicator,
+palette, D1/D2/D2c/D3/D5/D6 semantics cover normal and forced-color styling, so
+no CSS exception is needed.
+
 ## Build & Verify
 
 ```bash
@@ -122,6 +131,7 @@ yarn nx run @epa-wg/cem-components:verify-divider-forced-colors
 yarn nx run @epa-wg/cem-components:verify-expansion-forced-colors
 yarn nx run @epa-wg/cem-components:verify-progress-spinner-forced-colors
 yarn nx run @epa-wg/cem-components:verify-sort-header-forced-colors
+yarn nx run @epa-wg/cem-components:verify-paginator-forced-colors
 yarn nx run @epa-wg/cem-components:verify-package
 yarn nx run @epa-wg/cem-components:test
 yarn nx run @epa-wg/cem-components:build
@@ -143,7 +153,7 @@ and `@epa-wg/cem-theme:verify-package`, so the component gate checks current
 generated tokens and the public theme stylesheet export.
 The package verifier proves source/built CSS byte identity, the side-effect-free
 JavaScript boundary, the built/packed behavior modules (including autocomplete,
-expansion, progress spinner, and sort header), and exact dry-run npm inclusion of one
+expansion, progress spinner, sort header, and paginator), and exact dry-run npm inclusion of one
 `dist/styles.css`.
 
 `yarn nx run @epa-wg/cem-components:test` runs the Node unit test plus Chromium-backed component harness coverage.
@@ -166,6 +176,7 @@ expansion, progress spinner, and sort header), and exact dry-run npm inclusion o
 | Expansion forced-colors gate | `scripts/verify-expansion-forced-colors.mjs` |
 | Progress-spinner forced-colors/reduced-motion gate | `scripts/verify-progress-spinner-forced-colors.mjs` |
 | Sort-header forced-colors gate | `scripts/verify-sort-header-forced-colors.mjs` |
+| Paginator forced-colors gate | `scripts/verify-paginator-forced-colors.mjs` |
 | Package publication gate | `scripts/verify-package.mjs` |
 | Stylesheet copy | `scripts/copy-styles.mjs` |
 | Primitive browser coverage | `src/lib/primitives.browser.spec.ts` |
@@ -173,6 +184,7 @@ expansion, progress spinner, and sort header), and exact dry-run npm inclusion o
 | Expansion browser coverage | `src/lib/expansion.browser.spec.ts` |
 | Progress-spinner browser coverage | `src/lib/progress-spinner.browser.spec.ts` |
 | Sort-header browser coverage | `src/lib/sort-header.browser.spec.ts` |
+| Paginator browser coverage | `src/lib/paginator.browser.spec.ts` |
 | State and ARIA coverage | `src/lib/states.browser.spec.ts` |
 | Workflow browser coverage | `src/lib/workflows.browser.spec.ts` |
 | Workflow fixtures | `tests/workflows/` |
@@ -180,6 +192,7 @@ expansion, progress spinner, and sort header), and exact dry-run npm inclusion o
 | Expansion contract fixture | `tests/expansion/contract.html` |
 | Progress-spinner contract fixture | `tests/progress-spinner/contract.html` |
 | Sort-header contract fixture | `tests/sort-header/contract.html` |
+| Paginator contract fixture | `tests/paginator/contract.html` |
 | Package examples | `examples/` |
 
 ## Handoff Condition
@@ -195,7 +208,7 @@ Known deferrals stay outside this trigger:
 - Phase 3.5 Edge/SSR processing fixtures for serialized `DataIslandSnapshot` handoff.
 - Phase 3.6 `@epa-wg/custom-element` monorepo adoption.
 - Richer post-MVP controls such as split actions, sliders, date/time affordances, side-nav variants, breadcrumbs,
-  pagination, and richer menu/dropdown families.
+  and richer menu/dropdown families.
 - Full application behaviors around dialog focus trapping, routed navigation, async loading, and data fetching.
 
 ## Key paths
@@ -230,6 +243,8 @@ Known deferrals stay outside this trigger:
   geometry, D0/D2c/D7 token audit, reduced motion, forced colors, and event-neutral fixture matrix.
 - [Sort header contract](./docs/sort-header-contract.md) — sortable-column ownership, fixed direction cycle,
   native events, application data/announcement boundary, theme audit, and forced-colors matrix.
+- [Paginator contract](./docs/paginator-contract.md) — normalized page/range ownership, native controls, request
+  events, application data boundary, token audit, and normal/forced-colors assertion matrix.
 - [Autocomplete contract](./docs/autocomplete-contract.md) — accepted editable-combobox owner, form/events,
   keyboard/accessibility, token audit, focused fixture, forced-colors boundary, and assertion matrix.
 - [Conventions](./docs/conventions.md) — naming, attributes, events, form participation, validation, loading states,

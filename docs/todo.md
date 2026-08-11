@@ -31,9 +31,13 @@ also includes the completed circular `cem-progress-spinner` and sortable-column
 `cem-sort-header` priorities. Sort interaction stays on its native button,
 `cem-table` stays passive, row ordering and localized result announcement stay
 application-owned, and existing theme semantics cover normal/forced-color paint
-without an exception. The pinned inventory now reports 11 covered, 19 partial,
-and 7 gaps. Selecting and contracting the next implementation priority is the
-current decision point.
+without an exception. The accepted `cem-paginator` priority is also complete:
+its native select/buttons own interaction, its normalized zero-based page/range
+model emits one `cem-page` request while applications retain data rendering,
+and existing theme semantics cover normal/forced-color paint without an
+exception. The pinned inventory now reports 12 covered, 19 partial, and 6 gaps.
+Selecting and contracting the next implementation priority is the current
+decision point.
 The component stylesheet publication, `action:hover`, and `action:active` contracts are
 implemented and verified. The `input:hover` contract is also implemented:
 all eight native owners share a theme-tokenized three-stripe indicator, with
@@ -286,6 +290,29 @@ mediate between internal layers.
           11 covered, 19 partial, and 7 gaps; the state matrix remains fully green
           at 40/40. The uncached aggregate ran all 26 dependent gates and passed
           81/81 tests, exact style/package publication, and sort forced colors.
+    - [x] Select, contract, and implement `paginator` as the next audited parity
+          gap while keeping table/list data loading and rendering external.
+      - [x] Freeze the `cem-paginator` owner, zero-based normalized page model,
+            page-size option vocabulary, focus-stable boundary suppression,
+            `cem-page` event, native keyboard behavior, range status, and
+            application data boundary.
+      - [x] Audit CEM theme coverage before CSS and add no component exception
+            when contextual action, select/input-indicator, palette,
+            D1/D2/D2c/D3/D5/D6 semantics are sufficient.
+      - [x] Add a declarative paginator fixture and focused browser coverage for
+            normalization, first/previous/next/last actions, page-size changes,
+            exact event ordering/detail, focus retention, disabled suppression,
+            live author control, stable DOM/geometry, and range announcement.
+      - [x] Add the primitive behavior and token-only native-control CSS plus an
+            aggregate forced-colors gate for pointer/focus/active/disabled
+            coexistence, system colors, character icons, and stable geometry.
+      - [x] Promote public docs, state/parity evidence, package verification, and
+            todo completion only after every paginator gate passes.
+        - The public inventory now has 40 primitives. Angular Material parity is
+          12 covered, 19 partial, and 6 gaps; the state matrix remains fully green
+          at 40/40. The uncached aggregate ran the component target plus all 27
+          dependent targets and passed 87/87 tests, exact style/package
+          publication, and the dedicated paginator forced-colors contract.
 
 ### Immediate: CSS Selector Query Schema and Unified CLI Query Execution
 

@@ -1,7 +1,7 @@
 # Angular Material Parity Inventory
 
 **Status:** All pinned product mappings are audited. The accepted `autocomplete`,
-`divider`, `expansion`, `progress-spinner`, and `sort` priorities are covered;
+`divider`, `expansion`, `progress-spinner`, `sort`, and `paginator` priorities are covered;
 selecting another implementation gap is a separate product decision tracked in
 [`docs/todo.md`](../../../docs/todo.md).
 
@@ -71,9 +71,9 @@ substituted for the missing component.
 
 | Classification | Count | Catalog entries |
 | --- | ---: | --- |
-| Covered | 11 | autocomplete, card, checkbox, dialog, divider, expansion, input, progress-spinner, select, slide-toggle, sort |
+| Covered | 12 | autocomplete, card, checkbox, dialog, divider, expansion, input, paginator, progress-spinner, select, slide-toggle, sort |
 | Partial | 19 | badge, bottom-sheet, button, button-toggle, chips, core, form-field, grid-list, icon, list, menu, progress-bar, radio, ripple, sidenav, snack-bar, table, tabs, toolbar |
-| Gap | 7 | datepicker, paginator, slider, stepper, timepicker, tooltip, tree |
+| Gap | 6 | datepicker, slider, stepper, timepicker, tooltip, tree |
 
 Each row in the executable inventory explains its boundary. In particular,
 `cem-grid` is not treated as a grid-list, `cem-tabs` is not treated as a stepper,
@@ -132,6 +132,16 @@ nearest table. Existing contextual-action and D1/D2/D2c/D3/D5/D6 semantics
 cover the normal and forced-color contract, so no theme addition or CSS
 exception was needed.
 
+`paginator` adds the independent `cem-paginator` owner without turning passive
+`cem-table` or `cem-list` into a data source. The
+[paginator contract](./paginator-contract.md) fixes a zero-based normalized page
+model, native page-size and navigation controls, first-visible-item preservation,
+focus-stable boundary suppression, localizable labels, an atomic polite range,
+and one serializable `cem-page` request event. Data loading, item/row rendering,
+and result announcements remain application-owned. Existing contextual-action,
+select/input-indicator, palette, D1/D2/D2c/D3/D5/D6 semantics cover normal and
+forced colors, so no theme addition or CSS exception was needed.
+
 Run the invariant with:
 
 ```bash
@@ -139,6 +149,6 @@ yarn nx run @epa-wg/cem-components:verify-material-parity
 ```
 
 The gate verifies the exact 37-entry pin, every audited mapping, and completion
-of the accepted implementation priority. It reports eleven covered rows,
-nineteen partial rows, seven gaps, no remaining audit, and no next
+of the accepted implementation priority. It reports twelve covered rows,
+nineteen partial rows, six gaps, no remaining audit, and no next
 implementation until a new gap is deliberately selected and contracted.

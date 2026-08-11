@@ -11,10 +11,10 @@
     },
     "recommendedAudit": null,
     "implementationPriority": {
-        "id": "sort",
-        "acceptedAt": "2026-08-10",
-        "completedAt": "2026-08-10",
-        "contract": "packages/cem-components/docs/sort-header-contract.md",
+        "id": "paginator",
+        "acceptedAt": "2026-08-11",
+        "completedAt": "2026-08-11",
+        "contract": "packages/cem-components/docs/paginator-contract.md",
         "state": "completed",
         "targetStatus": "covered"
     },
@@ -288,15 +288,15 @@
         {
             "id": "paginator",
             "name": "Paginator",
-            "status": "gap",
+            "status": "covered",
             "mapping": {
-                "kind": "gap",
-                "owners": [],
-                "states": ["default", "focus-visible", "disabled", "page", "page-size"],
-                "keyboard": ["Provide native keyboard access to page-size selection and first, previous, next, and last-page actions."],
-                "accessibility": ["Label the pagination region and every navigation control; announce the current range and disabled boundaries."],
-                "evidence": [],
-                "notes": "No public paginator owner, page/range state model, internationalized labels, or table/list pagination integration exists."
+                "kind": "component",
+                "owners": ["cem-paginator"],
+                "states": ["default", "hover", "focus-visible", "active", "disabled", "page", "page-size", "forced-colors"],
+                "keyboard": ["Use native Tab focus for the page-size select and available actions, native select keyboard behavior, and native Enter/Space button activation; a focused action that becomes a page boundary retains focus while leaving subsequent sequential navigation."],
+                "accessibility": ["Expose a labeled pagination navigation landmark, labeled native page-size select and actions, focus-stable aria-disabled page boundaries, and one atomic polite current-range status."],
+                "evidence": ["packages/cem-components/src/lib/paginator.browser.spec.ts::renders exact landmark, page-size, range, action, normalization, and optional-control semantics", "packages/cem-components/src/lib/paginator.browser.spec.ts::navigates once through pointer, Enter, and Space with focus-stable suppressed boundaries", "packages/cem-components/src/lib/paginator.browser.spec.ts::preserves the first visible item on native page-size change with one ordered component event", "packages/cem-components/src/lib/paginator.browser.spec.ts::keeps global disabled and live programmatic control silent while retaining surviving owners", "packages/cem-components/src/lib/paginator.browser.spec.ts::keeps hover, focus-visible, and active paint on native controls with stable transient geometry", "packages/cem-components/src/lib/paginator.browser.spec.ts::updates only requested range until the application consumes cem-page for data rendering", "packages/cem-components/scripts/verify-paginator-forced-colors.mjs", "packages/cem-components/scripts/verify-package.mjs", "packages/cem-components/docs/paginator-contract.md"],
+                "notes": "cem-paginator owns labeled paged-content navigation with a zero-based normalized page model, localizable labels, optional first/last and page-size controls, first-visible-item preservation on page-size changes, one serializable cem-page request event, focus-stable boundary suppression, and tokenized normal/forced-color states. Applications retain data loading, row/item rendering, and result-announcement ownership; Angular dependency-injection defaults and TypeScript paginator APIs are intentionally not reproduced."
             }
         },
         {
@@ -464,7 +464,7 @@
                 "keyboard": ["The passive table has no component-owned keyboard interaction; authored interactive cells retain native behavior."],
                 "accessibility": ["Expose a labeled role=table wrapper and preserve authored row, columnheader, and cell roles."],
                 "evidence": ["packages/cem-components/src/lib/primitives.browser.spec.ts::renders content-family MVP primitives as accessible light DOM", "packages/cem-components/src/lib/states.browser.spec.ts::preserves empty states, indeterminate progress, and live-region roles"],
-                "notes": "cem-table covers a semantic structured-data wrapper and explicit empty fallback; sortable columns may compose the separate cem-sort-header owner without giving the table data ownership. It still lacks data/column/row definitions, rendering updates, sticky regions, data sources, filtering, pagination, grid/treegrid focus behavior, and table-owned selection."
+                "notes": "cem-table covers a semantic structured-data wrapper and explicit empty fallback; sortable columns may compose cem-sort-header and paged views may compose cem-paginator without giving the table data ownership. It still lacks data/column/row definitions, rendering updates, sticky regions, data sources, filtering, table-owned pagination integration, grid/treegrid focus behavior, and table-owned selection."
             }
         },
         {

@@ -47,6 +47,7 @@ contract for `@epa-wg/cem-components`, the CEM core schema state vocabulary, and
 | Navigation | `app-bar` | `cem-app-bar` | Product title, global actions, and current context | palette, stroke, gap, inset, typography |
 | Navigation | `nav` | `cem-nav` | Labeled navigation region and item list | palette, navigation, gap, inset, typography |
 | Navigation | `tabs` | `cem-tabs` | Local view switching | palette, navigation, stroke, gap, typography |
+| Navigation | `paginator` | `cem-paginator` | Paged-content navigation with application-owned data | action, palette, select, control, stroke, bend, gap, inset, typography |
 | Feedback | `dialog` | `cem-dialog` | Modal decision or focused task | palette, stroke, bend, gap, inset |
 | Feedback | `dialog-shell` | `cem-dialog-shell` | Labeled dialog shell for focused light-DOM task content | palette, stroke, bend, gap, inset |
 | Feedback | `sheet` | `cem-sheet` | Non-modal or edge-attached task surface | palette, stroke, bend, gap, inset |
@@ -58,8 +59,8 @@ contract for `@epa-wg/cem-components`, the CEM core schema state vocabulary, and
 
 ## Deferred From MVP
 
-The roadmap still includes split actions, sliders, date/time affordances, side-nav variants, breadcrumbs, pagination,
-and richer menu/dropdown families. They are deferred until the MVP workflows prove the shared component states,
+The roadmap still includes split actions, sliders, date/time affordances, side-nav variants, breadcrumbs, and richer
+menu/dropdown families. They are deferred until the MVP workflows prove the shared component states,
 accessibility behavior, and token usage.
 
 ## State Matrix

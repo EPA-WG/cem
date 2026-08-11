@@ -1,0 +1,52 @@
+<section class="cem-theme-light" data-paginator-contract-fixture aria-label="Paginator contract fixture">
+  <button data-paginator-focus-start type="button">Focus start</button>
+
+  <cem-paginator
+    id="records-paginator"
+    name="records"
+    label="Record pages"
+    length="120"
+    page-index="1"
+    page-size="25"
+    page-size-options="100 10 25 50 25 invalid 0"
+    show-first-last
+  ></cem-paginator>
+
+  <div id="records-result" aria-label="Rendered records">Authored data remains external.</div>
+
+  <cem-paginator id="empty-paginator" name="empty" label="Empty pages"></cem-paginator>
+
+  <cem-paginator
+    id="invalid-paginator"
+    name="invalid"
+    label="Invalid input pages"
+    length="not-a-number"
+    page-index="-4"
+    page-size="0"
+    page-size-options="20 10 20 nope 0.5"
+    show-first-last
+  ></cem-paginator>
+
+  <cem-paginator
+    id="disabled-paginator"
+    name="disabled"
+    label="Disabled pages"
+    length="90"
+    page-index="1"
+    page-size="30"
+    page-size-options="15 30 45"
+    show-first-last
+    disabled
+  ></cem-paginator>
+
+  <cem-paginator
+    id="compact-paginator"
+    name="compact"
+    label="Compact pages"
+    length="30"
+    page-size="10"
+    hide-page-size
+  ></cem-paginator>
+
+  <button data-paginator-focus-end type="button">Focus end</button>
+</section>

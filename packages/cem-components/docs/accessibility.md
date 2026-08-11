@@ -88,6 +88,7 @@ attributes consistent with reflected state.
 | `role="separator"` / `aria-orientation` | `cem-divider` exposes both for meaningful horizontal or vertical separation. `cem-divider[decorative]` removes both and sets `aria-hidden="true"`; neither form is focusable. |
 | `role="progressbar"` / `aria-valuenow` | `cem-progress-spinner` always exposes a labeled read-only progressbar. Determinate mode exposes normalized min/max/now; indeterminate mode omits `aria-valuenow`. Its SVG is hidden and non-focusable. |
 | `aria-sort="ascending|descending"` | `cem-sort-header` places sort state only on its generated `role="columnheader"`; none/invalid state omits the attribute. Its direct native button is named `Sort by <label>`. |
+| Pagination landmark and boundaries | `cem-paginator` renders a labeled native navigation region, labeled page-size select and actions, an atomic polite range status, and `aria-disabled="true"`/`tabindex="-1"` on unavailable boundary actions. Global `disabled` additionally uses native disabled controls. |
 
 The catalog enforces presence; runtime enforces *timing* — the attribute MUST
 update in the same task that the state changes, not in a deferred callback.
@@ -115,6 +116,11 @@ For every component that emits `id`/`for`/`aria-*` references at runtime:
   interaction paint on the direct native button. The host, `cem-table`, and
   generated column-header wrapper MUST NOT gain `tabindex` or focus paint;
   native `disabled` removes the button from sequential focus navigation.
+- `cem-paginator` keeps focus on its native page-size select and action buttons.
+  Initially unavailable boundary actions use `tabindex="-1"`; when activation
+  moves a focused action onto a boundary, that same surviving button retains
+  focus while subsequent sequential navigation skips it. Global `disabled`
+  uses native disabled controls and removes every control from the tab order.
 - `cem-nav[collapsible]` keeps focus on its native disclosure button after a
   toggle. Open projected links follow the button in normal tab order; native
   `hidden` removes closed content from sequential focus navigation.
@@ -181,6 +187,7 @@ patterns below are the contract for the Phase 3 primitive set.
 | `cem-nav[collapsible]` | Native disclosure-button behavior: `Enter` and `Space` toggle; `Tab` reaches projected links only while open. |
 | `cem-expansion` | Native header-button behavior: `Enter` and `Space` toggle the live `expanded` state; collapsed panel content leaves the tab sequence; disabled suppresses user toggling without preventing programmatic state control. |
 | `cem-sort-header` | Native button behavior: `Enter` and `Space` each cycle none -> ascending -> descending -> none exactly once; disabled suppresses user activation while programmatic direction remains available. |
+| `cem-paginator` | The page-size control retains native select keys. Available first/previous/next/last native buttons use Enter/Space exactly once. Boundary and global-disabled actions suppress pointer, programmatic, Enter, and Space activation without emitting `cem-page`; no arrow-key roving model is added. |
 | `cem-text-field` | Native text-input behavior. `Escape` does not mutate authored validation state. |
 | `cem-select` | Dropdown arrows/Home/End/Page/typeahead move the preview; Enter/Space/Tab commit and Escape cancels. Sized single listboxes commit movement. Multiple listboxes use modifier-free Space/click toggle, Shift range, and Ctrl/Cmd+A. |
 | `cem-checkbox` | `Space` toggles. `Enter` MUST NOT toggle (matches native checkbox). |
@@ -220,6 +227,10 @@ so the catalog can verify there is exactly one entrypoint per composite.
   button. Only ascending/descending state exposes `aria-sort`; user activation
   clears active peers in the nearest table, while applications must keep
   authored/programmatic table state single-valued.
+- `cem-paginator` renders one labeled native `<nav>` for each pagination region.
+  Identical top/bottom instances may share the same label; otherwise multiple
+  navigation landmarks require distinct names. Its range/actions wrapper has
+  no role, and each control retains its native semantics.
 
 ## 8. Live regions
 
@@ -232,6 +243,7 @@ Components that announce updates use ARIA live regions with the following rules:
 | `cem-message-thread` incoming message | `role="log"` (or `role="feed"`) | polite |
 | Form field `cem-invalid` event | `aria-live="polite"` on the linked error region | polite |
 | Loading state for long async ops (>1s) | `aria-busy` flips; no extra live region | n/a |
+| `cem-paginator` current range | atomic `role="status"` on `start – end of length` | polite |
 
 Rules:
 
@@ -247,6 +259,9 @@ Rules:
 - `cem-sort-header` does not announce before data changes. Applications consume
   `cem-sort`, reorder their data, then update a localized polite status region;
   the component does not create or mutate that region.
+- `cem-paginator` announces only its requested range. Applications consume
+  `cem-page` to load and render data and own any separate result-count or
+  loading announcement; the paginator does not claim that data has arrived.
 - A live region's text content MUST NOT include the accessible name of the
   triggering component (avoid duplicate announcements).
 - Live region updates MUST be debounced so a burst of updates within 250 ms

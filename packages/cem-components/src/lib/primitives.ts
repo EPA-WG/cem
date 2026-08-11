@@ -7,6 +7,7 @@ import { CEM_AUTOCOMPLETE_BEHAVIOR } from './autocomplete-behavior.js';
 import { CEM_EXPANSION_BEHAVIOR } from './expansion-behavior.js';
 import { CEM_FEEDBACK_DIALOG_BEHAVIOR } from './feedback-behavior.js';
 import { CEM_NAVIGATION_BEHAVIOR } from './navigation-behavior.js';
+import { CEM_PAGINATOR_BEHAVIOR } from './paginator-behavior.js';
 import { CEM_PROGRESS_SPINNER_BEHAVIOR } from './progress-spinner-behavior.js';
 import { CEM_SELECT_BEHAVIOR } from './select-behavior.js';
 import { CEM_SORT_HEADER_BEHAVIOR } from './sort-header-behavior.js';
@@ -404,6 +405,34 @@ export const CEM_COMPONENT_PRIMITIVES = [
         cemMl:
             '{attribute @name=label | Tabs}' +
             '{div @class=cem-tabs @role=tablist @aria-label="{$label}" | {slot | {button @type=button @role=tab @aria-selected=true | Tab}}}',
+    },
+    {
+        tag: 'cem-paginator',
+        description: 'Labeled paged-content navigation with external data ownership.',
+        behavior: CEM_PAGINATOR_BEHAVIOR,
+        cemMl:
+            '{attribute @name=label | Pagination}' +
+            '{attribute @name=items-per-page-label | Items per page}' +
+            '{attribute @name=first-page-label | First page}' +
+            '{attribute @name=previous-page-label | Previous page}' +
+            '{attribute @name=next-page-label | Next page}' +
+            '{attribute @name=last-page-label | Last page}' +
+            '{attribute @name=of-label | of}' +
+            '{nav @class=cem-paginator @aria-label="{$label}" |' +
+            ' {cem:if @test="!datadom.attributes.hide-page-size" |' +
+            '  {label @class=cem-paginator__page-size |' +
+            '   {span @class=cem-paginator__page-size-label | {$datadom.slices.itemsPerPageLabel}}' +
+            '   {select @class=cem-paginator__page-size-control @disabled={datadom.attributes.disabled} |' +
+            '    {cem:for-each @select=datadom.slices.pageSizeOptions @as=option |' +
+            '     {option @value="{$option.value}" @selected={if option.selected { true } else { null }} | {$option.label}}}}}}' +
+            ' {div @class=cem-paginator__range-actions |' +
+            '  {span @class=cem-paginator__range @role=status @aria-live=polite @aria-atomic=true | {$datadom.slices.rangeLabel}}' +
+            '  {cem:if @test="datadom.attributes.show-first-last" |' +
+            '   {button @type=button @class=cem-paginator__action @data-page-action=first @disabled={datadom.attributes.disabled} @aria-disabled={if datadom.slices.previousDisabled { true } else { null }} @tabindex={if datadom.slices.previousDisabled { -1 } else { null }} @aria-label="{$datadom.slices.firstPageLabel}" | {span @class=cem-paginator__icon @aria-hidden=true | «}}}' +
+            '  {button @type=button @class=cem-paginator__action @data-page-action=previous @disabled={datadom.attributes.disabled} @aria-disabled={if datadom.slices.previousDisabled { true } else { null }} @tabindex={if datadom.slices.previousDisabled { -1 } else { null }} @aria-label="{$datadom.slices.previousPageLabel}" | {span @class=cem-paginator__icon @aria-hidden=true | ‹}}' +
+            '  {button @type=button @class=cem-paginator__action @data-page-action=next @disabled={datadom.attributes.disabled} @aria-disabled={if datadom.slices.nextDisabled { true } else { null }} @tabindex={if datadom.slices.nextDisabled { -1 } else { null }} @aria-label="{$datadom.slices.nextPageLabel}" | {span @class=cem-paginator__icon @aria-hidden=true | ›}}' +
+            '  {cem:if @test="datadom.attributes.show-first-last" |' +
+            '   {button @type=button @class=cem-paginator__action @data-page-action=last @disabled={datadom.attributes.disabled} @aria-disabled={if datadom.slices.nextDisabled { true } else { null }} @tabindex={if datadom.slices.nextDisabled { -1 } else { null }} @aria-label="{$datadom.slices.lastPageLabel}" | {span @class=cem-paginator__icon @aria-hidden=true | »}}}}}',
     },
     {
         tag: 'cem-dialog',

@@ -51,6 +51,7 @@ const DIVIDER_TAGS = new Set(['cem-divider']);
 const EXPANSION_TAGS = new Set(['cem-expansion']);
 const PROGRESS_SPINNER_TAGS = new Set(['cem-progress-spinner']);
 const SORT_HEADER_TAGS = new Set(['cem-sort-header']);
+const PAGINATOR_TAGS = new Set(['cem-paginator']);
 const CHOICE_POPUP_STACKING_SELECTORS = new Set([
     'cem-autocomplete .cem-autocomplete__popup',
     'cem-select .cem-select__popup',
@@ -452,6 +453,162 @@ const SORT_HEADER_FORCED_COLOR_BINDINGS = new Map([
     ],
     [`${SORT_HEADER_BUTTON_SELECTOR}:enabled:focus-visible`, forcedColorFocusBinding()],
 ]);
+const PAGINATOR_ACTION_SELECTOR = 'cem-paginator .cem-paginator__action';
+const PAGINATOR_SELECT_SELECTOR = 'cem-paginator .cem-paginator__page-size-control';
+const PAGINATOR_BINDINGS = new Map([
+    ['cem-paginator', new Map([['display', 'block']])],
+    [
+        'cem-paginator > .cem-paginator',
+        new Map([
+            ['align-items', 'center'],
+            ['background-color', 'var(--cem-palette-comfort)'],
+            ['color', 'var(--cem-palette-comfort-text)'],
+            ['display', 'flex'],
+            ['flex-wrap', 'wrap'],
+            ['font-family', 'var(--cem-typography-ui-font-family)'],
+            ['font-size', 'var(--cem-typography-ui-font-size)'],
+            ['font-weight', 'var(--cem-typography-ui-font-weight)'],
+            ['gap', 'var(--cem-gap-group)'],
+            ['justify-content', 'flex-end'],
+            ['letter-spacing', 'var(--cem-typography-ui-letter-spacing)'],
+            ['line-height', 'var(--cem-typography-ui-line-height)'],
+            ['padding', 'var(--cem-inset-container)'],
+        ]),
+    ],
+    ...[
+        'cem-paginator .cem-paginator__page-size',
+        'cem-paginator .cem-paginator__range-actions',
+    ].map((selector) => [
+        selector,
+        new Map([
+            ['align-items', 'center'],
+            ['display', 'flex'],
+            ['gap', 'var(--cem-gap-related)'],
+        ]),
+    ]),
+    [
+        PAGINATOR_SELECT_SELECTOR,
+        new Map([
+            ['background-color', 'var(--cem-select-popup-background)'],
+            ['border', 'var(--cem-stroke-boundary) solid var(--cem-input-indicator-anchor-color)'],
+            ['border-radius', 'var(--cem-bend-field)'],
+            ['box-sizing', 'border-box'],
+            ['color', 'var(--cem-select-popup-text)'],
+            ['font-family', 'var(--cem-typography-ui-font-family)'],
+            ['font-size', 'var(--cem-typography-ui-font-size)'],
+            ['font-weight', 'var(--cem-typography-ui-font-weight)'],
+            ['letter-spacing', 'var(--cem-typography-ui-letter-spacing)'],
+            ['line-height', 'var(--cem-typography-ui-line-height)'],
+            ['min-block-size', 'var(--cem-control-height)'],
+            ['padding-block', 'var(--cem-control-padding-y)'],
+            ['padding-inline', 'var(--cem-control-padding-x)'],
+        ]),
+    ],
+    [
+        `${PAGINATOR_SELECT_SELECTOR}:enabled:hover`,
+        new Map([['border-color', 'var(--cem-input-indicator-anchor-hover-color)']]),
+    ],
+    [
+        `${PAGINATOR_SELECT_SELECTOR}:disabled`,
+        new Map([
+            ['background-color', 'var(--cem-select-option-disabled-background)'],
+            ['border-color', 'var(--cem-input-indicator-anchor-disabled-color)'],
+            ['color', 'var(--cem-select-option-disabled-text)'],
+        ]),
+    ],
+    [`${PAGINATOR_SELECT_SELECTOR}:focus-visible`, focusBinding()],
+    [
+        'cem-paginator .cem-paginator__range',
+        new Map([
+            ['font-family', 'var(--cem-typography-data-font-family)'],
+            ['font-size', 'var(--cem-typography-data-font-size)'],
+            ['font-variant-numeric', 'var(--cem-typography-data-font-variant-numeric)'],
+            ['font-weight', 'var(--cem-typography-data-font-weight)'],
+            ['letter-spacing', 'var(--cem-typography-data-letter-spacing)'],
+            ['line-height', 'var(--cem-typography-data-line-height)'],
+        ]),
+    ],
+    [
+        PAGINATOR_ACTION_SELECTOR,
+        new Map([
+            ['align-items', 'center'],
+            ['appearance', 'none'],
+            ['background-color', 'var(--cem-action-contextual-default-background)'],
+            ['block-size', 'var(--cem-icon-button-size)'],
+            ['border', 'var(--cem-stroke-none) solid transparent'],
+            ['border-radius', 'var(--cem-bend-control)'],
+            ['box-sizing', 'border-box'],
+            ['color', 'var(--cem-action-contextual-default-text)'],
+            ['display', 'inline-flex'],
+            ['flex', '0 0 var(--cem-icon-button-size)'],
+            ['inline-size', 'var(--cem-icon-button-size)'],
+            ['justify-content', 'center'],
+            ['margin', 'var(--cem-stroke-none)'],
+            ['padding', 'var(--cem-stroke-none)'],
+        ]),
+    ],
+    [
+        `${PAGINATOR_ACTION_SELECTOR}:enabled:not([aria-disabled='true']):hover`,
+        colorBinding('--cem-action-contextual-hover-background', '--cem-action-contextual-hover-text'),
+    ],
+    [
+        `${PAGINATOR_ACTION_SELECTOR}:enabled:not([aria-disabled='true']):active`,
+        colorBinding('--cem-action-contextual-active-background', '--cem-action-contextual-active-text'),
+    ],
+    [
+        `${PAGINATOR_ACTION_SELECTOR}:is(:disabled, [aria-disabled='true'])`,
+        colorBinding('--cem-action-contextual-disabled-background', '--cem-action-contextual-disabled-text'),
+    ],
+    [`${PAGINATOR_ACTION_SELECTOR}:focus-visible`, focusBinding()],
+    [
+        'cem-paginator .cem-paginator__icon',
+        new Map([
+            ['align-items', 'center'],
+            ['block-size', 'var(--cem-icon-button-icon-size)'],
+            ['display', 'inline-flex'],
+            ['flex', '0 0 var(--cem-icon-button-icon-size)'],
+            ['inline-size', 'var(--cem-icon-button-icon-size)'],
+            ['justify-content', 'center'],
+        ]),
+    ],
+]);
+const PAGINATOR_FORCED_COLOR_BINDINGS = new Map([
+    [
+        'cem-paginator > .cem-paginator',
+        new Map([['background-color', 'Canvas'], ['color', 'CanvasText']]),
+    ],
+    [
+        PAGINATOR_SELECT_SELECTOR,
+        new Map([
+            ['background-color', 'Canvas'],
+            ['border-color', 'CanvasText'],
+            ['color', 'CanvasText'],
+        ]),
+    ],
+    [`${PAGINATOR_SELECT_SELECTOR}:enabled:hover`, new Map([['border-color', 'Highlight']])],
+    [
+        `${PAGINATOR_SELECT_SELECTOR}:disabled`,
+        new Map([
+            ['background-color', 'Canvas'],
+            ['border-color', 'GrayText'],
+            ['color', 'GrayText'],
+        ]),
+    ],
+    [PAGINATOR_ACTION_SELECTOR, new Map([['background-color', 'Canvas'], ['color', 'CanvasText']])],
+    ...[
+        `${PAGINATOR_ACTION_SELECTOR}:enabled:not([aria-disabled='true']):hover`,
+        `${PAGINATOR_ACTION_SELECTOR}:enabled:not([aria-disabled='true']):active`,
+    ].map((selector) => [
+        selector,
+        new Map([['background-color', 'Highlight'], ['color', 'HighlightText']]),
+    ]),
+    [
+        `${PAGINATOR_ACTION_SELECTOR}:is(:disabled, [aria-disabled='true'])`,
+        new Map([['background-color', 'Canvas'], ['color', 'GrayText']]),
+    ],
+    [`${PAGINATOR_SELECT_SELECTOR}:focus-visible`, forcedColorFocusBinding()],
+    [`${PAGINATOR_ACTION_SELECTOR}:focus-visible`, forcedColorFocusBinding()],
+]);
 const PROGRESS_SPINNER_BINDINGS = new Map([
     ['cem-progress-spinner', new Map([['display', 'inline-block']])],
     [
@@ -697,6 +854,8 @@ function assertPublicComponentStyles(components, tokenNames) {
     const progressSpinnerForcedColorRules = new Map();
     const sortHeaderRules = new Map();
     const sortHeaderForcedColorRules = new Map();
+    const paginatorRules = new Map();
+    const paginatorForcedColorRules = new Map();
     const choicePopupStackingRules = new Map();
     const privateProperties = new Set(
         rules.flatMap(({ declarations }) => [...declarations.keys()].filter((name) => name.startsWith('--_cem-'))),
@@ -773,6 +932,13 @@ function assertPublicComponentStyles(components, tokenNames) {
                 fail(`${pathLabel}: duplicate sort-header selector \`${rule.selector}\``);
             }
             sortHeaderRuleSet.set(rule.selector, rule.declarations);
+        }
+        if (PAGINATOR_TAGS.has(tag)) {
+            const paginatorRuleSet = rule.media ? paginatorForcedColorRules : paginatorRules;
+            if (paginatorRuleSet.has(rule.selector)) {
+                fail(`${pathLabel}: duplicate paginator selector \`${rule.selector}\``);
+            }
+            paginatorRuleSet.set(rule.selector, rule.declarations);
         }
         if (FEEDBACK_TAGS.has(tag)) {
             const feedbackRuleSet = rule.media ? feedbackForcedColorRules : feedbackRules;
@@ -922,6 +1088,14 @@ function assertPublicComponentStyles(components, tokenNames) {
         'forced-colors sort-header',
         sortHeaderForcedColorRules,
         SORT_HEADER_FORCED_COLOR_BINDINGS,
+    );
+
+    assertExactStateBindings(pathLabel, 'paginator', paginatorRules, PAGINATOR_BINDINGS);
+    assertExactStateBindings(
+        pathLabel,
+        'forced-colors paginator',
+        paginatorForcedColorRules,
+        PAGINATOR_FORCED_COLOR_BINDINGS,
     );
 
     assertExactStateBindings(pathLabel, 'feedback', feedbackRules, FEEDBACK_BINDINGS);
