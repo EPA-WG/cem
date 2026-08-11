@@ -33,8 +33,10 @@ The aggregate gate includes:
 | --- | --- | --- |
 | Primitive manifest | `yarn nx run @epa-wg/cem-components:verify-primitives` | `CEM_COMPONENT_PRIMITIVES` exactly matches `docs/component-mvp.md`, uses CEM-ML declarations, and does not depend on legacy `<custom-element>` wrappers. |
 | Angular Material parity inventory | `yarn nx run @epa-wg/cem-components:verify-material-parity` | Pins the exact stable official catalog and requires every entry to remain visible until it is audited as a component mapping, cross-cutting behavior, partial mapping, or explicit gap. Barebone `cem-elements` compatibility fixtures cannot satisfy product UI parity evidence. |
+| State matrix | `yarn nx run @epa-wg/cem-components:verify-state-matrix` | Resolves every category state to exact browser tests/assertions and supports verifier-checked component-specific evidence so a newly promoted owner does not replace existing evidence. |
 | Token-only style contract | `yarn nx run @epa-wg/cem-components:verify-style-contract` | Depends on current theme tokens and the verified public theme stylesheet export; checks exact action, content-interaction, navigation, and feedback bindings plus component selector scope, and rejects inline styles, unknown/non-CEM variables, and raw component color or spacing literals. |
-| Input indicator forced colors | `yarn nx run @epa-wg/cem-components:verify-input-indicator-forced-colors` | Launches Chromium with forced colors active; proves component shadows collapse, field/binary hover uses `Highlight`, and keyboard focus traverses all seven input owners with full `CanvasText` outlines. |
+| Input indicator forced colors | `yarn nx run @epa-wg/cem-components:verify-input-indicator-forced-colors` | Launches Chromium with forced colors active; proves component shadows collapse, field/binary hover uses `Highlight`, and keyboard focus traverses the original seven input owners with full `CanvasText` outlines. |
+| Autocomplete forced colors | `yarn nx run @epa-wg/cem-components:verify-autocomplete-forced-colors` | Proves popup draw order, input/option pointer ownership, system hover/active/selected/disabled colors, keyboard focus coexistence, stable geometry, and event/state isolation. |
 | Navigation hover/focus/active/disabled forced colors | `yarn nx run @epa-wg/cem-components:verify-navigation-hover-forced-colors` | Launches Chromium with forced colors active; proves system hover/current/active/disabled colors, ARIA-disabled current/selected precedence, full keyboard traversal, focus coexistence, native-disabled skipping, restoration, and wrapper/state isolation. |
 | Content hover/focus forced colors | `yarn nx run @epa-wg/cem-components:verify-content-hover-forced-colors` | Launches Chromium with forced colors active; proves exact content-owner keyboard order and `CanvasText` rings alongside checkable-chip system fills, native-listbox hover boundary color, selected/checked coexistence, disabled skipping, restoration, and passive wrapper isolation. |
 | Feedback focus forced colors | `yarn nx run @epa-wg/cem-components:verify-feedback-focus-forced-colors` | Launches Chromium with forced colors active; proves both transient native-dialog fallback owners retain the D5 width/offset with `CanvasText` and automatic color adjustment while static wrappers, hosts, sheets, and authored descendants remain outside component focus paint. |
@@ -48,15 +50,17 @@ Executable fixture locations:
 | Primitive declarations | `../src/lib/primitives.ts` |
 | Angular Material parity inventory | `../tests/angular-material-parity.json` |
 | Primitive family coverage | `../src/lib/primitives.browser.spec.ts` |
+| Autocomplete behavior and state coverage | `../src/lib/autocomplete.browser.spec.ts` |
 | State, ARIA, focus, and event payload coverage | `../src/lib/states.browser.spec.ts` |
 | Feedback lifecycle and focus coverage | `../src/lib/feedback-expanded.browser.spec.ts` |
 | Workflow fixture coverage | `../src/lib/workflows.browser.spec.ts` |
 | Declarative workflow fixtures | `../tests/workflows/` |
 | Declarative feedback fixture | `../tests/feedback/expanded.html` |
+| Declarative autocomplete fixture | `../tests/autocomplete/contract.html` |
 | Component harness helpers | `../src/lib/testing/component-harness.ts` |
 | Style and manifest verifier scripts | `../../../tools/scripts/verify-cem-components-*.mjs` |
 | Package stylesheet source | `../src/styles.css` |
-| Package publication and forced-colors scripts | `../scripts/copy-styles.mjs`, `../scripts/verify-package.mjs`, `../scripts/verify-input-indicator-forced-colors.mjs`, `../scripts/verify-navigation-hover-forced-colors.mjs`, `../scripts/verify-content-hover-forced-colors.mjs`, `../scripts/verify-feedback-focus-forced-colors.mjs` |
+| Package publication and forced-colors scripts | `../scripts/copy-styles.mjs`, `../scripts/verify-package.mjs`, `../scripts/verify-input-indicator-forced-colors.mjs`, `../scripts/verify-autocomplete-forced-colors.mjs`, `../scripts/verify-navigation-hover-forced-colors.mjs`, `../scripts/verify-content-hover-forced-colors.mjs`, `../scripts/verify-feedback-focus-forced-colors.mjs` |
 
 Handoff condition: Phase 4 component expansion can build on this primitive package after the aggregate verify gate is
 green and the promoted branch has no uncommitted gate changes. The handoff covers the MVP primitive declaration set,
@@ -95,15 +99,23 @@ See the [action hover contract](./action-hover-contract.md) and
 | `cem-field` | Generic labeled single-line field. | `name`, `value`, `type`, `placeholder`, `indicator`, `busy`; named label/help slots. | input indicator, stroke, zebra, bend, gap, typography | Label slot or `label` attribute must name the input. |
 | `cem-text-field` | Single-line text entry. | `name`, `value`, `placeholder`, `indicator`, `busy`; `slot="label"` and `slot="help"`. | input indicator, stroke, zebra, bend, gap, typography | Label slot or `label` attribute must name the input. Help text must not become the accessible name. |
 | `cem-textarea` | Multi-line text entry. | `name`, `value`, `placeholder`, `indicator`, `busy`; `slot="label"` and `slot="help"`. | input indicator, stroke, zebra, bend, gap, typography | Same label and help rules as text field. |
+| `cem-autocomplete` | Form-associated editable combobox with declarative suggestions. | Canonical direct `cem-option`/`cem-option-group`; all-native `option`/`optgroup` migration adapter; free-form or `require-selection`; `value`, `placeholder`, `autocomplete`, `indicator`, `busy`, `auto-active-first`, label/help slots. See the [autocomplete contract](./autocomplete-contract.md). | select, input indicator, stroke, zebra, bend, layering, control, typography | The native input owns focus and text entry; the transient listbox exposes options/groups while `aria-activedescendant` retains focus on the input. |
 | `cem-select` | Form-associated custom single/multiple choice with HTML-rendered options. | Canonical direct `cem-option`/`cem-option-group`; all-native `option`/`optgroup` migration adapter; `multiple`, `size`, `indicator`, `busy`, label/help slots. See the [custom select contract](./select-contract.md). | select, input indicator, stroke, zebra, bend, layering, control, typography | Label slot or `label` attribute names the combobox/listbox; focus remains on the composite owner with `aria-activedescendant`. |
-| `cem-option` | Canonical rich option payload consumed by `cem-select`. | Required `value`; optional `label`, `selected`, and `disabled`; static HTML descendants. | palette, typography | Does not create a nested tab stop or interaction owner. |
-| `cem-option-group` | Canonical labeled grouping payload consumed by `cem-select`. | Required `label`; optional `disabled`; direct `cem-option` children. | palette, typography | The select projects `role="group"` and its accessible label. |
+| `cem-option` | Canonical rich option payload consumed by `cem-select` and `cem-autocomplete`. | Required `value`; optional `label`, `selected`, and `disabled`; static HTML descendants. | palette, typography | Does not create a nested tab stop or interaction owner. |
+| `cem-option-group` | Canonical labeled grouping payload consumed by `cem-select` and `cem-autocomplete`. | Required `label`; optional `disabled`; direct `cem-option` children. | palette, typography | The consuming composite projects `role="group"` and its accessible label. |
 | `cem-checkbox` | Binary form choice. | Default slot is label; `name` and `value` forward to native input; `indicator`; `busy`. | input indicator, stroke, zebra, control, bend, typography | Wrapping label must expose the visible text as the accessible name. |
 | `cem-radio` | Mutually exclusive form choice. | Default slot is label; shared `name` groups radios; `indicator`; `busy`. | input indicator, stroke, zebra, control, typography | Radio group context should provide the set label. |
 | `cem-switch` | Immediate boolean setting. | Default slot is label; renders checkbox with `role="switch"`; `indicator`; `busy`. | input indicator, stroke, zebra, action, control, bend | Visible label must name the switch. |
 
 States: `default`, `hover`, `focus-visible`, `disabled`, `loading`, `expanded`, `invalid`, `required`, `readonly`,
 `checked`, `indeterminate`.
+
+`cem-autocomplete` is covered across every applicable input state. It supports
+free text by default and an explicit `require-selection` mode, contributes its
+string value through `ElementInternals`, keeps focus on the native input during
+listbox navigation, and accepts live declarative option replacement without
+replacing that input or mutating the committed value. Filtering, ranking,
+fetching, and debouncing remain application/CEM-QL concerns.
 
 Presence-only host `busy` projects exact `data-state="loading"` and
 `aria-busy="true"` markers to the same interactive control. It does not infer or

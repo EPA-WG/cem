@@ -63,7 +63,9 @@ const ALLOWED_MAPPING_KINDS = new Set(['component', 'behavior', 'gap']);
 const EXPECTED_IMPLEMENTATION_PRIORITY = {
     id: 'autocomplete',
     acceptedAt: '2026-08-10',
+    completedAt: '2026-08-10',
     contract: 'packages/cem-components/docs/autocomplete-contract.md',
+    state: 'completed',
     targetStatus: 'covered',
 };
 
@@ -127,7 +129,7 @@ console.log(
     `cem-components Angular Material parity inventory verified (${records.length} entries pinned to ` +
         `${inventory.benchmark.tag}: ${counts.covered} covered, ${counts.partial} partial, ${counts.gap} gaps, ` +
         `${counts.unreviewed} unreviewed; next audit: ${inventory.recommendedAudit ?? 'none'}; next implementation: ` +
-        `${inventory.implementationPriority.id}).`,
+        `${inventory.implementationPriority.state === 'completed' ? 'none (selection required)' : inventory.implementationPriority.id}).`,
 );
 
 function validateImplementationPriority(priority) {
@@ -141,8 +143,8 @@ function validateImplementationPriority(priority) {
         }
     }
     const record = records.find((candidate) => candidate?.id === priority.id);
-    if (!record || record.status !== 'gap' || record.mapping?.kind !== 'gap') {
-        fail(`implementationPriority ${String(priority.id)} must identify a currently audited gap`);
+    if (!record || record.status !== priority.targetStatus || record.mapping?.kind === 'gap') {
+        fail(`completed implementationPriority ${String(priority.id)} must achieve its non-gap target status`);
     }
     const contractPath = resolve(repoRoot, String(priority.contract ?? ''));
     if (!existsSync(contractPath)) {

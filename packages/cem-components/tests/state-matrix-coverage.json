@@ -115,7 +115,7 @@
             "id": "input:default",
             "category": "Input",
             "state": "default",
-            "components": ["cem-text-field", "cem-textarea", "cem-select", "cem-checkbox", "cem-radio", "cem-switch"],
+            "components": ["cem-text-field", "cem-textarea", "cem-autocomplete", "cem-select", "cem-checkbox", "cem-radio", "cem-switch"],
             "interaction": "Render input primitives as their native accessible controls.",
             "status": "covered",
             "owner": "packages/cem-components/src/lib/primitives.browser.spec.ts",
@@ -123,6 +123,17 @@
             "assertions": [
                 "expect(textField.type).toBe('text');",
                 "expect(switchInput.getAttribute('role')).toBe('switch');"
+            ],
+            "componentEvidence": [
+                {
+                    "component": "cem-autocomplete",
+                    "owner": "packages/cem-components/src/lib/autocomplete.browser.spec.ts",
+                    "test": "is declarative and exposes the accepted editable-combobox and form surface",
+                    "assertions": [
+                        "expect(input.getAttribute('role')).toBe('combobox');",
+                        "expect(host.value).toBe('ada');"
+                    ]
+                }
             ]
         },
         {
@@ -133,6 +144,7 @@
                 "cem-field",
                 "cem-text-field",
                 "cem-textarea",
+                "cem-autocomplete",
                 "cem-select",
                 "cem-checkbox",
                 "cem-radio",
@@ -149,6 +161,18 @@
                 "expectInputIndicatorStructureAndGeometry(hovered, baseline);",
                 "expect(restored.boxShadow).toBe(baseline.boxShadow);",
                 "expect(mutationEvents).toEqual([]);"
+            ],
+            "componentEvidence": [
+                {
+                    "component": "cem-autocomplete",
+                    "owner": "packages/cem-components/src/lib/autocomplete.browser.spec.ts",
+                    "test": "keeps hover, focus, active, selected, and disabled paint independent without geometry or state mutation",
+                    "assertions": [
+                        "expect(input.matches(':hover')).toBe(true);",
+                        "expect(hoverOption.matches(':hover')).toBe(true);",
+                        "expect(mutationEvents).toEqual([]);"
+                    ]
+                }
             ]
         },
         {
@@ -159,6 +183,7 @@
                 "cem-field",
                 "cem-text-field",
                 "cem-textarea",
+                "cem-autocomplete",
                 "cem-select",
                 "cem-checkbox",
                 "cem-radio",
@@ -177,18 +202,41 @@
                 "expect(restoredSwitch.boxShadow).toBe(switchBaseline.boxShadow);",
                 "expect(document.activeElement).toBe(control);",
                 "expect(mutationEvents).toEqual([]);"
+            ],
+            "componentEvidence": [
+                {
+                    "component": "cem-autocomplete",
+                    "owner": "packages/cem-components/src/lib/autocomplete.browser.spec.ts",
+                    "test": "keeps hover, focus, active, selected, and disabled paint independent without geometry or state mutation",
+                    "assertions": [
+                        "expect(document.activeElement).toBe(input);",
+                        "expect(input.matches(':focus-visible')).toBe(true);",
+                        "expect(focusTreatment(input)).toEqual(baselineFocusTreatment);"
+                    ]
+                }
             ]
         },
         {
             "id": "input:disabled",
             "category": "Input",
             "state": "disabled",
-            "components": ["cem-textarea", "cem-radio"],
+            "components": ["cem-textarea", "cem-autocomplete", "cem-radio"],
             "interaction": "Disable form controls and prevent native interaction.",
             "status": "covered",
             "owner": "packages/cem-components/src/lib/states.browser.spec.ts",
             "test": "reflects form disabled, invalid, required, readonly, checked, and indeterminate states",
-            "assertions": ["expect(textarea.disabled).toBe(true);", "expect(radio.disabled).toBe(true);"]
+            "assertions": ["expect(textarea.disabled).toBe(true);", "expect(radio.disabled).toBe(true);"],
+            "componentEvidence": [
+                {
+                    "component": "cem-autocomplete",
+                    "owner": "packages/cem-components/src/lib/autocomplete.browser.spec.ts",
+                    "test": "supports native migration and projects disabled, readonly, busy, required, and invalid states safely",
+                    "assertions": [
+                        "expect(disabled.disabled).toBe(true);",
+                        "expect(disabledInput.disabled).toBe(true);"
+                    ]
+                }
+            ]
         },
         {
             "id": "input:loading",
@@ -198,6 +246,7 @@
                 "cem-field",
                 "cem-text-field",
                 "cem-textarea",
+                "cem-autocomplete",
                 "cem-select",
                 "cem-checkbox",
                 "cem-radio",
@@ -211,13 +260,25 @@
                 "expect(control.getAttribute('data-state')).toBe('loading');",
                 "expect(control.getAttribute('aria-busy')).toBe('true');",
                 "expect(busyField.controlRect).toEqual(fieldBaseline.controlRect);"
+            ],
+            "componentEvidence": [
+                {
+                    "component": "cem-autocomplete",
+                    "owner": "packages/cem-components/src/lib/autocomplete.browser.spec.ts",
+                    "test": "supports native migration and projects disabled, readonly, busy, required, and invalid states safely",
+                    "assertions": [
+                        "expect(busyInput.getAttribute('data-state')).toBe('loading');",
+                        "expect(busyInput.getAttribute('aria-busy')).toBe('true');",
+                        "expect(busyInput.disabled).toBe(false);"
+                    ]
+                }
             ]
         },
         {
             "id": "input:expanded",
             "category": "Input",
             "state": "expanded",
-            "components": ["cem-select"],
+            "components": ["cem-autocomplete", "cem-select"],
             "interaction": "Open and close a select-like disclosure and mirror its expanded state.",
             "status": "covered",
             "owner": "packages/cem-components/src/lib/states.browser.spec.ts",
@@ -226,13 +287,25 @@
                 "expect(roleControl.getAttribute('aria-expanded')).toBe('true');",
                 "expect(roleControl.getAttribute('aria-controls')).toBe(popup.id);",
                 "expect(roleControl.getAttribute('aria-expanded')).toBe('false');"
+            ],
+            "componentEvidence": [
+                {
+                    "component": "cem-autocomplete",
+                    "owner": "packages/cem-components/src/lib/autocomplete.browser.spec.ts",
+                    "test": "navigates enabled suggestions with focus retained and commits one ordered event pair",
+                    "assertions": [
+                        "expect(host.expanded).toBe(true);",
+                        "expect(input.getAttribute('aria-controls')).toBe(popup.id);",
+                        "expect(host.expanded).toBe(false);"
+                    ]
+                }
             ]
         },
         {
             "id": "input:invalid",
             "category": "Input",
             "state": "invalid",
-            "components": ["cem-text-field", "cem-textarea", "cem-select", "cem-checkbox"],
+            "components": ["cem-text-field", "cem-textarea", "cem-autocomplete", "cem-select", "cem-checkbox"],
             "interaction": "Reflect validation failure and retain help and error relationships.",
             "status": "covered",
             "owner": "packages/cem-components/src/lib/states.browser.spec.ts",
@@ -240,29 +313,63 @@
             "assertions": [
                 "expect(textField.getAttribute('aria-invalid')).toBe('true');",
                 "expect(textField.getAttribute('aria-errormessage')).toBe('email-error');"
+            ],
+            "componentEvidence": [
+                {
+                    "component": "cem-autocomplete",
+                    "owner": "packages/cem-components/src/lib/autocomplete.browser.spec.ts",
+                    "test": "supports native migration and projects disabled, readonly, busy, required, and invalid states safely",
+                    "assertions": [
+                        "expect(invalid.checkValidity()).toBe(false);",
+                        "expect(invalid.validity.valueMissing).toBe(true);",
+                        "expect(invalidInput.getAttribute('aria-invalid')).toBe('true');"
+                    ]
+                }
             ]
         },
         {
             "id": "input:required",
             "category": "Input",
             "state": "required",
-            "components": ["cem-text-field", "cem-select", "cem-checkbox"],
+            "components": ["cem-text-field", "cem-autocomplete", "cem-select", "cem-checkbox"],
             "interaction": "Expose required semantics through native controls and their accessible labels.",
             "status": "covered",
             "owner": "packages/cem-components/src/lib/states.browser.spec.ts",
             "test": "reflects form disabled, invalid, required, readonly, checked, and indeterminate states",
-            "assertions": ["expect(textField.required).toBe(true);", "expect(checkedBox.required).toBe(true);"]
+            "assertions": ["expect(textField.required).toBe(true);", "expect(checkedBox.required).toBe(true);"],
+            "componentEvidence": [
+                {
+                    "component": "cem-autocomplete",
+                    "owner": "packages/cem-components/src/lib/autocomplete.browser.spec.ts",
+                    "test": "supports native migration and projects disabled, readonly, busy, required, and invalid states safely",
+                    "assertions": [
+                        "expect(invalid.required).toBe(true);",
+                        "expect(invalidInput.required).toBe(true);"
+                    ]
+                }
+            ]
         },
         {
             "id": "input:readonly",
             "category": "Input",
             "state": "readonly",
-            "components": ["cem-text-field"],
+            "components": ["cem-text-field", "cem-autocomplete"],
             "interaction": "Keep a readonly field focusable and submittable while preventing edits.",
             "status": "covered",
             "owner": "packages/cem-components/src/lib/states.browser.spec.ts",
             "test": "reflects form disabled, invalid, required, readonly, checked, and indeterminate states",
-            "assertions": ["expect(textField.readOnly).toBe(true);"]
+            "assertions": ["expect(textField.readOnly).toBe(true);"],
+            "componentEvidence": [
+                {
+                    "component": "cem-autocomplete",
+                    "owner": "packages/cem-components/src/lib/autocomplete.browser.spec.ts",
+                    "test": "supports native migration and projects disabled, readonly, busy, required, and invalid states safely",
+                    "assertions": [
+                        "expect(readonly.readonly).toBe(true);",
+                        "expect(readonlyInput.readOnly).toBe(true);"
+                    ]
+                }
+            ]
         },
         {
             "id": "input:checked",

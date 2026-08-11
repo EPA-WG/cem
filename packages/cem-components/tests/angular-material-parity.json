@@ -13,22 +13,24 @@
     "implementationPriority": {
         "id": "autocomplete",
         "acceptedAt": "2026-08-10",
+        "completedAt": "2026-08-10",
         "contract": "packages/cem-components/docs/autocomplete-contract.md",
+        "state": "completed",
         "targetStatus": "covered"
     },
     "components": [
         {
             "id": "autocomplete",
             "name": "Autocomplete",
-            "status": "gap",
+            "status": "covered",
             "mapping": {
-                "kind": "gap",
-                "owners": [],
-                "states": ["default", "hover", "focus-visible", "expanded", "selected", "disabled", "required", "invalid"],
-                "keyboard": ["Keep focus on the text trigger; use ArrowUp/ArrowDown to move the active option, Enter to select, and Escape to close."],
-                "accessibility": ["Expose a labeled combobox trigger, listbox popup, option roles, aria-expanded, aria-controls, and aria-activedescendant."],
-                "evidence": [],
-                "notes": "No public cem-components owner combines editable text, filtering, free-form value handling, and listbox suggestion behavior. cem-select is selection-only, and the legacy cem-elements autocomplete fixture is runtime compatibility evidence rather than product parity."
+                "kind": "component",
+                "owners": ["cem-autocomplete", "cem-option", "cem-option-group"],
+                "states": ["default", "hover", "focus-visible", "disabled", "loading", "expanded", "invalid", "required", "readonly", "selected", "active"],
+                "keyboard": ["Keep focus on the native text input; use ArrowUp/ArrowDown to move the active option, Home/End for native text editing unless popup navigation follows an arrow key, Enter to select, Escape or Alt+ArrowUp to close, Alt+ArrowDown to open, and Tab to close without trapping focus."],
+                "accessibility": ["Expose a labeled native input with combobox, aria-autocomplete, truthful aria-expanded/aria-controls, and connected enabled aria-activedescendant ownership; expose the transient popup as a listbox with option and labeled-group semantics."],
+                "evidence": ["packages/cem-components/src/lib/autocomplete.browser.spec.ts::is declarative and exposes the accepted editable-combobox and form surface", "packages/cem-components/src/lib/autocomplete.browser.spec.ts::navigates enabled suggestions with focus retained and commits one ordered event pair", "packages/cem-components/src/lib/autocomplete.browser.spec.ts::keeps hover, focus, active, selected, and disabled paint independent without geometry or state mutation", "packages/cem-components/src/lib/autocomplete.browser.spec.ts::supports native migration and projects disabled, readonly, busy, required, and invalid states safely", "packages/cem-components/scripts/verify-autocomplete-forced-colors.mjs", "packages/cem-components/scripts/verify-package.mjs", "packages/cem-components/docs/autocomplete-contract.md"],
+                "notes": "cem-autocomplete owns the editable-combobox capability with free-form and require-selection value models, application/CEM-QL-owned filtering, live declarative suggestion replacement, string form values, canonical rich options, exact native input/change ordering, and tokenized normal/forced-colors states. It intentionally does not reproduce Angular directives, TypeScript display callbacks, object identity, arbitrary overlay origins, or an overlay-service API."
             }
         },
         {

@@ -409,16 +409,18 @@ describe('autocomplete contract fixture', () => {
         expect(rectTuple(input)).toEqual(closedInputRect);
     });
 
-    it('supports native migration and suppresses disabled, readonly, and busy state side effects', async () => {
+    it('supports native migration and projects disabled, readonly, busy, required, and invalid states safely', async () => {
         const root = await renderFixture();
         const native = requiredElement<TestCemAutocomplete>(root, '#native-autocomplete');
         const readonly = requiredElement<TestCemAutocomplete>(root, '#readonly-autocomplete');
         const disabled = requiredElement<TestCemAutocomplete>(root, '#disabled-autocomplete');
         const busy = requiredElement<TestCemAutocomplete>(root, '#busy-autocomplete');
+        const invalid = requiredElement<TestCemAutocomplete>(root, '#invalid-autocomplete');
         const nativeInput = requiredElement<HTMLInputElement>(native, '.cem-autocomplete__control');
         const readonlyInput = requiredElement<HTMLInputElement>(readonly, '.cem-autocomplete__control');
         const disabledInput = requiredElement<HTMLInputElement>(disabled, '.cem-autocomplete__control');
         const busyInput = requiredElement<HTMLInputElement>(busy, '.cem-autocomplete__control');
+        const invalidInput = requiredElement<HTMLInputElement>(invalid, '.cem-autocomplete__control');
         const events: string[] = [];
         for (const host of [readonly, disabled, busy]) {
             for (const eventName of ['input', 'change']) host.addEventListener(eventName, () => events.push(eventName));
@@ -449,6 +451,12 @@ describe('autocomplete contract fixture', () => {
         expect(busyInput.getAttribute('data-state')).toBe('loading');
         expect(busyInput.getAttribute('aria-busy')).toBe('true');
         expect(busyInput.disabled).toBe(false);
+        expect(invalid.required).toBe(true);
+        expect(invalid.checkValidity()).toBe(false);
+        expect(invalid.validity.valueMissing).toBe(true);
+        expect(invalid.validationMessage).not.toBe('');
+        expect(invalidInput.required).toBe(true);
+        expect(invalidInput.getAttribute('aria-invalid')).toBe('true');
         expect(events).toEqual([]);
         expect(() => assertAriaReferenceIntegrity(root)).not.toThrow();
     });
@@ -457,7 +465,7 @@ describe('autocomplete contract fixture', () => {
         harness = createComponentHarness();
         const root = await harness.render(autocompleteContractFixture);
         await waitFor(
-            () => root.querySelectorAll('cem-autocomplete .cem-autocomplete__control').length === 6,
+            () => root.querySelectorAll('cem-autocomplete .cem-autocomplete__control').length === 7,
             'autocomplete controls render',
         );
         return root;

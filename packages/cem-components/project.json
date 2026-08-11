@@ -209,6 +209,7 @@
                 "{projectRoot}/package.json",
                 "{projectRoot}/src/index.ts",
                 "{projectRoot}/src/lib/cem-components.ts",
+                "{projectRoot}/src/lib/primitives.ts",
                 {
                     "dependentTasksOutputFiles": "**/*.{js,css}",
                     "transitive": false

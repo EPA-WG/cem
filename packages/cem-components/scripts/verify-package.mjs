@@ -9,6 +9,9 @@ const packageRoot = join(dirname(fileURLToPath(import.meta.url)), '..');
 const sourceStylesPath = join(packageRoot, 'src', 'styles.css');
 const builtStylesPath = join(packageRoot, 'dist', 'styles.css');
 const packageJsonPath = join(packageRoot, 'package.json');
+const sourcePrimitivesPath = join(packageRoot, 'src', 'lib', 'primitives.ts');
+const builtPrimitivesPath = join(packageRoot, 'dist', 'lib', 'primitives.js');
+const builtAutocompleteBehaviorPath = join(packageRoot, 'dist', 'lib', 'autocomplete-behavior.js');
 const sourceEntries = [join(packageRoot, 'src', 'index.ts'), join(packageRoot, 'src', 'lib', 'cem-components.ts')];
 const builtEntries = [join(packageRoot, 'dist', 'index.js'), join(packageRoot, 'dist', 'lib', 'cem-components.js')];
 const forbiddenJavaScriptPatterns = [
@@ -20,9 +23,23 @@ const forbiddenJavaScriptPatterns = [
 
 const sourceStyles = await readFile(sourceStylesPath);
 const builtStyles = await readFile(builtStylesPath);
+const sourcePrimitives = await readFile(sourcePrimitivesPath, 'utf8');
+const builtPrimitives = await readFile(builtPrimitivesPath, 'utf8');
 
 if (!sourceStyles.equals(builtStyles)) {
     throw new Error('src/styles.css and dist/styles.css must be byte-identical');
+}
+
+if (!sourcePrimitives.includes("tag: 'cem-autocomplete'")) {
+    throw new Error('source primitive inventory must contain cem-autocomplete');
+}
+
+if (!builtPrimitives.includes("tag: 'cem-autocomplete'")) {
+    throw new Error('built primitive inventory must contain cem-autocomplete');
+}
+
+if (!existsSync(builtAutocompleteBehaviorPath)) {
+    throw new Error('built package must contain the autocomplete behavior artifact');
 }
 
 if (existsSync(join(packageRoot, 'styles.css'))) {
@@ -81,6 +98,12 @@ try {
         throw new Error('npm pack must not contain source or package-root stylesheet copies');
     }
 
+    for (const artifact of ['dist/lib/autocomplete-behavior.js', 'dist/lib/primitives.js']) {
+        if (!packedFiles.includes(artifact)) {
+            throw new Error(`npm pack must contain the autocomplete runtime artifact ${artifact}`);
+        }
+    }
+
     const buildInfoFiles = packedFiles.filter((path) => path.endsWith('.tsbuildinfo'));
 
     if (buildInfoFiles.length > 0) {
@@ -88,7 +111,8 @@ try {
     }
 
     console.log(
-        `cem-components package verified (${packedFiles.length} packed files, one dist/styles.css, zero source/root copies).`,
+        `cem-components package verified (${packedFiles.length} packed files, autocomplete runtime included, ` +
+            'one dist/styles.css, zero source/root copies).',
     );
 } finally {
     await rm(npmCache, { force: true, recursive: true });

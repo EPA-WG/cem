@@ -15,14 +15,16 @@ uses the versioned Angular Material parity inventory; all official entries are
 classified, and `cem-autocomplete` is the accepted first gap with its owner,
 interaction, form, theme, fixture, forced-colors, and assertion contract fixed
 before runtime or CSS implementation. The autocomplete primitive, browser
-behavior, tokenized CSS, focused fixture, and normal/forced-colors state gates
-are now implemented. One bounded `CEM-CSS-002` exception supplies only the
-private physical popup draw order that D4 explicitly excludes; semantic
-elevation remains theme-owned. Public state-matrix, reference, package, and
-parity-inventory promotion remains the next work item. The component
-stylesheet publication, `action:hover`, and `action:active` contracts are
+behavior, tokenized CSS, focused fixture, normal/forced-colors state gates,
+state-matrix evidence, public reference, package artifact verification, and
+Angular Material inventory promotion are now complete. One bounded
+`CEM-CSS-002` exception supplies only the private physical popup draw order that
+D4 explicitly excludes; semantic elevation remains theme-owned. The pinned
+inventory now reports 7 covered, 19 partial, and 11 gaps. Selecting and
+contracting the next implementation priority is the current decision point.
+The component stylesheet publication, `action:hover`, and `action:active` contracts are
 implemented and verified. The `input:hover` contract is also implemented:
-all seven native owners share a theme-tokenized three-stripe indicator, with
+all eight native owners share a theme-tokenized three-stripe indicator, with
 underline and outline as geometry variants, not separate semantics.
 `CEM-CSS-001` is closed through D0/D5 theme adoption without a component CSS
 exception. Dedicated keyboard and forced-colors coverage completes
@@ -100,8 +102,10 @@ mediate between internal layers.
       fixture/assertion matrix in the autocomplete contract.
     - Audited theme coverage before CSS. Input indicators plus the shared
       `--cem-select-*` choice-popup states, D5, layering, control, shape, and
-      typography categories cover the contract; theme documentation now names
-      autocomplete semantics and no CSS exception is proposed.
+      typography categories cover the visual contract; theme documentation now
+      names autocomplete semantics. Implementation later accepted only the
+      bounded non-semantic physical stacking exception `CEM-CSS-002` because D4
+      deliberately has no numeric z-index category.
   - [ ] Implement accepted parity rows one contract at a time, keeping the
         versioned inventory, public component documentation, and aggregate Nx
         gate current. Record a CSS exception only when no appropriate theme
@@ -142,8 +146,26 @@ mediate between internal layers.
       - Added `verify-autocomplete-forced-colors` to the component aggregate Nx
         gate and locked the bounded stacking rule into the static style
         verifier.
-    - [ ] Promote the state matrix, component reference, package verification,
+    - [x] Promote the state matrix, component reference, package verification,
           and Angular Material inventory only after all contract assertions pass.
+      - Added verifier-resolved component-specific evidence for autocomplete
+        across `input:default`, `hover`, `focus-visible`, `disabled`, `loading`,
+        `expanded`, `invalid`, `required`, and `readonly` without replacing the
+        existing evidence for other input owners.
+      - Added an explicit invalid/required fixture state and browser assertions,
+        documented the public editable-combobox/option contract, and added the
+        autocomplete forced-colors surface to the package gate references.
+      - Package verification now requires the built primitive inventory and
+        packed autocomplete behavior artifact. Angular Material autocomplete is
+        covered by the three public owners and executable product evidence,
+        yielding 7 covered, 19 partial, 11 gaps, and no active implementation
+        priority.
+    - [ ] Select and contract the next implementation priority from the eleven
+          remaining audited gaps before adding another primitive or component CSS.
+      - Decision required: choose among datepicker, divider, expansion,
+        paginator, progress-spinner, slider, sort, stepper, timepicker, tooltip,
+        and tree using semantic reuse, accessibility risk, application value,
+        and implementation dependency order.
 
 ### Immediate: CSS Selector Query Schema and Unified CLI Query Execution
 

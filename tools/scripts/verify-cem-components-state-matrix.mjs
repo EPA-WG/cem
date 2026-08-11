@@ -162,38 +162,67 @@ function validateRecord(record, index) {
 
 function validateCoveredRecord(record) {
     const label = record.id;
-    if (typeof record.owner !== 'string' || !record.owner.endsWith('.browser.spec.ts')) {
+    validateBrowserEvidence(record, label);
+
+    const componentEvidence = record.componentEvidence ?? [];
+    if (!Array.isArray(componentEvidence)) {
+        fail(`${label}: componentEvidence must be an array when present`);
+        return;
+    }
+    const evidencedComponents = new Set();
+    for (const [index, evidence] of componentEvidence.entries()) {
+        if (!evidence || typeof evidence !== 'object' || Array.isArray(evidence)) {
+            fail(`${label}: componentEvidence ${index} must be an object`);
+            continue;
+        }
+        const component = evidence.component;
+        if (typeof component !== 'string' || !record.components.includes(component)) {
+            fail(`${label}: componentEvidence ${index} must name one of the row components`);
+            continue;
+        }
+        if (evidencedComponents.has(component)) {
+            fail(`${label}: componentEvidence must not duplicate ${component}`);
+            continue;
+        }
+        evidencedComponents.add(component);
+        validateBrowserEvidence(evidence, `${label} componentEvidence for ${component}`);
+    }
+
+    if ('reason' in record) {
+        fail(`${label}: covered row must not carry a gap reason`);
+    }
+}
+
+function validateBrowserEvidence(evidence, label) {
+    if (typeof evidence.owner !== 'string' || !evidence.owner.endsWith('.browser.spec.ts')) {
         fail(`${label}: covered owner must be an exact .browser.spec.ts path`);
         return;
     }
-    if (typeof record.test !== 'string' || !record.test) {
+    if (typeof evidence.test !== 'string' || !evidence.test) {
         fail(`${label}: covered row must name an exact browser test`);
         return;
     }
-    if (!Array.isArray(record.assertions) || record.assertions.length === 0) {
+    if (!Array.isArray(evidence.assertions) || evidence.assertions.length === 0) {
         fail(`${label}: covered row must name at least one exact assertion`);
         return;
     }
 
-    const ownerPath = resolveRepoPath(record.owner, label);
+    const ownerPath = resolveRepoPath(evidence.owner, label);
     if (!ownerPath || !existsSync(ownerPath)) {
-        fail(`${label}: browser owner does not exist at ${record.owner}`);
+        fail(`${label}: browser owner does not exist at ${evidence.owner}`);
         return;
     }
-    const testBody = findBrowserTestBody(ownerPath, record.test);
+    const testBody = findBrowserTestBody(ownerPath, evidence.test);
     if (!testBody) {
-        fail(`${label}: browser test not found in ${record.owner}: ${record.test}`);
+        fail(`${label}: browser test not found in ${evidence.owner}: ${evidence.test}`);
         return;
     }
-    for (const assertion of record.assertions) {
+    for (const assertion of evidence.assertions) {
         if (typeof assertion !== 'string' || !assertion) {
             fail(`${label}: assertion references must be non-empty strings`);
         } else if (!testBody.includes(assertion)) {
-            fail(`${label}: stale assertion reference in ${record.test}: ${assertion}`);
+            fail(`${label}: stale assertion reference in ${evidence.test}: ${assertion}`);
         }
-    }
-    if ('reason' in record) {
-        fail(`${label}: covered row must not carry a gap reason`);
     }
 }
 
@@ -210,8 +239,10 @@ function validateStaticOnlyRecord(record) {
     if (typeof record.reason !== 'string' || !record.reason.trim()) {
         fail(`${label}: static-only row must explain the missing browser assertion`);
     }
-    if ('test' in record) {
-        fail(`${label}: static-only row must not claim a browser test`);
+    for (const forbidden of ['test', 'componentEvidence']) {
+        if (forbidden in record) {
+            fail(`${label}: static-only row must not claim ${forbidden}`);
+        }
     }
 
     const ownerPath = resolveRepoPath(record.owner, label);
@@ -232,7 +263,7 @@ function validateGapRecord(record) {
     if (typeof record.reason !== 'string' || !record.reason.trim()) {
         fail(`${label}: gap row must explain the missing executable evidence`);
     }
-    for (const forbidden of ['owner', 'test', 'assertions']) {
+    for (const forbidden of ['owner', 'test', 'assertions', 'componentEvidence']) {
         if (forbidden in record) {
             fail(`${label}: gap row must not claim ${forbidden}`);
         }
@@ -352,7 +383,16 @@ function renderMarkdownReport(report) {
     ];
 
     for (const record of report.coverage) {
-        const owner = record.status === 'covered' ? `\`${record.owner}\` — ${record.test}` : record.reason;
+        const owner =
+            record.status === 'covered'
+                ? [record, ...(record.componentEvidence ?? [])]
+                      .map(
+                          (evidence) =>
+                              `${evidence.component ? `\`${evidence.component}\`: ` : ''}` +
+                              `\`${evidence.owner}\` — ${evidence.test}`,
+                      )
+                      .join('<br>')
+                : record.reason;
         lines.push(
             `| \`${record.id}\` | ${record.components.map((component) => `\`${component}\``).join(', ')} | ` +
                 `${escapeTableCell(record.interaction)} | ${record.status} | ${escapeTableCell(owner)} |`,

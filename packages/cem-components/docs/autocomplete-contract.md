@@ -1,9 +1,9 @@
 # Autocomplete Contract
 
-**Status:** Accepted as the first Angular Material parity implementation
-priority. The primitive, browser behavior, tokenized CSS, focused fixture, and
-forced-colors gate are implemented; public inventory and state-matrix promotion
-remain deliberately separate.
+**Status:** Implemented and promoted as the first covered Angular Material
+parity priority. The public primitive, browser behavior, tokenized CSS, focused
+fixture, forced-colors gate, state-matrix evidence, package artifact, and parity
+inventory are executable.
 
 Benchmark behavior is pinned to the Angular Material `v22.1.1`
 [autocomplete guide](https://github.com/angular/components/blob/v22.1.1/src/material/autocomplete/autocomplete.md).

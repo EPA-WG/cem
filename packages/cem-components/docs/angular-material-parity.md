@@ -1,8 +1,8 @@
 # Angular Material Parity Inventory
 
-**Status:** All pinned product mappings are audited; `autocomplete` is the
-accepted first implementation priority. Active work is tracked in
-[`docs/todo.md`](../../../docs/todo.md).
+**Status:** All pinned product mappings are audited and the first accepted
+priority, `autocomplete`, is covered. Selecting the next implementation gap is
+a separate product decision tracked in [`docs/todo.md`](../../../docs/todo.md).
 
 ## Benchmark
 
@@ -70,18 +70,18 @@ substituted for the missing component.
 
 | Classification | Count | Catalog entries |
 | --- | ---: | --- |
-| Covered | 6 | card, checkbox, dialog, input, select, slide-toggle |
+| Covered | 7 | autocomplete, card, checkbox, dialog, input, select, slide-toggle |
 | Partial | 19 | badge, bottom-sheet, button, button-toggle, chips, core, form-field, grid-list, icon, list, menu, progress-bar, radio, ripple, sidenav, snack-bar, table, tabs, toolbar |
-| Gap | 12 | autocomplete, datepicker, divider, expansion, paginator, progress-spinner, slider, sort, stepper, timepicker, tooltip, tree |
+| Gap | 11 | datepicker, divider, expansion, paginator, progress-spinner, slider, sort, stepper, timepicker, tooltip, tree |
 
 Each row in the executable inventory explains its boundary. In particular,
 `cem-grid` is not treated as a grid-list, `cem-tabs` is not treated as a stepper,
 `cem-progress` is not treated as a circular spinner, and navigation-specific
 disclosure is not treated as a general expansion panel.
 
-## Accepted implementation priority
+## Completed implementation priority
 
-`autocomplete` is accepted as the first gap to close. It has high reuse of the
+`autocomplete` was accepted as the first gap to close. It has high reuse of the
 existing input, option, listbox, form, popup, and forced-colors foundations while
 requiring a distinct editable-combobox owner rather than expanding
 selection-only `cem-select` semantics.
@@ -89,8 +89,13 @@ selection-only `cem-select` semantics.
 The [autocomplete contract](./autocomplete-contract.md) fixes the owner, author
 vocabulary, value/form/event model, application-owned filtering boundary,
 keyboard and accessibility behavior, theme-token coverage, focused fixture,
-forced-colors behavior, and assertion matrix before runtime or CSS work. The row
-remains a gap until that contract has executable product evidence.
+forced-colors behavior, and assertion matrix before runtime or CSS work.
+
+The row is now covered by the public `cem-autocomplete`, `cem-option`, and
+`cem-option-group` owners; the focused browser suite; the component-specific
+state-matrix evidence; the token-only style contract; the dedicated
+forced-colors gate; and npm package verification of the emitted autocomplete
+runtime artifact. No successor priority is implied by this promotion.
 
 Run the invariant with:
 
@@ -98,6 +103,7 @@ Run the invariant with:
 yarn nx run @epa-wg/cem-components:verify-material-parity
 ```
 
-The gate verifies the exact 37-entry pin, every audited mapping, and the accepted
-implementation priority. It reports six covered rows, nineteen partial rows,
-twelve gaps, no remaining audit, and `autocomplete` as the next implementation.
+The gate verifies the exact 37-entry pin, every audited mapping, and completion
+of the accepted implementation priority. It reports seven covered rows,
+nineteen partial rows, eleven gaps, no remaining audit, and no next
+implementation until a new gap is deliberately selected and contracted.

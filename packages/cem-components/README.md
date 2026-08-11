@@ -29,7 +29,8 @@ installCemComponentPrimitives(runtime);
 ```
 
 This registers the minimal primitive tags: `cem-action`, `cem-icon-button`, `cem-menu-item`, `cem-field`,
-`cem-text-field`, `cem-textarea`, `cem-select`, `cem-checkbox`, `cem-radio`, `cem-switch`, `cem-surface`, `cem-text`,
+`cem-text-field`, `cem-textarea`, `cem-autocomplete`, `cem-select`, `cem-option`, `cem-option-group`, `cem-checkbox`,
+`cem-radio`, `cem-switch`, `cem-surface`, `cem-text`,
 `cem-icon`, `cem-stack`, `cem-grid`, `cem-list`, `cem-card`, `cem-table`, `cem-chip`, `cem-badge`, `cem-avatar`,
 `cem-media-preview`, `cem-app-bar`, `cem-nav`, `cem-tabs`, `cem-dialog`, `cem-dialog-shell`, `cem-sheet`,
 `cem-toast`, `cem-progress`, `cem-skeleton`, and `cem-alert`.
@@ -57,6 +58,12 @@ can select `indicator="underline|outline"`. Advanced custom elements may set
 `--cem-indicator-appearance-*` tokens. All stripe color and geometry values
 remain theme-owned.
 
+`cem-autocomplete` adds a form-associated editable combobox while keeping its
+native text input as the only focus and text-entry owner. Its transient listbox
+uses `aria-activedescendant`, canonical `cem-option`/`cem-option-group` payloads,
+tokenized hover/selected/active/disabled paint, and a focused forced-colors
+gate. Application rendering owns filtering and option replacement.
+
 Navigation links, disclosure buttons, and tabs consume the generated
 `--cem-navigation-item-*` state family. Hover styling is applied to those native
 owners rather than their nav/content/tablist wrappers, preserves current and
@@ -79,6 +86,7 @@ yarn nx run @epa-wg/cem-components:verify-material-parity
 yarn nx run @epa-wg/cem-components:verify-state-matrix
 yarn nx run @epa-wg/cem-components:verify-style-contract
 yarn nx run @epa-wg/cem-components:verify-input-indicator-forced-colors
+yarn nx run @epa-wg/cem-components:verify-autocomplete-forced-colors
 yarn nx run @epa-wg/cem-components:verify-navigation-hover-forced-colors
 yarn nx run @epa-wg/cem-components:verify-content-hover-forced-colors
 yarn nx run @epa-wg/cem-components:verify-package
@@ -93,12 +101,16 @@ yarn nx run @epa-wg/cem-components:lint
 `yarn nx run @epa-wg/cem-components:verify` is the Phase 3.2 production-ready trigger. It runs the primitive manifest,
 state-matrix audit, token-only style contract, package publication contract, and Node/Chromium browser coverage gates. The state-matrix audit keeps
 every category/state requirement classified as browser-covered, static-only, or a gap and rejects stale test and
-assertion references. Intentional gaps remain visible in its generated JSON/Markdown reports so the audit can select
-the next fixture without claiming that it already exists. The style contract depends on `@epa-wg/cem-theme:build:tokens`,
+assertion references. Component-specific evidence lets a newly promoted owner
+join a covered category state without displacing the browser evidence for its
+existing owners. Intentional gaps remain visible in the generated JSON/Markdown
+reports so the audit can select the next fixture without claiming that it
+already exists. The style contract depends on `@epa-wg/cem-theme:build:tokens`,
 and `@epa-wg/cem-theme:verify-package`, so the component gate checks current
 generated tokens and the public theme stylesheet export.
 The package verifier proves source/built CSS byte identity, the side-effect-free
-JavaScript boundary, and exact dry-run npm inclusion of one `dist/styles.css`.
+JavaScript boundary, the built/packed autocomplete runtime, and exact dry-run
+npm inclusion of one `dist/styles.css`.
 
 `yarn nx run @epa-wg/cem-components:test` runs the Node unit test plus Chromium-backed component harness coverage.
 
@@ -113,14 +125,17 @@ JavaScript boundary, and exact dry-run npm inclusion of one `dist/styles.css`.
 | State-matrix audit gate | `tools/scripts/verify-cem-components-state-matrix.mjs` |
 | Token-only style gate | `tools/scripts/verify-cem-components-styles.mjs` |
 | Input indicator forced-colors gate | `scripts/verify-input-indicator-forced-colors.mjs` |
+| Autocomplete forced-colors gate | `scripts/verify-autocomplete-forced-colors.mjs` |
 | Navigation hover/focus/active/disabled forced-colors gate | `scripts/verify-navigation-hover-forced-colors.mjs` |
 | Content hover/focus forced-colors gate | `scripts/verify-content-hover-forced-colors.mjs` |
 | Package publication gate | `scripts/verify-package.mjs` |
 | Stylesheet copy | `scripts/copy-styles.mjs` |
 | Primitive browser coverage | `src/lib/primitives.browser.spec.ts` |
+| Autocomplete browser coverage | `src/lib/autocomplete.browser.spec.ts` |
 | State and ARIA coverage | `src/lib/states.browser.spec.ts` |
 | Workflow browser coverage | `src/lib/workflows.browser.spec.ts` |
 | Workflow fixtures | `tests/workflows/` |
+| Autocomplete contract fixture | `tests/autocomplete/contract.html` |
 | Package examples | `examples/` |
 
 ## Handoff Condition
