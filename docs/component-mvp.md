@@ -23,6 +23,7 @@ contract for `@epa-wg/cem-components`, the CEM core schema state vocabulary, and
 | Input | `text-field` | `cem-text-field` | Single-line text entry with label, help, and validation | palette, stroke, bend, gap, typography |
 | Input | `textarea` | `cem-textarea` | Multi-line text entry with label, help, and validation | palette, stroke, bend, gap, typography |
 | Input | `autocomplete` | `cem-autocomplete` | Form-associated editable combobox with declarative suggestions | palette, select, stroke, bend, layering, control, typography |
+| Input | `timepicker` | `cem-timepicker` | Time-of-day choice popup with an authored native text-input form owner | action, palette, select, stroke, bend, layering, coupling, control, typography |
 | Input | `select` | `cem-select` | Form-associated rich single/multiple choice | palette, select, stroke, bend, layering, control, typography |
 | Input | `option` | `cem-option` | Canonical rich option payload for select and autocomplete | palette, typography |
 | Input | `option-group` | `cem-option-group` | Labeled option grouping payload for select and autocomplete | palette, typography |
@@ -61,9 +62,11 @@ contract for `@epa-wg/cem-components`, the CEM core schema state vocabulary, and
 
 ## Deferred From MVP
 
-The roadmap still includes split actions, date/time affordances, side-nav variants, breadcrumbs, and richer
-menu/dropdown families. They are deferred until the MVP workflows prove the shared component states,
-accessibility behavior, and token usage.
+The roadmap still includes split actions, date-picker and date/time-zone
+integration, side-nav variants, breadcrumbs, and richer menu/dropdown families.
+They are deferred until the MVP workflows prove the shared component states,
+accessibility behavior, and token usage. `cem-timepicker` covers only a canonical
+time-of-day string and does not imply those broader date/time capabilities.
 
 ## State Matrix
 

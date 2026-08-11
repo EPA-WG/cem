@@ -1,8 +1,8 @@
 # Angular Material Parity Inventory
 
 **Status:** All pinned product mappings are audited. The accepted `autocomplete`,
-`divider`, `expansion`, `progress-spinner`, `sort`, `paginator`, `slider`, and
-`tooltip` priorities are covered;
+`divider`, `expansion`, `progress-spinner`, `sort`, `paginator`, `slider`,
+`tooltip`, and `timepicker` priorities are covered;
 selecting another implementation gap is a separate product decision tracked in
 [`docs/todo.md`](../../../docs/todo.md).
 
@@ -72,9 +72,9 @@ substituted for the missing component.
 
 | Classification | Count | Catalog entries |
 | --- | ---: | --- |
-| Covered | 14 | autocomplete, card, checkbox, dialog, divider, expansion, input, paginator, progress-spinner, select, slide-toggle, slider, sort, tooltip |
+| Covered | 15 | autocomplete, card, checkbox, dialog, divider, expansion, input, paginator, progress-spinner, select, slide-toggle, slider, sort, timepicker, tooltip |
 | Partial | 19 | badge, bottom-sheet, button, button-toggle, chips, core, form-field, grid-list, icon, list, menu, progress-bar, radio, ripple, sidenav, snack-bar, table, tabs, toolbar |
-| Gap | 4 | datepicker, stepper, timepicker, tree |
+| Gap | 3 | datepicker, stepper, tree |
 
 Each row in the executable inventory explains its boundary. In particular,
 `cem-grid` is not treated as a grid-list, `cem-tabs` is not treated as a stepper,
@@ -161,6 +161,18 @@ suppression, native touch boundary, and logical CSS Anchor Positioning in the
 Popover top layer. Existing D0/D1/D3/D4/D5/D6 semantics cover normal and
 forced-color paint; there is no animation and no component CSS exception.
 
+`timepicker` adds one `cem-timepicker` choice-popup owner while its exact
+authored native text input retains value, validation, event, accessible-name,
+and form ownership. The [timepicker contract](./timepicker-contract.md) fixes
+canonical `HH:mm`, generated intervals or direct `cem-option` choices, an
+optional native toggle, input-retained listbox navigation, exact commit event
+ordering, range/required/invalid behavior, and Popover/CSS Anchor Positioning.
+The existing input-indicator, contextual-action, and shared select-option theme
+semantics cover normal and forced-color paint; the top layer removes numeric
+stacking and no CSS exception was added. Date objects, time zones, seconds,
+locale adapters, and datepicker integration remain outside this time-of-day
+string capability.
+
 Run the invariant with:
 
 ```bash
@@ -168,6 +180,6 @@ yarn nx run @epa-wg/cem-components:verify-material-parity
 ```
 
 The gate verifies the exact 37-entry pin, every audited mapping, and completion
-of the accepted implementation priority. It reports fourteen covered rows,
-nineteen partial rows, four gaps, no remaining audit, and no next
+of the accepted implementation priority. It reports fifteen covered rows,
+nineteen partial rows, three gaps, no remaining audit, and no next
 implementation until a new gap is deliberately selected and contracted.

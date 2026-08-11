@@ -29,7 +29,7 @@ installCemComponentPrimitives(runtime);
 ```
 
 This registers the minimal primitive tags: `cem-action`, `cem-icon-button`, `cem-menu-item`, `cem-field`,
-`cem-text-field`, `cem-textarea`, `cem-autocomplete`, `cem-select`, `cem-option`, `cem-option-group`, `cem-checkbox`,
+`cem-text-field`, `cem-textarea`, `cem-autocomplete`, `cem-timepicker`, `cem-select`, `cem-option`, `cem-option-group`, `cem-checkbox`,
 `cem-radio`, `cem-switch`, `cem-slider`, `cem-surface`, `cem-text`,
 `cem-icon`, `cem-stack`, `cem-grid`, `cem-divider`, `cem-list`, `cem-card`, `cem-expansion`, `cem-table`, `cem-sort-header`, `cem-chip`, `cem-badge`, `cem-avatar`,
 `cem-media-preview`, `cem-app-bar`, `cem-nav`, `cem-tabs`, `cem-paginator`, `cem-tooltip`, `cem-dialog`, `cem-dialog-shell`, `cem-sheet`,
@@ -63,6 +63,14 @@ native text input as the only focus and text-entry owner. Its transient listbox
 uses `aria-activedescendant`, canonical `cem-option`/`cem-option-group` payloads,
 tokenized hover/selected/active/disabled paint, and a focused forced-colors
 gate. Application rendering owns filtering and option replacement.
+
+`cem-timepicker` adds a canonical `HH:mm` time-of-day picker while one direct
+authored native text input retains accessible-name, value, validation, event,
+and form ownership. It generates interval choices or consumes direct
+`cem-option` labels/values, supports an optional native toggle, and keeps focus
+on the input during listbox navigation. The Popover top layer and CSS Anchor
+Positioning provide overlay placement without numeric z-index; existing input,
+contextual-action, and select-option tokens cover normal and forced colors.
 
 Navigation links, disclosure buttons, and tabs consume the generated
 `--cem-navigation-item-*` state family. Hover styling is applied to those native
@@ -151,6 +159,7 @@ yarn nx run @epa-wg/cem-components:verify-sort-header-forced-colors
 yarn nx run @epa-wg/cem-components:verify-paginator-forced-colors
 yarn nx run @epa-wg/cem-components:verify-slider-forced-colors
 yarn nx run @epa-wg/cem-components:verify-tooltip-forced-colors
+yarn nx run @epa-wg/cem-components:verify-timepicker-forced-colors
 yarn nx run @epa-wg/cem-components:verify-package
 yarn nx run @epa-wg/cem-components:test
 yarn nx run @epa-wg/cem-components:build
@@ -172,7 +181,7 @@ and `@epa-wg/cem-theme:verify-package`, so the component gate checks current
 generated tokens and the public theme stylesheet export.
 The package verifier proves source/built CSS byte identity, the side-effect-free
 JavaScript boundary, the built/packed behavior modules (including autocomplete,
-expansion, progress spinner, sort header, paginator, slider, and tooltip), and exact dry-run npm inclusion of one
+expansion, progress spinner, sort header, paginator, slider, tooltip, and timepicker), and exact dry-run npm inclusion of one
 `dist/styles.css`.
 
 `yarn nx run @epa-wg/cem-components:test` runs the Node unit test plus Chromium-backed component harness coverage.
@@ -198,6 +207,7 @@ expansion, progress spinner, sort header, paginator, slider, and tooltip), and e
 | Paginator forced-colors gate | `scripts/verify-paginator-forced-colors.mjs` |
 | Slider forced-colors gate | `scripts/verify-slider-forced-colors.mjs` |
 | Tooltip forced-colors gate | `scripts/verify-tooltip-forced-colors.mjs` |
+| Timepicker forced-colors gate | `scripts/verify-timepicker-forced-colors.mjs` |
 | Package publication gate | `scripts/verify-package.mjs` |
 | Stylesheet copy | `scripts/copy-styles.mjs` |
 | Primitive browser coverage | `src/lib/primitives.browser.spec.ts` |
@@ -208,6 +218,7 @@ expansion, progress spinner, sort header, paginator, slider, and tooltip), and e
 | Paginator browser coverage | `src/lib/paginator.browser.spec.ts` |
 | Slider browser coverage | `src/lib/slider.browser.spec.ts` |
 | Tooltip browser coverage | `src/lib/tooltip.browser.spec.ts` |
+| Timepicker browser coverage | `src/lib/timepicker.browser.spec.ts` |
 | State and ARIA coverage | `src/lib/states.browser.spec.ts` |
 | Workflow browser coverage | `src/lib/workflows.browser.spec.ts` |
 | Workflow fixtures | `tests/workflows/` |
@@ -218,6 +229,7 @@ expansion, progress spinner, sort header, paginator, slider, and tooltip), and e
 | Paginator contract fixture | `tests/paginator/contract.html` |
 | Slider contract fixture | `tests/slider/contract.html` |
 | Tooltip contract fixture | `tests/tooltip/contract.html` |
+| Timepicker contract fixture | `tests/timepicker/contract.html` |
 | Package examples | `examples/` |
 
 ## Handoff Condition
@@ -272,6 +284,8 @@ Known deferrals stay outside this trigger:
   events, application data boundary, token audit, and normal/forced-colors assertion matrix.
 - [Autocomplete contract](./docs/autocomplete-contract.md) — accepted editable-combobox owner, form/events,
   keyboard/accessibility, token audit, focused fixture, forced-colors boundary, and assertion matrix.
+- [Timepicker contract](./docs/timepicker-contract.md) — direct native text-input ownership, canonical `HH:mm`,
+  interval/custom choices, listbox interaction, validation, token audit, and top-layer forced-colors boundary.
 - [Conventions](./docs/conventions.md) — naming, attributes, events, form participation, validation, loading states,
   progressive enhancement.
 - [Light-DOM rendering rules](./docs/light-dom-rendering.md) — `@epa-wg/custom-element` compatibility, no shadow DOM,

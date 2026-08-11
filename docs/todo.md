@@ -9,7 +9,7 @@ history is preserved in
 ## Immediate Goal
 
 The CSS selector query and SCSS-to-CSS lifecycle slices are complete. The Phase
-4 component state matrix is also complete: all 39 required states are backed by
+4 component state matrix is also complete: all 40 required states are backed by
 browser coverage with no static-only rows or gaps. The active M4 expansion now
 uses the versioned Angular Material parity inventory; all official entries are
 classified, and `cem-autocomplete` is the accepted first gap with its owner,
@@ -48,7 +48,14 @@ provide supplemental text. Independent hover/focus reasons, Escape, delays,
 declarative `open`, disabled suppression, native touch preservation, logical CSS
 Anchor Positioning, viewport fallback, and forced colors are covered without
 geometry/state mutation, theme additions, animation, or a CSS exception. The
-pinned inventory now reports 14 covered, 19 partial, and 4 gaps. Selecting and
+accepted `cem-timepicker` priority is also complete: one direct authored native
+text input retains accessible-name, value, validation, event, and form ownership;
+an optional direct native toggle only opens the picker and returns focus to the
+input. Canonical `HH:mm` values, generated intervals or authored `cem-option`
+choices, input-retained listbox navigation, Popover/CSS Anchor Positioning,
+normal and forced-color state coexistence, and exact synthetic commit events are
+verified without a theme addition, numeric z-index, or CSS exception. The pinned
+inventory now reports 15 covered, 19 partial, and 3 gaps. Selecting and
 contracting the next implementation priority is the current decision point.
 The component stylesheet publication, `action:hover`, and `action:active` contracts are
 implemented and verified. The `input:hover` contract is also implemented:
@@ -380,6 +387,36 @@ mediate between internal layers.
           dependent targets and passed 100/100 tests, exact theme/component token
           and 51-file package publication, the dedicated tooltip forced-colors and
           top-layer contract, and component lint.
+    - [x] Select, contract, and implement `timepicker` as the next audited parity
+          gap while one authored native text input retains value, event, and form
+          ownership.
+      - [x] Freeze one `cem-timepicker` owner, strict direct input/optional toggle
+            vocabulary, canonical `HH:mm` value and validation rules, generated
+            interval or authored `cem-option` choices, popup lifecycle, and the
+            native/synthetic event boundary.
+      - [x] Audit the complete theme surface before component CSS. Reuse the input
+            indicator, shared `--cem-select-*` popup/option states, D1 spacing,
+            D2c control/list geometry, D3 overlay shape, D4 elevation, D5 focus,
+            and D6 type; use the Popover top layer and add no CSS exception.
+      - [x] Add a declarative `tests/timepicker/contract.html` fixture and focused
+            browser coverage for exact input/toggle ownership, canonical values,
+            form serialization and validation, interval/custom options, pointer
+            and keyboard selection, Escape/outside dismissal, active/selected/
+            disabled coexistence, hover/focus-visible stability, and zero
+            transient host/value/event mutation.
+      - [x] Add the primitive behavior and token-only Popover/CSS Anchor Positioning
+            surface plus an aggregate forced-colors gate for system input/popup/
+            option paint, top-layer placement, disabled suppression, stable owner
+            geometry, and absent component animation or numeric z-index.
+      - [x] Promote public docs, state/parity evidence, package verification, and
+            todo completion only after every timepicker gate passes.
+        - The public inventory now has 43 primitives. Angular Material parity is
+          15 covered, 19 partial, and 3 gaps; the state matrix remains fully green
+          at 40/40. The uncached aggregate ran the component target plus all 30
+          dependent targets and passed 107/107 tests across 15 browser test files,
+          exact theme/component token and 54-file package publication, the
+          dedicated timepicker forced-colors/top-layer contract, and component
+          lint. No theme category or CSS exception was required.
 
 ### Immediate: CSS Selector Query Schema and Unified CLI Query Execution
 

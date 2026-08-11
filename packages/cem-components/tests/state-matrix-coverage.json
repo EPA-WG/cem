@@ -115,7 +115,7 @@
             "id": "input:default",
             "category": "Input",
             "state": "default",
-            "components": ["cem-text-field", "cem-textarea", "cem-autocomplete", "cem-select", "cem-checkbox", "cem-radio", "cem-switch", "cem-slider"],
+            "components": ["cem-text-field", "cem-textarea", "cem-autocomplete", "cem-timepicker", "cem-select", "cem-checkbox", "cem-radio", "cem-switch", "cem-slider"],
             "interaction": "Render input primitives as their native accessible controls.",
             "status": "covered",
             "owner": "packages/cem-components/src/lib/primitives.browser.spec.ts",
@@ -132,6 +132,15 @@
                     "assertions": [
                         "expect(input.getAttribute('role')).toBe('combobox');",
                         "expect(host.value).toBe('ada');"
+                    ]
+                },
+                {
+                    "component": "cem-timepicker",
+                    "owner": "packages/cem-components/src/lib/timepicker.browser.spec.ts",
+                    "test": "keeps one direct native text input and optional native toggle as the exact owners",
+                    "assertions": [
+                        "expect(parts.input.getAttribute('role')).toBe('combobox');",
+                        "expect(new FormData(requiredElement(root, '#timepicker-form')).get('meeting-time')).toBe('09:30');"
                     ]
                 },
                 {
@@ -154,6 +163,7 @@
                 "cem-text-field",
                 "cem-textarea",
                 "cem-autocomplete",
+                "cem-timepicker",
                 "cem-select",
                 "cem-checkbox",
                 "cem-radio",
@@ -184,6 +194,16 @@
                     ]
                 },
                 {
+                    "component": "cem-timepicker",
+                    "owner": "packages/cem-components/src/lib/timepicker.browser.spec.ts",
+                    "test": "keeps hover, focus-visible, expanded, active, selected, and disabled paint independent and geometry-stable",
+                    "assertions": [
+                        "expect(parts.input.matches(':hover')).toBe(true);",
+                        "expect(geometry(parts.input)).toEqual(baselineGeometry);",
+                        "expect(mutationEvents).toEqual([]);"
+                    ]
+                },
+                {
                     "component": "cem-slider",
                     "owner": "packages/cem-components/src/lib/slider.browser.spec.ts",
                     "test": "keeps pointer enter/leave, hover, active, and focus-visible on the native thumb with stable state",
@@ -203,6 +223,7 @@
                 "cem-text-field",
                 "cem-textarea",
                 "cem-autocomplete",
+                "cem-timepicker",
                 "cem-select",
                 "cem-checkbox",
                 "cem-radio",
@@ -235,6 +256,15 @@
                     ]
                 },
                 {
+                    "component": "cem-timepicker",
+                    "owner": "packages/cem-components/src/lib/timepicker.browser.spec.ts",
+                    "test": "keeps hover, focus-visible, expanded, active, selected, and disabled paint independent and geometry-stable",
+                    "assertions": [
+                        "expect(document.activeElement).toBe(parts.input);",
+                        "expect(parts.input.matches(':focus-visible')).toBe(true);"
+                    ]
+                },
+                {
                     "component": "cem-slider",
                     "owner": "packages/cem-components/src/lib/slider.browser.spec.ts",
                     "test": "keeps pointer enter/leave, hover, active, and focus-visible on the native thumb with stable state",
@@ -249,7 +279,7 @@
             "id": "input:disabled",
             "category": "Input",
             "state": "disabled",
-            "components": ["cem-textarea", "cem-autocomplete", "cem-radio", "cem-slider"],
+            "components": ["cem-textarea", "cem-autocomplete", "cem-timepicker", "cem-radio", "cem-slider"],
             "interaction": "Disable form controls and prevent native interaction.",
             "status": "covered",
             "owner": "packages/cem-components/src/lib/states.browser.spec.ts",
@@ -263,6 +293,15 @@
                     "assertions": [
                         "expect(disabled.disabled).toBe(true);",
                         "expect(disabledInput.disabled).toBe(true);"
+                    ]
+                },
+                {
+                    "component": "cem-timepicker",
+                    "owner": "packages/cem-components/src/lib/timepicker.browser.spec.ts",
+                    "test": "suppresses every disabled route and rejects malformed owner vocabulary without substitution",
+                    "assertions": [
+                        "expect(disabled.input.disabled).toBe(true);",
+                        "expect(disabled.popup.matches(':popover-open')).toBe(false);"
                     ]
                 },
                 {
@@ -316,7 +355,7 @@
             "id": "input:expanded",
             "category": "Input",
             "state": "expanded",
-            "components": ["cem-autocomplete", "cem-select"],
+            "components": ["cem-autocomplete", "cem-timepicker", "cem-select"],
             "interaction": "Open and close a select-like disclosure and mirror its expanded state.",
             "status": "covered",
             "owner": "packages/cem-components/src/lib/states.browser.spec.ts",
@@ -336,6 +375,15 @@
                         "expect(input.getAttribute('aria-controls')).toBe(popup.id);",
                         "expect(host.expanded).toBe(false);"
                     ]
+                },
+                {
+                    "component": "cem-timepicker",
+                    "owner": "packages/cem-components/src/lib/timepicker.browser.spec.ts",
+                    "test": "supports a silent expanded property while live range changes update validity and option suppression",
+                    "assertions": [
+                        "expect(host.expanded).toBe(true);",
+                        "expect(host.hasAttribute('expanded')).toBe(false);"
+                    ]
                 }
             ]
         },
@@ -343,7 +391,7 @@
             "id": "input:invalid",
             "category": "Input",
             "state": "invalid",
-            "components": ["cem-text-field", "cem-textarea", "cem-autocomplete", "cem-select", "cem-checkbox"],
+            "components": ["cem-text-field", "cem-textarea", "cem-autocomplete", "cem-timepicker", "cem-select", "cem-checkbox"],
             "interaction": "Reflect validation failure and retain help and error relationships.",
             "status": "covered",
             "owner": "packages/cem-components/src/lib/states.browser.spec.ts",
@@ -362,6 +410,15 @@
                         "expect(invalid.validity.valueMissing).toBe(true);",
                         "expect(invalidInput.getAttribute('aria-invalid')).toBe('true');"
                     ]
+                },
+                {
+                    "component": "cem-timepicker",
+                    "owner": "packages/cem-components/src/lib/timepicker.browser.spec.ts",
+                    "test": "normalizes generated and authored choices while native value, validation, and reset stay on the input",
+                    "assertions": [
+                        "expect(meeting.input.validity.customError).toBe(true);",
+                        "expect(meeting.input.getAttribute('aria-invalid')).toBe('true');"
+                    ]
                 }
             ]
         },
@@ -369,7 +426,7 @@
             "id": "input:required",
             "category": "Input",
             "state": "required",
-            "components": ["cem-text-field", "cem-autocomplete", "cem-select", "cem-checkbox"],
+            "components": ["cem-text-field", "cem-autocomplete", "cem-timepicker", "cem-select", "cem-checkbox"],
             "interaction": "Expose required semantics through native controls and their accessible labels.",
             "status": "covered",
             "owner": "packages/cem-components/src/lib/states.browser.spec.ts",
@@ -383,6 +440,14 @@
                     "assertions": [
                         "expect(invalid.required).toBe(true);",
                         "expect(invalidInput.required).toBe(true);"
+                    ]
+                },
+                {
+                    "component": "cem-timepicker",
+                    "owner": "packages/cem-components/src/lib/timepicker.browser.spec.ts",
+                    "test": "normalizes generated and authored choices while native value, validation, and reset stay on the input",
+                    "assertions": [
+                        "expect(meeting.input.validity.valueMissing).toBe(true);"
                     ]
                 }
             ]

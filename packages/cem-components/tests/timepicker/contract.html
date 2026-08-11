@@ -1,0 +1,49 @@
+<section class="cem-theme-light" data-timepicker-contract-fixture aria-label="Timepicker contract fixture">
+  <button data-timepicker-focus-start type="button">Focus start</button>
+
+  <form id="timepicker-form">
+    <label for="meeting-time">Meeting time</label>
+    <cem-timepicker id="meeting-timepicker" min="09:00" max="17:00" interval="30" required>
+      <input
+        id="meeting-time"
+        slot="input"
+        type="text"
+        name="meeting-time"
+        value="09:30"
+        autocomplete="off"
+      >
+      <button id="meeting-time-toggle" slot="toggle" type="button" aria-label="Choose meeting time">Choose</button>
+      <cem-option value="09:00" label="9:00 AM"></cem-option>
+      <cem-option value="09:30" label="9:30 AM"></cem-option>
+      <cem-option value="10:00" label="10:00 AM"></cem-option>
+      <cem-option value="10:30" label="10:30 AM" disabled></cem-option>
+      <cem-option value="11:00" label="11:00 AM"></cem-option>
+      <cem-option value="17:30" label="5:30 PM"></cem-option>
+    </cem-timepicker>
+    <button id="timepicker-submit" type="submit">Submit</button>
+    <button id="timepicker-reset" type="reset">Reset</button>
+  </form>
+
+  <label for="generated-time">Generated time</label>
+  <cem-timepicker id="generated-timepicker" min="08:00" max="10:00" interval="45">
+    <input id="generated-time" slot="input" type="text" value="08:45">
+  </cem-timepicker>
+
+  <label for="disabled-time">Disabled time</label>
+  <cem-timepicker id="disabled-timepicker" disabled>
+    <input id="disabled-time" slot="input" type="text" value="12:00">
+    <button id="disabled-time-toggle" slot="toggle" type="button" aria-label="Choose disabled time">Choose</button>
+  </cem-timepicker>
+
+  <label for="invalid-time">Invalid time</label>
+  <cem-timepicker id="invalid-timepicker" min="09:00" max="17:00" invalid>
+    <input id="invalid-time" slot="input" type="text" value="25:00">
+  </cem-timepicker>
+
+  <cem-timepicker id="malformed-timepicker">
+    <input slot="input" type="text" value="08:00" aria-label="First malformed input">
+    <input slot="input" type="text" value="09:00" aria-label="Second malformed input">
+  </cem-timepicker>
+
+  <button data-timepicker-focus-end type="button">Focus end</button>
+</section>

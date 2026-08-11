@@ -747,6 +747,7 @@ cem-text-field input,
 cem-textarea textarea,
 cem-autocomplete .cem-autocomplete__control,
 cem-select .cem-select__control,
+cem-timepicker > .cem-timepicker > input[slot='input'],
 cem-checkbox > label,
 cem-radio > label,
 cem-switch > label {
@@ -795,7 +796,8 @@ cem-field input,
 cem-text-field input,
 cem-textarea textarea,
 cem-autocomplete .cem-autocomplete__control,
-cem-select .cem-select__control {
+cem-select .cem-select__control,
+cem-timepicker > .cem-timepicker > input[slot='input'] {
     --_cem-input-indicator-appearance: var(
         --cem-input-indicator-appearance,
         var(--cem-indicator-appearance-underline)
@@ -806,7 +808,8 @@ cem-field[indicator='outline'] input,
 cem-text-field[indicator='outline'] input,
 cem-textarea[indicator='outline'] textarea,
 cem-autocomplete[indicator='outline'] .cem-autocomplete__control,
-cem-select[indicator='outline'] .cem-select__control {
+cem-select[indicator='outline'] .cem-select__control,
+cem-timepicker[indicator='outline'] > .cem-timepicker > input[slot='input'] {
     --_cem-input-indicator-appearance: var(
         --cem-input-indicator-appearance,
         var(--cem-indicator-appearance-outline)
@@ -817,7 +820,8 @@ cem-field input:enabled:hover,
 cem-text-field input:enabled:hover,
 cem-textarea textarea:enabled:hover,
 cem-autocomplete .cem-autocomplete__control:enabled:hover,
-cem-select .cem-select__control:not(:disabled):not([aria-disabled='true']):hover {
+cem-select .cem-select__control:not(:disabled):not([aria-disabled='true']):hover,
+cem-timepicker > .cem-timepicker > input[slot='input']:enabled:hover {
     --_cem-input-indicator-anchor-color: var(--cem-input-indicator-anchor-hover-color);
 }
 
@@ -841,7 +845,8 @@ cem-field input[aria-invalid='true']:enabled,
 cem-text-field input[aria-invalid='true']:enabled,
 cem-textarea textarea[aria-invalid='true']:enabled,
 cem-autocomplete .cem-autocomplete__control[aria-invalid='true']:enabled,
-cem-select .cem-select__control[aria-invalid='true']:not(:disabled):not([aria-disabled='true']) {
+cem-select .cem-select__control[aria-invalid='true']:not(:disabled):not([aria-disabled='true']),
+cem-timepicker > .cem-timepicker > input[slot='input'][aria-invalid='true']:enabled {
     --_cem-input-indicator-anchor-color: var(--cem-input-indicator-anchor-invalid-color);
     --_cem-input-indicator-anchor-width: var(--cem-stroke-boundary);
 }
@@ -850,7 +855,8 @@ cem-field input[aria-invalid='true']:enabled:hover,
 cem-text-field input[aria-invalid='true']:enabled:hover,
 cem-textarea textarea[aria-invalid='true']:enabled:hover,
 cem-autocomplete .cem-autocomplete__control[aria-invalid='true']:enabled:hover,
-cem-select .cem-select__control[aria-invalid='true']:not(:disabled):not([aria-disabled='true']):hover {
+cem-select .cem-select__control[aria-invalid='true']:not(:disabled):not([aria-disabled='true']):hover,
+cem-timepicker > .cem-timepicker > input[slot='input'][aria-invalid='true']:enabled:hover {
     --_cem-input-indicator-anchor-color: var(--cem-input-indicator-anchor-invalid-hover-color);
     --_cem-input-indicator-anchor-width: var(--cem-stroke-boundary);
 }
@@ -860,7 +866,8 @@ cem-text-field input:disabled,
 cem-textarea textarea:disabled,
 cem-autocomplete .cem-autocomplete__control:disabled,
 cem-select .cem-select__control:disabled,
-cem-select .cem-select__control[aria-disabled='true'] {
+cem-select .cem-select__control[aria-disabled='true'],
+cem-timepicker > .cem-timepicker > input[slot='input']:disabled {
     --_cem-input-indicator-anchor-color: var(--cem-input-indicator-anchor-disabled-color);
     --_cem-input-indicator-anchor-width: var(--cem-stroke-boundary);
 }
@@ -869,12 +876,14 @@ cem-field input:focus-visible,
 cem-text-field input:focus-visible,
 cem-textarea textarea:focus-visible,
 cem-autocomplete .cem-autocomplete__control:focus-visible,
-cem-select .cem-select__control:focus-visible {
+cem-select .cem-select__control:focus-visible,
+cem-timepicker > .cem-timepicker > input[slot='input']:focus-visible {
     --_cem-input-indicator-focus-width: var(--cem-zebra-strip-size);
 }
 
 cem-autocomplete .cem-autocomplete__control[aria-expanded='true'],
-cem-select .cem-select__control[aria-expanded='true'] {
+cem-select .cem-select__control[aria-expanded='true'],
+cem-timepicker > .cem-timepicker > input[slot='input'][aria-expanded='true'] {
     --_cem-input-indicator-selection-width: var(--cem-zebra-strip-size);
 }
 
@@ -952,6 +961,131 @@ cem-checkbox input:focus-visible,
 cem-radio input:focus-visible,
 cem-switch input:focus-visible {
     outline: var(--cem-stroke-none) solid transparent;
+}
+
+cem-timepicker {
+    anchor-scope: --_cem-timepicker-anchor;
+    display: inline-block;
+    inline-size: 100%;
+}
+
+cem-timepicker > .cem-timepicker {
+    align-items: stretch;
+    display: grid;
+    gap: var(--cem-gap-related);
+    grid-template-columns: minmax(0, 1fr) auto;
+}
+
+cem-timepicker > .cem-timepicker > input[slot='input'] {
+    anchor-name: --_cem-timepicker-anchor;
+    background-color: var(--cem-select-popup-background);
+    border: var(--cem-stroke-none) solid transparent;
+    box-sizing: border-box;
+    color: var(--cem-select-popup-text);
+    font-family: var(--cem-typography-ui-font-family);
+    font-size: var(--cem-typography-ui-font-size);
+    inline-size: 100%;
+    line-height: var(--cem-typography-ui-line-height);
+    min-block-size: var(--cem-control-height);
+    min-inline-size: 0;
+    padding-block: var(--cem-control-padding-y);
+    padding-inline: var(--cem-control-padding-x);
+}
+
+cem-timepicker > .cem-timepicker > button[slot='toggle'] {
+    align-items: center;
+    background-color: var(--cem-action-contextual-default-background);
+    border: var(--cem-stroke-none) solid transparent;
+    border-radius: var(--cem-bend-control);
+    color: var(--cem-action-contextual-default-text);
+    cursor: pointer;
+    display: inline-flex;
+    font-family: var(--cem-typography-ui-font-family);
+    font-size: var(--cem-typography-ui-font-size);
+    justify-content: center;
+    min-block-size: var(--cem-coupling-zone-min);
+    min-inline-size: var(--cem-coupling-zone-min);
+    padding-block: var(--cem-control-padding-y);
+    padding-inline: var(--cem-control-padding-x);
+}
+
+cem-timepicker > .cem-timepicker > button[slot='toggle']:enabled:hover {
+    background-color: var(--cem-action-contextual-hover-background);
+    color: var(--cem-action-contextual-hover-text);
+}
+
+cem-timepicker > .cem-timepicker > button[slot='toggle']:enabled:active {
+    background-color: var(--cem-action-contextual-active-background);
+    color: var(--cem-action-contextual-active-text);
+}
+
+cem-timepicker > .cem-timepicker > button[slot='toggle']:disabled {
+    background-color: var(--cem-action-contextual-disabled-background);
+    color: var(--cem-action-contextual-disabled-text);
+    cursor: default;
+}
+
+cem-timepicker > .cem-timepicker > button[slot='toggle']:focus-visible {
+    outline: var(--cem-stroke-focus) solid var(--cem-zebra-color-1);
+    outline-offset: var(--cem-stroke-indicator-offset);
+}
+
+cem-timepicker .cem-timepicker__popup {
+    background-color: var(--cem-select-popup-background);
+    border: var(--cem-stroke-standard) solid var(--cem-select-popup-border-color);
+    border-radius: var(--cem-bend-overlay);
+    box-shadow: var(--cem-elevation-3);
+    color: var(--cem-select-popup-text);
+    font-family: var(--cem-typography-ui-font-family);
+    font-size: var(--cem-typography-ui-font-size);
+    inline-size: anchor-size(inline);
+    inset: auto;
+    line-height: var(--cem-typography-ui-line-height);
+    margin: var(--cem-gap-related);
+    max-block-size: calc(var(--cem-list-row-height) * var(--cem-list-popup-rows));
+    overflow: auto;
+    padding-block: var(--cem-stroke-standard);
+    position: fixed;
+    position-anchor: --_cem-timepicker-anchor;
+    position-area: block-end center;
+    position-try-fallbacks: block-start;
+    position-try-order: most-height;
+}
+
+cem-timepicker .cem-timepicker__option {
+    align-items: center;
+    box-sizing: border-box;
+    display: flex;
+    min-block-size: var(--cem-list-row-height);
+    padding-block: var(--cem-control-padding-y);
+    padding-inline: var(--cem-control-padding-x);
+}
+
+cem-timepicker .cem-timepicker__option:not([aria-disabled='true']) {
+    cursor: pointer;
+}
+
+cem-timepicker .cem-timepicker__option[aria-selected='true'] {
+    background-color: var(--cem-select-option-selected-background);
+    color: var(--cem-select-option-selected-text);
+    outline: var(--cem-stroke-selected) solid var(--cem-select-option-selected-background);
+    outline-offset: calc(var(--cem-stroke-selected) * -1);
+}
+
+cem-timepicker .cem-timepicker__option:not([aria-disabled='true']):hover {
+    background-color: var(--cem-select-option-hover-background);
+    color: var(--cem-select-option-hover-text);
+}
+
+cem-timepicker .cem-timepicker__option[data-active='true'] {
+    background-color: var(--cem-select-option-active-background);
+    color: var(--cem-select-option-active-text);
+}
+
+cem-timepicker .cem-timepicker__option[aria-disabled='true'] {
+    background-color: var(--cem-select-option-disabled-background);
+    color: var(--cem-select-option-disabled-text);
+    cursor: default;
 }
 
 cem-autocomplete,
@@ -1345,6 +1479,7 @@ cem-select .cem-select__option[aria-disabled='true'] {
     cem-textarea textarea,
     cem-autocomplete .cem-autocomplete__control,
     cem-select .cem-select__control,
+    cem-timepicker > .cem-timepicker > input[slot='input'],
     cem-checkbox > label,
     cem-radio > label,
     cem-switch > label {
@@ -1355,7 +1490,8 @@ cem-select .cem-select__option[aria-disabled='true'] {
     cem-text-field input:enabled:hover,
     cem-textarea textarea:enabled:hover,
     cem-autocomplete .cem-autocomplete__control:enabled:hover,
-    cem-select .cem-select__control:not(:disabled):not([aria-disabled='true']):hover {
+    cem-select .cem-select__control:not(:disabled):not([aria-disabled='true']):hover,
+    cem-timepicker > .cem-timepicker > input[slot='input']:enabled:hover {
         border-color: Highlight;
     }
 
@@ -1383,6 +1519,8 @@ cem-select .cem-select__option[aria-disabled='true'] {
     cem-textarea textarea:focus-visible,
     cem-autocomplete .cem-autocomplete__control:focus-visible,
     cem-select .cem-select__control:focus-visible,
+    cem-timepicker > .cem-timepicker > input[slot='input']:focus-visible,
+    cem-timepicker > .cem-timepicker > button[slot='toggle']:focus-visible,
     cem-checkbox > label:has(> input:enabled:focus-visible),
     cem-radio > label:has(> input:enabled:focus-visible),
     cem-switch > label:has(> input:enabled:focus-visible),
@@ -1400,7 +1538,8 @@ cem-select .cem-select__option[aria-disabled='true'] {
 
     cem-autocomplete .cem-autocomplete__popup,
     cem-select .cem-select__popup,
-    cem-select .cem-select__listbox {
+    cem-select .cem-select__listbox,
+    cem-timepicker .cem-timepicker__popup {
         background-color: Canvas;
         border-color: CanvasText;
         color: CanvasText;
@@ -1408,19 +1547,23 @@ cem-select .cem-select__option[aria-disabled='true'] {
 
     cem-autocomplete .cem-autocomplete__option:not([aria-disabled='true']):hover,
     cem-autocomplete .cem-autocomplete__option[data-active='true'],
-    cem-select .cem-select__option[data-active='true'] {
+    cem-select .cem-select__option[data-active='true'],
+    cem-timepicker .cem-timepicker__option:not([aria-disabled='true']):hover,
+    cem-timepicker .cem-timepicker__option[data-active='true'] {
         background-color: Highlight;
         color: HighlightText;
     }
 
     cem-autocomplete .cem-autocomplete__option[aria-selected='true'],
-    cem-select .cem-select__option[aria-selected='true'] {
+    cem-select .cem-select__option[aria-selected='true'],
+    cem-timepicker .cem-timepicker__option[aria-selected='true'] {
         outline: var(--cem-stroke-selected) solid SelectedItem;
         outline-offset: calc(var(--cem-stroke-selected) * -1);
     }
 
     cem-autocomplete .cem-autocomplete__option[aria-disabled='true'],
-    cem-select .cem-select__option[aria-disabled='true'] {
+    cem-select .cem-select__option[aria-disabled='true'],
+    cem-timepicker .cem-timepicker__option[aria-disabled='true'] {
         color: GrayText;
     }
 }

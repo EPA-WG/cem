@@ -143,6 +143,14 @@ implementation discovery is limited to physical draw order, which is now
 governed by `CEM-CSS-002`; it does not introduce a missing visual theme
 category.
 
+The timepicker requires no exception. Its direct native text input consumes the
+existing input-indicator semantics, its optional native toggle consumes
+contextual-action states, and its listbox/options consume the shared
+`--cem-select-*` family plus D1/D2/D2c/D3/D4/D5/D6 geometry and type. Unlike the
+positioned select/autocomplete popups covered by `CEM-CSS-002`, the timepicker
+uses the native Popover top layer with CSS Anchor Positioning, so physical draw
+order requires no numeric z-index adapter.
+
 The navigation hover contract also requires no exception. D0 owns generated
 `--cem-navigation-item-*` default, hover, current, current-hover, and disabled
 color pairs. Component CSS binds only those endpoints in normal modes and uses

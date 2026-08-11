@@ -94,6 +94,7 @@ attributes consistent with reflected state.
 | `aria-sort="ascending|descending"` | `cem-sort-header` places sort state only on its generated `role="columnheader"`; none/invalid state omits the attribute. Its direct native button is named `Sort by <label>`. |
 | Pagination landmark and boundaries | `cem-paginator` renders a labeled native navigation region, labeled page-size select and actions, an atomic polite range status, and `aria-disabled="true"`/`tabindex="-1"` on unavailable boundary actions. Global `disabled` additionally uses native disabled controls. |
 | Native slider values and bounds | `cem-slider` keeps each authored native range input as the slider role/value/bounds/step owner. A single thumb requires one accessible name; range start/end inputs require distinct names. Generated track, ticks, and value labels are `aria-hidden`. |
+| Timepicker combobox/listbox | `cem-timepicker` keeps its authored native text input as the labeled value, validation, event, and form owner while adding stable combobox/listbox references. DOM focus remains on the input through `aria-activedescendant`; the optional native toggle shares controls/expanded references and requires its own accessible name. |
 | Tooltip description and presentation | `cem-tooltip` keeps a stable hidden plain-text description connected to exactly one supported native trigger through `aria-describedby`. Its separate manual Popover copy has `role="tooltip"`, no focusable descendants, and does not replace the trigger's accessible name. |
 
 The catalog enforces presence; runtime enforces *timing* — the attribute MUST
@@ -130,6 +131,11 @@ For every component that emits `id`/`for`/`aria-*` references at runtime:
 - `cem-slider` keeps focus on its one or two authored native range inputs in
   authored order. The host and generated visual/input wrappers add no tab stop;
   global `disabled` removes every thumb from sequential navigation.
+- `cem-timepicker` keeps combobox focus on its direct authored native text
+  input while the popup uses `aria-activedescendant`. The optional native toggle
+  remains a separate authored tab stop, but activation returns focus to the
+  input for list navigation. Popup options and wrappers add no tab stop;
+  global `disabled` removes both native owners.
 - `cem-tooltip` keeps focus on its one authored native trigger. The host,
   persistent description, and visible tooltip add no tab stop; opening,
   dismissing, pointer travel, and Escape never move focus.
@@ -201,6 +207,7 @@ patterns below are the contract for the Phase 3 primitive set.
 | `cem-sort-header` | Native button behavior: `Enter` and `Space` each cycle none -> ascending -> descending -> none exactly once; disabled suppresses user activation while programmatic direction remains available. |
 | `cem-paginator` | The page-size control retains native select keys. Available first/previous/next/last native buttons use Enter/Space exactly once. Boundary and global-disabled actions suppress pointer, programmatic, Enter, and Space activation without emitting `cem-page`; no arrow-key roving model is added. |
 | `cem-slider` | Each native range input retains ArrowLeft/ArrowDown decrement, ArrowRight/ArrowUp increment, PageUp/PageDown larger change, and Home/End bounds. Range mode clamps the changing thumb at its peer and emits no replacement event. |
+| `cem-timepicker` | On the native text input, ArrowUp/ArrowDown open and navigate enabled options, Enter commits one canonical value, Escape closes without a value change, and Tab closes without trapping focus. Home/End, horizontal arrows, character editing, clipboard, and undo remain native text-input behavior. The optional toggle retains native Enter/Space activation. |
 | `cem-tooltip` | Native trigger keys remain unchanged. Keyboard focus presents the same description as hover; Escape dismisses immediately without moving focus, trapping focus, or synthesizing activation. Blur dismisses unless pointer or declarative `open` still supplies a visibility reason. |
 | `cem-text-field` | Native text-input behavior. `Escape` does not mutate authored validation state. |
 | `cem-select` | Dropdown arrows/Home/End/Page/typeahead move the preview; Enter/Space/Tab commit and Escape cancels. Sized single listboxes commit movement. Multiple listboxes use modifier-free Space/click toggle, Shift range, and Ctrl/Cmd+A. |
@@ -248,6 +255,10 @@ so the catalog can verify there is exactly one entrypoint per composite.
 - `cem-slider` renders no competing slider role. Its structural track, active
   range, tick marks, and optional value labels stay inside one `aria-hidden`
   visual branch while the native input branch owns accessibility and forms.
+- `cem-timepicker` renders no competing value or form role. Its exact authored
+  text input owns the combobox, one generated Popover owns the listbox, and
+  generated options are not focusable. The host and layout wrapper remain
+  semantic-neutral.
 - `cem-tooltip` renders no competing trigger role. Its stable hidden description
   supplements the native trigger through `aria-describedby`; only the separate
   non-interactive visible Popover carries `role="tooltip"`.

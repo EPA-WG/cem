@@ -12,6 +12,7 @@ import { CEM_PROGRESS_SPINNER_BEHAVIOR } from './progress-spinner-behavior.js';
 import { CEM_SELECT_BEHAVIOR } from './select-behavior.js';
 import { CEM_SLIDER_BEHAVIOR } from './slider-behavior.js';
 import { CEM_SORT_HEADER_BEHAVIOR } from './sort-header-behavior.js';
+import { CEM_TIMEPICKER_BEHAVIOR } from './timepicker-behavior.js';
 import { CEM_TOOLTIP_BEHAVIOR } from './tooltip-behavior.js';
 
 export interface CemComponentPrimitiveDeclaration {
@@ -125,6 +126,25 @@ export const CEM_COMPONENT_PRIMITIVES = [
             '   {span @class=cem-autocomplete__help | {slot @name=help}}}}}',
     },
     {
+        tag: 'cem-timepicker',
+        description: 'Time-of-day picker retaining one authored native text-input form owner.',
+        behavior: CEM_TIMEPICKER_BEHAVIOR,
+        cemMl:
+            '{module |' +
+            ' {slice @name=options}' +
+            ' {slice @name=expanded | false}' +
+            ' {template @name=timepicker-option |' +
+            '  {param @name=option}' +
+            '  {body |' +
+            '   {div @id="{$option.id}" @class=cem-timepicker__option @role=option @data-option-index="{$option.index}" @data-value="{$option.value}" @data-active="{$option.active}" @aria-selected="{$option.selected}" @aria-disabled="{$option.disabled}" | {$option.label}}}}' +
+            ' {body |' +
+            '  {span @class=cem-timepicker @data-mode="{$datadom.slices.mode}" |' +
+            '   {slot @name=input}' +
+            '   {slot @name=toggle}' +
+            '   {div @id="{$datadom.slices.listboxId}" @class=cem-timepicker__popup @role=listbox @popover=manual |' +
+            '    {cem:for-each @select=datadom.slices.options @as=option | {call @template=timepicker-option @with:option="{$option}"}}}}}}',
+    },
+    {
         tag: 'cem-select',
         description: 'Form-associated custom select with rich cem-option content.',
         behavior: CEM_SELECT_BEHAVIOR,
@@ -176,7 +196,7 @@ export const CEM_COMPONENT_PRIMITIVES = [
     },
     {
         tag: 'cem-option',
-        description: 'Canonical rich-content option consumed by cem-select and cem-autocomplete.',
+        description: 'Canonical rich-content option consumed by cem-select, cem-autocomplete, and cem-timepicker.',
         cemMl: '{span @class=cem-option | {slot}}',
     },
     {
