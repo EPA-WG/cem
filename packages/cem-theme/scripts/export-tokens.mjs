@@ -7,7 +7,7 @@
  *   via headless Chromium and emit cem.tokens.resolved.json.
  * Stage 3 (Phase C): Emit canonical DTCG-compatible JSON (cem.tokens.json,
  *   cem.voice.tokens.json) and reports (cem.tokens.report.{md,json}).
- * Stage 4 (Phase D): Emit Figma/Tokens Studio mode files and the Figma report.
+ * Stage 4 (Phase D): Emit native Figma DTCG mode files and the Figma report.
  * Stage 5 (Phase E): Emit TypeScript token metadata.
  *
  * Usage:
@@ -899,7 +899,8 @@ function computeFigmaValueForMode(token, mode, dtcgType, figmaResolved) {
     if (portability === "platform-note") return null;
 
     if (portability === "alias") {
-        // DTCG reference is mode-independent; Tokens Studio resolves per mode file
+        // The DTCG reference is mode-independent; native Figma import resolves it
+        // within the collection when the source and target types match.
         return varToDtcgRef(token.valueRaw);
     }
 
@@ -1182,7 +1183,7 @@ async function stage4Figma(resolvedTokens, version, opts) {
         sourceBuildCommand: "node packages/cem-theme/scripts/export-tokens.mjs",
         generator: "packages/cem-theme/scripts/export-tokens.mjs",
         options: opts,
-        workflow: "Tokens Studio pull-only into one CEM collection; write-back disabled",
+        workflow: "Native Figma DTCG mode import into one CEM Tokens collection; write-back disabled",
     };
 
     const modeFiles = {};
@@ -1275,15 +1276,12 @@ async function emitFigmaFiles(result) {
         md.push("");
     }
 
-    md.push("## Tokens Studio setup", "");
-    md.push("1. Install the **Tokens Studio** Figma plugin.");
-    md.push("2. Create a token project or collection named **CEM**.");
-    md.push(
-        "3. Configure sync to pull the generated files from `dist/lib/tokens/figma/` as read-only source files."
-    );
-    md.push("4. Import each mode file as a separate theme/mode: light, dark, contrast-light, contrast-dark, native.");
-    md.push("5. Keep push/write-back disabled; markdown token specs remain the source of truth.");
-    md.push("6. The token names and types are identical across all mode files.", "");
+    md.push("## Native Figma import", "");
+    md.push("1. Open the native Figma Variables collection named **CEM Tokens**.");
+    md.push("2. Use Figma's **Import mode** action for each generated DTCG file in `dist/lib/tokens/figma/`.");
+    md.push("3. Map the files to modes: light, dark, contrast-light, contrast-dark, and native.");
+    md.push("4. Confirm the token names and types are identical across all five modes.");
+    md.push("5. Keep export/write-back disabled; markdown token specs remain the source of truth.", "");
 
     if (errors.length > 0) {
         md.push("## Errors", "");
@@ -1500,7 +1498,7 @@ async function main(argv) {
     console.log(`  → ${path.relative(process.cwd(), reportMdPath)}`);
     console.log(`  → ${path.relative(process.cwd(), reportJsonPath)}`);
 
-    // Stage 4 — Figma/Tokens Studio mode files
+    // Stage 4 — native Figma DTCG mode files
     console.log("export-tokens: Stage 4 — Figma mode file emission");
     const s4 = await stage4Figma(resolvedTokens, version, opts);
 

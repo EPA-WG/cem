@@ -100,7 +100,7 @@ function validateModeFile(mode, json, errors) {
     if (generated?.mode !== mode) {
         errors.push(`${mode}: generated mode mismatch (${generated?.mode ?? "missing"})`);
     }
-    if (generated?.workflow !== "Tokens Studio pull-only into one CEM collection; write-back disabled") {
+    if (generated?.workflow !== "Native Figma DTCG mode import into one CEM Tokens collection; write-back disabled") {
         errors.push(`${mode}: missing read-only Figma workflow provenance`);
     }
 
@@ -167,7 +167,7 @@ function validateWebSyntax(tokens, errors) {
     }
 }
 
-async function validateEvidence(errors) {
+async function validateEvidence(errors, generatedTokenCount) {
     const readmePath = path.join(EXAMPLES_FIGMA, "README.md");
     const samplePath = path.join(EXAMPLES_FIGMA, "sample-token-application.md");
     const readme = await readText(readmePath, errors);
@@ -178,6 +178,9 @@ async function validateEvidence(errors) {
     }
     if (!readme.includes("Variable count: 230")) {
         errors.push("examples/figma/README.md missing expected native variable count evidence");
+    }
+    if (!readme.includes(`Generated variable count: ${generatedTokenCount}`)) {
+        errors.push(`examples/figma/README.md missing current generated variable count ${generatedTokenCount}`);
     }
     if (!readme.includes("Missing mode values: 0")) {
         errors.push("examples/figma/README.md missing zero missing-mode-values evidence");
@@ -215,7 +218,7 @@ async function validateFigma() {
         errors.push("cem-figma-report.md does not show zero errors");
     }
 
-    await validateEvidence(errors);
+    await validateEvidence(errors, lightTokens.size);
 
     return {
         errors,

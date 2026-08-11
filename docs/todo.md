@@ -1732,6 +1732,48 @@ mediate between internal layers.
       dependencies. No new theme token or `components-css-exceptions.md` entry
       was required.
 
+### Immediate: Phase 5 CEM UI Kit
+
+- [ ] Deliver the governed native Figma UI Kit from the completed Phase 4
+      semantic-component and generated-token contracts.
+  - [x] Accept the canonical Phase 5 ownership, property, page, delivery, and
+        verification contract in `docs/figma-ui-kit-plan.md`.
+    - [x] Keep token markdown and public CEM component contracts authoritative;
+          make Figma a reviewed projection with no token or component write-back.
+    - [x] Replace stale Tokens Studio provenance with Figma's native DTCG
+          **Import mode** workflow for the five existing `CEM Tokens` modes.
+    - [x] Preserve credential-free offline token validation and the explicit
+          manual/REST evidence boundary.
+  - [ ] Add an executable `examples/figma/component-library.json` inventory and
+        component-owned Nx verifier before creating more canvas fixtures.
+    - [ ] Account for all 48 public primitives and classify each as a component
+          set, component, inert payload, or structural composition owner.
+    - [ ] Record exact public properties, executable states, token families,
+          documentation, and a stable manual Figma evidence locator per entry.
+    - [ ] Add an explicit `examples/figma/component-library-fixture.md` fixture
+          check that proves the inventory-to-library review procedure before the
+          fixture is authored.
+    - [ ] Reject missing/extra primitives, unsupported state claims, stale docs,
+          missing token families, and incomplete evidence through the aggregate
+          component/theme verification boundary.
+  - [ ] Build and review the `02 Foundations` page from native CEM variables,
+        including color, typography, spacing, shape, stroke, layering, and
+        motion guidance without raw replacement values.
+  - [ ] Build the representative `03 Components` pilot for `cem-action`,
+        `cem-text-field`, `cem-card`, `cem-nav`, and `cem-dialog`.
+    - [ ] Keep variant dimensions independent, use component properties by
+          semantic meaning, and test every owned state in all five modes.
+    - [ ] Record the pilot fixture and review evidence before expanding to the
+          remaining component inventory.
+  - [ ] Complete `03 Components` for every executable inventory entry, keeping
+        inert payloads nested under their consuming visual owners.
+  - [ ] Build `04 Patterns` for auth, profile, assets, discussion, and settings
+        entirely from library instances, then compose `05 Site Demo` from those
+        patterns without detached one-off controls.
+  - [ ] Populate `99 QA`, run offline token/component gates, record the reviewed
+        Figma revision and five-mode evidence, and publish the Phase 5 library
+        only after raw-value, detached-shape, state, and documentation checks pass.
+
 ## Current Verification Commands
 
 - `yarn nx run cem-elements:verify`

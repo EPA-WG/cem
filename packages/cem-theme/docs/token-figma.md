@@ -80,6 +80,12 @@ Each mode is populated from the matching generated token file:
 | Contrast Dark   | `cem-contrast-dark.tokens.json`       |
 | Native          | `cem-native.tokens.json`              |
 
+Populate or refresh the collection with Figma's native **Import mode** action.
+The generated files use the DTCG JSON format accepted by Figma, so the canonical
+workflow requires no token plugin or bidirectional synchronization connector.
+Figma's current import and mode behavior is documented in
+[Modes for variables](https://help.figma.com/hc/en-us/articles/15343816063383-Modes-for-variables).
+
 Token names stay slash-based in Figma:
 
 ```text
@@ -93,16 +99,17 @@ cem/duration/action
 
 ## Type mapping
 
-The generated Figma files in 0.0.8 contain matching token sets per mode. Some JSON nodes are both a token and a
-group parent; importers must capture the parent token and continue walking child groups.
+The generated Figma files in 0.1.1 contain matching 252-token sets per mode.
+Some JSON nodes are both a token and a group parent; native import must capture
+the parent token and continue walking child groups.
 
 ```text
-230 tokens per mode
-42 color
-93 dimension
-5 duration
+252 tokens per mode
+57 color
+96 dimension
+6 duration
 5 fontFamily
-7 number
+10 number
 78 string
 ```
 
@@ -123,7 +130,7 @@ If the target type does not match, preserve the value as a string and list it in
 ## Native Figma library workflow
 
 The CEM theme deliverable for Figma is the Figma-native design library: native Figma Variables in the `CEM UI Kit`
-file, generated from the `figma/cem-*.tokens.json` artifacts.
+file, imported from the `figma/cem-*.tokens.json` artifacts.
 
 The generated JSON files are read-only inputs from code. A refresh must keep the same five generated files mapped to
 the five `CEM Tokens` modes:

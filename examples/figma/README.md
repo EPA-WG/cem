@@ -14,14 +14,15 @@ truth; Figma changes must be converted into spec edits before they enter the bui
     - `cem-contrast-dark.tokens.json`
     - `cem-native.tokens.json`
     - `cem-figma-report.md`
-2. In the `CEM UI Kit`, create or refresh one native Figma variable collection named `CEM Tokens`.
-3. Import each generated file as a separate mode:
+2. In the `CEM UI Kit`, open or create one native Figma variable collection named `CEM Tokens`.
+3. Use Figma's native **Import mode** action to import each generated DTCG file as its matching mode:
     - `Light`
     - `Dark`
     - `Contrast Light`
     - `Contrast Dark`
     - `Native`
-4. Keep the library read-only from generated artifacts. Do not treat Figma edits as source changes.
+4. No token plugin or synchronization connector is required. Keep the library read-only from generated artifacts and
+   do not treat Figma edits or exported modes as source changes.
 5. Before sharing the collection, check `cem-figma-report.md` for excluded tokens, concrete alias fallbacks, warnings,
    and validation errors.
 
@@ -44,9 +45,23 @@ Use [sample-token-application.md](./sample-token-application.md) as the local fi
 to a button and card in the CEM UI Kit. Replace it with screenshots after the native Figma library variables have been
 validated in the real file.
 
+## Generated Artifact Validation
+
+Offline validation run: 2026-08-11.
+
+- Generated variable count: 252 per mode.
+- Variable types: 57 color, 96 dimension, 6 duration, 5 font family, 10 number, and 78 string.
+- Modes: `Light`, `Dark`, `Contrast Light`, `Contrast Dark`, and `Native` with identical token paths and types.
+- Report errors: 0.
+
+This is the current repository import surface. The last manual native-library
+review below recorded 230 variables, so the live `CEM UI Kit` must be refreshed
+and reviewed before Phase 5 publication; offline generation alone does not claim
+that external update.
+
 ## Native Library Validation
 
-Validation run: 2026-04-30.
+Last manual validation run: 2026-04-30.
 
 Validated CEM UI Kit file:
 https://www.figma.com/design/vLZUzjS7xHACjXgYLA9vtD/CEM-UI-Kit?node-id=2-24&t=QQwTKeMg0v9dTQ10-1
@@ -108,8 +123,8 @@ workflows, required approval, secret-scoped tokens, generated diff/report artifa
 Use this prompt when refreshing the native Figma Variables from generated files:
 
 ```text
-Update the CEM UI Kit native Figma Variables from generated token files.
-Keep one CEM Tokens collection. Use the generated files in dist/lib/tokens/figma/ as the only Figma input:
+Update the CEM UI Kit native Figma Variables through Figma's native Import mode action.
+Keep one CEM Tokens collection. Use the generated DTCG files in dist/lib/tokens/figma/ as the only Figma input:
 cem-light.tokens.json, cem-dark.tokens.json, cem-contrast-light.tokens.json, cem-contrast-dark.tokens.json,
 and cem-native.tokens.json. Preserve read-only governance: Figma changes must become markdown spec edits, not
 write-backs. Update docs/todo.md, packages/cem-theme/docs/token-export.md, and examples/figma/README.md.
