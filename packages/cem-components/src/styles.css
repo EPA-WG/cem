@@ -511,6 +511,70 @@ cem-progress-spinner > .cem-progress-spinner[data-mode='indeterminate'] .cem-pro
     }
 }
 
+cem-tooltip {
+    anchor-scope: --_cem-tooltip-anchor;
+    display: inline-block;
+}
+
+cem-tooltip > .cem-tooltip {
+    display: contents;
+}
+
+cem-tooltip > .cem-tooltip > [slot='trigger'] {
+    anchor-name: --_cem-tooltip-anchor;
+}
+
+cem-tooltip .cem-tooltip__description {
+    block-size: var(--cem-stroke-standard);
+    clip: rect(0 0 0 0);
+    clip-path: inset(50%);
+    inline-size: var(--cem-stroke-standard);
+    overflow: hidden;
+    position: absolute;
+    white-space: nowrap;
+}
+
+cem-tooltip .cem-tooltip__surface {
+    background-color: var(--cem-palette-comfort-x);
+    border: var(--cem-stroke-boundary) solid var(--cem-palette-comfort-text-x);
+    border-radius: var(--cem-bend-overlay);
+    box-shadow: var(--cem-elevation-3);
+    box-sizing: border-box;
+    color: var(--cem-palette-comfort-text-x);
+    font-family: var(--cem-typography-ui-font-family);
+    font-size: var(--cem-typography-ui-font-size);
+    font-weight: var(--cem-typography-ui-font-weight);
+    inset: auto;
+    letter-spacing: var(--cem-typography-ui-letter-spacing);
+    line-height: var(--cem-typography-ui-line-height);
+    margin: var(--cem-gap-related);
+    max-inline-size: var(--cem-typography-reading-measure-max);
+    padding: var(--cem-inset-control);
+    position: fixed;
+    position-anchor: --_cem-tooltip-anchor;
+    position-area: block-end center;
+    position-try-fallbacks: block-start;
+    position-try-order: most-height;
+    white-space: normal;
+}
+
+cem-tooltip > .cem-tooltip[data-position='above'] > .cem-tooltip__surface {
+    position-area: block-start center;
+    position-try-fallbacks: block-end;
+}
+
+cem-tooltip > .cem-tooltip[data-position='before'] > .cem-tooltip__surface {
+    position-area: inline-start center;
+    position-try-fallbacks: inline-end;
+    position-try-order: most-width;
+}
+
+cem-tooltip > .cem-tooltip[data-position='after'] > .cem-tooltip__surface {
+    position-area: inline-end center;
+    position-try-fallbacks: inline-start;
+    position-try-order: most-width;
+}
+
 cem-slider {
     display: block;
 }
@@ -1027,6 +1091,13 @@ cem-select .cem-select__option[aria-disabled='true'] {
 }
 
 @media (forced-colors: active) {
+    cem-tooltip .cem-tooltip__surface {
+        background-color: Canvas;
+        border-color: CanvasText;
+        color: CanvasText;
+        forced-color-adjust: auto;
+    }
+
     cem-slider .cem-slider__track,
     cem-slider[disabled] .cem-slider__track,
     cem-slider[disabled] .cem-slider__active-track {

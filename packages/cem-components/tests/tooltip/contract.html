@@ -1,0 +1,34 @@
+<section class="cem-theme-light" data-tooltip-contract-fixture aria-label="Tooltip contract fixture">
+  <button data-tooltip-focus-start type="button">Focus start</button>
+
+  <span id="save-help">Existing save help.</span>
+  <cem-tooltip id="save-tooltip" message="Save the current document" position="above">
+    <button id="save-trigger" slot="trigger" type="button" aria-describedby="save-help">Save</button>
+  </cem-tooltip>
+
+  <cem-tooltip id="link-tooltip" message="Open the account summary" position="after">
+    <a id="account-trigger" slot="trigger" href="#account-summary">Account</a>
+  </cem-tooltip>
+
+  <cem-tooltip id="delayed-tooltip" message="Delayed supplemental help" show-delay="40" hide-delay="40">
+    <button id="delayed-trigger" slot="trigger" type="button">Delayed</button>
+  </cem-tooltip>
+
+  <cem-tooltip id="disabled-tooltip" message="Suppressed host tooltip" disabled>
+    <button id="disabled-tooltip-trigger" slot="trigger" type="button">Tooltip disabled</button>
+  </cem-tooltip>
+
+  <cem-tooltip id="native-disabled-tooltip" message="Suppressed native trigger">
+    <button id="native-disabled-trigger" slot="trigger" type="button" disabled>Native trigger disabled</button>
+  </cem-tooltip>
+
+  <cem-tooltip id="touch-tooltip" message="Touch remains native">
+    <button id="touch-trigger" slot="trigger" type="button">Touch action</button>
+  </cem-tooltip>
+
+  <cem-tooltip id="malformed-tooltip" message="Malformed payload">
+    <span id="malformed-trigger" slot="trigger" tabindex="0">Unsupported trigger</span>
+  </cem-tooltip>
+
+  <button data-tooltip-focus-end type="button">Focus end</button>
+</section>

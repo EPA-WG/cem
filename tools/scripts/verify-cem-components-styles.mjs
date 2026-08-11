@@ -53,6 +53,7 @@ const EXPANSION_TAGS = new Set(['cem-expansion']);
 const PROGRESS_SPINNER_TAGS = new Set(['cem-progress-spinner']);
 const SORT_HEADER_TAGS = new Set(['cem-sort-header']);
 const PAGINATOR_TAGS = new Set(['cem-paginator']);
+const TOOLTIP_TAGS = new Set(['cem-tooltip']);
 const CHOICE_POPUP_STACKING_SELECTORS = new Set([
     'cem-autocomplete .cem-autocomplete__popup',
     'cem-select .cem-select__popup',
@@ -610,6 +611,92 @@ const PAGINATOR_FORCED_COLOR_BINDINGS = new Map([
     [`${PAGINATOR_SELECT_SELECTOR}:focus-visible`, forcedColorFocusBinding()],
     [`${PAGINATOR_ACTION_SELECTOR}:focus-visible`, forcedColorFocusBinding()],
 ]);
+const TOOLTIP_BINDINGS = new Map([
+    [
+        'cem-tooltip',
+        new Map([
+            ['anchor-scope', '--_cem-tooltip-anchor'],
+            ['display', 'inline-block'],
+        ]),
+    ],
+    ['cem-tooltip > .cem-tooltip', new Map([['display', 'contents']])],
+    [
+        "cem-tooltip > .cem-tooltip > [slot='trigger']",
+        new Map([['anchor-name', '--_cem-tooltip-anchor']]),
+    ],
+    [
+        'cem-tooltip .cem-tooltip__description',
+        new Map([
+            ['block-size', 'var(--cem-stroke-standard)'],
+            ['clip', 'rect(0 0 0 0)'],
+            ['clip-path', 'inset(50%)'],
+            ['inline-size', 'var(--cem-stroke-standard)'],
+            ['overflow', 'hidden'],
+            ['position', 'absolute'],
+            ['white-space', 'nowrap'],
+        ]),
+    ],
+    [
+        'cem-tooltip .cem-tooltip__surface',
+        new Map([
+            ['background-color', 'var(--cem-palette-comfort-x)'],
+            ['border', 'var(--cem-stroke-boundary) solid var(--cem-palette-comfort-text-x)'],
+            ['border-radius', 'var(--cem-bend-overlay)'],
+            ['box-shadow', 'var(--cem-elevation-3)'],
+            ['box-sizing', 'border-box'],
+            ['color', 'var(--cem-palette-comfort-text-x)'],
+            ['font-family', 'var(--cem-typography-ui-font-family)'],
+            ['font-size', 'var(--cem-typography-ui-font-size)'],
+            ['font-weight', 'var(--cem-typography-ui-font-weight)'],
+            ['inset', 'auto'],
+            ['letter-spacing', 'var(--cem-typography-ui-letter-spacing)'],
+            ['line-height', 'var(--cem-typography-ui-line-height)'],
+            ['margin', 'var(--cem-gap-related)'],
+            ['max-inline-size', 'var(--cem-typography-reading-measure-max)'],
+            ['padding', 'var(--cem-inset-control)'],
+            ['position', 'fixed'],
+            ['position-anchor', '--_cem-tooltip-anchor'],
+            ['position-area', 'block-end center'],
+            ['position-try-fallbacks', 'block-start'],
+            ['position-try-order', 'most-height'],
+            ['white-space', 'normal'],
+        ]),
+    ],
+    [
+        "cem-tooltip > .cem-tooltip[data-position='above'] > .cem-tooltip__surface",
+        new Map([
+            ['position-area', 'block-start center'],
+            ['position-try-fallbacks', 'block-end'],
+        ]),
+    ],
+    [
+        "cem-tooltip > .cem-tooltip[data-position='before'] > .cem-tooltip__surface",
+        new Map([
+            ['position-area', 'inline-start center'],
+            ['position-try-fallbacks', 'inline-end'],
+            ['position-try-order', 'most-width'],
+        ]),
+    ],
+    [
+        "cem-tooltip > .cem-tooltip[data-position='after'] > .cem-tooltip__surface",
+        new Map([
+            ['position-area', 'inline-end center'],
+            ['position-try-fallbacks', 'inline-start'],
+            ['position-try-order', 'most-width'],
+        ]),
+    ],
+]);
+const TOOLTIP_FORCED_COLOR_BINDINGS = new Map([
+    [
+        'cem-tooltip .cem-tooltip__surface',
+        new Map([
+            ['background-color', 'Canvas'],
+            ['border-color', 'CanvasText'],
+            ['color', 'CanvasText'],
+            ['forced-color-adjust', 'auto'],
+        ]),
+    ],
+]);
 const PROGRESS_SPINNER_BINDINGS = new Map([
     ['cem-progress-spinner', new Map([['display', 'inline-block']])],
     [
@@ -857,6 +944,8 @@ function assertPublicComponentStyles(components, tokenNames) {
     const sortHeaderForcedColorRules = new Map();
     const paginatorRules = new Map();
     const paginatorForcedColorRules = new Map();
+    const tooltipRules = new Map();
+    const tooltipForcedColorRules = new Map();
     const choicePopupStackingRules = new Map();
     const privateProperties = new Set(
         rules.flatMap(({ declarations }) => [...declarations.keys()].filter((name) => name.startsWith('--_cem-'))),
@@ -940,6 +1029,13 @@ function assertPublicComponentStyles(components, tokenNames) {
                 fail(`${pathLabel}: duplicate paginator selector \`${rule.selector}\``);
             }
             paginatorRuleSet.set(rule.selector, rule.declarations);
+        }
+        if (TOOLTIP_TAGS.has(tag)) {
+            const tooltipRuleSet = rule.media ? tooltipForcedColorRules : tooltipRules;
+            if (tooltipRuleSet.has(rule.selector)) {
+                fail(`${pathLabel}: duplicate tooltip selector \`${rule.selector}\``);
+            }
+            tooltipRuleSet.set(rule.selector, rule.declarations);
         }
         if (FEEDBACK_TAGS.has(tag)) {
             const feedbackRuleSet = rule.media ? feedbackForcedColorRules : feedbackRules;
@@ -1097,6 +1193,14 @@ function assertPublicComponentStyles(components, tokenNames) {
         'forced-colors paginator',
         paginatorForcedColorRules,
         PAGINATOR_FORCED_COLOR_BINDINGS,
+    );
+
+    assertExactStateBindings(pathLabel, 'tooltip', tooltipRules, TOOLTIP_BINDINGS);
+    assertExactStateBindings(
+        pathLabel,
+        'forced-colors tooltip',
+        tooltipForcedColorRules,
+        TOOLTIP_FORCED_COLOR_BINDINGS,
     );
 
     assertExactStateBindings(pathLabel, 'feedback', feedbackRules, FEEDBACK_BINDINGS);

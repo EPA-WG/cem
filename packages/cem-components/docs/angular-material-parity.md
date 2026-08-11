@@ -1,7 +1,8 @@
 # Angular Material Parity Inventory
 
 **Status:** All pinned product mappings are audited. The accepted `autocomplete`,
-`divider`, `expansion`, `progress-spinner`, `sort`, and `paginator` priorities are covered;
+`divider`, `expansion`, `progress-spinner`, `sort`, `paginator`, `slider`, and
+`tooltip` priorities are covered;
 selecting another implementation gap is a separate product decision tracked in
 [`docs/todo.md`](../../../docs/todo.md).
 
@@ -71,9 +72,9 @@ substituted for the missing component.
 
 | Classification | Count | Catalog entries |
 | --- | ---: | --- |
-| Covered | 13 | autocomplete, card, checkbox, dialog, divider, expansion, input, paginator, progress-spinner, select, slide-toggle, slider, sort |
+| Covered | 14 | autocomplete, card, checkbox, dialog, divider, expansion, input, paginator, progress-spinner, select, slide-toggle, slider, sort, tooltip |
 | Partial | 19 | badge, bottom-sheet, button, button-toggle, chips, core, form-field, grid-list, icon, list, menu, progress-bar, radio, ripple, sidenav, snack-bar, table, tabs, toolbar |
-| Gap | 5 | datepicker, stepper, timepicker, tooltip, tree |
+| Gap | 4 | datepicker, stepper, timepicker, tree |
 
 Each row in the executable inventory explains its boundary. In particular,
 `cem-grid` is not treated as a grid-list, `cem-tabs` is not treated as a stepper,
@@ -151,6 +152,15 @@ application-owned value formatting. The pre-CSS audit added canonical D0 slider
 paint and D2c visual geometry; D2/D3/D5/D6 already cover targets, shape, focus,
 and labels. No component CSS exception was needed.
 
+`tooltip` adds one `cem-tooltip` description/presentation owner while its exact
+authored native trigger retains pointer, focus, keyboard, activation, and event
+ownership. The [tooltip contract](./tooltip-contract.md) fixes the strict named
+trigger/message vocabulary, persistent `aria-describedby` copy, independent
+hover/focus reasons, delay, declarative manual `open`, Escape and disabled
+suppression, native touch boundary, and logical CSS Anchor Positioning in the
+Popover top layer. Existing D0/D1/D3/D4/D5/D6 semantics cover normal and
+forced-color paint; there is no animation and no component CSS exception.
+
 Run the invariant with:
 
 ```bash
@@ -158,6 +168,6 @@ yarn nx run @epa-wg/cem-components:verify-material-parity
 ```
 
 The gate verifies the exact 37-entry pin, every audited mapping, and completion
-of the accepted implementation priority. It reports thirteen covered rows,
-nineteen partial rows, five gaps, no remaining audit, and no next
+of the accepted implementation priority. It reports fourteen covered rows,
+nineteen partial rows, four gaps, no remaining audit, and no next
 implementation until a new gap is deliberately selected and contracted.

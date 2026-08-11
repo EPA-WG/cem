@@ -17,6 +17,7 @@ const builtProgressSpinnerBehaviorPath = join(packageRoot, 'dist', 'lib', 'progr
 const builtSortHeaderBehaviorPath = join(packageRoot, 'dist', 'lib', 'sort-header-behavior.js');
 const builtPaginatorBehaviorPath = join(packageRoot, 'dist', 'lib', 'paginator-behavior.js');
 const builtSliderBehaviorPath = join(packageRoot, 'dist', 'lib', 'slider-behavior.js');
+const builtTooltipBehaviorPath = join(packageRoot, 'dist', 'lib', 'tooltip-behavior.js');
 const sourceEntries = [join(packageRoot, 'src', 'index.ts'), join(packageRoot, 'src', 'lib', 'cem-components.ts')];
 const builtEntries = [join(packageRoot, 'dist', 'index.js'), join(packageRoot, 'dist', 'lib', 'cem-components.js')];
 const forbiddenJavaScriptPatterns = [
@@ -91,6 +92,14 @@ if (!builtPrimitives.includes("tag: 'cem-slider'")) {
     throw new Error('built primitive inventory must contain cem-slider');
 }
 
+if (!sourcePrimitives.includes("tag: 'cem-tooltip'")) {
+    throw new Error('source primitive inventory must contain cem-tooltip');
+}
+
+if (!builtPrimitives.includes("tag: 'cem-tooltip'")) {
+    throw new Error('built primitive inventory must contain cem-tooltip');
+}
+
 if (!existsSync(builtAutocompleteBehaviorPath)) {
     throw new Error('built package must contain the autocomplete behavior artifact');
 }
@@ -113,6 +122,10 @@ if (!existsSync(builtPaginatorBehaviorPath)) {
 
 if (!existsSync(builtSliderBehaviorPath)) {
     throw new Error('built package must contain the slider behavior artifact');
+}
+
+if (!existsSync(builtTooltipBehaviorPath)) {
+    throw new Error('built package must contain the tooltip behavior artifact');
 }
 
 if (existsSync(join(packageRoot, 'styles.css'))) {
@@ -178,6 +191,7 @@ try {
         'dist/lib/sort-header-behavior.js',
         'dist/lib/paginator-behavior.js',
         'dist/lib/slider-behavior.js',
+        'dist/lib/tooltip-behavior.js',
         'dist/lib/primitives.js',
     ]) {
         if (!packedFiles.includes(artifact)) {
@@ -192,7 +206,7 @@ try {
     }
 
     console.log(
-        `cem-components package verified (${packedFiles.length} packed files, autocomplete, divider, expansion, progress-spinner, sort-header, paginator, and slider owners included, ` +
+        `cem-components package verified (${packedFiles.length} packed files, autocomplete, divider, expansion, progress-spinner, sort-header, paginator, slider, and tooltip owners included, ` +
             'one dist/styles.css, zero source/root copies).',
     );
 } finally {

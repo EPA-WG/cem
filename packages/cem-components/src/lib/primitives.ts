@@ -12,6 +12,7 @@ import { CEM_PROGRESS_SPINNER_BEHAVIOR } from './progress-spinner-behavior.js';
 import { CEM_SELECT_BEHAVIOR } from './select-behavior.js';
 import { CEM_SLIDER_BEHAVIOR } from './slider-behavior.js';
 import { CEM_SORT_HEADER_BEHAVIOR } from './sort-header-behavior.js';
+import { CEM_TOOLTIP_BEHAVIOR } from './tooltip-behavior.js';
 
 export interface CemComponentPrimitiveDeclaration {
     readonly tag: string;
@@ -452,6 +453,20 @@ export const CEM_COMPONENT_PRIMITIVES = [
             '  {button @type=button @class=cem-paginator__action @data-page-action=next @disabled={datadom.attributes.disabled} @aria-disabled={if datadom.slices.nextDisabled { true } else { null }} @tabindex={if datadom.slices.nextDisabled { -1 } else { null }} @aria-label="{$datadom.slices.nextPageLabel}" | {span @class=cem-paginator__icon @aria-hidden=true | ›}}' +
             '  {cem:if @test="datadom.attributes.show-first-last" |' +
             '   {button @type=button @class=cem-paginator__action @data-page-action=last @disabled={datadom.attributes.disabled} @aria-disabled={if datadom.slices.nextDisabled { true } else { null }} @tabindex={if datadom.slices.nextDisabled { -1 } else { null }} @aria-label="{$datadom.slices.lastPageLabel}" | {span @class=cem-paginator__icon @aria-hidden=true | »}}}}}',
+    },
+    {
+        tag: 'cem-tooltip',
+        description: 'Supplemental plain-text tooltip retaining one authored native trigger owner.',
+        behavior: CEM_TOOLTIP_BEHAVIOR,
+        cemMl:
+            '{attribute @name=message | }' +
+            '{attribute @name=position | below}' +
+            '{attribute @name=show-delay | 0}' +
+            '{attribute @name=hide-delay | 0}' +
+            '{span @class=cem-tooltip @data-mode="{$datadom.slices.mode}" @data-position="{$datadom.slices.position}" |' +
+            ' {slot @name=trigger}' +
+            ' {span @id="{$datadom.slices.descriptionId}" @class=cem-tooltip__description | {$datadom.slices.message}}' +
+            ' {span @id="{$datadom.slices.surfaceId}" @class=cem-tooltip__surface @role=tooltip @popover=manual | {$datadom.slices.message}}}',
     },
     {
         tag: 'cem-dialog',

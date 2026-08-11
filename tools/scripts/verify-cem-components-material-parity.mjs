@@ -61,10 +61,10 @@ const EXPECTED_CATALOG = [
 const ALLOWED_STATUSES = new Set(['unreviewed', 'gap', 'partial', 'covered']);
 const ALLOWED_MAPPING_KINDS = new Set(['component', 'behavior', 'gap']);
 const EXPECTED_IMPLEMENTATION_PRIORITY = {
-    id: 'slider',
+    id: 'tooltip',
     acceptedAt: '2026-08-11',
     completedAt: '2026-08-11',
-    contract: 'packages/cem-components/docs/slider-contract.md',
+    contract: 'packages/cem-components/docs/tooltip-contract.md',
     state: 'completed',
     targetStatus: 'covered',
 };
@@ -153,11 +153,12 @@ function validateImplementationPriority(priority) {
     }
     const contractSource = readFileSync(contractPath, 'utf8');
     for (const heading of [
-        '# Slider Contract',
+        '# Tooltip Contract',
         '## Owner and author vocabulary',
-        '## State and range contract',
-        '## Event and keyboard contract',
+        '## State and lifecycle contract',
+        '## Touch boundary',
         '## Accessibility contract',
+        '## Positioning and platform boundary',
         '## Theme-token audit',
         '## Forced-colors boundary',
         '## Focused fixture and assertion matrix',

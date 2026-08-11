@@ -41,9 +41,15 @@ range input retains pointer, keyboard, focus, value, event, accessible-name,
 and independent form ownership. Canonical D0 slider paint and D2c slider
 geometry precede the token-only component CSS; range thumbs cannot cross;
 optional ticks and labels remain hidden visuals; normal and forced-color gates
-require no CSS exception. The pinned inventory now reports 13 covered, 19
-partial, and 5 gaps. Selecting and contracting the next implementation priority
-is the current decision point.
+require no CSS exception. The accepted `cem-tooltip` priority is also complete:
+one named native trigger retains pointer, focus, keyboard, activation, and event
+ownership while a stable hidden description and separate Popover presentation
+provide supplemental text. Independent hover/focus reasons, Escape, delays,
+declarative `open`, disabled suppression, native touch preservation, logical CSS
+Anchor Positioning, viewport fallback, and forced colors are covered without
+geometry/state mutation, theme additions, animation, or a CSS exception. The
+pinned inventory now reports 14 covered, 19 partial, and 4 gaps. Selecting and
+contracting the next implementation priority is the current decision point.
 The component stylesheet publication, `action:hover`, and `action:active` contracts are
 implemented and verified. The `input:hover` contract is also implemented:
 all eight native owners share a theme-tokenized three-stripe indicator, with
@@ -347,6 +353,33 @@ mediate between internal layers.
           dependent targets and passed 93/93 tests, exact theme/component token
           and package publication, the dedicated slider forced-colors contract,
           and component lint.
+    - [x] Select, contract, and implement `tooltip` as the next audited parity gap
+          while the authored native trigger retains interaction and focus ownership.
+      - [x] Freeze one `cem-tooltip` owner, exact named-trigger/message vocabulary,
+            persistent description, automatic hover/focus lifecycle, declarative
+            manual control, delay, positioning, Escape, disabled, and touch boundaries.
+      - [x] Audit the complete theme surface before component CSS and add no theme
+            token or exception when inverse comfort palette, D1 inset/gap, D3 overlay
+            shape, D4 overlay elevation, D5 boundary, and D6 UI type are sufficient.
+      - [x] Add a declarative `tests/tooltip/contract.html` fixture and focused browser
+            coverage for exact trigger/description ownership, pointer enter/leave,
+            trigger-to-tooltip hover continuity, focus/hover coexistence, Escape and
+            blur dismissal, show/hide delays, manual `open`, disabled suppression,
+            native touch/click preservation, stable trigger geometry/identity, and
+            zero activation-event duplication.
+      - [x] Add the primitive behavior and token-only Popover/CSS Anchor Positioning
+            surface plus an aggregate forced-colors gate for system paint, top-layer
+            placement, fallback position, non-interactivity, stable trigger geometry,
+            and absent component animation.
+      - [x] Promote public docs, state/parity evidence, package verification, and todo
+            completion only after every tooltip gate passes; add a CSS exception only
+            if the implemented platform primitives still require uncategorized paint.
+        - The public inventory now has 42 primitives. Angular Material parity is
+          14 covered, 19 partial, and 4 gaps; the state matrix remains fully green
+          at 40/40. The uncached aggregate ran the component target plus all 29
+          dependent targets and passed 100/100 tests, exact theme/component token
+          and 51-file package publication, the dedicated tooltip forced-colors and
+          top-layer contract, and component lint.
 
 ### Immediate: CSS Selector Query Schema and Unified CLI Query Execution
 

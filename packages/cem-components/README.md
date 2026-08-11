@@ -32,7 +32,7 @@ This registers the minimal primitive tags: `cem-action`, `cem-icon-button`, `cem
 `cem-text-field`, `cem-textarea`, `cem-autocomplete`, `cem-select`, `cem-option`, `cem-option-group`, `cem-checkbox`,
 `cem-radio`, `cem-switch`, `cem-slider`, `cem-surface`, `cem-text`,
 `cem-icon`, `cem-stack`, `cem-grid`, `cem-divider`, `cem-list`, `cem-card`, `cem-expansion`, `cem-table`, `cem-sort-header`, `cem-chip`, `cem-badge`, `cem-avatar`,
-`cem-media-preview`, `cem-app-bar`, `cem-nav`, `cem-tabs`, `cem-paginator`, `cem-dialog`, `cem-dialog-shell`, `cem-sheet`,
+`cem-media-preview`, `cem-app-bar`, `cem-nav`, `cem-tabs`, `cem-paginator`, `cem-tooltip`, `cem-dialog`, `cem-dialog-shell`, `cem-sheet`,
 `cem-toast`, `cem-progress`, `cem-progress-spinner`, `cem-skeleton`, and `cem-alert`.
 
 ## Stylesheet install
@@ -123,6 +123,15 @@ cross; `discrete` labels and `show-tick-marks` remain hidden visual output.
 Canonical D0 slider paint, D2c track/thumb geometry, D2 targets, and D5 focus
 cover normal and forced colors without a component CSS exception.
 
+`cem-tooltip` owns one persistent plain-text description and a separate
+non-interactive top-layer presentation for exactly one named native trigger.
+The trigger retains pointer, focus, keyboard, activation, and application-event
+ownership. Independent hover/focus reasons, Escape, delay, declarative `open`,
+disabled suppression, logical CSS Anchor Positioning, and viewport fallback are
+covered without long-press interception or geometry/state mutation. Existing
+D0/D1/D3/D4/D5/D6 semantics cover normal and forced colors without a component
+CSS exception.
+
 ## Build & Verify
 
 ```bash
@@ -141,6 +150,7 @@ yarn nx run @epa-wg/cem-components:verify-progress-spinner-forced-colors
 yarn nx run @epa-wg/cem-components:verify-sort-header-forced-colors
 yarn nx run @epa-wg/cem-components:verify-paginator-forced-colors
 yarn nx run @epa-wg/cem-components:verify-slider-forced-colors
+yarn nx run @epa-wg/cem-components:verify-tooltip-forced-colors
 yarn nx run @epa-wg/cem-components:verify-package
 yarn nx run @epa-wg/cem-components:test
 yarn nx run @epa-wg/cem-components:build
@@ -162,7 +172,7 @@ and `@epa-wg/cem-theme:verify-package`, so the component gate checks current
 generated tokens and the public theme stylesheet export.
 The package verifier proves source/built CSS byte identity, the side-effect-free
 JavaScript boundary, the built/packed behavior modules (including autocomplete,
-expansion, progress spinner, sort header, paginator, and slider), and exact dry-run npm inclusion of one
+expansion, progress spinner, sort header, paginator, slider, and tooltip), and exact dry-run npm inclusion of one
 `dist/styles.css`.
 
 `yarn nx run @epa-wg/cem-components:test` runs the Node unit test plus Chromium-backed component harness coverage.
@@ -187,6 +197,7 @@ expansion, progress spinner, sort header, paginator, and slider), and exact dry-
 | Sort-header forced-colors gate | `scripts/verify-sort-header-forced-colors.mjs` |
 | Paginator forced-colors gate | `scripts/verify-paginator-forced-colors.mjs` |
 | Slider forced-colors gate | `scripts/verify-slider-forced-colors.mjs` |
+| Tooltip forced-colors gate | `scripts/verify-tooltip-forced-colors.mjs` |
 | Package publication gate | `scripts/verify-package.mjs` |
 | Stylesheet copy | `scripts/copy-styles.mjs` |
 | Primitive browser coverage | `src/lib/primitives.browser.spec.ts` |
@@ -196,6 +207,7 @@ expansion, progress spinner, sort header, paginator, and slider), and exact dry-
 | Sort-header browser coverage | `src/lib/sort-header.browser.spec.ts` |
 | Paginator browser coverage | `src/lib/paginator.browser.spec.ts` |
 | Slider browser coverage | `src/lib/slider.browser.spec.ts` |
+| Tooltip browser coverage | `src/lib/tooltip.browser.spec.ts` |
 | State and ARIA coverage | `src/lib/states.browser.spec.ts` |
 | Workflow browser coverage | `src/lib/workflows.browser.spec.ts` |
 | Workflow fixtures | `tests/workflows/` |
@@ -205,6 +217,7 @@ expansion, progress spinner, sort header, paginator, and slider), and exact dry-
 | Sort-header contract fixture | `tests/sort-header/contract.html` |
 | Paginator contract fixture | `tests/paginator/contract.html` |
 | Slider contract fixture | `tests/slider/contract.html` |
+| Tooltip contract fixture | `tests/tooltip/contract.html` |
 | Package examples | `examples/` |
 
 ## Handoff Condition

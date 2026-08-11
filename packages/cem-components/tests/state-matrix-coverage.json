@@ -874,7 +874,7 @@
             "id": "feedback:default",
             "category": "Feedback",
             "state": "default",
-            "components": ["cem-dialog", "cem-sheet", "cem-toast", "cem-progress", "cem-progress-spinner", "cem-skeleton", "cem-alert"],
+            "components": ["cem-tooltip", "cem-dialog", "cem-sheet", "cem-toast", "cem-progress", "cem-progress-spinner", "cem-skeleton", "cem-alert"],
             "interaction": "Render feedback surfaces with their native dialog, region, progress, and live-region semantics.",
             "status": "covered",
             "owner": "packages/cem-components/src/lib/primitives.browser.spec.ts",
@@ -884,6 +884,16 @@
                 "expect(toast.getAttribute('aria-live')).toBe('polite');"
             ],
             "componentEvidence": [
+                {
+                    "component": "cem-tooltip",
+                    "owner": "packages/cem-components/src/lib/tooltip.browser.spec.ts",
+                    "test": "keeps one named native trigger and a persistent supplemental description as the exact owners",
+                    "assertions": [
+                        "expect(save.trigger.parentElement).toBe(save.owner);",
+                        "expect(save.surface.getAttribute('role')).toBe('tooltip');",
+                        "expect(save.surface.getAttribute('popover')).toBe('manual');"
+                    ]
+                },
                 {
                     "component": "cem-progress-spinner",
                     "owner": "packages/cem-components/src/lib/progress-spinner.browser.spec.ts",
@@ -899,7 +909,7 @@
             "id": "feedback:focus-visible",
             "category": "Feedback",
             "state": "focus-visible",
-            "components": ["cem-dialog", "cem-dialog-shell", "cem-sheet"],
+            "components": ["cem-tooltip", "cem-dialog", "cem-dialog-shell", "cem-sheet"],
             "interaction": "Move keyboard focus into a feedback surface and retain a visible focus indicator.",
             "status": "covered",
             "owner": "packages/cem-components/src/lib/feedback-expanded.browser.spec.ts",
@@ -912,6 +922,18 @@
                 "expect(sheetHost.matches(':focus-visible')).toBe(false);",
                 "expect(rectSnapshot(sheet)).toEqual(sheetGeometry);",
                 "expect(sheetEvents).toEqual([]);"
+            ],
+            "componentEvidence": [
+                {
+                    "component": "cem-tooltip",
+                    "owner": "packages/cem-components/src/lib/tooltip.browser.spec.ts",
+                    "test": "composes focus and hover reasons while Escape and blur dismiss without moving focus",
+                    "assertions": [
+                        "expect(document.activeElement).toBe(trigger);",
+                        "expect(trigger.matches(':focus-visible')).toBe(true);",
+                        "expect(parts.surface.matches(':popover-open')).toBe(false);"
+                    ]
+                }
             ]
         },
         {
@@ -943,7 +965,7 @@
             "id": "feedback:expanded",
             "category": "Feedback",
             "state": "expanded",
-            "components": ["cem-dialog", "cem-dialog-shell", "cem-sheet"],
+            "components": ["cem-tooltip", "cem-dialog", "cem-dialog-shell", "cem-sheet"],
             "interaction": "Open and close a dialog or sheet and mirror disclosure state where applicable.",
             "status": "covered",
             "owner": "packages/cem-components/src/lib/feedback-expanded.browser.spec.ts",
@@ -955,6 +977,19 @@
                 "expect(sheet.hidden).toBe(true);",
                 "await waitFor(() => !sheet.hidden, 'expanded sheet becomes visible');",
                 "await waitFor(() => sheet.hidden === true, 'collapsed sheet becomes hidden');"
+            ],
+            "componentEvidence": [
+                {
+                    "component": "cem-tooltip",
+                    "owner": "packages/cem-components/src/lib/tooltip.browser.spec.ts",
+                    "test": "honors normalized delays and the declarative manual open API silently",
+                    "assertions": [
+                        "parts.host.setAttribute('open', '');",
+                        "await waitForPopover(parts.surface, true);",
+                        "parts.host.removeAttribute('open');",
+                        "expect(componentEvents).toEqual([]);"
+                    ]
+                }
             ]
         },
         {
