@@ -637,6 +637,27 @@ silently reusing this sibling-separation endpoint.
 |---|---|---|---|---|---|
 | `--cem-separator-color` | `<color>` | `color-mix(in srgb, var(--cem-palette-comfort-text) 38%, transparent)` | `CanvasText` | Reduced-salience line between sibling regions; forced colors restores a solid system contour | required |
 
+### 7.12 Progress indicator colors
+
+A progress indicator is status graphics, not readable text, an action, an input
+stripe, or a sibling separator. Its completed/current arc therefore needs a
+dedicated semantic color, and its remaining-range track needs an independently
+themeable reduced-salience color. Components MUST NOT reuse
+`--cem-separator-color`: the track represents the value range rather than a
+relationship between siblings.
+
+Both determinate and indeterminate progress use the same two endpoints. Mode is
+communicated by geometry, programmatic value semantics, and—when motion is
+allowed—D7 motion, so color is not the only distinction. In forced colors the
+track maps to `GrayText` and the indicator maps to `Highlight`, preserving the
+remaining/current distinction with system-owned colors.
+
+###### cem-progress-indicator-colors
+| Token | value-type | default-formula | forced-colors | notes | tier |
+|---|---|---|---|---|---|
+| `--cem-progress-track-color` | `<color>` | `color-mix(in srgb, var(--cem-palette-comfort-text) 24%, transparent)` | `GrayText` | Remaining progress range at reduced salience | required |
+| `--cem-progress-indicator-color` | `<color>` | `var(--cem-palette-enthusiasm-x)` | `Highlight` | Current or indeterminate work indicator | required |
+
 ## 8. Zebra outline colors
 
 ### 8.1 Outline-driven state mapping (zebra)
@@ -743,6 +764,8 @@ When `@media (forced-colors: active)` is true:
 - Use outline/zebra and semantic system colors to preserve state visibility.
 - Resolve `--cem-separator-color` to `CanvasText`; reduced-alpha authored separators must not disappear after forced
   color adjustment.
+- Resolve progress tracks to `GrayText` and progress indicators to `Highlight`; do not depend on authored alpha or
+  hue to distinguish the current arc from the remaining range.
 
 ---
 
@@ -776,6 +799,7 @@ Use this as a quick “did we wire tokens correctly?” checklist.
 - [ ] Sibling dividers use `--cem-separator-color`; readable text continues to use the applicable `*-text` endpoint
 - [ ] Divider thickness comes from D5, and divider spacing/inset does not become a D0 token
 - [ ] Forced-colors dividers resolve to `CanvasText` rather than relying on the reduced-salience authored mixture
+- [ ] Forced-colors progress graphics resolve their track/indicator pair to `GrayText` / `Highlight`
 
 ---
 
@@ -967,6 +991,7 @@ from these tables using the same logic as `cem-colors.html`.
 | `cem-palette-emotion-shift`                            | `--cem-palette-*` (28 tokens) | one token per row                   |
 | `cem-zebra-tokens`                                     | `--cem-zebra-*` (5 tokens)    | one token per row                   |
 | `cem-input-indicator-colors`                           | `--cem-input-indicator-*` (9 tokens) | one token per row             |
+| `cem-progress-indicator-colors`                        | `--cem-progress-*` (2 tokens) | one token per row                   |
 | `cem-select-state-colors`                              | `--cem-select-*` (12 tokens) | one token per row                    |
 | `cem-navigation-item-state-colors`                     | `--cem-navigation-item-*` (14 tokens) | one token per row             |
 | `cem-content-interaction-state-colors`                  | `--cem-content-interaction-*` (10 tokens) | one token per row          |

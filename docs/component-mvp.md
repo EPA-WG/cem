@@ -51,6 +51,7 @@ contract for `@epa-wg/cem-components`, the CEM core schema state vocabulary, and
 | Feedback | `sheet` | `cem-sheet` | Non-modal or edge-attached task surface | palette, stroke, bend, gap, inset |
 | Feedback | `toast` | `cem-toast` | Transient status message | palette, action, stroke, gap, typography |
 | Feedback | `progress` | `cem-progress` | Determinate and indeterminate progress | palette, action, control, typography |
+| Feedback | `progress-spinner` | `cem-progress-spinner` | Circular determinate and indeterminate progress | progress, timing |
 | Feedback | `skeleton` | `cem-skeleton` | Loading placeholder preserving layout | palette, control, bend |
 | Feedback | `alert` | `cem-alert` | Inline info, success, warning, and error feedback | palette, action, stroke, gap, typography |
 
@@ -79,7 +80,7 @@ States are exposed as CEM semantic state names and mirrored to host attributes o
 | `required` | Text fields, textareas, selects, checkbox/radio groups | Exposes required semantics without relying on a visual mark alone. |
 | `readonly` | Text fields, textareas, select-like read views | Allows focus and submission while preventing edits. |
 | `checked` | Checkbox, radio, switch, filter chips | Mirrors native checked semantics and selected visual treatment. |
-| `indeterminate` | Checkbox and aggregate selection controls | Communicates mixed selection through native or ARIA mixed state. |
+| `indeterminate` | Checkbox, aggregate selection controls, and progress indicators | Communicates mixed selection or unknown progress through native or ARIA state. |
 | `empty` | Lists, tables, cards, media preview, discussion surfaces | Provides visible empty-state content and a next action path. |
 
 ## Category State Coverage
@@ -91,7 +92,7 @@ States are exposed as CEM semantic state names and mirrored to host attributes o
 | Navigation | `default`, `hover`, `focus-visible`, `active`, `disabled`, `selected`, `expanded` |
 | Layout | `default`, `loading`, `empty` |
 | Content | `default`, `hover`, `focus-visible`, `selected`, `loading`, `empty`, `checked` |
-| Feedback | `default`, `focus-visible`, `loading`, `expanded`, `invalid` |
+| Feedback | `default`, `focus-visible`, `loading`, `expanded`, `invalid`, `indeterminate` |
 
 ### Executable State Coverage
 

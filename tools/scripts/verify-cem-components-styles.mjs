@@ -28,10 +28,12 @@ const TOKEN_FAMILY_PREFIXES = {
     layering: ['--cem-layer-', '--cem-elevation-'],
     navigation: ['--cem-navigation-item-'],
     palette: ['--cem-palette-'],
+    progress: ['--cem-progress-'],
     responsive: ['--cem-bp-', '--cem-cq-'],
     select: ['--cem-select-'],
     separator: ['--cem-separator-'],
     stroke: ['--cem-stroke-'],
+    timing: ['--cem-duration-', '--cem-easing-'],
     typography: ['--cem-typography-', '--cem-fontography-'],
 };
 
@@ -47,6 +49,7 @@ const FEEDBACK_TAGS = new Set(['cem-dialog', 'cem-dialog-shell', 'cem-sheet']);
 const NAVIGATION_TAGS = new Set(['cem-nav', 'cem-tabs']);
 const DIVIDER_TAGS = new Set(['cem-divider']);
 const EXPANSION_TAGS = new Set(['cem-expansion']);
+const PROGRESS_SPINNER_TAGS = new Set(['cem-progress-spinner']);
 const CHOICE_POPUP_STACKING_SELECTORS = new Set([
     'cem-autocomplete .cem-autocomplete__popup',
     'cem-select .cem-select__popup',
@@ -375,6 +378,63 @@ const EXPANSION_FORCED_COLOR_BINDINGS = new Map([
     ],
     [`${EXPANSION_HEADER_SELECTOR}:enabled:focus-visible`, forcedColorFocusBinding()],
 ]);
+const PROGRESS_SPINNER_BINDINGS = new Map([
+    ['cem-progress-spinner', new Map([['display', 'inline-block']])],
+    [
+        'cem-progress-spinner > .cem-progress-spinner',
+        new Map([
+            ['block-size', 'var(--cem-progress-spinner-size)'],
+            ['display', 'inline-block'],
+            ['inline-size', 'var(--cem-progress-spinner-size)'],
+        ]),
+    ],
+    [
+        'cem-progress-spinner .cem-progress-spinner__svg',
+        new Map([
+            ['block-size', '100%'],
+            ['display', 'block'],
+            ['inline-size', '100%'],
+            ['overflow', 'visible'],
+            ['transform', 'rotate(-90deg)'],
+        ]),
+    ],
+    [
+        'cem-progress-spinner .cem-progress-spinner__track',
+        new Map([
+            ['fill', 'none'],
+            ['stroke-width', 'var(--cem-progress-track-thickness)'],
+            ['vector-effect', 'non-scaling-stroke'],
+            ['stroke', 'var(--cem-progress-track-color)'],
+        ]),
+    ],
+    [
+        'cem-progress-spinner .cem-progress-spinner__indicator',
+        new Map([
+            ['fill', 'none'],
+            ['stroke-width', 'var(--cem-progress-track-thickness)'],
+            ['vector-effect', 'non-scaling-stroke'],
+            ['stroke', 'var(--cem-progress-indicator-color)'],
+            ['stroke-linecap', 'round'],
+            ['transform-box', 'fill-box'],
+            ['transform-origin', 'center'],
+        ]),
+    ],
+    [
+        "cem-progress-spinner > .cem-progress-spinner[data-mode='indeterminate'] .cem-progress-spinner__indicator",
+        new Map([
+            [
+                'animation',
+                'cem-progress-spinner-cycle var(--cem-duration-continuous-cycle) var(--cem-easing-uniform) infinite',
+            ],
+        ]),
+    ],
+]);
+const PROGRESS_SPINNER_REDUCED_MOTION_BINDINGS = new Map([
+    [
+        "cem-progress-spinner > .cem-progress-spinner[data-mode='indeterminate'] .cem-progress-spinner__indicator",
+        new Map([['animation', 'none']]),
+    ],
+]);
 
 const failures = [];
 
@@ -558,6 +618,9 @@ function assertPublicComponentStyles(components, tokenNames) {
     const dividerRules = new Map();
     const expansionRules = new Map();
     const expansionForcedColorRules = new Map();
+    const progressSpinnerRules = new Map();
+    const progressSpinnerReducedMotionRules = new Map();
+    const progressSpinnerForcedColorRules = new Map();
     const choicePopupStackingRules = new Map();
     const privateProperties = new Set(
         rules.flatMap(({ declarations }) => [...declarations.keys()].filter((name) => name.startsWith('--_cem-'))),
@@ -615,6 +678,18 @@ function assertPublicComponentStyles(components, tokenNames) {
                 fail(`${pathLabel}: duplicate expansion selector \`${rule.selector}\``);
             }
             expansionRuleSet.set(rule.selector, rule.declarations);
+        }
+        if (PROGRESS_SPINNER_TAGS.has(tag)) {
+            const progressRuleSet =
+                rule.media === '(prefers-reduced-motion: reduce)'
+                    ? progressSpinnerReducedMotionRules
+                    : rule.media === '(forced-colors: active)'
+                      ? progressSpinnerForcedColorRules
+                      : progressSpinnerRules;
+            if (progressRuleSet.has(rule.selector)) {
+                fail(`${pathLabel}: duplicate progress-spinner selector \`${rule.selector}\``);
+            }
+            progressRuleSet.set(rule.selector, rule.declarations);
         }
         if (FEEDBACK_TAGS.has(tag)) {
             const feedbackRuleSet = rule.media ? feedbackForcedColorRules : feedbackRules;
@@ -743,6 +818,21 @@ function assertPublicComponentStyles(components, tokenNames) {
         EXPANSION_FORCED_COLOR_BINDINGS,
     );
 
+    assertExactStateBindings(pathLabel, 'progress-spinner', progressSpinnerRules, PROGRESS_SPINNER_BINDINGS);
+    assertExactStateBindings(
+        pathLabel,
+        'reduced-motion progress-spinner',
+        progressSpinnerReducedMotionRules,
+        PROGRESS_SPINNER_REDUCED_MOTION_BINDINGS,
+    );
+    assertExactStateBindings(
+        pathLabel,
+        'forced-colors progress-spinner',
+        progressSpinnerForcedColorRules,
+        new Map(),
+    );
+    assertProgressSpinnerKeyframes(pathLabel, cssText);
+
     assertExactStateBindings(pathLabel, 'feedback', feedbackRules, FEEDBACK_BINDINGS);
     assertExactStateBindings(
         pathLabel,
@@ -793,12 +883,20 @@ function parseCssRules(pathLabel, cssText) {
     const rules = [];
 
     root.walkAtRules((atRule) => {
-        if (atRule.name !== 'media' || atRule.params !== '(forced-colors: active)') {
+        if (
+            atRule.name === 'media'
+            && !['(forced-colors: active)', '(prefers-reduced-motion: reduce)'].includes(atRule.params)
+        ) {
+            fail(`${pathLabel}: unsupported component stylesheet at-rule @${atRule.name} ${atRule.params}`);
+        } else if (atRule.name === 'keyframes' && atRule.params !== 'cem-progress-spinner-cycle') {
+            fail(`${pathLabel}: unsupported component stylesheet keyframes @${atRule.name} ${atRule.params}`);
+        } else if (!['media', 'keyframes'].includes(atRule.name)) {
             fail(`${pathLabel}: unsupported component stylesheet at-rule @${atRule.name} ${atRule.params}`);
         }
     });
 
     root.walkRules((rule) => {
+        if (rule.parent?.type === 'atrule' && rule.parent.name === 'keyframes') return;
         const declarations = parseDeclarations(pathLabel, rule.selector, rule.nodes);
 
         for (const selector of postcss.list.comma(rule.selector)) {
@@ -815,6 +913,31 @@ function parseCssRules(pathLabel, cssText) {
     });
 
     return rules;
+}
+
+function assertProgressSpinnerKeyframes(pathLabel, cssText) {
+    let root;
+    try {
+        root = postcss.parse(cssText, { from: pathLabel });
+    } catch {
+        return;
+    }
+    const keyframes = root.nodes.filter(
+        (node) => node.type === 'atrule' && node.name === 'keyframes' && node.params === 'cem-progress-spinner-cycle',
+    );
+    if (keyframes.length !== 1) {
+        fail(`${pathLabel}: must contain exactly one @keyframes cem-progress-spinner-cycle block`);
+        return;
+    }
+    const frameRules = keyframes[0].nodes?.filter((node) => node.type === 'rule') ?? [];
+    if (frameRules.length !== 1 || frameRules[0].selector !== 'to') {
+        fail(`${pathLabel}: progress-spinner keyframes must contain only a \`to\` frame`);
+        return;
+    }
+    const declarations = parseDeclarations(pathLabel, '@keyframes cem-progress-spinner-cycle to', frameRules[0].nodes);
+    if (declarations.size !== 1 || declarations.get('transform') !== 'rotate(360deg)') {
+        fail(`${pathLabel}: progress-spinner cycle must only transform to rotate(360deg)`);
+    }
 }
 
 function parseDeclarations(pathLabel, selectorList, nodes) {

@@ -47,7 +47,7 @@ All dimensions have **constrained ranges** that prevent design drift while allow
 - **Color:** 7 emotional palettes × 4 variants (base, extreme, text, text-extreme)
 - **Space:** 8-step scale from `--cem-dimension-0` to `--cem-dimension-7`
 - **Shape:** 5 bend modes (sharp → pill)
-- **Timing:** 4 duration steps × 3 easing curves
+- **Timing:** 3 ordered duration steps, 3 semantic duration endpoints, and 8 easing curves
 
 ### 3. Accessibility by Construction
 

@@ -61,10 +61,10 @@ const EXPECTED_CATALOG = [
 const ALLOWED_STATUSES = new Set(['unreviewed', 'gap', 'partial', 'covered']);
 const ALLOWED_MAPPING_KINDS = new Set(['component', 'behavior', 'gap']);
 const EXPECTED_IMPLEMENTATION_PRIORITY = {
-    id: 'expansion',
+    id: 'progress-spinner',
     acceptedAt: '2026-08-10',
     completedAt: '2026-08-10',
-    contract: 'packages/cem-components/docs/expansion-contract.md',
+    contract: 'packages/cem-components/docs/progress-spinner-contract.md',
     state: 'completed',
     targetStatus: 'covered',
 };
@@ -153,7 +153,7 @@ function validateImplementationPriority(priority) {
     }
     const contractSource = readFileSync(contractPath, 'utf8');
     for (const heading of [
-        '# Expansion Contract',
+        '# Progress Spinner Contract',
         '## Owner and author vocabulary',
         '## State and geometry contract',
         '## Event and keyboard contract',

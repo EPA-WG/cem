@@ -18,13 +18,13 @@
   Phase 3.6 CEM-ML/CEM-QL generator (Option B). The legacy @epa-wg/custom-element XSLT/XPath
   runtime is gone: cem-css-generator.js shapes the token tables into datadom.slices via the
   cem-elements DOM→datadom bridge and renders this template through the cem_ql WASM boundary.
-  Token table columns — geometry: td1=token td2=value td3=description td4=tier;
+  Token table columns — geometry/progress: td1=token td2=value td3=description td4=tier;
   overrides: td1=token td2=forgiving td3=compact.
 -->
 <template type="cem-ml; version=0.0"
           id="cem-controls-template"
           data-token-url="../../../dist/lib/tokens/cem-controls.xhtml"
-          data-slices="geometry=cem-controls-geometry overrides=cem-controls-geometry-overrides">
+          data-slices="geometry=cem-controls-geometry progress=cem-progress-geometry overrides=cem-controls-geometry-overrides">
 {table |
     {caption | {a @href="../../../dist/lib/tokens/cem-controls.xhtml#3-1-baseline-balanced-mode" | cem-controls-geometry} — visual control geometry (balanced baseline)}
     {thead | {tr | {th | Token}{th | Value}{th | Tier}{th | Swatch}{th | Description}}}
@@ -39,7 +39,20 @@
 }
 {hr | }
 {table |
-    {caption | {a @href="../../../dist/lib/tokens/cem-controls.xhtml#3-2-coupling-mode-overrides-visual-geometry-only" | cem-controls-geometry-overrides} — coupling mode overrides (visual geometry only)}
+    {caption | {a @href="../../../dist/lib/tokens/cem-controls.xhtml#cem-progress-geometry" | cem-progress-geometry} — non-interactive progress graphic geometry}
+    {thead | {tr | {th | Token}{th | Value}{th | Tier}{th | Swatch}{th | Description}}}
+    {tbody | {cem:for-each @select="$datadom.slices.progress" @as="row" |
+        {tr |
+            {th | {code | {$row.td1}}}
+            {td | {code | {$row.td2}}}
+            {td | {$row.td4}}
+            {td @style="width:5rem;" | {div @style="height:1rem; width: var({$row.td1}); background: currentColor; min-width: 2px; max-width: 8rem;" @title="{$row.td1}" | }}
+            {td | {$row.td3}}
+        }}}
+}
+{hr | }
+{table |
+    {caption | {a @href="../../../dist/lib/tokens/cem-controls.xhtml#3-3-coupling-mode-overrides-visual-geometry-only" | cem-controls-geometry-overrides} — coupling mode overrides (visual geometry only)}
     {thead | {tr | {th | Token}{th | forgiving}{th | compact}}}
     {tbody | {cem:for-each @select="$datadom.slices.overrides" @as="row" |
         {tr |
@@ -53,6 +66,10 @@
   /* region control geometry — balanced (default) baseline */```{cem:for-each @select="$datadom.slices.geometry" @as="row" |```
   ```{$row.td1}: {$row.td2};}```
   /* endregion control geometry */
+
+  /* region progress graphic geometry */```{cem:for-each @select="$datadom.slices.progress" @as="row" |```
+  ```{$row.td1}: {$row.td2};}```
+  /* endregion progress graphic geometry */
 }
 
 /* region coupling mode: forgiving — larger visual geometry */

@@ -2,11 +2,11 @@
 
 **Status:** Canonical (v1.0)
 
-**Last updated:** April 27, 2026
+**Last updated:** August 10, 2026
 
 **Audience:** Design Systems, Product Design, Front-End Engineering
 
-**Applies to:** Visual sizing of generic controls and component-affordance geometry (button, input, icon button, list/menu/table rows)
+**Applies to:** Visual sizing of generic controls and component-affordance geometry (button, input, icon button, list/menu/table rows, progress graphics)
 
 **Companion specs:**
 - **D1. Space & Rhythm** ([`cem-dimension.md`](./cem-dimension.md)) — gaps, insets, layout rhythm
@@ -36,6 +36,7 @@ See [`cem-controls-reasoning.md`](../../../../../cem-controls-reasoning.md) for 
   - generic control geometry: height, inline padding, block padding
   - icon button geometry: container size, glyph size
   - component affordance row heights: list, menu, data-table
+  - non-interactive component graphics: circular progress diameter and track thickness
   - per-coupling-mode visual overrides
 
 - **D2. Coupling & Compactness** (from [`cem-coupling.md`](./cem-coupling.md))
@@ -90,7 +91,20 @@ Boundary heuristic:
 | `--cem-menu-row-height`       | `3rem`                         | Menu row height                                                   | recommended |
 | `--cem-table-row-height`      | `2.5rem`                       | Data table row height                                             | recommended |
 
-### 3.2 Coupling-mode overrides (visual geometry only)
+### 3.2 Progress graphic geometry
+
+Circular progress is non-interactive, so its visual size is not an operable-zone
+claim and does not grow or shrink with coupling mode. D2c still owns the
+single-component geometry: the outer diameter and the visible track thickness.
+D0 owns track/indicator color, and D7 owns any indeterminate cycle.
+
+###### cem-progress-geometry
+| Token | Value | Description | tier |
+|---|---|---|---|
+| `--cem-progress-spinner-size` | `3rem` | Default circular progress diameter | required |
+| `--cem-progress-track-thickness` | `0.25rem` | Circular or linear progress track thickness | required |
+
+### 3.3 Coupling-mode overrides (visual geometry only)
 
 Controls geometry varies by coupling mode. The mode selector is owned by D2 Coupling
 (`data-cem-coupling="forgiving|balanced|compact"`); Controls only emits the visual override values for those modes.
@@ -193,7 +207,8 @@ meet `--cem-coupling-zone-min` independently.
 
 A draft becomes "canonical" when all of the following are true:
 
-1. **Visual-only contract:** this spec emits only `--cem-control-*`, `--cem-icon-button-*`, and list/menu/table geometry tokens.
+1. **Visual-only contract:** this spec emits only `--cem-control-*`, `--cem-icon-button-*`, list/menu/table geometry,
+   and non-interactive `--cem-progress-*` geometry tokens.
    Safety tokens (`--cem-coupling-*`) are NOT emitted here.
 2. **Mode overrides only adjust visuals:** forgiving/compact mode tables touch geometry, never zone/guard.
 3. **Halo escape hatch documented:** any time visuals fall below `--cem-coupling-zone-min`, halo expansion is the
@@ -207,9 +222,11 @@ A draft becomes "canonical" when all of the following are true:
 | Source table | Section | Description |
 |---|---|---|
 | `cem-controls-geometry` | §3.1 | Baseline visual control geometry: height, padding, icon-button, list/menu/table row sizes |
-| `cem-controls-geometry-overrides` | §3.2 | Forgiving/compact override values for visual geometry (generator-only; no new tokens) |
+| `cem-progress-geometry` | §3.2 | Circular-progress diameter and shared progress-track thickness |
+| `cem-controls-geometry-overrides` | §3.3 | Forgiving/compact override values for visual geometry (generator-only; no new tokens) |
 
 Generator derivation rules:
 - `cem-controls-geometry` → token list (tier in last column).
+- `cem-progress-geometry` → token list (tier in last column).
 - `cem-controls-geometry-overrides` → override data only; tokens are already declared in the base `:root` block.
 - Coupling minimums (`--cem-coupling-zone-min`, `--cem-coupling-guard-min`, `--cem-coupling-halo`) are NOT declared here; they belong to D2 Coupling.

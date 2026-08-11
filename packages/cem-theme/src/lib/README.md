@@ -167,17 +167,17 @@ The practical pattern is two-layer theming:
 
 | Dimension | Spec                                                                    | Category                     | Product-facing purpose                                                                                                  |
 |-----------|-------------------------------------------------------------------------|------------------------------|-------------------------------------------------------------------------------------------------------------------------|
-| D0        | [cem-colors.md](./tokens/cem-colors.md)                                 | Color                        | Branded hues, emotional palettes, theme modes, action intents, state progression, zebra colors, forced-colors behavior. |
+| D0        | [cem-colors.md](./tokens/cem-colors.md)                                 | Color                        | Branded hues, emotional palettes, action/progress semantics, state progression, zebra colors, and forced-colors behavior. |
 | D1        | [cem-dimension.md](./tokens/cem-dimension.md)                           | Space and Rhythm             | Spacing scale, semantic gaps, insets, reading rhythm, data rhythm, gutters, dense/normal/sparse spacing modes.          |
 | D1x       | [cem-breakpoints.md](./tokens/cem-breakpoints.md)                       | Breakpoints                  | Semantic width and height ranges for window and container adaptation.                                                   |
 | D1y       | [cem-responsive.md](./tokens/cem-responsive.md)                         | Responsiveness               | Strategy vocabulary for intrinsic, container, breakpoint, and hybrid layout behavior.                                   |
 | D2        | [cem-coupling.md](./tokens/cem-coupling.md)                             | Coupling and Compactness     | Operable zone, guard, and halo invariants that protect interaction safety across input modalities.                      |
-| D2c       | [cem-controls.md](./tokens/cem-controls.md)                             | Controls                     | Visual control geometry such as button height, icon button size, row height, and per-coupling-mode visual overrides.    |
+| D2c       | [cem-controls.md](./tokens/cem-controls.md)                             | Controls                     | Visual control and progress geometry such as button height, row height, spinner size, track thickness, and coupling-mode overrides. |
 | D3        | [cem-shape.md](./tokens/cem-shape.md)                                   | Shape and Bend               | Corner radius, edge softness, semantic bend endpoints, and shape-mode knobs.                                            |
 | D4        | [cem-layering.md](./tokens/cem-layering.md)                             | Layering                     | Signed depth, planes, semantic elevation/recess endpoints, and appearance channels.                                     |
 | D5        | [cem-stroke.md](./tokens/cem-stroke.md)                                 | Stroke and Separation        | Boundaries, dividers, focus rings, selected indicators, target indicators, and zebra geometry.                          |
 | D6        | [cem-voice-fonts-typography.md](./tokens/cem-voice-fonts-typography.md) | Voice, Fonts, and Typography | Reading, UI, tag, script, data, initialism, iconized, and brand/display typography roles.                               |
-| D7        | [cem-timing.md](./tokens/cem-timing.md)                                 | Timing and Motion            | Duration, easing, emphasized motion, adapter-local spring guidance, and reduced-motion overrides.                       |
+| D7        | [cem-timing.md](./tokens/cem-timing.md)                                 | Timing and Motion            | One-shot and continuous-cycle duration, easing, adapter-local spring guidance, and reduced-motion rules.                |
 
 ## CEM Extensions
 

@@ -282,6 +282,57 @@ cem-expansion > .cem-expansion > .cem-expansion__panel {
     padding: var(--cem-inset-container);
 }
 
+cem-progress-spinner {
+    display: inline-block;
+}
+
+cem-progress-spinner > .cem-progress-spinner {
+    block-size: var(--cem-progress-spinner-size);
+    display: inline-block;
+    inline-size: var(--cem-progress-spinner-size);
+}
+
+cem-progress-spinner .cem-progress-spinner__svg {
+    block-size: 100%;
+    display: block;
+    inline-size: 100%;
+    overflow: visible;
+    transform: rotate(-90deg);
+}
+
+cem-progress-spinner .cem-progress-spinner__track {
+    fill: none;
+    stroke: var(--cem-progress-track-color);
+    stroke-width: var(--cem-progress-track-thickness);
+    vector-effect: non-scaling-stroke;
+}
+
+cem-progress-spinner .cem-progress-spinner__indicator {
+    fill: none;
+    stroke: var(--cem-progress-indicator-color);
+    stroke-linecap: round;
+    stroke-width: var(--cem-progress-track-thickness);
+    transform-box: fill-box;
+    transform-origin: center;
+    vector-effect: non-scaling-stroke;
+}
+
+cem-progress-spinner > .cem-progress-spinner[data-mode='indeterminate'] .cem-progress-spinner__indicator {
+    animation: cem-progress-spinner-cycle var(--cem-duration-continuous-cycle) var(--cem-easing-uniform) infinite;
+}
+
+@keyframes cem-progress-spinner-cycle {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    cem-progress-spinner > .cem-progress-spinner[data-mode='indeterminate'] .cem-progress-spinner__indicator {
+        animation: none;
+    }
+}
+
 cem-field input,
 cem-text-field input,
 cem-textarea textarea,

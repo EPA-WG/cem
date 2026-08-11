@@ -751,7 +751,7 @@
             "id": "feedback:default",
             "category": "Feedback",
             "state": "default",
-            "components": ["cem-dialog", "cem-sheet", "cem-toast", "cem-progress", "cem-skeleton", "cem-alert"],
+            "components": ["cem-dialog", "cem-sheet", "cem-toast", "cem-progress", "cem-progress-spinner", "cem-skeleton", "cem-alert"],
             "interaction": "Render feedback surfaces with their native dialog, region, progress, and live-region semantics.",
             "status": "covered",
             "owner": "packages/cem-components/src/lib/primitives.browser.spec.ts",
@@ -759,6 +759,17 @@
             "assertions": [
                 "expect(dialog.getAttribute('aria-modal')).toBe('true');",
                 "expect(toast.getAttribute('aria-live')).toBe('polite');"
+            ],
+            "componentEvidence": [
+                {
+                    "component": "cem-progress-spinner",
+                    "owner": "packages/cem-components/src/lib/progress-spinner.browser.spec.ts",
+                    "test": "renders exact circular determinate and indeterminate progress semantics",
+                    "assertions": [
+                        "expect(indeterminate.owner.getAttribute('role')).toBe('progressbar');",
+                        "expectDeterminate(determinate, { max: 100, value: 25, dash: '25 75' });"
+                    ]
+                }
             ]
         },
         {
@@ -784,7 +795,7 @@
             "id": "feedback:loading",
             "category": "Feedback",
             "state": "loading",
-            "components": ["cem-progress", "cem-skeleton"],
+            "components": ["cem-progress", "cem-progress-spinner", "cem-skeleton"],
             "interaction": "Expose indeterminate progress and an inert visual placeholder with an accessible loading label.",
             "status": "covered",
             "owner": "packages/cem-components/src/lib/states.browser.spec.ts",
@@ -792,6 +803,17 @@
             "assertions": [
                 "expect(progress.hasAttribute('value')).toBe(false);",
                 "expect(skeleton.getAttribute('aria-hidden')).toBe('true');"
+            ],
+            "componentEvidence": [
+                {
+                    "component": "cem-progress-spinner",
+                    "owner": "packages/cem-components/src/lib/progress-spinner.browser.spec.ts",
+                    "test": "binds D0/D2c/D7 tokens while pointer and keyboard input stay event- and state-neutral",
+                    "assertions": [
+                        "expect(indicatorStyle.animationName).toBe('cem-progress-spinner-cycle');",
+                        "expect(determinateIndicatorStyle.animationName).toBe('none');"
+                    ]
+                }
             ]
         },
         {
@@ -824,6 +846,21 @@
             "assertions": [
                 "expect(alert.getAttribute('data-tone')).toBe('danger');",
                 "expect(alert.textContent?.trim()).toBe('Resolve errors.');"
+            ]
+        },
+        {
+            "id": "feedback:indeterminate",
+            "category": "Feedback",
+            "state": "indeterminate",
+            "components": ["cem-progress-spinner"],
+            "interaction": "Expose unknown circular progress without a numeric value or keyboard interaction.",
+            "status": "covered",
+            "owner": "packages/cem-components/src/lib/progress-spinner.browser.spec.ts",
+            "test": "renders exact circular determinate and indeterminate progress semantics",
+            "assertions": [
+                "expect(indeterminate.owner.getAttribute('data-mode')).toBe('indeterminate');",
+                "expect(indeterminate.owner.hasAttribute('aria-valuenow')).toBe(false);",
+                "expect(indeterminate.indicator.getAttribute('stroke-dasharray')).toBe('25 75');"
             ]
         }
     ]

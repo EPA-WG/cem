@@ -228,6 +228,7 @@ type WasmRenderNode =
     | {
           kind: 'element';
           tag: string;
+          namespace?: string | null;
           attributes?: WasmRenderAttribute[];
           children?: WasmRenderNode[];
           byteOffset?: number | null;
@@ -257,7 +258,7 @@ function mapNode(node: WasmRenderNode, nextRenderNodeId: () => string): RenderPl
     const renderNodeId = nextRenderNodeId();
     return {
         kind: 'element',
-        namespace: null,
+        namespace: node.namespace ?? null,
         tag: node.tag,
         attributes: (node.attributes ?? []).map((attribute) => ({
             name: attribute.name,

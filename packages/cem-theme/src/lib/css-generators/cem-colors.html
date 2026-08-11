@@ -32,7 +32,7 @@
 <template type="cem-ml; version=0.0"
           id="cem-colors-template"
           data-token-url="../../../dist/lib/tokens/cem-colors.xhtml"
-          data-slices="hue=cem-color-hue-variant shift=cem-palette-emotion-shift intent=cem-action-intent-emotion state=cem-action-state-color input=cem-input-indicator-colors select=cem-select-state-colors navigation=cem-navigation-item-state-colors content=cem-content-interaction-state-colors separator=cem-separator-colors zmap=cem-zebra-mode-mapping">
+          data-slices="hue=cem-color-hue-variant shift=cem-palette-emotion-shift intent=cem-action-intent-emotion state=cem-action-state-color input=cem-input-indicator-colors select=cem-select-state-colors navigation=cem-navigation-item-state-colors content=cem-content-interaction-state-colors separator=cem-separator-colors progress=cem-progress-indicator-colors zmap=cem-zebra-mode-mapping">
 {table |
     {caption | {a @href="../../../dist/lib/tokens/cem-colors.xhtml#cem-color-hue-variant" | cem-color-hue-variant} — branded color ramp}
     {thead | {tr | {th | Token}{th | Value}{th | Tier}}}
@@ -89,6 +89,13 @@
         {tr | {th | {code | {$row.td1}}}{td | {code | {$row.td3}}}{td | {code | {$row.td4}}}{td | {$row.td6}}{td | {$row.td5}}}}}
 }
 {hr | }
+{table |
+    {caption | {a @href="../../../dist/lib/tokens/cem-colors.xhtml#cem-progress-indicator-colors" | cem-progress-indicator-colors} — progress track and indicator colors}
+    {thead | {tr | {th | Token}{th | Formula}{th | Forced colors}{th | Tier}{th | Notes}}}
+    {tbody | {cem:for-each @select="$datadom.slices.progress" @as="row" |
+        {tr | {th | {code | {$row.td1}}}{td | {code | {$row.td3}}}{td | {code | {$row.td4}}}{td | {$row.td6}}{td | {$row.td5}}}}}
+}
+{hr | }
 {pre @class=language-css | {code @class=language-css @data-generated-css |```:root {
   /* region branded colors: cem-color-[hue]-[variant] */```{cem:for-each @select="$datadom.slices.hue" @as="row" |```
   ```{$row.td1}: {$row.td4};}```
@@ -126,6 +133,10 @@
   ```{$row.td1}: {$row.td3};}```
   /* endregion separator colors */
 
+  /* region progress indicator colors */```{cem:for-each @select="$datadom.slices.progress" @as="row" |```
+  ```{$row.td1}: {$row.td3};}```
+  /* endregion progress indicator colors */
+
   /* region common for cem themes */
   [data-theme*="cem-theme-"], .cem-theme-native, .cem-theme-contrast-light, .cem-theme-contrast-dark, .cem-theme-light, .cem-theme-dark {
     /* action intent tokens: cem-action-[intent]-[state]-[background|text] */```{cem:for-each @select="$datadom.slices.intent" @as="intent" |{cem:for-each @select="$datadom.slices.state" @as="state" |```
@@ -144,6 +155,8 @@
     /* interactive content state colors resolve against the active theme palette */```{cem:for-each @select="$datadom.slices.content" @as="row" |```
     ```{$row.td1}: {$row.td3};}```
     /* separator colors resolve against the active theme surface text */```{cem:for-each @select="$datadom.slices.separator" @as="row" |```
+    ```{$row.td1}: {$row.td3};}```
+    /* progress colors resolve against the active theme palette */```{cem:for-each @select="$datadom.slices.progress" @as="row" |```
     ```{$row.td1}: {$row.td3};}```
     background-color: var(--cem-palette-comfort);
     color: var(--cem-palette-comfort-text);
@@ -166,6 +179,8 @@
     ```{$emo.td1}: {cem:choose |{cem:when @test='emo.td6 != ""' |light-dark({cem:choose |{cem:when @test='str:starts_with(emo.td5, "--")' |var({$emo.td5})}{cem:when @test='str:contains(emo.td5, "-") and not(str:contains(emo.td5, "("))' |var(--cem-color-{$emo.td5})}{cem:otherwise |{$emo.td5}}}, {cem:choose |{cem:when @test='str:starts_with(emo.td6, "--")' |var({$emo.td6})}{cem:when @test='str:contains(emo.td6, "-") and not(str:contains(emo.td6, "("))' |var(--cem-color-{$emo.td6})}{cem:otherwise |{$emo.td6}}})}{cem:otherwise |{$emo.td5}}};}```
     ```{cem:for-each @select="$datadom.slices.separator" @as="row" |```
     ```{$row.td1}: {$row.td4};}```
+    ```{cem:for-each @select="$datadom.slices.progress" @as="row" |```
+    ```{$row.td1}: {$row.td4};}```
     [focus], :focus, :focus-visible, :focus-within, .focus { --cem-zebra-color-1: CanvasText; }
     [target], :target, .target { --cem-zebra-color-2: Mark; }
     [selected], .selected { --cem-zebra-color-3: SelectedItem; }
@@ -174,6 +189,8 @@
 
   @media (forced-colors: active) {
     &, [data-theme*="cem-theme-"], .cem-theme-native, .cem-theme-contrast-light, .cem-theme-contrast-dark, .cem-theme-light, .cem-theme-dark {```{cem:for-each @select="$datadom.slices.separator" @as="row" |```
+      ```{$row.td1}: {$row.td4};}```
+      ```{cem:for-each @select="$datadom.slices.progress" @as="row" |```
       ```{$row.td1}: {$row.td4};}```
     }
   }

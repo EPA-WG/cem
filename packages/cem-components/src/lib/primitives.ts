@@ -7,6 +7,7 @@ import { CEM_AUTOCOMPLETE_BEHAVIOR } from './autocomplete-behavior.js';
 import { CEM_EXPANSION_BEHAVIOR } from './expansion-behavior.js';
 import { CEM_FEEDBACK_DIALOG_BEHAVIOR } from './feedback-behavior.js';
 import { CEM_NAVIGATION_BEHAVIOR } from './navigation-behavior.js';
+import { CEM_PROGRESS_SPINNER_BEHAVIOR } from './progress-spinner-behavior.js';
 import { CEM_SELECT_BEHAVIOR } from './select-behavior.js';
 
 export interface CemComponentPrimitiveDeclaration {
@@ -435,6 +436,32 @@ export const CEM_COMPONENT_PRIMITIVES = [
             '{attribute @name=label | Progress}' +
             '{attribute @name=max | 100}' +
             '{progress @class=cem-progress @aria-label="{$label}" @value={datadom.attributes.value} @max="{$max}" | {$label}}',
+    },
+    {
+        tag: 'cem-progress-spinner',
+        description: 'Non-interactive circular determinate or indeterminate progress indicator.',
+        behavior: CEM_PROGRESS_SPINNER_BEHAVIOR,
+        cemMl:
+            '{attribute @name=label | Progress}' +
+            '{span @class=cem-progress-spinner @role=progressbar @data-mode="{$datadom.slices.mode}" @aria-label="{$label}" @aria-describedby={datadom.attributes.describedby} @aria-valuemin={if datadom.slices.indeterminate { null } else { 0 }} @aria-valuemax={if datadom.slices.indeterminate { null } else { datadom.slices.max }} @aria-valuenow={if datadom.slices.indeterminate { null } else { datadom.slices.value }} |' +
+            ' {element @name=svg @namespace="http://www.w3.org/2000/svg" |' +
+            '  {attribute @name=class @value=cem-progress-spinner__svg}' +
+            '  {attribute @name=viewBox @value="0 0 100 100"}' +
+            '  {attribute @name=aria-hidden @value=true}' +
+            '  {attribute @name=focusable @value=false}' +
+            '  {element @name=circle @namespace="http://www.w3.org/2000/svg" |' +
+            '   {attribute @name=class @value=cem-progress-spinner__track}' +
+            '   {attribute @name=cx @value=50}' +
+            '   {attribute @name=cy @value=50}' +
+            '   {attribute @name=r @value=42}' +
+            '   {attribute @name=pathLength @value=100}}' +
+            '  {element @name=circle @namespace="http://www.w3.org/2000/svg" |' +
+            '   {attribute @name=class @value=cem-progress-spinner__indicator}' +
+            '   {attribute @name=cx @value=50}' +
+            '   {attribute @name=cy @value=50}' +
+            '   {attribute @name=r @value=42}' +
+            '   {attribute @name=pathLength @value=100}' +
+            '   {attribute @name=stroke-dasharray @value="{$datadom.slices.dashArray}"}}}}',
     },
     {
         tag: 'cem-skeleton',

@@ -1,0 +1,14 @@
+<section class="cem-theme-light" data-progress-spinner-contract-fixture aria-label="Progress spinner contract fixture">
+  <button data-progress-spinner-focus-start type="button">Focus start</button>
+
+  <cem-progress-spinner id="indeterminate-spinner" label="Loading account"></cem-progress-spinner>
+  <cem-progress-spinner id="determinate-spinner" label="Uploading files" value="25"></cem-progress-spinner>
+  <cem-progress-spinner id="custom-range-spinner" label="Processing records" value="3" max="12" describedby="records-help"></cem-progress-spinner>
+  <span id="records-help">Three of twelve records processed.</span>
+  <cem-progress-spinner id="upper-clamp-spinner" label="Complete" value="120" max="80"></cem-progress-spinner>
+  <cem-progress-spinner id="lower-clamp-spinner" label="Not started" value="-20"></cem-progress-spinner>
+  <cem-progress-spinner id="invalid-spinner" label="Invalid input fallback" value="not-a-number" max="0"></cem-progress-spinner>
+  <cem-progress-spinner id="fallback-label-spinner" value=""></cem-progress-spinner>
+
+  <button data-progress-spinner-focus-end type="button">Focus end</button>
+</section>

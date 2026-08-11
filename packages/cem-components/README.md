@@ -33,7 +33,7 @@ This registers the minimal primitive tags: `cem-action`, `cem-icon-button`, `cem
 `cem-radio`, `cem-switch`, `cem-surface`, `cem-text`,
 `cem-icon`, `cem-stack`, `cem-grid`, `cem-divider`, `cem-list`, `cem-card`, `cem-expansion`, `cem-table`, `cem-chip`, `cem-badge`, `cem-avatar`,
 `cem-media-preview`, `cem-app-bar`, `cem-nav`, `cem-tabs`, `cem-dialog`, `cem-dialog-shell`, `cem-sheet`,
-`cem-toast`, `cem-progress`, `cem-skeleton`, and `cem-alert`.
+`cem-toast`, `cem-progress`, `cem-progress-spinner`, `cem-skeleton`, and `cem-alert`.
 
 ## Stylesheet install
 
@@ -88,6 +88,15 @@ ARIA-linked panel, and the default slot remains instantiated while collapsed. Co
 palette/spacing/control/shape/focus tokens cover the full visual contract, including forced colors, without a CSS
 exception.
 
+`cem-progress-spinner` is the circular complement to linear `cem-progress`.
+Presence of `value` selects determinate semantics; absence selects
+indeterminate semantics, with normalized range values projected only to ARIA.
+The persistent SVG consumes generated D0 progress colors and D2c geometry;
+indeterminate motion consumes the D7 continuous-cycle/uniform pair and stops
+under reduced motion while leaving a static arc. Forced colors use the generated
+`GrayText`/`Highlight` mapping. The component has no focus, activation, disabled,
+selection, current, or live-region behavior, and requires no CSS exception.
+
 ## Build & Verify
 
 ```bash
@@ -102,6 +111,7 @@ yarn nx run @epa-wg/cem-components:verify-navigation-hover-forced-colors
 yarn nx run @epa-wg/cem-components:verify-content-hover-forced-colors
 yarn nx run @epa-wg/cem-components:verify-divider-forced-colors
 yarn nx run @epa-wg/cem-components:verify-expansion-forced-colors
+yarn nx run @epa-wg/cem-components:verify-progress-spinner-forced-colors
 yarn nx run @epa-wg/cem-components:verify-package
 yarn nx run @epa-wg/cem-components:test
 yarn nx run @epa-wg/cem-components:build
@@ -122,8 +132,9 @@ already exists. The style contract depends on `@epa-wg/cem-theme:build:tokens`,
 and `@epa-wg/cem-theme:verify-package`, so the component gate checks current
 generated tokens and the public theme stylesheet export.
 The package verifier proves source/built CSS byte identity, the side-effect-free
-JavaScript boundary, the built/packed autocomplete runtime, and exact dry-run
-npm inclusion of one `dist/styles.css`.
+JavaScript boundary, the built/packed behavior modules (including autocomplete,
+expansion, and progress spinner), and exact dry-run npm inclusion of one
+`dist/styles.css`.
 
 `yarn nx run @epa-wg/cem-components:test` runs the Node unit test plus Chromium-backed component harness coverage.
 
@@ -143,16 +154,19 @@ npm inclusion of one `dist/styles.css`.
 | Content hover/focus forced-colors gate | `scripts/verify-content-hover-forced-colors.mjs` |
 | Divider forced-colors gate | `scripts/verify-divider-forced-colors.mjs` |
 | Expansion forced-colors gate | `scripts/verify-expansion-forced-colors.mjs` |
+| Progress-spinner forced-colors/reduced-motion gate | `scripts/verify-progress-spinner-forced-colors.mjs` |
 | Package publication gate | `scripts/verify-package.mjs` |
 | Stylesheet copy | `scripts/copy-styles.mjs` |
 | Primitive browser coverage | `src/lib/primitives.browser.spec.ts` |
 | Autocomplete browser coverage | `src/lib/autocomplete.browser.spec.ts` |
 | Expansion browser coverage | `src/lib/expansion.browser.spec.ts` |
+| Progress-spinner browser coverage | `src/lib/progress-spinner.browser.spec.ts` |
 | State and ARIA coverage | `src/lib/states.browser.spec.ts` |
 | Workflow browser coverage | `src/lib/workflows.browser.spec.ts` |
 | Workflow fixtures | `tests/workflows/` |
 | Autocomplete contract fixture | `tests/autocomplete/contract.html` |
 | Expansion contract fixture | `tests/expansion/contract.html` |
+| Progress-spinner contract fixture | `tests/progress-spinner/contract.html` |
 | Package examples | `examples/` |
 
 ## Handoff Condition
@@ -199,6 +213,8 @@ Known deferrals stay outside this trigger:
   and forced-colors behavior.
 - [Expansion contract](./docs/expansion-contract.md) — independent disclosure ownership, live state, native events,
   ARIA references, token audit, focused fixture, and forced-colors boundary.
+- [Progress spinner contract](./docs/progress-spinner-contract.md) — circular mode/value semantics, stable SVG
+  geometry, D0/D2c/D7 token audit, reduced motion, forced colors, and event-neutral fixture matrix.
 - [Autocomplete contract](./docs/autocomplete-contract.md) — accepted editable-combobox owner, form/events,
   keyboard/accessibility, token audit, focused fixture, forced-colors boundary, and assertion matrix.
 - [Conventions](./docs/conventions.md) — naming, attributes, events, form participation, validation, loading states,

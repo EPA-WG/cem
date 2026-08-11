@@ -11,10 +11,10 @@
     },
     "recommendedAudit": null,
     "implementationPriority": {
-        "id": "expansion",
+        "id": "progress-spinner",
         "acceptedAt": "2026-08-10",
         "completedAt": "2026-08-10",
-        "contract": "packages/cem-components/docs/expansion-contract.md",
+        "contract": "packages/cem-components/docs/progress-spinner-contract.md",
         "state": "completed",
         "targetStatus": "covered"
     },
@@ -316,15 +316,15 @@
         {
             "id": "progress-spinner",
             "name": "Progress Spinner",
-            "status": "gap",
+            "status": "covered",
             "mapping": {
-                "kind": "gap",
-                "owners": [],
-                "states": ["default", "determinate", "indeterminate"],
-                "keyboard": ["No keyboard interaction is required for a read-only spinner."],
-                "accessibility": ["Expose a labeled progressbar with determinate value semantics or an indeterminate busy announcement."],
-                "evidence": [],
-                "notes": "cem-progress is a linear native progress bar. No circular spinner owner or circular determinate/indeterminate rendering contract exists."
+                "kind": "component",
+                "owners": ["cem-progress-spinner"],
+                "states": ["default", "determinate", "indeterminate", "reduced-motion", "forced-colors"],
+                "keyboard": ["The read-only spinner has no tab stop or keyboard interaction; focus skips it and remains on surrounding authored controls."],
+                "accessibility": ["Expose one labeled progressbar; determinate mode publishes normalized min/max/now values, indeterminate mode omits aria-valuenow, and the circular SVG is hidden from assistive technology."],
+                "evidence": ["packages/cem-components/src/lib/progress-spinner.browser.spec.ts::renders exact circular determinate and indeterminate progress semantics", "packages/cem-components/src/lib/progress-spinner.browser.spec.ts::normalizes invalid and out-of-range values without rewriting author attributes", "packages/cem-components/src/lib/progress-spinner.browser.spec.ts::reuses the SVG owner across live value, range, and mode changes with stable geometry", "packages/cem-components/src/lib/progress-spinner.browser.spec.ts::binds D0/D2c/D7 tokens while pointer and keyboard input stay event- and state-neutral", "packages/cem-components/scripts/verify-progress-spinner-forced-colors.mjs", "packages/cem-components/scripts/verify-package.mjs", "packages/cem-components/docs/progress-spinner-contract.md"],
+                "notes": "cem-progress-spinner owns circular determinate/indeterminate progress without changing the linear cem-progress owner. Value presence selects mode, numeric semantics are normalized without rewriting author input, the SVG owner remains stable, automatic indeterminate motion stops under reduced motion, and generated D0/D2c/D7 tokens cover normal and forced colors. It intentionally does not reproduce Angular directives, dependency-injection defaults, or public per-instance diameter, stroke-width, palette, and animation APIs."
             }
         },
         {

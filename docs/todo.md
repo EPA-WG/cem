@@ -224,6 +224,29 @@ mediate between internal layers.
           9 covered, 19 partial, and 9 gaps; the state matrix remains fully green
           at 39/39 requirements and the aggregate passes all 72 browser/Node
           tests plus the expansion forced-colors gate.
+    - [x] Select, contract, and implement `progress-spinner` as the next audited
+          parity gap without treating linear `cem-progress` as circular progress.
+      - [x] Canonicalize the pre-CSS token audit: D0 owns progress track/indicator
+            color, D2c owns circular size/track thickness, and D7 owns a continuous
+            cycle plus the rule that reduced motion stops repetition.
+      - [x] Add declarative `tests/progress-spinner/contract.html` coverage for
+            determinate/indeterminate semantics, numeric normalization, live
+            attribute changes, exact ARIA, keyboard skipping, event neutrality,
+            stable SVG/geometry, token paint, and reduced motion.
+      - [x] Add the public non-interactive `cem-progress-spinner` behavior and
+            token-only CSS without adding mode, size, color, disabled, selected,
+            current, hover, active, or focus ownership.
+      - [x] Add and aggregate a dedicated progress-spinner forced-colors gate
+            proving the `GrayText`/`Highlight` pair, stable D2c geometry,
+            automatic color adjustment, and unchanged value semantics.
+      - [x] Promote the component reference, state matrix, package verification,
+            and Angular Material inventory only after every spinner contract
+            assertion passes; do not add a CSS exception because all values have
+            canonical theme categories.
+        - The public inventory now has 38 primitives. Angular Material parity is
+          10 covered, 19 partial, and 8 gaps; the state matrix is fully green at
+          40/40 requirements, and the aggregate passes all 76 browser/Node tests
+          plus the progress-spinner forced-colors/reduced-motion gate.
 
 ### Immediate: CSS Selector Query Schema and Unified CLI Query Execution
 

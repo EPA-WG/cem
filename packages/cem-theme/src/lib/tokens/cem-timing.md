@@ -2,7 +2,7 @@
 
 **Status:** Canonical (v1.0)
 
-**Last updated:** December 21, 2025
+**Last updated:** August 10, 2026
 
 **Audience:** Design Systems, Product Design, Front-End Engineering
 
@@ -50,6 +50,7 @@ CEM duration names reflect how users perceive timing:
 - **instant** — “blink; do not interrupt”
 - **noticeable** — “registerable, but not slow”
 - **lingering** — “large change; allow the user to track it”
+- **continuous-cycle** — “steady repeated status motion; not a one-shot response”
 
 Easing names reflect intent:
 
@@ -72,11 +73,14 @@ Easing names reflect intent:
 | `--cem-duration-lingering` | `300ms` | Large change; allow user to track | required |
 | `--cem-duration-action` | `var(--cem-duration-noticeable)` | Default for interactive state changes | recommended |
 | `--cem-duration-overlay` | `var(--cem-duration-lingering)` | Default for overlay entry/exit | recommended |
+| `--cem-duration-continuous-cycle` | `1000ms` | One neutral cycle of repeated status motion, such as indeterminate progress | recommended |
 
 Normative rules:
 
 - Ordering MUST remain: `instant < noticeable < lingering`.
 - Reduced-motion modes may shorten durations (including to `0ms`), but MUST preserve relative ordering.
+- `continuous-cycle` is outside the one-shot ordering scale. A component that repeats it automatically MUST stop the
+  repetition under `prefers-reduced-motion: reduce` rather than shortening the cycle.
 
 ### 4.2 Easing tokens (required)
 
@@ -130,6 +134,8 @@ Normative rules (if springs are implemented):
 When `prefers-reduced-motion: reduce` is active, duration tokens are overridden to dramatically shorter values
 while preserving their relative ordering (`instant < noticeable < lingering`). Alias tokens (`--cem-duration-action`,
 `--cem-duration-overlay`) inherit automatically via `var()` and need no explicit override. Easing tokens are unaffected.
+`--cem-duration-continuous-cycle` is intentionally not shortened: consumers must remove automatic repetition and
+retain a static status graphic under reduced motion.
 
 ###### cem-timing-reduced-motion
 | Token | reduced-motion value | Description |
@@ -145,6 +151,8 @@ while preserving their relative ordering (`instant < noticeable < lingering`). A
 - Use **instant** for micro-interactions that must not interrupt flow (e.g., tiny state toggles).
 - Use **noticeable** for most component transitions (expand/collapse, standard page UI changes).
 - Use **lingering** for overlays and large spatial changes where users must track context.
+- Use **continuous-cycle** only for repeated status motion. Always pair it with an explicit reduced-motion rule that
+  stops the repetition without hiding the status.
 
 Easing selection:
 
@@ -181,7 +189,7 @@ from these tables using the same XPath pattern as `cem-timing.html`.
 
 | Source table h6 id | Tokens covered | Validator derivation |
 |---|---|---|
-| `cem-timing-durations` | `--cem-duration-*` (5 tokens: 3 required + 2 recommended aliases) | one token per row |
+| `cem-timing-durations` | `--cem-duration-*` (6 tokens: 3 required + 3 recommended semantic endpoints) | one token per row |
 | `cem-timing-easings` | `--cem-easing-*` (8 tokens: all required) | one token per row |
 
 Reduced-motion overrides (`cem-timing-reduced-motion`) produce no new token names — they override core duration

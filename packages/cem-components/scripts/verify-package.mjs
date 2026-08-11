@@ -13,6 +13,7 @@ const sourcePrimitivesPath = join(packageRoot, 'src', 'lib', 'primitives.ts');
 const builtPrimitivesPath = join(packageRoot, 'dist', 'lib', 'primitives.js');
 const builtAutocompleteBehaviorPath = join(packageRoot, 'dist', 'lib', 'autocomplete-behavior.js');
 const builtExpansionBehaviorPath = join(packageRoot, 'dist', 'lib', 'expansion-behavior.js');
+const builtProgressSpinnerBehaviorPath = join(packageRoot, 'dist', 'lib', 'progress-spinner-behavior.js');
 const sourceEntries = [join(packageRoot, 'src', 'index.ts'), join(packageRoot, 'src', 'lib', 'cem-components.ts')];
 const builtEntries = [join(packageRoot, 'dist', 'index.js'), join(packageRoot, 'dist', 'lib', 'cem-components.js')];
 const forbiddenJavaScriptPatterns = [
@@ -55,12 +56,24 @@ if (!builtPrimitives.includes("tag: 'cem-expansion'")) {
     throw new Error('built primitive inventory must contain cem-expansion');
 }
 
+if (!sourcePrimitives.includes("tag: 'cem-progress-spinner'")) {
+    throw new Error('source primitive inventory must contain cem-progress-spinner');
+}
+
+if (!builtPrimitives.includes("tag: 'cem-progress-spinner'")) {
+    throw new Error('built primitive inventory must contain cem-progress-spinner');
+}
+
 if (!existsSync(builtAutocompleteBehaviorPath)) {
     throw new Error('built package must contain the autocomplete behavior artifact');
 }
 
 if (!existsSync(builtExpansionBehaviorPath)) {
     throw new Error('built package must contain the expansion behavior artifact');
+}
+
+if (!existsSync(builtProgressSpinnerBehaviorPath)) {
+    throw new Error('built package must contain the progress-spinner behavior artifact');
 }
 
 if (existsSync(join(packageRoot, 'styles.css'))) {
@@ -122,6 +135,7 @@ try {
     for (const artifact of [
         'dist/lib/autocomplete-behavior.js',
         'dist/lib/expansion-behavior.js',
+        'dist/lib/progress-spinner-behavior.js',
         'dist/lib/primitives.js',
     ]) {
         if (!packedFiles.includes(artifact)) {
@@ -136,7 +150,7 @@ try {
     }
 
     console.log(
-        `cem-components package verified (${packedFiles.length} packed files, autocomplete, divider, and expansion owners included, ` +
+        `cem-components package verified (${packedFiles.length} packed files, autocomplete, divider, expansion, and progress-spinner owners included, ` +
             'one dist/styles.css, zero source/root copies).',
     );
 } finally {

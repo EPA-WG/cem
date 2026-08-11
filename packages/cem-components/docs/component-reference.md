@@ -228,10 +228,19 @@ during refresh or provide visible loading text plus layout-preserving
 | `cem-sheet` | Static non-modal task surface by default; application-controlled visible/hidden region with `transient`. | `label` names the region; default slot is body. In transient mode, presence-only `expanded` removes `hidden`. | palette, stroke, bend, gap, inset | Always remains a labeled `<aside role="region">`. It does not trap or move focus, intercept Escape, make the document inert, or dispatch dialog dismissal. |
 | `cem-toast` | Transient status message. | Default slot is message text. | palette, action, stroke, gap, typography | Renders polite `role="status"` live region. |
 | `cem-progress` | Determinate or indeterminate progress. | `value`, `max`, and `label`. | palette, action, control, typography | Native progress must have an accessible name. |
+| `cem-progress-spinner` | Non-interactive circular determinate or indeterminate progress. | `label` names the progressbar; presence of `value` selects determinate mode, absence selects indeterminate mode; `max` defaults to 100; `describedby` may reference task context. | progress, timing | Exposes normalized range values only when determinate, hides its SVG from assistive technology, has no tab stop or live region, and stops automatic rotation under reduced motion. |
 | `cem-skeleton` | Loading placeholder. | `label` describes placeholder for author/debug context. | palette, control, bend | Rendered placeholder is `aria-hidden`; pair with visible status when needed. |
 | `cem-alert` | Inline feedback. | `tone` controls visual severity; `role` defaults to `status`. | palette, action, stroke, gap, typography | Use `role="alert"` for urgent warnings/errors only. |
 
-States: `default`, `focus-visible`, `loading`, `expanded`, `invalid`.
+States: `default`, `focus-visible`, `loading`, `expanded`, `invalid`, `indeterminate`.
+
+`cem-progress-spinner` is the distinct circular owner; linear `cem-progress`
+does not change shape to satisfy it. Missing `value` means indeterminate, and
+live `value`/`max` changes retain the same SVG and geometry. D0 progress colors,
+D2c progress geometry, and D7 cycle/easing tokens cover its stylesheet. Forced
+colors use `GrayText` for the remaining track and `Highlight` for the indicator;
+reduced motion leaves a static incomplete arc. See the
+[progress spinner contract](./progress-spinner-contract.md).
 
 The transient feedback lifecycle is defined by the
 [feedback expanded contract](./feedback-expanded-contract.md). The separate

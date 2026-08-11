@@ -182,6 +182,24 @@
             ],
             "outputs": []
         },
+        "verify-progress-spinner-forced-colors": {
+            "cache": true,
+            "executor": "nx:run-commands",
+            "dependsOn": [{ "projects": ["@epa-wg/cem-theme"], "target": "build:tokens" }],
+            "options": {
+                "command": "node scripts/verify-progress-spinner-forced-colors.mjs",
+                "cwd": "{projectRoot}"
+            },
+            "inputs": [
+                "{projectRoot}/scripts/verify-progress-spinner-forced-colors.mjs",
+                "{projectRoot}/src/styles.css",
+                {
+                    "dependentTasksOutputFiles": "**/*.css",
+                    "transitive": false
+                }
+            ],
+            "outputs": []
+        },
         "verify-feedback-focus-forced-colors": {
             "cache": true,
             "executor": "nx:run-commands",
@@ -265,6 +283,7 @@
                 "verify-content-hover-forced-colors",
                 "verify-divider-forced-colors",
                 "verify-expansion-forced-colors",
+                "verify-progress-spinner-forced-colors",
                 "verify-feedback-focus-forced-colors",
                 "verify-workflows",
                 "verify-state-matrix",

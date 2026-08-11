@@ -86,6 +86,7 @@ attributes consistent with reflected state.
 | `checked` | A `cem-chip[checkable]` native toggle button MUST expose the current boolean state through `aria-pressed`; passive chips do not expose pressed state. |
 | `aria-current` | Required on the active nav item; value `"page"` or `"step"` per WHATWG/ARIA. |
 | `role="separator"` / `aria-orientation` | `cem-divider` exposes both for meaningful horizontal or vertical separation. `cem-divider[decorative]` removes both and sets `aria-hidden="true"`; neither form is focusable. |
+| `role="progressbar"` / `aria-valuenow` | `cem-progress-spinner` always exposes a labeled read-only progressbar. Determinate mode exposes normalized min/max/now; indeterminate mode omits `aria-valuenow`. Its SVG is hidden and non-focusable. |
 
 The catalog enforces presence; runtime enforces *timing* — the attribute MUST
 update in the same task that the state changes, not in a deferred callback.
@@ -230,6 +231,9 @@ Rules:
   `aria-live` region. Its visible authored loading text and `aria-busy` property
   expose the waiting state. A workflow that requires a separate announcement
   may author a dedicated non-interactive status node outside the busy subtree.
+- `cem-progress-spinner` is not a live region and does not set `aria-busy` on
+  itself or another region. Applications put `aria-busy="true"` on the affected
+  region, keep the spinner's label meaningful, and remove both when work settles.
 - A live region's text content MUST NOT include the accessible name of the
   triggering component (avoid duplicate announcements).
 - Live region updates MUST be debounced so a burst of updates within 250 ms
@@ -245,6 +249,9 @@ For components that embed SVG (icons, illustrations, charts):
   name as the first child, optionally followed by `<desc>`.
 - Focusable SVGs are forbidden in the primitive set; charts that require focus
   promote a wrapping `cem-` component to own the focus and ARIA semantics.
+- `cem-progress-spinner` follows the decorative-SVG branch: its wrapping
+  progressbar owns the accessible name and value, while the two-circle SVG is
+  `aria-hidden="true"` and `focusable="false"`.
 
 The catalog's SVG-in-HTML accessibility rules (Phase 2) enforce these statically
 on rendered output.
