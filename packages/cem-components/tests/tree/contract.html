@@ -1,0 +1,58 @@
+<section class="cem-theme-light" data-tree-contract-fixture aria-label="Tree contract fixture">
+<button type="button" data-tree-focus-start>Before tree</button>
+
+<cem-tree
+    id="project-tree"
+    label="Project files"
+    selection="single"
+    selected-values="readme web"
+    expanded-values="apps source async"
+    loading-label="Loading children"
+>
+    <cem-tree-item value="apps" label="Applications">
+        <cem-tree-item value="web" label="Web application"></cem-tree-item>
+        <cem-tree-item value="api" label="API service" disabled></cem-tree-item>
+    </cem-tree-item>
+    <cem-tree-item value="source" label="Source">
+        <cem-tree-item value="components" label="Components">
+            <cem-tree-item value="button" label="Button"></cem-tree-item>
+        </cem-tree-item>
+        <cem-tree-item value="async" label="Async resources" expandable loading></cem-tree-item>
+    </cem-tree-item>
+    <cem-tree-item value="readme" label="README"></cem-tree-item>
+    <cem-tree-item value="archived" label="Archived" disabled>
+        <cem-tree-item value="old" label="Old release"></cem-tree-item>
+    </cem-tree-item>
+</cem-tree>
+
+<cem-tree
+    id="multi-tree"
+    label="Multiple selection"
+    selection="multiple"
+    selected-values="alpha gamma"
+    expanded-values="alpha"
+>
+    <cem-tree-item value="alpha" label="Alpha">
+        <cem-tree-item value="beta" label="Beta"></cem-tree-item>
+    </cem-tree-item>
+    <cem-tree-item value="gamma" label="Gamma"></cem-tree-item>
+</cem-tree>
+
+<cem-tree id="plain-tree" label="Unselectable hierarchy">
+    <cem-tree-item value="plain" label="Plain item"></cem-tree-item>
+</cem-tree>
+
+<cem-tree id="disabled-tree" label="Disabled hierarchy" disabled expanded-values="locked">
+    <cem-tree-item value="locked" label="Locked branch">
+        <cem-tree-item value="locked-child" label="Locked child"></cem-tree-item>
+    </cem-tree-item>
+</cem-tree>
+
+<cem-tree id="malformed-tree" label="Malformed hierarchy">
+    <cem-tree-item value="duplicate" label="First">
+        <cem-tree-item value="duplicate" label="Duplicate"></cem-tree-item>
+    </cem-tree-item>
+</cem-tree>
+
+<button type="button" data-tree-focus-end>After tree</button>
+</section>

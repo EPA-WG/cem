@@ -2,10 +2,11 @@
 
 **Status:** All pinned product mappings are audited. The accepted `autocomplete`,
 `divider`, `expansion`, `progress-spinner`, `sort`, `paginator`, `slider`,
-`tooltip`, `timepicker`, and `stepper` priorities are covered, and the bounded
+`tooltip`, `timepicker`, `stepper`, and `tree` priorities are covered, and the bounded
 single-date `datepicker` priority is completed as a partial catalog mapping;
-selecting another implementation gap is a separate product decision tracked in
-[`docs/todo.md`](../../../docs/todo.md).
+the pinned catalog now has no implementation gaps. Choosing whether to deepen a
+partial mapping or advance a different roadmap program is a separate product
+decision tracked in [`docs/todo.md`](../../../docs/todo.md).
 
 ## Benchmark
 
@@ -73,14 +74,16 @@ substituted for the missing component.
 
 | Classification | Count | Catalog entries |
 | --- | ---: | --- |
-| Covered | 16 | autocomplete, card, checkbox, dialog, divider, expansion, input, paginator, progress-spinner, select, slide-toggle, slider, sort, stepper, timepicker, tooltip |
+| Covered | 17 | autocomplete, card, checkbox, dialog, divider, expansion, input, paginator, progress-spinner, select, slide-toggle, slider, sort, stepper, timepicker, tooltip, tree |
 | Partial | 20 | badge, bottom-sheet, button, button-toggle, chips, core, datepicker, form-field, grid-list, icon, list, menu, progress-bar, radio, ripple, sidenav, snack-bar, table, tabs, toolbar |
-| Gap | 1 | tree |
+| Gap | 0 | — |
 
 Each row in the executable inventory explains its boundary. In particular,
 `cem-grid` is not treated as a grid-list, `cem-tabs` is not treated as a stepper,
 `cem-progress` is not treated as a circular spinner, and navigation-specific
-disclosure is not treated as a general expansion panel.
+disclosure is not treated as a general expansion panel. The generic tree keeps
+application data, loading, navigation, and optional selection mutation outside
+its hierarchy/focus/expansion owner.
 
 ## Completed implementation priorities
 
@@ -199,6 +202,17 @@ workflow marker/connector semantics because a process path is neither a sibling
 divider nor numeric progress. Normal and forced colors pass without a component
 CSS exception or animation.
 
+`tree` closes the final pinned gap without turning `cem-nav`, `cem-list`, or
+application data into a hierarchy controller. The [tree contract](./tree-contract.md)
+assigns one labeled `cem-tree`, strict recursive inert `cem-tree-item` payloads,
+stable semantic node/group IDs, exact native treeitem buttons, explicit hierarchy
+metadata, component-owned expansion and roving focus, optional application-owned
+selection, application-owned loading, and separate serializable parent-toggle and
+leaf-activation events. The pre-CSS audit completed the generic D0
+content-interaction active and selected-active pairs; D1/D2/D3/D5/D6 already own
+layout, target, shape, focus, and type. Normal and forced colors pass with stable
+geometry, redundant state shapes, no animation, and no component CSS exception.
+
 Run the invariant with:
 
 ```bash
@@ -206,6 +220,7 @@ yarn nx run @epa-wg/cem-components:verify-material-parity
 ```
 
 The gate verifies the exact 37-entry pin, every audited mapping, and completion
-of the accepted implementation priority. It reports sixteen covered rows,
-twenty partial rows, one gap, no remaining audit, and no next
-implementation until a new gap is deliberately selected and contracted.
+of the accepted implementation priority. It reports seventeen covered rows,
+twenty partial rows, zero gaps, no remaining audit, and a complete pinned gap
+program. Any next parity work requires a deliberate choice among the documented
+partial mappings rather than an implied missing-owner sequence.

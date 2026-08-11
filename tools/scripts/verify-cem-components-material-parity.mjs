@@ -61,10 +61,10 @@ const EXPECTED_CATALOG = [
 const ALLOWED_STATUSES = new Set(['unreviewed', 'gap', 'partial', 'covered']);
 const ALLOWED_MAPPING_KINDS = new Set(['component', 'behavior', 'gap']);
 const EXPECTED_IMPLEMENTATION_PRIORITY = {
-    id: 'stepper',
+    id: 'tree',
     acceptedAt: '2026-08-11',
     completedAt: '2026-08-11',
-    contract: 'packages/cem-components/docs/stepper-contract.md',
+    contract: 'packages/cem-components/docs/tree-contract.md',
     state: 'completed',
     targetStatus: 'covered',
 };
@@ -129,7 +129,7 @@ console.log(
     `cem-components Angular Material parity inventory verified (${records.length} entries pinned to ` +
         `${inventory.benchmark.tag}: ${counts.covered} covered, ${counts.partial} partial, ${counts.gap} gaps, ` +
         `${counts.unreviewed} unreviewed; next audit: ${inventory.recommendedAudit ?? 'none'}; next implementation: ` +
-        `${inventory.implementationPriority.state === 'completed' ? 'none (selection required)' : inventory.implementationPriority.id}).`,
+        `${inventory.implementationPriority.state === 'completed' ? 'none (gap program complete)' : inventory.implementationPriority.id}).`,
 );
 
 function validateImplementationPriority(priority) {
@@ -153,9 +153,9 @@ function validateImplementationPriority(priority) {
     }
     const contractSource = readFileSync(contractPath, 'utf8');
     for (const heading of [
-        '# Stepper Contract',
+        '# Tree Contract',
         '## Owner and author vocabulary',
-        '## Selection, interaction, and event contract',
+        '## Expansion, activation, and event contract',
         '## Accessibility contract',
         '## Theme-token audit',
         '## Forced-colors boundary',

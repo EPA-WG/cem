@@ -343,6 +343,120 @@ cem-stepper > .cem-stepper > .cem-stepper__panels > .cem-stepper__panel {
     padding: var(--cem-inset-container);
 }
 
+cem-tree {
+    display: block;
+}
+
+cem-tree > .cem-tree {
+    background-color: var(--cem-palette-comfort);
+    color: var(--cem-palette-comfort-text);
+    display: grid;
+    font-family: var(--cem-typography-ui-font-family);
+    font-size: var(--cem-typography-ui-font-size);
+    gap: var(--cem-gap-related);
+    line-height: var(--cem-typography-ui-line-height);
+}
+
+cem-tree .cem-tree__item,
+cem-tree .cem-tree__group {
+    display: grid;
+    gap: var(--cem-gap-related);
+}
+
+cem-tree .cem-tree__group {
+    margin-inline-start: var(--cem-control-padding-x);
+}
+
+cem-tree .cem-tree__group[hidden] {
+    display: none;
+}
+
+cem-tree .cem-tree__node {
+    appearance: none;
+    background-color: var(--cem-content-interaction-default-background);
+    border: var(--cem-stroke-boundary) solid transparent;
+    border-radius: var(--cem-bend-control);
+    box-sizing: border-box;
+    color: var(--cem-content-interaction-default-text);
+    display: grid;
+    font: inherit;
+    font-weight: var(--cem-typography-ui-font-weight);
+    gap: var(--cem-gap-related);
+    grid-template-areas: 'marker label selection' 'marker status selection';
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    inline-size: 100%;
+    letter-spacing: var(--cem-typography-ui-letter-spacing);
+    margin: var(--cem-stroke-none);
+    min-block-size: var(--cem-coupling-zone-min);
+    padding-block: var(--cem-control-padding-y);
+    padding-inline: var(--cem-control-padding-x);
+    text-align: start;
+}
+
+cem-tree .cem-tree__node:not([aria-disabled='true']):hover {
+    background-color: var(--cem-content-interaction-hover-background);
+    color: var(--cem-content-interaction-hover-text);
+}
+
+cem-tree .cem-tree__node:not([aria-disabled='true']):active {
+    background-color: var(--cem-content-interaction-active-background);
+    color: var(--cem-content-interaction-active-text);
+}
+
+cem-tree .cem-tree__node[aria-selected='true'] {
+    background-color: var(--cem-content-interaction-selected-background);
+    color: var(--cem-content-interaction-selected-text);
+}
+
+cem-tree .cem-tree__node[aria-selected='true']:not([aria-disabled='true']):hover {
+    background-color: var(--cem-content-interaction-selected-hover-background);
+    color: var(--cem-content-interaction-selected-hover-text);
+}
+
+cem-tree .cem-tree__node[aria-selected='true']:not([aria-disabled='true']):active {
+    background-color: var(--cem-content-interaction-selected-active-background);
+    color: var(--cem-content-interaction-selected-active-text);
+}
+
+cem-tree .cem-tree__node[aria-disabled='true'] {
+    background-color: var(--cem-content-interaction-disabled-background);
+    color: var(--cem-content-interaction-disabled-text);
+}
+
+cem-tree .cem-tree__node:not([aria-disabled='true']):focus-visible {
+    outline: var(--cem-stroke-focus) solid var(--cem-zebra-color-1);
+    outline-offset: var(--cem-stroke-indicator-offset);
+}
+
+cem-tree .cem-tree__marker {
+    align-items: center;
+    align-self: center;
+    block-size: var(--cem-icon-button-icon-size);
+    display: inline-flex;
+    grid-area: marker;
+    inline-size: var(--cem-icon-button-icon-size);
+    justify-content: center;
+}
+
+cem-tree .cem-tree__label {
+    align-self: end;
+    grid-area: label;
+}
+
+cem-tree .cem-tree__selection {
+    align-self: center;
+    grid-area: selection;
+}
+
+cem-tree .cem-tree__status {
+    font-family: var(--cem-typography-tag-font-family);
+    font-size: var(--cem-typography-tag-font-size);
+    font-weight: var(--cem-typography-tag-font-weight);
+    grid-area: status;
+    letter-spacing: var(--cem-typography-tag-letter-spacing);
+    line-height: var(--cem-typography-tag-line-height);
+}
+
 cem-divider {
     --_cem-divider-space: var(--cem-gap-group);
     display: block;
@@ -1943,6 +2057,44 @@ cem-select .cem-select__option[aria-disabled='true'] {
         > .cem-stepper__steps
         > .cem-stepper__item[data-completed='true']:not(:last-child)::after {
         background-color: Highlight;
+    }
+
+    cem-tree > .cem-tree {
+        background-color: Canvas;
+        color: CanvasText;
+    }
+
+    cem-tree .cem-tree__node {
+        background-color: ButtonFace;
+        border-color: ButtonText;
+        color: ButtonText;
+    }
+
+    cem-tree .cem-tree__node[aria-selected='true'] {
+        background-color: SelectedItem;
+        border-color: SelectedItemText;
+        color: SelectedItemText;
+    }
+
+    cem-tree .cem-tree__node:not([aria-disabled='true']):hover,
+    cem-tree .cem-tree__node:not([aria-disabled='true']):active,
+    cem-tree .cem-tree__node[aria-selected='true']:not([aria-disabled='true']):hover,
+    cem-tree .cem-tree__node[aria-selected='true']:not([aria-disabled='true']):active {
+        background-color: Highlight;
+        border-color: HighlightText;
+        color: HighlightText;
+    }
+
+    cem-tree .cem-tree__node[aria-disabled='true'],
+    cem-tree .cem-tree__node[aria-selected='true'][aria-disabled='true'] {
+        background-color: ButtonFace;
+        border-color: GrayText;
+        color: GrayText;
+    }
+
+    cem-tree .cem-tree__node:not([aria-disabled='true']):focus-visible {
+        outline: var(--cem-stroke-focus) solid CanvasText;
+        outline-offset: var(--cem-stroke-indicator-offset);
     }
 
     cem-field input,

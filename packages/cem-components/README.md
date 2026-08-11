@@ -32,7 +32,7 @@ This registers the minimal primitive tags: `cem-action`, `cem-icon-button`, `cem
 `cem-text-field`, `cem-textarea`, `cem-autocomplete`, `cem-timepicker`, `cem-datepicker`, `cem-select`, `cem-option`, `cem-option-group`, `cem-checkbox`,
 `cem-radio`, `cem-switch`, `cem-slider`, `cem-surface`, `cem-text`,
 `cem-icon`, `cem-stack`, `cem-grid`, `cem-divider`, `cem-list`, `cem-card`, `cem-expansion`, `cem-table`, `cem-sort-header`, `cem-chip`, `cem-badge`, `cem-avatar`,
-`cem-media-preview`, `cem-app-bar`, `cem-nav`, `cem-tabs`, `cem-stepper`, `cem-step`, `cem-paginator`, `cem-tooltip`, `cem-dialog`, `cem-dialog-shell`, `cem-sheet`,
+`cem-media-preview`, `cem-tree`, `cem-tree-item`, `cem-app-bar`, `cem-nav`, `cem-tabs`, `cem-stepper`, `cem-step`, `cem-paginator`, `cem-tooltip`, `cem-dialog`, `cem-dialog-shell`, `cem-sheet`,
 `cem-toast`, `cem-progress`, `cem-progress-spinner`, `cem-skeleton`, and `cem-alert`.
 
 ## Stylesheet install
@@ -104,6 +104,16 @@ suppression are covered without scanning panel controls. Header interaction uses
 navigation state tokens; canonical workflow status/connector endpoints keep
 completion and error independent in normal and forced colors. No CSS exception
 or component animation is required.
+
+`cem-tree` is a generic expandable hierarchy rather than navigation or an
+application data source. Strict recursive `cem-tree-item` payloads are inert;
+the tree generates exact native button treeitems, stable owned groups, explicit
+hierarchy metadata, roving visible-node focus, typeahead, and component-owned
+expansion. Loading and optional selection remain application-authored, while
+parent toggles and leaf activations emit separate serializable events. Generic
+content-interaction tokens cover exact-owner normal states and system colors
+cover forced colors without wrapper paint, component animation, or a CSS
+exception.
 
 `cem-divider` owns a semantic or decorative separator track rather than a bare line. The D0 separator color is
 derived from surface text at reduced salience, D5 supplies the hairline, D1 supplies relationship spacing and inset,
@@ -182,6 +192,7 @@ yarn nx run @epa-wg/cem-components:verify-tooltip-forced-colors
 yarn nx run @epa-wg/cem-components:verify-timepicker-forced-colors
 yarn nx run @epa-wg/cem-components:verify-datepicker-forced-colors
 yarn nx run @epa-wg/cem-components:verify-stepper-forced-colors
+yarn nx run @epa-wg/cem-components:verify-tree-forced-colors
 yarn nx run @epa-wg/cem-components:verify-package
 yarn nx run @epa-wg/cem-components:test
 yarn nx run @epa-wg/cem-components:build
@@ -204,7 +215,7 @@ generated tokens and the public theme stylesheet export.
 The package verifier proves source/built CSS byte identity, the side-effect-free
 JavaScript boundary, the built/packed behavior modules (including autocomplete,
 expansion, progress spinner, sort header, paginator, slider, tooltip, timepicker,
-datepicker, and stepper), and exact dry-run npm inclusion of one `dist/styles.css`.
+datepicker, stepper, and tree), and exact dry-run npm inclusion of one `dist/styles.css`.
 
 `yarn nx run @epa-wg/cem-components:test` runs the Node unit test plus Chromium-backed component harness coverage.
 
@@ -232,6 +243,7 @@ datepicker, and stepper), and exact dry-run npm inclusion of one `dist/styles.cs
 | Timepicker forced-colors gate | `scripts/verify-timepicker-forced-colors.mjs` |
 | Datepicker forced-colors gate | `scripts/verify-datepicker-forced-colors.mjs` |
 | Stepper forced-colors gate | `scripts/verify-stepper-forced-colors.mjs` |
+| Tree forced-colors gate | `scripts/verify-tree-forced-colors.mjs` |
 | Package publication gate | `scripts/verify-package.mjs` |
 | Stylesheet copy | `scripts/copy-styles.mjs` |
 | Primitive browser coverage | `src/lib/primitives.browser.spec.ts` |
@@ -243,6 +255,8 @@ datepicker, and stepper), and exact dry-run npm inclusion of one `dist/styles.cs
 | Slider browser coverage | `src/lib/slider.browser.spec.ts` |
 | Stepper browser coverage | `src/lib/stepper.browser.spec.ts` |
 | Stepper declarative contract fixture | `tests/stepper/contract.html` |
+| Tree browser coverage | `src/lib/tree.browser.spec.ts` |
+| Tree declarative contract fixture | `tests/tree/contract.html` |
 | Tooltip browser coverage | `src/lib/tooltip.browser.spec.ts` |
 | Timepicker browser coverage | `src/lib/timepicker.browser.spec.ts` |
 | Datepicker browser coverage | `src/lib/datepicker.browser.spec.ts` |
@@ -318,6 +332,8 @@ Known deferrals stay outside this trigger:
   localized modal calendar interaction, explicit confirmation, token audit, and top-layer forced-colors boundary.
 - [Stepper contract](./docs/stepper-contract.md) — inert step payloads, native workflow headers, persistent panels,
   linear/optional/editable rules, application-owned completion/validation, token audit, and forced-colors boundary.
+- [Tree contract](./docs/tree-contract.md) — inert recursive payloads, native treeitems, stable hierarchy IDs,
+  roving focus, application-owned selection/loading, token audit, and forced-colors boundary.
 - [Conventions](./docs/conventions.md) — naming, attributes, events, form participation, validation, loading states,
   progressive enhancement.
 - [Light-DOM rendering rules](./docs/light-dom-rendering.md) — `@epa-wg/custom-element` compatibility, no shadow DOM,

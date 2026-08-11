@@ -90,7 +90,7 @@ mediate between internal layers.
 
 ### Immediate: Angular Material Parity Baseline
 
-- [ ] Establish the versioned Angular Material-to-CEM parity program before
+- [x] Establish the versioned Angular Material-to-CEM parity program before
       broad component expansion or Studio UI implementation.
   - [x] Pin the current stable official Angular Material catalog, add one exact
         executable inventory row per catalog entry, distinguish it from the
@@ -141,7 +141,7 @@ mediate between internal layers.
       names autocomplete semantics. Implementation later accepted only the
       bounded non-semantic physical stacking exception `CEM-CSS-002` because D4
       deliberately has no numeric z-index category.
-  - [ ] Implement accepted parity rows one contract at a time, keeping the
+  - [x] Implement accepted parity rows one contract at a time, keeping the
         versioned inventory, public component documentation, and aggregate Nx
         gate current. Record a CSS exception only when no appropriate theme
         category can represent accepted styling.
@@ -482,6 +482,37 @@ mediate between internal layers.
           serializes browser files so pointer-owner assertions cannot compete for
           one browser pointer. Four canonical D0 workflow indicator/connector
           endpoints cover the new paint, so no component CSS exception was required.
+    - [x] Select, contract, and implement `tree` as the final audited parity gap
+          with one generic hierarchy owner and inert nested item payloads.
+      - [x] Freeze one labeled `cem-tree` owner, strict recursive `cem-tree-item`
+            vocabulary, unique token-safe values, application-authored loading and
+            optional selection, silent expanded/selected value control, and exact
+            serializable toggle/leaf-activation events.
+      - [x] Complete the existing D0 interactive-content family with active and
+            selected-active pairs before component CSS; reuse D1/D2/D3/D5/D6
+            endpoints for hierarchy layout, target size, shape, focus, and type.
+      - [x] Add a declarative `tests/tree/contract.html` fixture and focused browser
+            coverage for tree/treeitem/group ownership, explicit hierarchy metadata,
+            stable reciprocal ownership, pointer/native activation, roving visible
+            traversal, parent/child arrows, Home/End, typeahead, disabled skipping,
+            application-owned selection/loading, dynamic children, and zero
+            transient mutation.
+      - [x] Add token-only exact-owner CSS and a dedicated forced-colors gate for
+            default/hover/active/selected/selected-hover/selected-active/focus/
+            disabled/loading coexistence, stable geometry, and absent component
+            animation or numeric z-index.
+      - [x] Promote public docs, state/parity evidence, package verification, and
+            todo completion only after every tree gate passes; add a CSS exception
+            only if no Consumer Semantic Theme category represents required paint.
+        - The public inventory now has 48 primitives. Angular Material parity is
+          17 covered, 20 partial, 0 gaps, and 0 unreviewed; the state matrix remains
+          fully green at 40/40. The uncached serial aggregate ran the component
+          target plus all 33 dependent targets and passed 126/126 tests across 18
+          browser files, 445 generated visual tokens with 479/479 manifest coverage,
+          the 63-file package publication contract, and the dedicated tree
+          forced-colors gate. Four canonical D0 interactive-content active and
+          selected-active endpoints cover the new paint, so no component CSS
+          exception was required.
 
 ### Immediate: CSS Selector Query Schema and Unified CLI Query Execution
 

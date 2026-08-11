@@ -16,6 +16,7 @@ import { CEM_SORT_HEADER_BEHAVIOR } from './sort-header-behavior.js';
 import { CEM_STEPPER_BEHAVIOR } from './stepper-behavior.js';
 import { CEM_TIMEPICKER_BEHAVIOR } from './timepicker-behavior.js';
 import { CEM_TOOLTIP_BEHAVIOR } from './tooltip-behavior.js';
+import { CEM_TREE_BEHAVIOR } from './tree-behavior.js';
 
 export interface CemComponentPrimitiveDeclaration {
     readonly tag: string;
@@ -451,6 +452,37 @@ export const CEM_COMPONENT_PRIMITIVES = [
             '{figure @class=cem-media-preview @aria-label="{$label}" |' +
             ' {div @class=cem-media-preview__media | {slot | {$label}}}' +
             ' {figcaption @class=cem-media-preview__caption | {slot @name=caption | {$label}}}}',
+    },
+    {
+        tag: 'cem-tree',
+        description: 'Labeled generic expandable hierarchy with application-owned selection and loading.',
+        behavior: CEM_TREE_BEHAVIOR,
+        cemMl:
+            '{module |' +
+            ' {attribute @name=label | }' +
+            ' {slice @name=items}' +
+            ' {template @name=tree-item |' +
+            '  {param @name=item}' +
+            '  {body |' +
+            '   {div @class=cem-tree__item @role=none |' +
+            '    {button @id="{$item.id}" @type=button @class=cem-tree__node @role=treeitem @data-tree-value="{$item.value}" @data-expanded="{$item.expanded}" @data-selected="{$item.selected}" @data-loading="{$item.loading}" @tabindex="{$item.tabIndex}" @aria-label="{$item.label}" @aria-level="{$item.level}" @aria-posinset="{$item.position}" @aria-setsize="{$item.setSize}" @aria-expanded={if item.branch { item.expanded } else { null }} @aria-selected={if item.selectionEnabled { item.selected } else { null }} @aria-disabled={if item.disabled { true } else { null }} @aria-busy={if item.loading { true } else { null }} @aria-owns={if item.hasGroup { item.groupId } else { null }} |' +
+            '     {span @class=cem-tree__marker @aria-hidden=true | {$item.marker}}' +
+            '     {span @class=cem-tree__label | {$item.label}}' +
+            '     {cem:if @test=item.selectedMarker | {span @class=cem-tree__selection @aria-hidden=true | {$item.selectedMarker}}}' +
+            '     {span @class=cem-tree__status @hidden={if item.loading { null } else { true }} | {$item.loadingLabel}}}' +
+            '    {div @id="{$item.groupId}" @class=cem-tree__group @role={if item.hasGroup { "group" } else { null }} @hidden={if item.hasGroup && item.expanded { null } else { true }} |' +
+            '     {cem:for-each @select=item.children @as=child | {call @template=tree-item @with:item="{$child}"}}}}}}' +
+            ' {body |' +
+            '  {cem:choose |' +
+            '   {cem:when @test=datadom.slices.authoringValid |' +
+            '    {div @class=cem-tree @role=tree @aria-label="{$label}" @aria-multiselectable={if datadom.slices.multiple { true } else { null }} |' +
+            '     {cem:for-each @select=datadom.slices.items @as=item | {call @template=tree-item @with:item="{$item}"}}}}' +
+            '   {cem:otherwise | {span @class="cem-tree cem-tree--invalid" @hidden=true | }}}}}',
+    },
+    {
+        tag: 'cem-tree-item',
+        description: 'Inert recursive hierarchy payload consumed by cem-tree.',
+        cemMl: '{div @class=cem-tree-item | {slot}}',
     },
     {
         tag: 'cem-app-bar',

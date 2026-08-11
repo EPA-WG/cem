@@ -11,10 +11,10 @@
     },
     "recommendedAudit": null,
     "implementationPriority": {
-        "id": "stepper",
+        "id": "tree",
         "acceptedAt": "2026-08-11",
         "completedAt": "2026-08-11",
-        "contract": "packages/cem-components/docs/stepper-contract.md",
+        "contract": "packages/cem-components/docs/tree-contract.md",
         "state": "completed",
         "targetStatus": "covered"
     },
@@ -536,15 +536,15 @@
         {
             "id": "tree",
             "name": "Tree",
-            "status": "gap",
+            "status": "covered",
             "mapping": {
-                "kind": "gap",
-                "owners": [],
-                "states": ["default", "focus-visible", "selected", "expanded", "disabled", "loading"],
-                "keyboard": ["Implement treeview roving focus, Up/Down traversal, Left/Right collapse/expand and parent/child movement, Home/End, typeahead, and activation."],
-                "accessibility": ["Expose tree/treeitem/group roles with aria-level, aria-posinset, aria-setsize, aria-expanded, selection, and labeled toggle actions."],
-                "evidence": [],
-                "notes": "No public flat or nested tree, tree-node, expansion controller, hierarchy data source, roving-focus model, or treeview semantic owner exists."
+                "kind": "component",
+                "owners": ["cem-tree", "cem-tree-item"],
+                "states": ["default", "hover", "active", "focus-visible", "selected", "expanded", "disabled", "loading"],
+                "keyboard": ["Keep one visible enabled treeitem in the roving tab order; Up/Down traverse without wrapping, Right opens or moves to a child, Left closes or moves to a parent, Home/End reach boundaries, typeahead searches visible labels, and native Enter/Space activates the exact button owner."],
+                "accessibility": ["Expose one labeled tree with exact native button treeitems, stable owned groups, explicit aria-level/aria-posinset/aria-setsize, parent-only aria-expanded, optional single/multiple aria-selected projection, and aria-busy loading status."],
+                "evidence": ["packages/cem-components/src/lib/tree.browser.spec.ts::renders one named tree with exact native treeitems, explicit hierarchy metadata, and stable owned groups", "packages/cem-components/src/lib/tree.browser.spec.ts::toggles parents and activates leaves through one native path while selection and disabled state stay application-owned", "packages/cem-components/src/lib/tree.browser.spec.ts::moves roving focus through visible nodes, parent-child arrows, boundaries, and typeahead without selection", "packages/cem-components/src/lib/tree.browser.spec.ts::projects silent single/multiple/none selection and application loading with late stable children", "packages/cem-components/src/lib/tree.browser.spec.ts::suppresses disabled subtrees and keeps programmatic expanded values silent without rewriting unknown facts", "packages/cem-components/src/lib/tree.browser.spec.ts::keeps hover, focus-visible, selected-active paint on the exact node with stable geometry and transient silence", "packages/cem-components/scripts/verify-tree-forced-colors.mjs", "packages/cem-components/scripts/verify-package.mjs", "packages/cem-components/docs/tree-contract.md"],
+                "notes": "cem-tree owns a generic recursively authored hierarchy with inert cem-tree-item payloads, stable semantic IDs, component-owned expansion and composite focus, optional application-authored selection, application-authored loading, exact toggle/leaf-activation events, tokenized normal/forced-colors states, and no data requests. It intentionally does not provide Angular directive/controller APIs, flat-tree transformation, hierarchy data sources, check propagation, filtering, virtual scrolling, navigation, or application selection mutation."
             }
         }
     ]

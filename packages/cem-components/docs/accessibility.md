@@ -97,6 +97,7 @@ attributes consistent with reflected state.
 | Timepicker combobox/listbox | `cem-timepicker` keeps its authored native text input as the labeled value, validation, event, and form owner while adding stable combobox/listbox references. DOM focus remains on the input through `aria-activedescendant`; the optional native toggle shares controls/expanded references and requires its own accessible name. |
 | Datepicker combobox/dialog/grid | `cem-datepicker` keeps its authored native text input as the labeled value, validation, event, reset, and form owner while adding stable combobox/dialog references. The optional native toggle shares controls/expanded references and requires its own accessible name. The modal dialog contains a labeled grid with localized column headers, exactly one roving day, `aria-selected` for the draft/committed date, `aria-current="date"` for today, and disabled out-of-range dates. |
 | Stepper workflow | `cem-stepper` exposes a labeled region containing an ordered step list. Exact native header buttons use `aria-current="step"`, stable `aria-controls`, visible completion/optional/error copy, `aria-invalid`, and native or focusable ARIA-disabled semantics as appropriate. Stable `role="region"` panels use reciprocal `aria-labelledby`; generic tab roles are not substituted. |
+| Tree hierarchy | `cem-tree` exposes one labeled `role="tree"`. Exact native button treeitems expose stable IDs, explicit level/position/set metadata, parent-only `aria-expanded`, optional truthful `aria-selected`, disabled state, and loading `aria-busy`; stable sibling groups are connected through `aria-owns`. |
 | Tooltip description and presentation | `cem-tooltip` keeps a stable hidden plain-text description connected to exactly one supported native trigger through `aria-describedby`. Its separate manual Popover copy has `role="tooltip"`, no focusable descendants, and does not replace the trigger's accessible name. |
 
 The catalog enforces presence; runtime enforces *timing* — the attribute MUST
@@ -150,6 +151,10 @@ For every component that emits `id`/`for`/`aria-*` references at runtime:
   linear/editable destination, but every activation path remains suppressed.
   Host-disabled owners expose no tab stop; authored panel controls participate
   in normal document order only while their selected panel is visible.
+- `cem-tree` keeps one visible enabled treeitem in the roving tab order. Focus
+  movement skips disabled subtrees and collapsed descendants, never selects or
+  activates, and recovers to the nearest visible ancestor when programmatic
+  collapse hides the focused descendant. A disabled host exposes no tab stop.
 - `cem-tooltip` keeps focus on its one authored native trigger. The host,
   persistent description, and visible tooltip add no tab stop; opening,
   dismissing, pointer travel, and Escape never move focus.
@@ -224,6 +229,7 @@ patterns below are the contract for the Phase 3 primitive set.
 | `cem-timepicker` | On the native text input, ArrowUp/ArrowDown open and navigate enabled options, Enter commits one canonical value, Escape closes without a value change, and Tab closes without trapping focus. Home/End, horizontal arrows, character editing, clipboard, and undo remain native text-input behavior. The optional toggle retains native Enter/Space activation. |
 | `cem-datepicker` | ArrowDown or Alt+ArrowDown on the native text input opens the modal calendar; the optional toggle retains native Enter/Space activation. In the grid, arrows move by day/week, Home/End move to locale week edges, PageUp/PageDown move by month, Shift/Alt+PageUp/PageDown move by year, and Enter/Space drafts one enabled date. Apply commits; Escape, Cancel, or backdrop dismissal closes silently. |
 | `cem-stepper` | Horizontal Left/Right or vertical Up/Down moves roving header focus, wraps, and skips native-disabled steps; Home/End reaches the first/last enabled header. Enter/Space follows native button activation and commits only an eligible non-current step. The other-axis arrows remain native. |
+| `cem-tree` | Up/Down traverses visible enabled nodes without wrapping; Right opens a closed parent or enters its first enabled child; Left closes an open parent or reaches its nearest enabled ancestor; Home/End reaches boundaries; printable typeahead searches visible labels; native Enter/Space toggles a parent or activates a leaf. |
 | `cem-tooltip` | Native trigger keys remain unchanged. Keyboard focus presents the same description as hover; Escape dismisses immediately without moving focus, trapping focus, or synthesizing activation. Blur dismisses unless pointer or declarative `open` still supplies a visibility reason. |
 | `cem-text-field` | Native text-input behavior. `Escape` does not mutate authored validation state. |
 | `cem-select` | Dropdown arrows/Home/End/Page/typeahead move the preview; Enter/Space/Tab commit and Escape cancels. Sized single listboxes commit movement. Multiple listboxes use modifier-free Space/click toggle, Shift range, and Ctrl/Cmd+A. |
@@ -284,6 +290,11 @@ so the catalog can verify there is exactly one entrypoint per composite.
   and activation, `aria-current="step"` names current position, and reciprocal
   labeled regions own persistent panels. Inert `cem-step` payloads add no live
   role or tab stop.
+- `cem-tree` renders one labeled tree and no navigation/listbox/menu substitute.
+  Exact native buttons own treeitem focus and activation; sibling role=group
+  containers own recursive structure through stable `aria-owns` references.
+  Inert `cem-tree-item` payloads add no live role, tab stop, or loading/request
+  behavior.
 - `cem-tooltip` renders no competing trigger role. Its stable hidden description
   supplements the native trigger through `aria-describedby`; only the separate
   non-interactive visible Popover carries `role="tooltip"`.

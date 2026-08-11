@@ -21,6 +21,7 @@ const builtTooltipBehaviorPath = join(packageRoot, 'dist', 'lib', 'tooltip-behav
 const builtTimepickerBehaviorPath = join(packageRoot, 'dist', 'lib', 'timepicker-behavior.js');
 const builtDatepickerBehaviorPath = join(packageRoot, 'dist', 'lib', 'datepicker-behavior.js');
 const builtStepperBehaviorPath = join(packageRoot, 'dist', 'lib', 'stepper-behavior.js');
+const builtTreeBehaviorPath = join(packageRoot, 'dist', 'lib', 'tree-behavior.js');
 const sourceEntries = [join(packageRoot, 'src', 'index.ts'), join(packageRoot, 'src', 'lib', 'cem-components.ts')];
 const builtEntries = [join(packageRoot, 'dist', 'index.js'), join(packageRoot, 'dist', 'lib', 'cem-components.js')];
 const forbiddenJavaScriptPatterns = [
@@ -127,6 +128,14 @@ if (!builtPrimitives.includes("tag: 'cem-stepper'") || !builtPrimitives.includes
     throw new Error('built primitive inventory must contain cem-stepper and cem-step');
 }
 
+if (!sourcePrimitives.includes("tag: 'cem-tree'") || !sourcePrimitives.includes("tag: 'cem-tree-item'")) {
+    throw new Error('source primitive inventory must contain cem-tree and cem-tree-item');
+}
+
+if (!builtPrimitives.includes("tag: 'cem-tree'") || !builtPrimitives.includes("tag: 'cem-tree-item'")) {
+    throw new Error('built primitive inventory must contain cem-tree and cem-tree-item');
+}
+
 if (!existsSync(builtAutocompleteBehaviorPath)) {
     throw new Error('built package must contain the autocomplete behavior artifact');
 }
@@ -165,6 +174,10 @@ if (!existsSync(builtDatepickerBehaviorPath)) {
 
 if (!existsSync(builtStepperBehaviorPath)) {
     throw new Error('built package must contain the stepper behavior artifact');
+}
+
+if (!existsSync(builtTreeBehaviorPath)) {
+    throw new Error('built package must contain the tree behavior artifact');
 }
 
 if (existsSync(join(packageRoot, 'styles.css'))) {
@@ -234,6 +247,7 @@ try {
         'dist/lib/timepicker-behavior.js',
         'dist/lib/datepicker-behavior.js',
         'dist/lib/stepper-behavior.js',
+        'dist/lib/tree-behavior.js',
         'dist/lib/primitives.js',
     ]) {
         if (!packedFiles.includes(artifact)) {
@@ -248,7 +262,7 @@ try {
     }
 
     console.log(
-        `cem-components package verified (${packedFiles.length} packed files, autocomplete, divider, expansion, progress-spinner, sort-header, paginator, slider, tooltip, timepicker, datepicker, and stepper owners included, ` +
+        `cem-components package verified (${packedFiles.length} packed files, autocomplete, divider, expansion, progress-spinner, sort-header, paginator, slider, tooltip, timepicker, datepicker, stepper, and tree owners included, ` +
             'one dist/styles.css, zero source/root copies).',
     );
 } finally {

@@ -44,6 +44,7 @@ The aggregate gate includes:
 | Timepicker forced colors | `yarn nx run @epa-wg/cem-components:verify-timepicker-forced-colors` | Proves exact native input ownership, `Canvas`/`CanvasText` popup paint, system hover/active/selected/disabled coexistence, D5 focus, top-layer CSS anchor placement, stable geometry, and event/state isolation. |
 | Datepicker forced colors | `yarn nx run @epa-wg/cem-components:verify-datepicker-forced-colors` | Proves exact native input ownership, modal/top-layer containment, `Canvas` dialog paint, `SelectedItem` selected paint, `Mark` current paint, `CanvasText` focus coexistence, disabled suppression, logical anchor placement, stable geometry, and event/state isolation. |
 | Stepper forced colors | `yarn nx run @epa-wg/cem-components:verify-stepper-forced-colors` | Proves exact native header ownership, current/hover/active/focus/completed/invalid/disabled coexistence, completed/remaining connector paint, D2/D5 geometry, and transient event/state isolation. |
+| Tree forced colors | `yarn nx run @epa-wg/cem-components:verify-tree-forced-colors` | Proves exact native treeitem ownership, default/hover/active/selected/focus/disabled/loading system paint, visible state shapes, D2/D5 geometry, wrapper isolation, and transient event/state silence. |
 | Input indicator forced colors | `yarn nx run @epa-wg/cem-components:verify-input-indicator-forced-colors` | Launches Chromium with forced colors active; proves component shadows collapse, field/binary hover uses `Highlight`, and keyboard focus traverses the original seven input owners with full `CanvasText` outlines. |
 | Autocomplete forced colors | `yarn nx run @epa-wg/cem-components:verify-autocomplete-forced-colors` | Proves popup draw order, input/option pointer ownership, system hover/active/selected/disabled colors, keyboard focus coexistence, stable geometry, and event/state isolation. |
 | Navigation hover/focus/active/disabled forced colors | `yarn nx run @epa-wg/cem-components:verify-navigation-hover-forced-colors` | Launches Chromium with forced colors active; proves system hover/current/active/disabled colors, ARIA-disabled current/selected precedence, full keyboard traversal, focus coexistence, native-disabled skipping, restoration, and wrapper/state isolation. |
@@ -68,6 +69,7 @@ Executable fixture locations:
 | Timepicker behavior and state coverage | `../src/lib/timepicker.browser.spec.ts` |
 | Datepicker behavior and state coverage | `../src/lib/datepicker.browser.spec.ts` |
 | Stepper behavior and state coverage | `../src/lib/stepper.browser.spec.ts` |
+| Tree behavior and state coverage | `../src/lib/tree.browser.spec.ts` |
 | State, ARIA, focus, and event payload coverage | `../src/lib/states.browser.spec.ts` |
 | Feedback lifecycle and focus coverage | `../src/lib/feedback-expanded.browser.spec.ts` |
 | Workflow fixture coverage | `../src/lib/workflows.browser.spec.ts` |
@@ -82,10 +84,11 @@ Executable fixture locations:
 | Declarative timepicker fixture | `../tests/timepicker/contract.html` |
 | Declarative datepicker fixture | `../tests/datepicker/contract.html` |
 | Declarative stepper fixture | `../tests/stepper/contract.html` |
+| Declarative tree fixture | `../tests/tree/contract.html` |
 | Component harness helpers | `../src/lib/testing/component-harness.ts` |
 | Style and manifest verifier scripts | `../../../tools/scripts/verify-cem-components-*.mjs` |
 | Package stylesheet source | `../src/styles.css` |
-| Package publication and forced-colors scripts | `../scripts/copy-styles.mjs`, `../scripts/verify-package.mjs`, `../scripts/verify-input-indicator-forced-colors.mjs`, `../scripts/verify-autocomplete-forced-colors.mjs`, `../scripts/verify-navigation-hover-forced-colors.mjs`, `../scripts/verify-content-hover-forced-colors.mjs`, `../scripts/verify-expansion-forced-colors.mjs`, `../scripts/verify-sort-header-forced-colors.mjs`, `../scripts/verify-paginator-forced-colors.mjs`, `../scripts/verify-slider-forced-colors.mjs`, `../scripts/verify-tooltip-forced-colors.mjs`, `../scripts/verify-timepicker-forced-colors.mjs`, `../scripts/verify-datepicker-forced-colors.mjs`, `../scripts/verify-feedback-focus-forced-colors.mjs` |
+| Package publication and forced-colors scripts | `../scripts/copy-styles.mjs`, `../scripts/verify-package.mjs`, `../scripts/verify-input-indicator-forced-colors.mjs`, `../scripts/verify-autocomplete-forced-colors.mjs`, `../scripts/verify-navigation-hover-forced-colors.mjs`, `../scripts/verify-content-hover-forced-colors.mjs`, `../scripts/verify-expansion-forced-colors.mjs`, `../scripts/verify-sort-header-forced-colors.mjs`, `../scripts/verify-paginator-forced-colors.mjs`, `../scripts/verify-slider-forced-colors.mjs`, `../scripts/verify-tooltip-forced-colors.mjs`, `../scripts/verify-timepicker-forced-colors.mjs`, `../scripts/verify-datepicker-forced-colors.mjs`, `../scripts/verify-tree-forced-colors.mjs`, `../scripts/verify-feedback-focus-forced-colors.mjs` |
 
 Handoff condition: Phase 4 component expansion can build on this primitive package after the aggregate verify gate is
 green and the promoted branch has no uncommitted gate changes. The handoff covers the MVP primitive declaration set,
@@ -262,6 +265,8 @@ normal and forced colors without a CSS exception.
 | `cem-badge` | Status/count/severity label. | Default slot is text; `tone` maps to status styling. | palette, bend, inset, typography | Badge text must be visible or included in adjacent accessible text. |
 | `cem-avatar` | Person or organization identity. | `label` names identity; `initials` fallback or projected media. | palette, bend, typography | Renders `role="img"` and requires a label. |
 | `cem-media-preview` | Asset thumbnail or object preview. | Project image/media; `slot="caption"` for caption. | palette, stroke, bend, gap | Media must carry its own accessible alternative text. |
+| `cem-tree` | Generic expandable hierarchy with application-owned data. | Strict recursive `cem-tree-item` payloads require unique whitespace-free `value` and non-empty `label`; host accepts `expanded-values`, `selection`, `selected-values`, `disabled`, and `loading-label`. See the [tree contract](./tree-contract.md). | palette, content, control, stroke, bend, gap, coupling, typography | A labeled tree owns exact native button treeitems, stable owned groups, explicit levels/positions/set sizes, parent expansion, optional selection, loading status, and one visible enabled roving tab stop. |
+| `cem-tree-item` | Inert recursive hierarchy payload consumed by `cem-tree`. | `value`, `label`, optional `expandable`, `disabled`, `loading`, and nested tree-item children. | palette, content, control, stroke, bend, gap, coupling, typography | Adds no independent role, focus, event, selection, loading lifecycle, request, or navigation owner. |
 
 States: `default`, `hover`, `focus-visible`, `selected`, `loading`, `empty`, `checked`.
 
@@ -275,6 +280,13 @@ is not part of this contract.
 interaction paint; `cem-table`, the host, and the column-header wrapper remain
 structural. Existing theme semantics cover every binding, including forced
 colors, so no CSS exception is recorded.
+
+`cem-tree` additionally owns contextual `active`, `disabled`, and `expanded`
+states on exact treeitem buttons. Selection and loading are projected application
+facts; activation never mutates selection or starts resource work. Structural
+item/group wrappers own hierarchy layout only. The completed generic content
+interaction family and the dedicated forced-colors gate cover every state, so
+no component CSS exception is recorded.
 
 In v1, `content:loading` is owned only by `cem-card[busy]`; lists, tables, and
 media previews neither infer nor inherit it. Authors retain last-known content

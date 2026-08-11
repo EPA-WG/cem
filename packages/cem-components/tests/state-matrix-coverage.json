@@ -871,7 +871,8 @@
                 "cem-chip",
                 "cem-badge",
                 "cem-avatar",
-                "cem-media-preview"
+                "cem-media-preview",
+                "cem-tree"
             ],
             "interaction": "Render content primitives with their semantic roles, labels, and projected content.",
             "status": "covered",
@@ -899,6 +900,15 @@
                         "expect(name.owner.getAttribute('role')).toBe('columnheader');",
                         "expect(name.button).toBeInstanceOf(HTMLButtonElement);"
                     ]
+                },
+                {
+                    "component": "cem-tree",
+                    "owner": "packages/cem-components/src/lib/tree.browser.spec.ts",
+                    "test": "renders one named tree with exact native treeitems, explicit hierarchy metadata, and stable owned groups",
+                    "assertions": [
+                        "expect(parts.owner.getAttribute('role')).toBe('tree');",
+                        "expect(apps.getAttribute('role')).toBe('treeitem');"
+                    ]
                 }
             ]
         },
@@ -906,7 +916,7 @@
             "id": "content:hover",
             "category": "Content",
             "state": "hover",
-            "components": ["cem-list", "cem-chip", "cem-expansion", "cem-sort-header"],
+            "components": ["cem-list", "cem-chip", "cem-expansion", "cem-sort-header", "cem-tree"],
             "interaction": "Move the pointer over the selectable-list composite or checkable chip without changing layout, selection, checked state, or passive content wrappers.",
             "status": "covered",
             "owner": "packages/cem-components/src/lib/states.browser.spec.ts",
@@ -941,6 +951,16 @@
                         "expect(pointerEvents).toEqual(['pointerenter:true', 'pointerleave:true']);",
                         "expectTransientGeometry(hovered, baseline);"
                     ]
+                },
+                {
+                    "component": "cem-tree",
+                    "owner": "packages/cem-components/src/lib/tree.browser.spec.ts",
+                    "test": "keeps hover, focus-visible, selected-active paint on the exact node with stable geometry and transient silence",
+                    "assertions": [
+                        "expect(node.matches(':hover')).toBe(true);",
+                        "expectStableTransient(hovered, baseline);",
+                        "expect(pointerEvents).toEqual(['pointerenter:true', 'pointerleave:true']);"
+                    ]
                 }
             ]
         },
@@ -948,7 +968,7 @@
             "id": "content:focus-visible",
             "category": "Content",
             "state": "focus-visible",
-            "components": ["cem-list", "cem-chip", "cem-expansion", "cem-sort-header"],
+            "components": ["cem-list", "cem-chip", "cem-expansion", "cem-sort-header", "cem-tree"],
             "interaction": "Move keyboard focus through the selectable-list composite and checkable chips with a tokenized visible ring while skipping disabled and passive content.",
             "status": "covered",
             "owner": "packages/cem-components/src/lib/states.browser.spec.ts",
@@ -985,6 +1005,15 @@
                         "expect(focusedHovered.outlineWidth).toBe(resolveTokenLength(parts.button, '--cem-stroke-focus'));",
                         "expectTransientGeometry(focusedHovered, baseline);"
                     ]
+                },
+                {
+                    "component": "cem-tree",
+                    "owner": "packages/cem-components/src/lib/tree.browser.spec.ts",
+                    "test": "keeps hover, focus-visible, selected-active paint on the exact node with stable geometry and transient silence",
+                    "assertions": [
+                        "expect(treeNode(parts, 'web').matches(':focus-visible')).toBe(true);",
+                        "expectStableTransient(focused, baseline);"
+                    ]
                 }
             ]
         },
@@ -992,7 +1021,7 @@
             "id": "content:selected",
             "category": "Content",
             "state": "selected",
-            "components": ["cem-list", "cem-table", "cem-chip"],
+            "components": ["cem-list", "cem-table", "cem-chip", "cem-tree"],
             "interaction": "Select a content row or chip and distinguish it from hover and keyboard focus.",
             "status": "covered",
             "owner": "packages/cem-components/src/lib/states.browser.spec.ts",
@@ -1004,13 +1033,24 @@
                 "expect(pointerSnapshot.slices.value).toBe('image');",
                 "expect(keyboardSnapshot.slices.value).toBe('document');",
                 "expect(disabledSkipped.options[2]?.disabled).toBe(true);"
+            ],
+            "componentEvidence": [
+                {
+                    "component": "cem-tree",
+                    "owner": "packages/cem-components/src/lib/tree.browser.spec.ts",
+                    "test": "projects silent single/multiple/none selection and application loading with late stable children",
+                    "assertions": [
+                        "expect(web.getAttribute('aria-selected')).toBe('true');",
+                        "expect(treeNode(multi, 'gamma').getAttribute('aria-selected')).toBe('true');"
+                    ]
+                }
             ]
         },
         {
             "id": "content:loading",
             "category": "Content",
             "state": "loading",
-            "components": ["cem-list", "cem-table", "cem-card", "cem-media-preview"],
+            "components": ["cem-list", "cem-table", "cem-card", "cem-media-preview", "cem-tree"],
             "interaction": "Mark content busy while preserving dimensions and an accessible loading status.",
             "status": "covered",
             "owner": "packages/cem-components/src/lib/states.browser.spec.ts",
@@ -1022,6 +1062,17 @@
                 "expect(document.activeElement).toBe(pendingButton);",
                 "expect(candidate.hasAttribute('data-state')).toBe(false);",
                 "expect(lifecycleEvents).toEqual([]);"
+            ],
+            "componentEvidence": [
+                {
+                    "component": "cem-tree",
+                    "owner": "packages/cem-components/src/lib/tree.browser.spec.ts",
+                    "test": "projects silent single/multiple/none selection and application loading with late stable children",
+                    "assertions": [
+                        "expect(asyncIdentity.getAttribute('aria-busy')).toBe('true');",
+                        "expect(asyncIdentity.textContent).toContain('Loading children');"
+                    ]
+                }
             ]
         },
         {

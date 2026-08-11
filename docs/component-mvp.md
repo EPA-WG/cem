@@ -47,6 +47,8 @@ contract for `@epa-wg/cem-components`, the CEM core schema state vocabulary, and
 | Content | `badge` | `cem-badge` | Status, count, priority, and severity labels | palette, bend, inset, typography |
 | Content | `avatar` | `cem-avatar` | Person or organization visual identity | palette, bend, typography |
 | Content | `media-preview` | `cem-media-preview` | Asset thumbnail, file, or object preview | palette, stroke, bend, gap |
+| Content | `tree` | `cem-tree` | Generic expandable hierarchy with composite focus and application-owned selection/loading | palette, content, control, stroke, bend, gap, coupling, typography |
+| Content | `tree-item` | `cem-tree-item` | Inert recursive hierarchy payload consumed by `cem-tree` | palette, content, control, stroke, bend, gap, coupling, typography |
 | Navigation | `app-bar` | `cem-app-bar` | Product title, global actions, and current context | palette, stroke, gap, inset, typography |
 | Navigation | `nav` | `cem-nav` | Labeled navigation region and item list | palette, navigation, gap, inset, typography |
 | Navigation | `tabs` | `cem-tabs` | Local view switching | palette, navigation, stroke, gap, typography |

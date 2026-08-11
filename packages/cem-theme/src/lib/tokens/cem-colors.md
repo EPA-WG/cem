@@ -604,8 +604,9 @@ navigation endpoints remain independently themeable. Disabled wins over current,
 
 Interactive content controls expose content selection or filtering without becoming action-intent, navigation, or
 form-input components. Their state colors therefore need an independently themeable category even when the reference
-formulas align with existing action or palette endpoints. Selected-hover keeps the selected/checked meaning visible
-during transient pointer feedback, and disabled wins over selected and hover. Focus remains a separate D5/zebra
+formulas align with existing action or palette endpoints. Active endpoints preserve held native-input feedback,
+while selected-hover and selected-active keep the selected/checked meaning visible during transient input. Disabled
+wins over selected, hover, and active. Focus remains a separate D5/zebra
 geometry channel. A current contextual datum is not necessarily selected: for example, today's date remains current
 while a user previews or commits another calendar date. Its indicator therefore has an independent D0 endpoint whose
 geometry remains D5-owned.
@@ -617,10 +618,14 @@ geometry remains D5-owned.
 | `--cem-content-interaction-default-text` | `<color>` | `var(--cem-palette-comfort-text)` | Resting interactive-content owner text | required |
 | `--cem-content-interaction-hover-background` | `<color>` | `var(--cem-action-contextual-hover-background)` | Enabled unselected content owner under pointer hover | required |
 | `--cem-content-interaction-hover-text` | `<color>` | `var(--cem-action-contextual-hover-text)` | Enabled unselected hover text | required |
+| `--cem-content-interaction-active-background` | `<color>` | `var(--cem-action-contextual-active-background)` | Enabled unselected content owner while native activation input is held | required |
+| `--cem-content-interaction-active-text` | `<color>` | `var(--cem-action-contextual-active-text)` | Enabled unselected held-active text | required |
 | `--cem-content-interaction-selected-background` | `<color>` | `var(--cem-palette-creativity)` | Selected or checked content owner fill | required |
 | `--cem-content-interaction-selected-text` | `<color>` | `var(--cem-palette-creativity-text)` | Selected or checked content owner text | required |
 | `--cem-content-interaction-selected-hover-background` | `<color>` | `color-mix(in srgb, var(--cem-palette-creativity) 70%, var(--cem-palette-creativity-x))` | Enabled selected or checked owner under pointer hover | required |
 | `--cem-content-interaction-selected-hover-text` | `<color>` | `var(--cem-palette-creativity-text)` | Selected or checked hover text | required |
+| `--cem-content-interaction-selected-active-background` | `<color>` | `color-mix(in srgb, var(--cem-palette-creativity) 45%, var(--cem-palette-creativity-x))` | Enabled selected or checked owner while native activation input is held | required |
+| `--cem-content-interaction-selected-active-text` | `<color>` | `var(--cem-palette-creativity-text)` | Enabled selected or checked held-active text | required |
 | `--cem-content-interaction-disabled-background` | `<color>` | `var(--cem-action-contextual-disabled-background)` | Disabled content owner fill; wins over selected and hover | required |
 | `--cem-content-interaction-disabled-text` | `<color>` | `var(--cem-action-contextual-disabled-text)` | Disabled content owner text | required |
 | `--cem-content-interaction-current-indicator-color` | `<color>` | `var(--cem-zebra-color-2)` | Current contextual datum such as today's date; independent of committed selection | recommended |
@@ -1029,8 +1034,10 @@ For each shipped intent (`primary`, `explicit`, `contextual`, `alternate`, `dest
 
 - `--cem-content-interaction-default-{background,text}`
 - `--cem-content-interaction-hover-{background,text}`
+- `--cem-content-interaction-active-{background,text}`
 - `--cem-content-interaction-selected-{background,text}`
 - `--cem-content-interaction-selected-hover-{background,text}`
+- `--cem-content-interaction-selected-active-{background,text}`
 - `--cem-content-interaction-disabled-{background,text}`
 
 **Separation:**
@@ -1064,7 +1071,7 @@ from these tables using the same logic as `cem-colors.html`.
 | `cem-slider-colors`                                    | `--cem-slider-*` (8 tokens) | one token per row                     |
 | `cem-select-state-colors`                              | `--cem-select-*` (12 tokens) | one token per row                    |
 | `cem-navigation-item-state-colors`                     | `--cem-navigation-item-*` (14 tokens) | one token per row             |
-| `cem-content-interaction-state-colors`                  | `--cem-content-interaction-*` (11 tokens) | one token per row          |
+| `cem-content-interaction-state-colors`                  | `--cem-content-interaction-*` (15 tokens) | one token per row          |
 | `cem-separator-colors`                                  | `--cem-separator-*` (1 token) | one token per row                     |
 | `cem-workflow-step-colors`                              | `--cem-workflow-*` (4 tokens) | one token per row                     |
 | `cem-action-intent-emotion` × `cem-action-state-color` | `--cem-action-*` (80 tokens)  | intent × state × {background, text} |
