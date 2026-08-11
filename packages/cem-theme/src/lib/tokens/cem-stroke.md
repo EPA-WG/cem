@@ -1,12 +1,13 @@
 # CEM D5 Stroke & Separation — Boundaries, Dividers, and Focus Indicators
 
-**Status:** Proposed (canonical CEM spec)  
-**Last updated:** December 19, 2025
+**Status:** Canonical (D5 v1.0)
+**Last updated:** August 10, 2026
 
 **Taxonomy placement:** D5. Stroke & Separation (part of the 7-dimensional CEM token framework)
 
 **Companion specs:**
-- **D0. Color (Emotional Palette & System Color Mapping)** ([`cem-colors.md`](./cem-colors.md)) — defines separator/focus colors; D5 defines *thickness and geometry*
+- **D0. Color (Emotional Palette & System Color Mapping)** ([`cem-colors.md`](./cem-colors.md)) — defines
+  `--cem-separator-color` and focus colors; D5 defines *thickness and geometry*
 - **D1. Space & Rhythm** ([`cem-dimension.md`](./cem-dimension.md)) — inset/spacing rules that keep strokes readable without crowding
 - **D2. Coupling & Compactness** ([`cem-coupling.md`](./cem-coupling.md)) — density modes that affect when thin strokes must become stronger
 - **D3. Shape — Bend** ([`cem-shape.md`](./cem-shape.md)) — corner radii and rounding rules that strokes must follow
@@ -187,11 +188,12 @@ The D5 contract intentionally avoids per-component thickness tokens (e.g., `--ce
 - Components bind to one of the **semantic endpoints** (boundary/divider/focus/selected/target).
 - Component libraries may expose **adapter variables** with component-friendly names, but those adapter names are *not* part of the canonical CEM contract.
 
-> Rule of thumb: **color is D0**, **thickness is D5**, **corner curvature is D3**, **spacing/insets is D1**, **density-mode overrides are D2**.
+> Rule of thumb: **color is D0** (`--cem-separator-color`), **thickness is D5**, **corner curvature is D3**,
+> **spacing/insets is D1**, and **the interactive guard floor is D2**.
 
 | Component family                         | Primary D5 endpoint(s)                                 | Typical stroke usage           | Notes                                                                                                                      |
 |------------------------------------------|--------------------------------------------------------|--------------------------------|----------------------------------------------------------------------------------------------------------------------------|
-| Dividers (horizontal/vertical)           | `--cem-stroke-divider`                                 | 1px hairline between siblings  | Prefer inset patterns for lists; increase strength in dense or low-contrast contexts.                                      |
+| Dividers (horizontal/vertical)           | `--cem-stroke-divider` + D0 `--cem-separator-color`     | Hairline inside a spaced track | Package the line with D1 relationship margins, floor interactive separation at the D2 guard, and prefer inset patterns for lists. |
 | List item separators                     | `--cem-stroke-divider` (or `--cem-stroke-grid`)        | Row separators                 | Treat dense “data-list” layouts as a grid for readability.                                                                 |
 | Table borders / grid lines               | `--cem-stroke-grid`                                    | Cell/row separators            | Use `grid` to distinguish “structured separators” from generic dividers; same thickness by default.                        |
 | Text field outline (outlined pattern)    | `--cem-stroke-boundary`                                | Control container edge         | Focus indication should be a ring (`--cem-stroke-focus`) rather than mutating border width.                                |
@@ -356,7 +358,23 @@ Avoid creating many inset tokens. Use a single **inset rule**:
 - “Full-bleed dividers for full-bleed lists”
 - “Inset dividers under leading avatar/icon to preserve grouping”
 
-Spacing and inset should use D1 tokens.
+Spacing and inset should use D1 tokens. The canonical divider is a **track**, not a bare line:
+
+1. Select the intended relationship space from D1 (`--cem-gap-related`, `--cem-gap-group`, `--cem-gap-block`, or
+   `--cem-gap-section`).
+2. If the siblings are interactive, floor the track at D2 `--cem-coupling-guard-min`.
+3. Center the D5 line within that cross-axis track by assigning half of the remaining extent to each margin.
+4. Apply `--cem-inset-container` along the line's logical start edge for the standard inset pattern.
+
+```css
+margin-block: calc(
+  (max(var(--cem-gap-group), var(--cem-coupling-guard-min)) - var(--cem-stroke-divider)) / 2
+);
+border-block-start: var(--cem-stroke-divider) solid var(--cem-separator-color);
+```
+
+For a vertical divider, transpose block and inline axes. The line plus both cross-axis margins equals the divider
+track. A bare `--cem-stroke-divider` line cannot stand in for either D1 relationship spacing or the D2 guard.
 
 ---
 
@@ -413,6 +431,8 @@ In `forced-colors: active` contexts:
 - prefer `outline` (system colors) and avoid relying on subtle shadows
 - avoid gradients that may be flattened
 - ensure indicator uses `CanvasText` / `Highlight` as appropriate in D0 mapping
+- map divider lines to D0 `--cem-separator-color`, which resolves to `CanvasText`; retain the D5 thickness and the
+  D1/D2 divider-track geometry
 
 Suggested baseline:
 
@@ -534,6 +554,10 @@ Joy exposes per-component CSS variables for focus ring geometry (examples):
 ---
 
 ## 12. Governance and versioning
+
+D5 v1.0 became canonical after cross-dimension review on August 10, 2026. The review confirmed that D0 owns
+separator color, D1 owns relationship spacing and inset, D2 floors the complete divider track, and D5 owns the line
+and indicator geometry.
 
 ### 12.1 What counts as breaking
 

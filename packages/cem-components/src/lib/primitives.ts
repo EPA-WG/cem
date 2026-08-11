@@ -254,6 +254,20 @@ export const CEM_COMPONENT_PRIMITIVES = [
             '{div @class="cem-grid cem-grid--{$columns} cem-grid--gap-{$gap}" @data-columns="{$columns}" @data-gap="{$gap}" | {slot}}',
     },
     {
+        tag: 'cem-divider',
+        description: 'Semantic or decorative sibling-separation track with horizontal, vertical, and inset forms.',
+        cemMl:
+            '{attribute @name=orientation | horizontal}' +
+            '{attribute @name=spacing | group}' +
+            '{cem:choose |' +
+            ' {cem:when @test="datadom.attributes.decorative" | {cem:choose |' +
+            '  {cem:when @test=\'datadom.attributes.orientation == "vertical"\' | {div @class=cem-divider @data-orientation=vertical @aria-hidden=true | }}' +
+            '  {cem:otherwise | {div @class=cem-divider @data-orientation=horizontal @aria-hidden=true | }}}}' +
+            ' {cem:otherwise | {cem:choose |' +
+            '  {cem:when @test=\'datadom.attributes.orientation == "vertical"\' | {div @class=cem-divider @data-orientation=vertical @role=separator @aria-orientation=vertical | }}' +
+            '  {cem:otherwise | {div @class=cem-divider @data-orientation=horizontal @role=separator @aria-orientation=horizontal | }}}}}',
+    },
+    {
         tag: 'cem-list',
         description: 'Passive list container with an opt-in native single-select listbox mode.',
         cemMl:

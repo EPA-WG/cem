@@ -61,10 +61,10 @@ const EXPECTED_CATALOG = [
 const ALLOWED_STATUSES = new Set(['unreviewed', 'gap', 'partial', 'covered']);
 const ALLOWED_MAPPING_KINDS = new Set(['component', 'behavior', 'gap']);
 const EXPECTED_IMPLEMENTATION_PRIORITY = {
-    id: 'autocomplete',
+    id: 'divider',
     acceptedAt: '2026-08-10',
     completedAt: '2026-08-10',
-    contract: 'packages/cem-components/docs/autocomplete-contract.md',
+    contract: 'packages/cem-components/docs/divider-contract.md',
     state: 'completed',
     targetStatus: 'covered',
 };
@@ -153,9 +153,10 @@ function validateImplementationPriority(priority) {
     }
     const contractSource = readFileSync(contractPath, 'utf8');
     for (const heading of [
-        '# Autocomplete Contract',
-        '## Event contract',
-        '## Keyboard contract',
+        '# Divider Contract',
+        '## Owner and author vocabulary',
+        '## Geometry contract',
+        '## Event and keyboard contract',
         '## Accessibility contract',
         '## Theme-token audit',
         '## Forced-colors boundary',

@@ -1,8 +1,8 @@
 # Angular Material Parity Inventory
 
-**Status:** All pinned product mappings are audited and the first accepted
-priority, `autocomplete`, is covered. Selecting the next implementation gap is
-a separate product decision tracked in [`docs/todo.md`](../../../docs/todo.md).
+**Status:** All pinned product mappings are audited. The accepted `autocomplete`
+and `divider` priorities are covered; selecting another implementation gap is a
+separate product decision tracked in [`docs/todo.md`](../../../docs/todo.md).
 
 ## Benchmark
 
@@ -70,16 +70,16 @@ substituted for the missing component.
 
 | Classification | Count | Catalog entries |
 | --- | ---: | --- |
-| Covered | 7 | autocomplete, card, checkbox, dialog, input, select, slide-toggle |
+| Covered | 8 | autocomplete, card, checkbox, dialog, divider, input, select, slide-toggle |
 | Partial | 19 | badge, bottom-sheet, button, button-toggle, chips, core, form-field, grid-list, icon, list, menu, progress-bar, radio, ripple, sidenav, snack-bar, table, tabs, toolbar |
-| Gap | 11 | datepicker, divider, expansion, paginator, progress-spinner, slider, sort, stepper, timepicker, tooltip, tree |
+| Gap | 10 | datepicker, expansion, paginator, progress-spinner, slider, sort, stepper, timepicker, tooltip, tree |
 
 Each row in the executable inventory explains its boundary. In particular,
 `cem-grid` is not treated as a grid-list, `cem-tabs` is not treated as a stepper,
 `cem-progress` is not treated as a circular spinner, and navigation-specific
 disclosure is not treated as a general expansion panel.
 
-## Completed implementation priority
+## Completed implementation priorities
 
 `autocomplete` was accepted as the first gap to close. It has high reuse of the
 existing input, option, listbox, form, popup, and forced-colors foundations while
@@ -97,6 +97,15 @@ state-matrix evidence; the token-only style contract; the dedicated
 forced-colors gate; and npm package verification of the emitted autocomplete
 runtime artifact. No successor priority is implied by this promotion.
 
+`divider` was accepted next after recovering the Consumer Semantic Theme
+boundary between spacing and visible separation. The
+[divider contract](./divider-contract.md) defines `cem-divider` as the complete
+line-plus-margins track: D0 supplies reduced-salience color and `CanvasText` in
+forced colors, D1 supplies relationship spacing and inset, D2 floors the track
+at the coupling guard, and canonical D5 supplies the line geometry. Semantic,
+decorative, horizontal, vertical, and inset behavior is covered without adding
+focus, keyboard, event, or state ownership.
+
 Run the invariant with:
 
 ```bash
@@ -104,6 +113,6 @@ yarn nx run @epa-wg/cem-components:verify-material-parity
 ```
 
 The gate verifies the exact 37-entry pin, every audited mapping, and completion
-of the accepted implementation priority. It reports seven covered rows,
-nineteen partial rows, eleven gaps, no remaining audit, and no next
+of the accepted implementation priority. It reports eight covered rows,
+nineteen partial rows, ten gaps, no remaining audit, and no next
 implementation until a new gap is deliberately selected and contracted.

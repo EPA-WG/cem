@@ -31,7 +31,7 @@ installCemComponentPrimitives(runtime);
 This registers the minimal primitive tags: `cem-action`, `cem-icon-button`, `cem-menu-item`, `cem-field`,
 `cem-text-field`, `cem-textarea`, `cem-autocomplete`, `cem-select`, `cem-option`, `cem-option-group`, `cem-checkbox`,
 `cem-radio`, `cem-switch`, `cem-surface`, `cem-text`,
-`cem-icon`, `cem-stack`, `cem-grid`, `cem-list`, `cem-card`, `cem-table`, `cem-chip`, `cem-badge`, `cem-avatar`,
+`cem-icon`, `cem-stack`, `cem-grid`, `cem-divider`, `cem-list`, `cem-card`, `cem-table`, `cem-chip`, `cem-badge`, `cem-avatar`,
 `cem-media-preview`, `cem-app-bar`, `cem-nav`, `cem-tabs`, `cem-dialog`, `cem-dialog-shell`, `cem-sheet`,
 `cem-toast`, `cem-progress`, `cem-skeleton`, and `cem-alert`.
 
@@ -77,6 +77,11 @@ ARIA-disabled direct owners remain focusable while component-owned capture
 behavior blocks pointer, programmatic, Enter, and native-button Space
 activation before target and application bubble listeners.
 
+`cem-divider` owns a semantic or decorative separator track rather than a bare line. The D0 separator color is
+derived from surface text at reduced salience, D5 supplies the hairline, D1 supplies relationship spacing and inset,
+and D2 floors the complete line-plus-margins track at the coupling guard. Horizontal, vertical, inset, and decorative
+forms remain non-focusable and event-neutral; forced colors restore the line to `CanvasText`.
+
 ## Build & Verify
 
 ```bash
@@ -89,6 +94,7 @@ yarn nx run @epa-wg/cem-components:verify-input-indicator-forced-colors
 yarn nx run @epa-wg/cem-components:verify-autocomplete-forced-colors
 yarn nx run @epa-wg/cem-components:verify-navigation-hover-forced-colors
 yarn nx run @epa-wg/cem-components:verify-content-hover-forced-colors
+yarn nx run @epa-wg/cem-components:verify-divider-forced-colors
 yarn nx run @epa-wg/cem-components:verify-package
 yarn nx run @epa-wg/cem-components:test
 yarn nx run @epa-wg/cem-components:build
@@ -128,6 +134,7 @@ npm inclusion of one `dist/styles.css`.
 | Autocomplete forced-colors gate | `scripts/verify-autocomplete-forced-colors.mjs` |
 | Navigation hover/focus/active/disabled forced-colors gate | `scripts/verify-navigation-hover-forced-colors.mjs` |
 | Content hover/focus forced-colors gate | `scripts/verify-content-hover-forced-colors.mjs` |
+| Divider forced-colors gate | `scripts/verify-divider-forced-colors.mjs` |
 | Package publication gate | `scripts/verify-package.mjs` |
 | Stylesheet copy | `scripts/copy-styles.mjs` |
 | Primitive browser coverage | `src/lib/primitives.browser.spec.ts` |
@@ -178,6 +185,8 @@ Known deferrals stay outside this trigger:
   accessibility notes.
 - [Angular Material parity inventory](./docs/angular-material-parity.md) — pinned catalog mappings, gaps, and accepted
   implementation sequencing.
+- [Divider contract](./docs/divider-contract.md) — line-plus-margins geometry, semantic/decorative ownership, tokens,
+  and forced-colors behavior.
 - [Autocomplete contract](./docs/autocomplete-contract.md) — accepted editable-combobox owner, form/events,
   keyboard/accessibility, token audit, focused fixture, forced-colors boundary, and assertion matrix.
 - [Conventions](./docs/conventions.md) — naming, attributes, events, form participation, validation, loading states,

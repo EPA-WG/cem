@@ -2,7 +2,7 @@
 
 **Status:** Canonical (D1 v1.0)
 
-**Last updated:** December 19, 2025
+**Last updated:** August 10, 2026
 
 **Audience:** Design Systems, Product Design, Front-End Engineering
 
@@ -176,7 +176,10 @@ When spacing occurs **between two interactive affordances**, layout must respect
 
 3. **When D1 can't grow, D5 may need to compensate**
 
-- In tight layouts or contrast themes, increase stroke/separation to maintain scannability.
+- Space is the primary proximity/grouping signal. In tight layouts or contrast themes, D5 may reinforce that signal
+  by increasing stroke/separation, but the visible line does not take ownership of the D1 relationship meaning.
+- A divider component may package its D5 line with cross-axis margins. Select those margins from a D1 relationship
+  endpoint and apply the D2 guard as a minimum when the separated siblings are interactive.
 
 4. **Elevated/prominent surfaces "earn" breathing room**
 

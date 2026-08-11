@@ -35,6 +35,7 @@ The aggregate gate includes:
 | Angular Material parity inventory | `yarn nx run @epa-wg/cem-components:verify-material-parity` | Pins the exact stable official catalog and requires every entry to remain visible until it is audited as a component mapping, cross-cutting behavior, partial mapping, or explicit gap. Barebone `cem-elements` compatibility fixtures cannot satisfy product UI parity evidence. |
 | State matrix | `yarn nx run @epa-wg/cem-components:verify-state-matrix` | Resolves every category state to exact browser tests/assertions and supports verifier-checked component-specific evidence so a newly promoted owner does not replace existing evidence. |
 | Token-only style contract | `yarn nx run @epa-wg/cem-components:verify-style-contract` | Depends on current theme tokens and the verified public theme stylesheet export; checks exact action, content-interaction, navigation, and feedback bindings plus component selector scope, and rejects inline styles, unknown/non-CEM variables, and raw component color or spacing literals. |
+| Divider forced colors | `yarn nx run @epa-wg/cem-components:verify-divider-forced-colors` | Proves `CanvasText` separator color, D5 thickness, D1 inset, and the complete D1/D2 line-plus-margins track in forced colors. |
 | Input indicator forced colors | `yarn nx run @epa-wg/cem-components:verify-input-indicator-forced-colors` | Launches Chromium with forced colors active; proves component shadows collapse, field/binary hover uses `Highlight`, and keyboard focus traverses the original seven input owners with full `CanvasText` outlines. |
 | Autocomplete forced colors | `yarn nx run @epa-wg/cem-components:verify-autocomplete-forced-colors` | Proves popup draw order, input/option pointer ownership, system hover/active/selected/disabled colors, keyboard focus coexistence, stable geometry, and event/state isolation. |
 | Navigation hover/focus/active/disabled forced colors | `yarn nx run @epa-wg/cem-components:verify-navigation-hover-forced-colors` | Launches Chromium with forced colors active; proves system hover/current/active/disabled colors, ARIA-disabled current/selected precedence, full keyboard traversal, focus coexistence, native-disabled skipping, restoration, and wrapper/state isolation. |
@@ -151,10 +152,14 @@ ARIA, values, runtime snapshots, and layout geometry.
 | `cem-surface` | Named section surface for grouped content and workflow regions. | Default slot projects authored content; `tone` selects visual treatment. Presence-only `busy` marks a pending whole-workflow update; presence-only `empty` marks its settled empty outcome. Busy takes rendered-state precedence during ordered transitions. | palette, stroke, bend, gap, inset | `label` names the section. Busy adds exact `data-state="loading"` and `aria-busy="true"`; empty adds exact `data-state="empty"`. Neither state adds live-region, inert, or focus semantics. |
 | `cem-stack` | Generic single-axis layout container. | Default slot projects children; `gap` selects spacing. The component does not infer or inherit loading or empty state. | gap, responsive | Adds no landmark or interaction semantics. |
 | `cem-grid` | Generic responsive grid layout container. | Default slot projects children; `columns` and `gap` select placement. The component does not infer or inherit loading or empty state. | gap, responsive | Adds no landmark or interaction semantics. |
+| `cem-divider` | Visible sibling-separation track. | `orientation="horizontal|vertical"`; `spacing="related|group|block|section"`; presence-only `inset` and `decorative`. It owns no content, state, focus, or events. | separator, stroke, gap, inset, coupling | Semantic form exposes a non-focusable separator with exact orientation. Decorative form removes the role/orientation and sets `aria-hidden="true"`. |
 
 States: `default`, `loading`, `empty`. In v1, both explicit layout states are
 owned by `cem-surface`: `busy` projects pending loading and takes precedence over
-the settled `empty` state. Stacks and grids remain formatting-only. See the
+the settled `empty` state. Stacks and grids remain formatting-only; dividers are
+non-interactive separation tracks. `cem-divider` composes D0 color, D1 relationship
+spacing/inset, the D2 guard floor, and D5 line geometry as specified by the
+[divider contract](./divider-contract.md). See the
 [layout loading](./layout-loading-contract.md) and
 [layout empty](./layout-empty-contract.md) contracts.
 

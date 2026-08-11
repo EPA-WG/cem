@@ -160,12 +160,37 @@ mediate between internal layers.
         covered by the three public owners and executable product evidence,
         yielding 7 covered, 19 partial, 11 gaps, and no active implementation
         priority.
-    - [ ] Select and contract the next implementation priority from the eleven
+    - [x] Select and contract the next implementation priority from the eleven
           remaining audited gaps before adding another primitive or component CSS.
-      - Decision required: choose among datepicker, divider, expansion,
-        paginator, progress-spinner, slider, sort, stepper, timepicker, tooltip,
-        and tree using semantic reuse, accessibility risk, application value,
-        and implementation dependency order.
+      - [x] Accept `divider` as the next priority and recover its cross-dimension
+            contract before component CSS: D0 owns reduced-salience separator
+            color with a `CanvasText` forced-colors mapping, D1 owns relationship
+            spacing and leading inset, D2 requires the divider margin box to
+            preserve the guard floor, and D5 owns the line geometry.
+      - [x] Canonicalize the reviewed D5 proposal, generate the new D0 separator
+            endpoint through every public token artifact, and clarify that a
+            hairline without its margins cannot satisfy D2 guard spacing.
+        - D5 is canonical v1.0. `--cem-separator-color` derives from surface text
+          at reduced salience in authored themes and maps to `CanvasText` in the
+          native and forced-colors contracts; the manifest/export pipeline emits
+          it with zero coverage gap.
+      - [x] Add the public semantic/decorative `cem-divider` owner with horizontal,
+            vertical, inset, and relationship-spacing variants and no event,
+            focus, selection, or mutation behavior.
+        - The line consumes D5, its related/group/block/section margin box consumes
+          D1 with the D2 guard floor, and inset consumes `--cem-inset-container`.
+          Every CSS value belongs to an accepted theme category, so no component
+          CSS exception was added.
+      - [x] Add focused browser assertions for separator semantics, orientation,
+            inset/guard geometry, token resolution, stable DOM/geometry, and zero
+            event/state mutation.
+      - [x] Add and aggregate a dedicated divider forced-colors gate that proves
+            the system-color line, D5 thickness, D1 inset, and D2 margin-box floor.
+      - [x] Promote the component reference, state matrix, package verification,
+            and Angular Material inventory only after the divider contract passes.
+        - The public inventory now has 36 primitives. Angular Material parity is
+          8 covered, 19 partial, and 10 gaps; the state matrix remains fully green
+          at 39/39 requirements and the component aggregate passes 68/68 tests.
 
 ### Immediate: CSS Selector Query Schema and Unified CLI Query Execution
 

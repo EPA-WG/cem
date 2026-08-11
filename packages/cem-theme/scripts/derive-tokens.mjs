@@ -67,6 +67,7 @@ function deriveColorTokens(xhtml) {
     addTableTokens(xhtml, "cem-select-state-colors", spec, "d0-select", tokens, warnings);
     addTableTokens(xhtml, "cem-navigation-item-state-colors", spec, "d0-navigation", tokens, warnings);
     addTableTokens(xhtml, "cem-content-interaction-state-colors", spec, "d0-content-interaction", tokens, warnings);
+    addTableTokens(xhtml, "cem-separator-colors", spec, "d0-separation", tokens, warnings);
 
     // Action tokens: cross-product of intent × state
     const intentRows = extractTable(xhtml, "cem-action-intent-emotion");

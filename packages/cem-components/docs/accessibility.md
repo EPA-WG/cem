@@ -85,6 +85,7 @@ attributes consistent with reflected state.
 | `aria-selected` | Required on selectable list options and navigation rows. `cem-list[selectable]` mirrors the native option selectedness exactly; passive lists and static table rows do not expose it. |
 | `checked` | A `cem-chip[checkable]` native toggle button MUST expose the current boolean state through `aria-pressed`; passive chips do not expose pressed state. |
 | `aria-current` | Required on the active nav item; value `"page"` or `"step"` per WHATWG/ARIA. |
+| `role="separator"` / `aria-orientation` | `cem-divider` exposes both for meaningful horizontal or vertical separation. `cem-divider[decorative]` removes both and sets `aria-hidden="true"`; neither form is focusable. |
 
 The catalog enforces presence; runtime enforces *timing* — the attribute MUST
 update in the same task that the state changes, not in a deferred callback.

@@ -2,7 +2,7 @@
 
 **Status:** Canonical (v1.0)
 
-**Last updated:** December 17, 2025
+**Last updated:** August 10, 2026
 
 **Audience:** Design Systems, Product Design, Front-End Engineering
 
@@ -121,6 +121,17 @@ Compatibility guideline:
 `max(4 * --cem-zebra-strip-size, --cem-stroke-indicator-offset + --cem-stroke-focus)`
 
 Default CEM values satisfy this (8px guard vs 8px zebra extent when `--cem-zebra-strip-size = 2px`).
+
+A divider may provide this distancing only as a complete **divider track**: the D5 line plus its cross-axis margins.
+The track's total cross-axis extent MUST be at least `--cem-coupling-guard-min` when it separates adjacent interactive
+operable zones. A `--cem-stroke-divider` hairline without those margins does not satisfy the guard contract. D1 chooses
+the relationship-space target; D2 supplies its invariant floor:
+
+```css
+margin-block: calc(
+  (max(var(--cem-gap-group), var(--cem-coupling-guard-min)) - var(--cem-stroke-divider)) / 2
+);
+```
 
 ### 4.2 Control geometry endpoints (visual sizing — D2c Controls)
 
@@ -333,7 +344,8 @@ Use this checklist to implement Coupling consistently. The same rules apply whet
 - Map `min-block-size` to `--cem-coupling-zone-min` (or set visible height ≥ zone-min).
 - Use `--cem-control-height` and `--cem-control-padding-*` for visual sizing; do not shrink below operability. These
   tokens are owned by D2c Controls (see [`cem-controls.md`](./cem-controls.md)).
-- For grouped buttons, enforce **guard** using layout `gap` (or dividers) that respects `--cem-coupling-guard-min`.
+- For grouped buttons, enforce **guard** using a layout `gap` or a complete divider track whose line plus cross-axis
+  margins respects `--cem-coupling-guard-min`; a bare hairline is not distancing.
 
 #### Icon buttons
 

@@ -11,10 +11,10 @@
     },
     "recommendedAudit": null,
     "implementationPriority": {
-        "id": "autocomplete",
+        "id": "divider",
         "acceptedAt": "2026-08-10",
         "completedAt": "2026-08-10",
-        "contract": "packages/cem-components/docs/autocomplete-contract.md",
+        "contract": "packages/cem-components/docs/divider-contract.md",
         "state": "completed",
         "targetStatus": "covered"
     },
@@ -176,15 +176,15 @@
         {
             "id": "divider",
             "name": "Divider",
-            "status": "gap",
+            "status": "covered",
             "mapping": {
-                "kind": "gap",
-                "owners": [],
+                "kind": "component",
+                "owners": ["cem-divider"],
                 "states": ["default", "inset", "vertical"],
-                "keyboard": ["No keyboard interaction is required for a structural separator."],
-                "accessibility": ["Expose separator semantics when meaningful and allow decorative use without redundant announcement."],
-                "evidence": [],
-                "notes": "No public cem-divider or accepted separator behavior owns horizontal, vertical, and inset divider semantics."
+                "keyboard": ["The divider is non-focusable and owns no keyboard interaction or activation."],
+                "accessibility": ["Expose a non-focusable separator with exact horizontal/vertical orientation when meaningful; decorative use removes the separator role and orientation and sets aria-hidden=true."],
+                "evidence": ["packages/cem-components/src/lib/divider.browser.spec.ts::exposes exact semantic orientation and an explicit decorative boundary", "packages/cem-components/src/lib/divider.browser.spec.ts::composes D0 color, D1 relationship and inset, D2 guard, and D5 line geometry", "packages/cem-components/src/lib/divider.browser.spec.ts::keeps trusted pointer and click input event-neutral and geometry-stable", "packages/cem-components/scripts/verify-divider-forced-colors.mjs", "packages/cem-components/docs/divider-contract.md"],
+                "notes": "cem-divider covers horizontal, vertical, inset, semantic, and decorative sibling separation as a complete tokenized line-plus-margins track. It intentionally has no content, focus, keyboard, state, or event lifecycle and does not substitute for document headings, list/table structure, boundaries around one component, or focus/selection indicators."
             }
         },
         {

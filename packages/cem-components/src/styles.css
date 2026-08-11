@@ -154,6 +154,62 @@ cem-tabs > [role='tablist'] > button[role='tab']:enabled:focus-visible {
     outline-offset: var(--cem-stroke-indicator-offset);
 }
 
+cem-divider {
+    --_cem-divider-space: var(--cem-gap-group);
+    display: block;
+    margin-block: calc(
+        (max(var(--_cem-divider-space), var(--cem-coupling-guard-min)) - var(--cem-stroke-divider)) / 2
+    );
+}
+
+cem-divider[spacing='related'] {
+    --_cem-divider-space: var(--cem-gap-related);
+}
+
+cem-divider[spacing='block'] {
+    --_cem-divider-space: var(--cem-gap-block);
+}
+
+cem-divider[spacing='section'] {
+    --_cem-divider-space: var(--cem-gap-section);
+}
+
+cem-divider[orientation='vertical'] {
+    align-self: stretch;
+    display: inline-flex;
+    margin-block: var(--cem-stroke-none);
+    margin-inline: calc(
+        (max(var(--_cem-divider-space), var(--cem-coupling-guard-min)) - var(--cem-stroke-divider)) / 2
+    );
+}
+
+cem-divider > .cem-divider {
+    border-color: var(--cem-separator-color);
+    border-style: solid;
+    border-width: var(--cem-stroke-none);
+    box-sizing: border-box;
+    margin: var(--cem-stroke-none);
+}
+
+cem-divider > .cem-divider[data-orientation='horizontal'] {
+    block-size: var(--cem-stroke-none);
+    border-block-start-width: var(--cem-stroke-divider);
+}
+
+cem-divider > .cem-divider[data-orientation='vertical'] {
+    align-self: stretch;
+    border-inline-start-width: var(--cem-stroke-divider);
+    inline-size: var(--cem-stroke-none);
+}
+
+cem-divider[inset] > .cem-divider[data-orientation='horizontal'] {
+    margin-inline-start: var(--cem-inset-container);
+}
+
+cem-divider[inset] > .cem-divider[data-orientation='vertical'] {
+    margin-block-start: var(--cem-inset-container);
+}
+
 cem-field input,
 cem-text-field input,
 cem-textarea textarea,

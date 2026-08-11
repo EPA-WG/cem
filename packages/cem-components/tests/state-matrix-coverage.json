@@ -524,7 +524,7 @@
             "id": "layout:default",
             "category": "Layout",
             "state": "default",
-            "components": ["cem-surface", "cem-stack", "cem-grid"],
+            "components": ["cem-surface", "cem-stack", "cem-grid", "cem-divider"],
             "interaction": "Render token-scoped layout containers with their authored structure and spacing metadata.",
             "status": "covered",
             "owner": "packages/cem-components/src/lib/primitives.browser.spec.ts",
@@ -532,6 +532,17 @@
             "assertions": [
                 "expect(surface.getAttribute('aria-label')).toBe('Account');",
                 "expect(grid.getAttribute('data-columns')).toBe('2');"
+            ],
+            "componentEvidence": [
+                {
+                    "component": "cem-divider",
+                    "owner": "packages/cem-components/src/lib/divider.browser.spec.ts",
+                    "test": "exposes exact semantic orientation and an explicit decorative boundary",
+                    "assertions": [
+                        "expect(horizontal.getAttribute('role')).toBe('separator');",
+                        "expect(decorative.getAttribute('aria-hidden')).toBe('true');"
+                    ]
+                }
             ]
         },
         {

@@ -22,6 +22,7 @@ const TOKEN_FAMILY_PREFIXES = {
     bend: ['--cem-bend', '--cem-bend-'],
     content: ['--cem-content-interaction-'],
     control: ['--cem-control-', '--cem-list-', '--cem-menu-', '--cem-table-'],
+    coupling: ['--cem-coupling-'],
     gap: ['--cem-gap-'],
     inset: ['--cem-inset-'],
     layering: ['--cem-layer-', '--cem-elevation-'],
@@ -29,6 +30,7 @@ const TOKEN_FAMILY_PREFIXES = {
     palette: ['--cem-palette-'],
     responsive: ['--cem-bp-', '--cem-cq-'],
     select: ['--cem-select-'],
+    separator: ['--cem-separator-'],
     stroke: ['--cem-stroke-'],
     typography: ['--cem-typography-', '--cem-fontography-'],
 };
@@ -43,6 +45,7 @@ const ACTION_TAGS = new Set(['cem-action', 'cem-icon-button', 'cem-menu-item']);
 const CONTENT_INTERACTION_TAGS = new Set(['cem-chip', 'cem-list']);
 const FEEDBACK_TAGS = new Set(['cem-dialog', 'cem-dialog-shell', 'cem-sheet']);
 const NAVIGATION_TAGS = new Set(['cem-nav', 'cem-tabs']);
+const DIVIDER_TAGS = new Set(['cem-divider']);
 const CHOICE_POPUP_STACKING_SELECTORS = new Set([
     'cem-autocomplete .cem-autocomplete__popup',
     'cem-select .cem-select__popup',
@@ -230,6 +233,63 @@ const FEEDBACK_FORCED_COLOR_BINDINGS = new Map([
     ['cem-dialog[transient] > dialog.cem-dialog:focus-visible', forcedColorFocusBinding()],
     ['cem-dialog-shell[transient] > dialog.cem-dialog-shell:focus-visible', forcedColorFocusBinding()],
 ]);
+const DIVIDER_MARGIN_VALUE =
+    'calc(\n        (max(var(--_cem-divider-space), var(--cem-coupling-guard-min)) - var(--cem-stroke-divider)) / 2\n    )';
+const DIVIDER_BINDINGS = new Map([
+    [
+        'cem-divider',
+        new Map([
+            ['--_cem-divider-space', 'var(--cem-gap-group)'],
+            ['display', 'block'],
+            ['margin-block', DIVIDER_MARGIN_VALUE],
+        ]),
+    ],
+    ["cem-divider[spacing='related']", new Map([['--_cem-divider-space', 'var(--cem-gap-related)']])],
+    ["cem-divider[spacing='block']", new Map([['--_cem-divider-space', 'var(--cem-gap-block)']])],
+    ["cem-divider[spacing='section']", new Map([['--_cem-divider-space', 'var(--cem-gap-section)']])],
+    [
+        "cem-divider[orientation='vertical']",
+        new Map([
+            ['align-self', 'stretch'],
+            ['display', 'inline-flex'],
+            ['margin-block', 'var(--cem-stroke-none)'],
+            ['margin-inline', DIVIDER_MARGIN_VALUE],
+        ]),
+    ],
+    [
+        'cem-divider > .cem-divider',
+        new Map([
+            ['border-color', 'var(--cem-separator-color)'],
+            ['border-style', 'solid'],
+            ['border-width', 'var(--cem-stroke-none)'],
+            ['box-sizing', 'border-box'],
+            ['margin', 'var(--cem-stroke-none)'],
+        ]),
+    ],
+    [
+        "cem-divider > .cem-divider[data-orientation='horizontal']",
+        new Map([
+            ['block-size', 'var(--cem-stroke-none)'],
+            ['border-block-start-width', 'var(--cem-stroke-divider)'],
+        ]),
+    ],
+    [
+        "cem-divider > .cem-divider[data-orientation='vertical']",
+        new Map([
+            ['align-self', 'stretch'],
+            ['border-inline-start-width', 'var(--cem-stroke-divider)'],
+            ['inline-size', 'var(--cem-stroke-none)'],
+        ]),
+    ],
+    [
+        "cem-divider[inset] > .cem-divider[data-orientation='horizontal']",
+        new Map([['margin-inline-start', 'var(--cem-inset-container)']]),
+    ],
+    [
+        "cem-divider[inset] > .cem-divider[data-orientation='vertical']",
+        new Map([['margin-block-start', 'var(--cem-inset-container)']]),
+    ],
+]);
 
 const failures = [];
 
@@ -410,6 +470,7 @@ function assertPublicComponentStyles(components, tokenNames) {
     const feedbackRules = new Map();
     const feedbackForcedColorRules = new Map();
     const navigationRules = new Map();
+    const dividerRules = new Map();
     const choicePopupStackingRules = new Map();
     const privateProperties = new Set(
         rules.flatMap(({ declarations }) => [...declarations.keys()].filter((name) => name.startsWith('--_cem-'))),
@@ -454,6 +515,12 @@ function assertPublicComponentStyles(components, tokenNames) {
                 fail(`${pathLabel}: duplicate navigation selector \`${rule.selector}\``);
             }
             navigationRules.set(rule.selector, rule.declarations);
+        }
+        if (!rule.media && DIVIDER_TAGS.has(tag)) {
+            if (dividerRules.has(rule.selector)) {
+                fail(`${pathLabel}: duplicate divider selector \`${rule.selector}\``);
+            }
+            dividerRules.set(rule.selector, rule.declarations);
         }
         if (FEEDBACK_TAGS.has(tag)) {
             const feedbackRuleSet = rule.media ? feedbackForcedColorRules : feedbackRules;
@@ -571,6 +638,8 @@ function assertPublicComponentStyles(components, tokenNames) {
             );
         }
     }
+
+    assertExactStateBindings(pathLabel, 'divider', dividerRules, DIVIDER_BINDINGS);
 
     assertExactStateBindings(pathLabel, 'feedback', feedbackRules, FEEDBACK_BINDINGS);
     assertExactStateBindings(

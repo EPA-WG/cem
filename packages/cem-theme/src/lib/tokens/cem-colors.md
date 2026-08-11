@@ -1,7 +1,7 @@
 # Semantic Palettes and Action States
 
 **Status:** Canonical (v1.0)  
-**Last updated:** 2025-12-21  
+**Last updated:** 2026-08-10
 **Taxonomy placement:** D0. Color (Emotional Palette)  
 **Audience:** Design Systems, Product Design, Front-End Engineering
 
@@ -69,6 +69,8 @@ This spec defines **consumer-semantic color tokens** for CEM:
   context while preserving current/selected meaning.
 - **Interactive-content state tokens** (`--cem-content-interaction-*`) for content-owned native controls such as
   checkable chips and selectable-list composites, without classifying them as actions, navigation, or form inputs.
+- A **separator color endpoint** (`--cem-separator-color`) for non-content lines that reinforce sibling separation
+  without acquiring the full salience of readable text.
 - **Zebra outline colors** (`--cem-zebra-*`) used with D5 Stroke to express selection/focus/target without relying on
   fill.
 - **System/forced-colors integration** so CEM remains accessible and compatible with platform theming.
@@ -114,7 +116,7 @@ To avoid “palette explosion”, D0 constrains variation intentionally:
 
 - **D0 → D4 (Layering):** surface/overlay colors must preserve legibility as layers change.
 - **D0 → D5 (Stroke):** focus/selection meaning is primarily expressed via **outline channels** (zebra) where fill must
-  not be relied upon.
+  not be relied upon. Separators take their color from D0 and their line geometry from D5.
 - **D0 → D6 (Typography):** text tokens and weight strategies exist to preserve contrast when fills collapse.
 - **D0 → D7 (Motion):** color changes should align with feedback timing (e.g., hover is immediate; pending is
   persistent).
@@ -620,6 +622,21 @@ geometry channel.
 | `--cem-content-interaction-disabled-background` | `<color>` | `var(--cem-action-contextual-disabled-background)` | Disabled content owner fill; wins over selected and hover | required |
 | `--cem-content-interaction-disabled-text` | `<color>` | `var(--cem-action-contextual-disabled-text)` | Disabled content owner text | required |
 
+### 7.11 Separator color
+
+A separator is not readable content and SHOULD NOT normally use the full-strength text color. It nevertheless belongs
+to the same D0 surface/text relationship so it remains legible when the surface changes. The canonical endpoint is
+therefore derived from `--cem-palette-comfort-text` at reduced salience rather than copied from it verbatim.
+
+D0 owns only the color. D5 owns divider thickness and placement, while D1 and D2 determine the space surrounding the
+line. A component boundary with its own state semantics must use the corresponding component-family color instead of
+silently reusing this sibling-separation endpoint.
+
+###### cem-separator-colors
+| Token | value-type | default-formula | forced-colors | notes | tier |
+|---|---|---|---|---|---|
+| `--cem-separator-color` | `<color>` | `color-mix(in srgb, var(--cem-palette-comfort-text) 38%, transparent)` | `CanvasText` | Reduced-salience line between sibling regions; forced colors restores a solid system contour | required |
+
 ## 8. Zebra outline colors
 
 ### 8.1 Outline-driven state mapping (zebra)
@@ -714,6 +731,7 @@ In `native` mode, palette endpoints SHOULD map to system colors:
 - `--cem-zebra-color-1`: `CanvasText`
 - `--cem-zebra-color-2`: `Mark` (fallback: `Highlight`)
 - `--cem-zebra-color-3`: `SelectedItem`
+- `--cem-separator-color`: `CanvasText`
 
 * Disclaimer. `Highlight` color in Chromium and Firefox do not pass contrast compliance against `HighlightText`, have to be darkened.
 ### 9.2 Forced colors
@@ -723,6 +741,8 @@ When `@media (forced-colors: active)` is true:
 - Prefer system colors (`Canvas`, `CanvasText`, `Highlight`, `SelectedItem`) over authored colors.
 - Avoid relying on `box-shadow`/glow as a sole state indicator (UAs commonly drop or adjust it).
 - Use outline/zebra and semantic system colors to preserve state visibility.
+- Resolve `--cem-separator-color` to `CanvasText`; reduced-alpha authored separators must not disappear after forced
+  color adjustment.
 
 ---
 
@@ -750,6 +770,12 @@ Use this as a quick “did we wire tokens correctly?” checklist.
 - [ ] Errors use `--cem-palette-danger` + `--cem-palette-danger-text`
 - [ ] Highlights use `--cem-palette-trust`
 - [ ] Low-emphasis/disabled uses `--cem-palette-conservative`
+
+### 10.4 Separation
+
+- [ ] Sibling dividers use `--cem-separator-color`; readable text continues to use the applicable `*-text` endpoint
+- [ ] Divider thickness comes from D5, and divider spacing/inset does not become a D0 token
+- [ ] Forced-colors dividers resolve to `CanvasText` rather than relying on the reduced-salience authored mixture
 
 ---
 
@@ -859,7 +885,8 @@ In addition to contrast, validate that **semantic meaning remains stable** acros
 
 Treat as **breaking** (major):
 
-- Renaming/removing any `--cem-palette-*`, `--cem-action-*`, or `--cem-zebra-*` canonical endpoint.
+- Renaming/removing any `--cem-palette-*`, `--cem-action-*`, `--cem-zebra-*`, or `--cem-separator-*` canonical
+  endpoint.
 - Changing the semantic meaning of any endpoint (e.g., swapping “trust” and “danger”).
 - Changing the intent↔emotion mapping used for action defaults (e.g., `primary` no longer mapping to `trust`).
 - Changing the meaning or ordering of canonical states (e.g., redefining `active` to be less emphasized than `hover`).
@@ -918,6 +945,10 @@ For each shipped intent (`primary`, `explicit`, `contextual`, `alternate`, `dest
 - `--cem-content-interaction-selected-hover-{background,text}`
 - `--cem-content-interaction-disabled-{background,text}`
 
+**Separation:**
+
+- `--cem-separator-color`
+
 ### 14.2 Recommended (implementation substrate)
 
 - Branded hues: `--cem-color-*` (brand-controlled; used to derive palette tokens)
@@ -939,6 +970,7 @@ from these tables using the same logic as `cem-colors.html`.
 | `cem-select-state-colors`                              | `--cem-select-*` (12 tokens) | one token per row                    |
 | `cem-navigation-item-state-colors`                     | `--cem-navigation-item-*` (14 tokens) | one token per row             |
 | `cem-content-interaction-state-colors`                  | `--cem-content-interaction-*` (10 tokens) | one token per row          |
+| `cem-separator-colors`                                  | `--cem-separator-*` (1 token) | one token per row                     |
 | `cem-action-intent-emotion` × `cem-action-state-color` | `--cem-action-*` (80 tokens)  | intent × state × {background, text} |
 ## 15. References
 

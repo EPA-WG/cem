@@ -38,6 +38,14 @@ if (!builtPrimitives.includes("tag: 'cem-autocomplete'")) {
     throw new Error('built primitive inventory must contain cem-autocomplete');
 }
 
+if (!sourcePrimitives.includes("tag: 'cem-divider'")) {
+    throw new Error('source primitive inventory must contain cem-divider');
+}
+
+if (!builtPrimitives.includes("tag: 'cem-divider'")) {
+    throw new Error('built primitive inventory must contain cem-divider');
+}
+
 if (!existsSync(builtAutocompleteBehaviorPath)) {
     throw new Error('built package must contain the autocomplete behavior artifact');
 }
@@ -111,7 +119,7 @@ try {
     }
 
     console.log(
-        `cem-components package verified (${packedFiles.length} packed files, autocomplete runtime included, ` +
+        `cem-components package verified (${packedFiles.length} packed files, autocomplete and divider owners included, ` +
             'one dist/styles.css, zero source/root copies).',
     );
 } finally {

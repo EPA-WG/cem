@@ -34,6 +34,7 @@ contract for `@epa-wg/cem-components`, the CEM core schema state vocabulary, and
 | Content | `icon` | `cem-icon` | Decorative or labeled icon text primitive | action, palette, stroke, typography |
 | Layout | `stack` | `cem-stack` | Single-axis layout container | gap, responsive |
 | Layout | `grid` | `cem-grid` | Responsive grid layout container | gap, responsive |
+| Layout | `divider` | `cem-divider` | Semantic or decorative sibling-separation track | separator, stroke, gap, inset, coupling |
 | Content | `list` | `cem-list` | Ordered or unordered collection, including empty state | palette, content, stroke, gap, typography |
 | Content | `card` | `cem-card` | Summary container for profile, asset, and message content | palette, stroke, bend, gap, inset |
 | Content | `table` | `cem-table` | Structured data comparison and asset grids | palette, stroke, gap, typography |
