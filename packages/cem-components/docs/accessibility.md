@@ -96,6 +96,7 @@ attributes consistent with reflected state.
 | Native slider values and bounds | `cem-slider` keeps each authored native range input as the slider role/value/bounds/step owner. A single thumb requires one accessible name; range start/end inputs require distinct names. Generated track, ticks, and value labels are `aria-hidden`. |
 | Timepicker combobox/listbox | `cem-timepicker` keeps its authored native text input as the labeled value, validation, event, and form owner while adding stable combobox/listbox references. DOM focus remains on the input through `aria-activedescendant`; the optional native toggle shares controls/expanded references and requires its own accessible name. |
 | Datepicker combobox/dialog/grid | `cem-datepicker` keeps its authored native text input as the labeled value, validation, event, reset, and form owner while adding stable combobox/dialog references. The optional native toggle shares controls/expanded references and requires its own accessible name. The modal dialog contains a labeled grid with localized column headers, exactly one roving day, `aria-selected` for the draft/committed date, `aria-current="date"` for today, and disabled out-of-range dates. |
+| Stepper workflow | `cem-stepper` exposes a labeled region containing an ordered step list. Exact native header buttons use `aria-current="step"`, stable `aria-controls`, visible completion/optional/error copy, `aria-invalid`, and native or focusable ARIA-disabled semantics as appropriate. Stable `role="region"` panels use reciprocal `aria-labelledby`; generic tab roles are not substituted. |
 | Tooltip description and presentation | `cem-tooltip` keeps a stable hidden plain-text description connected to exactly one supported native trigger through `aria-describedby`. Its separate manual Popover copy has `role="tooltip"`, no focusable descendants, and does not replace the trigger's accessible name. |
 
 The catalog enforces presence; runtime enforces *timing* — the attribute MUST
@@ -143,6 +144,12 @@ For every component that emits `id`/`for`/`aria-*` references at runtime:
   content inert. Apply, Cancel, Escape, and backdrop dismissal return focus to
   the input. Global `disabled` removes both authored native owners and prevents
   the dialog from opening.
+- `cem-stepper` keeps one enabled header in the roving tab order. Horizontal
+  Left/Right or vertical Up/Down plus Home/End move focus without selection,
+  wrap, and skip native-disabled steps. Focus may expose an `aria-disabled`
+  linear/editable destination, but every activation path remains suppressed.
+  Host-disabled owners expose no tab stop; authored panel controls participate
+  in normal document order only while their selected panel is visible.
 - `cem-tooltip` keeps focus on its one authored native trigger. The host,
   persistent description, and visible tooltip add no tab stop; opening,
   dismissing, pointer travel, and Escape never move focus.
@@ -216,6 +223,7 @@ patterns below are the contract for the Phase 3 primitive set.
 | `cem-slider` | Each native range input retains ArrowLeft/ArrowDown decrement, ArrowRight/ArrowUp increment, PageUp/PageDown larger change, and Home/End bounds. Range mode clamps the changing thumb at its peer and emits no replacement event. |
 | `cem-timepicker` | On the native text input, ArrowUp/ArrowDown open and navigate enabled options, Enter commits one canonical value, Escape closes without a value change, and Tab closes without trapping focus. Home/End, horizontal arrows, character editing, clipboard, and undo remain native text-input behavior. The optional toggle retains native Enter/Space activation. |
 | `cem-datepicker` | ArrowDown or Alt+ArrowDown on the native text input opens the modal calendar; the optional toggle retains native Enter/Space activation. In the grid, arrows move by day/week, Home/End move to locale week edges, PageUp/PageDown move by month, Shift/Alt+PageUp/PageDown move by year, and Enter/Space drafts one enabled date. Apply commits; Escape, Cancel, or backdrop dismissal closes silently. |
+| `cem-stepper` | Horizontal Left/Right or vertical Up/Down moves roving header focus, wraps, and skips native-disabled steps; Home/End reaches the first/last enabled header. Enter/Space follows native button activation and commits only an eligible non-current step. The other-axis arrows remain native. |
 | `cem-tooltip` | Native trigger keys remain unchanged. Keyboard focus presents the same description as hover; Escape dismisses immediately without moving focus, trapping focus, or synthesizing activation. Blur dismisses unless pointer or declarative `open` still supplies a visibility reason. |
 | `cem-text-field` | Native text-input behavior. `Escape` does not mutate authored validation state. |
 | `cem-select` | Dropdown arrows/Home/End/Page/typeahead move the preview; Enter/Space/Tab commit and Escape cancels. Sized single listboxes commit movement. Multiple listboxes use modifier-free Space/click toggle, Shift range, and Ctrl/Cmd+A. |
@@ -271,6 +279,11 @@ so the catalog can verify there is exactly one entrypoint per composite.
   text input owns the combobox and validation, one native modal dialog owns the
   calendar surface, and its labeled grid owns generated roving day gridcells.
   The host and layout wrapper remain semantic-neutral.
+- `cem-stepper` renders no tablist/tab/tabpanel substitute. Its labeled section
+  and ordered list provide workflow structure; exact native buttons own focus
+  and activation, `aria-current="step"` names current position, and reciprocal
+  labeled regions own persistent panels. Inert `cem-step` payloads add no live
+  role or tab stop.
 - `cem-tooltip` renders no competing trigger role. Its stable hidden description
   supplements the native trigger through `aria-describedby`; only the separate
   non-interactive visible Popover carries `role="tooltip"`.

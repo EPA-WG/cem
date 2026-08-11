@@ -43,6 +43,7 @@ The aggregate gate includes:
 | Tooltip forced colors | `yarn nx run @epa-wg/cem-components:verify-tooltip-forced-colors` | Proves exact trigger ownership, persistent description, `Canvas`/`CanvasText` surface paint, top-layer CSS anchor placement and fallback, pointer/focus continuity, stable geometry, and event/state isolation. |
 | Timepicker forced colors | `yarn nx run @epa-wg/cem-components:verify-timepicker-forced-colors` | Proves exact native input ownership, `Canvas`/`CanvasText` popup paint, system hover/active/selected/disabled coexistence, D5 focus, top-layer CSS anchor placement, stable geometry, and event/state isolation. |
 | Datepicker forced colors | `yarn nx run @epa-wg/cem-components:verify-datepicker-forced-colors` | Proves exact native input ownership, modal/top-layer containment, `Canvas` dialog paint, `SelectedItem` selected paint, `Mark` current paint, `CanvasText` focus coexistence, disabled suppression, logical anchor placement, stable geometry, and event/state isolation. |
+| Stepper forced colors | `yarn nx run @epa-wg/cem-components:verify-stepper-forced-colors` | Proves exact native header ownership, current/hover/active/focus/completed/invalid/disabled coexistence, completed/remaining connector paint, D2/D5 geometry, and transient event/state isolation. |
 | Input indicator forced colors | `yarn nx run @epa-wg/cem-components:verify-input-indicator-forced-colors` | Launches Chromium with forced colors active; proves component shadows collapse, field/binary hover uses `Highlight`, and keyboard focus traverses the original seven input owners with full `CanvasText` outlines. |
 | Autocomplete forced colors | `yarn nx run @epa-wg/cem-components:verify-autocomplete-forced-colors` | Proves popup draw order, input/option pointer ownership, system hover/active/selected/disabled colors, keyboard focus coexistence, stable geometry, and event/state isolation. |
 | Navigation hover/focus/active/disabled forced colors | `yarn nx run @epa-wg/cem-components:verify-navigation-hover-forced-colors` | Launches Chromium with forced colors active; proves system hover/current/active/disabled colors, ARIA-disabled current/selected precedence, full keyboard traversal, focus coexistence, native-disabled skipping, restoration, and wrapper/state isolation. |
@@ -66,6 +67,7 @@ Executable fixture locations:
 | Tooltip behavior and state coverage | `../src/lib/tooltip.browser.spec.ts` |
 | Timepicker behavior and state coverage | `../src/lib/timepicker.browser.spec.ts` |
 | Datepicker behavior and state coverage | `../src/lib/datepicker.browser.spec.ts` |
+| Stepper behavior and state coverage | `../src/lib/stepper.browser.spec.ts` |
 | State, ARIA, focus, and event payload coverage | `../src/lib/states.browser.spec.ts` |
 | Feedback lifecycle and focus coverage | `../src/lib/feedback-expanded.browser.spec.ts` |
 | Workflow fixture coverage | `../src/lib/workflows.browser.spec.ts` |
@@ -79,6 +81,7 @@ Executable fixture locations:
 | Declarative tooltip fixture | `../tests/tooltip/contract.html` |
 | Declarative timepicker fixture | `../tests/timepicker/contract.html` |
 | Declarative datepicker fixture | `../tests/datepicker/contract.html` |
+| Declarative stepper fixture | `../tests/stepper/contract.html` |
 | Component harness helpers | `../src/lib/testing/component-harness.ts` |
 | Style and manifest verifier scripts | `../../../tools/scripts/verify-cem-components-*.mjs` |
 | Package stylesheet source | `../src/styles.css` |
@@ -215,6 +218,8 @@ spacing/inset, the D2 guard floor, and D5 line geometry as specified by the
 | `cem-app-bar` | Page or application banner. | `slot="title"` for title; default slot for global actions. | palette, stroke, gap, inset, typography | `label` names the banner when multiple landmarks exist. |
 | `cem-nav` | Labeled navigation region with an optional region-wide disclosure. | Default slot accepts links/actions. Presence-only `collapsible` adds a native disclosure button; presence-only `expanded` sets its initial open state. Without `collapsible`, the existing passive landmark output is unchanged. | palette, navigation, gap, inset, typography | `label` names both the nav landmark and disclosure button. The button mirrors the current boolean state through `aria-expanded`; hidden content leaves the tab order and links retain native semantics. |
 | `cem-tabs` | Local view switcher. | Project tab buttons with `role="tab"` and `aria-selected`. | palette, navigation, stroke, gap, typography | Tablist must be named and exactly one active tab should be selected. |
+| `cem-stepper` | Linear or nonlinear workflow navigation. | Direct `cem-step` children require unique `value` and non-empty `label`; host accepts `selected-index`, `orientation`, `linear`, and `disabled`. Steps accept `completed`, `editable`, `optional`, `invalid`, and `disabled`. See the [stepper contract](./stepper-contract.md). | palette, navigation, workflow, stroke, bend, gap, coupling, control, typography | A labeled ordered list owns roving native header buttons with `aria-current="step"`; stable reciprocal regions retain authored panel state. Application facts control validation/completion. |
+| `cem-step` | Inert step payload consumed by `cem-stepper`. | `value`, `label`, status attributes, and default panel content. | palette, navigation, workflow, stroke, bend, gap, coupling, control, typography | Adds no independent role, focus, event, form, or validation owner. |
 | `cem-paginator` | Labeled paged-content navigation with application-owned data. | `length`, zero-based `page-index`, `page-size`, whitespace-separated `page-size-options`, `show-first-last`, `hide-page-size`, `disabled`, `name`, `label`, and localizable control/range labels. See the [paginator contract](./paginator-contract.md). | action, palette, select, control, stroke, bend, gap, inset, typography | A native navigation landmark owns a labeled page-size select, named native actions, focus-stable `aria-disabled` boundaries, and one atomic polite range status. Applications consume `cem-page` to load/render data. |
 
 States: `default`, `hover`, `focus-visible`, `active`, `disabled`, `selected`, `expanded`.

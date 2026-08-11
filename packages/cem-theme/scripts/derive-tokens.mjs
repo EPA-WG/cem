@@ -69,6 +69,7 @@ function deriveColorTokens(xhtml) {
     addTableTokens(xhtml, "cem-content-interaction-state-colors", spec, "d0-content-interaction", tokens, warnings);
     addTableTokens(xhtml, "cem-separator-colors", spec, "d0-separation", tokens, warnings);
     addTableTokens(xhtml, "cem-progress-indicator-colors", spec, "d0-progress", tokens, warnings);
+    addTableTokens(xhtml, "cem-workflow-step-colors", spec, "d0-workflow", tokens, warnings);
     addTableTokens(xhtml, "cem-slider-colors", spec, "d0-slider", tokens, warnings);
 
     // Action tokens: cross-product of intent × state

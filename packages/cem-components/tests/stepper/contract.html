@@ -1,0 +1,48 @@
+<section class="cem-theme-light" data-stepper-contract-fixture aria-label="Stepper contract fixture">
+  <button data-stepper-focus-start type="button">Focus start</button>
+
+  <cem-stepper id="workflow-stepper" label="Create account" selected-index="1">
+    <cem-step value="account" label="Account" completed editable>
+      <label>Account name <input id="account-name" value="Ada"></label>
+    </cem-step>
+    <cem-step value="shipping" label="Shipping" optional>
+      <button id="shipping-action" type="button">Use saved address</button>
+    </cem-step>
+    <cem-step value="review" label="Review" completed disabled>
+      <p id="review-copy">Review details</p>
+    </cem-step>
+    <cem-step value="confirm" label="Confirm" invalid>
+      <p id="confirm-copy">Resolve the error before submitting.</p>
+    </cem-step>
+  </cem-stepper>
+
+  <cem-stepper id="linear-stepper" label="Linear checkout" linear>
+    <cem-step value="contact" label="Contact">
+      <p>Contact details</p>
+    </cem-step>
+    <cem-step value="delivery" label="Delivery" optional>
+      <p>Delivery details</p>
+    </cem-step>
+    <cem-step value="payment" label="Payment">
+      <p>Payment details</p>
+    </cem-step>
+  </cem-stepper>
+
+  <cem-stepper id="vertical-stepper" label="Vertical workflow" orientation="vertical">
+    <cem-step value="one" label="One"><p>One panel</p></cem-step>
+    <cem-step value="two" label="Two" disabled><p>Two panel</p></cem-step>
+    <cem-step value="three" label="Three"><p>Three panel</p></cem-step>
+  </cem-stepper>
+
+  <cem-stepper id="disabled-stepper" label="Disabled workflow" selected-index="1" disabled>
+    <cem-step value="disabled-one" label="Disabled one"><p>First disabled panel</p></cem-step>
+    <cem-step value="disabled-two" label="Disabled two" completed><p>Second disabled panel</p></cem-step>
+  </cem-stepper>
+
+  <cem-stepper id="malformed-stepper" label="Malformed workflow">
+    <cem-step value="duplicate" label="Duplicate one"><p>One</p></cem-step>
+    <cem-step value="duplicate" label="Duplicate two"><p>Two</p></cem-step>
+  </cem-stepper>
+
+  <button data-stepper-focus-end type="button">Focus end</button>
+</section>

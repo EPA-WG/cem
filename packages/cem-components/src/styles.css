@@ -154,6 +154,195 @@ cem-tabs > [role='tablist'] > button[role='tab']:enabled:focus-visible {
     outline-offset: var(--cem-stroke-indicator-offset);
 }
 
+cem-stepper {
+    display: block;
+}
+
+cem-stepper > .cem-stepper {
+    --_cem-stepper-gap: var(--cem-gap-group);
+    background-color: var(--cem-palette-comfort);
+    color: var(--cem-palette-comfort-text);
+    display: block;
+    font-family: var(--cem-typography-ui-font-family);
+    font-size: var(--cem-typography-ui-font-size);
+    line-height: var(--cem-typography-ui-line-height);
+}
+
+cem-stepper > .cem-stepper > .cem-stepper__steps {
+    display: flex;
+    gap: var(--_cem-stepper-gap);
+    list-style: none;
+    margin: var(--cem-stroke-none);
+    padding: var(--cem-stroke-none);
+}
+
+cem-stepper > .cem-stepper[data-orientation='vertical'] > .cem-stepper__steps {
+    display: grid;
+}
+
+cem-stepper > .cem-stepper > .cem-stepper__steps > .cem-stepper__item {
+    flex: 1 1 0;
+    min-inline-size: 0;
+    position: relative;
+}
+
+cem-stepper > .cem-stepper > .cem-stepper__steps > .cem-stepper__item:not(:last-child)::after {
+    background-color: var(--cem-workflow-connector-default-color);
+    block-size: var(--cem-stroke-divider);
+    content: '';
+    inline-size: var(--_cem-stepper-gap);
+    inset-block-start: calc(var(--cem-coupling-zone-min) / 2);
+    inset-inline-start: 100%;
+    pointer-events: none;
+    position: absolute;
+}
+
+cem-stepper
+    > .cem-stepper[data-orientation='vertical']
+    > .cem-stepper__steps
+    > .cem-stepper__item:not(:last-child)::after {
+    block-size: var(--_cem-stepper-gap);
+    inline-size: var(--cem-stroke-divider);
+    inset-block-start: 100%;
+    inset-inline-start: calc(var(--cem-control-padding-x) + var(--cem-icon-button-icon-size) / 2);
+}
+
+cem-stepper
+    > .cem-stepper
+    > .cem-stepper__steps
+    > .cem-stepper__item[data-completed='true']:not(:last-child)::after {
+    background-color: var(--cem-workflow-connector-completed-color);
+}
+
+cem-stepper > .cem-stepper > .cem-stepper__steps > .cem-stepper__item > .cem-stepper__header {
+    appearance: none;
+    background-color: var(--cem-navigation-item-default-background);
+    border: var(--cem-stroke-none) solid transparent;
+    border-radius: var(--cem-bend-control);
+    box-sizing: border-box;
+    color: var(--cem-navigation-item-default-text);
+    display: grid;
+    font: inherit;
+    font-weight: var(--cem-typography-ui-font-weight);
+    gap: var(--cem-gap-related);
+    grid-template-areas: 'marker label' 'marker status';
+    grid-template-columns: auto minmax(0, 1fr);
+    inline-size: 100%;
+    letter-spacing: var(--cem-typography-ui-letter-spacing);
+    margin: var(--cem-stroke-none);
+    min-block-size: var(--cem-coupling-zone-min);
+    padding-block: var(--cem-control-padding-y);
+    padding-inline: var(--cem-control-padding-x);
+    text-align: start;
+}
+
+cem-stepper
+    > .cem-stepper
+    > .cem-stepper__steps
+    > .cem-stepper__item
+    > .cem-stepper__header:enabled:not([aria-disabled='true']):hover {
+    background-color: var(--cem-navigation-item-hover-background);
+    color: var(--cem-navigation-item-hover-text);
+}
+
+cem-stepper
+    > .cem-stepper
+    > .cem-stepper__steps
+    > .cem-stepper__item
+    > .cem-stepper__header:enabled:not([aria-disabled='true']):active {
+    background-color: var(--cem-navigation-item-active-background);
+    color: var(--cem-navigation-item-active-text);
+}
+
+cem-stepper
+    > .cem-stepper
+    > .cem-stepper__steps
+    > .cem-stepper__item
+    > .cem-stepper__header[aria-current='step'] {
+    background-color: var(--cem-navigation-item-current-background);
+    color: var(--cem-navigation-item-current-text);
+}
+
+cem-stepper
+    > .cem-stepper
+    > .cem-stepper__steps
+    > .cem-stepper__item
+    > .cem-stepper__header[aria-current='step']:enabled:not([aria-disabled='true']):hover {
+    background-color: var(--cem-navigation-item-current-hover-background);
+    color: var(--cem-navigation-item-current-hover-text);
+}
+
+cem-stepper
+    > .cem-stepper
+    > .cem-stepper__steps
+    > .cem-stepper__item
+    > .cem-stepper__header[aria-current='step']:enabled:not([aria-disabled='true']):active {
+    background-color: var(--cem-navigation-item-current-active-background);
+    color: var(--cem-navigation-item-current-active-text);
+}
+
+cem-stepper
+    > .cem-stepper
+    > .cem-stepper__steps
+    > .cem-stepper__item
+    > .cem-stepper__header:is(:disabled, [aria-disabled='true']) {
+    background-color: var(--cem-navigation-item-disabled-background);
+    color: var(--cem-navigation-item-disabled-text);
+}
+
+cem-stepper
+    > .cem-stepper
+    > .cem-stepper__steps
+    > .cem-stepper__item
+    > .cem-stepper__header:enabled:focus-visible {
+    outline: var(--cem-stroke-focus) solid var(--cem-zebra-color-1);
+    outline-offset: var(--cem-stroke-indicator-offset);
+}
+
+cem-stepper .cem-stepper__marker {
+    align-items: center;
+    align-self: center;
+    block-size: var(--cem-icon-button-icon-size);
+    border: var(--cem-stroke-boundary) solid currentColor;
+    border-radius: 50%;
+    display: inline-flex;
+    grid-area: marker;
+    inline-size: var(--cem-icon-button-icon-size);
+    justify-content: center;
+}
+
+cem-stepper .cem-stepper__label {
+    align-self: end;
+    grid-area: label;
+}
+
+cem-stepper .cem-stepper__status {
+    font-family: var(--cem-typography-tag-font-family);
+    font-size: var(--cem-typography-tag-font-size);
+    font-weight: var(--cem-typography-tag-font-weight);
+    grid-area: status;
+    letter-spacing: var(--cem-typography-tag-letter-spacing);
+    line-height: var(--cem-typography-tag-line-height);
+}
+
+cem-stepper .cem-stepper__header[data-marker-state='completed'] > .cem-stepper__marker {
+    color: var(--cem-workflow-step-completed-indicator-color);
+}
+
+cem-stepper .cem-stepper__header[data-marker-state='invalid'] > .cem-stepper__marker {
+    color: var(--cem-workflow-step-invalid-indicator-color);
+}
+
+cem-stepper > .cem-stepper > .cem-stepper__panels {
+    margin-block-start: var(--cem-gap-block);
+}
+
+cem-stepper > .cem-stepper > .cem-stepper__panels > .cem-stepper__panel {
+    background-color: var(--cem-palette-comfort);
+    color: var(--cem-palette-comfort-text);
+    padding: var(--cem-inset-container);
+}
+
 cem-divider {
     --_cem-divider-space: var(--cem-gap-group);
     display: block;
@@ -1677,6 +1866,83 @@ cem-select .cem-select__option[aria-disabled='true'] {
     cem-tabs > [role='tablist'] > button[role='tab']:enabled:focus-visible {
         outline: var(--cem-stroke-focus) solid CanvasText;
         outline-offset: var(--cem-stroke-indicator-offset);
+    }
+
+    cem-stepper > .cem-stepper,
+    cem-stepper > .cem-stepper > .cem-stepper__panels > .cem-stepper__panel,
+    cem-stepper > .cem-stepper > .cem-stepper__steps > .cem-stepper__item > .cem-stepper__header {
+        background-color: Canvas;
+        color: CanvasText;
+    }
+
+    cem-stepper
+        > .cem-stepper
+        > .cem-stepper__steps
+        > .cem-stepper__item
+        > .cem-stepper__header[aria-current='step'] {
+        background-color: SelectedItem;
+        color: SelectedItemText;
+    }
+
+    cem-stepper
+        > .cem-stepper
+        > .cem-stepper__steps
+        > .cem-stepper__item
+        > .cem-stepper__header:enabled:not([aria-disabled='true']):hover,
+    cem-stepper
+        > .cem-stepper
+        > .cem-stepper__steps
+        > .cem-stepper__item
+        > .cem-stepper__header:enabled:not([aria-disabled='true']):active,
+    cem-stepper
+        > .cem-stepper
+        > .cem-stepper__steps
+        > .cem-stepper__item
+        > .cem-stepper__header[aria-current='step']:enabled:not([aria-disabled='true']):hover,
+    cem-stepper
+        > .cem-stepper
+        > .cem-stepper__steps
+        > .cem-stepper__item
+        > .cem-stepper__header[aria-current='step']:enabled:not([aria-disabled='true']):active {
+        background-color: Highlight;
+        color: HighlightText;
+    }
+
+    cem-stepper
+        > .cem-stepper
+        > .cem-stepper__steps
+        > .cem-stepper__item
+        > .cem-stepper__header:is(:disabled, [aria-disabled='true']) {
+        background-color: Canvas;
+        color: GrayText;
+    }
+
+    cem-stepper
+        > .cem-stepper
+        > .cem-stepper__steps
+        > .cem-stepper__item
+        > .cem-stepper__header:enabled:focus-visible {
+        outline: var(--cem-stroke-focus) solid CanvasText;
+        outline-offset: var(--cem-stroke-indicator-offset);
+    }
+
+    cem-stepper .cem-stepper__header[data-marker-state='completed'] > .cem-stepper__marker {
+        color: Highlight;
+    }
+
+    cem-stepper .cem-stepper__header[data-marker-state='invalid'] > .cem-stepper__marker {
+        color: Mark;
+    }
+
+    cem-stepper > .cem-stepper > .cem-stepper__steps > .cem-stepper__item:not(:last-child)::after {
+        background-color: GrayText;
+    }
+
+    cem-stepper
+        > .cem-stepper
+        > .cem-stepper__steps
+        > .cem-stepper__item[data-completed='true']:not(:last-child)::after {
+        background-color: Highlight;
     }
 
     cem-field input,

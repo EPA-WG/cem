@@ -451,6 +451,37 @@ mediate between internal layers.
           and the dedicated datepicker forced-colors/modal/top-layer gate. The
           theme audit added one canonical D0 current-context indicator so today and
           selection coexist; no component CSS exception was required.
+    - [x] Select, contract, and implement `stepper` as the next audited parity gap
+          with inert `cem-step` payloads and application-owned validation/completion.
+      - [x] Freeze one `cem-stepper` owner, strict direct `cem-step` vocabulary,
+            unique values/labels, silent `selected-index` control, horizontal and
+            vertical roving focus, nonlinear/linear eligibility, editable return,
+            persistent panels, and one serializable `cem-step` activation event.
+      - [x] Add missing workflow completion/error/connector D0 semantics before
+            component CSS. Reuse navigation item states for the exact native header
+            buttons and D1/D2/D3/D5/D6 endpoints for layout, targets, shape, focus,
+            and type; do not reuse sibling-divider color for workflow progress.
+      - [x] Add a declarative `tests/stepper/contract.html` fixture and focused
+            browser coverage for exact owners and ARIA references, pointer/keyboard
+            selection, orientation, wrapping/skipping, selected/current coexistence,
+            completed/editable/optional/invalid/disabled rules, stable panels and
+            geometry, silent programmatic control, and zero transient mutation.
+      - [x] Add the behavior and token-only surface plus a dedicated forced-colors
+            gate for default/current/hover/active/focus/completed/invalid/disabled
+            paint, connector progress, disabled suppression, and absent component
+            animation or numeric z-index.
+      - [x] Promote public docs, state/parity evidence, package verification, and
+            todo completion only after every stepper gate passes; add a CSS exception
+            only if no Consumer Semantic Theme category can represent required paint.
+        - The public inventory now has 46 primitives. Angular Material parity is
+          16 covered, 20 partial, and 1 gap; the state matrix remains fully green
+          at 40/40. The uncached serial aggregate ran the component target plus all
+          32 dependent targets and passed 120/120 tests across 17 test files,
+          441 generated visual tokens, the 60-file package publication contract,
+          and the dedicated stepper forced-colors gate. The test target now
+          serializes browser files so pointer-owner assertions cannot compete for
+          one browser pointer. Four canonical D0 workflow indicator/connector
+          endpoints cover the new paint, so no component CSS exception was required.
 
 ### Immediate: CSS Selector Query Schema and Unified CLI Query Execution
 

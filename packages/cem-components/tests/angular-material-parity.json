@@ -11,12 +11,12 @@
     },
     "recommendedAudit": null,
     "implementationPriority": {
-        "id": "datepicker",
+        "id": "stepper",
         "acceptedAt": "2026-08-11",
         "completedAt": "2026-08-11",
-        "contract": "packages/cem-components/docs/datepicker-contract.md",
+        "contract": "packages/cem-components/docs/stepper-contract.md",
         "state": "completed",
-        "targetStatus": "partial"
+        "targetStatus": "covered"
     },
     "components": [
         {
@@ -452,15 +452,15 @@
         {
             "id": "stepper",
             "name": "Stepper",
-            "status": "gap",
+            "status": "covered",
             "mapping": {
-                "kind": "gap",
-                "owners": [],
+                "kind": "component",
+                "owners": ["cem-stepper", "cem-step"],
                 "states": ["default", "focus-visible", "selected", "completed", "editable", "optional", "invalid", "disabled"],
-                "keyboard": ["Use Left/Right or Up/Down to move among step headers and Enter/Space to select the focused step."],
-                "accessibility": ["Associate a labeled step list, selectable step headers, and step panels while announcing selection, completion, optional, and error state."],
-                "evidence": [],
-                "notes": "cem-tabs does not own linear workflow validation, completion, editable/optional steps, orientation, or step-panel lifecycle and is not accepted as a stepper substitute."
+                "keyboard": ["Use roving Left/Right in horizontal orientation or Up/Down in vertical orientation, wrapping and skipping native-disabled steps; Home/End reach the first/last enabled header, while native Enter/Space activation obeys linear and editable eligibility."],
+                "accessibility": ["Expose a labeled ordered workflow, exact native step-header buttons with aria-current=step, stable reciprocal header/panel references, visible completion/optional/error copy, native disabled suppression, and focusable aria-disabled eligibility without substituting generic tab roles."],
+                "evidence": ["packages/cem-components/src/lib/stepper.browser.spec.ts::renders one labeled ordered workflow with exact native headers and persistent linked regions", "packages/cem-components/src/lib/stepper.browser.spec.ts::commits one pointer/native-button path while current and disabled activation stay silent", "packages/cem-components/src/lib/stepper.browser.spec.ts::moves roving focus by orientation, wraps, skips native-disabled steps, and activates with Enter", "packages/cem-components/src/lib/stepper.browser.spec.ts::enforces authored linear, optional, invalid, and editable facts without inspecting panel controls", "packages/cem-components/src/lib/stepper.browser.spec.ts::keeps programmatic control silent, clamps selection, and rejects malformed or globally disabled owners", "packages/cem-components/src/lib/stepper.browser.spec.ts::keeps hover and focus-visible on the exact header with stable geometry and zero transient mutation", "packages/cem-components/scripts/verify-stepper-forced-colors.mjs", "packages/cem-components/scripts/verify-package.mjs", "packages/cem-components/docs/stepper-contract.md"],
+                "notes": "cem-stepper now owns the workflow capability separately from cem-tabs: strict inert cem-step payloads, application-authored completion/invalid facts, linear/nonlinear eligibility, optional steps, editable return, horizontal/vertical roving focus, stable linked panels, silent programmatic selection, one serializable activation event, and tokenized normal/forced-colors states. Angular form directives, dependency injection, custom icon templates, and animation APIs are framework APIs rather than missing behavioral ownership."
             }
         },
         {

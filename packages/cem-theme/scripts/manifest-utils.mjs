@@ -189,6 +189,7 @@ function deriveColorManifest(xhtml) {
     );
     addTableCategory(xhtml, "cem-separator-colors", "d0-separation", tokens, warnings);
     addTableCategory(xhtml, "cem-progress-indicator-colors", "d0-progress", tokens, warnings);
+    addTableCategory(xhtml, "cem-workflow-step-colors", "d0-workflow", tokens, warnings);
     addTableCategory(xhtml, "cem-slider-colors", "d0-slider", tokens, warnings);
 
     const intentRows = extractTable(xhtml, "cem-action-intent-emotion");

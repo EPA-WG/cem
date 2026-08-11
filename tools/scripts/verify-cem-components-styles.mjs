@@ -36,6 +36,7 @@ const TOKEN_FAMILY_PREFIXES = {
     stroke: ['--cem-stroke-'],
     timing: ['--cem-duration-', '--cem-easing-'],
     typography: ['--cem-typography-', '--cem-fontography-'],
+    workflow: ['--cem-workflow-'],
 };
 
 const STYLE_EXTENSIONS = new Set(['.css', '.less', '.pcss', '.scss']);

@@ -2,8 +2,8 @@
 
 **Status:** All pinned product mappings are audited. The accepted `autocomplete`,
 `divider`, `expansion`, `progress-spinner`, `sort`, `paginator`, `slider`,
-`tooltip`, and `timepicker` priorities are covered, and the bounded single-date
-`datepicker` priority is completed as a partial catalog mapping;
+`tooltip`, `timepicker`, and `stepper` priorities are covered, and the bounded
+single-date `datepicker` priority is completed as a partial catalog mapping;
 selecting another implementation gap is a separate product decision tracked in
 [`docs/todo.md`](../../../docs/todo.md).
 
@@ -73,9 +73,9 @@ substituted for the missing component.
 
 | Classification | Count | Catalog entries |
 | --- | ---: | --- |
-| Covered | 15 | autocomplete, card, checkbox, dialog, divider, expansion, input, paginator, progress-spinner, select, slide-toggle, slider, sort, timepicker, tooltip |
+| Covered | 16 | autocomplete, card, checkbox, dialog, divider, expansion, input, paginator, progress-spinner, select, slide-toggle, slider, sort, stepper, timepicker, tooltip |
 | Partial | 20 | badge, bottom-sheet, button, button-toggle, chips, core, datepicker, form-field, grid-list, icon, list, menu, progress-bar, radio, ripple, sidenav, snack-bar, table, tabs, toolbar |
-| Gap | 2 | stepper, tree |
+| Gap | 1 | tree |
 
 Each row in the executable inventory explains its boundary. In particular,
 `cem-grid` is not treated as a grid-list, `cem-tabs` is not treated as a stepper,
@@ -188,6 +188,17 @@ not covered, because ranges, date adapters and filters, alternate year views,
 date/time-zone integration, Date/Temporal values, and locale-specific parsing
 remain outside this single-date capability.
 
+`stepper` closes the workflow gap without expanding `cem-tabs`. The
+[stepper contract](./stepper-contract.md) assigns strict inert `cem-step`
+payloads, an ordered native-button header set, stable reciprocal panels,
+horizontal/vertical roving focus, linear/nonlinear eligibility, optional and
+editable rules, application-authored completion/invalid facts, silent
+programmatic selection, and one serializable `cem-step` activation event to
+`cem-stepper`. The pre-CSS audit reuses navigation states and adds canonical D0
+workflow marker/connector semantics because a process path is neither a sibling
+divider nor numeric progress. Normal and forced colors pass without a component
+CSS exception or animation.
+
 Run the invariant with:
 
 ```bash
@@ -195,6 +206,6 @@ yarn nx run @epa-wg/cem-components:verify-material-parity
 ```
 
 The gate verifies the exact 37-entry pin, every audited mapping, and completion
-of the accepted implementation priority. It reports fifteen covered rows,
-twenty partial rows, two gaps, no remaining audit, and no next
+of the accepted implementation priority. It reports sixteen covered rows,
+twenty partial rows, one gap, no remaining audit, and no next
 implementation until a new gap is deliberately selected and contracted.

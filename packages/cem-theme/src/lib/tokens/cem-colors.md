@@ -661,7 +661,28 @@ remaining/current distinction with system-owned colors.
 | `--cem-progress-track-color` | `<color>` | `color-mix(in srgb, var(--cem-palette-comfort-text) 24%, transparent)` | `GrayText` | Remaining progress range at reduced salience | required |
 | `--cem-progress-indicator-color` | `<color>` | `var(--cem-palette-enthusiasm-x)` | `Highlight` | Current or indeterminate work indicator | required |
 
-### 7.13 Slider input colors
+### 7.13 Workflow step colors
+
+Workflow steppers combine navigation with durable process facts. Header
+default/current/hover/active/disabled paint uses the navigation-item family, but
+completion and error markers must remain independently visible when a current or
+focused header coexists with those facts. Connector graphics represent process
+progress, not sibling separation or a numeric progress indicator, and therefore
+must not reuse `--cem-separator-color` or `--cem-progress-*`.
+
+Text labels and marker shapes keep workflow meaning redundant with color. In
+forced colors remaining connectors map to `GrayText`, completed progress maps to
+`Highlight`, and invalidity maps to `Mark`.
+
+###### cem-workflow-step-colors
+| Token | value-type | default-formula | forced-colors | notes | tier |
+|---|---|---|---|---|---|
+| `--cem-workflow-step-completed-indicator-color` | `<color>` | `var(--cem-palette-trust)` | `Highlight` | Completed-step marker independent of current/focus paint | required |
+| `--cem-workflow-step-invalid-indicator-color` | `<color>` | `var(--cem-palette-danger)` | `Mark` | Invalid-step marker independent of current/focus paint | required |
+| `--cem-workflow-connector-default-color` | `<color>` | `color-mix(in srgb, var(--cem-palette-comfort-text) 24%, transparent)` | `GrayText` | Remaining workflow path | required |
+| `--cem-workflow-connector-completed-color` | `<color>` | `var(--cem-palette-trust)` | `Highlight` | Completed workflow path | required |
+
+### 7.14 Slider input colors
 
 A slider is an interactive value input. Its remaining track, selected range,
 thumb, and step ticks therefore form one dedicated D0 family. These endpoints
@@ -786,6 +807,10 @@ In `native` mode, palette endpoints SHOULD map to system colors:
 - `--cem-slider-active-track-color`: `Highlight`
 - `--cem-slider-thumb-color`: `CanvasText`
 - `--cem-slider-tick-color`: `CanvasText`
+- `--cem-workflow-step-completed-indicator-color`: `Highlight`
+- `--cem-workflow-step-invalid-indicator-color`: `Mark`
+- `--cem-workflow-connector-default-color`: `GrayText`
+- `--cem-workflow-connector-completed-color`: `Highlight`
 
 * Disclaimer. `Highlight` color in Chromium and Firefox do not pass contrast compliance against `HighlightText`, have to be darkened.
 ### 9.2 Forced colors
@@ -801,6 +826,8 @@ When `@media (forced-colors: active)` is true:
   hue to distinguish the current arc from the remaining range.
 - Resolve slider remaining/disabled graphics to `GrayText`, active graphics to `Highlight`, and resting thumbs/ticks
   to `CanvasText`; retain positional and focus-outline cues.
+- Resolve remaining workflow connectors to `GrayText`, completed connectors and markers to `Highlight`, and invalid
+  markers to `Mark`; keep current navigation fill and focus geometry independent.
 
 ---
 
@@ -836,6 +863,7 @@ Use this as a quick “did we wire tokens correctly?” checklist.
 - [ ] Forced-colors dividers resolve to `CanvasText` rather than relying on the reduced-salience authored mixture
 - [ ] Forced-colors progress graphics resolve their track/indicator pair to `GrayText` / `Highlight`
 - [ ] Sliders use `--cem-slider-*`; a value-range track is not a separator or progress status graphic
+- [ ] Workflow status/connectors use `--cem-workflow-*`; a process path is not a sibling divider or numeric progress graphic
 
 ---
 
@@ -1009,6 +1037,11 @@ For each shipped intent (`primary`, `explicit`, `contextual`, `alternate`, `dest
 
 - `--cem-separator-color`
 
+**Workflow steps:**
+
+- `--cem-workflow-step-{completed,invalid}-indicator-color`
+- `--cem-workflow-connector-{default,completed}-color`
+
 ### 14.2 Recommended (implementation substrate)
 
 - Branded hues: `--cem-color-*` (brand-controlled; used to derive palette tokens)
@@ -1033,6 +1066,7 @@ from these tables using the same logic as `cem-colors.html`.
 | `cem-navigation-item-state-colors`                     | `--cem-navigation-item-*` (14 tokens) | one token per row             |
 | `cem-content-interaction-state-colors`                  | `--cem-content-interaction-*` (11 tokens) | one token per row          |
 | `cem-separator-colors`                                  | `--cem-separator-*` (1 token) | one token per row                     |
+| `cem-workflow-step-colors`                              | `--cem-workflow-*` (4 tokens) | one token per row                     |
 | `cem-action-intent-emotion` × `cem-action-state-color` | `--cem-action-*` (80 tokens)  | intent × state × {background, text} |
 ## 15. References
 

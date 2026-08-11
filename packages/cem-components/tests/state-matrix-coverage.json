@@ -568,7 +568,7 @@
             "id": "navigation:default",
             "category": "Navigation",
             "state": "default",
-            "components": ["cem-app-bar", "cem-nav", "cem-tabs", "cem-paginator"],
+            "components": ["cem-app-bar", "cem-nav", "cem-tabs", "cem-stepper", "cem-paginator"],
             "interaction": "Render navigation landmarks and a labeled tablist with native roles.",
             "status": "covered",
             "owner": "packages/cem-components/src/lib/primitives.browser.spec.ts",
@@ -586,6 +586,15 @@
                         "expect(records.owner.tagName).toBe('NAV');",
                         "expect(records.range.getAttribute('role')).toBe('status');"
                     ]
+                },
+                {
+                    "component": "cem-stepper",
+                    "owner": "packages/cem-components/src/lib/stepper.browser.spec.ts",
+                    "test": "renders one labeled ordered workflow with exact native headers and persistent linked regions",
+                    "assertions": [
+                        "expect(parts.owner.tagName).toBe('SECTION');",
+                        "expect(parts.list.tagName).toBe('OL');"
+                    ]
                 }
             ]
         },
@@ -593,7 +602,7 @@
             "id": "navigation:hover",
             "category": "Navigation",
             "state": "hover",
-            "components": ["cem-nav", "cem-tabs", "cem-paginator"],
+            "components": ["cem-nav", "cem-tabs", "cem-stepper", "cem-paginator"],
             "interaction": "Move the pointer across navigation items without changing layout.",
             "status": "covered",
             "owner": "packages/cem-components/src/lib/states.browser.spec.ts",
@@ -616,6 +625,15 @@
                         "expect(pointerEvents).toEqual(['pointerenter:true', 'pointerleave:true']);",
                         "expectActionGeometry(hovered, baseline);"
                     ]
+                },
+                {
+                    "component": "cem-stepper",
+                    "owner": "packages/cem-components/src/lib/stepper.browser.spec.ts",
+                    "test": "keeps hover and focus-visible on the exact header with stable geometry and zero transient mutation",
+                    "assertions": [
+                        "expect(pointerEvents).toEqual(['pointerenter:true', 'pointerleave:true']);",
+                        "expectStableTransient(hovered, baseline);"
+                    ]
                 }
             ]
         },
@@ -623,7 +641,7 @@
             "id": "navigation:focus-visible",
             "category": "Navigation",
             "state": "focus-visible",
-            "components": ["cem-nav", "cem-tabs", "cem-paginator"],
+            "components": ["cem-nav", "cem-tabs", "cem-stepper", "cem-paginator"],
             "interaction": "Move keyboard focus through navigation items with a visible focus indicator.",
             "status": "covered",
             "owner": "packages/cem-components/src/lib/states.browser.spec.ts",
@@ -646,6 +664,15 @@
                         "expect(next.matches(':focus-visible')).toBe(true);",
                         "expect(focusedHovered.outlineWidth).toBe(resolveTokenLength(next, '--cem-stroke-focus'));"
                     ]
+                },
+                {
+                    "component": "cem-stepper",
+                    "owner": "packages/cem-components/src/lib/stepper.browser.spec.ts",
+                    "test": "keeps hover and focus-visible on the exact header with stable geometry and zero transient mutation",
+                    "assertions": [
+                        "expect(parts.headers[1]?.matches(':focus-visible')).toBe(true);",
+                        "expectStableTransient(focused, focusBaseline);"
+                    ]
                 }
             ]
         },
@@ -653,7 +680,7 @@
             "id": "navigation:active",
             "category": "Navigation",
             "state": "active",
-            "components": ["cem-nav", "cem-tabs", "cem-paginator"],
+            "components": ["cem-nav", "cem-tabs", "cem-stepper", "cem-paginator"],
             "interaction": "Activate a navigation item while retaining selection and readable contrast.",
             "status": "covered",
             "owner": "packages/cem-components/src/lib/states.browser.spec.ts",
@@ -677,6 +704,15 @@
                         "expect(parts.host.getAttribute('page-index')).toBe('1');",
                         "expectActionGeometry(active, baseline);"
                     ]
+                },
+                {
+                    "component": "cem-stepper",
+                    "owner": "packages/cem-components/src/lib/stepper.browser.spec.ts",
+                    "test": "keeps hover and focus-visible on the exact header with stable geometry and zero transient mutation",
+                    "assertions": [
+                        "expect(parts.headers[1]?.matches(':active')).toBe(true);",
+                        "expectStableTransient(active, focusBaseline);"
+                    ]
                 }
             ]
         },
@@ -684,7 +720,7 @@
             "id": "navigation:disabled",
             "category": "Navigation",
             "state": "disabled",
-            "components": ["cem-nav", "cem-tabs", "cem-paginator"],
+            "components": ["cem-nav", "cem-tabs", "cem-stepper", "cem-paginator"],
             "interaction": "Disable a navigation item and remove activation and tab-stop behavior where appropriate.",
             "status": "covered",
             "owner": "packages/cem-components/src/lib/states.browser.spec.ts",
@@ -712,6 +748,15 @@
                         "expect(requiredSelect(disabled).disabled).toBe(true);",
                         "expect(boundaryTargetEvents).toEqual([]);"
                     ]
+                },
+                {
+                    "component": "cem-stepper",
+                    "owner": "packages/cem-components/src/lib/stepper.browser.spec.ts",
+                    "test": "keeps programmatic control silent, clamps selection, and rejects malformed or globally disabled owners",
+                    "assertions": [
+                        "expect(disabled.headers.every((header) => header.disabled && header.tabIndex === -1)).toBe(true);",
+                        "expect(disabled.host.selectedIndex).toBe(1);"
+                    ]
                 }
             ]
         },
@@ -719,12 +764,23 @@
             "id": "navigation:selected",
             "category": "Navigation",
             "state": "selected",
-            "components": ["cem-tabs"],
+            "components": ["cem-tabs", "cem-stepper"],
             "interaction": "Distinguish the selected tab from its unselected peer through ARIA state.",
             "status": "covered",
             "owner": "packages/cem-components/src/lib/states.browser.spec.ts",
             "test": "reflects action, loading, disabled, expanded, selected, and focus states on native controls",
-            "assertions": ["expect(tabs.map((tab) => tab.getAttribute('aria-selected')).join('|')).toBe('true|false');"]
+            "assertions": ["expect(tabs.map((tab) => tab.getAttribute('aria-selected')).join('|')).toBe('true|false');"],
+            "componentEvidence": [
+                {
+                    "component": "cem-stepper",
+                    "owner": "packages/cem-components/src/lib/stepper.browser.spec.ts",
+                    "test": "renders one labeled ordered workflow with exact native headers and persistent linked regions",
+                    "assertions": [
+                        "expect(parts.headers[1]?.getAttribute('aria-current')).toBe('step');",
+                        "expect(parts.panels[1]?.hidden).toBe(false);"
+                    ]
+                }
+            ]
         },
         {
             "id": "navigation:expanded",

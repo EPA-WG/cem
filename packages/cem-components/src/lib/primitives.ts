@@ -13,6 +13,7 @@ import { CEM_PROGRESS_SPINNER_BEHAVIOR } from './progress-spinner-behavior.js';
 import { CEM_SELECT_BEHAVIOR } from './select-behavior.js';
 import { CEM_SLIDER_BEHAVIOR } from './slider-behavior.js';
 import { CEM_SORT_HEADER_BEHAVIOR } from './sort-header-behavior.js';
+import { CEM_STEPPER_BEHAVIOR } from './stepper-behavior.js';
 import { CEM_TIMEPICKER_BEHAVIOR } from './timepicker-behavior.js';
 import { CEM_TOOLTIP_BEHAVIOR } from './tooltip-behavior.js';
 
@@ -484,6 +485,42 @@ export const CEM_COMPONENT_PRIMITIVES = [
         cemMl:
             '{attribute @name=label | Tabs}' +
             '{div @class=cem-tabs @role=tablist @aria-label="{$label}" | {slot | {button @type=button @role=tab @aria-selected=true | Tab}}}',
+    },
+    {
+        tag: 'cem-stepper',
+        description: 'Labeled linear or nonlinear workflow navigation with persistent panels.',
+        behavior: CEM_STEPPER_BEHAVIOR,
+        cemMl:
+            '{module |' +
+            ' {attribute @name=label | Steps}' +
+            ' {slice @name=steps}' +
+            ' {template @name=stepper-header |' +
+            '  {param @name=step}' +
+            '  {body |' +
+            '   {li @class=cem-stepper__item @data-completed="{$step.connectorCompleted}" |' +
+            '    {button @id="{$step.buttonId}" @type=button @class=cem-stepper__header @data-step-index="{$step.index}" @data-marker-state="{$step.markerState}" @tabindex="{$step.tabIndex}" @disabled={if step.disabled { true } else { null }} @aria-disabled={if step.unavailable { true } else { null }} @aria-current={if step.current { "step" } else { null }} @aria-invalid={if step.invalid { true } else { null }} @aria-controls="{$step.panelId}" |' +
+            '     {span @class=cem-stepper__marker @aria-hidden=true | {$step.marker}}' +
+            '     {span @class=cem-stepper__label | {$step.label}}' +
+            '     {cem:if @test=step.status | {span @class=cem-stepper__status | {$step.status}}}}}}}' +
+            ' {template @name=stepper-panel |' +
+            '  {param @name=step}' +
+            '  {body |' +
+            '   {div @id="{$step.panelId}" @class=cem-stepper__panel @role=region @aria-labelledby="{$step.buttonId}" @hidden={if step.current { null } else { true }} |' +
+            '    {cem:project-payload @select="step.children" | }}}}' +
+            ' {body |' +
+            '  {cem:choose |' +
+            '   {cem:when @test=datadom.slices.authoringValid |' +
+            '    {section @class=cem-stepper @data-orientation="{$datadom.slices.orientation}" @aria-label="{$label}" |' +
+            '     {ol @class=cem-stepper__steps |' +
+            '      {cem:for-each @select=datadom.slices.steps @as=step | {call @template=stepper-header @with:step="{$step}"}}}' +
+            '     {div @class=cem-stepper__panels |' +
+            '      {cem:for-each @select=datadom.slices.steps @as=step | {call @template=stepper-panel @with:step="{$step}"}}}}}' +
+            '   {cem:otherwise | {span @class="cem-stepper cem-stepper--invalid" @hidden=true | }}}}}',
+    },
+    {
+        tag: 'cem-step',
+        description: 'Inert labeled workflow-step payload consumed by cem-stepper.',
+        cemMl: '{div @class=cem-step | {slot}}',
     },
     {
         tag: 'cem-paginator',

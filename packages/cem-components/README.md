@@ -32,7 +32,7 @@ This registers the minimal primitive tags: `cem-action`, `cem-icon-button`, `cem
 `cem-text-field`, `cem-textarea`, `cem-autocomplete`, `cem-timepicker`, `cem-datepicker`, `cem-select`, `cem-option`, `cem-option-group`, `cem-checkbox`,
 `cem-radio`, `cem-switch`, `cem-slider`, `cem-surface`, `cem-text`,
 `cem-icon`, `cem-stack`, `cem-grid`, `cem-divider`, `cem-list`, `cem-card`, `cem-expansion`, `cem-table`, `cem-sort-header`, `cem-chip`, `cem-badge`, `cem-avatar`,
-`cem-media-preview`, `cem-app-bar`, `cem-nav`, `cem-tabs`, `cem-paginator`, `cem-tooltip`, `cem-dialog`, `cem-dialog-shell`, `cem-sheet`,
+`cem-media-preview`, `cem-app-bar`, `cem-nav`, `cem-tabs`, `cem-stepper`, `cem-step`, `cem-paginator`, `cem-tooltip`, `cem-dialog`, `cem-dialog-shell`, `cem-sheet`,
 `cem-toast`, `cem-progress`, `cem-progress-spinner`, `cem-skeleton`, and `cem-alert`.
 
 ## Stylesheet install
@@ -93,6 +93,17 @@ expanded contract. Native-disabled buttons retain browser suppression;
 ARIA-disabled direct owners remain focusable while component-owned capture
 behavior blocks pointer, programmatic, Enter, and native-button Space
 activation before target and application bubble listeners.
+
+`cem-stepper` is a workflow-navigation owner rather than a tab substitute. It
+consumes strict inert `cem-step` payloads, generates an ordered set of exact
+native header buttons and persistent linked regions, and exposes silent
+`selected-index` control plus one serializable `cem-step` activation event.
+Horizontal/vertical roving focus, linear eligibility, optional steps, editable
+return, application-authored completion/invalid facts, and native/ARIA-disabled
+suppression are covered without scanning panel controls. Header interaction uses
+navigation state tokens; canonical workflow status/connector endpoints keep
+completion and error independent in normal and forced colors. No CSS exception
+or component animation is required.
 
 `cem-divider` owns a semantic or decorative separator track rather than a bare line. The D0 separator color is
 derived from surface text at reduced salience, D5 supplies the hairline, D1 supplies relationship spacing and inset,
@@ -170,6 +181,7 @@ yarn nx run @epa-wg/cem-components:verify-slider-forced-colors
 yarn nx run @epa-wg/cem-components:verify-tooltip-forced-colors
 yarn nx run @epa-wg/cem-components:verify-timepicker-forced-colors
 yarn nx run @epa-wg/cem-components:verify-datepicker-forced-colors
+yarn nx run @epa-wg/cem-components:verify-stepper-forced-colors
 yarn nx run @epa-wg/cem-components:verify-package
 yarn nx run @epa-wg/cem-components:test
 yarn nx run @epa-wg/cem-components:build
@@ -191,8 +203,8 @@ and `@epa-wg/cem-theme:verify-package`, so the component gate checks current
 generated tokens and the public theme stylesheet export.
 The package verifier proves source/built CSS byte identity, the side-effect-free
 JavaScript boundary, the built/packed behavior modules (including autocomplete,
-expansion, progress spinner, sort header, paginator, slider, tooltip, timepicker, and datepicker), and exact dry-run npm inclusion of one
-`dist/styles.css`.
+expansion, progress spinner, sort header, paginator, slider, tooltip, timepicker,
+datepicker, and stepper), and exact dry-run npm inclusion of one `dist/styles.css`.
 
 `yarn nx run @epa-wg/cem-components:test` runs the Node unit test plus Chromium-backed component harness coverage.
 
@@ -219,6 +231,7 @@ expansion, progress spinner, sort header, paginator, slider, tooltip, timepicker
 | Tooltip forced-colors gate | `scripts/verify-tooltip-forced-colors.mjs` |
 | Timepicker forced-colors gate | `scripts/verify-timepicker-forced-colors.mjs` |
 | Datepicker forced-colors gate | `scripts/verify-datepicker-forced-colors.mjs` |
+| Stepper forced-colors gate | `scripts/verify-stepper-forced-colors.mjs` |
 | Package publication gate | `scripts/verify-package.mjs` |
 | Stylesheet copy | `scripts/copy-styles.mjs` |
 | Primitive browser coverage | `src/lib/primitives.browser.spec.ts` |
@@ -228,6 +241,8 @@ expansion, progress spinner, sort header, paginator, slider, tooltip, timepicker
 | Sort-header browser coverage | `src/lib/sort-header.browser.spec.ts` |
 | Paginator browser coverage | `src/lib/paginator.browser.spec.ts` |
 | Slider browser coverage | `src/lib/slider.browser.spec.ts` |
+| Stepper browser coverage | `src/lib/stepper.browser.spec.ts` |
+| Stepper declarative contract fixture | `tests/stepper/contract.html` |
 | Tooltip browser coverage | `src/lib/tooltip.browser.spec.ts` |
 | Timepicker browser coverage | `src/lib/timepicker.browser.spec.ts` |
 | Datepicker browser coverage | `src/lib/datepicker.browser.spec.ts` |
@@ -301,6 +316,8 @@ Known deferrals stay outside this trigger:
   interval/custom choices, listbox interaction, validation, token audit, and top-layer forced-colors boundary.
 - [Datepicker contract](./docs/datepicker-contract.md) — direct native text-input ownership, canonical `YYYY-MM-DD`,
   localized modal calendar interaction, explicit confirmation, token audit, and top-layer forced-colors boundary.
+- [Stepper contract](./docs/stepper-contract.md) — inert step payloads, native workflow headers, persistent panels,
+  linear/optional/editable rules, application-owned completion/validation, token audit, and forced-colors boundary.
 - [Conventions](./docs/conventions.md) — naming, attributes, events, form participation, validation, loading states,
   progressive enhancement.
 - [Light-DOM rendering rules](./docs/light-dom-rendering.md) — `@epa-wg/custom-element` compatibility, no shadow DOM,
