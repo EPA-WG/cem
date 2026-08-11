@@ -29,7 +29,7 @@ installCemComponentPrimitives(runtime);
 ```
 
 This registers the minimal primitive tags: `cem-action`, `cem-icon-button`, `cem-menu-item`, `cem-field`,
-`cem-text-field`, `cem-textarea`, `cem-autocomplete`, `cem-timepicker`, `cem-select`, `cem-option`, `cem-option-group`, `cem-checkbox`,
+`cem-text-field`, `cem-textarea`, `cem-autocomplete`, `cem-timepicker`, `cem-datepicker`, `cem-select`, `cem-option`, `cem-option-group`, `cem-checkbox`,
 `cem-radio`, `cem-switch`, `cem-slider`, `cem-surface`, `cem-text`,
 `cem-icon`, `cem-stack`, `cem-grid`, `cem-divider`, `cem-list`, `cem-card`, `cem-expansion`, `cem-table`, `cem-sort-header`, `cem-chip`, `cem-badge`, `cem-avatar`,
 `cem-media-preview`, `cem-app-bar`, `cem-nav`, `cem-tabs`, `cem-paginator`, `cem-tooltip`, `cem-dialog`, `cem-dialog-shell`, `cem-sheet`,
@@ -71,6 +71,15 @@ and form ownership. It generates interval choices or consumes direct
 on the input during listbox navigation. The Popover top layer and CSS Anchor
 Positioning provide overlay placement without numeric z-index; existing input,
 contextual-action, and select-option tokens cover normal and forced colors.
+
+`cem-datepicker` adds a bounded single-date `YYYY-MM-DD` capability while one
+direct authored native text input retains accessible-name, value, validation,
+event, reset, and form ownership. Its optional native toggle opens a modal
+native dialog with a localized six-week calendar grid, roving day focus, and an
+explicit draft/Apply boundary. The dialog uses the top layer and CSS Anchor
+Positioning; theme-owned input, contextual-action, content-interaction, and
+current-indicator semantics keep hover, selected, today/current, disabled, and
+focus-visible states independent in normal and forced colors.
 
 Navigation links, disclosure buttons, and tabs consume the generated
 `--cem-navigation-item-*` state family. Hover styling is applied to those native
@@ -160,6 +169,7 @@ yarn nx run @epa-wg/cem-components:verify-paginator-forced-colors
 yarn nx run @epa-wg/cem-components:verify-slider-forced-colors
 yarn nx run @epa-wg/cem-components:verify-tooltip-forced-colors
 yarn nx run @epa-wg/cem-components:verify-timepicker-forced-colors
+yarn nx run @epa-wg/cem-components:verify-datepicker-forced-colors
 yarn nx run @epa-wg/cem-components:verify-package
 yarn nx run @epa-wg/cem-components:test
 yarn nx run @epa-wg/cem-components:build
@@ -181,7 +191,7 @@ and `@epa-wg/cem-theme:verify-package`, so the component gate checks current
 generated tokens and the public theme stylesheet export.
 The package verifier proves source/built CSS byte identity, the side-effect-free
 JavaScript boundary, the built/packed behavior modules (including autocomplete,
-expansion, progress spinner, sort header, paginator, slider, tooltip, and timepicker), and exact dry-run npm inclusion of one
+expansion, progress spinner, sort header, paginator, slider, tooltip, timepicker, and datepicker), and exact dry-run npm inclusion of one
 `dist/styles.css`.
 
 `yarn nx run @epa-wg/cem-components:test` runs the Node unit test plus Chromium-backed component harness coverage.
@@ -208,6 +218,7 @@ expansion, progress spinner, sort header, paginator, slider, tooltip, and timepi
 | Slider forced-colors gate | `scripts/verify-slider-forced-colors.mjs` |
 | Tooltip forced-colors gate | `scripts/verify-tooltip-forced-colors.mjs` |
 | Timepicker forced-colors gate | `scripts/verify-timepicker-forced-colors.mjs` |
+| Datepicker forced-colors gate | `scripts/verify-datepicker-forced-colors.mjs` |
 | Package publication gate | `scripts/verify-package.mjs` |
 | Stylesheet copy | `scripts/copy-styles.mjs` |
 | Primitive browser coverage | `src/lib/primitives.browser.spec.ts` |
@@ -219,6 +230,7 @@ expansion, progress spinner, sort header, paginator, slider, tooltip, and timepi
 | Slider browser coverage | `src/lib/slider.browser.spec.ts` |
 | Tooltip browser coverage | `src/lib/tooltip.browser.spec.ts` |
 | Timepicker browser coverage | `src/lib/timepicker.browser.spec.ts` |
+| Datepicker browser coverage | `src/lib/datepicker.browser.spec.ts` |
 | State and ARIA coverage | `src/lib/states.browser.spec.ts` |
 | Workflow browser coverage | `src/lib/workflows.browser.spec.ts` |
 | Workflow fixtures | `tests/workflows/` |
@@ -230,6 +242,7 @@ expansion, progress spinner, sort header, paginator, slider, tooltip, and timepi
 | Slider contract fixture | `tests/slider/contract.html` |
 | Tooltip contract fixture | `tests/tooltip/contract.html` |
 | Timepicker contract fixture | `tests/timepicker/contract.html` |
+| Datepicker contract fixture | `tests/datepicker/contract.html` |
 | Package examples | `examples/` |
 
 ## Handoff Condition
@@ -244,7 +257,7 @@ Known deferrals stay outside this trigger:
 
 - Phase 3.5 Edge/SSR processing fixtures for serialized `DataIslandSnapshot` handoff.
 - Phase 3.6 `@epa-wg/custom-element` monorepo adoption.
-- Richer post-MVP controls such as split actions, date/time affordances, side-nav variants, breadcrumbs,
+- Richer post-MVP controls such as split actions, date ranges, date/time-zone integration, date adapters, side-nav variants, breadcrumbs,
   and richer menu/dropdown families.
 - Full application behaviors around dialog focus trapping, routed navigation, async loading, and data fetching.
 
@@ -286,6 +299,8 @@ Known deferrals stay outside this trigger:
   keyboard/accessibility, token audit, focused fixture, forced-colors boundary, and assertion matrix.
 - [Timepicker contract](./docs/timepicker-contract.md) — direct native text-input ownership, canonical `HH:mm`,
   interval/custom choices, listbox interaction, validation, token audit, and top-layer forced-colors boundary.
+- [Datepicker contract](./docs/datepicker-contract.md) — direct native text-input ownership, canonical `YYYY-MM-DD`,
+  localized modal calendar interaction, explicit confirmation, token audit, and top-layer forced-colors boundary.
 - [Conventions](./docs/conventions.md) — naming, attributes, events, form participation, validation, loading states,
   progressive enhancement.
 - [Light-DOM rendering rules](./docs/light-dom-rendering.md) — `@epa-wg/custom-element` compatibility, no shadow DOM,

@@ -4,6 +4,7 @@ import type {
     CemProducedElementBehavior,
 } from '@epa-wg/cem-elements';
 import { CEM_AUTOCOMPLETE_BEHAVIOR } from './autocomplete-behavior.js';
+import { CEM_DATEPICKER_BEHAVIOR } from './datepicker-behavior.js';
 import { CEM_EXPANSION_BEHAVIOR } from './expansion-behavior.js';
 import { CEM_FEEDBACK_DIALOG_BEHAVIOR } from './feedback-behavior.js';
 import { CEM_NAVIGATION_BEHAVIOR } from './navigation-behavior.js';
@@ -143,6 +144,44 @@ export const CEM_COMPONENT_PRIMITIVES = [
             '   {slot @name=toggle}' +
             '   {div @id="{$datadom.slices.listboxId}" @class=cem-timepicker__popup @role=listbox @popover=manual |' +
             '    {cem:for-each @select=datadom.slices.options @as=option | {call @template=timepicker-option @with:option="{$option}"}}}}}}',
+    },
+    {
+        tag: 'cem-datepicker',
+        description: 'Single-date calendar retaining one authored native text-input form owner.',
+        behavior: CEM_DATEPICKER_BEHAVIOR,
+        cemMl:
+            '{module |' +
+            ' {slice @name=weekdays}' +
+            ' {slice @name=weeks}' +
+            ' {slice @name=expanded | false}' +
+            ' {template @name=datepicker-day |' +
+            '  {param @name=day}' +
+            '  {body |' +
+            '   {cem:choose |' +
+            '    {cem:when @test="day.value" |' +
+            '     {button @id="{$day.id}" @type=button @class=cem-datepicker__day @role=gridcell @data-date="{$day.value}" @data-active="{$day.active}" @data-outside="{$day.outside}" @tabindex="{$day.tabIndex}" @aria-label="{$day.fullLabel}" @aria-selected="{$day.selected}" @aria-current={if day.current { "date" } else { null }} @aria-disabled="{$day.disabled}" @disabled={if day.disabled { true } else { null }} | {$day.number}}}' +
+            '    {cem:otherwise | {span @id="{$day.id}" @class=cem-datepicker__day @role=gridcell @aria-disabled=true | }}}}}}' +
+            ' {template @name=datepicker-week |' +
+            '  {param @name=week}' +
+            '  {body | {div @class=cem-datepicker__week @role=row |' +
+            '   {cem:for-each @select=week.days @as=day | {call @template=datepicker-day @with:day="{$day}"}}}}}' +
+            ' {body |' +
+            '  {span @class=cem-datepicker @data-mode="{$datadom.slices.mode}" |' +
+            '   {slot @name=input}' +
+            '   {slot @name=toggle}' +
+            '   {dialog @id="{$datadom.slices.dialogId}" @class=cem-datepicker__dialog @aria-labelledby="{$datadom.slices.headingId}" |' +
+            '    {div @class=cem-datepicker__header |' +
+            '     {button @type=button @class=cem-datepicker__action @data-datepicker-action=previous @aria-label="Previous month" @disabled={if datadom.slices.previousDisabled { true } else { null }} | Previous}' +
+            '     {h2 @id="{$datadom.slices.headingId}" @class=cem-datepicker__heading @aria-live=polite | {$datadom.slices.heading}}' +
+            '     {button @type=button @class=cem-datepicker__action @data-datepicker-action=next @aria-label="Next month" @disabled={if datadom.slices.nextDisabled { true } else { null }} | Next}}' +
+            '    {div @class=cem-datepicker__grid @role=grid @aria-labelledby="{$datadom.slices.headingId}" |' +
+            '     {div @class=cem-datepicker__weekdays @role=row |' +
+            '      {cem:for-each @select=datadom.slices.weekdays @as=weekday |' +
+            '       {span @class=cem-datepicker__weekday @role=columnheader @aria-label="{$weekday.full}" | {$weekday.short}}}}' +
+            '     {cem:for-each @select=datadom.slices.weeks @as=week | {call @template=datepicker-week @with:week="{$week}"}}}' +
+            '    {div @class=cem-datepicker__actions |' +
+            '     {button @type=button @class=cem-datepicker__action @data-datepicker-action=cancel | Cancel}' +
+            '     {button @type=button @class=cem-datepicker__action @data-datepicker-action=apply @disabled={if datadom.slices.applyDisabled { true } else { null }} | Apply}}}}}}',
     },
     {
         tag: 'cem-select',

@@ -747,6 +747,7 @@ cem-text-field input,
 cem-textarea textarea,
 cem-autocomplete .cem-autocomplete__control,
 cem-select .cem-select__control,
+cem-datepicker > .cem-datepicker > input[slot='input'],
 cem-timepicker > .cem-timepicker > input[slot='input'],
 cem-checkbox > label,
 cem-radio > label,
@@ -797,6 +798,7 @@ cem-text-field input,
 cem-textarea textarea,
 cem-autocomplete .cem-autocomplete__control,
 cem-select .cem-select__control,
+cem-datepicker > .cem-datepicker > input[slot='input'],
 cem-timepicker > .cem-timepicker > input[slot='input'] {
     --_cem-input-indicator-appearance: var(
         --cem-input-indicator-appearance,
@@ -809,6 +811,7 @@ cem-text-field[indicator='outline'] input,
 cem-textarea[indicator='outline'] textarea,
 cem-autocomplete[indicator='outline'] .cem-autocomplete__control,
 cem-select[indicator='outline'] .cem-select__control,
+cem-datepicker[indicator='outline'] > .cem-datepicker > input[slot='input'],
 cem-timepicker[indicator='outline'] > .cem-timepicker > input[slot='input'] {
     --_cem-input-indicator-appearance: var(
         --cem-input-indicator-appearance,
@@ -821,6 +824,7 @@ cem-text-field input:enabled:hover,
 cem-textarea textarea:enabled:hover,
 cem-autocomplete .cem-autocomplete__control:enabled:hover,
 cem-select .cem-select__control:not(:disabled):not([aria-disabled='true']):hover,
+cem-datepicker > .cem-datepicker > input[slot='input']:enabled:hover,
 cem-timepicker > .cem-timepicker > input[slot='input']:enabled:hover {
     --_cem-input-indicator-anchor-color: var(--cem-input-indicator-anchor-hover-color);
 }
@@ -846,6 +850,7 @@ cem-text-field input[aria-invalid='true']:enabled,
 cem-textarea textarea[aria-invalid='true']:enabled,
 cem-autocomplete .cem-autocomplete__control[aria-invalid='true']:enabled,
 cem-select .cem-select__control[aria-invalid='true']:not(:disabled):not([aria-disabled='true']),
+cem-datepicker > .cem-datepicker > input[slot='input'][aria-invalid='true']:enabled,
 cem-timepicker > .cem-timepicker > input[slot='input'][aria-invalid='true']:enabled {
     --_cem-input-indicator-anchor-color: var(--cem-input-indicator-anchor-invalid-color);
     --_cem-input-indicator-anchor-width: var(--cem-stroke-boundary);
@@ -856,6 +861,7 @@ cem-text-field input[aria-invalid='true']:enabled:hover,
 cem-textarea textarea[aria-invalid='true']:enabled:hover,
 cem-autocomplete .cem-autocomplete__control[aria-invalid='true']:enabled:hover,
 cem-select .cem-select__control[aria-invalid='true']:not(:disabled):not([aria-disabled='true']):hover,
+cem-datepicker > .cem-datepicker > input[slot='input'][aria-invalid='true']:enabled:hover,
 cem-timepicker > .cem-timepicker > input[slot='input'][aria-invalid='true']:enabled:hover {
     --_cem-input-indicator-anchor-color: var(--cem-input-indicator-anchor-invalid-hover-color);
     --_cem-input-indicator-anchor-width: var(--cem-stroke-boundary);
@@ -867,6 +873,7 @@ cem-textarea textarea:disabled,
 cem-autocomplete .cem-autocomplete__control:disabled,
 cem-select .cem-select__control:disabled,
 cem-select .cem-select__control[aria-disabled='true'],
+cem-datepicker > .cem-datepicker > input[slot='input']:disabled,
 cem-timepicker > .cem-timepicker > input[slot='input']:disabled {
     --_cem-input-indicator-anchor-color: var(--cem-input-indicator-anchor-disabled-color);
     --_cem-input-indicator-anchor-width: var(--cem-stroke-boundary);
@@ -877,12 +884,14 @@ cem-text-field input:focus-visible,
 cem-textarea textarea:focus-visible,
 cem-autocomplete .cem-autocomplete__control:focus-visible,
 cem-select .cem-select__control:focus-visible,
+cem-datepicker > .cem-datepicker > input[slot='input']:focus-visible,
 cem-timepicker > .cem-timepicker > input[slot='input']:focus-visible {
     --_cem-input-indicator-focus-width: var(--cem-zebra-strip-size);
 }
 
 cem-autocomplete .cem-autocomplete__control[aria-expanded='true'],
 cem-select .cem-select__control[aria-expanded='true'],
+cem-datepicker > .cem-datepicker > input[slot='input'][aria-expanded='true'],
 cem-timepicker > .cem-timepicker > input[slot='input'][aria-expanded='true'] {
     --_cem-input-indicator-selection-width: var(--cem-zebra-strip-size);
 }
@@ -961,6 +970,202 @@ cem-checkbox input:focus-visible,
 cem-radio input:focus-visible,
 cem-switch input:focus-visible {
     outline: var(--cem-stroke-none) solid transparent;
+}
+
+cem-datepicker {
+    anchor-scope: --_cem-datepicker-anchor;
+    display: inline-block;
+    inline-size: 100%;
+}
+
+cem-datepicker > .cem-datepicker {
+    align-items: stretch;
+    display: grid;
+    gap: var(--cem-gap-related);
+    grid-template-columns: minmax(0, 1fr) auto;
+}
+
+cem-datepicker > .cem-datepicker > input[slot='input'] {
+    anchor-name: --_cem-datepicker-anchor;
+    background-color: var(--cem-select-popup-background);
+    border: var(--cem-stroke-none) solid transparent;
+    box-sizing: border-box;
+    color: var(--cem-select-popup-text);
+    font-family: var(--cem-typography-ui-font-family);
+    font-size: var(--cem-typography-ui-font-size);
+    inline-size: 100%;
+    line-height: var(--cem-typography-ui-line-height);
+    min-block-size: var(--cem-control-height);
+    min-inline-size: 0;
+    padding-block: var(--cem-control-padding-y);
+    padding-inline: var(--cem-control-padding-x);
+}
+
+cem-datepicker > .cem-datepicker > button[slot='toggle'],
+cem-datepicker .cem-datepicker__action {
+    align-items: center;
+    background-color: var(--cem-action-contextual-default-background);
+    border: var(--cem-stroke-none) solid transparent;
+    border-radius: var(--cem-bend-control);
+    color: var(--cem-action-contextual-default-text);
+    cursor: pointer;
+    display: inline-flex;
+    font-family: var(--cem-typography-ui-font-family);
+    font-size: var(--cem-typography-ui-font-size);
+    justify-content: center;
+    min-block-size: var(--cem-coupling-zone-min);
+    min-inline-size: var(--cem-coupling-zone-min);
+    padding-block: var(--cem-control-padding-y);
+    padding-inline: var(--cem-control-padding-x);
+}
+
+cem-datepicker > .cem-datepicker > button[slot='toggle']:enabled:hover,
+cem-datepicker .cem-datepicker__action:enabled:hover {
+    background-color: var(--cem-action-contextual-hover-background);
+    color: var(--cem-action-contextual-hover-text);
+}
+
+cem-datepicker > .cem-datepicker > button[slot='toggle']:enabled:active,
+cem-datepicker .cem-datepicker__action:enabled:active {
+    background-color: var(--cem-action-contextual-active-background);
+    color: var(--cem-action-contextual-active-text);
+}
+
+cem-datepicker > .cem-datepicker > button[slot='toggle']:disabled,
+cem-datepicker .cem-datepicker__action:disabled {
+    background-color: var(--cem-action-contextual-disabled-background);
+    color: var(--cem-action-contextual-disabled-text);
+    cursor: default;
+}
+
+cem-datepicker > .cem-datepicker > button[slot='toggle']:focus-visible,
+cem-datepicker .cem-datepicker__action:focus-visible,
+cem-datepicker .cem-datepicker__day:focus-visible {
+    outline: var(--cem-stroke-focus) solid var(--cem-zebra-color-1);
+    outline-offset: var(--cem-stroke-indicator-offset);
+}
+
+cem-datepicker .cem-datepicker__dialog {
+    background-color: var(--cem-select-popup-background);
+    border: var(--cem-stroke-standard) solid var(--cem-select-popup-border-color);
+    border-radius: var(--cem-bend-overlay);
+    box-shadow: var(--cem-elevation-3);
+    box-sizing: border-box;
+    color: var(--cem-select-popup-text);
+    font-family: var(--cem-typography-ui-font-family);
+    font-size: var(--cem-typography-ui-font-size);
+    inline-size: calc(
+        var(--cem-coupling-zone-min) * 7
+        + var(--cem-gap-related) * 6
+        + var(--cem-gap-group) * 2
+    );
+    inset: auto;
+    line-height: var(--cem-typography-ui-line-height);
+    margin: var(--cem-gap-related);
+    max-inline-size: calc(100vi - var(--cem-gap-block) * 2);
+    padding: var(--cem-gap-group);
+    position: fixed;
+    position-anchor: --_cem-datepicker-anchor;
+    position-area: block-end center;
+    position-try-fallbacks: block-start;
+    position-try-order: most-height;
+}
+
+cem-datepicker .cem-datepicker__header,
+cem-datepicker .cem-datepicker__actions {
+    align-items: center;
+    display: flex;
+    gap: var(--cem-gap-related);
+}
+
+cem-datepicker .cem-datepicker__header {
+    justify-content: space-between;
+    margin-block-end: var(--cem-gap-group);
+}
+
+cem-datepicker .cem-datepicker__heading {
+    font-family: var(--cem-typography-ui-font-family);
+    font-size: var(--cem-typography-ui-font-size);
+    font-weight: var(--cem-typography-ui-font-weight);
+    line-height: var(--cem-typography-ui-line-height);
+    margin: 0;
+    text-align: center;
+}
+
+cem-datepicker .cem-datepicker__grid {
+    display: grid;
+    gap: var(--cem-gap-related);
+}
+
+cem-datepicker .cem-datepicker__weekdays,
+cem-datepicker .cem-datepicker__week {
+    display: grid;
+    gap: var(--cem-gap-related);
+    grid-template-columns: repeat(7, minmax(0, 1fr));
+}
+
+cem-datepicker .cem-datepicker__weekday {
+    align-items: center;
+    display: flex;
+    font-family: var(--cem-typography-data-font-family);
+    font-size: var(--cem-typography-data-font-size);
+    font-weight: var(--cem-typography-data-font-weight);
+    justify-content: center;
+    line-height: var(--cem-typography-data-line-height);
+    min-block-size: var(--cem-control-height);
+    min-inline-size: 0;
+}
+
+cem-datepicker .cem-datepicker__day {
+    align-items: center;
+    background-color: var(--cem-content-interaction-default-background);
+    border: var(--cem-stroke-boundary) solid transparent;
+    border-radius: var(--cem-bend-control);
+    box-sizing: border-box;
+    color: var(--cem-content-interaction-default-text);
+    display: flex;
+    font-family: var(--cem-typography-data-font-family);
+    font-size: var(--cem-typography-data-font-size);
+    justify-content: center;
+    line-height: var(--cem-typography-data-line-height);
+    min-block-size: var(--cem-coupling-zone-min);
+    min-inline-size: 0;
+    padding: var(--cem-control-padding-y);
+}
+
+cem-datepicker button.cem-datepicker__day:not(:disabled) {
+    cursor: pointer;
+}
+
+cem-datepicker button.cem-datepicker__day:not(:disabled):hover {
+    background-color: var(--cem-content-interaction-hover-background);
+    color: var(--cem-content-interaction-hover-text);
+}
+
+cem-datepicker button.cem-datepicker__day[aria-selected='true'] {
+    background-color: var(--cem-content-interaction-selected-background);
+    color: var(--cem-content-interaction-selected-text);
+}
+
+cem-datepicker button.cem-datepicker__day[aria-selected='true']:not(:disabled):hover {
+    background-color: var(--cem-content-interaction-selected-hover-background);
+    color: var(--cem-content-interaction-selected-hover-text);
+}
+
+cem-datepicker button.cem-datepicker__day[aria-current='date'] {
+    border-color: var(--cem-content-interaction-current-indicator-color);
+}
+
+cem-datepicker button.cem-datepicker__day:disabled {
+    background-color: var(--cem-content-interaction-disabled-background);
+    border-color: var(--cem-content-interaction-disabled-text);
+    color: var(--cem-content-interaction-disabled-text);
+    cursor: default;
+}
+
+cem-datepicker .cem-datepicker__actions {
+    justify-content: flex-end;
+    margin-block-start: var(--cem-gap-group);
 }
 
 cem-timepicker {
@@ -1479,6 +1684,7 @@ cem-select .cem-select__option[aria-disabled='true'] {
     cem-textarea textarea,
     cem-autocomplete .cem-autocomplete__control,
     cem-select .cem-select__control,
+    cem-datepicker > .cem-datepicker > input[slot='input'],
     cem-timepicker > .cem-timepicker > input[slot='input'],
     cem-checkbox > label,
     cem-radio > label,
@@ -1491,6 +1697,7 @@ cem-select .cem-select__option[aria-disabled='true'] {
     cem-textarea textarea:enabled:hover,
     cem-autocomplete .cem-autocomplete__control:enabled:hover,
     cem-select .cem-select__control:not(:disabled):not([aria-disabled='true']):hover,
+    cem-datepicker > .cem-datepicker > input[slot='input']:enabled:hover,
     cem-timepicker > .cem-timepicker > input[slot='input']:enabled:hover {
         border-color: Highlight;
     }
@@ -1519,6 +1726,10 @@ cem-select .cem-select__option[aria-disabled='true'] {
     cem-textarea textarea:focus-visible,
     cem-autocomplete .cem-autocomplete__control:focus-visible,
     cem-select .cem-select__control:focus-visible,
+    cem-datepicker > .cem-datepicker > input[slot='input']:focus-visible,
+    cem-datepicker > .cem-datepicker > button[slot='toggle']:focus-visible,
+    cem-datepicker .cem-datepicker__action:focus-visible,
+    cem-datepicker .cem-datepicker__day:focus-visible,
     cem-timepicker > .cem-timepicker > input[slot='input']:focus-visible,
     cem-timepicker > .cem-timepicker > button[slot='toggle']:focus-visible,
     cem-checkbox > label:has(> input:enabled:focus-visible),
@@ -1539,10 +1750,53 @@ cem-select .cem-select__option[aria-disabled='true'] {
     cem-autocomplete .cem-autocomplete__popup,
     cem-select .cem-select__popup,
     cem-select .cem-select__listbox,
+    cem-datepicker .cem-datepicker__dialog,
     cem-timepicker .cem-timepicker__popup {
         background-color: Canvas;
         border-color: CanvasText;
         color: CanvasText;
+    }
+
+    cem-datepicker .cem-datepicker__dialog {
+        box-shadow: none;
+    }
+
+    cem-datepicker > .cem-datepicker > button[slot='toggle'],
+    cem-datepicker .cem-datepicker__action,
+    cem-datepicker .cem-datepicker__day {
+        background-color: Canvas;
+        color: CanvasText;
+    }
+
+    cem-datepicker > .cem-datepicker > button[slot='toggle']:enabled:hover,
+    cem-datepicker .cem-datepicker__action:enabled:hover,
+    cem-datepicker button.cem-datepicker__day:not(:disabled):hover {
+        background-color: Highlight;
+        color: HighlightText;
+    }
+
+    cem-datepicker button.cem-datepicker__day[aria-selected='true'] {
+        background-color: SelectedItem;
+        color: SelectedItemText;
+        outline: var(--cem-stroke-selected) solid SelectedItem;
+        outline-offset: calc(var(--cem-stroke-selected) * -1);
+    }
+
+    cem-datepicker button.cem-datepicker__day[aria-current='date'] {
+        border-color: Mark;
+    }
+
+    cem-datepicker button.cem-datepicker__day:focus-visible {
+        outline: var(--cem-stroke-focus) solid CanvasText;
+        outline-offset: var(--cem-stroke-indicator-offset);
+    }
+
+    cem-datepicker > .cem-datepicker > button[slot='toggle']:disabled,
+    cem-datepicker .cem-datepicker__action:disabled,
+    cem-datepicker button.cem-datepicker__day:disabled {
+        background-color: Canvas;
+        border-color: GrayText;
+        color: GrayText;
     }
 
     cem-autocomplete .cem-autocomplete__option:not([aria-disabled='true']):hover,

@@ -42,6 +42,7 @@ The aggregate gate includes:
 | Slider forced colors | `yarn nx run @epa-wg/cem-components:verify-slider-forced-colors` | Proves native range-input ownership, system remaining/active/disabled track and thumb semantics, surviving ticks, D2/D2c geometry, D5 focus, and transient-input state isolation. |
 | Tooltip forced colors | `yarn nx run @epa-wg/cem-components:verify-tooltip-forced-colors` | Proves exact trigger ownership, persistent description, `Canvas`/`CanvasText` surface paint, top-layer CSS anchor placement and fallback, pointer/focus continuity, stable geometry, and event/state isolation. |
 | Timepicker forced colors | `yarn nx run @epa-wg/cem-components:verify-timepicker-forced-colors` | Proves exact native input ownership, `Canvas`/`CanvasText` popup paint, system hover/active/selected/disabled coexistence, D5 focus, top-layer CSS anchor placement, stable geometry, and event/state isolation. |
+| Datepicker forced colors | `yarn nx run @epa-wg/cem-components:verify-datepicker-forced-colors` | Proves exact native input ownership, modal/top-layer containment, `Canvas` dialog paint, `SelectedItem` selected paint, `Mark` current paint, `CanvasText` focus coexistence, disabled suppression, logical anchor placement, stable geometry, and event/state isolation. |
 | Input indicator forced colors | `yarn nx run @epa-wg/cem-components:verify-input-indicator-forced-colors` | Launches Chromium with forced colors active; proves component shadows collapse, field/binary hover uses `Highlight`, and keyboard focus traverses the original seven input owners with full `CanvasText` outlines. |
 | Autocomplete forced colors | `yarn nx run @epa-wg/cem-components:verify-autocomplete-forced-colors` | Proves popup draw order, input/option pointer ownership, system hover/active/selected/disabled colors, keyboard focus coexistence, stable geometry, and event/state isolation. |
 | Navigation hover/focus/active/disabled forced colors | `yarn nx run @epa-wg/cem-components:verify-navigation-hover-forced-colors` | Launches Chromium with forced colors active; proves system hover/current/active/disabled colors, ARIA-disabled current/selected precedence, full keyboard traversal, focus coexistence, native-disabled skipping, restoration, and wrapper/state isolation. |
@@ -64,6 +65,7 @@ Executable fixture locations:
 | Slider behavior and state coverage | `../src/lib/slider.browser.spec.ts` |
 | Tooltip behavior and state coverage | `../src/lib/tooltip.browser.spec.ts` |
 | Timepicker behavior and state coverage | `../src/lib/timepicker.browser.spec.ts` |
+| Datepicker behavior and state coverage | `../src/lib/datepicker.browser.spec.ts` |
 | State, ARIA, focus, and event payload coverage | `../src/lib/states.browser.spec.ts` |
 | Feedback lifecycle and focus coverage | `../src/lib/feedback-expanded.browser.spec.ts` |
 | Workflow fixture coverage | `../src/lib/workflows.browser.spec.ts` |
@@ -76,10 +78,11 @@ Executable fixture locations:
 | Declarative slider fixture | `../tests/slider/contract.html` |
 | Declarative tooltip fixture | `../tests/tooltip/contract.html` |
 | Declarative timepicker fixture | `../tests/timepicker/contract.html` |
+| Declarative datepicker fixture | `../tests/datepicker/contract.html` |
 | Component harness helpers | `../src/lib/testing/component-harness.ts` |
 | Style and manifest verifier scripts | `../../../tools/scripts/verify-cem-components-*.mjs` |
 | Package stylesheet source | `../src/styles.css` |
-| Package publication and forced-colors scripts | `../scripts/copy-styles.mjs`, `../scripts/verify-package.mjs`, `../scripts/verify-input-indicator-forced-colors.mjs`, `../scripts/verify-autocomplete-forced-colors.mjs`, `../scripts/verify-navigation-hover-forced-colors.mjs`, `../scripts/verify-content-hover-forced-colors.mjs`, `../scripts/verify-expansion-forced-colors.mjs`, `../scripts/verify-sort-header-forced-colors.mjs`, `../scripts/verify-paginator-forced-colors.mjs`, `../scripts/verify-slider-forced-colors.mjs`, `../scripts/verify-tooltip-forced-colors.mjs`, `../scripts/verify-timepicker-forced-colors.mjs`, `../scripts/verify-feedback-focus-forced-colors.mjs` |
+| Package publication and forced-colors scripts | `../scripts/copy-styles.mjs`, `../scripts/verify-package.mjs`, `../scripts/verify-input-indicator-forced-colors.mjs`, `../scripts/verify-autocomplete-forced-colors.mjs`, `../scripts/verify-navigation-hover-forced-colors.mjs`, `../scripts/verify-content-hover-forced-colors.mjs`, `../scripts/verify-expansion-forced-colors.mjs`, `../scripts/verify-sort-header-forced-colors.mjs`, `../scripts/verify-paginator-forced-colors.mjs`, `../scripts/verify-slider-forced-colors.mjs`, `../scripts/verify-tooltip-forced-colors.mjs`, `../scripts/verify-timepicker-forced-colors.mjs`, `../scripts/verify-datepicker-forced-colors.mjs`, `../scripts/verify-feedback-focus-forced-colors.mjs` |
 
 Handoff condition: Phase 4 component expansion can build on this primitive package after the aggregate verify gate is
 green and the promoted branch has no uncommitted gate changes. The handoff covers the MVP primitive declaration set,
@@ -92,7 +95,7 @@ Known deferrals remain outside the Phase 3.2 trigger:
 - `@epa-wg/custom-element` monorepo adoption is Phase 3.6.
 - Full application behaviors such as dialog focus trapping, routed navigation, async data loading, and resource
   primitives are follow-up runtime/application work.
-- Post-MVP controls including split actions, date/date-time-zone controls, side-nav variants, breadcrumbs, and richer
+- Post-MVP controls including split actions, date ranges, date/time-zone integration, adapters and alternate calendar views, side-nav variants, breadcrumbs, and richer
   menu/dropdown families are Phase 4 expansion work.
 
 ## Actions
@@ -120,6 +123,7 @@ See the [action hover contract](./action-hover-contract.md) and
 | `cem-textarea` | Multi-line text entry. | `name`, `value`, `placeholder`, `indicator`, `busy`; `slot="label"` and `slot="help"`. | input indicator, stroke, zebra, bend, gap, typography | Same label and help rules as text field. |
 | `cem-autocomplete` | Form-associated editable combobox with declarative suggestions. | Canonical direct `cem-option`/`cem-option-group`; all-native `option`/`optgroup` migration adapter; free-form or `require-selection`; `value`, `placeholder`, `autocomplete`, `indicator`, `busy`, `auto-active-first`, label/help slots. See the [autocomplete contract](./autocomplete-contract.md). | select, input indicator, stroke, zebra, bend, layering, control, typography | The native input owns focus and text entry; the transient listbox exposes options/groups while `aria-activedescendant` retains focus on the input. |
 | `cem-timepicker` | Canonical time-of-day input with a transient choice popup. | Exactly one direct native text input in `slot="input"`; optional native `button[slot="toggle"]`; `min`, `max`, `interval`, `required`, `invalid`, `disabled`; generated choices or direct `cem-option`. See the [timepicker contract](./timepicker-contract.md). | action, select, input indicator, stroke, zebra, bend, layering, coupling, control, typography | The authored input retains native labeling, value, validation, events, and form submission while owning combobox focus and active-descendant navigation. |
+| `cem-datepicker` | Canonical single-date input with a modal calendar. | Exactly one direct native text input in `slot="input"`; optional native `button[slot="toggle"]`; `min`, `max`, `required`, `invalid`, `disabled`, and `lang`. Values are empty or `YYYY-MM-DD`. See the [datepicker contract](./datepicker-contract.md). | action, content, select, input indicator, stroke, zebra, bend, layering, coupling, control, typography | The authored input retains native labeling, value, validation, events, reset, and form submission. A native modal dialog owns a labeled grid with one roving day, localized headers, and distinct selected/current/disabled semantics. |
 | `cem-select` | Form-associated custom single/multiple choice with HTML-rendered options. | Canonical direct `cem-option`/`cem-option-group`; all-native `option`/`optgroup` migration adapter; `multiple`, `size`, `indicator`, `busy`, label/help slots. See the [custom select contract](./select-contract.md). | select, input indicator, stroke, zebra, bend, layering, control, typography | Label slot or `label` attribute names the combobox/listbox; focus remains on the composite owner with `aria-activedescendant`. |
 | `cem-option` | Canonical rich option payload consumed by `cem-select`, `cem-autocomplete`, and `cem-timepicker`. | Required `value`; optional `label`, `selected`, and `disabled`; static HTML descendants. Timepicker values use canonical `HH:mm`. | palette, typography | Does not create a nested tab stop or interaction owner. |
 | `cem-option-group` | Canonical labeled grouping payload consumed by `cem-select` and `cem-autocomplete`. | Required `label`; optional `disabled`; direct `cem-option` children. | palette, typography | The consuming composite projects `role="group"` and its accessible label. |
@@ -144,6 +148,14 @@ canonical `HH:mm`; typed syntax/range errors use native custom validity;
 generated intervals or direct options supply listbox choices. Option commits
 dispatch one input/change pair on that exact input. Date objects, seconds, time
 zones, locale adapters, and datepicker integration remain out of scope.
+
+`cem-datepicker` is covered across its applicable input states while the direct
+authored text input remains the value, validation, event, reset, and form owner.
+Calendar navigation changes only a draft; Apply emits one native input/change
+pair when the canonical value changes, while Cancel, Escape, and backdrop
+dismissal remain silent. The Angular Material parity row stays partial because
+date ranges, adapters/filters, alternate year views, date/time-zone integration,
+Date/Temporal values, and locale-specific text parsing remain out of scope.
 
 `cem-slider` retains native range-input form/event ownership for single and
 range values. It adds no tuple form value or custom event: each thumb serializes

@@ -151,6 +151,16 @@ positioned select/autocomplete popups covered by `CEM-CSS-002`, the timepicker
 uses the native Popover top layer with CSS Anchor Positioning, so physical draw
 order requires no numeric z-index adapter.
 
+The datepicker requires no exception. Its direct native text input consumes the
+existing input-indicator semantics; its toggle, month controls, and confirmation
+actions consume contextual-action states; and its day owners consume the shared
+content-interaction states. The pre-CSS audit added the missing canonical D0
+`--cem-content-interaction-current-indicator-color` semantic so today/current
+can coexist with committed selection without a component color. D1/D2/D2c/D3/
+D4/D5/D6 supply layout, target, type, top-layer surface, and focus geometry. The
+native modal dialog and CSS Anchor Positioning require no numeric z-index
+adapter.
+
 The navigation hover contract also requires no exception. D0 owns generated
 `--cem-navigation-item-*` default, hover, current, current-hover, and disabled
 color pairs. Component CSS binds only those endpoints in normal modes and uses

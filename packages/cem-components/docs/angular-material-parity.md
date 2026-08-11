@@ -2,7 +2,8 @@
 
 **Status:** All pinned product mappings are audited. The accepted `autocomplete`,
 `divider`, `expansion`, `progress-spinner`, `sort`, `paginator`, `slider`,
-`tooltip`, and `timepicker` priorities are covered;
+`tooltip`, and `timepicker` priorities are covered, and the bounded single-date
+`datepicker` priority is completed as a partial catalog mapping;
 selecting another implementation gap is a separate product decision tracked in
 [`docs/todo.md`](../../../docs/todo.md).
 
@@ -73,8 +74,8 @@ substituted for the missing component.
 | Classification | Count | Catalog entries |
 | --- | ---: | --- |
 | Covered | 15 | autocomplete, card, checkbox, dialog, divider, expansion, input, paginator, progress-spinner, select, slide-toggle, slider, sort, timepicker, tooltip |
-| Partial | 19 | badge, bottom-sheet, button, button-toggle, chips, core, form-field, grid-list, icon, list, menu, progress-bar, radio, ripple, sidenav, snack-bar, table, tabs, toolbar |
-| Gap | 3 | datepicker, stepper, tree |
+| Partial | 20 | badge, bottom-sheet, button, button-toggle, chips, core, datepicker, form-field, grid-list, icon, list, menu, progress-bar, radio, ripple, sidenav, snack-bar, table, tabs, toolbar |
+| Gap | 2 | stepper, tree |
 
 Each row in the executable inventory explains its boundary. In particular,
 `cem-grid` is not treated as a grid-list, `cem-tabs` is not treated as a stepper,
@@ -173,6 +174,20 @@ stacking and no CSS exception was added. Date objects, time zones, seconds,
 locale adapters, and datepicker integration remain outside this time-of-day
 string capability.
 
+`datepicker` adds one `cem-datepicker` owner while its exact authored native
+text input retains accessible-name, canonical `YYYY-MM-DD` value, validation,
+event, reset, and form ownership. The
+[datepicker contract](./datepicker-contract.md) fixes a localized six-week
+Gregorian calendar, native modal dialog and roving grid focus, bounded day/
+week/month/year navigation, explicit draft/Apply commit, silent cancellation,
+and logical CSS Anchor Positioning in the top layer. The pre-CSS audit reused
+input-indicator, contextual-action, shared popup, and content-interaction
+semantics and added the missing canonical D0 current-indicator token so today
+can coexist with selection. No CSS exception was needed. The row is partial,
+not covered, because ranges, date adapters and filters, alternate year views,
+date/time-zone integration, Date/Temporal values, and locale-specific parsing
+remain outside this single-date capability.
+
 Run the invariant with:
 
 ```bash
@@ -181,5 +196,5 @@ yarn nx run @epa-wg/cem-components:verify-material-parity
 
 The gate verifies the exact 37-entry pin, every audited mapping, and completion
 of the accepted implementation priority. It reports fifteen covered rows,
-nineteen partial rows, three gaps, no remaining audit, and no next
+twenty partial rows, two gaps, no remaining audit, and no next
 implementation until a new gap is deliberately selected and contracted.

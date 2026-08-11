@@ -290,6 +290,24 @@
             ],
             "outputs": []
         },
+        "verify-datepicker-forced-colors": {
+            "cache": true,
+            "executor": "nx:run-commands",
+            "dependsOn": [{ "projects": ["@epa-wg/cem-theme"], "target": "build:tokens" }],
+            "options": {
+                "command": "node scripts/verify-datepicker-forced-colors.mjs",
+                "cwd": "{projectRoot}"
+            },
+            "inputs": [
+                "{projectRoot}/scripts/verify-datepicker-forced-colors.mjs",
+                "{projectRoot}/src/styles.css",
+                {
+                    "dependentTasksOutputFiles": "**/*.css",
+                    "transitive": false
+                }
+            ],
+            "outputs": []
+        },
         "verify-feedback-focus-forced-colors": {
             "cache": true,
             "executor": "nx:run-commands",
@@ -379,6 +397,7 @@
                 "verify-slider-forced-colors",
                 "verify-tooltip-forced-colors",
                 "verify-timepicker-forced-colors",
+                "verify-datepicker-forced-colors",
                 "verify-feedback-focus-forced-colors",
                 "verify-workflows",
                 "verify-state-matrix",

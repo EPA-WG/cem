@@ -606,7 +606,9 @@ Interactive content controls expose content selection or filtering without becom
 form-input components. Their state colors therefore need an independently themeable category even when the reference
 formulas align with existing action or palette endpoints. Selected-hover keeps the selected/checked meaning visible
 during transient pointer feedback, and disabled wins over selected and hover. Focus remains a separate D5/zebra
-geometry channel.
+geometry channel. A current contextual datum is not necessarily selected: for example, today's date remains current
+while a user previews or commits another calendar date. Its indicator therefore has an independent D0 endpoint whose
+geometry remains D5-owned.
 
 ###### cem-content-interaction-state-colors
 | Token | value-type | default-formula | notes | tier |
@@ -621,6 +623,7 @@ geometry channel.
 | `--cem-content-interaction-selected-hover-text` | `<color>` | `var(--cem-palette-creativity-text)` | Selected or checked hover text | required |
 | `--cem-content-interaction-disabled-background` | `<color>` | `var(--cem-action-contextual-disabled-background)` | Disabled content owner fill; wins over selected and hover | required |
 | `--cem-content-interaction-disabled-text` | `<color>` | `var(--cem-action-contextual-disabled-text)` | Disabled content owner text | required |
+| `--cem-content-interaction-current-indicator-color` | `<color>` | `var(--cem-zebra-color-2)` | Current contextual datum such as today's date; independent of committed selection | recommended |
 
 ### 7.11 Separator color
 
@@ -1028,7 +1031,7 @@ from these tables using the same logic as `cem-colors.html`.
 | `cem-slider-colors`                                    | `--cem-slider-*` (8 tokens) | one token per row                     |
 | `cem-select-state-colors`                              | `--cem-select-*` (12 tokens) | one token per row                    |
 | `cem-navigation-item-state-colors`                     | `--cem-navigation-item-*` (14 tokens) | one token per row             |
-| `cem-content-interaction-state-colors`                  | `--cem-content-interaction-*` (10 tokens) | one token per row          |
+| `cem-content-interaction-state-colors`                  | `--cem-content-interaction-*` (11 tokens) | one token per row          |
 | `cem-separator-colors`                                  | `--cem-separator-*` (1 token) | one token per row                     |
 | `cem-action-intent-emotion` × `cem-action-state-color` | `--cem-action-*` (80 tokens)  | intent × state × {background, text} |
 ## 15. References

@@ -61,12 +61,12 @@ const EXPECTED_CATALOG = [
 const ALLOWED_STATUSES = new Set(['unreviewed', 'gap', 'partial', 'covered']);
 const ALLOWED_MAPPING_KINDS = new Set(['component', 'behavior', 'gap']);
 const EXPECTED_IMPLEMENTATION_PRIORITY = {
-    id: 'timepicker',
+    id: 'datepicker',
     acceptedAt: '2026-08-11',
     completedAt: '2026-08-11',
-    contract: 'packages/cem-components/docs/timepicker-contract.md',
+    contract: 'packages/cem-components/docs/datepicker-contract.md',
     state: 'completed',
-    targetStatus: 'covered',
+    targetStatus: 'partial',
 };
 
 const inventory = JSON.parse(readFileSync(inventoryPath, 'utf8'));
@@ -153,12 +153,12 @@ function validateImplementationPriority(priority) {
     }
     const contractSource = readFileSync(contractPath, 'utf8');
     for (const heading of [
-        '# Timepicker Contract',
+        '# Datepicker Contract',
         '## Owner and author vocabulary',
-        '## Value, choices, and validation',
+        '## Value, calendar, and validation',
         '## Interaction and event contract',
         '## Accessibility contract',
-        '## Popup and theme-token audit',
+        '## Dialog and theme-token audit',
         '## Forced-colors boundary',
         '## Focused fixture and assertion matrix',
     ]) {

@@ -19,6 +19,7 @@ const builtPaginatorBehaviorPath = join(packageRoot, 'dist', 'lib', 'paginator-b
 const builtSliderBehaviorPath = join(packageRoot, 'dist', 'lib', 'slider-behavior.js');
 const builtTooltipBehaviorPath = join(packageRoot, 'dist', 'lib', 'tooltip-behavior.js');
 const builtTimepickerBehaviorPath = join(packageRoot, 'dist', 'lib', 'timepicker-behavior.js');
+const builtDatepickerBehaviorPath = join(packageRoot, 'dist', 'lib', 'datepicker-behavior.js');
 const sourceEntries = [join(packageRoot, 'src', 'index.ts'), join(packageRoot, 'src', 'lib', 'cem-components.ts')];
 const builtEntries = [join(packageRoot, 'dist', 'index.js'), join(packageRoot, 'dist', 'lib', 'cem-components.js')];
 const forbiddenJavaScriptPatterns = [
@@ -109,6 +110,14 @@ if (!builtPrimitives.includes("tag: 'cem-timepicker'")) {
     throw new Error('built primitive inventory must contain cem-timepicker');
 }
 
+if (!sourcePrimitives.includes("tag: 'cem-datepicker'")) {
+    throw new Error('source primitive inventory must contain cem-datepicker');
+}
+
+if (!builtPrimitives.includes("tag: 'cem-datepicker'")) {
+    throw new Error('built primitive inventory must contain cem-datepicker');
+}
+
 if (!existsSync(builtAutocompleteBehaviorPath)) {
     throw new Error('built package must contain the autocomplete behavior artifact');
 }
@@ -139,6 +148,10 @@ if (!existsSync(builtTooltipBehaviorPath)) {
 
 if (!existsSync(builtTimepickerBehaviorPath)) {
     throw new Error('built package must contain the timepicker behavior artifact');
+}
+
+if (!existsSync(builtDatepickerBehaviorPath)) {
+    throw new Error('built package must contain the datepicker behavior artifact');
 }
 
 if (existsSync(join(packageRoot, 'styles.css'))) {
@@ -206,6 +219,7 @@ try {
         'dist/lib/slider-behavior.js',
         'dist/lib/tooltip-behavior.js',
         'dist/lib/timepicker-behavior.js',
+        'dist/lib/datepicker-behavior.js',
         'dist/lib/primitives.js',
     ]) {
         if (!packedFiles.includes(artifact)) {
@@ -220,7 +234,7 @@ try {
     }
 
     console.log(
-        `cem-components package verified (${packedFiles.length} packed files, autocomplete, divider, expansion, progress-spinner, sort-header, paginator, slider, tooltip, and timepicker owners included, ` +
+        `cem-components package verified (${packedFiles.length} packed files, autocomplete, divider, expansion, progress-spinner, sort-header, paginator, slider, tooltip, timepicker, and datepicker owners included, ` +
             'one dist/styles.css, zero source/root copies).',
     );
 } finally {

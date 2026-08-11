@@ -115,7 +115,7 @@
             "id": "input:default",
             "category": "Input",
             "state": "default",
-            "components": ["cem-text-field", "cem-textarea", "cem-autocomplete", "cem-timepicker", "cem-select", "cem-checkbox", "cem-radio", "cem-switch", "cem-slider"],
+            "components": ["cem-text-field", "cem-textarea", "cem-autocomplete", "cem-timepicker", "cem-datepicker", "cem-select", "cem-checkbox", "cem-radio", "cem-switch", "cem-slider"],
             "interaction": "Render input primitives as their native accessible controls.",
             "status": "covered",
             "owner": "packages/cem-components/src/lib/primitives.browser.spec.ts",
@@ -144,6 +144,15 @@
                     ]
                 },
                 {
+                    "component": "cem-datepicker",
+                    "owner": "packages/cem-components/src/lib/datepicker.browser.spec.ts",
+                    "test": "keeps one direct native text input and optional native toggle as the exact owners",
+                    "assertions": [
+                        "expect(parts.input.getAttribute('role')).toBe('combobox');",
+                        "expect(new FormData(requiredElement(root, '#datepicker-form')).get('arrival-date')).toBe('2026-08-11');"
+                    ]
+                },
+                {
                     "component": "cem-slider",
                     "owner": "packages/cem-components/src/lib/slider.browser.spec.ts",
                     "test": "keeps exact native single and range inputs as the accessible form owners",
@@ -164,6 +173,7 @@
                 "cem-textarea",
                 "cem-autocomplete",
                 "cem-timepicker",
+                "cem-datepicker",
                 "cem-select",
                 "cem-checkbox",
                 "cem-radio",
@@ -204,6 +214,16 @@
                     ]
                 },
                 {
+                    "component": "cem-datepicker",
+                    "owner": "packages/cem-components/src/lib/datepicker.browser.spec.ts",
+                    "test": "keeps today, selected, focus, hover, and disabled paint independent and geometry-stable",
+                    "assertions": [
+                        "expect(parts.input.matches(':hover')).toBe(true);",
+                        "expect(geometry(parts.input)).toEqual(baselineInputGeometry);",
+                        "expect(mutationEvents).toEqual([]);"
+                    ]
+                },
+                {
                     "component": "cem-slider",
                     "owner": "packages/cem-components/src/lib/slider.browser.spec.ts",
                     "test": "keeps pointer enter/leave, hover, active, and focus-visible on the native thumb with stable state",
@@ -224,6 +244,7 @@
                 "cem-textarea",
                 "cem-autocomplete",
                 "cem-timepicker",
+                "cem-datepicker",
                 "cem-select",
                 "cem-checkbox",
                 "cem-radio",
@@ -265,6 +286,14 @@
                     ]
                 },
                 {
+                    "component": "cem-datepicker",
+                    "owner": "packages/cem-components/src/lib/datepicker.browser.spec.ts",
+                    "test": "keeps today, selected, focus, hover, and disabled paint independent and geometry-stable",
+                    "assertions": [
+                        "expect(currentSelected.matches(':focus-visible')).toBe(true);"
+                    ]
+                },
+                {
                     "component": "cem-slider",
                     "owner": "packages/cem-components/src/lib/slider.browser.spec.ts",
                     "test": "keeps pointer enter/leave, hover, active, and focus-visible on the native thumb with stable state",
@@ -279,7 +308,7 @@
             "id": "input:disabled",
             "category": "Input",
             "state": "disabled",
-            "components": ["cem-textarea", "cem-autocomplete", "cem-timepicker", "cem-radio", "cem-slider"],
+            "components": ["cem-textarea", "cem-autocomplete", "cem-timepicker", "cem-datepicker", "cem-radio", "cem-slider"],
             "interaction": "Disable form controls and prevent native interaction.",
             "status": "covered",
             "owner": "packages/cem-components/src/lib/states.browser.spec.ts",
@@ -302,6 +331,15 @@
                     "assertions": [
                         "expect(disabled.input.disabled).toBe(true);",
                         "expect(disabled.popup.matches(':popover-open')).toBe(false);"
+                    ]
+                },
+                {
+                    "component": "cem-datepicker",
+                    "owner": "packages/cem-components/src/lib/datepicker.browser.spec.ts",
+                    "test": "suppresses every disabled route and rejects malformed owner vocabulary without substitution",
+                    "assertions": [
+                        "expect(disabled.input.disabled).toBe(true);",
+                        "expect(disabled.dialog.open).toBe(false);"
                     ]
                 },
                 {
@@ -355,7 +393,7 @@
             "id": "input:expanded",
             "category": "Input",
             "state": "expanded",
-            "components": ["cem-autocomplete", "cem-timepicker", "cem-select"],
+            "components": ["cem-autocomplete", "cem-timepicker", "cem-datepicker", "cem-select"],
             "interaction": "Open and close a select-like disclosure and mirror its expanded state.",
             "status": "covered",
             "owner": "packages/cem-components/src/lib/states.browser.spec.ts",
@@ -384,6 +422,15 @@
                         "expect(host.expanded).toBe(true);",
                         "expect(host.hasAttribute('expanded')).toBe(false);"
                     ]
+                },
+                {
+                    "component": "cem-datepicker",
+                    "owner": "packages/cem-components/src/lib/datepicker.browser.spec.ts",
+                    "test": "supports a silent expanded property while live bounds update validity and calendar suppression",
+                    "assertions": [
+                        "expect(host.expanded).toBe(true);",
+                        "expect(host.hasAttribute('expanded')).toBe(false);"
+                    ]
                 }
             ]
         },
@@ -391,7 +438,7 @@
             "id": "input:invalid",
             "category": "Input",
             "state": "invalid",
-            "components": ["cem-text-field", "cem-textarea", "cem-autocomplete", "cem-timepicker", "cem-select", "cem-checkbox"],
+            "components": ["cem-text-field", "cem-textarea", "cem-autocomplete", "cem-timepicker", "cem-datepicker", "cem-select", "cem-checkbox"],
             "interaction": "Reflect validation failure and retain help and error relationships.",
             "status": "covered",
             "owner": "packages/cem-components/src/lib/states.browser.spec.ts",
@@ -419,6 +466,15 @@
                         "expect(meeting.input.validity.customError).toBe(true);",
                         "expect(meeting.input.getAttribute('aria-invalid')).toBe('true');"
                     ]
+                },
+                {
+                    "component": "cem-datepicker",
+                    "owner": "packages/cem-components/src/lib/datepicker.browser.spec.ts",
+                    "test": "keeps canonical value, locale calendar, validation, form, and reset ownership on the input",
+                    "assertions": [
+                        "expect(arrival.input.validity.customError).toBe(true);",
+                        "expect(arrival.input.getAttribute('aria-invalid')).toBe('true');"
+                    ]
                 }
             ]
         },
@@ -426,7 +482,7 @@
             "id": "input:required",
             "category": "Input",
             "state": "required",
-            "components": ["cem-text-field", "cem-autocomplete", "cem-timepicker", "cem-select", "cem-checkbox"],
+            "components": ["cem-text-field", "cem-autocomplete", "cem-timepicker", "cem-datepicker", "cem-select", "cem-checkbox"],
             "interaction": "Expose required semantics through native controls and their accessible labels.",
             "status": "covered",
             "owner": "packages/cem-components/src/lib/states.browser.spec.ts",
@@ -448,6 +504,14 @@
                     "test": "normalizes generated and authored choices while native value, validation, and reset stay on the input",
                     "assertions": [
                         "expect(meeting.input.validity.valueMissing).toBe(true);"
+                    ]
+                },
+                {
+                    "component": "cem-datepicker",
+                    "owner": "packages/cem-components/src/lib/datepicker.browser.spec.ts",
+                    "test": "keeps canonical value, locale calendar, validation, form, and reset ownership on the input",
+                    "assertions": [
+                        "expect(arrival.input.validity.valueMissing).toBe(true);"
                     ]
                 }
             ]

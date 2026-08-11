@@ -417,6 +417,40 @@ mediate between internal layers.
           exact theme/component token and 54-file package publication, the
           dedicated timepicker forced-colors/top-layer contract, and component
           lint. No theme category or CSS exception was required.
+    - [x] Select, contract, and implement the first bounded `datepicker` parity
+          slice while one authored native text input retains value, event,
+          validation, accessible-name, and form ownership.
+      - [x] Freeze one `cem-datepicker` owner, strict direct input/optional toggle
+            vocabulary, canonical `YYYY-MM-DD`, single-date/min/max/required/
+            invalid rules, locale-derived calendar labels, native modal lifecycle,
+            explicit draft confirmation, and the native/synthetic event boundary.
+      - [x] Add the missing D0 current-context indicator before component CSS so
+            today remains distinct from draft/committed selection. Reuse existing
+            input-indicator, contextual-action, popup, interactive-content, D1,
+            D2/D2c, D3, D4, D5, and D6 semantics for every other owner state; add
+            no CSS exception unless those categories cannot represent the result.
+      - [x] Add a declarative `tests/datepicker/contract.html` fixture and focused
+            browser coverage for exact input/toggle ownership, canonical values,
+            form serialization/reset/validation, locale headings, month movement,
+            pointer draft/apply/cancel, grid Arrow/Home/End/Page navigation,
+            Escape/backdrop dismissal, focus containment/restoration, live bounds,
+            disabled suppression, and exact commit events.
+      - [x] Add the primitive behavior and token-only native-dialog/CSS-anchor
+            calendar surface plus an aggregate forced-colors gate for input/dialog/
+            action/day paint, today/selected/focus/disabled coexistence, top-layer
+            placement, stable geometry, and absent animation or numeric z-index.
+      - [x] Promote public docs, state/parity evidence, package verification, and
+            todo completion only after every datepicker gate passes. Classify the
+            Angular row as partial—not covered—while range selection, date adapters,
+            alternate views, and application date filters remain outside this slice.
+        - The public inventory now has 44 primitives. Angular Material parity is
+          15 covered, 20 partial, and 2 gaps; the state matrix remains fully green
+          at 40/40. The uncached serial aggregate ran the component target plus all
+          31 dependent targets and passed 114/114 tests across 16 test files,
+          437 generated visual tokens, the 57-file package publication contract,
+          and the dedicated datepicker forced-colors/modal/top-layer gate. The
+          theme audit added one canonical D0 current-context indicator so today and
+          selection coexist; no component CSS exception was required.
 
 ### Immediate: CSS Selector Query Schema and Unified CLI Query Execution
 

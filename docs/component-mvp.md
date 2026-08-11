@@ -24,6 +24,7 @@ contract for `@epa-wg/cem-components`, the CEM core schema state vocabulary, and
 | Input | `textarea` | `cem-textarea` | Multi-line text entry with label, help, and validation | palette, stroke, bend, gap, typography |
 | Input | `autocomplete` | `cem-autocomplete` | Form-associated editable combobox with declarative suggestions | palette, select, stroke, bend, layering, control, typography |
 | Input | `timepicker` | `cem-timepicker` | Time-of-day choice popup with an authored native text-input form owner | action, palette, select, stroke, bend, layering, coupling, control, typography |
+| Input | `datepicker` | `cem-datepicker` | Single-date modal calendar with an authored native text-input form owner | action, palette, content, select, stroke, bend, layering, coupling, control, typography |
 | Input | `select` | `cem-select` | Form-associated rich single/multiple choice | palette, select, stroke, bend, layering, control, typography |
 | Input | `option` | `cem-option` | Canonical rich option payload for select and autocomplete | palette, typography |
 | Input | `option-group` | `cem-option-group` | Labeled option grouping payload for select and autocomplete | palette, typography |
@@ -62,11 +63,13 @@ contract for `@epa-wg/cem-components`, the CEM core schema state vocabulary, and
 
 ## Deferred From MVP
 
-The roadmap still includes split actions, date-picker and date/time-zone
-integration, side-nav variants, breadcrumbs, and richer menu/dropdown families.
+The roadmap still includes split actions, date ranges and date/time-zone
+integration, date adapters and alternate calendar views, side-nav variants,
+breadcrumbs, and richer menu/dropdown families.
 They are deferred until the MVP workflows prove the shared component states,
-accessibility behavior, and token usage. `cem-timepicker` covers only a canonical
-time-of-day string and does not imply those broader date/time capabilities.
+accessibility behavior, and token usage. `cem-datepicker` covers one canonical
+Gregorian date string and `cem-timepicker` covers one canonical time-of-day
+string; neither implies those broader date/time capabilities.
 
 ## State Matrix
 

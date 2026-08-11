@@ -1,0 +1,58 @@
+<section class="cem-theme-light" data-datepicker-contract-fixture aria-label="Datepicker contract fixture">
+  <button data-datepicker-focus-start type="button">Focus start</button>
+
+  <form id="datepicker-form">
+    <label for="arrival-date">Arrival date</label>
+    <cem-datepicker
+      id="arrival-datepicker"
+      lang="en-US"
+      min="2026-08-01"
+      max="2027-12-31"
+      required
+    >
+      <input
+        id="arrival-date"
+        slot="input"
+        type="text"
+        name="arrival-date"
+        value="2026-08-11"
+        autocomplete="off"
+        aria-describedby="arrival-date-format"
+      >
+      <button id="arrival-date-toggle" slot="toggle" type="button" aria-label="Choose arrival date">Choose</button>
+    </cem-datepicker>
+    <span id="arrival-date-format">Use YYYY-MM-DD.</span>
+    <button id="datepicker-submit" type="submit">Submit</button>
+    <button id="datepicker-reset" type="reset">Reset</button>
+  </form>
+
+  <label for="localized-date">Localized date</label>
+  <cem-datepicker id="localized-datepicker" lang="fr-FR" min="2026-12-01" max="2026-12-31">
+    <input id="localized-date" slot="input" type="text" value="2026-12-24">
+    <button id="localized-date-toggle" slot="toggle" type="button" aria-label="Choisir une date">Choisir</button>
+  </cem-datepicker>
+
+  <label for="current-date">Current date</label>
+  <cem-datepicker id="current-datepicker" lang="en-US">
+    <input id="current-date" slot="input" type="text">
+    <button id="current-date-toggle" slot="toggle" type="button" aria-label="Choose current date">Choose</button>
+  </cem-datepicker>
+
+  <label for="disabled-date">Disabled date</label>
+  <cem-datepicker id="disabled-datepicker" disabled>
+    <input id="disabled-date" slot="input" type="text" value="2026-08-11">
+    <button id="disabled-date-toggle" slot="toggle" type="button" aria-label="Choose disabled date">Choose</button>
+  </cem-datepicker>
+
+  <label for="invalid-date">Invalid date</label>
+  <cem-datepicker id="invalid-datepicker" min="2026-01-01" max="2026-12-31" invalid>
+    <input id="invalid-date" slot="input" type="text" value="2026-02-30">
+  </cem-datepicker>
+
+  <cem-datepicker id="malformed-datepicker">
+    <input slot="input" type="text" value="2026-08-11" aria-label="First malformed date">
+    <input slot="input" type="text" value="2026-08-12" aria-label="Second malformed date">
+  </cem-datepicker>
+
+  <button data-datepicker-focus-end type="button">Focus end</button>
+</section>
