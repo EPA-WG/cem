@@ -30,7 +30,7 @@ installCemComponentPrimitives(runtime);
 
 This registers the minimal primitive tags: `cem-action`, `cem-icon-button`, `cem-menu-item`, `cem-field`,
 `cem-text-field`, `cem-textarea`, `cem-autocomplete`, `cem-select`, `cem-option`, `cem-option-group`, `cem-checkbox`,
-`cem-radio`, `cem-switch`, `cem-surface`, `cem-text`,
+`cem-radio`, `cem-switch`, `cem-slider`, `cem-surface`, `cem-text`,
 `cem-icon`, `cem-stack`, `cem-grid`, `cem-divider`, `cem-list`, `cem-card`, `cem-expansion`, `cem-table`, `cem-sort-header`, `cem-chip`, `cem-badge`, `cem-avatar`,
 `cem-media-preview`, `cem-app-bar`, `cem-nav`, `cem-tabs`, `cem-paginator`, `cem-dialog`, `cem-dialog-shell`, `cem-sheet`,
 `cem-toast`, `cem-progress`, `cem-progress-spinner`, `cem-skeleton`, and `cem-alert`.
@@ -115,6 +115,14 @@ an atomic polite range status. Existing contextual-action, select/indicator,
 palette, D1/D2/D2c/D3/D5/D6 semantics cover normal and forced-color styling, so
 no CSS exception is needed.
 
+`cem-slider` owns one horizontal single-value or range visual while its authored
+native range inputs remain the exact pointer, keyboard, focus, value, event,
+accessible-name, and form owners. Parent `min`/`max`/`step`/`disabled` state is
+normalized and projected without replacing the inputs; range thumbs cannot
+cross; `discrete` labels and `show-tick-marks` remain hidden visual output.
+Canonical D0 slider paint, D2c track/thumb geometry, D2 targets, and D5 focus
+cover normal and forced colors without a component CSS exception.
+
 ## Build & Verify
 
 ```bash
@@ -132,6 +140,7 @@ yarn nx run @epa-wg/cem-components:verify-expansion-forced-colors
 yarn nx run @epa-wg/cem-components:verify-progress-spinner-forced-colors
 yarn nx run @epa-wg/cem-components:verify-sort-header-forced-colors
 yarn nx run @epa-wg/cem-components:verify-paginator-forced-colors
+yarn nx run @epa-wg/cem-components:verify-slider-forced-colors
 yarn nx run @epa-wg/cem-components:verify-package
 yarn nx run @epa-wg/cem-components:test
 yarn nx run @epa-wg/cem-components:build
@@ -153,7 +162,7 @@ and `@epa-wg/cem-theme:verify-package`, so the component gate checks current
 generated tokens and the public theme stylesheet export.
 The package verifier proves source/built CSS byte identity, the side-effect-free
 JavaScript boundary, the built/packed behavior modules (including autocomplete,
-expansion, progress spinner, sort header, and paginator), and exact dry-run npm inclusion of one
+expansion, progress spinner, sort header, paginator, and slider), and exact dry-run npm inclusion of one
 `dist/styles.css`.
 
 `yarn nx run @epa-wg/cem-components:test` runs the Node unit test plus Chromium-backed component harness coverage.
@@ -177,6 +186,7 @@ expansion, progress spinner, sort header, and paginator), and exact dry-run npm 
 | Progress-spinner forced-colors/reduced-motion gate | `scripts/verify-progress-spinner-forced-colors.mjs` |
 | Sort-header forced-colors gate | `scripts/verify-sort-header-forced-colors.mjs` |
 | Paginator forced-colors gate | `scripts/verify-paginator-forced-colors.mjs` |
+| Slider forced-colors gate | `scripts/verify-slider-forced-colors.mjs` |
 | Package publication gate | `scripts/verify-package.mjs` |
 | Stylesheet copy | `scripts/copy-styles.mjs` |
 | Primitive browser coverage | `src/lib/primitives.browser.spec.ts` |
@@ -185,6 +195,7 @@ expansion, progress spinner, sort header, and paginator), and exact dry-run npm 
 | Progress-spinner browser coverage | `src/lib/progress-spinner.browser.spec.ts` |
 | Sort-header browser coverage | `src/lib/sort-header.browser.spec.ts` |
 | Paginator browser coverage | `src/lib/paginator.browser.spec.ts` |
+| Slider browser coverage | `src/lib/slider.browser.spec.ts` |
 | State and ARIA coverage | `src/lib/states.browser.spec.ts` |
 | Workflow browser coverage | `src/lib/workflows.browser.spec.ts` |
 | Workflow fixtures | `tests/workflows/` |
@@ -193,6 +204,7 @@ expansion, progress spinner, sort header, and paginator), and exact dry-run npm 
 | Progress-spinner contract fixture | `tests/progress-spinner/contract.html` |
 | Sort-header contract fixture | `tests/sort-header/contract.html` |
 | Paginator contract fixture | `tests/paginator/contract.html` |
+| Slider contract fixture | `tests/slider/contract.html` |
 | Package examples | `examples/` |
 
 ## Handoff Condition
@@ -207,7 +219,7 @@ Known deferrals stay outside this trigger:
 
 - Phase 3.5 Edge/SSR processing fixtures for serialized `DataIslandSnapshot` handoff.
 - Phase 3.6 `@epa-wg/custom-element` monorepo adoption.
-- Richer post-MVP controls such as split actions, sliders, date/time affordances, side-nav variants, breadcrumbs,
+- Richer post-MVP controls such as split actions, date/time affordances, side-nav variants, breadcrumbs,
   and richer menu/dropdown families.
 - Full application behaviors around dialog focus trapping, routed navigation, async loading, and data fetching.
 

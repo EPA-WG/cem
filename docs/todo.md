@@ -35,9 +35,15 @@ without an exception. The accepted `cem-paginator` priority is also complete:
 its native select/buttons own interaction, its normalized zero-based page/range
 model emits one `cem-page` request while applications retain data rendering,
 and existing theme semantics cover normal/forced-color paint without an
-exception. The pinned inventory now reports 12 covered, 19 partial, and 6 gaps.
-Selecting and contracting the next implementation priority is the current
-decision point.
+exception. The accepted `cem-slider` priority is also complete: one horizontal
+visual owns strict direct native single/start/end input projection while each
+range input retains pointer, keyboard, focus, value, event, accessible-name,
+and independent form ownership. Canonical D0 slider paint and D2c slider
+geometry precede the token-only component CSS; range thumbs cannot cross;
+optional ticks and labels remain hidden visuals; normal and forced-color gates
+require no CSS exception. The pinned inventory now reports 13 covered, 19
+partial, and 5 gaps. Selecting and contracting the next implementation priority
+is the current decision point.
 The component stylesheet publication, `action:hover`, and `action:active` contracts are
 implemented and verified. The `input:hover` contract is also implemented:
 all eight native owners share a theme-tokenized three-stripe indicator, with
@@ -313,6 +319,34 @@ mediate between internal layers.
           at 40/40. The uncached aggregate ran the component target plus all 27
           dependent targets and passed 87/87 tests, exact style/package
           publication, and the dedicated paginator forced-colors contract.
+    - [x] Select, contract, and implement `slider` as the next audited parity gap
+          with native range inputs retaining interaction and form ownership.
+      - [x] Freeze one `cem-slider` owner, strict single/start/end direct-input
+            vocabulary, normalized parent bounds, non-crossing range values,
+            native event/form behavior, optional tick marks/value labels, and
+            application-owned value formatting.
+      - [x] Canonicalize the pre-CSS token audit: D0 owns slider track/thumb/tick
+            state colors, D2c owns visible track/thumb geometry, D2 owns the
+            operable target, D5 owns focus, and a value-range track is neither a
+            progress indicator nor a sibling divider.
+      - [x] Add a declarative `tests/slider/contract.html` fixture and focused
+            browser coverage for exact input ownership, single/range bounds,
+            native pointer and keyboard input/change events, form serialization,
+            live parent control, non-crossing thumbs, discrete/tick output,
+            hover/active/focus-visible coexistence, disabled suppression, stable
+            geometry/DOM identity, and transient-input state boundaries.
+      - [x] Add the primitive behavior and token-only CSS plus an aggregate
+            slider forced-colors gate for system track/thumb/tick paint, D5 focus,
+            pointer enter/leave, disabled suppression, stable geometry, and no
+            synthetic events or transient DOM/state mutation.
+      - [x] Promote public docs, state/parity evidence, package verification, and
+            todo completion only after every slider gate passes.
+        - The public inventory now has 41 primitives. Angular Material parity is
+          13 covered, 19 partial, and 5 gaps; the state matrix remains fully green
+          at 40/40. The uncached aggregate ran the component target plus all 28
+          dependent targets and passed 93/93 tests, exact theme/component token
+          and package publication, the dedicated slider forced-colors contract,
+          and component lint.
 
 ### Immediate: CSS Selector Query Schema and Unified CLI Query Execution
 

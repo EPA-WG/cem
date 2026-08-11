@@ -1,0 +1,50 @@
+<section class="cem-theme-light" data-slider-contract-fixture aria-label="Slider contract fixture">
+  <button data-slider-focus-start type="button">Focus start</button>
+
+  <form id="slider-form">
+    <label id="volume-label">Volume</label>
+    <cem-slider id="single-slider" min="0" max="100" step="5" discrete show-tick-marks>
+      <input
+        id="volume-thumb"
+        type="range"
+        data-cem-slider-thumb="single"
+        name="volume"
+        value="50"
+        aria-labelledby="volume-label"
+        aria-valuetext="50 percent"
+      >
+    </cem-slider>
+
+    <span id="price-label">Price range</span>
+    <cem-slider id="range-slider" min="0" max="100" step="5" discrete show-tick-marks>
+      <input
+        id="price-start-thumb"
+        type="range"
+        data-cem-slider-thumb="start"
+        name="minimum"
+        value="25"
+        aria-label="Minimum price"
+        aria-describedby="price-label"
+      >
+      <input
+        id="price-end-thumb"
+        type="range"
+        data-cem-slider-thumb="end"
+        name="maximum"
+        value="75"
+        aria-label="Maximum price"
+        aria-describedby="price-label"
+      >
+    </cem-slider>
+
+    <cem-slider id="normalized-slider" min="10" max="bad" step="0">
+      <input type="range" data-cem-slider-thumb="single" name="normalized" value="35" aria-label="Normalized value">
+    </cem-slider>
+
+    <cem-slider id="disabled-slider" min="0" max="10" step="1" disabled>
+      <input type="range" data-cem-slider-thumb="single" name="disabled-value" value="5" aria-label="Disabled value">
+    </cem-slider>
+  </form>
+
+  <button data-slider-focus-end type="button">Focus end</button>
+</section>

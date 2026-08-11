@@ -32,6 +32,7 @@ const TOKEN_FAMILY_PREFIXES = {
     responsive: ['--cem-bp-', '--cem-cq-'],
     select: ['--cem-select-'],
     separator: ['--cem-separator-'],
+    slider: ['--cem-slider-'],
     stroke: ['--cem-stroke-'],
     timing: ['--cem-duration-', '--cem-easing-'],
     typography: ['--cem-typography-', '--cem-fontography-'],

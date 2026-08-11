@@ -25,6 +25,7 @@ export const COVERAGE_CATEGORIES = [
     { id: "d0-content-interaction", label: "Interactive content state tokens (D0)", spec: "cem-colors" },
     { id: "d0-separation", label: "Separator color tokens (D0)", spec: "cem-colors" },
     { id: "d0-progress", label: "Progress indicator color tokens (D0)", spec: "cem-colors" },
+    { id: "d0-slider", label: "Slider input color tokens (D0)", spec: "cem-colors" },
     { id: "cem-dimension", label: "Dimension & rhythm (D1)", spec: "cem-dimension" },
     { id: "cem-breakpoints", label: "Breakpoints (D1x)", spec: "cem-breakpoints" },
     { id: "cem-coupling", label: "Coupling safety (D2)", spec: "cem-coupling" },
@@ -188,6 +189,7 @@ function deriveColorManifest(xhtml) {
     );
     addTableCategory(xhtml, "cem-separator-colors", "d0-separation", tokens, warnings);
     addTableCategory(xhtml, "cem-progress-indicator-colors", "d0-progress", tokens, warnings);
+    addTableCategory(xhtml, "cem-slider-colors", "d0-slider", tokens, warnings);
 
     const intentRows = extractTable(xhtml, "cem-action-intent-emotion");
     const stateRows = extractTable(xhtml, "cem-action-state-color");
@@ -321,6 +323,7 @@ function deriveControlsManifest(xhtml) {
     const tokens = [];
     addTableCategory(xhtml, "cem-controls-geometry", "cem-controls", tokens, warnings);
     addTableCategory(xhtml, "cem-progress-geometry", "cem-controls", tokens, warnings);
+    addTableCategory(xhtml, "cem-slider-geometry", "cem-controls", tokens, warnings);
     return { tokens, warnings };
 }
 

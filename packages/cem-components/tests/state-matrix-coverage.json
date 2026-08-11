@@ -115,7 +115,7 @@
             "id": "input:default",
             "category": "Input",
             "state": "default",
-            "components": ["cem-text-field", "cem-textarea", "cem-autocomplete", "cem-select", "cem-checkbox", "cem-radio", "cem-switch"],
+            "components": ["cem-text-field", "cem-textarea", "cem-autocomplete", "cem-select", "cem-checkbox", "cem-radio", "cem-switch", "cem-slider"],
             "interaction": "Render input primitives as their native accessible controls.",
             "status": "covered",
             "owner": "packages/cem-components/src/lib/primitives.browser.spec.ts",
@@ -133,6 +133,15 @@
                         "expect(input.getAttribute('role')).toBe('combobox');",
                         "expect(host.value).toBe('ada');"
                     ]
+                },
+                {
+                    "component": "cem-slider",
+                    "owner": "packages/cem-components/src/lib/slider.browser.spec.ts",
+                    "test": "keeps exact native single and range inputs as the accessible form owners",
+                    "assertions": [
+                        "expect(single.owner.dataset.mode).toBe('single');",
+                        "expect(range.owner.dataset.mode).toBe('range');"
+                    ]
                 }
             ]
         },
@@ -148,7 +157,8 @@
                 "cem-select",
                 "cem-checkbox",
                 "cem-radio",
-                "cem-switch"
+                "cem-switch",
+                "cem-slider"
             ],
             "interaction": "Move the pointer onto and away from an input without changing layout.",
             "status": "covered",
@@ -172,6 +182,15 @@
                         "expect(hoverOption.matches(':hover')).toBe(true);",
                         "expect(mutationEvents).toEqual([]);"
                     ]
+                },
+                {
+                    "component": "cem-slider",
+                    "owner": "packages/cem-components/src/lib/slider.browser.spec.ts",
+                    "test": "keeps pointer enter/leave, hover, active, and focus-visible on the native thumb with stable state",
+                    "assertions": [
+                        "expect(input.matches(':hover')).toBe(true);",
+                        "expect(mutations).toEqual([]);"
+                    ]
                 }
             ]
         },
@@ -187,7 +206,8 @@
                 "cem-select",
                 "cem-checkbox",
                 "cem-radio",
-                "cem-switch"
+                "cem-switch",
+                "cem-slider"
             ],
             "interaction": "Move keyboard focus between input controls and retain a visible focus indicator.",
             "status": "covered",
@@ -213,6 +233,15 @@
                         "expect(input.matches(':focus-visible')).toBe(true);",
                         "expect(focusTreatment(input)).toEqual(baselineFocusTreatment);"
                     ]
+                },
+                {
+                    "component": "cem-slider",
+                    "owner": "packages/cem-components/src/lib/slider.browser.spec.ts",
+                    "test": "keeps pointer enter/leave, hover, active, and focus-visible on the native thumb with stable state",
+                    "assertions": [
+                        "expect(document.activeElement).toBe(input);",
+                        "expect(input.matches(':focus-visible')).toBe(true);"
+                    ]
                 }
             ]
         },
@@ -220,7 +249,7 @@
             "id": "input:disabled",
             "category": "Input",
             "state": "disabled",
-            "components": ["cem-textarea", "cem-autocomplete", "cem-radio"],
+            "components": ["cem-textarea", "cem-autocomplete", "cem-radio", "cem-slider"],
             "interaction": "Disable form controls and prevent native interaction.",
             "status": "covered",
             "owner": "packages/cem-components/src/lib/states.browser.spec.ts",
@@ -234,6 +263,15 @@
                     "assertions": [
                         "expect(disabled.disabled).toBe(true);",
                         "expect(disabledInput.disabled).toBe(true);"
+                    ]
+                },
+                {
+                    "component": "cem-slider",
+                    "owner": "packages/cem-components/src/lib/slider.browser.spec.ts",
+                    "test": "projects global disabled suppression and skips the disabled native owner",
+                    "assertions": [
+                        "expect(input.disabled).toBe(true);",
+                        "expect(events).toEqual([]);"
                     ]
                 }
             ]

@@ -11,10 +11,10 @@
     },
     "recommendedAudit": null,
     "implementationPriority": {
-        "id": "paginator",
+        "id": "slider",
         "acceptedAt": "2026-08-11",
         "completedAt": "2026-08-11",
-        "contract": "packages/cem-components/docs/paginator-contract.md",
+        "contract": "packages/cem-components/docs/slider-contract.md",
         "state": "completed",
         "targetStatus": "covered"
     },
@@ -400,15 +400,25 @@
         {
             "id": "slider",
             "name": "Slider",
-            "status": "gap",
+            "status": "covered",
             "mapping": {
-                "kind": "gap",
-                "owners": [],
+                "kind": "component",
+                "owners": ["cem-slider"],
                 "states": ["default", "hover", "focus-visible", "active", "disabled", "min", "max", "step", "range"],
-                "keyboard": ["Support arrow, PageUp/PageDown, Home, and End changes for single-value and range thumbs."],
-                "accessibility": ["Expose native or ARIA slider values, bounds, orientation, accessible labels, and distinct names for range thumbs."],
-                "evidence": [],
-                "notes": "No public single-value or range slider owner, thumb interaction model, value display, or form contract exists."
+                "keyboard": ["Retain native horizontal range-input Arrow, PageUp/PageDown, Home, and End behavior for single/start/end thumbs while clamping range thumbs so start never exceeds end."],
+                "accessibility": ["Keep each authored native range input as the focus, slider-value, bounds, step, accessible-name, event, and form owner; require distinct names for start/end thumbs and hide generated track, ticks, and labels."],
+                "evidence": [
+                    "packages/cem-components/src/lib/slider.browser.spec.ts::keeps exact native single and range inputs as the accessible form owners",
+                    "packages/cem-components/src/lib/slider.browser.spec.ts::uses native keyboard events and clamps each range thumb without redispatch",
+                    "packages/cem-components/src/lib/slider.browser.spec.ts::serializes independent native values and preserves input identity through live parent control",
+                    "packages/cem-components/src/lib/slider.browser.spec.ts::keeps pointer enter/leave, hover, active, and focus-visible on the native thumb with stable state",
+                    "packages/cem-components/src/lib/slider.browser.spec.ts::projects global disabled suppression and skips the disabled native owner",
+                    "packages/cem-components/src/lib/slider.browser.spec.ts::mirrors normalized positions, ticks, and discrete labels without accessible duplication",
+                    "packages/cem-components/scripts/verify-slider-forced-colors.mjs",
+                    "packages/cem-components/scripts/verify-package.mjs",
+                    "packages/cem-components/docs/slider-contract.md"
+                ],
+                "notes": "cem-slider owns one horizontal single-value or range visual while exact authored native range inputs retain pointer, keyboard, focus, value, event, accessible-name, and independent form serialization ownership. Parent min/max/step/disabled state is normalized and projected, range thumbs cannot cross, and optional discrete labels/ticks are hidden visuals. Canonical D0 slider colors and D2c track/thumb geometry cover normal/forced-color styling without a component CSS exception. Angular directives, dependency-injection defaults, vertical sliders, tuple form values, and JavaScript displayWith callbacks are intentionally not reproduced."
             }
         },
         {

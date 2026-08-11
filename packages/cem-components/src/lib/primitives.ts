@@ -10,6 +10,7 @@ import { CEM_NAVIGATION_BEHAVIOR } from './navigation-behavior.js';
 import { CEM_PAGINATOR_BEHAVIOR } from './paginator-behavior.js';
 import { CEM_PROGRESS_SPINNER_BEHAVIOR } from './progress-spinner-behavior.js';
 import { CEM_SELECT_BEHAVIOR } from './select-behavior.js';
+import { CEM_SLIDER_BEHAVIOR } from './slider-behavior.js';
 import { CEM_SORT_HEADER_BEHAVIOR } from './sort-header-behavior.js';
 
 export interface CemComponentPrimitiveDeclaration {
@@ -214,6 +215,24 @@ export const CEM_COMPONENT_PRIMITIVES = [
             '{label @class=cem-switch |' +
             ' {input @class=cem-switch__control @type=checkbox @role=switch @name="{$datadom.attributes.name}" @value="{$value}" @checked={datadom.slices.checked ?? datadom.attributes.checked} @disabled={datadom.attributes.disabled} @required={datadom.attributes.required} @data-state={if datadom.attributes.busy { "loading" } else { null }} @aria-busy={if datadom.attributes.busy { true } else { null }} @aria-invalid={datadom.attributes.invalid} @slice=checked @slice-event=change @slice-value="$target.checked" | }' +
             ' {span @class=cem-switch__label | {slot | {$label}}}}',
+    },
+    {
+        tag: 'cem-slider',
+        description: 'Single-value or range slider retaining native range-input and form ownership.',
+        behavior: CEM_SLIDER_BEHAVIOR,
+        cemMl:
+            '{attribute @name=min | 0}' +
+            '{attribute @name=max | 100}' +
+            '{attribute @name=step | 1}' +
+            '{div @class=cem-slider @data-mode="{$datadom.slices.mode}" |' +
+            ' {div @class=cem-slider__visual @aria-hidden=true |' +
+            '  {span @class=cem-slider__track | }' +
+            '  {span @class=cem-slider__active-track | }' +
+            '  {span @class=cem-slider__ticks | }' +
+            '  {span @class=cem-slider__value @data-cem-slider-value=single | }' +
+            '  {span @class=cem-slider__value @data-cem-slider-value=start | }' +
+            '  {span @class=cem-slider__value @data-cem-slider-value=end | }}' +
+            ' {div @class=cem-slider__inputs | {slot}}}',
     },
     {
         tag: 'cem-surface',

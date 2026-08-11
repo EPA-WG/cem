@@ -29,6 +29,7 @@ contract for `@epa-wg/cem-components`, the CEM core schema state vocabulary, and
 | Input | `checkbox` | `cem-checkbox` | Binary consent, settings, and filters | palette, stroke, control, bend, typography |
 | Input | `radio` | `cem-radio` | Mutually exclusive choice inside a radio group | palette, stroke, control, typography |
 | Input | `switch` | `cem-switch` | Immediate boolean setting toggle | palette, stroke, action, control, bend |
+| Input | `slider` | `cem-slider` | Single-value or range input with native thumb/form ownership | slider, coupling, stroke, bend, gap, typography |
 | Layout | `surface` | `cem-surface` | Section surface for grouped content and workflow regions | palette, stroke, bend, gap, inset |
 | Content | `text` | `cem-text` | Token-scoped inline text and typography variant wrapper | typography, palette |
 | Content | `icon` | `cem-icon` | Decorative or labeled icon text primitive | action, palette, stroke, typography |
@@ -59,7 +60,7 @@ contract for `@epa-wg/cem-components`, the CEM core schema state vocabulary, and
 
 ## Deferred From MVP
 
-The roadmap still includes split actions, sliders, date/time affordances, side-nav variants, breadcrumbs, and richer
+The roadmap still includes split actions, date/time affordances, side-nav variants, breadcrumbs, and richer
 menu/dropdown families. They are deferred until the MVP workflows prove the shared component states,
 accessibility behavior, and token usage.
 

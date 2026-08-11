@@ -71,9 +71,9 @@ substituted for the missing component.
 
 | Classification | Count | Catalog entries |
 | --- | ---: | --- |
-| Covered | 12 | autocomplete, card, checkbox, dialog, divider, expansion, input, paginator, progress-spinner, select, slide-toggle, sort |
+| Covered | 13 | autocomplete, card, checkbox, dialog, divider, expansion, input, paginator, progress-spinner, select, slide-toggle, slider, sort |
 | Partial | 19 | badge, bottom-sheet, button, button-toggle, chips, core, form-field, grid-list, icon, list, menu, progress-bar, radio, ripple, sidenav, snack-bar, table, tabs, toolbar |
-| Gap | 6 | datepicker, slider, stepper, timepicker, tooltip, tree |
+| Gap | 5 | datepicker, stepper, timepicker, tooltip, tree |
 
 Each row in the executable inventory explains its boundary. In particular,
 `cem-grid` is not treated as a grid-list, `cem-tabs` is not treated as a stepper,
@@ -142,6 +142,15 @@ and result announcements remain application-owned. Existing contextual-action,
 select/input-indicator, palette, D1/D2/D2c/D3/D5/D6 semantics cover normal and
 forced colors, so no theme addition or CSS exception was needed.
 
+`slider` adds one `cem-slider` visual owner while authored native range inputs
+retain exact thumb interaction, accessible-name, event, and independent form
+serialization ownership. The [slider contract](./slider-contract.md) fixes the
+strict single/start/end vocabulary, normalized parent bounds, non-crossing
+range behavior, optional ticks/value labels, native keyboard/event surface, and
+application-owned value formatting. The pre-CSS audit added canonical D0 slider
+paint and D2c visual geometry; D2/D3/D5/D6 already cover targets, shape, focus,
+and labels. No component CSS exception was needed.
+
 Run the invariant with:
 
 ```bash
@@ -149,6 +158,6 @@ yarn nx run @epa-wg/cem-components:verify-material-parity
 ```
 
 The gate verifies the exact 37-entry pin, every audited mapping, and completion
-of the accepted implementation priority. It reports twelve covered rows,
-nineteen partial rows, six gaps, no remaining audit, and no next
+of the accepted implementation priority. It reports thirteen covered rows,
+nineteen partial rows, five gaps, no remaining audit, and no next
 implementation until a new gap is deliberately selected and contracted.

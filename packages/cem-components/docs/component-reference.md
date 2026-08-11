@@ -34,11 +34,12 @@ The aggregate gate includes:
 | Primitive manifest | `yarn nx run @epa-wg/cem-components:verify-primitives` | `CEM_COMPONENT_PRIMITIVES` exactly matches `docs/component-mvp.md`, uses CEM-ML declarations, and does not depend on legacy `<custom-element>` wrappers. |
 | Angular Material parity inventory | `yarn nx run @epa-wg/cem-components:verify-material-parity` | Pins the exact stable official catalog and requires every entry to remain visible until it is audited as a component mapping, cross-cutting behavior, partial mapping, or explicit gap. Barebone `cem-elements` compatibility fixtures cannot satisfy product UI parity evidence. |
 | State matrix | `yarn nx run @epa-wg/cem-components:verify-state-matrix` | Resolves every category state to exact browser tests/assertions and supports verifier-checked component-specific evidence so a newly promoted owner does not replace existing evidence. |
-| Token-only style contract | `yarn nx run @epa-wg/cem-components:verify-style-contract` | Depends on current theme tokens and the verified public theme stylesheet export; checks exact action, content-interaction, navigation, paginator, and feedback bindings plus component selector scope, and rejects inline styles, unknown/non-CEM variables, and raw component color or spacing literals. |
+| Token-only style contract | `yarn nx run @epa-wg/cem-components:verify-style-contract` | Depends on current theme tokens and the verified public theme stylesheet export; checks exact action, content-interaction, navigation, paginator, and feedback bindings plus slider-family resolution, component selector scope, and rejects inline styles, unknown/non-CEM variables, and raw component color or spacing literals. |
 | Divider forced colors | `yarn nx run @epa-wg/cem-components:verify-divider-forced-colors` | Proves `CanvasText` separator color, D5 thickness, D1 inset, and the complete D1/D2 line-plus-margins track in forced colors. |
 | Expansion forced colors | `yarn nx run @epa-wg/cem-components:verify-expansion-forced-colors` | Proves header/panel system colors, contextual hover/active/disabled paint, D5 focus, D2 target size, stable geometry, and event/state isolation. |
 | Sort-header forced colors | `yarn nx run @epa-wg/cem-components:verify-sort-header-forced-colors` | Proves character-distinct none/ascending/descending states, system hover/active/disabled colors, D5 focus coexistence, D2/D2c geometry, and transient-input state isolation. |
 | Paginator forced colors | `yarn nx run @epa-wg/cem-components:verify-paginator-forced-colors` | Proves native select/action ownership, system hover/active/disabled colors, D5 focus coexistence, D2/D2c geometry, surviving character icons, and transient-input state isolation. |
+| Slider forced colors | `yarn nx run @epa-wg/cem-components:verify-slider-forced-colors` | Proves native range-input ownership, system remaining/active/disabled track and thumb semantics, surviving ticks, D2/D2c geometry, D5 focus, and transient-input state isolation. |
 | Input indicator forced colors | `yarn nx run @epa-wg/cem-components:verify-input-indicator-forced-colors` | Launches Chromium with forced colors active; proves component shadows collapse, field/binary hover uses `Highlight`, and keyboard focus traverses the original seven input owners with full `CanvasText` outlines. |
 | Autocomplete forced colors | `yarn nx run @epa-wg/cem-components:verify-autocomplete-forced-colors` | Proves popup draw order, input/option pointer ownership, system hover/active/selected/disabled colors, keyboard focus coexistence, stable geometry, and event/state isolation. |
 | Navigation hover/focus/active/disabled forced colors | `yarn nx run @epa-wg/cem-components:verify-navigation-hover-forced-colors` | Launches Chromium with forced colors active; proves system hover/current/active/disabled colors, ARIA-disabled current/selected precedence, full keyboard traversal, focus coexistence, native-disabled skipping, restoration, and wrapper/state isolation. |
@@ -58,6 +59,7 @@ Executable fixture locations:
 | Expansion behavior and state coverage | `../src/lib/expansion.browser.spec.ts` |
 | Sort-header behavior and state coverage | `../src/lib/sort-header.browser.spec.ts` |
 | Paginator behavior and state coverage | `../src/lib/paginator.browser.spec.ts` |
+| Slider behavior and state coverage | `../src/lib/slider.browser.spec.ts` |
 | State, ARIA, focus, and event payload coverage | `../src/lib/states.browser.spec.ts` |
 | Feedback lifecycle and focus coverage | `../src/lib/feedback-expanded.browser.spec.ts` |
 | Workflow fixture coverage | `../src/lib/workflows.browser.spec.ts` |
@@ -67,6 +69,7 @@ Executable fixture locations:
 | Declarative expansion fixture | `../tests/expansion/contract.html` |
 | Declarative sort-header fixture | `../tests/sort-header/contract.html` |
 | Declarative paginator fixture | `../tests/paginator/contract.html` |
+| Declarative slider fixture | `../tests/slider/contract.html` |
 | Component harness helpers | `../src/lib/testing/component-harness.ts` |
 | Style and manifest verifier scripts | `../../../tools/scripts/verify-cem-components-*.mjs` |
 | Package stylesheet source | `../src/styles.css` |
@@ -83,7 +86,7 @@ Known deferrals remain outside the Phase 3.2 trigger:
 - `@epa-wg/custom-element` monorepo adoption is Phase 3.6.
 - Full application behaviors such as dialog focus trapping, routed navigation, async data loading, and resource
   primitives are follow-up runtime/application work.
-- Post-MVP controls including split actions, sliders, date/time controls, side-nav variants, breadcrumbs, and richer
+- Post-MVP controls including split actions, date/time controls, side-nav variants, breadcrumbs, and richer
   menu/dropdown families are Phase 4 expansion work.
 
 ## Actions
@@ -116,6 +119,7 @@ See the [action hover contract](./action-hover-contract.md) and
 | `cem-checkbox` | Binary form choice. | Default slot is label; `name` and `value` forward to native input; `indicator`; `busy`. | input indicator, stroke, zebra, control, bend, typography | Wrapping label must expose the visible text as the accessible name. |
 | `cem-radio` | Mutually exclusive form choice. | Default slot is label; shared `name` groups radios; `indicator`; `busy`. | input indicator, stroke, zebra, control, typography | Radio group context should provide the set label. |
 | `cem-switch` | Immediate boolean setting. | Default slot is label; renders checkbox with `role="switch"`; `indicator`; `busy`. | input indicator, stroke, zebra, action, control, bend | Visible label must name the switch. |
+| `cem-slider` | Horizontal single-value or range input. | One direct native range input marked `single`, or exact `start`/`end` inputs; parent `min`, `max`, `step`, `disabled`, `discrete`, `show-tick-marks`. See the [slider contract](./slider-contract.md). | slider, coupling, stroke, bend, gap, typography | Every input retains native slider semantics and requires an accessible name; range thumbs require distinct names. Generated visuals are hidden. |
 
 States: `default`, `hover`, `focus-visible`, `disabled`, `loading`, `expanded`, `invalid`, `required`, `readonly`,
 `checked`, `indeterminate`.
@@ -126,6 +130,12 @@ string value through `ElementInternals`, keeps focus on the native input during
 listbox navigation, and accepts live declarative option replacement without
 replacing that input or mutating the committed value. Filtering, ranking,
 fetching, and debouncing remain application/CEM-QL concerns.
+
+`cem-slider` retains native range-input form/event ownership for single and
+range values. It adds no tuple form value or custom event: each thumb serializes
+under its authored name and emits its own native `input`/`change` sequence.
+Parent bounds are normalized, range values cannot cross, and transient pointer
+or focus paint does not mutate component state or geometry.
 
 Presence-only host `busy` projects exact `data-state="loading"` and
 `aria-busy="true"` markers to the same interactive control. It does not infer or

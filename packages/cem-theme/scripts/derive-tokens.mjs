@@ -69,6 +69,7 @@ function deriveColorTokens(xhtml) {
     addTableTokens(xhtml, "cem-content-interaction-state-colors", spec, "d0-content-interaction", tokens, warnings);
     addTableTokens(xhtml, "cem-separator-colors", spec, "d0-separation", tokens, warnings);
     addTableTokens(xhtml, "cem-progress-indicator-colors", spec, "d0-progress", tokens, warnings);
+    addTableTokens(xhtml, "cem-slider-colors", spec, "d0-slider", tokens, warnings);
 
     // Action tokens: cross-product of intent × state
     const intentRows = extractTable(xhtml, "cem-action-intent-emotion");
@@ -245,6 +246,7 @@ function deriveControlsTokens(xhtml) {
     const tokens = [];
     addTableTokens(xhtml, "cem-controls-geometry", "cem-controls", "cem-controls", tokens, warnings);
     addTableTokens(xhtml, "cem-progress-geometry", "cem-controls", "cem-controls", tokens, warnings);
+    addTableTokens(xhtml, "cem-slider-geometry", "cem-controls", "cem-controls", tokens, warnings);
     return { tokens, warnings };
 }
 

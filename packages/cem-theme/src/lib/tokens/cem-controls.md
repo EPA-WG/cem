@@ -6,7 +6,7 @@
 
 **Audience:** Design Systems, Product Design, Front-End Engineering
 
-**Applies to:** Visual sizing of generic controls and component-affordance geometry (button, input, icon button, list/menu/table rows, progress graphics)
+**Applies to:** Visual sizing of generic controls and component-affordance geometry (button, input, icon button, list/menu/table rows, progress and slider graphics)
 
 **Companion specs:**
 - **D1. Space & Rhythm** ([`cem-dimension.md`](./cem-dimension.md)) — gaps, insets, layout rhythm
@@ -36,7 +36,7 @@ See [`cem-controls-reasoning.md`](../../../../../cem-controls-reasoning.md) for 
   - generic control geometry: height, inline padding, block padding
   - icon button geometry: container size, glyph size
   - component affordance row heights: list, menu, data-table
-  - non-interactive component graphics: circular progress diameter and track thickness
+  - component graphics: circular progress diameter/track and slider track/thumb
   - per-coupling-mode visual overrides
 
 - **D2. Coupling & Compactness** (from [`cem-coupling.md`](./cem-coupling.md))
@@ -104,7 +104,21 @@ D0 owns track/indicator color, and D7 owns any indeterminate cycle.
 | `--cem-progress-spinner-size` | `3rem` | Default circular progress diameter | required |
 | `--cem-progress-track-thickness` | `0.25rem` | Circular or linear progress track thickness | required |
 
-### 3.3 Coupling-mode overrides (visual geometry only)
+### 3.3 Slider graphic geometry
+
+Slider track thickness and visible thumb diameter are single-component visual
+geometry. D2c owns those sizes; D2 continues to own the larger operable target
+through `--cem-coupling-zone-min`, and D5 owns focus-outline geometry. A slider
+implementation MUST keep its native thumb hit target at least zone-min even
+when the visible thumb is smaller.
+
+###### cem-slider-geometry
+| Token | Value | Description | tier |
+|---|---|---|---|
+| `--cem-slider-track-thickness` | `0.25rem` | Visible remaining and active value-range track thickness | required |
+| `--cem-slider-thumb-size` | `1.25rem` | Visible circular slider thumb diameter inside the D2 operable target | required |
+
+### 3.4 Coupling-mode overrides (visual geometry only)
 
 Controls geometry varies by coupling mode. The mode selector is owned by D2 Coupling
 (`data-cem-coupling="forgiving|balanced|compact"`); Controls only emits the visual override values for those modes.
@@ -208,7 +222,7 @@ meet `--cem-coupling-zone-min` independently.
 A draft becomes "canonical" when all of the following are true:
 
 1. **Visual-only contract:** this spec emits only `--cem-control-*`, `--cem-icon-button-*`, list/menu/table geometry,
-   and non-interactive `--cem-progress-*` geometry tokens.
+   `--cem-progress-*` graphics, and `--cem-slider-*` visual geometry tokens.
    Safety tokens (`--cem-coupling-*`) are NOT emitted here.
 2. **Mode overrides only adjust visuals:** forgiving/compact mode tables touch geometry, never zone/guard.
 3. **Halo escape hatch documented:** any time visuals fall below `--cem-coupling-zone-min`, halo expansion is the
@@ -223,10 +237,12 @@ A draft becomes "canonical" when all of the following are true:
 |---|---|---|
 | `cem-controls-geometry` | §3.1 | Baseline visual control geometry: height, padding, icon-button, list/menu/table row sizes |
 | `cem-progress-geometry` | §3.2 | Circular-progress diameter and shared progress-track thickness |
-| `cem-controls-geometry-overrides` | §3.3 | Forgiving/compact override values for visual geometry (generator-only; no new tokens) |
+| `cem-slider-geometry` | §3.3 | Slider track thickness and visible thumb diameter |
+| `cem-controls-geometry-overrides` | §3.4 | Forgiving/compact override values for visual geometry (generator-only; no new tokens) |
 
 Generator derivation rules:
 - `cem-controls-geometry` → token list (tier in last column).
 - `cem-progress-geometry` → token list (tier in last column).
+- `cem-slider-geometry` → token list (tier in last column).
 - `cem-controls-geometry-overrides` → override data only; tokens are already declared in the base `:root` block.
 - Coupling minimums (`--cem-coupling-zone-min`, `--cem-coupling-guard-min`, `--cem-coupling-halo`) are NOT declared here; they belong to D2 Coupling.

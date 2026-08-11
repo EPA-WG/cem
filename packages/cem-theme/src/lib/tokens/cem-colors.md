@@ -658,6 +658,32 @@ remaining/current distinction with system-owned colors.
 | `--cem-progress-track-color` | `<color>` | `color-mix(in srgb, var(--cem-palette-comfort-text) 24%, transparent)` | `GrayText` | Remaining progress range at reduced salience | required |
 | `--cem-progress-indicator-color` | `<color>` | `var(--cem-palette-enthusiasm-x)` | `Highlight` | Current or indeterminate work indicator | required |
 
+### 7.13 Slider input colors
+
+A slider is an interactive value input. Its remaining track, selected range,
+thumb, and step ticks therefore form one dedicated D0 family. These endpoints
+MUST NOT reuse sibling-separator color or progress status color merely because
+the rendered graphics contain a line: position along the line is the input
+value, and the thumb has hover, active, focus, and disabled states.
+
+The default track is reduced-salience surface text, while the active track and
+thumb derive from the enthusiasm endpoint. Hover and active thumb endpoints are
+separate so a theme can preserve pointer feedback without changing geometry. In
+forced colors, geometry plus system colors preserves remaining/selected,
+enabled/disabled, and thumb/tick distinctions.
+
+###### cem-slider-colors
+| Token | value-type | default-formula | forced-colors | notes | tier |
+|---|---|---|---|---|---|
+| `--cem-slider-track-color` | `<color>` | `color-mix(in srgb, var(--cem-palette-comfort-text) 24%, transparent)` | `GrayText` | Remaining value range at reduced salience | required |
+| `--cem-slider-active-track-color` | `<color>` | `var(--cem-palette-enthusiasm-x)` | `Highlight` | Selected single-value or range segment | required |
+| `--cem-slider-thumb-color` | `<color>` | `var(--cem-palette-enthusiasm-x)` | `CanvasText` | Resting enabled thumb | required |
+| `--cem-slider-thumb-hover-color` | `<color>` | `var(--cem-action-primary-hover-background)` | `Highlight` | Enabled thumb under pointer hover | required |
+| `--cem-slider-thumb-active-color` | `<color>` | `var(--cem-action-primary-active-background)` | `Highlight` | Enabled thumb during native activation | required |
+| `--cem-slider-disabled-track-color` | `<color>` | `color-mix(in srgb, var(--cem-palette-comfort-text) 14%, transparent)` | `GrayText` | Remaining and selected range when globally disabled | required |
+| `--cem-slider-disabled-thumb-color` | `<color>` | `var(--cem-action-contextual-disabled-text)` | `GrayText` | Globally disabled thumb | required |
+| `--cem-slider-tick-color` | `<color>` | `var(--cem-palette-comfort-text)` | `CanvasText` | Step tick graphics; position remains a redundant cue | required |
+
 ## 8. Zebra outline colors
 
 ### 8.1 Outline-driven state mapping (zebra)
@@ -753,6 +779,10 @@ In `native` mode, palette endpoints SHOULD map to system colors:
 - `--cem-zebra-color-2`: `Mark` (fallback: `Highlight`)
 - `--cem-zebra-color-3`: `SelectedItem`
 - `--cem-separator-color`: `CanvasText`
+- `--cem-slider-track-color`: `GrayText`
+- `--cem-slider-active-track-color`: `Highlight`
+- `--cem-slider-thumb-color`: `CanvasText`
+- `--cem-slider-tick-color`: `CanvasText`
 
 * Disclaimer. `Highlight` color in Chromium and Firefox do not pass contrast compliance against `HighlightText`, have to be darkened.
 ### 9.2 Forced colors
@@ -766,6 +796,8 @@ When `@media (forced-colors: active)` is true:
   color adjustment.
 - Resolve progress tracks to `GrayText` and progress indicators to `Highlight`; do not depend on authored alpha or
   hue to distinguish the current arc from the remaining range.
+- Resolve slider remaining/disabled graphics to `GrayText`, active graphics to `Highlight`, and resting thumbs/ticks
+  to `CanvasText`; retain positional and focus-outline cues.
 
 ---
 
@@ -800,6 +832,7 @@ Use this as a quick “did we wire tokens correctly?” checklist.
 - [ ] Divider thickness comes from D5, and divider spacing/inset does not become a D0 token
 - [ ] Forced-colors dividers resolve to `CanvasText` rather than relying on the reduced-salience authored mixture
 - [ ] Forced-colors progress graphics resolve their track/indicator pair to `GrayText` / `Highlight`
+- [ ] Sliders use `--cem-slider-*`; a value-range track is not a separator or progress status graphic
 
 ---
 
@@ -992,6 +1025,7 @@ from these tables using the same logic as `cem-colors.html`.
 | `cem-zebra-tokens`                                     | `--cem-zebra-*` (5 tokens)    | one token per row                   |
 | `cem-input-indicator-colors`                           | `--cem-input-indicator-*` (9 tokens) | one token per row             |
 | `cem-progress-indicator-colors`                        | `--cem-progress-*` (2 tokens) | one token per row                   |
+| `cem-slider-colors`                                    | `--cem-slider-*` (8 tokens) | one token per row                     |
 | `cem-select-state-colors`                              | `--cem-select-*` (12 tokens) | one token per row                    |
 | `cem-navigation-item-state-colors`                     | `--cem-navigation-item-*` (14 tokens) | one token per row             |
 | `cem-content-interaction-state-colors`                  | `--cem-content-interaction-*` (10 tokens) | one token per row          |
