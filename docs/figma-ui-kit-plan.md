@@ -1,8 +1,9 @@
 # CEM UI Kit Plan
 
-**Status:** Accepted Phase 5 contract. The native token collection and offline
-token gates exist; foundations, component sets, patterns, and complete UI Kit
-evidence remain pending.
+**Status:** Accepted Phase 5 contract. The native token collection, offline
+token gates, and executable 48-primitive component inventory exist;
+foundations, canvas component sets, patterns, and reviewed UI Kit evidence
+remain pending.
 
 The CEM UI Kit is the native Figma design library for CEM. It mirrors the
 generated token and public semantic-component surface without making Figma a
@@ -111,7 +112,10 @@ The repository gate must remain credential-free and deterministic:
 
 - `yarn nx run @epa-wg/cem-theme:test:figma` verifies generated native DTCG
   mode files, aliases, types, provenance, report health, and token propagation.
-- The component inventory gate must reject missing/extra public primitives,
+- `yarn nx run @epa-wg/cem-components:verify-figma-inventory` verifies the
+  executable component inventory and review fixture, depends on the native
+  token gate, and emits JSON/Markdown reports under `dist/reports/`.
+- The component inventory gate rejects missing/extra public primitives,
   unsupported states, stale documentation, missing token families, or absent
   manual-evidence locators.
 - Component and state-matrix Nx gates remain authoritative for runtime behavior;

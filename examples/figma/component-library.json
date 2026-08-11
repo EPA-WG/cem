@@ -1,0 +1,496 @@
+{
+    "version": 1,
+    "sources": {
+        "primitives": "packages/cem-components/src/lib/primitives.ts#CEM_COMPONENT_PRIMITIVES",
+        "components": "docs/component-mvp.md#component-list",
+        "states": "packages/cem-components/tests/state-matrix-coverage.json",
+        "documentation": "packages/cem-components/docs/component-reference.md"
+    },
+    "figma": {
+        "file": "https://www.figma.com/design/vLZUzjS7xHACjXgYLA9vtD/CEM-UI-Kit",
+        "page": "03 Components",
+        "modes": ["Light", "Dark", "Contrast Light", "Contrast Dark", "Native"]
+    },
+    "components": [
+        {
+            "tag": "cem-action",
+            "category": "Action",
+            "representation": "component-set",
+            "properties": { "slot:default": "slot", "variant": "variant" },
+            "states": ["default", "hover", "focus-visible", "active", "loading"],
+            "tokenFamilies": ["action", "control", "palette", "bend", "typography"],
+            "documentation": ["packages/cem-components/docs/component-reference.md#actions"],
+            "figma": { "status": "planned", "locator": "03 Components / Actions / cem-action", "revision": null }
+        },
+        {
+            "tag": "cem-icon-button",
+            "category": "Action",
+            "representation": "component-set",
+            "properties": { "name": "instance-swap", "label": "text", "slot:default": "slot" },
+            "states": ["default", "hover", "active", "disabled"],
+            "tokenFamilies": ["action", "control", "palette", "stroke", "bend"],
+            "documentation": ["packages/cem-components/docs/component-reference.md#actions"],
+            "figma": { "status": "planned", "locator": "03 Components / Actions / cem-icon-button", "revision": null }
+        },
+        {
+            "tag": "cem-menu-item",
+            "category": "Action",
+            "representation": "component-set",
+            "properties": { "slot:default": "slot" },
+            "states": ["default", "hover", "active"],
+            "tokenFamilies": ["action", "palette", "gap", "inset", "typography"],
+            "documentation": ["packages/cem-components/docs/component-reference.md#actions"],
+            "figma": { "status": "planned", "locator": "03 Components / Actions / cem-menu-item", "revision": null }
+        },
+        {
+            "tag": "cem-field",
+            "category": "Input",
+            "representation": "component-set",
+            "properties": { "name": "text", "value": "text", "type": "text", "placeholder": "text", "indicator": "variant", "busy": "boolean", "slot:label": "slot", "slot:help": "slot" },
+            "states": ["hover", "focus-visible", "loading"],
+            "tokenFamilies": ["palette", "stroke", "bend", "gap", "typography"],
+            "documentation": ["packages/cem-components/docs/component-reference.md#inputs"],
+            "figma": { "status": "planned", "locator": "03 Components / Inputs / cem-field", "revision": null }
+        },
+        {
+            "tag": "cem-text-field",
+            "category": "Input",
+            "representation": "component-set",
+            "properties": { "name": "text", "value": "text", "placeholder": "text", "indicator": "variant", "busy": "boolean", "slot:label": "slot", "slot:help": "slot" },
+            "states": ["default", "hover", "focus-visible", "loading", "invalid", "required", "readonly"],
+            "tokenFamilies": ["palette", "stroke", "bend", "gap", "typography"],
+            "documentation": ["packages/cem-components/docs/component-reference.md#inputs"],
+            "figma": { "status": "planned", "locator": "03 Components / Inputs / cem-text-field", "revision": null }
+        },
+        {
+            "tag": "cem-textarea",
+            "category": "Input",
+            "representation": "component-set",
+            "properties": { "name": "text", "value": "text", "placeholder": "text", "indicator": "variant", "busy": "boolean", "slot:label": "slot", "slot:help": "slot" },
+            "states": ["default", "hover", "focus-visible", "disabled", "loading", "invalid"],
+            "tokenFamilies": ["palette", "stroke", "bend", "gap", "typography"],
+            "documentation": ["packages/cem-components/docs/component-reference.md#inputs"],
+            "figma": { "status": "planned", "locator": "03 Components / Inputs / cem-textarea", "revision": null }
+        },
+        {
+            "tag": "cem-autocomplete",
+            "category": "Input",
+            "representation": "component-set",
+            "properties": { "value": "text", "placeholder": "text", "autocomplete": "text", "indicator": "variant", "busy": "boolean", "require-selection": "boolean", "auto-active-first": "boolean", "slot:label": "slot", "slot:help": "slot", "slot:default": "slot" },
+            "states": ["default", "hover", "focus-visible", "disabled", "loading", "expanded", "invalid", "required", "readonly"],
+            "tokenFamilies": ["palette", "select", "stroke", "bend", "layering", "control", "typography"],
+            "documentation": ["packages/cem-components/docs/component-reference.md#inputs", "packages/cem-components/docs/autocomplete-contract.md"],
+            "figma": { "status": "planned", "locator": "03 Components / Inputs / cem-autocomplete", "revision": null }
+        },
+        {
+            "tag": "cem-timepicker",
+            "category": "Input",
+            "representation": "component-set",
+            "properties": { "min": "text", "max": "text", "interval": "text", "required": "boolean", "invalid": "boolean", "disabled": "boolean", "slot:input": "slot", "slot:toggle": "slot", "slot:default": "slot" },
+            "states": ["default", "hover", "focus-visible", "disabled", "expanded", "invalid", "required"],
+            "tokenFamilies": ["action", "palette", "select", "stroke", "bend", "layering", "coupling", "control", "typography"],
+            "documentation": ["packages/cem-components/docs/component-reference.md#inputs", "packages/cem-components/docs/timepicker-contract.md"],
+            "figma": { "status": "planned", "locator": "03 Components / Inputs / cem-timepicker", "revision": null }
+        },
+        {
+            "tag": "cem-datepicker",
+            "category": "Input",
+            "representation": "component-set",
+            "properties": { "min": "text", "max": "text", "lang": "text", "required": "boolean", "invalid": "boolean", "disabled": "boolean", "slot:input": "slot", "slot:toggle": "slot" },
+            "states": ["default", "hover", "focus-visible", "disabled", "expanded", "invalid", "required"],
+            "tokenFamilies": ["action", "palette", "content", "select", "stroke", "bend", "layering", "coupling", "control", "typography"],
+            "documentation": ["packages/cem-components/docs/component-reference.md#inputs", "packages/cem-components/docs/datepicker-contract.md"],
+            "figma": { "status": "planned", "locator": "03 Components / Inputs / cem-datepicker", "revision": null }
+        },
+        {
+            "tag": "cem-select",
+            "category": "Input",
+            "representation": "component-set",
+            "properties": { "multiple": "boolean", "size": "text", "indicator": "variant", "busy": "boolean", "slot:label": "slot", "slot:help": "slot", "slot:default": "slot" },
+            "states": ["default", "hover", "focus-visible", "loading", "expanded", "invalid", "required"],
+            "tokenFamilies": ["palette", "select", "stroke", "bend", "layering", "control", "typography"],
+            "documentation": ["packages/cem-components/docs/component-reference.md#inputs", "packages/cem-components/docs/select-contract.md"],
+            "figma": { "status": "planned", "locator": "03 Components / Inputs / cem-select", "revision": null }
+        },
+        {
+            "tag": "cem-option",
+            "category": "Input",
+            "representation": "payload",
+            "properties": { "value": "text", "label": "text", "selected": "boolean", "disabled": "boolean", "slot:default": "slot" },
+            "states": [],
+            "tokenFamilies": ["palette", "typography"],
+            "documentation": ["packages/cem-components/docs/component-reference.md#inputs", "packages/cem-components/docs/select-contract.md"],
+            "figma": { "status": "planned", "locator": "03 Components / Inputs / cem-option", "revision": null }
+        },
+        {
+            "tag": "cem-option-group",
+            "category": "Input",
+            "representation": "payload",
+            "properties": { "label": "text", "disabled": "boolean", "slot:default": "slot" },
+            "states": [],
+            "tokenFamilies": ["palette", "typography"],
+            "documentation": ["packages/cem-components/docs/component-reference.md#inputs", "packages/cem-components/docs/select-contract.md"],
+            "figma": { "status": "planned", "locator": "03 Components / Inputs / cem-option-group", "revision": null }
+        },
+        {
+            "tag": "cem-checkbox",
+            "category": "Input",
+            "representation": "component-set",
+            "properties": { "name": "text", "value": "text", "indicator": "variant", "busy": "boolean", "slot:default": "slot" },
+            "states": ["default", "hover", "focus-visible", "loading", "invalid", "required", "checked", "indeterminate"],
+            "tokenFamilies": ["palette", "stroke", "control", "bend", "typography"],
+            "documentation": ["packages/cem-components/docs/component-reference.md#inputs"],
+            "figma": { "status": "planned", "locator": "03 Components / Inputs / cem-checkbox", "revision": null }
+        },
+        {
+            "tag": "cem-radio",
+            "category": "Input",
+            "representation": "component-set",
+            "properties": { "name": "text", "indicator": "variant", "busy": "boolean", "slot:default": "slot" },
+            "states": ["default", "hover", "focus-visible", "disabled", "loading", "checked"],
+            "tokenFamilies": ["palette", "stroke", "control", "typography"],
+            "documentation": ["packages/cem-components/docs/component-reference.md#inputs"],
+            "figma": { "status": "planned", "locator": "03 Components / Inputs / cem-radio", "revision": null }
+        },
+        {
+            "tag": "cem-switch",
+            "category": "Input",
+            "representation": "component-set",
+            "properties": { "indicator": "variant", "busy": "boolean", "slot:default": "slot" },
+            "states": ["default", "hover", "focus-visible", "loading", "checked"],
+            "tokenFamilies": ["palette", "stroke", "action", "control", "bend"],
+            "documentation": ["packages/cem-components/docs/component-reference.md#inputs"],
+            "figma": { "status": "planned", "locator": "03 Components / Inputs / cem-switch", "revision": null }
+        },
+        {
+            "tag": "cem-slider",
+            "category": "Input",
+            "representation": "component-set",
+            "properties": { "min": "text", "max": "text", "step": "text", "disabled": "boolean", "discrete": "boolean", "show-tick-marks": "boolean", "slot:default": "slot" },
+            "states": ["default", "hover", "focus-visible", "disabled"],
+            "tokenFamilies": ["slider", "coupling", "stroke", "bend", "gap", "typography"],
+            "documentation": ["packages/cem-components/docs/component-reference.md#inputs", "packages/cem-components/docs/slider-contract.md"],
+            "figma": { "status": "planned", "locator": "03 Components / Inputs / cem-slider", "revision": null }
+        },
+        {
+            "tag": "cem-surface",
+            "category": "Layout",
+            "representation": "component-set",
+            "properties": { "label": "text", "tone": "variant", "busy": "boolean", "empty": "boolean", "slot:default": "slot" },
+            "states": ["default", "loading", "empty"],
+            "tokenFamilies": ["palette", "stroke", "bend", "gap", "inset"],
+            "documentation": ["packages/cem-components/docs/component-reference.md#layout"],
+            "figma": { "status": "planned", "locator": "03 Components / Layout / cem-surface", "revision": null }
+        },
+        {
+            "tag": "cem-text",
+            "category": "Content",
+            "representation": "component-set",
+            "properties": { "variant": "variant", "text": "text", "slot:default": "slot" },
+            "states": [],
+            "tokenFamilies": ["typography", "palette"],
+            "documentation": ["packages/cem-components/docs/component-reference.md#content"],
+            "figma": { "status": "planned", "locator": "03 Components / Content / cem-text", "revision": null }
+        },
+        {
+            "tag": "cem-icon",
+            "category": "Content",
+            "representation": "component",
+            "properties": { "name": "instance-swap", "label": "text" },
+            "states": [],
+            "tokenFamilies": ["action", "palette", "stroke", "typography"],
+            "documentation": ["packages/cem-components/docs/component-reference.md#content"],
+            "figma": { "status": "planned", "locator": "03 Components / Content / cem-icon", "revision": null }
+        },
+        {
+            "tag": "cem-stack",
+            "category": "Layout",
+            "representation": "structural",
+            "properties": { "gap": "variant", "slot:default": "slot" },
+            "states": [],
+            "tokenFamilies": ["gap", "responsive"],
+            "documentation": ["packages/cem-components/docs/component-reference.md#layout"],
+            "figma": { "status": "planned", "locator": "03 Components / Layout / cem-stack", "revision": null }
+        },
+        {
+            "tag": "cem-grid",
+            "category": "Layout",
+            "representation": "structural",
+            "properties": { "columns": "variant", "gap": "variant", "slot:default": "slot" },
+            "states": [],
+            "tokenFamilies": ["gap", "responsive"],
+            "documentation": ["packages/cem-components/docs/component-reference.md#layout"],
+            "figma": { "status": "planned", "locator": "03 Components / Layout / cem-grid", "revision": null }
+        },
+        {
+            "tag": "cem-divider",
+            "category": "Layout",
+            "representation": "component-set",
+            "properties": { "orientation": "variant", "spacing": "variant", "inset": "boolean", "decorative": "boolean" },
+            "states": ["default"],
+            "tokenFamilies": ["separator", "stroke", "gap", "inset", "coupling"],
+            "documentation": ["packages/cem-components/docs/component-reference.md#layout", "packages/cem-components/docs/divider-contract.md"],
+            "figma": { "status": "planned", "locator": "03 Components / Layout / cem-divider", "revision": null }
+        },
+        {
+            "tag": "cem-list",
+            "category": "Content",
+            "representation": "component-set",
+            "properties": { "label": "text", "value": "text", "size": "text", "selectable": "boolean", "slot:default": "slot" },
+            "states": ["default", "hover", "focus-visible", "selected", "loading", "empty"],
+            "tokenFamilies": ["palette", "content", "stroke", "gap", "typography"],
+            "documentation": ["packages/cem-components/docs/component-reference.md#content"],
+            "figma": { "status": "planned", "locator": "03 Components / Content / cem-list", "revision": null }
+        },
+        {
+            "tag": "cem-card",
+            "category": "Content",
+            "representation": "component-set",
+            "properties": { "label": "text", "busy": "boolean", "slot:title": "slot", "slot:default": "slot" },
+            "states": ["default", "loading"],
+            "tokenFamilies": ["palette", "stroke", "bend", "gap", "inset"],
+            "documentation": ["packages/cem-components/docs/component-reference.md#content"],
+            "figma": { "status": "planned", "locator": "03 Components / Content / cem-card", "revision": null }
+        },
+        {
+            "tag": "cem-expansion",
+            "category": "Content",
+            "representation": "component-set",
+            "properties": { "label": "text", "expanded": "boolean", "disabled": "boolean", "region": "boolean", "heading-level": "variant", "slot:summary": "slot", "slot:default": "slot" },
+            "states": ["default", "hover", "focus-visible"],
+            "tokenFamilies": ["action", "palette", "stroke", "bend", "gap", "inset", "coupling", "control", "typography"],
+            "documentation": ["packages/cem-components/docs/component-reference.md#content", "packages/cem-components/docs/expansion-contract.md"],
+            "figma": { "status": "planned", "locator": "03 Components / Content / cem-expansion", "revision": null }
+        },
+        {
+            "tag": "cem-table",
+            "category": "Content",
+            "representation": "structural",
+            "properties": { "label": "text", "slot:default": "slot" },
+            "states": [],
+            "tokenFamilies": ["palette", "stroke", "gap", "typography"],
+            "documentation": ["packages/cem-components/docs/component-reference.md#content"],
+            "figma": { "status": "planned", "locator": "03 Components / Content / cem-table", "revision": null }
+        },
+        {
+            "tag": "cem-sort-header",
+            "category": "Content",
+            "representation": "component-set",
+            "properties": { "label": "text", "name": "text", "direction": "variant", "disabled": "boolean" },
+            "states": ["default", "hover", "focus-visible"],
+            "tokenFamilies": ["action", "control", "stroke", "bend", "gap", "coupling", "typography"],
+            "documentation": ["packages/cem-components/docs/component-reference.md#content", "packages/cem-components/docs/sort-header-contract.md"],
+            "figma": { "status": "planned", "locator": "03 Components / Content / cem-sort-header", "revision": null }
+        },
+        {
+            "tag": "cem-chip",
+            "category": "Content",
+            "representation": "component-set",
+            "properties": { "label": "text", "checkable": "boolean", "checked": "boolean", "slot:default": "slot" },
+            "states": ["default", "hover", "focus-visible", "selected", "checked"],
+            "tokenFamilies": ["palette", "content", "action", "stroke", "bend", "inset", "typography"],
+            "documentation": ["packages/cem-components/docs/component-reference.md#content"],
+            "figma": { "status": "planned", "locator": "03 Components / Content / cem-chip", "revision": null }
+        },
+        {
+            "tag": "cem-badge",
+            "category": "Content",
+            "representation": "component-set",
+            "properties": { "tone": "variant", "slot:default": "slot" },
+            "states": ["default"],
+            "tokenFamilies": ["palette", "bend", "inset", "typography"],
+            "documentation": ["packages/cem-components/docs/component-reference.md#content"],
+            "figma": { "status": "planned", "locator": "03 Components / Content / cem-badge", "revision": null }
+        },
+        {
+            "tag": "cem-avatar",
+            "category": "Content",
+            "representation": "component",
+            "properties": { "label": "text", "initials": "text", "slot:default": "slot" },
+            "states": ["default"],
+            "tokenFamilies": ["palette", "bend", "typography"],
+            "documentation": ["packages/cem-components/docs/component-reference.md#content"],
+            "figma": { "status": "planned", "locator": "03 Components / Content / cem-avatar", "revision": null }
+        },
+        {
+            "tag": "cem-media-preview",
+            "category": "Content",
+            "representation": "component-set",
+            "properties": { "slot:default": "slot", "slot:caption": "slot" },
+            "states": ["default", "loading"],
+            "tokenFamilies": ["palette", "stroke", "bend", "gap"],
+            "documentation": ["packages/cem-components/docs/component-reference.md#content"],
+            "figma": { "status": "planned", "locator": "03 Components / Content / cem-media-preview", "revision": null }
+        },
+        {
+            "tag": "cem-tree",
+            "category": "Content",
+            "representation": "component-set",
+            "properties": { "label": "text", "expanded-values": "text", "selection": "variant", "selected-values": "text", "disabled": "boolean", "loading-label": "text", "slot:default": "slot" },
+            "states": ["default", "hover", "focus-visible", "selected", "loading"],
+            "tokenFamilies": ["palette", "content", "control", "stroke", "bend", "gap", "coupling", "typography"],
+            "documentation": ["packages/cem-components/docs/component-reference.md#content", "packages/cem-components/docs/tree-contract.md"],
+            "figma": { "status": "planned", "locator": "03 Components / Content / cem-tree", "revision": null }
+        },
+        {
+            "tag": "cem-tree-item",
+            "category": "Content",
+            "representation": "payload",
+            "properties": { "value": "text", "label": "text", "expandable": "boolean", "disabled": "boolean", "loading": "boolean", "slot:default": "slot" },
+            "states": [],
+            "tokenFamilies": ["palette", "content", "control", "stroke", "bend", "gap", "coupling", "typography"],
+            "documentation": ["packages/cem-components/docs/component-reference.md#content", "packages/cem-components/docs/tree-contract.md"],
+            "figma": { "status": "planned", "locator": "03 Components / Content / cem-tree-item", "revision": null }
+        },
+        {
+            "tag": "cem-app-bar",
+            "category": "Navigation",
+            "representation": "structural",
+            "properties": { "label": "text", "slot:title": "slot", "slot:default": "slot" },
+            "states": [],
+            "tokenFamilies": ["palette", "stroke", "gap", "inset", "typography"],
+            "documentation": ["packages/cem-components/docs/component-reference.md#navigation"],
+            "figma": { "status": "planned", "locator": "03 Components / Navigation / cem-app-bar", "revision": null }
+        },
+        {
+            "tag": "cem-nav",
+            "category": "Navigation",
+            "representation": "component-set",
+            "properties": { "label": "text", "collapsible": "boolean", "expanded": "boolean", "slot:default": "slot" },
+            "states": ["default", "hover", "focus-visible", "active", "disabled", "expanded"],
+            "tokenFamilies": ["palette", "navigation", "gap", "inset", "typography"],
+            "documentation": ["packages/cem-components/docs/component-reference.md#navigation"],
+            "figma": { "status": "planned", "locator": "03 Components / Navigation / cem-nav", "revision": null }
+        },
+        {
+            "tag": "cem-tabs",
+            "category": "Navigation",
+            "representation": "component-set",
+            "properties": { "label": "text", "slot:default": "slot" },
+            "states": ["default", "hover", "focus-visible", "active", "disabled", "selected"],
+            "tokenFamilies": ["palette", "navigation", "stroke", "gap", "typography"],
+            "documentation": ["packages/cem-components/docs/component-reference.md#navigation"],
+            "figma": { "status": "planned", "locator": "03 Components / Navigation / cem-tabs", "revision": null }
+        },
+        {
+            "tag": "cem-stepper",
+            "category": "Navigation",
+            "representation": "component-set",
+            "properties": { "label": "text", "selected-index": "text", "orientation": "variant", "linear": "boolean", "disabled": "boolean", "slot:default": "slot" },
+            "states": ["default", "hover", "focus-visible", "active", "disabled", "selected"],
+            "tokenFamilies": ["palette", "navigation", "workflow", "stroke", "bend", "gap", "coupling", "control", "typography"],
+            "documentation": ["packages/cem-components/docs/component-reference.md#navigation", "packages/cem-components/docs/stepper-contract.md"],
+            "figma": { "status": "planned", "locator": "03 Components / Navigation / cem-stepper", "revision": null }
+        },
+        {
+            "tag": "cem-step",
+            "category": "Navigation",
+            "representation": "payload",
+            "properties": { "value": "text", "label": "text", "completed": "boolean", "editable": "boolean", "optional": "boolean", "invalid": "boolean", "disabled": "boolean", "slot:default": "slot" },
+            "states": [],
+            "tokenFamilies": ["palette", "navigation", "workflow", "stroke", "bend", "gap", "coupling", "control", "typography"],
+            "documentation": ["packages/cem-components/docs/component-reference.md#navigation", "packages/cem-components/docs/stepper-contract.md"],
+            "figma": { "status": "planned", "locator": "03 Components / Navigation / cem-step", "revision": null }
+        },
+        {
+            "tag": "cem-paginator",
+            "category": "Navigation",
+            "representation": "component-set",
+            "properties": { "label": "text", "name": "text", "length": "text", "page-index": "text", "page-size": "text", "page-size-options": "text", "show-first-last": "boolean", "hide-page-size": "boolean", "disabled": "boolean", "items-per-page-label": "text", "first-page-label": "text", "previous-page-label": "text", "next-page-label": "text", "last-page-label": "text", "of-label": "text" },
+            "states": ["default", "hover", "focus-visible", "active", "disabled"],
+            "tokenFamilies": ["action", "palette", "select", "control", "stroke", "bend", "gap", "inset", "typography"],
+            "documentation": ["packages/cem-components/docs/component-reference.md#navigation", "packages/cem-components/docs/paginator-contract.md"],
+            "figma": { "status": "planned", "locator": "03 Components / Navigation / cem-paginator", "revision": null }
+        },
+        {
+            "tag": "cem-tooltip",
+            "category": "Feedback",
+            "representation": "component-set",
+            "properties": { "message": "text", "position": "variant", "show-delay": "text", "hide-delay": "text", "open": "boolean", "disabled": "boolean", "slot:trigger": "slot" },
+            "states": ["default", "focus-visible", "expanded"],
+            "tokenFamilies": ["palette", "stroke", "bend", "gap", "inset", "layering", "typography"],
+            "documentation": ["packages/cem-components/docs/component-reference.md#feedback", "packages/cem-components/docs/tooltip-contract.md"],
+            "figma": { "status": "planned", "locator": "03 Components / Feedback / cem-tooltip", "revision": null }
+        },
+        {
+            "tag": "cem-dialog",
+            "category": "Feedback",
+            "representation": "component-set",
+            "properties": { "label": "text", "transient": "boolean", "expanded": "boolean", "slot:default": "slot" },
+            "states": ["default", "focus-visible", "expanded"],
+            "tokenFamilies": ["palette", "stroke", "bend", "gap", "inset"],
+            "documentation": ["packages/cem-components/docs/component-reference.md#feedback"],
+            "figma": { "status": "planned", "locator": "03 Components / Feedback / cem-dialog", "revision": null }
+        },
+        {
+            "tag": "cem-dialog-shell",
+            "category": "Feedback",
+            "representation": "component-set",
+            "properties": { "label": "text", "transient": "boolean", "expanded": "boolean", "slot:default": "slot" },
+            "states": ["focus-visible", "expanded"],
+            "tokenFamilies": ["palette", "stroke", "bend", "gap", "inset"],
+            "documentation": ["packages/cem-components/docs/component-reference.md#feedback"],
+            "figma": { "status": "planned", "locator": "03 Components / Feedback / cem-dialog-shell", "revision": null }
+        },
+        {
+            "tag": "cem-sheet",
+            "category": "Feedback",
+            "representation": "component-set",
+            "properties": { "label": "text", "transient": "boolean", "expanded": "boolean", "slot:default": "slot" },
+            "states": ["default", "focus-visible", "expanded"],
+            "tokenFamilies": ["palette", "stroke", "bend", "gap", "inset"],
+            "documentation": ["packages/cem-components/docs/component-reference.md#feedback"],
+            "figma": { "status": "planned", "locator": "03 Components / Feedback / cem-sheet", "revision": null }
+        },
+        {
+            "tag": "cem-toast",
+            "category": "Feedback",
+            "representation": "component",
+            "properties": { "label": "text", "slot:default": "slot" },
+            "states": ["default"],
+            "tokenFamilies": ["palette", "action", "stroke", "gap", "typography"],
+            "documentation": ["packages/cem-components/docs/component-reference.md#feedback"],
+            "figma": { "status": "planned", "locator": "03 Components / Feedback / cem-toast", "revision": null }
+        },
+        {
+            "tag": "cem-progress",
+            "category": "Feedback",
+            "representation": "component-set",
+            "properties": { "label": "text", "value": "text", "max": "text" },
+            "states": ["default", "loading"],
+            "tokenFamilies": ["palette", "action", "control", "typography"],
+            "documentation": ["packages/cem-components/docs/component-reference.md#feedback"],
+            "figma": { "status": "planned", "locator": "03 Components / Feedback / cem-progress", "revision": null }
+        },
+        {
+            "tag": "cem-progress-spinner",
+            "category": "Feedback",
+            "representation": "component-set",
+            "properties": { "label": "text", "value": "text", "max": "text", "describedby": "text" },
+            "states": ["default", "loading", "indeterminate"],
+            "tokenFamilies": ["progress", "timing"],
+            "documentation": ["packages/cem-components/docs/component-reference.md#feedback", "packages/cem-components/docs/progress-spinner-contract.md"],
+            "figma": { "status": "planned", "locator": "03 Components / Feedback / cem-progress-spinner", "revision": null }
+        },
+        {
+            "tag": "cem-skeleton",
+            "category": "Feedback",
+            "representation": "component-set",
+            "properties": { "label": "text", "slot:default": "slot" },
+            "states": ["default", "loading"],
+            "tokenFamilies": ["palette", "control", "bend"],
+            "documentation": ["packages/cem-components/docs/component-reference.md#feedback"],
+            "figma": { "status": "planned", "locator": "03 Components / Feedback / cem-skeleton", "revision": null }
+        },
+        {
+            "tag": "cem-alert",
+            "category": "Feedback",
+            "representation": "component-set",
+            "properties": { "label": "text", "tone": "variant", "role": "variant", "slot:default": "slot" },
+            "states": ["default", "invalid"],
+            "tokenFamilies": ["palette", "action", "stroke", "gap", "typography"],
+            "documentation": ["packages/cem-components/docs/component-reference.md#feedback"],
+            "figma": { "status": "planned", "locator": "03 Components / Feedback / cem-alert", "revision": null }
+        }
+    ]
+}

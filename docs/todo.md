@@ -1744,18 +1744,29 @@ mediate between internal layers.
           **Import mode** workflow for the five existing `CEM Tokens` modes.
     - [x] Preserve credential-free offline token validation and the explicit
           manual/REST evidence boundary.
-  - [ ] Add an executable `examples/figma/component-library.json` inventory and
+  - [x] Add an executable `examples/figma/component-library.json` inventory and
         component-owned Nx verifier before creating more canvas fixtures.
-    - [ ] Account for all 48 public primitives and classify each as a component
+    - [x] Account for all 48 public primitives and classify each as a component
           set, component, inert payload, or structural composition owner.
-    - [ ] Record exact public properties, executable states, token families,
+    - [x] Record exact public properties, executable states, token families,
           documentation, and a stable manual Figma evidence locator per entry.
-    - [ ] Add an explicit `examples/figma/component-library-fixture.md` fixture
+    - [x] Add an explicit `examples/figma/component-library-fixture.md` fixture
           check that proves the inventory-to-library review procedure before the
           fixture is authored.
-    - [ ] Reject missing/extra primitives, unsupported state claims, stale docs,
+    - [x] Reject missing/extra primitives, unsupported state claims, stale docs,
           missing token families, and incomplete evidence through the aggregate
           component/theme verification boundary.
+      - The executable inventory contains 37 component sets, 3 single
+        components, 4 inert payloads, and 4 structural owners. All 48 entries
+        retain planned locators and null revisions, so repository evidence does
+        not claim unreviewed canvas work. The component-owned gate depends on
+        the native five-mode Figma token target, emits JSON/Markdown reports,
+        and is part of the aggregate. Its uncached promotion run passed all 35
+        dependency tasks and 126/126 browser tests across 18 files. One initial
+        aggregate run missed an existing slider `pointerenter`; the dedicated
+        slider target passed 6/6 immediately and the complete uncached rerun
+        passed, with Nx classifying the first miss as flaky. No slider code was
+        changed.
   - [ ] Build and review the `02 Foundations` page from native CEM variables,
         including color, typography, spacing, shape, stroke, layering, and
         motion guidance without raw replacement values.

@@ -39,6 +39,26 @@ The target validates the five generated mode files, representative native alias 
 Figma WEB code syntax, the zero-error Figma report, and this checked-in native-library evidence. It does not call the
 Figma REST API; API-backed live validation remains governed by the REST API sync policy below.
 
+## Component Library Inventory
+
+[`component-library.json`](./component-library.json) is the executable checklist
+for the `03 Components` page. It accounts for every public `cem-*` primitive,
+classifies visual owners, inert payloads, and structural compositions, and binds
+Figma properties/states to public component and token evidence. The associated
+[`component-library-fixture.md`](./component-library-fixture.md) defines the
+manual review procedure and deliberate rejection cases.
+
+Run the component-owned gate with:
+
+```bash
+yarn nx run @epa-wg/cem-components:verify-figma-inventory
+```
+
+The gate also runs the native Figma token target, rejects inventory drift, and
+emits review reports under `packages/cem-components/dist/reports/`. A planned
+locator is not a claim that the canvas asset has been built; only a reviewed
+entry may carry an external Figma revision or node URL.
+
 ## Sample Application
 
 Use [sample-token-application.md](./sample-token-application.md) as the local fixture for applying imported variables

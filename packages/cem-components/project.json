@@ -36,6 +36,26 @@
             ],
             "outputs": []
         },
+        "verify-figma-inventory": {
+            "cache": true,
+            "executor": "nx:run-commands",
+            "dependsOn": [{ "projects": ["@epa-wg/cem-theme"], "target": "test:figma" }],
+            "options": {
+                "command": "node tools/scripts/verify-cem-components-figma-inventory.mjs",
+                "cwd": "{workspaceRoot}"
+            },
+            "inputs": [
+                "{workspaceRoot}/tools/scripts/verify-cem-components-figma-inventory.mjs",
+                "{workspaceRoot}/docs/component-mvp.md",
+                "{workspaceRoot}/docs/figma-ui-kit-plan.md",
+                "{workspaceRoot}/examples/figma/component-library.json",
+                "{workspaceRoot}/examples/figma/component-library-fixture.md",
+                "{projectRoot}/docs/**/*.md",
+                "{projectRoot}/src/lib/primitives.ts",
+                "{projectRoot}/tests/state-matrix-coverage.json"
+            ],
+            "outputs": ["{projectRoot}/dist/reports/figma-component-library.{json,md}"]
+        },
         "verify-material-parity": {
             "cache": true,
             "executor": "nx:run-commands",
@@ -424,6 +444,7 @@
             "executor": "nx:run-commands",
             "dependsOn": [
                 "verify-primitives",
+                "verify-figma-inventory",
                 "verify-material-parity",
                 "verify-style-contract",
                 "verify-input-indicator-forced-colors",
@@ -448,7 +469,7 @@
                 "test"
             ],
             "options": {
-                "command": "echo \"cem-components verification gate green: primitive manifest + Angular Material parity inventory + state matrix + style contract + workflow examples + browser harness tests passed.\"",
+                "command": "echo \"cem-components verification gate green: primitive manifest + Figma component inventory + Angular Material parity inventory + state matrix + style contract + workflow examples + browser harness tests passed.\"",
                 "cwd": "{workspaceRoot}"
             },
             "outputs": []

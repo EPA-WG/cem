@@ -175,6 +175,7 @@ CSS exception.
 ```bash
 yarn nx run @epa-wg/cem-components:verify
 yarn nx run @epa-wg/cem-components:verify-primitives
+yarn nx run @epa-wg/cem-components:verify-figma-inventory
 yarn nx run @epa-wg/cem-components:verify-material-parity
 yarn nx run @epa-wg/cem-components:verify-state-matrix
 yarn nx run @epa-wg/cem-components:verify-style-contract
@@ -203,7 +204,11 @@ yarn nx run @epa-wg/cem-components:lint
 `yarn build` at the repo root builds every package, including this one.
 
 `yarn nx run @epa-wg/cem-components:verify` is the Phase 3.2 production-ready trigger. It runs the primitive manifest,
-state-matrix audit, token-only style contract, package publication contract, and Node/Chromium browser coverage gates. The state-matrix audit keeps
+Figma component inventory, state-matrix audit, token-only style contract,
+package publication contract, and Node/Chromium browser coverage gates. The Figma inventory accounts for every public
+primitive, validates its component/payload/structural classification, public
+properties, executable states, token families, docs, and review locator, and
+depends on the native five-mode theme token gate. The state-matrix audit keeps
 every category/state requirement classified as browser-covered, static-only, or a gap and rejects stale test and
 assertion references. Component-specific evidence lets a newly promoted owner
 join a covered category state without displacing the browser evidence for its
@@ -224,6 +229,9 @@ datepicker, stepper, and tree), and exact dry-run npm inclusion of one `dist/sty
 | Surface | Path |
 | ------- | ---- |
 | Primitive manifest gate | `tools/scripts/verify-cem-components-primitives.mjs` |
+| Figma component inventory | `../../examples/figma/component-library.json` |
+| Figma component review fixture | `../../examples/figma/component-library-fixture.md` |
+| Figma component inventory gate | `tools/scripts/verify-cem-components-figma-inventory.mjs` |
 | Angular Material parity inventory | `tests/angular-material-parity.json` |
 | Angular Material parity gate | `tools/scripts/verify-cem-components-material-parity.mjs` |
 | State-matrix inventory | `tests/state-matrix-coverage.json` |
