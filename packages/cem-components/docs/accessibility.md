@@ -87,6 +87,7 @@ attributes consistent with reflected state.
 | `aria-current` | Required on the active nav item; value `"page"` or `"step"` per WHATWG/ARIA. |
 | `role="separator"` / `aria-orientation` | `cem-divider` exposes both for meaningful horizontal or vertical separation. `cem-divider[decorative]` removes both and sets `aria-hidden="true"`; neither form is focusable. |
 | `role="progressbar"` / `aria-valuenow` | `cem-progress-spinner` always exposes a labeled read-only progressbar. Determinate mode exposes normalized min/max/now; indeterminate mode omits `aria-valuenow`. Its SVG is hidden and non-focusable. |
+| `aria-sort="ascending|descending"` | `cem-sort-header` places sort state only on its generated `role="columnheader"`; none/invalid state omits the attribute. Its direct native button is named `Sort by <label>`. |
 
 The catalog enforces presence; runtime enforces *timing* — the attribute MUST
 update in the same task that the state changes, not in a deferred callback.
@@ -110,6 +111,10 @@ For every component that emits `id`/`for`/`aria-*` references at runtime:
   selection, and keyboard navigation on the rendered native `<select>`. Its
   option payload MUST NOT introduce roving `tabindex`, nested controls, or a
   second focus model.
+- `cem-sort-header` keeps its single tab stop, pointer/keyboard activation, and
+  interaction paint on the direct native button. The host, `cem-table`, and
+  generated column-header wrapper MUST NOT gain `tabindex` or focus paint;
+  native `disabled` removes the button from sequential focus navigation.
 - `cem-nav[collapsible]` keeps focus on its native disclosure button after a
   toggle. Open projected links follow the button in normal tab order; native
   `hidden` removes closed content from sequential focus navigation.
@@ -175,6 +180,7 @@ patterns below are the contract for the Phase 3 primitive set.
 | `cem-button` | `Enter`, `Space` activate. `Escape` cancels when inside a transient surface. |
 | `cem-nav[collapsible]` | Native disclosure-button behavior: `Enter` and `Space` toggle; `Tab` reaches projected links only while open. |
 | `cem-expansion` | Native header-button behavior: `Enter` and `Space` toggle the live `expanded` state; collapsed panel content leaves the tab sequence; disabled suppresses user toggling without preventing programmatic state control. |
+| `cem-sort-header` | Native button behavior: `Enter` and `Space` each cycle none -> ascending -> descending -> none exactly once; disabled suppresses user activation while programmatic direction remains available. |
 | `cem-text-field` | Native text-input behavior. `Escape` does not mutate authored validation state. |
 | `cem-select` | Dropdown arrows/Home/End/Page/typeahead move the preview; Enter/Space/Tab commit and Escape cancels. Sized single listboxes commit movement. Multiple listboxes use modifier-free Space/click toggle, Shift range, and Ctrl/Cmd+A. |
 | `cem-checkbox` | `Space` toggles. `Enter` MUST NOT toggle (matches native checkbox). |
@@ -210,6 +216,10 @@ so the catalog can verify there is exactly one entrypoint per composite.
   redundant `role`, `aria-modal`, or `tabindex`; the browser owns modal state.
 - `cem-sheet` remains a labeled `<aside role="region">` in both modes. Its
   transient visibility uses native `hidden` and never claims dialog semantics.
+- `cem-sort-header` renders one `role="columnheader"` with a direct native
+  button. Only ascending/descending state exposes `aria-sort`; user activation
+  clears active peers in the nearest table, while applications must keep
+  authored/programmatic table state single-valued.
 
 ## 8. Live regions
 
@@ -234,6 +244,9 @@ Rules:
 - `cem-progress-spinner` is not a live region and does not set `aria-busy` on
   itself or another region. Applications put `aria-busy="true"` on the affected
   region, keep the spinner's label meaningful, and remove both when work settles.
+- `cem-sort-header` does not announce before data changes. Applications consume
+  `cem-sort`, reorder their data, then update a localized polite status region;
+  the component does not create or mutate that region.
 - A live region's text content MUST NOT include the accessible name of the
   triggering component (avoid duplicate announcements).
 - Live region updates MUST be debounced so a burst of updates within 250 ms

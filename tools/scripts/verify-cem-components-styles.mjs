@@ -50,6 +50,7 @@ const NAVIGATION_TAGS = new Set(['cem-nav', 'cem-tabs']);
 const DIVIDER_TAGS = new Set(['cem-divider']);
 const EXPANSION_TAGS = new Set(['cem-expansion']);
 const PROGRESS_SPINNER_TAGS = new Set(['cem-progress-spinner']);
+const SORT_HEADER_TAGS = new Set(['cem-sort-header']);
 const CHOICE_POPUP_STACKING_SELECTORS = new Set([
     'cem-autocomplete .cem-autocomplete__popup',
     'cem-select .cem-select__popup',
@@ -378,6 +379,79 @@ const EXPANSION_FORCED_COLOR_BINDINGS = new Map([
     ],
     [`${EXPANSION_HEADER_SELECTOR}:enabled:focus-visible`, forcedColorFocusBinding()],
 ]);
+const SORT_HEADER_BUTTON_SELECTOR = 'cem-sort-header > .cem-sort-header > .cem-sort-header__button';
+const SORT_HEADER_BINDINGS = new Map([
+    ['cem-sort-header', new Map([['display', 'block']])],
+    [
+        'cem-sort-header > .cem-sort-header',
+        new Map([
+            ['display', 'flex'],
+            ['inline-size', '100%'],
+        ]),
+    ],
+    [
+        SORT_HEADER_BUTTON_SELECTOR,
+        new Map([
+            ['align-items', 'center'],
+            ['appearance', 'none'],
+            ['background-color', 'var(--cem-action-contextual-default-background)'],
+            ['border', 'var(--cem-stroke-none) solid transparent'],
+            ['border-radius', 'var(--cem-bend-control)'],
+            ['box-sizing', 'border-box'],
+            ['color', 'var(--cem-action-contextual-default-text)'],
+            ['display', 'flex'],
+            ['font-family', 'var(--cem-typography-ui-font-family)'],
+            ['font-size', 'var(--cem-typography-ui-font-size)'],
+            ['font-weight', 'var(--cem-typography-ui-font-weight)'],
+            ['gap', 'var(--cem-gap-related)'],
+            ['inline-size', '100%'],
+            ['letter-spacing', 'var(--cem-typography-ui-letter-spacing)'],
+            ['line-height', 'var(--cem-typography-ui-line-height)'],
+            ['margin', 'var(--cem-stroke-none)'],
+            ['min-block-size', 'max(var(--cem-table-row-height), var(--cem-coupling-zone-min))'],
+            ['padding-block', 'var(--cem-control-padding-y)'],
+            ['padding-inline', 'var(--cem-control-padding-x)'],
+            ['text-align', 'start'],
+        ]),
+    ],
+    [
+        `${SORT_HEADER_BUTTON_SELECTOR}:enabled:hover`,
+        colorBinding('--cem-action-contextual-hover-background', '--cem-action-contextual-hover-text'),
+    ],
+    [
+        `${SORT_HEADER_BUTTON_SELECTOR}:enabled:active`,
+        colorBinding('--cem-action-contextual-active-background', '--cem-action-contextual-active-text'),
+    ],
+    [
+        `${SORT_HEADER_BUTTON_SELECTOR}:disabled`,
+        colorBinding('--cem-action-contextual-disabled-background', '--cem-action-contextual-disabled-text'),
+    ],
+    [`${SORT_HEADER_BUTTON_SELECTOR}:enabled:focus-visible`, focusBinding()],
+    ['cem-sort-header .cem-sort-header__label', new Map([['flex', '1 1 auto']])],
+    [
+        'cem-sort-header .cem-sort-header__indicator',
+        new Map([
+            ['align-items', 'center'],
+            ['block-size', 'var(--cem-icon-button-icon-size)'],
+            ['display', 'inline-flex'],
+            ['flex', '0 0 var(--cem-icon-button-icon-size)'],
+            ['inline-size', 'var(--cem-icon-button-icon-size)'],
+            ['justify-content', 'center'],
+        ]),
+    ],
+]);
+const SORT_HEADER_FORCED_COLOR_BINDINGS = new Map([
+    [SORT_HEADER_BUTTON_SELECTOR, new Map([['background-color', 'Canvas'], ['color', 'CanvasText']])],
+    ...[
+        `${SORT_HEADER_BUTTON_SELECTOR}:enabled:hover`,
+        `${SORT_HEADER_BUTTON_SELECTOR}:enabled:active`,
+    ].map((selector) => [selector, new Map([['background-color', 'Highlight'], ['color', 'HighlightText']])]),
+    [
+        `${SORT_HEADER_BUTTON_SELECTOR}:disabled`,
+        new Map([['background-color', 'Canvas'], ['color', 'GrayText']]),
+    ],
+    [`${SORT_HEADER_BUTTON_SELECTOR}:enabled:focus-visible`, forcedColorFocusBinding()],
+]);
 const PROGRESS_SPINNER_BINDINGS = new Map([
     ['cem-progress-spinner', new Map([['display', 'inline-block']])],
     [
@@ -621,6 +695,8 @@ function assertPublicComponentStyles(components, tokenNames) {
     const progressSpinnerRules = new Map();
     const progressSpinnerReducedMotionRules = new Map();
     const progressSpinnerForcedColorRules = new Map();
+    const sortHeaderRules = new Map();
+    const sortHeaderForcedColorRules = new Map();
     const choicePopupStackingRules = new Map();
     const privateProperties = new Set(
         rules.flatMap(({ declarations }) => [...declarations.keys()].filter((name) => name.startsWith('--_cem-'))),
@@ -690,6 +766,13 @@ function assertPublicComponentStyles(components, tokenNames) {
                 fail(`${pathLabel}: duplicate progress-spinner selector \`${rule.selector}\``);
             }
             progressRuleSet.set(rule.selector, rule.declarations);
+        }
+        if (SORT_HEADER_TAGS.has(tag)) {
+            const sortHeaderRuleSet = rule.media ? sortHeaderForcedColorRules : sortHeaderRules;
+            if (sortHeaderRuleSet.has(rule.selector)) {
+                fail(`${pathLabel}: duplicate sort-header selector \`${rule.selector}\``);
+            }
+            sortHeaderRuleSet.set(rule.selector, rule.declarations);
         }
         if (FEEDBACK_TAGS.has(tag)) {
             const feedbackRuleSet = rule.media ? feedbackForcedColorRules : feedbackRules;
@@ -832,6 +915,14 @@ function assertPublicComponentStyles(components, tokenNames) {
         new Map(),
     );
     assertProgressSpinnerKeyframes(pathLabel, cssText);
+
+    assertExactStateBindings(pathLabel, 'sort-header', sortHeaderRules, SORT_HEADER_BINDINGS);
+    assertExactStateBindings(
+        pathLabel,
+        'forced-colors sort-header',
+        sortHeaderForcedColorRules,
+        SORT_HEADER_FORCED_COLOR_BINDINGS,
+    );
 
     assertExactStateBindings(pathLabel, 'feedback', feedbackRules, FEEDBACK_BINDINGS);
     assertExactStateBindings(

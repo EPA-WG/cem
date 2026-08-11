@@ -589,6 +589,7 @@
                 "cem-expansion",
                 "cem-list",
                 "cem-table",
+                "cem-sort-header",
                 "cem-chip",
                 "cem-badge",
                 "cem-avatar",
@@ -611,6 +612,15 @@
                         "expect(account.heading.getAttribute('role')).toBe('heading');",
                         "expect(account.button.getAttribute('aria-controls')).toBe(account.panel.id);"
                     ]
+                },
+                {
+                    "component": "cem-sort-header",
+                    "owner": "packages/cem-components/src/lib/sort-header.browser.spec.ts",
+                    "test": "renders exact column-header, native action, direction, and accessible-name ownership",
+                    "assertions": [
+                        "expect(name.owner.getAttribute('role')).toBe('columnheader');",
+                        "expect(name.button).toBeInstanceOf(HTMLButtonElement);"
+                    ]
                 }
             ]
         },
@@ -618,7 +628,7 @@
             "id": "content:hover",
             "category": "Content",
             "state": "hover",
-            "components": ["cem-list", "cem-chip", "cem-expansion"],
+            "components": ["cem-list", "cem-chip", "cem-expansion", "cem-sort-header"],
             "interaction": "Move the pointer over the selectable-list composite or checkable chip without changing layout, selection, checked state, or passive content wrappers.",
             "status": "covered",
             "owner": "packages/cem-components/src/lib/states.browser.spec.ts",
@@ -643,6 +653,16 @@
                         "expectTransientGeometry(hovered, baseline);",
                         "expect(pointerEvents).toEqual(['pointerenter:true', 'pointerleave:true']);"
                     ]
+                },
+                {
+                    "component": "cem-sort-header",
+                    "owner": "packages/cem-components/src/lib/sort-header.browser.spec.ts",
+                    "test": "keeps pointer, hover, focus-visible, and active paint on the native button with stable geometry and state",
+                    "assertions": [
+                        "expect(hovered.backgroundColor).toBe(",
+                        "expect(pointerEvents).toEqual(['pointerenter:true', 'pointerleave:true']);",
+                        "expectTransientGeometry(hovered, baseline);"
+                    ]
                 }
             ]
         },
@@ -650,7 +670,7 @@
             "id": "content:focus-visible",
             "category": "Content",
             "state": "focus-visible",
-            "components": ["cem-list", "cem-chip", "cem-expansion"],
+            "components": ["cem-list", "cem-chip", "cem-expansion", "cem-sort-header"],
             "interaction": "Move keyboard focus through the selectable-list composite and checkable chips with a tokenized visible ring while skipping disabled and passive content.",
             "status": "covered",
             "owner": "packages/cem-components/src/lib/states.browser.spec.ts",
@@ -676,6 +696,16 @@
                         "expect(parts.button.matches(':focus-visible')).toBe(true);",
                         "expect(focused.outlineWidth).toBe(resolveTokenLength(parts.button, '--cem-stroke-focus'));",
                         "expectTransientGeometry(focused, baseline);"
+                    ]
+                },
+                {
+                    "component": "cem-sort-header",
+                    "owner": "packages/cem-components/src/lib/sort-header.browser.spec.ts",
+                    "test": "keeps pointer, hover, focus-visible, and active paint on the native button with stable geometry and state",
+                    "assertions": [
+                        "expect(parts.button.matches(':focus-visible')).toBe(true);",
+                        "expect(focusedHovered.outlineWidth).toBe(resolveTokenLength(parts.button, '--cem-stroke-focus'));",
+                        "expectTransientGeometry(focusedHovered, baseline);"
                     ]
                 }
             ]

@@ -31,7 +31,7 @@ installCemComponentPrimitives(runtime);
 This registers the minimal primitive tags: `cem-action`, `cem-icon-button`, `cem-menu-item`, `cem-field`,
 `cem-text-field`, `cem-textarea`, `cem-autocomplete`, `cem-select`, `cem-option`, `cem-option-group`, `cem-checkbox`,
 `cem-radio`, `cem-switch`, `cem-surface`, `cem-text`,
-`cem-icon`, `cem-stack`, `cem-grid`, `cem-divider`, `cem-list`, `cem-card`, `cem-expansion`, `cem-table`, `cem-chip`, `cem-badge`, `cem-avatar`,
+`cem-icon`, `cem-stack`, `cem-grid`, `cem-divider`, `cem-list`, `cem-card`, `cem-expansion`, `cem-table`, `cem-sort-header`, `cem-chip`, `cem-badge`, `cem-avatar`,
 `cem-media-preview`, `cem-app-bar`, `cem-nav`, `cem-tabs`, `cem-dialog`, `cem-dialog-shell`, `cem-sheet`,
 `cem-toast`, `cem-progress`, `cem-progress-spinner`, `cem-skeleton`, and `cem-alert`.
 
@@ -97,6 +97,15 @@ under reduced motion while leaving a static arc. Forced colors use the generated
 `GrayText`/`Highlight` mapping. The component has no focus, activation, disabled,
 selection, current, or live-region behavior, and requires no CSS exception.
 
+`cem-sort-header` composes with passive `cem-table` as a sortable-column action.
+Its direct native button owns pointer, keyboard, focus, active, and disabled
+interaction; the generated column header conditionally owns `aria-sort`.
+Activation cycles none, ascending, descending, and none, clears an active peer
+only in the nearest table, and emits serializable `cem-sort` detail. Applications
+retain row ordering and localized polite announcement ownership. Existing
+contextual-action and D1/D2/D2c/D3/D5/D6 semantics cover normal and forced-color
+paint without a CSS exception.
+
 ## Build & Verify
 
 ```bash
@@ -112,6 +121,7 @@ yarn nx run @epa-wg/cem-components:verify-content-hover-forced-colors
 yarn nx run @epa-wg/cem-components:verify-divider-forced-colors
 yarn nx run @epa-wg/cem-components:verify-expansion-forced-colors
 yarn nx run @epa-wg/cem-components:verify-progress-spinner-forced-colors
+yarn nx run @epa-wg/cem-components:verify-sort-header-forced-colors
 yarn nx run @epa-wg/cem-components:verify-package
 yarn nx run @epa-wg/cem-components:test
 yarn nx run @epa-wg/cem-components:build
@@ -133,7 +143,7 @@ and `@epa-wg/cem-theme:verify-package`, so the component gate checks current
 generated tokens and the public theme stylesheet export.
 The package verifier proves source/built CSS byte identity, the side-effect-free
 JavaScript boundary, the built/packed behavior modules (including autocomplete,
-expansion, and progress spinner), and exact dry-run npm inclusion of one
+expansion, progress spinner, and sort header), and exact dry-run npm inclusion of one
 `dist/styles.css`.
 
 `yarn nx run @epa-wg/cem-components:test` runs the Node unit test plus Chromium-backed component harness coverage.
@@ -155,18 +165,21 @@ expansion, and progress spinner), and exact dry-run npm inclusion of one
 | Divider forced-colors gate | `scripts/verify-divider-forced-colors.mjs` |
 | Expansion forced-colors gate | `scripts/verify-expansion-forced-colors.mjs` |
 | Progress-spinner forced-colors/reduced-motion gate | `scripts/verify-progress-spinner-forced-colors.mjs` |
+| Sort-header forced-colors gate | `scripts/verify-sort-header-forced-colors.mjs` |
 | Package publication gate | `scripts/verify-package.mjs` |
 | Stylesheet copy | `scripts/copy-styles.mjs` |
 | Primitive browser coverage | `src/lib/primitives.browser.spec.ts` |
 | Autocomplete browser coverage | `src/lib/autocomplete.browser.spec.ts` |
 | Expansion browser coverage | `src/lib/expansion.browser.spec.ts` |
 | Progress-spinner browser coverage | `src/lib/progress-spinner.browser.spec.ts` |
+| Sort-header browser coverage | `src/lib/sort-header.browser.spec.ts` |
 | State and ARIA coverage | `src/lib/states.browser.spec.ts` |
 | Workflow browser coverage | `src/lib/workflows.browser.spec.ts` |
 | Workflow fixtures | `tests/workflows/` |
 | Autocomplete contract fixture | `tests/autocomplete/contract.html` |
 | Expansion contract fixture | `tests/expansion/contract.html` |
 | Progress-spinner contract fixture | `tests/progress-spinner/contract.html` |
+| Sort-header contract fixture | `tests/sort-header/contract.html` |
 | Package examples | `examples/` |
 
 ## Handoff Condition
@@ -215,6 +228,8 @@ Known deferrals stay outside this trigger:
   ARIA references, token audit, focused fixture, and forced-colors boundary.
 - [Progress spinner contract](./docs/progress-spinner-contract.md) — circular mode/value semantics, stable SVG
   geometry, D0/D2c/D7 token audit, reduced motion, forced colors, and event-neutral fixture matrix.
+- [Sort header contract](./docs/sort-header-contract.md) — sortable-column ownership, fixed direction cycle,
+  native events, application data/announcement boundary, theme audit, and forced-colors matrix.
 - [Autocomplete contract](./docs/autocomplete-contract.md) — accepted editable-combobox owner, form/events,
   keyboard/accessibility, token audit, focused fixture, forced-colors boundary, and assertion matrix.
 - [Conventions](./docs/conventions.md) — naming, attributes, events, form participation, validation, loading states,

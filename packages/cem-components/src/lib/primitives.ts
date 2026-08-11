@@ -9,6 +9,7 @@ import { CEM_FEEDBACK_DIALOG_BEHAVIOR } from './feedback-behavior.js';
 import { CEM_NAVIGATION_BEHAVIOR } from './navigation-behavior.js';
 import { CEM_PROGRESS_SPINNER_BEHAVIOR } from './progress-spinner-behavior.js';
 import { CEM_SELECT_BEHAVIOR } from './select-behavior.js';
+import { CEM_SORT_HEADER_BEHAVIOR } from './sort-header-behavior.js';
 
 export interface CemComponentPrimitiveDeclaration {
     readonly tag: string;
@@ -322,6 +323,17 @@ export const CEM_COMPONENT_PRIMITIVES = [
         cemMl:
             '{attribute @name=label | Table}' +
             '{div @class=cem-table @role=table @aria-label="{$label}" | {slot | {div @role=row | {span @role=cell | No rows}}}}',
+    },
+    {
+        tag: 'cem-sort-header',
+        description: 'Sortable column header with native button activation and external data ownership.',
+        behavior: CEM_SORT_HEADER_BEHAVIOR,
+        cemMl:
+            '{attribute @name=label | Column}' +
+            '{div @class=cem-sort-header @role=columnheader @aria-sort={if datadom.slices.direction == "none" { null } else { datadom.slices.direction }} |' +
+            ' {button @type=button @class=cem-sort-header__button @disabled={datadom.attributes.disabled} @aria-label="{$datadom.slices.actionLabel}" |' +
+            '  {span @class=cem-sort-header__label | {$label}}' +
+            '  {span @class=cem-sort-header__indicator @aria-hidden=true | {$datadom.slices.indicator}}}}',
     },
     {
         tag: 'cem-chip',

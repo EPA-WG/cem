@@ -1,0 +1,26 @@
+<section class="cem-theme-light" data-sort-header-contract-fixture aria-label="Sort header contract fixture">
+  <button data-sort-focus-start type="button">Focus start</button>
+
+  <cem-table id="records-table" label="Records">
+    <div role="row">
+      <cem-sort-header id="name-sort" name="name" label="Name"></cem-sort-header>
+      <cem-sort-header id="created-sort" name="created" label="Created" direction="ascending"></cem-sort-header>
+      <cem-sort-header id="disabled-sort" name="status" label="Status" disabled></cem-sort-header>
+      <span role="columnheader">Owner</span>
+    </div>
+    <div id="row-a" role="row"><span role="cell">Alpha</span></div>
+    <div id="row-b" role="row"><span role="cell">Beta</span></div>
+  </cem-table>
+
+  <cem-table id="other-table" label="Other records">
+    <div role="row">
+      <cem-sort-header id="other-sort" name="other" label="Other" direction="descending"></cem-sort-header>
+    </div>
+  </cem-table>
+
+  <cem-sort-header id="standalone-sort" name="standalone" label="Standalone"></cem-sort-header>
+  <cem-sort-header id="invalid-sort" name="invalid" label="Invalid" direction="sideways"></cem-sort-header>
+
+  <p id="sort-announcement" role="status" aria-live="polite">Rows retain authored order.</p>
+  <button data-sort-focus-end type="button">Focus end</button>
+</section>

@@ -1,8 +1,8 @@
 # Angular Material Parity Inventory
 
 **Status:** All pinned product mappings are audited. The accepted `autocomplete`,
-`divider`, `expansion`, and `progress-spinner` priorities are covered; selecting
-another implementation gap is a separate product decision tracked in
+`divider`, `expansion`, `progress-spinner`, and `sort` priorities are covered;
+selecting another implementation gap is a separate product decision tracked in
 [`docs/todo.md`](../../../docs/todo.md).
 
 ## Benchmark
@@ -71,9 +71,9 @@ substituted for the missing component.
 
 | Classification | Count | Catalog entries |
 | --- | ---: | --- |
-| Covered | 10 | autocomplete, card, checkbox, dialog, divider, expansion, input, progress-spinner, select, slide-toggle |
+| Covered | 11 | autocomplete, card, checkbox, dialog, divider, expansion, input, progress-spinner, select, slide-toggle, sort |
 | Partial | 19 | badge, bottom-sheet, button, button-toggle, chips, core, form-field, grid-list, icon, list, menu, progress-bar, radio, ripple, sidenav, snack-bar, table, tabs, toolbar |
-| Gap | 8 | datepicker, paginator, slider, sort, stepper, timepicker, tooltip, tree |
+| Gap | 7 | datepicker, paginator, slider, stepper, timepicker, tooltip, tree |
 
 Each row in the executable inventory explains its boundary. In particular,
 `cem-grid` is not treated as a grid-list, `cem-tabs` is not treated as a stepper,
@@ -122,6 +122,16 @@ under reduced motion. The pre-CSS audit added canonical D0 progress colors, D2c
 size/thickness, and D7 continuous-cycle timing; forced colors map the track and
 indicator to `GrayText` and `Highlight`. No component CSS exception was needed.
 
+`sort` adds the independent `cem-sort-header` owner without changing passive
+`cem-table` into a data source. The [sort-header contract](./sort-header-contract.md)
+puts column semantics and conditional `aria-sort` on the generated column
+header, all interaction on its direct native button, and row ordering plus
+localized announcement on the application consuming `cem-sort`. The fixed
+none -> ascending -> descending -> none cycle coordinates only peers in the
+nearest table. Existing contextual-action and D1/D2/D2c/D3/D5/D6 semantics
+cover the normal and forced-color contract, so no theme addition or CSS
+exception was needed.
+
 Run the invariant with:
 
 ```bash
@@ -129,6 +139,6 @@ yarn nx run @epa-wg/cem-components:verify-material-parity
 ```
 
 The gate verifies the exact 37-entry pin, every audited mapping, and completion
-of the accepted implementation priority. It reports ten covered rows,
-nineteen partial rows, eight gaps, no remaining audit, and no next
+of the accepted implementation priority. It reports eleven covered rows,
+nineteen partial rows, seven gaps, no remaining audit, and no next
 implementation until a new gap is deliberately selected and contracted.

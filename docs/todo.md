@@ -27,9 +27,13 @@ exception. The accepted `cem-expansion` priority is now complete as an
 independent general-purpose disclosure owner with live host state, persistent
 ARIA references, native pointer/keyboard activation, disabled suppression,
 token-only normal/forced-color paint, and no CSS exception. The pinned inventory
-now reports 9 covered, 19 partial, and 9 gaps.
-Selecting and contracting the next implementation priority is the current
-decision point.
+also includes the completed circular `cem-progress-spinner` and sortable-column
+`cem-sort-header` priorities. Sort interaction stays on its native button,
+`cem-table` stays passive, row ordering and localized result announcement stay
+application-owned, and existing theme semantics cover normal/forced-color paint
+without an exception. The pinned inventory now reports 11 covered, 19 partial,
+and 7 gaps. Selecting and contracting the next implementation priority is the
+current decision point.
 The component stylesheet publication, `action:hover`, and `action:active` contracts are
 implemented and verified. The `input:hover` contract is also implemented:
 all eight native owners share a theme-tokenized three-stripe indicator, with
@@ -247,6 +251,41 @@ mediate between internal layers.
           10 covered, 19 partial, and 8 gaps; the state matrix is fully green at
           40/40 requirements, and the aggregate passes all 76 browser/Node tests
           plus the progress-spinner forced-colors/reduced-motion gate.
+    - [x] Select, contract, and implement `sort` as the next audited parity gap
+          while keeping `cem-table` passive and application data order external.
+      - [x] Freeze the `cem-sort-header` owner, fixed direction cycle, single-table
+            coordination boundary, `cem-sort` event, keyboard behavior, ARIA, and
+            application-owned row-reordering/live-announcement contract.
+        - The generated column header owns conditional `aria-sort`; its direct
+          native button owns pointer, Enter/Space, focus, active, and disabled
+          interaction. The fixed none -> ascending -> descending -> none cycle
+          clears active peers only in the nearest table and emits serializable
+          `{ name, direction, previousDirection }` detail.
+      - [x] Audit CEM theme coverage before CSS and add no component exception
+            when contextual action, D1/D2/D2c/D3/D5/D6 semantics are sufficient.
+        - Direction uses conditional ARIA plus distinct `◇` / `▲` / `▼` text
+          marks, not a new color semantic. Existing tokens cover all paint,
+          target, spacing, shape, focus, and type values, so neither the theme
+          nor `components-css-exceptions.md` changed.
+      - [x] Add a declarative sort fixture and focused browser coverage for exact
+            ownership, pointer enter/leave, Space/Enter, direction cycling,
+            sibling coexistence, disabled suppression, focus-visible coexistence,
+            stable geometry/DOM, and transient-input event/state boundaries.
+        - Five focused Chromium cases prove exact ownership, trusted native
+          activation, one-table coordination, programmatic silence/node reuse,
+          disabled suppression, transient paint isolation, stable geometry, and
+          application-owned row reordering plus polite status updates.
+      - [x] Add the primitive behavior and token-only native-button CSS plus an
+            aggregate forced-colors gate using character-distinct direction marks.
+        - The dedicated gate proves `Canvas`/`CanvasText`,
+          `Highlight`/`HighlightText`, `GrayText`, D5 focus, D2/D2c geometry,
+          automatic color adjustment, stable state/DOM, and surviving text marks.
+      - [x] Promote the public docs, state evidence, package artifact verifier,
+            and Angular Material inventory only after every sort gate passes.
+        - The public inventory now has 39 primitives. Angular Material parity is
+          11 covered, 19 partial, and 7 gaps; the state matrix remains fully green
+          at 40/40. The uncached aggregate ran all 26 dependent gates and passed
+          81/81 tests, exact style/package publication, and sort forced colors.
 
 ### Immediate: CSS Selector Query Schema and Unified CLI Query Execution
 
