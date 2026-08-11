@@ -19,9 +19,13 @@ behavior, tokenized CSS, focused fixture, normal/forced-colors state gates,
 state-matrix evidence, public reference, package artifact verification, and
 Angular Material inventory promotion are now complete. One bounded
 `CEM-CSS-002` exception supplies only the private physical popup draw order that
-D4 explicitly excludes; semantic elevation remains theme-owned. The pinned
-inventory now reports 7 covered, 19 partial, and 11 gaps. Selecting and
-contracting the next implementation priority is the current decision point.
+D4 explicitly excludes; semantic elevation remains theme-owned. The accepted
+`cem-divider` priority is also complete: its canonical D0/D1/D2/D5 contract,
+semantic and decorative owner, focused browser coverage, forced-colors gate,
+public documentation, and parity promotion are verified without a CSS
+exception. The pinned inventory now reports 8 covered, 19 partial, and 10 gaps.
+Selecting and contracting the next implementation priority is the current
+decision point.
 The component stylesheet publication, `action:hover`, and `action:active` contracts are
 implemented and verified. The `input:hover` contract is also implemented:
 all eight native owners share a theme-tokenized three-stripe indicator, with
