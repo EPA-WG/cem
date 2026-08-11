@@ -8,18 +8,19 @@ This roadmap is intentionally higher level than `docs/todo.md`. Use this file to
 
 ## Product Modules
 
-| Module | Purpose | Primary package or path |
-| ------ | ------- | ----------------------- |
-| CEM token/theme core | Canonical token specs, generated CSS, DTCG JSON, TypeScript metadata, and reports. | `packages/cem-theme` |
-| Native platform adapters | iOS Swift and Android Kotlin/Compose outputs generated from the same token spine. | `packages/cem-theme/dist/lib/token-platforms` |
-| CEM parser/runtime foundation | Schema-defined streaming parser layers: byte decoding, tokenization, normalized events, validation, AST/source maps, binary AST chunks, and implementation handoff. | `packages/cem_ml` |
-| CEM structural lifecycle CLI | Validation, load into the internal CEM AST/event model, and export/convert across schema + content-type identities. Built-in adapters cover CEM-ML, HTML/XML parity, and the immediate XSLT 1.0 custom-element compatibility profile; future adapters register through the plugin/content-type model. Distribution targets include npm, standalone Linux binaries, Homebrew, and Windows binaries/installers. | `packages/cem_ml_cli`, `packages/cem_ml` |
-| CEM custom-element substrate | Declarative no-JS runtime centered on `<cem-element>`: scoped data islands, event-to-data wiring, and light-DOM re-render from CEM-ML/CEM-QL templates. Staged in `@epa-wg/cem-elements`; edge/SSR and `@epa-wg/custom-element` adoption are follow-up phases after the browser substrate is stable. | `packages/cem-elements`, future `packages/custom-element` |
-| CEM component set | Material-style UI coverage expressed in CEM semantics: buttons, fields, lists, nav, cards, dialogs, tables, tabs, etc. | `packages/cem-components` |
-| Figma UI Kit | Designer-facing components, variants, variables, usage examples, and governance workflow. | `examples/figma`, future design artifacts |
-| CEM site | Public docs, token/component gallery, interactive examples, and release documentation wired from the repo root. | future `apps/cem-site` or static docs app |
-| Figma site demo | A realistic product demo: login, registration, profile, asset listing views, and threaded discussion. | future `examples/figma-site-demo` |
-| Repo docs spine | Root docs, package docs, generated API/token docs, examples index, and contribution/release docs. | `README.md`, `docs/`, package docs |
+| Module                        | Purpose                                                                                                                                                                                                                                                                                                     | Primary package or path                                                  |
+| ----------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------ |
+| CEM token/theme core          | Canonical token specs, generated CSS, DTCG JSON, TypeScript metadata, and reports.                                                                                                                                                                                                                          | `packages/cem-theme`                                                     |
+| Native platform adapters      | iOS Swift and Android Kotlin/Compose outputs generated from the same token spine.                                                                                                                                                                                                                           | `packages/cem-theme/dist/lib/token-platforms`                            |
+| CEM parser/runtime foundation | Schema-defined streaming parser layers: byte decoding, tokenization, normalized events, validation, AST/source maps, binary AST chunks, and implementation handoff.                                                                                                                                         | `packages/cem_ml`                                                        |
+| CEM structural lifecycle CLI  | Validation, load into the internal CEM AST/event model, query/transform, and export/convert across schema + content-type identities. Separate synchronized deployments provide the WASM runtime npm package, Node/WASM CLI npm package, and native Linux AMD64, Homebrew ARM64, and Windows AMD64 packages. | `packages/cem_ml`, `packages/cem_ml_cli`, future CLI deployment projects |
+| CEM Studio                    | Installable local-first PWA and npm package for exercising CEM-ML validation, conversion, query, transformation, source-map, report, and graph workflows through editable projects and a bidirectional CLI Command view.                                                                                    | future `packages/cem-studio`, `@epa-wg/cem-components/studio`            |
+| CEM custom-element substrate  | Declarative no-JS runtime centered on `<cem-element>`: scoped data islands, event-to-data wiring, and light-DOM re-render from CEM-ML/CEM-QL templates. Staged in `@epa-wg/cem-elements`; edge/SSR and `@epa-wg/custom-element` adoption are follow-up phases after the browser substrate is stable.        | `packages/cem-elements`, future `packages/custom-element`                |
+| CEM component set             | Functional parity with the user-facing Angular Material component catalog, expressed in CEM semantics and implemented on the light-DOM `<cem-element>` substrate rather than Angular runtime code.                                                                                                          | `packages/cem-components`, `packages/cem-elements`                       |
+| Figma UI Kit                  | Designer-facing components, variants, variables, usage examples, and governance workflow.                                                                                                                                                                                                                   | `examples/figma`, future design artifacts                                |
+| CEM site                      | Public docs, token/component gallery, interactive examples, and release documentation wired from the repo root.                                                                                                                                                                                             | future `apps/cem-site` or static docs app                                |
+| Figma site demo               | A realistic product demo: login, registration, profile, asset listing views, and threaded discussion.                                                                                                                                                                                                       | future `examples/figma-site-demo`                                        |
+| Repo docs spine               | Root docs, package docs, generated API/token docs, examples index, and contribution/release docs.                                                                                                                                                                                                           | `README.md`, `docs/`, package docs                                       |
 
 ## Ordering Principles
 
@@ -35,6 +36,13 @@ This roadmap is intentionally higher level than `docs/todo.md`. Use this file to
 8. Use demos as integration tests, not as the first source of component behavior.
 9. Keep Angular Material as a reference benchmark for coverage and ergonomics, not as a required implementation
    dependency unless an Angular adapter is explicitly scoped later.
+10. Keep the CEM-ML deployment family version-locked: common `cem_ml` owns the version; the WASM runtime npm, CLI npm,
+    Studio npm/PWA, and native target packages are separate projects that publish the exact same version from one
+    release commit.
+11. Treat the current official Angular Material component catalog as the reusable-component parity baseline. When
+    Studio needs a control or interaction that Angular Material already provides, implement and verify its
+    `<cem-element>`-based `@epa-wg/cem-components` counterpart first, then consume it from Studio. A Studio-specific
+    component or application-local implementation may lead only when no Angular Material counterpart exists.
 
 ## Phase 0 - Repo Spine And Docs
 
@@ -143,6 +151,55 @@ Exit criteria:
   the same parser, type, diagnostics, resolver-policy, source-map, and output contracts used when that expression is
   embedded in a template or schema behavior slot.
 - The same fixture can feed docs/examples without copying business structure into multiple formats.
+
+## Phase 2.5 - CEM-ML CLI Product And Deployment Foundation
+
+Goal: turn the Phase 2 command contract into separately deployable, version-synchronized CLI packages before Studio,
+IDEs, and CI integrations depend on it. The accepted package, platform, release, capability, and host-wire decisions
+are canonical in [`docs/cem-ml-deployment-contract.md`](docs/cem-ml-deployment-contract.md); the broader Studio design
+lives in [`docs/cem-studio.md`](docs/cem-studio.md), while editor and automation protocols live in
+[`docs/integrations.md`](docs/integrations.md).
+
+Deliverables:
+
+- Keep typed command parsing, normalized run plans, execution, diagnostics, source maps, reports, capability discovery,
+  and cancellation in common `cem_ml`; keep terminal/native host adaptation in common `cem_ml_cli`.
+- Create a separate `@epa-wg/cem-ml` npm deployment project containing the generated low-level WASM runtime, types,
+  schema-package assets, ABI/capability metadata, and no npm executable.
+- Create a separate `@epa-wg/cem-ml-cli` npm deployment project with an exact same-version dependency on
+  `@epa-wg/cem-ml`, browser and Node exports, and the npm `cem-ml` executable. The supported portable CLI target is
+  WASM for Node; the browser export is a programmatic Studio/IDE surface rather than another shell platform.
+- Create exactly three initial native deployment subprojects: Linux AMD64, macOS ARM64 distributed through Homebrew,
+  and Windows AMD64. Each project builds, packages, signs, verifies, and publishes only its platform artifact.
+- Preserve every versioned native CLI archive/binary as an asset on the matching tagged GitHub Release. Upload
+  target-qualified checksums, signatures, SBOMs, and provenance alongside the binaries; Homebrew, APT, and Windows
+  package metadata must resolve those version-qualified release assets rather than a mutable build URL. Stage the
+  complete asset set before publication, enable immutable releases where available, and never replace or delete a
+  published binary; corrections require a new common version. Promoted semi-native SEA executables follow the same
+  rule.
+- Make `packages/cem_ml/Cargo.toml` the authoritative version source and add a fixed `cem-ml-platform` release family.
+  Synchronize the exact version into the CLI crate, npm manifests and exact internal dependencies, native package
+  metadata, capability/version output, checksums, SBOMs, provenance, and release index.
+- Define one machine command/capability/report contract for Node/WASM and native hosts, including explicit runtime and
+  target identity, host-policy differences, source-map ranges, stable exit policy, progress, and cancellation.
+- Add native/WASM parity fixtures plus clean-consumer npm pack/install tests and per-platform
+  install/upgrade/uninstall smoke tests.
+- Keep self-contained semi-native executables as a wishlist experiment: bundle Node, the CLI launcher, and WASM with
+  native Node.js SEA for the same three platform coordinates. Treat archived/deprecated `pkg` as comparison or
+  migration prior art, not the default production packager.
+
+Exit criteria:
+
+- The same portable fixture produces equivalent normalized results, diagnostics, reports, and source maps through the
+  Rust library, Node/WASM npm CLI, and every supported native target, with documented capability differences only.
+- `@epa-wg/cem-ml` and `@epa-wg/cem-ml-cli` install independently into clean consumers; only the CLI package installs
+  the `cem-ml` npm executable, and it resolves exactly one same-version WASM runtime.
+- Linux AMD64, Homebrew ARM64, and Windows AMD64 are separate Nx deployment projects and are the complete initial
+  native support matrix.
+- Every supported native CLI binary remains downloadable from its tagged GitHub Release with matching checksum,
+  signature, SBOM, provenance, source commit, target identity, and common version metadata.
+- Release verification fails on any version, dependency, source-commit, checksum, SBOM, provenance, or capability
+  manifest drift from the common `cem_ml` version.
 
 ## Phase 3 - Custom-Element Runtime
 
@@ -274,18 +331,35 @@ Deliverables:
   sample-used EXSLT compatibility adapter for copied component/sample templating, including bounded
   `xsl:template`, `xsl:apply-templates`, and `xsl:call-template` behavior.
 - MVP component list and state matrix defined in [`docs/component-mvp.md`](docs/component-mvp.md).
-- Actions: action, icon button, menu item.
-- Inputs: text field, textarea, select, checkbox, radio, switch.
-- Navigation: app bar, nav, tabs.
-- Content: card, list, table, chip, badge, avatar, media preview.
-- Feedback: dialog, sheet, toast, progress, skeleton, alert.
+- Maintain a versioned parity matrix against the
+  [official Angular Material component catalog](https://material.angular.dev/components/categories). Map every
+  user-facing Angular Material component to its CEM component, implementation/test status, states, keyboard and
+  accessibility behavior, and any CEM-semantic extension. Angular-specific framework infrastructure may map to a CEM
+  behavior rather than a public element, but it must not disappear from the parity audit.
+- Actions and indicators: action/button, icon button, button toggle, menu item, badge, chips, icon, progress bar,
+  progress spinner, and ripple/interaction feedback behavior.
+- Inputs: autocomplete, form field, text input/textarea, select, checkbox, radio, switch/slide toggle, slider, and
+  datepicker.
+- Navigation: app bar/toolbar, menu, sidenav, nav, tabs, and stepper.
+- Content and layout: card, divider, expansion panel, grid list, list, tree, table, paginator, sort header, avatar, and
+  media preview.
+- Feedback and overlays: bottom sheet, dialog, snackbar/toast, tooltip, skeleton, and alert.
+- Author every parity component on the light-DOM `<cem-element>` substrate and CEM semantic/theme/accessibility
+  contracts. Angular Material is the coverage and behavior benchmark, not a runtime dependency or DOM/API cloning
+  requirement.
+- Enforce a Studio dependency gate: if a proposed Studio control or interaction has an Angular Material counterpart,
+  its general `@epa-wg/cem-components` parity implementation and tests land first. Studio-first implementation is
+  reserved for capabilities absent from the Angular Material catalog.
 - App workflows: auth forms, profile editor, asset browser, discussion thread, settings page.
 - Component docs with examples, semantic guidance, token usage, states, and accessibility notes.
 
 Exit criteria:
 
 - The Figma site demo and CEM site can be built from the component set without one-off UI controls.
-- Material UI coverage is represented as CEM semantic components rather than direct Material clones.
+- The pinned Angular Material catalog has a complete, tested parity matrix, and every user-facing catalog component
+  has a CEM-semantic counterpart implemented through `<cem-element>`.
+- No Studio component duplicates an Angular Material capability that lacks the corresponding general CEM component;
+  parity coverage is represented as CEM semantic components rather than direct Material clones.
 
 ## Phase 5 - Figma UI Kit
 
@@ -334,6 +408,58 @@ Implementation note:
 Exit criteria:
 
 - The site can explain, demonstrate, and validate every public package/module from the repo root.
+
+## Phase 6.5 - CEM Studio PWA And Browser Workbench
+
+Goal: provide an installable, local-first browser application that exposes the synchronized CEM-ML CLI command model
+through editable projects, structured workbenches, and safe previews. The detailed product and persistence contract is
+[`docs/cem-studio.md`](docs/cem-studio.md).
+
+Deliverables:
+
+- Create a separate publishable `@epa-wg/cem-studio` Nx project that depends on the exact same-version
+  `@epa-wg/cem-ml-cli` package and tested-compatible `@epa-wg/cem-components` and `@epa-wg/cem-theme` packages.
+- Build an installable, offline-capable PWA shell with a dedicated CEM-ML worker, versioned app/runtime/sample caches,
+  explicit update coordination, responsive layout, and Consumer Semantic Theme modes.
+- Define a portable project/subproject hierarchy for data sets, inline and URL resources, validation/configuration,
+  conversions, queries, transformations, and transformation graphs. Persist mutable projects in IndexedDB and provide
+  validated import/export before remote providers.
+- Add an opt-in local-file provider through the File System Access API. Let users open individual files or bind a
+  portable project directory, edit supported resources, create files, and save changes back in place. Persist selected
+  file/directory handles only as provider bindings, reconnect them through explicit permission requests, and retain
+  `studio://` logical identities plus revision/hash conflict checks instead of embedding absolute OS paths. Keep the
+  IndexedDB working store and validated upload/download import/export as the functional fallback when picker or write
+  access is unavailable, unsupported, or denied.
+- Seed an editable Feature Tour generated from actual schema-package examples and capability manifests so the initial
+  hierarchy demonstrates supported content types through transformation graphs without drifting from the engine.
+- Provide validation diagnostics with source ranges, data/result/report/source-map previews, conversion input/output
+  views, query variables and scopes, transformation traces, graph-stage inspection, and safe sandboxed HTML previews.
+- Provide a bidirectional CLI Command view that displays and copies the active command, effective inputs/config, and
+  output; edited commands can transactionally update the current page, target another page, or create a named page.
+- Put reusable workbench controls and composites in `@epa-wg/cem-components` or its `/studio` export; keep routing,
+  persistence, provider credentials, worker lifecycle, and service-worker orchestration in `@epa-wg/cem-studio`.
+- Classify every proposed Studio control against the pinned Angular Material parity matrix. If a counterpart exists,
+  finish the general `<cem-element>`-based `@epa-wg/cem-components` implementation and parity tests before building
+  the Studio composition. A `/studio` or application-local component may lead only when the matrix records no Angular
+  Material counterpart; reusable behavior discovered there still moves into the component package.
+- Keep account-backed S3, NoSQL, Git repository, and GitHub Gist storage behind one revisioned provider contract as a
+  post-local-MVP wishlist.
+
+Exit criteria:
+
+- A user can install or open Studio, work offline, edit or fetch input, validate/convert/query/transform it, inspect
+  diagnostics and source maps, and recover the project after reload without installing a native CLI.
+- In a supporting browser, a user can open a local file or project directory, edit it, and explicitly save changes back
+  through a retained File System Access handle. Permission loss, external changes, and unavailable API support produce
+  recoverable diagnostics or the IndexedDB/import-export fallback rather than data loss or a broken project.
+- Structured forms and the CLI Command view round-trip through the same normalized run plan without losing explicit
+  content/schema/query identities, config, variables, inputs, outputs, or destination page.
+- Studio resolves exactly one same-version `@epa-wg/cem-ml-cli`/`@epa-wg/cem-ml` engine chain and identifies its
+  `wasm-browser` capabilities; it does not silently discover or execute an OS-native binary.
+- The Feature Tour is generated and executed in verification, output previews remain bounded and non-scriptable by
+  default, and all reusable UI passes theme, keyboard, accessibility, and light-DOM checks.
+- A Studio dependency audit proves that every Angular-Material-equivalent control comes from its completed general CEM
+  parity component; only controls with no catalog counterpart may originate in `/studio` or the application.
 
 ## Phase 7 - Figma Site Demo
 
@@ -390,37 +516,46 @@ Goal: make CEM maintainable as a public design-system product.
 
 Deliverables:
 
-- Versioning policy for token names, component APIs, XML schema, native outputs, and Figma kit releases.
+- Versioning policy for token names, component APIs, XML schema, native outputs, Figma kit releases, and the fixed
+  CEM-ML runtime/CLI/Studio deployment family.
 - Migration guides and deprecation reports.
 - CI gates for build, lint, token reports, component tests, docs links, examples, and native compilation.
 - Package export maps and published artifacts for stable public contracts.
-- `cem-ml` CLI public distribution: npm package with platform binary resolution, standalone Linux release archives,
-  Homebrew formula/tap packaging, Windows binaries or installer artifacts, checksums/signing metadata, install docs,
-  smoke tests for each install path, and version alignment with the Rust crate and WASM/browser release.
+- `cem-ml` CLI public distribution: separate `@epa-wg/cem-ml` WASM runtime and `@epa-wg/cem-ml-cli` Node/WASM CLI npm
+  packages, plus separate Linux AMD64, Homebrew ARM64, and Windows AMD64 native deployment projects. Preserve native
+  binaries as non-replaced assets on the matching tagged GitHub Release with checksums, signatures, SBOMs,
+  provenance, install docs, and smoke tests for each install path; publish the release only after its complete asset
+  set is staged and verified.
+- `@epa-wg/cem-studio` npm/PWA publication from the same fixed CEM-ML version and release commit, including static
+  deployment assets, capability/build metadata, service-worker update checks, and clean-consumer verification.
 - Contribution guidelines for token specs, components, docs, and design kit updates.
 
 Exit criteria:
 
 - A release can be cut with confidence that token, web, native, Figma, docs, and demo contracts are coherent.
-- Users can install `cem-ml` from npm, Linux release artifacts, Homebrew, and Windows release artifacts and run the same
-  CLI smoke test on each platform.
+- Users can install `cem-ml` as WASM for Node or from Linux AMD64, Homebrew ARM64, and Windows AMD64 native packages and
+  run the same portable CLI smoke test on each platform.
+- Every native binary remains recoverable from the version's GitHub Release, and all CEM-ML npm, native, and Studio
+  artifacts report the exact version originating from common `cem_ml`.
 
 ## Suggested Milestone Sequence
 
-| Milestone | Focus | Why now |
-| --------- | ----- | ------- |
-| M1 | Root docs spine and token/native validation gates | Current work is valuable but not yet easy to discover or verify end to end. |
-| M2 | Schema-defined parser runtime and fixture pipeline | It gives components, docs, and demos a shared semantic input model with source maps, validation, embedded-language handoffs, and an AST boundary. |
-| M3a | `<cem-element>` browser substrate | The declarative substrate must reach legacy + material parity before primitives commit to it. See [`docs/cem-element-design.md`](docs/cem-element-design.md). |
-| M3b | Edge/SSR processing follow-up | Server/edge processing should prove the serializable boundary after the browser substrate is stable, not during Phase 3. |
-| M3c | `@epa-wg/custom-element` monorepo adoption | The published package adopts the substrate only after browser parity and the Edge/SSR follow-up are green. |
-| M3d | Custom-element runtime primitives | Components need stable behavior conventions before broad catalog work; they consume the parity-proven substrate from M3a. |
-| M4 | Component set MVP | Unlocks real screens and validates token semantics in UI. |
-| M5 | Figma UI Kit MVP | Designers need the same semantics once component names and states stabilize. |
-| M6 | CEM site | Public documentation should be generated from stable package and component contracts. |
-| M7 | Figma site demo plus matching web fixtures | Full-flow demo proves the system across design and implementation. |
-| M8 | Native package hardening | Native artifacts become product-grade once token/component semantics are stable. |
-| M9 | Release governance and CLI distribution | Formalize compatibility after public contracts are proven, then publish/install `cem-ml` through npm, Linux release archives, Homebrew, and Windows artifacts. |
+| Milestone | Focus                                                     | Why now                                                                                                                                                           |
+| --------- | --------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| M1        | Root docs spine and token/native validation gates         | Current work is valuable but not yet easy to discover or verify end to end.                                                                                       |
+| M2        | Schema-defined parser runtime and fixture pipeline        | It gives components, docs, and demos a shared semantic input model with source maps, validation, embedded-language handoffs, and an AST boundary.                 |
+| M2.5      | Synchronized CEM-ML CLI deployment foundation             | Studio, IDE, and CI clients need stable command/report contracts plus distinct WASM npm, Node CLI npm, and per-platform native packages before depending on them. |
+| M3a       | `<cem-element>` browser substrate                         | The declarative substrate must reach legacy + material parity before primitives commit to it. See [`docs/cem-element-design.md`](docs/cem-element-design.md).     |
+| M3b       | Edge/SSR processing follow-up                             | Server/edge processing should prove the serializable boundary after the browser substrate is stable, not during Phase 3.                                          |
+| M3c       | `@epa-wg/custom-element` monorepo adoption                | The published package adopts the substrate only after browser parity and the Edge/SSR follow-up are green.                                                        |
+| M3d       | Custom-element runtime primitives                         | Components need stable behavior conventions before broad catalog work; they consume the parity-proven substrate from M3a.                                         |
+| M4        | Angular Material parity through CEM components            | Completes the reusable `<cem-element>`-based control baseline before Studio or demos create equivalent one-off UI.                                                |
+| M5        | Figma UI Kit MVP                                          | Designers need the same semantics once component names and states stabilize.                                                                                      |
+| M6        | CEM site                                                  | Public documentation should be generated from stable package and component contracts.                                                                             |
+| M6.5      | CEM Studio PWA                                            | The browser workbench composes the stable CLI/WASM contract and parity-complete components; only UI absent from Angular Material may begin as Studio-specific.    |
+| M7        | Figma site demo plus matching web fixtures                | Full-flow demo proves the system across design and implementation.                                                                                                |
+| M8        | Native package hardening                                  | Native artifacts become product-grade once token/component semantics are stable.                                                                                  |
+| M9        | Release governance, CLI artifacts, and Studio publication | Formalize compatibility, preserve native binaries on tagged GitHub Releases, and publish the fixed-version npm/CLI/native/Studio family.                          |
 
 ## Near-Term Backlog
 
@@ -428,9 +563,17 @@ Exit criteria:
 - Add a docs index under `docs/`.
 - Draft the parser runtime contract: byte decoder, tokenizer, event normalizer, schema machine, AST/source-map model,
   and implementation interpreter boundary.
+- Implement the accepted CLI package split, common-version synchronizer, four-entry target matrix, and GitHub Release
+  asset-retention contract from
+  [`docs/cem-ml-deployment-contract.md`](docs/cem-ml-deployment-contract.md) in Phase 2.5 checklist order.
 - Define the first CEM XML/HTML profile and the scoped handoff rules for `style`, `script`, CDATA/text, CSF fields, and
   JSON string subdocuments.
 - Create the first semantic fixture set: login, registration, profile, assets list, and message thread.
 - Define the component MVP list and state matrix.
+- Add the pinned Angular Material-to-CEM parity matrix and require a general `<cem-element>`-based CEM component before
+  any Angular-equivalent Studio control is implemented.
+- Promote the Studio project model, browser command round trip, local persistence and File System Access provider,
+  themed component boundary, and PWA verification contract into task-level acceptance criteria when Phase 6.5 is
+  scheduled.
 - Add a Figma UI Kit plan that maps components to generated token variables.
 - Add native compile validation to CI once Swift and Kotlin toolchains are available.

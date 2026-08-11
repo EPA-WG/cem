@@ -6,6 +6,9 @@ checkbox state for searchability. Unchecked entries here are historical context,
 not active instructions; current work is authoritative only in
 [`../todo.md`](../todo.md).
 
+Later completed execution history is preserved in
+[`todo-completed-2026-08-11.md`](todo-completed-2026-08-11.md).
+
 Product/module sequencing lives in [`../../roadmap.md`](../../roadmap.md), and
 future wishlist work lives in [`../wishlist.md`](../wishlist.md).
 
