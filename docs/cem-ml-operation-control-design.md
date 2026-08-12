@@ -329,6 +329,36 @@ Repeated cancellation of the same subtree is idempotent. Cancelling an already
 completed scope returns `scope-completed`; cancelling a scope from another
 operation returns `foreign-scope`; neither affects the operation.
 
+#### 5.4.1 Runtime error-boundary contract
+
+An execution scope may register one optional runtime error-boundary descriptor.
+The descriptor has a bounded subsystem owner, a stable subsystem-owned result-
+contract identifier, and either `recover` with an explicit accepted set of
+control-cause kinds or `fail-fast`. This metadata selects delivery; it does not
+serialize, erase, or interpret a replacement value. The operation root is an
+implicit non-recoverable boundary.
+
+Failure delivery starts only after every task owned by the selected subtree has
+completed and the control core has run owned cleanup descendant-first and LIFO
+within each scope. Stack frames, memory charges, permits, staged values, and
+registered cleanup actions must therefore be released before a handler runs.
+The nearest surviving `recover` boundary that accepts the cause receives a
+single-use delivery token. A `fail-fast` boundary or one that does not accept
+the cause is skipped while bubbling toward the root.
+
+The owning subsystem executes its typed handler and validates the replacement
+against the descriptor's result contract before asking the control core to
+record recovery. The common core never owns a universal recovery-value format.
+An incompatible or declined replacement leaves the failure pending so it can
+bubble to the next boundary. Each token can be recovered or declined once;
+each selected subtree records exactly one final recovered or root-escalated
+settlement. Recovery completes the failed subtree rather than retrying it, and
+unaffected siblings remain eligible to run.
+
+Cleanup failure replaces the original recoverable delivery with a fatal
+`internal-failure` rooted at `cem.control.cleanup_failed`; a partially cleaned
+subtree is never exposed to a recovery handler.
+
 ### 5.5 Safe points and atomic regions
 
 All long-running common code must reach cooperative safe points at bounded work

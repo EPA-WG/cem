@@ -218,9 +218,36 @@ replacement tree may mediate between internal engine layers.
                 resolver/plugin late-result rejection. The four-project Nx test
                 graph and its 32 dependency tasks, all four lint targets, and both
                 common WASM build targets pass.
-            - [ ] Gate 4 — implement scoped subtree unwind, cleanup, typed delivery
+            - [x] Gate 4 — implement scoped subtree unwind, cleanup, typed delivery
                   to the nearest error boundary, explicit type-compatible recovery,
                   unhandled/fail-fast escalation, and unaffected-sibling behavior.
+                - [x] Add Gate 4 native fixtures for deterministic descendant-first
+                      cleanup, stack/memory/task release, nearest-boundary delivery,
+                      accepted and rejected cause kinds, subsystem-validated typed
+                      replacement, unhandled/fail-fast bubbling, unaffected siblings,
+                      root escalation, and exactly-once failure settlement.
+
+                Completed 2026-08-12: execution scopes can now declare bounded,
+                subsystem-owned error-boundary descriptors with explicit accepted-
+                cause sets or fail-fast policy. Scoped cancellation and resource
+                failures stop new subtree work, wait for logical tasks to release
+                scheduler permits, then release stack frames, memory charges, and
+                registered cleanup actions descendant-first and LIFO per scope.
+                The nearest surviving accepting boundary receives a single-use
+                delivery token; the owning subsystem validates its typed replacement
+                against its own stable result contract before recovery is committed.
+                Rejected replacements remain pending for explicit decline/bubbling,
+                while unhandled, root, and cleanup-failure paths settle once at the
+                root. Unaffected siblings retain their work and resource charges.
+
+                Native fixtures cover task-drain ordering, deterministic cleanup,
+                stack/memory release, cause filtering, fail-fast and explicit
+                decline, typed replacement rejection and recovery, root escalation,
+                cleanup panic promotion, stale-token rejection, and exactly-once
+                settlement. All 1,865 `cem_ml` unit tests and its integration suites,
+                the four-project Nx test graph and 32 dependency tasks, all four
+                lint targets, focused formatting checks, and both common WASM build
+                targets pass.
             - [ ] Add native fixtures at each gate for root/scoped cancellation,
                   stack/memory/timeout/queue failures, worker concurrency and loss,
                   deterministic parallel output, atomic regions, staged output, and

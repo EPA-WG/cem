@@ -4,8 +4,9 @@
 //! This is the common semantic layer used by native and WASM hosts. Live
 //! control state remains outside serializable run requests.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::fmt;
+use std::panic::{catch_unwind, AssertUnwindSafe};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
@@ -25,6 +26,9 @@ pub const MAX_CONTROL_REASON_BYTES: usize = 512;
 pub const MAX_EXECUTION_SCOPE_LABEL_BYTES: usize = 256;
 pub const MAX_SCOPE_IDENTITY_BYTES: usize = 128;
 pub const MAX_SOURCE_URI_BYTES: usize = 2_048;
+pub const MAX_BOUNDARY_OWNER_BYTES: usize = 128;
+pub const MAX_RESULT_CONTRACT_BYTES: usize = 256;
+pub const MAX_CLEANUP_LABEL_BYTES: usize = 128;
 
 static NEXT_OPERATION_ID: AtomicU64 = AtomicU64::new(1);
 
@@ -57,6 +61,9 @@ macro_rules! opaque_id {
 opaque_id!(OperationId);
 opaque_id!(ExecutionScopeId);
 opaque_id!(TaskId);
+opaque_id!(FailureDeliveryId);
+opaque_id!(CleanupActionId);
+opaque_id!(MemoryPermitId);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
@@ -96,6 +103,72 @@ pub enum ScopeIdentityKind {
     Plugin,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum ControlCauseKind {
+    HostCancellation,
+    Superseded,
+    StackDepthExceeded,
+    MemoryExceeded,
+    TimeoutExceeded,
+    QueueCapacityExceeded,
+    WorkerFailure,
+    InternalFailure,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(
+    tag = "mode",
+    rename_all = "kebab-case",
+    rename_all_fields = "camelCase"
+)]
+pub enum ControlBoundaryPolicy {
+    Recover {
+        accepted_causes: BTreeSet<ControlCauseKind>,
+    },
+    FailFast,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ControlErrorBoundary {
+    pub owner: String,
+    pub result_contract: String,
+    pub policy: ControlBoundaryPolicy,
+}
+
+impl ControlErrorBoundary {
+    pub fn recover(
+        owner: impl Into<String>,
+        result_contract: impl Into<String>,
+        accepted_causes: impl IntoIterator<Item = ControlCauseKind>,
+    ) -> Self {
+        Self {
+            owner: owner.into(),
+            result_contract: result_contract.into(),
+            policy: ControlBoundaryPolicy::Recover {
+                accepted_causes: accepted_causes.into_iter().collect(),
+            },
+        }
+    }
+
+    pub fn fail_fast(owner: impl Into<String>, result_contract: impl Into<String>) -> Self {
+        Self {
+            owner: owner.into(),
+            result_contract: result_contract.into(),
+            policy: ControlBoundaryPolicy::FailFast,
+        }
+    }
+
+    fn accepts(&self, cause: ControlCauseKind) -> bool {
+        matches!(
+            &self.policy,
+            ControlBoundaryPolicy::Recover { accepted_causes }
+                if accepted_causes.contains(&cause)
+        )
+    }
+}
+
 pub type ScopeIdentityMap = BTreeMap<ScopeIdentityKind, String>;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -126,6 +199,8 @@ pub struct ExecutionScope {
     pub source_location: Option<SourceLocation>,
     #[serde(default)]
     pub semantic_identities: ScopeIdentityMap,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub error_boundary: Option<ControlErrorBoundary>,
     pub effective_policy: ScopePolicy,
 }
 
@@ -143,6 +218,7 @@ pub struct ExecutionScopeRegistration {
     pub label: String,
     pub source_location: Option<SourceLocation>,
     pub semantic_identities: ScopeIdentityMap,
+    pub error_boundary: Option<ControlErrorBoundary>,
     pub effective_policy: ScopePolicy,
 }
 
@@ -157,8 +233,14 @@ impl ExecutionScopeRegistration {
             label: label.into(),
             source_location: None,
             semantic_identities: ScopeIdentityMap::new(),
+            error_boundary: None,
             effective_policy: parent,
         }
+    }
+
+    pub fn with_error_boundary(mut self, boundary: ControlErrorBoundary) -> Self {
+        self.error_boundary = Some(boundary);
+        self
     }
 }
 
@@ -185,6 +267,7 @@ impl ExecutionScopeTree {
             state: ExecutionScopeState::Running,
             source_location: None,
             semantic_identities: ScopeIdentityMap::new(),
+            error_boundary: None,
             effective_policy: root_policy,
         };
         Self {
@@ -302,6 +385,19 @@ pub enum ControlCause {
 }
 
 impl ControlCause {
+    pub fn kind(&self) -> ControlCauseKind {
+        match self {
+            Self::HostCancellation { .. } => ControlCauseKind::HostCancellation,
+            Self::Superseded { .. } => ControlCauseKind::Superseded,
+            Self::StackDepthExceeded { .. } => ControlCauseKind::StackDepthExceeded,
+            Self::MemoryExceeded { .. } => ControlCauseKind::MemoryExceeded,
+            Self::TimeoutExceeded { .. } => ControlCauseKind::TimeoutExceeded,
+            Self::QueueCapacityExceeded { .. } => ControlCauseKind::QueueCapacityExceeded,
+            Self::WorkerFailure { .. } => ControlCauseKind::WorkerFailure,
+            Self::InternalFailure { .. } => ControlCauseKind::InternalFailure,
+        }
+    }
+
     pub fn code(&self) -> &'static str {
         match self {
             Self::HostCancellation { .. } => "host-cancellation",
@@ -371,6 +467,74 @@ impl fmt::Display for ControlFailure {
 
 impl std::error::Error for ControlFailure {}
 
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ScopeCleanupRecord {
+    pub scope: ExecutionScopeId,
+    pub label: String,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ControlUnwindSummary {
+    pub completed_scopes: Vec<ExecutionScopeId>,
+    pub completed_tasks: Vec<TaskId>,
+    pub cleanup_actions: Vec<ScopeCleanupRecord>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FailureDeliveryToken {
+    pub operation_id: OperationId,
+    pub delivery_id: FailureDeliveryId,
+    pub affected_scope: ExecutionScopeId,
+    pub boundary_scope: ExecutionScopeId,
+    pub cause_kind: ControlCauseKind,
+    pub boundary_owner: String,
+    pub result_contract: String,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum ControlFailureSettlementKind {
+    Recovered,
+    EscalatedToRoot,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ControlFailureSettlement {
+    pub failure: ControlFailure,
+    pub kind: ControlFailureSettlementKind,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub boundary_scope: Option<ExecutionScopeId>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub result_contract: Option<String>,
+    pub unwind: ControlUnwindSummary,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum FailureDeliveryOutcome {
+    AwaitingCleanup {
+        affected_scope: ExecutionScopeId,
+        unfinished_tasks: Vec<TaskId>,
+    },
+    Deliver(FailureDeliveryToken),
+    Settled(ControlFailureSettlement),
+}
+
+#[derive(Debug, PartialEq, Eq)]
+pub enum TypedRecoveryError<E> {
+    Validation(E),
+    Control(ControlError),
+}
+
+impl<E> From<ControlError> for TypedRecoveryError<E> {
+    fn from(error: ControlError) -> Self {
+        Self::Control(error)
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ControlError {
     UnknownScope(ExecutionScopeId),
@@ -381,6 +545,7 @@ pub enum ControlError {
         requested_scope: ExecutionScopeId,
     },
     ScopeCompleted(ExecutionScopeId),
+    ScopeUnwinding(ExecutionScopeId),
     InvalidScopeTransition {
         scope: ExecutionScopeId,
         from: ExecutionScopeState,
@@ -389,6 +554,8 @@ pub enum ControlError {
     InvalidLabel,
     InvalidSourceLocation,
     InvalidSemanticIdentity(ScopeIdentityKind),
+    InvalidBoundary,
+    InvalidCleanupLabel,
     InvalidReason,
     InvalidPolicy(String),
     CapRelaxationDenied {
@@ -398,6 +565,10 @@ pub enum ControlError {
         attempted_value: u64,
     },
     IdentityExhausted(&'static str),
+    UnknownDelivery(FailureDeliveryId),
+    ForeignDelivery(OperationId),
+    DeliverySettled(FailureDeliveryId),
+    FailureMismatch(ExecutionScopeId),
     Triggered(ControlFailure),
 }
 
@@ -408,14 +579,21 @@ impl ControlError {
             Self::UnknownTask(_) => "cem.control.unknown_task",
             Self::TaskScopeMismatch { .. } => "cem.control.task_scope_mismatch",
             Self::ScopeCompleted(_) => "cem.control.scope_completed",
+            Self::ScopeUnwinding(_) => "cem.control.scope_unwinding",
             Self::InvalidScopeTransition { .. } => "cem.control.scope_transition_invalid",
             Self::InvalidLabel => "cem.control.scope_label_invalid",
             Self::InvalidSourceLocation => "cem.control.source_location_invalid",
             Self::InvalidSemanticIdentity(_) => "cem.control.semantic_identity_invalid",
+            Self::InvalidBoundary => "cem.control.error_boundary_invalid",
+            Self::InvalidCleanupLabel => "cem.control.cleanup_label_invalid",
             Self::InvalidReason => "cem.control.reason_invalid",
             Self::InvalidPolicy(_) => "cem.control.policy_invalid",
             Self::CapRelaxationDenied { .. } => "cem.a.cap_relaxation_denied",
             Self::IdentityExhausted(_) => "cem.control.identity_exhausted",
+            Self::UnknownDelivery(_) => "cem.control.delivery_unknown",
+            Self::ForeignDelivery(_) => "cem.control.delivery_foreign_operation",
+            Self::DeliverySettled(_) => "cem.control.delivery_settled",
+            Self::FailureMismatch(_) => "cem.control.failure_mismatch",
             Self::Triggered(failure) => failure.code(),
         }
     }
@@ -435,6 +613,7 @@ impl fmt::Display for ControlError {
                 "task {task} owned by scope {owner} cannot enter unrelated scope {requested_scope}"
             ),
             Self::ScopeCompleted(scope) => write!(formatter, "execution scope {scope} completed"),
+            Self::ScopeUnwinding(scope) => write!(formatter, "execution scope {scope} is unwinding"),
             Self::InvalidScopeTransition { scope, from, to } => write!(
                 formatter,
                 "execution scope {scope} cannot transition from {from:?} to {to:?}"
@@ -444,6 +623,12 @@ impl fmt::Display for ControlError {
             Self::InvalidSemanticIdentity(kind) => {
                 write!(formatter, "semantic identity {kind:?} is empty or too long")
             }
+            Self::InvalidBoundary => formatter.write_str(
+                "error-boundary owner, result contract, or accepted cause set is invalid",
+            ),
+            Self::InvalidCleanupLabel => formatter.write_str(
+                "cleanup label is empty, too long, or contains control characters",
+            ),
             Self::InvalidReason => write!(
                 formatter,
                 "control reason contains control characters or exceeds {MAX_CONTROL_REASON_BYTES} bytes"
@@ -459,6 +644,18 @@ impl fmt::Display for ControlError {
                 "scope {scope} attempted to raise cap {cap:?} from {parent_value} to {attempted_value}"
             ),
             Self::IdentityExhausted(identity) => write!(formatter, "{identity} space exhausted"),
+            Self::UnknownDelivery(delivery) => {
+                write!(formatter, "unknown failure delivery {delivery}")
+            }
+            Self::ForeignDelivery(operation) => {
+                write!(formatter, "failure delivery belongs to operation {operation}")
+            }
+            Self::DeliverySettled(delivery) => {
+                write!(formatter, "failure delivery {delivery} is already settled")
+            }
+            Self::FailureMismatch(scope) => {
+                write!(formatter, "failure does not match the active cause for scope {scope}")
+            }
             Self::Triggered(failure) => failure.fmt(formatter),
         }
     }
@@ -479,12 +676,52 @@ struct ScopeAccounting {
     excluded_time: Duration,
 }
 
+struct RegisteredCleanup {
+    scope: ExecutionScopeId,
+    label: String,
+    action: Option<Box<dyn FnOnce() + Send + 'static>>,
+}
+
+impl fmt::Debug for RegisteredCleanup {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter
+            .debug_struct("RegisteredCleanup")
+            .field("scope", &self.scope)
+            .field("label", &self.label)
+            .field("pending", &self.action.is_some())
+            .finish()
+    }
+}
+
+#[derive(Debug, Clone)]
+struct ActiveFailureDelivery {
+    token: FailureDeliveryToken,
+    failure: ControlFailure,
+    unwind: ControlUnwindSummary,
+}
+
+#[derive(Debug, Clone)]
+struct MemoryCharge {
+    owner: ExecutionScopeId,
+    ancestors: Vec<ExecutionScopeId>,
+    bytes: u64,
+}
+
 #[derive(Debug)]
 struct ControlInner {
     tree: ExecutionScopeTree,
     accounting: BTreeMap<ExecutionScopeId, ScopeAccounting>,
     stack_depths: BTreeMap<(TaskId, ExecutionScopeId), u32>,
     scope_causes: BTreeMap<ExecutionScopeId, (ControlCause, Option<SourceMapStack>)>,
+    cleanup_actions: BTreeMap<CleanupActionId, RegisteredCleanup>,
+    memory_permits: BTreeMap<MemoryPermitId, MemoryCharge>,
+    active_deliveries: BTreeMap<FailureDeliveryId, ActiveFailureDelivery>,
+    delivery_by_scope: BTreeMap<ExecutionScopeId, FailureDeliveryId>,
+    settlements: BTreeMap<ExecutionScopeId, ControlFailureSettlement>,
+    cleanup_in_progress: BTreeSet<ExecutionScopeId>,
+    next_cleanup_action_id: u64,
+    next_memory_permit_id: u64,
+    next_delivery_id: u64,
 }
 
 /// Clone-shared operation control. The legacy [`AbortSignal`] is retained as
@@ -602,6 +839,15 @@ impl OperationControl {
                 accounting,
                 stack_depths: BTreeMap::new(),
                 scope_causes: BTreeMap::new(),
+                cleanup_actions: BTreeMap::new(),
+                memory_permits: BTreeMap::new(),
+                active_deliveries: BTreeMap::new(),
+                delivery_by_scope: BTreeMap::new(),
+                settlements: BTreeMap::new(),
+                cleanup_in_progress: BTreeSet::new(),
+                next_cleanup_action_id: 1,
+                next_memory_permit_id: 1,
+                next_delivery_id: 1,
             })),
         })
     }
@@ -637,11 +883,21 @@ impl OperationControl {
     ) -> Result<ExecutionScopeId, ControlError> {
         validate_registration(&registration)?;
         let mut inner = self.inner.lock().expect("poisoned operation-control mutex");
-        let parent_policy = inner
+        let parent_node = inner
             .tree
             .scope(parent)
-            .ok_or(ControlError::UnknownScope(parent))?
-            .effective_policy;
+            .ok_or(ControlError::UnknownScope(parent))?;
+        if parent_node.state == ExecutionScopeState::Completed {
+            return Err(ControlError::ScopeCompleted(parent));
+        }
+        if parent_node.state == ExecutionScopeState::Unwinding {
+            let ancestors = inner.tree.ancestors(parent);
+            if let Some(failure) = failure_for_ancestors(self.operation_id, &inner, &ancestors) {
+                return Err(ControlError::Triggered(failure));
+            }
+            return Err(ControlError::ScopeUnwinding(parent));
+        }
+        let parent_policy = parent_node.effective_policy;
         let scope = ExecutionScopeId::from_raw(inner.tree.next_scope_id);
         check_constrain_only(scope, parent_policy, registration.effective_policy)?;
         let scope = inner.tree.allocate_scope_id()?;
@@ -655,6 +911,7 @@ impl OperationControl {
                 state: ExecutionScopeState::Queued,
                 source_location: registration.source_location,
                 semantic_identities: registration.semantic_identities,
+                error_boundary: registration.error_boundary,
                 effective_policy: registration.effective_policy,
             },
         );
@@ -702,7 +959,6 @@ impl OperationControl {
             .get_mut(&scope)
             .ok_or(ControlError::UnknownScope(scope))?;
         node.state = ExecutionScopeState::Completed;
-        inner.scope_causes.remove(&scope);
         Ok(())
     }
 
@@ -714,6 +970,13 @@ impl OperationControl {
             .ok_or(ControlError::UnknownScope(owner))?;
         if scope.state == ExecutionScopeState::Completed {
             return Err(ControlError::ScopeCompleted(owner));
+        }
+        if scope.state == ExecutionScopeState::Unwinding {
+            let ancestors = inner.tree.ancestors(owner);
+            if let Some(failure) = failure_for_ancestors(self.operation_id, &inner, &ancestors) {
+                return Err(ControlError::Triggered(failure));
+            }
+            return Err(ControlError::ScopeUnwinding(owner));
         }
         let task = inner.tree.allocate_task_id()?;
         inner.tree.tasks.insert(
@@ -738,19 +1001,67 @@ impl OperationControl {
         Ok(())
     }
 
+    pub fn register_cleanup(
+        &self,
+        scope: ExecutionScopeId,
+        label: impl Into<String>,
+        action: impl FnOnce() + Send + 'static,
+    ) -> Result<ScopeCleanupGuard, ControlError> {
+        let label = label.into();
+        if label.is_empty()
+            || label.len() > MAX_CLEANUP_LABEL_BYTES
+            || label.chars().any(char::is_control)
+        {
+            return Err(ControlError::InvalidCleanupLabel);
+        }
+        let mut inner = self.inner.lock().expect("poisoned operation-control mutex");
+        let node = inner
+            .tree
+            .scope(scope)
+            .ok_or(ControlError::UnknownScope(scope))?;
+        if node.state == ExecutionScopeState::Completed {
+            return Err(ControlError::ScopeCompleted(scope));
+        }
+        let action_id = CleanupActionId::from_raw(inner.next_cleanup_action_id);
+        inner.next_cleanup_action_id = inner
+            .next_cleanup_action_id
+            .checked_add(1)
+            .ok_or(ControlError::IdentityExhausted("cleanupActionId"))?;
+        inner.cleanup_actions.insert(
+            action_id,
+            RegisteredCleanup {
+                scope,
+                label,
+                action: Some(Box::new(action)),
+            },
+        );
+        Ok(ScopeCleanupGuard {
+            inner: Arc::clone(&self.inner),
+            action_id,
+            released: false,
+        })
+    }
+
     pub fn cancel_root(
         &self,
         reason: Option<String>,
         source_map: Option<SourceMapStack>,
     ) -> Result<ControlRequestOutcome, ControlError> {
         validate_reason(reason.as_deref())?;
-        Ok(
-            if self.abort_signal.abort_with_metadata(reason, source_map) {
-                ControlRequestOutcome::Accepted
-            } else {
-                ControlRequestOutcome::AlreadyRequested
-            },
-        )
+        let accepted = self
+            .abort_signal
+            .abort_with_metadata(reason.clone(), source_map.clone());
+        let mut inner = self.inner.lock().expect("poisoned operation-control mutex");
+        inner
+            .scope_causes
+            .entry(ROOT_EXECUTION_SCOPE_ID)
+            .or_insert((ControlCause::HostCancellation { reason }, source_map));
+        mark_subtree_unwinding(&mut inner.tree, ROOT_EXECUTION_SCOPE_ID);
+        Ok(if accepted {
+            ControlRequestOutcome::Accepted
+        } else {
+            ControlRequestOutcome::AlreadyRequested
+        })
     }
 
     pub fn cancel_scope(
@@ -787,18 +1098,326 @@ impl OperationControl {
         self.check_scope_at(scope, Instant::now())
     }
 
+    pub fn fail_scope(
+        &self,
+        scope: ExecutionScopeId,
+        cause: ControlCause,
+        source_map: Option<SourceMapStack>,
+    ) -> Result<ControlFailure, ControlError> {
+        let mut inner = self.inner.lock().expect("poisoned operation-control mutex");
+        let node = inner
+            .tree
+            .scope(scope)
+            .ok_or(ControlError::UnknownScope(scope))?;
+        if node.state == ExecutionScopeState::Completed {
+            return Err(ControlError::ScopeCompleted(scope));
+        }
+        if let Some((active_cause, active_source_map)) = inner.scope_causes.get(&scope) {
+            if active_cause != &cause || active_source_map != &source_map {
+                return Err(ControlError::FailureMismatch(scope));
+            }
+        } else {
+            inner
+                .scope_causes
+                .insert(scope, (cause.clone(), source_map.clone()));
+        }
+        mark_subtree_unwinding(&mut inner.tree, scope);
+        Ok(ControlFailure {
+            operation_id: self.operation_id,
+            affected_scope: scope,
+            cause,
+            source_map,
+        })
+    }
+
+    pub fn prepare_failure_delivery(
+        &self,
+        failure: &ControlFailure,
+    ) -> Result<FailureDeliveryOutcome, ControlError> {
+        if failure.operation_id != self.operation_id {
+            return Err(ControlError::ForeignDelivery(failure.operation_id));
+        }
+
+        let (actions, unwind) = {
+            let mut inner = self.inner.lock().expect("poisoned operation-control mutex");
+            if let Some(settlement) = inner.settlements.get(&failure.affected_scope) {
+                return Ok(FailureDeliveryOutcome::Settled(settlement.clone()));
+            }
+            if let Some(delivery_id) = inner.delivery_by_scope.get(&failure.affected_scope) {
+                let delivery = inner
+                    .active_deliveries
+                    .get(delivery_id)
+                    .expect("delivery-by-scope references a live delivery");
+                return Ok(FailureDeliveryOutcome::Deliver(delivery.token.clone()));
+            }
+            let active = inner
+                .scope_causes
+                .get(&failure.affected_scope)
+                .ok_or(ControlError::FailureMismatch(failure.affected_scope))?;
+            if active.0 != failure.cause || active.1 != failure.source_map {
+                return Err(ControlError::FailureMismatch(failure.affected_scope));
+            }
+            let subtree: BTreeSet<_> = inner
+                .tree
+                .descendants(failure.affected_scope)
+                .into_iter()
+                .collect();
+            let unfinished_tasks: Vec<_> = inner
+                .tree
+                .tasks
+                .values()
+                .filter(|task| subtree.contains(&task.owner) && !task.completed)
+                .map(|task| task.id)
+                .collect();
+            if !unfinished_tasks.is_empty()
+                || inner.cleanup_in_progress.contains(&failure.affected_scope)
+            {
+                return Ok(FailureDeliveryOutcome::AwaitingCleanup {
+                    affected_scope: failure.affected_scope,
+                    unfinished_tasks,
+                });
+            }
+            inner.cleanup_in_progress.insert(failure.affected_scope);
+
+            let mut scopes: Vec<_> = subtree.iter().copied().collect();
+            scopes.sort_by(|left, right| {
+                inner
+                    .tree
+                    .ancestors(*right)
+                    .len()
+                    .cmp(&inner.tree.ancestors(*left).len())
+                    .then_with(|| left.cmp(right))
+            });
+
+            let mut cleanup_ids: Vec<_> = inner
+                .cleanup_actions
+                .iter()
+                .filter(|(_, action)| subtree.contains(&action.scope))
+                .map(|(id, action)| (*id, action.scope, inner.tree.ancestors(action.scope).len()))
+                .collect();
+            cleanup_ids.sort_by(|left, right| {
+                right
+                    .2
+                    .cmp(&left.2)
+                    .then_with(|| left.1.cmp(&right.1))
+                    .then_with(|| right.0.cmp(&left.0))
+            });
+            let mut actions = Vec::with_capacity(cleanup_ids.len());
+            let mut cleanup_records = Vec::with_capacity(cleanup_ids.len());
+            for (id, _, _) in cleanup_ids {
+                if let Some(mut cleanup) = inner.cleanup_actions.remove(&id) {
+                    cleanup_records.push(ScopeCleanupRecord {
+                        scope: cleanup.scope,
+                        label: cleanup.label.clone(),
+                    });
+                    if let Some(action) = cleanup.action.take() {
+                        actions.push(action);
+                    }
+                }
+            }
+
+            let permit_ids: Vec<_> = inner
+                .memory_permits
+                .iter()
+                .filter(|(_, charge)| subtree.contains(&charge.owner))
+                .map(|(id, _)| *id)
+                .collect();
+            for permit_id in permit_ids {
+                release_memory_permit(&mut inner, permit_id);
+            }
+
+            let subtree_tasks: BTreeSet<_> = inner
+                .tree
+                .tasks
+                .values()
+                .filter(|task| subtree.contains(&task.owner))
+                .map(|task| task.id)
+                .collect();
+            inner
+                .stack_depths
+                .retain(|(task, _), _| !subtree_tasks.contains(task));
+            for scope in &scopes {
+                if let Some(node) = inner.tree.scopes.get_mut(scope) {
+                    node.state = ExecutionScopeState::Completed;
+                }
+            }
+
+            let unwind = ControlUnwindSummary {
+                completed_scopes: scopes,
+                completed_tasks: subtree_tasks.into_iter().collect(),
+                cleanup_actions: cleanup_records,
+            };
+            (actions, unwind)
+        };
+
+        let mut cleanup_failed = false;
+        for action in actions {
+            cleanup_failed |= catch_unwind(AssertUnwindSafe(action)).is_err();
+        }
+        let mut inner = self.inner.lock().expect("poisoned operation-control mutex");
+        inner.cleanup_in_progress.remove(&failure.affected_scope);
+        if cleanup_failed {
+            let cleanup_failure = ControlFailure {
+                operation_id: self.operation_id,
+                affected_scope: ROOT_EXECUTION_SCOPE_ID,
+                cause: ControlCause::InternalFailure {
+                    diagnostic_code: "cem.control.cleanup_failed".to_owned(),
+                },
+                source_map: failure.source_map.clone(),
+            };
+            inner.scope_causes.insert(
+                ROOT_EXECUTION_SCOPE_ID,
+                (
+                    cleanup_failure.cause.clone(),
+                    cleanup_failure.source_map.clone(),
+                ),
+            );
+            mark_subtree_unwinding(&mut inner.tree, ROOT_EXECUTION_SCOPE_ID);
+            let settlement = ControlFailureSettlement {
+                failure: cleanup_failure,
+                kind: ControlFailureSettlementKind::EscalatedToRoot,
+                boundary_scope: None,
+                result_contract: None,
+                unwind,
+            };
+            inner
+                .settlements
+                .insert(failure.affected_scope, settlement.clone());
+            inner
+                .settlements
+                .entry(ROOT_EXECUTION_SCOPE_ID)
+                .or_insert_with(|| settlement.clone());
+            return Ok(FailureDeliveryOutcome::Settled(settlement));
+        }
+
+        deliver_or_escalate_locked(self.operation_id, &mut inner, failure.clone(), unwind, None)
+    }
+
+    pub fn decline_failure_delivery(
+        &self,
+        token: &FailureDeliveryToken,
+    ) -> Result<FailureDeliveryOutcome, ControlError> {
+        self.validate_delivery_operation(token)?;
+        let mut inner = self.inner.lock().expect("poisoned operation-control mutex");
+        let delivery = inner
+            .active_deliveries
+            .remove(&token.delivery_id)
+            .ok_or_else(|| delivery_state_error(&inner, token))?;
+        if delivery.token != *token {
+            inner
+                .active_deliveries
+                .insert(delivery.token.delivery_id, delivery);
+            return Err(ControlError::UnknownDelivery(token.delivery_id));
+        }
+        inner.delivery_by_scope.remove(&token.affected_scope);
+        deliver_or_escalate_locked(
+            self.operation_id,
+            &mut inner,
+            delivery.failure,
+            delivery.unwind,
+            Some(token.boundary_scope),
+        )
+    }
+
+    pub fn validate_and_recover<T, E>(
+        &self,
+        token: &FailureDeliveryToken,
+        replacement: &T,
+        validate: impl FnOnce(&T, &str, &str) -> Result<(), E>,
+    ) -> Result<ControlFailureSettlement, TypedRecoveryError<E>> {
+        self.validate_delivery_operation(token)?;
+        {
+            let inner = self.inner.lock().expect("poisoned operation-control mutex");
+            let delivery = inner
+                .active_deliveries
+                .get(&token.delivery_id)
+                .ok_or_else(|| delivery_state_error(&inner, token))?;
+            if delivery.token != *token {
+                return Err(ControlError::UnknownDelivery(token.delivery_id).into());
+            }
+        }
+        validate(
+            replacement,
+            token.boundary_owner.as_str(),
+            token.result_contract.as_str(),
+        )
+        .map_err(TypedRecoveryError::Validation)?;
+
+        let mut inner = self.inner.lock().expect("poisoned operation-control mutex");
+        let delivery = inner
+            .active_deliveries
+            .remove(&token.delivery_id)
+            .ok_or_else(|| delivery_state_error(&inner, token))?;
+        if delivery.token != *token {
+            inner
+                .active_deliveries
+                .insert(delivery.token.delivery_id, delivery);
+            return Err(ControlError::UnknownDelivery(token.delivery_id).into());
+        }
+        inner.delivery_by_scope.remove(&token.affected_scope);
+        let settlement = ControlFailureSettlement {
+            failure: delivery.failure,
+            kind: ControlFailureSettlementKind::Recovered,
+            boundary_scope: Some(token.boundary_scope),
+            result_contract: Some(token.result_contract.clone()),
+            unwind: delivery.unwind,
+        };
+        inner.scope_causes.remove(&token.affected_scope);
+        inner
+            .settlements
+            .insert(token.affected_scope, settlement.clone());
+        Ok(settlement)
+    }
+
+    pub fn failure_settlement(
+        &self,
+        affected_scope: ExecutionScopeId,
+    ) -> Option<ControlFailureSettlement> {
+        self.inner
+            .lock()
+            .expect("poisoned operation-control mutex")
+            .settlements
+            .get(&affected_scope)
+            .cloned()
+    }
+
+    fn validate_delivery_operation(
+        &self,
+        token: &FailureDeliveryToken,
+    ) -> Result<(), ControlError> {
+        if token.operation_id != self.operation_id {
+            return Err(ControlError::ForeignDelivery(token.operation_id));
+        }
+        Ok(())
+    }
+
     fn check_scope_at(&self, scope: ExecutionScopeId, now: Instant) -> Result<(), ControlError> {
         if self.abort_signal.is_aborted() {
+            let mut inner = self.inner.lock().expect("poisoned operation-control mutex");
+            let cause = ControlCause::HostCancellation {
+                reason: self.abort_signal.reason(),
+            };
+            let source_map = self.abort_signal.source_map();
+            inner
+                .scope_causes
+                .entry(ROOT_EXECUTION_SCOPE_ID)
+                .or_insert_with(|| (cause.clone(), source_map.clone()));
+            mark_subtree_unwinding(&mut inner.tree, ROOT_EXECUTION_SCOPE_ID);
             return Err(ControlError::Triggered(ControlFailure {
                 operation_id: self.operation_id,
                 affected_scope: ROOT_EXECUTION_SCOPE_ID,
-                cause: ControlCause::HostCancellation {
-                    reason: self.abort_signal.reason(),
-                },
-                source_map: self.abort_signal.source_map(),
+                cause,
+                source_map,
             }));
         }
         let mut inner = self.inner.lock().expect("poisoned operation-control mutex");
+        let node = inner
+            .tree
+            .scope(scope)
+            .ok_or(ControlError::UnknownScope(scope))?;
+        if node.state == ExecutionScopeState::Completed {
+            return Err(ControlError::ScopeCompleted(scope));
+        }
         let ancestors = known_ancestors(&inner.tree, scope)?;
         if let Some(failure) = failure_for_ancestors(self.operation_id, &inner, &ancestors) {
             return Err(ControlError::Triggered(failure));
@@ -891,6 +1510,11 @@ impl OperationControl {
         if let Some(failure) = failure_for_ancestors(self.operation_id, &inner, &ancestors) {
             return Err(ControlError::Triggered(failure));
         }
+        let permit_id = MemoryPermitId::from_raw(inner.next_memory_permit_id);
+        let next_memory_permit_id = inner
+            .next_memory_permit_id
+            .checked_add(1)
+            .ok_or(ControlError::IdentityExhausted("memoryPermitId"))?;
         for ancestor in &ancestors {
             let charged = inner
                 .accounting
@@ -929,10 +1553,19 @@ impl OperationControl {
                 .expect("known scope has accounting")
                 .memory_charged += bytes;
         }
+        inner.next_memory_permit_id = next_memory_permit_id;
+        inner.memory_permits.insert(
+            permit_id,
+            MemoryCharge {
+                owner: scope,
+                ancestors: ancestors.clone(),
+                bytes,
+            },
+        );
         Ok(MemoryPermit {
             inner: Arc::clone(&self.inner),
+            permit_id,
             owner: scope,
-            ancestors,
             bytes,
             released: false,
         })
@@ -945,6 +1578,21 @@ impl OperationControl {
             .get(&scope)
             .map(|accounting| accounting.memory_charged)
             .ok_or(ControlError::UnknownScope(scope))
+    }
+
+    pub fn logical_stack_depth(
+        &self,
+        task: TaskId,
+        scope: ExecutionScopeId,
+    ) -> Result<u32, ControlError> {
+        let inner = self.inner.lock().expect("poisoned operation-control mutex");
+        if inner.tree.task(task).is_none() {
+            return Err(ControlError::UnknownTask(task));
+        }
+        if inner.tree.scope(scope).is_none() {
+            return Err(ControlError::UnknownScope(scope));
+        }
+        Ok(inner.stack_depths.get(&(task, scope)).copied().unwrap_or(0))
     }
 }
 
@@ -989,8 +1637,8 @@ impl Drop for LogicalStackGuard {
 #[derive(Debug)]
 pub struct MemoryPermit {
     inner: Arc<Mutex<ControlInner>>,
+    permit_id: MemoryPermitId,
     owner: ExecutionScopeId,
-    ancestors: Vec<ExecutionScopeId>,
     bytes: u64,
     released: bool,
 }
@@ -1013,12 +1661,7 @@ impl MemoryPermit {
             return;
         }
         if let Ok(mut inner) = self.inner.lock() {
-            for ancestor in &self.ancestors {
-                if let Some(accounting) = inner.accounting.get_mut(ancestor) {
-                    accounting.memory_charged =
-                        accounting.memory_charged.saturating_sub(self.bytes);
-                }
-            }
+            release_memory_permit(&mut inner, self.permit_id);
         }
         self.released = true;
     }
@@ -1028,6 +1671,141 @@ impl Drop for MemoryPermit {
     fn drop(&mut self) {
         self.release_inner();
     }
+}
+
+#[derive(Debug)]
+pub struct ScopeCleanupGuard {
+    inner: Arc<Mutex<ControlInner>>,
+    action_id: CleanupActionId,
+    released: bool,
+}
+
+impl ScopeCleanupGuard {
+    pub fn release(mut self) {
+        self.release_inner();
+    }
+
+    fn release_inner(&mut self) {
+        if self.released {
+            return;
+        }
+        let action = self.inner.lock().ok().and_then(|mut inner| {
+            inner
+                .cleanup_actions
+                .remove(&self.action_id)
+                .and_then(|mut cleanup| cleanup.action.take())
+        });
+        if let Some(action) = action {
+            let _ = catch_unwind(AssertUnwindSafe(action));
+        }
+        self.released = true;
+    }
+}
+
+impl Drop for ScopeCleanupGuard {
+    fn drop(&mut self) {
+        self.release_inner();
+    }
+}
+
+fn release_memory_permit(inner: &mut ControlInner, permit_id: MemoryPermitId) {
+    let Some(charge) = inner.memory_permits.remove(&permit_id) else {
+        return;
+    };
+    for ancestor in charge.ancestors {
+        if let Some(accounting) = inner.accounting.get_mut(&ancestor) {
+            accounting.memory_charged = accounting.memory_charged.saturating_sub(charge.bytes);
+        }
+    }
+}
+
+fn delivery_state_error(inner: &ControlInner, token: &FailureDeliveryToken) -> ControlError {
+    if inner.settlements.contains_key(&token.affected_scope) {
+        ControlError::DeliverySettled(token.delivery_id)
+    } else {
+        ControlError::UnknownDelivery(token.delivery_id)
+    }
+}
+
+fn deliver_or_escalate_locked(
+    operation_id: OperationId,
+    inner: &mut ControlInner,
+    failure: ControlFailure,
+    unwind: ControlUnwindSummary,
+    after_boundary: Option<ExecutionScopeId>,
+) -> Result<FailureDeliveryOutcome, ControlError> {
+    let mut cursor = after_boundary
+        .and_then(|scope| inner.tree.scope(scope).and_then(|node| node.parent))
+        .or_else(|| {
+            (after_boundary.is_none())
+                .then(|| {
+                    inner
+                        .tree
+                        .scope(failure.affected_scope)
+                        .and_then(|node| node.parent)
+                })
+                .flatten()
+        });
+    while let Some(scope) = cursor {
+        let node = inner
+            .tree
+            .scope(scope)
+            .expect("boundary cursor references a known scope");
+        let parent = node.parent;
+        let boundary = node.error_boundary.clone();
+        if let Some(boundary) = boundary {
+            if boundary.accepts(failure.cause.kind()) {
+                let delivery_id = FailureDeliveryId::from_raw(inner.next_delivery_id);
+                inner.next_delivery_id = inner
+                    .next_delivery_id
+                    .checked_add(1)
+                    .ok_or(ControlError::IdentityExhausted("failureDeliveryId"))?;
+                let token = FailureDeliveryToken {
+                    operation_id,
+                    delivery_id,
+                    affected_scope: failure.affected_scope,
+                    boundary_scope: scope,
+                    cause_kind: failure.cause.kind(),
+                    boundary_owner: boundary.owner,
+                    result_contract: boundary.result_contract,
+                };
+                inner.active_deliveries.insert(
+                    delivery_id,
+                    ActiveFailureDelivery {
+                        token: token.clone(),
+                        failure,
+                        unwind,
+                    },
+                );
+                inner
+                    .delivery_by_scope
+                    .insert(token.affected_scope, delivery_id);
+                return Ok(FailureDeliveryOutcome::Deliver(token));
+            }
+        }
+        cursor = parent;
+    }
+
+    inner.scope_causes.insert(
+        ROOT_EXECUTION_SCOPE_ID,
+        (failure.cause.clone(), failure.source_map.clone()),
+    );
+    mark_subtree_unwinding(&mut inner.tree, ROOT_EXECUTION_SCOPE_ID);
+    let settlement = ControlFailureSettlement {
+        failure,
+        kind: ControlFailureSettlementKind::EscalatedToRoot,
+        boundary_scope: None,
+        result_contract: None,
+        unwind,
+    };
+    inner
+        .settlements
+        .insert(settlement.failure.affected_scope, settlement.clone());
+    inner
+        .settlements
+        .entry(ROOT_EXECUTION_SCOPE_ID)
+        .or_insert_with(|| settlement.clone());
+    Ok(FailureDeliveryOutcome::Settled(settlement))
 }
 
 fn next_operation_id() -> OperationId {
@@ -1072,6 +1850,25 @@ fn validate_registration(registration: &ExecutionScopeRegistration) -> Result<()
         {
             return Err(ControlError::InvalidSemanticIdentity(*kind));
         }
+    }
+    if registration
+        .error_boundary
+        .as_ref()
+        .is_some_and(|boundary| {
+            boundary.owner.is_empty()
+                || boundary.owner.len() > MAX_BOUNDARY_OWNER_BYTES
+                || boundary.owner.chars().any(char::is_control)
+                || boundary.result_contract.is_empty()
+                || boundary.result_contract.len() > MAX_RESULT_CONTRACT_BYTES
+                || boundary.result_contract.chars().any(char::is_control)
+                || matches!(
+                    &boundary.policy,
+                    ControlBoundaryPolicy::Recover { accepted_causes }
+                        if accepted_causes.is_empty()
+                )
+        })
+    {
+        return Err(ControlError::InvalidBoundary);
     }
     validate_policy(registration.effective_policy)
 }
@@ -1274,6 +2071,22 @@ mod tests {
             .unwrap()
     }
 
+    fn boundary_child(
+        control: &OperationControl,
+        parent: ExecutionScopeId,
+        label: &str,
+        policy: ScopePolicy,
+        boundary: ControlErrorBoundary,
+    ) -> ExecutionScopeId {
+        control
+            .register_scope(
+                parent,
+                ExecutionScopeRegistration::inherited(ExecutionScopeKind::Transform, label, policy)
+                    .with_error_boundary(boundary),
+            )
+            .unwrap()
+    }
+
     #[test]
     fn identities_and_semantic_scope_mappings_are_stable_in_snapshots() {
         let control = OperationControl::with_policy(
@@ -1395,9 +2208,7 @@ mod tests {
         poller.force().unwrap();
         signal.abort();
 
-        poller
-            .poll(DEFAULT_SAFE_POINT_WORK_INTERVAL - 1)
-            .unwrap();
+        poller.poll(DEFAULT_SAFE_POINT_WORK_INTERVAL - 1).unwrap();
         let ControlError::Triggered(failure) = poller.poll_one().unwrap_err() else {
             panic!("the fixed work boundary must observe cancellation");
         };
@@ -1418,8 +2229,7 @@ mod tests {
             "selected",
             policy(2_048, 8, None),
         );
-        let mut selected_poller =
-            SafePointPoller::with_work_interval(control.clone(), selected, 1);
+        let mut selected_poller = SafePointPoller::with_work_interval(control.clone(), selected, 1);
         control.cancel_scope(selected, None, None).unwrap();
         assert!(matches!(
             selected_poller.poll_one(),
@@ -1499,6 +2309,21 @@ mod tests {
         control
             .set_scope_state(scope, ExecutionScopeState::Unwinding)
             .unwrap();
+        assert!(matches!(
+            control.register_task(scope),
+            Err(ControlError::ScopeUnwinding(actual)) if actual == scope
+        ));
+        assert!(matches!(
+            control.register_scope(
+                scope,
+                ExecutionScopeRegistration::inherited(
+                    ExecutionScopeKind::Transform,
+                    "late-child",
+                    policy(1_024, 8, None),
+                ),
+            ),
+            Err(ControlError::ScopeUnwinding(actual)) if actual == scope
+        ));
         assert!(matches!(
             control
                 .set_scope_state(scope, ExecutionScopeState::Running)
@@ -1679,5 +2504,449 @@ mod tests {
             failure.cause,
             ControlCause::TimeoutExceeded { limit_ms: 3, .. }
         ));
+    }
+
+    #[test]
+    fn scoped_unwind_waits_for_tasks_and_cleans_descendants_before_typed_recovery() {
+        let control = OperationControl::with_policy(
+            OperationId::from_raw(50),
+            AbortSignal::new(),
+            policy(100, 8, None),
+        )
+        .unwrap();
+        let boundary = boundary_child(
+            &control,
+            ROOT_EXECUTION_SCOPE_ID,
+            "query-boundary",
+            policy(90, 8, None),
+            ControlErrorBoundary::recover(
+                "cem-ql",
+                "cem-ql:stream<integer>",
+                [ControlCauseKind::HostCancellation],
+            ),
+        );
+        let selected = child(&control, boundary, "selected", policy(60, 8, None));
+        let descendant = child(&control, selected, "descendant", policy(40, 8, None));
+        let sibling = child(
+            &control,
+            ROOT_EXECUTION_SCOPE_ID,
+            "sibling",
+            policy(80, 8, None),
+        );
+        for scope in [boundary, selected, descendant, sibling] {
+            control
+                .set_scope_state(scope, ExecutionScopeState::Running)
+                .unwrap();
+        }
+
+        let selected_task = control.register_task(selected).unwrap();
+        let descendant_task = control.register_task(descendant).unwrap();
+        let selected_frame = control.enter_frame(selected_task, selected, None).unwrap();
+        let descendant_frame = control
+            .enter_frame(descendant_task, descendant, None)
+            .unwrap();
+        let selected_memory = control.charge_memory(selected, 10, None).unwrap();
+        let descendant_memory = control.charge_memory(descendant, 11, None).unwrap();
+        let sibling_memory = control.charge_memory(sibling, 7, None).unwrap();
+
+        let cleanup_order = Arc::new(Mutex::new(Vec::new()));
+        let mut cleanup_guards = Vec::new();
+        for (scope, label) in [
+            (selected, "selected-1"),
+            (selected, "selected-2"),
+            (descendant, "descendant-1"),
+            (descendant, "descendant-2"),
+        ] {
+            let observed = Arc::clone(&cleanup_order);
+            let recorded_label = label.to_owned();
+            cleanup_guards.push(
+                control
+                    .register_cleanup(scope, label, move || {
+                        observed.lock().unwrap().push(recorded_label);
+                    })
+                    .unwrap(),
+            );
+        }
+
+        control.cancel_scope(selected, None, None).unwrap();
+        assert!(matches!(
+            control.register_task(selected),
+            Err(ControlError::Triggered(ControlFailure { affected_scope, .. }))
+                if affected_scope == selected
+        ));
+        assert!(matches!(
+            control.register_scope(
+                selected,
+                ExecutionScopeRegistration::inherited(
+                    ExecutionScopeKind::Transform,
+                    "late-child",
+                    policy(30, 8, None),
+                ),
+            ),
+            Err(ControlError::Triggered(ControlFailure { affected_scope, .. }))
+                if affected_scope == selected
+        ));
+        let ControlError::Triggered(failure) = control.check_scope(descendant).unwrap_err() else {
+            panic!("selected cancellation must reach its descendant");
+        };
+        assert!(matches!(
+            control.prepare_failure_delivery(&failure).unwrap(),
+            FailureDeliveryOutcome::AwaitingCleanup { unfinished_tasks, .. }
+                if unfinished_tasks == vec![selected_task, descendant_task]
+        ));
+
+        control.complete_task(selected_task).unwrap();
+        control.complete_task(descendant_task).unwrap();
+        let FailureDeliveryOutcome::Deliver(token) =
+            control.prepare_failure_delivery(&failure).unwrap()
+        else {
+            panic!("completed subtree must deliver to the nearest boundary");
+        };
+        assert_eq!(token.boundary_scope, boundary);
+        assert_eq!(
+            *cleanup_order.lock().unwrap(),
+            ["descendant-2", "descendant-1", "selected-2", "selected-1"]
+        );
+        assert_eq!(control.memory_charged(selected).unwrap(), 0);
+        assert_eq!(control.memory_charged(descendant).unwrap(), 0);
+        assert_eq!(control.memory_charged(ROOT_EXECUTION_SCOPE_ID).unwrap(), 7);
+        assert_eq!(
+            control
+                .logical_stack_depth(selected_task, selected)
+                .unwrap(),
+            0
+        );
+        assert_eq!(
+            control
+                .logical_stack_depth(descendant_task, descendant)
+                .unwrap(),
+            0
+        );
+        control.check_scope(sibling).unwrap();
+
+        #[derive(Debug)]
+        enum QueryReplacement {
+            Text,
+            Integer(i64),
+        }
+        let invalid = control.validate_and_recover(
+            &token,
+            &QueryReplacement::Text,
+            |replacement, owner, contract| {
+                (owner == "cem-ql"
+                    && contract == "cem-ql:stream<integer>"
+                    && matches!(replacement, QueryReplacement::Integer(_)))
+                .then_some(())
+                .ok_or("replacement is not an integer stream")
+            },
+        );
+        assert_eq!(
+            invalid,
+            Err(TypedRecoveryError::Validation(
+                "replacement is not an integer stream"
+            ))
+        );
+        let replacement = QueryReplacement::Integer(42);
+        let settlement = control
+            .validate_and_recover(&token, &replacement, |replacement, owner, contract| {
+                (owner == "cem-ql"
+                    && contract == "cem-ql:stream<integer>"
+                    && matches!(replacement, QueryReplacement::Integer(_)))
+                .then_some(())
+                .ok_or("replacement is not an integer stream")
+            })
+            .unwrap();
+        assert_eq!(settlement.kind, ControlFailureSettlementKind::Recovered);
+        assert!(matches!(replacement, QueryReplacement::Integer(42)));
+        assert!(matches!(
+            control.validate_and_recover(&token, &replacement, |_, _, _| Ok::<_, ()>(())),
+            Err(TypedRecoveryError::Control(ControlError::DeliverySettled(id)))
+                if id == token.delivery_id
+        ));
+        control.check_scope(sibling).unwrap();
+
+        drop((selected_frame, descendant_frame));
+        drop((selected_memory, descendant_memory));
+        assert_eq!(control.memory_charged(ROOT_EXECUTION_SCOPE_ID).unwrap(), 7);
+        drop(sibling_memory);
+        assert_eq!(control.memory_charged(ROOT_EXECUTION_SCOPE_ID).unwrap(), 0);
+        drop(cleanup_guards);
+        assert_eq!(cleanup_order.lock().unwrap().len(), 4);
+    }
+
+    #[test]
+    fn boundary_filter_fail_fast_and_decline_bubble_without_touching_siblings() {
+        let root_policy = policy(4_096, 8, None);
+        let control = OperationControl::with_policy(
+            OperationId::from_raw(51),
+            AbortSignal::new(),
+            root_policy,
+        )
+        .unwrap();
+        let outer = boundary_child(
+            &control,
+            ROOT_EXECUTION_SCOPE_ID,
+            "outer",
+            root_policy,
+            ControlErrorBoundary::recover(
+                "transform",
+                "transform:artifact",
+                [ControlCauseKind::HostCancellation],
+            ),
+        );
+        let fail_fast = boundary_child(
+            &control,
+            outer,
+            "fail-fast",
+            root_policy,
+            ControlErrorBoundary::fail_fast("schema", "schema:node"),
+        );
+        let inner = boundary_child(
+            &control,
+            fail_fast,
+            "inner",
+            root_policy,
+            ControlErrorBoundary::recover(
+                "template",
+                "template:fragment",
+                [ControlCauseKind::HostCancellation],
+            ),
+        );
+        let rejecting = boundary_child(
+            &control,
+            inner,
+            "rejecting",
+            root_policy,
+            ControlErrorBoundary::recover(
+                "query",
+                "query:value",
+                [ControlCauseKind::TimeoutExceeded],
+            ),
+        );
+        let selected = child(&control, rejecting, "selected", root_policy);
+        let sibling = child(&control, inner, "sibling", root_policy);
+        control.cancel_scope(selected, None, None).unwrap();
+        let ControlError::Triggered(failure) = control.check_scope(selected).unwrap_err() else {
+            panic!("selected scope must observe cancellation");
+        };
+        let FailureDeliveryOutcome::Deliver(inner_token) =
+            control.prepare_failure_delivery(&failure).unwrap()
+        else {
+            panic!("cause filtering must select the accepting inner boundary");
+        };
+        assert_eq!(inner_token.boundary_scope, inner);
+        let FailureDeliveryOutcome::Deliver(outer_token) =
+            control.decline_failure_delivery(&inner_token).unwrap()
+        else {
+            panic!("decline must skip fail-fast and reach the outer boundary");
+        };
+        assert_eq!(outer_token.boundary_scope, outer);
+        control.check_scope(sibling).unwrap();
+        let settlement = control
+            .validate_and_recover(&outer_token, &"artifact", |_, owner, contract| {
+                (owner == "transform" && contract == "transform:artifact")
+                    .then_some(())
+                    .ok_or("wrong transform contract")
+            })
+            .unwrap();
+        assert_eq!(settlement.kind, ControlFailureSettlementKind::Recovered);
+        control.check_scope(sibling).unwrap();
+    }
+
+    #[test]
+    fn resource_failure_uses_the_same_typed_boundary_delivery() {
+        let control = OperationControl::with_policy(
+            OperationId::from_raw(52),
+            AbortSignal::new(),
+            policy(100, 8, None),
+        )
+        .unwrap();
+        let boundary = boundary_child(
+            &control,
+            ROOT_EXECUTION_SCOPE_ID,
+            "resource-boundary",
+            policy(100, 8, None),
+            ControlErrorBoundary::recover(
+                "template",
+                "template:fragment",
+                [ControlCauseKind::MemoryExceeded],
+            ),
+        );
+        let selected = child(&control, boundary, "selected", policy(10, 8, None));
+        let ControlError::Triggered(failure) =
+            control.charge_memory(selected, 11, None).unwrap_err()
+        else {
+            panic!("child memory cap must produce a typed control failure");
+        };
+        let FailureDeliveryOutcome::Deliver(token) =
+            control.prepare_failure_delivery(&failure).unwrap()
+        else {
+            panic!("memory failure must use the common boundary path");
+        };
+        assert_eq!(token.boundary_scope, boundary);
+        let settlement = control
+            .validate_and_recover(&token, &String::new(), |_, owner, contract| {
+                (owner == "template" && contract == "template:fragment")
+                    .then_some(())
+                    .ok_or("wrong template contract")
+            })
+            .unwrap();
+        assert_eq!(settlement.kind, ControlFailureSettlementKind::Recovered);
+    }
+
+    #[test]
+    fn unhandled_scoped_failure_escalates_to_root_once() {
+        let control = OperationControl::with_policy(
+            OperationId::from_raw(55),
+            AbortSignal::new(),
+            policy(4_096, 8, None),
+        )
+        .unwrap();
+        let fail_fast = boundary_child(
+            &control,
+            ROOT_EXECUTION_SCOPE_ID,
+            "fail-fast",
+            policy(4_096, 8, None),
+            ControlErrorBoundary::fail_fast("schema", "schema:node"),
+        );
+        let rejecting = boundary_child(
+            &control,
+            fail_fast,
+            "rejecting",
+            policy(4_096, 8, None),
+            ControlErrorBoundary::recover(
+                "query",
+                "query:value",
+                [ControlCauseKind::TimeoutExceeded],
+            ),
+        );
+        let selected = child(&control, rejecting, "selected", policy(4_096, 8, None));
+        control.cancel_scope(selected, None, None).unwrap();
+        let ControlError::Triggered(failure) = control.check_scope(selected).unwrap_err() else {
+            panic!("selected cancellation must be typed");
+        };
+        let FailureDeliveryOutcome::Settled(settlement) =
+            control.prepare_failure_delivery(&failure).unwrap()
+        else {
+            panic!("unaccepted failure must settle at the root");
+        };
+        assert_eq!(
+            settlement.kind,
+            ControlFailureSettlementKind::EscalatedToRoot
+        );
+        assert_eq!(settlement.failure.affected_scope, selected);
+
+        let ControlError::Triggered(root_failure) =
+            control.check_scope(ROOT_EXECUTION_SCOPE_ID).unwrap_err()
+        else {
+            panic!("root must retain the escalated failure");
+        };
+        assert_eq!(
+            control.prepare_failure_delivery(&root_failure).unwrap(),
+            FailureDeliveryOutcome::Settled(settlement)
+        );
+    }
+
+    #[test]
+    fn root_cancellation_and_cleanup_failure_escalate_exactly_once() {
+        let control = OperationControl::with_policy(
+            OperationId::from_raw(53),
+            AbortSignal::new(),
+            policy(4_096, 8, None),
+        )
+        .unwrap();
+        let root_boundary_child = boundary_child(
+            &control,
+            ROOT_EXECUTION_SCOPE_ID,
+            "child-boundary",
+            policy(4_096, 8, None),
+            ControlErrorBoundary::recover(
+                "query",
+                "query:value",
+                [ControlCauseKind::HostCancellation],
+            ),
+        );
+        control.cancel_root(Some("stop".to_owned()), None).unwrap();
+        let ControlError::Triggered(root_failure) =
+            control.check_scope(root_boundary_child).unwrap_err()
+        else {
+            panic!("root cancellation must be typed");
+        };
+        let FailureDeliveryOutcome::Settled(root_settlement) =
+            control.prepare_failure_delivery(&root_failure).unwrap()
+        else {
+            panic!("root cancellation must not enter a child recovery boundary");
+        };
+        assert_eq!(
+            root_settlement.kind,
+            ControlFailureSettlementKind::EscalatedToRoot
+        );
+        assert_eq!(root_settlement.boundary_scope, None);
+        assert_eq!(
+            control.prepare_failure_delivery(&root_failure).unwrap(),
+            FailureDeliveryOutcome::Settled(root_settlement)
+        );
+
+        let cleanup_control = OperationControl::with_policy(
+            OperationId::from_raw(54),
+            AbortSignal::new(),
+            policy(4_096, 8, None),
+        )
+        .unwrap();
+        let boundary = boundary_child(
+            &cleanup_control,
+            ROOT_EXECUTION_SCOPE_ID,
+            "boundary",
+            policy(4_096, 8, None),
+            ControlErrorBoundary::recover(
+                "query",
+                "query:value",
+                [ControlCauseKind::HostCancellation],
+            ),
+        );
+        let selected = child(
+            &cleanup_control,
+            boundary,
+            "selected",
+            policy(4_096, 8, None),
+        );
+        let _cleanup = cleanup_control
+            .register_cleanup(selected, "panic", || panic!("cleanup failed"))
+            .unwrap();
+        cleanup_control.cancel_scope(selected, None, None).unwrap();
+        let ControlError::Triggered(failure) = cleanup_control.check_scope(selected).unwrap_err()
+        else {
+            panic!("selected cancellation must be typed");
+        };
+        let FailureDeliveryOutcome::Settled(settlement) =
+            cleanup_control.prepare_failure_delivery(&failure).unwrap()
+        else {
+            panic!("cleanup panic must bypass recovery and escalate");
+        };
+        assert_eq!(
+            settlement.kind,
+            ControlFailureSettlementKind::EscalatedToRoot
+        );
+        assert!(matches!(
+            settlement.failure.cause,
+            ControlCause::InternalFailure { ref diagnostic_code }
+                if diagnostic_code == "cem.control.cleanup_failed"
+        ));
+        assert_eq!(
+            cleanup_control.prepare_failure_delivery(&failure).unwrap(),
+            FailureDeliveryOutcome::Settled(settlement.clone())
+        );
+        let ControlError::Triggered(root_cleanup_failure) = cleanup_control
+            .check_scope(ROOT_EXECUTION_SCOPE_ID)
+            .unwrap_err()
+        else {
+            panic!("cleanup failure must remain observable at the root");
+        };
+        assert_eq!(
+            cleanup_control
+                .prepare_failure_delivery(&root_cleanup_failure)
+                .unwrap(),
+            FailureDeliveryOutcome::Settled(settlement)
+        );
     }
 }

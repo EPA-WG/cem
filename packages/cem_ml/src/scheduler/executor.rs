@@ -622,7 +622,6 @@ fn worker_loop(shared: Arc<SharedScheduler>, class: ExecutorClass, worker_id: u6
             .map(ScheduleError::Control)
             .or_else(|| job.failed_dependency.map(ScheduleError::DependencyFailed));
         let result = (job.run)(worker_id, preflight);
-        let _ = shared.control.complete_task(job.id);
         let mut state = shared.state.lock().expect("poisoned scheduler mutex");
         release_running(&mut state, &job.ancestors, class);
         match result {
@@ -634,6 +633,10 @@ fn worker_loop(shared: Arc<SharedScheduler>, class: ExecutorClass, worker_id: u6
             }
         }
         drop(state);
+        // A control task becomes complete only after its scheduler permits are
+        // released, so scoped failure delivery cannot race cleanup against a
+        // still-accounted worker slot.
+        let _ = shared.control.complete_task(job.id);
         shared.work_ready.notify_all();
         shared.capacity_ready.notify_all();
     }
