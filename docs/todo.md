@@ -112,6 +112,46 @@ replacement tree may mediate between internal engine layers.
               source-boundary guard, and the eight-test CLI query integration target.
         - [ ] Thread one host-supplied cooperative cancellation handle through every
               public operation request and resolver/evaluator path.
+            - [x] Make `scheduler::AbortSignal` the canonical clone-shared primitive;
+                  expose one Rust-native operation control through `EngineContext`,
+                  remove the query-only signal field, and retain the plugin signal
+                  name only as a compatibility re-export.
+            - [ ] Make every common engine entrypoint reject pre-cancelled work,
+                  reuse the request signal in lifecycle and scheduler phases, poll at
+                  evaluator/work-unit boundaries, preserve cancellation source maps
+                  and scheduler abort traces, and suppress incomplete results.
+                - [x] Reuse the operation signal at every public engine boundary,
+                      lifecycle/scheduler phase, plugin invocation, CSS/SCSS work
+                      unit, and CEM-QL IR/budget unit; preserve typed cancellation
+                      and source-map ownership while suppressing cancelled results.
+                - [ ] Thread cooperative polling through remaining long single-call
+                      evaluators and template/render internals, beginning with XPath,
+                      rather than relying only on their enclosing phase boundary.
+            - [x] Add cancellation-aware resolver read/list/write boundaries without
+                  changing equatable request records; reject work before host I/O,
+                  re-check after reads/lists, and prevent cancelled output commits.
+            - [ ] Give each CLI dispatch one signal shared by input/query/template
+                  loading, engine execution, reports, and output writes; install
+                  `SIGINT`/`SIGTERM` ownership in the native executable and project
+                  cancellation to a stable non-success exit without partial output.
+                - [x] Own one signal per native dispatch, install `SIGINT`/`SIGTERM`
+                      handling, reuse it through reads, engine contexts, reports, and
+                      writes, and project observed cancellation to exit status 130.
+                - [ ] Define and implement staged multi-destination output commits so
+                      cancellation between report/artifact/primary destinations cannot
+                      leave an otherwise successful dispatch partially published.
+            - [ ] Verify native pre-start and mid-operation cancellation for
+                  parse/validate/convert/transform/query/resolver/plugin/scheduler
+                  paths, then keep the common crate compiling for WASM hosts.
+
+            Completed 2026-08-11: established the common clone-shared operation
+            control; removed the query-only signal; connected engine, lifecycle,
+            scheduler, resolver, plugin, CLI I/O, and CEM-QL evaluator boundaries;
+            and gave the native executable signal ownership with cancellation exit
+            status 130. Remaining work is explicit above: deep XPath/template polling,
+            staged multi-output commit semantics, complete mid-operation fixtures, and
+            the final native/WASM verification gate. WASM operation handles remain
+            intentionally deferred to the versioned worker run/cancel envelope.
     - [ ] Keep terminal parsing, native filesystem/network adaptation, signals,
           standard streams, and exit-code projection in common `cem_ml_cli`.
     - [ ] Version and bound every host-wire/report projection while preserving
@@ -119,6 +159,30 @@ replacement tree may mediate between internal engine layers.
         - [ ] Add the versioned initialize/run/progress/event/result/cancel envelope
               only after the common operation requests expose cancellation and
               bounded result ownership.
+            - [ ] Expose WASM operation handles that run in a worker and accept
+                  cancel messages; prove transform/query cancellation, exactly one
+                  terminal result, and no post-cancel resolver or output commits in
+                  browser and Node hosts.
+        - [ ] Design resumable debugger control separately from terminal
+              cancellation.
+            - [ ] Define cooperative pause/resume safe points for parser,
+                  resolver, scheduler, query, template, transform, and plugin work;
+                  specify which atomic host-I/O/output-commit regions cannot pause
+                  and how queued cancellation behaves while paused.
+            - [ ] Define runtime discovery for execution threads/tasks, scheduler
+                  scopes, call stacks, stack frames, lexical/dynamic scopes,
+                  variables, native AST/value handles, and source-map-projected
+                  locations without exposing unbounded engine ownership.
+            - [ ] Evaluate the Debug Adapter Protocol (DAP) as the canonical debugger
+                  projection before defining any CEM-specific protocol; document the
+                  capability gaps and use custom requests/events only where CEM
+                  scheduler scopes or native semantic values have no DAP mapping.
+            - [ ] Specify CLI stdio and browser/Node worker transports, deterministic
+                  stopped/continued/terminated events, concurrent-operation identity,
+                  bounded inspection, disconnect behavior, and native/WASM parity.
+            - [ ] Implement and fixture-test pause, thread/stack/scope discovery,
+                  resume, step, cancellation-while-paused, and exactly one terminal
+                  result only after the run/cancel envelope is canonical.
 
 - [ ] Create the separate `@epa-wg/cem-ml` WASM runtime npm deployment
       project.

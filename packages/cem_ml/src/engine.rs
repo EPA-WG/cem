@@ -5,6 +5,7 @@ use crate::query::QueryRuntimeRegistry;
 use crate::report::{Report, SchedulerTraceReport};
 use crate::resolver::{ResolverPolicy, ResolverRegistry};
 use crate::run_config::{SchedulerConfig, ScopeConfig};
+use crate::scheduler::AbortSignal;
 use crate::schema::document_model::{SchemaBehaviorEvaluator, SchemaDocumentModelRegistry};
 use crate::schema::registry::{
     CSS_CONTENT_TYPE, CSS_SCHEMA_URI, HTML_CONTENT_TYPE, HTML_SCHEMA_URI, XHTML_CONTENT_TYPE,
@@ -123,6 +124,31 @@ pub enum BenchProfile {
     Memory,
 }
 
+/// Host-owned control shared by every phase of one public operation.
+///
+/// Cloning an [`EngineContext`] preserves the same cancellation flag, so
+/// lifecycle, resolver, evaluator, plugin, and scheduler layers all observe
+/// one request-scoped signal without placing runtime state in serializable
+/// request records.
+#[derive(Debug, Clone, Default)]
+pub struct OperationControl {
+    abort_signal: AbortSignal,
+}
+
+impl OperationControl {
+    pub fn new(abort_signal: AbortSignal) -> Self {
+        Self { abort_signal }
+    }
+
+    pub fn abort_signal(&self) -> &AbortSignal {
+        &self.abort_signal
+    }
+
+    pub fn is_cancelled(&self) -> bool {
+        self.abort_signal.is_aborted()
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct EngineContext {
     pub schema: Option<String>,
@@ -139,6 +165,7 @@ pub struct EngineContext {
     pub transform_template_encode_registry: TransformTemplateEncodeImplementationRegistry,
     pub transform_artifact_exporter_registry: TransformArtifactExporterRegistry,
     pub query_runtime_registry: QueryRuntimeRegistry,
+    pub operation_control: OperationControl,
     pub schema_behavior_evaluator: Option<Arc<dyn SchemaBehaviorEvaluator>>,
     pub convert_request_handlers: Vec<Arc<dyn ConvertRequestHandler>>,
 }
@@ -166,8 +193,30 @@ impl Default for EngineContext {
             transform_artifact_exporter_registry:
                 TransformArtifactExporterRegistry::with_builtin_exporters(),
             query_runtime_registry: QueryRuntimeRegistry::with_builtin_adapters(),
+            operation_control: OperationControl::default(),
             schema_behavior_evaluator: None,
             convert_request_handlers: Vec::new(),
+        }
+    }
+}
+
+impl EngineContext {
+    pub fn with_abort_signal(mut self, abort_signal: AbortSignal) -> Self {
+        self.operation_control = OperationControl::new(abort_signal);
+        self
+    }
+
+    pub fn abort_signal(&self) -> &AbortSignal {
+        self.operation_control.abort_signal()
+    }
+
+    pub fn ensure_active(&self) -> EngineResult<()> {
+        if self.operation_control.is_cancelled() {
+            Err(EngineError::Cancelled {
+                source_map: self.abort_signal().source_map(),
+            })
+        } else {
+            Ok(())
         }
     }
 }
@@ -1178,6 +1227,9 @@ pub struct FixtureRoundtripResponse {
 #[non_exhaustive]
 pub enum EngineError {
     NotImplemented,
+    Cancelled {
+        source_map: Option<SourceMapStack>,
+    },
     Io {
         path: PathBuf,
         source: std::io::Error,
@@ -1190,6 +1242,7 @@ impl std::fmt::Display for EngineError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             EngineError::NotImplemented => f.write_str("parser engine not yet implemented"),
+            EngineError::Cancelled { .. } => f.write_str("operation cancelled by host"),
             EngineError::Io { path, source } => {
                 write!(f, "I/O error for `{}`: {}", path.display(), source)
             }

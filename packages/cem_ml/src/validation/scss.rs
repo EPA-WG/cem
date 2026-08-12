@@ -2035,7 +2035,10 @@ impl<'a> ScssEvaluator<'a> {
                     direction: request.direction,
                     content_type_hint: request.content_type_hint.clone(),
                 };
-                match self.resolver_registry.read(&effective_request) {
+                match self
+                    .resolver_registry
+                    .read_with_abort(&effective_request, self.abort_signal)
+                {
                     Ok(read) => {
                         successes
                             .entry(read.uri.clone())

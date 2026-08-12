@@ -1,9 +1,9 @@
-use cem_ml::scheduler::ScopePolicy;
+use cem_ml::scheduler::{AbortSignal, ScopePolicy};
 use cem_ml::source::{ByteRange, SourceId};
 use cem_ml::source_map::{FrameSpan, SourceMapFrame, SourceMapStack, TransformKind};
-use cem_ql::api::{compile, evaluate, CompileContext, EvaluationContext};
+use cem_ql::api::{compile, evaluate, evaluate_with_abort, CompileContext, EvaluationContext};
 use cem_ql::eval::{
-    AtomValue, Item, ItemStream, QueryContextScope, QueryItemView, QueryItemViewKind,
+    AtomValue, EvalError, Item, ItemStream, QueryContextScope, QueryItemView, QueryItemViewKind,
 };
 use std::collections::BTreeMap;
 
@@ -85,6 +85,34 @@ fn native_atom(id: &'static str, value: AtomValue, offset: u64) -> Item {
     })
 }
 
+#[derive(Debug)]
+struct CancellingView {
+    abort_signal: AbortSignal,
+}
+
+impl QueryItemView for CancellingView {
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
+    }
+
+    fn representation_id(&self) -> &'static str {
+        "test.cancelling-native-view"
+    }
+
+    fn identity(&self) -> String {
+        "cancelling-view".to_owned()
+    }
+
+    fn kind(&self) -> QueryItemViewKind {
+        QueryItemViewKind::Record
+    }
+
+    fn field(&self, name: &str) -> Option<Vec<Item>> {
+        self.abort_signal.abort();
+        (name == "value").then(|| vec![Item::Atomic(AtomValue::Integer(1))])
+    }
+}
+
 #[test]
 fn native_item_view_projects_fields_members_atoms_identity_and_source_maps() {
     let first = native_atom("name:0", AtomValue::String("first".to_owned()), 10);
@@ -142,4 +170,36 @@ fn native_item_view_projects_fields_members_atoms_identity_and_source_maps() {
             .and_then(|source_map| source_map.current().map(|frame| frame.source_id)),
         Some(SourceId(7))
     );
+}
+
+#[test]
+fn evaluator_polls_host_cancellation_after_native_view_work() {
+    let abort_signal = AbortSignal::new();
+    let input = Item::native(CancellingView {
+        abort_signal: abort_signal.clone(),
+    });
+    let mut compile_context = CompileContext::default();
+    compile_context
+        .policy_bindings
+        .insert("input".to_owned(), ItemStream::empty());
+    let query = compile("(input.value, 2)", &compile_context)
+        .expect("cancelling native-view query compiles");
+
+    let result = evaluate_with_abort(
+        &query,
+        &EvaluationContext {
+            scope: QueryContextScope(0),
+            scope_policy: ScopePolicy::host_root(),
+            diagnostics: Vec::new(),
+            policy_bindings: BTreeMap::from([("input".to_owned(), ItemStream::once(input))]),
+            current_item: None,
+        },
+        &abort_signal,
+    );
+
+    assert_eq!(result.error, Some(EvalError::Cancelled));
+    assert!(result
+        .diagnostics
+        .iter()
+        .any(|diagnostic| diagnostic.code == "cem.ql.aborted"));
 }

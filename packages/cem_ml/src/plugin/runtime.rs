@@ -109,6 +109,11 @@ impl PluginRuntime {
                 inbound_source_map: current.source_map.clone(),
             };
             let output = invoke_with_budget(plugin, &as_input(&current), &mut ctx, budget)?;
+            if abort.is_aborted() {
+                return Err(PluginError::Cancelled {
+                    plugin: plugin.name.clone(),
+                });
+            }
             if output.bytes != prior_bytes || output.content_type != prior_ct {
                 return Err(PluginError::ObserverViolation {
                     plugin: plugin.name.clone(),
@@ -135,6 +140,11 @@ impl PluginRuntime {
                 inbound_source_map: inbound_map.clone(),
             };
             let mut output = invoke_with_budget(plugin, &as_input(&current), &mut ctx, budget)?;
+            if abort.is_aborted() {
+                return Err(PluginError::Cancelled {
+                    plugin: plugin.name.clone(),
+                });
+            }
             // AC-PL-12 / AC-PL-13: stitch the plugin's emitted frame on
             // top of the inbound source map so a resolver can walk
             // back from the final output to the original source.
@@ -328,6 +338,22 @@ mod tests {
         }
     }
 
+    struct CancelsDuringInvoke;
+    impl PluginInvoke for CancelsDuringInvoke {
+        fn invoke(
+            &self,
+            input: &PluginInput,
+            ctx: &mut PluginContext<'_>,
+        ) -> Result<PluginOutput, PluginError> {
+            ctx.abort.abort();
+            Ok(PluginOutput {
+                content_type: input.content_type.clone(),
+                bytes: input.bytes.clone(),
+                source_map: ctx.inbound_source_map.clone(),
+            })
+        }
+    }
+
     fn observer(name: &str, invoke: Arc<dyn PluginInvoke>) -> Arc<PluginDescriptor> {
         Arc::new(PluginDescriptor {
             name: name.into(),
@@ -381,5 +407,31 @@ mod tests {
             )
             .unwrap_err();
         assert!(matches!(err, PluginError::Cancelled { .. }));
+    }
+
+    #[test]
+    fn cancellation_during_plugin_invocation_suppresses_its_output() {
+        let plugin = observer("cancelling", Arc::new(CancelsDuringInvoke));
+        let mut local = PluginRegistry::new();
+        local.install(plugin).unwrap();
+        let chain = PluginChain::merged(&[], &local, &ContentType::from("text/css"));
+        let err = PluginRuntime::new()
+            .invoke_chain(
+                &chain,
+                PluginInput::new("text/css", b"body{}".to_vec()),
+                ScopeId(0),
+                AbortSignal::new(),
+                PluginBudget::default(),
+            )
+            .expect_err("cancelled plugin output must be suppressed");
+        assert!(matches!(err, PluginError::Cancelled { .. }));
+    }
+
+    #[test]
+    fn plugin_abort_signal_is_the_canonical_scheduler_signal() {
+        let scheduler_signal = crate::scheduler::AbortSignal::new();
+        let plugin_signal: crate::plugin::AbortSignal = scheduler_signal.clone();
+        scheduler_signal.abort();
+        assert!(plugin_signal.is_aborted());
     }
 }

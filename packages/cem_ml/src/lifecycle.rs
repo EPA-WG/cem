@@ -5,7 +5,6 @@
 
 use crate::diagnostics::{Diagnostic, Severity};
 use crate::engine::{EngineContext, EngineInput, FormatIdentity, InputFormat, LayerFormat};
-use crate::scheduler::AbortSignal;
 use crate::schema::ir::CEM_CORE_NAMESPACE;
 use crate::schema::registry::{
     CEM_AST_JSON_PROJECTION_CONTENT_TYPE, CEM_AST_PROJECTION_CONTENT_TYPE,
@@ -672,7 +671,6 @@ impl LifecycleAdapter for ScssAdapter {
     ) -> LoadedInput {
         let (stylesheet, mut diagnostics) = parse_scss_input(input, identity);
         let document = stylesheet.and_then(|stylesheet| {
-            let abort_signal = AbortSignal::new();
             let resolver_policy_stamp = context.resolver_policy.cache_stamp();
             let safety_policy = ScssSafetyPolicy::default();
             let safety_policy_stamp = safety_policy.cache_stamp();
@@ -684,7 +682,7 @@ impl LifecycleAdapter for ScssAdapter {
                 resolver_policy_stamp: &resolver_policy_stamp,
                 safety_policy: &safety_policy,
                 safety_policy_stamp: &safety_policy_stamp,
-                abort_signal: &abort_signal,
+                abort_signal: context.abort_signal(),
                 load_paths: &load_paths,
                 limits: ScssEvaluationLimits::default(),
             });

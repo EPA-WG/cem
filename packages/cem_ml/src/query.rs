@@ -28,8 +28,8 @@ mod runtime;
 pub use runtime::{
     query_execution_limits, run_query, select_query_language, QueryOwnedBindings,
     QueryPreparationRequest, QueryPreparedOwners, QueryRunContractError, QueryRunError,
-    QueryRunFailure, QueryRunRequest, QueryRunResponse, QueryRuntimeAdapter,
-    QueryRuntimeRegistry, QuerySource,
+    QueryRunFailure, QueryRunRequest, QueryRunResponse, QueryRuntimeAdapter, QueryRuntimeRegistry,
+    QuerySource,
 };
 
 pub const CSS_SELECTOR_LANGUAGE_VERSION: &str = "selectors-4-20260122";
@@ -300,10 +300,7 @@ impl fmt::Debug for QueryExecutionResult {
             .debug_struct("QueryExecutionResult")
             .field("language", &self.language)
             .field("query_identity", &self.query_identity)
-            .field(
-                "input_ast_owner",
-                &self.input_ast_owner.representation_id(),
-            )
+            .field("input_ast_owner", &self.input_ast_owner.representation_id())
             .field("native_result", &self.native_result.representation_id())
             .field("source_map", &self.source_map)
             .finish()
@@ -875,7 +872,6 @@ mod query_execution_contract_tests {
             context_item: None,
             bindings: QueryOwnedBindings::new(),
             limits: None,
-            abort_signal: AbortSignal::new(),
         }
     }
 
@@ -1081,7 +1077,7 @@ mod query_execution_contract_tests {
             b"book",
             identity(CSS_SELECTOR_CONTENT_TYPE, CSS_SELECTOR_SCHEMA_URI),
         );
-        aborted.abort_signal.abort();
+        aborted.context.abort_signal().abort();
         let Err(QueryRunError::Execution(failure)) = run_query(aborted) else {
             panic!("pre-aborted query must return a typed execution failure");
         };

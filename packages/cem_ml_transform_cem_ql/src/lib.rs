@@ -81,8 +81,8 @@ use cem_ml::validation::json::{
 };
 use cem_ml::validation::xml::{XmlAttributeAst, XmlDocumentAst, XmlEventAst};
 use cem_ql::api::{
-    compile, compile_expression, evaluate, CompileContext, CompiledExpression, EvaluationContext,
-    ParseResult, StandaloneExpressionBinding, StandaloneExpressionContext,
+    compile, compile_expression, evaluate, evaluate_with_abort, CompileContext, CompiledExpression,
+    EvaluationContext, ParseResult, StandaloneExpressionBinding, StandaloneExpressionContext,
 };
 use cem_ql::eval::{
     AtomValue, BudgetAxis, EvalError, Item, ItemStream, QueryContextScope, QueryItemView,
@@ -5811,7 +5811,7 @@ impl QueryEvaluatorAdapter for CemQlQueryEvaluator {
                 "CEM-QL query host bindings require package-owned typed item artifacts",
             )]);
         }
-        let mut stream = evaluate(
+        let mut stream = evaluate_with_abort(
             &query.compiled.query,
             &EvaluationContext {
                 scope: QueryContextScope(0),
@@ -5820,7 +5820,18 @@ impl QueryEvaluatorAdapter for CemQlQueryEvaluator {
                 policy_bindings: BTreeMap::from([("input".to_owned(), input.stream().clone())]),
                 current_item: None,
             },
+            request.abort_signal,
         );
+        if request.abort_signal.is_aborted() {
+            return Err(vec![cem_ml::diagnostics::Diagnostic {
+                source_map: request.abort_signal.source_map(),
+                ..cem_ql_query_diagnostic(
+                    query.source_uri(),
+                    "cem.ql.query_cancelled",
+                    "CEM-QL query execution was cancelled by the host",
+                )
+            }]);
+        }
         let mut diagnostics = diagnostics_with_uri(&stream.diagnostics, query.source_uri());
         if let Some(error) = stream.error.as_ref() {
             diagnostics.push(cem_ql_query_diagnostic(
@@ -5890,17 +5901,15 @@ impl QueryRuntimeAdapter for CemQlQueryRuntimeAdapter {
         &self,
         request: QueryPreparationRequest<'_>,
     ) -> Result<QueryPreparedOwners, Vec<Diagnostic>> {
-        let input = CemQlNativeItemsOwner::from_lifecycle(
-            request.lifecycle_owner,
-            request.input_identity,
-        )
-        .map_err(|message| {
-            vec![cem_ql_query_diagnostic(
-                request.input_uri,
-                "cem.ql.query_input_unsupported",
-                message,
-            )]
-        })?;
+        let input =
+            CemQlNativeItemsOwner::from_lifecycle(request.lifecycle_owner, request.input_identity)
+                .map_err(|message| {
+                    vec![cem_ql_query_diagnostic(
+                        request.input_uri,
+                        "cem.ql.query_input_unsupported",
+                        message,
+                    )]
+                })?;
         let query = CemQlQueryAstOwner::from_source_bytes(
             &request.query.bytes,
             &request.query.uri,
@@ -6362,6 +6371,11 @@ fn double_json(value: f64) -> Value {
 
 fn eval_error_json(error: &EvalError) -> Value {
     match error {
+        EvalError::Cancelled => json!({
+            "kind": "eval",
+            "type": "cancelled",
+            "message": "evaluation cancelled by the host",
+        }),
         EvalError::BudgetExceeded(axis) => json!({
             "kind": "eval",
             "type": "budget-exceeded",
@@ -6517,7 +6531,6 @@ mod tests {
             context_item: None,
             bindings: Default::default(),
             limits: None,
-            abort_signal: cem_ml::scheduler::AbortSignal::new(),
         })
         .expect("registered CEM-QL query runtime succeeds");
 

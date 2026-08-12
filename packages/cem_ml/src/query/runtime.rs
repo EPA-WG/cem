@@ -8,7 +8,7 @@ use crate::diagnostics::{Diagnostic, Severity};
 use crate::engine::{EngineContext, EngineInput, FormatIdentity};
 use crate::lifecycle::{LifecycleRegistry, LoadedInputAstStream};
 use crate::run_config::ScopeConfig;
-use crate::scheduler::{AbortSignal, OverflowPolicy, ScopePolicy};
+use crate::scheduler::{OverflowPolicy, ScopePolicy};
 use crate::validation::css_selector::{
     css_selector_expression_ast_from_source_bytes, CemCssSelectorEvaluator,
     CssSelectorElementTreeOwner, CssSelectorSourceRequest,
@@ -19,8 +19,7 @@ use crate::validation::xpath::{
 
 use super::{
     QueryAstOwner, QueryEvaluatorAdapter, QueryExecutionLimits, QueryExecutionRequest,
-    QueryExecutionResult, QueryInputOwner, QueryLanguage, QueryNativeArtifact,
-    QueryNativeBindings,
+    QueryExecutionResult, QueryInputOwner, QueryLanguage, QueryNativeArtifact, QueryNativeBindings,
 };
 
 pub type QueryOwnedBindings = BTreeMap<String, Arc<dyn QueryNativeArtifact>>;
@@ -40,7 +39,6 @@ pub struct QueryRunRequest {
     pub context_item: Option<Arc<dyn QueryNativeArtifact>>,
     pub bindings: QueryOwnedBindings,
     pub limits: Option<QueryExecutionLimits>,
-    pub abort_signal: AbortSignal,
 }
 
 impl fmt::Debug for QueryRunRequest {
@@ -59,7 +57,7 @@ impl fmt::Debug for QueryRunRequest {
             )
             .field("bindings", &self.bindings.keys().collect::<Vec<_>>())
             .field("limits", &self.limits)
-            .field("abort_signal", &self.abort_signal)
+            .field("operation_control", &self.context.operation_control)
             .finish()
     }
 }
@@ -243,14 +241,13 @@ impl QueryRuntimeAdapter for CssSelectorQueryRuntimeAdapter {
                 fact.message,
             )]
         })?;
-        let (query, diagnostics) = css_selector_expression_ast_from_source_bytes(
-            CssSelectorSourceRequest {
+        let (query, diagnostics) =
+            css_selector_expression_ast_from_source_bytes(CssSelectorSourceRequest {
                 bytes: &request.query.bytes,
                 source_uri: &request.query.uri,
                 content_type: request.query.identity.content_type.as_deref(),
                 namespace_bindings: &request.query.identity.namespaces,
-            },
-        );
+            });
         let query = query.ok_or_else(|| diagnostics.clone())?;
         Ok(QueryPreparedOwners {
             query_ast_owner: Arc::new(query),
@@ -279,17 +276,15 @@ impl QueryRuntimeAdapter for XPathQueryRuntimeAdapter {
         &self,
         request: QueryPreparationRequest<'_>,
     ) -> Result<QueryPreparedOwners, Vec<Diagnostic>> {
-        let input = XPathXdmTreeOwner::from_lifecycle(
-            request.lifecycle_owner,
-            request.input_identity,
-        )
-        .map_err(|message| {
-            vec![fatal_diagnostic(
-                request.input_uri,
-                "cem.xpath.query_input_unsupported",
-                message,
-            )]
-        })?;
+        let input =
+            XPathXdmTreeOwner::from_lifecycle(request.lifecycle_owner, request.input_identity)
+                .map_err(|message| {
+                    vec![fatal_diagnostic(
+                        request.input_uri,
+                        "cem.xpath.query_input_unsupported",
+                        message,
+                    )]
+                })?;
         let (query, diagnostics) = XPathQueryAstOwner::from_source_bytes(
             XPathSourceRequest {
                 bytes: &request.query.bytes,
@@ -353,8 +348,19 @@ pub fn query_execution_limits(
 }
 
 pub fn run_query(request: QueryRunRequest) -> Result<QueryRunResponse, QueryRunError> {
-    let language = select_query_language(&request.query.identity).map_err(QueryRunError::Contract)?;
+    let language =
+        select_query_language(&request.query.identity).map_err(QueryRunError::Contract)?;
     let inputs = [request.data.uri.clone(), request.query.uri.clone()];
+    if request.context.abort_signal().is_aborted() {
+        return Err(execution_failure(
+            language,
+            inputs,
+            vec![query_cancelled_diagnostic(
+                &request.data.uri,
+                request.context.abort_signal(),
+            )],
+        ));
+    }
     let input_identity = request
         .data
         .identity
@@ -407,6 +413,13 @@ pub fn run_query(request: QueryRunRequest) -> Result<QueryRunResponse, QueryRunE
         }
     };
     diagnostics.extend(prepared.diagnostics);
+    if request.context.abort_signal().is_aborted() {
+        diagnostics.push(query_cancelled_diagnostic(
+            &request.query.uri,
+            request.context.abort_signal(),
+        ));
+        return Err(execution_failure(language, inputs, diagnostics));
+    }
     if has_hard_violation(&diagnostics) {
         return Err(execution_failure(language, inputs, diagnostics));
     }
@@ -428,7 +441,7 @@ pub fn run_query(request: QueryRunRequest) -> Result<QueryRunResponse, QueryRunE
         resolver_policy_stamp: &resolver_policy_stamp,
         safety_policy_stamp: &safety_policy_stamp,
         scope_policy: &scope_policy,
-        abort_signal: &request.abort_signal,
+        abort_signal: request.context.abort_signal(),
         limits,
     }) {
         Ok(result) => result,
@@ -437,6 +450,14 @@ pub fn run_query(request: QueryRunRequest) -> Result<QueryRunResponse, QueryRunE
             return Err(execution_failure(language, inputs, diagnostics));
         }
     };
+
+    if request.context.abort_signal().is_aborted() {
+        diagnostics.push(query_cancelled_diagnostic(
+            &request.query.uri,
+            request.context.abort_signal(),
+        ));
+        return Err(execution_failure(language, inputs, diagnostics));
+    }
 
     Ok(QueryRunResponse {
         language,
@@ -513,6 +534,20 @@ fn fatal_diagnostic(uri: &str, code: &str, message: impl Into<String>) -> Diagno
         severity: Severity::Fatal,
         message: message.into(),
         ..Diagnostic::default()
+    }
+}
+
+fn query_cancelled_diagnostic(
+    uri: &str,
+    abort_signal: &crate::scheduler::AbortSignal,
+) -> Diagnostic {
+    Diagnostic {
+        source_map: abort_signal.source_map(),
+        ..fatal_diagnostic(
+            uri,
+            "cem.query.cancelled",
+            "query execution was aborted by the host",
+        )
     }
 }
 

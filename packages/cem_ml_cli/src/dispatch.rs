@@ -42,6 +42,7 @@ pub const EXIT_USAGE_OR_RESERVED: u8 = 2;
 pub const EXIT_SCHEMA: u8 = 3;
 pub const EXIT_IO: u8 = 6;
 pub const EXIT_INTERNAL: u8 = 7;
+pub const EXIT_CANCELLED: u8 = 130;
 
 pub struct Outcome {
     pub exit_code: u8,
@@ -61,6 +62,8 @@ pub struct Streams<'a> {
     pub stderr: &'a mut dyn Write,
     pub quiet: bool,
     pub no_color: bool,
+    /// One host-owned signal shared by all phases of this dispatch.
+    pub abort_signal: cem_ml::scheduler::AbortSignal,
 }
 
 enum CliRequestError {
@@ -386,12 +389,13 @@ fn read_source(
     purpose: ResolvePurpose,
     content_type_hint: Option<&str>,
 ) -> io::Result<ResolvedRead> {
+    ensure_context_active_io(context)?;
     let raw = path.to_string_lossy();
     if raw.starts_with("file://") {
         if let Some(path) = local_file_uri_to_path(&raw) {
             return Ok(ResolvedRead {
                 uri: raw.into_owned(),
-                bytes: fs::read(path)?,
+                bytes: read_local_bytes(context, &path)?,
                 content_type: None,
             });
         }
@@ -416,9 +420,22 @@ fn read_source(
 
     Ok(ResolvedRead {
         uri: raw.into_owned(),
-        bytes: fs::read(path)?,
+        bytes: read_local_bytes(context, path)?,
         content_type: None,
     })
+}
+
+fn ensure_context_active_io(context: &eng::EngineContext) -> io::Result<()> {
+    context
+        .ensure_active()
+        .map_err(|error| io::Error::new(io::ErrorKind::Interrupted, error))
+}
+
+fn read_local_bytes(context: &eng::EngineContext, path: &Path) -> io::Result<Vec<u8>> {
+    ensure_context_active_io(context)?;
+    let bytes = fs::read(path)?;
+    ensure_context_active_io(context)?;
+    Ok(bytes)
 }
 
 fn read_registered_source(
@@ -431,9 +448,15 @@ fn read_registered_source(
     if let Some(content_type_hint) = content_type_hint {
         request = request.with_content_type_hint(content_type_hint);
     }
-    match context.resolver_registry.read(&request) {
+    match context
+        .resolver_registry
+        .read_with_abort(&request, context.abort_signal())
+    {
         Ok(read) => Ok(Some(read)),
         Err(ResolverDiagnostic::UnsupportedResolver { .. }) => Ok(None),
+        Err(error @ ResolverDiagnostic::Cancelled { .. }) => {
+            Err(io::Error::new(io::ErrorKind::Interrupted, error))
+        }
         Err(error) => Err(io::Error::other(error)),
     }
 }
@@ -452,10 +475,7 @@ fn engine_input(
         ResolvePurpose::Input,
         root_scope.default_content_type.as_deref(),
     )
-    .map_err(|e| EngineError::Io {
-        path: path.to_path_buf(),
-        source: e,
-    })?;
+    .map_err(|source| engine_io_error(context, path, source))?;
     if root_scope.default_content_type.is_none() {
         root_scope.default_content_type = read.content_type.clone();
     }
@@ -509,12 +529,7 @@ fn engine_input_from_spec(
         ResolvePurpose::Input,
         root_scope.default_content_type.as_deref(),
     )
-    .map_err(|source| {
-        CliRequestError::Engine(EngineError::Io {
-            path: path.into(),
-            source,
-        })
-    })?;
+    .map_err(|source| CliRequestError::Engine(engine_io_error(context, path, source)))?;
     if root_scope.default_content_type.is_none() {
         root_scope.default_content_type = read.content_type.clone();
     }
@@ -541,10 +556,7 @@ fn template_input(
         ResolvePurpose::Template,
         root_scope.default_content_type.as_deref(),
     )
-    .map_err(|e| EngineError::Io {
-        path: path.to_path_buf(),
-        source: e,
-    })?;
+    .map_err(|source| engine_io_error(context, path, source))?;
     if root_scope.default_content_type.is_none() {
         root_scope.default_content_type = read.content_type.clone();
     }
@@ -569,6 +581,19 @@ fn apply_schema_registry_defaults(context: &eng::EngineContext, scope: &mut Scop
     }
 }
 
+fn engine_io_error(context: &eng::EngineContext, path: &Path, source: io::Error) -> EngineError {
+    if source.kind() == io::ErrorKind::Interrupted && context.abort_signal().is_aborted() {
+        EngineError::Cancelled {
+            source_map: context.abort_signal().source_map(),
+        }
+    } else {
+        EngineError::Io {
+            path: path.to_path_buf(),
+            source,
+        }
+    }
+}
+
 fn run_config_with_context(
     context: &eng::EngineContext,
     options: &cli::RunOptions,
@@ -586,12 +611,7 @@ fn run_config_with_context(
             ResolvePurpose::Config,
             options.config_content_type.as_deref(),
         )
-        .map_err(|source| {
-            CliRequestError::Engine(EngineError::Io {
-                path: path.clone(),
-                source,
-            })
-        })?;
+        .map_err(|source| CliRequestError::Engine(engine_io_error(context, path, source)))?;
         config_base_uri = Some(
             local_config_path
                 .as_ref()
@@ -992,6 +1012,10 @@ fn context(c: &cli::ContextOptions) -> eng::EngineContext {
     context_with_template_adapters(c, true)
 }
 
+fn context_for_dispatch(c: &cli::ContextOptions, s: &Streams<'_>) -> eng::EngineContext {
+    context(c).with_abort_signal(s.abort_signal.clone())
+}
+
 fn convert_context(c: &cli::ContextOptions) -> eng::EngineContext {
     context_with_template_adapters(c, false)
 }
@@ -1033,6 +1057,14 @@ fn convert_context_with_config(c: &cli::ContextOptions, config: &RunConfig) -> e
     context
 }
 
+fn convert_context_with_config_for_dispatch(
+    c: &cli::ContextOptions,
+    config: &RunConfig,
+    s: &Streams<'_>,
+) -> eng::EngineContext {
+    convert_context_with_config(c, config).with_abort_signal(s.abort_signal.clone())
+}
+
 fn context_with_config(c: &cli::ContextOptions, config: &RunConfig) -> eng::EngineContext {
     let mut context = eng::EngineContext {
         scheduler: config.scheduler.clone(),
@@ -1045,6 +1077,14 @@ fn context_with_config(c: &cli::ContextOptions, config: &RunConfig) -> eng::Engi
         }),
     );
     context
+}
+
+fn context_with_config_for_dispatch(
+    c: &cli::ContextOptions,
+    config: &RunConfig,
+    s: &Streams<'_>,
+) -> eng::EngineContext {
+    context_with_config(c, config).with_abort_signal(s.abort_signal.clone())
 }
 
 fn register_cli_resolvers(
@@ -1143,6 +1183,16 @@ fn run_config_for_context(
     defaults: RunConfigDefaults,
 ) -> Result<RunConfig, CliRequestError> {
     let engine_context = context(context_options);
+    run_config_with_context(&engine_context, options, defaults)
+}
+
+fn run_config_for_dispatch(
+    context_options: &cli::ContextOptions,
+    options: &cli::RunOptions,
+    defaults: RunConfigDefaults,
+    s: &Streams<'_>,
+) -> Result<RunConfig, CliRequestError> {
+    let engine_context = context_for_dispatch(context_options, s);
     run_config_with_context(&engine_context, options, defaults)
 }
 
@@ -1590,12 +1640,7 @@ fn transform_graph_config_from_args(
         ResolvePurpose::Config,
         args.config_content_type.as_deref(),
     )
-    .map_err(|source| {
-        CliRequestError::Engine(EngineError::Io {
-            path: config_path.clone(),
-            source,
-        })
-    })?;
+    .map_err(|source| CliRequestError::Engine(engine_io_error(context, config_path, source)))?;
     let identity = eng::FormatIdentity {
         content_type: args
             .config_content_type
@@ -1888,13 +1933,10 @@ fn transform_graph_expand_import_paths(
     let parent = transform_graph_glob_parent(&pattern_path);
 
     let (prefix, suffix) = pattern_file.split_once('*').unwrap_or(("", ""));
-    let matches =
-        transform_graph_collect_import_glob_matches(&parent, prefix, suffix).map_err(|source| {
-            CliRequestError::Engine(EngineError::Io {
-                path: parent.clone(),
-                source,
-            })
-        })?;
+    context.ensure_active().map_err(CliRequestError::Engine)?;
+    let matches = transform_graph_collect_import_glob_matches(&parent, prefix, suffix)
+        .map_err(|source| CliRequestError::Engine(engine_io_error(context, &parent, source)))?;
+    context.ensure_active().map_err(CliRequestError::Engine)?;
     if matches.is_empty() {
         return Err(transform_config_error(
             config_source_uri,
@@ -1921,7 +1963,10 @@ fn transform_graph_expand_resolver_import_paths(
     transform_graph_validate_import_glob(raw, config_source_uri)?;
     let request = ResolveListRequest::new(raw, ResolvePurpose::Input)
         .with_max_entries(TRANSFORM_GRAPH_IMPORT_GLOB_MAX_ENTRIES + 1);
-    let mut entries = match context.resolver_registry.list(&request) {
+    let mut entries = match context
+        .resolver_registry
+        .list_with_abort(&request, context.abort_signal())
+    {
         Ok(entries) => entries,
         Err(ResolverDiagnostic::UnsupportedResolver { .. }) => {
             return Err(transform_config_error(
@@ -1929,6 +1974,11 @@ fn transform_graph_expand_resolver_import_paths(
                 "cem.transform_config.import_glob_resolver_unsupported",
                 format!("import glob `{raw}` requires a resolver with list support"),
             ));
+        }
+        Err(ResolverDiagnostic::Cancelled { source_map, .. }) => {
+            return Err(CliRequestError::Engine(EngineError::Cancelled {
+                source_map,
+            }));
         }
         Err(error) => {
             return Err(transform_config_error(
@@ -2112,12 +2162,7 @@ fn transform_graph_importmap_imports(
         ResolvePurpose::ModuleMap,
         Some("application/importmap+json"),
     )
-    .map_err(|source| {
-        CliRequestError::Engine(EngineError::Io {
-            path: path.clone(),
-            source,
-        })
-    })?;
+    .map_err(|source| CliRequestError::Engine(engine_io_error(context, &path, source)))?;
     let value: serde_json::Value = serde_json::from_slice(&read.bytes).map_err(|error| {
         CliRequestError::Usage(format!(
             "importmap `{}` is not valid JSON: {error}",
@@ -3005,7 +3050,7 @@ fn run_convert_fanout<E: CemMlEngine + ?Sized>(
         );
     }
 
-    let engine_context = convert_context_with_config(&args.context, config);
+    let engine_context = convert_context_with_config_for_dispatch(&args.context, config, s);
     let inputs = match convert_configured_inputs(&engine_context, args, config, positional_defaults)
     {
         Ok(inputs) => inputs,
@@ -3237,6 +3282,12 @@ fn handle_engine_error(err: EngineError, s: &mut Streams<'_>) -> Outcome {
             }
             Outcome::ok()
         }
+        EngineError::Cancelled { .. } => {
+            if !s.quiet {
+                let _ = writeln!(s.stderr, "cem-ml: operation cancelled");
+            }
+            Outcome::code(EXIT_CANCELLED)
+        }
         EngineError::Io { .. } => {
             let _ = writeln!(s.stderr, "cem-ml: {err}");
             Outcome::code(EXIT_IO)
@@ -3336,6 +3387,7 @@ fn write_primary_with_bytes_with_console_color(
     output_color_type: Option<&str>,
     s: &mut Streams<'_>,
 ) -> io::Result<()> {
+    ensure_context_active_io(context)?;
     if let Some(primary_bytes) = primary_bytes {
         return write_primary_bytes_with_console_color(
             context,
@@ -3380,6 +3432,7 @@ fn write_primary_bytes_with_console_color(
     output_color_type: Option<&str>,
     s: &mut Streams<'_>,
 ) -> io::Result<()> {
+    ensure_context_active_io(context)?;
     match out {
         Some(_) => write_raw_primary_bytes(context, &primary_bytes.bytes, out, s),
         None => {
@@ -3541,6 +3594,7 @@ fn write_raw_primary_bytes(
     out: Option<&Path>,
     s: &mut Streams<'_>,
 ) -> io::Result<()> {
+    ensure_context_active_io(context)?;
     match out {
         Some(path) => write_destination(
             context,
@@ -3581,6 +3635,7 @@ fn write_document_primary_with_identity(
     output_color_type: Option<&str>,
     s: &mut Streams<'_>,
 ) -> io::Result<()> {
+    ensure_context_active_io(context)?;
     let body = document_primary_bytes(primary, identity)?;
     match out {
         Some(path) => write_destination(
@@ -4164,6 +4219,7 @@ fn write_destination(
     purpose: ResolvePurpose,
     contents: &[u8],
 ) -> io::Result<()> {
+    ensure_context_active_io(context)?;
     let raw = path.to_string_lossy();
     if raw.starts_with("file://") {
         if let Some(path) = local_file_uri_to_path(&raw) {
@@ -4207,9 +4263,15 @@ fn write_registered_destination(
     contents: &[u8],
 ) -> io::Result<bool> {
     let request = ResolveRequest::new(uri, purpose, ResolveDirection::Write);
-    match context.resolver_registry.write(&request, contents) {
+    match context
+        .resolver_registry
+        .write_with_abort(&request, contents, context.abort_signal())
+    {
         Ok(_) => Ok(true),
         Err(ResolverDiagnostic::UnsupportedResolver { .. }) => Ok(false),
+        Err(error @ ResolverDiagnostic::Cancelled { .. }) => {
+            Err(io::Error::new(io::ErrorKind::Interrupted, error))
+        }
         Err(error) => Err(io::Error::other(error)),
     }
 }
@@ -5605,10 +5667,7 @@ fn materialize_fixture_input(
         ResolvePurpose::Input,
         input.root_scope.default_content_type.as_deref(),
     )
-    .map_err(|source| EngineError::Io {
-        path: input.uri.clone().into(),
-        source,
-    })?;
+    .map_err(|source| engine_io_error(context, &path, source))?;
     let mut root_scope = input.root_scope.clone();
     if root_scope.default_content_type.is_none() {
         root_scope.default_content_type = read.content_type;
@@ -5862,7 +5921,7 @@ fn handle_run_config_diagnostics_report(
         diagnostics,
         report_options_snapshot(fail_level, context),
     );
-    let engine_context = self::context(context);
+    let engine_context = context_for_dispatch(context, s);
     if let Err(e) = write_report_files(&engine_context, &report, report_opts, basename) {
         let _ = writeln!(s.stderr, "cem-ml: report write failure: {e}");
         return Outcome::code(EXIT_IO);
@@ -6941,7 +7000,7 @@ pub fn run_parse<E: CemMlEngine + ?Sized>(
     s: &mut Streams<'_>,
 ) -> Outcome {
     let input_defaults = input_scope_defaults(&args.context);
-    let config = match run_config_for_context(
+    let config = match run_config_for_dispatch(
         &args.context,
         &args.run,
         run_defaults_with_input_alias(
@@ -6949,6 +7008,7 @@ pub fn run_parse<E: CemMlEngine + ?Sized>(
             ScopeConfig::default(),
             args.from_format,
         ),
+        s,
     ) {
         Ok(config) => config,
         Err(CliRequestError::RunConfigDiagnostics {
@@ -6967,7 +7027,7 @@ pub fn run_parse<E: CemMlEngine + ?Sized>(
         }
         Err(err) => return handle_cli_request_error(err, s),
     };
-    let engine_context = context_with_config(&args.context, &config);
+    let engine_context = context_with_config_for_dispatch(&args.context, &config, s);
     let input = match single_configured_input(
         &engine_context,
         args.input.as_deref(),
@@ -7030,7 +7090,7 @@ pub fn run_validate<E: CemMlEngine + ?Sized>(
     s: &mut Streams<'_>,
 ) -> Outcome {
     let input_defaults = input_scope_defaults(&args.context);
-    let config = match run_config_for_context(
+    let config = match run_config_for_dispatch(
         &args.context,
         &args.run,
         run_defaults_with_input_alias(
@@ -7038,6 +7098,7 @@ pub fn run_validate<E: CemMlEngine + ?Sized>(
             ScopeConfig::default(),
             args.from_format,
         ),
+        s,
     ) {
         Ok(config) => config,
         Err(CliRequestError::RunConfigDiagnostics {
@@ -7056,7 +7117,7 @@ pub fn run_validate<E: CemMlEngine + ?Sized>(
         }
         Err(err) => return handle_cli_request_error(err, s),
     };
-    let engine_context = context_with_config(&args.context, &config);
+    let engine_context = context_with_config_for_dispatch(&args.context, &config, s);
     let inputs = match collect_configured_inputs(
         &engine_context,
         &args.inputs,
@@ -7131,7 +7192,7 @@ pub fn run_check<E: CemMlEngine + ?Sized>(
     s: &mut Streams<'_>,
 ) -> Outcome {
     let input_defaults = input_scope_defaults(&args.context);
-    let config = match run_config_for_context(
+    let config = match run_config_for_dispatch(
         &args.context,
         &args.run,
         run_defaults_with_input_alias(
@@ -7139,6 +7200,7 @@ pub fn run_check<E: CemMlEngine + ?Sized>(
             ScopeConfig::default(),
             args.from_format,
         ),
+        s,
     ) {
         Ok(config) => config,
         Err(CliRequestError::RunConfigDiagnostics {
@@ -7157,7 +7219,7 @@ pub fn run_check<E: CemMlEngine + ?Sized>(
         }
         Err(err) => return handle_cli_request_error(err, s),
     };
-    let engine_context = context_with_config(&args.context, &config);
+    let engine_context = context_with_config_for_dispatch(&args.context, &config, s);
     let inputs = match collect_configured_inputs(
         &engine_context,
         &args.inputs,
@@ -7240,7 +7302,7 @@ pub fn run_inspect<E: CemMlEngine + ?Sized>(
     s: &mut Streams<'_>,
 ) -> Outcome {
     let input_defaults = input_scope_defaults(&args.context);
-    let config = match run_config_for_context(
+    let config = match run_config_for_dispatch(
         &args.context,
         &args.run,
         run_defaults_with_input_alias(
@@ -7248,11 +7310,12 @@ pub fn run_inspect<E: CemMlEngine + ?Sized>(
             ScopeConfig::default(),
             args.from_format,
         ),
+        s,
     ) {
         Ok(config) => config,
         Err(err) => return handle_cli_request_error(err, s),
     };
-    let engine_context = context_with_config(&args.context, &config);
+    let engine_context = context_with_config_for_dispatch(&args.context, &config, s);
     let input = match single_configured_input(
         &engine_context,
         args.input.as_deref(),
@@ -7290,7 +7353,7 @@ pub fn run_convert<E: CemMlEngine + ?Sized>(
     }
     let input_defaults = input_scope_defaults(&args.context);
     let output_defaults = output_scope_defaults(&args);
-    let config = match run_config_for_context(
+    let config = match run_config_for_dispatch(
         &args.context,
         &args.run,
         run_defaults_with_aliases(
@@ -7299,6 +7362,7 @@ pub fn run_convert<E: CemMlEngine + ?Sized>(
             args.from_format,
             args.to_format,
         ),
+        s,
     ) {
         Ok(config) => config,
         Err(CliRequestError::RunConfigDiagnostics {
@@ -7320,7 +7384,7 @@ pub fn run_convert<E: CemMlEngine + ?Sized>(
     if !config.outputs.is_empty() {
         return run_convert_fanout(engine, &args, &config, &input_defaults, s);
     }
-    let engine_context = convert_context_with_config(&args.context, &config);
+    let engine_context = convert_context_with_config_for_dispatch(&args.context, &config, s);
     let input = match single_configured_input(
         &engine_context,
         args.input.as_deref(),
@@ -7735,7 +7799,7 @@ fn query_failure(
 }
 
 pub fn run_query(args: cli::QueryArgs, s: &mut Streams<'_>) -> Outcome {
-    let engine_context = context(&args.context);
+    let engine_context = context_for_dispatch(&args.context, s);
     let input_scope = input_scope_defaults(&args.context);
     let input = match engine_input(
         &engine_context,
@@ -7755,7 +7819,9 @@ pub fn run_query(args: cli::QueryArgs, s: &mut Streams<'_>) -> Outcome {
     };
     let language = match cem_ml::query::select_query_language(&query_identity) {
         Ok(language) => language,
-        Err(error) => return handle_cli_request_error(CliRequestError::Usage(error.to_string()), s),
+        Err(error) => {
+            return handle_cli_request_error(CliRequestError::Usage(error.to_string()), s)
+        }
     };
     let (query_uri, query_bytes) = if let Some(source) = args.query.as_deref() {
         (
@@ -7797,7 +7863,6 @@ pub fn run_query(args: cli::QueryArgs, s: &mut Streams<'_>) -> Outcome {
         context_item: None,
         bindings: Default::default(),
         limits: None,
-        abort_signal: cem_ml::scheduler::AbortSignal::new(),
     }) {
         Ok(response) => response,
         Err(QueryRunError::Contract(error)) => {
@@ -7840,26 +7905,23 @@ pub fn run_query(args: cli::QueryArgs, s: &mut Streams<'_>) -> Outcome {
                 "cem.query.exporter_unavailable",
                 message,
             ));
-            return query_failure(
-                &engine_context,
-                &args,
-                query_inputs,
-                diagnostics,
-                s,
-            );
+            return query_failure(&engine_context, &args, query_inputs, diagnostics, s);
         }
     };
-    if let Err(error) = write_query_report(
-        &engine_context,
-        &args,
-        query_inputs,
-        diagnostics.clone(),
-    ) {
+    if let Err(error) = engine_context.ensure_active() {
+        return handle_engine_error(error, s);
+    }
+    if let Err(error) =
+        write_query_report(&engine_context, &args, query_inputs, diagnostics.clone())
+    {
         let _ = writeln!(s.stderr, "cem-ml: query report write failure: {error}");
         return Outcome::code(EXIT_IO);
     }
     if !report_requested(&args.report) {
         write_diagnostics(&diagnostics, s);
+    }
+    if let Err(error) = engine_context.ensure_active() {
+        return handle_engine_error(error, s);
     }
     let write_result = if let Some(path) = args.out.as_deref() {
         write_destination(
@@ -7891,7 +7953,7 @@ fn run_transform_graph<E: CemMlEngine + ?Sized>(
     args: &cli::TransformArgs,
     s: &mut Streams<'_>,
 ) -> Outcome {
-    let engine_context = context(&args.context);
+    let engine_context = context_for_dispatch(&args.context, s);
     let (req, config_source_uri) = match transform_graph_request_from_args(&engine_context, args) {
         Ok(req) => req,
         Err(err) => return handle_cli_request_error(err, s),
@@ -7960,7 +8022,7 @@ pub fn run_transform<E: CemMlEngine + ?Sized>(
     if args.config.is_some() {
         return run_transform_graph(engine, &args, s);
     }
-    let engine_context = context(&args.context);
+    let engine_context = context_for_dispatch(&args.context, s);
     let req = match transform_request_from_args(&engine_context, &args) {
         Ok(req) => req,
         Err(err) => return handle_cli_request_error(err, s),
@@ -8032,7 +8094,7 @@ pub fn run_trace<E: CemMlEngine + ?Sized>(
     s: &mut Streams<'_>,
 ) -> Outcome {
     let input_defaults = input_scope_defaults(&args.context);
-    let config = match run_config_for_context(
+    let config = match run_config_for_dispatch(
         &args.context,
         &args.run,
         run_defaults_with_input_alias(
@@ -8040,11 +8102,12 @@ pub fn run_trace<E: CemMlEngine + ?Sized>(
             ScopeConfig::default(),
             args.from_format,
         ),
+        s,
     ) {
         Ok(config) => config,
         Err(err) => return handle_cli_request_error(err, s),
     };
-    let engine_context = context_with_config(&args.context, &config);
+    let engine_context = context_with_config_for_dispatch(&args.context, &config, s);
     let input = match single_configured_input(
         &engine_context,
         args.input.as_deref(),
@@ -8078,10 +8141,11 @@ pub fn run_bench<E: CemMlEngine + ?Sized>(
     s: &mut Streams<'_>,
 ) -> Outcome {
     let input_defaults = input_scope_defaults(&args.context);
-    let config = match run_config_for_context(
+    let config = match run_config_for_dispatch(
         &args.context,
         &args.run,
         run_defaults(input_defaults.clone(), ScopeConfig::default()),
+        s,
     ) {
         Ok(config) => config,
         Err(CliRequestError::RunConfigDiagnostics {
@@ -8100,7 +8164,7 @@ pub fn run_bench<E: CemMlEngine + ?Sized>(
         }
         Err(err) => return handle_cli_request_error(err, s),
     };
-    let engine_context = context_with_config(&args.context, &config);
+    let engine_context = context_with_config_for_dispatch(&args.context, &config, s);
     let inputs = match collect_configured_inputs(
         &engine_context,
         &args.inputs,
@@ -8153,10 +8217,11 @@ pub fn run_fixture_validate<E: CemMlEngine + ?Sized>(
     s: &mut Streams<'_>,
 ) -> Outcome {
     let input_defaults = input_scope_defaults(&args.context);
-    let config = match run_config_for_context(
+    let config = match run_config_for_dispatch(
         &args.context,
         &args.run,
         run_defaults(input_defaults.clone(), ScopeConfig::default()),
+        s,
     ) {
         Ok(config) => config,
         Err(CliRequestError::RunConfigDiagnostics {
@@ -8175,7 +8240,7 @@ pub fn run_fixture_validate<E: CemMlEngine + ?Sized>(
         }
         Err(err) => return handle_cli_request_error(err, s),
     };
-    let engine_context = context_with_config(&args.context, &config);
+    let engine_context = context_with_config_for_dispatch(&args.context, &config, s);
     let mut inputs =
         collect_fixture_inputs(&args.inputs, config.inputs.is_empty(), &input_defaults);
     for spec in &config.inputs {
@@ -8229,10 +8294,11 @@ pub fn run_fixture_roundtrip<E: CemMlEngine + ?Sized>(
     s: &mut Streams<'_>,
 ) -> Outcome {
     let input_defaults = input_scope_defaults(&args.context);
-    let config = match run_config_for_context(
+    let config = match run_config_for_dispatch(
         &args.context,
         &args.run,
         run_defaults(input_defaults.clone(), ScopeConfig::default()),
+        s,
     ) {
         Ok(config) => config,
         Err(CliRequestError::RunConfigDiagnostics {
@@ -8251,7 +8317,7 @@ pub fn run_fixture_roundtrip<E: CemMlEngine + ?Sized>(
         }
         Err(err) => return handle_cli_request_error(err, s),
     };
-    let engine_context = context_with_config(&args.context, &config);
+    let engine_context = context_with_config_for_dispatch(&args.context, &config, s);
     let mut inputs =
         collect_fixture_inputs(&args.inputs, config.inputs.is_empty(), &input_defaults);
     for spec in &config.inputs {
@@ -8618,6 +8684,7 @@ mod tests {
                 stderr: &mut stderr,
                 quiet,
                 no_color,
+                abort_signal: cem_ml::scheduler::AbortSignal::new(),
             };
             dispatch(engine, parsed, &mut s)
         };
@@ -8626,6 +8693,31 @@ mod tests {
             String::from_utf8(stdout.into_inner()).unwrap(),
             String::from_utf8(stderr.into_inner()).unwrap(),
         )
+    }
+
+    #[test]
+    fn pre_cancelled_dispatch_suppresses_command_execution_and_output() {
+        let parsed = parse_cli(&["version"]);
+        let abort_signal = cem_ml::scheduler::AbortSignal::new();
+        abort_signal.abort();
+        let mut stdout = Cursor::new(Vec::new());
+        let mut stderr = Cursor::new(Vec::new());
+        let outcome = {
+            let mut streams = Streams {
+                stdout: &mut stdout,
+                stderr: &mut stderr,
+                quiet: false,
+                no_color: true,
+                abort_signal,
+            };
+            dispatch(&FakeEngine, parsed, &mut streams)
+        };
+
+        assert_eq!(outcome.exit_code, EXIT_CANCELLED);
+        assert!(stdout.into_inner().is_empty());
+        assert!(String::from_utf8(stderr.into_inner())
+            .expect("stderr is UTF-8")
+            .contains("operation cancelled"));
     }
 
     fn write_fixture(name: &str, body: &str) -> PathBuf {
@@ -9942,6 +10034,7 @@ mod tests {
             stderr: &mut stderr,
             quiet: false,
             no_color: false,
+            abort_signal: cem_ml::scheduler::AbortSignal::new(),
         };
 
         write_document_primary(
@@ -9972,6 +10065,7 @@ mod tests {
             stderr: &mut stderr,
             quiet: false,
             no_color: false,
+            abort_signal: cem_ml::scheduler::AbortSignal::new(),
         };
 
         write_document_primary(
@@ -10021,6 +10115,7 @@ mod tests {
             stderr: &mut stderr,
             quiet: false,
             no_color: false,
+            abort_signal: cem_ml::scheduler::AbortSignal::new(),
         };
 
         write_transform_graph_artifacts(
@@ -10093,6 +10188,7 @@ mod tests {
             stderr: &mut stderr,
             quiet: false,
             no_color: false,
+            abort_signal: cem_ml::scheduler::AbortSignal::new(),
         };
 
         write_transform_graph_artifacts(
@@ -10207,6 +10303,7 @@ mod tests {
             stderr: &mut stderr,
             quiet: false,
             no_color: false,
+            abort_signal: cem_ml::scheduler::AbortSignal::new(),
         };
 
         write_transform_graph_artifacts(
@@ -10289,6 +10386,7 @@ mod tests {
             stderr: &mut stderr,
             quiet: false,
             no_color: false,
+            abort_signal: cem_ml::scheduler::AbortSignal::new(),
         };
 
         write_transform_graph_artifacts(
@@ -18152,6 +18250,7 @@ start =
             stderr: &mut stderr,
             quiet: false,
             no_color: false,
+            abort_signal: cem_ml::scheduler::AbortSignal::new(),
         };
 
         write_primary(
@@ -18177,6 +18276,7 @@ start =
             stderr: &mut stderr,
             quiet: false,
             no_color: false,
+            abort_signal: cem_ml::scheduler::AbortSignal::new(),
         };
         let response = eng::ConvertResponse {
             primary: serde_json::json!({"kind": "not-binary-envelope"}),
@@ -18215,6 +18315,7 @@ start =
             stderr: &mut stderr,
             quiet: false,
             no_color: false,
+            abort_signal: cem_ml::scheduler::AbortSignal::new(),
         };
 
         write_primary(
@@ -24223,6 +24324,7 @@ fn emit_observability_events(
         Ok(v) => v,
         Err(_) => return Ok(()),
     };
+    let context = context.with_abort_signal(s.abort_signal.clone());
     if inputs.is_empty() {
         return Ok(());
     }
@@ -24285,6 +24387,14 @@ pub fn dispatch<E: CemMlEngine + ?Sized>(
     parsed: cli::Cli,
     s: &mut Streams<'_>,
 ) -> Outcome {
+    if s.abort_signal.is_aborted() {
+        return handle_engine_error(
+            EngineError::Cancelled {
+                source_map: s.abort_signal.source_map(),
+            },
+            s,
+        );
+    }
     if let Some(observe_path) = parsed.observe_events.as_ref() {
         if let Err(e) = emit_observability_events(&parsed.command, observe_path, s) {
             let _ = writeln!(s.stderr, "cem-ml: --observe-events failed: {e}");

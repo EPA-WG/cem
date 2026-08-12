@@ -9992,6 +9992,7 @@ impl QueryEvaluatorAdapter for CemXPathQueryEvaluator {
             (None, None) => None,
         };
         let evaluator = CemXPathEvaluator::default();
+        let abort_signal = request.abort_signal;
         let result = evaluator.evaluate(XPathEvaluationRequest {
             invocation_host: XPathInvocationHost::Query,
             expression: query.expression(),
@@ -10010,6 +10011,15 @@ impl QueryEvaluatorAdapter for CemXPathQueryEvaluator {
             evaluation_limits: XPathEvaluationLimits { max_sequence_items },
             safety_policy_stamp: request.safety_policy_stamp,
         })?;
+        if abort_signal.is_aborted() {
+            return Err(vec![Diagnostic {
+                source_map: abort_signal.source_map(),
+                ..xpath_query_diagnostic(
+                    Some(query.source_uri()),
+                    "XPath query execution was cancelled by the host",
+                )
+            }]);
+        }
         let source_map = result.source_map.clone();
         let native_result: Arc<dyn QueryNativeResult> = Arc::new(result);
         QueryExecutionResult::new(

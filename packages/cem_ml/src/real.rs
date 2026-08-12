@@ -2388,6 +2388,15 @@ fn scheduler_policy_from_context(context: &EngineContext) -> crate::scheduler::S
     policy
 }
 
+fn scheduler_dispatch_error(error: crate::scheduler::QueueError) -> EngineError {
+    match error {
+        crate::scheduler::QueueError::Cancelled { source_map, .. } => {
+            EngineError::Cancelled { source_map }
+        }
+        error => EngineError::Internal(format!("scheduler dispatch failed: {error}")),
+    }
+}
+
 fn scheduler_policy_for_scope(
     context: &EngineContext,
     uri: &str,
@@ -4567,6 +4576,15 @@ fn template_import_resolution_diagnostic_kind(
             contract: "import-target-must-resolve",
             reason: "read-failed".to_owned(),
         },
+        TemplateImportReadError::Resolver {
+            error: ResolverDiagnostic::Cancelled { .. },
+            ..
+        } => TemplateImportResolutionDiagnosticKind {
+            code: CEM_TEMPLATE_IMPORT_UNRESOLVED_CODE,
+            fact_kind: "cancelled-import",
+            contract: "host-cancellation-is-terminal",
+            reason: "operation-cancelled".to_owned(),
+        },
     }
 }
 
@@ -4624,7 +4642,8 @@ fn template_import_scheme_tier(uri: &str) -> &'static str {
 
 fn resolver_diagnostic_uri(error: &ResolverDiagnostic) -> &str {
     match error {
-        ResolverDiagnostic::UnsupportedResolver { uri, .. }
+        ResolverDiagnostic::Cancelled { uri, .. }
+        | ResolverDiagnostic::UnsupportedResolver { uri, .. }
         | ResolverDiagnostic::NonLocalFileUri { uri }
         | ResolverDiagnostic::InvalidFileUri { uri, .. }
         | ResolverDiagnostic::Io { uri, .. } => uri.as_str(),
@@ -4793,7 +4812,10 @@ fn read_registered_template_import(
     if let Some(content_type_hint) = content_type_hint {
         request = request.with_content_type_hint(content_type_hint);
     }
-    match context.resolver_registry.read(&request) {
+    match context
+        .resolver_registry
+        .read_with_abort(&request, context.abort_signal())
+    {
         Ok(read) => Ok(Some(read)),
         Err(ResolverDiagnostic::UnsupportedResolver { .. }) => Ok(None),
         Err(error) => Err(error),
@@ -8256,9 +8278,10 @@ fn run_scheduled_validation_documents(
     budget_aliases: &[&str],
 ) -> EngineResult<(Vec<Diagnostic>, crate::scheduler::SchedulerTrace)> {
     let trace = crate::scheduler::SchedulerTrace::new();
-    let abort = crate::scheduler::AbortSignal::new();
+    let abort = context.abort_signal().clone();
     let mut all_diags: Vec<Diagnostic> = Vec::new();
     for (index, input) in inputs.iter().enumerate() {
+        context.ensure_active()?;
         let started_at = Instant::now();
         let mut input_diags: Vec<Diagnostic> = Vec::new();
         let (policy, mut policy_diagnostics) =
@@ -8267,9 +8290,7 @@ fn run_scheduled_validation_documents(
         let pool = crate::scheduler::WorkerPool::new(index as u32, policy, trace.clone());
         for task in ["lifecycle-load", "parse-validate"] {
             pool.submit(format!("{}:{task}", input.uri), &abort)
-                .map_err(|err| {
-                    EngineError::Internal(format!("scheduler dispatch failed: {err}"))
-                })?;
+                .map_err(scheduler_dispatch_error)?;
         }
         let mut loaded_input: Option<LoadedInput> = None;
         let mut source_bytes_for_projection: Option<Vec<u8>> = None;
@@ -8327,6 +8348,7 @@ fn run_scheduled_validation_documents(
                 input_diags.extend(run.diagnostics);
             }
         });
+        context.ensure_active()?;
         input_diags.extend(time_budget_diagnostics(
             &input.root_scope,
             budget_aliases,
@@ -8533,7 +8555,10 @@ fn read_registered_resource(
     if let Some(content_type_hint) = content_type_hint {
         request = request.with_content_type_hint(content_type_hint);
     }
-    match context.resolver_registry.read(&request) {
+    match context
+        .resolver_registry
+        .read_with_abort(&request, context.abort_signal())
+    {
         Ok(read) => Ok(Some(read)),
         Err(ResolverDiagnostic::UnsupportedResolver { .. }) => Ok(None),
         Err(error) => Err(error),
@@ -8541,6 +8566,7 @@ fn read_registered_resource(
 }
 
 fn materialized_input(input: &EngineInput, context: &EngineContext) -> EngineResult<EngineInput> {
+    context.ensure_active()?;
     if !input.bytes.is_empty() {
         return Ok(input.clone());
     }
@@ -8593,6 +8619,7 @@ fn materialized_input(input: &EngineInput, context: &EngineContext) -> EngineRes
         path: input.uri.clone().into(),
         source,
     })?;
+    context.ensure_active()?;
     Ok(EngineInput {
         uri: input.uri.clone(),
         bytes,
@@ -8621,9 +8648,12 @@ fn resolved_engine_input(input: &EngineInput, read: ResolvedRead) -> EngineInput
 }
 
 fn resolver_input_error(input: &EngineInput, error: ResolverDiagnostic) -> EngineError {
-    EngineError::Io {
-        path: input.uri.clone().into(),
-        source: std::io::Error::new(std::io::ErrorKind::InvalidInput, error),
+    match error {
+        ResolverDiagnostic::Cancelled { source_map, .. } => EngineError::Cancelled { source_map },
+        error => EngineError::Io {
+            path: input.uri.clone().into(),
+            source: std::io::Error::new(std::io::ErrorKind::InvalidInput, error),
+        },
     }
 }
 
@@ -8917,6 +8947,7 @@ fn observe_pipeline_with_scope(
 
 impl CemMlEngine for RealCemMlEngine {
     fn parse(&self, request: ParseRequest) -> EngineResult<ParseResponse> {
+        request.context.ensure_active()?;
         let loaded = load_input_through_lifecycle(&request.input, &request.context);
         let from_format = loaded.from_format;
         let run = run_pipeline_as_scoped_with_context_and_source_uri(
@@ -8943,6 +8974,7 @@ impl CemMlEngine for RealCemMlEngine {
         diagnostics.extend(run.diagnostics);
         project_diagnostics_for_source(&mut diagnostics, &loaded.bytes);
         project_diagnostic_uris(&mut diagnostics, &request.input, &request.context);
+        request.context.ensure_active()?;
         Ok(ParseResponse {
             primary,
             diagnostics,
@@ -8950,6 +8982,7 @@ impl CemMlEngine for RealCemMlEngine {
     }
 
     fn validate(&self, request: ValidateRequest) -> EngineResult<ValidateResponse> {
+        request.context.ensure_active()?;
         let (context, mut all_diags) =
             context_with_loaded_schema_package_manifests(&request.context)?;
         let inputs = input_uris(&request.inputs, &context);
@@ -8962,10 +8995,12 @@ impl CemMlEngine for RealCemMlEngine {
         let report =
             Report::deterministic(inputs, all_diags, snapshot(request.fail_level, &context))
                 .with_scheduler_trace(&scheduler_trace);
+        request.context.ensure_active()?;
         Ok(ValidateResponse { report })
     }
 
     fn check(&self, request: CheckRequest) -> EngineResult<CheckResponse> {
+        request.context.ensure_active()?;
         let (context, mut all_diags) =
             context_with_loaded_schema_package_manifests(&request.context)?;
         let inputs = input_uris(&request.inputs, &context);
@@ -8979,6 +9014,7 @@ impl CemMlEngine for RealCemMlEngine {
             Report::deterministic(inputs, all_diags, snapshot(request.fail_level, &context))
                 .with_scheduler_trace(&scheduler_trace);
         let hard_violation_count = report.summary.hard_violation_count;
+        request.context.ensure_active()?;
         Ok(CheckResponse {
             report,
             hard_violation_count,
@@ -8986,6 +9022,7 @@ impl CemMlEngine for RealCemMlEngine {
     }
 
     fn inspect(&self, request: InspectRequest) -> EngineResult<InspectResponse> {
+        request.context.ensure_active()?;
         let started_at = Instant::now();
         let loaded = load_input_through_lifecycle(&request.input, &request.context);
         let from_format = loaded.from_format;
@@ -9059,6 +9096,7 @@ impl CemMlEngine for RealCemMlEngine {
             }
             InspectView::Tree => projection::dom_json(&run.document),
         };
+        request.context.ensure_active()?;
         Ok(InspectResponse {
             view: request.show,
             body,
@@ -9066,6 +9104,7 @@ impl CemMlEngine for RealCemMlEngine {
     }
 
     fn convert(&self, mut request: ConvertRequest) -> EngineResult<ConvertResponse> {
+        request.context.ensure_active()?;
         let started_at = Instant::now();
         let (context, mut package_diagnostics) =
             context_with_loaded_schema_package_manifests(&request.context)?;
@@ -9088,12 +9127,10 @@ impl CemMlEngine for RealCemMlEngine {
         diagnostics.append(&mut package_diagnostics);
         let pool =
             crate::scheduler::WorkerPool::new(request.scheduler_scope_id, policy, trace.clone());
-        let abort = crate::scheduler::AbortSignal::new();
+        let abort = request.context.abort_signal().clone();
         for task in ["lifecycle-load", "select-export", "convert"] {
             pool.submit(format!("{}:{task}", request.input.uri), &abort)
-                .map_err(|err| {
-                    EngineError::Internal(format!("scheduler dispatch failed: {err}"))
-                })?;
+                .map_err(scheduler_dispatch_error)?;
         }
 
         let registry = LifecycleRegistry::with_builtin_adapters();
@@ -10231,6 +10268,7 @@ impl CemMlEngine for RealCemMlEngine {
             });
             diagnostics.extend(run.diagnostics);
         });
+        request.context.ensure_active()?;
         let Some(primary) = primary else {
             return Err(EngineError::Internal(
                 "scheduler did not dispatch convert task".to_owned(),
@@ -10251,6 +10289,7 @@ impl CemMlEngine for RealCemMlEngine {
             project_diagnostics_for_source(&mut diagnostics, source_bytes);
         }
         project_diagnostic_uris(&mut diagnostics, &request.input, &context);
+        request.context.ensure_active()?;
         Ok(ConvertResponse {
             primary,
             primary_bytes,
@@ -10261,9 +10300,10 @@ impl CemMlEngine for RealCemMlEngine {
     }
 
     fn transform(&self, request: TransformRequest) -> EngineResult<TransformResponse> {
+        request.context.ensure_active()?;
         let started_at = Instant::now();
         let trace = crate::scheduler::SchedulerTrace::new();
-        let abort = crate::scheduler::AbortSignal::new();
+        let abort = request.context.abort_signal().clone();
         let mut diagnostics = validate_transform_request_runtime_contract(&request);
 
         let (data_policy, mut data_scope_diags) = scheduler_policy_for_transform_scope(
@@ -10331,9 +10371,8 @@ impl CemMlEngine for RealCemMlEngine {
             ),
             (&output_pool, format!("{}:output", request.data.uri)),
         ] {
-            pool.submit(task, &abort).map_err(|err| {
-                EngineError::Internal(format!("scheduler dispatch failed: {err}"))
-            })?;
+            pool.submit(task, &abort)
+                .map_err(scheduler_dispatch_error)?;
         }
 
         let mut primary_input: Option<TransformTemplateDataArtifact> = None;
@@ -10343,6 +10382,7 @@ impl CemMlEngine for RealCemMlEngine {
             diagnostics.append(&mut data_diagnostics);
             primary_input = Some(artifact);
         });
+        request.context.ensure_active()?;
 
         if has_hard_transform_diagnostic(&diagnostics) {
             return Ok(TransformResponse {
@@ -10379,6 +10419,7 @@ impl CemMlEngine for RealCemMlEngine {
                     &mut diagnostics,
                 );
             });
+            request.context.ensure_active()?;
         }
 
         if has_hard_transform_diagnostic(&diagnostics) {
@@ -10430,6 +10471,7 @@ impl CemMlEngine for RealCemMlEngine {
                 &mut diagnostics,
             );
         });
+        request.context.ensure_active()?;
 
         if has_hard_transform_diagnostic(&diagnostics) {
             return Ok(TransformResponse {
@@ -10447,6 +10489,7 @@ impl CemMlEngine for RealCemMlEngine {
             )
         })?;
         output_pool.run_to_completion(&abort, |_| {});
+        request.context.ensure_active()?;
 
         let elapsed_ns = started_at.elapsed().as_nanos();
         diagnostics.extend(time_budget_diagnostics(
@@ -10487,6 +10530,7 @@ impl CemMlEngine for RealCemMlEngine {
             }
         };
 
+        request.context.ensure_active()?;
         Ok(TransformResponse {
             primary,
             source_map: rendered.source_map,
@@ -10500,9 +10544,10 @@ impl CemMlEngine for RealCemMlEngine {
         &self,
         request: TransformGraphRequest,
     ) -> EngineResult<TransformGraphResponse> {
+        request.context.ensure_active()?;
         let started_at = Instant::now();
         let trace = crate::scheduler::SchedulerTrace::new();
-        let abort = crate::scheduler::AbortSignal::new();
+        let abort = request.context.abort_signal().clone();
         let mut diagnostics = validate_transform_graph_runtime_contract(&request);
         let mut artifacts: BTreeMap<String, Arc<TransformTemplateDataArtifact>> = BTreeMap::new();
         let mut artifact_metadata: BTreeMap<String, TransformOutputMetadata> = BTreeMap::new();
@@ -10514,6 +10559,7 @@ impl CemMlEngine for RealCemMlEngine {
             .collect::<BTreeSet<_>>();
 
         for import in &request.imports {
+            request.context.ensure_active()?;
             let (policy, mut scope_diagnostics) = scheduler_policy_for_transform_scope(
                 &request.context,
                 &import.input.uri,
@@ -10524,9 +10570,7 @@ impl CemMlEngine for RealCemMlEngine {
             let pool =
                 crate::scheduler::WorkerPool::new(import.scheduler_scope_id, policy, trace.clone());
             pool.submit(format!("{}:import", import.id), &abort)
-                .map_err(|err| {
-                    EngineError::Internal(format!("scheduler dispatch failed: {err}"))
-                })?;
+                .map_err(scheduler_dispatch_error)?;
             pool.run_to_completion(&abort, |_| {
                 let artifact = if raw_imports.contains(&import.id) {
                     diagnostics.extend(root_scope_metadata_diagnostics(
@@ -10558,9 +10602,11 @@ impl CemMlEngine for RealCemMlEngine {
                     },
                 );
             });
+            request.context.ensure_active()?;
         }
 
         if has_hard_transform_diagnostic(&diagnostics) {
+            request.context.ensure_active()?;
             return Ok(TransformGraphResponse {
                 artifacts: exported,
                 diagnostics,
@@ -10574,6 +10620,7 @@ impl CemMlEngine for RealCemMlEngine {
         while completed_joins.len() + completed_stages.len() + completed_importmap_rewrites.len()
             < request.joins.len() + request.stages.len() + request.importmap_rewrites.len()
         {
+            request.context.ensure_active()?;
             let mut progressed = false;
 
             for join in &request.joins {
@@ -10595,9 +10642,7 @@ impl CemMlEngine for RealCemMlEngine {
                     trace.clone(),
                 );
                 pool.submit(format!("{}:join", join.id), &abort)
-                    .map_err(|err| {
-                        EngineError::Internal(format!("scheduler dispatch failed: {err}"))
-                    })?;
+                    .map_err(scheduler_dispatch_error)?;
                 pool.run_to_completion(&abort, |_| {
                     let artifact =
                         collect_transform_graph_join(join, &artifacts, &artifact_metadata);
@@ -10605,6 +10650,7 @@ impl CemMlEngine for RealCemMlEngine {
                     artifacts.insert(join.id.clone(), Arc::new(artifact));
                     artifact_metadata.insert(join.id.clone(), metadata);
                 });
+                request.context.ensure_active()?;
                 completed_joins.insert(join.id.clone());
             }
 
@@ -10623,9 +10669,7 @@ impl CemMlEngine for RealCemMlEngine {
                     trace.clone(),
                 );
                 pool.submit(format!("{}:rewrite-importmap", rewrite.id), &abort)
-                    .map_err(|err| {
-                        EngineError::Internal(format!("scheduler dispatch failed: {err}"))
-                    })?;
+                    .map_err(scheduler_dispatch_error)?;
                 pool.run_to_completion(&abort, |_| {
                     let raw_content = transform_graph_artifact_raw_content(
                         &primary_input,
@@ -10669,6 +10713,7 @@ impl CemMlEngine for RealCemMlEngine {
                         );
                     }
                 });
+                request.context.ensure_active()?;
                 if has_hard_transform_diagnostic(&diagnostics) {
                     return Ok(TransformGraphResponse {
                         artifacts: exported,
@@ -10730,9 +10775,7 @@ impl CemMlEngine for RealCemMlEngine {
                 );
                 template_pool
                     .submit(format!("{}:template-compile", stage.id), &abort)
-                    .map_err(|err| {
-                        EngineError::Internal(format!("scheduler dispatch failed: {err}"))
-                    })?;
+                    .map_err(scheduler_dispatch_error)?;
                 let mut compiled = None;
                 let mut data_bindings = vec!["input".to_owned()];
                 data_bindings.extend(stage.secondary_inputs.keys().cloned());
@@ -10752,6 +10795,7 @@ impl CemMlEngine for RealCemMlEngine {
                         &mut diagnostics,
                     );
                 });
+                request.context.ensure_active()?;
 
                 if has_hard_transform_diagnostic(&diagnostics) {
                     return Ok(TransformGraphResponse {
@@ -10781,9 +10825,7 @@ impl CemMlEngine for RealCemMlEngine {
                 );
                 execution_pool
                     .submit(format!("{}:template-execution", stage.id), &abort)
-                    .map_err(|err| {
-                        EngineError::Internal(format!("scheduler dispatch failed: {err}"))
-                    })?;
+                    .map_err(scheduler_dispatch_error)?;
                 let mut rendered = None;
                 let diagnostic_node = format!("transform:{}", stage.id);
                 execution_pool.run_to_completion(&abort, |_| {
@@ -10803,6 +10845,7 @@ impl CemMlEngine for RealCemMlEngine {
                         &mut diagnostics,
                     );
                 });
+                request.context.ensure_active()?;
 
                 if has_hard_transform_diagnostic(&diagnostics) {
                     return Ok(TransformGraphResponse {
@@ -10872,6 +10915,7 @@ impl CemMlEngine for RealCemMlEngine {
         }
 
         for export in &request.exports {
+            request.context.ensure_active()?;
             let (policy, mut output_scope_diagnostics) = scheduler_policy_for_transform_scope(
                 &request.context,
                 export.destination.as_deref().unwrap_or(&export.id),
@@ -10882,9 +10926,7 @@ impl CemMlEngine for RealCemMlEngine {
             let pool =
                 crate::scheduler::WorkerPool::new(export.scheduler_scope_id, policy, trace.clone());
             pool.submit(format!("{}:export", export.id), &abort)
-                .map_err(|err| {
-                    EngineError::Internal(format!("scheduler dispatch failed: {err}"))
-                })?;
+                .map_err(scheduler_dispatch_error)?;
             pool.run_to_completion(&abort, |_| {
                 if let Some(artifact) = artifacts.get(&export.input) {
                     let metadata = artifact_metadata
@@ -10926,6 +10968,7 @@ impl CemMlEngine for RealCemMlEngine {
                     });
                 }
             });
+            request.context.ensure_active()?;
         }
 
         let elapsed_ns = started_at.elapsed().as_nanos();
@@ -10951,6 +10994,7 @@ impl CemMlEngine for RealCemMlEngine {
             ));
         }
 
+        request.context.ensure_active()?;
         Ok(TransformGraphResponse {
             artifacts: exported,
             diagnostics,
@@ -10959,6 +11003,7 @@ impl CemMlEngine for RealCemMlEngine {
     }
 
     fn trace(&self, request: TraceRequest) -> EngineResult<TraceResponse> {
+        request.context.ensure_active()?;
         let started_at = Instant::now();
         let loaded = load_input_through_lifecycle(&request.input, &request.context);
         let from_format = loaded.from_format;
@@ -10970,11 +11015,10 @@ impl CemMlEngine for RealCemMlEngine {
             "input",
         );
         let pool = crate::scheduler::WorkerPool::new(0, policy, scheduler_trace.clone());
-        let abort = crate::scheduler::AbortSignal::new();
+        let abort = request.context.abort_signal().clone();
         for task in ["tokenize", "normalize", "schema", "ast", "validate"] {
-            pool.submit(task, &abort).map_err(|err| {
-                EngineError::Internal(format!("scheduler trace setup failed: {err}"))
-            })?;
+            pool.submit(task, &abort)
+                .map_err(scheduler_dispatch_error)?;
         }
         let run = run_pipeline_as_scoped_with_context_and_source_uri(
             &loaded.bytes,
@@ -10984,6 +11028,7 @@ impl CemMlEngine for RealCemMlEngine {
             &input_uri(&request.input, &request.context),
         );
         pool.run_to_completion(&abort, |_| {});
+        request.context.ensure_active()?;
         let mut diagnostics = policy_diagnostics;
         diagnostics.extend(root_scope_metadata_diagnostics(
             &request.input.uri,
@@ -11025,18 +11070,22 @@ impl CemMlEngine for RealCemMlEngine {
             "events": projection::events_json_as(&loaded.bytes, from_format),
             "report": report,
         });
+        request.context.ensure_active()?;
         Ok(TraceResponse { body })
     }
 
     fn bench(&self, request: BenchRequest) -> EngineResult<BenchResponse> {
+        request.context.ensure_active()?;
         let iterations = request.iterations.max(1);
         let mut total_ns: u128 = 0;
         let mut per_iter_ns: Vec<u128> = Vec::with_capacity(iterations as usize);
         let mut diagnostics: Vec<Diagnostic> = Vec::new();
         let mut budget_exceeded = false;
         for _ in 0..iterations {
+            request.context.ensure_active()?;
             let t = Instant::now();
             for input in &request.inputs {
+                request.context.ensure_active()?;
                 let input = materialized_input(input, &request.context)?;
                 let input_started_at = Instant::now();
                 let loaded = load_input_through_lifecycle(&input, &request.context);
@@ -11082,6 +11131,7 @@ impl CemMlEngine for RealCemMlEngine {
             "budgetExceeded": budget_exceeded,
             "diagnostics": diagnostics,
         });
+        request.context.ensure_active()?;
         Ok(BenchResponse {
             body,
             budget_exceeded,
@@ -11092,9 +11142,11 @@ impl CemMlEngine for RealCemMlEngine {
         &self,
         request: FixtureValidateRequest,
     ) -> EngineResult<FixtureValidateResponse> {
+        request.context.ensure_active()?;
         let inputs = input_uris(&request.inputs, &request.context);
         let mut all_diags: Vec<Diagnostic> = Vec::new();
         for input in &request.inputs {
+            request.context.ensure_active()?;
             let input = materialized_input(input, &request.context)?;
             let started_at = Instant::now();
             let mut input_diags =
@@ -11123,6 +11175,7 @@ impl CemMlEngine for RealCemMlEngine {
             all_diags,
             snapshot(request.fail_level, &request.context),
         );
+        request.context.ensure_active()?;
         Ok(FixtureValidateResponse { report })
     }
 
@@ -11130,10 +11183,12 @@ impl CemMlEngine for RealCemMlEngine {
         &self,
         request: FixtureRoundtripRequest,
     ) -> EngineResult<FixtureRoundtripResponse> {
+        request.context.ensure_active()?;
         let inputs = input_uris(&request.inputs, &request.context);
         let mut artifacts: Vec<Value> = Vec::new();
         let mut all_diags: Vec<Diagnostic> = Vec::new();
         for input in &request.inputs {
+            request.context.ensure_active()?;
             let input = materialized_input(input, &request.context)?;
             let started_at = Instant::now();
             let mut input_diags =
@@ -11168,6 +11223,7 @@ impl CemMlEngine for RealCemMlEngine {
             all_diags,
             snapshot(FailLevel::Validate, &request.context),
         );
+        request.context.ensure_active()?;
         Ok(FixtureRoundtripResponse { report, artifacts })
     }
 }
@@ -16426,6 +16482,24 @@ mod tests {
         };
         let resp = RealCemMlEngine::new().parse(req).unwrap();
         assert_eq!(resp.primary["kind"], "document");
+    }
+
+    #[test]
+    fn public_operation_rejects_a_host_pre_cancelled_request() {
+        let abort = crate::scheduler::AbortSignal::new();
+        abort.abort_with_source_map(crate::source_map::SourceMapStack::default());
+        let req = ParseRequest {
+            input: input(b"{p Must not parse}", "cancelled.cem"),
+            projection: ParseProjection::DomJson,
+            fail_level: FailLevel::Parse,
+            preserve_source_offsets: false,
+            context: ctx().with_abort_signal(abort),
+        };
+
+        let Err(EngineError::Cancelled { source_map }) = RealCemMlEngine::new().parse(req) else {
+            panic!("pre-cancelled request must preserve typed cancellation");
+        };
+        assert!(source_map.is_some());
     }
 
     #[test]

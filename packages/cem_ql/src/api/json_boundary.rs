@@ -386,6 +386,11 @@ fn double_json(value: f64) -> Value {
 
 fn eval_error_json(error: &EvalError) -> Value {
     match error {
+        EvalError::Cancelled => json!({
+            "kind": "eval",
+            "type": "cancelled",
+            "message": "evaluation cancelled by the host"
+        }),
         EvalError::BudgetExceeded(axis) => json!({
             "kind": "eval",
             "type": "budget-exceeded",

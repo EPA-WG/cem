@@ -6,12 +6,12 @@ use std::fmt;
 use std::sync::Arc;
 
 use cem_ml::diagnostics::{Diagnostic, Severity};
-use cem_ml::scheduler::ScopePolicy;
+use cem_ml::scheduler::{AbortSignal, ScopePolicy};
 use cem_ml::source_map::SourceMapStack;
 
 use crate::api::EvaluationContext;
 use crate::diagnostics::{
-    DiagnosticCode, BUDGET_EXCEEDED, TYPE_ERROR, UNKNOWN_FUNCTION, UNKNOWN_VARIABLE,
+    DiagnosticCode, ABORTED, BUDGET_EXCEEDED, TYPE_ERROR, UNKNOWN_FUNCTION, UNKNOWN_VARIABLE,
 };
 use crate::ir::{CompiledQuery, IrId, IrNode, IrRecordKey};
 use crate::parser::{BinaryOp, QuantifierKind, SetOp, UnaryOp};
@@ -302,6 +302,7 @@ impl BudgetAxis {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum EvalError {
+    Cancelled,
     BudgetExceeded(BudgetAxis),
     Unsupported(&'static str),
     TypeError(&'static str),
@@ -312,7 +313,16 @@ pub struct Evaluator;
 
 impl Evaluator {
     pub fn evaluate(query: &CompiledQuery, context: &EvaluationContext) -> ItemStream {
-        let mut ctx = EvalCtx::new(query, context);
+        let abort_signal = AbortSignal::new();
+        Self::evaluate_with_abort(query, context, &abort_signal)
+    }
+
+    pub fn evaluate_with_abort<'a>(
+        query: &'a CompiledQuery,
+        context: &EvaluationContext,
+        abort_signal: &'a AbortSignal,
+    ) -> ItemStream {
+        let mut ctx = EvalCtx::new(query, context, abort_signal);
         let stream = ctx.eval_id(query.tree.root);
         stream.with_context(&ctx)
     }
@@ -320,6 +330,7 @@ impl Evaluator {
 
 pub(crate) struct EvalCtx<'a> {
     query: &'a CompiledQuery,
+    abort_signal: &'a AbortSignal,
     scopes: Vec<HashMap<BindingId, ItemStream>>,
     globals: HashMap<BindingId, IrId>,
     functions: HashMap<BindingId, IrId>,
@@ -332,9 +343,14 @@ pub(crate) struct EvalCtx<'a> {
 }
 
 impl<'a> EvalCtx<'a> {
-    fn new(query: &'a CompiledQuery, context: &EvaluationContext) -> Self {
+    fn new(
+        query: &'a CompiledQuery,
+        context: &EvaluationContext,
+        abort_signal: &'a AbortSignal,
+    ) -> Self {
         let mut ctx = Self {
             query,
+            abort_signal,
             scopes: vec![HashMap::new()],
             globals: HashMap::new(),
             functions: HashMap::new(),
@@ -379,6 +395,9 @@ impl<'a> EvalCtx<'a> {
     }
 
     pub(crate) fn eval_id(&mut self, id: IrId) -> ItemStream {
+        if let Err(cancelled) = self.ensure_active(id) {
+            return cancelled;
+        }
         let Some(node) = self.query.tree.node(id).cloned() else {
             return self.unsupported(id, "missing IR node");
         };
@@ -585,6 +604,22 @@ impl<'a> EvalCtx<'a> {
 
     pub(crate) fn charge_items(&mut self, amount: u64, source: IrId) -> Result<(), ItemStream> {
         self.charge(BudgetAxis::ItemsPerStage, amount, source)
+    }
+
+    fn ensure_active(&mut self, source: IrId) -> Result<(), ItemStream> {
+        if !self.abort_signal.is_aborted() {
+            return Ok(());
+        }
+        let diagnostic = self.diagnostic(
+            source,
+            ABORTED,
+            "CEM-QL evaluation cancelled by the host",
+            Severity::Info,
+        );
+        let error = EvalError::Cancelled;
+        self.diagnostics.push(diagnostic.clone());
+        self.error = Some(error.clone());
+        Err(ItemStream::failed(error, diagnostic))
     }
 
     pub(crate) fn unsupported(&mut self, source: IrId, message: &'static str) -> ItemStream {
@@ -933,6 +968,7 @@ impl<'a> EvalCtx<'a> {
     }
 
     fn charge(&mut self, axis: BudgetAxis, amount: u64, source: IrId) -> Result<(), ItemStream> {
+        self.ensure_active(source)?;
         let current = self.counters.get(&axis).copied().unwrap_or(0);
         let next = current.saturating_add(amount);
         let limit = self.limits.get(&axis).copied().unwrap_or(u64::MAX);

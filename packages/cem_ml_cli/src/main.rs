@@ -13,11 +13,21 @@ fn main() -> ExitCode {
     let stderr = io::stderr();
     let mut out = stdout.lock();
     let mut err = stderr.lock();
+    let abort_signal = cem_ml::scheduler::AbortSignal::new();
+    let signal_handler_abort = abort_signal.clone();
+    if let Err(error) = ctrlc::set_handler(move || signal_handler_abort.abort()) {
+        let _ = std::io::Write::write_fmt(
+            &mut err,
+            format_args!("cem-ml: cannot install signal handler: {error}\n"),
+        );
+        return ExitCode::from(dispatch::EXIT_INTERNAL);
+    }
     let mut streams = Streams {
         stdout: &mut out,
         stderr: &mut err,
         quiet,
         no_color,
+        abort_signal,
     };
     let engine = RealCemMlEngine::new();
     let Outcome { exit_code } = dispatch::dispatch(&engine, parsed, &mut streams);

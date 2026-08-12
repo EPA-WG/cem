@@ -4,7 +4,7 @@ use std::collections::BTreeMap;
 
 use cem_ml::content_cache::{CacheMode, ContentHash};
 use cem_ml::diagnostics::Diagnostic;
-use cem_ml::scheduler::ScopePolicy;
+use cem_ml::scheduler::{AbortSignal, ScopePolicy};
 use cem_ml::schema::SchemaFrame;
 use cem_ml::source::ByteRange;
 use cem_ml::source_map::SourceMapStack;
@@ -72,6 +72,19 @@ pub fn compile(source: &str, context: &CompileContext) -> Result<CompiledQuery, 
 /// Evaluate a compiled query against a query context scope.
 pub fn evaluate(query: &CompiledQuery, ctx: &EvaluationContext) -> ItemStream {
     Evaluator::evaluate(query, ctx)
+}
+
+/// Evaluate with a host-owned cooperative cancellation signal.
+///
+/// The signal remains outside the serializable query and evaluation records;
+/// callers that own a longer-running operation can clone-share the same signal
+/// used by resolver, scheduler, and output phases.
+pub fn evaluate_with_abort(
+    query: &CompiledQuery,
+    ctx: &EvaluationContext,
+    abort_signal: &AbortSignal,
+) -> ItemStream {
+    Evaluator::evaluate_with_abort(query, ctx, abort_signal)
 }
 
 pub fn compile_expression(

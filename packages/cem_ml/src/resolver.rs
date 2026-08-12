@@ -11,6 +11,9 @@ use std::io;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
+use crate::scheduler::AbortSignal;
+use crate::source_map::SourceMapStack;
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum ResolvePurpose {
     Config,
@@ -391,6 +394,12 @@ pub struct ResolvedWrite {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ResolverDiagnostic {
+    Cancelled {
+        uri: String,
+        purpose: ResolvePurpose,
+        direction: ResolveDirection,
+        source_map: Option<SourceMapStack>,
+    },
     UnsupportedResolver {
         uri: String,
         purpose: ResolvePurpose,
@@ -412,6 +421,7 @@ pub enum ResolverDiagnostic {
 impl ResolverDiagnostic {
     pub fn code(&self) -> &'static str {
         match self {
+            Self::Cancelled { .. } => "cem.resolver.cancelled",
             Self::UnsupportedResolver { .. } => "cem.resolver.unsupported",
             Self::NonLocalFileUri { .. } => "cem.resolver.file_uri_non_local",
             Self::InvalidFileUri { .. } => "cem.resolver.file_uri_invalid",
@@ -423,6 +433,15 @@ impl ResolverDiagnostic {
 impl fmt::Display for ResolverDiagnostic {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
+            Self::Cancelled {
+                uri,
+                purpose,
+                direction,
+                ..
+            } => write!(
+                f,
+                "resolver {direction} {purpose} URI `{uri}` cancelled by host"
+            ),
             Self::UnsupportedResolver {
                 uri,
                 purpose,
@@ -449,11 +468,39 @@ impl std::error::Error for ResolverDiagnostic {}
 
 pub trait ResourceResolver: Send + Sync {
     fn read(&self, request: &ResolveRequest) -> Result<ResolvedRead, ResolverDiagnostic>;
+
+    fn read_with_abort(
+        &self,
+        request: &ResolveRequest,
+        abort: &AbortSignal,
+    ) -> Result<ResolvedRead, ResolverDiagnostic> {
+        ensure_resolver_active(abort, &request.uri, request.purpose, ResolveDirection::Read)?;
+        let resolved = self.read(request)?;
+        ensure_resolver_active(abort, &request.uri, request.purpose, ResolveDirection::Read)?;
+        Ok(resolved)
+    }
+
     fn write(
         &self,
         request: &ResolveRequest,
         bytes: &[u8],
     ) -> Result<ResolvedWrite, ResolverDiagnostic>;
+
+    fn write_with_abort(
+        &self,
+        request: &ResolveRequest,
+        bytes: &[u8],
+        abort: &AbortSignal,
+    ) -> Result<ResolvedWrite, ResolverDiagnostic> {
+        ensure_resolver_active(
+            abort,
+            &request.uri,
+            request.purpose,
+            ResolveDirection::Write,
+        )?;
+        self.write(request, bytes)
+    }
+
     fn list(
         &self,
         request: &ResolveListRequest,
@@ -463,6 +510,35 @@ pub trait ResourceResolver: Send + Sync {
             purpose: request.purpose,
             direction: ResolveDirection::List,
         })
+    }
+
+    fn list_with_abort(
+        &self,
+        request: &ResolveListRequest,
+        abort: &AbortSignal,
+    ) -> Result<Vec<ResolvedListEntry>, ResolverDiagnostic> {
+        ensure_resolver_active(abort, &request.uri, request.purpose, ResolveDirection::List)?;
+        let entries = self.list(request)?;
+        ensure_resolver_active(abort, &request.uri, request.purpose, ResolveDirection::List)?;
+        Ok(entries)
+    }
+}
+
+fn ensure_resolver_active(
+    abort: &AbortSignal,
+    uri: &str,
+    purpose: ResolvePurpose,
+    direction: ResolveDirection,
+) -> Result<(), ResolverDiagnostic> {
+    if abort.is_aborted() {
+        Err(ResolverDiagnostic::Cancelled {
+            uri: uri.to_owned(),
+            purpose,
+            direction,
+            source_map: abort.source_map(),
+        })
+    } else {
+        Ok(())
     }
 }
 
@@ -537,6 +613,15 @@ impl ResolverRegistry {
     }
 
     pub fn read(&self, request: &ResolveRequest) -> Result<ResolvedRead, ResolverDiagnostic> {
+        self.read_with_abort(request, &AbortSignal::new())
+    }
+
+    pub fn read_with_abort(
+        &self,
+        request: &ResolveRequest,
+        abort: &AbortSignal,
+    ) -> Result<ResolvedRead, ResolverDiagnostic> {
+        ensure_resolver_active(abort, &request.uri, request.purpose, ResolveDirection::Read)?;
         let scheme = request_scheme(request)?;
         let Some(resolver) = self.resolver_for(scheme, request.purpose, ResolveDirection::Read)
         else {
@@ -546,7 +631,7 @@ impl ResolverRegistry {
                 direction: ResolveDirection::Read,
             });
         };
-        resolver.read(request)
+        resolver.read_with_abort(request, abort)
     }
 
     pub fn write(
@@ -554,6 +639,21 @@ impl ResolverRegistry {
         request: &ResolveRequest,
         bytes: &[u8],
     ) -> Result<ResolvedWrite, ResolverDiagnostic> {
+        self.write_with_abort(request, bytes, &AbortSignal::new())
+    }
+
+    pub fn write_with_abort(
+        &self,
+        request: &ResolveRequest,
+        bytes: &[u8],
+        abort: &AbortSignal,
+    ) -> Result<ResolvedWrite, ResolverDiagnostic> {
+        ensure_resolver_active(
+            abort,
+            &request.uri,
+            request.purpose,
+            ResolveDirection::Write,
+        )?;
         let scheme = request_scheme(request)?;
         let Some(resolver) = self.resolver_for(scheme, request.purpose, ResolveDirection::Write)
         else {
@@ -563,13 +663,22 @@ impl ResolverRegistry {
                 direction: ResolveDirection::Write,
             });
         };
-        resolver.write(request, bytes)
+        resolver.write_with_abort(request, bytes, abort)
     }
 
     pub fn list(
         &self,
         request: &ResolveListRequest,
     ) -> Result<Vec<ResolvedListEntry>, ResolverDiagnostic> {
+        self.list_with_abort(request, &AbortSignal::new())
+    }
+
+    pub fn list_with_abort(
+        &self,
+        request: &ResolveListRequest,
+        abort: &AbortSignal,
+    ) -> Result<Vec<ResolvedListEntry>, ResolverDiagnostic> {
+        ensure_resolver_active(abort, &request.uri, request.purpose, ResolveDirection::List)?;
         let scheme = list_request_scheme(request)?;
         let Some(resolver) = self.resolver_for(scheme, request.purpose, ResolveDirection::List)
         else {
@@ -579,7 +688,7 @@ impl ResolverRegistry {
                 direction: ResolveDirection::List,
             });
         };
-        resolver.list(request)
+        resolver.list_with_abort(request, abort)
     }
 }
 
@@ -1056,5 +1165,126 @@ mod tests {
             )
             .unwrap_err();
         assert_eq!(err.code(), "cem.resolver.unsupported");
+    }
+
+    #[test]
+    fn pre_cancelled_resolver_request_never_invokes_host_io() {
+        #[derive(Debug)]
+        struct PanicResolver;
+
+        impl ResourceResolver for PanicResolver {
+            fn read(&self, _: &ResolveRequest) -> Result<ResolvedRead, ResolverDiagnostic> {
+                panic!("pre-cancelled resolver read must not reach host I/O")
+            }
+
+            fn write(
+                &self,
+                _: &ResolveRequest,
+                _: &[u8],
+            ) -> Result<ResolvedWrite, ResolverDiagnostic> {
+                panic!("pre-cancelled resolver write must not reach host I/O")
+            }
+
+            fn list(
+                &self,
+                _: &ResolveListRequest,
+            ) -> Result<Vec<ResolvedListEntry>, ResolverDiagnostic> {
+                panic!("pre-cancelled resolver list must not reach host I/O")
+            }
+        }
+
+        let mut registry = ResolverRegistry::new();
+        registry.register(
+            "cem+vfs",
+            ResolvePurpose::Input,
+            ResolveDirection::Read,
+            PanicResolver,
+        );
+        registry.register(
+            "cem+vfs",
+            ResolvePurpose::Output,
+            ResolveDirection::Write,
+            PanicResolver,
+        );
+        registry.register(
+            "cem+vfs",
+            ResolvePurpose::Input,
+            ResolveDirection::List,
+            PanicResolver,
+        );
+        let abort = crate::scheduler::AbortSignal::new();
+        abort.abort();
+        let request = ResolveRequest::new(
+            "cem+vfs://root/input.cem",
+            ResolvePurpose::Input,
+            ResolveDirection::Read,
+        );
+
+        let error = registry
+            .read_with_abort(&request, &abort)
+            .expect_err("pre-cancelled read must fail");
+        assert_eq!(error.code(), "cem.resolver.cancelled");
+
+        let write_request = ResolveRequest::new(
+            "cem+vfs://root/output.cem",
+            ResolvePurpose::Output,
+            ResolveDirection::Write,
+        );
+        let error = registry
+            .write_with_abort(&write_request, b"must not commit", &abort)
+            .expect_err("pre-cancelled write must fail");
+        assert_eq!(error.code(), "cem.resolver.cancelled");
+
+        let list_request = ResolveListRequest::new("cem+vfs://root/*.cem", ResolvePurpose::Input);
+        let error = registry
+            .list_with_abort(&list_request, &abort)
+            .expect_err("pre-cancelled list must fail");
+        assert_eq!(error.code(), "cem.resolver.cancelled");
+    }
+
+    #[test]
+    fn cancellation_during_resolver_read_suppresses_the_resolved_value() {
+        #[derive(Debug)]
+        struct CancellingResolver(AbortSignal);
+
+        impl ResourceResolver for CancellingResolver {
+            fn read(&self, request: &ResolveRequest) -> Result<ResolvedRead, ResolverDiagnostic> {
+                self.0.abort();
+                Ok(ResolvedRead {
+                    uri: request.uri.clone(),
+                    bytes: b"partial".to_vec(),
+                    content_type: None,
+                })
+            }
+
+            fn write(
+                &self,
+                request: &ResolveRequest,
+                _: &[u8],
+            ) -> Result<ResolvedWrite, ResolverDiagnostic> {
+                Ok(ResolvedWrite {
+                    uri: request.uri.clone(),
+                })
+            }
+        }
+
+        let abort = AbortSignal::new();
+        let mut registry = ResolverRegistry::new();
+        registry.register(
+            "cem+vfs",
+            ResolvePurpose::Input,
+            ResolveDirection::Read,
+            CancellingResolver(abort.clone()),
+        );
+        let request = ResolveRequest::new(
+            "cem+vfs://root/input.cem",
+            ResolvePurpose::Input,
+            ResolveDirection::Read,
+        );
+
+        let error = registry
+            .read_with_abort(&request, &abort)
+            .expect_err("cancelled read result must be suppressed");
+        assert_eq!(error.code(), "cem.resolver.cancelled");
     }
 }

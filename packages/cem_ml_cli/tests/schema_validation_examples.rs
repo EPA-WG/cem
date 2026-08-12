@@ -189,6 +189,7 @@ fn cem_ml_in_process(engine: &RealCemMlEngine, args: &[&str]) -> InProcessOutput
         stderr: &mut stderr,
         quiet,
         no_color,
+        abort_signal: cem_ml::scheduler::AbortSignal::new(),
     };
     let outcome = dispatch::dispatch(engine, parsed, &mut streams);
     InProcessOutput {

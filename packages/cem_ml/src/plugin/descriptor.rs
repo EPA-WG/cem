@@ -9,7 +9,6 @@
 
 use crate::source_map::SourceMapStack;
 use std::collections::BTreeSet;
-use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use syn::visit::Visit;
 
@@ -247,27 +246,8 @@ impl<'ast> Visit<'ast> for RustCapabilityVisitor<'_> {
     }
 }
 
-/// Cooperative cancellation primitive (AC-PL-19, AC-A-7). Plugins poll
-/// `is_aborted()` between work chunks; the runtime fires the abort by
-/// calling `abort()`.
-#[derive(Debug, Clone, Default)]
-pub struct AbortSignal {
-    flag: Arc<AtomicBool>,
-}
-
-impl AbortSignal {
-    pub fn new() -> Self {
-        Self::default()
-    }
-
-    pub fn abort(&self) {
-        self.flag.store(true, Ordering::Release);
-    }
-
-    pub fn is_aborted(&self) -> bool {
-        self.flag.load(Ordering::Acquire)
-    }
-}
+/// Compatibility name for the canonical request-scoped scheduler signal.
+pub use crate::scheduler::AbortSignal;
 
 /// Per-invocation context handed to `PluginInvoke::invoke`. The
 /// runtime owns the channel into the diagnostic/observability bus so a
