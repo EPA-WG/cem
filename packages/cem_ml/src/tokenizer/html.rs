@@ -35,7 +35,10 @@ use crate::diagnostics::{Diagnostic, Severity};
 use crate::source::decode::{DecodeConfig, Utf8Decoder};
 use crate::source::{ByteRange, ByteSource, EncodingDecoder, SourceId};
 use crate::source_map::{FrameSpan, SourceMapFrame, SourceMapStack, TransformKind};
-use crate::tokenizer::{SchemaToken, SchemaTokenKind, SchemaTokenizer, TokenizerProfile};
+use crate::tokenizer::{
+    SchemaToken, SchemaTokenKind, SchemaTokenizer, TokenizerControl, TokenizerProfile,
+};
+use std::cell::RefCell;
 use std::collections::VecDeque;
 
 pub struct HtmlTokenizer {
@@ -47,6 +50,7 @@ pub struct HtmlTokenizer {
     base_source_map: SourceMapStack,
     end_offset: u64,
     document_mode: bool,
+    control: Option<RefCell<TokenizerControl>>,
 }
 
 const VOID_ELEMENTS: &[&str] = &[
@@ -60,14 +64,30 @@ fn is_void(name: &str) -> bool {
 
 impl HtmlTokenizer {
     pub fn from_source<S: ByteSource>(source: S) -> Self {
-        Self::from_source_with_mode(source, false)
+        Self::from_source_with_mode(source, false, None)
+    }
+
+    pub fn from_source_with_control<S: ByteSource>(
+        source: S,
+        control: crate::operation_control::OperationControl,
+        scope: crate::operation_control::ExecutionScopeId,
+    ) -> Self {
+        Self::from_source_with_mode(
+            source,
+            false,
+            Some(TokenizerControl::new(control, scope)),
+        )
     }
 
     pub fn from_document_source<S: ByteSource>(source: S) -> Self {
-        Self::from_source_with_mode(source, true)
+        Self::from_source_with_mode(source, true, None)
     }
 
-    fn from_source_with_mode<S: ByteSource>(source: S, document_mode: bool) -> Self {
+    fn from_source_with_mode<S: ByteSource>(
+        source: S,
+        document_mode: bool,
+        mut control: Option<TokenizerControl>,
+    ) -> Self {
         let mut decoder = Utf8Decoder::with_config(
             source,
             DecodeConfig {
@@ -77,8 +97,14 @@ impl HtmlTokenizer {
         );
         let source_id = decoder.source_id();
         let mut scalars = Vec::new();
+        if let Some(control) = control.as_mut() {
+            control.force();
+        }
         while let Some(c) = decoder.decode_next() {
             scalars.extend(c.scalars);
+            if control.as_mut().is_some_and(|control| !control.poll()) {
+                break;
+            }
         }
         let diagnostics = decoder.take_diagnostics();
         let end_offset = scalars.last().map(|(_, r)| r.end()).unwrap_or(0);
@@ -98,6 +124,7 @@ impl HtmlTokenizer {
             base_source_map,
             end_offset,
             document_mode,
+            control: control.map(RefCell::new),
         };
         t.scan_document();
         t
@@ -112,10 +139,22 @@ impl HtmlTokenizer {
     }
 
     fn peek(&self) -> Option<char> {
+        if !self.control_allows_work() {
+            return None;
+        }
         self.scalars.get(self.cursor).map(|(c, _)| *c)
     }
     fn peek_at(&self, n: usize) -> Option<char> {
+        if !self.control_allows_work() {
+            return None;
+        }
         self.scalars.get(self.cursor + n).map(|(c, _)| *c)
+    }
+
+    fn control_allows_work(&self) -> bool {
+        self.control
+            .as_ref()
+            .is_none_or(|control| control.borrow_mut().poll())
     }
     fn advance(&mut self) {
         self.cursor += 1;
@@ -639,6 +678,9 @@ impl SchemaTokenizer for HtmlTokenizer {
     }
 
     fn next_token(&mut self) -> Option<SchemaToken> {
+        if !self.control_allows_work() {
+            return None;
+        }
         self.pending.pop_front()
     }
 }

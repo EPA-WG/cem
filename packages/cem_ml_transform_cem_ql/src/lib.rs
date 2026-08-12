@@ -71,7 +71,8 @@ use cem_ml::transform_template::{
     TransformTemplateModulePreflight, TransformTemplateOutputArtifact,
     TransformTemplateOutputColorSelection, TransformTemplateOutputProducedKind,
     TransformTemplateParameterArena, TransformTemplateRenderRequest,
-    TransformTemplateRenderResponse, TransformTemplateSourceMapPolicy,
+    TransformTemplateRenderResponse, TransformTemplateRuntimeContext,
+    TransformTemplateSourceMapPolicy,
     CEM_NATIVE_TEMPLATE_SCHEMA_URI, DEFAULT_FORMATTER_TAB_SIZE,
     TRANSFORM_TEMPLATE_CALL_UNKNOWN_CODE, TRANSFORM_TEMPLATE_PARAM_REQUIRED_CODE,
     TRANSFORM_TEMPLATE_PARAM_TYPE_CODE, TRANSFORM_TEMPLATE_RECURSION_LIMIT_CODE,
@@ -81,8 +82,9 @@ use cem_ml::validation::json::{
 };
 use cem_ml::validation::xml::{XmlAttributeAst, XmlDocumentAst, XmlEventAst};
 use cem_ql::api::{
-    compile, compile_expression, evaluate, evaluate_with_abort, CompileContext, CompiledExpression,
-    EvaluationContext, ParseResult, StandaloneExpressionBinding, StandaloneExpressionContext,
+    compile, compile_expression, evaluate, evaluate_with_control,
+    CompileContext, CompiledExpression, EvaluationContext, ParseResult,
+    StandaloneExpressionBinding, StandaloneExpressionContext,
 };
 use cem_ql::eval::{
     AtomValue, BudgetAxis, EvalError, Item, ItemStream, QueryContextScope, QueryItemView,
@@ -91,9 +93,11 @@ use cem_ql::eval::{
 use cem_ql::lexer::{CookedTokenPayload, Lexer, Token, TokenKind};
 use cem_ql::parser::SurfaceNode;
 use cem_ql::render::{
-    compile_template, render_compiled_template, render_plan_to_html_with_source_map,
-    render_plan_to_xml_with_source_map, CompileTemplateOptions, RenderPlan, RenderPlanAttribute,
-    RenderPlanNode, TemplateArtifact, TemplateAttributeValue, TemplateData, TemplateNode,
+    compile_template, render_compiled_template, render_compiled_template_with_control,
+    render_plan_to_html_with_control, render_plan_to_html_with_source_map,
+    render_plan_to_xml_with_control, render_plan_to_xml_with_source_map, CompileTemplateOptions,
+    RenderPlan, RenderPlanAttribute, RenderPlanNode, TemplateArtifact, TemplateAttributeValue,
+    TemplateData, TemplateNode,
 };
 use cem_ql::template::{
     compile_embedding, extract_embeddings, DefaultAttributeClassifier, EmbeddedExpression,
@@ -1705,6 +1709,14 @@ impl TransformTemplateAdapter for CemQlTransformTemplateAdapter {
     ) -> TransformTemplateAdapterResult<TransformTemplateRenderResponse> {
         render_cem_ql_payload(self.id(), request)
     }
+
+    fn render_with_runtime(
+        &self,
+        request: TransformTemplateRenderRequest<'_>,
+        runtime: TransformTemplateRuntimeContext<'_>,
+    ) -> TransformTemplateAdapterResult<TransformTemplateRenderResponse> {
+        render_cem_ql_payload_with_runtime(self.id(), request, runtime)
+    }
 }
 
 impl TransformTemplateAdapter for CemQlExpressionTransformTemplateAdapter {
@@ -1800,6 +1812,14 @@ impl TransformTemplateAdapter for CemQlExpressionTransformTemplateAdapter {
         request: TransformTemplateRenderRequest<'_>,
     ) -> TransformTemplateAdapterResult<TransformTemplateRenderResponse> {
         render_cem_ql_expression_payload(self.id(), request)
+    }
+
+    fn render_with_runtime(
+        &self,
+        request: TransformTemplateRenderRequest<'_>,
+        runtime: TransformTemplateRuntimeContext<'_>,
+    ) -> TransformTemplateAdapterResult<TransformTemplateRenderResponse> {
+        render_cem_ql_expression_payload_with_runtime(self.id(), request, runtime)
     }
 }
 
@@ -1909,6 +1929,14 @@ impl TransformTemplateAdapter for XsltParityTransformTemplateAdapter {
         request: TransformTemplateRenderRequest<'_>,
     ) -> TransformTemplateAdapterResult<TransformTemplateRenderResponse> {
         render_cem_ql_payload(self.id(), request)
+    }
+
+    fn render_with_runtime(
+        &self,
+        request: TransformTemplateRenderRequest<'_>,
+        runtime: TransformTemplateRuntimeContext<'_>,
+    ) -> TransformTemplateAdapterResult<TransformTemplateRenderResponse> {
+        render_cem_ql_payload_with_runtime(self.id(), request, runtime)
     }
 }
 
@@ -3484,6 +3512,22 @@ fn render_cem_ql_payload(
     adapter_id: &'static str,
     request: TransformTemplateRenderRequest<'_>,
 ) -> TransformTemplateAdapterResult<TransformTemplateRenderResponse> {
+    render_cem_ql_payload_internal(adapter_id, request, None)
+}
+
+fn render_cem_ql_payload_with_runtime(
+    adapter_id: &'static str,
+    request: TransformTemplateRenderRequest<'_>,
+    runtime: TransformTemplateRuntimeContext<'_>,
+) -> TransformTemplateAdapterResult<TransformTemplateRenderResponse> {
+    render_cem_ql_payload_internal(adapter_id, request, Some(runtime))
+}
+
+fn render_cem_ql_payload_internal(
+    adapter_id: &'static str,
+    request: TransformTemplateRenderRequest<'_>,
+    runtime: Option<TransformTemplateRuntimeContext<'_>>,
+) -> TransformTemplateAdapterResult<TransformTemplateRenderResponse> {
     let payload = request
         .compiled
         .native_payload::<CemQlCompiledTemplatePayload>()
@@ -3502,7 +3546,7 @@ fn render_cem_ql_payload(
                 message,
             )
         })?;
-    let plan = render_payload_template(payload, request.compiled.parameters(), &data).map_err(
+    let plan = render_payload_template(payload, request.compiled.parameters(), &data, runtime).map_err(
         |message| {
             TransformTemplateAdapterError::failed(
                 adapter_id,
@@ -3512,24 +3556,53 @@ fn render_cem_ql_payload(
         },
     )?;
     if target_is_cem_tree(request.target) {
+        let tree = match runtime {
+            Some(runtime) => render_plan_to_cem_tree_nodes_with_control(
+                &plan,
+                runtime.operation_control,
+                runtime.execution_scope,
+            ),
+            None => Ok(render_plan_to_cem_tree_nodes(&plan)),
+        }
+        .map_err(|error| {
+            TransformTemplateAdapterError::failed(
+                adapter_id,
+                TransformTemplateAdapterExecutionPhase::Render,
+                format!("operation control failure {}: {error}", error.code()),
+            )
+        })?;
         return Ok(TransformTemplateRenderResponse {
             output: TransformTemplateOutputArtifact {
                 uri: None,
                 identity: request.target.cloned(),
-                body: TransformArtifactBody::CemTree(Arc::new(render_plan_to_cem_tree_nodes(
-                    &plan,
-                ))),
+                body: TransformArtifactBody::CemTree(Arc::new(tree)),
                 source_map: None,
                 output_spans: Vec::new(),
             },
             diagnostics: plan.diagnostics,
         });
     }
-    let rendered = if target_content_type_is(request.target, "application/xml") {
-        render_plan_to_xml_with_source_map(&plan)
-    } else {
-        render_plan_to_html_with_source_map(&plan)
-    };
+    let rendered = match (runtime, target_content_type_is(request.target, "application/xml")) {
+        (Some(runtime), true) => render_plan_to_xml_with_control(
+            &plan,
+            runtime.operation_control,
+            runtime.execution_scope,
+        ),
+        (Some(runtime), false) => render_plan_to_html_with_control(
+            &plan,
+            runtime.operation_control,
+            runtime.execution_scope,
+        ),
+        (None, true) => Ok(render_plan_to_xml_with_source_map(&plan)),
+        (None, false) => Ok(render_plan_to_html_with_source_map(&plan)),
+    }
+    .map_err(|error| {
+        TransformTemplateAdapterError::failed(
+            adapter_id,
+            TransformTemplateAdapterExecutionPhase::Render,
+            format!("operation control failure {}: {error}", error.code()),
+        )
+    })?;
     let identity = request.target.cloned().unwrap_or_else(|| FormatIdentity {
         content_type: Some("text/html".to_owned()),
         ..FormatIdentity::default()
@@ -3554,6 +3627,22 @@ fn render_cem_ql_expression_payload(
     adapter_id: &'static str,
     request: TransformTemplateRenderRequest<'_>,
 ) -> TransformTemplateAdapterResult<TransformTemplateRenderResponse> {
+    render_cem_ql_expression_payload_internal(adapter_id, request, None)
+}
+
+fn render_cem_ql_expression_payload_with_runtime(
+    adapter_id: &'static str,
+    request: TransformTemplateRenderRequest<'_>,
+    runtime: TransformTemplateRuntimeContext<'_>,
+) -> TransformTemplateAdapterResult<TransformTemplateRenderResponse> {
+    render_cem_ql_expression_payload_internal(adapter_id, request, Some(runtime))
+}
+
+fn render_cem_ql_expression_payload_internal(
+    adapter_id: &'static str,
+    request: TransformTemplateRenderRequest<'_>,
+    runtime: Option<TransformTemplateRuntimeContext<'_>>,
+) -> TransformTemplateAdapterResult<TransformTemplateRenderResponse> {
     let payload = request
         .compiled
         .native_payload::<CemQlCompiledExpressionPayload>()
@@ -3574,16 +3663,39 @@ fn render_cem_ql_expression_payload(
                 )
             },
         )?;
-    let result = evaluate(
-        &payload.compiled.query,
-        &EvaluationContext {
+    let evaluation_context = EvaluationContext {
             scope: QueryContextScope(0),
             scope_policy: ScopePolicy::host_root(),
             diagnostics: Vec::new(),
             policy_bindings,
             current_item: None,
-        },
-    );
+        };
+    let result = match runtime {
+        Some(runtime) => evaluate_with_control(
+            &payload.compiled.query,
+            &evaluation_context,
+            runtime.operation_control,
+            runtime.execution_scope,
+        ),
+        None => evaluate(&payload.compiled.query, &evaluation_context),
+    };
+    if let Some(error) = result.error.as_ref().filter(|error| {
+        matches!(error, EvalError::Cancelled | EvalError::Control(_))
+    }) {
+        let (code, message) = match error {
+            EvalError::Cancelled => (
+                "cancelled",
+                "CEM-QL expression evaluation cancelled by the host".to_owned(),
+            ),
+            EvalError::Control(failure) => (failure.code(), failure.to_string()),
+            _ => unreachable!("control-error filter accepts only terminal control errors"),
+        };
+        return Err(TransformTemplateAdapterError::failed(
+            adapter_id,
+            TransformTemplateAdapterExecutionPhase::Render,
+            format!("operation control failure {code}: {message}"),
+        ));
+    }
     let diagnostics = diagnostics_with_uri(&result.diagnostics, &payload.template_uri);
 
     Ok(TransformTemplateRenderResponse {
@@ -3639,6 +3751,90 @@ fn render_plan_to_cem_tree_nodes(plan: &RenderPlan) -> CemTreeAstStream {
             .filter_map(render_plan_node_to_cem_tree)
             .collect(),
     )
+}
+
+fn render_plan_to_cem_tree_nodes_with_control(
+    plan: &RenderPlan,
+    control: &cem_ml::operation_control::OperationControl,
+    scope: cem_ml::operation_control::ExecutionScopeId,
+) -> Result<CemTreeAstStream, cem_ml::operation_control::ControlError> {
+    let mut safe_points =
+        cem_ml::operation_control::SafePointPoller::new(control.clone(), scope);
+    safe_points.force()?;
+    let mut nodes = Vec::new();
+    for node in &plan.nodes {
+        if let Some(node) = render_plan_node_to_cem_tree_with_control(node, &mut safe_points)? {
+            nodes.push(node);
+        }
+    }
+    safe_points.force()?;
+    Ok(CemTreeAstStream::new(nodes))
+}
+
+fn render_plan_node_to_cem_tree_with_control(
+    node: &RenderPlanNode,
+    safe_points: &mut cem_ml::operation_control::SafePointPoller,
+) -> Result<Option<CemTreeAstNode>, cem_ml::operation_control::ControlError> {
+    safe_points.poll_one()?;
+    let converted = match node {
+        RenderPlanNode::Element { tag, .. } if tag.trim().is_empty() => None,
+        RenderPlanNode::Element {
+            tag,
+            namespace,
+            attributes,
+            children,
+            source_map,
+        } => {
+            let mut converted_attributes = Vec::with_capacity(attributes.len());
+            for attribute in attributes {
+                safe_points.poll_one()?;
+                converted_attributes.push(render_plan_attribute_to_cem_tree(attribute));
+            }
+            let mut converted_children = Vec::with_capacity(children.len());
+            for child in children {
+                if let Some(child) =
+                    render_plan_node_to_cem_tree_with_control(child, safe_points)?
+                {
+                    converted_children.push(child);
+                }
+            }
+            Some(CemTreeAstNode::Element {
+                name: render_plan_cem_tree_name(tag, namespace.as_deref()),
+                attributes: converted_attributes,
+                children: converted_children,
+                source: source_map.clone(),
+            })
+        }
+        RenderPlanNode::Text { text, source_map } if text.trim().is_empty() => {
+            Some(CemTreeAstNode::Whitespace {
+                data: text.clone(),
+                source: source_map.clone(),
+            })
+        }
+        RenderPlanNode::Text { text, source_map } => Some(CemTreeAstNode::Text {
+            value: text.clone(),
+            source: source_map.clone(),
+        }),
+        RenderPlanNode::Comment { text, source_map } => Some(CemTreeAstNode::Comment {
+            data: text.clone(),
+            source: source_map.clone(),
+        }),
+        RenderPlanNode::Cdata { text, source_map } => Some(CemTreeAstNode::Cdata {
+            data: text.clone(),
+            source: source_map.clone(),
+        }),
+        RenderPlanNode::ProcessingInstruction {
+            target,
+            data,
+            source_map,
+        } => Some(CemTreeAstNode::ProcessingInstruction {
+            name: target.clone(),
+            target: target.clone(),
+            data: data.clone(),
+            source: source_map.clone(),
+        }),
+    };
+    Ok(converted)
 }
 
 fn render_plan_node_to_cem_tree(node: &RenderPlanNode) -> Option<CemTreeAstNode> {
@@ -4010,11 +4206,35 @@ fn render_payload_template(
     payload: &CemQlCompiledTemplatePayload,
     params: &TransformTemplateParameterArena,
     data: &TemplateData,
+    runtime: Option<TransformTemplateRuntimeContext<'_>>,
 ) -> Result<RenderPlan, String> {
     let data = root_template_data_with_params(payload, params, data)?;
-    let mut plan = render_compiled_template(&payload.artifact, &data);
+    let mut plan = match runtime {
+        Some(runtime) => render_compiled_template_with_control(
+            &payload.artifact,
+            &data,
+            runtime.operation_control,
+            runtime.execution_scope,
+        ),
+        None => render_compiled_template(&payload.artifact, &data),
+    };
     fill_diagnostic_uri(&mut plan.diagnostics, payload.template_uri.as_str());
-    let nodes = expand_call_nodes(&plan.nodes, payload, None, &data, 0, &mut plan.diagnostics);
+    let mut safe_points = runtime.map(|runtime| {
+        cem_ml::operation_control::SafePointPoller::new(
+            runtime.operation_control.clone(),
+            runtime.execution_scope,
+        )
+    });
+    let nodes = expand_call_nodes(
+        &plan.nodes,
+        payload,
+        None,
+        &data,
+        0,
+        runtime,
+        &mut safe_points,
+        &mut plan.diagnostics,
+    );
     Ok(RenderPlan {
         nodes,
         diagnostics: plan.diagnostics,
@@ -4049,12 +4269,36 @@ fn expand_call_nodes(
     current_module: Option<&CemQlCompiledTemplateModulePayload>,
     data: &TemplateData,
     depth: u32,
+    runtime: Option<TransformTemplateRuntimeContext<'_>>,
+    safe_points: &mut Option<cem_ml::operation_control::SafePointPoller>,
     diagnostics: &mut Vec<Diagnostic>,
 ) -> Vec<RenderPlanNode> {
-    nodes
-        .iter()
-        .flat_map(|node| expand_call_node(node, payload, current_module, data, depth, diagnostics))
-        .collect()
+    let mut expanded = Vec::new();
+    for node in nodes {
+        if let Some(error) = safe_points
+            .as_mut()
+            .and_then(|poller| poller.poll_one().err())
+        {
+            diagnostics.push(module_render_diagnostic(
+                "cem.transform_template.control_failure",
+                format!("{}: {error}", error.code()),
+                current_template_uri(payload, current_module),
+                render_plan_node_source_map(node).clone(),
+            ));
+            break;
+        }
+        expanded.extend(expand_call_node(
+            node,
+            payload,
+            current_module,
+            data,
+            depth,
+            runtime,
+            safe_points,
+            diagnostics,
+        ));
+    }
+    expanded
 }
 
 fn expand_call_node(
@@ -4063,6 +4307,8 @@ fn expand_call_node(
     current_module: Option<&CemQlCompiledTemplateModulePayload>,
     data: &TemplateData,
     depth: u32,
+    runtime: Option<TransformTemplateRuntimeContext<'_>>,
+    safe_points: &mut Option<cem_ml::operation_control::SafePointPoller>,
     diagnostics: &mut Vec<Diagnostic>,
 ) -> Vec<RenderPlanNode> {
     let RenderPlanNode::Element {
@@ -4083,6 +4329,8 @@ fn expand_call_node(
             current_module,
             data,
             depth,
+            runtime,
+            safe_points,
             diagnostics,
             source_map,
         );
@@ -4092,7 +4340,16 @@ fn expand_call_node(
         tag: tag.clone(),
         namespace: namespace.clone(),
         attributes: attributes.clone(),
-        children: expand_call_nodes(children, payload, current_module, data, depth, diagnostics),
+        children: expand_call_nodes(
+            children,
+            payload,
+            current_module,
+            data,
+            depth,
+            runtime,
+            safe_points,
+            diagnostics,
+        ),
         source_map: source_map.clone(),
     }]
 }
@@ -4103,6 +4360,8 @@ fn render_call_node(
     current_module: Option<&CemQlCompiledTemplateModulePayload>,
     data: &TemplateData,
     depth: u32,
+    runtime: Option<TransformTemplateRuntimeContext<'_>>,
+    safe_points: &mut Option<cem_ml::operation_control::SafePointPoller>,
     diagnostics: &mut Vec<Diagnostic>,
     source_map: &cem_ml::source_map::SourceMapStack,
 ) -> Vec<RenderPlanNode> {
@@ -4183,7 +4442,15 @@ fn render_call_node(
     ) {
         return Vec::new();
     }
-    let mut plan = render_compiled_template(target, &call_data);
+    let mut plan = match runtime {
+        Some(runtime) => render_compiled_template_with_control(
+            target,
+            &call_data,
+            runtime.operation_control,
+            runtime.execution_scope,
+        ),
+        None => render_compiled_template(target, &call_data),
+    };
     fill_diagnostic_uri(
         &mut plan.diagnostics,
         current_template_uri(payload, target_module),
@@ -4195,8 +4462,20 @@ fn render_call_node(
         target_module,
         &call_data,
         depth + 1,
+        runtime,
+        safe_points,
         diagnostics,
     )
+}
+
+fn render_plan_node_source_map(node: &RenderPlanNode) -> &SourceMapStack {
+    match node {
+        RenderPlanNode::Element { source_map, .. }
+        | RenderPlanNode::Text { source_map, .. }
+        | RenderPlanNode::Comment { source_map, .. }
+        | RenderPlanNode::Cdata { source_map, .. }
+        | RenderPlanNode::ProcessingInstruction { source_map, .. } => source_map,
+    }
 }
 
 fn current_template_uri<'a>(
@@ -5811,7 +6090,7 @@ impl QueryEvaluatorAdapter for CemQlQueryEvaluator {
                 "CEM-QL query host bindings require package-owned typed item artifacts",
             )]);
         }
-        let mut stream = evaluate_with_abort(
+        let mut stream = evaluate_with_control(
             &query.compiled.query,
             &EvaluationContext {
                 scope: QueryContextScope(0),
@@ -5820,9 +6099,14 @@ impl QueryEvaluatorAdapter for CemQlQueryEvaluator {
                 policy_bindings: BTreeMap::from([("input".to_owned(), input.stream().clone())]),
                 current_item: None,
             },
-            request.abort_signal,
+            request.operation_control,
+            request.execution_scope,
         );
-        if request.abort_signal.is_aborted() {
+        if request
+            .operation_control
+            .check_scope(request.execution_scope)
+            .is_err()
+        {
             return Err(vec![cem_ml::diagnostics::Diagnostic {
                 source_map: request.abort_signal.source_map(),
                 ..cem_ql_query_diagnostic(
@@ -6376,6 +6660,12 @@ fn eval_error_json(error: &EvalError) -> Value {
             "type": "cancelled",
             "message": "evaluation cancelled by the host",
         }),
+        EvalError::Control(failure) => json!({
+            "kind": "control",
+            "code": failure.code(),
+            "terminalClass": failure.terminal_class(),
+            "failure": failure,
+        }),
         EvalError::BudgetExceeded(axis) => json!({
             "kind": "eval",
             "type": "budget-exceeded",
@@ -6465,6 +6755,36 @@ mod tests {
 
     fn has_diagnostic_code(diagnostics: &[Diagnostic], code: &str) -> bool {
         diagnostics.iter().any(|diagnostic| diagnostic.code == code)
+    }
+
+    #[test]
+    fn controlled_cem_tree_output_preserves_success_and_discards_cancelled_nodes() {
+        let plan = RenderPlan {
+            nodes: (0..128)
+                .map(|index| RenderPlanNode::Text {
+                    text: format!("node-{index}"),
+                    source_map: SourceMapStack::default(),
+                })
+                .collect(),
+            diagnostics: Vec::new(),
+        };
+        let ordinary = render_plan_to_cem_tree_nodes(&plan);
+        let control = cem_ml::operation_control::OperationControl::default();
+        let controlled = render_plan_to_cem_tree_nodes_with_control(
+            &plan,
+            &control,
+            cem_ml::operation_control::ROOT_EXECUTION_SCOPE_ID,
+        )
+        .unwrap();
+        assert_eq!(ordinary, controlled);
+
+        control.cancel_root(None, None).unwrap();
+        assert!(render_plan_to_cem_tree_nodes_with_control(
+            &plan,
+            &control,
+            cem_ml::operation_control::ROOT_EXECUTION_SCOPE_ID,
+        )
+        .is_err());
     }
 
     fn test_output_value(output: &TransformTemplateOutputArtifact) -> Value {

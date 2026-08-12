@@ -504,7 +504,11 @@ fn read_registered_source(
     }
     match context
         .resolver_registry
-        .read_with_abort(&request, context.abort_signal())
+        .read_with_control(
+            &request,
+            &context.operation_control,
+            cem_ml::operation_control::ROOT_EXECUTION_SCOPE_ID,
+        )
     {
         Ok(read) => Ok(Some(read)),
         Err(ResolverDiagnostic::UnsupportedResolver { .. }) => Ok(None),
@@ -2019,7 +2023,11 @@ fn transform_graph_expand_resolver_import_paths(
         .with_max_entries(TRANSFORM_GRAPH_IMPORT_GLOB_MAX_ENTRIES + 1);
     let mut entries = match context
         .resolver_registry
-        .list_with_abort(&request, context.abort_signal())
+        .list_with_control(
+            &request,
+            &context.operation_control,
+            cem_ml::operation_control::ROOT_EXECUTION_SCOPE_ID,
+        )
     {
         Ok(entries) => entries,
         Err(ResolverDiagnostic::UnsupportedResolver { .. }) => {
@@ -4371,7 +4379,12 @@ fn write_registered_destination(
     let request = ResolveRequest::new(uri, purpose, ResolveDirection::Write);
     match context
         .resolver_registry
-        .write_with_abort(&request, contents, context.abort_signal())
+        .write_with_control(
+            &request,
+            contents,
+            &context.operation_control,
+            cem_ml::operation_control::ROOT_EXECUTION_SCOPE_ID,
+        )
     {
         Ok(_) => Ok(true),
         Err(ResolverDiagnostic::UnsupportedResolver { .. }) => Ok(false),

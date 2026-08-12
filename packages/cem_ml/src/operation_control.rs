@@ -17,6 +17,10 @@ use crate::source::ByteRange;
 use crate::source_map::SourceMapStack;
 
 pub const ROOT_EXECUTION_SCOPE_ID: ExecutionScopeId = ExecutionScopeId(0);
+/// Maximum number of caller-defined work units allowed between cooperative
+/// control checks. Callers must report work in naturally bounded units such as
+/// tokens, evaluator nodes, loop iterations, or output chunks.
+pub const DEFAULT_SAFE_POINT_WORK_INTERVAL: u32 = 64;
 pub const MAX_CONTROL_REASON_BYTES: usize = 512;
 pub const MAX_EXECUTION_SCOPE_LABEL_BYTES: usize = 256;
 pub const MAX_SCOPE_IDENTITY_BYTES: usize = 128;
@@ -491,6 +495,69 @@ pub struct OperationControl {
     operation_id: OperationId,
     abort_signal: AbortSignal,
     inner: Arc<Mutex<ControlInner>>,
+}
+
+/// Reusable bounded-work cooperative control poller.
+///
+/// The poller owns only clone-shared control state and an operation-local work
+/// counter. It does not mutate evaluator state, output, or source locations.
+/// `force` is used at call/host boundaries; `poll` is used inside bounded loops.
+#[derive(Debug, Clone)]
+pub struct SafePointPoller {
+    control: OperationControl,
+    scope: ExecutionScopeId,
+    work_interval: u32,
+    work_since_check: u32,
+}
+
+impl SafePointPoller {
+    pub fn new(control: OperationControl, scope: ExecutionScopeId) -> Self {
+        Self::with_work_interval(control, scope, DEFAULT_SAFE_POINT_WORK_INTERVAL)
+    }
+
+    pub fn root(control: OperationControl) -> Self {
+        Self::new(control, ROOT_EXECUTION_SCOPE_ID)
+    }
+
+    pub fn from_abort_signal(abort_signal: &AbortSignal) -> Self {
+        Self::root(OperationControl::new(abort_signal.clone()))
+    }
+
+    pub fn with_work_interval(
+        control: OperationControl,
+        scope: ExecutionScopeId,
+        work_interval: u32,
+    ) -> Self {
+        Self {
+            control,
+            scope,
+            work_interval: work_interval.max(1),
+            work_since_check: 0,
+        }
+    }
+
+    pub fn scope(&self) -> ExecutionScopeId {
+        self.scope
+    }
+
+    pub fn force(&mut self) -> Result<(), ControlError> {
+        self.work_since_check = 0;
+        self.control.check_scope(self.scope)
+    }
+
+    pub fn poll(&mut self, work_units: u32) -> Result<(), ControlError> {
+        let total = self.work_since_check.saturating_add(work_units);
+        if total < self.work_interval {
+            self.work_since_check = total;
+            return Ok(());
+        }
+        self.work_since_check = total % self.work_interval;
+        self.control.check_scope(self.scope)
+    }
+
+    pub fn poll_one(&mut self) -> Result<(), ControlError> {
+        self.poll(1)
+    }
 }
 
 impl Default for OperationControl {
@@ -1313,6 +1380,71 @@ mod tests {
         assert!(matches!(
             failure.cause,
             ControlCause::HostCancellation { reason: Some(reason) } if reason == "host shutdown"
+        ));
+    }
+
+    #[test]
+    fn safe_point_poller_observes_cancellation_at_the_fixed_work_boundary() {
+        let signal = AbortSignal::new();
+        let control = OperationControl::new(signal.clone());
+        let mut poller = SafePointPoller::with_work_interval(
+            control,
+            ROOT_EXECUTION_SCOPE_ID,
+            DEFAULT_SAFE_POINT_WORK_INTERVAL,
+        );
+        poller.force().unwrap();
+        signal.abort();
+
+        poller
+            .poll(DEFAULT_SAFE_POINT_WORK_INTERVAL - 1)
+            .unwrap();
+        let ControlError::Triggered(failure) = poller.poll_one().unwrap_err() else {
+            panic!("the fixed work boundary must observe cancellation");
+        };
+        assert_eq!(failure.terminal_class(), ControlTerminalClass::Cancelled);
+    }
+
+    #[test]
+    fn safe_point_poller_checks_scoped_causes_and_deadlines() {
+        let control = OperationControl::with_policy(
+            OperationId::from_raw(43),
+            AbortSignal::new(),
+            policy(4_096, 8, None),
+        )
+        .unwrap();
+        let selected = child(
+            &control,
+            ROOT_EXECUTION_SCOPE_ID,
+            "selected",
+            policy(2_048, 8, None),
+        );
+        let mut selected_poller =
+            SafePointPoller::with_work_interval(control.clone(), selected, 1);
+        control.cancel_scope(selected, None, None).unwrap();
+        assert!(matches!(
+            selected_poller.poll_one(),
+            Err(ControlError::Triggered(ControlFailure {
+                affected_scope,
+                cause: ControlCause::HostCancellation { .. },
+                ..
+            })) if affected_scope == selected
+        ));
+
+        let deadline_control = OperationControl::with_policy(
+            OperationId::from_raw(44),
+            AbortSignal::new(),
+            policy(4_096, 8, Some(1)),
+        )
+        .unwrap();
+        let mut deadline_poller =
+            SafePointPoller::with_work_interval(deadline_control, ROOT_EXECUTION_SCOPE_ID, 1);
+        std::thread::sleep(Duration::from_millis(2));
+        assert!(matches!(
+            deadline_poller.poll_one(),
+            Err(ControlError::Triggered(ControlFailure {
+                cause: ControlCause::TimeoutExceeded { .. },
+                ..
+            }))
         ));
     }
 

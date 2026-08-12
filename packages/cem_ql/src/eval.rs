@@ -6,6 +6,10 @@ use std::fmt;
 use std::sync::Arc;
 
 use cem_ml::diagnostics::{Diagnostic, Severity};
+use cem_ml::operation_control::{
+    ControlError, ControlFailure, ControlTerminalClass, ExecutionScopeId, OperationControl,
+    SafePointPoller, ROOT_EXECUTION_SCOPE_ID,
+};
 use cem_ml::scheduler::{AbortSignal, ScopePolicy};
 use cem_ml::source_map::SourceMapStack;
 
@@ -303,6 +307,7 @@ impl BudgetAxis {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum EvalError {
     Cancelled,
+    Control(ControlFailure),
     BudgetExceeded(BudgetAxis),
     Unsupported(&'static str),
     TypeError(&'static str),
@@ -322,15 +327,34 @@ impl Evaluator {
         context: &EvaluationContext,
         abort_signal: &'a AbortSignal,
     ) -> ItemStream {
-        let mut ctx = EvalCtx::new(query, context, abort_signal);
-        let stream = ctx.eval_id(query.tree.root);
+        let control = OperationControl::new(abort_signal.clone());
+        Self::evaluate_with_control(query, context, &control, ROOT_EXECUTION_SCOPE_ID)
+    }
+
+    pub fn evaluate_with_control(
+        query: &CompiledQuery,
+        context: &EvaluationContext,
+        control: &OperationControl,
+        scope: ExecutionScopeId,
+    ) -> ItemStream {
+        let mut ctx = EvalCtx::new(query, context, control, scope);
+        let mut stream = match ctx.force_safe_point(query.tree.root) {
+            Ok(()) => ctx.eval_id(query.tree.root),
+            Err(controlled) => controlled,
+        };
+        if let Err(controlled) = ctx.force_safe_point(query.tree.root) {
+            // Evaluation values remain internal until the operation-control
+            // acceptance boundary succeeds. A terminal control cause must
+            // never expose the prefix accumulated before its safe point.
+            stream = controlled;
+        }
         stream.with_context(&ctx)
     }
 }
 
 pub(crate) struct EvalCtx<'a> {
     query: &'a CompiledQuery,
-    abort_signal: &'a AbortSignal,
+    safe_points: SafePointPoller,
     scopes: Vec<HashMap<BindingId, ItemStream>>,
     globals: HashMap<BindingId, IrId>,
     functions: HashMap<BindingId, IrId>,
@@ -346,11 +370,12 @@ impl<'a> EvalCtx<'a> {
     fn new(
         query: &'a CompiledQuery,
         context: &EvaluationContext,
-        abort_signal: &'a AbortSignal,
+        control: &OperationControl,
+        scope: ExecutionScopeId,
     ) -> Self {
         let mut ctx = Self {
             query,
-            abort_signal,
+            safe_points: SafePointPoller::new(control.clone(), scope),
             scopes: vec![HashMap::new()],
             globals: HashMap::new(),
             functions: HashMap::new(),
@@ -426,6 +451,9 @@ impl<'a> EvalCtx<'a> {
             IrNode::Record(entries) => {
                 let mut record = BTreeMap::new();
                 for (key, value_id) in entries {
+                    if let Err(error) = self.poll_work(id) {
+                        return error;
+                    }
                     let key = match self.eval_record_key(id, &key) {
                         Ok(key) => key,
                         Err(stream) => return stream,
@@ -439,6 +467,9 @@ impl<'a> EvalCtx<'a> {
             IrNode::Array(items) => {
                 let mut out = Vec::new();
                 for item in items {
+                    if let Err(error) = self.poll_work(id) {
+                        return error;
+                    }
                     let stream = self.eval_id(item);
                     self.merge_stream_status(&stream);
                     out.extend(stream.items);
@@ -448,6 +479,9 @@ impl<'a> EvalCtx<'a> {
             IrNode::Sequence(items) => {
                 let mut out = ItemStream::empty();
                 for item in items {
+                    if let Err(error) = self.poll_work(id) {
+                        return error;
+                    }
                     let stream = self.eval_id(item);
                     out.append_stream(stream);
                 }
@@ -505,6 +539,10 @@ impl<'a> EvalCtx<'a> {
                 self.merge_stream_status(&source);
                 let mut out = ItemStream::empty();
                 for item in source.items {
+                    if let Err(error) = self.poll_work(id) {
+                        out.append_stream(error);
+                        break;
+                    }
                     self.push_scope();
                     self.bind(var, ItemStream::once(item));
                     let body = self.eval_id(body);
@@ -606,17 +644,54 @@ impl<'a> EvalCtx<'a> {
         self.charge(BudgetAxis::ItemsPerStage, amount, source)
     }
 
+    pub(crate) fn poll_work(&mut self, source: IrId) -> Result<(), ItemStream> {
+        let result = self.safe_points.poll_one();
+        self.map_control_result(source, result)
+    }
+
+    pub(crate) fn force_safe_point(&mut self, source: IrId) -> Result<(), ItemStream> {
+        let result = self.safe_points.force();
+        self.map_control_result(source, result)
+    }
+
     fn ensure_active(&mut self, source: IrId) -> Result<(), ItemStream> {
-        if !self.abort_signal.is_aborted() {
+        self.poll_work(source)
+    }
+
+    fn map_control_result(
+        &mut self,
+        source: IrId,
+        result: Result<(), ControlError>,
+    ) -> Result<(), ItemStream> {
+        let Err(control_error) = result else {
             return Ok(());
-        }
-        let diagnostic = self.diagnostic(
-            source,
-            ABORTED,
-            "CEM-QL evaluation cancelled by the host",
-            Severity::Info,
-        );
-        let error = EvalError::Cancelled;
+        };
+        let (error, code, message, severity) = match control_error {
+            ControlError::Triggered(mut failure) => {
+                if failure.source_map.is_none() {
+                    failure.source_map = self.query.tree.source_maps.get(source.0 as usize).cloned();
+                }
+                if failure.terminal_class() == ControlTerminalClass::Cancelled {
+                    (
+                        EvalError::Cancelled,
+                        ABORTED.to_string(),
+                        "CEM-QL evaluation cancelled by the host".to_owned(),
+                        Severity::Info,
+                    )
+                } else {
+                    let code = format!("cem.ql.control.{}", failure.code());
+                    let message = failure.to_string();
+                    (EvalError::Control(failure), code, message, Severity::Error)
+                }
+            }
+            other => (
+                EvalError::Unsupported("operation control check failed"),
+                other.code().to_owned(),
+                other.to_string(),
+                Severity::Error,
+            ),
+        };
+        let diagnostic = self.diagnostic(source, code, message, severity);
         self.diagnostics.push(diagnostic.clone());
         self.error = Some(error.clone());
         Err(ItemStream::failed(error, diagnostic))
@@ -899,6 +974,9 @@ impl<'a> EvalCtx<'a> {
         self.merge_stream_status(&source);
         let mut any = false;
         for item in source.items {
+            if let Err(error) = self.poll_work(predicate) {
+                return error;
+            }
             self.push_scope();
             self.bind(var, ItemStream::once(item));
             let predicate = self.eval_id(predicate);
@@ -954,6 +1032,7 @@ impl<'a> EvalCtx<'a> {
     }
 
     fn enter_call(&mut self, source: IrId) -> Result<(), ItemStream> {
+        self.force_safe_point(source)?;
         self.charge(BudgetAxis::FunctionCalls, 1, source)?;
         self.call_depth += 1;
         if let Err(err) = self.charge(BudgetAxis::CallDepth, 1, source) {

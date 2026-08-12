@@ -441,6 +441,8 @@ pub fn run_query(request: QueryRunRequest) -> Result<QueryRunResponse, QueryRunE
         resolver_policy_stamp: &resolver_policy_stamp,
         safety_policy_stamp: &safety_policy_stamp,
         scope_policy: &scope_policy,
+        operation_control: &request.context.operation_control,
+        execution_scope: crate::operation_control::ROOT_EXECUTION_SCOPE_ID,
         abort_signal: request.context.abort_signal(),
         limits,
     }) {

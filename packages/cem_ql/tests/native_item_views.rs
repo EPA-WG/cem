@@ -198,6 +198,10 @@ fn evaluator_polls_host_cancellation_after_native_view_work() {
     );
 
     assert_eq!(result.error, Some(EvalError::Cancelled));
+    assert!(
+        result.items.is_empty(),
+        "native work completed after cancellation must not publish partial values"
+    );
     assert!(result
         .diagnostics
         .iter()

@@ -122,7 +122,12 @@ fn prepare(context: &EngineContext, item: &PublicationItem) -> io::Result<Prepar
     let request = publication_request(item);
     let prepared = context
         .resolver_registry
-        .prepare_write_with_abort(&request, &item.bytes, context.abort_signal())
+        .prepare_write_with_control(
+            &request,
+            &item.bytes,
+            &context.operation_control,
+            cem_ml::operation_control::ROOT_EXECUTION_SCOPE_ID,
+        )
         .map_err(resolver_io_error)?;
     Ok(PreparedPublication::Resolver(prepared))
 }
@@ -140,7 +145,12 @@ fn publish_direct(context: &EngineContext, item: &PublicationItem) -> io::Result
     let request = publication_request(item);
     context
         .resolver_registry
-        .write_with_abort(&request, &item.bytes, context.abort_signal())
+        .write_with_control(
+            &request,
+            &item.bytes,
+            &context.operation_control,
+            cem_ml::operation_control::ROOT_EXECUTION_SCOPE_ID,
+        )
         .map(|_| ())
         .map_err(resolver_io_error)
 }

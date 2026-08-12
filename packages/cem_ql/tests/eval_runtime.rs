@@ -1,7 +1,8 @@
 use std::collections::BTreeMap;
 
+use cem_ml::operation_control::{OperationControl, ROOT_EXECUTION_SCOPE_ID};
 use cem_ml::scheduler::ScopePolicy;
-use cem_ql::api::{compile, evaluate, CompileContext, EvaluationContext};
+use cem_ql::api::{compile, evaluate, evaluate_with_control, CompileContext, EvaluationContext};
 use cem_ql::eval::{AtomValue, BudgetAxis, EvalError, Item, QueryContextScope};
 
 fn eval(source: &str, policy: ScopePolicy) -> cem_ql::eval::ItemStream {
@@ -35,6 +36,42 @@ fn eval_with_bindings(
 
 fn default_policy() -> ScopePolicy {
     ScopePolicy::host_root().with_queue_size(128)
+}
+
+#[test]
+fn controlled_for_loop_preserves_success_and_discards_cancelled_values() {
+    let query = compile(
+        "for item in (1, 2, 3, 4, 5, 6, 7, 8) { item + 1 }",
+        &CompileContext::default(),
+    )
+    .expect("controlled loop compiles");
+    let context = EvaluationContext {
+        scope: QueryContextScope(0),
+        scope_policy: default_policy(),
+        diagnostics: Vec::new(),
+        policy_bindings: BTreeMap::new(),
+        current_item: None,
+    };
+    let ordinary = evaluate(&query, &context);
+    let control = OperationControl::default();
+    let controlled = evaluate_with_control(
+        &query,
+        &context,
+        &control,
+        ROOT_EXECUTION_SCOPE_ID,
+    );
+    assert_eq!(ordinary.items, controlled.items);
+    assert_eq!(ordinary.error, controlled.error);
+
+    control.cancel_root(None, None).unwrap();
+    let cancelled = evaluate_with_control(
+        &query,
+        &context,
+        &control,
+        ROOT_EXECUTION_SCOPE_ID,
+    );
+    assert!(cancelled.items.is_empty());
+    assert_eq!(cancelled.error, Some(EvalError::Cancelled));
 }
 
 #[test]

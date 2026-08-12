@@ -105,6 +105,7 @@ fn evaluate(
     let resolver_policy = ResolverPolicy::new();
     let scope_policy = ScopePolicy::host_root();
     let abort_signal = AbortSignal::new();
+    let operation_control = cem_ml::operation_control::OperationControl::new(abort_signal.clone());
     CemCssSelectorEvaluator::default().evaluate(QueryExecutionRequest {
         language: QueryLanguage::CssSelector,
         query_ast_owner: expression,
@@ -117,6 +118,8 @@ fn evaluate(
         resolver_policy_stamp: "resolver-policy/1",
         safety_policy_stamp: "query-safety/1",
         scope_policy: &scope_policy,
+        operation_control: &operation_control,
+        execution_scope: cem_ml::operation_control::ROOT_EXECUTION_SCOPE_ID,
         abort_signal: &abort_signal,
         limits,
     })

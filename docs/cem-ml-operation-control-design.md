@@ -349,6 +349,15 @@ generation. Cancellation checks remain compiled in all builds. Debugger frame
 capture is performed only when the `debug-control` feature is built and runtime
 debugging is active.
 
+The first-release common poller uses a fixed maximum interval of 64 bounded work
+units. A work unit is the smallest already-bounded operation owned by the path,
+such as one token/event, IR node or loop item, path step, render node/character,
+or staged artifact. Paths may check more frequently. Operation entry, host-call
+dispatch, host-result acceptance, and final result acceptance are forced safe
+points and do not wait for the quota. Consequently, a control failure can leave
+an internal prefix under construction, but that prefix is discarded before it
+crosses a result, resolver, plugin, transform, artifact, or output boundary.
+
 Host calls and publication may declare a short atomic region. Pause waits for
 an atomic region to exit. Cancellation prevents its result from being accepted
 but cannot undo an irreversible external side effect already started. Resolver

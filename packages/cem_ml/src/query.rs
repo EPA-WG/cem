@@ -14,6 +14,7 @@ use crate::engine::FormatIdentity;
 use crate::parser::document::CemDocument;
 use crate::parser::{AstNodeId, CemAstNode};
 use crate::resolver::{ResolverPolicy, ResolverRegistry};
+use crate::operation_control::{ExecutionScopeId, OperationControl};
 use crate::scheduler::{AbortSignal, ScopePolicy};
 use crate::schema::registry::{
     content_type_essence, CEM_QL_CONTENT_TYPE, CEM_QL_EXPRESSION_CONTENT_TYPE,
@@ -231,6 +232,8 @@ pub struct QueryExecutionRequest<'a> {
     pub resolver_policy_stamp: &'a str,
     pub safety_policy_stamp: &'a str,
     pub scope_policy: &'a ScopePolicy,
+    pub operation_control: &'a OperationControl,
+    pub execution_scope: ExecutionScopeId,
     pub abort_signal: &'a AbortSignal,
     pub limits: QueryExecutionLimits,
 }
@@ -266,7 +269,12 @@ impl QueryExecutionRequest<'_> {
             .map_err(|error| QueryContractError::ScopePolicyInvalid {
                 message: error.to_string(),
             })?;
-        if self.abort_signal.is_aborted() {
+        if self
+            .operation_control
+            .check_scope(self.execution_scope)
+            .is_err()
+            || self.abort_signal.is_aborted()
+        {
             return Err(QueryContractError::Aborted);
         }
         if let Some((prefix, _)) = self
@@ -938,6 +946,7 @@ mod query_execution_contract_tests {
         let resolver_policy = ResolverPolicy::new();
         let scope_policy = ScopePolicy::host_root();
         let abort_signal = AbortSignal::new();
+        let operation_control = OperationControl::new(abort_signal.clone());
 
         let request = QueryExecutionRequest {
             language: QueryLanguage::CssSelector,
@@ -951,6 +960,8 @@ mod query_execution_contract_tests {
             resolver_policy_stamp: "resolver-policy/1",
             safety_policy_stamp: "query-safety/1",
             scope_policy: &scope_policy,
+            operation_control: &operation_control,
+            execution_scope: crate::operation_control::ROOT_EXECUTION_SCOPE_ID,
             abort_signal: &abort_signal,
             limits: QueryExecutionLimits {
                 max_result_items: Some(10),

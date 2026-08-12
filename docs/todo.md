@@ -194,10 +194,30 @@ replacement tree may mediate between internal engine layers.
                 tests, the complete `cem_ml_cli` Nx test/integration graph, both lint
                 targets, the final 13-test scheduler and 7-test publication fixture
                 sets, and the common WASM build pass.
-            - [ ] Gate 3 — add bounded safe-point polling throughout remaining
+            - [x] Gate 3 — add bounded safe-point polling throughout remaining
                   parser and long single-call evaluator paths, beginning with XPath
                   ranges, paths, predicates, quantified/for loops, function calls,
                   template/render recursion, transform stages, and output chunks.
+                - [x] Add Gate 3 native fixtures proving the fixed work-quota
+                      boundary for root cancellation and deadlines across parser
+                      tokens/events, XPath and CEM-QL loops, template/render
+                      recursion, resolver/plugin acceptance, transform stages, and
+                      output chunks; verify unchanged successful output and common
+                      WASM compilation.
+
+                Completed 2026-08-12: introduced one common `SafePointPoller` with
+                a fixed 64-work-unit maximum between full root/scoped operation-
+                control checks. CEM/HTML/XML tokenization, XPath and CEM-QL
+                evaluation, template rendering and output encoding, recursive
+                transform expansion, and resolver/plugin host boundaries now poll
+                cooperatively. Entry, host-dispatch, host-acceptance, and final-
+                acceptance boundaries force checks so late cancellation or deadline
+                expiry discards partial values, trees, bytes, and host results.
+                Native fixtures cover the quota boundary, cancellation and deadline
+                suppression, unchanged successful output, recursive paths, and
+                resolver/plugin late-result rejection. The four-project Nx test
+                graph and its 32 dependency tasks, all four lint targets, and both
+                common WASM build targets pass.
             - [ ] Gate 4 — implement scoped subtree unwind, cleanup, typed delivery
                   to the nearest error boundary, explicit type-compatible recovery,
                   unhandled/fail-fast escalation, and unaffected-sibling behavior.

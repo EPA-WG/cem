@@ -31,7 +31,10 @@ use crate::parser::diagnostics::{
 use crate::source::decode::{DecodeConfig, Utf8Decoder};
 use crate::source::{ByteRange, ByteSource, EncodingDecoder, SourceId};
 use crate::source_map::{FrameSpan, SourceMapFrame, SourceMapStack, TransformKind};
-use crate::tokenizer::{SchemaToken, SchemaTokenKind, SchemaTokenizer, TokenizerProfile};
+use crate::tokenizer::{
+    SchemaToken, SchemaTokenKind, SchemaTokenizer, TokenizerControl, TokenizerProfile,
+};
+use std::cell::RefCell;
 use std::collections::VecDeque;
 
 pub struct CemTokenizer {
@@ -46,12 +49,28 @@ pub struct CemTokenizer {
     /// tokenizer instance identifying the CEM profile + originating source.
     base_source_map: SourceMapStack,
     end_offset: u64,
+    control: Option<RefCell<TokenizerControl>>,
 }
 
 impl CemTokenizer {
     /// Build a tokenizer from a `ByteSource`, decoding all bytes eagerly.
     /// Decode diagnostics are surfaced via [`take_diagnostics`].
     pub fn from_source<S: ByteSource>(source: S) -> Self {
+        Self::from_source_inner(source, None)
+    }
+
+    pub fn from_source_with_control<S: ByteSource>(
+        source: S,
+        control: crate::operation_control::OperationControl,
+        scope: crate::operation_control::ExecutionScopeId,
+    ) -> Self {
+        Self::from_source_inner(source, Some(TokenizerControl::new(control, scope)))
+    }
+
+    fn from_source_inner<S: ByteSource>(
+        source: S,
+        mut control: Option<TokenizerControl>,
+    ) -> Self {
         let mut decoder = Utf8Decoder::with_config(
             source,
             DecodeConfig {
@@ -61,8 +80,14 @@ impl CemTokenizer {
         );
         let source_id = decoder.source_id();
         let mut scalars = Vec::new();
+        if let Some(control) = control.as_mut() {
+            control.force();
+        }
         while let Some(c) = decoder.decode_next() {
             scalars.extend(c.scalars);
+            if control.as_mut().is_some_and(|control| !control.poll()) {
+                break;
+            }
         }
         let diagnostics = decoder.take_diagnostics();
         let end_offset = scalars.last().map(|(_, r)| r.end()).unwrap_or(0);
@@ -83,6 +108,7 @@ impl CemTokenizer {
             cem_ml_parser_diagnostics: None,
             base_source_map,
             end_offset,
+            control: control.map(RefCell::new),
         };
         tokenizer.scan_document();
         tokenizer
@@ -129,11 +155,23 @@ impl CemTokenizer {
     }
 
     fn peek(&self) -> Option<char> {
+        if !self.control_allows_work() {
+            return None;
+        }
         self.scalars.get(self.cursor).map(|(c, _)| *c)
     }
 
     fn peek_at(&self, n: usize) -> Option<char> {
+        if !self.control_allows_work() {
+            return None;
+        }
         self.scalars.get(self.cursor + n).map(|(c, _)| *c)
+    }
+
+    fn control_allows_work(&self) -> bool {
+        self.control
+            .as_ref()
+            .is_none_or(|control| control.borrow_mut().poll())
     }
 
     fn current_offset(&self) -> u64 {
@@ -932,6 +970,9 @@ impl SchemaTokenizer for CemTokenizer {
     }
 
     fn next_token(&mut self) -> Option<SchemaToken> {
+        if !self.control_allows_work() {
+            return None;
+        }
         self.pending.pop_front()
     }
 }
@@ -968,6 +1009,38 @@ mod tests {
             out.push(tok);
         }
         out
+    }
+
+    #[test]
+    fn controlled_tokenizer_preserves_output_and_suppresses_cancelled_work() {
+        let source = b"{main @id=app | hello}".to_vec();
+        let ordinary = drain_tokens(&mut CemTokenizer::from_source(BytesSource::new(
+            SourceId(1),
+            source.clone(),
+        )));
+        let control = crate::operation_control::OperationControl::default();
+        let controlled = drain_tokens(&mut CemTokenizer::from_source_with_control(
+            BytesSource::new(SourceId(1), source.clone()),
+            control,
+            crate::operation_control::ROOT_EXECUTION_SCOPE_ID,
+        ));
+        assert_eq!(ordinary.len(), controlled.len());
+        assert_eq!(
+            ordinary.iter().map(|token| token.byte_range).collect::<Vec<_>>(),
+            controlled
+                .iter()
+                .map(|token| token.byte_range)
+                .collect::<Vec<_>>()
+        );
+
+        let cancelled = crate::operation_control::OperationControl::default();
+        cancelled.cancel_root(None, None).unwrap();
+        let mut tokenizer = CemTokenizer::from_source_with_control(
+            BytesSource::new(SourceId(1), source),
+            cancelled,
+            crate::operation_control::ROOT_EXECUTION_SCOPE_ID,
+        );
+        assert!(tokenizer.next_token().is_none());
     }
 
     fn tokenize(input: &str) -> (Vec<SchemaToken>, Vec<Diagnostic>) {

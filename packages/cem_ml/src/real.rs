@@ -1591,7 +1591,7 @@ where
     // Schema-machine pass.
     let schema_outcome = {
         let src = BytesSource::new(SourceId(1), bytes.to_vec());
-        let tok = T::from_bytes(src);
+        let tok = T::from_bytes_with_context(src, context);
         let normalizer = CemEventNormalizer::new(tok);
         let mut machine = CemSchemaMachine::new(CompiledSchema::cem_core(), normalizer);
         if let Some(root_scope) = root_scope {
@@ -1613,7 +1613,7 @@ where
     // AST + tokenizer-diag fold (separate parse so token-diags surface).
     let mut document = {
         let src = BytesSource::new(SourceId(1), bytes.to_vec());
-        let mut tok = T::from_bytes(src);
+        let mut tok = T::from_bytes_with_context(src, context);
         let tok_diags = tok.take_diagnostics();
         let normalizer = CemEventNormalizer::new(tok);
         let mut doc = CemAstBuilder::new(normalizer).build();
@@ -1762,13 +1762,20 @@ fn is_cem_ml_version_pin_target(target: &str) -> bool {
 }
 
 trait FromBytes: Sized {
-    fn from_bytes(src: BytesSource) -> Self;
+    fn from_bytes_with_context(src: BytesSource, context: Option<&EngineContext>) -> Self;
     fn take_diagnostics(&mut self) -> Vec<Diagnostic>;
 }
 
 impl FromBytes for CemTokenizer {
-    fn from_bytes(src: BytesSource) -> Self {
-        CemTokenizer::from_source(src)
+    fn from_bytes_with_context(src: BytesSource, context: Option<&EngineContext>) -> Self {
+        match context {
+            Some(context) => CemTokenizer::from_source_with_control(
+                src,
+                context.operation_control.clone(),
+                crate::operation_control::ROOT_EXECUTION_SCOPE_ID,
+            ),
+            None => CemTokenizer::from_source(src),
+        }
     }
     fn take_diagnostics(&mut self) -> Vec<Diagnostic> {
         CemTokenizer::take_diagnostics(self)
@@ -1776,8 +1783,15 @@ impl FromBytes for CemTokenizer {
 }
 
 impl FromBytes for HtmlTokenizer {
-    fn from_bytes(src: BytesSource) -> Self {
-        HtmlTokenizer::from_source(src)
+    fn from_bytes_with_context(src: BytesSource, context: Option<&EngineContext>) -> Self {
+        match context {
+            Some(context) => HtmlTokenizer::from_source_with_control(
+                src,
+                context.operation_control.clone(),
+                crate::operation_control::ROOT_EXECUTION_SCOPE_ID,
+            ),
+            None => HtmlTokenizer::from_source(src),
+        }
     }
     fn take_diagnostics(&mut self) -> Vec<Diagnostic> {
         HtmlTokenizer::take_diagnostics(self)
@@ -1785,8 +1799,15 @@ impl FromBytes for HtmlTokenizer {
 }
 
 impl FromBytes for XmlTokenizer {
-    fn from_bytes(src: BytesSource) -> Self {
-        XmlTokenizer::from_source(src)
+    fn from_bytes_with_context(src: BytesSource, context: Option<&EngineContext>) -> Self {
+        match context {
+            Some(context) => XmlTokenizer::from_source_with_control(
+                src,
+                context.operation_control.clone(),
+                crate::operation_control::ROOT_EXECUTION_SCOPE_ID,
+            ),
+            None => XmlTokenizer::from_source(src),
+        }
     }
     fn take_diagnostics(&mut self) -> Vec<Diagnostic> {
         XmlTokenizer::take_diagnostics(self)
@@ -4604,6 +4625,7 @@ fn template_import_resolution_diagnostic_kind(
         TemplateImportReadError::Resolver {
             error:
                 ResolverDiagnostic::Io { .. }
+                | ResolverDiagnostic::Control { .. }
                 | ResolverDiagnostic::TransactionUnsupported { .. }
                 | ResolverDiagnostic::TransactionState { .. },
             ..
@@ -4680,6 +4702,7 @@ fn template_import_scheme_tier(uri: &str) -> &'static str {
 fn resolver_diagnostic_uri(error: &ResolverDiagnostic) -> &str {
     match error {
         ResolverDiagnostic::Cancelled { uri, .. }
+        | ResolverDiagnostic::Control { uri, .. }
         | ResolverDiagnostic::UnsupportedResolver { uri, .. }
         | ResolverDiagnostic::NonLocalFileUri { uri }
         | ResolverDiagnostic::InvalidFileUri { uri, .. }
@@ -4853,7 +4876,11 @@ fn read_registered_template_import(
     }
     match context
         .resolver_registry
-        .read_with_abort(&request, context.abort_signal())
+        .read_with_control(
+            &request,
+            &context.operation_control,
+            crate::operation_control::ROOT_EXECUTION_SCOPE_ID,
+        )
     {
         Ok(read) => Ok(Some(read)),
         Err(ResolverDiagnostic::UnsupportedResolver { .. }) => Ok(None),
@@ -8087,6 +8114,8 @@ fn render_transform_stage(
         crate::transform_template::TransformTemplateRuntimeContext {
             resolver_registry: &spec.context.resolver_registry,
             resolver_policy: &spec.context.resolver_policy,
+            operation_control: &spec.context.operation_control,
+            execution_scope: crate::operation_control::ROOT_EXECUTION_SCOPE_ID,
         },
     ) {
         Ok(mut response) => {
@@ -8765,7 +8794,11 @@ fn read_registered_resource(
     }
     match context
         .resolver_registry
-        .read_with_abort(&request, context.abort_signal())
+        .read_with_control(
+            &request,
+            &context.operation_control,
+            crate::operation_control::ROOT_EXECUTION_SCOPE_ID,
+        )
     {
         Ok(read) => Ok(Some(read)),
         Err(ResolverDiagnostic::UnsupportedResolver { .. }) => Ok(None),
@@ -8858,6 +8891,7 @@ fn resolved_engine_input(input: &EngineInput, read: ResolvedRead) -> EngineInput
 fn resolver_input_error(input: &EngineInput, error: ResolverDiagnostic) -> EngineError {
     match error {
         ResolverDiagnostic::Cancelled { source_map, .. } => EngineError::Cancelled { source_map },
+        ResolverDiagnostic::Control { failure, .. } => EngineError::Control(failure),
         error => EngineError::Io {
             path: input.uri.clone().into(),
             source: std::io::Error::new(std::io::ErrorKind::InvalidInput, error),

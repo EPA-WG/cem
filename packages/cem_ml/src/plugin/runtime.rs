@@ -84,6 +84,40 @@ impl PluginRuntime {
         abort: AbortSignal,
         budget: PluginBudget,
     ) -> Result<PluginRunReport, PluginError> {
+        self.invoke_chain_internal(chain, input, scope, abort, budget, None)
+    }
+
+    pub fn invoke_chain_with_control(
+        &self,
+        chain: &PluginChain,
+        input: PluginInput,
+        scope: ScopeId,
+        control: &crate::operation_control::OperationControl,
+        execution_scope: crate::operation_control::ExecutionScopeId,
+        budget: PluginBudget,
+    ) -> Result<PluginRunReport, PluginError> {
+        self.invoke_chain_internal(
+            chain,
+            input,
+            scope,
+            control.abort_signal().clone(),
+            budget,
+            Some((control, execution_scope)),
+        )
+    }
+
+    fn invoke_chain_internal(
+        &self,
+        chain: &PluginChain,
+        input: PluginInput,
+        scope: ScopeId,
+        abort: AbortSignal,
+        budget: PluginBudget,
+        control: Option<(
+            &crate::operation_control::OperationControl,
+            crate::operation_control::ExecutionScopeId,
+        )>,
+    ) -> Result<PluginRunReport, PluginError> {
         let mut diagnostics: Vec<Diagnostic> = Vec::new();
         let mut executed: Vec<String> = Vec::new();
         let mut current = PluginOutput {
@@ -94,11 +128,7 @@ impl PluginRuntime {
 
         // Observe plugins (AC-PL-9 / AC-PL-10): see pre-mutation content.
         for plugin in chain.observe.iter() {
-            if abort.is_aborted() {
-                return Err(PluginError::Cancelled {
-                    plugin: plugin.name.clone(),
-                });
-            }
+            ensure_plugin_active(&plugin.name, &abort, control)?;
             check_content_type(plugin, &current.content_type)?;
             let prior_bytes = current.bytes.clone();
             let prior_ct = current.content_type.clone();
@@ -109,11 +139,7 @@ impl PluginRuntime {
                 inbound_source_map: current.source_map.clone(),
             };
             let output = invoke_with_budget(plugin, &as_input(&current), &mut ctx, budget)?;
-            if abort.is_aborted() {
-                return Err(PluginError::Cancelled {
-                    plugin: plugin.name.clone(),
-                });
-            }
+            ensure_plugin_active(&plugin.name, &abort, control)?;
             if output.bytes != prior_bytes || output.content_type != prior_ct {
                 return Err(PluginError::ObserverViolation {
                     plugin: plugin.name.clone(),
@@ -126,11 +152,7 @@ impl PluginRuntime {
         // Mutate plugins (AC-PL-10): serialized; each output's source
         // map is appended to the stitched chain.
         for plugin in chain.mutate.iter() {
-            if abort.is_aborted() {
-                return Err(PluginError::Cancelled {
-                    plugin: plugin.name.clone(),
-                });
-            }
+            ensure_plugin_active(&plugin.name, &abort, control)?;
             check_content_type(plugin, &current.content_type)?;
             let inbound_map = current.source_map.clone();
             let mut ctx = PluginContext {
@@ -140,11 +162,7 @@ impl PluginRuntime {
                 inbound_source_map: inbound_map.clone(),
             };
             let mut output = invoke_with_budget(plugin, &as_input(&current), &mut ctx, budget)?;
-            if abort.is_aborted() {
-                return Err(PluginError::Cancelled {
-                    plugin: plugin.name.clone(),
-                });
-            }
+            ensure_plugin_active(&plugin.name, &abort, control)?;
             // AC-PL-12 / AC-PL-13: stitch the plugin's emitted frame on
             // top of the inbound source map so a resolver can walk
             // back from the final output to the original source.
@@ -178,6 +196,42 @@ impl PluginRuntime {
             abort,
             PluginBudget::from_scope_policy(policy),
         )
+    }
+}
+
+fn ensure_plugin_active(
+    plugin: &str,
+    abort: &AbortSignal,
+    control: Option<(
+        &crate::operation_control::OperationControl,
+        crate::operation_control::ExecutionScopeId,
+    )>,
+) -> Result<(), PluginError> {
+    if let Some((control, scope)) = control {
+        match control.check_scope(scope) {
+            Ok(()) => return Ok(()),
+            Err(crate::operation_control::ControlError::Triggered(failure))
+                if failure.terminal_class()
+                    == crate::operation_control::ControlTerminalClass::Cancelled =>
+            {
+                return Err(PluginError::Cancelled {
+                    plugin: plugin.to_owned(),
+                });
+            }
+            Err(error) => {
+                return Err(PluginError::Invoke {
+                    plugin: plugin.to_owned(),
+                    message: format!("operation control failure {}: {error}", error.code()),
+                });
+            }
+        }
+    }
+    if abort.is_aborted() {
+        Err(PluginError::Cancelled {
+            plugin: plugin.to_owned(),
+        })
+    } else {
+        Ok(())
     }
 }
 
@@ -354,6 +408,22 @@ mod tests {
         }
     }
 
+    struct SlowIdentity;
+    impl PluginInvoke for SlowIdentity {
+        fn invoke(
+            &self,
+            input: &PluginInput,
+            ctx: &mut PluginContext<'_>,
+        ) -> Result<PluginOutput, PluginError> {
+            std::thread::sleep(std::time::Duration::from_millis(3));
+            Ok(PluginOutput {
+                content_type: input.content_type.clone(),
+                bytes: input.bytes.clone(),
+                source_map: ctx.inbound_source_map.clone(),
+            })
+        }
+    }
+
     fn observer(name: &str, invoke: Arc<dyn PluginInvoke>) -> Arc<PluginDescriptor> {
         Arc::new(PluginDescriptor {
             name: name.into(),
@@ -425,6 +495,34 @@ mod tests {
             )
             .expect_err("cancelled plugin output must be suppressed");
         assert!(matches!(err, PluginError::Cancelled { .. }));
+    }
+
+    #[test]
+    fn deadline_during_plugin_invocation_suppresses_its_output() {
+        let plugin = observer("slow", Arc::new(SlowIdentity));
+        let mut local = PluginRegistry::new();
+        local.install(plugin).unwrap();
+        let chain = PluginChain::merged(&[], &local, &ContentType::from("text/css"));
+        let control = crate::operation_control::OperationControl::with_root_policy(
+            AbortSignal::new(),
+            ScopePolicy::host_root().with_timeout_ms(Some(1)),
+        )
+        .unwrap();
+        let error = PluginRuntime::new()
+            .invoke_chain_with_control(
+                &chain,
+                PluginInput::new("text/css", b"body{}".to_vec()),
+                ScopeId(0),
+                &control,
+                crate::operation_control::ROOT_EXECUTION_SCOPE_ID,
+                PluginBudget::default(),
+            )
+            .expect_err("a plugin result arriving after its deadline must be suppressed");
+        assert!(matches!(
+            error,
+            PluginError::Invoke { ref message, .. }
+                if message.contains("timeout-exceeded")
+        ));
     }
 
     #[test]

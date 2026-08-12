@@ -87,6 +87,16 @@ pub fn evaluate_with_abort(
     Evaluator::evaluate_with_abort(query, ctx, abort_signal)
 }
 
+/// Evaluate with the common operation-control core at one execution scope.
+pub fn evaluate_with_control(
+    query: &CompiledQuery,
+    ctx: &EvaluationContext,
+    control: &cem_ml::operation_control::OperationControl,
+    scope: cem_ml::operation_control::ExecutionScopeId,
+) -> ItemStream {
+    Evaluator::evaluate_with_control(query, ctx, control, scope)
+}
+
 pub fn compile_expression(
     source: &str,
     context: &StandaloneExpressionContext,

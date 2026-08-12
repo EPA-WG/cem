@@ -10,13 +10,16 @@ use std::collections::BTreeMap;
 
 use cem_ml::diagnostics::{Diagnostic, Severity};
 use cem_ml::interpreter::{OutputSpan, OutputTarget, TransformOutput};
+use cem_ml::operation_control::{
+    ExecutionScopeId, OperationControl, SafePointPoller,
+};
 use cem_ml::scheduler::ScopePolicy;
 use cem_ml::source::{ByteRange, BytesSource, SourceId};
 use cem_ml::source_map::{FrameSpan, SourceMapFrame, SourceMapStack, TransformKind};
 use cem_ml::tokenizer::cem::CemTokenizer;
 use cem_ml::tokenizer::{SchemaToken, SchemaTokenKind, SchemaTokenizer};
 
-use crate::api::{compile, evaluate, CompileContext, EvaluationContext};
+use crate::api::{compile, evaluate, evaluate_with_control, CompileContext, EvaluationContext};
 use crate::eval::{effective_boolean, AtomValue, Item, ItemStream, QueryContextScope};
 use crate::ir::CompiledQuery;
 
@@ -252,6 +255,23 @@ pub fn compile_template(source: &str, options: &CompileTemplateOptions) -> Templ
 }
 
 pub fn render_compiled_template(artifact: &TemplateArtifact, data: &TemplateData) -> RenderPlan {
+    render_compiled_template_internal(artifact, data, None)
+}
+
+pub fn render_compiled_template_with_control(
+    artifact: &TemplateArtifact,
+    data: &TemplateData,
+    control: &OperationControl,
+    scope: ExecutionScopeId,
+) -> RenderPlan {
+    render_compiled_template_internal(artifact, data, Some((control, scope)))
+}
+
+fn render_compiled_template_internal(
+    artifact: &TemplateArtifact,
+    data: &TemplateData,
+    control: Option<(&OperationControl, ExecutionScopeId)>,
+) -> RenderPlan {
     let mut policy_bindings = data.bindings.clone();
     let datadom = data_document_with_host_bindings(&data.bindings);
     policy_bindings.insert(DATA_DOCUMENT_BINDING.to_owned(), datadom);
@@ -269,11 +289,29 @@ pub fn render_compiled_template(artifact: &TemplateArtifact, data: &TemplateData
         templates,
         call_depth: 0,
         max_call_depth: MAX_TEMPLATE_CALL_DEPTH,
+        safe_points: control.map(|(control, scope)| SafePointPoller::new(control.clone(), scope)),
+        control: control.map(|(control, scope)| (control.clone(), scope)),
+        control_failed: false,
     };
     let mut nodes = Vec::new();
-    for node in root_render_nodes(&artifact.nodes) {
-        let mut ignored_attributes = Vec::new();
-        renderer.render_into(node, &mut nodes, &mut ignored_attributes);
+    let boundary_source = artifact
+        .nodes
+        .first()
+        .map(template_node_source_map)
+        .cloned()
+        .unwrap_or_default();
+    if renderer.force_render(&boundary_source) {
+        for node in root_render_nodes(&artifact.nodes) {
+            let mut ignored_attributes = Vec::new();
+            renderer.render_into(node, &mut nodes, &mut ignored_attributes);
+            if renderer.control_failed {
+                break;
+            }
+        }
+        renderer.force_render(&boundary_source);
+    }
+    if renderer.control_failed {
+        nodes.clear();
     }
     RenderPlan {
         nodes,
@@ -366,6 +404,34 @@ pub fn render_plan_to_html_with_source_map(plan: &RenderPlan) -> TransformOutput
     }
 }
 
+pub fn render_plan_to_html_with_control(
+    plan: &RenderPlan,
+    control: &OperationControl,
+    scope: ExecutionScopeId,
+) -> Result<TransformOutput, cem_ml::operation_control::ControlError> {
+    let mut renderer = RenderPlanHtmlRenderer::controlled(control, scope);
+    renderer.force()?;
+    renderer.render_plan(plan);
+    renderer.force()?;
+    if let Some(error) = renderer.control_error {
+        return Err(error);
+    }
+    let rendered_len = renderer.out.len() as u32;
+    Ok(TransformOutput {
+        target: OutputTarget::LightDomCustomElements,
+        rendered: renderer.out,
+        diagnostics: plan.diagnostics.clone(),
+        source_map: SourceMapStack {
+            frames: vec![SourceMapFrame {
+                source_id: SourceId(0),
+                span: FrameSpan::Single(ByteRange::new(0, rendered_len)),
+                transform: TransformKind::InterpreterRender,
+            }],
+        },
+        output_spans: renderer.spans,
+    })
+}
+
 pub fn render_plan_to_xml_with_source_map(plan: &RenderPlan) -> TransformOutput {
     let mut renderer = RenderPlanXmlRenderer::default();
     renderer.render_plan(plan);
@@ -385,20 +451,92 @@ pub fn render_plan_to_xml_with_source_map(plan: &RenderPlan) -> TransformOutput 
     }
 }
 
+pub fn render_plan_to_xml_with_control(
+    plan: &RenderPlan,
+    control: &OperationControl,
+    scope: ExecutionScopeId,
+) -> Result<TransformOutput, cem_ml::operation_control::ControlError> {
+    let mut renderer = RenderPlanXmlRenderer::controlled(control, scope);
+    renderer.force()?;
+    renderer.render_plan(plan);
+    renderer.force()?;
+    if let Some(error) = renderer.control_error {
+        return Err(error);
+    }
+    let rendered_len = renderer.out.len() as u32;
+    Ok(TransformOutput {
+        target: OutputTarget::Xml,
+        rendered: renderer.out,
+        diagnostics: plan.diagnostics.clone(),
+        source_map: SourceMapStack {
+            frames: vec![SourceMapFrame {
+                source_id: SourceId(0),
+                span: FrameSpan::Single(ByteRange::new(0, rendered_len)),
+                transform: TransformKind::InterpreterRender,
+            }],
+        },
+        output_spans: renderer.spans,
+    })
+}
+
 #[derive(Default)]
 struct RenderPlanHtmlRenderer {
     out: String,
     spans: Vec<OutputSpan>,
+    safe_points: Option<SafePointPoller>,
+    control_error: Option<cem_ml::operation_control::ControlError>,
 }
 
 impl RenderPlanHtmlRenderer {
+    fn controlled(control: &OperationControl, scope: ExecutionScopeId) -> Self {
+        Self {
+            safe_points: Some(SafePointPoller::new(control.clone(), scope)),
+            ..Self::default()
+        }
+    }
+
+    fn poll(&mut self) -> bool {
+        if self.control_error.is_some() {
+            return false;
+        }
+        let Some(safe_points) = self.safe_points.as_mut() else {
+            return true;
+        };
+        match safe_points.poll_one() {
+            Ok(()) => true,
+            Err(error) => {
+                self.control_error = Some(error);
+                false
+            }
+        }
+    }
+
+    fn force(&mut self) -> Result<(), cem_ml::operation_control::ControlError> {
+        if let Some(error) = self.control_error.clone() {
+            return Err(error);
+        }
+        match self.safe_points.as_mut().map(SafePointPoller::force).transpose() {
+            Ok(_) => Ok(()),
+            Err(error) => {
+                self.control_error = Some(error.clone());
+                Err(error)
+            }
+        }
+    }
+
     fn render_plan(&mut self, plan: &RenderPlan) {
         for node in &plan.nodes {
+            if !self.poll() {
+                break;
+            }
             self.render_node(node);
         }
     }
 
     fn render_node(&mut self, node: &RenderPlanNode) {
+        if !self.poll() {
+            return;
+        }
         match node {
             RenderPlanNode::Element {
                 tag,
@@ -411,6 +549,9 @@ impl RenderPlanHtmlRenderer {
                 self.out.push('<');
                 self.out.push_str(tag);
                 for attribute in attributes {
+                    if !self.poll() {
+                        return;
+                    }
                     self.render_attribute(attribute);
                 }
                 if HTML_VOID_ELEMENTS.contains(&tag.as_str()) && children.is_empty() {
@@ -421,6 +562,9 @@ impl RenderPlanHtmlRenderer {
                 self.out.push('>');
                 self.record_span(open_start, source_map);
                 for child in children {
+                    if !self.poll() {
+                        return;
+                    }
                     self.render_node(child);
                 }
                 let close_start = self.out.len() as u64;
@@ -431,19 +575,19 @@ impl RenderPlanHtmlRenderer {
             }
             RenderPlanNode::Text { text, source_map } => {
                 let start = self.out.len() as u64;
-                escape_text_into(&mut self.out, text);
+                self.escape_text(text);
                 self.record_span(start, source_map);
             }
             RenderPlanNode::Comment { text, source_map } => {
                 let start = self.out.len() as u64;
                 self.out.push_str("<!--");
-                self.out.push_str(text);
+                self.push_raw(text);
                 self.out.push_str("-->");
                 self.record_span(start, source_map);
             }
             RenderPlanNode::Cdata { text, source_map } => {
                 let start = self.out.len() as u64;
-                escape_text_into(&mut self.out, text);
+                self.escape_text(text);
                 self.record_span(start, source_map);
             }
             RenderPlanNode::ProcessingInstruction {
@@ -456,7 +600,7 @@ impl RenderPlanHtmlRenderer {
                 self.out.push_str(target);
                 if !data.is_empty() {
                     self.out.push(' ');
-                    self.out.push_str(data);
+                    self.push_raw(data);
                 }
                 self.out.push_str("?>");
                 self.record_span(start, source_map);
@@ -478,10 +622,27 @@ impl RenderPlanHtmlRenderer {
         self.out.push_str(&attribute.name);
         if !attribute.value.is_empty() {
             self.out.push_str("=\"");
-            escape_attr_into(&mut self.out, &attribute.value);
+            self.escape_attr(&attribute.value);
             self.out.push('"');
         }
         self.record_span(start, &attribute.source_map);
+    }
+
+    fn push_raw(&mut self, value: &str) {
+        for character in value.chars() {
+            if !self.poll() {
+                break;
+            }
+            self.out.push(character);
+        }
+    }
+
+    fn escape_text(&mut self, value: &str) {
+        escape_controlled(&mut self.out, value, false, &mut self.safe_points, &mut self.control_error);
+    }
+
+    fn escape_attr(&mut self, value: &str) {
+        escape_controlled(&mut self.out, value, true, &mut self.safe_points, &mut self.control_error);
     }
 
     fn record_span(&mut self, start: u64, origin: &SourceMapStack) {
@@ -510,16 +671,60 @@ impl RenderPlanHtmlRenderer {
 struct RenderPlanXmlRenderer {
     out: String,
     spans: Vec<OutputSpan>,
+    safe_points: Option<SafePointPoller>,
+    control_error: Option<cem_ml::operation_control::ControlError>,
 }
 
 impl RenderPlanXmlRenderer {
+    fn controlled(control: &OperationControl, scope: ExecutionScopeId) -> Self {
+        Self {
+            safe_points: Some(SafePointPoller::new(control.clone(), scope)),
+            ..Self::default()
+        }
+    }
+
+    fn poll(&mut self) -> bool {
+        if self.control_error.is_some() {
+            return false;
+        }
+        let Some(safe_points) = self.safe_points.as_mut() else {
+            return true;
+        };
+        match safe_points.poll_one() {
+            Ok(()) => true,
+            Err(error) => {
+                self.control_error = Some(error);
+                false
+            }
+        }
+    }
+
+    fn force(&mut self) -> Result<(), cem_ml::operation_control::ControlError> {
+        if let Some(error) = self.control_error.clone() {
+            return Err(error);
+        }
+        match self.safe_points.as_mut().map(SafePointPoller::force).transpose() {
+            Ok(_) => Ok(()),
+            Err(error) => {
+                self.control_error = Some(error.clone());
+                Err(error)
+            }
+        }
+    }
+
     fn render_plan(&mut self, plan: &RenderPlan) {
         for node in &plan.nodes {
+            if !self.poll() {
+                break;
+            }
             self.render_node(node);
         }
     }
 
     fn render_node(&mut self, node: &RenderPlanNode) {
+        if !self.poll() {
+            return;
+        }
         match node {
             RenderPlanNode::Element {
                 tag,
@@ -532,6 +737,9 @@ impl RenderPlanXmlRenderer {
                 self.out.push('<');
                 self.out.push_str(tag);
                 for attribute in attributes {
+                    if !self.poll() {
+                        return;
+                    }
                     self.render_attribute(attribute);
                 }
                 if children.is_empty() {
@@ -543,6 +751,9 @@ impl RenderPlanXmlRenderer {
                 self.out.push('>');
                 self.record_span(open_start, source_map);
                 for child in children {
+                    if !self.poll() {
+                        return;
+                    }
                     self.render_node(child);
                 }
                 let close_start = self.out.len() as u64;
@@ -553,20 +764,20 @@ impl RenderPlanXmlRenderer {
             }
             RenderPlanNode::Text { text, source_map } => {
                 let start = self.out.len() as u64;
-                escape_text_into(&mut self.out, text);
+                self.escape_text(text);
                 self.record_span(start, source_map);
             }
             RenderPlanNode::Comment { text, source_map } => {
                 let start = self.out.len() as u64;
                 self.out.push_str("<!--");
-                self.out.push_str(text);
+                self.push_raw(text);
                 self.out.push_str("-->");
                 self.record_span(start, source_map);
             }
             RenderPlanNode::Cdata { text, source_map } => {
                 let start = self.out.len() as u64;
                 self.out.push_str("<![CDATA[");
-                self.out.push_str(text);
+                self.push_raw(text);
                 self.out.push_str("]]>");
                 self.record_span(start, source_map);
             }
@@ -580,7 +791,7 @@ impl RenderPlanXmlRenderer {
                 self.out.push_str(target);
                 if !data.is_empty() {
                     self.out.push(' ');
-                    self.out.push_str(data);
+                    self.push_raw(data);
                 }
                 self.out.push_str("?>");
                 self.record_span(start, source_map);
@@ -601,9 +812,26 @@ impl RenderPlanXmlRenderer {
         }
         self.out.push_str(&attribute.name);
         self.out.push_str("=\"");
-        escape_attr_into(&mut self.out, &attribute.value);
+        self.escape_attr(&attribute.value);
         self.out.push('"');
         self.record_span(start, &attribute.source_map);
+    }
+
+    fn push_raw(&mut self, value: &str) {
+        for character in value.chars() {
+            if !self.poll() {
+                break;
+            }
+            self.out.push(character);
+        }
+    }
+
+    fn escape_text(&mut self, value: &str) {
+        escape_controlled(&mut self.out, value, false, &mut self.safe_points, &mut self.control_error);
+    }
+
+    fn escape_attr(&mut self, value: &str) {
+        escape_controlled(&mut self.out, value, true, &mut self.safe_points, &mut self.control_error);
     }
 
     fn record_span(&mut self, start: u64, origin: &SourceMapStack) {
@@ -1165,9 +1393,56 @@ struct PlanRenderer {
     templates: BTreeMap<String, Vec<TemplateNode>>,
     call_depth: usize,
     max_call_depth: usize,
+    safe_points: Option<SafePointPoller>,
+    control: Option<(OperationControl, ExecutionScopeId)>,
+    control_failed: bool,
 }
 
 impl PlanRenderer {
+    fn poll_render(&mut self, source_map: &SourceMapStack) -> bool {
+        if self.control_failed {
+            return false;
+        }
+        let result = self
+            .safe_points
+            .as_mut()
+            .map(SafePointPoller::poll_one)
+            .transpose();
+        self.accept_control_check(result, source_map)
+    }
+
+    fn force_render(&mut self, source_map: &SourceMapStack) -> bool {
+        if self.control_failed {
+            return false;
+        }
+        let result = self
+            .safe_points
+            .as_mut()
+            .map(SafePointPoller::force)
+            .transpose();
+        self.accept_control_check(result, source_map)
+    }
+
+    fn accept_control_check(
+        &mut self,
+        result: Result<Option<()>, cem_ml::operation_control::ControlError>,
+        source_map: &SourceMapStack,
+    ) -> bool {
+        let Err(error) = result else {
+            return true;
+        };
+        if !self.control_failed {
+            self.diagnostics.push(render_diagnostic(
+                "cem.ql.render.control_failure",
+                format!("{}: {error}", error.code()),
+                source_map_start(source_map),
+                source_map.clone(),
+            ));
+        }
+        self.control_failed = true;
+        false
+    }
+
     /// Render a template node, appending zero or more plan nodes to `out`. Conditionals
     /// (`cem:if`/`cem:choose`) contribute the children of the selected branch (or none),
     /// so they flatten into the surrounding sequence rather than emitting a wrapper.
@@ -1177,6 +1452,10 @@ impl PlanRenderer {
         out: &mut Vec<RenderPlanNode>,
         parent_attributes: &mut Vec<RenderPlanAttribute>,
     ) {
+        let source_map = template_node_source_map(node);
+        if !self.poll_render(source_map) {
+            return;
+        }
         match node {
             TemplateNode::Element {
                 tag,
@@ -1308,6 +1587,9 @@ impl PlanRenderer {
                     .get(POSITION_BINDING)
                     .cloned();
                 for (offset, item) in items.into_iter().enumerate() {
+                    if !self.poll_render(source_map) {
+                        break;
+                    }
                     self.evaluation_context
                         .policy_bindings
                         .insert(as_name.clone(), ItemStream::once(item));
@@ -1345,6 +1627,9 @@ impl PlanRenderer {
             }
             TemplateNode::ProjectPayload { select, source_map } => {
                 for item in self.evaluate_select(select.as_ref()) {
+                    if !self.poll_render(source_map) {
+                        break;
+                    }
                     match payload_item_to_render_node(&item, source_map) {
                         Some(node) => out.push(node),
                         None => self.diagnostics.push(render_diagnostic(
@@ -1367,6 +1652,9 @@ impl PlanRenderer {
         out: &mut Vec<RenderPlanNode>,
         parent_attributes: &mut Vec<RenderPlanAttribute>,
     ) {
+        if !self.force_render(source_map) {
+            return;
+        }
         if self.call_depth >= self.max_call_depth {
             self.diagnostics.push(render_diagnostic(
                 "cem.transform_template.recursion_limit",
@@ -1454,7 +1742,7 @@ impl PlanRenderer {
         let Some(query) = &select.query else {
             return Vec::new();
         };
-        let stream = evaluate(query, &self.evaluation_context);
+        let stream = self.evaluate_query(query);
         self.diagnostics.extend(stream.diagnostics.clone());
         if let Some(error) = stream.error {
             self.diagnostics.push(render_diagnostic(
@@ -1483,7 +1771,7 @@ impl PlanRenderer {
         let Some(query) = &test.query else {
             return false;
         };
-        let stream = evaluate(query, &self.evaluation_context);
+        let stream = self.evaluate_query(query);
         self.diagnostics.extend(stream.diagnostics.clone());
         if let Some(error) = stream.error {
             self.diagnostics.push(render_diagnostic(
@@ -1529,6 +1817,9 @@ impl PlanRenderer {
             Some(TemplateAttributeValue::Template(parts)) => {
                 let mut value = String::new();
                 for part in parts {
+                    if !self.poll_render(&attribute.source_map) {
+                        break;
+                    }
                     match part {
                         TemplateAttributePart::Literal(literal) => value.push_str(literal),
                         TemplateAttributePart::Expression(expression) => {
@@ -1722,7 +2013,7 @@ impl PlanRenderer {
         let Some(query) = &expression.query else {
             return ItemStream::empty();
         };
-        let stream = evaluate(query, &self.evaluation_context);
+        let stream = self.evaluate_query(query);
         self.diagnostics.extend(stream.diagnostics.clone());
         if let Some(error) = stream.error {
             self.diagnostics.push(render_diagnostic(
@@ -1737,6 +2028,15 @@ impl PlanRenderer {
             return ItemStream::empty();
         }
         stream
+    }
+
+    fn evaluate_query(&self, query: &CompiledQuery) -> ItemStream {
+        match &self.control {
+            Some((control, scope)) => {
+                evaluate_with_control(query, &self.evaluation_context, control, *scope)
+            }
+            None => evaluate(query, &self.evaluation_context),
+        }
     }
 }
 
@@ -1976,6 +2276,19 @@ fn root_render_nodes(nodes: &[TemplateNode]) -> Vec<&TemplateNode> {
         }
     }
     roots
+}
+
+fn template_node_source_map(node: &TemplateNode) -> &SourceMapStack {
+    match node {
+        TemplateNode::Element { source_map, .. }
+        | TemplateNode::Text { source_map, .. }
+        | TemplateNode::Comment { source_map, .. }
+        | TemplateNode::If { source_map, .. }
+        | TemplateNode::Choose { source_map, .. }
+        | TemplateNode::ForEach { source_map, .. }
+        | TemplateNode::ProjectPayload { source_map, .. } => source_map,
+        TemplateNode::Expression(expression) => &expression.source_map,
+    }
 }
 
 fn module_body_nodes(nodes: &[TemplateNode]) -> Vec<&TemplateNode> {
@@ -2257,25 +2570,30 @@ fn sort_render_plan_attributes(attributes: &mut [RenderPlanAttribute]) {
     });
 }
 
-fn escape_text_into(out: &mut String, value: &str) {
-    for c in value.chars() {
-        match c {
-            '&' => out.push_str("&amp;"),
-            '<' => out.push_str("&lt;"),
-            '>' => out.push_str("&gt;"),
-            _ => out.push(c),
+fn escape_controlled(
+    out: &mut String,
+    value: &str,
+    attribute: bool,
+    safe_points: &mut Option<SafePointPoller>,
+    control_error: &mut Option<cem_ml::operation_control::ControlError>,
+) {
+    for character in value.chars() {
+        if control_error.is_some() {
+            break;
         }
-    }
-}
-
-fn escape_attr_into(out: &mut String, value: &str) {
-    for c in value.chars() {
-        match c {
+        if let Some(error) = safe_points
+            .as_mut()
+            .and_then(|safe_points| safe_points.poll_one().err())
+        {
+            *control_error = Some(error);
+            break;
+        }
+        match character {
             '&' => out.push_str("&amp;"),
             '<' => out.push_str("&lt;"),
             '>' => out.push_str("&gt;"),
-            '"' => out.push_str("&quot;"),
-            _ => out.push(c),
+            '"' if attribute => out.push_str("&quot;"),
+            _ => out.push(character),
         }
     }
 }
@@ -2441,6 +2759,59 @@ mod tests {
             render_plan_to_xml_with_source_map(&plan).rendered,
             r#"<?xml-stylesheet href="main.css"?><root id="a&amp;b"><empty/><![CDATA[x < y]]></root>"#
         );
+    }
+
+    #[test]
+    fn controlled_output_chunks_preserve_success_and_discard_cancelled_output() {
+        let plan = RenderPlan {
+            nodes: vec![RenderPlanNode::Text {
+                text: "<hello & goodbye>".repeat(16),
+                source_map: stack(0, 8),
+            }],
+            diagnostics: Vec::new(),
+        };
+        let control = OperationControl::default();
+        let controlled = render_plan_to_html_with_control(
+            &plan,
+            &control,
+            cem_ml::operation_control::ROOT_EXECUTION_SCOPE_ID,
+        )
+        .unwrap();
+        assert_eq!(controlled.rendered, render_plan_to_html(&plan));
+
+        control.cancel_root(None, None).unwrap();
+        let short_plan = RenderPlan {
+            nodes: vec![RenderPlanNode::Text {
+                text: "x".to_owned(),
+                source_map: stack(0, 1),
+            }],
+            diagnostics: Vec::new(),
+        };
+        assert!(render_plan_to_html_with_control(
+            &short_plan,
+            &control,
+            cem_ml::operation_control::ROOT_EXECUTION_SCOPE_ID,
+        )
+        .is_err());
+    }
+
+    #[test]
+    fn controlled_template_render_discards_a_pre_cancelled_plan() {
+        let artifact = compile_template("{p | hello}", &CompileTemplateOptions::default());
+        let control = OperationControl::default();
+        control.cancel_root(None, None).unwrap();
+
+        let plan = render_compiled_template_with_control(
+            &artifact,
+            &TemplateData::default(),
+            &control,
+            cem_ml::operation_control::ROOT_EXECUTION_SCOPE_ID,
+        );
+        assert!(plan.nodes.is_empty());
+        assert!(plan
+            .diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.code == "cem.ql.render.control_failure"));
     }
 
     #[test]

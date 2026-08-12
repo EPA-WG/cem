@@ -391,6 +391,12 @@ fn eval_error_json(error: &EvalError) -> Value {
             "type": "cancelled",
             "message": "evaluation cancelled by the host"
         }),
+        EvalError::Control(failure) => json!({
+            "kind": "control",
+            "code": failure.code(),
+            "terminalClass": failure.terminal_class(),
+            "failure": failure,
+        }),
         EvalError::BudgetExceeded(axis) => json!({
             "kind": "eval",
             "type": "budget-exceeded",

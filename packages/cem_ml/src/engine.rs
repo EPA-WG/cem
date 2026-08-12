@@ -1,7 +1,9 @@
 use crate::conversion::{ConversionRegistry, DomProjectionParityCemtAdapter};
 use crate::diagnostics::{Diagnostic, Severity};
 use crate::interpreter::OutputSpan;
-pub use crate::operation_control::OperationControl;
+pub use crate::operation_control::{
+    ControlError, ControlFailure, OperationControl, ROOT_EXECUTION_SCOPE_ID,
+};
 use crate::query::QueryRuntimeRegistry;
 use crate::report::{Report, SchedulerTraceReport};
 use crate::resolver::{ResolverPolicy, ResolverRegistry};
@@ -187,12 +189,23 @@ impl EngineContext {
     }
 
     pub fn ensure_active(&self) -> EngineResult<()> {
-        if self.operation_control.is_cancelled() {
-            Err(EngineError::Cancelled {
-                source_map: self.abort_signal().source_map(),
-            })
-        } else {
-            Ok(())
+        match self
+            .operation_control
+            .check_scope(ROOT_EXECUTION_SCOPE_ID)
+        {
+            Ok(()) => Ok(()),
+            Err(ControlError::Triggered(failure))
+                if failure.terminal_class()
+                    == crate::operation_control::ControlTerminalClass::Cancelled =>
+            {
+                Err(EngineError::Cancelled {
+                    source_map: failure.source_map,
+                })
+            }
+            Err(ControlError::Triggered(failure)) => Err(EngineError::Control(failure)),
+            Err(error) => Err(EngineError::Internal(format!(
+                "operation control check failed: {error}"
+            ))),
         }
     }
 }
@@ -1206,6 +1219,7 @@ pub enum EngineError {
     Cancelled {
         source_map: Option<SourceMapStack>,
     },
+    Control(ControlFailure),
     Io {
         path: PathBuf,
         source: std::io::Error,
@@ -1219,6 +1233,7 @@ impl std::fmt::Display for EngineError {
         match self {
             EngineError::NotImplemented => f.write_str("parser engine not yet implemented"),
             EngineError::Cancelled { .. } => f.write_str("operation cancelled by host"),
+            EngineError::Control(failure) => failure.fmt(f),
             EngineError::Io { path, source } => {
                 write!(f, "I/O error for `{}`: {}", path.display(), source)
             }
@@ -1232,6 +1247,7 @@ impl std::error::Error for EngineError {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         match self {
             EngineError::Io { source, .. } => Some(source),
+            EngineError::Control(failure) => Some(failure),
             _ => None,
         }
     }

@@ -411,6 +411,12 @@ pub enum ResolverDiagnostic {
         direction: ResolveDirection,
         source_map: Option<SourceMapStack>,
     },
+    Control {
+        uri: String,
+        purpose: ResolvePurpose,
+        direction: ResolveDirection,
+        failure: crate::operation_control::ControlFailure,
+    },
     UnsupportedResolver {
         uri: String,
         purpose: ResolvePurpose,
@@ -441,6 +447,7 @@ impl ResolverDiagnostic {
     pub fn code(&self) -> &'static str {
         match self {
             Self::Cancelled { .. } => "cem.resolver.cancelled",
+            Self::Control { failure, .. } => failure.code(),
             Self::UnsupportedResolver { .. } => "cem.resolver.unsupported",
             Self::NonLocalFileUri { .. } => "cem.resolver.file_uri_non_local",
             Self::InvalidFileUri { .. } => "cem.resolver.file_uri_invalid",
@@ -462,6 +469,15 @@ impl fmt::Display for ResolverDiagnostic {
             } => write!(
                 f,
                 "resolver {direction} {purpose} URI `{uri}` cancelled by host"
+            ),
+            Self::Control {
+                uri,
+                purpose,
+                direction,
+                failure,
+            } => write!(
+                f,
+                "resolver {direction} {purpose} URI `{uri}` stopped: {failure}"
             ),
             Self::UnsupportedResolver {
                 uri,
@@ -699,6 +715,30 @@ impl ResolverRegistry {
         resolver.read_with_abort(request, abort)
     }
 
+    pub fn read_with_control(
+        &self,
+        request: &ResolveRequest,
+        control: &crate::operation_control::OperationControl,
+        scope: crate::operation_control::ExecutionScopeId,
+    ) -> Result<ResolvedRead, ResolverDiagnostic> {
+        ensure_resolver_control_active(
+            control,
+            scope,
+            &request.uri,
+            request.purpose,
+            ResolveDirection::Read,
+        )?;
+        let resolved = self.read_with_abort(request, control.abort_signal())?;
+        ensure_resolver_control_active(
+            control,
+            scope,
+            &request.uri,
+            request.purpose,
+            ResolveDirection::Read,
+        )?;
+        Ok(resolved)
+    }
+
     pub fn write(
         &self,
         request: &ResolveRequest,
@@ -729,6 +769,31 @@ impl ResolverRegistry {
             });
         };
         resolver.write_with_abort(request, bytes, abort)
+    }
+
+    pub fn write_with_control(
+        &self,
+        request: &ResolveRequest,
+        bytes: &[u8],
+        control: &crate::operation_control::OperationControl,
+        scope: crate::operation_control::ExecutionScopeId,
+    ) -> Result<ResolvedWrite, ResolverDiagnostic> {
+        ensure_resolver_control_active(
+            control,
+            scope,
+            &request.uri,
+            request.purpose,
+            ResolveDirection::Write,
+        )?;
+        let written = self.write_with_abort(request, bytes, control.abort_signal())?;
+        ensure_resolver_control_active(
+            control,
+            scope,
+            &request.uri,
+            request.purpose,
+            ResolveDirection::Write,
+        )?;
+        Ok(written)
     }
 
     pub fn publication_capability(
@@ -771,6 +836,32 @@ impl ResolverRegistry {
         resolver.prepare_write_with_abort(request, bytes, abort)
     }
 
+    pub fn prepare_write_with_control(
+        &self,
+        request: &ResolveRequest,
+        bytes: &[u8],
+        control: &crate::operation_control::OperationControl,
+        scope: crate::operation_control::ExecutionScopeId,
+    ) -> Result<Box<dyn PreparedResolverWrite>, ResolverDiagnostic> {
+        ensure_resolver_control_active(
+            control,
+            scope,
+            &request.uri,
+            request.purpose,
+            ResolveDirection::Write,
+        )?;
+        let prepared =
+            self.prepare_write_with_abort(request, bytes, control.abort_signal())?;
+        ensure_resolver_control_active(
+            control,
+            scope,
+            &request.uri,
+            request.purpose,
+            ResolveDirection::Write,
+        )?;
+        Ok(prepared)
+    }
+
     pub fn list(
         &self,
         request: &ResolveListRequest,
@@ -794,6 +885,65 @@ impl ResolverRegistry {
             });
         };
         resolver.list_with_abort(request, abort)
+    }
+
+    pub fn list_with_control(
+        &self,
+        request: &ResolveListRequest,
+        control: &crate::operation_control::OperationControl,
+        scope: crate::operation_control::ExecutionScopeId,
+    ) -> Result<Vec<ResolvedListEntry>, ResolverDiagnostic> {
+        ensure_resolver_control_active(
+            control,
+            scope,
+            &request.uri,
+            request.purpose,
+            ResolveDirection::List,
+        )?;
+        let entries = self.list_with_abort(request, control.abort_signal())?;
+        ensure_resolver_control_active(
+            control,
+            scope,
+            &request.uri,
+            request.purpose,
+            ResolveDirection::List,
+        )?;
+        Ok(entries)
+    }
+}
+
+fn ensure_resolver_control_active(
+    control: &crate::operation_control::OperationControl,
+    scope: crate::operation_control::ExecutionScopeId,
+    uri: &str,
+    purpose: ResolvePurpose,
+    direction: ResolveDirection,
+) -> Result<(), ResolverDiagnostic> {
+    match control.check_scope(scope) {
+        Ok(()) => Ok(()),
+        Err(crate::operation_control::ControlError::Triggered(failure))
+            if failure.terminal_class()
+                == crate::operation_control::ControlTerminalClass::Cancelled =>
+        {
+            Err(ResolverDiagnostic::Cancelled {
+                uri: uri.to_owned(),
+                purpose,
+                direction,
+                source_map: failure.source_map,
+            })
+        }
+        Err(crate::operation_control::ControlError::Triggered(failure)) => {
+            Err(ResolverDiagnostic::Control {
+                uri: uri.to_owned(),
+                purpose,
+                direction,
+                failure,
+            })
+        }
+        Err(error) => Err(ResolverDiagnostic::Io {
+            uri: uri.to_owned(),
+            message: format!("operation control check failed: {error}"),
+        }),
     }
 }
 
@@ -1391,5 +1541,67 @@ mod tests {
             .read_with_abort(&request, &abort)
             .expect_err("cancelled read result must be suppressed");
         assert_eq!(error.code(), "cem.resolver.cancelled");
+    }
+
+    #[test]
+    fn deadline_during_resolver_read_suppresses_the_resolved_value() {
+        #[derive(Debug)]
+        struct SlowResolver;
+
+        impl ResourceResolver for SlowResolver {
+            fn read(&self, request: &ResolveRequest) -> Result<ResolvedRead, ResolverDiagnostic> {
+                std::thread::sleep(std::time::Duration::from_millis(3));
+                Ok(ResolvedRead {
+                    uri: request.uri.clone(),
+                    bytes: b"late".to_vec(),
+                    content_type: None,
+                })
+            }
+
+            fn write(
+                &self,
+                request: &ResolveRequest,
+                _: &[u8],
+            ) -> Result<ResolvedWrite, ResolverDiagnostic> {
+                Ok(ResolvedWrite {
+                    uri: request.uri.clone(),
+                })
+            }
+        }
+
+        let control = crate::operation_control::OperationControl::with_root_policy(
+            AbortSignal::new(),
+            crate::scheduler::ScopePolicy::host_root().with_timeout_ms(Some(1)),
+        )
+        .unwrap();
+        let mut registry = ResolverRegistry::new();
+        registry.register(
+            "cem+vfs",
+            ResolvePurpose::Input,
+            ResolveDirection::Read,
+            SlowResolver,
+        );
+        let request = ResolveRequest::new(
+            "cem+vfs://root/input.cem",
+            ResolvePurpose::Input,
+            ResolveDirection::Read,
+        );
+        let error = registry
+            .read_with_control(
+                &request,
+                &control,
+                crate::operation_control::ROOT_EXECUTION_SCOPE_ID,
+            )
+            .expect_err("a late resolver response must not be accepted");
+        assert!(matches!(
+            error,
+            ResolverDiagnostic::Control {
+                failure: crate::operation_control::ControlFailure {
+                    cause: crate::operation_control::ControlCause::TimeoutExceeded { .. },
+                    ..
+                },
+                ..
+            }
+        ));
     }
 }

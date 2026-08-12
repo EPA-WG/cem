@@ -29,12 +29,28 @@ pub(crate) fn apply_pipeline(
 ) -> ItemStream {
     let mut stream = source;
     for step in steps {
+        let source = step_source(step);
+        if let Err(error) = ctx.poll_work(source) {
+            return error;
+        }
         stream = apply_step(stream, step, ctx);
+        if let Err(error) = ctx.force_safe_point(source) {
+            return error;
+        }
         if stream.error.is_some() {
             break;
         }
     }
     stream
+}
+
+fn step_source(step: &IrStep) -> IrId {
+    match step {
+        IrStep::Lambda(lambda) => *lambda,
+        IrStep::Named { args, .. } | IrStep::NamedStdlib { args, .. } => {
+            args.first().copied().unwrap_or(IrId(0))
+        }
+    }
 }
 
 fn apply_step(input: ItemStream, step: &IrStep, ctx: &mut EvalCtx<'_>) -> ItemStream {

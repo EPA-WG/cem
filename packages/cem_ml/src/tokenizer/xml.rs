@@ -11,7 +11,10 @@ use crate::diagnostics::{Diagnostic, Severity};
 use crate::source::decode::{DecodeConfig, Utf8Decoder};
 use crate::source::{ByteRange, ByteSource, EncodingDecoder, SourceId};
 use crate::source_map::{FrameSpan, SourceMapFrame, SourceMapStack, TransformKind};
-use crate::tokenizer::{SchemaToken, SchemaTokenKind, SchemaTokenizer, TokenizerProfile};
+use crate::tokenizer::{
+    SchemaToken, SchemaTokenKind, SchemaTokenizer, TokenizerControl, TokenizerProfile,
+};
+use std::cell::RefCell;
 use std::collections::VecDeque;
 
 pub struct XmlTokenizer {
@@ -22,10 +25,26 @@ pub struct XmlTokenizer {
     diagnostics: Vec<Diagnostic>,
     base_source_map: SourceMapStack,
     end_offset: u64,
+    control: Option<RefCell<TokenizerControl>>,
 }
 
 impl XmlTokenizer {
     pub fn from_source<S: ByteSource>(source: S) -> Self {
+        Self::from_source_inner(source, None)
+    }
+
+    pub fn from_source_with_control<S: ByteSource>(
+        source: S,
+        control: crate::operation_control::OperationControl,
+        scope: crate::operation_control::ExecutionScopeId,
+    ) -> Self {
+        Self::from_source_inner(source, Some(TokenizerControl::new(control, scope)))
+    }
+
+    fn from_source_inner<S: ByteSource>(
+        source: S,
+        mut control: Option<TokenizerControl>,
+    ) -> Self {
         let mut decoder = Utf8Decoder::with_config(
             source,
             DecodeConfig {
@@ -35,8 +54,14 @@ impl XmlTokenizer {
         );
         let source_id = decoder.source_id();
         let mut scalars = Vec::new();
+        if let Some(control) = control.as_mut() {
+            control.force();
+        }
         while let Some(c) = decoder.decode_next() {
             scalars.extend(c.scalars);
+            if control.as_mut().is_some_and(|control| !control.poll()) {
+                break;
+            }
         }
         let diagnostics = decoder.take_diagnostics();
         let end_offset = scalars.last().map(|(_, r)| r.end()).unwrap_or(0);
@@ -55,6 +80,7 @@ impl XmlTokenizer {
             diagnostics,
             base_source_map,
             end_offset,
+            control: control.map(RefCell::new),
         };
         t.scan_document();
         t
@@ -568,11 +594,23 @@ impl XmlTokenizer {
     }
 
     fn peek(&self) -> Option<char> {
+        if !self.control_allows_work() {
+            return None;
+        }
         self.scalars.get(self.cursor).map(|(c, _)| *c)
     }
 
     fn peek_at(&self, n: usize) -> Option<char> {
+        if !self.control_allows_work() {
+            return None;
+        }
         self.scalars.get(self.cursor + n).map(|(c, _)| *c)
+    }
+
+    fn control_allows_work(&self) -> bool {
+        self.control
+            .as_ref()
+            .is_none_or(|control| control.borrow_mut().poll())
     }
 
     fn advance(&mut self) {
@@ -666,6 +704,9 @@ impl SchemaTokenizer for XmlTokenizer {
     }
 
     fn next_token(&mut self) -> Option<SchemaToken> {
+        if !self.control_allows_work() {
+            return None;
+        }
         self.pending.pop_front()
     }
 }

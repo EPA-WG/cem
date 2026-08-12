@@ -50,7 +50,7 @@ use crate::validation::xpath::{
     xpath_expression_ast_from_source_bytes, CemtXPathInvocationAdapter, XPathAttachment,
     XPathDynamicContext, XPathEvaluationLimits, XPathEvaluationPhase, XPathEvaluationRequest,
     XPathExpandedName, XPathExpectedResult, XPathExpressionAst, XPathHostAttachment,
-    XPathHostNodeKind, XPathHostOwner, XPathInvocationAdapter, XPathInvocationHost,
+    XPathHostNodeKind, XPathHostOwner, XPathInvocationHost,
     XPathResultArtifact, XPathResultItem, XPathResultSequence, XPathSchemaContractCatalog,
     XPathSourceRange, XPathSourceRequest, XPathStaticContext, XPathVariableBindings,
 };
@@ -26023,6 +26023,8 @@ pub struct TransformTemplateRenderRequest<'a> {
 pub struct TransformTemplateRuntimeContext<'a> {
     pub resolver_registry: &'a ResolverRegistry,
     pub resolver_policy: &'a ResolverPolicy,
+    pub operation_control: &'a crate::operation_control::OperationControl,
+    pub execution_scope: crate::operation_control::ExecutionScopeId,
 }
 
 pub fn invoke_transform_template_xpath_function(
@@ -26104,7 +26106,7 @@ pub fn invoke_transform_template_xpath(
         return Err(diagnostics);
     }
 
-    CemtXPathInvocationAdapter.invoke(XPathEvaluationRequest {
+    CemtXPathInvocationAdapter.invoke_with_control(XPathEvaluationRequest {
         invocation_host: XPathInvocationHost::Cemt,
         expression: invocation.expression.as_ref(),
         dynamic_context: XPathDynamicContext {
@@ -26118,7 +26120,7 @@ pub fn invoke_transform_template_xpath(
         resolver_policy: runtime.resolver_policy,
         evaluation_limits,
         safety_policy_stamp: "xpath-safety/1;cemt-authored-slot",
-    })
+    }, runtime.operation_control, runtime.execution_scope)
 }
 
 fn transform_template_xpath_binding_diagnostic(
@@ -33616,6 +33618,8 @@ mod tests {
             TransformTemplateRuntimeContext {
                 resolver_registry: &resolver_registry,
                 resolver_policy: &resolver_policy,
+                operation_control: &crate::operation_control::OperationControl::default(),
+                execution_scope: crate::operation_control::ROOT_EXECUTION_SCOPE_ID,
             },
         )
         .expect("CEMT invokes the compiled XPath body directly");
@@ -33707,6 +33711,8 @@ mod tests {
             TransformTemplateRuntimeContext {
                 resolver_registry: &resolver_registry,
                 resolver_policy: &resolver_policy,
+                operation_control: &crate::operation_control::OperationControl::default(),
+                execution_scope: crate::operation_control::ROOT_EXECUTION_SCOPE_ID,
             },
         )
         .expect("host-selected CEMT XPath function dispatches its compiled body");
@@ -33746,6 +33752,8 @@ mod tests {
             TransformTemplateRuntimeContext {
                 resolver_registry: &resolver_registry,
                 resolver_policy: &resolver_policy,
+                operation_control: &crate::operation_control::OperationControl::default(),
+                execution_scope: crate::operation_control::ROOT_EXECUTION_SCOPE_ID,
             },
         )
         .expect_err("host-selected dispatch must require a compiled XPath body");
@@ -33828,6 +33836,8 @@ mod tests {
             TransformTemplateRuntimeContext {
                 resolver_registry: &resolver_registry,
                 resolver_policy: &resolver_policy,
+                operation_control: &crate::operation_control::OperationControl::default(),
+                execution_scope: crate::operation_control::ROOT_EXECUTION_SCOPE_ID,
             },
         )
         .expect_err("declared native bindings are required");
