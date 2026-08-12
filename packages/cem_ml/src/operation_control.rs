@@ -423,6 +423,23 @@ impl ControlCause {
             _ => ControlTerminalClass::Failed,
         }
     }
+
+    pub fn cancellation_reason(&self) -> Option<&str> {
+        match self {
+            Self::HostCancellation { reason } => reason.as_deref(),
+            _ => None,
+        }
+    }
+
+    pub fn restartable(&self) -> bool {
+        matches!(
+            self,
+            Self::WorkerFailure {
+                restartable: true,
+                ..
+            }
+        )
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]

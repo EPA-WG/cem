@@ -256,11 +256,38 @@ replacement tree may mediate between internal engine layers.
           standard streams, and exit-code projection in common `cem_ml_cli`.
     - [ ] Version and bound every host-wire/report projection while preserving
           native typed AST/event/value ownership inside the engine.
-        - [ ] Gate 5 — expose the versioned initialize/run/progress/event/result
+        - [x] Gate 5 — expose the versioned initialize/run/progress/event/result
               envelope as an awaitable operation handle with root/scoped cancel,
               bounded independent event subscriptions, gap reporting, retained stop
               and terminal events, lazy value/artifact handles, and exactly one
               terminal owner.
+            - [x] Add native Gate 5 fixtures for protocol/version and effective-limit
+                  discovery, awaitable completion, root/scope/source cancellation,
+                  cancellation/completion races, independent filtered cursors, slow-
+                  subscriber gaps, retained stopped/continued/terminal events, lazy
+                  typed value/artifact ownership and disposal, terminal
+                  classification, bounded terminal metadata, and exactly one result.
+
+              Completed 2026-08-12: the common engine now owns protocol-v1
+              initialize/run/progress/event/result envelopes, exact effective-limit
+              negotiation, awaitable typed results, root/direct-scope/source-selector
+              cancellation, and a serialized terminal claim. Independent bounded
+              subscriptions report gaps without blocking execution and retain the
+              current stop, matching continue, and terminal records outside their
+              rings. Native values and artifacts remain typed
+              behind operation-bound lazy handles; terminal diagnostics, recovered
+              failures, artifact references, payloads, subscriptions, and handles
+              all enforce disclosed caps and report truncation counts.
+
+              Eight native fixtures cover version rejection and stricter limit
+              discovery, future wakeup and terminal races, repeated cancellation/
+              completion races, target resolution with no invalid-state mutation,
+              filtered cursor gaps and critical retention, typed handle ownership
+              and disposal, cap enforcement, and terminal classification. All 1,873
+              `cem_ml` tests and the complete `cem_ml_cli` test target pass, as do
+              the CEM-QL and transform suites exercised by the four-project graph,
+              the serial retry of its one shared-Cargo-artifact race, all four lint
+              targets, and both common WASM builds.
         - [ ] Gate 6 — behind the default-enabled `debug-control` feature, implement
               pause generations, source/scope breakpoints, all-stop rendezvous,
               immutable stopped snapshots, repeated pause/continue, next/step-in/

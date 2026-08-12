@@ -10,6 +10,15 @@ pub const CAPABILITY_CONTRACT_VERSION: u16 = 2;
 /// enter a serialized manifest.
 pub const MAX_IDENTITY_BYTES: usize = 128;
 
+pub const DEFAULT_MAX_LIVE_SUBSCRIPTIONS: u16 = 16;
+pub const DEFAULT_SUBSCRIPTION_CAPACITY: u32 = 256;
+pub const MAX_SUBSCRIPTION_CAPACITY: u32 = 4_096;
+pub const MAX_INLINE_EVENT_PAYLOAD_BYTES: u32 = 64 * 1_024;
+pub const MAX_TERMINAL_DIAGNOSTICS: u32 = 256;
+pub const MAX_RECOVERED_CONTROL_FAILURES: u32 = 256;
+pub const MAX_ARTIFACT_REFERENCES: u32 = 4_096;
+pub const MAX_RETAINED_HANDLES: u32 = 4_096;
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ProductVersion {
@@ -138,6 +147,8 @@ pub enum ControlCoverage {
     PolicyOnly,
     HierarchicalPermits,
     IoPermits,
+    AwaitableOperationHandle,
+    BoundedEventCursor,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -176,6 +187,36 @@ pub struct DebugControlCapability {
     pub active: bool,
 }
 
+/// Effective operation-host bounds returned by initialization and capability
+/// discovery. Hosts may negotiate stricter values, never larger ones.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OperationHostLimits {
+    pub max_live_subscriptions: u16,
+    pub default_subscription_capacity: u32,
+    pub max_subscription_capacity: u32,
+    pub max_inline_event_payload_bytes: u32,
+    pub max_terminal_diagnostics: u32,
+    pub max_recovered_control_failures: u32,
+    pub max_artifact_references: u32,
+    pub max_retained_handles: u32,
+}
+
+impl Default for OperationHostLimits {
+    fn default() -> Self {
+        Self {
+            max_live_subscriptions: DEFAULT_MAX_LIVE_SUBSCRIPTIONS,
+            default_subscription_capacity: DEFAULT_SUBSCRIPTION_CAPACITY,
+            max_subscription_capacity: MAX_SUBSCRIPTION_CAPACITY,
+            max_inline_event_payload_bytes: MAX_INLINE_EVENT_PAYLOAD_BYTES,
+            max_terminal_diagnostics: MAX_TERMINAL_DIAGNOSTICS,
+            max_recovered_control_failures: MAX_RECOVERED_CONTROL_FAILURES,
+            max_artifact_references: MAX_ARTIFACT_REFERENCES,
+            max_retained_handles: MAX_RETAINED_HANDLES,
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CapabilityRequest {
@@ -198,6 +239,7 @@ pub struct CapabilityManifest {
     pub effective_max_workers: u32,
     pub debug_control: DebugControlCapability,
     pub memory_accounting: MemoryAccountingCapability,
+    pub operation_limits: OperationHostLimits,
 }
 
 impl CapabilityManifest {
@@ -276,6 +318,7 @@ pub fn capability_manifest(
             accounted_stores: Vec::new(),
             unaccounted_host_bytes: true,
         },
+        operation_limits: OperationHostLimits::default(),
     })
 }
 
@@ -285,7 +328,9 @@ fn control_capability(runtime: RuntimeKind, control: ControlCapabilityKind) -> C
     use ControlCoverage::*;
 
     let (availability, coverage) = match control {
+        RootCancellation if runtime == RuntimeKind::Native => (Available, ControlCore),
         RootCancellation => (Available, CompatibilityFacade),
+        ScopedCancellation if runtime == RuntimeKind::Native => (Available, ControlCore),
         ScopedCancellation => (DevelopmentOnly, ControlCore),
         StackDepthEnforcement => (DevelopmentOnly, LogicalFrameGuards),
         MemoryEnforcement => (DevelopmentOnly, AccountedAllocations),
@@ -296,8 +341,12 @@ fn control_capability(runtime: RuntimeKind, control: ControlCapabilityKind) -> C
         QueueEnforcement => (DevelopmentOnly, BoundedQueue),
         CpuEnforcement => (DevelopmentOnly, PolicyOnly),
         IoEnforcement => (DevelopmentOnly, IoPermits),
-        OperationHandles | BoundedSubscriptions | Pause | SourceBreakpoints | Stepping
-        | SuspendedInspection | Dap | CemDebugRequests | HardCancel => (Unavailable, None),
+        OperationHandles if runtime == RuntimeKind::Native => (Available, AwaitableOperationHandle),
+        BoundedSubscriptions if runtime == RuntimeKind::Native => (Available, BoundedEventCursor),
+        OperationHandles => (DevelopmentOnly, AwaitableOperationHandle),
+        BoundedSubscriptions => (DevelopmentOnly, BoundedEventCursor),
+        Pause | SourceBreakpoints | Stepping | SuspendedInspection | Dap | CemDebugRequests
+        | HardCancel => (Unavailable, None),
     };
     ControlCapability {
         control,
@@ -472,6 +521,14 @@ mod tests {
             serde_json::json!([])
         );
         assert_eq!(value["memoryAccounting"]["unaccountedHostBytes"], true);
+        assert_eq!(
+            value["operationLimits"]["maxLiveSubscriptions"],
+            DEFAULT_MAX_LIVE_SUBSCRIPTIONS
+        );
+        assert_eq!(
+            value["operationLimits"]["maxInlineEventPayloadBytes"],
+            MAX_INLINE_EVENT_PAYLOAD_BYTES
+        );
     }
 
     #[test]
@@ -490,11 +547,10 @@ mod tests {
             ControlCapability {
                 control: ControlCapabilityKind::RootCancellation,
                 availability: CapabilityAvailability::Available,
-                coverage: ControlCoverage::CompatibilityFacade,
+                coverage: ControlCoverage::ControlCore,
             }
         );
         for control in [
-            ControlCapabilityKind::ScopedCancellation,
             ControlCapabilityKind::StackDepthEnforcement,
             ControlCapabilityKind::MemoryEnforcement,
             ControlCapabilityKind::TimeoutEnforcement,
@@ -504,6 +560,12 @@ mod tests {
                 CapabilityAvailability::DevelopmentOnly
             );
         }
+        assert_eq!(
+            manifest
+                .control(ControlCapabilityKind::ScopedCancellation)
+                .availability,
+            CapabilityAvailability::Available
+        );
         assert_eq!(
             manifest.control(ControlCapabilityKind::CpuEnforcement),
             ControlCapability {
@@ -526,6 +588,14 @@ mod tests {
         );
         for control in [
             ControlCapabilityKind::OperationHandles,
+            ControlCapabilityKind::BoundedSubscriptions,
+        ] {
+            assert_eq!(
+                manifest.control(control).availability,
+                CapabilityAvailability::Available
+            );
+        }
+        for control in [
             ControlCapabilityKind::Pause,
             ControlCapabilityKind::Dap,
             ControlCapabilityKind::HardCancel,

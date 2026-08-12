@@ -611,7 +611,9 @@ the same shared operation core rather than requiring a self-referential
 
 `CancelRequest` contains an optional execution scope, bounded reason, and
 optional source selector. A source selector must resolve uniquely before the
-request is acknowledged. Omitting all targeting fields selects the root.
+request is acknowledged. Execution-scope and source-selector targeting are
+mutually exclusive; supplying both rejects the request without changing control
+state. Omitting all targeting fields selects the root.
 
 ### 8.2 Events and subscriptions
 
@@ -632,11 +634,15 @@ engine work to block.
 Unless a host negotiates stricter limits during initialization, the common
 defaults are 16 live subscriptions per operation, 256 queued events per
 subscription, a requested-capacity ceiling of 4,096 events, and 64 KiB per
-inline event payload. Inspection defaults are 64 stack frames per page (512
-maximum), 100 variable children per page (1,000 maximum), and 4 KiB per string
-or byte preview. A stopped snapshot may retain at most the smaller of 16 MiB or
-one eighth of the operation's effective root memory cap; exceeding that limit
-produces truncated/opaque entries rather than failing the paused operation.
+inline event payload. Terminal diagnostics and recovered-control-failure lists
+default to 256 entries each, artifact-reference lists and retained lazy handles
+are capped at 4,096 entries each, and every truncation is reported by an
+original count alongside the retained prefix. Inspection defaults are 64 stack
+frames per page (512 maximum), 100 variable children per page (1,000 maximum),
+and 4 KiB per string or byte preview. A stopped snapshot may retain at most the
+smaller of 16 MiB or one eighth of the operation's effective root memory cap;
+exceeding that limit produces truncated/opaque entries rather than failing the
+paused operation.
 All effective limits are returned by initialization and capability discovery.
 
 The runtime retains an accepted breakpoint resolution until that breakpoint is
@@ -656,17 +662,21 @@ handles; it does not erase already committed output.
 
 ```text
 OperationOutcome<Result> =
-  succeeded { result, recoveredControlFailures[] }
-  failed { cause, diagnostics, discardedArtifacts[] }
-  cancelled { reason?, diagnostics, discardedArtifacts[] }
-  fatal { cause, diagnostics, restartable }
+  succeeded { result, recoveredControlFailures[], artifacts }
+  failed { cause, diagnostics, artifacts }
+  cancelled { reason?, diagnostics, artifacts }
+  fatal { cause, diagnostics, restartable, artifacts }
 ```
 
 All statuses retain bounded diagnostics and an explicit retained/discarded
-artifact statement. A cancelled or failed operation cannot expose an
+artifact statement. `artifacts` contains bounded `retained` and `discarded`
+reference lists plus their original counts, even when one list is empty. A
+cancelled or failed operation cannot expose an
 uncommitted primary result as if it succeeded. Scoped cancellation that is
 explicitly recovered may appear in `recoveredControlFailures` of a successful
-result.
+result. Native results and retained values stay typed and engine-owned; wire
+events contain only bounded metadata and opaque handles, with paging performed
+by the owning host adapter.
 
 ## 9. Suspended-state inspection
 
