@@ -23,6 +23,15 @@ use crate::schema::registry::{
 use crate::source::ByteRange;
 use crate::source_map::{FrameSpan, SourceMapFrame, SourceMapStack};
 
+mod runtime;
+
+pub use runtime::{
+    query_execution_limits, run_query, select_query_language, QueryOwnedBindings,
+    QueryPreparationRequest, QueryPreparedOwners, QueryRunContractError, QueryRunError,
+    QueryRunFailure, QueryRunRequest, QueryRunResponse, QueryRuntimeAdapter,
+    QueryRuntimeRegistry, QuerySource,
+};
+
 pub const CSS_SELECTOR_LANGUAGE_VERSION: &str = "selectors-4-20260122";
 pub const CSS_SELECTOR_RESULT_REPRESENTATION_ID: &str = "cem.css-selector-result";
 
@@ -276,12 +285,29 @@ impl QueryExecutionRequest<'_> {
     }
 }
 
+#[derive(Clone)]
 pub struct QueryExecutionResult {
     pub language: QueryLanguage,
     pub query_identity: FormatIdentity,
     pub input_ast_owner: Arc<dyn QueryInputOwner>,
     pub native_result: Arc<dyn QueryNativeResult>,
     pub source_map: SourceMapStack,
+}
+
+impl fmt::Debug for QueryExecutionResult {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter
+            .debug_struct("QueryExecutionResult")
+            .field("language", &self.language)
+            .field("query_identity", &self.query_identity)
+            .field(
+                "input_ast_owner",
+                &self.input_ast_owner.representation_id(),
+            )
+            .field("native_result", &self.native_result.representation_id())
+            .field("source_map", &self.source_map)
+            .finish()
+    }
 }
 
 impl QueryExecutionResult {
@@ -696,9 +722,11 @@ mod query_execution_contract_tests {
     use super::*;
     use crate::engine::FormatIdentity;
     use crate::resolver::{ResolverPolicy, ResolverRegistry};
+    use crate::run_config::ScopeConfig;
     use crate::scheduler::{AbortSignal, ScopePolicy};
     use crate::schema::registry::{
         CSS_CONTENT_TYPE, CSS_SCHEMA_URI, CSS_SELECTOR_CONTENT_TYPE, CSS_SELECTOR_SCHEMA_URI,
+        XML_CONTENT_TYPE, XML_SCHEMA_URI, XPATH_CONTENT_TYPE, XPATH_SCHEMA_URI,
     };
     use crate::source_map::SourceMapStack;
 
@@ -817,6 +845,37 @@ mod query_execution_contract_tests {
             content_type: Some(content_type.to_owned()),
             schema: Some(schema.to_owned()),
             ..FormatIdentity::default()
+        }
+    }
+
+    fn query_run_request(
+        language: QueryLanguage,
+        query_bytes: &[u8],
+        query_identity: FormatIdentity,
+    ) -> QueryRunRequest {
+        let input_identity = identity(XML_CONTENT_TYPE, XML_SCHEMA_URI);
+        QueryRunRequest {
+            data: crate::engine::EngineInput {
+                uri: "memory:catalog.xml".to_owned(),
+                bytes: b"<catalog><book id=\"a\"/><book id=\"b\"/></catalog>".to_vec(),
+                from_format: Some(crate::engine::InputFormat::Xml),
+                identity: Some(input_identity.clone()),
+                root_scope: ScopeConfig {
+                    default_content_type: input_identity.content_type.clone(),
+                    schema: input_identity.schema.clone(),
+                    ..ScopeConfig::default()
+                },
+            },
+            query: QuerySource {
+                uri: format!("memory:query.{}", language.as_str()),
+                bytes: query_bytes.to_vec(),
+                identity: query_identity,
+            },
+            context: crate::engine::EngineContext::default(),
+            context_item: None,
+            bindings: QueryOwnedBindings::new(),
+            limits: None,
+            abort_signal: AbortSignal::new(),
         }
     }
 
@@ -958,5 +1017,113 @@ mod query_execution_contract_tests {
             result.native_result.representation_id(),
             "test.css-selector-result"
         );
+    }
+
+    #[test]
+    fn high_level_query_run_owns_sources_and_native_results_for_builtin_languages() {
+        for (language, query_bytes, query_identity, expected_result) in [
+            (
+                QueryLanguage::CssSelector,
+                b"book".as_slice(),
+                identity(CSS_SELECTOR_CONTENT_TYPE, CSS_SELECTOR_SCHEMA_URI),
+                CSS_SELECTOR_RESULT_REPRESENTATION_ID,
+            ),
+            (
+                QueryLanguage::XPath,
+                b"/catalog/book".as_slice(),
+                identity(XPATH_CONTENT_TYPE, XPATH_SCHEMA_URI),
+                crate::transform_artifact::XPATH_RESULT_REPRESENTATION_ID,
+            ),
+        ] {
+            let request = query_run_request(language, query_bytes, query_identity);
+
+            let response = run_query(request).expect("builtin query run succeeds");
+            assert_eq!(response.language, language);
+            assert_eq!(
+                response.inputs,
+                [
+                    "memory:catalog.xml".to_owned(),
+                    format!("memory:query.{}", language.as_str()),
+                ]
+            );
+            assert_eq!(
+                response.result.native_result.representation_id(),
+                expected_result
+            );
+            assert!(!response.result.source_map.frames.is_empty());
+            assert!(response
+                .diagnostics
+                .iter()
+                .all(|diagnostic| !diagnostic.severity.is_hard_violation()));
+        }
+    }
+
+    #[test]
+    fn high_level_query_run_preserves_budget_and_host_abort_contracts() {
+        let mut invalid_budget = query_run_request(
+            QueryLanguage::CssSelector,
+            b"book",
+            identity(CSS_SELECTOR_CONTENT_TYPE, CSS_SELECTOR_SCHEMA_URI),
+        );
+        invalid_budget
+            .data
+            .root_scope
+            .budgets
+            .insert("queryItems".to_owned(), "many".to_owned());
+        assert!(matches!(
+            run_query(invalid_budget),
+            Err(QueryRunError::Contract(QueryRunContractError::BudgetInvalid { name }))
+                if name == "queryItems"
+        ));
+
+        let aborted = query_run_request(
+            QueryLanguage::CssSelector,
+            b"book",
+            identity(CSS_SELECTOR_CONTENT_TYPE, CSS_SELECTOR_SCHEMA_URI),
+        );
+        aborted.abort_signal.abort();
+        let Err(QueryRunError::Execution(failure)) = run_query(aborted) else {
+            panic!("pre-aborted query must return a typed execution failure");
+        };
+        assert_eq!(
+            failure.inputs,
+            [
+                "memory:catalog.xml".to_owned(),
+                "memory:query.css-selector".to_owned(),
+            ]
+        );
+        assert!(failure
+            .diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.message.contains("aborted")));
+    }
+
+    #[test]
+    fn cli_query_dispatch_delegates_native_orchestration_to_the_common_runner() {
+        let dispatch = include_str!("../../cem_ml_cli/src/dispatch.rs");
+        let query_dispatch = dispatch
+            .split("pub fn run_query")
+            .nth(1)
+            .and_then(|source| source.split("fn run_transform_graph").next())
+            .expect("CLI query dispatch source");
+
+        assert!(query_dispatch.contains("cem_ml::query::run_query(QueryRunRequest"));
+        for engine_owned_symbol in [
+            "LifecycleRegistry::with_builtin_adapters",
+            "CssSelectorElementTreeOwner",
+            "CemQlNativeItemsOwner",
+            "XPathXdmTreeOwner",
+            "CemQlQueryAstOwner",
+            "QueryEvaluatorRegistry",
+            "QueryExecutionRequest",
+        ] {
+            assert!(
+                !query_dispatch.contains(engine_owned_symbol),
+                "CLI query dispatch must not recover engine-owned `{engine_owned_symbol}` orchestration"
+            );
+        }
+        assert!(query_dispatch.contains("QueryResultExporterRegistry"));
+        assert!(query_dispatch.contains("write_query_report"));
+        assert!(query_dispatch.contains("write_destination"));
     }
 }

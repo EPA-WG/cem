@@ -90,9 +90,26 @@ replacement tree may mediate between internal engine layers.
               lint and all 89 tests, CLI lint and the full target (493 library plus 114
               integration tests passed; one intentionally ignored), the isolated
               nine-test SCSS target, the focused schema audit, and CLI e2e.
-        - [ ] Move the high-level query run request/result boundary out of CLI
+        - [x] Move the high-level query run request/result boundary out of CLI
               dispatch while retaining native query AST, input, result, and source-map
               ownership.
+            - Added an owned common `QueryRunRequest` / `QueryRunResponse` boundary for
+              data and query sources, identities, native context and bindings, limits,
+              resolver/scheduler policy, diagnostics, source maps, and a host-supplied
+              abort signal. Typed failures distinguish request-contract errors from
+              execution diagnostics and retain both input identities for reporting.
+            - Added an `EngineContext` query-runtime registry with built-in CSS Selector
+              and XPath preparation/evaluation. The downstream CEM-QL adapter registers
+              through the same seam, preserving dependency direction and native owner
+              types without a `cem_ml` dependency on `cem_ml_transform_cem_ql`.
+            - Reduced CLI query dispatch to source I/O, argument-to-request mapping,
+              result exporting, report/output writes, diagnostics, and exit policy.
+              Common contract tests cover owned CSS Selector/XPath results, source maps,
+              invalid budgets, and host abort propagation; the adapter contract covers
+              CEM-QL, and all eight existing CLI query integration cases pass unchanged.
+              Nx verification passes for common lint/full test/WASM, transform-adapter
+              lint and all 90 tests, CLI lint and all 493 library tests, the focused
+              source-boundary guard, and the eight-test CLI query integration target.
         - [ ] Thread one host-supplied cooperative cancellation handle through every
               public operation request and resolver/evaluator path.
     - [ ] Keep terminal parsing, native filesystem/network adaptation, signals,

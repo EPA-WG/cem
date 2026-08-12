@@ -32,8 +32,8 @@ use cem_ml::projection::{CemTreeAstAttribute, CemTreeAstNode, CemTreeAstStream};
 use cem_ml::query::{
     QueryAstOwner, QueryEncodedOutput, QueryEvaluatorAdapter, QueryExecutionRequest,
     QueryExecutionResult, QueryExportFormat, QueryExportRequest, QueryInputModel, QueryInputOwner,
-    QueryLanguage, QueryNativeArtifact, QueryNativeResult, QueryResultExporter,
-    QueryResultExporterRegistry,
+    QueryLanguage, QueryNativeArtifact, QueryNativeResult, QueryPreparationRequest,
+    QueryPreparedOwners, QueryResultExporter, QueryResultExporterRegistry, QueryRuntimeAdapter,
 };
 use cem_ml::run_config::ScopeConfig;
 use cem_ml::scheduler::ScopePolicy;
@@ -2057,6 +2057,9 @@ pub fn register_cem_ql_runtime_adapters(context: &mut EngineContext) {
     register_cem_ql_schema_behavior_evaluator(context);
     register_cem_ql_source_output_converter(context);
     register_cem_ql_artifact_exporters(context);
+    context
+        .query_runtime_registry
+        .register(CemQlQueryRuntimeAdapter);
 }
 
 pub fn engine_context_with_cem_ql_template_adapter() -> EngineContext {
@@ -5875,6 +5878,50 @@ impl QueryEvaluatorAdapter for CemQlQueryEvaluator {
     }
 }
 
+#[derive(Debug, Clone, Copy)]
+pub struct CemQlQueryRuntimeAdapter;
+
+impl QueryRuntimeAdapter for CemQlQueryRuntimeAdapter {
+    fn language(&self) -> QueryLanguage {
+        QueryLanguage::CemQl
+    }
+
+    fn prepare(
+        &self,
+        request: QueryPreparationRequest<'_>,
+    ) -> Result<QueryPreparedOwners, Vec<Diagnostic>> {
+        let input = CemQlNativeItemsOwner::from_lifecycle(
+            request.lifecycle_owner,
+            request.input_identity,
+        )
+        .map_err(|message| {
+            vec![cem_ql_query_diagnostic(
+                request.input_uri,
+                "cem.ql.query_input_unsupported",
+                message,
+            )]
+        })?;
+        let query = CemQlQueryAstOwner::from_source_bytes(
+            &request.query.bytes,
+            &request.query.uri,
+            request.query.identity.clone(),
+            request.resolver_policy_stamp,
+        )?;
+        Ok(QueryPreparedOwners {
+            query_ast_owner: Arc::new(query),
+            input_ast_owner: Arc::new(input),
+            diagnostics: Vec::new(),
+        })
+    }
+
+    fn evaluate(
+        &self,
+        request: QueryExecutionRequest<'_>,
+    ) -> Result<QueryExecutionResult, Vec<Diagnostic>> {
+        CemQlQueryEvaluator.evaluate(request)
+    }
+}
+
 fn cem_ql_query_diagnostic(
     uri: &str,
     code: impl Into<String>,
@@ -6377,8 +6424,10 @@ mod tests {
     use cem_ml::run_config::ScopeConfig;
     use cem_ml::schema::package_sources::builtin_schema_package_artifact_sources;
     use cem_ml::schema::registry::{
-        CEM_QL_CONTENT_TYPE, CEM_QL_SCHEMA_URI, CEM_SCHEMA_PACKAGE_CONTENT_TYPE,
-        CEM_SCHEMA_PACKAGE_URI, CEM_TRANSFORM_CONTENT_TYPE, HTML_CONTENT_TYPE, HTML_SCHEMA_URI,
+        CEM_QL_CONTENT_TYPE, CEM_QL_EXPRESSION_CONTENT_TYPE, CEM_QL_EXPRESSION_SCHEMA_URI,
+        CEM_QL_SCHEMA_URI, CEM_SCHEMA_PACKAGE_CONTENT_TYPE, CEM_SCHEMA_PACKAGE_URI,
+        CEM_TRANSFORM_CONTENT_TYPE, HTML_CONTENT_TYPE, HTML_SCHEMA_URI, XML_CONTENT_TYPE,
+        XML_SCHEMA_URI,
     };
     use cem_ml::source::{BytesSource, SourceId};
     use cem_ml::tokenizer::{cem::CemTokenizer, xml::XmlTokenizer};
@@ -6434,6 +6483,53 @@ mod tests {
                 body.representation_id()
             ),
         }
+    }
+
+    #[test]
+    fn common_query_runner_executes_registered_cem_ql_runtime_with_native_owners() {
+        let input_identity = FormatIdentity {
+            content_type: Some(XML_CONTENT_TYPE.to_owned()),
+            schema: Some(XML_SCHEMA_URI.to_owned()),
+            ..FormatIdentity::default()
+        };
+        let response = cem_ml::query::run_query(cem_ml::query::QueryRunRequest {
+            data: EngineInput {
+                uri: "memory:catalog.xml".to_owned(),
+                bytes: b"<catalog><book id=\"a\"/><book id=\"b\"/></catalog>".to_vec(),
+                from_format: Some(InputFormat::Xml),
+                identity: Some(input_identity.clone()),
+                root_scope: ScopeConfig {
+                    default_content_type: input_identity.content_type.clone(),
+                    schema: input_identity.schema.clone(),
+                    ..ScopeConfig::default()
+                },
+            },
+            query: cem_ml::query::QuerySource {
+                uri: "memory:query.cem-ql".to_owned(),
+                bytes: b"input".to_vec(),
+                identity: FormatIdentity {
+                    content_type: Some(CEM_QL_EXPRESSION_CONTENT_TYPE.to_owned()),
+                    schema: Some(CEM_QL_EXPRESSION_SCHEMA_URI.to_owned()),
+                    ..FormatIdentity::default()
+                },
+            },
+            context: engine_context_with_cem_ql_template_adapter(),
+            context_item: None,
+            bindings: Default::default(),
+            limits: None,
+            abort_signal: cem_ml::scheduler::AbortSignal::new(),
+        })
+        .expect("registered CEM-QL query runtime succeeds");
+
+        assert_eq!(response.language, QueryLanguage::CemQl);
+        let result = response
+            .result
+            .native_result
+            .as_any()
+            .downcast_ref::<CemQlQueryResultArtifact>()
+            .expect("CEM-QL native result remains adapter-owned");
+        assert_eq!(result.stream().items.len(), 1);
+        assert!(!response.result.source_map.frames.is_empty());
     }
 
     #[test]
