@@ -3970,6 +3970,7 @@ fn protect_transform_call_nodes(nodes: &mut [TemplateNode]) {
             }
             TemplateNode::Text { .. }
             | TemplateNode::Comment { .. }
+            | TemplateNode::ProjectPayload { .. }
             | TemplateNode::Expression(_) => {}
         }
     }

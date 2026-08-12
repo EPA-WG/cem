@@ -978,6 +978,9 @@ fn schema_package_preview_and_validation_paths_track_source_boundaries() {
         "packages/cem_ml_cli/tests/schema_validation_examples.rs",
     ))
     .expect("schema validation integration test source is readable");
+    let scss_validation_test_source =
+        fs::read_to_string(workspace_path("packages/cem_ml_cli/tests/scss.rs"))
+            .expect("SCSS validation integration test source is readable");
 
     for package_id in builtin_package_ids {
         let package_root = schema_package_root_relative(&package_id);
@@ -1104,6 +1107,16 @@ fn schema_package_preview_and_validation_paths_track_source_boundaries() {
                 assert!(
                     validation_test_source.contains(&format!("fn {test_name}()")),
                     "schema-package validation examples must stay covered by `{test_name}`"
+                );
+            }
+        } else if package_id == "scss" {
+            for test_name in [
+                "schema_owned_scss_examples_validate_through_cli",
+                "builtin_scss_manifest_validates_through_cli",
+            ] {
+                assert!(
+                    scss_validation_test_source.contains(&format!("fn {test_name}()")),
+                    "SCSS validation must stay covered by its isolated `{test_name}` gate"
                 );
             }
         } else {

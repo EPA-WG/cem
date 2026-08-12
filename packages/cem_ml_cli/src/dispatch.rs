@@ -8645,7 +8645,8 @@ fn default_cem_ml_package_root() -> PathBuf {
 }
 
 pub fn run_version(s: &mut Streams<'_>) -> Outcome {
-    let _ = writeln!(s.stdout, "cem-ml {}", cem_ml::VERSION);
+    let version = cem_ml::capability::product_version();
+    let _ = writeln!(s.stdout, "cem-ml {}", version.common_version);
     let _ = writeln!(s.stdout, "{}", cli::COPYRIGHT_NOTICE);
     Outcome::ok()
 }
@@ -9288,7 +9289,10 @@ mod tests {
     fn version_subcommand_prints_version_and_exits_zero() {
         let (outcome, stdout, _) = run(&NotImplementedEngine, &["version"]);
         assert_eq!(outcome.exit_code, EXIT_OK);
-        assert!(stdout.starts_with("cem-ml "));
+        assert!(stdout.starts_with(&format!(
+            "cem-ml {}",
+            cem_ml::capability::product_version().common_version
+        )));
         assert!(stdout.contains(cli::COPYRIGHT_NOTICE));
     }
 

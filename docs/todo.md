@@ -33,100 +33,129 @@ replacement tree may mediate between internal engine layers.
 
 - [x] Accept the deployment-project, platform, and synchronized-version
       contract before scaffolding a deployment package or release target.
-  - [x] Review and accept the concrete recommendation in
-        [`cem-ml-deployment-contract.md`](cem-ml-deployment-contract.md),
-        including its five organization-level review gates.
-  - [x] Fix the final workspace roots, Nx project names, npm package identities,
-        native artifact identities, and dependency edges while keeping common
-        Rust source projects distinct from deployment units.
-  - [x] Select the Nx version-synchronization and fixed-release mechanism that
-        reads `packages/cem_ml/Cargo.toml` as the sole version authority,
-        updates every deployment manifest and exact internal dependency, and
-        rejects drift without modifying versions during verification.
-  - [x] Pin supported Node versions and host platforms for the portable
-        `wasm-node` CLI.
-  - [x] Pin the build, cross-compile, signing, archive/installer,
-        package-channel, and install-smoke toolchains for Linux AMD64, Homebrew
-        macOS ARM64, and Windows AMD64.
-  - [x] Freeze the first-release operation/capability matrix, including explicit
-        native/WASM gaps, rather than claiming parity from command-name
-        availability alone.
-  - [x] Freeze one versioned machine contract for requests, progress,
-        cancellation, results, diagnostics, reports, source maps, runtime
-        identity, target identity, and host-policy differences.
+    - [x] Review and accept the concrete recommendation in
+          [`cem-ml-deployment-contract.md`](cem-ml-deployment-contract.md),
+          including its five organization-level review gates.
+    - [x] Fix the final workspace roots, Nx project names, npm package identities,
+          native artifact identities, and dependency edges while keeping common
+          Rust source projects distinct from deployment units.
+    - [x] Select the Nx version-synchronization and fixed-release mechanism that
+          reads `packages/cem_ml/Cargo.toml` as the sole version authority,
+          updates every deployment manifest and exact internal dependency, and
+          rejects drift without modifying versions during verification.
+    - [x] Pin supported Node versions and host platforms for the portable
+          `wasm-node` CLI.
+    - [x] Pin the build, cross-compile, signing, archive/installer,
+          package-channel, and install-smoke toolchains for Linux AMD64, Homebrew
+          macOS ARM64, and Windows AMD64.
+    - [x] Freeze the first-release operation/capability matrix, including explicit
+          native/WASM gaps, rather than claiming parity from command-name
+          availability alone.
+    - [x] Freeze one versioned machine contract for requests, progress,
+          cancellation, results, diagnostics, reports, source maps, runtime
+          identity, target identity, and host-policy differences.
 
-  Completed 2026-08-11: accepted the seven-project source/deployment graph,
-  `cem-ml-platform` fixed release group, `cem-ml-v{version}` tags, Cargo version
-  authority, Node `^22.12.0 || ^24.0.0`, the representative browser/Node/native
-  host matrix, APT/Homebrew/WinGet channels and signing authorities, the
-  native/WASM capability gaps, and the bounded typed host protocol. The
-  canonical evidence and exact identities are recorded in
-  [`cem-ml-deployment-contract.md`](cem-ml-deployment-contract.md). No
-  deployment project was scaffolded in this contract-acceptance slice.
+    Completed 2026-08-11: accepted the seven-project source/deployment graph,
+    `cem-ml-platform` fixed release group, `cem-ml-v{version}` tags, Cargo version
+    authority, Node `^22.12.0 || ^24.0.0`, the representative browser/Node/native
+    host matrix, APT/Homebrew/WinGet channels and signing authorities, the
+    native/WASM capability gaps, and the bounded typed host protocol. The
+    canonical evidence and exact identities are recorded in
+    [`cem-ml-deployment-contract.md`](cem-ml-deployment-contract.md). No
+    deployment project was scaffolded in this contract-acceptance slice.
 
 - [ ] Stabilize the common library command boundary before packaging it.
-  - [ ] Move or expose typed, CLI-independent parse, validate, inspect, convert,
-        query, transform, trace, capability, cancellation, and resolver requests
-        through `cem_ml`, with native Rust contract tests at the smallest
-        relevant layer.
-  - [ ] Keep terminal parsing, native filesystem/network adaptation, signals,
-        standard streams, and exit-code projection in common `cem_ml_cli`.
-  - [ ] Version and bound every host-wire/report projection while preserving
-        native typed AST/event/value ownership inside the engine.
+    - [ ] Move or expose typed, CLI-independent parse, validate, inspect, convert,
+          query, transform, trace, capability, cancellation, and resolver requests
+          through `cem_ml`, with native Rust contract tests at the smallest
+          relevant layer.
+        - [x] Establish the common bounded version/capability manifest and make the
+              existing native CLI version adapter consume the library-owned version
+              response without changing terminal grammar.
+            - Added library-owned `ProductVersion`, runtime identity, target/ABI
+              identity bounds, and a versioned 13-operation first-release capability
+              matrix covering native, Node/WASM, and browser-worker runtimes. Native
+              benchmark support, development-only fixtures, browser fixture exclusion,
+              and unavailable schema/plugin mutation remain explicit instead of being
+              inferred from command names.
+            - The native `version` command now renders the common product-version
+              response while preserving its existing terminal text and copyright
+              boundary. The public capability projection has stable camel-case fields,
+              kebab-case values, exact Cargo version ownership, and native Rust tests
+              for matrix behavior, serialization, and identity limits.
+            - Restored the dependent CLI gate by treating `ProjectPayload` as the
+              childless leaf it is in transform-call protection and by teaching the
+              schema-package audit about the intentionally isolated SCSS CLI test file.
+              Nx verification passes for common lint/full test/WASM, transform-adapter
+              lint and all 89 tests, CLI lint and the full target (493 library plus 114
+              integration tests passed; one intentionally ignored), the isolated
+              nine-test SCSS target, the focused schema audit, and CLI e2e.
+        - [ ] Move the high-level query run request/result boundary out of CLI
+              dispatch while retaining native query AST, input, result, and source-map
+              ownership.
+        - [ ] Thread one host-supplied cooperative cancellation handle through every
+              public operation request and resolver/evaluator path.
+    - [ ] Keep terminal parsing, native filesystem/network adaptation, signals,
+          standard streams, and exit-code projection in common `cem_ml_cli`.
+    - [ ] Version and bound every host-wire/report projection while preserving
+          native typed AST/event/value ownership inside the engine.
+        - [ ] Add the versioned initialize/run/progress/event/result/cancel envelope
+              only after the common operation requests expose cancellation and
+              bounded result ownership.
 
 - [ ] Create the separate `@epa-wg/cem-ml` WASM runtime npm deployment
       project.
-  - [ ] Add a dedicated Nx project that generates low-level JS/WASM bindings,
-        TypeScript declarations, schema-package assets, ABI/capability metadata,
-        integrity records, and the synchronized version from common `cem_ml`.
-  - [ ] Publish the `./wasm` runtime surface with no npm executable and no
-        command/UI policy.
-  - [ ] Add an explicit clean-consumer pack/install fixture and Nx checkitem
-        proving exports, assets, version/ABI identity, integrity, and direct
-        runtime initialization.
+    - [ ] Add a dedicated Nx project that generates low-level JS/WASM bindings,
+          TypeScript declarations, schema-package assets, ABI/capability metadata,
+          integrity records, and the synchronized version from common `cem_ml`.
+    - [ ] Publish the `./wasm` runtime surface with no npm executable and no
+          command/UI policy.
+    - [ ] Add an explicit clean-consumer pack/install fixture and Nx checkitem
+          proving exports, assets, version/ABI identity, integrity, and direct
+          runtime initialization.
 
 - [ ] Create the separate `@epa-wg/cem-ml-cli` universal npm deployment
       project.
-  - [ ] Depend on exactly the same version of `@epa-wg/cem-ml` and prove the
-        installed consumer resolves one runtime copy.
-  - [ ] Add worker-safe `./browser` and Node-hosted `./node` exports plus the
-        npm `cem-ml` executable without duplicating engine semantics.
-  - [ ] Project the shared command parser, capability discovery, progress,
-        cancellation, resolver bridge, reports, signals, and exit policy through
-        the appropriate host adapters.
-  - [ ] Add explicit browser API, Node API, npm-executable, pack/install, and
-        command-round-trip fixtures with Nx verification targets.
+    - [ ] Depend on exactly the same version of `@epa-wg/cem-ml` and prove the
+          installed consumer resolves one runtime copy.
+    - [ ] Add worker-safe `./browser` and Node-hosted `./node` exports plus the
+          npm `cem-ml` executable without duplicating engine semantics.
+    - [ ] Project the shared command parser, capability discovery, progress,
+          cancellation, resolver bridge, reports, signals, and exit policy through
+          the appropriate host adapters.
+    - [ ] Add explicit browser API, Node API, npm-executable, pack/install, and
+          command-round-trip fixtures with Nx verification targets.
 
 - [ ] Create exactly three native CLI deployment projects.
-  - [ ] Add `x86_64-unknown-linux-gnu` / `native-linux-amd64`.
-  - [ ] Add `aarch64-apple-darwin` through Homebrew /
-        `native-macos-arm64`.
-  - [ ] Add `x86_64-pc-windows-msvc` / `native-windows-amd64`.
-  - [ ] Give each Nx project only its target-specific build, package, sign,
-        verify, publish, and install/upgrade/uninstall smoke lifecycle.
-  - [ ] Emit target-qualified archives/installers, checksums, signatures, SBOMs,
-        provenance, capability/version metadata, and package-channel records.
+    - [ ] Add `x86_64-unknown-linux-gnu` / `native-linux-amd64`.
+    - [ ] Add `aarch64-apple-darwin` through Homebrew /
+          `native-macos-arm64`.
+    - [ ] Add `x86_64-pc-windows-msvc` / `native-windows-amd64`.
+    - [ ] Give each Nx project only its target-specific build, package, sign,
+          verify, publish, and install/upgrade/uninstall smoke lifecycle.
+    - [ ] Emit target-qualified archives/installers, checksums, signatures, SBOMs,
+          provenance, capability/version metadata, and package-channel records.
 
 - [ ] Add the fixed `cem-ml-platform` release family and immutable artifact
       contract.
-  - [ ] Synchronize the exact common version and source commit across the common
-        crates, both npm deployments, three native deployments, capability
-        output, integrity metadata, provenance, SBOMs, and release index.
-  - [ ] Stage the complete version-qualified GitHub Release asset set before
-        publication; package channels must resolve those immutable assets rather
-        than mutable build URLs.
-  - [ ] Reject version, dependency, source-commit, target, checksum, signature,
-        SBOM, provenance, capability, or release-index drift.
+    - [ ] Synchronize the exact common version and source commit across the common
+          crates, both npm deployments, three native deployments, capability
+          output, integrity metadata, provenance, SBOMs, and release index.
+    - [ ] Stage the complete version-qualified GitHub Release asset set before
+          publication; package channels must resolve those immutable assets rather
+          than mutable build URLs.
+    - [ ] Reject version, dependency, source-commit, target, checksum, signature,
+          SBOM, provenance, capability, or release-index drift.
 
 - [ ] Prove and promote the Phase 2.5 deployment gate.
-  - [ ] Add an explicit native/WASM parity fixture covering the accepted
-        operation matrix, normalized results, diagnostics, reports, source maps,
-        capability gaps, progress, cancellation, and runtime/target identity.
-  - [ ] Run clean-consumer npm pack/install checks and per-platform
-        install/upgrade/uninstall smoke checks through their Nx projects.
-  - [ ] Add one Phase 2.5 aggregate Nx target and run the common Rust,
-        Node/WASM, package, parity, native-build-where-available, and release
-        drift gates before marking the phase complete.
+    - [ ] Add an explicit native/WASM parity fixture covering the accepted
+          operation matrix, normalized results, diagnostics, reports, source maps,
+          capability gaps, progress, cancellation, and runtime/target identity.
+    - [ ] Run clean-consumer npm pack/install checks and per-platform
+          install/upgrade/uninstall smoke checks through their Nx projects.
+    - [ ] Add one Phase 2.5 aggregate Nx target and run the common Rust,
+          Node/WASM, package, parity, native-build-where-available, and release
+          drift gates before marking the phase complete.
 
 ## Current Source Verification Commands
 
@@ -155,10 +184,10 @@ requires reviewed changes in the canonical Figma file.
       guidance without raw replacement values.
 - [ ] Build the representative `03 Components` pilot for `cem-action`,
       `cem-text-field`, `cem-card`, `cem-nav`, and `cem-dialog`.
-  - [ ] Keep variant dimensions independent, use component properties by
-        semantic meaning, and test every owned state in all five modes.
-  - [ ] Record the pilot fixture and review evidence before expanding to the
-        remaining component inventory.
+    - [ ] Keep variant dimensions independent, use component properties by
+          semantic meaning, and test every owned state in all five modes.
+    - [ ] Record the pilot fixture and review evidence before expanding to the
+          remaining component inventory.
 - [ ] Complete `03 Components` for every executable inventory entry, keeping
       inert payloads nested under their consuming visual owners.
 - [ ] Build `04 Patterns` for auth, profile, assets, discussion, and settings
