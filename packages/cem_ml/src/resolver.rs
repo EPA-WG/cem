@@ -392,6 +392,17 @@ pub struct ResolvedWrite {
     pub uri: String,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PublicationCapability {
+    DirectOnly,
+    Transactional,
+}
+
+pub trait PreparedResolverWrite: Send {
+    fn commit(&mut self) -> Result<ResolvedWrite, ResolverDiagnostic>;
+    fn rollback(&mut self) -> Result<(), ResolverDiagnostic>;
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ResolverDiagnostic {
     Cancelled {
@@ -416,6 +427,14 @@ pub enum ResolverDiagnostic {
         uri: String,
         message: String,
     },
+    TransactionUnsupported {
+        uri: String,
+        purpose: ResolvePurpose,
+    },
+    TransactionState {
+        uri: String,
+        message: String,
+    },
 }
 
 impl ResolverDiagnostic {
@@ -426,6 +445,8 @@ impl ResolverDiagnostic {
             Self::NonLocalFileUri { .. } => "cem.resolver.file_uri_non_local",
             Self::InvalidFileUri { .. } => "cem.resolver.file_uri_invalid",
             Self::Io { .. } => "cem.resolver.io",
+            Self::TransactionUnsupported { .. } => "cem.resolver.transaction_unsupported",
+            Self::TransactionState { .. } => "cem.resolver.transaction_state",
         }
     }
 }
@@ -460,6 +481,13 @@ impl fmt::Display for ResolverDiagnostic {
                 write!(f, "invalid file URI `{uri}`: {message}")
             }
             Self::Io { uri, message } => write!(f, "I/O error for `{uri}`: {message}"),
+            Self::TransactionUnsupported { uri, purpose } => write!(
+                f,
+                "resolver for {purpose} URI `{uri}` does not support transactional publication"
+            ),
+            Self::TransactionState { uri, message } => {
+                write!(f, "transactional publication error for `{uri}`: {message}")
+            }
         }
     }
 }
@@ -499,6 +527,43 @@ pub trait ResourceResolver: Send + Sync {
             ResolveDirection::Write,
         )?;
         self.write(request, bytes)
+    }
+
+    fn publication_capability(&self) -> PublicationCapability {
+        PublicationCapability::DirectOnly
+    }
+
+    fn prepare_write(
+        &self,
+        request: &ResolveRequest,
+        _bytes: &[u8],
+    ) -> Result<Box<dyn PreparedResolverWrite>, ResolverDiagnostic> {
+        Err(ResolverDiagnostic::TransactionUnsupported {
+            uri: request.uri.clone(),
+            purpose: request.purpose,
+        })
+    }
+
+    fn prepare_write_with_abort(
+        &self,
+        request: &ResolveRequest,
+        bytes: &[u8],
+        abort: &AbortSignal,
+    ) -> Result<Box<dyn PreparedResolverWrite>, ResolverDiagnostic> {
+        ensure_resolver_active(
+            abort,
+            &request.uri,
+            request.purpose,
+            ResolveDirection::Write,
+        )?;
+        let prepared = self.prepare_write(request, bytes)?;
+        ensure_resolver_active(
+            abort,
+            &request.uri,
+            request.purpose,
+            ResolveDirection::Write,
+        )?;
+        Ok(prepared)
     }
 
     fn list(
@@ -664,6 +729,46 @@ impl ResolverRegistry {
             });
         };
         resolver.write_with_abort(request, bytes, abort)
+    }
+
+    pub fn publication_capability(
+        &self,
+        request: &ResolveRequest,
+    ) -> Result<PublicationCapability, ResolverDiagnostic> {
+        let scheme = request_scheme(request)?;
+        let Some(resolver) = self.resolver_for(scheme, request.purpose, ResolveDirection::Write)
+        else {
+            return Err(ResolverDiagnostic::UnsupportedResolver {
+                uri: request.uri.clone(),
+                purpose: request.purpose,
+                direction: ResolveDirection::Write,
+            });
+        };
+        Ok(resolver.publication_capability())
+    }
+
+    pub fn prepare_write_with_abort(
+        &self,
+        request: &ResolveRequest,
+        bytes: &[u8],
+        abort: &AbortSignal,
+    ) -> Result<Box<dyn PreparedResolverWrite>, ResolverDiagnostic> {
+        ensure_resolver_active(
+            abort,
+            &request.uri,
+            request.purpose,
+            ResolveDirection::Write,
+        )?;
+        let scheme = request_scheme(request)?;
+        let Some(resolver) = self.resolver_for(scheme, request.purpose, ResolveDirection::Write)
+        else {
+            return Err(ResolverDiagnostic::UnsupportedResolver {
+                uri: request.uri.clone(),
+                purpose: request.purpose,
+                direction: ResolveDirection::Write,
+            });
+        };
+        resolver.prepare_write_with_abort(request, bytes, abort)
     }
 
     pub fn list(

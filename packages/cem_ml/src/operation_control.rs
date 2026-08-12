@@ -505,6 +505,13 @@ impl OperationControl {
             .expect("host root policy is valid")
     }
 
+    pub fn with_root_policy(
+        abort_signal: AbortSignal,
+        root_policy: ScopePolicy,
+    ) -> Result<Self, ControlError> {
+        Self::with_policy(next_operation_id(), abort_signal, root_policy)
+    }
+
     pub fn with_policy(
         operation_id: OperationId,
         abort_signal: AbortSignal,

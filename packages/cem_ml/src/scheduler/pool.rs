@@ -1,10 +1,10 @@
-//! CPU worker pool (AC-A-3, AC-A-4, AC-A-7, AC-O-2).
+//! Compatibility phase queue (AC-A-3, AC-A-4, AC-A-7, AC-O-2).
 //!
-//! Tier B `WorkerPool` is intentionally deterministic: tasks dispatch
-//! sequentially from the bounded queue in FIFO order so the scheduler
-//! trace is reproducible across runs. A parallel runtime is a Tier B+
-//! refinement that re-uses the same trace+queue surface to preserve
-//! event-sequence determinism (AC-A-3 second paragraph).
+//! `WorkerPool` preserves the original FIFO phase-marker and trace surface for
+//! callers whose stages are dependency-ordered. It is not a physical thread
+//! pool. Deferrable native work runs through `NativeScheduler`, which owns the
+//! operation's bounded CPU and external-I/O executors and commits staged
+//! results in stable task-path order.
 
 use crate::scheduler::abort::AbortSignal;
 use crate::scheduler::policy::ScopePolicy;
@@ -17,8 +17,7 @@ pub struct TaskHandle {
     pub scope: u32,
 }
 
-/// Per-scope CPU worker pool. Owns its bounded queue, a clone-shared
-/// trace, and the policy's caps.
+/// Per-scope compatibility phase queue with a clone-shared trace.
 #[derive(Debug)]
 pub struct WorkerPool {
     scope: u32,

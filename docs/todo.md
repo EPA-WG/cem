@@ -155,13 +155,45 @@ replacement tree may mediate between internal engine layers.
                 unavailable instead of no-ops. Focused control/config/scheduler tests,
                 common lint, all 1,841 library tests plus integration suites, and the
                 common WASM build pass.
-            - [ ] Gate 2 — replace the sequential `WorkerPool` execution model with
+            - [x] Gate 2 — replace the sequential `WorkerPool` execution model with
                   real bounded native workers, constrain-only per-scope permits,
                   cooperative queue blocking, independent I/O permits, deterministic
                   task paths, staged results, and an ordered commit barrier.
-                - [ ] Make report/artifact/primary multi-destination publication
+                - [x] Make report/artifact/primary multi-destination publication
                       transactional so cancellation or failure cannot leave an
                       otherwise successful dispatch partially published.
+
+                Completed 2026-08-12: added one fixed, operation-owned native CPU
+                executor and one independent external-I/O executor; logical child
+                scopes consume constrain-only permits from themselves and every
+                ancestor without creating nested OS pools. Bounded CPU/I/O queues
+                implement typed reject, cooperative submitter-side block, and
+                spill-to-parent admission while queued work observes cancellation
+                and deadlines. Stable task paths, declared dependencies (including
+                failure propagation), staged task results, canonical ordered commit,
+                caught worker panics, and deterministic trace projection are covered
+                by concurrency, queue, deadline, failure, and randomized-delay tests.
+                Validate/check now schedule real dependent lifecycle-load and parse-
+                validate tasks across documents; the former `WorkerPool` remains only
+                as the compatible FIFO phase-trace facade for dependency-ordered
+                stages. Capability output now reports the native thread-pool topology
+                and hierarchical CPU/queue/I/O enforcement without claiming those
+                executors for WASM.
+
+                `ResourceResolver` now advertises direct-only or transactional
+                publication and can return prepared commit/rollback writes. CLI
+                convert/transform publication preflights every multi-destination
+                participant, stages local files beside their destinations, rejects
+                direct-only custom resolvers before mutation, commits in stable order,
+                and rolls back primary output, artifacts, source maps, and reports on
+                failure or cancellation. Single-destination writes retain direct
+                resolver semantics; stdout remains a stream rather than a rollback-
+                capable destination. Tests cover duplicates, existing-file restore,
+                late destination appearance, unsupported resolver preflight, and
+                rollback after a later participant fails. All 1,854 `cem_ml` library
+                tests, the complete `cem_ml_cli` Nx test/integration graph, both lint
+                targets, the final 13-test scheduler and 7-test publication fixture
+                sets, and the common WASM build pass.
             - [ ] Gate 3 — add bounded safe-point polling throughout remaining
                   parser and long single-call evaluator paths, beginning with XPath
                   ranges, paths, predicates, quantified/for loops, function calls,

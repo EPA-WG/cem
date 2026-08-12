@@ -136,6 +136,7 @@ pub enum ControlCoverage {
     RegisteredDeadlines,
     BoundedQueue,
     PolicyOnly,
+    HierarchicalPermits,
     IoPermits,
 }
 
@@ -247,8 +248,15 @@ pub fn capability_manifest(
         .collect();
     let controls = ControlCapabilityKind::ALL
         .into_iter()
-        .map(control_capability)
+        .map(|control| control_capability(request.runtime, control))
         .collect();
+    let (executor_topology, effective_max_workers) = match request.runtime {
+        RuntimeKind::Native => (
+            ExecutorTopology::NativeThreadPool,
+            crate::scheduler::ScopePolicy::host_root().cpu_workers,
+        ),
+        RuntimeKind::WasmNode | RuntimeKind::WasmBrowserWorker => (ExecutorTopology::Sequential, 1),
+    };
     Ok(CapabilityManifest {
         contract_version: CAPABILITY_CONTRACT_VERSION,
         common_version: product_version().common_version,
@@ -257,8 +265,8 @@ pub fn capability_manifest(
         abi_identity: request.abi_identity,
         operations,
         controls,
-        executor_topology: ExecutorTopology::Sequential,
-        effective_max_workers: 1,
+        executor_topology,
+        effective_max_workers,
         debug_control: DebugControlCapability {
             compiled: false,
             active: false,
@@ -271,7 +279,7 @@ pub fn capability_manifest(
     })
 }
 
-fn control_capability(control: ControlCapabilityKind) -> ControlCapability {
+fn control_capability(runtime: RuntimeKind, control: ControlCapabilityKind) -> ControlCapability {
     use CapabilityAvailability::{Available, DevelopmentOnly, Unavailable};
     use ControlCapabilityKind::*;
     use ControlCoverage::*;
@@ -282,6 +290,9 @@ fn control_capability(control: ControlCapabilityKind) -> ControlCapability {
         StackDepthEnforcement => (DevelopmentOnly, LogicalFrameGuards),
         MemoryEnforcement => (DevelopmentOnly, AccountedAllocations),
         TimeoutEnforcement => (DevelopmentOnly, RegisteredDeadlines),
+        QueueEnforcement if runtime == RuntimeKind::Native => (Available, BoundedQueue),
+        CpuEnforcement if runtime == RuntimeKind::Native => (Available, HierarchicalPermits),
+        IoEnforcement if runtime == RuntimeKind::Native => (Available, IoPermits),
         QueueEnforcement => (DevelopmentOnly, BoundedQueue),
         CpuEnforcement => (DevelopmentOnly, PolicyOnly),
         IoEnforcement => (DevelopmentOnly, IoPermits),
@@ -464,8 +475,16 @@ mod tests {
     }
 
     #[test]
-    fn control_manifest_reports_gate_one_coverage_without_claiming_later_gates() {
+    fn control_manifest_reports_gate_two_scheduler_coverage() {
         let manifest = capability_manifest(request(RuntimeKind::Native)).unwrap();
+        assert_eq!(
+            manifest.executor_topology,
+            ExecutorTopology::NativeThreadPool
+        );
+        assert_eq!(
+            manifest.effective_max_workers,
+            crate::scheduler::ScopePolicy::host_root().cpu_workers
+        );
         assert_eq!(
             manifest.control(ControlCapabilityKind::RootCancellation),
             ControlCapability {
@@ -485,6 +504,26 @@ mod tests {
                 CapabilityAvailability::DevelopmentOnly
             );
         }
+        assert_eq!(
+            manifest.control(ControlCapabilityKind::CpuEnforcement),
+            ControlCapability {
+                control: ControlCapabilityKind::CpuEnforcement,
+                availability: CapabilityAvailability::Available,
+                coverage: ControlCoverage::HierarchicalPermits,
+            }
+        );
+        assert_eq!(
+            manifest
+                .control(ControlCapabilityKind::QueueEnforcement)
+                .availability,
+            CapabilityAvailability::Available
+        );
+        assert_eq!(
+            manifest
+                .control(ControlCapabilityKind::IoEnforcement)
+                .availability,
+            CapabilityAvailability::Available
+        );
         for control in [
             ControlCapabilityKind::OperationHandles,
             ControlCapabilityKind::Pause,

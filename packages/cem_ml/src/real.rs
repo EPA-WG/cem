@@ -2413,23 +2413,10 @@ fn validate_input_through_lifecycle(input: &EngineInput, context: &EngineContext
 }
 
 fn scheduler_policy_from_context(context: &EngineContext) -> crate::scheduler::ScopePolicy {
-    let mut policy = if context.scheduler.thread_pool.as_deref() == Some("host") {
-        crate::scheduler::ScopePolicy::host_root()
-    } else {
-        crate::scheduler::ScopePolicy {
-            cpu_workers: 1,
-            queue_size: 8,
-            io_streams: 4,
-            memory_bytes: 8 * 1024 * 1024,
-            stack_depth: 256,
-            timeout_ms: None,
-            plugin_time_budget_ms: None,
-            overflow: crate::scheduler::OverflowPolicy::Reject,
-        }
-    };
+    let mut policy = crate::scheduler::ScopePolicy::host_root();
 
     if let Some(max_parallel_documents) = context.scheduler.max_parallel_documents {
-        policy.cpu_workers = max_parallel_documents.max(1);
+        policy.cpu_workers = policy.cpu_workers.min(max_parallel_documents.max(1));
     }
 
     policy
@@ -4615,7 +4602,10 @@ fn template_import_resolution_diagnostic_kind(
             .to_owned(),
         },
         TemplateImportReadError::Resolver {
-            error: ResolverDiagnostic::Io { .. },
+            error:
+                ResolverDiagnostic::Io { .. }
+                | ResolverDiagnostic::TransactionUnsupported { .. }
+                | ResolverDiagnostic::TransactionState { .. },
             ..
         } => TemplateImportResolutionDiagnosticKind {
             code: CEM_TEMPLATE_IMPORT_UNRESOLVED_CODE,
@@ -4693,7 +4683,9 @@ fn resolver_diagnostic_uri(error: &ResolverDiagnostic) -> &str {
         | ResolverDiagnostic::UnsupportedResolver { uri, .. }
         | ResolverDiagnostic::NonLocalFileUri { uri }
         | ResolverDiagnostic::InvalidFileUri { uri, .. }
-        | ResolverDiagnostic::Io { uri, .. } => uri.as_str(),
+        | ResolverDiagnostic::Io { uri, .. }
+        | ResolverDiagnostic::TransactionUnsupported { uri, .. }
+        | ResolverDiagnostic::TransactionState { uri, .. } => uri.as_str(),
     }
 }
 
@@ -8319,95 +8311,264 @@ fn scheduler_policy_json(policy: crate::scheduler::ScopePolicy) -> Value {
     })
 }
 
+struct ScheduledValidationDocument {
+    started_at: Instant,
+    diagnostics: Vec<Diagnostic>,
+    loaded: LoadedInput,
+    source_bytes_for_projection: Vec<u8>,
+}
+
+#[cfg(not(target_arch = "wasm32"))]
 fn run_scheduled_validation_documents(
     context: &EngineContext,
     inputs: &[EngineInput],
     budget_aliases: &[&str],
 ) -> EngineResult<(Vec<Diagnostic>, crate::scheduler::SchedulerTrace)> {
     let trace = crate::scheduler::SchedulerTrace::new();
-    let abort = context.abort_signal().clone();
-    let mut all_diags: Vec<Diagnostic> = Vec::new();
+    let root_policy = scheduler_policy_from_context(context);
+    let control = crate::operation_control::OperationControl::with_root_policy(
+        context.abort_signal().clone(),
+        root_policy,
+    )
+    .map_err(|error| EngineError::Internal(format!("scheduler control setup failed: {error}")))?;
+    let scheduler = crate::scheduler::NativeScheduler::new(control, trace.clone())
+        .map_err(native_scheduler_error)?;
+    let aliases = budget_aliases
+        .iter()
+        .map(|alias| (*alias).to_owned())
+        .collect::<Vec<_>>();
+    let mut handles = Vec::with_capacity(inputs.len());
     for (index, input) in inputs.iter().enumerate() {
         context.ensure_active()?;
-        let started_at = Instant::now();
-        let mut input_diags: Vec<Diagnostic> = Vec::new();
-        let (policy, mut policy_diagnostics) =
+        let (policy, policy_diagnostics) =
             scheduler_policy_for_scope(context, &input.uri, &input.root_scope, "input");
-        input_diags.append(&mut policy_diagnostics);
-        let pool = crate::scheduler::WorkerPool::new(index as u32, policy, trace.clone());
-        for task in ["lifecycle-load", "parse-validate"] {
-            pool.submit(format!("{}:{task}", input.uri), &abort)
-                .map_err(scheduler_dispatch_error)?;
-        }
-        let mut loaded_input: Option<LoadedInput> = None;
-        let mut source_bytes_for_projection: Option<Vec<u8>> = None;
-        pool.run_to_completion(&abort, |task| {
-            if task.ends_with(":lifecycle-load") {
-                let mut scope_diagnostics =
-                    root_scope_metadata_diagnostics(&input.uri, &input.root_scope, "input");
-                input_diags.append(&mut scope_diagnostics);
-                let mut loaded = validate_input_through_lifecycle(input, context);
-                input_diags.append(&mut loaded.diagnostics);
-                source_bytes_for_projection = Some(loaded.bytes.clone());
-                loaded_input = Some(loaded);
-                return;
-            }
+        let scope = scheduler
+            .control()
+            .register_scope(
+                scheduler.control().root_scope(),
+                crate::operation_control::ExecutionScopeRegistration::inherited(
+                    crate::operation_control::ExecutionScopeKind::Document,
+                    input.uri.clone(),
+                    policy,
+                ),
+            )
+            .map_err(|error| {
+                EngineError::Internal(format!("scheduler scope setup failed: {error}"))
+            })?;
+        scheduler
+            .register_scope(scope)
+            .map_err(native_scheduler_error)?;
+        let task_path = crate::scheduler::TaskPath::root(index as u32);
+        let staged = std::sync::Arc::new(std::sync::Mutex::new(None));
+        let load_input = input.clone();
+        let load_context = context.clone();
+        let load_control = scheduler.control().clone();
+        let load_staged = std::sync::Arc::clone(&staged);
+        let load = scheduler
+            .submit_cpu(
+                crate::scheduler::ScheduledTaskSpec::new(
+                    scope,
+                    task_path.child(0).map_err(native_scheduler_error)?,
+                    format!("{}:lifecycle-load", input.uri),
+                )
+                .with_trace_scope(index as u32),
+                move || {
+                    load_control
+                        .set_scope_state(
+                            scope,
+                            crate::operation_control::ExecutionScopeState::Running,
+                        )
+                        .map_err(|error| {
+                            EngineError::Internal(format!(
+                                "scheduler scope activation failed: {error}"
+                            ))
+                        })?;
+                    let loaded = run_scheduled_validation_load(
+                        &load_context,
+                        &load_input,
+                        policy_diagnostics,
+                    );
+                    *load_staged
+                        .lock()
+                        .expect("poisoned validation staging mutex") = Some(loaded);
+                    Ok(Vec::new())
+                },
+            )
+            .map_err(native_scheduler_error)?;
+        let dependency = load.id();
+        handles.push(load);
 
-            let mut loaded = loaded_input
-                .take()
-                .unwrap_or_else(|| validate_input_through_lifecycle(input, context));
-            input_diags.append(&mut loaded.diagnostics);
-            source_bytes_for_projection = Some(loaded.bytes.clone());
-            if loaded_input_consumes_validation_without_cem_parse(&loaded) {
-                return;
-            }
-            if is_transform_config_schema(input, context) {
-                input_diags.extend(validate_transform_config_document(
-                    input,
-                    context,
-                    &loaded.bytes,
-                ));
-            } else {
-                let run = run_pipeline_as_scoped_with_context_and_source_uri(
-                    &loaded.bytes,
-                    loaded.from_format,
-                    &input.root_scope,
-                    context,
-                    &input_uri(input, context),
-                );
-                if is_schema_package_manifest_schema(input, context) {
-                    if let Some(manifest_path) = input_local_path(input, context) {
-                        input_diags.extend(validate_schema_package_source_consistency(
-                            &manifest_path,
-                            &run.document,
-                        ));
-                    }
-                }
-                if is_cem_native_template_schema(input, context) {
-                    let identity = effective_input_identity(input, context);
-                    input_diags.extend(validate_cem_native_template_source_semantics(
-                        &loaded.bytes,
-                        &input_uri(input, context),
-                        identity.content_type.as_deref(),
-                        identity.schema.as_deref(),
-                    ));
-                }
-                input_diags.extend(run.diagnostics);
-            }
-        });
-        context.ensure_active()?;
-        input_diags.extend(time_budget_diagnostics(
-            &input.root_scope,
-            budget_aliases,
-            started_at.elapsed().as_nanos(),
-        ));
-        if let Some(source_bytes) = source_bytes_for_projection.as_ref() {
-            project_diagnostics_for_source(&mut input_diags, source_bytes);
-        }
-        project_diagnostic_uris(&mut input_diags, input, context);
-        all_diags.extend(input_diags);
+        let validate_input = input.clone();
+        let validate_context = context.clone();
+        let validate_aliases = aliases.clone();
+        let validate_control = scheduler.control().clone();
+        handles.push(
+            scheduler
+                .submit_cpu(
+                    crate::scheduler::ScheduledTaskSpec::new(
+                        scope,
+                        task_path.child(1).map_err(native_scheduler_error)?,
+                        format!("{}:parse-validate", input.uri),
+                    )
+                    .with_dependencies(vec![dependency])
+                    .with_trace_scope(index as u32),
+                    move || {
+                        let staged = staged
+                            .lock()
+                            .expect("poisoned validation staging mutex")
+                            .take()
+                            .ok_or_else(|| {
+                                EngineError::Internal(
+                                    "validation lifecycle stage did not publish its result"
+                                        .to_owned(),
+                                )
+                            })?;
+                        let result = run_scheduled_validation_document(
+                            &validate_context,
+                            &validate_input,
+                            &validate_aliases,
+                            staged,
+                        );
+                        let _ = validate_control.complete_scope(scope);
+                        result
+                    },
+                )
+                .map_err(native_scheduler_error)?,
+        );
+    }
+    let committed = crate::scheduler::executor::commit_in_stable_order(handles)
+        .map_err(native_scheduler_error)?;
+    let mut all_diags = Vec::new();
+    for result in committed {
+        all_diags.extend(result.value?);
     }
     Ok((all_diags, trace))
+}
+
+#[cfg(target_arch = "wasm32")]
+fn run_scheduled_validation_documents(
+    context: &EngineContext,
+    inputs: &[EngineInput],
+    budget_aliases: &[&str],
+) -> EngineResult<(Vec<Diagnostic>, crate::scheduler::SchedulerTrace)> {
+    let trace = crate::scheduler::SchedulerTrace::new();
+    let aliases = budget_aliases
+        .iter()
+        .map(|alias| (*alias).to_owned())
+        .collect::<Vec<_>>();
+    let mut all_diags = Vec::new();
+    for input in inputs {
+        context.ensure_active()?;
+        let (_, policy_diagnostics) =
+            scheduler_policy_for_scope(context, &input.uri, &input.root_scope, "input");
+        let staged = run_scheduled_validation_load(context, input, policy_diagnostics);
+        all_diags.extend(run_scheduled_validation_document(
+            context, input, &aliases, staged,
+        )?);
+    }
+    Ok((all_diags, trace))
+}
+
+fn run_scheduled_validation_load(
+    context: &EngineContext,
+    input: &EngineInput,
+    mut input_diags: Vec<Diagnostic>,
+) -> ScheduledValidationDocument {
+    let started_at = Instant::now();
+    let mut scope_diagnostics =
+        root_scope_metadata_diagnostics(&input.uri, &input.root_scope, "input");
+    input_diags.append(&mut scope_diagnostics);
+    let mut loaded = validate_input_through_lifecycle(input, context);
+    input_diags.append(&mut loaded.diagnostics);
+    let source_bytes_for_projection = loaded.bytes.clone();
+    ScheduledValidationDocument {
+        started_at,
+        diagnostics: input_diags,
+        loaded,
+        source_bytes_for_projection,
+    }
+}
+
+fn run_scheduled_validation_document(
+    context: &EngineContext,
+    input: &EngineInput,
+    budget_aliases: &[String],
+    staged: ScheduledValidationDocument,
+) -> EngineResult<Vec<Diagnostic>> {
+    context.ensure_active()?;
+    let ScheduledValidationDocument {
+        started_at,
+        mut diagnostics,
+        loaded,
+        source_bytes_for_projection,
+    } = staged;
+    let mut input_diags = std::mem::take(&mut diagnostics);
+    if !loaded_input_consumes_validation_without_cem_parse(&loaded) {
+        if is_transform_config_schema(input, context) {
+            input_diags.extend(validate_transform_config_document(
+                input,
+                context,
+                &loaded.bytes,
+            ));
+        } else {
+            let run = run_pipeline_as_scoped_with_context_and_source_uri(
+                &loaded.bytes,
+                loaded.from_format,
+                &input.root_scope,
+                context,
+                &input_uri(input, context),
+            );
+            if is_schema_package_manifest_schema(input, context) {
+                if let Some(manifest_path) = input_local_path(input, context) {
+                    input_diags.extend(validate_schema_package_source_consistency(
+                        &manifest_path,
+                        &run.document,
+                    ));
+                }
+            }
+            if is_cem_native_template_schema(input, context) {
+                let identity = effective_input_identity(input, context);
+                input_diags.extend(validate_cem_native_template_source_semantics(
+                    &loaded.bytes,
+                    &input_uri(input, context),
+                    identity.content_type.as_deref(),
+                    identity.schema.as_deref(),
+                ));
+            }
+            input_diags.extend(run.diagnostics);
+        }
+    }
+    context.ensure_active()?;
+    let aliases = budget_aliases
+        .iter()
+        .map(String::as_str)
+        .collect::<Vec<_>>();
+    input_diags.extend(time_budget_diagnostics(
+        &input.root_scope,
+        &aliases,
+        started_at.elapsed().as_nanos(),
+    ));
+    project_diagnostics_for_source(&mut input_diags, &source_bytes_for_projection);
+    project_diagnostic_uris(&mut input_diags, input, context);
+    Ok(input_diags)
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+fn native_scheduler_error(error: crate::scheduler::ScheduleError) -> EngineError {
+    if matches!(error, crate::scheduler::ScheduleError::Control(_)) {
+        if let crate::scheduler::ScheduleError::Control(
+            crate::operation_control::ControlError::Triggered(failure),
+        ) = &error
+        {
+            if failure.terminal_class() == crate::operation_control::ControlTerminalClass::Cancelled
+            {
+                return EngineError::Cancelled {
+                    source_map: failure.source_map.clone(),
+                };
+            }
+        }
+    }
+    EngineError::Internal(format!("native scheduler failed: {error}"))
 }
 
 fn loaded_input_consumes_validation_without_cem_parse(loaded: &LoadedInput) -> bool {

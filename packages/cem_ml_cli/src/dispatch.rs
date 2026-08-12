@@ -6,6 +6,7 @@
 #![allow(clippy::items_after_test_module)]
 
 use crate::cli;
+use crate::publication::PublicationBatch;
 use cem_ml::engine::{self as eng, CemMlEngine, EngineError};
 use cem_ml::query::{
     QueryExportFormat, QueryExportRequest, QueryResultExporterRegistry, QueryRunError,
@@ -13,8 +14,9 @@ use cem_ml::query::{
 };
 use cem_ml::resolver::{
     is_windows_drive_path, local_file_uri_to_path, local_path_or_file_uri, uri_scheme,
-    ResolveDirection, ResolveListRequest, ResolvePurpose, ResolveRequest, ResolvedListEntry,
-    ResolvedRead, ResolvedWrite, ResolverDiagnostic, ResolverRegistry, ResourceResolver,
+    PreparedResolverWrite, PublicationCapability, ResolveDirection, ResolveListRequest,
+    ResolvePurpose, ResolveRequest, ResolvedListEntry, ResolvedRead, ResolvedWrite,
+    ResolverDiagnostic, ResolverRegistry, ResourceResolver,
 };
 use cem_ml::run_config::{
     self, InputSpec, OutputSpec, ResolverSpec, RunConfig, RunConfigDefaults, ScopeConfig,
@@ -109,6 +111,35 @@ struct LocalMirrorResolver {
     mappings: Vec<LocalMirrorMapping>,
 }
 
+#[derive(Debug)]
+struct PreparedMirrorWrite {
+    uri: String,
+    local: crate::publication::PreparedLocalWrite,
+}
+
+impl PreparedResolverWrite for PreparedMirrorWrite {
+    fn commit(&mut self) -> Result<ResolvedWrite, ResolverDiagnostic> {
+        self.local
+            .commit()
+            .map_err(|error| ResolverDiagnostic::TransactionState {
+                uri: self.uri.clone(),
+                message: error.to_string(),
+            })?;
+        Ok(ResolvedWrite {
+            uri: self.uri.clone(),
+        })
+    }
+
+    fn rollback(&mut self) -> Result<(), ResolverDiagnostic> {
+        self.local
+            .rollback()
+            .map_err(|error| ResolverDiagnostic::TransactionState {
+                uri: self.uri.clone(),
+                message: error.to_string(),
+            })
+    }
+}
+
 impl LocalMirrorResolver {
     fn new(mappings: Vec<LocalMirrorMapping>) -> Self {
         let mut mappings = mappings;
@@ -198,6 +229,29 @@ impl ResourceResolver for LocalMirrorResolver {
             message: error.to_string(),
         })?;
         Ok(ResolvedWrite { uri: resolved_uri })
+    }
+
+    fn publication_capability(&self) -> PublicationCapability {
+        PublicationCapability::Transactional
+    }
+
+    fn prepare_write(
+        &self,
+        request: &ResolveRequest,
+        bytes: &[u8],
+    ) -> Result<Box<dyn PreparedResolverWrite>, ResolverDiagnostic> {
+        let (path, resolved_uri) = self.local_path(request)?;
+        let local =
+            crate::publication::PreparedLocalWrite::prepare(&path, bytes).map_err(|error| {
+                ResolverDiagnostic::TransactionState {
+                    uri: resolved_uri.clone(),
+                    message: error.to_string(),
+                }
+            })?;
+        Ok(Box::new(PreparedMirrorWrite {
+            uri: resolved_uri,
+            local,
+        }))
     }
 
     fn list(
@@ -3060,6 +3114,7 @@ fn run_convert_fanout<E: CemMlEngine + ?Sized>(
     let mut report_diagnostics = Vec::new();
     let mut report_scheduler_trace = cem_ml::report::SchedulerTraceReport::default();
     let mut report_outputs = Vec::new();
+    let mut publication = PublicationBatch::new();
 
     for (index, output) in config.outputs.iter().enumerate() {
         let destination = match output.destination.as_ref().map(PathBuf::from) {
@@ -3109,47 +3164,94 @@ fn run_convert_fanout<E: CemMlEngine + ?Sized>(
                             }
                             return Outcome::code(EXIT_HARD_FAILURE);
                         }
-                        if let Err(e) = write_convert_primary(
-                            &engine_context,
-                            &resp,
-                            target.as_ref(),
-                            args.out.as_deref(),
-                            output
-                                .root_scope
-                                .output_color_type
-                                .as_deref()
-                                .or_else(|| convert_effective_output_color_type(args)),
-                            s,
-                        ) {
-                            let _ = writeln!(s.stderr, "cem-ml: write failure: {e}");
-                            return Outcome::code(EXIT_IO);
-                        }
                         report_outputs.push(convert_output_report_from_response(
                             &resp,
                             &input_uri,
                             args.out.as_deref(),
                             target.as_ref(),
                         ));
-                        if let Err(e) = write_convert_artifact_json_if_requested(
-                            &engine_context,
-                            &resp,
-                            args.artifact_json.as_deref(),
-                        ) {
-                            let _ =
-                                writeln!(s.stderr, "cem-ml: convert artifact write failure: {e}");
-                            return Outcome::code(EXIT_IO);
-                        }
                         write_diagnostics(&resp.diagnostics, s);
-                        if let Err(e) = write_convert_report_if_requested(
-                            &engine_context,
-                            args,
-                            &report_inputs,
-                            &report_diagnostics,
-                            &report_scheduler_trace,
-                            convert_report_from_outputs(&report_outputs),
-                        ) {
-                            let _ = writeln!(s.stderr, "cem-ml: convert report write failure: {e}");
-                            return Outcome::code(EXIT_IO);
+                        if let Some(destination) = args.out.as_deref() {
+                            if let Err(e) = stage_convert_primary(
+                                &mut publication,
+                                &resp,
+                                target.as_ref(),
+                                destination,
+                            ) {
+                                let _ = writeln!(s.stderr, "cem-ml: write failure: {e}");
+                                return Outcome::code(EXIT_IO);
+                            }
+                            if let Err(e) = stage_convert_artifact_json(
+                                &mut publication,
+                                &resp,
+                                args.artifact_json.as_deref(),
+                            ) {
+                                let _ = writeln!(
+                                    s.stderr,
+                                    "cem-ml: convert artifact write failure: {e}"
+                                );
+                                return Outcome::code(EXIT_IO);
+                            }
+                            if let Some(report) = convert_report_if_requested(
+                                args,
+                                &report_inputs,
+                                &report_diagnostics,
+                                &report_scheduler_trace,
+                                convert_report_from_outputs(&report_outputs),
+                            ) {
+                                stage_report_files(
+                                    &mut publication,
+                                    &report,
+                                    &args.report,
+                                    REPORT_BASENAME_CONVERT,
+                                );
+                            }
+                            if let Err(e) = publication.commit(&engine_context) {
+                                let _ = writeln!(
+                                    s.stderr,
+                                    "cem-ml: transactional publication failure (write failure): {e}"
+                                );
+                                return Outcome::code(EXIT_IO);
+                            }
+                        } else {
+                            if let Err(e) = write_convert_primary(
+                                &engine_context,
+                                &resp,
+                                target.as_ref(),
+                                None,
+                                output
+                                    .root_scope
+                                    .output_color_type
+                                    .as_deref()
+                                    .or_else(|| convert_effective_output_color_type(args)),
+                                s,
+                            ) {
+                                let _ = writeln!(s.stderr, "cem-ml: write failure: {e}");
+                                return Outcome::code(EXIT_IO);
+                            }
+                            if let Err(e) = write_convert_artifact_json_if_requested(
+                                &engine_context,
+                                &resp,
+                                args.artifact_json.as_deref(),
+                            ) {
+                                let _ = writeln!(
+                                    s.stderr,
+                                    "cem-ml: convert artifact write failure: {e}"
+                                );
+                                return Outcome::code(EXIT_IO);
+                            }
+                            if let Err(e) = write_convert_report_if_requested(
+                                &engine_context,
+                                args,
+                                &report_inputs,
+                                &report_diagnostics,
+                                &report_scheduler_trace,
+                                convert_report_from_outputs(&report_outputs),
+                            ) {
+                                let _ =
+                                    writeln!(s.stderr, "cem-ml: convert report write failure: {e}");
+                                return Outcome::code(EXIT_IO);
+                            }
                         }
                         return Outcome::ok();
                     }
@@ -3206,17 +3308,11 @@ fn run_convert_fanout<E: CemMlEngine + ?Sized>(
                     }
                     return Outcome::code(EXIT_HARD_FAILURE);
                 }
-                if let Err(e) = write_convert_primary(
-                    &engine_context,
+                if let Err(e) = stage_convert_primary(
+                    &mut publication,
                     &resp,
                     target.as_ref(),
-                    Some(destination.as_path()),
-                    output
-                        .root_scope
-                        .output_color_type
-                        .as_deref()
-                        .or_else(|| convert_effective_output_color_type(args)),
-                    s,
+                    destination.as_path(),
                 ) {
                     let _ = writeln!(s.stderr, "cem-ml: write failure: {e}");
                     return Outcome::code(EXIT_IO);
@@ -3227,8 +3323,8 @@ fn run_convert_fanout<E: CemMlEngine + ?Sized>(
                     Some(destination.as_path()),
                     target.as_ref(),
                 ));
-                if let Err(e) = write_convert_artifact_json_if_requested(
-                    &engine_context,
+                if let Err(e) = stage_convert_artifact_json(
+                    &mut publication,
                     &resp,
                     args.artifact_json.as_deref(),
                 ) {
@@ -3241,15 +3337,25 @@ fn run_convert_fanout<E: CemMlEngine + ?Sized>(
         }
     }
 
-    if let Err(e) = write_convert_report_if_requested(
-        &engine_context,
+    if let Some(report) = convert_report_if_requested(
         args,
         &report_inputs,
         &report_diagnostics,
         &report_scheduler_trace,
         convert_report_from_outputs(&report_outputs),
     ) {
-        let _ = writeln!(s.stderr, "cem-ml: convert report write failure: {e}");
+        stage_report_files(
+            &mut publication,
+            &report,
+            &args.report,
+            REPORT_BASENAME_CONVERT,
+        );
+    }
+    if let Err(e) = publication.commit(&engine_context) {
+        let _ = writeln!(
+            s.stderr,
+            "cem-ml: transactional publication failure (write failure): {e}"
+        );
         return Outcome::code(EXIT_IO);
     }
 
@@ -5837,6 +5943,32 @@ fn write_report_files(
     Ok(())
 }
 
+fn stage_report_files(
+    batch: &mut PublicationBatch,
+    report: &cem_ml::report::Report,
+    report_opts: &cli::ReportOptions,
+    basename: &str,
+) {
+    let mut stage = |path: &Path, format: cli::ReportFormat| {
+        let body = render_report_format(report, format);
+        batch.push(
+            resolve_report_target(path, basename, report_format_extension(format)),
+            "report destination",
+            ResolvePurpose::Report,
+            body.into_bytes(),
+        );
+    };
+    if let Some(path) = report_opts.report.as_deref() {
+        stage(path, report_opts.report_format);
+    }
+    if let Some(path) = report_opts.report_json.as_deref() {
+        stage(path, cli::ReportFormat::Json);
+    }
+    if let Some(path) = report_opts.report_md.as_deref() {
+        stage(path, cli::ReportFormat::Md);
+    }
+}
+
 fn render_benchmark_report_format(body: &serde_json::Value, format: cli::ReportFormat) -> String {
     match format {
         cli::ReportFormat::Cem => render_benchmark_report_cem(body),
@@ -6018,8 +6150,23 @@ fn write_convert_report_if_requested(
     scheduler_trace: &cem_ml::report::SchedulerTraceReport,
     convert: Option<cem_ml::report::ConvertReport>,
 ) -> io::Result<()> {
-    if !report_requested(&args.report) {
+    let Some(report) =
+        convert_report_if_requested(args, input_uris, diagnostics, scheduler_trace, convert)
+    else {
         return Ok(());
+    };
+    write_report_files(context, &report, &args.report, REPORT_BASENAME_CONVERT)
+}
+
+fn convert_report_if_requested(
+    args: &cli::ConvertArgs,
+    input_uris: &[String],
+    diagnostics: &[cem_ml::diagnostics::Diagnostic],
+    scheduler_trace: &cem_ml::report::SchedulerTraceReport,
+    convert: Option<cem_ml::report::ConvertReport>,
+) -> Option<cem_ml::report::Report> {
+    if !report_requested(&args.report) {
+        return None;
     }
     let mut report = cem_ml::report::Report::deterministic(
         input_uris.to_vec(),
@@ -6028,20 +6175,19 @@ fn write_convert_report_if_requested(
     )
     .with_scheduler_trace_report(scheduler_trace.clone());
     report.report_ast.convert = convert;
-    write_report_files(context, &report, &args.report, REPORT_BASENAME_CONVERT)
+    Some(report)
 }
 
-fn write_transform_report_if_requested(
-    context: &eng::EngineContext,
+fn transform_report_if_requested(
     args: &cli::TransformArgs,
     input_uris: &[String],
     diagnostics: &[cem_ml::diagnostics::Diagnostic],
     scheduler_trace: &cem_ml::report::SchedulerTraceReport,
     transform: Option<cem_ml::report::TransformReport>,
     transform_graph: Option<cem_ml::report::TransformGraphReport>,
-) -> io::Result<()> {
+) -> Option<cem_ml::report::Report> {
     if !report_requested(&args.report) {
-        return Ok(());
+        return None;
     }
     let mut report = cem_ml::report::Report::deterministic(
         input_uris.to_vec(),
@@ -6051,7 +6197,7 @@ fn write_transform_report_if_requested(
     .with_scheduler_trace_report(scheduler_trace.clone());
     report.report_ast.transform = transform;
     report.report_ast.transform_graph = transform_graph;
-    write_report_files(context, &report, &args.report, REPORT_BASENAME_TRANSFORM)
+    Some(report)
 }
 
 fn transform_graph_output_kind(primary: &serde_json::Value) -> String {
@@ -7429,17 +7575,6 @@ pub fn run_convert<E: CemMlEngine + ?Sized>(
                 }
                 return Outcome::code(EXIT_HARD_FAILURE);
             }
-            if let Err(e) = write_convert_primary(
-                &engine_context,
-                &resp,
-                target.as_ref(),
-                out.as_deref(),
-                convert_effective_output_color_type(&args),
-                s,
-            ) {
-                let _ = writeln!(s.stderr, "cem-ml: write failure: {e}");
-                return Outcome::code(EXIT_IO);
-            }
             let convert_report = cem_ml::report::ConvertReport {
                 output_count: 1,
                 outputs: vec![convert_output_report_from_response(
@@ -7449,25 +7584,75 @@ pub fn run_convert<E: CemMlEngine + ?Sized>(
                     target.as_ref(),
                 )],
             };
-            if let Err(e) = write_convert_artifact_json_if_requested(
-                &engine_context,
-                &resp,
-                args.artifact_json.as_deref(),
-            ) {
-                let _ = writeln!(s.stderr, "cem-ml: convert artifact write failure: {e}");
-                return Outcome::code(EXIT_IO);
-            }
             write_diagnostics(&resp.diagnostics, s);
-            if let Err(e) = write_convert_report_if_requested(
-                &engine_context,
-                &args,
-                &[input_uri],
-                &resp.diagnostics,
-                &resp.scheduler_trace,
-                Some(convert_report),
-            ) {
-                let _ = writeln!(s.stderr, "cem-ml: convert report write failure: {e}");
-                return Outcome::code(EXIT_IO);
+            if let Some(destination) = out.as_deref() {
+                let mut publication = PublicationBatch::new();
+                if let Err(e) =
+                    stage_convert_primary(&mut publication, &resp, target.as_ref(), destination)
+                {
+                    let _ = writeln!(s.stderr, "cem-ml: write failure: {e}");
+                    return Outcome::code(EXIT_IO);
+                }
+                if let Err(e) = stage_convert_artifact_json(
+                    &mut publication,
+                    &resp,
+                    args.artifact_json.as_deref(),
+                ) {
+                    let _ = writeln!(s.stderr, "cem-ml: convert artifact write failure: {e}");
+                    return Outcome::code(EXIT_IO);
+                }
+                if let Some(report) = convert_report_if_requested(
+                    &args,
+                    std::slice::from_ref(&input_uri),
+                    &resp.diagnostics,
+                    &resp.scheduler_trace,
+                    Some(convert_report),
+                ) {
+                    stage_report_files(
+                        &mut publication,
+                        &report,
+                        &args.report,
+                        REPORT_BASENAME_CONVERT,
+                    );
+                }
+                if let Err(e) = publication.commit(&engine_context) {
+                    let _ = writeln!(
+                        s.stderr,
+                        "cem-ml: transactional publication failure (write failure): {e}"
+                    );
+                    return Outcome::code(EXIT_IO);
+                }
+            } else {
+                if let Err(e) = write_convert_primary(
+                    &engine_context,
+                    &resp,
+                    target.as_ref(),
+                    None,
+                    convert_effective_output_color_type(&args),
+                    s,
+                ) {
+                    let _ = writeln!(s.stderr, "cem-ml: write failure: {e}");
+                    return Outcome::code(EXIT_IO);
+                }
+                if let Err(e) = write_convert_artifact_json_if_requested(
+                    &engine_context,
+                    &resp,
+                    args.artifact_json.as_deref(),
+                ) {
+                    let _ = writeln!(s.stderr, "cem-ml: convert artifact write failure: {e}");
+                    return Outcome::code(EXIT_IO);
+                }
+                if let Err(e) = write_convert_report_if_requested(
+                    &engine_context,
+                    &args,
+                    std::slice::from_ref(&input_uri),
+                    &resp.diagnostics,
+                    &resp.scheduler_trace,
+                    Some(convert_report),
+                ) {
+                    let _ = writeln!(s.stderr, "cem-ml: convert report write failure: {e}");
+                    return Outcome::code(EXIT_IO);
+                }
             }
             Outcome::ok()
         }
@@ -7475,6 +7660,7 @@ pub fn run_convert<E: CemMlEngine + ?Sized>(
     }
 }
 
+#[cfg(test)]
 fn write_transform_graph_artifacts(
     context: &eng::EngineContext,
     artifacts: &[eng::TransformGraphArtifact],
@@ -7507,6 +7693,216 @@ fn write_transform_graph_artifacts(
     Ok(())
 }
 
+fn stage_convert_primary(
+    batch: &mut PublicationBatch,
+    response: &eng::ConvertResponse,
+    identity: Option<&eng::FormatIdentity>,
+    destination: &Path,
+) -> io::Result<()> {
+    let bytes = response
+        .primary_bytes
+        .as_ref()
+        .map(|primary| primary.bytes.clone())
+        .map(Ok)
+        .unwrap_or_else(|| document_primary_bytes(&response.primary, identity))?;
+    batch.push(
+        destination,
+        "output destination",
+        ResolvePurpose::Output,
+        bytes,
+    );
+    Ok(())
+}
+
+fn stage_convert_artifact_json(
+    batch: &mut PublicationBatch,
+    response: &eng::ConvertResponse,
+    destination: Option<&Path>,
+) -> io::Result<()> {
+    let Some(destination) = destination else {
+        return Ok(());
+    };
+    let bytes =
+        serde_json::to_vec_pretty(&response.primary).map_err(invalid_structured_document)?;
+    batch.push(
+        destination,
+        "conversion artifact JSON destination",
+        ResolvePurpose::Output,
+        bytes,
+    );
+    Ok(())
+}
+
+fn stage_transform_graph_artifacts(
+    batch: &mut PublicationBatch,
+    artifacts: &[eng::TransformGraphArtifact],
+) -> io::Result<()> {
+    let top_level_destinations = artifacts
+        .iter()
+        .filter_map(|artifact| artifact.destination.clone())
+        .collect::<BTreeSet<_>>();
+    for artifact in artifacts {
+        if let Some(destination) = artifact.destination.as_deref() {
+            batch.push(
+                Path::new(destination),
+                "output destination",
+                ResolvePurpose::Output,
+                document_primary_bytes(&artifact.primary, artifact.identity.as_ref())?,
+            );
+            stage_transform_graph_source_map_sidecar(batch, artifact)?;
+        }
+        stage_transform_graph_collection_item_artifacts(batch, artifact, &top_level_destinations)?;
+    }
+    Ok(())
+}
+
+fn stage_transform_graph_collection_item_artifacts(
+    batch: &mut PublicationBatch,
+    artifact: &eng::TransformGraphArtifact,
+    top_level_destinations: &BTreeSet<String>,
+) -> io::Result<()> {
+    if artifact
+        .primary
+        .get("kind")
+        .and_then(serde_json::Value::as_str)
+        != Some("collection")
+    {
+        return Ok(());
+    }
+    let Some(items) = artifact
+        .primary
+        .get("items")
+        .and_then(serde_json::Value::as_array)
+    else {
+        return Ok(());
+    };
+    for item in items {
+        let Some(destination) = transform_graph_collection_item_destination(item) else {
+            continue;
+        };
+        if top_level_destinations.contains(destination) {
+            continue;
+        }
+        let Some(primary) = item.get("primary").filter(|primary| !primary.is_null()) else {
+            continue;
+        };
+        let identity = transform_graph_collection_item_identity(item);
+        batch.push(
+            Path::new(destination),
+            "output destination",
+            ResolvePurpose::Output,
+            document_primary_bytes(primary, identity.as_ref())?,
+        );
+        stage_transform_graph_collection_item_source_map_sidecar(
+            batch,
+            artifact,
+            item,
+            destination,
+        )?;
+    }
+    Ok(())
+}
+
+fn stage_transform_source_map_sidecar(
+    batch: &mut PublicationBatch,
+    response: &eng::TransformResponse,
+    destination: Option<&Path>,
+    input: &str,
+) -> io::Result<()> {
+    let Some(destination) = destination else {
+        return Ok(());
+    };
+    let Some(source_map) = response
+        .source_map
+        .as_ref()
+        .and_then(|source_map| serde_json::to_value(source_map).ok())
+    else {
+        return Ok(());
+    };
+    let destination_text = destination.to_string_lossy();
+    let Some(source_map_ref) =
+        transform_graph_source_map_ref(Some(destination_text.as_ref()), true)
+    else {
+        return Ok(());
+    };
+    let output_spans =
+        serde_json::to_value(&response.output_spans).unwrap_or_else(|_| serde_json::json!([]));
+    let sidecar = transform_graph_source_map_sidecar_payload(
+        &source_map,
+        "primary",
+        input,
+        &destination_text,
+        output_spans,
+    );
+    batch.push(
+        Path::new(&source_map_ref),
+        "source-map sidecar destination",
+        ResolvePurpose::Output,
+        serde_json::to_vec_pretty(&sidecar)?,
+    );
+    Ok(())
+}
+
+fn stage_transform_graph_source_map_sidecar(
+    batch: &mut PublicationBatch,
+    artifact: &eng::TransformGraphArtifact,
+) -> io::Result<()> {
+    let Some(destination) = artifact.destination.as_deref() else {
+        return Ok(());
+    };
+    let Some(source_map) = transform_graph_artifact_source_map_value(artifact) else {
+        return Ok(());
+    };
+    let Some(source_map_ref) = transform_graph_source_map_ref(Some(destination), true) else {
+        return Ok(());
+    };
+    let sidecar = transform_graph_source_map_sidecar_payload(
+        &source_map,
+        artifact.export_id.as_str(),
+        artifact.input.as_str(),
+        destination,
+        transform_graph_artifact_output_spans_value(artifact),
+    );
+    batch.push(
+        Path::new(&source_map_ref),
+        "source-map sidecar destination",
+        ResolvePurpose::Output,
+        serde_json::to_vec_pretty(&sidecar)?,
+    );
+    Ok(())
+}
+
+fn stage_transform_graph_collection_item_source_map_sidecar(
+    batch: &mut PublicationBatch,
+    artifact: &eng::TransformGraphArtifact,
+    item: &serde_json::Value,
+    destination: &str,
+) -> io::Result<()> {
+    let Some(source_map) = item
+        .get("sourceMap")
+        .filter(|source_map| !source_map.is_null())
+    else {
+        return Ok(());
+    };
+    let Some(source_map_ref) = transform_graph_source_map_ref(Some(destination), true) else {
+        return Ok(());
+    };
+    let sidecar = transform_graph_collection_item_source_map_sidecar_payload(
+        source_map,
+        artifact,
+        item,
+        destination,
+    );
+    batch.push(
+        Path::new(&source_map_ref),
+        "source-map sidecar destination",
+        ResolvePurpose::Output,
+        serde_json::to_vec_pretty(&sidecar)?,
+    );
+    Ok(())
+}
+
+#[cfg(test)]
 fn write_transform_graph_collection_item_artifacts(
     context: &eng::EngineContext,
     artifact: &eng::TransformGraphArtifact,
@@ -7615,6 +8011,7 @@ fn write_transform_source_map_sidecar(
     )
 }
 
+#[cfg(test)]
 fn write_transform_graph_source_map_sidecar(
     context: &eng::EngineContext,
     artifact: &eng::TransformGraphArtifact,
@@ -7646,6 +8043,7 @@ fn write_transform_graph_source_map_sidecar(
     )
 }
 
+#[cfg(test)]
 fn write_transform_graph_collection_item_source_map_sidecar(
     context: &eng::EngineContext,
     artifact: &eng::TransformGraphArtifact,
@@ -7962,18 +8360,14 @@ fn run_transform_graph<E: CemMlEngine + ?Sized>(
         Ok(resp) => {
             let requested_report = report_requested(&args.report);
             let graph_report = transform_graph_report_from_artifacts(&resp.artifacts);
-            if let Err(e) = write_transform_report_if_requested(
-                &engine_context,
+            let report = transform_report_if_requested(
                 args,
-                &[config_source_uri],
+                std::slice::from_ref(&config_source_uri),
                 &resp.diagnostics,
                 &resp.scheduler_trace,
                 None,
                 Some(graph_report.clone()),
-            ) {
-                let _ = writeln!(s.stderr, "cem-ml: transform report write failure: {e}");
-                return Outcome::code(EXIT_IO);
-            }
+            );
             if !requested_report {
                 write_diagnostics(&resp.diagnostics, s);
             }
@@ -7982,16 +8376,55 @@ fn run_transform_graph<E: CemMlEngine + ?Sized>(
                 .iter()
                 .any(|diagnostic| diagnostic.severity.is_hard_violation())
             {
+                if let Some(report) = report.as_ref() {
+                    if let Err(e) = write_report_files(
+                        &engine_context,
+                        report,
+                        &args.report,
+                        REPORT_BASENAME_TRANSFORM,
+                    ) {
+                        let _ = writeln!(s.stderr, "cem-ml: transform report write failure: {e}");
+                        return Outcome::code(EXIT_IO);
+                    }
+                }
                 return Outcome::code(EXIT_HARD_FAILURE);
             }
-            if let Err(e) = write_transform_graph_artifacts(
-                &engine_context,
-                &resp.artifacts,
-                args.output_color_type.as_deref(),
-                s,
-            ) {
+            let mut publication = PublicationBatch::new();
+            if let Some(report) = report.as_ref() {
+                stage_report_files(
+                    &mut publication,
+                    report,
+                    &args.report,
+                    REPORT_BASENAME_TRANSFORM,
+                );
+            }
+            if let Err(e) = stage_transform_graph_artifacts(&mut publication, &resp.artifacts) {
                 let _ = writeln!(s.stderr, "cem-ml: write failure: {e}");
                 return Outcome::code(EXIT_IO);
+            }
+            if let Err(e) = publication.commit(&engine_context) {
+                let _ = writeln!(
+                    s.stderr,
+                    "cem-ml: transactional publication failure (write failure): {e}"
+                );
+                return Outcome::code(EXIT_IO);
+            }
+            for artifact in resp
+                .artifacts
+                .iter()
+                .filter(|artifact| artifact.destination.is_none())
+            {
+                if let Err(e) = write_document_primary_with_identity(
+                    &engine_context,
+                    &artifact.primary,
+                    artifact.identity.as_ref(),
+                    None,
+                    args.output_color_type.as_deref(),
+                    s,
+                ) {
+                    let _ = writeln!(s.stderr, "cem-ml: write failure: {e}");
+                    return Outcome::code(EXIT_IO);
+                }
             }
             if args.source_map_summary && !s.quiet {
                 let summary = render_source_map_summary(None, Some(&graph_report));
@@ -8037,18 +8470,14 @@ pub fn run_transform<E: CemMlEngine + ?Sized>(
                 .unwrap_or_default();
             let transform_report =
                 transform_report_from_response(&resp, &input, args.out.as_deref());
-            if let Err(e) = write_transform_report_if_requested(
-                &engine_context,
+            let report = transform_report_if_requested(
                 &args,
                 std::slice::from_ref(&input),
                 &resp.diagnostics,
                 &resp.scheduler_trace,
                 Some(transform_report.clone()),
                 None,
-            ) {
-                let _ = writeln!(s.stderr, "cem-ml: transform report write failure: {e}");
-                return Outcome::code(EXIT_IO);
-            }
+            );
             if !report_requested {
                 write_diagnostics(&resp.diagnostics, s);
             }
@@ -8057,7 +8486,73 @@ pub fn run_transform<E: CemMlEngine + ?Sized>(
                 .iter()
                 .any(|diagnostic| diagnostic.severity.is_hard_violation())
             {
+                if let Some(report) = report.as_ref() {
+                    if let Err(e) = write_report_files(
+                        &engine_context,
+                        report,
+                        &args.report,
+                        REPORT_BASENAME_TRANSFORM,
+                    ) {
+                        let _ = writeln!(s.stderr, "cem-ml: transform report write failure: {e}");
+                        return Outcome::code(EXIT_IO);
+                    }
+                }
                 return Outcome::code(EXIT_HARD_FAILURE);
+            }
+            if let Some(destination) = args.out.as_deref() {
+                let mut publication = PublicationBatch::new();
+                if let Some(report) = report.as_ref() {
+                    stage_report_files(
+                        &mut publication,
+                        report,
+                        &args.report,
+                        REPORT_BASENAME_TRANSFORM,
+                    );
+                }
+                match document_primary_bytes(&resp.primary, None) {
+                    Ok(bytes) => publication.push(
+                        destination,
+                        "output destination",
+                        ResolvePurpose::Output,
+                        bytes,
+                    ),
+                    Err(e) => {
+                        let _ = writeln!(s.stderr, "cem-ml: write failure: {e}");
+                        return Outcome::code(EXIT_IO);
+                    }
+                }
+                if let Err(e) = stage_transform_source_map_sidecar(
+                    &mut publication,
+                    &resp,
+                    Some(destination),
+                    &input,
+                ) {
+                    let _ = writeln!(s.stderr, "cem-ml: write failure: {e}");
+                    return Outcome::code(EXIT_IO);
+                }
+                if let Err(e) = publication.commit(&engine_context) {
+                    let _ = writeln!(
+                        s.stderr,
+                        "cem-ml: transactional publication failure (write failure): {e}"
+                    );
+                    return Outcome::code(EXIT_IO);
+                }
+                if args.source_map_summary && !s.quiet {
+                    let summary = render_source_map_summary(Some(&transform_report), None);
+                    let _ = write!(s.stdout, "{summary}");
+                }
+                return Outcome::ok();
+            }
+            if let Some(report) = report.as_ref() {
+                if let Err(e) = write_report_files(
+                    &engine_context,
+                    report,
+                    &args.report,
+                    REPORT_BASENAME_TRANSFORM,
+                ) {
+                    let _ = writeln!(s.stderr, "cem-ml: transform report write failure: {e}");
+                    return Outcome::code(EXIT_IO);
+                }
             }
             if let Err(e) = write_document_primary(
                 &engine_context,
@@ -19028,8 +19523,8 @@ start =
 
         assert_eq!(outcome.exit_code, EXIT_IO);
         assert!(stdout.trim().is_empty());
-        assert!(out_path.is_file());
-        assert_stderr_contains_all(&stderr, &["convert report write failure"]);
+        assert!(!out_path.exists());
+        assert_stderr_contains_all(&stderr, &["transactional publication failure"]);
         assert_remote_resolver_boundary(&stderr, "https://example.test/convert.md");
     }
 
@@ -19054,8 +19549,8 @@ start =
 
         assert_eq!(outcome.exit_code, EXIT_IO);
         assert!(stdout.trim().is_empty());
-        assert!(out_path.is_file());
-        assert_stderr_contains_all(&stderr, &["convert report write failure"]);
+        assert!(!out_path.exists());
+        assert_stderr_contains_all(&stderr, &["transactional publication failure"]);
         assert_remote_resolver_boundary(&stderr, uri);
     }
 
@@ -19080,8 +19575,8 @@ start =
 
         assert_eq!(outcome.exit_code, EXIT_IO);
         assert!(stdout.trim().is_empty());
-        assert!(out_path.is_file());
-        assert_stderr_contains_all(&stderr, &["convert report write failure"]);
+        assert!(!out_path.exists());
+        assert_stderr_contains_all(&stderr, &["transactional publication failure"]);
         assert_remote_resolver_boundary(&stderr, uri);
     }
 
@@ -19106,8 +19601,8 @@ start =
 
         assert_eq!(outcome.exit_code, EXIT_IO);
         assert!(stdout.trim().is_empty());
-        assert!(out_path.is_file());
-        assert_stderr_contains_all(&stderr, &["convert report write failure"]);
+        assert!(!out_path.exists());
+        assert_stderr_contains_all(&stderr, &["transactional publication failure"]);
         assert_local_file_uri_boundary(&stderr, uri);
     }
 

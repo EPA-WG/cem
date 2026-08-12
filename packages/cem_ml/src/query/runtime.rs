@@ -8,7 +8,7 @@ use crate::diagnostics::{Diagnostic, Severity};
 use crate::engine::{EngineContext, EngineInput, FormatIdentity};
 use crate::lifecycle::{LifecycleRegistry, LoadedInputAstStream};
 use crate::run_config::ScopeConfig;
-use crate::scheduler::{OverflowPolicy, ScopePolicy};
+use crate::scheduler::ScopePolicy;
 use crate::validation::css_selector::{
     css_selector_expression_ast_from_source_bytes, CemCssSelectorEvaluator,
     CssSelectorElementTreeOwner, CssSelectorSourceRequest,
@@ -491,22 +491,9 @@ fn query_budget_value(
 }
 
 fn query_scope_policy(context: &EngineContext) -> ScopePolicy {
-    let mut policy = if context.scheduler.thread_pool.as_deref() == Some("host") {
-        ScopePolicy::host_root()
-    } else {
-        ScopePolicy {
-            cpu_workers: 1,
-            queue_size: 8,
-            io_streams: 4,
-            memory_bytes: 8 * 1024 * 1024,
-            stack_depth: 256,
-            timeout_ms: None,
-            plugin_time_budget_ms: None,
-            overflow: OverflowPolicy::Reject,
-        }
-    };
+    let mut policy = ScopePolicy::host_root();
     if let Some(max_parallel_documents) = context.scheduler.max_parallel_documents {
-        policy.cpu_workers = max_parallel_documents.max(1);
+        policy.cpu_workers = policy.cpu_workers.min(max_parallel_documents.max(1));
     }
     policy
 }
