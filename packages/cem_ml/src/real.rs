@@ -1938,6 +1938,15 @@ fn parse_u64_budget(field: &str, value: &str) -> Result<u64, String> {
         .map_err(|_| format!("budget `{field}` expects an unsigned integer, got `{value}`"))
 }
 
+fn parse_nonzero_u32_budget(field: &str, value: &str) -> Result<u32, String> {
+    let value = value
+        .parse::<u32>()
+        .map_err(|_| format!("budget `{field}` expects an unsigned integer, got `{value}`"))?;
+    (value > 0)
+        .then_some(value)
+        .ok_or_else(|| format!("budget `{field}` must be greater than zero"))
+}
+
 #[derive(Debug, Default)]
 struct LoadedModuleMap {
     entries: BTreeMap<String, String>,
@@ -2193,7 +2202,8 @@ fn root_scope_budget_diagnostics(
     let mut diagnostics = Vec::new();
     for (field, value) in &scope.budgets {
         match normalize_scope_key(field).as_str() {
-            "cpu" | "cpuworkers" | "queue" | "queuesize" | "io" | "iostreams" => {
+            "cpu" | "cpuworkers" | "queue" | "queuesize" | "io" | "iostreams"
+            | "stack" | "stackdepth" | "maxstackdepth" => {
                 if let Err(message) = parse_u32_budget(field, value) {
                     diagnostics.push(scope_policy_diagnostic(
                         uri,
@@ -2203,7 +2213,8 @@ fn root_scope_budget_diagnostics(
                     ));
                 }
             }
-            "memory" | "memorybytes" | "pluginms" | "plugintimebudgetms" | "parsems"
+            "memory" | "memorybytes" | "timeout" | "timeoutms" | "scopetimeoutms"
+            | "pluginms" | "plugintimebudgetms" | "parsems"
             | "parsetimebudgetms" | "validatems" | "validatetimebudgetms" | "checkms"
             | "checktimebudgetms" | "convertms" | "converttimebudgetms" | "tracems"
             | "tracetimebudgetms" | "inspectms" | "inspecttimebudgetms" | "benchms"
@@ -2259,6 +2270,8 @@ fn apply_scope_scheduler_fields(
                     queue_size: 8,
                     io_streams: 4,
                     memory_bytes: 8 * 1024 * 1024,
+                    stack_depth: 256,
+                    timeout_ms: None,
                     plugin_time_budget_ms: None,
                     overflow: crate::scheduler::OverflowPolicy::Reject,
                 };
@@ -2302,7 +2315,39 @@ fn apply_scope_scheduler_fields(
                 )),
             },
             "memory" | "memorybytes" => match parse_u64_budget(field, value) {
-                Ok(value) => policy.memory_bytes = value,
+                Ok(value) if value > 0 => policy.memory_bytes = value,
+                Ok(_) => diagnostics.push(scope_policy_diagnostic(
+                    uri,
+                    "cem.scope.budget_invalid",
+                    format!("budget `{field}` must be greater than zero"),
+                    direction,
+                )),
+                Err(message) => diagnostics.push(scope_policy_diagnostic(
+                    uri,
+                    "cem.scope.budget_invalid",
+                    message,
+                    direction,
+                )),
+            },
+            "stack" | "stackdepth" | "maxstackdepth" => {
+                match parse_nonzero_u32_budget(field, value) {
+                    Ok(value) => policy.stack_depth = value,
+                    Err(message) => diagnostics.push(scope_policy_diagnostic(
+                        uri,
+                        "cem.scope.budget_invalid",
+                        message,
+                        direction,
+                    )),
+                }
+            },
+            "timeout" | "timeoutms" | "scopetimeoutms" => match parse_u64_budget(field, value) {
+                Ok(value) if value > 0 => policy.timeout_ms = Some(value),
+                Ok(_) => diagnostics.push(scope_policy_diagnostic(
+                    uri,
+                    "cem.scope.budget_invalid",
+                    format!("budget `{field}` must be greater than zero"),
+                    direction,
+                )),
                 Err(message) => diagnostics.push(scope_policy_diagnostic(
                     uri,
                     "cem.scope.budget_invalid",
@@ -2376,6 +2421,8 @@ fn scheduler_policy_from_context(context: &EngineContext) -> crate::scheduler::S
             queue_size: 8,
             io_streams: 4,
             memory_bytes: 8 * 1024 * 1024,
+            stack_depth: 256,
+            timeout_ms: None,
             plugin_time_budget_ms: None,
             overflow: crate::scheduler::OverflowPolicy::Reject,
         }

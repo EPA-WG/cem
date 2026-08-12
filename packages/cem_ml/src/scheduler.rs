@@ -3,8 +3,9 @@
 //! Tier B. The scheduler owns four cross-cutting concerns:
 //!
 //! - **Per-scope resource caps** ([`policy`]): CPU worker count,
-//!   bounded queue size, external-I/O stream count, memory cap, and
-//!   the overflow policy applied when a queue is full.
+//!   bounded queue size, external-I/O stream count, accounted-memory cap,
+//!   logical stack depth, active-time timeout, and the overflow policy applied
+//!   when a queue is full.
 //! - **Scope inheritance** ([`tree`]): policies are organised in a
 //!   tree; children inherit parent caps and MAY constrain them
 //!   further only — any attempt to raise a cap above the parent's

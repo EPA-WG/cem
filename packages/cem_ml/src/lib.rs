@@ -21,6 +21,7 @@ pub mod interpreter;
 pub mod legacy_custom_element;
 pub mod lifecycle;
 pub mod observability;
+pub mod operation_control;
 pub mod parser;
 pub mod plugin;
 pub mod projection;

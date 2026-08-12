@@ -198,6 +198,23 @@ fn check_constrain_only(
             child.memory_bytes,
         ));
     }
+    if child.stack_depth > parent.stack_depth {
+        return Err(deny(
+            scope,
+            ResourceCap::StackDepth,
+            parent.stack_depth as u64,
+            child.stack_depth as u64,
+        ));
+    }
+    match (parent.timeout_ms, child.timeout_ms) {
+        (Some(parent), Some(child)) if child > parent => {
+            return Err(deny(scope, ResourceCap::TimeoutMs, parent, child));
+        }
+        (Some(parent), None) => {
+            return Err(deny(scope, ResourceCap::TimeoutMs, parent, u64::MAX));
+        }
+        _ => {}
+    }
     Ok(())
 }
 
@@ -212,6 +229,8 @@ mod tests {
             queue_size: queue,
             io_streams: io,
             memory_bytes: mem,
+            stack_depth: 256,
+            timeout_ms: None,
             plugin_time_budget_ms: None,
             overflow: OverflowPolicy::Reject,
         }
@@ -263,6 +282,34 @@ mod tests {
                 "cap {name}"
             );
         }
+    }
+
+    #[test]
+    fn stack_and_timeout_are_constrain_only() {
+        let mut root = policy(4, 32, 16, 1024);
+        root.stack_depth = 32;
+        root.timeout_ms = Some(100);
+        let mut tree = ScopePolicyTree::new(PolicyScopeId(0), root);
+
+        let mut relaxed_stack = root;
+        relaxed_stack.stack_depth = 33;
+        assert!(matches!(
+            tree.install(PolicyScopeId(1), PolicyScopeId(0), relaxed_stack),
+            Err(ScopePolicyTreeError::CapRelaxationDenied {
+                cap: ResourceCap::StackDepth,
+                ..
+            })
+        ));
+
+        let mut removed_timeout = root;
+        removed_timeout.timeout_ms = None;
+        assert!(matches!(
+            tree.install(PolicyScopeId(2), PolicyScopeId(0), removed_timeout),
+            Err(ScopePolicyTreeError::CapRelaxationDenied {
+                cap: ResourceCap::TimeoutMs,
+                ..
+            })
+        ));
     }
 
     #[test]

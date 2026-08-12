@@ -112,6 +112,8 @@ mod tests {
             queue_size: cap,
             io_streams: 4,
             memory_bytes: 1024,
+            stack_depth: 256,
+            timeout_ms: None,
             plugin_time_budget_ms: None,
             overflow: OverflowPolicy::Reject,
         };

@@ -23,6 +23,8 @@ fn policy(cpu: u32, queue: u32, io: u32, mem: u64, overflow: OverflowPolicy) -> 
         queue_size: queue,
         io_streams: io,
         memory_bytes: mem,
+        stack_depth: 256,
+        timeout_ms: None,
         plugin_time_budget_ms: None,
         overflow,
     }

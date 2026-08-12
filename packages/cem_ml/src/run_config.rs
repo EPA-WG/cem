@@ -446,6 +446,10 @@ pub struct NormalizedScopePolicy {
     pub queue_size: u32,
     pub io_streams: u32,
     pub memory_bytes: u64,
+    #[serde(default = "default_normalized_stack_depth")]
+    pub stack_depth: u32,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub timeout_ms: Option<u64>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub plugin_time_budget_ms: Option<u64>,
     pub overflow: OverflowPolicy,
@@ -461,6 +465,8 @@ impl NormalizedScopePolicy {
             queue_size: policy.queue_size,
             io_streams: policy.io_streams,
             memory_bytes: policy.memory_bytes,
+            stack_depth: policy.stack_depth,
+            timeout_ms: policy.timeout_ms,
             plugin_time_budget_ms: policy.plugin_time_budget_ms,
             overflow: policy.overflow,
             provenance: Vec::new(),
@@ -501,6 +507,10 @@ pub struct NormalizedBudgets {
     pub plugin_ms: Option<u64>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub memory_bytes: Option<u64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub stack_depth: Option<u32>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub timeout_ms: Option<u64>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub xpath_items: Option<u64>,
     #[serde(default)]
@@ -1112,13 +1122,45 @@ fn normalized_policy_and_budgets(
                 )),
             },
             "memory" | "memorybytes" => match parse_u64_budget_value(field, value) {
-                Ok(value) => {
+                Ok(value) if value > 0 => {
                     policy.memory_bytes = value;
                     budgets.memory_bytes = Some(value);
                 }
+                Ok(_) => diagnostics.push(budget_invalid_diagnostic(
+                    format!("budget `{field}` must be greater than zero"),
+                    base_uri,
+                    &field_path,
+                )),
                 Err(message) => diagnostics.push(budget_invalid_diagnostic(
                     message, base_uri, &field_path,
                 )),
+            },
+            "stack" | "stackdepth" | "maxstackdepth" => {
+                match parse_nonzero_u32_budget_value(field, value) {
+                    Ok(value) => {
+                        policy.stack_depth = value;
+                        budgets.stack_depth = Some(value);
+                    }
+                    Err(message) => diagnostics.push(budget_invalid_diagnostic(
+                        message, base_uri, &field_path,
+                    )),
+                }
+            },
+            "timeout" | "timeoutms" | "scopetimeoutms" => {
+                match parse_u64_budget_value(field, value) {
+                    Ok(value) if value > 0 => {
+                        policy.timeout_ms = Some(value);
+                        budgets.timeout_ms = Some(value);
+                    }
+                    Ok(_) => diagnostics.push(budget_invalid_diagnostic(
+                        format!("budget `{field}` must be greater than zero"),
+                        base_uri,
+                        &field_path,
+                    )),
+                    Err(message) => diagnostics.push(budget_invalid_diagnostic(
+                        message, base_uri, &field_path,
+                    )),
+                }
             },
             "xpathitems" => match parse_u64_budget_value(field, value) {
                 Ok(value) => budgets.xpath_items = Some(value),
@@ -1265,9 +1307,15 @@ fn deterministic_scope_policy() -> ScopePolicy {
         queue_size: 8,
         io_streams: 4,
         memory_bytes: 8 * 1024 * 1024,
+        stack_depth: 256,
+        timeout_ms: None,
         plugin_time_budget_ms: None,
         overflow: OverflowPolicy::Reject,
     }
+}
+
+const fn default_normalized_stack_depth() -> u32 {
+    256
 }
 
 fn normalized_module_map_identity(
@@ -2022,6 +2070,16 @@ fn parse_u64_budget_value(field: &str, value: &str) -> Result<u64, String> {
         .trim()
         .parse::<u64>()
         .map_err(|_| format!("budget `{field}` expects an unsigned integer, got `{value}`"))
+}
+
+fn parse_nonzero_u32_budget_value(field: &str, value: &str) -> Result<u32, String> {
+    let value = value
+        .trim()
+        .parse::<u32>()
+        .map_err(|_| format!("budget `{field}` expects an unsigned integer, got `{value}`"))?;
+    (value > 0)
+        .then_some(value)
+        .ok_or_else(|| format!("budget `{field}` must be greater than zero"))
 }
 
 fn stable_run_id(
@@ -3599,6 +3657,8 @@ mod tests {
                                 "queueSize": "16",
                                 "ioStreams": "4",
                                 "memoryBytes": "1024",
+                                "stackDepth": "32",
+                                "timeoutMs": "40",
                                 "pluginMs": "20",
                                 "xpathItems": "8",
                                 "overflow": "spill-to-parent",
@@ -3621,11 +3681,15 @@ mod tests {
         assert_eq!(scope.policy.queue_size, 16);
         assert_eq!(scope.policy.io_streams, 4);
         assert_eq!(scope.policy.memory_bytes, 1024);
+        assert_eq!(scope.policy.stack_depth, 32);
+        assert_eq!(scope.policy.timeout_ms, Some(40));
         assert_eq!(scope.policy.plugin_time_budget_ms, Some(20));
         assert_eq!(scope.policy.overflow, OverflowPolicy::SpillToParent);
         assert_eq!(scope.budgets.parse_ms, Some(5));
         assert_eq!(scope.budgets.validate_ms, Some(7));
         assert_eq!(scope.budgets.memory_bytes, Some(1024));
+        assert_eq!(scope.budgets.stack_depth, Some(32));
+        assert_eq!(scope.budgets.timeout_ms, Some(40));
         assert_eq!(scope.budgets.plugin_ms, Some(20));
         assert_eq!(scope.budgets.xpath_items, Some(8));
         assert_eq!(scope.budgets.unknown.len(), 1);
@@ -3656,6 +3720,9 @@ mod tests {
                             "budgets": {
                                 "parseMs": "not-a-number",
                                 "xpathItems": "not-a-number",
+                                "memoryBytes": "0",
+                                "stackDepth": "0",
+                                "timeoutMs": "0",
                                 "overflow": "explode"
                             }
                         }
@@ -3681,6 +3748,9 @@ mod tests {
         assert!(paths.contains(&"inputs[0].rootScope.versionPins.core".to_owned()));
         assert!(paths.contains(&"inputs[0].rootScope.budgets.parseMs".to_owned()));
         assert!(paths.contains(&"inputs[0].rootScope.budgets.xpathItems".to_owned()));
+        assert!(paths.contains(&"inputs[0].rootScope.budgets.memoryBytes".to_owned()));
+        assert!(paths.contains(&"inputs[0].rootScope.budgets.stackDepth".to_owned()));
+        assert!(paths.contains(&"inputs[0].rootScope.budgets.timeoutMs".to_owned()));
         assert!(paths.contains(&"inputs[0].rootScope.budgets.overflow".to_owned()));
         assert!(paths.contains(&"resolvers[0].uriPrefix".to_owned()));
         assert!(paths.contains(&"resolvers[0].localRoot".to_owned()));

@@ -499,6 +499,8 @@ fn query_scope_policy(context: &EngineContext) -> ScopePolicy {
             queue_size: 8,
             io_streams: 4,
             memory_bytes: 8 * 1024 * 1024,
+            stack_depth: 256,
+            timeout_ms: None,
             plugin_time_budget_ms: None,
             overflow: OverflowPolicy::Reject,
         }

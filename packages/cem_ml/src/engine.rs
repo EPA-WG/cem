@@ -1,6 +1,7 @@
 use crate::conversion::{ConversionRegistry, DomProjectionParityCemtAdapter};
 use crate::diagnostics::{Diagnostic, Severity};
 use crate::interpreter::OutputSpan;
+pub use crate::operation_control::OperationControl;
 use crate::query::QueryRuntimeRegistry;
 use crate::report::{Report, SchedulerTraceReport};
 use crate::resolver::{ResolverPolicy, ResolverRegistry};
@@ -122,31 +123,6 @@ pub enum InspectView {
 pub enum BenchProfile {
     Cpu,
     Memory,
-}
-
-/// Host-owned control shared by every phase of one public operation.
-///
-/// Cloning an [`EngineContext`] preserves the same cancellation flag, so
-/// lifecycle, resolver, evaluator, plugin, and scheduler layers all observe
-/// one request-scoped signal without placing runtime state in serializable
-/// request records.
-#[derive(Debug, Clone, Default)]
-pub struct OperationControl {
-    abort_signal: AbortSignal,
-}
-
-impl OperationControl {
-    pub fn new(abort_signal: AbortSignal) -> Self {
-        Self { abort_signal }
-    }
-
-    pub fn abort_signal(&self) -> &AbortSignal {
-        &self.abort_signal
-    }
-
-    pub fn is_cancelled(&self) -> bool {
-        self.abort_signal.is_aborted()
-    }
 }
 
 #[derive(Debug, Clone)]

@@ -25,6 +25,8 @@ pub enum ResourceCap {
     QueueSize,
     IoStreams,
     MemoryBytes,
+    StackDepth,
+    TimeoutMs,
 }
 
 /// Static description of the resource ceiling for one scope.
@@ -43,8 +45,15 @@ pub struct ScopePolicy {
     /// External-I/O stream count (AC-A-6). Independent of CPU pool.
     pub io_streams: u32,
     /// Memory cap in bytes (informational; the runtime is responsible
-    /// for enforcing it where possible).
+    /// for enforcing it through accounted allocations).
     pub memory_bytes: u64,
+    /// Maximum logical engine frames per task. This is independent of
+    /// the native machine stack.
+    #[serde(default = "default_stack_depth")]
+    pub stack_depth: u32,
+    /// Optional active-time deadline for this scope.
+    #[serde(default)]
+    pub timeout_ms: Option<u64>,
     /// Optional per-plugin wall-clock budget inherited by the plugin
     /// runtime (AC-A-4 / AC-PL-17).
     pub plugin_time_budget_ms: Option<u64>,
@@ -62,6 +71,8 @@ impl ScopePolicy {
             queue_size: 64,
             io_streams: 16,
             memory_bytes: 256 * 1024 * 1024, // 256 MiB
+            stack_depth: 256,
+            timeout_ms: None,
             plugin_time_budget_ms: None,
             overflow: OverflowPolicy::Reject,
         }
@@ -76,12 +87,29 @@ impl ScopePolicy {
         self
     }
     pub fn with_io_streams(mut self, n: u32) -> Self {
-        self.io_streams = n;
+        self.io_streams = n.max(1);
         self
     }
     pub fn with_memory_bytes(mut self, n: u64) -> Self {
         self.memory_bytes = n;
         self
+    }
+    pub fn with_stack_depth(mut self, n: u32) -> Self {
+        self.stack_depth = n;
+        self
+    }
+    pub fn with_timeout_ms(mut self, n: Option<u64>) -> Self {
+        self.timeout_ms = n;
+        self
+    }
+
+    pub fn effective_plugin_timeout_ms(&self) -> Option<u64> {
+        match (self.timeout_ms, self.plugin_time_budget_ms) {
+            (Some(scope), Some(plugin)) => Some(scope.min(plugin)),
+            (Some(scope), None) => Some(scope),
+            (None, Some(plugin)) => Some(plugin),
+            (None, None) => None,
+        }
     }
     pub fn with_plugin_time_budget_ms(mut self, n: Option<u64>) -> Self {
         self.plugin_time_budget_ms = n;
@@ -99,6 +127,18 @@ impl ScopePolicy {
         }
         if self.queue_size == 0 {
             return Err(ScopePolicyError::ZeroCap(ResourceCap::QueueSize));
+        }
+        if self.io_streams == 0 {
+            return Err(ScopePolicyError::ZeroCap(ResourceCap::IoStreams));
+        }
+        if self.memory_bytes == 0 {
+            return Err(ScopePolicyError::ZeroCap(ResourceCap::MemoryBytes));
+        }
+        if self.stack_depth == 0 {
+            return Err(ScopePolicyError::ZeroCap(ResourceCap::StackDepth));
+        }
+        if self.timeout_ms == Some(0) {
+            return Err(ScopePolicyError::ZeroCap(ResourceCap::TimeoutMs));
         }
         Ok(())
     }
@@ -139,6 +179,10 @@ fn default_cpu_workers() -> u32 {
     }
 }
 
+const fn default_stack_depth() -> u32 {
+    256
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -149,6 +193,7 @@ mod tests {
         assert!(p.cpu_workers >= 1, "AC-A-4 floor of 1 must hold");
         assert!(p.cpu_workers <= 8, "AC-A-4 ceiling of 8 must hold");
         assert!(p.queue_size >= 1);
+        assert_eq!(p.stack_depth, 256);
         p.validate().unwrap();
     }
 
@@ -156,9 +201,11 @@ mod tests {
     fn with_setters_apply_the_floor() {
         let p = ScopePolicy::host_root()
             .with_cpu_workers(0)
-            .with_queue_size(0);
+            .with_queue_size(0)
+            .with_io_streams(0);
         assert_eq!(p.cpu_workers, 1);
         assert_eq!(p.queue_size, 1);
+        assert_eq!(p.io_streams, 1);
     }
 
     #[test]
@@ -169,5 +216,20 @@ mod tests {
             p.validate(),
             Err(ScopePolicyError::ZeroCap(ResourceCap::CpuWorkers))
         ));
+    }
+
+    #[test]
+    fn legacy_serialized_policy_defaults_new_control_fields() {
+        let policy: ScopePolicy = serde_json::from_value(serde_json::json!({
+            "cpu_workers": 1,
+            "queue_size": 8,
+            "io_streams": 4,
+            "memory_bytes": 1024,
+            "plugin_time_budget_ms": null,
+            "overflow": "reject"
+        }))
+        .unwrap();
+        assert_eq!(policy.stack_depth, 256);
+        assert_eq!(policy.timeout_ms, None);
     }
 }

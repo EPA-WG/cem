@@ -134,11 +134,27 @@ replacement tree may mediate between internal engine layers.
         - [ ] Implement the canonical operation-control contract in its fixed gate
               order; do not expose later host/debug surfaces over partial common
               semantics.
-            - [ ] Gate 1 — add `OperationId`, `ExecutionScopeId`, `TaskId`, the
+            - [x] Gate 1 — add `OperationId`, `ExecutionScopeId`, `TaskId`, the
                   mapped execution-scope tree, typed control causes, hierarchical
                   stack/memory/deadline accounting, and the `AbortSignal`
                   compatibility facade; report the new controls and enforcement
                   coverage through the capability manifest.
+
+                Completed 2026-08-11: added stable opaque operation, execution-
+                scope, and logical-task identities; an append-mostly mapped scope
+                tree with bounded metadata and constrain-only effective policy;
+                typed cancellation/resource/queue/worker causes; per-task logical
+                stack guards; atomic ancestor memory permits; active-time scope and
+                plugin deadlines; and first-reason root cancellation through the
+                existing `AbortSignal` API. Normalized run config now owns canonical
+                `stackDepth` / `timeoutMs` policy fields and accepted aliases, rejects
+                zero memory/stack/timeout limits, and preserves the 256-frame default
+                for older policy JSON. Capability contract v2 reports each control's
+                exact coverage, the still-sequential executor topology, no accounted
+                engine stores yet, and later handles/debug/hard-cancel surfaces as
+                unavailable instead of no-ops. Focused control/config/scheduler tests,
+                common lint, all 1,841 library tests plus integration suites, and the
+                common WASM build pass.
             - [ ] Gate 2 — replace the sequential `WorkerPool` execution model with
                   real bounded native workers, constrain-only per-scope permits,
                   cooperative queue blocking, independent I/O permits, deterministic

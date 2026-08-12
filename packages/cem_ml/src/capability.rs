@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 
 /// Version of the capability-manifest projection, independent of the product
 /// version carried by [`ProductVersion`].
-pub const CAPABILITY_CONTRACT_VERSION: u16 = 1;
+pub const CAPABILITY_CONTRACT_VERSION: u16 = 2;
 
 /// Host-provided runtime, target, and ABI identities are bounded before they
 /// enter a serialized manifest.
@@ -81,6 +81,100 @@ pub struct OperationCapability {
     pub availability: CapabilityAvailability,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum ControlCapabilityKind {
+    RootCancellation,
+    ScopedCancellation,
+    StackDepthEnforcement,
+    MemoryEnforcement,
+    TimeoutEnforcement,
+    QueueEnforcement,
+    CpuEnforcement,
+    IoEnforcement,
+    OperationHandles,
+    BoundedSubscriptions,
+    Pause,
+    SourceBreakpoints,
+    Stepping,
+    SuspendedInspection,
+    Dap,
+    CemDebugRequests,
+    HardCancel,
+}
+
+impl ControlCapabilityKind {
+    pub const ALL: [Self; 17] = [
+        Self::RootCancellation,
+        Self::ScopedCancellation,
+        Self::StackDepthEnforcement,
+        Self::MemoryEnforcement,
+        Self::TimeoutEnforcement,
+        Self::QueueEnforcement,
+        Self::CpuEnforcement,
+        Self::IoEnforcement,
+        Self::OperationHandles,
+        Self::BoundedSubscriptions,
+        Self::Pause,
+        Self::SourceBreakpoints,
+        Self::Stepping,
+        Self::SuspendedInspection,
+        Self::Dap,
+        Self::CemDebugRequests,
+        Self::HardCancel,
+    ];
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum ControlCoverage {
+    None,
+    CompatibilityFacade,
+    ControlCore,
+    LogicalFrameGuards,
+    AccountedAllocations,
+    RegisteredDeadlines,
+    BoundedQueue,
+    PolicyOnly,
+    IoPermits,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ControlCapability {
+    pub control: ControlCapabilityKind,
+    pub availability: CapabilityAvailability,
+    pub coverage: ControlCoverage,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MemoryAccountingCapability {
+    /// `true` once engine stores actually acquire byte-counted permits.
+    pub accounted_bytes: bool,
+    /// Accounted stores integrated with the common `MemoryPermit` API.
+    pub accounted_stores: Vec<String>,
+    /// Host/runtime allocations outside those stores are not claimed as
+    /// process-wide heap enforcement.
+    pub unaccounted_host_bytes: bool,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum ExecutorTopology {
+    Sequential,
+    NativeThreadPool,
+    NodeWorkerPool,
+    BrowserWorkerPool,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DebugControlCapability {
+    pub compiled: bool,
+    pub active: bool,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CapabilityRequest {
@@ -98,6 +192,11 @@ pub struct CapabilityManifest {
     pub target_identity: String,
     pub abi_identity: String,
     pub operations: Vec<OperationCapability>,
+    pub controls: Vec<ControlCapability>,
+    pub executor_topology: ExecutorTopology,
+    pub effective_max_workers: u32,
+    pub debug_control: DebugControlCapability,
+    pub memory_accounting: MemoryAccountingCapability,
 }
 
 impl CapabilityManifest {
@@ -107,6 +206,14 @@ impl CapabilityManifest {
             .find(|entry| entry.operation == operation)
             .map(|entry| entry.availability)
             .expect("every capability operation is present in the common manifest")
+    }
+
+    pub fn control(&self, control: ControlCapabilityKind) -> ControlCapability {
+        self.controls
+            .iter()
+            .find(|entry| entry.control == control)
+            .copied()
+            .expect("every control capability is present in the common manifest")
     }
 }
 
@@ -138,6 +245,10 @@ pub fn capability_manifest(
             availability: operation_availability(request.runtime, operation),
         })
         .collect();
+    let controls = ControlCapabilityKind::ALL
+        .into_iter()
+        .map(control_capability)
+        .collect();
     Ok(CapabilityManifest {
         contract_version: CAPABILITY_CONTRACT_VERSION,
         common_version: product_version().common_version,
@@ -145,7 +256,43 @@ pub fn capability_manifest(
         target_identity: request.target_identity,
         abi_identity: request.abi_identity,
         operations,
+        controls,
+        executor_topology: ExecutorTopology::Sequential,
+        effective_max_workers: 1,
+        debug_control: DebugControlCapability {
+            compiled: false,
+            active: false,
+        },
+        memory_accounting: MemoryAccountingCapability {
+            accounted_bytes: false,
+            accounted_stores: Vec::new(),
+            unaccounted_host_bytes: true,
+        },
     })
+}
+
+fn control_capability(control: ControlCapabilityKind) -> ControlCapability {
+    use CapabilityAvailability::{Available, DevelopmentOnly, Unavailable};
+    use ControlCapabilityKind::*;
+    use ControlCoverage::*;
+
+    let (availability, coverage) = match control {
+        RootCancellation => (Available, CompatibilityFacade),
+        ScopedCancellation => (DevelopmentOnly, ControlCore),
+        StackDepthEnforcement => (DevelopmentOnly, LogicalFrameGuards),
+        MemoryEnforcement => (DevelopmentOnly, AccountedAllocations),
+        TimeoutEnforcement => (DevelopmentOnly, RegisteredDeadlines),
+        QueueEnforcement => (DevelopmentOnly, BoundedQueue),
+        CpuEnforcement => (DevelopmentOnly, PolicyOnly),
+        IoEnforcement => (DevelopmentOnly, IoPermits),
+        OperationHandles | BoundedSubscriptions | Pause | SourceBreakpoints | Stepping
+        | SuspendedInspection | Dap | CemDebugRequests | HardCancel => (Unavailable, None),
+    };
+    ControlCapability {
+        control,
+        availability,
+        coverage,
+    }
 }
 
 fn operation_availability(
@@ -230,9 +377,18 @@ mod tests {
             CapabilityOperation::Trace,
             CapabilityOperation::VersionCapabilities,
         ] {
-            assert_eq!(native.availability(operation), CapabilityAvailability::Available);
-            assert_eq!(node.availability(operation), CapabilityAvailability::Available);
-            assert_eq!(browser.availability(operation), CapabilityAvailability::Available);
+            assert_eq!(
+                native.availability(operation),
+                CapabilityAvailability::Available
+            );
+            assert_eq!(
+                node.availability(operation),
+                CapabilityAvailability::Available
+            );
+            assert_eq!(
+                browser.availability(operation),
+                CapabilityAvailability::Available
+            );
         }
 
         assert_eq!(
@@ -251,9 +407,18 @@ mod tests {
             CapabilityOperation::SchemaMutation,
             CapabilityOperation::PluginMutation,
         ] {
-            assert_eq!(native.availability(operation), CapabilityAvailability::Unavailable);
-            assert_eq!(node.availability(operation), CapabilityAvailability::Unavailable);
-            assert_eq!(browser.availability(operation), CapabilityAvailability::Unavailable);
+            assert_eq!(
+                native.availability(operation),
+                CapabilityAvailability::Unavailable
+            );
+            assert_eq!(
+                node.availability(operation),
+                CapabilityAvailability::Unavailable
+            );
+            assert_eq!(
+                browser.availability(operation),
+                CapabilityAvailability::Unavailable
+            );
         }
     }
 
@@ -285,5 +450,51 @@ mod tests {
         assert_eq!(value["abiIdentity"], "rust-v1");
         assert_eq!(value["operations"][0]["operation"], "parse");
         assert_eq!(value["operations"][0]["availability"], "available");
+        assert_eq!(value["controls"][0]["control"], "root-cancellation");
+        assert_eq!(value["controls"][0]["coverage"], "compatibility-facade");
+        assert_eq!(value["executorTopology"], "sequential");
+        assert_eq!(value["effectiveMaxWorkers"], 1);
+        assert_eq!(value["debugControl"]["compiled"], false);
+        assert_eq!(value["memoryAccounting"]["accountedBytes"], false);
+        assert_eq!(
+            value["memoryAccounting"]["accountedStores"],
+            serde_json::json!([])
+        );
+        assert_eq!(value["memoryAccounting"]["unaccountedHostBytes"], true);
+    }
+
+    #[test]
+    fn control_manifest_reports_gate_one_coverage_without_claiming_later_gates() {
+        let manifest = capability_manifest(request(RuntimeKind::Native)).unwrap();
+        assert_eq!(
+            manifest.control(ControlCapabilityKind::RootCancellation),
+            ControlCapability {
+                control: ControlCapabilityKind::RootCancellation,
+                availability: CapabilityAvailability::Available,
+                coverage: ControlCoverage::CompatibilityFacade,
+            }
+        );
+        for control in [
+            ControlCapabilityKind::ScopedCancellation,
+            ControlCapabilityKind::StackDepthEnforcement,
+            ControlCapabilityKind::MemoryEnforcement,
+            ControlCapabilityKind::TimeoutEnforcement,
+        ] {
+            assert_eq!(
+                manifest.control(control).availability,
+                CapabilityAvailability::DevelopmentOnly
+            );
+        }
+        for control in [
+            ControlCapabilityKind::OperationHandles,
+            ControlCapabilityKind::Pause,
+            ControlCapabilityKind::Dap,
+            ControlCapabilityKind::HardCancel,
+        ] {
+            assert_eq!(
+                manifest.control(control).availability,
+                CapabilityAvailability::Unavailable
+            );
+        }
     }
 }

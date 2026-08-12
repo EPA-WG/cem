@@ -547,6 +547,8 @@ fn ac_pl_17_budget_can_be_inherited_from_scope_policy() {
         queue_size: 8,
         io_streams: 1,
         memory_bytes: 1024,
+        stack_depth: 256,
+        timeout_ms: None,
         plugin_time_budget_ms: Some(1),
         overflow: OverflowPolicy::Reject,
     };
