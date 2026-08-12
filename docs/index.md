@@ -24,6 +24,8 @@ This index links the active project, release, and token workflow documents.
   DevTools, CLI/editor transports, CI/CD projections, tradeoffs, and an implementation-ordered feature list.
 - [CEM-ML deployment contract](./cem-ml-deployment-contract.md) — canonical Phase 2.5 project identities, synchronized
   version authority, host matrix, capabilities, host protocol, signing, package channels, and promotion gates.
+- [CEM-ML operation-control design](./cem-ml-operation-control-design.md) — canonical worker-pool, scoped
+  cancellation, resource-limit, pause/resume, operation-handle, debugger, DAP, and stripped-build contract.
 - [CEM Studio web application proposal](./cem-studio.md) — PWA architecture, synchronized Studio/runtime/CLI npm
   packages, focused Node/Linux AMD64/Homebrew ARM64/Windows AMD64 CLI targets, semi-native Node SEA wishlist,
   local-first projects, CEM components/theme boundaries, previews, and storage providers.

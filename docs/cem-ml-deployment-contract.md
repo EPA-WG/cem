@@ -174,6 +174,12 @@ internal JSON object model. Common Rust request/result types retain native AST,
 event, item, artifact, and source-map ownership until a host boundary explicitly
 projects them.
 
+The canonical operation-handle, scoped cancellation, pause/resume, worker-pool,
+resource-failure, and debugger extensions to this envelope are defined in
+[`cem-ml-operation-control-design.md`](cem-ml-operation-control-design.md).
+Where the compact message table below omits an operation-control field or
+status, that later focused design is authoritative.
+
 The first protocol family has these messages:
 
 | Message | Required fields |

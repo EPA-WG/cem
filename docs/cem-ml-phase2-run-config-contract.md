@@ -306,6 +306,8 @@ NormalizedScopePolicy {
 }
 
 NormalizedBudgets {
+  timeoutMs?,
+  stackDepth?,
   parseMs?,
   validateMs?,
   checkMs?,
@@ -328,7 +330,12 @@ values. Unknown budget names are preserved in provenance and reported through a
 stable diagnostic unless the host has declared a future extension.
 
 Typed policy values feed scheduler worker pools, queue limits, IO limits, and
-budget diagnostics. Command paths must not each invent their own parsing rules.
+budget diagnostics. `timeoutMs` is the general active-time scope deadline;
+operation-specific time fields constrain their corresponding child execution
+scopes. `stackDepth` is the logical engine-frame limit. Their aliases,
+inheritance, enforcement, and failure behavior are canonicalized in
+[`cem-ml-operation-control-design.md`](cem-ml-operation-control-design.md).
+Command paths must not each invent their own parsing rules.
 
 ### Diagnostics Mode
 
