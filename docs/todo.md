@@ -598,11 +598,23 @@ replacement tree may mediate between internal engine layers.
     - [ ] Project the shared command parser, capability discovery, progress,
           cancellation, resolver bridge, reports, signals, and exit policy through
           the appropriate host adapters.
-        - [ ] Accept the exact version-1 host-neutral command-service request,
+        - [x] Accept the exact version-1 host-neutral command-service request,
               virtual-resource/resolver binding, structured result/report, and
               stale-revision fields before mapping parsed commands into the common
               operation service; the current browser request example remains
               explicitly illustrative rather than a frozen TypeScript API.
+
+          Completed 2026-08-13: command-service protocol v1 is fixed in the
+          canonical deployment contract. Common Rust owns the normalized-run-plan
+          request, nine-operation discriminated union, URI-keyed resource snapshot,
+          policy stamps, typed result/report, bounded artifact and source-map
+          handles, stable status/exit projection, and explicit stale-revision
+          result. Browser/Node resolver callbacks and revision ledgers remain
+          constructor-time host capabilities; signals, files, streams, terminal
+          presentation, and process exit remain adapter policy. Admission and
+          transactional publication both reject stale resource snapshots without
+          publishing partial output. The Studio snippet is still explicitly a
+          convenience illustration and now points to the canonical v1 contract.
     - [ ] Add explicit browser API, Node API, npm-executable, pack/install, and
           command-round-trip fixtures with Nx verification targets.
 

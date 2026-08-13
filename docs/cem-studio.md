@@ -575,10 +575,14 @@ const result = await engine.run({
 });
 ```
 
-This is illustrative, not a frozen TypeScript API. The actual request must be a
-projection of the normalized library run plan. It should return structured
-outputs and a report; terminal text is one optional presentation generated from
-that result.
+This remains a convenience-level illustration, not a second frozen TypeScript
+API. The exact request/resource/result/stale contract is command-service
+protocol v1 in
+[`cem-ml-deployment-contract.md`](cem-ml-deployment-contract.md#command-service-protocol-v1).
+The browser wrapper constructs that Rust-owned request from the normalized
+library run plan and returns structured outputs, diagnostics, source maps,
+artifact handles, and a report. Terminal text is only an optional presentation
+generated from that result.
 
 The app may later provide a CLI-like command bar for users who know `cem-ml`
 syntax. That parser must map an allowlisted command grammar to the same typed

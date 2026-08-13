@@ -218,6 +218,104 @@ The existing run-config, report, observability, diagnostics, and source-map
 schemas remain canonical inputs to this envelope. Phase 2.5 adds protocol and
 capability schemas; it does not duplicate them as npm-only DTOs.
 
+### Command service protocol v1
+
+Accepted 2026-08-13: the universal CLI uses one host-neutral command-service
+contract owned by common Rust. TypeScript declarations must be generated
+projections of the implementing Rust types; browser and Node adapters must not
+introduce a second request or result model. The field names below are the exact
+structured-clone/JSON projection for protocol version 1.
+
+`CommandServiceRequestV1` has these required fields:
+
+| Field | Type and rule |
+| --- | --- |
+| `protocolVersion` | The integer `1`. |
+| `requestId` | Non-empty session-unique identity, at most `MAX_IDENTITY_BYTES` UTF-8 bytes. |
+| `project` | `{ projectId, revision }`; `projectId` has the identity bound and `revision` is an integer from `0` through `9007199254740991`. |
+| `resourceVersions` | URI-keyed map of `{ revision, sha256 }` for every resource the operation may read. Revisions use the same safe-integer range and `sha256` is exactly 64 lower-case hexadecimal characters. |
+| `operation` | The discriminated `PortableOperationRequestV1` union below. |
+| `runPlan` | The common `NormalizedRunPlan`, or `null` only for `version-capabilities`. It owns input/output specs, resolver declarations, scheduler policy, budgets, diagnostics mode, and report destinations. |
+| `resources` | URI-keyed map of `VirtualResourceV1` values containing `bytes: Uint8Array` and optional common `FormatIdentity`. Every entry must have an identical key in `resourceVersions`; the SHA-256 of `bytes` must match before execution. |
+| `policyStamp` | `{ resolver, safety, budget }`; each value is a non-empty bounded identity for the effective host policy, not executable policy text. |
+
+Resource URI keys are non-empty and no longer than `MAX_SOURCE_URI_BYTES`.
+`resources` contains at most the negotiated
+`maxTransferBuffersPerMessage` entries and its aggregate bytes do not exceed
+`maxTransferBytesPerMessage`. `resourceVersions`, diagnostics, and returned
+references are bounded by the negotiated operation-host limits. A missing,
+duplicate after decoding, over-bound, digest-mismatched, or version-mismatched
+entry fails admission before engine state is created.
+
+`PortableOperationRequestV1` is a `kind`-discriminated union. Sources refer to
+`NormalizedRunPlan.inputs[*].inputId` or to a URI present in
+`resourceVersions`; live engine contexts, abort signals, resolver functions,
+scheduler scope ids, and native handles are never request fields.
+
+| `kind` | Additional fields | Common operation projection |
+| --- | --- | --- |
+| `parse` | `inputId`, `projection`, `preserveSourceOffsets` | `ParseRequest` |
+| `validate` | `inputIds`, `projection` | `ValidateRequest` |
+| `check` | `inputIds`, `projection`, `zeroHardViolations` | `CheckRequest` |
+| `inspect` | `inputId`, `show` | `InspectRequest` |
+| `convert` | `inputId`, `toFormat`, `preserveSourceOffsets` | `ConvertRequest` |
+| `query` | `dataInputId`, `queryUri`, `output` | `QueryRunRequest` and its registered exporter |
+| `transform` | `source`, `params`, `templateEntrypoint`, `preserveSourceOffsets`; `source` is either `{ kind: "direct", dataInputId, templateUri }` or `{ kind: "graph", configUri }` | `TransformRequest` or `TransformGraphRequest` |
+| `trace` | `inputId`, `projection` | `TraceRequest` |
+| `version-capabilities` | No additional fields | `ProductVersion` and `CapabilityManifest` |
+
+All enum values use the serialization already owned by the named common Rust
+type. Fail level, target identity/scope, output pipeline, resolver bindings,
+budgets, report projection/destinations, terminal presentation preferences, and
+the effective config come only from `runPlan`; the operation union does not
+duplicate them. Only the nine portable capability paths are admitted by v1.
+
+`CommandServiceResultV1` has these fields:
+
+| Field | Type and rule |
+| --- | --- |
+| `protocolVersion`, `requestId`, `project`, `resourceVersions` | Exact echoes of the admitted request identity and snapshot. |
+| `operation` | The admitted operation `kind`. |
+| `status` | `succeeded`, `failed`, `cancelled`, `fatal`, or `stale`. Exactly one terminal result is emitted. |
+| `exitCode` | `0`, `1`, `2`, `3`, `6`, `7`, or `130` under the existing CLI policy; `null` for `stale`. It is data until the npm or native executable projects it to a process exit. |
+| `result` | Optional `CommandPayloadV1<T>` containing the typed common operation result. |
+| `diagnostics` | Common `BoundedList<Diagnostic>`. |
+| `report` | Optional `CommandPayloadV1<Report>`. Terminal text is a host presentation derived from this report, never the report model. |
+| `artifacts` | Common `BoundedList<CommandArtifactHandleV1>` for outputs, reports, traces, graphs, and other retained payloads. |
+| `sourceMaps` | Common `BoundedList<CommandSourceMapReferenceV1>` associated with result or artifact handles. |
+| `identity` | Effective common version, runtime, target, ABI, schema-package, resolver-policy, safety-policy, and budget-policy stamps. |
+| `stale` | Required only when `status` is `stale`: `{ currentProjectRevision, changedResources }`, where each changed resource carries its current `{ uri, revision, sha256 }`. |
+
+`CommandPayloadV1<T>` is exactly either `{ storage: "inline", value: T }` or
+`{ storage: "artifact", handle: CommandArtifactHandleV1 }`. Inline values must
+fit the negotiated transfer bounds. `CommandArtifactHandleV1` is request-scoped
+and contains `handleId`, `kind`, optional logical `uri`, `contentType`,
+`byteLength`, `sha256`, and optional `sourceMapId`. Its `kind` is `output`,
+`report`, `source-map`, `trace`, `graph`, or `variables`.
+`CommandSourceMapReferenceV1` contains `sourceMapId`, an `owner` discriminated as
+the operation `result` or an `artifact` `handleId`, and a
+`CommandPayloadV1<SourceMapStack>`. Large payload retrieval and deterministic
+handle disposal are service methods keyed by `requestId` and `handleId`; raw
+Rust pointers and WASM memory views never cross this boundary.
+
+The host supplies a read-only current project/resource revision ledger when it
+constructs the service; the service owns both freshness comparisons. It checks
+the same snapshot immediately before admission and immediately before
+transactional publication. If either comparison is obsolete, the service
+returns `stale`, rolls back or discards every staged output, emits no published
+artifact handle, and does not mutate current project state. A normal failure or
+cancellation likewise cannot silently commit partial output.
+
+Resolver bindings are constructor-time host capabilities, not serializable
+request properties. A browser host may provide explicit async read and
+transactional write callbacks; Node may additionally install the accepted file
+and HTTPS adapters. A read returns bytes, identity, revision, and digest and is
+accepted only when it matches `resourceVersions`. Writes use prepare/commit/
+rollback and pass the freshness check before commit. Resolver callbacks,
+filesystem paths, streams, environment, signals, stdout/stderr, and process
+exit stay in their host adapter. Only the Node npm executable and native binary
+may terminate a process.
+
 ## Native build, package, and signing profiles
 
 All tool versions and runner images are pinned in the owning Nx project or
