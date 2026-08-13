@@ -659,6 +659,31 @@ replacement tree may mediate between internal engine layers.
               nine discriminators and the listed success/error metadata. The Nx
               default suite passes 1,911 unit tests, the stripped suite passes 1,899,
               and lint plus default/stripped native and WASM builds pass.
+        - [x] Hydrate missing preparation-time command-service v1 snapshots through
+              a constructor-owned async host reader after admission, requiring exact
+              revision/digest matches and retaining deterministic purpose metadata
+              without serializing callbacks into the request.
+            - [x] Add native hydration fixtures covering deterministic reads and
+                  purpose aggregation, inline-resource bypass, stale admission,
+                  host read failures, revision/digest mismatches, and successful
+                  handoff into owned operation preparation.
+
+              Completed 2026-08-13: common Rust now admits requests before host I/O,
+              computes URI-sorted preparation dependencies with aggregated resolver
+              purposes and content-type hints, bypasses inline snapshots, and reads
+              missing bytes through a constructor-owned async capability that is not
+              part of the wire request. Hydration requires the host's revision and
+              declared digest to match the admitted snapshot and independently hashes
+              returned bytes before handing an owned request to operation preparation.
+
+              Five native fixtures pass under default and stripped features, covering
+              deterministic reads, shared-purpose aggregation, inline bypass, stale
+              short-circuiting, host failures, revision/digest/byte drift, XPath hints,
+              and successful preparation handoff. The full stripped suite passes 1,904
+              unit tests; lint and default/stripped native and WASM builds pass. The
+              full default run passed 1,915 of 1,916 unit tests, with the unchanged
+              load-sensitive debug-control deadline fixture exceeding its two-second
+              limit by 100 ms; that fixture passes alone in 2.10 seconds.
     - [ ] Add explicit browser API, Node API, npm-executable, pack/install, and
           command-round-trip fixtures with Nx verification targets.
 
