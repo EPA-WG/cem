@@ -330,11 +330,44 @@ replacement tree may mediate between internal engine layers.
               transform, and full CLI suites pass; default and no-default-feature
               four-crate builds, all four lint targets, and both common WASM builds
               also pass.
-        - [ ] Gate 7 — implement DAP as the canonical editor projection plus only
+        - [x] Gate 7 — implement DAP as the canonical editor projection plus only
               the versioned `cem/operation`, `cem/executionScopes`, `cem/cancel`,
               `cem/nativeValue`, and `cem/workerTopology` gap requests; expose it via
               explicit `cem-ml debug --stdio|--listen` transports without changing
               ordinary CLI output or cancellation behavior.
+            - [x] Add native Gate 7 fixtures for initialize/capability negotiation,
+                  source breakpoint replacement and executable locations, stopped/
+                  continued events, threads, paged stack frames, scopes, variables,
+                  stepping, root termination, scoped `cem/cancel`, the remaining
+                  versioned `cem/` projections, launch/attach disconnect ownership,
+                  DAP framing, loopback-only TCP binding, ordinary CLI parity, and
+                  stripped-build command/API absence, including a non-BMP source
+                  fixture proving canonical UTF-16 editor columns.
+
+              Completed 2026-08-12: the default-enabled `debug-control` feature now
+              exposes a typed DAP session over operation handles, with negotiated
+              one-based UTF-16 editor coordinates, path/URI projection, bounded
+              positive protocol identifiers, standard launch/attach/configuration,
+              breakpoint replacement and locations, threads, stacks, scopes,
+              variables, pause/continue/stepping, termination, cancellation, and
+              disconnect ownership. Only the five accepted, versioned `cem/`
+              requests extend the standard protocol, and conditional-breakpoint
+              capability is derived from the bounded host evaluator.
+
+              `cem-ml debug` provides explicit stdio and loopback-only TCP hosts.
+              Stdio remains exclusively DAP-framed, launched commands wait for
+              `configurationDone`, ordinary dispatch output is projected as output
+              events without changing the command contract, and debug APIs plus the
+              CLI command disappear from no-default-feature builds. Native fixtures
+              cover protocol negotiation and failure shapes, non-BMP coordinates,
+              source and stopped-state projections, custom requests, ownership,
+              framing, transport policy, and CLI output parity.
+
+              The complete 1,887-test `cem_ml` suite, full CLI, CEM-QL, and 91-test
+              transform suites pass. Default native builds for all four projects,
+              stripped core and CLI builds, both common WASM builds, final lint
+              targets, and a live eight-frame stdio launch/configuration/termination
+              session also pass.
         - [ ] Gate 8 — implement Node and browser worker pools with one runtime/WASM
               instance per worker, stable message generations, operation handles,
               all-stop coordination, hard-cancel fallback, single-worker/main-thread

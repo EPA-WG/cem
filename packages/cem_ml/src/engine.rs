@@ -184,6 +184,11 @@ impl EngineContext {
         self
     }
 
+    pub fn with_operation_control(mut self, operation_control: OperationControl) -> Self {
+        self.operation_control = operation_control;
+        self
+    }
+
     pub fn abort_signal(&self) -> &AbortSignal {
         self.operation_control.abort_signal()
     }

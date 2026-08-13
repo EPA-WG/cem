@@ -128,17 +128,20 @@ A source line is a location, not a scope ID. A source selector contains:
 SourceSelector {
   sourceUri: canonical logical URI
   line: positive one-based line
-  column?: positive one-based Unicode scalar column
+  column?: positive one-based UTF-16 code-unit column
   endLine?: positive one-based line
-  endColumn?: positive one-based Unicode scalar column
+  endColumn?: positive one-based UTF-16 code-unit column
   byteRange?: { start, end }
   scope?: ExecutionScopeId
 }
 ```
 
-Rust-native APIs may use byte ranges internally. Host and DAP projections carry
-line/column coordinates and preserve the canonical URI. The DAP adapter converts
-columns at its boundary to DAP's UTF-16-code-unit convention.
+Byte ranges remain the internal source identity and Rust-native implementations
+may use them directly. Public source selectors and locations use the same
+one-based UTF-16 line/column convention as browser, devtools, CLI JSON, and DAP
+projections while preserving the canonical URI. This single editor-coordinate
+contract avoids a second retained source index and makes non-BMP positions
+stable across hosts.
 
 The runtime resolves a selector against registered safe-point locations and
 live execution scopes. A unique match returns its executable location. No match
@@ -742,6 +745,20 @@ The adapter does not advertise mutation, reverse execution, restart-frame,
 write-memory, or expression side effects. Side-effect-free evaluate/watch may
 be added only after it reuses the bounded condition evaluator.
 
+`initialize` negotiation is a projection boundary, not a second source model.
+Canonical engine locations remain one-based UTF-16. The adapter converts line
+and column bases when a client sends `linesStartAt1: false` or
+`columnsStartAt1: false`, accepts either standard `pathFormat`, and converts
+absolute native file paths to canonical `file:` URIs. A client using native
+paths must select `pathFormat: "uri"` to navigate non-file logical sources;
+otherwise such returned sources carry a display name without an invalid native
+path. Standard DAP thread, breakpoint, frame, variable-reference, request, and
+message identifiers are checked against DAP's positive `int32` domain. CEM
+operation and execution-scope identities remain versioned `u64` values in the
+custom requests. Conditional breakpoints are advertised only when the host
+supplies the bounded CEM-QL condition evaluator; hit-count conditions are
+provided by the common debugger core.
+
 Versioned custom requests use the `cem/` namespace only for gaps in DAP:
 
 - `cem/operation` returns operation identity and terminal/control state;
@@ -749,6 +766,14 @@ Versioned custom requests use the `cem/` namespace only for gaps in DAP:
 - `cem/cancel` performs root or scoped transformation cancellation;
 - `cem/nativeValue` retrieves a bounded CEM AST/event/item/artifact projection;
 - `cem/workerTopology` returns logical pools and physical worker telemetry.
+
+Every custom request requires `arguments.version` equal to the advertised
+`cemDebugRequestVersion`, and every successful response echoes that version.
+`cem/cancel` accepts optional `scope`, `reason`, and canonical one-based
+`source: { sourceUri, line, column? }` fields. `cem/nativeValue` accepts the
+stop-local DAP `variablesReference`; the other requests need no argument beyond
+the version. An unknown version fails closed rather than guessing a compatible
+shape.
 
 DAP `terminateThreads` is not used for scoped cancellation because a DAP thread
 is a logical task, while CEM cancellation targets an execution-scope subtree.
@@ -760,6 +785,12 @@ to a pre-existing operation resumes and detaches by default; it cancels only
 when `terminateDebuggee: true`. Unexpected transport loss applies the same
 default after the negotiated hard-cancel grace period so an operation cannot
 remain parked forever.
+
+Because the native CLI debuggee runs in-process, an explicit non-terminating
+disconnect closes the protocol session but retains the native host until the
+detached operation reaches its terminal outcome. This preserves the
+leave-running contract instead of exiting the adapter process underneath the
+transformation.
 
 ## 11. CLI and host transports
 
@@ -778,6 +809,11 @@ cem-ml debug --listen 127.0.0.1:0
 ```
 
 The DAP `launch` request carries the existing CEM-ML command and arguments.
+The adapter binds the operation before emitting `initialized`, and a launched
+command waits behind the DAP configuration gate until `configurationDone` so
+source breakpoints cannot race the first executable safe point. Attach hosts
+bind an operation from their host-owned operation registry and do not own its
+execution start.
 With `--stdio`, stdout is reserved exclusively for DAP framing; command output
 is sent through DAP output events or explicit destinations. The TCP form is
 single-session and loopback-only in the first version; a non-loopback bind is

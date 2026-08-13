@@ -9,6 +9,9 @@ use std::any::Any;
 use std::collections::{BTreeMap, BTreeSet};
 use std::sync::Arc;
 
+#[cfg(feature = "debug-control")]
+pub use cem_ql::debug_control::CemQlDebugConditionEvaluator;
+
 use cem_ml::conversion::{
     execute_conversion_output_pipeline_from_typed_cemt_subject_with_environment,
     ConversionOutputPipeline, ConversionOutputPipelineEnvironment, ConversionOutputPipelineStage,

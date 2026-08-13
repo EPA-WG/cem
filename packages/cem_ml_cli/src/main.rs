@@ -7,6 +7,10 @@ use std::process::ExitCode;
 
 fn main() -> ExitCode {
     let parsed = cli::Cli::parse();
+    #[cfg(feature = "debug-control")]
+    if let cli::Command::Debug(arguments) = &parsed.command {
+        return ExitCode::from(cem_ml_cli::debug_transport::run(arguments));
+    }
     let quiet = parsed.quiet;
     let no_color = parsed.no_color;
     let stdout = io::stdout();
@@ -28,6 +32,8 @@ fn main() -> ExitCode {
         quiet,
         no_color,
         abort_signal,
+        #[cfg(feature = "debug-control")]
+        operation_control: None,
     };
     let engine = RealCemMlEngine::new();
     let Outcome { exit_code } = dispatch::dispatch(&engine, parsed, &mut streams);

@@ -190,6 +190,8 @@ fn cem_ml_in_process(engine: &RealCemMlEngine, args: &[&str]) -> InProcessOutput
         quiet,
         no_color,
         abort_signal: cem_ml::scheduler::AbortSignal::new(),
+        #[cfg(feature = "debug-control")]
+        operation_control: None,
     };
     let outcome = dispatch::dispatch(engine, parsed, &mut streams);
     InProcessOutput {

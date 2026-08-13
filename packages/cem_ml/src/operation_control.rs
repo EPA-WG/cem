@@ -187,13 +187,18 @@ pub type ScopeIdentityMap = BTreeMap<ScopeIdentityKind, String>;
 #[serde(rename_all = "camelCase")]
 pub struct SourceLocation {
     pub source_uri: String,
+    /// One-based source line.
     pub line: u32,
+    /// One-based UTF-16 code-unit column shared by browser, CLI, and DAP hosts.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub column: Option<u32>,
+    /// One-based end line when the location spans a range.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub end_line: Option<u32>,
+    /// One-based UTF-16 code-unit end column.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub end_column: Option<u32>,
+    /// Authoritative internal byte range when retained by the producer.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub byte_range: Option<ByteRange>,
 }
@@ -963,6 +968,17 @@ impl OperationControl {
     }
 
     #[cfg(feature = "debug-control")]
+    pub fn debug_executable_locations(
+        &self,
+        source_uri: &str,
+        start_line: Option<u32>,
+        end_line: Option<u32>,
+    ) -> Result<Vec<crate::debug_control::ExecutableSafePoint>, DebugControlError> {
+        self.debug
+            .executable_locations(source_uri, start_line, end_line)
+    }
+
+    #[cfg(feature = "debug-control")]
     pub fn debug_safe_point(
         &self,
         task: TaskId,
@@ -1074,6 +1090,15 @@ impl OperationControl {
         reference: SnapshotReferenceId,
     ) -> Result<Arc<T>, DebugControlError> {
         self.debug.native_value(stop, reference)
+    }
+
+    #[cfg(feature = "debug-control")]
+    pub fn debug_native_projection(
+        &self,
+        stop: StopToken,
+        reference: SnapshotReferenceId,
+    ) -> Result<serde_json::Value, DebugControlError> {
+        self.debug.native_projection(stop, reference)
     }
 
     #[cfg(not(target_arch = "wasm32"))]

@@ -38,8 +38,8 @@ use crate::diagnostics::Diagnostic;
 use crate::operation_control::TaskId;
 use crate::operation_control::{
     ControlCause, ControlError, ControlFailure, ControlFailureSettlement, ControlRequestOutcome,
-    ControlTerminalClass, ExecutionScopeId, ExecutionScopeState, OperationControl, OperationId,
-    MAX_CONTROL_REASON_BYTES, MAX_SOURCE_URI_BYTES,
+    ControlTerminalClass, ExecutionScopeId, ExecutionScopeState, ExecutionScopeTree,
+    OperationControl, OperationId, MAX_CONTROL_REASON_BYTES, MAX_SOURCE_URI_BYTES,
 };
 
 pub const OPERATION_PROTOCOL_VERSION: u16 = 1;
@@ -1021,6 +1021,23 @@ impl<R: Send + Sync + 'static> OperationHandle<R> {
     }
 
     #[cfg(feature = "debug-control")]
+    pub fn debug_executable_locations(
+        &self,
+        source_uri: &str,
+        start_line: Option<u32>,
+        end_line: Option<u32>,
+    ) -> Result<Vec<ExecutableSafePoint>, DebugControlError> {
+        self.core
+            .control
+            .debug_executable_locations(source_uri, start_line, end_line)
+    }
+
+    #[cfg(feature = "debug-control")]
+    pub fn remove_pause_trigger(&self, breakpoint: BreakpointId) -> Result<(), DebugControlError> {
+        self.core.control.remove_pause_trigger(breakpoint)
+    }
+
+    #[cfg(feature = "debug-control")]
     pub fn pause(&self, spec: PauseSpec) -> Result<PauseTriggerHandle, DebugControlError> {
         self.core.control.install_pause_trigger(spec)
     }
@@ -1092,6 +1109,29 @@ impl<R: Send + Sync + 'static> OperationHandle<R> {
         reference: SnapshotReferenceId,
     ) -> Result<Arc<T>, DebugControlError> {
         self.core.control.debug_native_value(stop, reference)
+    }
+
+    #[cfg(feature = "debug-control")]
+    pub fn debug_native_projection(
+        &self,
+        stop: StopToken,
+        reference: SnapshotReferenceId,
+    ) -> Result<Value, DebugControlError> {
+        self.core.control.debug_native_projection(stop, reference)
+    }
+
+    pub fn execution_scope_tree(&self) -> ExecutionScopeTree {
+        self.core.control.scope_tree()
+    }
+
+    pub fn terminal_summary(&self) -> Option<OperationTerminalSummary> {
+        self.core
+            .state
+            .lock()
+            .expect("poisoned operation-handle mutex")
+            .terminal
+            .as_ref()
+            .map(|outcome| outcome.summary())
     }
 
     pub fn result(&self) -> OperationResultFuture<R> {

@@ -25,6 +25,8 @@ pub const MAX_VARIABLE_PAGE_SIZE: u32 = 1_000;
 pub const MAX_DEBUG_VALUE_PREVIEW_BYTES: u32 = 4 * 1_024;
 pub const MAX_SUSPENDED_SNAPSHOT_BYTES: u64 = 16 * 1_024 * 1_024;
 pub const MAX_DEBUG_BREAKPOINTS: u32 = 4_096;
+pub const DEBUG_DAP_ADAPTER_VERSION: u16 = 1;
+pub const DEBUG_REQUEST_VERSION: u16 = 1;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -160,6 +162,8 @@ pub enum ControlCoverage {
     SafePointRegistry,
     DependencyStepping,
     ImmutableSuspendedSnapshot,
+    DapProjection,
+    VersionedDebugRequests,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -196,6 +200,10 @@ pub enum ExecutorTopology {
 pub struct DebugControlCapability {
     pub compiled: bool,
     pub active: bool,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub dap_adapter_version: Option<u16>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub cem_debug_request_version: Option<u16>,
 }
 
 /// Effective operation-host bounds returned by initialization and capability
@@ -346,6 +354,10 @@ pub fn capability_manifest(
         debug_control: DebugControlCapability {
             compiled: cfg!(feature = "debug-control"),
             active: request.debug_control_active,
+            dap_adapter_version: cfg!(feature = "debug-control")
+                .then_some(DEBUG_DAP_ADAPTER_VERSION),
+            cem_debug_request_version: cfg!(feature = "debug-control")
+                .then_some(DEBUG_REQUEST_VERSION),
         },
         memory_accounting: MemoryAccountingCapability {
             accounted_bytes: false,
@@ -397,6 +409,15 @@ fn control_capability(runtime: RuntimeKind, control: ControlCapabilityKind) -> C
             if cfg!(feature = "debug-control") =>
         {
             (DevelopmentOnly, ControlCore)
+        }
+        Dap if cfg!(feature = "debug-control") && runtime == RuntimeKind::Native => {
+            (Available, DapProjection)
+        }
+        CemDebugRequests if cfg!(feature = "debug-control") && runtime == RuntimeKind::Native => {
+            (Available, VersionedDebugRequests)
+        }
+        Dap | CemDebugRequests if cfg!(feature = "debug-control") => {
+            (DevelopmentOnly, DapProjection)
         }
         Pause | SourceBreakpoints | Stepping | SuspendedInspection | Dap | CemDebugRequests
         | HardCancel => (Unavailable, None),
@@ -569,6 +590,8 @@ mod tests {
         assert_eq!(value["executorTopology"], "sequential");
         assert_eq!(value["effectiveMaxWorkers"], 1);
         assert_eq!(value["debugControl"]["compiled"], true);
+        assert_eq!(value["debugControl"]["dapAdapterVersion"], 1);
+        assert_eq!(value["debugControl"]["cemDebugRequestVersion"], 1);
         assert_eq!(value["memoryAccounting"]["accountedBytes"], false);
         assert_eq!(
             value["memoryAccounting"]["accountedStores"],
@@ -653,20 +676,35 @@ mod tests {
                 CapabilityAvailability::Available
             );
         }
-        for control in [
-            ControlCapabilityKind::Dap,
-            ControlCapabilityKind::HardCancel,
-        ] {
+        for control in [ControlCapabilityKind::HardCancel] {
             assert_eq!(
                 manifest.control(control).availability,
                 CapabilityAvailability::Unavailable
             );
         }
         assert_eq!(
+            manifest.control(ControlCapabilityKind::Dap),
+            ControlCapability {
+                control: ControlCapabilityKind::Dap,
+                availability: CapabilityAvailability::Available,
+                coverage: ControlCoverage::DapProjection,
+            }
+        );
+        assert_eq!(
+            manifest.control(ControlCapabilityKind::CemDebugRequests),
+            ControlCapability {
+                control: ControlCapabilityKind::CemDebugRequests,
+                availability: CapabilityAvailability::Available,
+                coverage: ControlCoverage::VersionedDebugRequests,
+            }
+        );
+        assert_eq!(
             manifest.debug_control,
             DebugControlCapability {
                 compiled: cfg!(feature = "debug-control"),
                 active: false,
+                dap_adapter_version: cfg!(feature = "debug-control").then_some(1),
+                cem_debug_request_version: cfg!(feature = "debug-control").then_some(1),
             }
         );
 

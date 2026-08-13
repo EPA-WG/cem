@@ -33,6 +33,8 @@ fn run(engine: &RealCemMlEngine, args: &[String]) -> CliOutput {
         quiet: parsed.quiet,
         no_color: parsed.no_color,
         abort_signal: cem_ml::scheduler::AbortSignal::new(),
+        #[cfg(feature = "debug-control")]
+        operation_control: None,
     };
     let outcome = dispatch::dispatch(engine, parsed, &mut streams);
     CliOutput {

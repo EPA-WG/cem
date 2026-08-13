@@ -13,6 +13,7 @@ use std::task::{Context, Poll, Waker};
 use std::time::{Duration, Instant};
 
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
 
 use crate::capability::{
     OperationHostLimits, MAX_DEBUG_BREAKPOINTS, MAX_DEBUG_VALUE_PREVIEW_BYTES,
@@ -149,6 +150,10 @@ pub struct PauseSpec {
     pub trigger: PauseTriggerKind,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub scope: Option<ExecutionScopeId>,
+    /// Logical task preferred to trigger a manual all-stop. Other tasks may
+    /// trigger only while this task is not actively running.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub preferred_task: Option<TaskId>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub source: Option<DebugSourceSelector>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -164,6 +169,7 @@ impl PauseSpec {
         Self {
             trigger: PauseTriggerKind::NextSafePoint,
             scope,
+            preferred_task: None,
             source: None,
             condition: None,
             hit_condition: None,
@@ -175,6 +181,7 @@ impl PauseSpec {
         Self {
             trigger: PauseTriggerKind::SourceLocation,
             scope: None,
+            preferred_task: None,
             source: Some(source),
             condition: None,
             hit_condition: None,
@@ -288,6 +295,9 @@ pub struct DebugValueCapture {
     pub named: Vec<DebugVariableCapture>,
     pub indexed: Vec<DebugValueCapture>,
     pub native_value: Option<Arc<dyn Any + Send + Sync>>,
+    /// Bounded, read-only host projection captured at the same safe point as
+    /// the native value. Debug adapters never invoke user code while stopped.
+    pub native_projection: Option<Value>,
 }
 
 impl fmt::Debug for DebugValueCapture {
@@ -301,6 +311,7 @@ impl fmt::Debug for DebugValueCapture {
             .field("named", &self.named)
             .field("indexed", &self.indexed)
             .field("native_value", &self.native_value.as_ref().map(|_| "typed"))
+            .field("native_projection", &self.native_projection)
             .finish()
     }
 }
@@ -315,6 +326,7 @@ impl DebugValueCapture {
             named: Vec::new(),
             indexed: Vec::new(),
             native_value: None,
+            native_projection: None,
         }
     }
 
@@ -327,6 +339,19 @@ impl DebugValueCapture {
             native_value: Some(Arc::new(value)),
             ..Self::scalar(type_name, preview)
         }
+    }
+
+    pub fn projected_native<T: Any + Send + Sync, P: Serialize>(
+        type_name: impl Into<String>,
+        preview: impl Into<String>,
+        value: T,
+        projection: P,
+    ) -> Result<Self, serde_json::Error> {
+        Ok(Self {
+            native_value: Some(Arc::new(value)),
+            native_projection: Some(serde_json::to_value(projection)?),
+            ..Self::scalar(type_name, preview)
+        })
     }
 }
 
@@ -700,6 +725,7 @@ struct SnapshotValueRecord {
     named: DebugBoundedList<VariableSnapshot>,
     indexed: DebugBoundedList<VariableSnapshot>,
     native_value: Option<Arc<dyn Any + Send + Sync>>,
+    native_projection: Option<Value>,
 }
 
 impl fmt::Debug for SnapshotValueRecord {
@@ -709,6 +735,7 @@ impl fmt::Debug for SnapshotValueRecord {
             .field("named", &self.named)
             .field("indexed", &self.indexed)
             .field("native_value", &self.native_value.as_ref().map(|_| "typed"))
+            .field("native_projection", &self.native_projection)
             .finish()
     }
 }
@@ -1026,6 +1053,11 @@ impl OperationDebugControl {
                 .lock()
                 .expect("poisoned debug-control mutex");
             ensure_active(&inner)?;
+            if let Some(task) = spec.preferred_task {
+                if !inner.tasks.contains_key(&task) {
+                    return Err(DebugControlError::UnknownTask(task));
+                }
+            }
             if inner.breakpoints.len() >= inner.limits.max_debug_breakpoints as usize {
                 return Err(DebugControlError::BreakpointLimit {
                     maximum: inner.limits.max_debug_breakpoints,
@@ -1101,6 +1133,47 @@ impl OperationDebugControl {
             observer.breakpoint_removed(breakpoint);
         }
         Ok(())
+    }
+
+    pub(crate) fn executable_locations(
+        &self,
+        source_uri: &str,
+        start_line: Option<u32>,
+        end_line: Option<u32>,
+    ) -> Result<Vec<ExecutableSafePoint>, DebugControlError> {
+        if source_uri.is_empty()
+            || source_uri.len() > MAX_SOURCE_URI_BYTES
+            || source_uri.chars().any(char::is_control)
+            || matches!((start_line, end_line), (Some(start), Some(end)) if start > end)
+        {
+            return Err(DebugControlError::InvalidSourceSelector);
+        }
+        let inner = self
+            .shared
+            .inner
+            .lock()
+            .expect("poisoned debug-control mutex");
+        ensure_active(&inner)?;
+        let mut points = inner
+            .safe_points
+            .values()
+            .filter(|point| point.kind.visible())
+            .filter(|point| {
+                point.location.as_ref().is_some_and(|location| {
+                    location.source_uri == source_uri
+                        && start_line.is_none_or(|start| location.line >= start)
+                        && end_line.is_none_or(|end| location.line <= end)
+                })
+            })
+            .cloned()
+            .collect::<Vec<_>>();
+        points.sort_by_key(|point| {
+            point
+                .location
+                .as_ref()
+                .map(|location| (location.line, location.column.unwrap_or(0), point.id))
+        });
+        Ok(points)
     }
 
     pub(crate) fn safe_point(
@@ -1582,6 +1655,27 @@ impl OperationDebugControl {
             .map_err(|_| DebugControlError::NativeValueTypeMismatch)
     }
 
+    pub(crate) fn native_projection(
+        &self,
+        stop: StopToken,
+        reference: SnapshotReferenceId,
+    ) -> Result<Value, DebugControlError> {
+        let inner = self
+            .shared
+            .inner
+            .lock()
+            .expect("poisoned debug-control mutex");
+        validate_current_stop(self.shared.operation_id, &inner, stop)?;
+        inner
+            .current_snapshot
+            .as_ref()
+            .expect("validated snapshot")
+            .value_records
+            .get(&reference)
+            .and_then(|record| record.native_projection.clone())
+            .ok_or(DebugControlError::UnknownSnapshotReference(reference))
+    }
+
     fn trigger_poll(
         &self,
         breakpoint: BreakpointId,
@@ -1862,12 +1956,12 @@ fn validate_pause_spec(spec: &PauseSpec) -> Result<(), DebugControlError> {
             }
         }
         PauseTriggerKind::ScopeEnter | PauseTriggerKind::ScopeExit => {
-            if spec.scope.is_some() == spec.source.is_some() {
+            if spec.scope.is_some() == spec.source.is_some() || spec.preferred_task.is_some() {
                 return Err(DebugControlError::InvalidPauseSpec);
             }
         }
         PauseTriggerKind::SourceLocation => {
-            if spec.source.is_none() || spec.scope.is_some() {
+            if spec.source.is_none() || spec.scope.is_some() || spec.preferred_task.is_some() {
                 return Err(DebugControlError::InvalidPauseSpec);
             }
         }
@@ -1985,7 +2079,15 @@ fn matching_breakpoint(
             let record = inner.breakpoints.get(&id).expect("known breakpoint");
             record.enabled
                 && !record.removed
-                && breakpoint_matches(record, task_owner, point, capture, &inner.scopes)
+                && breakpoint_matches(
+                    record,
+                    task,
+                    task_owner,
+                    point,
+                    capture,
+                    &inner.scopes,
+                    &inner.tasks,
+                )
         };
         if !matches {
             continue;
@@ -2044,11 +2146,21 @@ fn matching_breakpoint(
 
 fn breakpoint_matches(
     record: &BreakpointRecord,
+    task: TaskId,
     task_owner: ExecutionScopeId,
     point: &ExecutableSafePoint,
     capture: &DebugSafePointCapture,
     scopes: &BTreeMap<ExecutionScopeId, ExecutionScope>,
+    tasks: &BTreeMap<TaskId, TaskRuntime>,
 ) -> bool {
+    if record.spec.preferred_task.is_some_and(|preferred| {
+        preferred != task
+            && tasks
+                .get(&preferred)
+                .is_some_and(|runtime| runtime.state == DebugTaskState::Running)
+    }) {
+        return false;
+    }
     let scope_match = record
         .target_scope
         .is_none_or(|scope| scope_is_descendant(scopes, scope, point.scope));
@@ -2362,12 +2474,18 @@ impl SnapshotBuilder {
             }
         }
         if let Some(reference) = reference {
+            let native_projection = capture.native_projection.clone().filter(|projection| {
+                serde_json::to_vec(projection)
+                    .ok()
+                    .is_some_and(|encoded| self.charge(encoded.len()))
+            });
             self.value_records.insert(
                 reference,
                 SnapshotValueRecord {
                     named: DebugBoundedList::from_items(named, capture.named.len()),
                     indexed: DebugBoundedList::from_items(indexed, capture.indexed.len()),
                     native_value: capture.native_value.clone(),
+                    native_projection,
                 },
             );
         }
@@ -2410,6 +2528,7 @@ impl SnapshotBuilder {
                 named: DebugBoundedList::from_items(variables, capture.variables.len()),
                 indexed: DebugBoundedList::from_items(Vec::new(), 0),
                 native_value: None,
+                native_projection: None,
             },
         );
         Some(VariableScopeSnapshot {
@@ -2919,6 +3038,7 @@ mod tests {
             .pause(PauseSpec {
                 trigger: PauseTriggerKind::ScopeEnter,
                 scope: Some(root),
+                preferred_task: None,
                 source: None,
                 condition: None,
                 hit_condition: None,
@@ -3097,6 +3217,7 @@ mod tests {
                 }],
                 indexed: vec![DebugValueCapture::scalar("text", "child")],
                 native_value: Some(Arc::new(vec![1_u8, 2, 3])),
+                native_projection: Some(serde_json::json!([1, 2, 3])),
             };
             let mut frame = frame(root, 11, "template-call");
             frame.variable_scopes = vec![DebugVariableScopeCapture {
@@ -3234,7 +3355,10 @@ mod tests {
 
     #[test]
     fn completed_stop_time_is_excluded_from_active_deadlines() {
-        let policy = ScopePolicy::host_root().with_timeout_ms(Some(200));
+        // Leave enough active time for this worker to be scheduled even while
+        // the large library test binary is running in parallel. The parked
+        // interval still exceeds the entire configured active deadline.
+        let policy = ScopePolicy::host_root().with_timeout_ms(Some(2_000));
         let control = OperationControl::with_root_policy(AbortSignal::new(), policy).unwrap();
         let (handle, _) = OperationHandle::<()>::with_defaults(control.clone()).unwrap();
         handle.activate_debug_control(None).unwrap();
@@ -3252,7 +3376,7 @@ mod tests {
             .blocking_next_timeout(Duration::from_secs(2))
             .unwrap()
             .unwrap();
-        thread::sleep(Duration::from_millis(250));
+        thread::sleep(Duration::from_millis(2_100));
         handle.resume(stopped.stop).unwrap();
         worker.join().unwrap();
         control.check_scope(root).unwrap();

@@ -1,3 +1,5 @@
+#[cfg(feature = "debug-control")]
+use clap::ArgGroup;
 use clap::{Args, Parser, Subcommand, ValueEnum};
 use std::path::PathBuf;
 use std::str::FromStr;
@@ -47,6 +49,9 @@ pub struct Cli {
 
 #[derive(Subcommand, Debug)]
 pub enum Command {
+    #[cfg(feature = "debug-control")]
+    #[command(about = "Run the CEM-ML Debug Adapter Protocol host")]
+    Debug(DebugArgs),
     Parse(ParseArgs),
     Validate(ValidateArgs),
     Check(CheckArgs),
@@ -67,6 +72,26 @@ pub enum Command {
     Schema(SchemaCmd),
     #[command(subcommand, about = "Reserved: plugin workflows (not yet implemented)")]
     Plugin(PluginCmd),
+}
+
+#[cfg(feature = "debug-control")]
+#[derive(Args, Debug, Clone)]
+#[command(group(
+    ArgGroup::new("transport")
+        .required(true)
+        .multiple(false)
+        .args(["stdio", "listen"])
+))]
+pub struct DebugArgs {
+    #[arg(long, help = "Read and write DAP framing on stdin/stdout")]
+    pub stdio: bool,
+
+    #[arg(
+        long,
+        value_name = "LOOPBACK:PORT",
+        help = "Accept one DAP session on a loopback TCP endpoint"
+    )]
+    pub listen: Option<String>,
 }
 
 #[derive(Subcommand, Debug)]

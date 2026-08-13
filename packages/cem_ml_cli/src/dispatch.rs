@@ -66,6 +66,10 @@ pub struct Streams<'a> {
     pub no_color: bool,
     /// One host-owned signal shared by all phases of this dispatch.
     pub abort_signal: cem_ml::scheduler::AbortSignal,
+    /// Present only for an explicit debugger launch. Ordinary dispatch keeps
+    /// constructing its operation control from the host signal as before.
+    #[cfg(feature = "debug-control")]
+    pub operation_control: Option<cem_ml::operation_control::OperationControl>,
 }
 
 enum CliRequestError {
@@ -502,14 +506,11 @@ fn read_registered_source(
     if let Some(content_type_hint) = content_type_hint {
         request = request.with_content_type_hint(content_type_hint);
     }
-    match context
-        .resolver_registry
-        .read_with_control(
-            &request,
-            &context.operation_control,
-            cem_ml::operation_control::ROOT_EXECUTION_SCOPE_ID,
-        )
-    {
+    match context.resolver_registry.read_with_control(
+        &request,
+        &context.operation_control,
+        cem_ml::operation_control::ROOT_EXECUTION_SCOPE_ID,
+    ) {
         Ok(read) => Ok(Some(read)),
         Err(ResolverDiagnostic::UnsupportedResolver { .. }) => Ok(None),
         Err(error @ ResolverDiagnostic::Cancelled { .. }) => {
@@ -1071,7 +1072,15 @@ fn context(c: &cli::ContextOptions) -> eng::EngineContext {
 }
 
 fn context_for_dispatch(c: &cli::ContextOptions, s: &Streams<'_>) -> eng::EngineContext {
-    context(c).with_abort_signal(s.abort_signal.clone())
+    context_with_stream_control(context(c), s)
+}
+
+fn context_with_stream_control(context: eng::EngineContext, s: &Streams<'_>) -> eng::EngineContext {
+    #[cfg(feature = "debug-control")]
+    if let Some(control) = &s.operation_control {
+        return context.with_operation_control(control.clone());
+    }
+    context.with_abort_signal(s.abort_signal.clone())
 }
 
 fn convert_context(c: &cli::ContextOptions) -> eng::EngineContext {
@@ -1120,7 +1129,7 @@ fn convert_context_with_config_for_dispatch(
     config: &RunConfig,
     s: &Streams<'_>,
 ) -> eng::EngineContext {
-    convert_context_with_config(c, config).with_abort_signal(s.abort_signal.clone())
+    context_with_stream_control(convert_context_with_config(c, config), s)
 }
 
 fn context_with_config(c: &cli::ContextOptions, config: &RunConfig) -> eng::EngineContext {
@@ -1142,7 +1151,7 @@ fn context_with_config_for_dispatch(
     config: &RunConfig,
     s: &Streams<'_>,
 ) -> eng::EngineContext {
-    context_with_config(c, config).with_abort_signal(s.abort_signal.clone())
+    context_with_stream_control(context_with_config(c, config), s)
 }
 
 fn register_cli_resolvers(
@@ -2021,14 +2030,11 @@ fn transform_graph_expand_resolver_import_paths(
     transform_graph_validate_import_glob(raw, config_source_uri)?;
     let request = ResolveListRequest::new(raw, ResolvePurpose::Input)
         .with_max_entries(TRANSFORM_GRAPH_IMPORT_GLOB_MAX_ENTRIES + 1);
-    let mut entries = match context
-        .resolver_registry
-        .list_with_control(
-            &request,
-            &context.operation_control,
-            cem_ml::operation_control::ROOT_EXECUTION_SCOPE_ID,
-        )
-    {
+    let mut entries = match context.resolver_registry.list_with_control(
+        &request,
+        &context.operation_control,
+        cem_ml::operation_control::ROOT_EXECUTION_SCOPE_ID,
+    ) {
         Ok(entries) => entries,
         Err(ResolverDiagnostic::UnsupportedResolver { .. }) => {
             return Err(transform_config_error(
@@ -4377,15 +4383,12 @@ fn write_registered_destination(
     contents: &[u8],
 ) -> io::Result<bool> {
     let request = ResolveRequest::new(uri, purpose, ResolveDirection::Write);
-    match context
-        .resolver_registry
-        .write_with_control(
-            &request,
-            contents,
-            &context.operation_control,
-            cem_ml::operation_control::ROOT_EXECUTION_SCOPE_ID,
-        )
-    {
+    match context.resolver_registry.write_with_control(
+        &request,
+        contents,
+        &context.operation_control,
+        cem_ml::operation_control::ROOT_EXECUTION_SCOPE_ID,
+    ) {
         Ok(_) => Ok(true),
         Err(ResolverDiagnostic::UnsupportedResolver { .. }) => Ok(false),
         Err(error @ ResolverDiagnostic::Cancelled { .. }) => {
@@ -9193,6 +9196,8 @@ mod tests {
                 quiet,
                 no_color,
                 abort_signal: cem_ml::scheduler::AbortSignal::new(),
+                #[cfg(feature = "debug-control")]
+                operation_control: None,
             };
             dispatch(engine, parsed, &mut s)
         };
@@ -9217,6 +9222,8 @@ mod tests {
                 quiet: false,
                 no_color: true,
                 abort_signal,
+                #[cfg(feature = "debug-control")]
+                operation_control: None,
             };
             dispatch(&FakeEngine, parsed, &mut streams)
         };
@@ -10543,6 +10550,8 @@ mod tests {
             quiet: false,
             no_color: false,
             abort_signal: cem_ml::scheduler::AbortSignal::new(),
+            #[cfg(feature = "debug-control")]
+            operation_control: None,
         };
 
         write_document_primary(
@@ -10574,6 +10583,8 @@ mod tests {
             quiet: false,
             no_color: false,
             abort_signal: cem_ml::scheduler::AbortSignal::new(),
+            #[cfg(feature = "debug-control")]
+            operation_control: None,
         };
 
         write_document_primary(
@@ -10624,6 +10635,8 @@ mod tests {
             quiet: false,
             no_color: false,
             abort_signal: cem_ml::scheduler::AbortSignal::new(),
+            #[cfg(feature = "debug-control")]
+            operation_control: None,
         };
 
         write_transform_graph_artifacts(
@@ -10697,6 +10710,8 @@ mod tests {
             quiet: false,
             no_color: false,
             abort_signal: cem_ml::scheduler::AbortSignal::new(),
+            #[cfg(feature = "debug-control")]
+            operation_control: None,
         };
 
         write_transform_graph_artifacts(
@@ -10812,6 +10827,8 @@ mod tests {
             quiet: false,
             no_color: false,
             abort_signal: cem_ml::scheduler::AbortSignal::new(),
+            #[cfg(feature = "debug-control")]
+            operation_control: None,
         };
 
         write_transform_graph_artifacts(
@@ -10895,6 +10912,8 @@ mod tests {
             quiet: false,
             no_color: false,
             abort_signal: cem_ml::scheduler::AbortSignal::new(),
+            #[cfg(feature = "debug-control")]
+            operation_control: None,
         };
 
         write_transform_graph_artifacts(
@@ -18759,6 +18778,8 @@ start =
             quiet: false,
             no_color: false,
             abort_signal: cem_ml::scheduler::AbortSignal::new(),
+            #[cfg(feature = "debug-control")]
+            operation_control: None,
         };
 
         write_primary(
@@ -18785,6 +18806,8 @@ start =
             quiet: false,
             no_color: false,
             abort_signal: cem_ml::scheduler::AbortSignal::new(),
+            #[cfg(feature = "debug-control")]
+            operation_control: None,
         };
         let response = eng::ConvertResponse {
             primary: serde_json::json!({"kind": "not-binary-envelope"}),
@@ -18824,6 +18847,8 @@ start =
             quiet: false,
             no_color: false,
             abort_signal: cem_ml::scheduler::AbortSignal::new(),
+            #[cfg(feature = "debug-control")]
+            operation_control: None,
         };
 
         write_primary(
@@ -24910,6 +24935,14 @@ pub fn dispatch<E: CemMlEngine + ?Sized>(
         }
     }
     match parsed.command {
+        #[cfg(feature = "debug-control")]
+        cli::Command::Debug(_) => {
+            let _ = writeln!(
+                s.stderr,
+                "cem-ml: debug transport must be entered through the native host"
+            );
+            Outcome::code(EXIT_INTERNAL)
+        }
         cli::Command::Parse(a) => run_parse(engine, a, s),
         cli::Command::Validate(a) => run_validate(engine, a, s),
         cli::Command::Check(a) => run_check(engine, a, s),
