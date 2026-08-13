@@ -2,6 +2,7 @@ pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 
 pub mod benchmark;
 pub mod capability;
+pub mod command_service;
 pub mod conversion;
 pub(crate) mod conversion_output;
 #[cfg(feature = "debug-control")]

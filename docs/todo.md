@@ -615,6 +615,30 @@ replacement tree may mediate between internal engine layers.
           transactional publication both reject stale resource snapshots without
           publishing partial output. The Studio snippet is still explicitly a
           convenience illustration and now points to the canonical v1 contract.
+        - [x] Implement the Rust-owned command-service v1 wire types, bounded
+              admission validation, and revision-ledger freshness classifier
+              before exposing host adapters or mapping operations to execution.
+            - [x] Add native serialization/admission fixtures covering all nine
+                  operation discriminators, exact camel/kebab-case wire fields,
+                  request and policy bounds, URI/version/digest validation,
+                  missing run plans/resources, stale snapshots, typed payloads,
+                  artifact/source-map references, and stable exit codes.
+
+          Completed 2026-08-13: common Rust now owns the complete protocol-v1
+          request/result wire model, duplicate-safe URI maps, SHA-256 resource
+          integrity checks, negotiated transfer and metadata bounds, normalized
+          run-plan admission, typed payload/artifact/source-map validation, and
+          stable status/exit projection. One reusable revision-ledger classifier
+          runs at admission and can run again before transactional publication;
+          stale snapshots cannot publish payloads or artifacts.
+
+          Six native fixtures cover all nine portable operation discriminators,
+          exact wire spelling and required nullable fields, additive-field
+          compatibility, duplicate URI rejection, every request/policy/resource
+          bound, missing plans and resources, digest/version failures, unknown or
+          repeated inputs, stale revisions, typed results, artifact/source-map
+          references, and stable exits. Default and stripped native suites, lint,
+          default and stripped builds, and the WASM build all pass through Nx.
     - [ ] Add explicit browser API, Node API, npm-executable, pack/install, and
           command-round-trip fixtures with Nx verification targets.
 

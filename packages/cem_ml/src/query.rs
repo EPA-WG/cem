@@ -50,7 +50,10 @@ const CSS_SELECTOR_INPUT_MODELS: &[QueryInputModel] = &[QueryInputModel::Element
 const CEM_QL_INPUT_MODELS: &[QueryInputModel] = &[QueryInputModel::NativeItems];
 const XPATH_INPUT_MODELS: &[QueryInputModel] = &[QueryInputModel::XdmTree];
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, serde::Serialize, serde::Deserialize,
+)]
+#[serde(rename_all = "kebab-case")]
 pub enum QueryLanguage {
     CssSelector,
     CemQl,
@@ -400,7 +403,10 @@ impl fmt::Debug for QueryEvaluatorRegistry {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, serde::Serialize, serde::Deserialize,
+)]
+#[serde(rename_all = "lowercase")]
 pub enum QueryExportFormat {
     Terminal,
     Cem,
