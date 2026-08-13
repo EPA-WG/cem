@@ -21,10 +21,14 @@ assert.equal(packageMetadata.exports['./wasm'].node.import, './dist/wasm/node/ce
 assert.equal(packageMetadata.exports['./wasm'].browser.import, './dist/wasm/browser/cem_ml.js');
 
 const runtimeManifest = readJson(resolve(distRoot, 'cem-ml-runtime.json'));
+assert.equal(runtimeManifest.featureProfile, 'debug-control');
 assert.equal(runtimeManifest.package.name, packageMetadata.name);
 assert.equal(runtimeManifest.package.version, cargoVersion);
 assert.equal(runtimeManifest.commonVersion, cargoVersion);
-assert.match(runtimeManifest.abi.identity, /^wasm-bindgen@\d+\.\d+\.\d+$/);
+assert.match(
+  runtimeManifest.abi.identity,
+  /^wasm-bindgen@\d+\.\d+\.\d+;profile=debug-control$/,
+);
 assert.equal(runtimeManifest.capabilities.node.runtime, 'wasm-node');
 assert.equal(runtimeManifest.capabilities.browser.runtime, 'wasm-browser-worker');
 assert.equal(runtimeManifest.capabilities.node.commonVersion, cargoVersion);

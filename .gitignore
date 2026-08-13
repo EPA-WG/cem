@@ -6,6 +6,7 @@ z.*
 # compiled output
 
 dist
+dist-stripped
 tmp
 out-tsc
 storybook-static

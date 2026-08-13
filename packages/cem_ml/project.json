@@ -73,6 +73,43 @@
                 }
             }
         },
+        "build:stripped": {
+            "cache": true,
+            "executor": "nx:run-commands",
+            "options": {
+                "command": "cargo build --locked --package cem-ml --lib --no-default-features --target-dir dist/target/cem_ml_stripped",
+                "cwd": "{workspaceRoot}"
+            },
+            "inputs": [
+                "{projectRoot}/src/**/*.rs",
+                "{projectRoot}/Cargo.toml",
+                "{workspaceRoot}/Cargo.toml",
+                "{workspaceRoot}/Cargo.lock"
+            ],
+            "outputs": ["{workspaceRoot}/dist/target/cem_ml_stripped"]
+        },
+        "test:stripped": {
+            "cache": true,
+            "executor": "nx:run-commands",
+            "dependsOn": ["test:observability-schema", "test:cli-schema-artifacts"],
+            "options": {
+                "command": "cargo test --locked --package cem-ml --no-default-features --target-dir dist/target/cem_ml_stripped",
+                "cwd": "{workspaceRoot}"
+            },
+            "inputs": [
+                "{projectRoot}/src/**/*.rs",
+                "{projectRoot}/tests/**/*.rs",
+                "{projectRoot}/Cargo.toml",
+                "{projectRoot}/grammar/tree-sitter-cem/**/*",
+                "{workspaceRoot}/Cargo.toml",
+                "{workspaceRoot}/Cargo.lock",
+                "{workspaceRoot}/packages/custom-element/material/components/**/*.html",
+                "{workspaceRoot}/packages/custom-element/test-fixtures/legacy-compat-manifest.json",
+                "{workspaceRoot}/packages/cem_ml_transform_cem_ql/src/lib.rs",
+                "{workspaceRoot}/packages/cem_ml_cli/src/dispatch.rs"
+            ],
+            "outputs": ["{workspaceRoot}/dist/target/cem_ml_stripped"]
+        },
         "test:scss": {
             "cache": true,
             "executor": "nx:run-commands",
@@ -166,6 +203,21 @@
                 "cwd": "packages/cem_ml"
             },
             "outputs": ["{workspaceRoot}/dist/target/wasm32-unknown-unknown"]
+        },
+        "build:wasm:stripped": {
+            "cache": true,
+            "executor": "nx:run-commands",
+            "options": {
+                "command": "cargo build --locked --package cem-ml --lib --target wasm32-unknown-unknown --no-default-features --target-dir dist/target/cem_ml_wasm_stripped",
+                "cwd": "{workspaceRoot}"
+            },
+            "inputs": [
+                "{projectRoot}/src/**/*.rs",
+                "{projectRoot}/Cargo.toml",
+                "{workspaceRoot}/Cargo.toml",
+                "{workspaceRoot}/Cargo.lock"
+            ],
+            "outputs": ["{workspaceRoot}/dist/target/cem_ml_wasm_stripped"]
         },
         "bench": {
             "cache": false,

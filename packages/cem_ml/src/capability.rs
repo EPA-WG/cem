@@ -590,9 +590,18 @@ mod tests {
         assert_eq!(value["controls"][0]["coverage"], "compatibility-facade");
         assert_eq!(value["executorTopology"], "sequential");
         assert_eq!(value["effectiveMaxWorkers"], 1);
-        assert_eq!(value["debugControl"]["compiled"], true);
-        assert_eq!(value["debugControl"]["dapAdapterVersion"], 1);
-        assert_eq!(value["debugControl"]["cemDebugRequestVersion"], 1);
+        assert_eq!(
+            value["debugControl"]["compiled"],
+            cfg!(feature = "debug-control")
+        );
+        assert_eq!(
+            value["debugControl"]["dapAdapterVersion"],
+            serde_json::json!(cfg!(feature = "debug-control").then_some(1))
+        );
+        assert_eq!(
+            value["debugControl"]["cemDebugRequestVersion"],
+            serde_json::json!(cfg!(feature = "debug-control").then_some(1))
+        );
         assert_eq!(value["memoryAccounting"]["accountedBytes"], false);
         assert_eq!(
             value["memoryAccounting"]["accountedStores"],
@@ -667,6 +676,13 @@ mod tests {
         for control in [
             ControlCapabilityKind::OperationHandles,
             ControlCapabilityKind::BoundedSubscriptions,
+        ] {
+            assert_eq!(
+                manifest.control(control).availability,
+                CapabilityAvailability::Available
+            );
+        }
+        for control in [
             ControlCapabilityKind::Pause,
             ControlCapabilityKind::SourceBreakpoints,
             ControlCapabilityKind::Stepping,
@@ -674,7 +690,11 @@ mod tests {
         ] {
             assert_eq!(
                 manifest.control(control).availability,
-                CapabilityAvailability::Available
+                if cfg!(feature = "debug-control") {
+                    CapabilityAvailability::Available
+                } else {
+                    CapabilityAvailability::Unavailable
+                }
             );
         }
         for control in [ControlCapabilityKind::HardCancel] {
@@ -687,16 +707,32 @@ mod tests {
             manifest.control(ControlCapabilityKind::Dap),
             ControlCapability {
                 control: ControlCapabilityKind::Dap,
-                availability: CapabilityAvailability::Available,
-                coverage: ControlCoverage::DapProjection,
+                availability: if cfg!(feature = "debug-control") {
+                    CapabilityAvailability::Available
+                } else {
+                    CapabilityAvailability::Unavailable
+                },
+                coverage: if cfg!(feature = "debug-control") {
+                    ControlCoverage::DapProjection
+                } else {
+                    ControlCoverage::None
+                },
             }
         );
         assert_eq!(
             manifest.control(ControlCapabilityKind::CemDebugRequests),
             ControlCapability {
                 control: ControlCapabilityKind::CemDebugRequests,
-                availability: CapabilityAvailability::Available,
-                coverage: ControlCoverage::VersionedDebugRequests,
+                availability: if cfg!(feature = "debug-control") {
+                    CapabilityAvailability::Available
+                } else {
+                    CapabilityAvailability::Unavailable
+                },
+                coverage: if cfg!(feature = "debug-control") {
+                    ControlCoverage::VersionedDebugRequests
+                } else {
+                    ControlCoverage::None
+                },
             }
         );
         assert_eq!(

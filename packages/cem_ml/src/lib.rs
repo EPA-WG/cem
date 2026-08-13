@@ -48,6 +48,9 @@ pub mod transform_template;
 pub mod validation;
 pub mod worker_control;
 
+#[cfg(all(test, not(feature = "debug-control")))]
+mod stripped_profile;
+
 #[cfg(feature = "fake-engine")]
 pub mod fake;
 

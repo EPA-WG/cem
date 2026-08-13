@@ -481,10 +481,43 @@ replacement tree may mediate between internal engine layers.
               1,900-test native suite plus all integrations, common lint and WASM
               compilation, both npm lints, low-level runtime ABI verification, Node
               fixtures, Chromium fixtures, and CLI distribution verification pass.
-        - [ ] Gate 9 — add and verify the `--no-default-features` stripped profile:
+        - [x] Gate 9 — add and verify the `--no-default-features` stripped profile:
               debugger APIs, transports, frame capture, and symbols are absent while
               cancellation, stack/memory/timeout enforcement, deterministic output,
               progress, diagnostics, and terminal semantics remain green.
+            - [x] Add explicit cached Nx targets for stripped common native tests,
+                  common WASM compilation, native CLI build/tests, and low-level
+                  WASM runtime generation without transitive default features.
+            - [x] Add native stripped-profile fixtures for capability truthfulness,
+                  cancellation, stack/memory/timeout failures, deterministic staged
+                  output, progress/diagnostics, and exactly-one terminal settlement.
+            - [x] Add compile-surface, CLI-help, native-symbol, WASM-binding, and
+                  package-manifest checks proving debugger APIs, transports, frame/
+                  variable capture, DAP, and `cem/` debugger requests are absent.
+            - [x] Give default and stripped WASM artifacts distinct profile-qualified
+                  ABI/capability identities, target/cache roots, integrity manifests,
+                  and verification so release packaging cannot substitute profiles.
+
+              Completed 2026-08-13: added isolated cached Nx build/test targets for
+              stripped common native, common WASM, native CLI, and low-level release
+              WASM artifacts. Default and stripped packages now use distinct target
+              roots, output roots, `debug-control` / `stripped` feature identities,
+              profile-qualified ABI strings, capability projections, and complete
+              SHA-256 integrity manifests. Native stripped-only fixtures prove
+              truthful debug rejection while cancellation, stack, memory, deadline,
+              deterministic resumable query commit, progress/diagnostic events, and
+              exactly-one terminal settlement remain available.
+
+              The aggregate verifier proves debugger Rust imports do not compile,
+              the CLI command/transport and native symbols are absent, generated
+              pause/acknowledge/continue/step WASM bindings and declarations are
+              absent, and transitive Cargo features stay stripped. Both 1,900-test
+              default and 1,888-test stripped common suites plus integrations pass;
+              the stripped CLI passes 501 unit and 114 integration tests with one
+              documented ignored recursive fixture. Default runtime, clean-consumer,
+              and all three lint targets pass. The stripped WASM is 43,446 bytes
+              smaller per browser/Node target and the stripped native CLI is
+              15,305,392 bytes smaller than its default counterpart.
 
 - [x] Create the separate `@epa-wg/cem-ml` WASM runtime npm deployment
       project.

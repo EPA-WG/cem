@@ -14,7 +14,13 @@ import { fileURLToPath } from 'node:url';
 
 const projectRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const workspaceRoot = resolve(projectRoot, '../..');
-const distRoot = resolve(projectRoot, 'dist');
+const requestedProfile = process.argv[2] ?? 'default';
+if (!['default', 'stripped'].includes(requestedProfile)) {
+  throw new Error(`Unknown CEM-ML runtime profile: ${requestedProfile}`);
+}
+const stripped = requestedProfile === 'stripped';
+const featureProfile = stripped ? 'stripped' : 'debug-control';
+const distRoot = resolve(projectRoot, stripped ? 'dist-stripped' : 'dist');
 const browserRoot = resolve(distRoot, 'wasm/browser');
 const nodeRoot = resolve(distRoot, 'wasm/node');
 const schemaSourceRoot = resolve(workspaceRoot, 'packages/cem_ml/schema-packages');
@@ -67,8 +73,11 @@ rmSync(distRoot, { recursive: true, force: true });
 mkdirSync(browserRoot, { recursive: true });
 mkdirSync(nodeRoot, { recursive: true });
 
-const cargoTargetRoot = resolve(workspaceRoot, 'dist/target/cem_ml_npm');
-run('cargo', [
+const cargoTargetRoot = resolve(
+  workspaceRoot,
+  stripped ? 'dist/target/cem_ml_npm_stripped' : 'dist/target/cem_ml_npm',
+);
+const cargoBuildArguments = [
   'build',
   '--locked',
   '--package',
@@ -79,7 +88,9 @@ run('cargo', [
   'wasm32-unknown-unknown',
   '--target-dir',
   cargoTargetRoot,
-]);
+];
+if (stripped) cargoBuildArguments.push('--no-default-features');
+run('cargo', cargoBuildArguments);
 
 const wasmInput = resolve(
   cargoTargetRoot,
@@ -121,7 +132,7 @@ if (nodeRuntime.version() !== cargoVersion) {
   throw new Error('The generated Node runtime does not report the common Cargo version');
 }
 
-const abiIdentity = `wasm-bindgen@${resolvedBindgenVersion}`;
+const abiIdentity = `wasm-bindgen@${resolvedBindgenVersion};profile=${featureProfile}`;
 const capabilityRequest = (runtime, targetIdentity) => ({
   runtime,
   targetIdentity,
@@ -145,6 +156,7 @@ const protocol = JSON.parse(nodeRuntime.workerProtocolDescriptor());
 const schemaFiles = listFiles(schemaOutputRoot);
 const runtimeManifest = {
   schemaVersion: 1,
+  featureProfile,
   package: {
     name: packageMetadata.name,
     version: packageMetadata.version,
@@ -193,7 +205,7 @@ writeJson(resolve(distRoot, 'integrity.json'), {
 });
 
 console.log(
-  `Built ${packageMetadata.name}@${packageMetadata.version}: ${integrityFiles.length} integrity records, ${schemaFiles.length} schema-package assets.`,
+  `Built ${packageMetadata.name}@${packageMetadata.version} (${featureProfile}): ${integrityFiles.length} integrity records, ${schemaFiles.length} schema-package assets.`,
 );
 
 function parseCapability(json) {

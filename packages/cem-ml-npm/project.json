@@ -24,6 +24,25 @@
       ],
       "outputs": ["{projectRoot}/dist"]
     },
+    "build:stripped": {
+      "cache": true,
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "node scripts/build.mjs stripped",
+        "cwd": "{projectRoot}"
+      },
+      "inputs": [
+        "{projectRoot}/package.json",
+        "{projectRoot}/scripts/build.mjs",
+        "{workspaceRoot}/Cargo.lock",
+        "{workspaceRoot}/Cargo.toml",
+        "{workspaceRoot}/rust-toolchain.toml",
+        "{workspaceRoot}/packages/cem_ml/Cargo.toml",
+        "{workspaceRoot}/packages/cem_ml/src/**/*.rs",
+        "{workspaceRoot}/packages/cem_ml/schema-packages/**/*"
+      ],
+      "outputs": ["{projectRoot}/dist-stripped"]
+    },
     "lint": {
       "cache": true,
       "executor": "nx:run-commands",
@@ -64,6 +83,28 @@
           "dependentTasksOutputFiles": "**/*",
           "transitive": false
         }
+      ],
+      "outputs": []
+    },
+    "verify:stripped": {
+      "cache": true,
+      "executor": "nx:run-commands",
+      "dependsOn": [
+        "build",
+        "build:stripped",
+        { "projects": ["cem_ml"], "target": "test:stripped" },
+        { "projects": ["cem_ml"], "target": "build:wasm:stripped" },
+        { "projects": ["cem_ml_cli"], "target": "build" },
+        { "projects": ["cem_ml_cli"], "target": "build:stripped" },
+        { "projects": ["cem_ml_cli"], "target": "test:stripped" }
+      ],
+      "options": {
+        "command": "node scripts/verify-stripped.mjs",
+        "cwd": "{projectRoot}"
+      },
+      "inputs": [
+        "{projectRoot}/scripts/verify-stripped.mjs",
+        { "dependentTasksOutputFiles": "**/*", "transitive": false }
       ],
       "outputs": []
     },

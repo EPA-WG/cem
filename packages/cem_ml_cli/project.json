@@ -31,6 +31,27 @@
                 "{workspaceRoot}/packages/cem_ml_transform_cem_ql/Cargo.toml"
             ]
         },
+        "build:stripped": {
+            "cache": true,
+            "executor": "nx:run-commands",
+            "options": {
+                "command": "cargo build --locked --package cem-ml-cli --no-default-features --target-dir dist/target/cem_ml_cli_stripped",
+                "cwd": "{workspaceRoot}"
+            },
+            "inputs": [
+                "{projectRoot}/src/**/*.rs",
+                "{projectRoot}/Cargo.toml",
+                "{workspaceRoot}/Cargo.toml",
+                "{workspaceRoot}/Cargo.lock",
+                "{workspaceRoot}/packages/cem_ml/src/**/*.rs",
+                "{workspaceRoot}/packages/cem_ml/Cargo.toml",
+                "{workspaceRoot}/packages/cem_ql/src/**/*.rs",
+                "{workspaceRoot}/packages/cem_ql/Cargo.toml",
+                "{workspaceRoot}/packages/cem_ml_transform_cem_ql/src/**/*.rs",
+                "{workspaceRoot}/packages/cem_ml_transform_cem_ql/Cargo.toml"
+            ],
+            "outputs": ["{workspaceRoot}/dist/target/cem_ml_cli_stripped"]
+        },
         "test": {
             "cache": true,
             "executor": "@monodon/rust:test",
@@ -76,6 +97,28 @@
                     "release": true
                 }
             }
+        },
+        "test:stripped": {
+            "cache": true,
+            "executor": "nx:run-commands",
+            "options": {
+                "command": "cargo test --locked --package cem-ml-cli --no-default-features --target-dir dist/target/cem_ml_cli_stripped",
+                "cwd": "{workspaceRoot}"
+            },
+            "inputs": [
+                "{projectRoot}/src/**/*.rs",
+                "{projectRoot}/tests/**/*.rs",
+                "{projectRoot}/Cargo.toml",
+                "{workspaceRoot}/Cargo.toml",
+                "{workspaceRoot}/Cargo.lock",
+                "{workspaceRoot}/packages/cem_ml/src/**/*.rs",
+                "{workspaceRoot}/packages/cem_ml/Cargo.toml",
+                "{workspaceRoot}/packages/cem_ql/src/**/*.rs",
+                "{workspaceRoot}/packages/cem_ql/Cargo.toml",
+                "{workspaceRoot}/packages/cem_ml_transform_cem_ql/src/**/*.rs",
+                "{workspaceRoot}/packages/cem_ml_transform_cem_ql/Cargo.toml"
+            ],
+            "outputs": ["{workspaceRoot}/dist/target/cem_ml_cli_stripped"]
         },
         "test:scss": {
             "cache": true,

@@ -58,7 +58,7 @@ console.log(JSON.stringify({
   const nodeProbe = JSON.parse(capture(process.execPath, ['probe-node.mjs']));
   assert.equal(nodeProbe.version, packageMetadata.version);
   assert.equal(nodeProbe.commonVersion, packageMetadata.version);
-  assert.match(nodeProbe.abiIdentity, /^wasm-bindgen@/);
+  assert.match(nodeProbe.abiIdentity, /^wasm-bindgen@.+;profile=debug-control$/);
   assert.equal(nodeProbe.integrityAlgorithm, 'sha256');
   assert.equal(nodeProbe.schemaPresent, true);
 
