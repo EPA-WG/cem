@@ -831,6 +831,38 @@ carry stable IDs and transferable buffers, never pointers. A stopped snapshot
 is committed only after every participating worker acknowledges the pause
 generation or is classified as an external wait.
 
+The common worker transport layers `workerProtocolVersion: 1` around the
+versioned operation-host envelope. Every worker address is a stable pool slot
+plus a nonzero instance generation, and every worker-to-coordinator message has
+a strictly monotonic sequence that restarts at one only when that slot receives
+a new generation. A generation begins in `initializing`; only an `initialize`
+operation envelope is accepted until the coordinator marks the one runtime
+instance ready, and another initialize in the same generation fails closed.
+
+Transferable bytes travel in the Node/browser structured-clone transfer list.
+The typed envelope contains only unique nonzero transfer IDs and byte lengths,
+bounded by the initialized coordinator limits. It never contains a native
+pointer, borrowed Rust reference, `SharedArrayBuffer` requirement, or an
+unbounded inline byte array.
+
+The coordinator registers each operation before dispatch and assigns current
+worker generations to it before accepting operation messages. It retains
+one-to-many scope routes and exact task, subscription, retained-handle, and
+stop-local snapshot-reference routes. Tasks may be rerouted without changing
+their logical `TaskId`. Replacing a worker atomically increments its slot
+generation, resets its message sequence and lifecycle, removes every route into
+the previous instance, and reports all affected operations and invalidated
+routes. Messages from the old generation are rejected before their payload is
+observed.
+
+For all-stop, the coordinator snapshots the operation's participating worker
+addresses for one nonzero stop generation. Completion is visible only after
+each participant is classified exactly once as parked or in an external wait;
+conflicting acknowledgements fail closed. Replacing a participant invalidates
+the rendezvous rather than exposing a partial stopped snapshot. The coordinator
+also retains the first terminal summary and returns it to later claimants so a
+worker race cannot replace the operation's one terminal outcome.
+
 Worker termination is the hard fallback for uncooperative cancellation,
 timeout, OOM, or panic. The coordinator rejects late messages from a terminated
 worker by worker generation and guarantees one operation terminal outcome.

@@ -45,6 +45,7 @@ pub mod transform_artifact;
 pub mod transform_config;
 pub mod transform_template;
 pub mod validation;
+pub mod worker_control;
 
 #[cfg(feature = "fake-engine")]
 pub mod fake;

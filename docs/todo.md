@@ -372,6 +372,38 @@ replacement tree may mediate between internal engine layers.
               instance per worker, stable message generations, operation handles,
               all-stop coordination, hard-cancel fallback, single-worker/main-thread
               fallbacks, and native-equivalent transform/query control fixtures.
+            - [x] Add the versioned common worker envelope and coordinator fixtures
+                  first: stable slot/generation/sequence validation, operation/scope/
+                  task/subscription/retained-handle routing, transferable-buffer
+                  bounds, all-stop acknowledgement, replacement invalidation, late-
+                  message rejection, and exactly-one terminal claim.
+
+              Completed 2026-08-12: common `cem_ml` now exposes a host-neutral
+              worker protocol layered over the existing operation-host envelope.
+              Nonzero slot/generation addresses, strict per-generation sequences,
+              initializing/ready lifecycle, bounded unique transferable-buffer
+              descriptors, and coordinator-owned operation/scope/task/subscription/
+              retained-handle routes fail closed before payload observation.
+              Debug builds additionally route stop-local snapshot references and
+              require every participating worker to classify one stop generation
+              as parked or external-wait before completion.
+
+              Worker replacement advances the slot generation, resets initialization
+              and sequencing, invalidates every previous route and active rendezvous,
+              reports affected operations, and rejects late old-generation messages.
+              Terminal arbitration retains exactly one summary. Five native fixtures
+              cover wire shape/bounds, non-mutating sequence/version rejection,
+              routing and replacement, complete all-stop coordination, and terminal
+              races. All 1,892 common tests and integration suites pass, as do common
+              lint, the common WASM build, and the stripped common-core build.
+            - [ ] Implement the bounded Node worker-thread host with one initialized
+                  runtime per worker and the accepted single-worker fallback.
+            - [ ] Implement the bounded browser dedicated-worker host with one WASM
+                  instance per worker and the accepted dedicated-worker/main-thread
+                  fallback chain, without requiring shared-memory WASM.
+            - [ ] Add hard-cancel termination/replacement and native-equivalent Node,
+                  browser, single-worker, and main-thread transform/query control
+                  fixtures, including all-stop and late-message behavior.
         - [ ] Gate 9 — add and verify the `--no-default-features` stripped profile:
               debugger APIs, transports, frame capture, and symbols are absent while
               cancellation, stack/memory/timeout enforcement, deterministic output,
