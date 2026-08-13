@@ -639,6 +639,26 @@ replacement tree may mediate between internal engine layers.
           repeated inputs, stale revisions, typed results, artifact/source-map
           references, and stable exits. Default and stripped native suites, lint,
           default and stripped builds, and the WASM build all pass through Nx.
+        - [x] Prepare admitted command-service v1 inline snapshots as owned
+              common engine/query operation inputs for all nine portable
+              discriminators, preserving convert/transform fan-out and parsed
+              transform-graph metadata without performing host I/O or publication.
+            - [x] Add native preparation fixtures covering normalized scopes and
+                  policy budgets, input selection and ordering, query/template
+                  identity, output fan-out, graph parsing, version capabilities,
+                  missing inline bytes, and resource identity mismatches.
+
+              Completed 2026-08-13: the common Rust preparation boundary now
+              revalidates admitted requests, verifies each consumed inline snapshot
+              against its normalized-plan resource identity, and owns the native
+              parse/validate/check/inspect/convert/query/transform/trace inputs.
+              Convert and direct-transform preparation retain output identifiers,
+              destinations, ordering, and per-output requests; graph preparation
+              retains the parsed config and normalized plan without invoking host
+              reads, writes, or publication. Four native fixture groups cover all
+              nine discriminators and the listed success/error metadata. The Nx
+              default suite passes 1,911 unit tests, the stripped suite passes 1,899,
+              and lint plus default/stripped native and WASM builds pass.
     - [ ] Add explicit browser API, Node API, npm-executable, pack/install, and
           command-round-trip fixtures with Nx verification targets.
 
