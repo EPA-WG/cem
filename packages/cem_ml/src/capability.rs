@@ -164,6 +164,7 @@ pub enum ControlCoverage {
     ImmutableSuspendedSnapshot,
     DapProjection,
     VersionedDebugRequests,
+    WorkerTermination,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]

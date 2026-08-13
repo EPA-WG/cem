@@ -371,7 +371,7 @@ replacement tree may mediate between internal engine layers.
               stripped core and CLI builds, both common WASM builds, final lint
               targets, and a live eight-frame stdio launch/configuration/termination
               session also pass.
-        - [ ] Gate 8 — implement Node and browser worker pools with one runtime/WASM
+        - [x] Gate 8 — implement Node and browser worker pools with one runtime/WASM
               instance per worker, stable message generations, operation handles,
               all-stop coordination, hard-cancel fallback, single-worker/main-thread
               fallbacks, and native-equivalent transform/query control fixtures.
@@ -440,9 +440,47 @@ replacement tree may mediate between internal engine layers.
               lints, low-level runtime verification, and browser/Node CLI deployment
               verification pass. Hard cancellation and operation dispatch remain
               unavailable and are assigned to the next checkitem.
-            - [ ] Add hard-cancel termination/replacement and native-equivalent Node,
+            - [x] Add hard-cancel termination/replacement and native-equivalent Node,
                   browser, single-worker, and main-thread transform/query control
                   fixtures, including all-stop and late-message behavior.
+                - [x] Add a common resumable transform/query operation driver with
+                      bounded start/poll/control/event/terminal steps and WASM
+                      bindings so message-passing workers and main-thread fallback
+                      can service controls between deterministic work chunks.
+                    - [x] Add the coordinator-owned, versioned, bounded
+                          `OperationWorkPacket`/`OperationWorkResult` contract and
+                          native fixtures for multi-worker routing, deterministic
+                          staged commit, cancellation, all-stop, replacement
+                          invalidation, and stale-result rejection.
+                - [x] Add native-first driver fixtures for success, cooperative
+                      cancellation, pause/continue/step, exactly-one terminal, and
+                      deterministic transform/query output across chunk sizes.
+                - [x] Add Node, Chromium, single-worker, and main-thread host
+                      fixtures for transform/query control, worker hard-cancel
+                      termination/replacement, all-stop rendezvous invalidation,
+                      and rejection of late-generation messages.
+
+              Completed 2026-08-13: common `cem_ml` now owns a resumable
+              transform/query driver and versioned, bounded stateless work packets.
+              The coordinator retains continuation, deterministic staged commit,
+              cancellation, all-stop state, terminal arbitration, and retry after
+              generation replacement; worker runtimes validate generation and
+              sequence metadata before accepting payloads. Native fixtures prove
+              transform/query parity across packet budgets and out-of-order results,
+              pause/continue/step, cancellation, replacement retry, stale-result
+              rejection, and exactly-one terminal publication.
+
+              Node and browser pools expose awaitable operation handles with event
+              subscriptions and cooperative controls. Dedicated workers terminate
+              and advance generation after the bounded hard-cancel grace, while the
+              browser main-thread fallback executes the same packets and truthfully
+              reports hard cancellation unavailable. Node and real Chromium fixtures
+              cover multi-worker, one-worker, and main-thread transform/query runs,
+              deterministic commit order, all-stop stepping, hard replacement,
+              unrelated-operation retry, and late-result rejection. The complete
+              1,900-test native suite plus all integrations, common lint and WASM
+              compilation, both npm lints, low-level runtime ABI verification, Node
+              fixtures, Chromium fixtures, and CLI distribution verification pass.
         - [ ] Gate 9 — add and verify the `--no-default-features` stripped profile:
               debugger APIs, transports, frame capture, and symbols are absent while
               cancellation, stack/memory/timeout enforcement, deterministic output,

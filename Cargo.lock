@@ -281,6 +281,7 @@ dependencies = [
  "tree-sitter",
  "tree-sitter-cem",
  "wasm-bindgen",
+ "web-time",
  "xee-xpath-ast",
  "xee-xpath-lexer",
  "yaml-rust2",

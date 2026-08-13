@@ -1605,8 +1605,7 @@ impl XPathEvaluationRuntime {
         item_count: usize,
         source_range: XPathSourceRange,
     ) -> Result<(), XPathEvaluationError> {
-        self.limits
-            .enforce_sequence_items(item_count, source_range)
+        self.limits.enforce_sequence_items(item_count, source_range)
     }
 }
 
@@ -1921,21 +1920,25 @@ impl TransformTemplateAdapter for XPathTransformTemplateAdapter {
                 })?,
         };
         let result = CemXPathEvaluator::default()
-            .evaluate_with_control(XPathEvaluationRequest {
-                invocation_host: XPathInvocationHost::StandaloneTransform,
-                expression: payload.expression.as_ref(),
-                dynamic_context: XPathDynamicContext {
-                    context_item: Some(XPathResultItem::from_native_node(context_node)),
-                    variable_bindings: BTreeMap::new(),
-                    ..XPathDynamicContext::default()
+            .evaluate_with_control(
+                XPathEvaluationRequest {
+                    invocation_host: XPathInvocationHost::StandaloneTransform,
+                    expression: payload.expression.as_ref(),
+                    dynamic_context: XPathDynamicContext {
+                        context_item: Some(XPathResultItem::from_native_node(context_node)),
+                        variable_bindings: BTreeMap::new(),
+                        ..XPathDynamicContext::default()
+                    },
+                    static_context: payload.static_context.clone(),
+                    expected_result: None,
+                    resolver_registry: runtime.resolver_registry,
+                    resolver_policy: runtime.resolver_policy,
+                    evaluation_limits,
+                    safety_policy_stamp: &safety_policy_stamp,
                 },
-                static_context: payload.static_context.clone(),
-                expected_result: None,
-                resolver_registry: runtime.resolver_registry,
-                resolver_policy: runtime.resolver_policy,
-                evaluation_limits,
-                safety_policy_stamp: &safety_policy_stamp,
-            }, runtime.operation_control, runtime.execution_scope)
+                runtime.operation_control,
+                runtime.execution_scope,
+            )
             .map_err(|diagnostics| {
                 TransformTemplateAdapterError::failed(
                     self.id(),
@@ -2251,13 +2254,9 @@ fn xpath_evaluate_expression_node(
 ) -> Result<Vec<XPathResultItem>, XPathEvaluationError> {
     runtime.poll(node.source_range)?;
     let items = match &node.expression {
-        XPathExpression::Path(path) => xpath_evaluate_path(
-            expression,
-            path,
-            focus,
-            variable_bindings,
-            runtime,
-        ),
+        XPathExpression::Path(path) => {
+            xpath_evaluate_path(expression, path, focus, variable_bindings, runtime)
+        }
         XPathExpression::Unary { operator, operand } => {
             let operand_items = xpath_evaluate_expression_node(
                 expression,
@@ -4016,11 +4015,8 @@ fn xpath_evaluate_function_call(
                 source_range,
             )
         })?;
-        let value = xpath_number_function_value(
-            std::slice::from_ref(context_item),
-            source_range,
-            runtime,
-        )?;
+        let value =
+            xpath_number_function_value(std::slice::from_ref(context_item), source_range, runtime)?;
         return Ok(vec![xpath_atomic_result_item(
             expression,
             source_range,
@@ -4031,13 +4027,8 @@ fn xpath_evaluate_function_call(
     let argument = arguments
         .first()
         .expect("resolved sequence functions have one argument");
-    let items = xpath_evaluate_expression_node(
-        expression,
-        argument,
-        focus,
-        variable_bindings,
-        runtime,
-    )?;
+    let items =
+        xpath_evaluate_expression_node(expression, argument, focus, variable_bindings, runtime)?;
     if function == XPathNativeFunction::String {
         let value = xpath_string_function_value(&items, argument.source_range)?;
         return Ok(vec![xpath_string_result_item(
@@ -4177,8 +4168,7 @@ fn xpath_evaluate_function_call(
         } else {
             None
         };
-        let value =
-            xpath_format_integer_value_operand(&items, argument.source_range, runtime)?;
+        let value = xpath_format_integer_value_operand(&items, argument.source_range, runtime)?;
         let formatted = xpath_format_integer(
             value.as_ref(),
             &picture,
@@ -10137,24 +10127,28 @@ impl QueryEvaluatorAdapter for CemXPathQueryEvaluator {
         };
         let evaluator = CemXPathEvaluator::default();
         let abort_signal = request.abort_signal;
-        let result = evaluator.evaluate_with_control(XPathEvaluationRequest {
-            invocation_host: XPathInvocationHost::Query,
-            expression: query.expression(),
-            dynamic_context: XPathDynamicContext {
-                context_item: Some(XPathResultItem::from_native_node(context_node)),
-                ..XPathDynamicContext::default()
+        let result = evaluator.evaluate_with_control(
+            XPathEvaluationRequest {
+                invocation_host: XPathInvocationHost::Query,
+                expression: query.expression(),
+                dynamic_context: XPathDynamicContext {
+                    context_item: Some(XPathResultItem::from_native_node(context_node)),
+                    ..XPathDynamicContext::default()
+                },
+                static_context: XPathStaticContext {
+                    namespaces: request.namespace_bindings.clone(),
+                    default_element_namespace: input.identity.default_namespace.clone(),
+                    ..XPathStaticContext::default()
+                },
+                expected_result: None,
+                resolver_registry: request.resolver_registry,
+                resolver_policy: request.resolver_policy,
+                evaluation_limits: XPathEvaluationLimits { max_sequence_items },
+                safety_policy_stamp: request.safety_policy_stamp,
             },
-            static_context: XPathStaticContext {
-                namespaces: request.namespace_bindings.clone(),
-                default_element_namespace: input.identity.default_namespace.clone(),
-                ..XPathStaticContext::default()
-            },
-            expected_result: None,
-            resolver_registry: request.resolver_registry,
-            resolver_policy: request.resolver_policy,
-            evaluation_limits: XPathEvaluationLimits { max_sequence_items },
-            safety_policy_stamp: request.safety_policy_stamp,
-        }, request.operation_control, request.execution_scope)?;
+            request.operation_control,
+            request.execution_scope,
+        )?;
         if request
             .operation_control
             .check_scope(request.execution_scope)

@@ -29,7 +29,9 @@
 
 use crate::engine::InputFormat;
 use crate::real::observe_pipeline;
-use std::time::{Duration, Instant};
+use std::time::Duration;
+
+use web_time::Instant;
 
 /// AC-N-1 budget container.
 #[derive(Debug, Clone, Copy)]

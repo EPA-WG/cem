@@ -68,6 +68,7 @@ try {
 
     browser = await chromium.launch({ headless: true });
     const page = await browser.newPage();
+    page.on('pageerror', (error) => console.error(`browser page error: ${error.message}`));
     await page.goto(`http://127.0.0.1:${address.port}/`);
     await page.waitForFunction(() => typeof globalThis.runCemMlBrowserFixture === 'function');
 
@@ -89,7 +90,7 @@ try {
     );
     assert.equal(pool.mainThread, undefined);
     assert.equal(pool.sharedArrayBufferAvailable, false);
-    assert.equal(pool.hardCancelAvailability, 'unavailable');
+    assert.equal(pool.hardCancelAvailability, 'available');
 
     const single = await runFixture(page, 'single-worker');
     assert.equal(single.mode, 'single-worker');
@@ -113,6 +114,7 @@ try {
     assert.equal(mainFallback.topology, 'sequential');
     assert.equal(mainFallback.effectiveMaxWorkers, 1);
     assert.equal(mainFallback.mainThread.runtimeInstanceId, 'browser-main-thread');
+    assert.equal(mainFallback.hardCancelAvailability, 'unavailable');
 
     const unavailable = await runFixture(page, 'workers-unavailable');
     assert.equal(unavailable.mode, 'main-thread-fallback');
@@ -126,8 +128,34 @@ try {
     assert.match(bounds[2], /maxWorkers=257/);
     assert.match(bounds[3], /startupTimeoutMs=0/);
 
+    const operationPool = await runFixture(page, 'operation-pool');
+    assert.equal(operationPool.mode, 'pool');
+    assert.equal(operationPool.transformedItemCount, 2);
+    assert.equal(operationPool.queriedItemCount, 2);
+    assert.deepEqual(operationPool.commits, ['1', '2', '3', '4']);
+    assert.equal(operationPool.queryTerminal.status, 'succeeded');
+    assert.equal(operationPool.cancelled.status, 'cancelled');
+    assert.equal(operationPool.awaitErrorName, 'AbortError');
+    assert.ok(operationPool.replacementEvents.length > 0);
+    assert.ok(operationPool.workers.some(({ generation }) => generation > 1));
+
+    const operationSingle = await runFixture(page, 'operation-single-worker');
+    assert.equal(operationSingle.mode, 'single-worker');
+    assert.equal(operationSingle.transformedItemCount, 2);
+    assert.equal(operationSingle.queriedItemCount, 2);
+    assert.equal(operationSingle.queryTerminal.status, 'succeeded');
+    assert.equal(operationSingle.cancelled.status, 'cancelled');
+
+    const operationMain = await runFixture(page, 'operation-main-thread');
+    assert.equal(operationMain.mode, 'main-thread-fallback');
+    assert.equal(operationMain.transformedItemCount, 2);
+    assert.equal(operationMain.queriedItemCount, 2);
+    assert.equal(operationMain.queryTerminal.status, 'succeeded');
+    assert.equal(operationMain.cancelled.status, 'cancelled');
+    assert.equal(operationMain.replacementEvents.length, 0);
+
     console.log(
-        `Verified ${packageMetadata.name}@${packageMetadata.version} in Chromium: two isolated dedicated-worker runtimes, one-worker fallback, main-thread fallback, and no shared-memory requirement.`,
+        `Verified ${packageMetadata.name}@${packageMetadata.version} in Chromium: transform/query control across dedicated-worker, one-worker, and main-thread modes, hard replacement, and no shared-memory requirement.`,
     );
 } finally {
     await browser?.close();

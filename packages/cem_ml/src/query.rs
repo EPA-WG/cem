@@ -11,10 +11,10 @@ use std::sync::Arc;
 
 use crate::diagnostics::Diagnostic;
 use crate::engine::FormatIdentity;
+use crate::operation_control::{ExecutionScopeId, OperationControl};
 use crate::parser::document::CemDocument;
 use crate::parser::{AstNodeId, CemAstNode};
 use crate::resolver::{ResolverPolicy, ResolverRegistry};
-use crate::operation_control::{ExecutionScopeId, OperationControl};
 use crate::scheduler::{AbortSignal, ScopePolicy};
 use crate::schema::registry::{
     content_type_essence, CEM_QL_CONTENT_TYPE, CEM_QL_EXPRESSION_CONTENT_TYPE,

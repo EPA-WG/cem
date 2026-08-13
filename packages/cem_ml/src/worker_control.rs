@@ -22,6 +22,9 @@ pub const WORKER_PROTOCOL_VERSION: u16 = 1;
 pub const MAX_COORDINATED_WORKERS: u16 = 256;
 pub const MAX_TRANSFER_BUFFERS_PER_MESSAGE: u16 = 64;
 pub const MAX_TRANSFER_BYTES_PER_MESSAGE: u64 = 64 * 1_024 * 1_024;
+pub const WORK_PACKET_PROTOCOL_VERSION: u16 = 1;
+pub const MAX_WORK_STAGE_LABEL_BYTES: usize = 128;
+pub const MAX_WORK_INLINE_PAYLOAD_BYTES: usize = 64 * 1_024;
 
 macro_rules! opaque_id {
     ($name:ident) => {
@@ -52,8 +55,90 @@ macro_rules! opaque_id {
 opaque_id!(WorkerSlotId);
 opaque_id!(WorkerGeneration);
 opaque_id!(TransferBufferId);
+opaque_id!(WorkCommitSequence);
 #[cfg(feature = "debug-control")]
 opaque_id!(WorkerStopGeneration);
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum OperationWorkDomain {
+    Transform,
+    Query,
+}
+
+/// Opaque common-scheduler stage identity. The domain is stable on the wire;
+/// the ordinal and bounded label are owned by the operation planner so the
+/// worker protocol does not duplicate transform/query semantics.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OperationWorkStage {
+    pub domain: OperationWorkDomain,
+    pub ordinal: u32,
+    pub label: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OperationWorkPacket {
+    pub work_protocol_version: u16,
+    pub operation_id: OperationId,
+    pub task_id: TaskId,
+    pub scope_id: ExecutionScopeId,
+    pub worker: WorkerAddress,
+    pub attempt: u32,
+    pub commit_sequence: WorkCommitSequence,
+    pub stage: OperationWorkStage,
+    pub payload: serde_json::Value,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub transfers: Vec<TransferBufferDescriptor>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum OperationWorkResultStatus {
+    Succeeded,
+    Failed,
+    Cancelled,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OperationWorkResult {
+    pub work_protocol_version: u16,
+    pub operation_id: OperationId,
+    pub task_id: TaskId,
+    pub scope_id: ExecutionScopeId,
+    pub worker: WorkerAddress,
+    pub attempt: u32,
+    pub commit_sequence: WorkCommitSequence,
+    pub stage: OperationWorkStage,
+    pub status: OperationWorkResultStatus,
+    pub payload: serde_json::Value,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub transfers: Vec<TransferBufferDescriptor>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct OperationWorkAcceptance {
+    /// `true` when this result is waiting behind an earlier commit sequence.
+    pub staged: bool,
+    /// Newly contiguous results in deterministic commit order.
+    pub committed: Vec<OperationWorkResult>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct InvalidatedOperationWork {
+    pub operation_id: OperationId,
+    pub task_id: TaskId,
+    pub attempt: u32,
+    pub commit_sequence: WorkCommitSequence,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct CancelledOperationWork {
+    pub assigned_tasks: Vec<TaskId>,
+    pub discarded_staged_tasks: Vec<TaskId>,
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -140,7 +225,12 @@ pub enum WorkerStopDisposition {
 }
 
 #[cfg(feature = "debug-control")]
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(
+    tag = "status",
+    rename_all = "kebab-case",
+    rename_all_fields = "camelCase"
+)]
 pub enum WorkerStopRendezvousStatus {
     Pending {
         awaiting: BTreeSet<WorkerAddress>,
@@ -160,6 +250,7 @@ pub struct WorkerReplacement {
     pub invalidated_task_routes: Vec<(OperationId, TaskId)>,
     pub invalidated_subscriptions: Vec<(OperationId, EventSubscriptionId)>,
     pub invalidated_retained_handles: Vec<(OperationId, RetainedHandleId)>,
+    pub invalidated_work: Vec<InvalidatedOperationWork>,
     #[cfg(feature = "debug-control")]
     pub invalidated_snapshot_references: Vec<(OperationId, SnapshotReferenceId)>,
     #[cfg(feature = "debug-control")]
@@ -194,18 +285,64 @@ struct StopRendezvous {
     classified: BTreeMap<WorkerAddress, WorkerStopDisposition>,
 }
 
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone)]
+enum OperationWorkState {
+    Assigned { worker: WorkerAddress, attempt: u32 },
+    Retryable { previous_attempt: u32 },
+    Staged(OperationWorkResult),
+    Committed,
+    Cancelled,
+}
+
+#[derive(Debug, Clone)]
+struct OperationWorkEntry {
+    scope_id: ExecutionScopeId,
+    commit_sequence: WorkCommitSequence,
+    stage: OperationWorkStage,
+    payload: serde_json::Value,
+    transfers: Vec<TransferBufferDescriptor>,
+    state: OperationWorkState,
+}
+
+#[derive(Debug, Clone)]
 struct OperationRoutes {
     workers: BTreeSet<WorkerAddress>,
     scopes: BTreeMap<ExecutionScopeId, BTreeSet<WorkerAddress>>,
     tasks: BTreeMap<TaskId, WorkerAddress>,
     subscriptions: BTreeMap<EventSubscriptionId, WorkerAddress>,
     retained_handles: BTreeMap<RetainedHandleId, WorkerAddress>,
+    work: BTreeMap<TaskId, OperationWorkEntry>,
+    work_by_commit: BTreeMap<WorkCommitSequence, TaskId>,
+    next_work_commit_sequence: u64,
+    next_committable_work_sequence: u64,
+    work_cancelled: bool,
     #[cfg(feature = "debug-control")]
     snapshot_references: BTreeMap<SnapshotReferenceId, WorkerAddress>,
     #[cfg(feature = "debug-control")]
     stop: Option<StopRendezvous>,
     terminal: Option<OperationTerminalSummary>,
+}
+
+impl Default for OperationRoutes {
+    fn default() -> Self {
+        Self {
+            workers: BTreeSet::new(),
+            scopes: BTreeMap::new(),
+            tasks: BTreeMap::new(),
+            subscriptions: BTreeMap::new(),
+            retained_handles: BTreeMap::new(),
+            work: BTreeMap::new(),
+            work_by_commit: BTreeMap::new(),
+            next_work_commit_sequence: 1,
+            next_committable_work_sequence: 1,
+            work_cancelled: false,
+            #[cfg(feature = "debug-control")]
+            snapshot_references: BTreeMap::new(),
+            #[cfg(feature = "debug-control")]
+            stop: None,
+            terminal: None,
+        }
+    }
 }
 
 /// Deterministic coordinator state shared by Node and browser worker hosts.
@@ -337,6 +474,246 @@ impl WorkerCoordinator {
         self.ensure_assigned(operation, worker)?;
         self.operation_mut(operation)?.tasks.insert(task, worker);
         Ok(())
+    }
+
+    /// Register and dispatch one stateless work packet. Logical task identity
+    /// and deterministic commit order are coordinator-owned; workers receive
+    /// only owned bounded metadata and out-of-band transfer descriptors.
+    #[allow(clippy::too_many_arguments)]
+    pub fn dispatch_work(
+        &mut self,
+        operation: OperationId,
+        task: TaskId,
+        scope: ExecutionScopeId,
+        worker: WorkerAddress,
+        stage: OperationWorkStage,
+        payload: serde_json::Value,
+        transfers: Vec<TransferBufferDescriptor>,
+    ) -> Result<OperationWorkPacket, WorkerCoordinatorError> {
+        validate_route_identity("task", task.get())?;
+        validate_work_stage(&stage)?;
+        validate_work_payload(&payload)?;
+        self.validate_transfers(&transfers)?;
+        self.ensure_assigned(operation, worker)?;
+
+        let routes = self.operation_mut(operation)?;
+        ensure_not_terminal(operation, routes)?;
+        if routes.work_cancelled {
+            return Err(WorkerCoordinatorError::OperationWorkCancelled(operation));
+        }
+        if routes.work.contains_key(&task) {
+            return Err(WorkerCoordinatorError::WorkTaskAlreadyRegistered { operation, task });
+        }
+        let commit_sequence = WorkCommitSequence::from_raw(routes.next_work_commit_sequence);
+        routes.next_work_commit_sequence = routes.next_work_commit_sequence.checked_add(1).ok_or(
+            WorkerCoordinatorError::WorkCommitSequenceExhausted(operation),
+        )?;
+        let attempt = 1;
+        let packet = OperationWorkPacket {
+            work_protocol_version: WORK_PACKET_PROTOCOL_VERSION,
+            operation_id: operation,
+            task_id: task,
+            scope_id: scope,
+            worker,
+            attempt,
+            commit_sequence,
+            stage: stage.clone(),
+            payload: payload.clone(),
+            transfers: transfers.clone(),
+        };
+        routes.tasks.insert(task, worker);
+        routes.work_by_commit.insert(commit_sequence, task);
+        routes.work.insert(
+            task,
+            OperationWorkEntry {
+                scope_id: scope,
+                commit_sequence,
+                stage,
+                payload,
+                transfers,
+                state: OperationWorkState::Assigned { worker, attempt },
+            },
+        );
+        Ok(packet)
+    }
+
+    /// Redispatch invalidated work without changing its logical task or commit
+    /// sequence. Each physical execution receives a strictly increasing
+    /// attempt so late results from an earlier assignment fail closed.
+    pub fn retry_work(
+        &mut self,
+        operation: OperationId,
+        task: TaskId,
+        worker: WorkerAddress,
+    ) -> Result<OperationWorkPacket, WorkerCoordinatorError> {
+        self.ensure_assigned(operation, worker)?;
+        let routes = self.operation_mut(operation)?;
+        ensure_not_terminal(operation, routes)?;
+        if routes.work_cancelled {
+            return Err(WorkerCoordinatorError::OperationWorkCancelled(operation));
+        }
+        let entry = routes
+            .work
+            .get_mut(&task)
+            .ok_or(WorkerCoordinatorError::UnknownWorkTask { operation, task })?;
+        let OperationWorkState::Retryable { previous_attempt } = entry.state else {
+            return Err(WorkerCoordinatorError::WorkTaskNotRetryable { operation, task });
+        };
+        let attempt = previous_attempt
+            .checked_add(1)
+            .ok_or(WorkerCoordinatorError::WorkAttemptExhausted { operation, task })?;
+        entry.state = OperationWorkState::Assigned { worker, attempt };
+        routes.tasks.insert(task, worker);
+        Ok(OperationWorkPacket {
+            work_protocol_version: WORK_PACKET_PROTOCOL_VERSION,
+            operation_id: operation,
+            task_id: task,
+            scope_id: entry.scope_id,
+            worker,
+            attempt,
+            commit_sequence: entry.commit_sequence,
+            stage: entry.stage.clone(),
+            payload: entry.payload.clone(),
+            transfers: entry.transfers.clone(),
+        })
+    }
+
+    /// Accept a worker result only for its current generation and assignment,
+    /// then release every newly contiguous staged result in commit order.
+    pub fn accept_work_result(
+        &mut self,
+        result: OperationWorkResult,
+    ) -> Result<OperationWorkAcceptance, WorkerCoordinatorError> {
+        if result.work_protocol_version != WORK_PACKET_PROTOCOL_VERSION {
+            return Err(WorkerCoordinatorError::WorkProtocolVersion {
+                requested: result.work_protocol_version,
+                supported: WORK_PACKET_PROTOCOL_VERSION,
+            });
+        }
+        validate_route_identity("task", result.task_id.get())?;
+        if result.attempt == 0 || result.commit_sequence.get() == 0 {
+            return Err(WorkerCoordinatorError::InvalidWorkIdentity);
+        }
+
+        // Validate the physical route and assignment before inspecting the
+        // worker-owned stage payload or transfer descriptors.
+        self.ensure_assigned(result.operation_id, result.worker)?;
+        {
+            let routes = self.operation(result.operation_id)?;
+            ensure_not_terminal(result.operation_id, routes)?;
+            if routes.work_cancelled {
+                return Err(WorkerCoordinatorError::OperationWorkCancelled(
+                    result.operation_id,
+                ));
+            }
+            let entry = routes.work.get(&result.task_id).ok_or(
+                WorkerCoordinatorError::UnknownWorkTask {
+                    operation: result.operation_id,
+                    task: result.task_id,
+                },
+            )?;
+            match entry.state {
+                OperationWorkState::Assigned { worker, attempt }
+                    if worker == result.worker && attempt == result.attempt => {}
+                OperationWorkState::Assigned { .. } | OperationWorkState::Retryable { .. } => {
+                    return Err(WorkerCoordinatorError::StaleWorkAttempt {
+                        operation: result.operation_id,
+                        task: result.task_id,
+                        requested: result.attempt,
+                    });
+                }
+                OperationWorkState::Staged(_)
+                | OperationWorkState::Committed
+                | OperationWorkState::Cancelled => {
+                    return Err(WorkerCoordinatorError::WorkResultAlreadyAccepted {
+                        operation: result.operation_id,
+                        task: result.task_id,
+                    });
+                }
+            }
+            if entry.scope_id != result.scope_id
+                || entry.commit_sequence != result.commit_sequence
+                || entry.stage != result.stage
+            {
+                return Err(WorkerCoordinatorError::WorkResultMismatch {
+                    operation: result.operation_id,
+                    task: result.task_id,
+                });
+            }
+        }
+
+        validate_work_stage(&result.stage)?;
+        validate_work_payload(&result.payload)?;
+        self.validate_transfers(&result.transfers)?;
+
+        let current_task = result.task_id;
+        let operation = result.operation_id;
+        let routes = self.operation_mut(operation)?;
+        routes
+            .work
+            .get_mut(&current_task)
+            .expect("validated work task remains registered")
+            .state = OperationWorkState::Staged(result);
+
+        let mut committed = Vec::new();
+        loop {
+            let sequence = WorkCommitSequence::from_raw(routes.next_committable_work_sequence);
+            let Some(task) = routes.work_by_commit.get(&sequence).copied() else {
+                break;
+            };
+            let entry = routes
+                .work
+                .get_mut(&task)
+                .expect("work commit route references a registered task");
+            let OperationWorkState::Staged(result) = &entry.state else {
+                break;
+            };
+            committed.push(result.clone());
+            entry.state = OperationWorkState::Committed;
+            routes.tasks.remove(&task);
+            routes.next_committable_work_sequence =
+                routes.next_committable_work_sequence.checked_add(1).ok_or(
+                    WorkerCoordinatorError::WorkCommitSequenceExhausted(operation),
+                )?;
+        }
+        let staged = !committed
+            .iter()
+            .any(|result| result.task_id == current_task);
+        Ok(OperationWorkAcceptance { staged, committed })
+    }
+
+    /// Root cancellation prevents new dispatch, invalidates assigned work, and
+    /// discards every uncommitted staged result. Repeated cancellation is
+    /// idempotent and never changes already committed output.
+    pub fn cancel_operation_work(
+        &mut self,
+        operation: OperationId,
+    ) -> Result<CancelledOperationWork, WorkerCoordinatorError> {
+        let routes = self.operation_mut(operation)?;
+        if routes.work_cancelled {
+            return Ok(CancelledOperationWork::default());
+        }
+        routes.work_cancelled = true;
+        #[cfg(feature = "debug-control")]
+        {
+            routes.stop = None;
+        }
+        let mut cancellation = CancelledOperationWork::default();
+        for (task, entry) in &mut routes.work {
+            match entry.state {
+                OperationWorkState::Assigned { .. } | OperationWorkState::Retryable { .. } => {
+                    cancellation.assigned_tasks.push(*task);
+                    entry.state = OperationWorkState::Cancelled;
+                }
+                OperationWorkState::Staged(_) => {
+                    cancellation.discarded_staged_tasks.push(*task);
+                    entry.state = OperationWorkState::Cancelled;
+                }
+                OperationWorkState::Committed | OperationWorkState::Cancelled => {}
+            }
+            routes.tasks.remove(task);
+        }
+        Ok(cancellation)
     }
 
     pub fn route_subscription(
@@ -638,6 +1015,7 @@ impl WorkerCoordinator {
             invalidated_task_routes: Vec::new(),
             invalidated_subscriptions: Vec::new(),
             invalidated_retained_handles: Vec::new(),
+            invalidated_work: Vec::new(),
             #[cfg(feature = "debug-control")]
             invalidated_snapshot_references: Vec::new(),
             #[cfg(feature = "debug-control")]
@@ -686,6 +1064,22 @@ impl WorkerCoordinator {
                     true
                 }
             });
+            for (task, entry) in &mut routes.work {
+                let OperationWorkState::Assigned { worker, attempt } = entry.state else {
+                    continue;
+                };
+                if worker == previous {
+                    replacement.invalidated_work.push(InvalidatedOperationWork {
+                        operation_id: *operation,
+                        task_id: *task,
+                        attempt,
+                        commit_sequence: entry.commit_sequence,
+                    });
+                    entry.state = OperationWorkState::Retryable {
+                        previous_attempt: attempt,
+                    };
+                }
+            }
             #[cfg(feature = "debug-control")]
             routes.snapshot_references.retain(|reference, worker| {
                 if *worker == previous {
@@ -939,6 +1333,27 @@ fn validate_route_identity(kind: &'static str, value: u64) -> Result<(), WorkerC
     Ok(())
 }
 
+fn validate_work_stage(stage: &OperationWorkStage) -> Result<(), WorkerCoordinatorError> {
+    if stage.label.is_empty()
+        || stage.label.len() > MAX_WORK_STAGE_LABEL_BYTES
+        || stage.label.chars().any(char::is_control)
+    {
+        return Err(WorkerCoordinatorError::InvalidWorkStage);
+    }
+    Ok(())
+}
+
+fn validate_work_payload(payload: &serde_json::Value) -> Result<(), WorkerCoordinatorError> {
+    let bytes = serde_json::to_vec(payload).expect("serde_json::Value serialization cannot fail");
+    if bytes.len() > MAX_WORK_INLINE_PAYLOAD_BYTES {
+        return Err(WorkerCoordinatorError::WorkPayloadTooLarge {
+            requested: bytes.len(),
+            maximum: MAX_WORK_INLINE_PAYLOAD_BYTES,
+        });
+    }
+    Ok(())
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum WorkerCoordinatorError {
     ProtocolVersion {
@@ -946,6 +1361,10 @@ pub enum WorkerCoordinatorError {
         supported: u16,
     },
     OperationProtocolVersion {
+        requested: u16,
+        supported: u16,
+    },
+    WorkProtocolVersion {
         requested: u16,
         supported: u16,
     },
@@ -981,12 +1400,49 @@ pub enum WorkerCoordinatorError {
     UnknownOperation(OperationId),
     OperationTerminal(OperationId),
     OperationHasNoWorkers(OperationId),
+    OperationWorkCancelled(OperationId),
     WorkerNotAssigned {
         operation: OperationId,
         worker: WorkerAddress,
     },
     InvalidRouteIdentity {
         kind: &'static str,
+    },
+    InvalidWorkStage,
+    WorkPayloadTooLarge {
+        requested: usize,
+        maximum: usize,
+    },
+    WorkTaskAlreadyRegistered {
+        operation: OperationId,
+        task: TaskId,
+    },
+    UnknownWorkTask {
+        operation: OperationId,
+        task: TaskId,
+    },
+    WorkTaskNotRetryable {
+        operation: OperationId,
+        task: TaskId,
+    },
+    WorkAttemptExhausted {
+        operation: OperationId,
+        task: TaskId,
+    },
+    WorkCommitSequenceExhausted(OperationId),
+    InvalidWorkIdentity,
+    StaleWorkAttempt {
+        operation: OperationId,
+        task: TaskId,
+        requested: u32,
+    },
+    WorkResultAlreadyAccepted {
+        operation: OperationId,
+        task: TaskId,
+    },
+    WorkResultMismatch {
+        operation: OperationId,
+        task: TaskId,
     },
     TransferCount {
         requested: usize,
@@ -1030,6 +1486,7 @@ impl WorkerCoordinatorError {
         match self {
             Self::ProtocolVersion { .. } => "cem.worker.protocol_version",
             Self::OperationProtocolVersion { .. } => "cem.worker.operation_protocol_version",
+            Self::WorkProtocolVersion { .. } => "cem.worker.work_protocol_version",
             Self::InvalidLimit { .. } => "cem.worker.limit_invalid",
             Self::WorkerCount { .. } => "cem.worker.count_invalid",
             Self::UnknownWorkerSlot(_) => "cem.worker.slot_unknown",
@@ -1048,8 +1505,20 @@ impl WorkerCoordinatorError {
             Self::UnknownOperation(_) => "cem.worker.operation_unknown",
             Self::OperationTerminal(_) => "cem.worker.operation_terminal",
             Self::OperationHasNoWorkers(_) => "cem.worker.operation_workers_empty",
+            Self::OperationWorkCancelled(_) => "cem.worker.work_cancelled",
             Self::WorkerNotAssigned { .. } => "cem.worker.operation_route_unknown",
             Self::InvalidRouteIdentity { .. } => "cem.worker.route_identity_invalid",
+            Self::InvalidWorkStage => "cem.worker.work_stage_invalid",
+            Self::WorkPayloadTooLarge { .. } => "cem.worker.work_payload_too_large",
+            Self::WorkTaskAlreadyRegistered { .. } => "cem.worker.work_task_registered",
+            Self::UnknownWorkTask { .. } => "cem.worker.work_task_unknown",
+            Self::WorkTaskNotRetryable { .. } => "cem.worker.work_task_not_retryable",
+            Self::WorkAttemptExhausted { .. } => "cem.worker.work_attempt_exhausted",
+            Self::WorkCommitSequenceExhausted(_) => "cem.worker.work_commit_sequence_exhausted",
+            Self::InvalidWorkIdentity => "cem.worker.work_identity_invalid",
+            Self::StaleWorkAttempt { .. } => "cem.worker.work_attempt_stale",
+            Self::WorkResultAlreadyAccepted { .. } => "cem.worker.work_result_duplicate",
+            Self::WorkResultMismatch { .. } => "cem.worker.work_result_mismatch",
             Self::TransferCount { .. } => "cem.worker.transfer_count",
             Self::InvalidTransferId(_) => "cem.worker.transfer_id_invalid",
             Self::EmptyTransfer(_) => "cem.worker.transfer_empty",
@@ -1086,6 +1555,13 @@ impl fmt::Display for WorkerCoordinatorError {
             } => write!(
                 formatter,
                 "operation protocol version {requested} is unsupported; expected {supported}"
+            ),
+            Self::WorkProtocolVersion {
+                requested,
+                supported,
+            } => write!(
+                formatter,
+                "work protocol version {requested} is unsupported; expected {supported}"
             ),
             Self::InvalidLimit {
                 field,
@@ -1166,6 +1642,9 @@ impl fmt::Display for WorkerCoordinatorError {
             Self::OperationHasNoWorkers(operation) => {
                 write!(formatter, "operation {operation} has no assigned workers")
             }
+            Self::OperationWorkCancelled(operation) => {
+                write!(formatter, "operation {operation} work is cancelled")
+            }
             Self::WorkerNotAssigned { operation, worker } => write!(
                 formatter,
                 "worker {}:{} is not assigned to operation {operation}",
@@ -1174,6 +1653,53 @@ impl fmt::Display for WorkerCoordinatorError {
             Self::InvalidRouteIdentity { kind } => {
                 write!(formatter, "worker {kind} route identity must be non-zero")
             }
+            Self::InvalidWorkStage => write!(
+                formatter,
+                "worker work stage label is empty, too long, or contains control characters"
+            ),
+            Self::WorkPayloadTooLarge { requested, maximum } => write!(
+                formatter,
+                "worker inline work payload is {requested} bytes, exceeding {maximum}"
+            ),
+            Self::WorkTaskAlreadyRegistered { operation, task } => write!(
+                formatter,
+                "operation {operation} work task {task} is already registered"
+            ),
+            Self::UnknownWorkTask { operation, task } => {
+                write!(formatter, "operation {operation} has no work task {task}")
+            }
+            Self::WorkTaskNotRetryable { operation, task } => write!(
+                formatter,
+                "operation {operation} work task {task} is not retryable"
+            ),
+            Self::WorkAttemptExhausted { operation, task } => write!(
+                formatter,
+                "operation {operation} work task {task} exhausted its attempts"
+            ),
+            Self::WorkCommitSequenceExhausted(operation) => write!(
+                formatter,
+                "operation {operation} exhausted its work commit sequence"
+            ),
+            Self::InvalidWorkIdentity => write!(
+                formatter,
+                "worker work attempt and commit identities must be non-zero"
+            ),
+            Self::StaleWorkAttempt {
+                operation,
+                task,
+                requested,
+            } => write!(
+                formatter,
+                "operation {operation} work task {task} attempt {requested} is stale"
+            ),
+            Self::WorkResultAlreadyAccepted { operation, task } => write!(
+                formatter,
+                "operation {operation} work task {task} already accepted a result"
+            ),
+            Self::WorkResultMismatch { operation, task } => write!(
+                formatter,
+                "operation {operation} work task {task} result metadata does not match its assignment"
+            ),
             Self::TransferCount { requested, maximum } => write!(
                 formatter,
                 "worker message has {requested} transfers, exceeding {maximum}"
@@ -1266,6 +1792,33 @@ mod tests {
         coordinator.accept(&initialized).unwrap();
         coordinator.mark_ready(worker).unwrap();
         worker
+    }
+
+    fn work_stage(domain: OperationWorkDomain, ordinal: u32, label: &str) -> OperationWorkStage {
+        OperationWorkStage {
+            domain,
+            ordinal,
+            label: label.to_owned(),
+        }
+    }
+
+    fn work_result(
+        packet: &OperationWorkPacket,
+        payload: serde_json::Value,
+    ) -> OperationWorkResult {
+        OperationWorkResult {
+            work_protocol_version: WORK_PACKET_PROTOCOL_VERSION,
+            operation_id: packet.operation_id,
+            task_id: packet.task_id,
+            scope_id: packet.scope_id,
+            worker: packet.worker,
+            attempt: packet.attempt,
+            commit_sequence: packet.commit_sequence,
+            stage: packet.stage.clone(),
+            status: OperationWorkResultStatus::Succeeded,
+            payload,
+            transfers: Vec::new(),
+        }
     }
 
     #[test]
@@ -1571,6 +2124,278 @@ mod tests {
                 .unwrap_err()
                 .code(),
             "cem.worker.stop_missing"
+        );
+    }
+
+    #[test]
+    fn work_results_commit_deterministically_after_out_of_order_workers_finish() {
+        let mut coordinator = WorkerCoordinator::new(2).unwrap();
+        let first = initialized_worker(&mut coordinator, 1);
+        let second = initialized_worker(&mut coordinator, 2);
+        let operation = operation(85);
+        coordinator.register_operation(operation).unwrap();
+        coordinator.assign_worker(operation, first).unwrap();
+        coordinator.assign_worker(operation, second).unwrap();
+
+        let load = coordinator
+            .dispatch_work(
+                operation,
+                TaskId::from_raw(1),
+                ExecutionScopeId::from_raw(0),
+                first,
+                work_stage(OperationWorkDomain::Transform, 1, "data-load"),
+                json!({ "uri": "memory:data.xml" }),
+                Vec::new(),
+            )
+            .unwrap();
+        let compile = coordinator
+            .dispatch_work(
+                operation,
+                TaskId::from_raw(2),
+                ExecutionScopeId::from_raw(0),
+                second,
+                work_stage(OperationWorkDomain::Transform, 2, "template-compile"),
+                json!({ "uri": "memory:template.xpath" }),
+                Vec::new(),
+            )
+            .unwrap();
+        assert_eq!(load.commit_sequence.get(), 1);
+        assert_eq!(compile.commit_sequence.get(), 2);
+
+        let later = coordinator
+            .accept_work_result(work_result(&compile, json!({ "compiled": true })))
+            .unwrap();
+        assert!(later.staged);
+        assert!(later.committed.is_empty());
+
+        let contiguous = coordinator
+            .accept_work_result(work_result(&load, json!({ "loaded": true })))
+            .unwrap();
+        assert!(!contiguous.staged);
+        assert_eq!(
+            contiguous
+                .committed
+                .iter()
+                .map(|result| result.task_id.get())
+                .collect::<Vec<_>>(),
+            vec![1, 2]
+        );
+        assert_eq!(contiguous.committed[0].payload, json!({ "loaded": true }));
+        assert_eq!(contiguous.committed[1].payload, json!({ "compiled": true }));
+    }
+
+    #[test]
+    fn work_cancellation_discards_staged_results_and_blocks_late_or_new_work() {
+        let mut coordinator = WorkerCoordinator::new(2).unwrap();
+        let first = initialized_worker(&mut coordinator, 1);
+        let second = initialized_worker(&mut coordinator, 2);
+        let operation = operation(86);
+        coordinator.register_operation(operation).unwrap();
+        coordinator.assign_worker(operation, first).unwrap();
+        coordinator.assign_worker(operation, second).unwrap();
+        let first_packet = coordinator
+            .dispatch_work(
+                operation,
+                TaskId::from_raw(1),
+                ExecutionScopeId::from_raw(0),
+                first,
+                work_stage(OperationWorkDomain::Query, 1, "input-prepare"),
+                json!({}),
+                Vec::new(),
+            )
+            .unwrap();
+        let second_packet = coordinator
+            .dispatch_work(
+                operation,
+                TaskId::from_raw(2),
+                ExecutionScopeId::from_raw(0),
+                second,
+                work_stage(OperationWorkDomain::Query, 2, "query-prepare"),
+                json!({}),
+                Vec::new(),
+            )
+            .unwrap();
+        assert!(
+            coordinator
+                .accept_work_result(work_result(&second_packet, json!({ "ready": true })))
+                .unwrap()
+                .staged
+        );
+
+        let cancelled = coordinator.cancel_operation_work(operation).unwrap();
+        assert_eq!(cancelled.assigned_tasks, vec![TaskId::from_raw(1)]);
+        assert_eq!(cancelled.discarded_staged_tasks, vec![TaskId::from_raw(2)]);
+        assert_eq!(
+            coordinator
+                .accept_work_result(work_result(&first_packet, json!({})))
+                .unwrap_err()
+                .code(),
+            "cem.worker.work_cancelled"
+        );
+        assert_eq!(
+            coordinator
+                .dispatch_work(
+                    operation,
+                    TaskId::from_raw(3),
+                    ExecutionScopeId::from_raw(0),
+                    first,
+                    work_stage(OperationWorkDomain::Query, 3, "evaluate"),
+                    json!({}),
+                    Vec::new(),
+                )
+                .unwrap_err()
+                .code(),
+            "cem.worker.work_cancelled"
+        );
+        assert_eq!(
+            coordinator.cancel_operation_work(operation).unwrap(),
+            CancelledOperationWork::default()
+        );
+    }
+
+    #[test]
+    fn replacement_retries_the_same_logical_work_and_rejects_old_generation_results() {
+        let mut coordinator = WorkerCoordinator::new(1).unwrap();
+        let first = initialized_worker(&mut coordinator, 1);
+        let operation = operation(87);
+        let task = TaskId::from_raw(5);
+        coordinator.register_operation(operation).unwrap();
+        coordinator.assign_worker(operation, first).unwrap();
+        let packet = coordinator
+            .dispatch_work(
+                operation,
+                task,
+                ExecutionScopeId::from_raw(0),
+                first,
+                work_stage(OperationWorkDomain::Transform, 3, "execute"),
+                json!({ "chunk": 1 }),
+                Vec::new(),
+            )
+            .unwrap();
+
+        let replacement = coordinator.replace_worker(first.slot).unwrap();
+        assert_eq!(
+            replacement.invalidated_work,
+            vec![InvalidatedOperationWork {
+                operation_id: operation,
+                task_id: task,
+                attempt: 1,
+                commit_sequence: WorkCommitSequence::from_raw(1),
+            }]
+        );
+        assert_eq!(
+            coordinator
+                .accept_work_result(work_result(&packet, json!({ "late": true })))
+                .unwrap_err()
+                .code(),
+            "cem.worker.generation_stale"
+        );
+
+        let second = replacement.replacement;
+        coordinator
+            .accept(&WorkerEnvelope::new(
+                second,
+                1,
+                OperationHostEnvelope::initialize(json!({ "runtime": "replacement" })),
+                Vec::new(),
+            ))
+            .unwrap();
+        coordinator.mark_ready(second).unwrap();
+        coordinator.assign_worker(operation, second).unwrap();
+        let retry = coordinator.retry_work(operation, task, second).unwrap();
+        assert_eq!(retry.task_id, packet.task_id);
+        assert_eq!(retry.commit_sequence, packet.commit_sequence);
+        assert_eq!(retry.attempt, 2);
+        assert_eq!(retry.payload, packet.payload);
+
+        let accepted = coordinator
+            .accept_work_result(work_result(&retry, json!({ "late": false })))
+            .unwrap();
+        assert!(!accepted.staged);
+        assert_eq!(accepted.committed.len(), 1);
+        assert_eq!(accepted.committed[0].attempt, 2);
+    }
+
+    #[test]
+    fn work_packet_metadata_and_inline_payloads_are_versioned_and_bounded() {
+        let mut coordinator = WorkerCoordinator::new(1).unwrap();
+        let worker = initialized_worker(&mut coordinator, 1);
+        let operation = operation(88);
+        coordinator.register_operation(operation).unwrap();
+        coordinator.assign_worker(operation, worker).unwrap();
+
+        assert_eq!(
+            coordinator
+                .dispatch_work(
+                    operation,
+                    TaskId::from_raw(1),
+                    ExecutionScopeId::from_raw(0),
+                    worker,
+                    work_stage(OperationWorkDomain::Transform, 1, ""),
+                    json!({}),
+                    Vec::new(),
+                )
+                .unwrap_err()
+                .code(),
+            "cem.worker.work_stage_invalid"
+        );
+        assert_eq!(
+            coordinator
+                .dispatch_work(
+                    operation,
+                    TaskId::from_raw(1),
+                    ExecutionScopeId::from_raw(0),
+                    worker,
+                    work_stage(OperationWorkDomain::Transform, 1, "load"),
+                    serde_json::Value::String("x".repeat(MAX_WORK_INLINE_PAYLOAD_BYTES)),
+                    Vec::new(),
+                )
+                .unwrap_err()
+                .code(),
+            "cem.worker.work_payload_too_large"
+        );
+
+        let packet = coordinator
+            .dispatch_work(
+                operation,
+                TaskId::from_raw(1),
+                ExecutionScopeId::from_raw(0),
+                worker,
+                work_stage(OperationWorkDomain::Transform, 1, "load"),
+                json!({ "source": "data" }),
+                vec![TransferBufferDescriptor {
+                    id: TransferBufferId::from_raw(1),
+                    byte_length: 8,
+                }],
+            )
+            .unwrap();
+        assert_eq!(
+            serde_json::to_value(&packet).unwrap(),
+            json!({
+                "workProtocolVersion": 1,
+                "operationId": 88,
+                "taskId": 1,
+                "scopeId": 0,
+                "worker": { "slot": 1, "generation": 1 },
+                "attempt": 1,
+                "commitSequence": 1,
+                "stage": {
+                    "domain": "transform",
+                    "ordinal": 1,
+                    "label": "load"
+                },
+                "payload": { "source": "data" },
+                "transfers": [{ "id": 1, "byteLength": 8 }]
+            })
+        );
+        let mut wrong_version = work_result(&packet, json!({}));
+        wrong_version.work_protocol_version += 1;
+        assert_eq!(
+            coordinator
+                .accept_work_result(wrong_version)
+                .unwrap_err()
+                .code(),
+            "cem.worker.work_protocol_version"
         );
     }
 

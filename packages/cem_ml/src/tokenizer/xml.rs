@@ -41,10 +41,7 @@ impl XmlTokenizer {
         Self::from_source_inner(source, Some(TokenizerControl::new(control, scope)))
     }
 
-    fn from_source_inner<S: ByteSource>(
-        source: S,
-        mut control: Option<TokenizerControl>,
-    ) -> Self {
+    fn from_source_inner<S: ByteSource>(source: S, mut control: Option<TokenizerControl>) -> Self {
         let mut decoder = Utf8Decoder::with_config(
             source,
             DecodeConfig {

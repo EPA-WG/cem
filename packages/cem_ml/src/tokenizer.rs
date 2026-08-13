@@ -43,10 +43,7 @@ impl TokenizerControl {
         self.accept(result)
     }
 
-    fn accept(
-        &mut self,
-        result: Result<(), crate::operation_control::ControlError>,
-    ) -> bool {
+    fn accept(&mut self, result: Result<(), crate::operation_control::ControlError>) -> bool {
         match result {
             Ok(()) => true,
             Err(error) => {

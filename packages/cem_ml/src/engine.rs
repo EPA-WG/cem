@@ -194,10 +194,7 @@ impl EngineContext {
     }
 
     pub fn ensure_active(&self) -> EngineResult<()> {
-        match self
-            .operation_control
-            .check_scope(ROOT_EXECUTION_SCOPE_ID)
-        {
+        match self.operation_control.check_scope(ROOT_EXECUTION_SCOPE_ID) {
             Ok(()) => Ok(()),
             Err(ControlError::Triggered(failure))
                 if failure.terminal_class()

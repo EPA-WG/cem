@@ -72,11 +72,7 @@ impl HtmlTokenizer {
         control: crate::operation_control::OperationControl,
         scope: crate::operation_control::ExecutionScopeId,
     ) -> Self {
-        Self::from_source_with_mode(
-            source,
-            false,
-            Some(TokenizerControl::new(control, scope)),
-        )
+        Self::from_source_with_mode(source, false, Some(TokenizerControl::new(control, scope)))
     }
 
     pub fn from_document_source<S: ByteSource>(source: S) -> Self {

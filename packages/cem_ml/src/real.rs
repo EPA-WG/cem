@@ -146,7 +146,7 @@ use serde_json::{json, Value};
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
-use std::time::Instant;
+use web_time::Instant;
 
 #[derive(Debug, Default, Clone)]
 pub struct RealCemMlEngine;
@@ -4874,14 +4874,11 @@ fn read_registered_template_import(
     if let Some(content_type_hint) = content_type_hint {
         request = request.with_content_type_hint(content_type_hint);
     }
-    match context
-        .resolver_registry
-        .read_with_control(
-            &request,
-            &context.operation_control,
-            crate::operation_control::ROOT_EXECUTION_SCOPE_ID,
-        )
-    {
+    match context.resolver_registry.read_with_control(
+        &request,
+        &context.operation_control,
+        crate::operation_control::ROOT_EXECUTION_SCOPE_ID,
+    ) {
         Ok(read) => Ok(Some(read)),
         Err(ResolverDiagnostic::UnsupportedResolver { .. }) => Ok(None),
         Err(error) => Err(error),
@@ -8792,14 +8789,11 @@ fn read_registered_resource(
     if let Some(content_type_hint) = content_type_hint {
         request = request.with_content_type_hint(content_type_hint);
     }
-    match context
-        .resolver_registry
-        .read_with_control(
-            &request,
-            &context.operation_control,
-            crate::operation_control::ROOT_EXECUTION_SCOPE_ID,
-        )
-    {
+    match context.resolver_registry.read_with_control(
+        &request,
+        &context.operation_control,
+        crate::operation_control::ROOT_EXECUTION_SCOPE_ID,
+    ) {
         Ok(read) => Ok(Some(read)),
         Err(ResolverDiagnostic::UnsupportedResolver { .. }) => Ok(None),
         Err(error) => Err(error),

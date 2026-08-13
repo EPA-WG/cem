@@ -60,9 +60,9 @@ use crate::transform_artifact::{
     CemtNodeFormatTarget, CemtOverlayProducer, CemtOverlayProvenance, CemtOwnerPath,
     CemtTreeArtifact, CemtTreeArtifactStage, CemtTreeEnvelopeMetadata, CemtTreeEnvelopeMode,
     CemtTreeSubjectRef, CemtWriterBoundary, CsvDocumentCemtSubjectRef,
-    GenericDataCsvDocumentCemtSubjectRef,
-    GenericDataJsonDocumentCemtSubjectRef, GenericDataYamlDocumentCemtSubjectRef,
-    JsonDocumentCemtSubjectRef, JsonSchemaDocumentCemtSubjectRef, MarkdownDocumentCemtSubjectRef,
+    GenericDataCsvDocumentCemtSubjectRef, GenericDataJsonDocumentCemtSubjectRef,
+    GenericDataYamlDocumentCemtSubjectRef, JsonDocumentCemtSubjectRef,
+    JsonSchemaDocumentCemtSubjectRef, MarkdownDocumentCemtSubjectRef,
     RelaxNgDocumentCemtSubjectRef, TransformArtifactBody, TransformNativeArtifact,
     XmlFamilyDocumentCemtSubjectRef, YamlDocumentCemtSubjectRef,
     CEMT_MATERIALIZED_TREE_REPRESENTATION_ID, CEMT_TREE_REPRESENTATION_ID,
@@ -118,7 +118,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::fmt;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
-use std::time::Instant;
+use web_time::Instant;
 
 pub const CONVERSION_PARITY_NATIVE_PAIR_MISSING_CODE: &str =
     "cem.converter.parity_native_pair_missing";
@@ -24999,10 +24999,9 @@ mod tests {
                     .iter()
                     .flat_map(|template| &template.segments)
                     .filter_map(|segment| match segment {
-                        XsltAttributeValueTemplateSegmentAst::Expression {
-                            expression,
-                            ..
-                        } => Some(expression.as_ref()),
+                        XsltAttributeValueTemplateSegmentAst::Expression { expression, .. } => {
+                            Some(expression.as_ref())
+                        }
                         _ => None,
                     }),
             )
@@ -25102,22 +25101,38 @@ mod tests {
                     "{profile} must retain `{needle}` byte-for-byte"
                 );
             }
-            assert!(nodes.iter().skip(2).any(|node| {
-                node["kind"] == "xslt.layout"
-                    && node["sourceMap"] == Value::Null
-                    && node["outputSpan"] == Value::Null
-            }), "{profile} generated layout must be unmapped");
-            assert!(nodes.iter().skip(2).filter(|node| node["kind"] != "xslt.layout").all(|node| {
-                node["sourceMap"]["frames"]
-                    .as_array()
-                    .is_some_and(|frames| !frames.is_empty())
-                    && node["outputSpan"]["origin"]["frames"]
-                        .as_array()
-                        .is_some_and(|frames| !frames.is_empty())
-            }), "{profile} lexical tokens must retain source maps");
+            assert!(
+                nodes.iter().skip(2).any(|node| {
+                    node["kind"] == "xslt.layout"
+                        && node["sourceMap"] == Value::Null
+                        && node["outputSpan"] == Value::Null
+                }),
+                "{profile} generated layout must be unmapped"
+            );
+            assert!(
+                nodes
+                    .iter()
+                    .skip(2)
+                    .filter(|node| node["kind"] != "xslt.layout")
+                    .all(|node| {
+                        node["sourceMap"]["frames"]
+                            .as_array()
+                            .is_some_and(|frames| !frames.is_empty())
+                            && node["outputSpan"]["origin"]["frames"]
+                                .as_array()
+                                .is_some_and(|frames| !frames.is_empty())
+                    }),
+                "{profile} lexical tokens must retain source maps"
+            );
         }
-        assert_ne!(outputs[0], outputs[1], "compact and pretty must be distinct");
-        assert_ne!(outputs[1], outputs[2], "pretty and tabular must be distinct");
+        assert_ne!(
+            outputs[0], outputs[1],
+            "compact and pretty must be distinct"
+        );
+        assert_ne!(
+            outputs[1], outputs[2],
+            "pretty and tabular must be distinct"
+        );
     }
 
     #[test]

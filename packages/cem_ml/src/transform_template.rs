@@ -50,9 +50,9 @@ use crate::validation::xpath::{
     xpath_expression_ast_from_source_bytes, CemtXPathInvocationAdapter, XPathAttachment,
     XPathDynamicContext, XPathEvaluationLimits, XPathEvaluationPhase, XPathEvaluationRequest,
     XPathExpandedName, XPathExpectedResult, XPathExpressionAst, XPathHostAttachment,
-    XPathHostNodeKind, XPathHostOwner, XPathInvocationHost,
-    XPathResultArtifact, XPathResultItem, XPathResultSequence, XPathSchemaContractCatalog,
-    XPathSourceRange, XPathSourceRequest, XPathStaticContext, XPathVariableBindings,
+    XPathHostNodeKind, XPathHostOwner, XPathInvocationHost, XPathResultArtifact, XPathResultItem,
+    XPathResultSequence, XPathSchemaContractCatalog, XPathSourceRange, XPathSourceRequest,
+    XPathStaticContext, XPathVariableBindings,
 };
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -26106,21 +26106,25 @@ pub fn invoke_transform_template_xpath(
         return Err(diagnostics);
     }
 
-    CemtXPathInvocationAdapter.invoke_with_control(XPathEvaluationRequest {
-        invocation_host: XPathInvocationHost::Cemt,
-        expression: invocation.expression.as_ref(),
-        dynamic_context: XPathDynamicContext {
-            context_item,
-            variable_bindings,
-            ..XPathDynamicContext::default()
+    CemtXPathInvocationAdapter.invoke_with_control(
+        XPathEvaluationRequest {
+            invocation_host: XPathInvocationHost::Cemt,
+            expression: invocation.expression.as_ref(),
+            dynamic_context: XPathDynamicContext {
+                context_item,
+                variable_bindings,
+                ..XPathDynamicContext::default()
+            },
+            static_context: invocation.static_context.clone(),
+            expected_result: Some(invocation.expected_result.clone()),
+            resolver_registry: runtime.resolver_registry,
+            resolver_policy: runtime.resolver_policy,
+            evaluation_limits,
+            safety_policy_stamp: "xpath-safety/1;cemt-authored-slot",
         },
-        static_context: invocation.static_context.clone(),
-        expected_result: Some(invocation.expected_result.clone()),
-        resolver_registry: runtime.resolver_registry,
-        resolver_policy: runtime.resolver_policy,
-        evaluation_limits,
-        safety_policy_stamp: "xpath-safety/1;cemt-authored-slot",
-    }, runtime.operation_control, runtime.execution_scope)
+        runtime.operation_control,
+        runtime.execution_scope,
+    )
 }
 
 fn transform_template_xpath_binding_diagnostic(

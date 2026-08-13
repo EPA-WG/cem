@@ -7,8 +7,32 @@ worker-thread hosts.
 ```js
 import { createNodeWorkerPool } from '@epa-wg/cem-ml-cli/node';
 
+const source = (uri, contentType, schema, text) => ({
+    uri,
+    bytes: [...new TextEncoder().encode(text)],
+    identity: { contentType, schema },
+});
+const xmlSource = source(
+    'memory:data.xml',
+    'application/xml',
+    'https://cem.dev/ns/data/xml/1',
+    '<root><item id="one"/><item id="two"/></root>',
+);
+const xpathSource = source(
+    'memory:query.xpath',
+    'application/vnd.cem.xpath',
+    'https://cem.dev/ns/query/xpath/1',
+    '//item',
+);
 const pool = await createNodeWorkerPool({ workerCount: 2 });
 console.log(pool.capability, pool.workers);
+const operation = pool.run({
+    kind: 'query',
+    data: xmlSource,
+    query: xpathSource,
+});
+operation.subscribe((event) => console.log(event));
+console.log(await operation);
 await pool.close();
 ```
 
@@ -25,6 +49,15 @@ strict initialization envelopes, Rust-derived protocol limits, exact runtime
 versioning, bounded startup, and explicit one-worker modes are established here.
 The browser host falls back from the bounded pool to one dedicated worker and
 then to one main-thread WASM runtime when workers cannot initialize; it does not
-require shared-memory WASM or cross-origin isolation. Operation dispatch,
-hard-cancel replacement, shared commands, and the `cem-ml` npm executable remain
-subsequent checklist work.
+require shared-memory WASM or cross-origin isolation.
+
+`pool.run(request)` returns an awaitable operation handle with `result()`,
+`subscribe()`, `cancel()`, `pause()`, `continue()`, `step()`, and `dispose()`.
+The common Rust coordinator retains continuation and deterministic commit order;
+workers receive bounded stateless transform/query packets. Dedicated workers are
+terminated and replaced when cancellation exceeds the negotiated hard-cancel
+grace. Main-thread browser fallback uses the same bounded packets and cooperative
+controls, while truthfully reporting hard cancellation as unavailable.
+
+Shared CLI commands and the `cem-ml` npm executable remain subsequent checklist
+work.

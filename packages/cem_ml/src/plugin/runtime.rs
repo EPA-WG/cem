@@ -12,7 +12,9 @@ use crate::plugin::errors::PluginError;
 use crate::scheduler::policy::ScopePolicy;
 use crate::source::ByteRange;
 use crate::source_map::{FrameSpan, SourceMapFrame, SourceMapStack, TransformKind};
-use std::time::{Duration, Instant};
+use std::time::Duration;
+
+use web_time::Instant;
 
 /// Optional per-plugin resource limit (AC-PL-17). The runtime measures
 /// wall-clock time around `invoke`; memory accounting is left to the

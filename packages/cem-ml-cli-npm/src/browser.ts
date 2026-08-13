@@ -2,10 +2,18 @@ import * as runtime from '@epa-wg/cem-ml/wasm';
 import runtimeMetadata from '@epa-wg/cem-ml/runtime.json' with { type: 'json' };
 
 import {
+    CemMlOperationHandle,
+    OperationHostController,
+    type ResumableOperationOptions,
+    type ResumableRuntime,
+} from './operation.js';
+import {
     DEFAULT_MAX_BROWSER_WORKERS,
     DEFAULT_STARTUP_TIMEOUT_MS,
+    MAX_HARD_CANCEL_GRACE_MS,
     MAX_COORDINATED_WORKERS,
     MAX_STARTUP_TIMEOUT_MS,
+    MIN_HARD_CANCEL_GRACE_MS,
     OPERATION_PROTOCOL_VERSION,
     WORKER_PROTOCOL_VERSION,
 } from './protocol.js';
@@ -16,6 +24,9 @@ import type {
     BrowserWorkerInitializePayload,
     WorkerAddress,
     WorkerProtocolDescriptor,
+    OperationWorkPacket,
+    OperationWorkResult,
+    ResumableOperationRunRequest,
 } from './protocol.js';
 
 export type BrowserWorkerPoolMode =
@@ -40,6 +51,7 @@ export interface BrowserWorkerPoolOptions {
     readonly maxWorkers?: number;
     readonly startupTimeoutMs?: number;
     readonly onWorkerFailure?: (failure: BrowserWorkerFailure) => void;
+    readonly hardCancelGraceMs?: number;
 }
 
 export interface BrowserWorkerDescriptor extends WorkerAddress {
@@ -53,9 +65,17 @@ export interface BrowserMainThreadDescriptor {
 }
 
 interface WorkerRecord {
-    readonly worker: Worker;
-    readonly descriptor: BrowserWorkerDescriptor;
-    readonly initialization: BrowserWorkerInitializePayload;
+    worker: Worker;
+    descriptor: BrowserWorkerDescriptor;
+    initialization: BrowserWorkerInitializePayload;
+    nextSequence: number;
+    readonly pending: Map<string, PendingWork>;
+}
+
+interface PendingWork {
+    readonly packet: OperationWorkPacket;
+    readonly resolve: (result: OperationWorkResult) => void;
+    readonly reject: (error: Error) => void;
 }
 
 interface WorkerCandidate {
@@ -82,11 +102,16 @@ export class BrowserWorkerPool {
     readonly mode: BrowserWorkerPoolMode;
     readonly fallbackReason: BrowserWorkerPoolFallbackReason | undefined;
     readonly capability: BrowserWorkerCapabilityManifest | BrowserMainThreadCapabilityManifest;
-    readonly workers: readonly BrowserWorkerDescriptor[];
     readonly mainThread: BrowserMainThreadDescriptor | undefined;
 
     #records: readonly WorkerRecord[];
+    #controller: OperationHostController;
+    #mainWorkerAddress: WorkerAddress;
     #closing = false;
+    #startupTimeoutMs: number;
+    #runtimeHostId: string;
+    #abiIdentity: string;
+    #onWorkerFailure: ((failure: BrowserWorkerFailure) => void) | undefined;
 
     private constructor(
         records: readonly WorkerRecord[],
@@ -95,16 +120,28 @@ export class BrowserWorkerPool {
         mode: BrowserWorkerPoolMode,
         fallbackReason: BrowserWorkerPoolFallbackReason | undefined,
         onWorkerFailure: ((failure: BrowserWorkerFailure) => void) | undefined,
+        startupTimeoutMs: number,
+        runtimeHostId: string,
+        abiIdentity: string,
+        operationOptions: ResumableOperationOptions,
     ) {
         this.#records = records;
+        this.#startupTimeoutMs = startupTimeoutMs;
+        this.#runtimeHostId = runtimeHostId;
+        this.#abiIdentity = abiIdentity;
+        this.#onWorkerFailure = onWorkerFailure;
         this.mode = mode;
         this.fallbackReason = fallbackReason;
         this.capability = capability;
-        this.workers = Object.freeze(records.map((record) => Object.freeze(record.descriptor)));
         this.mainThread = mainThread === undefined ? undefined : Object.freeze(mainThread);
+        this.#mainWorkerAddress = records[0]?.descriptor ?? { slot: 1, generation: 1 };
         for (const record of records) {
+            record.worker.addEventListener('message', (event: MessageEvent<unknown>) => {
+                this.#acceptWorkerMessage(record, event.data);
+            });
             record.worker.addEventListener('error', (event) => {
                 if (!this.#closing) {
+                    rejectPending(record, new Error(event.message || 'CEM-ML browser worker failed'));
                     onWorkerFailure?.({
                         worker: record.descriptor,
                         code: 'worker-error',
@@ -114,6 +151,7 @@ export class BrowserWorkerPool {
             });
             record.worker.addEventListener('messageerror', () => {
                 if (!this.#closing) {
+                    rejectPending(record, new Error('CEM-ML browser worker emitted an invalid message'));
                     onWorkerFailure?.({
                         worker: record.descriptor,
                         code: 'message-error',
@@ -122,11 +160,28 @@ export class BrowserWorkerPool {
                 }
             });
         }
+        this.#controller = new OperationHostController(
+            runtime as unknown as ResumableRuntime,
+            {
+                workerAddresses: () =>
+                    this.#records.length === 0
+                        ? [this.#mainWorkerAddress]
+                        : this.#records.map(({ descriptor }) => descriptor),
+                execute: (packet) => this.#executeWork(packet),
+                replace: (previous, replacement) => this.#replacePhysicalWorker(previous, replacement),
+            },
+            operationOptions,
+        );
+    }
+
+    get workers(): readonly BrowserWorkerDescriptor[] {
+        return Object.freeze(this.#records.map(({ descriptor }) => Object.freeze({ ...descriptor })));
     }
 
     private static async startMainThreadFallback(
         reason: BrowserWorkerPoolFallbackReason,
         onWorkerFailure: ((failure: BrowserWorkerFailure) => void) | undefined,
+        operationOptions: ResumableOperationOptions,
     ): Promise<BrowserWorkerPool> {
         await initializeRuntime();
         const commonVersion = runtime.version();
@@ -149,6 +204,10 @@ export class BrowserWorkerPool {
             'main-thread-fallback',
             reason,
             onWorkerFailure,
+            DEFAULT_STARTUP_TIMEOUT_MS,
+            `browser-main-${nextRuntimeHostId++}`,
+            runtimeAbiIdentity(),
+            operationOptions,
         );
     }
 
@@ -156,9 +215,14 @@ export class BrowserWorkerPool {
         return this.#records.length === 0 ? 1 : this.#records.length;
     }
 
+    run(request: ResumableOperationRunRequest): CemMlOperationHandle {
+        return this.#controller.start(request);
+    }
+
     async close(): Promise<void> {
         if (this.#closing) return;
         this.#closing = true;
+        this.#controller.close();
         for (const record of this.#records) {
             record.worker.postMessage({ type: 'cem-worker-close' });
             record.worker.terminate();
@@ -167,10 +231,15 @@ export class BrowserWorkerPool {
 
     static async create(options: BrowserWorkerPoolOptions = {}): Promise<BrowserWorkerPool> {
         const plan = workerPlan(options);
+        await initializeRuntime();
         const abiIdentity = runtimeAbiIdentity();
         const runtimeHostId = `browser-host-${nextRuntimeHostId++}`;
         if (typeof Worker !== 'function') {
-            return BrowserWorkerPool.startMainThreadFallback('workers-unavailable', options.onWorkerFailure);
+            return BrowserWorkerPool.startMainThreadFallback(
+                'workers-unavailable',
+                options.onWorkerFailure,
+                resumableOptions(options.hardCancelGraceMs),
+            );
         }
 
         try {
@@ -187,6 +256,10 @@ export class BrowserWorkerPool {
                 plan.requested === 1 ? 'single-worker' : 'pool',
                 undefined,
                 options.onWorkerFailure,
+                plan.startupTimeoutMs,
+                runtimeHostId,
+                abiIdentity,
+                resumableOptions(options.hardCancelGraceMs),
             );
         } catch {
             if (plan.requested > 1) {
@@ -199,16 +272,111 @@ export class BrowserWorkerPool {
                         'single-worker-fallback',
                         'pool-initialization-failed',
                         options.onWorkerFailure,
+                        plan.startupTimeoutMs,
+                        runtimeHostId,
+                        abiIdentity,
+                        resumableOptions(options.hardCancelGraceMs),
                     );
                 } catch {
                     return BrowserWorkerPool.startMainThreadFallback(
                         'worker-initialization-failed',
                         options.onWorkerFailure,
+                        resumableOptions(options.hardCancelGraceMs),
                     );
                 }
             }
-            return BrowserWorkerPool.startMainThreadFallback('worker-initialization-failed', options.onWorkerFailure);
+            return BrowserWorkerPool.startMainThreadFallback(
+                'worker-initialization-failed',
+                options.onWorkerFailure,
+                resumableOptions(options.hardCancelGraceMs),
+            );
         }
+    }
+
+    #executeWork(packet: OperationWorkPacket): Promise<OperationWorkResult> {
+        if (this.#records.length === 0) {
+            if (!sameWorker(packet.worker, this.#mainWorkerAddress)) {
+                return Promise.reject(new Error('CEM-ML main-thread work targets a stale generation'));
+            }
+            return new Promise((resolve, reject) => {
+                setTimeout(() => {
+                    try {
+                        resolve(parseRuntimeWorkResult((runtime as unknown as ResumableRuntime).executeOperationWork(JSON.stringify(packet))));
+                    } catch (error) {
+                        reject(error instanceof Error ? error : new Error(String(error)));
+                    }
+                });
+            });
+        }
+        const record = this.#records.find(({ descriptor }) => sameWorker(descriptor, packet.worker));
+        if (record === undefined) {
+            return Promise.reject(new Error('CEM-ML work packet targets an unavailable browser worker generation'));
+        }
+        const key = packetKey(packet);
+        if (record.pending.has(key)) {
+            return Promise.reject(new Error(`CEM-ML browser work packet ${key} is already pending`));
+        }
+        return new Promise((resolve, reject) => {
+            record.pending.set(key, { packet, resolve, reject });
+            record.worker.postMessage({ type: 'cem-operation-work', packet });
+        });
+    }
+
+    #acceptWorkerMessage(record: WorkerRecord, message: unknown): void {
+        try {
+            const result = validateWorkResult(message, record);
+            const key = packetKey(result);
+            const pending = record.pending.get(key);
+            if (pending === undefined) throw new Error(`CEM-ML browser worker result ${key} is unexpected`);
+            record.pending.delete(key);
+            pending.resolve(result);
+        } catch (error) {
+            rejectPending(record, error instanceof Error ? error : new Error(String(error)));
+        }
+    }
+
+    async #replacePhysicalWorker(previous: WorkerAddress, replacement: WorkerAddress): Promise<void> {
+        if (this.#records.length === 0) {
+            this.#mainWorkerAddress = replacement;
+            return;
+        }
+        const index = this.#records.findIndex(({ descriptor }) => sameWorker(descriptor, previous));
+        if (index < 0) throw new Error('CEM-ML cannot replace an unknown browser worker generation');
+        const current = this.#records[index];
+        rejectPending(current, new Error('CEM-ML browser worker was replaced'));
+        current.worker.terminate();
+        const candidate = startWorker(
+            replacement,
+            this.size,
+            this.#startupTimeoutMs,
+            this.#runtimeHostId,
+            this.#abiIdentity,
+        );
+        const next = await candidate.initialized;
+        next.worker.addEventListener('message', (event: MessageEvent<unknown>) => {
+            this.#acceptWorkerMessage(next, event.data);
+        });
+        next.worker.addEventListener('error', (event) => {
+            if (!this.#closing) {
+                rejectPending(next, new Error(event.message || 'CEM-ML browser worker failed'));
+                this.#onWorkerFailure?.({
+                    worker: next.descriptor,
+                    code: 'worker-error',
+                    message: event.message || 'CEM-ML browser worker failed',
+                });
+            }
+        });
+        next.worker.addEventListener('messageerror', () => {
+            if (!this.#closing) {
+                rejectPending(next, new Error('CEM-ML browser worker emitted an invalid message'));
+                this.#onWorkerFailure?.({
+                    worker: next.descriptor,
+                    code: 'message-error',
+                    message: 'CEM-ML browser worker emitted an invalid structured-clone message',
+                });
+            }
+        });
+        (this.#records as WorkerRecord[])[index] = next;
     }
 }
 
@@ -224,6 +392,14 @@ function workerPlan(options: BrowserWorkerPoolOptions): WorkerPlan {
     requireBoundedInteger('workerCount', requested, 1, maxWorkers);
     const startupTimeoutMs = options.startupTimeoutMs ?? DEFAULT_STARTUP_TIMEOUT_MS;
     requireBoundedInteger('startupTimeoutMs', startupTimeoutMs, 1, MAX_STARTUP_TIMEOUT_MS);
+    if (options.hardCancelGraceMs !== undefined) {
+        requireBoundedInteger(
+            'hardCancelGraceMs',
+            options.hardCancelGraceMs,
+            MIN_HARD_CANCEL_GRACE_MS,
+            MAX_HARD_CANCEL_GRACE_MS,
+        );
+    }
     return { requested, startupTimeoutMs };
 }
 
@@ -307,6 +483,8 @@ function startWorker(
                 resolve({
                     worker,
                     initialization,
+                    nextSequence: 2,
+                    pending: new Map(),
                     descriptor: {
                         ...address,
                         runtimeInstanceId: initialization.runtimeInstanceId,
@@ -386,6 +564,67 @@ function validateBatch(records: readonly WorkerRecord[], effectiveWorkers: numbe
             throw new Error('CEM-ML browser worker runtime instances must be unique');
         }
     }
+}
+
+function validateWorkResult(value: unknown, record: WorkerRecord): OperationWorkResult {
+    if (!isRecord(value)) throw new Error('CEM-ML browser worker result must be an object');
+    if (value.workerProtocolVersion !== WORKER_PROTOCOL_VERSION) {
+        throw new Error('CEM-ML browser worker result protocol version mismatch');
+    }
+    if (!sameWorker(value.worker, record.descriptor) || value.sequence !== record.nextSequence) {
+        throw new Error('CEM-ML browser worker result address or sequence mismatch');
+    }
+    if (!Array.isArray(value.transfers) || value.transfers.length !== 0) {
+        throw new Error('CEM-ML browser worker result unexpectedly contains transfers');
+    }
+    if (!isRecord(value.operation)) throw new Error('CEM-ML browser worker result envelope is missing');
+    if (
+        value.operation.protocolVersion !== OPERATION_PROTOCOL_VERSION ||
+        value.operation.kind !== 'result' ||
+        !isPositiveInteger(value.operation.operationId) ||
+        !isPositiveInteger(value.operation.sequence) ||
+        !isRecord(value.operation.payload)
+    ) {
+        throw new Error('CEM-ML browser worker result envelope is invalid');
+    }
+    const result = value.operation.payload;
+    if (
+        result.workProtocolVersion !== 1 ||
+        result.operationId !== value.operation.operationId ||
+        result.taskId !== value.operation.sequence ||
+        !sameWorker(result.worker, record.descriptor) ||
+        !isPositiveInteger(result.attempt) ||
+        !isPositiveInteger(result.commitSequence) ||
+        !isRecord(result.stage) ||
+        !['succeeded', 'failed', 'cancelled'].includes(String(result.status))
+    ) {
+        throw new Error('CEM-ML browser worker result payload metadata is invalid');
+    }
+    record.nextSequence += 1;
+    return result as unknown as OperationWorkResult;
+}
+
+function parseRuntimeWorkResult(json: string): OperationWorkResult {
+    const value = JSON.parse(json) as unknown;
+    if (isRecord(value) && isRecord(value.error)) {
+        throw new Error(
+            typeof value.error.message === 'string' ? value.error.message : 'CEM-ML main-thread work failed',
+        );
+    }
+    return value as OperationWorkResult;
+}
+
+function rejectPending(record: WorkerRecord, error: Error): void {
+    for (const pending of record.pending.values()) pending.reject(error);
+    record.pending.clear();
+}
+
+function packetKey(packet: Pick<OperationWorkPacket, 'operationId' | 'taskId' | 'attempt'>): string {
+    return `${packet.operationId}:${packet.taskId}:${packet.attempt}`;
+}
+
+function resumableOptions(hardCancelGraceMs: number | undefined): ResumableOperationOptions {
+    return hardCancelGraceMs === undefined ? {} : { hardCancelGraceMs };
 }
 
 function validProtocol(value: unknown): value is WorkerProtocolDescriptor {

@@ -22,6 +22,8 @@ for (const path of [
     'node.js',
     'node.d.ts',
     'node-worker.js',
+    'operation.js',
+    'operation.d.ts',
     'protocol.js',
     'protocol.d.ts',
 ]) {

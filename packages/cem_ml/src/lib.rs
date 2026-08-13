@@ -11,6 +11,7 @@ pub mod debug_control;
 pub mod diagnostics;
 pub mod engine;
 pub mod report;
+pub mod resumable_operation;
 
 // Tier A layered runtime contract (AC-F-10). Bodies arrive in Phase 11; types
 // here fix the public boundary used by downstream layers and `cem-ml-cli`.

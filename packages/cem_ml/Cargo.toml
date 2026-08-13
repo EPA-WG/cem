@@ -28,6 +28,7 @@ regex = "1"
 csv = "1"
 cssparser = "0.37"
 ryu = "1"
+web-time = "1.1"
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 wasm-bindgen = "0.2"

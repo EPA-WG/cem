@@ -39,18 +39,33 @@
 //! the observer to `observe_pipeline`.
 
 use std::cell::RefCell;
+use std::collections::BTreeMap;
 
 use js_sys::{Array, ArrayBuffer, Function, Reflect, Uint8Array};
 use wasm_bindgen::{prelude::*, JsCast};
 
-use crate::capability::{capability_manifest, CapabilityRequest, ExecutorTopology, RuntimeKind};
+use crate::capability::{
+    capability_manifest, CapabilityAvailability, CapabilityManifest, CapabilityRequest,
+    ControlCapabilityKind, ControlCoverage, ExecutorTopology, RuntimeKind,
+};
 use crate::observability::{EngineObserver, ReportEvent};
+use crate::operation_control::OperationId;
 use crate::operation_handle::OPERATION_PROTOCOL_VERSION;
 use crate::resolver::{
     ResolveDirection, ResolvePurpose, ResolveRequest, ResolvedRead, ResolvedWrite,
     ResolverDiagnostic, ResolverRegistry, ResourceResolver,
 };
-use crate::worker_control::{WorkerCoordinatorLimits, WORKER_PROTOCOL_VERSION};
+use crate::resumable_operation::{
+    execute_operation_work, ResumableOperationError, ResumableOperationHost, ResumableRunRequest,
+};
+use crate::worker_control::{
+    OperationWorkPacket, OperationWorkResult, WorkerCoordinatorLimits, WorkerSlotId,
+    WORKER_PROTOCOL_VERSION,
+};
+#[cfg(feature = "debug-control")]
+use crate::worker_control::{
+    WorkerAddress, WorkerGeneration, WorkerStopDisposition, WorkerStopGeneration,
+};
 
 thread_local! {
     static PARSE_OBSERVER: RefCell<Option<Function>> = const { RefCell::new(None) };
@@ -58,6 +73,8 @@ thread_local! {
     static TRANSFORM_OBSERVER: RefCell<Option<Function>> = const { RefCell::new(None) };
     static RESOLVER_READ: RefCell<Option<Function>> = const { RefCell::new(None) };
     static RESOLVER_WRITE: RefCell<Option<Function>> = const { RefCell::new(None) };
+    static RESUMABLE_OPERATION_HOSTS: RefCell<BTreeMap<u32, ResumableOperationHost>> = const { RefCell::new(BTreeMap::new()) };
+    static NEXT_RESUMABLE_OPERATION_HOST_ID: RefCell<u32> = const { RefCell::new(1) };
 }
 
 /// Returns the common `cem_ml` Cargo version embedded in this WASM build.
@@ -121,6 +138,7 @@ pub fn node_worker_capability_manifest_json(
         Ok(mut manifest) => {
             manifest.executor_topology = ExecutorTopology::NodeWorkerPool;
             manifest.effective_max_workers = effective_max_workers;
+            enable_worker_hard_cancel(&mut manifest);
             serde_json::to_string(&manifest).unwrap_or_else(capability_serialize_error)
         }
         Err(error) => capability_error(error.code, error.field, &error.message),
@@ -159,6 +177,7 @@ pub fn browser_worker_capability_manifest_json(
         Ok(mut manifest) => {
             manifest.executor_topology = ExecutorTopology::BrowserWorkerPool;
             manifest.effective_max_workers = effective_max_workers;
+            enable_worker_hard_cancel(&mut manifest);
             serde_json::to_string(&manifest).unwrap_or_else(capability_serialize_error)
         }
         Err(error) => capability_error(error.code, error.field, &error.message),
@@ -180,6 +199,247 @@ pub fn worker_protocol_descriptor_json() -> String {
         }
     })
     .to_string()
+}
+
+/// Create one coordinator-owned resumable operation host for a physical pool.
+/// The returned host identity scopes operation IDs and permits multiple pools
+/// to coexist in the same JavaScript runtime without sharing routes.
+#[wasm_bindgen(js_name = "initializeResumableOperationHost")]
+pub fn initialize_resumable_operation_host(worker_count: u16) -> String {
+    resumable_response((|| {
+        let host = ResumableOperationHost::new(worker_count)?;
+        let workers = host.workers().to_vec();
+        let host_id = NEXT_RESUMABLE_OPERATION_HOST_ID.with(|cell| {
+            let mut next = cell.borrow_mut();
+            let host_id = *next;
+            *next = next.checked_add(1).ok_or_else(|| {
+                ResumableOperationError::new(
+                    "cem.operation.host_identity_exhausted",
+                    "resumable operation host identity space is exhausted",
+                )
+            })?;
+            Ok::<u32, ResumableOperationError>(host_id)
+        })?;
+        RESUMABLE_OPERATION_HOSTS.with(|cell| cell.borrow_mut().insert(host_id, host));
+        Ok(serde_json::json!({
+            "hostId": host_id,
+            "workers": workers,
+        }))
+    })())
+}
+
+#[wasm_bindgen(js_name = "disposeResumableOperationHost")]
+pub fn dispose_resumable_operation_host(host_id: u32) -> String {
+    let disposed = RESUMABLE_OPERATION_HOSTS.with(|cell| cell.borrow_mut().remove(&host_id));
+    serde_json::json!({ "hostId": host_id, "disposed": disposed.is_some() }).to_string()
+}
+
+#[wasm_bindgen(js_name = "startResumableOperation")]
+pub fn start_resumable_operation(host_id: u32, request_json: &str) -> String {
+    resumable_response((|| {
+        let request = serde_json::from_str::<ResumableRunRequest>(request_json)
+            .map_err(resumable_deserialization_error)?;
+        with_resumable_host_mut(host_id, |host| host.start(request))
+    })())
+}
+
+#[wasm_bindgen(js_name = "pollResumableOperation")]
+pub fn poll_resumable_operation(host_id: u32, operation_id: &str, max_packets: u32) -> String {
+    resumable_response((|| {
+        let operation = parse_resumable_operation_id(operation_id)?;
+        with_resumable_host_mut(host_id, |host| host.poll(operation, max_packets))
+    })())
+}
+
+#[wasm_bindgen(js_name = "acceptResumableOperationResult")]
+pub fn accept_resumable_operation_result(host_id: u32, result_json: &str) -> String {
+    resumable_response((|| {
+        let result = serde_json::from_str::<OperationWorkResult>(result_json)
+            .map_err(resumable_deserialization_error)?;
+        with_resumable_host_mut(host_id, |host| host.accept_result(result))
+    })())
+}
+
+#[wasm_bindgen(js_name = "cancelResumableOperation")]
+pub fn cancel_resumable_operation(
+    host_id: u32,
+    operation_id: &str,
+    reason: Option<String>,
+) -> String {
+    resumable_response((|| {
+        let operation = parse_resumable_operation_id(operation_id)?;
+        with_resumable_host_mut(host_id, |host| host.cancel(operation, reason))
+    })())
+}
+
+#[wasm_bindgen(js_name = "replaceResumableOperationWorker")]
+pub fn replace_resumable_operation_worker(host_id: u32, slot: u32) -> String {
+    resumable_response((|| {
+        if slot == 0 {
+            return Err(ResumableOperationError::new(
+                "cem.worker.slot_invalid",
+                "worker slot must be non-zero",
+            ));
+        }
+        with_resumable_host_mut(host_id, |host| {
+            host.replace_worker(WorkerSlotId::from_raw(u64::from(slot)))
+        })
+    })())
+}
+
+/// Stateless helper-runtime entrypoint used by Node and dedicated workers.
+#[wasm_bindgen(js_name = "executeOperationWork")]
+pub fn execute_operation_work_json(packet_json: &str) -> String {
+    resumable_response((|| {
+        let packet = serde_json::from_str::<OperationWorkPacket>(packet_json)
+            .map_err(resumable_deserialization_error)?;
+        execute_operation_work(packet)
+    })())
+}
+
+#[cfg(feature = "debug-control")]
+#[wasm_bindgen(js_name = "pauseResumableOperation")]
+pub fn pause_resumable_operation(host_id: u32, operation_id: &str, generation: u32) -> String {
+    resumable_response((|| {
+        let operation = parse_resumable_operation_id(operation_id)?;
+        with_resumable_host_mut(host_id, |host| {
+            host.pause(
+                operation,
+                WorkerStopGeneration::from_raw(u64::from(generation)),
+            )
+        })
+    })())
+}
+
+#[cfg(feature = "debug-control")]
+#[wasm_bindgen(js_name = "acknowledgeResumableOperationStop")]
+pub fn acknowledge_resumable_operation_stop(
+    host_id: u32,
+    operation_id: &str,
+    stop_generation: u32,
+    worker_slot: u32,
+    worker_generation: u32,
+    external_wait: bool,
+) -> String {
+    resumable_response((|| {
+        let operation = parse_resumable_operation_id(operation_id)?;
+        let worker = WorkerAddress::new(
+            WorkerSlotId::from_raw(u64::from(worker_slot)),
+            WorkerGeneration::from_raw(u64::from(worker_generation)),
+        );
+        let disposition = if external_wait {
+            WorkerStopDisposition::ExternalWait
+        } else {
+            WorkerStopDisposition::Parked
+        };
+        with_resumable_host_mut(host_id, |host| {
+            host.acknowledge_stop(
+                operation,
+                WorkerStopGeneration::from_raw(u64::from(stop_generation)),
+                worker,
+                disposition,
+            )
+        })
+    })())
+}
+
+#[cfg(feature = "debug-control")]
+#[wasm_bindgen(js_name = "continueResumableOperation")]
+pub fn continue_resumable_operation(
+    host_id: u32,
+    operation_id: &str,
+    stop_generation: u32,
+) -> String {
+    resumable_response((|| {
+        let operation = parse_resumable_operation_id(operation_id)?;
+        with_resumable_host_mut(host_id, |host| {
+            host.continue_operation(
+                operation,
+                WorkerStopGeneration::from_raw(u64::from(stop_generation)),
+            )
+        })
+    })())
+}
+
+#[cfg(feature = "debug-control")]
+#[wasm_bindgen(js_name = "stepResumableOperation")]
+pub fn step_resumable_operation(
+    host_id: u32,
+    operation_id: &str,
+    current_stop_generation: u32,
+    next_stop_generation: u32,
+) -> String {
+    resumable_response((|| {
+        let operation = parse_resumable_operation_id(operation_id)?;
+        with_resumable_host_mut(host_id, |host| {
+            host.step(
+                operation,
+                WorkerStopGeneration::from_raw(u64::from(current_stop_generation)),
+                WorkerStopGeneration::from_raw(u64::from(next_stop_generation)),
+            )
+        })
+    })())
+}
+
+fn with_resumable_host_mut<T>(
+    host_id: u32,
+    action: impl FnOnce(&mut ResumableOperationHost) -> Result<T, ResumableOperationError>,
+) -> Result<T, ResumableOperationError> {
+    RESUMABLE_OPERATION_HOSTS.with(|cell| {
+        let mut hosts = cell.borrow_mut();
+        let host = hosts.get_mut(&host_id).ok_or_else(|| {
+            ResumableOperationError::new(
+                "cem.operation.host_unknown",
+                format!("unknown resumable operation host {host_id}"),
+            )
+        })?;
+        action(host)
+    })
+}
+
+fn parse_resumable_operation_id(value: &str) -> Result<OperationId, ResumableOperationError> {
+    let raw = value.parse::<u64>().map_err(|_| {
+        ResumableOperationError::new(
+            "cem.operation.identity_invalid",
+            format!("operation identity `{value}` is not a non-zero u64"),
+        )
+    })?;
+    if raw == 0 {
+        return Err(ResumableOperationError::new(
+            "cem.operation.identity_invalid",
+            "operation identity must be non-zero",
+        ));
+    }
+    Ok(OperationId::from_raw(raw))
+}
+
+fn resumable_response<T: serde::Serialize>(result: Result<T, ResumableOperationError>) -> String {
+    match result {
+        Ok(value) => serde_json::to_string(&value).unwrap_or_else(|error| {
+            serde_json::json!({
+                "error": {
+                    "code": "cem.operation.serialize",
+                    "message": error.to_string(),
+                }
+            })
+            .to_string()
+        }),
+        Err(error) => serde_json::json!({ "error": error }).to_string(),
+    }
+}
+
+fn resumable_deserialization_error(error: serde_json::Error) -> ResumableOperationError {
+    ResumableOperationError::new("cem.operation.deserialize", error.to_string())
+}
+
+fn enable_worker_hard_cancel(manifest: &mut CapabilityManifest) {
+    let hard_cancel = manifest
+        .controls
+        .iter_mut()
+        .find(|entry| entry.control == ControlCapabilityKind::HardCancel)
+        .expect("common capability manifest includes hard-cancel control");
+    hard_cancel.availability = CapabilityAvailability::Available;
+    hard_cancel.coverage = ControlCoverage::WorkerTermination;
 }
 
 fn parse_capability_request(request_json: &str) -> Result<CapabilityRequest, String> {

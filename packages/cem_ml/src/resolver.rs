@@ -850,8 +850,7 @@ impl ResolverRegistry {
             request.purpose,
             ResolveDirection::Write,
         )?;
-        let prepared =
-            self.prepare_write_with_abort(request, bytes, control.abort_signal())?;
+        let prepared = self.prepare_write_with_abort(request, bytes, control.abort_signal())?;
         ensure_resolver_control_active(
             control,
             scope,

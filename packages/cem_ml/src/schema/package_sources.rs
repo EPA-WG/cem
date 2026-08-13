@@ -331,9 +331,7 @@ static BUILTIN_SCHEMA_PACKAGE_ARTIFACT_SOURCES: &[BuiltinSchemaPackageArtifactSo
     BuiltinSchemaPackageArtifactSource {
         package_id: "scss",
         path: "schema-packages/scss/v1/formatters/scss-format-source.cemt",
-        source: include_str!(
-            "../../schema-packages/scss/v1/formatters/scss-format-source.cemt"
-        ),
+        source: include_str!("../../schema-packages/scss/v1/formatters/scss-format-source.cemt"),
     },
     BuiltinSchemaPackageArtifactSource {
         package_id: "scss",
@@ -353,9 +351,7 @@ static BUILTIN_SCHEMA_PACKAGE_ARTIFACT_SOURCES: &[BuiltinSchemaPackageArtifactSo
     BuiltinSchemaPackageArtifactSource {
         package_id: "scss",
         path: "schema-packages/scss/v1/colorizers/scss-color-source.cemt",
-        source: include_str!(
-            "../../schema-packages/scss/v1/colorizers/scss-color-source.cemt"
-        ),
+        source: include_str!("../../schema-packages/scss/v1/colorizers/scss-color-source.cemt"),
     },
     BuiltinSchemaPackageArtifactSource {
         package_id: "css-selector",

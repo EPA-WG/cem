@@ -5,15 +5,25 @@ import type {
     BrowserWorkerCapabilityManifest,
     BrowserWorkerInitializeEnvelope,
     WorkerProtocolDescriptor,
+    WorkerWorkRequest,
+    WorkerWorkResultEnvelope,
 } from './protocol.js';
+import type { ResumableRuntime } from './operation.js';
 
 const workerScope = globalThis as unknown as DedicatedWorkerGlobalScope;
 const initializeRuntime = (runtime as unknown as { readonly default: () => Promise<unknown> }).default;
 let lifecycle: 'initializing' | 'loading' | 'ready' = 'initializing';
+let bootstrapState: BrowserWorkerBootstrap | undefined;
+let protocolState: WorkerProtocolDescriptor | undefined;
+let nextSequence = 2;
 
 workerScope.addEventListener('message', (event: MessageEvent<unknown>) => {
     if (isRecord(event.data) && event.data.type === 'cem-worker-close') {
         workerScope.close();
+        return;
+    }
+    if (lifecycle === 'ready' && isWorkRequest(event.data)) {
+        executeWork(event.data);
         return;
     }
     if (lifecycle !== 'initializing') {
@@ -58,7 +68,55 @@ async function initialize(bootstrap: BrowserWorkerBootstrap): Promise<void> {
     };
 
     lifecycle = 'ready';
+    bootstrapState = bootstrap;
+    protocolState = protocol;
     workerScope.postMessage(envelope);
+}
+
+function executeWork(message: WorkerWorkRequest): void {
+    const bootstrap = bootstrapState;
+    const protocol = protocolState;
+    if (bootstrap === undefined || protocol === undefined) {
+        throw new Error('CEM-ML browser worker received work before initialization');
+    }
+    const packet = message.packet;
+    if (
+        packet.worker.slot !== bootstrap.worker.slot ||
+        packet.worker.generation !== bootstrap.worker.generation
+    ) {
+        throw new Error('CEM-ML work packet targets a different browser worker generation');
+    }
+    const result = parseRuntimeResult(
+        (runtime as unknown as ResumableRuntime).executeOperationWork(JSON.stringify(packet)),
+    );
+    const response: WorkerWorkResultEnvelope = {
+        workerProtocolVersion: protocol.workerProtocolVersion,
+        worker: bootstrap.worker,
+        sequence: nextSequence++,
+        operation: {
+            protocolVersion: protocol.operationProtocolVersion,
+            kind: 'result',
+            operationId: packet.operationId,
+            sequence: packet.taskId,
+            payload: result,
+        },
+        transfers: [],
+    };
+    workerScope.postMessage(response);
+}
+
+function parseRuntimeResult(json: string): WorkerWorkResultEnvelope['operation']['payload'] {
+    const value = JSON.parse(json) as unknown;
+    if (isRecord(value) && isRecord(value.error)) {
+        throw new Error(
+            typeof value.error.message === 'string' ? value.error.message : 'CEM-ML worker execution failed',
+        );
+    }
+    return value as WorkerWorkResultEnvelope['operation']['payload'];
+}
+
+function isWorkRequest(value: unknown): value is WorkerWorkRequest {
+    return isRecord(value) && value.type === 'cem-operation-work' && isRecord(value.packet);
 }
 
 function parseBootstrap(value: unknown): BrowserWorkerBootstrap {

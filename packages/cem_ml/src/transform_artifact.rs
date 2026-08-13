@@ -958,9 +958,7 @@ fn cemt_public_color_operation(
     Ok(value)
 }
 
-fn cemt_public_writer_boundary(
-    boundary: &CemtWriterBoundary,
-) -> Result<serde_json::Value, String> {
+fn cemt_public_writer_boundary(boundary: &CemtWriterBoundary) -> Result<serde_json::Value, String> {
     let mut value = serde_json::json!({
         "kind": "writer-boundary",
         "stage": boundary.stage,
