@@ -684,6 +684,15 @@ replacement tree may mediate between internal engine layers.
               full default run passed 1,915 of 1,916 unit tests, with the unchanged
               load-sensitive debug-control deadline fixture exceeding its two-second
               limit by 100 ms; that fixture passes alone in 2.10 seconds.
+        - [x] Publish command-service v1 artifact batches through constructor-owned
+              async ledger and transactional-writer capabilities, requiring
+              post-commit rollback semantics, a fresh precommit revision check,
+              cancellation gates, and operation-owned handles exposed only after
+              the complete batch commits.
+            - [x] Add native publication fixtures covering deterministic ordering,
+                  duplicate destinations, atomic handle reservation, prepare and
+                  commit failures, post-commit rollback, stale/cancelled precommit
+                  state, rollback failures, and successful retained-byte lookup.
     - [ ] Add explicit browser API, Node API, npm-executable, pack/install, and
           command-round-trip fixtures with Nx verification targets.
 

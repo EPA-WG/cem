@@ -910,6 +910,56 @@ pub struct OperationHandle<R> {
     core: Arc<OperationCore<R>>,
 }
 
+/// Operation-owned artifacts reserved for a transaction but not yet exposed
+/// to the host. Dropping an unfinalized reservation removes every entry.
+pub struct RetainedArtifactReservation<R> {
+    core: Arc<OperationCore<R>>,
+    metadata: Vec<RetainedHandleMetadata>,
+    finalized: bool,
+}
+
+impl<R> fmt::Debug for RetainedArtifactReservation<R> {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter
+            .debug_struct("RetainedArtifactReservation")
+            .field("metadata", &self.metadata)
+            .field("finalized", &self.finalized)
+            .finish()
+    }
+}
+
+impl<R> RetainedArtifactReservation<R> {
+    /// Expose the reserved identities after the surrounding transaction has
+    /// committed completely. After this call, dropping the reservation no
+    /// longer removes the retained artifacts.
+    pub fn finalize(mut self) -> Vec<RetainedHandleMetadata> {
+        self.finalized = true;
+        std::mem::take(&mut self.metadata)
+    }
+}
+
+impl<R> Drop for RetainedArtifactReservation<R> {
+    fn drop(&mut self) {
+        if self.finalized || self.metadata.is_empty() {
+            return;
+        }
+        let mut state = self
+            .core
+            .state
+            .lock()
+            .expect("poisoned operation-handle mutex");
+        for metadata in &self.metadata {
+            if state
+                .retained
+                .get(&metadata.handle_id)
+                .is_some_and(|entry| entry.metadata == *metadata)
+            {
+                state.retained.remove(&metadata.handle_id);
+            }
+        }
+    }
+}
+
 impl<R> Clone for OperationHandle<R> {
     fn clone(&self) -> Self {
         Self {
@@ -992,6 +1042,28 @@ impl<R: Send + Sync + 'static> OperationHandle<R> {
 
     pub fn limits(&self) -> OperationHostLimits {
         self.core.limits
+    }
+
+    /// Reject publication work after disposal, terminal settlement, or an
+    /// active root cancellation/deadline failure.
+    pub fn ensure_active(&self) -> Result<(), OperationHandleError> {
+        {
+            let state = self
+                .core
+                .state
+                .lock()
+                .expect("poisoned operation-handle mutex");
+            if state.disposed {
+                return Err(OperationHandleError::Disposed);
+            }
+            if state.terminal.is_some() {
+                return Err(OperationHandleError::TerminalPublished);
+            }
+        }
+        self.core
+            .control
+            .check_scope(self.core.control.root_scope())
+            .map_err(OperationHandleError::Control)
     }
 
     #[cfg(feature = "debug-control")]
@@ -1340,6 +1412,74 @@ impl<R: Send + Sync + 'static> OperationHandle<R> {
         self.retain(RetainedHandleKind::Artifact, label.into(), Arc::new(value))
     }
 
+    /// Atomically reserve a batch of operation-owned artifacts. No entry is
+    /// inserted when labels, capacity, or handle-id allocation fail. An
+    /// unfinalized reservation removes all inserted entries on drop.
+    pub fn reserve_artifact_batch<T: Any + Send + Sync>(
+        &self,
+        artifacts: Vec<(String, T)>,
+    ) -> Result<RetainedArtifactReservation<R>, OperationHandleError> {
+        for (label, _) in &artifacts {
+            validate_retained_label(label)?;
+        }
+        let count = u64::try_from(artifacts.len())
+            .map_err(|_| OperationHandleError::EventSequenceExhausted)?;
+        let mut state = self
+            .core
+            .state
+            .lock()
+            .expect("poisoned operation-handle mutex");
+        if state.disposed {
+            return Err(OperationHandleError::Disposed);
+        }
+        if state.terminal.is_some() {
+            return Err(OperationHandleError::TerminalPublished);
+        }
+        if state.retained.len().saturating_add(artifacts.len())
+            > self.core.limits.max_retained_handles as usize
+        {
+            return Err(OperationHandleError::RetainedHandleLimit {
+                maximum: self.core.limits.max_retained_handles,
+            });
+        }
+        let next_handle_id = state
+            .next_retained_handle_id
+            .checked_add(count)
+            .ok_or(OperationHandleError::EventSequenceExhausted)?;
+        let mut metadata = Vec::with_capacity(artifacts.len());
+        for (offset, (label, value)) in artifacts.into_iter().enumerate() {
+            let offset =
+                u64::try_from(offset).map_err(|_| OperationHandleError::EventSequenceExhausted)?;
+            let handle_id = RetainedHandleId::from_raw(
+                state
+                    .next_retained_handle_id
+                    .checked_add(offset)
+                    .ok_or(OperationHandleError::EventSequenceExhausted)?,
+            );
+            let entry_metadata = RetainedHandleMetadata {
+                operation_id: self.core.operation_id,
+                handle_id,
+                kind: RetainedHandleKind::Artifact,
+                label,
+            };
+            state.retained.insert(
+                handle_id,
+                RetainedEntry {
+                    metadata: entry_metadata.clone(),
+                    value: Arc::new(value),
+                },
+            );
+            metadata.push(entry_metadata);
+        }
+        state.next_retained_handle_id = next_handle_id;
+        drop(state);
+        Ok(RetainedArtifactReservation {
+            core: Arc::clone(&self.core),
+            metadata,
+            finalized: false,
+        })
+    }
+
     pub fn resolve_retained<T: Any + Send + Sync>(
         &self,
         metadata: &RetainedHandleMetadata,
@@ -1409,12 +1549,7 @@ impl<R: Send + Sync + 'static> OperationHandle<R> {
         label: String,
         value: Arc<dyn Any + Send + Sync>,
     ) -> Result<RetainedHandleMetadata, OperationHandleError> {
-        if label.is_empty()
-            || label.len() > MAX_IDENTITY_BYTES
-            || label.chars().any(char::is_control)
-        {
-            return Err(OperationHandleError::InvalidRetainedLabel);
-        }
+        validate_retained_label(&label)?;
         let mut state = self
             .core
             .state
@@ -2599,6 +2734,62 @@ mod tests {
             handle.resolve_retained::<Vec<u32>>(&value, RetainedHandleKind::NativeValue),
             Err(OperationHandleError::Disposed)
         ));
+    }
+
+    #[test]
+    fn artifact_batch_reservation_is_atomic_and_drop_discards_unpublished_entries() {
+        let control = OperationControl::new(AbortSignal::new());
+        let limits = OperationHostLimits {
+            max_retained_handles: 2,
+            ..OperationHostLimits::default()
+        };
+        let (handle, _) = OperationHandle::<()>::new(control, limits).unwrap();
+
+        assert!(matches!(
+            handle.reserve_artifact_batch(vec![
+                ("valid".to_owned(), vec![1_u8]),
+                (String::new(), vec![2_u8]),
+            ]),
+            Err(OperationHandleError::InvalidRetainedLabel)
+        ));
+        let reservation = handle
+            .reserve_artifact_batch(vec![
+                ("one".to_owned(), vec![1_u8]),
+                ("two".to_owned(), vec![2_u8]),
+            ])
+            .unwrap();
+        assert!(matches!(
+            handle.retain_artifact("three", vec![3_u8]),
+            Err(OperationHandleError::RetainedHandleLimit { maximum: 2 })
+        ));
+        drop(reservation);
+
+        let replacement = handle.retain_artifact("replacement", vec![3_u8]).unwrap();
+        assert_eq!(
+            handle
+                .resolve_retained::<Vec<u8>>(&replacement, RetainedHandleKind::Artifact)
+                .unwrap()
+                .as_slice(),
+            &[3]
+        );
+
+        let control = OperationControl::new(AbortSignal::new());
+        let (finalized, _) = OperationHandle::<()>::new(control, limits).unwrap();
+        let metadata = finalized
+            .reserve_artifact_batch(vec![
+                ("one".to_owned(), vec![1_u8]),
+                ("two".to_owned(), vec![2_u8]),
+            ])
+            .unwrap()
+            .finalize();
+        assert_eq!(metadata.len(), 2);
+        assert_eq!(
+            finalized
+                .resolve_retained::<Vec<u8>>(&metadata[1], RetainedHandleKind::Artifact)
+                .unwrap()
+                .as_slice(),
+            &[2]
+        );
     }
 
     #[test]

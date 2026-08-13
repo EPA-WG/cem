@@ -398,6 +398,11 @@ pub enum PublicationCapability {
     Transactional,
 }
 
+/// One staged transactional write.
+///
+/// `rollback` must be safe before or after a successful `commit`. In the latter
+/// case it must restore the destination to its pre-prepare state so a batch can
+/// undo earlier participants when a later commit fails.
 pub trait PreparedResolverWrite: Send {
     fn commit(&mut self) -> Result<ResolvedWrite, ResolverDiagnostic>;
     fn rollback(&mut self) -> Result<(), ResolverDiagnostic>;
