@@ -43,6 +43,7 @@ use std::cell::RefCell;
 use js_sys::{Array, ArrayBuffer, Function, Reflect, Uint8Array};
 use wasm_bindgen::{prelude::*, JsCast};
 
+use crate::capability::{capability_manifest, CapabilityRequest};
 use crate::observability::{EngineObserver, ReportEvent};
 use crate::resolver::{
     ResolveDirection, ResolvePurpose, ResolveRequest, ResolvedRead, ResolvedWrite,
@@ -55,6 +56,53 @@ thread_local! {
     static TRANSFORM_OBSERVER: RefCell<Option<Function>> = const { RefCell::new(None) };
     static RESOLVER_READ: RefCell<Option<Function>> = const { RefCell::new(None) };
     static RESOLVER_WRITE: RefCell<Option<Function>> = const { RefCell::new(None) };
+}
+
+/// Returns the common `cem_ml` Cargo version embedded in this WASM build.
+#[wasm_bindgen(js_name = "version")]
+pub fn version() -> String {
+    crate::VERSION.to_owned()
+}
+
+/// Projects the common capability contract for a host-provided runtime
+/// request. Both the browser and Node npm loaders call this same export so
+/// deployment metadata cannot drift from the engine's Rust-owned semantics.
+#[wasm_bindgen(js_name = "capabilityManifest")]
+pub fn capability_manifest_json(request_json: &str) -> String {
+    let request = match serde_json::from_str::<CapabilityRequest>(request_json) {
+        Ok(request) => request,
+        Err(error) => {
+            return serde_json::json!({
+                "error": {
+                    "code": "cem.capability.invalid_request",
+                    "message": error.to_string()
+                }
+            })
+            .to_string();
+        }
+    };
+
+    match capability_manifest(request) {
+        Ok(manifest) => serde_json::to_string(&manifest).unwrap_or_else(capability_serialize_error),
+        Err(error) => serde_json::json!({
+            "error": {
+                "code": error.code,
+                "field": error.field,
+                "message": error.message
+            }
+        })
+        .to_string(),
+    }
+}
+
+fn capability_serialize_error(error: serde_json::Error) -> String {
+    serde_json::json!({
+        "error": {
+            "code": "cem.capability.serialize_failed",
+            "message": error.to_string()
+        }
+    })
+    .to_string()
 }
 
 #[wasm_bindgen(js_name = "onParseEvent")]

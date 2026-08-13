@@ -14,13 +14,14 @@ is [`cem-ml-deployment-contract.md`](cem-ml-deployment-contract.md); the Phase
 2.5 roadmap section supplies product sequencing, while
 [`cem-studio.md`](cem-studio.md) remains the broader Studio proposal.
 
-The starting Nx audit confirms that `cem_ml` and `cem_ml_cli` provide Rust
+The starting Nx audit confirmed that `cem_ml` and `cem_ml_cli` provide Rust
 build, test, lint, WASM-build, fixture, and release-publish surfaces. The
-workspace does not yet contain the `@epa-wg/cem-ml` WASM npm deployment,
+workspace now also contains the policy-free `@epa-wg/cem-ml` browser/Node WASM
+deployment with a direct common-version drift gate. It does not yet contain the
 `@epa-wg/cem-ml-cli` universal npm deployment, any of the three native
-deployment projects, or the fixed `cem-ml-platform` release group. The common
-`packages/cem_ml/Cargo.toml` version is the intended authority, but no accepted
-cross-project synchronizer or drift gate exists yet.
+deployment projects, the complete family synchronizer, or the fixed
+`cem-ml-platform` release group. The common `packages/cem_ml/Cargo.toml` version
+remains the authority.
 
 The cross-layer architecture remains serializer-free: lifecycle loading, graph
 routing, joins, evaluators, CEM-QL, CEMT, and XSLT adapters exchange borrowed
@@ -409,16 +410,26 @@ replacement tree may mediate between internal engine layers.
               cancellation, stack/memory/timeout enforcement, deterministic output,
               progress, diagnostics, and terminal semantics remain green.
 
-- [ ] Create the separate `@epa-wg/cem-ml` WASM runtime npm deployment
+- [x] Create the separate `@epa-wg/cem-ml` WASM runtime npm deployment
       project.
-    - [ ] Add a dedicated Nx project that generates low-level JS/WASM bindings,
+    - [x] Add a dedicated Nx project that generates low-level JS/WASM bindings,
           TypeScript declarations, schema-package assets, ABI/capability metadata,
           integrity records, and the synchronized version from common `cem_ml`.
-    - [ ] Publish the `./wasm` runtime surface with no npm executable and no
+    - [x] Publish the `./wasm` runtime surface with no npm executable and no
           command/UI policy.
-    - [ ] Add an explicit clean-consumer pack/install fixture and Nx checkitem
+    - [x] Add an explicit clean-consumer pack/install fixture and Nx checkitem
           proving exports, assets, version/ABI identity, integrity, and direct
           runtime initialization.
+    - Completed 2026-08-12: `packages/cem-ml-npm` now builds release-mode web
+      and Node `wasm-bindgen` loaders from `cem_ml`, exposes both through the
+      conditional `./wasm` subpath, ships 25 runtime schema packages, derives
+      both capability projections from a common Rust-owned WASM export, records
+      SHA-256 integrity for every artifact, and rejects Cargo/npm or resolved
+      crate/CLI `wasm-bindgen` version drift. Its Nx `build`, `lint`, `test`,
+      `verify`, `package`, `verify:consumer`, and aggregate `check` targets cover
+      generated declarations and ABI, Node/browser initialization, tarball
+      installation in a clean temporary consumer, metadata/assets, and the
+      absence of `bin`, command, UI, and independent engine dependencies.
 
 - [ ] Create the separate `@epa-wg/cem-ml-cli` universal npm deployment
       project.
@@ -471,6 +482,7 @@ replacement tree may mediate between internal engine layers.
 - `yarn nx run cem_ml_cli:lint`
 - `yarn nx run cem_ml_cli:test`
 - `yarn nx run cem_ml_cli:e2e`
+- `yarn nx run @epa-wg/cem-ml:check`
 
 The Phase 2.5 aggregate command will be added only after its name and deployment
 project graph are accepted. Native target checks remain target-specific; a

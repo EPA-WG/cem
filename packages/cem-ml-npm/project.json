@@ -1,0 +1,108 @@
+{
+  "name": "@epa-wg/cem-ml",
+  "$schema": "../../node_modules/nx/schemas/project-schema.json",
+  "projectType": "library",
+  "sourceRoot": "packages/cem-ml-npm/scripts",
+  "implicitDependencies": ["cem_ml"],
+  "targets": {
+    "build": {
+      "cache": true,
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "node scripts/build.mjs",
+        "cwd": "{projectRoot}"
+      },
+      "inputs": [
+        "{projectRoot}/package.json",
+        "{projectRoot}/scripts/build.mjs",
+        "{workspaceRoot}/Cargo.lock",
+        "{workspaceRoot}/Cargo.toml",
+        "{workspaceRoot}/rust-toolchain.toml",
+        "{workspaceRoot}/packages/cem_ml/Cargo.toml",
+        "{workspaceRoot}/packages/cem_ml/src/**/*.rs",
+        "{workspaceRoot}/packages/cem_ml/schema-packages/**/*"
+      ],
+      "outputs": ["{projectRoot}/dist"]
+    },
+    "lint": {
+      "cache": true,
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "yarn eslint packages/cem-ml-npm",
+        "cwd": "{workspaceRoot}"
+      },
+      "inputs": ["{projectRoot}/**/*.mjs", "{projectRoot}/package.json"]
+    },
+    "test": {
+      "cache": true,
+      "executor": "nx:run-commands",
+      "dependsOn": ["build"],
+      "options": {
+        "command": "node --test tests/runtime.test.mjs",
+        "cwd": "{projectRoot}"
+      },
+      "inputs": [
+        "{projectRoot}/tests/**/*.mjs",
+        {
+          "dependentTasksOutputFiles": "**/*",
+          "transitive": false
+        }
+      ],
+      "outputs": []
+    },
+    "verify": {
+      "cache": true,
+      "executor": "nx:run-commands",
+      "dependsOn": ["build", "test"],
+      "options": {
+        "command": "node scripts/verify-dist.mjs",
+        "cwd": "{projectRoot}"
+      },
+      "inputs": [
+        "{projectRoot}/scripts/verify-dist.mjs",
+        {
+          "dependentTasksOutputFiles": "**/*",
+          "transitive": false
+        }
+      ],
+      "outputs": []
+    },
+    "package": {
+      "cache": true,
+      "executor": "nx:run-commands",
+      "dependsOn": ["build", "verify"],
+      "options": {
+        "command": "node scripts/package.mjs",
+        "cwd": "{projectRoot}"
+      },
+      "inputs": [
+        "{projectRoot}/scripts/package.mjs",
+        {
+          "dependentTasksOutputFiles": "**/*",
+          "transitive": false
+        }
+      ],
+      "outputs": ["{workspaceRoot}/dist/packages/cem-ml-npm/package.tgz"]
+    },
+    "verify:consumer": {
+      "cache": false,
+      "executor": "nx:run-commands",
+      "dependsOn": ["package"],
+      "options": {
+        "command": "node scripts/verify-consumer.mjs",
+        "cwd": "{projectRoot}"
+      },
+      "inputs": ["{projectRoot}/scripts/verify-consumer.mjs"],
+      "outputs": []
+    },
+    "check": {
+      "executor": "nx:run-commands",
+      "dependsOn": ["lint", "verify", "verify:consumer"],
+      "options": {
+        "command": "node -e \"console.log('CEM-ML WASM npm deployment checks passed.')\"",
+        "cwd": "{workspaceRoot}"
+      },
+      "outputs": []
+    }
+  }
+}

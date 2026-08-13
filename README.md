@@ -71,8 +71,9 @@ themselves, establish product-component parity in `cem-components`.
 | `@epa-wg/cem-elements`                                        | active substrate  | Barebone `<cem-element>` component base and browser/API primitives, including URL and HTTP resource accessors; edge/SSR and `<custom-element>` adoption remain follow-up phases. |
 | [`@epa-wg/cem-components`](packages/cem-components/README.md) | active MVP        | Material-superset declarative UI components built on `cem-elements` with Consumer Semantic Theme styling and behavioral/accessibility contracts. |
 | `@epa-wg/custom-element`                                      | external today    | Current production custom-element package; monorepo migration and `cem-element`-based next major are deferred until after the Edge/SSR follow-up phase. |
-| [`@epa-wg/cem-ml`](packages/cem_ml/Cargo.toml)                | active scaffold   | Active Rust parser/runtime library (Cargo: `cem-ml`) for canonical CEM-ML plus XML/HTML parity inputs.                          |
-| [`@epa-wg/cem-ml-cli`](packages/cem_ml_cli/Cargo.toml)        | active scaffold   | Active Rust CLI (Cargo: `cem-ml-cli`, binary: `cem-ml`) for CEM parsing, validation, reports, fixtures, and migration workflows. |
+| [`cem_ml` / Cargo `cem-ml`](packages/cem_ml/Cargo.toml)       | active common runtime | Rust-owned parser/runtime semantics and synchronized CEM-ML product-version authority. |
+| [`@epa-wg/cem-ml`](packages/cem-ml-npm/README.md)             | active WASM deployment | Generated low-level browser/Node WASM loaders, declarations, schema-package assets, and ABI/integrity metadata; no command or UI policy. |
+| [`cem_ml_cli` / Cargo `cem-ml-cli`](packages/cem_ml_cli/Cargo.toml) | active native host | Rust CLI host and `cem-ml` binary for parsing, validation, reports, fixtures, and migration workflows; the universal npm deployment remains Phase 2.5 work. |
 
 # Use the token CSS
 

@@ -1,0 +1,48 @@
+{
+  "name": "@epa-wg/cem-ml",
+  "version": "0.1.0",
+  "description": "Low-level browser and Node WebAssembly runtime for CEM-ML",
+  "author": {
+    "name": "Sasha Firsov",
+    "email": "sasha@firsov.net"
+  },
+  "license": "MIT",
+  "type": "module",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/EPA-WG/cem.git",
+    "directory": "packages/cem-ml-npm"
+  },
+  "exports": {
+    "./package.json": "./package.json",
+    "./wasm": {
+      "browser": {
+        "types": "./dist/wasm/browser/cem_ml.d.ts",
+        "import": "./dist/wasm/browser/cem_ml.js",
+        "default": "./dist/wasm/browser/cem_ml.js"
+      },
+      "node": {
+        "types": "./dist/wasm/node/cem_ml.d.ts",
+        "import": "./dist/wasm/node/cem_ml.js",
+        "require": "./dist/wasm/node/cem_ml.js",
+        "default": "./dist/wasm/node/cem_ml.js"
+      },
+      "types": "./dist/wasm/browser/cem_ml.d.ts",
+      "default": "./dist/wasm/browser/cem_ml.js"
+    },
+    "./runtime.json": "./dist/cem-ml-runtime.json",
+    "./integrity.json": "./dist/integrity.json",
+    "./schema-packages/*": "./dist/schema-packages/*"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": ">=22"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}
