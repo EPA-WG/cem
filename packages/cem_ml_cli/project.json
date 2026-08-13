@@ -52,6 +52,47 @@
             ],
             "outputs": ["{workspaceRoot}/dist/target/cem_ml_cli_stripped"]
         },
+        "emit-command-schema": {
+            "cache": true,
+            "executor": "nx:run-commands",
+            "options": {
+                "command": "cargo run --locked --package cem-ml-cli --example command-schema-emit --target-dir dist/target/cem_ml_cli -- dist/generated/cem-ml-command-schema/command-schema.json",
+                "cwd": "{workspaceRoot}"
+            },
+            "inputs": [
+                "{projectRoot}/src/**/*.rs",
+                "{projectRoot}/examples/command-schema-emit.rs",
+                "{projectRoot}/Cargo.toml",
+                "{workspaceRoot}/Cargo.toml",
+                "{workspaceRoot}/Cargo.lock",
+                "{workspaceRoot}/packages/cem_ml/src/capability.rs",
+                "{workspaceRoot}/packages/cem_ml/Cargo.toml"
+            ],
+            "outputs": ["{workspaceRoot}/dist/generated/cem-ml-command-schema"]
+        },
+        "test:command-schema": {
+            "cache": true,
+            "executor": "nx:run-commands",
+            "options": {
+                "commands": [
+                    "cargo test --locked --package cem-ml-cli --target-dir dist/target/cem_ml_cli cli::tests",
+                    "cargo test --locked --package cem-ml-cli --target-dir dist/target/cem_ml_cli command_schema::tests"
+                ],
+                "parallel": false,
+                "cwd": "{workspaceRoot}"
+            },
+            "inputs": [
+                "{projectRoot}/src/**/*.rs",
+                "{projectRoot}/examples/command-schema-emit.rs",
+                "{projectRoot}/Cargo.toml",
+                "{workspaceRoot}/Cargo.toml",
+                "{workspaceRoot}/Cargo.lock",
+                "{workspaceRoot}/packages/cem_ml/src/**/*.rs",
+                "{workspaceRoot}/packages/cem_ml/Cargo.toml",
+                "{workspaceRoot}/packages/cem-ml-cli-npm/tests/command-roundtrip.fixture.json"
+            ],
+            "outputs": ["{workspaceRoot}/dist/target/cem_ml_cli"]
+        },
         "test": {
             "cache": true,
             "executor": "@monodon/rust:test",

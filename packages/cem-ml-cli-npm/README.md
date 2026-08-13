@@ -2,7 +2,29 @@
 
 Universal host adapters for the common `@epa-wg/cem-ml` WebAssembly runtime.
 The current Phase 2.5 slice exposes bounded browser dedicated-worker and Node
-worker-thread hosts.
+worker-thread hosts plus one generated, versioned command grammar shared by
+both APIs.
+
+```js
+import {
+    commandSchema,
+    parseCemMlCommand,
+    serializeCemMlCommand,
+} from '@epa-wg/cem-ml-cli/node';
+
+const command = parseCemMlCommand(
+    ['query', 'data.xml', '--query', '//item', '--query-content-type', 'application/vnd.cem.xpath'],
+    { runtime: 'wasm-node' },
+);
+console.log(commandSchema.schemaVersion, command);
+console.log(serializeCemMlCommand(command));
+```
+
+The schema is generated from the built native Clap command graph and joined to
+the common Rust runtime-capability matrix. Options, defaults, enum values,
+required groups, conflicts, and runtime availability are therefore not copied
+into a separate TypeScript flag table. The same parser and serializer are
+exported from `./browser` and `./node`.
 
 ```js
 import { createNodeWorkerPool } from '@epa-wg/cem-ml-cli/node';
@@ -59,5 +81,6 @@ terminated and replaced when cancellation exceeds the negotiated hard-cancel
 grace. Main-thread browser fallback uses the same bounded packets and cooperative
 controls, while truthfully reporting hard cancellation as unavailable.
 
-Shared CLI commands and the `cem-ml` npm executable remain subsequent checklist
-work.
+Mapping parsed commands into the complete common operation service, Node and
+browser resolver/report adapters, and the `cem-ml` npm executable remain
+subsequent checklist work.

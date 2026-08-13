@@ -1,0 +1,116 @@
+{
+  "schemaVersion": 1,
+  "cases": [
+    {
+      "name": "parse-global-default-and-repeatable-context",
+      "argv": [
+        "parse",
+        "input.cem",
+        "--namespace",
+        "ui=https://cem.dev/ns/ui",
+        "--namespace",
+        "data=https://cem.dev/ns/data",
+        "--quiet"
+      ]
+    },
+    {
+      "name": "validate-enum-and-multiple-positionals",
+      "argv": ["validate", "one.cem", "two.cem", "--format", "json"]
+    },
+    {
+      "name": "check-boolean-policy",
+      "argv": ["check", "input.cem", "--zero-hard-violations"]
+    },
+    {
+      "name": "inspect-view",
+      "argv": ["inspect", "input.xml", "--show", "source-offsets"]
+    },
+    {
+      "name": "convert-target-identity",
+      "argv": [
+        "convert",
+        "input.xml",
+        "--to-content-type",
+        "text/html",
+        "--preserve-source-offsets"
+      ]
+    },
+    {
+      "name": "query-inline-required-group-and-default-output",
+      "argv": [
+        "query",
+        "data.xml",
+        "--query",
+        "//item",
+        "--query-content-type",
+        "application/vnd.cem.xpath"
+      ]
+    },
+    {
+      "name": "transform-file-required-groups-and-repeatable-param",
+      "argv": [
+        "transform",
+        "data.xml",
+        "--template",
+        "view.xslt",
+        "--template-content-type",
+        "application/xslt+xml",
+        "--param",
+        "title=Catalog",
+        "--param",
+        "limit=10",
+        "--to-content-type",
+        "text/html"
+      ]
+    },
+    {
+      "name": "trace-global-after-command",
+      "argv": ["trace", "input.cem", "--format", "text", "--no-color"]
+    },
+    {
+      "name": "version-capability-command",
+      "argv": ["version"]
+    }
+  ],
+  "invalidCases": [
+    {
+      "name": "unknown-option",
+      "argv": ["parse", "input.cem", "--not-a-cem-option"],
+      "code": "cem.command.unknown_option"
+    },
+    {
+      "name": "query-source-required",
+      "argv": [
+        "query",
+        "data.xml",
+        "--query-content-type",
+        "application/vnd.cem.xpath"
+      ],
+      "code": "cem.command.required_group"
+    },
+    {
+      "name": "query-source-conflict",
+      "argv": [
+        "query",
+        "data.xml",
+        "--query",
+        "//item",
+        "--query-file",
+        "query.xpath",
+        "--query-content-type",
+        "application/vnd.cem.xpath"
+      ],
+      "code": "cem.command.argument_conflict"
+    },
+    {
+      "name": "enum-value-rejected",
+      "argv": ["inspect", "input.cem", "--show", "not-a-view"],
+      "code": "cem.command.invalid_value"
+    },
+    {
+      "name": "global-option-conflict",
+      "argv": ["version", "--quiet", "--verbose"],
+      "code": "cem.command.argument_conflict"
+    }
+  ]
+}

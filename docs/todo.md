@@ -19,8 +19,9 @@ build, test, lint, WASM-build, fixture, and release-publish surfaces. The
 workspace now also contains the policy-free `@epa-wg/cem-ml` browser/Node WASM
 deployment and the first browser/Node worker-host slices of
 `@epa-wg/cem-ml-cli`, both with direct common-version drift gates. The universal
-CLI's worker operation dispatch, browser resolver/command API, npm executable,
-and complete command surface remain open, as do the three
+CLI now has one generated native/npm command grammar; its complete typed command
+service, browser/Node resolver and report adapters, npm executable, and complete
+command surface remain open, as do the three
 native deployment projects, complete family synchronizer, and fixed
 `cem-ml-platform` release group. The common `packages/cem_ml/Cargo.toml` version
 remains the authority.
@@ -568,9 +569,40 @@ replacement tree may mediate between internal engine layers.
       command service, npm executable, and complete cross-host fixtures land.
     - [ ] Add worker-safe `./browser` and Node-hosted `./node` exports plus the
           npm `cem-ml` executable without duplicating engine semantics.
+        - [x] Generate one versioned shared command schema from the canonical
+              native Clap grammar and common runtime capability matrix, expose
+              one schema-driven parser/serializer through both npm host APIs,
+              and reject any separately maintained TypeScript flag table.
+            - [x] Add native/npm command-round-trip fixtures covering every
+                  portable first-release command, global options, defaults,
+                  enum values, repeatable arguments, required groups, conflicts,
+                  and unknown-option rejection.
+
+          Completed 2026-08-13: command schema v1 is generated directly from
+          the built native Clap graph and joined to the common Rust capability
+          matrix. It carries the common version, root/global arguments, every
+          command and subcommand, runtime availability, defaults, enums, value
+          bounds, repeatability, required groups, and conflicts. The browser and
+          Node exports consume the generated module through one typed parser and
+          serializer; distribution verification rejects a hand-maintained flag
+          table in the TypeScript parser.
+
+          One shared fixture covers all nine portable command/capability paths,
+          global placement and conflicts, defaults, enums, repeated namespaces
+          and transform parameters, transform/query required groups, unknown
+          options, and normalized serialization. Native Clap accepts/rejects the
+          same cases. The focused 36-test native grammar suite and three native
+          schema tests, both lint targets, all nine npm tests, real Chromium
+          worker verification, distribution verification, packaging, and a clean
+          consumer command round trip with one runtime copy all pass.
     - [ ] Project the shared command parser, capability discovery, progress,
           cancellation, resolver bridge, reports, signals, and exit policy through
           the appropriate host adapters.
+        - [ ] Accept the exact version-1 host-neutral command-service request,
+              virtual-resource/resolver binding, structured result/report, and
+              stale-revision fields before mapping parsed commands into the common
+              operation service; the current browser request example remains
+              explicitly illustrative rather than a frozen TypeScript API.
     - [ ] Add explicit browser API, Node API, npm-executable, pack/install, and
           command-round-trip fixtures with Nx verification targets.
 
@@ -612,8 +644,11 @@ replacement tree may mediate between internal engine layers.
 - `yarn nx run cem_ml:build:wasm`
 - `yarn nx run cem_ml_cli:lint`
 - `yarn nx run cem_ml_cli:test`
+- `yarn nx run cem_ml_cli:test:command-schema`
 - `yarn nx run cem_ml_cli:e2e`
 - `yarn nx run @epa-wg/cem-ml:check`
+- `yarn nx run @epa-wg/cem-ml-cli:verify`
+- `yarn nx run @epa-wg/cem-ml-cli:verify:consumer`
 
 The Phase 2.5 aggregate command will be added only after its name and deployment
 project graph are accepted. Native target checks remain target-specific; a

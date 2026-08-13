@@ -26,6 +26,19 @@ import type {
     ResumableOperationRunRequest,
 } from './protocol.js';
 
+export {
+    CemMlCommandError,
+    commandSchema,
+    parseCemMlCommand,
+    serializeCemMlCommand,
+} from './command.js';
+export type {
+    CommandRuntime,
+    ParsedCemMlCommand,
+    ParseCemMlCommandOptions,
+    SharedCommandSchema,
+} from './command.js';
+
 export type NodeWorkerPoolMode = 'pool' | 'single-worker' | 'single-worker-fallback';
 
 export interface NodeWorkerFailure {

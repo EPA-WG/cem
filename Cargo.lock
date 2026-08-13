@@ -297,6 +297,7 @@ dependencies = [
  "ctrlc",
  "quick-xml",
  "reqwest",
+ "serde",
  "serde_json",
  "yaml-rust2",
 ]

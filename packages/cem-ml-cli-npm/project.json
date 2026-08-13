@@ -12,6 +12,10 @@
                 {
                     "projects": ["@epa-wg/cem-ml"],
                     "target": "build"
+                },
+                {
+                    "projects": ["cem_ml_cli"],
+                    "target": "emit-command-schema"
                 }
             ],
             "options": {
@@ -50,7 +54,7 @@
             "executor": "nx:run-commands",
             "dependsOn": ["build"],
             "options": {
-                "command": "node --test tests/node-worker-pool.test.mjs",
+                "command": "node --test tests/command-schema.test.mjs tests/node-worker-pool.test.mjs",
                 "cwd": "{projectRoot}"
             },
             "inputs": [

@@ -1,4 +1,3 @@
-#[cfg(feature = "debug-control")]
 use clap::ArgGroup;
 use clap::{Args, Parser, Subcommand, ValueEnum};
 use std::path::PathBuf;
@@ -697,6 +696,20 @@ pub struct ConvertArgs {
 }
 
 #[derive(Args, Debug)]
+#[command(
+    group(
+        ArgGroup::new("transform_data_source")
+            .required(true)
+            .multiple(true)
+            .args(["data", "config"])
+    ),
+    group(
+        ArgGroup::new("transform_template_source")
+            .required(true)
+            .multiple(true)
+            .args(["config", "template", "template_expression"])
+    )
+)]
 pub struct TransformArgs {
     #[arg(
         value_name = "DATA",
@@ -823,6 +836,12 @@ pub struct TransformArgs {
 }
 
 #[derive(Args, Debug)]
+#[command(group(
+    ArgGroup::new("query_source")
+        .required(true)
+        .multiple(false)
+        .args(["query", "query_file"])
+))]
 pub struct QueryArgs {
     #[arg(
         value_name = "DATA",

@@ -40,11 +40,30 @@ try {
 
     writeFileSync(
         resolve(consumerRoot, 'probe.mjs'),
-        `import { createNodeWorkerPool } from '@epa-wg/cem-ml-cli/node';
+        `import {
+  commandSchema,
+  createNodeWorkerPool,
+  parseCemMlCommand,
+  serializeCemMlCommand,
+} from '@epa-wg/cem-ml-cli/node';
+
+const parsed = parseCemMlCommand([
+  'query',
+  'data.xml',
+  '--query',
+  '//item',
+  '--query-content-type',
+  'application/vnd.cem.xpath',
+], { runtime: 'wasm-node' });
+const roundTrip = parseCemMlCommand(serializeCemMlCommand(parsed), { runtime: 'wasm-node' });
 
 const pool = await createNodeWorkerPool({ workerCount: 2, maxWorkers: 4 });
 try {
   console.log(JSON.stringify({
+    commandSchemaVersion: commandSchema.schemaVersion,
+    commandCommonVersion: commandSchema.commonVersion,
+    commandPath: parsed.commandPath,
+    commandRoundTrip: JSON.stringify(roundTrip) === JSON.stringify(parsed),
     mode: pool.mode,
     size: pool.size,
     commonVersion: pool.capability.commonVersion,
@@ -62,6 +81,10 @@ try {
 `,
     );
     const probe = JSON.parse(capture(process.execPath, ['probe.mjs']));
+    assert.equal(probe.commandSchemaVersion, 1);
+    assert.equal(probe.commandCommonVersion, packageMetadata.version);
+    assert.deepEqual(probe.commandPath, ['query']);
+    assert.equal(probe.commandRoundTrip, true);
     assert.equal(probe.mode, 'pool');
     assert.equal(probe.size, 2);
     assert.equal(probe.commonVersion, packageMetadata.version);
@@ -77,7 +100,7 @@ try {
     assert.equal(new Set(probe.instances.map(({ runtimeInstanceId }) => runtimeInstanceId)).size, 2);
 
     console.log(
-        `Clean consumer verified ${installedCli.name}@${installedCli.version}: one resolved runtime copy and two isolated Node worker runtimes.`,
+        `Clean consumer verified ${installedCli.name}@${installedCli.version}: generated command round trip, one runtime copy, and two Node workers.`,
     );
 } finally {
     assert.ok(consumerRoot.startsWith(`${tmpdir()}${sep}cem-ml-cli-consumer-`));

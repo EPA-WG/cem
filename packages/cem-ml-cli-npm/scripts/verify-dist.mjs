@@ -19,6 +19,10 @@ for (const path of [
     'browser.js',
     'browser.d.ts',
     'browser-worker.js',
+    'command.js',
+    'command.d.ts',
+    'generated/command-schema.js',
+    'generated/command-schema.d.ts',
     'node.js',
     'node.d.ts',
     'node-worker.js',
@@ -28,6 +32,20 @@ for (const path of [
     'protocol.d.ts',
 ]) {
     assert.ok(existsSync(resolve(projectRoot, 'dist', path)), `missing worker-host artifact: ${path}`);
+}
+const commandSource = readFileSync(resolve(projectRoot, 'dist/command.js'), 'utf8');
+const generatedCommandSource = readFileSync(
+    resolve(projectRoot, 'dist/generated/command-schema.js'),
+    'utf8',
+);
+assert.match(commandSource, /generatedCommandSchema/);
+assert.doesNotMatch(commandSource, /--query-file|--template-expression|--resolver-read-map/);
+assert.match(generatedCommandSource, /"schemaVersion": 1/);
+assert.ok(generatedCommandSource.includes(`"commonVersion": "${packageMetadata.version}"`));
+assert.match(generatedCommandSource, /"long": "query-file"/);
+for (const host of ['browser', 'node']) {
+    const hostSource = readFileSync(resolve(projectRoot, `dist/${host}.js`), 'utf8');
+    assert.match(hostSource, /command\.js/);
 }
 const workerSource = readFileSync(resolve(projectRoot, 'dist/node-worker.js'), 'utf8');
 assert.match(workerSource, /@epa-wg\/cem-ml\/wasm/);
@@ -40,7 +58,7 @@ assert.match(browserWorkerSource, /browserWorkerCapabilityManifest/);
 assert.doesNotMatch(`${browserSource}\n${browserWorkerSource}`, /SharedArrayBuffer/);
 
 console.log(
-    `Verified ${packageMetadata.name}@${packageMetadata.version}: exact runtime dependency and policy-free browser/Node worker artifacts.`,
+    `Verified ${packageMetadata.name}@${packageMetadata.version}: generated command schema and policy-free browser/Node worker artifacts.`,
 );
 
 function readJson(path) {

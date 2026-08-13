@@ -340,8 +340,12 @@ cem-ml validate data/catalog.json
 npm exec --package=@epa-wg/cem-ml-cli -- cem-ml validate data/catalog.json
 ```
 
-These commands are illustrative until the shared command schema and exact flags
-are accepted. Project documentation must not guess or separately maintain flags.
+Accepted 2026-08-13: command schema v1 is generated from the built native Clap
+grammar and joined to the common Rust runtime-capability matrix. The npm Node
+and browser APIs consume that generated schema through one parser/serializer;
+project documentation and TypeScript hosts must not guess or separately
+maintain flags. Exact flags therefore change only through the canonical native
+grammar and a regenerated, versioned schema.
 
 “Universal npm CLI” means this one npm deployment can run on supported Node
 versions across operating systems/architectures on which the WASM and JS host
