@@ -29,6 +29,9 @@ assert.equal(runtimeManifest.capabilities.node.runtime, 'wasm-node');
 assert.equal(runtimeManifest.capabilities.browser.runtime, 'wasm-browser-worker');
 assert.equal(runtimeManifest.capabilities.node.commonVersion, cargoVersion);
 assert.equal(runtimeManifest.capabilities.browser.commonVersion, cargoVersion);
+assert.equal(runtimeManifest.protocol.workerProtocolVersion, 1);
+assert.equal(runtimeManifest.protocol.operationProtocolVersion, 1);
+assert.equal(runtimeManifest.protocol.limits.maxWorkers, 256);
 assert.equal(runtimeManifest.schemaPackages.manifestCount, 25);
 assert.ok(runtimeManifest.schemaPackages.fileCount > runtimeManifest.schemaPackages.manifestCount);
 verifySchemaPackageReferences(resolve(distRoot, 'schema-packages'));
@@ -41,11 +44,15 @@ for (const target of ['browser', 'node']) {
   const declarations = readFileSync(resolve(distRoot, artifact.types), 'utf8');
   assert.match(declarations, /version\(\): string/);
   assert.match(declarations, /capabilityManifest\(request_json: string\): string/);
+  assert.match(declarations, /nodeWorkerCapabilityManifest\(request_json: string, effective_max_workers: number\): string/);
+  assert.match(declarations, /workerProtocolDescriptor\(\): string/);
 }
 
 const nodeRuntime = createRequire(import.meta.url)(resolve(distRoot, 'wasm/node/cem_ml.js'));
 assert.equal(nodeRuntime.version(), cargoVersion);
 assert.equal(typeof nodeRuntime.capabilityManifest, 'function');
+assert.equal(typeof nodeRuntime.nodeWorkerCapabilityManifest, 'function');
+assert.equal(typeof nodeRuntime.workerProtocolDescriptor, 'function');
 
 const integrity = readJson(resolve(distRoot, 'integrity.json'));
 assert.equal(integrity.algorithm, 'sha256');

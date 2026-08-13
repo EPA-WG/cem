@@ -50,3 +50,25 @@ test('invalid capability requests remain structured diagnostics', async () => {
   const response = JSON.parse(runtime.capabilityManifest('{}'));
   assert.equal(response.error.code, 'cem.capability.invalid_request');
 });
+
+test('Node worker capability and protocol descriptors remain Rust-owned', async () => {
+  const runtime = await import('@epa-wg/cem-ml/wasm');
+  const protocol = JSON.parse(runtime.workerProtocolDescriptor());
+  assert.equal(protocol.workerProtocolVersion, 1);
+  assert.equal(protocol.operationProtocolVersion, 1);
+  assert.equal(protocol.limits.maxWorkers, 256);
+
+  const request = JSON.stringify({
+    runtime: 'wasm-node',
+    targetIdentity: 'runtime-test:node-worker-pool',
+    abiIdentity: 'runtime-test-v1',
+    debugControlActive: false,
+  });
+  const capability = JSON.parse(runtime.nodeWorkerCapabilityManifest(request, 3));
+  assert.equal(capability.executorTopology, 'node-worker-pool');
+  assert.equal(capability.effectiveMaxWorkers, 3);
+  assert.equal(capability.commonVersion, packageMetadata.version);
+
+  const invalid = JSON.parse(runtime.nodeWorkerCapabilityManifest(request, 0));
+  assert.equal(invalid.error.code, 'cem.capability.worker_count');
+});

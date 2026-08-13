@@ -1,0 +1,43 @@
+{
+    "name": "@epa-wg/cem-ml-cli",
+    "version": "0.1.0",
+    "description": "Universal Node and browser hosts for the CEM-ML WebAssembly runtime",
+    "author": {
+        "name": "Sasha Firsov",
+        "email": "sasha@firsov.net"
+    },
+    "license": "MIT",
+    "type": "module",
+    "repository": {
+        "type": "git",
+        "url": "https://github.com/EPA-WG/cem.git",
+        "directory": "packages/cem-ml-cli-npm"
+    },
+    "exports": {
+        "./package.json": "./package.json",
+        "./node": {
+            "types": "./dist/node.d.ts",
+            "import": "./dist/node.js",
+            "default": "./dist/node.js"
+        }
+    },
+    "files": [
+        "dist",
+        "!**/*.tsbuildinfo",
+        "README.md",
+        "LICENSE"
+    ],
+    "engines": {
+        "node": "^22.12.0 || ^24.0.0"
+    },
+    "dependencies": {
+        "@epa-wg/cem-ml": "0.1.0"
+    },
+    "devDependencies": {
+        "@types/node": "25.6.0",
+        "typescript": "6.0.3"
+    },
+    "publishConfig": {
+        "access": "public"
+    }
+}

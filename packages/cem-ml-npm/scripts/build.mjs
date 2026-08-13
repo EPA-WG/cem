@@ -140,6 +140,7 @@ const capabilities = {
     ),
   ),
 };
+const protocol = JSON.parse(nodeRuntime.workerProtocolDescriptor());
 
 const schemaFiles = listFiles(schemaOutputRoot);
 const runtimeManifest = {
@@ -170,6 +171,7 @@ const runtimeManifest = {
     fileCount: schemaFiles.length,
     manifestCount: schemaFiles.filter((path) => path.endsWith('/package.cem')).length,
   },
+  protocol,
   capabilities,
 };
 writeJson(resolve(distRoot, 'cem-ml-runtime.json'), runtimeManifest);

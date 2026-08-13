@@ -43,12 +43,14 @@ use std::cell::RefCell;
 use js_sys::{Array, ArrayBuffer, Function, Reflect, Uint8Array};
 use wasm_bindgen::{prelude::*, JsCast};
 
-use crate::capability::{capability_manifest, CapabilityRequest};
+use crate::capability::{capability_manifest, CapabilityRequest, ExecutorTopology, RuntimeKind};
 use crate::observability::{EngineObserver, ReportEvent};
+use crate::operation_handle::OPERATION_PROTOCOL_VERSION;
 use crate::resolver::{
     ResolveDirection, ResolvePurpose, ResolveRequest, ResolvedRead, ResolvedWrite,
     ResolverDiagnostic, ResolverRegistry, ResourceResolver,
 };
+use crate::worker_control::{WorkerCoordinatorLimits, WORKER_PROTOCOL_VERSION};
 
 thread_local! {
     static PARSE_OBSERVER: RefCell<Option<Function>> = const { RefCell::new(None) };
@@ -69,17 +71,9 @@ pub fn version() -> String {
 /// deployment metadata cannot drift from the engine's Rust-owned semantics.
 #[wasm_bindgen(js_name = "capabilityManifest")]
 pub fn capability_manifest_json(request_json: &str) -> String {
-    let request = match serde_json::from_str::<CapabilityRequest>(request_json) {
+    let request = match parse_capability_request(request_json) {
         Ok(request) => request,
-        Err(error) => {
-            return serde_json::json!({
-                "error": {
-                    "code": "cem.capability.invalid_request",
-                    "message": error.to_string()
-                }
-            })
-            .to_string();
-        }
+        Err(error) => return error,
     };
 
     match capability_manifest(request) {
@@ -93,6 +87,82 @@ pub fn capability_manifest_json(request_json: &str) -> String {
         })
         .to_string(),
     }
+}
+
+/// Projects a Node worker-pool capability through common Rust semantics. A
+/// worker remains sequential internally; this host projection advertises the
+/// bounded physical pool coordinating those isolated runtime instances.
+#[wasm_bindgen(js_name = "nodeWorkerCapabilityManifest")]
+pub fn node_worker_capability_manifest_json(
+    request_json: &str,
+    effective_max_workers: u32,
+) -> String {
+    let request = match parse_capability_request(request_json) {
+        Ok(request) => request,
+        Err(error) => return error,
+    };
+    if request.runtime != RuntimeKind::WasmNode {
+        return capability_error(
+            "cem.capability.runtime_mismatch",
+            "runtime",
+            "Node worker capability projection requires runtime `wasm-node`",
+        );
+    }
+    let maximum = u32::from(WorkerCoordinatorLimits::default().max_workers);
+    if effective_max_workers == 0 || effective_max_workers > maximum {
+        return capability_error(
+            "cem.capability.worker_count",
+            "effectiveMaxWorkers",
+            &format!("effective worker count {effective_max_workers} is outside 1..={maximum}"),
+        );
+    }
+
+    match capability_manifest(request) {
+        Ok(mut manifest) => {
+            manifest.executor_topology = ExecutorTopology::NodeWorkerPool;
+            manifest.effective_max_workers = effective_max_workers;
+            serde_json::to_string(&manifest).unwrap_or_else(capability_serialize_error)
+        }
+        Err(error) => capability_error(error.code, error.field, &error.message),
+    }
+}
+
+/// Describes the common worker/operation protocol versions and hard transfer
+/// bounds consumed by Node worker threads and browser dedicated workers.
+#[wasm_bindgen(js_name = "workerProtocolDescriptor")]
+pub fn worker_protocol_descriptor_json() -> String {
+    let limits = WorkerCoordinatorLimits::default();
+    serde_json::json!({
+        "workerProtocolVersion": WORKER_PROTOCOL_VERSION,
+        "operationProtocolVersion": OPERATION_PROTOCOL_VERSION,
+        "limits": {
+            "maxWorkers": limits.max_workers,
+            "maxTransferBuffersPerMessage": limits.max_transfer_buffers_per_message,
+            "maxTransferBytesPerMessage": limits.max_transfer_bytes_per_message,
+        }
+    })
+    .to_string()
+}
+
+fn parse_capability_request(request_json: &str) -> Result<CapabilityRequest, String> {
+    serde_json::from_str::<CapabilityRequest>(request_json).map_err(|error| {
+        capability_error(
+            "cem.capability.invalid_request",
+            "request",
+            &error.to_string(),
+        )
+    })
+}
+
+fn capability_error(code: &str, field: &str, message: &str) -> String {
+    serde_json::json!({
+        "error": {
+            "code": code,
+            "field": field,
+            "message": message
+        }
+    })
+    .to_string()
 }
 
 fn capability_serialize_error(error: serde_json::Error) -> String {

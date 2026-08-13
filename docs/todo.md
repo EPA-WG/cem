@@ -17,9 +17,10 @@ is [`cem-ml-deployment-contract.md`](cem-ml-deployment-contract.md); the Phase
 The starting Nx audit confirmed that `cem_ml` and `cem_ml_cli` provide Rust
 build, test, lint, WASM-build, fixture, and release-publish surfaces. The
 workspace now also contains the policy-free `@epa-wg/cem-ml` browser/Node WASM
-deployment with a direct common-version drift gate. It does not yet contain the
-`@epa-wg/cem-ml-cli` universal npm deployment, any of the three native
-deployment projects, the complete family synchronizer, or the fixed
+deployment and the first Node worker-host slice of `@epa-wg/cem-ml-cli`, both
+with direct common-version drift gates. The universal CLI's browser adapter,
+npm executable, and complete command surface remain open, as do the three
+native deployment projects, complete family synchronizer, and fixed
 `cem-ml-platform` release group. The common `packages/cem_ml/Cargo.toml` version
 remains the authority.
 
@@ -397,8 +398,23 @@ replacement tree may mediate between internal engine layers.
               routing and replacement, complete all-stop coordination, and terminal
               races. All 1,892 common tests and integration suites pass, as do common
               lint, the common WASM build, and the stripped common-core build.
-            - [ ] Implement the bounded Node worker-thread host with one initialized
+            - [x] Implement the bounded Node worker-thread host with one initialized
                   runtime per worker and the accepted single-worker fallback.
+
+              Completed 2026-08-12: `packages/cem-ml-cli-npm` now exposes a
+              bounded `@epa-wg/cem-ml-cli/node` worker-thread pool. Each stable
+              slot/generation owns one independently initialized
+              `@epa-wg/cem-ml/wasm` runtime, validates sequence-one initialization
+              through the versioned common worker/operation envelope, and derives
+              protocol limits and Node-pool capability semantics from Rust-owned
+              exports. The default pool is capped at eight available processors,
+              explicit one-worker mode is supported, and failed multi-worker
+              initialization is torn down before the accepted one-worker fallback.
+              Focused and packed clean-consumer fixtures prove bounded policy,
+              stable identities, distinct worker runtimes, exact versions, and one
+              resolved runtime-package copy. Operation dispatch, replacement, and
+              hard-cancel behavior remain intentionally assigned to the later
+              transform/query control checkitem.
             - [ ] Implement the bounded browser dedicated-worker host with one WASM
                   instance per worker and the accepted dedicated-worker/main-thread
                   fallback chain, without requiring shared-memory WASM.
@@ -433,8 +449,14 @@ replacement tree may mediate between internal engine layers.
 
 - [ ] Create the separate `@epa-wg/cem-ml-cli` universal npm deployment
       project.
-    - [ ] Depend on exactly the same version of `@epa-wg/cem-ml` and prove the
+    - [x] Depend on exactly the same version of `@epa-wg/cem-ml` and prove the
           installed consumer resolves one runtime copy.
+
+      Started 2026-08-12: the Node-host slice establishes the publishable Nx/npm
+      project, exact common-version dependency, supported-Node engine boundary,
+      package/verification targets, and clean installation proof. The parent stays
+      open until the browser export, shared command service, npm executable, and
+      complete cross-host fixtures land.
     - [ ] Add worker-safe `./browser` and Node-hosted `./node` exports plus the
           npm `cem-ml` executable without duplicating engine semantics.
     - [ ] Project the shared command parser, capability discovery, progress,
