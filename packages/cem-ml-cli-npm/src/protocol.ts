@@ -2,6 +2,7 @@ export const WORKER_PROTOCOL_VERSION = 1;
 export const OPERATION_PROTOCOL_VERSION = 1;
 export const MAX_COORDINATED_WORKERS = 256;
 export const DEFAULT_MAX_NODE_WORKERS = 8;
+export const DEFAULT_MAX_BROWSER_WORKERS = 8;
 export const DEFAULT_STARTUP_TIMEOUT_MS = 10_000;
 export const MAX_STARTUP_TIMEOUT_MS = 60_000;
 
@@ -33,12 +34,41 @@ export interface NodeWorkerCapabilityManifest {
     readonly [field: string]: unknown;
 }
 
+export interface BrowserWorkerCapabilityManifest {
+    readonly contractVersion: number;
+    readonly commonVersion: string;
+    readonly runtime: 'wasm-browser-worker';
+    readonly targetIdentity: string;
+    readonly abiIdentity: string;
+    readonly executorTopology: 'browser-worker-pool';
+    readonly effectiveMaxWorkers: number;
+    readonly [field: string]: unknown;
+}
+
+export interface BrowserMainThreadCapabilityManifest {
+    readonly contractVersion: number;
+    readonly commonVersion: string;
+    readonly runtime: 'wasm-browser-worker';
+    readonly targetIdentity: string;
+    readonly abiIdentity: string;
+    readonly executorTopology: 'sequential';
+    readonly effectiveMaxWorkers: 1;
+    readonly [field: string]: unknown;
+}
+
 export interface NodeWorkerInitializePayload {
     readonly runtimeInstanceId: string;
     readonly threadId: number;
     readonly commonVersion: string;
     readonly protocol: WorkerProtocolDescriptor;
     readonly capability: NodeWorkerCapabilityManifest;
+}
+
+export interface BrowserWorkerInitializePayload {
+    readonly runtimeInstanceId: string;
+    readonly commonVersion: string;
+    readonly protocol: WorkerProtocolDescriptor;
+    readonly capability: BrowserWorkerCapabilityManifest;
 }
 
 export interface OperationHostEnvelope<T> {
@@ -60,4 +90,13 @@ export interface NodeWorkerBootstrap {
     readonly effectiveWorkers: number;
 }
 
+export interface BrowserWorkerBootstrap {
+    readonly type: 'cem-worker-initialize';
+    readonly worker: WorkerAddress;
+    readonly effectiveWorkers: number;
+    readonly runtimeHostId: string;
+    readonly abiIdentity: string;
+}
+
 export type NodeWorkerInitializeEnvelope = WorkerEnvelope<NodeWorkerInitializePayload>;
+export type BrowserWorkerInitializeEnvelope = WorkerEnvelope<BrowserWorkerInitializePayload>;

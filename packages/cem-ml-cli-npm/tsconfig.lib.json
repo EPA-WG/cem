@@ -6,6 +6,8 @@
         "tsBuildInfoFile": "dist/tsconfig.lib.tsbuildinfo",
         "emitDeclarationOnly": false,
         "forceConsistentCasingInFileNames": true,
+        "lib": ["es2022", "dom", "dom.iterable", "webworker"],
+        "resolveJsonModule": true,
         "types": ["node"]
     },
     "include": ["src/**/*.ts"]

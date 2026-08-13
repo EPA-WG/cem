@@ -127,6 +127,44 @@ pub fn node_worker_capability_manifest_json(
     }
 }
 
+/// Projects a browser dedicated-worker pool capability through common Rust
+/// semantics. Each worker remains sequential internally; the browser host
+/// coordinates these isolated runtime instances through message passing.
+#[wasm_bindgen(js_name = "browserWorkerCapabilityManifest")]
+pub fn browser_worker_capability_manifest_json(
+    request_json: &str,
+    effective_max_workers: u32,
+) -> String {
+    let request = match parse_capability_request(request_json) {
+        Ok(request) => request,
+        Err(error) => return error,
+    };
+    if request.runtime != RuntimeKind::WasmBrowserWorker {
+        return capability_error(
+            "cem.capability.runtime_mismatch",
+            "runtime",
+            "browser worker capability projection requires runtime `wasm-browser-worker`",
+        );
+    }
+    let maximum = u32::from(WorkerCoordinatorLimits::default().max_workers);
+    if effective_max_workers == 0 || effective_max_workers > maximum {
+        return capability_error(
+            "cem.capability.worker_count",
+            "effectiveMaxWorkers",
+            &format!("effective worker count {effective_max_workers} is outside 1..={maximum}"),
+        );
+    }
+
+    match capability_manifest(request) {
+        Ok(mut manifest) => {
+            manifest.executor_topology = ExecutorTopology::BrowserWorkerPool;
+            manifest.effective_max_workers = effective_max_workers;
+            serde_json::to_string(&manifest).unwrap_or_else(capability_serialize_error)
+        }
+        Err(error) => capability_error(error.code, error.field, &error.message),
+    }
+}
+
 /// Describes the common worker/operation protocol versions and hard transfer
 /// bounds consumed by Node worker threads and browser dedicated workers.
 #[wasm_bindgen(js_name = "workerProtocolDescriptor")]

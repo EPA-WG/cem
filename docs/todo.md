@@ -17,9 +17,10 @@ is [`cem-ml-deployment-contract.md`](cem-ml-deployment-contract.md); the Phase
 The starting Nx audit confirmed that `cem_ml` and `cem_ml_cli` provide Rust
 build, test, lint, WASM-build, fixture, and release-publish surfaces. The
 workspace now also contains the policy-free `@epa-wg/cem-ml` browser/Node WASM
-deployment and the first Node worker-host slice of `@epa-wg/cem-ml-cli`, both
-with direct common-version drift gates. The universal CLI's browser adapter,
-npm executable, and complete command surface remain open, as do the three
+deployment and the first browser/Node worker-host slices of
+`@epa-wg/cem-ml-cli`, both with direct common-version drift gates. The universal
+CLI's worker operation dispatch, browser resolver/command API, npm executable,
+and complete command surface remain open, as do the three
 native deployment projects, complete family synchronizer, and fixed
 `cem-ml-platform` release group. The common `packages/cem_ml/Cargo.toml` version
 remains the authority.
@@ -415,9 +416,30 @@ replacement tree may mediate between internal engine layers.
               resolved runtime-package copy. Operation dispatch, replacement, and
               hard-cancel behavior remain intentionally assigned to the later
               transform/query control checkitem.
-            - [ ] Implement the bounded browser dedicated-worker host with one WASM
+            - [x] Implement the bounded browser dedicated-worker host with one WASM
                   instance per worker and the accepted dedicated-worker/main-thread
                   fallback chain, without requiring shared-memory WASM.
+
+              Completed 2026-08-13: `@epa-wg/cem-ml-cli/browser` now creates a
+              bounded dedicated-worker pool sized by the accepted browser host
+              default and explicit policy limits. Every stable slot/generation
+              initializes one isolated web WASM runtime through the common worker
+              and operation envelopes, validates Rust-owned protocol bounds and
+              browser-pool capabilities, retains the exact runtime ABI/version, and
+              reports worker failures without requiring `SharedArrayBuffer` or
+              cross-origin isolation.
+
+              Pool initialization failure falls back to one dedicated worker; an
+              unavailable or failed worker host falls back to one main-thread WASM
+              runtime with the truthful sequential capability projection. A real
+              Chromium Nx fixture proves two distinct worker runtimes, explicit and
+              fallback single-worker modes, both main-thread fallback causes,
+              policy-bound rejection, stable identities, version/capability shape,
+              and the absence of shared-memory requirements. Common lint, all 1,892
+              unit tests plus integration suites, common WASM compilation, both npm
+              lints, low-level runtime verification, and browser/Node CLI deployment
+              verification pass. Hard cancellation and operation dispatch remain
+              unavailable and are assigned to the next checkitem.
             - [ ] Add hard-cancel termination/replacement and native-equivalent Node,
                   browser, single-worker, and main-thread transform/query control
                   fixtures, including all-stop and late-message behavior.
@@ -454,9 +476,9 @@ replacement tree may mediate between internal engine layers.
 
       Started 2026-08-12: the Node-host slice establishes the publishable Nx/npm
       project, exact common-version dependency, supported-Node engine boundary,
-      package/verification targets, and clean installation proof. The parent stays
-      open until the browser export, shared command service, npm executable, and
-      complete cross-host fixtures land.
+      package/verification targets, and clean installation proof. The browser worker
+      slice now also exposes `./browser`; the parent stays open until the shared
+      command service, npm executable, and complete cross-host fixtures land.
     - [ ] Add worker-safe `./browser` and Node-hosted `./node` exports plus the
           npm `cem-ml` executable without duplicating engine semantics.
     - [ ] Project the shared command parser, capability discovery, progress,

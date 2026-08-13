@@ -32,7 +32,7 @@ const result = spawnSync(
 );
 if (result.status !== 0) throw new Error(`TypeScript build failed with status ${result.status}`);
 
-console.log(`Built ${packageMetadata.name}@${packageMetadata.version} Node worker host.`);
+console.log(`Built ${packageMetadata.name}@${packageMetadata.version} browser and Node worker hosts.`);
 
 function readJson(path) {
     return JSON.parse(readFileSync(path, 'utf8'));

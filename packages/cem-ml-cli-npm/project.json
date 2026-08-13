@@ -62,10 +62,28 @@
             ],
             "outputs": []
         },
+        "test:browser": {
+            "cache": true,
+            "executor": "nx:run-commands",
+            "dependsOn": ["build"],
+            "options": {
+                "command": "node scripts/verify-browser.mjs",
+                "cwd": "{projectRoot}"
+            },
+            "inputs": [
+                "{projectRoot}/scripts/verify-browser.mjs",
+                "{projectRoot}/tests/browser-worker-pool.fixture.mjs",
+                {
+                    "dependentTasksOutputFiles": "**/*",
+                    "transitive": false
+                }
+            ],
+            "outputs": []
+        },
         "verify": {
             "cache": true,
             "executor": "nx:run-commands",
-            "dependsOn": ["build", "test"],
+            "dependsOn": ["build", "test", "test:browser"],
             "options": {
                 "command": "node scripts/verify-dist.mjs",
                 "cwd": "{projectRoot}"
@@ -124,7 +142,7 @@
             "executor": "nx:run-commands",
             "dependsOn": ["lint", "verify", "verify:consumer"],
             "options": {
-                "command": "node -e \"console.log('CEM-ML CLI Node worker deployment checks passed.')\"",
+                "command": "node -e \"console.log('CEM-ML CLI browser and Node worker deployment checks passed.')\"",
                 "cwd": "{workspaceRoot}"
             },
             "outputs": []

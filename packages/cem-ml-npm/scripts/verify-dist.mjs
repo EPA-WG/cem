@@ -44,6 +44,7 @@ for (const target of ['browser', 'node']) {
   const declarations = readFileSync(resolve(distRoot, artifact.types), 'utf8');
   assert.match(declarations, /version\(\): string/);
   assert.match(declarations, /capabilityManifest\(request_json: string\): string/);
+  assert.match(declarations, /browserWorkerCapabilityManifest\(request_json: string, effective_max_workers: number\): string/);
   assert.match(declarations, /nodeWorkerCapabilityManifest\(request_json: string, effective_max_workers: number\): string/);
   assert.match(declarations, /workerProtocolDescriptor\(\): string/);
 }
@@ -51,6 +52,7 @@ for (const target of ['browser', 'node']) {
 const nodeRuntime = createRequire(import.meta.url)(resolve(distRoot, 'wasm/node/cem_ml.js'));
 assert.equal(nodeRuntime.version(), cargoVersion);
 assert.equal(typeof nodeRuntime.capabilityManifest, 'function');
+assert.equal(typeof nodeRuntime.browserWorkerCapabilityManifest, 'function');
 assert.equal(typeof nodeRuntime.nodeWorkerCapabilityManifest, 'function');
 assert.equal(typeof nodeRuntime.workerProtocolDescriptor, 'function');
 

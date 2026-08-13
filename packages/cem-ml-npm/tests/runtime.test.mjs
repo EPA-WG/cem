@@ -51,7 +51,7 @@ test('invalid capability requests remain structured diagnostics', async () => {
   assert.equal(response.error.code, 'cem.capability.invalid_request');
 });
 
-test('Node worker capability and protocol descriptors remain Rust-owned', async () => {
+test('worker-pool capabilities and protocol descriptors remain Rust-owned', async () => {
   const runtime = await import('@epa-wg/cem-ml/wasm');
   const protocol = JSON.parse(runtime.workerProtocolDescriptor());
   assert.equal(protocol.workerProtocolVersion, 1);
@@ -71,4 +71,18 @@ test('Node worker capability and protocol descriptors remain Rust-owned', async 
 
   const invalid = JSON.parse(runtime.nodeWorkerCapabilityManifest(request, 0));
   assert.equal(invalid.error.code, 'cem.capability.worker_count');
+
+  const browserRequest = JSON.stringify({
+    runtime: 'wasm-browser-worker',
+    targetIdentity: 'runtime-test:browser-worker-pool',
+    abiIdentity: 'runtime-test-v1',
+    debugControlActive: false,
+  });
+  const browserCapability = JSON.parse(runtime.browserWorkerCapabilityManifest(browserRequest, 2));
+  assert.equal(browserCapability.executorTopology, 'browser-worker-pool');
+  assert.equal(browserCapability.effectiveMaxWorkers, 2);
+  assert.equal(browserCapability.commonVersion, packageMetadata.version);
+
+  const browserRuntimeMismatch = JSON.parse(runtime.browserWorkerCapabilityManifest(request, 2));
+  assert.equal(browserRuntimeMismatch.error.code, 'cem.capability.runtime_mismatch');
 });

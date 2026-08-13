@@ -73,7 +73,7 @@ themselves, establish product-component parity in `cem-components`.
 | `@epa-wg/custom-element`                                      | external today    | Current production custom-element package; monorepo migration and `cem-element`-based next major are deferred until after the Edge/SSR follow-up phase. |
 | [`cem_ml` / Cargo `cem-ml`](packages/cem_ml/Cargo.toml)       | active common runtime | Rust-owned parser/runtime semantics and synchronized CEM-ML product-version authority. |
 | [`@epa-wg/cem-ml`](packages/cem-ml-npm/README.md)             | active WASM deployment | Generated low-level browser/Node WASM loaders, declarations, schema-package assets, and ABI/integrity metadata; no command or UI policy. |
-| [`@epa-wg/cem-ml-cli`](packages/cem-ml-cli-npm/README.md)     | active Node-host slice | Universal CLI deployment project with an exact WASM-runtime dependency and bounded Node worker-thread host; browser adapter, shared commands, and npm executable remain Phase 2.5 work. |
+| [`@epa-wg/cem-ml-cli`](packages/cem-ml-cli-npm/README.md)     | active browser/Node-host slice | Universal CLI deployment project with an exact WASM-runtime dependency, bounded dedicated-worker and worker-thread pools, and a browser main-thread fallback; shared commands, operation control, and the npm executable remain Phase 2.5 work. |
 | [`cem_ml_cli` / Cargo `cem-ml-cli`](packages/cem_ml_cli/Cargo.toml) | active native host | Rust CLI host and `cem-ml` binary for parsing, validation, reports, fixtures, and migration workflows. |
 
 # Use the token CSS

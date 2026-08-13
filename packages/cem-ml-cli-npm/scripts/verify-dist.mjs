@@ -13,17 +13,32 @@ assert.deepEqual(packageMetadata.dependencies, {
     '@epa-wg/cem-ml': runtimeMetadata.version,
 });
 assert.equal(packageMetadata.bin, undefined);
-assert.equal(packageMetadata.exports['./browser'], undefined);
+assert.equal(packageMetadata.exports['./browser'].import, './dist/browser.js');
 assert.equal(packageMetadata.exports['./node'].import, './dist/node.js');
-for (const path of ['node.js', 'node.d.ts', 'node-worker.js', 'protocol.js', 'protocol.d.ts']) {
-    assert.ok(existsSync(resolve(projectRoot, 'dist', path)), `missing Node host artifact: ${path}`);
+for (const path of [
+    'browser.js',
+    'browser.d.ts',
+    'browser-worker.js',
+    'node.js',
+    'node.d.ts',
+    'node-worker.js',
+    'protocol.js',
+    'protocol.d.ts',
+]) {
+    assert.ok(existsSync(resolve(projectRoot, 'dist', path)), `missing worker-host artifact: ${path}`);
 }
 const workerSource = readFileSync(resolve(projectRoot, 'dist/node-worker.js'), 'utf8');
 assert.match(workerSource, /@epa-wg\/cem-ml\/wasm/);
 assert.doesNotMatch(workerSource, /cem_ml_bg\.wasm/);
+const browserSource = readFileSync(resolve(projectRoot, 'dist/browser.js'), 'utf8');
+const browserWorkerSource = readFileSync(resolve(projectRoot, 'dist/browser-worker.js'), 'utf8');
+assert.match(browserSource, /new Worker\(new URL\('\.\/browser-worker\.js'/);
+assert.match(browserSource, /hardwareConcurrency/);
+assert.match(browserWorkerSource, /browserWorkerCapabilityManifest/);
+assert.doesNotMatch(`${browserSource}\n${browserWorkerSource}`, /SharedArrayBuffer/);
 
 console.log(
-    `Verified ${packageMetadata.name}@${packageMetadata.version}: exact runtime dependency and policy-free Node worker artifacts.`,
+    `Verified ${packageMetadata.name}@${packageMetadata.version}: exact runtime dependency and policy-free browser/Node worker artifacts.`,
 );
 
 function readJson(path) {
