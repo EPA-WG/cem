@@ -8,6 +8,8 @@ use std::collections::{BTreeMap, BTreeSet, VecDeque};
 use std::fmt;
 use std::future::Future;
 use std::pin::Pin;
+#[cfg(feature = "debug-control")]
+use std::sync::Weak;
 use std::sync::{Arc, Condvar, Mutex};
 use std::task::{Context, Poll, Waker};
 use std::time::{Duration, Instant};
@@ -17,12 +19,23 @@ use serde_json::Value;
 
 use crate::capability::{
     capability_manifest, CapabilityError, CapabilityManifest, CapabilityRequest,
-    OperationHostLimits, DEFAULT_MAX_LIVE_SUBSCRIPTIONS, DEFAULT_SUBSCRIPTION_CAPACITY,
-    MAX_ARTIFACT_REFERENCES, MAX_IDENTITY_BYTES, MAX_INLINE_EVENT_PAYLOAD_BYTES,
-    MAX_RECOVERED_CONTROL_FAILURES, MAX_RETAINED_HANDLES, MAX_SUBSCRIPTION_CAPACITY,
-    MAX_TERMINAL_DIAGNOSTICS,
+    OperationHostLimits, DEFAULT_MAX_LIVE_SUBSCRIPTIONS, DEFAULT_STACK_FRAME_PAGE_SIZE,
+    DEFAULT_SUBSCRIPTION_CAPACITY, DEFAULT_VARIABLE_PAGE_SIZE, MAX_ARTIFACT_REFERENCES,
+    MAX_DEBUG_BREAKPOINTS, MAX_DEBUG_VALUE_PREVIEW_BYTES, MAX_IDENTITY_BYTES,
+    MAX_INLINE_EVENT_PAYLOAD_BYTES, MAX_RECOVERED_CONTROL_FAILURES, MAX_RETAINED_HANDLES,
+    MAX_STACK_FRAME_PAGE_SIZE, MAX_SUBSCRIPTION_CAPACITY, MAX_SUSPENDED_SNAPSHOT_BYTES,
+    MAX_TERMINAL_DIAGNOSTICS, MAX_VARIABLE_PAGE_SIZE,
+};
+#[cfg(feature = "debug-control")]
+use crate::debug_control::{
+    BreakpointId, DebugConditionEvaluator, DebugControlError, DebugPage, DebugRuntimeEvent,
+    DebugRuntimeObserver, DebugSafePointKind, ExecutableSafePoint, LogicalFrameSnapshot, PauseSpec,
+    PauseTriggerHandle, SnapshotReferenceId, StepRequest, StopToken, SuspendedSnapshot,
+    VariableFilter, VariableScopeSnapshot, VariableSnapshot,
 };
 use crate::diagnostics::Diagnostic;
+#[cfg(feature = "debug-control")]
+use crate::operation_control::TaskId;
 use crate::operation_control::{
     ControlCause, ControlError, ControlFailure, ControlFailureSettlement, ControlRequestOutcome,
     ControlTerminalClass, ExecutionScopeId, ExecutionScopeState, OperationControl, OperationId,
@@ -172,15 +185,6 @@ pub enum OperationEventKind {
     ControlFailure,
     SubscriptionGap,
     Terminal,
-}
-
-impl OperationEventKind {
-    fn retained(self) -> bool {
-        matches!(
-            self,
-            Self::BreakpointResolved | Self::Stopped | Self::Continued | Self::Terminal
-        )
-    }
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -793,11 +797,19 @@ struct SubscriptionCursor {
     waker: Option<Waker>,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+enum CriticalEventKey {
+    Breakpoint(u64),
+    Stopped,
+    Continued,
+    Terminal,
+}
+
 struct OperationState<R> {
     disposed: bool,
     next_sequence: u64,
     events: VecDeque<Arc<OperationEvent>>,
-    critical_events: BTreeMap<OperationEventKind, Arc<OperationEvent>>,
+    critical_events: BTreeMap<CriticalEventKey, Arc<OperationEvent>>,
     next_subscription_id: u64,
     subscriptions: BTreeMap<EventSubscriptionId, SubscriptionCursor>,
     terminal: Option<Arc<OperationOutcome<R>>>,
@@ -829,6 +841,65 @@ struct OperationCore<R> {
     limits: OperationHostLimits,
     state: Mutex<OperationState<R>>,
     changed: Condvar,
+}
+
+#[cfg(feature = "debug-control")]
+struct OperationDebugObserver<R> {
+    core: Weak<OperationCore<R>>,
+}
+
+#[cfg(feature = "debug-control")]
+impl<R: Send + Sync + 'static> DebugRuntimeObserver for OperationDebugObserver<R> {
+    fn event(&self, event: DebugRuntimeEvent) {
+        let Some(core) = self.core.upgrade() else {
+            return;
+        };
+        let (kind, payload) = match event {
+            DebugRuntimeEvent::BreakpointResolved(payload) => (
+                OperationEventKind::BreakpointResolved,
+                serde_json::to_value(payload),
+            ),
+            DebugRuntimeEvent::PauseRequested(payload) => (
+                OperationEventKind::PauseRequested,
+                serde_json::to_value(payload),
+            ),
+            DebugRuntimeEvent::Stopped(payload) => {
+                (OperationEventKind::Stopped, serde_json::to_value(payload))
+            }
+            DebugRuntimeEvent::Continued(payload) => {
+                (OperationEventKind::Continued, serde_json::to_value(payload))
+            }
+        };
+        let Ok(payload) = payload else {
+            return;
+        };
+        if validate_payload(&payload, core.limits).is_err() {
+            return;
+        }
+        let mut state = core.state.lock().expect("poisoned operation-handle mutex");
+        if state.disposed || state.terminal.is_some() {
+            return;
+        }
+        let Ok((_, wakers)) =
+            append_event(&mut state, core.operation_id, core.limits, kind, payload)
+        else {
+            return;
+        };
+        drop(state);
+        core.changed.notify_all();
+        wake_all(wakers);
+    }
+
+    fn breakpoint_removed(&self, breakpoint: BreakpointId) {
+        let Some(core) = self.core.upgrade() else {
+            return;
+        };
+        core.state
+            .lock()
+            .expect("poisoned operation-handle mutex")
+            .critical_events
+            .remove(&CriticalEventKey::Breakpoint(breakpoint.get()));
+    }
 }
 
 /// Cloneable read/control side of one operation. Completion ownership is held
@@ -892,6 +963,11 @@ impl<R: Send + Sync + 'static> OperationHandle<R> {
             state: Mutex::new(OperationState::default()),
             changed: Condvar::new(),
         });
+        #[cfg(feature = "debug-control")]
+        core.control
+            .attach_debug_observer(Arc::new(OperationDebugObserver::<R> {
+                core: Arc::downgrade(&core),
+            }));
         let handle = Self {
             core: Arc::clone(&core),
         };
@@ -914,6 +990,108 @@ impl<R: Send + Sync + 'static> OperationHandle<R> {
 
     pub fn limits(&self) -> OperationHostLimits {
         self.core.limits
+    }
+
+    #[cfg(feature = "debug-control")]
+    pub fn activate_debug_control(
+        &self,
+        condition_evaluator: Option<Arc<dyn DebugConditionEvaluator>>,
+    ) -> Result<(), DebugControlError> {
+        self.core
+            .control
+            .activate_debug_control(self.core.limits, condition_evaluator)
+    }
+
+    #[cfg(feature = "debug-control")]
+    pub fn debug_control_active(&self) -> bool {
+        self.core.control.debug_control_active()
+    }
+
+    #[cfg(feature = "debug-control")]
+    pub fn register_debug_safe_point(
+        &self,
+        scope: ExecutionScopeId,
+        kind: DebugSafePointKind,
+        phase: impl Into<String>,
+        location: Option<crate::operation_control::SourceLocation>,
+    ) -> Result<ExecutableSafePoint, DebugControlError> {
+        self.core
+            .control
+            .register_debug_safe_point(scope, kind, phase, location)
+    }
+
+    #[cfg(feature = "debug-control")]
+    pub fn pause(&self, spec: PauseSpec) -> Result<PauseTriggerHandle, DebugControlError> {
+        self.core.control.install_pause_trigger(spec)
+    }
+
+    #[cfg(feature = "debug-control")]
+    pub fn resume(
+        &self,
+        stop: StopToken,
+    ) -> Result<crate::debug_control::ContinuedEvent, DebugControlError> {
+        self.core.control.resume_debug(stop)
+    }
+
+    #[cfg(feature = "debug-control")]
+    pub fn step(
+        &self,
+        request: StepRequest,
+    ) -> Result<crate::debug_control::ContinuedEvent, DebugControlError> {
+        self.core.control.step_debug(request)
+    }
+
+    #[cfg(feature = "debug-control")]
+    pub fn suspended_snapshot(
+        &self,
+        stop: StopToken,
+    ) -> Result<Arc<SuspendedSnapshot>, DebugControlError> {
+        self.core.control.suspended_snapshot(stop)
+    }
+
+    #[cfg(feature = "debug-control")]
+    pub fn debug_stack_trace(
+        &self,
+        stop: StopToken,
+        task: TaskId,
+        start: u32,
+        count: Option<u32>,
+    ) -> Result<DebugPage<LogicalFrameSnapshot>, DebugControlError> {
+        self.core
+            .control
+            .debug_stack_trace(stop, task, start, count)
+    }
+
+    #[cfg(feature = "debug-control")]
+    pub fn debug_frame_scopes(
+        &self,
+        stop: StopToken,
+        frame: SnapshotReferenceId,
+    ) -> Result<Vec<VariableScopeSnapshot>, DebugControlError> {
+        self.core.control.debug_frame_scopes(stop, frame)
+    }
+
+    #[cfg(feature = "debug-control")]
+    pub fn debug_variables(
+        &self,
+        stop: StopToken,
+        reference: SnapshotReferenceId,
+        filter: VariableFilter,
+        start: u32,
+        count: Option<u32>,
+    ) -> Result<DebugPage<VariableSnapshot>, DebugControlError> {
+        self.core
+            .control
+            .debug_variables(stop, reference, filter, start, count)
+    }
+
+    #[cfg(feature = "debug-control")]
+    pub fn debug_native_value<T: Any + Send + Sync>(
+        &self,
+        stop: StopToken,
+        reference: SnapshotReferenceId,
+    ) -> Result<Arc<T>, DebugControlError> {
+        self.core.control.debug_native_value(stop, reference)
     }
 
     pub fn result(&self) -> OperationResultFuture<R> {
@@ -1087,7 +1265,7 @@ impl<R: Send + Sync + 'static> OperationHandle<R> {
                 failure_payload,
             )?;
             wakers = event_wakers;
-            state.critical_events.remove(&OperationEventKind::Stopped);
+            state.critical_events.remove(&CriticalEventKey::Stopped);
         }
         let acknowledgement = ControlAck {
             operation_id: self.core.operation_id,
@@ -1179,6 +1357,8 @@ impl<R: Send + Sync + 'static> OperationHandle<R> {
         self.core.changed.notify_all();
         wake_all(result_wakers);
         wake_all(subscription_wakers);
+        #[cfg(feature = "debug-control")]
+        self.core.control.complete_debug_control();
     }
 
     fn retain(
@@ -1278,6 +1458,8 @@ impl<R: Send + Sync + 'static> OperationTerminalPublisher<R> {
         self.core.changed.notify_all();
         wake_all(result_wakers);
         wake_all(subscription_wakers);
+        #[cfg(feature = "debug-control")]
+        self.core.control.complete_debug_control();
         Ok(claim)
     }
 }
@@ -1507,6 +1689,49 @@ fn validate_limits(limits: OperationHostLimits) -> Result<(), OperationHandleErr
         u64::from(limits.max_retained_handles),
         u64::from(MAX_RETAINED_HANDLES),
     )?;
+    validate_limit(
+        "maxStackFramePageSize",
+        u64::from(limits.max_stack_frame_page_size),
+        u64::from(MAX_STACK_FRAME_PAGE_SIZE),
+    )?;
+    validate_limit(
+        "defaultStackFramePageSize",
+        u64::from(limits.default_stack_frame_page_size),
+        u64::from(
+            limits
+                .max_stack_frame_page_size
+                .min(DEFAULT_STACK_FRAME_PAGE_SIZE),
+        ),
+    )?;
+    validate_limit(
+        "maxVariablePageSize",
+        u64::from(limits.max_variable_page_size),
+        u64::from(MAX_VARIABLE_PAGE_SIZE),
+    )?;
+    validate_limit(
+        "defaultVariablePageSize",
+        u64::from(limits.default_variable_page_size),
+        u64::from(
+            limits
+                .max_variable_page_size
+                .min(DEFAULT_VARIABLE_PAGE_SIZE),
+        ),
+    )?;
+    validate_limit(
+        "maxDebugValuePreviewBytes",
+        u64::from(limits.max_debug_value_preview_bytes),
+        u64::from(MAX_DEBUG_VALUE_PREVIEW_BYTES),
+    )?;
+    validate_limit(
+        "maxSuspendedSnapshotBytes",
+        limits.max_suspended_snapshot_bytes,
+        MAX_SUSPENDED_SNAPSHOT_BYTES,
+    )?;
+    validate_limit(
+        "maxDebugBreakpoints",
+        u64::from(limits.max_debug_breakpoints),
+        u64::from(MAX_DEBUG_BREAKPOINTS),
+    )?;
     Ok(())
 }
 
@@ -1563,10 +1788,10 @@ fn append_event<R>(
         payload,
     });
     if kind == OperationEventKind::Continued {
-        state.critical_events.remove(&OperationEventKind::Stopped);
+        state.critical_events.remove(&CriticalEventKey::Stopped);
     }
-    if kind.retained() {
-        state.critical_events.insert(kind, Arc::clone(&event));
+    if let Some(key) = critical_event_key(kind, &event.payload) {
+        state.critical_events.insert(key, Arc::clone(&event));
     }
     state.events.push_back(Arc::clone(&event));
     while state.events.len() > limits.max_subscription_capacity as usize {
@@ -1578,6 +1803,19 @@ fn append_event<R>(
         .filter_map(|cursor| cursor.waker.take())
         .collect();
     Ok((event, wakers))
+}
+
+fn critical_event_key(kind: OperationEventKind, payload: &Value) -> Option<CriticalEventKey> {
+    match kind {
+        OperationEventKind::BreakpointResolved => payload
+            .get("breakpointId")
+            .and_then(Value::as_u64)
+            .map(CriticalEventKey::Breakpoint),
+        OperationEventKind::Stopped => Some(CriticalEventKey::Stopped),
+        OperationEventKind::Continued => Some(CriticalEventKey::Continued),
+        OperationEventKind::Terminal => Some(CriticalEventKey::Terminal),
+        _ => None,
+    }
 }
 
 fn next_subscription_event<R>(
@@ -1862,6 +2100,7 @@ mod tests {
                 runtime: RuntimeKind::Native,
                 target_identity: "x86_64-unknown-linux-gnu".to_owned(),
                 abi_identity: "cem-ml-rust-v1".to_owned(),
+                debug_control_active: false,
             },
         })
         .unwrap();
@@ -1890,6 +2129,7 @@ mod tests {
                     runtime: RuntimeKind::Native,
                     target_identity: "native".to_owned(),
                     abi_identity: "v1".to_owned(),
+                    debug_control_active: false,
                 },
             }),
             Err(OperationHandleError::ProtocolVersion { .. })
@@ -1904,6 +2144,7 @@ mod tests {
             max_recovered_control_failures: 32,
             max_artifact_references: 512,
             max_retained_handles: 256,
+            ..OperationHostLimits::default()
         };
         let stricter = initialize_operation_host_with_limits(
             OperationInitializeRequest {
@@ -1912,6 +2153,7 @@ mod tests {
                     runtime: RuntimeKind::Native,
                     target_identity: "native".to_owned(),
                     abi_identity: "v1".to_owned(),
+                    debug_control_active: false,
                 },
             },
             stricter_limits,
@@ -1931,6 +2173,7 @@ mod tests {
                         runtime: RuntimeKind::Native,
                         target_identity: "native".to_owned(),
                         abi_identity: "v1".to_owned(),
+                        debug_control_active: false,
                     },
                 },
                 oversized_limits,

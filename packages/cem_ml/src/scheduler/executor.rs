@@ -15,6 +15,8 @@ use std::time::Duration;
 
 use serde::{Deserialize, Serialize};
 
+#[cfg(feature = "debug-control")]
+use crate::debug_control::DebugRuntimeObserver;
 use crate::operation_control::{
     ControlCause, ControlError, ControlFailure, ExecutionScopeId, OperationControl, TaskId,
 };
@@ -117,6 +119,11 @@ pub enum ScheduleError {
     ExecutorThreadWouldBlock,
     ResultChannelClosed,
     Shutdown,
+    #[cfg(feature = "debug-control")]
+    DebugControl {
+        code: &'static str,
+        message: String,
+    },
 }
 
 impl ScheduleError {
@@ -132,6 +139,8 @@ impl ScheduleError {
             Self::ExecutorThreadWouldBlock => "cem.scheduler.executor_would_block",
             Self::ResultChannelClosed => "cem.scheduler.result_channel_closed",
             Self::Shutdown => "cem.scheduler.shutdown",
+            #[cfg(feature = "debug-control")]
+            Self::DebugControl { code, .. } => code,
         }
     }
 }
@@ -152,6 +161,8 @@ impl fmt::Display for ScheduleError {
                 .write_str("bounded block admission cannot wait on a physical executor thread"),
             Self::ResultChannelClosed => formatter.write_str("task result channel closed"),
             Self::Shutdown => formatter.write_str("native scheduler is shutting down"),
+            #[cfg(feature = "debug-control")]
+            Self::DebugControl { message, .. } => formatter.write_str(message),
         }
     }
 }
@@ -307,6 +318,21 @@ struct SharedScheduler {
     capacity_ready: Condvar,
 }
 
+#[cfg(feature = "debug-control")]
+struct SchedulerDebugObserver {
+    shared: std::sync::Weak<SharedScheduler>,
+}
+
+#[cfg(feature = "debug-control")]
+impl DebugRuntimeObserver for SchedulerDebugObserver {
+    fn wake_scheduler(&self) {
+        if let Some(shared) = self.shared.upgrade() {
+            shared.work_ready.notify_all();
+            shared.capacity_ready.notify_all();
+        }
+    }
+}
+
 thread_local! {
     static IS_EXECUTOR_THREAD: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
 }
@@ -361,6 +387,12 @@ impl NativeScheduler {
             work_ready: Condvar::new(),
             capacity_ready: Condvar::new(),
         });
+        #[cfg(feature = "debug-control")]
+        shared
+            .control
+            .attach_debug_observer(Arc::new(SchedulerDebugObserver {
+                shared: Arc::downgrade(&shared),
+            }));
         let cpu_workers = spawn_workers(&shared, ExecutorClass::Cpu, root_policy.cpu_workers);
         let io_workers = spawn_workers(&shared, ExecutorClass::Io, root_policy.io_streams);
         Ok(Self {
@@ -484,7 +516,11 @@ impl NativeScheduler {
                     return Err(error);
                 }
             };
-        let task = match self.shared.control.register_task(spec.owner) {
+        let task = match self
+            .shared
+            .control
+            .register_task_with_dependencies(spec.owner, spec.dependencies.iter().copied())
+        {
             Ok(task) => task,
             Err(error) => {
                 let mut state = self.shared.state.lock().expect("poisoned scheduler mutex");
@@ -605,7 +641,7 @@ fn worker_loop(shared: Arc<SharedScheduler>, class: ExecutorClass, worker_id: u6
                 if state.stopping {
                     return;
                 }
-                if let Some(job) = take_eligible_job(&mut state, class) {
+                if let Some(job) = take_eligible_job(&mut state, class, &shared.control) {
                     shared.capacity_ready.notify_all();
                     break job;
                 }
@@ -615,11 +651,25 @@ fn worker_loop(shared: Arc<SharedScheduler>, class: ExecutorClass, worker_id: u6
                     .expect("poisoned scheduler mutex");
             }
         };
-        let preflight = shared
+        #[cfg(feature = "debug-control")]
+        let debug_preflight = shared
             .control
-            .check_scope(job.owner)
+            .debug_task_started(job.id, Some(worker_id))
             .err()
-            .map(ScheduleError::Control)
+            .map(|error| ScheduleError::DebugControl {
+                code: error.code(),
+                message: error.to_string(),
+            });
+        #[cfg(not(feature = "debug-control"))]
+        let debug_preflight: Option<ScheduleError> = None;
+        let preflight = debug_preflight
+            .or_else(|| {
+                shared
+                    .control
+                    .check_scope(job.owner)
+                    .err()
+                    .map(ScheduleError::Control)
+            })
             .or_else(|| job.failed_dependency.map(ScheduleError::DependencyFailed));
         let result = (job.run)(worker_id, preflight);
         let mut state = shared.state.lock().expect("poisoned scheduler mutex");
@@ -642,17 +692,23 @@ fn worker_loop(shared: Arc<SharedScheduler>, class: ExecutorClass, worker_id: u6
     }
 }
 
-fn take_eligible_job(state: &mut SchedulerState, class: ExecutorClass) -> Option<Job> {
+fn take_eligible_job(
+    state: &mut SchedulerState,
+    class: ExecutorClass,
+    control: &OperationControl,
+) -> Option<Job> {
     let position = {
         let queue = match class {
             ExecutorClass::Cpu => &state.cpu_queue,
             ExecutorClass::Io => &state.io_queue,
         };
         queue.iter().position(|job| {
-            job.dependencies.iter().all(|dependency| {
-                state.completed_tasks.contains(dependency)
-                    || state.failed_tasks.contains_key(dependency)
-            }) && permits_available(state, &job.ancestors, class)
+            control.debug_task_dispatch_allowed(job.id)
+                && job.dependencies.iter().all(|dependency| {
+                    state.completed_tasks.contains(dependency)
+                        || state.failed_tasks.contains_key(dependency)
+                })
+                && permits_available(state, &job.ancestors, class)
         })?
     };
     let mut job = match class {

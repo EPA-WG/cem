@@ -18,6 +18,13 @@ pub const MAX_TERMINAL_DIAGNOSTICS: u32 = 256;
 pub const MAX_RECOVERED_CONTROL_FAILURES: u32 = 256;
 pub const MAX_ARTIFACT_REFERENCES: u32 = 4_096;
 pub const MAX_RETAINED_HANDLES: u32 = 4_096;
+pub const DEFAULT_STACK_FRAME_PAGE_SIZE: u32 = 64;
+pub const MAX_STACK_FRAME_PAGE_SIZE: u32 = 512;
+pub const DEFAULT_VARIABLE_PAGE_SIZE: u32 = 100;
+pub const MAX_VARIABLE_PAGE_SIZE: u32 = 1_000;
+pub const MAX_DEBUG_VALUE_PREVIEW_BYTES: u32 = 4 * 1_024;
+pub const MAX_SUSPENDED_SNAPSHOT_BYTES: u64 = 16 * 1_024 * 1_024;
+pub const MAX_DEBUG_BREAKPOINTS: u32 = 4_096;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -149,6 +156,10 @@ pub enum ControlCoverage {
     IoPermits,
     AwaitableOperationHandle,
     BoundedEventCursor,
+    PauseGeneration,
+    SafePointRegistry,
+    DependencyStepping,
+    ImmutableSuspendedSnapshot,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -200,6 +211,13 @@ pub struct OperationHostLimits {
     pub max_recovered_control_failures: u32,
     pub max_artifact_references: u32,
     pub max_retained_handles: u32,
+    pub default_stack_frame_page_size: u32,
+    pub max_stack_frame_page_size: u32,
+    pub default_variable_page_size: u32,
+    pub max_variable_page_size: u32,
+    pub max_debug_value_preview_bytes: u32,
+    pub max_suspended_snapshot_bytes: u64,
+    pub max_debug_breakpoints: u32,
 }
 
 impl Default for OperationHostLimits {
@@ -213,6 +231,13 @@ impl Default for OperationHostLimits {
             max_recovered_control_failures: MAX_RECOVERED_CONTROL_FAILURES,
             max_artifact_references: MAX_ARTIFACT_REFERENCES,
             max_retained_handles: MAX_RETAINED_HANDLES,
+            default_stack_frame_page_size: DEFAULT_STACK_FRAME_PAGE_SIZE,
+            max_stack_frame_page_size: MAX_STACK_FRAME_PAGE_SIZE,
+            default_variable_page_size: DEFAULT_VARIABLE_PAGE_SIZE,
+            max_variable_page_size: MAX_VARIABLE_PAGE_SIZE,
+            max_debug_value_preview_bytes: MAX_DEBUG_VALUE_PREVIEW_BYTES,
+            max_suspended_snapshot_bytes: MAX_SUSPENDED_SNAPSHOT_BYTES,
+            max_debug_breakpoints: MAX_DEBUG_BREAKPOINTS,
         }
     }
 }
@@ -223,6 +248,8 @@ pub struct CapabilityRequest {
     pub runtime: RuntimeKind,
     pub target_identity: String,
     pub abi_identity: String,
+    #[serde(default)]
+    pub debug_control_active: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -280,6 +307,13 @@ pub fn capability_manifest(
 ) -> Result<CapabilityManifest, CapabilityError> {
     validate_identity("targetIdentity", &request.target_identity)?;
     validate_identity("abiIdentity", &request.abi_identity)?;
+    if request.debug_control_active && !cfg!(feature = "debug-control") {
+        return Err(CapabilityError {
+            code: "cem.capability.debug_control_unavailable",
+            field: "debugControlActive",
+            message: "debug control was requested from a stripped build".to_owned(),
+        });
+    }
 
     let operations = CapabilityOperation::ALL
         .into_iter()
@@ -310,8 +344,8 @@ pub fn capability_manifest(
         executor_topology,
         effective_max_workers,
         debug_control: DebugControlCapability {
-            compiled: false,
-            active: false,
+            compiled: cfg!(feature = "debug-control"),
+            active: request.debug_control_active,
         },
         memory_accounting: MemoryAccountingCapability {
             accounted_bytes: false,
@@ -345,6 +379,25 @@ fn control_capability(runtime: RuntimeKind, control: ControlCapabilityKind) -> C
         BoundedSubscriptions if runtime == RuntimeKind::Native => (Available, BoundedEventCursor),
         OperationHandles => (DevelopmentOnly, AwaitableOperationHandle),
         BoundedSubscriptions => (DevelopmentOnly, BoundedEventCursor),
+        Pause if cfg!(feature = "debug-control") && runtime == RuntimeKind::Native => {
+            (Available, PauseGeneration)
+        }
+        SourceBreakpoints if cfg!(feature = "debug-control") && runtime == RuntimeKind::Native => {
+            (Available, SafePointRegistry)
+        }
+        Stepping if cfg!(feature = "debug-control") && runtime == RuntimeKind::Native => {
+            (Available, DependencyStepping)
+        }
+        SuspendedInspection
+            if cfg!(feature = "debug-control") && runtime == RuntimeKind::Native =>
+        {
+            (Available, ImmutableSuspendedSnapshot)
+        }
+        Pause | SourceBreakpoints | Stepping | SuspendedInspection
+            if cfg!(feature = "debug-control") =>
+        {
+            (DevelopmentOnly, ControlCore)
+        }
         Pause | SourceBreakpoints | Stepping | SuspendedInspection | Dap | CemDebugRequests
         | HardCancel => (Unavailable, None),
     };
@@ -412,6 +465,7 @@ mod tests {
             runtime,
             target_identity: "x86_64-unknown-linux-gnu".to_owned(),
             abi_identity: "rust-v1".to_owned(),
+            debug_control_active: false,
         }
     }
 
@@ -514,7 +568,7 @@ mod tests {
         assert_eq!(value["controls"][0]["coverage"], "compatibility-facade");
         assert_eq!(value["executorTopology"], "sequential");
         assert_eq!(value["effectiveMaxWorkers"], 1);
-        assert_eq!(value["debugControl"]["compiled"], false);
+        assert_eq!(value["debugControl"]["compiled"], true);
         assert_eq!(value["memoryAccounting"]["accountedBytes"], false);
         assert_eq!(
             value["memoryAccounting"]["accountedStores"],
@@ -589,6 +643,10 @@ mod tests {
         for control in [
             ControlCapabilityKind::OperationHandles,
             ControlCapabilityKind::BoundedSubscriptions,
+            ControlCapabilityKind::Pause,
+            ControlCapabilityKind::SourceBreakpoints,
+            ControlCapabilityKind::Stepping,
+            ControlCapabilityKind::SuspendedInspection,
         ] {
             assert_eq!(
                 manifest.control(control).availability,
@@ -596,13 +654,35 @@ mod tests {
             );
         }
         for control in [
-            ControlCapabilityKind::Pause,
             ControlCapabilityKind::Dap,
             ControlCapabilityKind::HardCancel,
         ] {
             assert_eq!(
                 manifest.control(control).availability,
                 CapabilityAvailability::Unavailable
+            );
+        }
+        assert_eq!(
+            manifest.debug_control,
+            DebugControlCapability {
+                compiled: cfg!(feature = "debug-control"),
+                active: false,
+            }
+        );
+
+        let mut active_request = request(RuntimeKind::Native);
+        active_request.debug_control_active = true;
+        if cfg!(feature = "debug-control") {
+            assert!(
+                capability_manifest(active_request)
+                    .unwrap()
+                    .debug_control
+                    .active
+            );
+        } else {
+            assert_eq!(
+                capability_manifest(active_request).unwrap_err().code,
+                "cem.capability.debug_control_unavailable"
             );
         }
     }

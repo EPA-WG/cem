@@ -10,6 +10,8 @@ pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 pub mod api;
 pub mod artifact;
 pub mod diagnostics;
+#[cfg(feature = "debug-control")]
+pub mod debug_control;
 pub mod embedded;
 pub mod eval;
 pub mod ir;

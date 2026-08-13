@@ -288,11 +288,48 @@ replacement tree may mediate between internal engine layers.
               the CEM-QL and transform suites exercised by the four-project graph,
               the serial retry of its one shared-Cargo-artifact race, all four lint
               targets, and both common WASM builds.
-        - [ ] Gate 6 — behind the default-enabled `debug-control` feature, implement
+        - [x] Gate 6 — behind the default-enabled `debug-control` feature, implement
               pause generations, source/scope breakpoints, all-stop rendezvous,
               immutable stopped snapshots, repeated pause/continue, next/step-in/
               step-out, and bounded thread/stack/scope/variable/native-value
               discovery; cancellation must wake and unwind paused tasks.
+            - [x] Add native Gate 6 fixtures for compiled/active capability and
+                  dependency feature forwarding, manual/scope/source breakpoint
+                  resolution, persistent and conditional hits, all-stop queued/
+                  running/external-wait/atomic rendezvous, repeated generations,
+                  stale and foreign stop rejection, next/step-in/step-out dependency
+                  closure, breakpoint precedence while stepping, bounded immutable
+                  thread/frame/scope/variable/native-value inspection, stopped-time
+                  exclusion, event retention, and cancellation/terminal wakeup.
+
+              Completed 2026-08-12: `cem_ml` now compiles debug control by default
+              behind an explicitly forwarded `debug-control` feature while every
+              dependent crate disables implicit dependency defaults. Hosts activate
+              debug control per operation with negotiated page, preview, breakpoint,
+              and suspended-snapshot limits. The common control core owns persistent
+              manual, exact-source, and execution-scope triggers; conditional and
+              counted hits; generation-bound stop tokens; scheduler-aware all-stop
+              rendezvous for queued, running, external-wait, and atomic tasks; and
+              repeated continue and dependency-closure stepping where breakpoints
+              retain precedence. Logical task IDs are debugger threads and physical
+              worker IDs remain optional snapshot metadata.
+
+              Each completed all-stop publishes one immutable, byte-bounded
+              snapshot with paged threads, logical frames, execution scopes,
+              variables, cycle-safe values, and operation-owned typed native values.
+              Resume invalidates snapshot references, stale and foreign tokens fail
+              closed, paused time is excluded from active deadlines, critical debug
+              events survive subscription-ring gaps until their breakpoint is
+              removed, and cancellation or terminal completion wakes parked tasks.
+              `cem_ql` supplies the bounded boolean condition evaluator over captured
+              read-only `frame`, `scope`, `task`, and lexical values without host
+              resolvers or mutation hooks.
+
+              Ten native fixtures plus the CEM-QL adapter fixture cover the Gate 6
+              contract. The complete 1,883-test `cem_ml` suite, CEM-QL, 91-test
+              transform, and full CLI suites pass; default and no-default-feature
+              four-crate builds, all four lint targets, and both common WASM builds
+              also pass.
         - [ ] Gate 7 — implement DAP as the canonical editor projection plus only
               the versioned `cem/operation`, `cem/executionScopes`, `cem/cancel`,
               `cem/nativeValue`, and `cem/workerTopology` gap requests; expose it via

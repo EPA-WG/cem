@@ -13,9 +13,21 @@ use std::time::{Duration, Instant};
 
 use serde::{Deserialize, Serialize};
 
+#[cfg(all(feature = "debug-control", not(target_arch = "wasm32")))]
+use crate::debug_control::LogicalFrameCapture;
 use crate::scheduler::{AbortSignal, ResourceCap, ScopePolicy};
 use crate::source::ByteRange;
 use crate::source_map::SourceMapStack;
+#[cfg(feature = "debug-control")]
+use crate::{
+    capability::OperationHostLimits,
+    debug_control::{
+        DebugConditionEvaluator, DebugControlError, DebugPage, DebugRuntimeObserver,
+        DebugSafePointCapture, DebugSafePointKind, DebugSafePointOutcome, LogicalFrameSnapshot,
+        OperationDebugControl, PauseSpec, PauseTriggerHandle, SnapshotReferenceId, StepRequest,
+        StopToken, SuspendedSnapshot, VariableFilter, VariableScopeSnapshot, VariableSnapshot,
+    },
+};
 
 pub const ROOT_EXECUTION_SCOPE_ID: ExecutionScopeId = ExecutionScopeId(0);
 /// Maximum number of caller-defined work units allowed between cooperative
@@ -749,6 +761,8 @@ pub struct OperationControl {
     operation_id: OperationId,
     abort_signal: AbortSignal,
     inner: Arc<Mutex<ControlInner>>,
+    #[cfg(feature = "debug-control")]
+    debug: OperationDebugControl,
 }
 
 /// Reusable bounded-work cooperative control poller.
@@ -840,6 +854,13 @@ impl OperationControl {
     ) -> Result<Self, ControlError> {
         validate_policy(root_policy)?;
         let tree = ExecutionScopeTree::new(operation_id, root_policy);
+        #[cfg(feature = "debug-control")]
+        let debug = OperationDebugControl::new(
+            operation_id,
+            tree.scope(ROOT_EXECUTION_SCOPE_ID)
+                .expect("new execution tree has root")
+                .clone(),
+        );
         let mut accounting = BTreeMap::new();
         accounting.insert(
             ROOT_EXECUTION_SCOPE_ID,
@@ -866,6 +887,8 @@ impl OperationControl {
                 next_memory_permit_id: 1,
                 next_delivery_id: 1,
             })),
+            #[cfg(feature = "debug-control")]
+            debug,
         })
     }
 
@@ -883,6 +906,247 @@ impl OperationControl {
 
     pub fn is_cancelled(&self) -> bool {
         self.abort_signal.is_aborted()
+    }
+
+    #[cfg(feature = "debug-control")]
+    pub fn activate_debug_control(
+        &self,
+        limits: OperationHostLimits,
+        condition_evaluator: Option<Arc<dyn DebugConditionEvaluator>>,
+    ) -> Result<(), DebugControlError> {
+        let root_memory = self
+            .scope_tree()
+            .scope(ROOT_EXECUTION_SCOPE_ID)
+            .expect("operation root exists")
+            .effective_policy
+            .memory_bytes;
+        self.debug.configure(limits, root_memory);
+        self.debug.activate(condition_evaluator)
+    }
+
+    #[cfg(feature = "debug-control")]
+    pub fn debug_control_active(&self) -> bool {
+        self.debug.is_active()
+    }
+
+    #[cfg(feature = "debug-control")]
+    pub(crate) fn attach_debug_observer(&self, observer: Arc<dyn DebugRuntimeObserver>) {
+        self.debug.attach_observer(observer);
+    }
+
+    #[cfg(feature = "debug-control")]
+    pub fn register_debug_safe_point(
+        &self,
+        scope: ExecutionScopeId,
+        kind: DebugSafePointKind,
+        phase: impl Into<String>,
+        location: Option<SourceLocation>,
+    ) -> Result<crate::debug_control::ExecutableSafePoint, DebugControlError> {
+        self.debug
+            .register_safe_point(scope, kind, phase.into(), location)
+    }
+
+    #[cfg(feature = "debug-control")]
+    pub fn install_pause_trigger(
+        &self,
+        spec: PauseSpec,
+    ) -> Result<PauseTriggerHandle, DebugControlError> {
+        self.debug.install_pause(spec)
+    }
+
+    #[cfg(feature = "debug-control")]
+    pub fn remove_pause_trigger(
+        &self,
+        breakpoint: crate::debug_control::BreakpointId,
+    ) -> Result<(), DebugControlError> {
+        self.debug.remove_breakpoint(breakpoint)
+    }
+
+    #[cfg(feature = "debug-control")]
+    pub fn debug_safe_point(
+        &self,
+        task: TaskId,
+        capture: DebugSafePointCapture,
+    ) -> Result<DebugSafePointOutcome, DebugControlError> {
+        let scope = {
+            let inner = self.inner.lock().expect("poisoned operation-control mutex");
+            let task_node = inner
+                .tree
+                .task(task)
+                .ok_or(DebugControlError::UnknownTask(task))?;
+            capture
+                .frames
+                .first()
+                .map(|frame| frame.execution_scope)
+                .unwrap_or(task_node.owner)
+        };
+        self.check_scope(scope)
+            .map_err(DebugControlError::from_control)?;
+        let outcome = self.debug.safe_point(task, capture)?;
+        self.check_scope(scope)
+            .map_err(DebugControlError::from_control)?;
+        Ok(outcome)
+    }
+
+    #[cfg(feature = "debug-control")]
+    pub fn set_debug_external_wait(
+        &self,
+        task: TaskId,
+        waiting: bool,
+    ) -> Result<(), DebugControlError> {
+        self.debug.task_external_wait(task, waiting)
+    }
+
+    #[cfg(feature = "debug-control")]
+    pub fn enter_debug_atomic_region(&self, task: TaskId) -> Result<(), DebugControlError> {
+        self.debug.enter_atomic(task)
+    }
+
+    #[cfg(feature = "debug-control")]
+    pub fn exit_debug_atomic_region(&self, task: TaskId) -> Result<(), DebugControlError> {
+        self.debug.exit_atomic(task)
+    }
+
+    #[cfg(feature = "debug-control")]
+    pub fn resume_debug(
+        &self,
+        stop: StopToken,
+    ) -> Result<crate::debug_control::ContinuedEvent, DebugControlError> {
+        let effect = self.debug.resume(stop)?;
+        self.exclude_debug_stop_time(effect.excluded_time, &effect.live_scopes);
+        Ok(effect.event)
+    }
+
+    #[cfg(feature = "debug-control")]
+    pub fn step_debug(
+        &self,
+        request: StepRequest,
+    ) -> Result<crate::debug_control::ContinuedEvent, DebugControlError> {
+        let effect = self.debug.step(request)?;
+        self.exclude_debug_stop_time(effect.excluded_time, &effect.live_scopes);
+        Ok(effect.event)
+    }
+
+    #[cfg(feature = "debug-control")]
+    pub fn suspended_snapshot(
+        &self,
+        stop: StopToken,
+    ) -> Result<Arc<SuspendedSnapshot>, DebugControlError> {
+        self.debug.snapshot(stop)
+    }
+
+    #[cfg(feature = "debug-control")]
+    pub fn debug_stack_trace(
+        &self,
+        stop: StopToken,
+        task: TaskId,
+        start: u32,
+        count: Option<u32>,
+    ) -> Result<DebugPage<LogicalFrameSnapshot>, DebugControlError> {
+        self.debug.stack_trace(stop, task, start, count)
+    }
+
+    #[cfg(feature = "debug-control")]
+    pub fn debug_frame_scopes(
+        &self,
+        stop: StopToken,
+        frame: SnapshotReferenceId,
+    ) -> Result<Vec<VariableScopeSnapshot>, DebugControlError> {
+        self.debug.frame_scopes(stop, frame)
+    }
+
+    #[cfg(feature = "debug-control")]
+    pub fn debug_variables(
+        &self,
+        stop: StopToken,
+        reference: SnapshotReferenceId,
+        filter: VariableFilter,
+        start: u32,
+        count: Option<u32>,
+    ) -> Result<DebugPage<VariableSnapshot>, DebugControlError> {
+        self.debug.variables(stop, reference, filter, start, count)
+    }
+
+    #[cfg(feature = "debug-control")]
+    pub fn debug_native_value<T: std::any::Any + Send + Sync>(
+        &self,
+        stop: StopToken,
+        reference: SnapshotReferenceId,
+    ) -> Result<Arc<T>, DebugControlError> {
+        self.debug.native_value(stop, reference)
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
+    pub(crate) fn debug_task_dispatch_allowed(&self, task: TaskId) -> bool {
+        #[cfg(feature = "debug-control")]
+        {
+            self.debug.task_dispatch_allowed(task)
+        }
+        #[cfg(not(feature = "debug-control"))]
+        {
+            let _ = task;
+            true
+        }
+    }
+
+    #[cfg(all(feature = "debug-control", not(target_arch = "wasm32")))]
+    pub(crate) fn debug_task_started(
+        &self,
+        task: TaskId,
+        worker: Option<u64>,
+    ) -> Result<(), DebugControlError> {
+        self.debug.task_started(task, worker)?;
+        if !self.debug.is_active() {
+            return Ok(());
+        }
+        let scope = {
+            let inner = self.inner.lock().expect("poisoned operation-control mutex");
+            let task_node = inner
+                .tree
+                .task(task)
+                .ok_or(DebugControlError::UnknownTask(task))?;
+            inner
+                .tree
+                .scope(task_node.owner)
+                .cloned()
+                .ok_or(DebugControlError::UnknownScope(task_node.owner))?
+        };
+        let capture = DebugSafePointCapture::visible(
+            "dispatch",
+            scope.source_location.clone(),
+            vec![LogicalFrameCapture {
+                name: scope.label.clone(),
+                phase: "dispatch".to_owned(),
+                location: scope.source_location,
+                execution_scope: scope.id,
+                variable_scopes: Vec::new(),
+            }],
+        );
+        self.debug_safe_point(task, capture).map(|_| ())
+    }
+
+    #[cfg(feature = "debug-control")]
+    pub(crate) fn complete_debug_control(&self) {
+        if let Some((duration, scopes)) = self.debug.complete() {
+            self.exclude_debug_stop_time(duration, &scopes);
+        }
+    }
+
+    #[cfg(feature = "debug-control")]
+    fn cancel_debug_pause(&self) {
+        if let Some((duration, scopes)) = self.debug.cancel_pause() {
+            self.exclude_debug_stop_time(duration, &scopes);
+        }
+    }
+
+    #[cfg(feature = "debug-control")]
+    fn exclude_debug_stop_time(&self, duration: Duration, scopes: &[ExecutionScopeId]) {
+        let mut inner = self.inner.lock().expect("poisoned operation-control mutex");
+        for scope in scopes {
+            if let Some(accounting) = inner.accounting.get_mut(scope) {
+                accounting.excluded_time = accounting.excluded_time.saturating_add(duration);
+            }
+        }
     }
 
     pub fn scope_tree(&self) -> ExecutionScopeTree {
@@ -918,21 +1182,22 @@ impl OperationControl {
         let scope = ExecutionScopeId::from_raw(inner.tree.next_scope_id);
         check_constrain_only(scope, parent_policy, registration.effective_policy)?;
         let scope = inner.tree.allocate_scope_id()?;
-        inner.tree.scopes.insert(
-            scope,
-            ExecutionScope {
-                id: scope,
-                parent: Some(parent),
-                kind: registration.kind,
-                label: registration.label,
-                state: ExecutionScopeState::Queued,
-                source_location: registration.source_location,
-                semantic_identities: registration.semantic_identities,
-                error_boundary: registration.error_boundary,
-                effective_policy: registration.effective_policy,
-            },
-        );
+        let registered = ExecutionScope {
+            id: scope,
+            parent: Some(parent),
+            kind: registration.kind,
+            label: registration.label,
+            state: ExecutionScopeState::Queued,
+            source_location: registration.source_location,
+            semantic_identities: registration.semantic_identities,
+            error_boundary: registration.error_boundary,
+            effective_policy: registration.effective_policy,
+        };
+        inner.tree.scopes.insert(scope, registered.clone());
         inner.accounting.insert(scope, ScopeAccounting::default());
+        drop(inner);
+        #[cfg(feature = "debug-control")]
+        self.debug.register_scope(registered);
         Ok(scope)
     }
 
@@ -965,6 +1230,9 @@ impl OperationControl {
                 .expect("registered scope has accounting");
             accounting.activated_at.get_or_insert_with(Instant::now);
         }
+        drop(inner);
+        #[cfg(feature = "debug-control")]
+        self.debug.update_scope_state(scope, state);
         Ok(())
     }
 
@@ -976,10 +1244,26 @@ impl OperationControl {
             .get_mut(&scope)
             .ok_or(ControlError::UnknownScope(scope))?;
         node.state = ExecutionScopeState::Completed;
+        drop(inner);
+        #[cfg(feature = "debug-control")]
+        self.debug
+            .update_scope_state(scope, ExecutionScopeState::Completed);
         Ok(())
     }
 
     pub fn register_task(&self, owner: ExecutionScopeId) -> Result<TaskId, ControlError> {
+        self.register_task_with_dependencies(owner, std::iter::empty())
+    }
+
+    pub fn register_task_with_dependencies(
+        &self,
+        owner: ExecutionScopeId,
+        dependencies: impl IntoIterator<Item = TaskId>,
+    ) -> Result<TaskId, ControlError> {
+        #[cfg(feature = "debug-control")]
+        let dependencies: Vec<_> = dependencies.into_iter().collect();
+        #[cfg(not(feature = "debug-control"))]
+        let _ = dependencies.into_iter();
         let mut inner = self.inner.lock().expect("poisoned operation-control mutex");
         let scope = inner
             .tree
@@ -1004,17 +1288,24 @@ impl OperationControl {
                 completed: false,
             },
         );
+        drop(inner);
+        #[cfg(feature = "debug-control")]
+        self.debug
+            .register_task(task, owner, dependencies.iter().copied());
         Ok(task)
     }
 
     pub fn complete_task(&self, task: TaskId) -> Result<(), ControlError> {
         let mut inner = self.inner.lock().expect("poisoned operation-control mutex");
-        let task = inner
+        let runtime_task = inner
             .tree
             .tasks
             .get_mut(&task)
             .ok_or(ControlError::UnknownTask(task))?;
-        task.completed = true;
+        runtime_task.completed = true;
+        drop(inner);
+        #[cfg(feature = "debug-control")]
+        self.debug.complete_task(task);
         Ok(())
     }
 
@@ -1074,6 +1365,9 @@ impl OperationControl {
             .entry(ROOT_EXECUTION_SCOPE_ID)
             .or_insert((ControlCause::HostCancellation { reason }, source_map));
         mark_subtree_unwinding(&mut inner.tree, ROOT_EXECUTION_SCOPE_ID);
+        drop(inner);
+        #[cfg(feature = "debug-control")]
+        self.cancel_debug_pause();
         Ok(if accepted {
             ControlRequestOutcome::Accepted
         } else {
@@ -1108,6 +1402,9 @@ impl OperationControl {
             (ControlCause::HostCancellation { reason }, source_map),
         );
         mark_subtree_unwinding(&mut inner.tree, scope);
+        drop(inner);
+        #[cfg(feature = "debug-control")]
+        self.cancel_debug_pause();
         Ok(ControlRequestOutcome::Accepted)
     }
 
@@ -1139,12 +1436,16 @@ impl OperationControl {
                 .insert(scope, (cause.clone(), source_map.clone()));
         }
         mark_subtree_unwinding(&mut inner.tree, scope);
-        Ok(ControlFailure {
+        let failure = ControlFailure {
             operation_id: self.operation_id,
             affected_scope: scope,
             cause,
             source_map,
-        })
+        };
+        drop(inner);
+        #[cfg(feature = "debug-control")]
+        self.cancel_debug_pause();
+        Ok(failure)
     }
 
     pub fn prepare_failure_delivery(

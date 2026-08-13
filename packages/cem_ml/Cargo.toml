@@ -12,6 +12,8 @@ name = "cem_ml"
 crate-type = ["cdylib", "rlib"]
 
 [features]
+default = ["debug-control"]
+debug-control = []
 fake-engine = []
 
 [dependencies]

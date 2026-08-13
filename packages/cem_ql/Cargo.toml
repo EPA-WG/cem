@@ -11,8 +11,12 @@ publish = true
 name = "cem_ql"
 crate-type = ["cdylib", "rlib"]
 
+[features]
+default = ["debug-control"]
+debug-control = ["cem-ml/debug-control"]
+
 [dependencies]
-cem-ml = { path = "../cem_ml" }
+cem-ml = { path = "../cem_ml", default-features = false }
 serde_json = "1"
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]

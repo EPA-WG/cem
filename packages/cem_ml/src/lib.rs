@@ -4,6 +4,8 @@ pub mod benchmark;
 pub mod capability;
 pub mod conversion;
 pub(crate) mod conversion_output;
+#[cfg(feature = "debug-control")]
+pub mod debug_control;
 pub mod diagnostics;
 pub mod engine;
 pub mod report;
