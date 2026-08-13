@@ -67,11 +67,15 @@ replacement tree may mediate between internal engine layers.
     [`cem-ml-deployment-contract.md`](cem-ml-deployment-contract.md). No
     deployment project was scaffolded in this contract-acceptance slice.
 
-- [ ] Stabilize the common library command boundary before packaging it.
-    - [ ] Move or expose typed, CLI-independent parse, validate, inspect, convert,
+- [x] Stabilize the common library command boundary before packaging it.
+    - [x] Move or expose typed, CLI-independent parse, validate, inspect, convert,
           query, transform, trace, capability, cancellation, and resolver requests
           through `cem_ml`, with native Rust contract tests at the smallest
           relevant layer.
+        - [x] Add a native ownership fixture proving every first-release CLI
+              operation delegates through its common typed request/result boundary
+              while terminal streams, signals, filesystem/network adaptation, and
+              exit-code projection remain native CLI host policy.
         - [x] Establish the common bounded version/capability manifest and make the
               existing native CLI version adapter consume the library-owned version
               response without changing terminal grammar.
@@ -134,7 +138,7 @@ replacement tree may mediate between internal engine layers.
               resource-limit, pause/resume, operation-handle, debugger, DAP, and
               stripped-build contract in
               [`cem-ml-operation-control-design.md`](cem-ml-operation-control-design.md).
-        - [ ] Implement the canonical operation-control contract in its fixed gate
+        - [x] Implement the canonical operation-control contract in its fixed gate
               order; do not expose later host/debug surfaces over partial common
               semantics.
             - [x] Gate 1 — add `OperationId`, `ExecutionScopeId`, `TaskId`, the
@@ -251,13 +255,13 @@ replacement tree may mediate between internal engine layers.
                 the four-project Nx test graph and 32 dependency tasks, all four
                 lint targets, focused formatting checks, and both common WASM build
                 targets pass.
-            - [ ] Add native fixtures at each gate for root/scoped cancellation,
+            - [x] Add native fixtures at each gate for root/scoped cancellation,
                   stack/memory/timeout/queue failures, worker concurrency and loss,
                   deterministic parallel output, atomic regions, staged output, and
                   exactly one terminal result before advancing to host adapters.
-    - [ ] Keep terminal parsing, native filesystem/network adaptation, signals,
+    - [x] Keep terminal parsing, native filesystem/network adaptation, signals,
           standard streams, and exit-code projection in common `cem_ml_cli`.
-    - [ ] Version and bound every host-wire/report projection while preserving
+    - [x] Version and bound every host-wire/report projection while preserving
           native typed AST/event/value ownership inside the engine.
         - [x] Gate 5 — expose the versioned initialize/run/progress/event/result
               envelope as an awaitable operation handle with root/scoped cancel,
@@ -518,6 +522,18 @@ replacement tree may mediate between internal engine layers.
               and all three lint targets pass. The stripped WASM is 43,446 bytes
               smaller per browser/Node target and the stripped native CLI is
               15,305,392 bytes smaller than its default counterpart.
+
+    Completed 2026-08-13: audited the first-release native commands against the
+    accepted deployment and operation-control contracts. `cem_ml` owns the typed
+    parse, validate, check, inspect, convert, query, transform, transform-graph,
+    trace, capability, resolver, cancellation, and result boundaries. The native
+    CLI maps terminal arguments and retains standard streams, signals, local-file
+    and HTTPS adapters, transactional report/output publication, and exit-code
+    projection. A source ownership fixture now covers every first-release command
+    and guards those host-only seams, while the completed Gate 1–9 fixtures cover
+    the bounded/versioned control and wire projections. The complete 1,901-test
+    `cem_ml` unit suite plus all integration and documentation tests passes, as do
+    the common and native CLI lint targets.
 
 - [x] Create the separate `@epa-wg/cem-ml` WASM runtime npm deployment
       project.

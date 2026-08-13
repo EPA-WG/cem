@@ -1353,6 +1353,81 @@ mod tests {
     }
 
     #[test]
+    fn cli_first_release_operations_use_common_typed_boundaries_and_host_only_policy() {
+        let dispatch = include_str!("../../cem_ml_cli/src/dispatch.rs");
+        for (operation, request, invocation) in [
+            ("parse", "eng::ParseRequest {", "engine.parse(req)"),
+            ("validate", "eng::ValidateRequest {", "engine.validate(req)"),
+            ("check", "eng::CheckRequest {", "engine.check(req)"),
+            ("inspect", "eng::InspectRequest {", "engine.inspect(req)"),
+            ("convert", "eng::ConvertRequest {", "engine.convert(req)"),
+            (
+                "query",
+                "cem_ml::query::run_query(QueryRunRequest {",
+                "cem_ml::query::run_query(QueryRunRequest {",
+            ),
+            (
+                "transform",
+                "eng::TransformRequest {",
+                "engine.transform(req)",
+            ),
+            (
+                "transform-graph",
+                "transform_config::TransformGraphParseRequest {",
+                "engine.transform_graph(req)",
+            ),
+            ("trace", "eng::TraceRequest {", "engine.trace(req)"),
+        ] {
+            assert!(
+                dispatch.contains(request),
+                "native CLI `{operation}` must construct the common typed request boundary"
+            );
+            assert!(
+                dispatch.contains(invocation),
+                "native CLI `{operation}` must delegate execution to the common boundary"
+            );
+        }
+        assert!(dispatch.contains("cem_ml::capability::product_version()"));
+
+        for host_policy in [
+            "use std::fs;",
+            "reqwest::blocking::Client::builder()",
+            "register_cli_resolvers",
+            "write_report_files",
+            "pub const EXIT_CANCELLED: u8 = 130;",
+        ] {
+            assert!(
+                dispatch.contains(host_policy),
+                "native CLI must retain host policy boundary `{host_policy}`"
+            );
+        }
+
+        let cli = include_str!("../../cem_ml_cli/src/cli.rs");
+        assert!(cli.contains("use clap::{Args, Parser, Subcommand, ValueEnum};"));
+        let main = include_str!("../../cem_ml_cli/src/main.rs");
+        for host_policy in [
+            "let parsed = cli::Cli::parse();",
+            "let stdout = io::stdout();",
+            "let stderr = io::stderr();",
+            "ctrlc::set_handler",
+            "ExitCode::from(exit_code)",
+        ] {
+            assert!(
+                main.contains(host_policy),
+                "native executable must retain host policy boundary `{host_policy}`"
+            );
+        }
+
+        let common_manifest = include_str!("../Cargo.toml");
+        for forbidden_host_policy in ["clap::", "ctrlc::", "std::process::ExitCode"] {
+            assert!(
+                !common_manifest.contains(forbidden_host_policy.trim_end_matches("::")),
+                "common engine must remain CLI-independent from `{forbidden_host_policy}`"
+            );
+        }
+    }
+
+    #[test]
     fn transform_template_identity_classifies_xslt_and_cem_native_templates() {
         let xslt = FormatIdentity {
             content_type: Some("application/xslt+xml; charset=utf-8".to_owned()),
