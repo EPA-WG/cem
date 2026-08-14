@@ -100,6 +100,23 @@ const CONVERT_TABULAR_FORMATTER_PROFILE: &str = "tabular";
 const CONVERT_TABULAR_COLOR_PROFILE: &str = "terminal";
 const CONVERT_TABULAR_OUTPUT_COLOR_TYPE: &str = "ansi-256";
 
+fn default_cem_presentation_scope(out: Option<&Path>, no_color: bool) -> ScopeConfig {
+    let terminal = out.is_none() && !no_color;
+    ScopeConfig {
+        cemt_formatter_profile: Some(CONVERT_TABULAR_FORMATTER_PROFILE.to_owned()),
+        cemt_color_profile: terminal.then(|| CONVERT_TABULAR_COLOR_PROFILE.to_owned()),
+        output_color_type: Some(
+            if terminal {
+                CONVERT_TABULAR_OUTPUT_COLOR_TYPE
+            } else {
+                "none"
+            }
+            .to_owned(),
+        ),
+        ..ScopeConfig::default()
+    }
+}
+
 const HTTP_READ_TIMEOUT: Duration = Duration::from_secs(30);
 const HTTP_READ_MAX_BYTES: u64 = 32 * 1024 * 1024;
 
@@ -1009,6 +1026,8 @@ fn to_engine_parse_projection(f: cli::ParseFormat) -> eng::ParseProjection {
         cli::ParseFormat::Json => eng::ParseProjection::Json,
         cli::ParseFormat::Ast => eng::ParseProjection::Ast,
         cli::ParseFormat::Events => eng::ParseProjection::Events,
+        cli::ParseFormat::AstJson => eng::ParseProjection::Ast,
+        cli::ParseFormat::EventsJson => eng::ParseProjection::Events,
     }
 }
 
@@ -1878,14 +1897,9 @@ fn transform_graph_request_from_args(
 ) -> Result<(eng::TransformGraphRequest, String), CliRequestError> {
     let (graph, config_source_uri) = transform_graph_config_from_args(context, args)?;
     let provider = FilesystemTransformGraphResourceProvider::new(context, &config_source_uri);
-    let request = lower_transform_graph_request(
-        context,
-        &graph,
-        &provider,
-        &config_source_uri,
-        false,
-    )
-    .map_err(transform_graph_lowering_error)?;
+    let request =
+        lower_transform_graph_request(context, &graph, &provider, &config_source_uri, false)
+            .map_err(transform_graph_lowering_error)?;
     Ok((request, config_source_uri))
 }
 
@@ -6060,6 +6074,12 @@ pub fn run_parse<E: CemMlEngine + ?Sized>(
     args: cli::ParseArgs,
     s: &mut Streams<'_>,
 ) -> Outcome {
+    let presentation_format = args.format;
+    let presentation_scope = matches!(
+        presentation_format,
+        cli::ParseFormat::Ast | cli::ParseFormat::Events
+    )
+    .then(|| default_cem_presentation_scope(args.out.as_deref(), s.no_color));
     let input_defaults = input_scope_defaults(&args.context);
     let config = match run_config_for_dispatch(
         &args.context,
@@ -6113,11 +6133,37 @@ pub fn run_parse<E: CemMlEngine + ?Sized>(
         projection: to_engine_parse_projection(args.format),
         fail_level: to_engine_fail_level(args.fail_level),
         preserve_source_offsets: args.preserve_source_offsets,
+        presentation_scope,
         context: engine_context.clone(),
     };
     match engine.parse(req) {
         Ok(mut resp) => {
-            if let Err(e) = write_primary(&engine_context, &resp.primary, args.out.as_deref(), s) {
+            let write_result = match presentation_format {
+                cli::ParseFormat::Ast | cli::ParseFormat::Events => resp
+                    .primary_bytes
+                    .as_ref()
+                    .ok_or_else(|| {
+                        io::Error::new(
+                            io::ErrorKind::InvalidData,
+                            "engine omitted requested CEM-ML parse presentation",
+                        )
+                    })
+                    .and_then(|primary| {
+                        write_raw_primary_bytes(
+                            &engine_context,
+                            &primary.bytes,
+                            args.out.as_deref(),
+                            s,
+                        )
+                    }),
+                cli::ParseFormat::DomJson
+                | cli::ParseFormat::Json
+                | cli::ParseFormat::AstJson
+                | cli::ParseFormat::EventsJson => {
+                    write_primary(&engine_context, &resp.primary, args.out.as_deref(), s)
+                }
+            };
+            if let Err(e) = write_result {
                 let _ = writeln!(s.stderr, "cem-ml: write failure: {e}");
                 return Outcome::code(EXIT_IO);
             }
@@ -6362,6 +6408,9 @@ pub fn run_inspect<E: CemMlEngine + ?Sized>(
     args: cli::InspectArgs,
     s: &mut Streams<'_>,
 ) -> Outcome {
+    let presentation_format = args.format;
+    let presentation_scope = (presentation_format == cli::InspectFormat::Cem)
+        .then(|| default_cem_presentation_scope(args.out.as_deref(), s.no_color));
     let input_defaults = input_scope_defaults(&args.context);
     let config = match run_config_for_dispatch(
         &args.context,
@@ -6390,11 +6439,34 @@ pub fn run_inspect<E: CemMlEngine + ?Sized>(
     let req = eng::InspectRequest {
         input,
         show: to_engine_inspect_view(args.show),
+        presentation_scope,
         context: engine_context.clone(),
     };
     match engine.inspect(req) {
         Ok(resp) => {
-            if let Err(e) = write_primary(&engine_context, &resp.body, args.out.as_deref(), s) {
+            let write_result = match presentation_format {
+                cli::InspectFormat::Cem => resp
+                    .primary_bytes
+                    .as_ref()
+                    .ok_or_else(|| {
+                        io::Error::new(
+                            io::ErrorKind::InvalidData,
+                            "engine omitted requested CEM-ML inspect presentation",
+                        )
+                    })
+                    .and_then(|primary| {
+                        write_raw_primary_bytes(
+                            &engine_context,
+                            &primary.bytes,
+                            args.out.as_deref(),
+                            s,
+                        )
+                    }),
+                cli::InspectFormat::Json => {
+                    write_primary(&engine_context, &resp.body, args.out.as_deref(), s)
+                }
+            };
+            if let Err(e) = write_result {
                 let _ = writeln!(s.stderr, "cem-ml: write failure: {e}");
                 return Outcome::code(EXIT_IO);
             }
@@ -7875,6 +7947,7 @@ mod tests {
     use cem_ml::fake::FakeEngine;
     use cem_ml::real::RealCemMlEngine;
     use cem_ml::resolver::{ResolvedRead, ResolvedWrite, ResolverRegistry, ResourceResolver};
+    use cem_ml::schema::registry::{CSS_CONTENT_TYPE, CSS_SCHEMA_URI};
     use clap::Parser;
     use std::io::Cursor;
     use std::path::{Path, PathBuf};
@@ -11434,20 +11507,21 @@ mod tests {
     }
 
     #[test]
-    fn parse_with_fake_engine_emits_json_to_stdout() {
+    fn parse_with_fake_engine_defaults_to_cem_ast_presentation() {
         let p = write_fixture("parse-fake.cem", "{x}");
         let (outcome, stdout, _) = run(&FakeEngine, &["parse", p.to_str().unwrap()]);
         assert_eq!(outcome.exit_code, EXIT_OK);
-        let v: serde_json::Value = serde_json::from_str(stdout.trim()).expect("valid JSON");
-        assert_eq!(v["kind"], "fake-parse");
-        assert_eq!(v["projection"], "dom-json");
+        assert!(stdout.starts_with("@doc cem-ml 1\n{parse "), "{stdout}");
+        assert!(stdout.contains("@projection=Ast"), "{stdout}");
+        assert!(serde_json::from_str::<serde_json::Value>(&stdout).is_err());
     }
 
     #[test]
     fn parse_file_uri_input_reads_local_input() {
         let p = write_fixture("parse-file-uri-input.cem", "{x}");
         let file_uri = local_file_uri(&p);
-        let (outcome, stdout, stderr) = run(&FakeEngine, &["parse", &file_uri]);
+        let (outcome, stdout, stderr) =
+            run(&FakeEngine, &["parse", "--format", "dom-json", &file_uri]);
 
         assert_eq!(outcome.exit_code, EXIT_OK, "{stderr}");
         let v: serde_json::Value = serde_json::from_str(stdout.trim()).expect("valid JSON");
@@ -11458,7 +11532,8 @@ mod tests {
     fn parse_localhost_file_uri_input_reads_local_input() {
         let p = write_fixture("parse-localhost-file-uri-input.cem", "{x}");
         let file_uri = localhost_file_uri(&p);
-        let (outcome, stdout, stderr) = run(&FakeEngine, &["parse", &file_uri]);
+        let (outcome, stdout, stderr) =
+            run(&FakeEngine, &["parse", "--format", "dom-json", &file_uri]);
 
         assert_eq!(outcome.exit_code, EXIT_OK, "{stderr}");
         let v: serde_json::Value = serde_json::from_str(stdout.trim()).expect("valid JSON");
@@ -11469,7 +11544,7 @@ mod tests {
     fn parse_percent_escaped_file_uri_input_reads_local_input() {
         let p = write_fixture("parse-percent escaped-input.cem", "{x}");
         let uri = local_file_uri(&p).replace(' ', "%20");
-        let (outcome, stdout, stderr) = run(&FakeEngine, &["parse", &uri]);
+        let (outcome, stdout, stderr) = run(&FakeEngine, &["parse", "--format", "dom-json", &uri]);
 
         assert_eq!(outcome.exit_code, EXIT_OK, "{stderr}");
         let v: serde_json::Value = serde_json::from_str(stdout.trim()).expect("valid JSON");
@@ -11491,6 +11566,8 @@ mod tests {
             &FakeEngine,
             &[
                 "parse",
+                "--format",
+                "dom-json",
                 "--out",
                 out_path.to_str().unwrap(),
                 p.to_str().unwrap(),
@@ -11507,6 +11584,39 @@ mod tests {
     }
 
     #[test]
+    fn parse_cem_presentation_file_is_tabular_and_uncolored() {
+        let p = write_fixture("parse-cem-presentation-file.css", ".card { color: red; }");
+        let out_path =
+            std::env::temp_dir().join("cem-ml-cli-tests/parse-cem-presentation-file.cem");
+        let _ = std::fs::remove_file(&out_path);
+        let (outcome, stdout, stderr) = run(
+            &RealCemMlEngine::new(),
+            &[
+                "parse",
+                "--content-type",
+                CSS_CONTENT_TYPE,
+                "--schema",
+                CSS_SCHEMA_URI,
+                "--out",
+                out_path.to_str().unwrap(),
+                p.to_str().unwrap(),
+            ],
+        );
+
+        assert_eq!(outcome.exit_code, EXIT_OK, "{stderr}");
+        assert!(
+            stdout.is_empty(),
+            "stdout should be empty when --out is used"
+        );
+        let written = std::fs::read_to_string(&out_path).unwrap();
+        assert!(written.starts_with("@doc cem-ml 1\n"), "{written}");
+        assert!(written.contains("{ast "), "{written}");
+        assert!(!written.contains("\u{1b}["), "{written:?}");
+        assert!(serde_json::from_str::<serde_json::Value>(&written).is_err());
+        assert_cem_source_has_no_hard_diagnostics(&written);
+    }
+
+    #[test]
     fn parse_file_uri_out_destination_writes_local_output() {
         let p = write_fixture("parse-file-uri-out.cem", "{x}");
         let out_path = std::env::temp_dir().join("cem-ml-cli-tests/parse-file-uri-out.json");
@@ -11515,6 +11625,8 @@ mod tests {
             &FakeEngine,
             &[
                 "parse",
+                "--format",
+                "dom-json",
                 "--out",
                 &format!("file://{}", out_path.display()),
                 p.to_str().unwrap(),
@@ -11538,6 +11650,8 @@ mod tests {
             &FakeEngine,
             &[
                 "parse",
+                "--format",
+                "dom-json",
                 "--out",
                 &localhost_file_uri(&out_path),
                 p.to_str().unwrap(),
@@ -11560,7 +11674,14 @@ mod tests {
         let out_uri = local_file_uri(&out_path).replace(' ', "%20");
         let (outcome, stdout, stderr) = run(
             &FakeEngine,
-            &["parse", "--out", &out_uri, p.to_str().unwrap()],
+            &[
+                "parse",
+                "--format",
+                "dom-json",
+                "--out",
+                &out_uri,
+                p.to_str().unwrap(),
+            ],
         );
 
         assert_eq!(outcome.exit_code, EXIT_OK, "{stderr}");
@@ -11589,6 +11710,8 @@ mod tests {
             &FakeEngine,
             &[
                 "parse",
+                "--format",
+                "dom-json",
                 "--report-json",
                 report_dir.to_str().unwrap(),
                 "--report-md",
@@ -11622,6 +11745,8 @@ mod tests {
             &FakeEngine,
             &[
                 "parse",
+                "--format",
+                "dom-json",
                 "--report",
                 report_dir.to_str().unwrap(),
                 p.to_str().unwrap(),
@@ -11652,6 +11777,8 @@ mod tests {
             &FakeEngine,
             &[
                 "parse",
+                "--format",
+                "dom-json",
                 "--report",
                 report_dir.to_str().unwrap(),
                 "--report-format",
@@ -11729,6 +11856,8 @@ mod tests {
             &FakeEngine,
             &[
                 "parse",
+                "--format",
+                "dom-json",
                 "--report-json",
                 "https://example.test/parse-report.json",
                 p.to_str().unwrap(),
@@ -11748,6 +11877,8 @@ mod tests {
             &FakeEngine,
             &[
                 "parse",
+                "--format",
+                "dom-json",
                 "--report-md",
                 "https://example.test/parse-report.md",
                 p.to_str().unwrap(),
@@ -11766,7 +11897,14 @@ mod tests {
         let uri = "cem+vfs://workspace/parse-report.json";
         let (outcome, stdout, stderr) = run(
             &FakeEngine,
-            &["parse", "--report-json", uri, p.to_str().unwrap()],
+            &[
+                "parse",
+                "--format",
+                "dom-json",
+                "--report-json",
+                uri,
+                p.to_str().unwrap(),
+            ],
         );
 
         assert_eq!(outcome.exit_code, EXIT_IO);
@@ -11781,7 +11919,14 @@ mod tests {
         let uri = "cem+vfs://workspace/parse-report.md";
         let (outcome, stdout, stderr) = run(
             &FakeEngine,
-            &["parse", "--report-md", uri, p.to_str().unwrap()],
+            &[
+                "parse",
+                "--format",
+                "dom-json",
+                "--report-md",
+                uri,
+                p.to_str().unwrap(),
+            ],
         );
 
         assert_eq!(outcome.exit_code, EXIT_IO);
@@ -11796,7 +11941,14 @@ mod tests {
         let uri = "file://example.test/parse-report.md";
         let (outcome, stdout, stderr) = run(
             &FakeEngine,
-            &["parse", "--report-md", uri, p.to_str().unwrap()],
+            &[
+                "parse",
+                "--format",
+                "dom-json",
+                "--report-md",
+                uri,
+                p.to_str().unwrap(),
+            ],
         );
 
         assert_eq!(outcome.exit_code, EXIT_IO);
@@ -17928,6 +18080,8 @@ start =
             &FakeEngine,
             &[
                 "parse",
+                "--format",
+                "dom-json",
                 "--resolver-write-map",
                 &map,
                 "--out",
@@ -20200,11 +20354,92 @@ start =
         let p = write_fixture("inspect.cem", "{x}");
         let (outcome, stdout, _) = run(
             &FakeEngine,
-            &["inspect", "--show", "events", p.to_str().unwrap()],
+            &[
+                "inspect",
+                "--show",
+                "events",
+                "--format",
+                "json",
+                p.to_str().unwrap(),
+            ],
         );
         assert_eq!(outcome.exit_code, EXIT_OK);
         let v: serde_json::Value = serde_json::from_str(stdout.trim()).unwrap();
         assert_eq!(v["view"], "events");
+    }
+
+    #[test]
+    fn every_inspect_view_defaults_to_cem_presentation() {
+        let p = write_fixture("inspect-all-cem-presentations.cem", "{x}");
+        for show in [
+            "summary",
+            "ast",
+            "events",
+            "diagnostics",
+            "source-offsets",
+            "tree",
+        ] {
+            let (outcome, stdout, stderr) = run(
+                &FakeEngine,
+                &["inspect", "--show", show, p.to_str().unwrap()],
+            );
+            assert_eq!(outcome.exit_code, EXIT_OK, "{show}: {stderr}");
+            assert!(stdout.starts_with("@doc cem-ml 1\n"), "{show}: {stdout}");
+            assert!(stdout.contains("{inspection "), "{show}: {stdout}");
+            assert!(serde_json::from_str::<serde_json::Value>(&stdout).is_err());
+        }
+    }
+
+    #[test]
+    fn inspect_css_ast_defaults_to_tabular_terminal_cem_presentation() {
+        let p = write_fixture("inspect-default-presentation.css", ".card { color: red; }");
+        let (outcome, stdout, stderr) = run(
+            &RealCemMlEngine::new(),
+            &[
+                "inspect",
+                "--show",
+                "ast",
+                "--content-type",
+                CSS_CONTENT_TYPE,
+                "--schema",
+                CSS_SCHEMA_URI,
+                p.to_str().unwrap(),
+            ],
+        );
+
+        assert_eq!(outcome.exit_code, EXIT_OK, "{stderr}");
+        assert!(stdout.contains("\u{1b}["), "{stdout:?}");
+        let visible = strip_ansi_codes(&stdout);
+        assert!(visible.starts_with("@doc cem-ml 1\n"), "{visible}");
+        assert!(visible.contains("{ast "), "{visible}");
+        assert!(visible.contains("{token "), "{visible}");
+        assert!(serde_json::from_str::<serde_json::Value>(&visible).is_err());
+        assert_cem_source_has_no_hard_diagnostics(&visible);
+    }
+
+    #[test]
+    fn parse_css_defaults_to_tabular_terminal_cem_ast_presentation() {
+        let p = write_fixture("parse-default-presentation.css", ".card { color: red; }");
+        let (outcome, stdout, stderr) = run(
+            &RealCemMlEngine::new(),
+            &[
+                "parse",
+                "--content-type",
+                CSS_CONTENT_TYPE,
+                "--schema",
+                CSS_SCHEMA_URI,
+                p.to_str().unwrap(),
+            ],
+        );
+
+        assert_eq!(outcome.exit_code, EXIT_OK, "{stderr}");
+        assert!(stdout.contains("\u{1b}["), "{stdout:?}");
+        let visible = strip_ansi_codes(&stdout);
+        assert!(visible.starts_with("@doc cem-ml 1\n"), "{visible}");
+        assert!(visible.contains("{ast "), "{visible}");
+        assert!(visible.contains("{token "), "{visible}");
+        assert!(serde_json::from_str::<serde_json::Value>(&visible).is_err());
+        assert_cem_source_has_no_hard_diagnostics(&visible);
     }
 
     #[test]
@@ -20236,7 +20471,8 @@ start =
     fn inspect_file_uri_input_reads_local_input() {
         let input = write_fixture("inspect-file-uri-input.cem", "{x}");
         let file_uri = local_file_uri(&input);
-        let (outcome, stdout, stderr) = run(&FakeEngine, &["inspect", &file_uri]);
+        let (outcome, stdout, stderr) =
+            run(&FakeEngine, &["inspect", "--format", "json", &file_uri]);
 
         assert_eq!(outcome.exit_code, EXIT_OK, "{stderr}");
         let v: serde_json::Value = serde_json::from_str(stdout.trim()).expect("valid JSON");
@@ -20252,6 +20488,8 @@ start =
             &FakeEngine,
             &[
                 "inspect",
+                "--format",
+                "json",
                 "--out",
                 &format!("file://{}", out_path.display()),
                 p.to_str().unwrap(),
@@ -20274,6 +20512,8 @@ start =
                 "inspect",
                 "--show",
                 "diagnostics",
+                "--format",
+                "json",
                 "--input-spec",
                 &format!("uri={},budgets=inspectMs:0", p.display()),
             ],
@@ -20501,7 +20741,13 @@ start =
 
         let (outcome, stdout, stderr) = run(
             &RealCemMlEngine::new(),
-            &["parse", "--format", "events", "--input-spec", &input_spec],
+            &[
+                "parse",
+                "--format",
+                "events-json",
+                "--input-spec",
+                &input_spec,
+            ],
         );
         assert_eq!(outcome.exit_code, EXIT_OK, "{stderr}");
         let parse_events: serde_json::Value = serde_json::from_str(stdout.trim()).unwrap();
@@ -20509,7 +20755,7 @@ start =
 
         let (outcome, stdout, stderr) = run(
             &RealCemMlEngine::new(),
-            &["parse", "--format", "ast", "--input-spec", &input_spec],
+            &["parse", "--format", "ast-json", "--input-spec", &input_spec],
         );
         assert_eq!(outcome.exit_code, EXIT_OK, "{stderr}");
         let ast: serde_json::Value = serde_json::from_str(stdout.trim()).unwrap();

@@ -16,6 +16,7 @@ diagnostic-details/public-response model.
 | `real::transform_artifact_export_primary` and `conversion_output_boundary_value` | Explicit JSON/public response export | An encoded JSON result is decoded only where the public `Value` response contract requires it. No later runtime stage consumes that projection. |
 | WASM/API response, report, trace, cache, and public/debug projection helpers | Public, observability, or storage boundary | Serialization is the declared boundary representation, not an inter-layer AST handoff. |
 | Import-map parse/rewrite/pretty-print in `real::apply_importmap_rewrite` | Explicit embedded JSON ingress and export | This is boundary-owned today, but remains scheduled for lossless AST editing so duplicate/order diagnostics survive the HTML JSON island. |
+| CLI `parse`/`inspect` JSON formats | Explicit presentation export | JSON is emitted only for a JSON-named option (`json`, `dom-json`, `ast-json`, or `events-json`). The default presentation path is typed CEM-ML and does not consume this `Value`. |
 
 ## Removed
 
@@ -38,6 +39,14 @@ collections remain typed evaluator values.
 `conversion::DomProjectionParityCemtAdapter::render` now accepts only a typed
 `CemTreeAstStream`. Its JSON compatibility ingress and JSON-to-tree fixture
 helpers were deleted, and its formatter path retains the native stream owner.
+
+CSS AST presentation now projects `CssDocumentAst` and `CssEventAst` directly
+into `CemTreeAstStream`, preserving token lexemes, source ranges, source maps,
+parent relationships, and recovery diagnostics until the CEM writer boundary.
+The test-only `CssDocumentAst::to_cemt_subject` JSON projection was removed.
+Default `parse` and `inspect` terminal views use the tabular CEMT formatter and
+terminal colorizer; JSON must be selected explicitly and is not a presentation
+handoff. Generic XML is a separately declared export boundary.
 
 The transform-template encoder boundary is now typed end to end.
 `TransformTemplateEncodeBindingRequest.subject` contains only

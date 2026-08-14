@@ -56,6 +56,21 @@ impl CemMlEngine for FakeEngine {
         });
         Ok(ParseResponse {
             primary,
+            primary_bytes: request.presentation_scope.as_ref().map(|_| {
+                let bytes = format!(
+                    "@doc cem-ml 1\n{{parse @projection={:?} @input=\"{}\"}}\n",
+                    request.projection, request.input.uri
+                )
+                .into_bytes();
+                PrimaryBytes {
+                    content_type: crate::schema::registry::CEM_ML_CONTENT_TYPE.to_owned(),
+                    schema: Some(crate::schema::registry::CEM_AST_PROJECTION_SCHEMA_URI.to_owned()),
+                    format_version: "cem-ml/1".to_owned(),
+                    hash_scheme: "cem-text/1+blake3".to_owned(),
+                    hash: blake3::hash(&bytes).to_hex().to_string(),
+                    bytes,
+                }
+            }),
             diagnostics: vec![fake_diagnostic(&request.input.uri)],
         })
     }
@@ -95,6 +110,21 @@ impl CemMlEngine for FakeEngine {
         Ok(InspectResponse {
             view: request.show,
             body,
+            primary_bytes: request.presentation_scope.as_ref().map(|_| {
+                let bytes = format!(
+                    "@doc cem-ml 1\n{{inspection @view={:?} @input=\"{}\"}}\n",
+                    request.show, request.input.uri
+                )
+                .into_bytes();
+                PrimaryBytes {
+                    content_type: crate::schema::registry::CEM_ML_CONTENT_TYPE.to_owned(),
+                    schema: Some(crate::schema::registry::CEM_ML_SCHEMA_URI.to_owned()),
+                    format_version: "cem-ml/1".to_owned(),
+                    hash_scheme: "cem-text/1+blake3".to_owned(),
+                    hash: blake3::hash(&bytes).to_hex().to_string(),
+                    bytes,
+                }
+            }),
         })
     }
 

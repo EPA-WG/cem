@@ -655,10 +655,14 @@ These are data shapes only. Parser-filled content remains blocked until the pars
 ## Phase 6 - Command Behavior
 
 1. `cem-ml parse <input>`
-    - Default display format: `dom-json`, a JSON debug view over the internal DOM projection.
-    - Supported display formats: `dom-json`, `json`, `ast`, `events`.
-    - Native execution does not serialize to JSON internally; it uses the in-process AST/event model and future CEM
-      binary/chunk artifacts unless the selected output format requires JSON.
+    - Default display format: `ast`, rendered as tabular CEM-ML with terminal
+      colors on stdout and no ANSI escapes for `--out`.
+    - Supported CEM-ML display formats: `ast`, `events`.
+    - Explicit JSON compatibility/debug formats: `dom-json`, `json`,
+      `ast-json`, `events-json`.
+    - Native execution does not serialize to JSON internally. Typed AST/event
+      owners project directly into `CemTreeAstStream`; JSON exists only at one
+      of the explicitly JSON-named output boundaries.
     - Default fail level: `parse`.
     - Writes primary output to stdout or `--out`.
     - Supports parse diagnostic side reports with `--report-json` and `--report-md`.
@@ -676,6 +680,9 @@ These are data shapes only. Parser-filled content remains blocked until the pars
     - Writes default `cem-ml.report.json` and `cem-ml.report.md`.
 5. `cem-ml inspect <input>`
     - Supported `--show`: `summary`, `ast`, `events`, `diagnostics`, `source-offsets`, `tree`.
+    - Default output format: tabular CEM-ML with terminal colors on stdout and
+      no ANSI escapes for `--out`; `--format json` explicitly selects the JSON
+      compatibility/debug view.
     - Scope, schema-binding, plugin, and source-map views remain deferred.
 6. `cem-ml convert <input>`
     - Converts a supported document in one declared document format into another declared document format.

@@ -595,6 +595,16 @@ Current implementation status:
   `https://cem.dev/ns/projection/dom-json/1` schema remains a compatibility
   identity for the DOM JSON view until callers migrate to the semantic DOM
   schema plus `+json` content type.
+  Human-facing projection presentation has a stricter default: `parse` selects
+  the AST projection and `inspect` selects CEM-ML output unless the caller
+  explicitly names JSON. AST and event views are encoded directly from their
+  typed lifecycle owners into `CemTreeAstStream`, then rendered with the
+  tabular CEMT formatter. Interactive terminal output uses the terminal
+  colorizer; `--out` writes the same CEM-ML syntax without ANSI escapes.
+  `parse --format ast-json|events-json|dom-json|json` and
+  `inspect --format json` are the explicit JSON presentation boundaries.
+  Generic XML remains an explicit conversion/export target and is not inferred
+  as a presentation for CEM-ML AST, DOM, or event projections.
   Transform config and CEM-native template schema targets
   are also registry-owned as CEM output syntax. Unsupported target identities emit a
   deterministic lifecycle diagnostic with the declared content type, schema, and/or namespace while
@@ -744,11 +754,14 @@ than applying a document-producing template or stylesheet.
 
 ## Functional Surface
 
-- Parse one input into structured output.
+- Parse one input into a typed AST presentation. The CLI default is tabular
+  CEM-ML; JSON projections require an explicitly JSON-named format.
 - Load supported inputs into the internal CEM event stream / AST through the adapter selected by content type + schema.
 - Validate one or more inputs and emit human-readable or machine-readable diagnostics.
 - Run CI-oriented checks with hard-violation behavior.
-- Inspect parsed output as summary, tree, AST, events, diagnostics, or source-offset views.
+- Inspect parsed output as summary, tree, AST, events, diagnostics, or
+  source-offset views. These default to tabular CEM-ML with terminal colors;
+  `--format json` is the explicit compatibility/debug presentation.
 - Convert/export supported documents from one declared document format into another declared document format, or into
   debug projections through the same internal AST/binary artifact spine.
 - Execute explicitly identified CSS selector, CEM-QL, or XPath source over a

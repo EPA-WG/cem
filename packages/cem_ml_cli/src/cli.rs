@@ -157,6 +157,8 @@ pub enum ParseFormat {
     Json,
     Ast,
     Events,
+    AstJson,
+    EventsJson,
 }
 
 #[derive(ValueEnum, Copy, Clone, Debug, PartialEq, Eq)]
@@ -212,6 +214,12 @@ pub enum InspectView {
     Diagnostics,
     SourceOffsets,
     Tree,
+}
+
+#[derive(ValueEnum, Copy, Clone, Debug, PartialEq, Eq)]
+pub enum InspectFormat {
+    Cem,
+    Json,
 }
 
 #[derive(ValueEnum, Copy, Clone, Debug, PartialEq, Eq)]
@@ -478,8 +486,8 @@ pub struct ParseArgs {
     #[arg(value_name = "INPUT", help = "Path to a CEM-ML/HTML/XML input")]
     pub input: Option<PathBuf>,
 
-    #[arg(long, value_enum, default_value_t = ParseFormat::DomJson,
-          help = "Output projection (dom-json|json|ast|events)")]
+    #[arg(long, value_enum, default_value_t = ParseFormat::Ast,
+          help = "Output projection; ast/events use CEM-ML presentation, while dom-json/json/ast-json/events-json explicitly request JSON")]
     pub format: ParseFormat,
 
     #[arg(
@@ -574,6 +582,14 @@ pub struct InspectArgs {
     #[arg(long, value_enum, default_value_t = InspectView::Summary,
           help = "Which inspector view to render")]
     pub show: InspectView,
+
+    #[arg(
+        long,
+        value_enum,
+        default_value_t = InspectFormat::Cem,
+        help = "Presentation syntax; CEM-ML is the default and JSON is emitted only when explicitly selected"
+    )]
+    pub format: InspectFormat,
 
     #[arg(
         long = "from-format",
@@ -1049,7 +1065,14 @@ mod tests {
 
     #[test]
     fn parse_accepts_layer_formats_only() {
-        for fmt in ["dom-json", "json", "ast", "events"] {
+        for fmt in [
+            "dom-json",
+            "json",
+            "ast",
+            "events",
+            "ast-json",
+            "events-json",
+        ] {
             try_parse(&["parse", "--format", fmt, "in.cem"]).expect(fmt);
         }
         for fmt in ["xml", "cem", "text", "html", "markdown", "tree"] {
@@ -1177,6 +1200,54 @@ mod tests {
             try_parse(&["inspect", "--show", view, "in.cem"]).expect(view);
         }
         assert!(try_parse(&["inspect", "--show", "scope", "in.cem"]).is_err());
+    }
+
+    #[test]
+    fn inspect_defaults_to_cem_presentation_and_requires_explicit_json() {
+        let cli = try_parse(&["inspect", "--show", "ast", "in.css"]).unwrap();
+        let Command::Inspect(args) = cli.command else {
+            panic!("expected inspect command");
+        };
+        assert_eq!(args.format, InspectFormat::Cem);
+
+        let cli = try_parse(&["inspect", "--show", "ast", "--format", "json", "in.css"]).unwrap();
+        let Command::Inspect(args) = cli.command else {
+            panic!("expected inspect command");
+        };
+        assert_eq!(args.format, InspectFormat::Json);
+    }
+
+    #[test]
+    fn parse_defaults_to_cem_ast_presentation_and_requires_explicit_json() {
+        let cli = try_parse(&["parse", "in.css"]).unwrap();
+        let Command::Parse(args) = cli.command else {
+            panic!("expected parse command");
+        };
+        assert_eq!(args.format, ParseFormat::Ast);
+
+        let cli = try_parse(&["parse", "--format", "dom-json", "in.css"]).unwrap();
+        let Command::Parse(args) = cli.command else {
+            panic!("expected parse command");
+        };
+        assert_eq!(args.format, ParseFormat::DomJson);
+
+        let cli = try_parse(&["parse", "--format", "json", "in.css"]).unwrap();
+        let Command::Parse(args) = cli.command else {
+            panic!("expected parse command");
+        };
+        assert_eq!(args.format, ParseFormat::Json);
+
+        let cli = try_parse(&["parse", "--format", "ast-json", "in.css"]).unwrap();
+        let Command::Parse(args) = cli.command else {
+            panic!("expected parse command");
+        };
+        assert_eq!(args.format, ParseFormat::AstJson);
+
+        let cli = try_parse(&["parse", "--format", "events-json", "in.css"]).unwrap();
+        let Command::Parse(args) = cli.command else {
+            panic!("expected parse command");
+        };
+        assert_eq!(args.format, ParseFormat::EventsJson);
     }
 
     #[test]
@@ -1513,13 +1584,7 @@ mod tests {
     #[test]
     fn transform_config_rejects_top_level_stage_metadata() {
         for args in [
-            vec![
-                "transform",
-                "--config",
-                "graph.cem",
-                "--param",
-                "locale=en",
-            ],
+            vec!["transform", "--config", "graph.cem", "--param", "locale=en"],
             vec![
                 "transform",
                 "--config",

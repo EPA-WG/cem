@@ -77,6 +77,29 @@ replacement tree may mediate between internal engine layers.
               operation delegates through its common typed request/result boundary
               while terminal streams, signals, filesystem/network adaptation, and
               exit-code projection remain native CLI host policy.
+        - [x] Make human-facing `parse` and `inspect` projections default to typed
+              CEM-ML presentation while retaining JSON only behind explicitly
+              JSON-named formats.
+            - [x] Add native engine and CLI fixtures proving direct CSS AST/event
+                  projection, tabular terminal coloring, uncolored file output,
+                  every inspect view, and explicit JSON compatibility paths.
+
+              Completed 2026-08-14: native parse and inspect now retain their
+              structured API values while projecting typed CEM-ML primary bytes
+              by default. CSS AST and event views lower directly into CEM tree
+              streams, terminal presentation is tabular and color-aware, file
+              presentation is uncolored, and JSON remains available only through
+              explicitly JSON-named formats. The native grammar's generated npm
+              command schema and round-trip fixture now share the same defaults.
+
+              Focused engine and CLI fixtures cover direct CSS AST/event lowering,
+              every inspect view, terminal and file presentation scopes, and all
+              explicit JSON compatibility paths. The Nx common suites pass 1,944
+              default and 1,932 stripped unit tests; the native CLI suites pass
+              515 default and 511 stripped unit tests plus their integration
+              suites. Both lints, default and stripped native builds, common
+              default and stripped WASM builds, and the full npm CLI verification
+              target pass.
         - [x] Establish the common bounded version/capability manifest and make the
               existing native CLI version adapter consume the library-owned version
               response without changing terminal grammar.

@@ -2070,6 +2070,7 @@ mod tests {
             value: PortableOperationResultV1::Inspect(InspectResponse {
                 view: InspectView::Summary,
                 body: json!({ "nodes": 1 }),
+                primary_bytes: None,
             }),
         });
         result.report = Some(CommandPayloadV1::Inline { value: report });

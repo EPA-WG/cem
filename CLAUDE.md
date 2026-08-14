@@ -132,6 +132,21 @@ yarn nx run cem-elements:verify
 yarn nx run @epa-wg/custom-element:verify
 ```
 
+## CEM-ML presentation boundary
+
+Human-facing structural projections—AST, DOM, events, and every `inspect`
+view—default to CEM-ML text produced by the typed CEM-tree writer. Terminal
+output uses the `tabular` formatter profile and `terminal` colorizer profile;
+file output uses the same tabular CEM-ML syntax without ANSI escapes.
+
+JSON is never an implicit presentation or an internal AST/DOM handoff. A caller
+must name a JSON boundary explicitly, for example `--format json`, `dom-json`,
+`ast-json`, `events-json`, a `+json` content type, or a declared JSON sidecar.
+Native lifecycle ASTs project directly to `CemTreeAstStream`; do not route them
+through `serde_json::Value`, a JSON serializer, shape inference, or a JSON
+re-parser before presentation. Generic XML is likewise an explicit export
+target, not the default visualization of a CEM-ML projection.
+
 ## Debugging DOM and CSS with headless browser
 
 Use `tools/scripts/debug-cem.mjs` (Playwright, same Chromium as the build pipeline):

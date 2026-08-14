@@ -19226,7 +19226,6 @@ mod tests {
 
         for (label, validation_source) in [
             ("HTML", include_str!("validation/html.rs")),
-            ("CSS", include_str!("validation/css.rs")),
             ("XHTML", include_str!("validation/xhtml.rs")),
             ("SVG", include_str!("validation/svg.rs")),
             ("MathML", include_str!("validation/mathml.rs")),
@@ -19248,6 +19247,12 @@ mod tests {
                 "{label}: production compatibility composer escaped its test gate"
             );
         }
+        let css_validation_source = include_str!("validation/css.rs");
+        assert_eq!(
+            css_validation_source.matches("to_cemt_subject").count(),
+            0,
+            "CSS AST presentation must not retain a JSON compatibility composer"
+        );
         for (label, validation_source, composer) in [
             (
                 "XHTML",

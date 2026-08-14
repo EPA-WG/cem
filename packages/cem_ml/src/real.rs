@@ -63,15 +63,15 @@ use crate::schema::registry::{
     schema_source_path_from_manifest_source, SchemaDescriptor, SchemaRegistry,
     CEM_AST_PROJECTION_CONTENT_TYPE, CEM_AST_PROJECTION_SCHEMA_URI,
     CEM_DOM_JSON_PROJECTION_CONTENT_TYPE, CEM_DOM_PROJECTION_CONTENT_TYPE,
-    CEM_DOM_PROJECTION_SCHEMA_URI, CEM_ML_CONTENT_TYPE, CEM_ML_SCHEMA_URI,
-    CEM_NATIVE_TEMPLATE_CONTENT_TYPE, CEM_NATIVE_TEMPLATE_SCHEMA_URI, CEM_SCHEMA_CONTENT_TYPE,
-    CEM_SCHEMA_PACKAGE_CONTENT_TYPE, CEM_SCHEMA_PACKAGE_URI, CSS_CONTENT_TYPE, CSS_SCHEMA_URI,
-    CSV_CONTENT_TYPE, CSV_SCHEMA_URI, HTML_CONTENT_TYPE, HTML_SCHEMA_URI, JSON_CONTENT_TYPE,
-    JSON_SCHEMA_CONTENT_TYPE, JSON_SCHEMA_SCHEMA_URI, JSON_VALUE_SCHEMA_URI, MARKDOWN_CONTENT_TYPE,
-    MARKDOWN_SCHEMA_URI, MATHML_CONTENT_TYPE, MATHML_SCHEMA_URI, RELAX_NG_SCHEMA_URI,
-    SVG_CONTENT_TYPE, SVG_SCHEMA_URI, XHTML_CONTENT_TYPE, XHTML_SCHEMA_URI, XML_CONTENT_TYPE,
-    XML_SCHEMA_URI, XPATH_CONTENT_TYPE, XPATH_SCHEMA_URI, XSLT_CONTENT_TYPE, XSLT_SCHEMA_URI,
-    YAML_CONTENT_TYPE, YAML_SCHEMA_URI,
+    CEM_DOM_PROJECTION_SCHEMA_URI, CEM_EVENTS_PROJECTION_SCHEMA_URI, CEM_ML_CONTENT_TYPE,
+    CEM_ML_SCHEMA_URI, CEM_NATIVE_TEMPLATE_CONTENT_TYPE, CEM_NATIVE_TEMPLATE_SCHEMA_URI,
+    CEM_SCHEMA_CONTENT_TYPE, CEM_SCHEMA_PACKAGE_CONTENT_TYPE, CEM_SCHEMA_PACKAGE_URI,
+    CSS_CONTENT_TYPE, CSS_SCHEMA_URI, CSV_CONTENT_TYPE, CSV_SCHEMA_URI, HTML_CONTENT_TYPE,
+    HTML_SCHEMA_URI, JSON_CONTENT_TYPE, JSON_SCHEMA_CONTENT_TYPE, JSON_SCHEMA_SCHEMA_URI,
+    JSON_VALUE_SCHEMA_URI, MARKDOWN_CONTENT_TYPE, MARKDOWN_SCHEMA_URI, MATHML_CONTENT_TYPE,
+    MATHML_SCHEMA_URI, RELAX_NG_SCHEMA_URI, SVG_CONTENT_TYPE, SVG_SCHEMA_URI, XHTML_CONTENT_TYPE,
+    XHTML_SCHEMA_URI, XML_CONTENT_TYPE, XML_SCHEMA_URI, XPATH_CONTENT_TYPE, XPATH_SCHEMA_URI,
+    XSLT_CONTENT_TYPE, XSLT_SCHEMA_URI, YAML_CONTENT_TYPE, YAML_SCHEMA_URI,
 };
 use crate::schema::vocab::CompiledSchema;
 use crate::source::line_index::LineIndex;
@@ -230,6 +230,15 @@ fn cemt_output_pipeline_for_scope(
     target_scope: &ScopeConfig,
 ) -> ConversionOutputPipeline {
     apply_cemt_output_scope_overrides(&mut pipeline, target_scope);
+    if let Some(output_color_type) = trimmed_scope_value(target_scope.output_color_type.as_ref()) {
+        pipeline.writer_insertion_context.output_color_type = Some(output_color_type.to_owned());
+        if parse_transform_template_output_color_type(output_color_type)
+            .ok()
+            .is_some_and(|selection| selection.target.category == "terminal-color")
+        {
+            pipeline.writer_insertion_context.color_capability = Some(output_color_type.to_owned());
+        }
+    }
     pipeline
 }
 
@@ -1347,6 +1356,311 @@ fn convert_primary_to_cem_with_cemt_pipeline(
         "sourceMap": source_map,
         "outputSpans": output_spans,
     }))
+}
+
+fn cem_presentation_primary_bytes(
+    context: &EngineContext,
+    stream: projection::CemTreeAstStream,
+    schema: &str,
+    scope: &ScopeConfig,
+    diagnostic_uri: &str,
+    presentation_kind: &str,
+) -> EngineResult<PrimaryBytes> {
+    let pipeline = cemt_output_pipeline_for_scope(direct_cem_output_pipeline(), scope);
+    let execution = execute_cem_tree_output_pipeline_with_context(
+        Some(context),
+        &pipeline,
+        stream,
+        None,
+        Vec::new(),
+        &format!("{presentation_kind}-cem-presentation"),
+        Some(presentation_kind),
+        Some(diagnostic_uri),
+    );
+    if execution
+        .diagnostics
+        .iter()
+        .any(|diagnostic| diagnostic.severity.is_hard_violation())
+    {
+        return Err(EngineError::Internal(format!(
+            "{presentation_kind} CEM-ML presentation pipeline failed: {}",
+            execution
+                .diagnostics
+                .iter()
+                .map(|diagnostic| diagnostic.message.as_str())
+                .collect::<Vec<_>>()
+                .join("; ")
+        )));
+    }
+    let text = execution
+        .output
+        .as_ref()
+        .and_then(Value::as_str)
+        .ok_or_else(|| {
+            EngineError::Internal(format!(
+                "{presentation_kind} CEM-ML presentation pipeline produced no text artifact"
+            ))
+        })?;
+    let bytes = text.as_bytes().to_vec();
+    Ok(PrimaryBytes {
+        content_type: CEM_ML_CONTENT_TYPE.to_owned(),
+        schema: Some(schema.to_owned()),
+        format_version: "cem-ml/1".to_owned(),
+        hash_scheme: "cem-text/1+blake3".to_owned(),
+        hash: text_content_hash(&bytes),
+        bytes,
+    })
+}
+
+#[allow(clippy::too_many_arguments)]
+fn inspect_cem_presentation_stream(
+    show: InspectView,
+    loaded: &LoadedInput,
+    document: &CemDocument,
+    display_uri: &str,
+    diagnostics: &[Diagnostic],
+    element_count: usize,
+    attribute_count: usize,
+) -> (projection::CemTreeAstStream, &'static str) {
+    match show {
+        InspectView::Ast => match loaded.ast_stream.as_ref() {
+            Some(LoadedInputAstStream::CssDocument(css)) => (
+                projection::css_ast_cem_presentation_stream(css),
+                CEM_AST_PROJECTION_SCHEMA_URI,
+            ),
+            _ => (
+                projection::ast_stream(
+                    document,
+                    Some(input_format_content_type(loaded.from_format)),
+                ),
+                CEM_AST_PROJECTION_SCHEMA_URI,
+            ),
+        },
+        InspectView::Events => match loaded.ast_stream.as_ref() {
+            Some(LoadedInputAstStream::CssDocument(css)) => (
+                projection::css_events_cem_presentation_stream(css),
+                CEM_EVENTS_PROJECTION_SCHEMA_URI,
+            ),
+            _ => (
+                projection::normalized_events_cem_presentation_stream(
+                    &loaded.bytes,
+                    loaded.from_format,
+                    display_uri,
+                ),
+                CEM_EVENTS_PROJECTION_SCHEMA_URI,
+            ),
+        },
+        InspectView::Tree => match loaded.ast_stream.as_ref() {
+            // CSS has a native syntax AST but no CEM DOM projection. Keep that
+            // distinction visible instead of pretending the CSS source is a
+            // generic CEM DOM.
+            Some(LoadedInputAstStream::CssDocument(css)) => (
+                projection::css_ast_cem_presentation_stream(css),
+                CEM_AST_PROJECTION_SCHEMA_URI,
+            ),
+            _ => (
+                projection::ast_stream(
+                    document,
+                    Some(input_format_content_type(loaded.from_format)),
+                ),
+                CEM_DOM_PROJECTION_SCHEMA_URI,
+            ),
+        },
+        InspectView::Summary => (
+            inspect_records_presentation_stream(
+                "summary",
+                display_uri,
+                vec![
+                    ("elements", element_count.to_string()),
+                    ("attributes", attribute_count.to_string()),
+                    ("diagnostics", diagnostics.len().to_string()),
+                ],
+                Vec::new(),
+            ),
+            CEM_AST_PROJECTION_SCHEMA_URI,
+        ),
+        InspectView::Diagnostics => (
+            inspect_records_presentation_stream(
+                "diagnostics",
+                display_uri,
+                Vec::new(),
+                diagnostics
+                    .iter()
+                    .map(|diagnostic| {
+                        vec![
+                            ("code", diagnostic.code.clone()),
+                            (
+                                "severity",
+                                inspect_severity_label(diagnostic.severity).to_owned(),
+                            ),
+                            ("message", diagnostic.message.clone()),
+                        ]
+                    })
+                    .collect(),
+            ),
+            CEM_AST_PROJECTION_SCHEMA_URI,
+        ),
+        InspectView::SourceOffsets => (
+            inspect_records_presentation_stream(
+                "source-offsets",
+                display_uri,
+                Vec::new(),
+                document
+                    .iter()
+                    .filter_map(crate::query::origin_byte_range)
+                    .map(|range| {
+                        vec![
+                            ("byte-offset", range.start.to_string()),
+                            ("byte-length", range.len.to_string()),
+                        ]
+                    })
+                    .collect(),
+            ),
+            CEM_AST_PROJECTION_SCHEMA_URI,
+        ),
+    }
+}
+
+fn inspect_records_presentation_stream(
+    view: &str,
+    display_uri: &str,
+    fields: Vec<(&str, String)>,
+    records: Vec<Vec<(&str, String)>>,
+) -> projection::CemTreeAstStream {
+    let source = SourceMapStack::default();
+    let mut children = vec![inspect_projection_node(
+        "inspection",
+        "inspection",
+        None,
+        0,
+        Some("view"),
+        Some(view),
+        &source,
+    )];
+    for (index, (name, value)) in fields.into_iter().enumerate() {
+        children.push(inspect_projection_node(
+            &format!("field-{index}"),
+            "field",
+            Some("inspection"),
+            index,
+            Some(name),
+            Some(&value),
+            &source,
+        ));
+    }
+    for (index, record) in records.into_iter().enumerate() {
+        let record_id = format!("record-{index}");
+        children.push(inspect_projection_node(
+            &record_id,
+            "record",
+            Some("inspection"),
+            index,
+            None,
+            None,
+            &source,
+        ));
+        for (field_index, (name, value)) in record.into_iter().enumerate() {
+            children.push(inspect_projection_node(
+                &format!("{record_id}-field-{field_index}"),
+                "field",
+                Some(&record_id),
+                field_index,
+                Some(name),
+                Some(&value),
+                &source,
+            ));
+        }
+    }
+    let root = projection::CemTreeAstNode::Element {
+        name: "ast".to_owned(),
+        attributes: vec![
+            inspect_projection_attribute("schema", CEM_ML_SCHEMA_URI, &source),
+            inspect_projection_attribute("content-type", CEM_ML_CONTENT_TYPE, &source),
+            inspect_projection_attribute("hash-scheme", "blake3", &source),
+            inspect_projection_attribute("source-id", display_uri, &source),
+        ],
+        children,
+        source: source.clone(),
+    };
+    projection::CemTreeAstStream::new(vec![
+        inspect_projection_directive("@doc", "cem-ml 1", &source),
+        inspect_projection_directive(
+            "@ns",
+            &format!("cemast = \"{CEM_AST_PROJECTION_SCHEMA_URI}\""),
+            &source,
+        ),
+        inspect_projection_directive("@default", "cemast", &source),
+        root,
+    ])
+}
+
+#[allow(clippy::too_many_arguments)]
+fn inspect_projection_node(
+    id: &str,
+    kind: &str,
+    parent_id: Option<&str>,
+    order: usize,
+    name: Option<&str>,
+    value: Option<&str>,
+    source: &SourceMapStack,
+) -> projection::CemTreeAstNode {
+    let mut attributes = vec![
+        inspect_projection_attribute("id", id, source),
+        inspect_projection_attribute("kind", kind, source),
+        inspect_projection_attribute("order", order.to_string(), source),
+    ];
+    if let Some(parent_id) = parent_id {
+        attributes.push(inspect_projection_attribute("parent-id", parent_id, source));
+    }
+    if let Some(name) = name {
+        attributes.push(inspect_projection_attribute("name", name, source));
+    }
+    if let Some(value) = value {
+        attributes.push(inspect_projection_attribute("value", value, source));
+    }
+    projection::CemTreeAstNode::Element {
+        name: "node".to_owned(),
+        attributes,
+        children: Vec::new(),
+        source: source.clone(),
+    }
+}
+
+fn inspect_projection_directive(
+    name: &str,
+    value: &str,
+    source: &SourceMapStack,
+) -> projection::CemTreeAstNode {
+    projection::CemTreeAstNode::Element {
+        name: name.to_owned(),
+        attributes: Vec::new(),
+        children: vec![projection::CemTreeAstNode::Text {
+            value: value.to_owned(),
+            source: source.clone(),
+        }],
+        source: source.clone(),
+    }
+}
+
+fn inspect_projection_attribute(
+    name: &str,
+    value: impl Into<String>,
+    source: &SourceMapStack,
+) -> projection::CemTreeAstAttribute {
+    projection::CemTreeAstAttribute {
+        name: name.to_owned(),
+        value: Some(value.into()),
+        source: source.clone(),
+    }
+}
+
+fn inspect_severity_label(severity: Severity) -> &'static str {
+    match severity {
+        Severity::Info => "info",
+        Severity::Warning => "warning",
+        Severity::Error => "error",
+        Severity::Fatal => "fatal",
+    }
 }
 
 fn convert_primary_to_markup_with_cemt_pipeline(
@@ -9184,7 +9498,7 @@ fn observe_pipeline_with_scope(
 impl CemMlEngine for RealCemMlEngine {
     fn parse(&self, request: ParseRequest) -> EngineResult<ParseResponse> {
         request.context.ensure_active()?;
-        let loaded = load_input_through_lifecycle(&request.input, &request.context);
+        let mut loaded = load_input_through_lifecycle(&request.input, &request.context);
         let from_format = loaded.from_format;
         let run = run_pipeline_as_scoped_with_context_and_source_uri(
             &loaded.bytes,
@@ -9206,13 +9520,61 @@ impl CemMlEngine for RealCemMlEngine {
             &request.input.root_scope,
             "input",
         );
-        diagnostics.extend(loaded.diagnostics);
+        diagnostics.append(&mut loaded.diagnostics);
         diagnostics.extend(run.diagnostics);
         project_diagnostics_for_source(&mut diagnostics, &loaded.bytes);
         project_diagnostic_uris(&mut diagnostics, &request.input, &request.context);
+        let primary_bytes = request
+            .presentation_scope
+            .as_ref()
+            .filter(|_| {
+                matches!(
+                    request.projection,
+                    ParseProjection::Ast | ParseProjection::Events
+                )
+            })
+            .map(|scope| {
+                let show = match request.projection {
+                    ParseProjection::Ast => InspectView::Ast,
+                    ParseProjection::Events => InspectView::Events,
+                    ParseProjection::DomJson | ParseProjection::Json => {
+                        unreachable!("JSON parse projections do not request CEM-ML presentation")
+                    }
+                };
+                let display_uri = input_uri(&request.input, &request.context);
+                let element_count = run
+                    .document
+                    .iter()
+                    .filter(|node| matches!(node, crate::parser::CemAstNode::Element { .. }))
+                    .count();
+                let attribute_count = run
+                    .document
+                    .iter()
+                    .filter(|node| matches!(node, crate::parser::CemAstNode::Attribute { .. }))
+                    .count();
+                let (stream, schema) = inspect_cem_presentation_stream(
+                    show,
+                    &loaded,
+                    &run.document,
+                    &display_uri,
+                    &diagnostics,
+                    element_count,
+                    attribute_count,
+                );
+                cem_presentation_primary_bytes(
+                    &request.context,
+                    stream,
+                    schema,
+                    scope,
+                    &display_uri,
+                    "parse",
+                )
+            })
+            .transpose()?;
         request.context.ensure_active()?;
         Ok(ParseResponse {
             primary,
+            primary_bytes,
             diagnostics,
         })
     }
@@ -9260,7 +9622,7 @@ impl CemMlEngine for RealCemMlEngine {
     fn inspect(&self, request: InspectRequest) -> EngineResult<InspectResponse> {
         request.context.ensure_active()?;
         let started_at = Instant::now();
-        let loaded = load_input_through_lifecycle(&request.input, &request.context);
+        let mut loaded = load_input_through_lifecycle(&request.input, &request.context);
         let from_format = loaded.from_format;
         let run = run_pipeline_as_scoped_with_context_and_source_uri(
             &loaded.bytes,
@@ -9274,7 +9636,7 @@ impl CemMlEngine for RealCemMlEngine {
             &request.input.root_scope,
             "input",
         );
-        diagnostics.extend(loaded.diagnostics);
+        diagnostics.append(&mut loaded.diagnostics);
         diagnostics.extend(run.diagnostics);
         diagnostics.extend(time_budget_diagnostics(
             &request.input.root_scope,
@@ -9284,26 +9646,47 @@ impl CemMlEngine for RealCemMlEngine {
         project_diagnostics_for_source(&mut diagnostics, &loaded.bytes);
         project_diagnostic_uris(&mut diagnostics, &request.input, &request.context);
         let display_uri = input_uri(&request.input, &request.context);
+        let element_count = run
+            .document
+            .iter()
+            .filter(|node| matches!(node, crate::parser::CemAstNode::Element { .. }))
+            .count();
+        let attribute_count = run
+            .document
+            .iter()
+            .filter(|node| matches!(node, crate::parser::CemAstNode::Attribute { .. }))
+            .count();
+        let primary_bytes = request
+            .presentation_scope
+            .as_ref()
+            .map(|scope| {
+                let (stream, schema) = inspect_cem_presentation_stream(
+                    request.show,
+                    &loaded,
+                    &run.document,
+                    &display_uri,
+                    &diagnostics,
+                    element_count,
+                    attribute_count,
+                );
+                cem_presentation_primary_bytes(
+                    &request.context,
+                    stream,
+                    schema,
+                    scope,
+                    &display_uri,
+                    "inspect",
+                )
+            })
+            .transpose()?;
         let body = match request.show {
-            InspectView::Summary => {
-                let elements = run
-                    .document
-                    .iter()
-                    .filter(|n| matches!(n, crate::parser::CemAstNode::Element { .. }))
-                    .count();
-                let attributes = run
-                    .document
-                    .iter()
-                    .filter(|n| matches!(n, crate::parser::CemAstNode::Attribute { .. }))
-                    .count();
-                json!({
-                    "kind": "summary",
-                    "input": display_uri,
-                    "elements": elements,
-                    "attributes": attributes,
-                    "diagnosticCount": diagnostics.len(),
-                })
-            }
+            InspectView::Summary => json!({
+                "kind": "summary",
+                "input": display_uri,
+                "elements": element_count,
+                "attributes": attribute_count,
+                "diagnosticCount": diagnostics.len(),
+            }),
             InspectView::Ast => {
                 projection::ast_stream(&run.document, Some(input_format_content_type(from_format)))
                     .into_cemt_subject()
@@ -9336,6 +9719,7 @@ impl CemMlEngine for RealCemMlEngine {
         Ok(InspectResponse {
             view: request.show,
             body,
+            primary_bytes,
         })
     }
 
@@ -16714,6 +17098,7 @@ mod tests {
             projection: ParseProjection::DomJson,
             fail_level: FailLevel::Parse,
             preserve_source_offsets: false,
+            presentation_scope: None,
             context: ctx(),
         };
         let resp = RealCemMlEngine::new().parse(req).unwrap();
@@ -16729,6 +17114,7 @@ mod tests {
             projection: ParseProjection::DomJson,
             fail_level: FailLevel::Parse,
             preserve_source_offsets: false,
+            presentation_scope: None,
             context: ctx().with_abort_signal(abort),
         };
 
@@ -16754,6 +17140,7 @@ mod tests {
             projection: ParseProjection::DomJson,
             fail_level: FailLevel::Parse,
             preserve_source_offsets: false,
+            presentation_scope: None,
             context: ctx(),
         };
 
@@ -16780,6 +17167,7 @@ mod tests {
             projection: ParseProjection::DomJson,
             fail_level: FailLevel::Parse,
             preserve_source_offsets: false,
+            presentation_scope: None,
             context: ctx(),
         };
 
@@ -17014,6 +17402,7 @@ mod tests {
             projection: ParseProjection::DomJson,
             fail_level: FailLevel::Parse,
             preserve_source_offsets: false,
+            presentation_scope: None,
             context: ctx(),
         };
 
@@ -17139,6 +17528,7 @@ mod tests {
         let req = InspectRequest {
             input: source,
             show: InspectView::Diagnostics,
+            presentation_scope: None,
             context: ctx(),
         };
 
@@ -17245,6 +17635,7 @@ mod tests {
             projection: ParseProjection::Events,
             fail_level: FailLevel::Parse,
             preserve_source_offsets: false,
+            presentation_scope: None,
             context: ctx(),
         };
         let resp = RealCemMlEngine::new().parse(req).unwrap();
@@ -17261,6 +17652,7 @@ mod tests {
             projection: ParseProjection::DomJson,
             fail_level: FailLevel::Parse,
             preserve_source_offsets: false,
+            presentation_scope: None,
             context: EngineContext {
                 content_type: Some(crate::legacy_custom_element::TEMPLATE_LANG.to_owned()),
                 ..ctx()
@@ -19600,6 +19992,7 @@ mod tests {
         let req = InspectRequest {
             input: input(b"{button @type=submit | Save}", "in"),
             show: InspectView::Summary,
+            presentation_scope: None,
             context: ctx(),
         };
         let resp = RealCemMlEngine::new().inspect(req).unwrap();
@@ -19609,10 +20002,187 @@ mod tests {
     }
 
     #[test]
+    fn inspect_css_ast_presents_typed_cem_ml_without_a_json_bridge() {
+        let css = b".card { color: red; }";
+        let mut source = input(css, "component.css");
+        source.identity = Some(FormatIdentity {
+            content_type: Some(CSS_CONTENT_TYPE.to_owned()),
+            schema: Some(CSS_SCHEMA_URI.to_owned()),
+            ..FormatIdentity::default()
+        });
+        let req = InspectRequest {
+            input: source,
+            show: InspectView::Ast,
+            presentation_scope: Some(ScopeConfig {
+                cemt_formatter_profile: Some("tabular".to_owned()),
+                ..ScopeConfig::default()
+            }),
+            context: ctx(),
+        };
+
+        let resp = RealCemMlEngine::new().inspect(req).unwrap();
+        let primary = resp
+            .primary_bytes
+            .as_ref()
+            .expect("CEM-ML AST presentation bytes");
+        assert_eq!(primary.content_type, CEM_ML_CONTENT_TYPE);
+        assert_eq!(
+            primary.schema.as_deref(),
+            Some(CEM_AST_PROJECTION_SCHEMA_URI)
+        );
+        let presentation = std::str::from_utf8(&primary.bytes).unwrap();
+        assert!(
+            presentation.starts_with("@doc cem-ml 1\n"),
+            "{presentation}"
+        );
+        assert!(presentation.contains("@ns cemast"), "{presentation}");
+        assert!(presentation.contains("{ast "), "{presentation}");
+        assert!(
+            presentation.contains("@content-type=text/css"),
+            "{presentation}"
+        );
+        assert!(presentation.contains("{token "), "{presentation}");
+        assert!(!presentation.trim_start().starts_with(['{', '[']));
+        assert!(!presentation.contains("\"kind\":"));
+    }
+
+    #[test]
+    fn inspect_css_ast_terminal_presentation_uses_tabular_cem_colorizer() {
+        let mut source = input(b"a { color: red; }", "component.css");
+        source.identity = Some(FormatIdentity {
+            content_type: Some(CSS_CONTENT_TYPE.to_owned()),
+            schema: Some(CSS_SCHEMA_URI.to_owned()),
+            ..FormatIdentity::default()
+        });
+        let req = InspectRequest {
+            input: source,
+            show: InspectView::Ast,
+            presentation_scope: Some(ScopeConfig {
+                cemt_formatter_profile: Some("tabular".to_owned()),
+                cemt_color_profile: Some("terminal".to_owned()),
+                output_color_type: Some("ansi-256".to_owned()),
+                ..ScopeConfig::default()
+            }),
+            context: ctx(),
+        };
+
+        let resp = RealCemMlEngine::new().inspect(req).unwrap();
+        let presentation = std::str::from_utf8(
+            &resp
+                .primary_bytes
+                .as_ref()
+                .expect("terminal CEM-ML AST presentation")
+                .bytes,
+        )
+        .unwrap();
+        assert!(presentation.contains("\u{1b}["), "{presentation:?}");
+        assert!(!presentation.contains("\"kind\":"));
+    }
+
+    #[test]
+    fn parse_css_events_presents_typed_cem_ml_without_a_json_bridge() {
+        let mut source = input(b".card { color: red; }", "component.css");
+        source.identity = Some(FormatIdentity {
+            content_type: Some(CSS_CONTENT_TYPE.to_owned()),
+            schema: Some(CSS_SCHEMA_URI.to_owned()),
+            ..FormatIdentity::default()
+        });
+        let req = ParseRequest {
+            input: source,
+            projection: ParseProjection::Events,
+            fail_level: FailLevel::Parse,
+            preserve_source_offsets: false,
+            presentation_scope: Some(ScopeConfig {
+                cemt_formatter_profile: Some("tabular".to_owned()),
+                output_color_type: Some("none".to_owned()),
+                ..ScopeConfig::default()
+            }),
+            context: ctx(),
+        };
+
+        let resp = RealCemMlEngine::new().parse(req).unwrap();
+        let primary = resp
+            .primary_bytes
+            .as_ref()
+            .expect("CEM-ML event presentation bytes");
+        assert_eq!(primary.content_type, CEM_ML_CONTENT_TYPE);
+        assert_eq!(
+            primary.schema.as_deref(),
+            Some(CEM_EVENTS_PROJECTION_SCHEMA_URI)
+        );
+        let presentation = std::str::from_utf8(&primary.bytes).unwrap();
+        assert!(
+            presentation.starts_with("@doc cem-ml 1\n"),
+            "{presentation}"
+        );
+        assert!(presentation.contains("@ns cemevents"), "{presentation}");
+        assert!(presentation.contains("{event-stream "), "{presentation}");
+        assert!(presentation.contains("{event "), "{presentation}");
+        assert!(!presentation.contains("\u{1b}["), "{presentation:?}");
+        assert!(!presentation.contains("\"kind\":"));
+    }
+
+    #[test]
+    fn every_inspect_view_has_a_typed_cem_ml_presentation() {
+        for show in [
+            InspectView::Summary,
+            InspectView::Ast,
+            InspectView::Events,
+            InspectView::Diagnostics,
+            InspectView::SourceOffsets,
+            InspectView::Tree,
+        ] {
+            let mut source = input(b".card { color: red; }", "component.css");
+            source.identity = Some(FormatIdentity {
+                content_type: Some(CSS_CONTENT_TYPE.to_owned()),
+                schema: Some(CSS_SCHEMA_URI.to_owned()),
+                ..FormatIdentity::default()
+            });
+            let req = InspectRequest {
+                input: source,
+                show,
+                presentation_scope: Some(ScopeConfig {
+                    cemt_formatter_profile: Some("tabular".to_owned()),
+                    output_color_type: Some("none".to_owned()),
+                    ..ScopeConfig::default()
+                }),
+                context: ctx(),
+            };
+
+            let resp = RealCemMlEngine::new().inspect(req).unwrap();
+            let primary = resp
+                .primary_bytes
+                .as_ref()
+                .expect("CEM-ML inspect presentation bytes");
+            let expected_schema = if show == InspectView::Events {
+                CEM_EVENTS_PROJECTION_SCHEMA_URI
+            } else {
+                CEM_AST_PROJECTION_SCHEMA_URI
+            };
+            assert_eq!(primary.content_type, CEM_ML_CONTENT_TYPE, "{show:?}");
+            assert_eq!(primary.schema.as_deref(), Some(expected_schema), "{show:?}");
+            let presentation = std::str::from_utf8(&primary.bytes).unwrap();
+            assert!(
+                presentation.starts_with("@doc cem-ml 1\n"),
+                "{show:?}: {presentation}"
+            );
+            assert!(
+                !presentation.contains("\u{1b}["),
+                "{show:?}: {presentation:?}"
+            );
+            assert!(
+                !presentation.contains("\"kind\":"),
+                "{show:?}: {presentation}"
+            );
+        }
+    }
+
+    #[test]
     fn inspect_legacy_custom_element_content_type_uses_lifecycle_adapter() {
         let req = InspectRequest {
             input: input(br#"<button type="button">Go</button>"#, "legacy.html"),
             show: InspectView::Summary,
+            presentation_scope: None,
             context: EngineContext {
                 content_type: Some(crate::legacy_custom_element::TEMPLATE_LANG.to_owned()),
                 ..ctx()

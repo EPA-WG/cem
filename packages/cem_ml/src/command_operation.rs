@@ -226,6 +226,7 @@ pub fn prepare_command_operation_v1(
             projection: *projection,
             fail_level,
             preserve_source_offsets: *preserve_source_offsets,
+            presentation_scope: None,
             context,
         })),
         PortableOperationRequestV1::Validate {
@@ -252,6 +253,7 @@ pub fn prepare_command_operation_v1(
             Ok(PreparedPortableOperationV1::Inspect(InspectRequest {
                 input: engine_input(request, plan, input_id)?,
                 show: *show,
+                presentation_scope: None,
                 context,
             }))
         }

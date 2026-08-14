@@ -31,25 +31,6 @@ pub struct CssDocumentAst {
     pub recovery_count: usize,
 }
 
-impl CssDocumentAst {
-    #[cfg(test)]
-    pub fn to_cemt_subject(&self) -> Value {
-        json!({
-            "kind": "css-document",
-            "contentType": self.source.media_type,
-            "schema": CSS_SCHEMA_URI,
-            "category": "css-document",
-            "source": self.source.to_cemt_subject(),
-            "entryMode": self.entry_mode.as_str(),
-            "encodingReport": self.encoding_report.to_cemt_subject(),
-            "parseFacts": self.facts.iter().map(CssFact::to_cemt_subject).collect::<Vec<_>>(),
-            "events": self.events.iter().map(CssEventAst::to_cemt_subject).collect::<Vec<_>>(),
-            "lineEnding": self.line_ending,
-            "recoveryCount": self.recovery_count,
-        })
-    }
-}
-
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CssDocumentSource {
     pub uri: String,
@@ -72,17 +53,6 @@ impl CssDocumentSource {
             parameters,
             byte_length: request.bytes.len(),
         }
-    }
-
-    #[cfg(test)]
-    fn to_cemt_subject(&self) -> Value {
-        json!({
-            "uri": self.uri,
-            "contentType": self.content_type,
-            "mediaType": self.media_type,
-            "parameters": self.parameters,
-            "byteLength": self.byte_length,
-        })
     }
 }
 
@@ -112,19 +82,6 @@ pub struct CssEncodingReportAst {
     pub decoder_status: String,
 }
 
-impl CssEncodingReportAst {
-    #[cfg(test)]
-    fn to_cemt_subject(&self) -> Value {
-        json!({
-            "mimeCharset": self.mime_charset,
-            "stylesheetCharset": self.stylesheet_charset,
-            "bom": self.bom,
-            "normalizedEncoding": self.normalized_encoding,
-            "decoderStatus": self.decoder_status,
-        })
-    }
-}
-
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CssEventAst {
     pub index: usize,
@@ -136,23 +93,6 @@ pub struct CssEventAst {
     pub recovered: bool,
     pub source_range: CssSourceRange,
     pub source_map: SourceMapStack,
-}
-
-impl CssEventAst {
-    #[cfg(test)]
-    fn to_cemt_subject(&self) -> Value {
-        json!({
-            "index": self.index,
-            "depth": self.depth,
-            "kind": self.kind,
-            "tokenKind": self.token_kind,
-            "value": self.value,
-            "lexeme": self.lexeme,
-            "recovered": self.recovered,
-            "sourceRange": self.source_range.to_cemt_subject(),
-            "sourceMap": serde_json::to_value(&self.source_map).unwrap_or(Value::Null),
-        })
-    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -198,16 +138,6 @@ impl CssSourceRange {
                 },
             }],
         }
-    }
-
-    #[cfg(test)]
-    fn to_cemt_subject(self) -> Value {
-        json!({
-            "byteOffset": self.start.byte_offset,
-            "byteLength": self.byte_length,
-            "line": self.start.line,
-            "column": self.start.column,
-        })
     }
 }
 
@@ -275,18 +205,6 @@ pub struct CssFact {
     pub source_range: Option<CssSourceRange>,
     pub message: String,
     pub value: Option<String>,
-}
-
-impl CssFact {
-    #[cfg(test)]
-    fn to_cemt_subject(&self) -> Value {
-        json!({
-            "kind": self.kind.as_str(),
-            "sourceRange": self.source_range.map(CssSourceRange::to_cemt_subject),
-            "message": self.message,
-            "value": self.value,
-        })
-    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

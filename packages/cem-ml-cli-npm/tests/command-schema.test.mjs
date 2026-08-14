@@ -54,7 +54,7 @@ test('native-accepted command fixtures normalize and round trip through both npm
     }
 
     const parse = nodeApi.parseCemMlCommand(fixture.cases[0].argv);
-    assert.equal(parse.options.format, 'dom-json');
+    assert.equal(parse.options.format, 'ast');
     assert.deepEqual(parse.options.namespaces, [
         'ui=https://cem.dev/ns/ui',
         'data=https://cem.dev/ns/data',

@@ -837,6 +837,8 @@ pub struct ParseRequest {
     pub projection: ParseProjection,
     pub fail_level: FailLevel,
     pub preserve_source_offsets: bool,
+    /// Optional CEM-ML visualization request for non-JSON projections.
+    pub presentation_scope: Option<ScopeConfig>,
     pub context: EngineContext,
 }
 
@@ -861,6 +863,9 @@ pub struct CheckRequest {
 pub struct InspectRequest {
     pub input: EngineInput,
     pub show: InspectView,
+    /// Optional human presentation request. `None` keeps inspect as a typed,
+    /// host-owned result and does not manufacture a textual view.
+    pub presentation_scope: Option<ScopeConfig>,
     pub context: EngineContext,
 }
 
@@ -1072,7 +1077,13 @@ pub struct FixtureRoundtripRequest {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ParseResponse {
+    /// Structured compatibility result for programmatic hosts and explicit
+    /// JSON formats. Human-facing presentation uses `primary_bytes`.
     pub primary: Value,
+    /// Typed CEM-ML presentation artifact requested by the caller. Keeping it
+    /// outside `primary` prevents JSON from becoming an AST/DOM handoff.
+    #[serde(skip)]
+    pub primary_bytes: Option<PrimaryBytes>,
     pub diagnostics: Vec<Diagnostic>,
 }
 
@@ -1092,6 +1103,11 @@ pub struct CheckResponse {
 pub struct InspectResponse {
     pub view: InspectView,
     pub body: Value,
+    /// Target-native CEM-ML presentation bytes. They are deliberately outside
+    /// the structured command-service wire result; hosts request and transport
+    /// presentation artifacts explicitly.
+    #[serde(skip)]
+    pub primary_bytes: Option<PrimaryBytes>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

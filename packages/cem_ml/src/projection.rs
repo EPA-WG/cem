@@ -17,7 +17,8 @@ use crate::parser::{AstNodeId, CemAstNode, ExpandedName};
 use crate::schema::registry::{
     CEM_AST_PROJECTION_CONTENT_TYPE, CEM_AST_PROJECTION_SCHEMA_URI,
     CEM_DOM_PROJECTION_CONTENT_TYPE, CEM_DOM_PROJECTION_SCHEMA_URI,
-    CEM_EVENTS_PROJECTION_CONTENT_TYPE, CEM_EVENTS_PROJECTION_SCHEMA_URI,
+    CEM_EVENTS_PROJECTION_CONTENT_TYPE, CEM_EVENTS_PROJECTION_SCHEMA_URI, CEM_ML_SCHEMA_URI,
+    CSS_SCHEMA_URI,
 };
 use crate::source::{ByteRange, BytesSource, SourceId};
 use crate::source_map::{FrameSpan, SourceMapFrame, SourceMapStack, TransformKind};
@@ -25,6 +26,7 @@ use crate::tokenizer::cem::CemTokenizer;
 use crate::tokenizer::html::HtmlTokenizer;
 use crate::tokenizer::xml::XmlTokenizer;
 use crate::tokenizer::SchemaTokenizer;
+use crate::validation::css::{CssDocumentAst, CssEventAst};
 use serde::ser::{SerializeMap, SerializeSeq};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use serde_json::{json, Value};
@@ -2168,6 +2170,535 @@ fn project_byte_range(range: Option<ByteRange>) -> Value {
 /// Project the parsed AST as the source-map-bearing CEM tree stream.
 pub fn ast_stream(doc: &CemDocument, source_content_type: Option<&str>) -> CemTreeAstStream {
     cem_tree_nodes_with_source_content_type(doc, source_content_type)
+}
+
+/// Project the native CSS AST directly into the generic AST vocabulary while
+/// keeping CEM-ML as the textual presentation syntax. This is intentionally a
+/// typed Rust-to-CEM-tree projection: JSON is not an intermediate form.
+pub fn css_ast_cem_presentation_stream(document: &CssDocumentAst) -> CemTreeAstStream {
+    let source = document
+        .events
+        .first()
+        .map(|event| event.source_map.clone())
+        .unwrap_or_default();
+    let mut children = Vec::new();
+    children.push(projection_node(
+        "css-document",
+        "css-document",
+        None,
+        0,
+        Some("entry-mode"),
+        Some(document.entry_mode.as_str()),
+        &document.source.uri,
+        None,
+        source.clone(),
+    ));
+
+    let mut field_order = 1usize;
+    for (name, value) in css_document_metadata_fields(document) {
+        children.push(projection_node(
+            &format!("field-{field_order}"),
+            "field",
+            Some("css-document"),
+            field_order,
+            Some(name.as_str()),
+            Some(value.as_str()),
+            &document.source.uri,
+            None,
+            source.clone(),
+        ));
+        field_order += 1;
+    }
+
+    for (index, fact) in document.facts.iter().enumerate() {
+        let fact_source = fact
+            .source_range
+            .map(|range| range.source_map())
+            .unwrap_or_else(|| source.clone());
+        children.push(projection_node(
+            &format!("fact-{index}"),
+            "css-fact",
+            Some("css-document"),
+            field_order + index,
+            Some(fact.kind.as_str()),
+            Some(&fact.message),
+            &document.source.uri,
+            fact.source_range
+                .map(|range| (range.start.byte_offset, range.byte_length)),
+            fact_source,
+        ));
+    }
+
+    let mut open_by_depth: Vec<Option<String>> = Vec::new();
+    for event in &document.events {
+        let node_id = format!("event-{}", event.index);
+        let parent_id = css_event_parent_id(event, &open_by_depth);
+        children.push(projection_node(
+            &node_id,
+            &event.kind,
+            Some(parent_id.as_deref().unwrap_or("css-document")),
+            event.index,
+            Some(&event.token_kind),
+            event.value.as_deref(),
+            &document.source.uri,
+            Some((
+                event.source_range.start.byte_offset,
+                event.source_range.byte_length,
+            )),
+            event.source_map.clone(),
+        ));
+        children.push(projection_token(event, &document.source.uri));
+        if event.kind == "block-open" {
+            if open_by_depth.len() <= event.depth {
+                open_by_depth.resize(event.depth + 1, None);
+            }
+            open_by_depth[event.depth] = Some(node_id);
+        } else if event.kind == "block-close" && open_by_depth.len() > event.depth {
+            open_by_depth[event.depth] = None;
+            open_by_depth.truncate(event.depth + 1);
+        }
+        if event.recovered {
+            children.push(projection_element(
+                "diagnostic",
+                vec![
+                    projection_attribute("code", "cem.css.recovered", &event.source_map),
+                    projection_attribute("severity", "warning", &event.source_map),
+                    projection_attribute("source-id", &document.source.uri, &event.source_map),
+                    projection_attribute(
+                        "byte-offset",
+                        event.source_range.start.byte_offset.to_string(),
+                        &event.source_map,
+                    ),
+                    projection_attribute(
+                        "byte-length",
+                        event.source_range.byte_length.to_string(),
+                        &event.source_map,
+                    ),
+                    projection_attribute(
+                        "message",
+                        format!("recovered CSS {}", event.token_kind),
+                        &event.source_map,
+                    ),
+                ],
+                Vec::new(),
+                event.source_map.clone(),
+            ));
+        }
+    }
+
+    let root = projection_element(
+        "ast",
+        vec![
+            projection_attribute("schema", CSS_SCHEMA_URI, &source),
+            projection_attribute("content-type", &document.source.media_type, &source),
+            projection_attribute("hash-scheme", "blake3", &source),
+        ],
+        children,
+        source.clone(),
+    );
+    projection_vocabulary_document("cemast", CEM_AST_PROJECTION_SCHEMA_URI, root, source)
+}
+
+/// Present the native CSS event stream in CEM-ML syntax under the registered
+/// event projection vocabulary. Concatenating the event `value` attributes in
+/// sequence recreates the original CSS bytes after CEM string decoding.
+pub fn css_events_cem_presentation_stream(document: &CssDocumentAst) -> CemTreeAstStream {
+    let source = document
+        .events
+        .first()
+        .map(|event| event.source_map.clone())
+        .unwrap_or_default();
+    let events = document
+        .events
+        .iter()
+        .map(|event| {
+            projection_element(
+                "event",
+                vec![
+                    projection_attribute("sequence", event.index.to_string(), &event.source_map),
+                    projection_attribute(
+                        "kind",
+                        css_projection_event_kind(&event.kind),
+                        &event.source_map,
+                    ),
+                    projection_attribute("name", &event.token_kind, &event.source_map),
+                    projection_attribute("value", &event.lexeme, &event.source_map),
+                    projection_attribute("source-id", &document.source.uri, &event.source_map),
+                    projection_attribute(
+                        "byte-offset",
+                        event.source_range.start.byte_offset.to_string(),
+                        &event.source_map,
+                    ),
+                    projection_attribute(
+                        "byte-length",
+                        event.source_range.byte_length.to_string(),
+                        &event.source_map,
+                    ),
+                ],
+                Vec::new(),
+                event.source_map.clone(),
+            )
+        })
+        .collect();
+    let root = projection_element(
+        "event-stream",
+        vec![
+            projection_attribute("schema", CSS_SCHEMA_URI, &source),
+            projection_attribute("content-type", &document.source.media_type, &source),
+            projection_attribute("hash-scheme", "blake3", &source),
+        ],
+        events,
+        source.clone(),
+    );
+    projection_vocabulary_document("cemevents", CEM_EVENTS_PROJECTION_SCHEMA_URI, root, source)
+}
+
+/// Present a tokenizer-normalized CEM/HTML/XML event stream as CEM-ML. The
+/// projection stays typed until the CEM writer boundary.
+pub fn normalized_events_cem_presentation_stream(
+    input: &[u8],
+    from_format: InputFormat,
+    source_uri: &str,
+) -> CemTreeAstStream {
+    let stream = NormalizedEventStream::from_source(input, from_format);
+    let content_type = match from_format {
+        InputFormat::Cem => "application/cem",
+        InputFormat::Html => "text/html",
+        InputFormat::Xml => "application/xml",
+    };
+    let events = stream
+        .as_events()
+        .iter()
+        .enumerate()
+        .map(|(sequence, event)| {
+            let (kind, name, value, byte_range) = normalized_event_presentation_fields(event);
+            let source = projection_source_map(byte_range, content_type);
+            let mut attributes = vec![
+                projection_attribute("sequence", sequence.to_string(), &source),
+                projection_attribute("kind", kind, &source),
+                projection_attribute("source-id", source_uri, &source),
+                projection_attribute("byte-offset", byte_range.start.to_string(), &source),
+                projection_attribute("byte-length", byte_range.len.to_string(), &source),
+            ];
+            if let Some(name) = name {
+                attributes.push(projection_attribute("name", name, &source));
+            }
+            if let Some(value) = value {
+                attributes.push(projection_attribute("value", value, &source));
+            }
+            projection_element("event", attributes, Vec::new(), source)
+        })
+        .collect();
+    let source = projection_source_map(
+        ByteRange::new(0, u32::try_from(input.len()).unwrap_or(u32::MAX)),
+        content_type,
+    );
+    let root = projection_element(
+        "event-stream",
+        vec![
+            projection_attribute("schema", CEM_ML_SCHEMA_URI, &source),
+            projection_attribute("content-type", content_type, &source),
+            projection_attribute("hash-scheme", "blake3", &source),
+        ],
+        events,
+        source.clone(),
+    );
+    projection_vocabulary_document("cemevents", CEM_EVENTS_PROJECTION_SCHEMA_URI, root, source)
+}
+
+fn normalized_event_presentation_fields(
+    event: &NormalizedEvent,
+) -> (&'static str, Option<String>, Option<String>, ByteRange) {
+    match event {
+        NormalizedEvent::OpenScope {
+            name, byte_range, ..
+        } => ("open", Some(name.lexical_name.clone()), None, *byte_range),
+        NormalizedEvent::CloseScope {
+            name, byte_range, ..
+        } => ("close", Some(name.lexical_name.clone()), None, *byte_range),
+        NormalizedEvent::Name { name, byte_range } => {
+            ("name", Some(name.lexical_name.clone()), None, *byte_range)
+        }
+        NormalizedEvent::Value { value, byte_range } => (
+            "value",
+            None,
+            Some(scalar_presentation_value(value)),
+            *byte_range,
+        ),
+        NormalizedEvent::Trivia {
+            kind,
+            data,
+            byte_range,
+        } => (
+            "trivia",
+            Some(
+                match kind {
+                    TriviaKind::Whitespace => "whitespace",
+                    TriviaKind::Comment => "comment",
+                }
+                .to_owned(),
+            ),
+            Some(data.clone()),
+            *byte_range,
+        ),
+        NormalizedEvent::ProcessingInstruction {
+            target,
+            data,
+            byte_range,
+        } => (
+            "processing-instruction",
+            Some(target.clone()),
+            Some(data.clone()),
+            *byte_range,
+        ),
+        NormalizedEvent::Separator { kind, byte_range } => (
+            "separator",
+            Some(
+                match kind {
+                    SeparatorKind::ElementBoundary => "element-boundary",
+                    SeparatorKind::Comma => "comma",
+                    SeparatorKind::Colon => "colon",
+                    SeparatorKind::Delimiter => "delimiter",
+                    SeparatorKind::Newline => "newline",
+                }
+                .to_owned(),
+            ),
+            None,
+            *byte_range,
+        ),
+        NormalizedEvent::ModeSwitch {
+            content_type,
+            handoff,
+            ..
+        } => (
+            "mode-switch",
+            None,
+            Some(content_type.clone()),
+            handoff.source_span,
+        ),
+        NormalizedEvent::Error {
+            code, byte_range, ..
+        } => ("error", Some(code.clone()), None, *byte_range),
+    }
+}
+
+fn scalar_presentation_value(value: &ScalarValue) -> String {
+    match value {
+        ScalarValue::Text(value) => value.clone(),
+        ScalarValue::Int(value) => value.to_string(),
+        ScalarValue::Float(value) => value.to_string(),
+        ScalarValue::Bool(value) => value.to_string(),
+        ScalarValue::Null => "null".to_owned(),
+    }
+}
+
+fn projection_source_map(range: ByteRange, content_type: &str) -> SourceMapStack {
+    SourceMapStack {
+        frames: vec![SourceMapFrame {
+            source_id: SourceId(1),
+            span: FrameSpan::Single(range),
+            transform: TransformKind::ContentTypeTransform {
+                content_type: content_type.to_owned(),
+            },
+        }],
+    }
+}
+
+fn css_document_metadata_fields(document: &CssDocumentAst) -> Vec<(String, String)> {
+    let mut fields = vec![
+        ("source.uri".to_owned(), document.source.uri.clone()),
+        (
+            "source.content-type".to_owned(),
+            document.source.content_type.clone(),
+        ),
+        (
+            "source.media-type".to_owned(),
+            document.source.media_type.clone(),
+        ),
+        (
+            "source.byte-length".to_owned(),
+            document.source.byte_length.to_string(),
+        ),
+        (
+            "encoding.normalized".to_owned(),
+            document.encoding_report.normalized_encoding.clone(),
+        ),
+        (
+            "encoding.decoder-status".to_owned(),
+            document.encoding_report.decoder_status.clone(),
+        ),
+        (
+            "recovery-count".to_owned(),
+            document.recovery_count.to_string(),
+        ),
+    ];
+    if let Some(value) = document.line_ending.as_ref() {
+        fields.push(("line-ending".to_owned(), value.clone()));
+    }
+    if let Some(value) = document.encoding_report.mime_charset.as_ref() {
+        fields.push(("encoding.mime-charset".to_owned(), value.clone()));
+    }
+    if let Some(value) = document.encoding_report.stylesheet_charset.as_ref() {
+        fields.push(("encoding.stylesheet-charset".to_owned(), value.clone()));
+    }
+    if let Some(value) = document.encoding_report.bom.as_ref() {
+        fields.push(("encoding.bom".to_owned(), value.clone()));
+    }
+    fields.extend(
+        document
+            .source
+            .parameters
+            .iter()
+            .map(|(name, value)| (format!("source.parameter.{name}"), value.clone())),
+    );
+    fields
+}
+
+#[allow(clippy::too_many_arguments)]
+fn projection_node(
+    id: &str,
+    kind: &str,
+    parent_id: Option<&str>,
+    order: usize,
+    name: Option<&str>,
+    value: Option<&str>,
+    source_id: &str,
+    source_range: Option<(u64, u64)>,
+    source: SourceMapStack,
+) -> CemTreeAstNode {
+    let mut attributes = vec![
+        projection_attribute("id", id, &source),
+        projection_attribute("kind", kind, &source),
+        projection_attribute("order", order.to_string(), &source),
+        projection_attribute("source-id", source_id, &source),
+    ];
+    if let Some(parent_id) = parent_id {
+        attributes.push(projection_attribute("parent-id", parent_id, &source));
+    }
+    if let Some(name) = name {
+        attributes.push(projection_attribute("name", name, &source));
+    }
+    if let Some(value) = value {
+        attributes.push(projection_attribute("value", value, &source));
+    }
+    if let Some((byte_offset, byte_length)) = source_range {
+        attributes.push(projection_attribute(
+            "byte-offset",
+            byte_offset.to_string(),
+            &source,
+        ));
+        attributes.push(projection_attribute(
+            "byte-length",
+            byte_length.to_string(),
+            &source,
+        ));
+    }
+    projection_element("node", attributes, Vec::new(), source)
+}
+
+fn projection_token(event: &CssEventAst, source_id: &str) -> CemTreeAstNode {
+    projection_element(
+        "token",
+        vec![
+            projection_attribute("id", format!("token-{}", event.index), &event.source_map),
+            projection_attribute("kind", &event.token_kind, &event.source_map),
+            projection_attribute("lexeme", &event.lexeme, &event.source_map),
+            projection_attribute("source-id", source_id, &event.source_map),
+            projection_attribute(
+                "byte-offset",
+                event.source_range.start.byte_offset.to_string(),
+                &event.source_map,
+            ),
+            projection_attribute(
+                "byte-length",
+                event.source_range.byte_length.to_string(),
+                &event.source_map,
+            ),
+        ],
+        Vec::new(),
+        event.source_map.clone(),
+    )
+}
+
+fn css_event_parent_id(event: &CssEventAst, open_by_depth: &[Option<String>]) -> Option<String> {
+    if event.kind == "block-close" {
+        return open_by_depth
+            .get(event.depth)
+            .and_then(Clone::clone)
+            .or_else(|| {
+                event
+                    .depth
+                    .checked_sub(1)
+                    .and_then(|depth| open_by_depth.get(depth))
+                    .and_then(Clone::clone)
+            });
+    }
+    event
+        .depth
+        .checked_sub(1)
+        .and_then(|depth| open_by_depth.get(depth))
+        .and_then(Clone::clone)
+}
+
+fn css_projection_event_kind(kind: &str) -> &'static str {
+    match kind {
+        "block-open" => "open",
+        "block-close" => "close",
+        "trivia" => "trivia",
+        _ => "value",
+    }
+}
+
+fn projection_vocabulary_document(
+    prefix: &str,
+    namespace: &str,
+    root: CemTreeAstNode,
+    source: SourceMapStack,
+) -> CemTreeAstStream {
+    CemTreeAstStream::new(vec![
+        projection_directive("@doc", "cem-ml 1", &source),
+        projection_directive("@ns", &format!("{prefix} = \"{namespace}\""), &source),
+        projection_directive("@default", prefix, &source),
+        root,
+    ])
+}
+
+fn projection_directive(name: &str, value: &str, source: &SourceMapStack) -> CemTreeAstNode {
+    projection_element(
+        name,
+        Vec::new(),
+        vec![CemTreeAstNode::Text {
+            value: value.to_owned(),
+            source: source.clone(),
+        }],
+        source.clone(),
+    )
+}
+
+fn projection_element(
+    name: &str,
+    attributes: Vec<CemTreeAstAttribute>,
+    children: Vec<CemTreeAstNode>,
+    source: SourceMapStack,
+) -> CemTreeAstNode {
+    CemTreeAstNode::Element {
+        name: name.to_owned(),
+        attributes,
+        children,
+        source,
+    }
+}
+
+fn projection_attribute(
+    name: &str,
+    value: impl Into<String>,
+    source: &SourceMapStack,
+) -> CemTreeAstAttribute {
+    CemTreeAstAttribute {
+        name: name.to_owned(),
+        value: Some(value.into()),
+        source: source.clone(),
+    }
 }
 
 /// Project the input source as a flat list of normalized events:
