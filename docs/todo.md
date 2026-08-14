@@ -759,9 +759,33 @@ replacement tree may mediate between internal engine layers.
                   stripped CLI fixture pass, and lint plus common default,
                   stripped, default-WASM, stripped-WASM, and native CLI default
                   and stripped builds pass.
-            - [ ] Extract transform-graph request lowering into common Rust behind
+            - [x] Extract transform-graph request lowering into common Rust behind
                   manifest-backed and filesystem-backed resource providers, then
                   make command execution and the native CLI share it.
+                - [x] Add native parity fixtures proving manifest-backed and
+                      filesystem/resolver-backed providers lower deterministic
+                      imports, bindings, joins, templates, module maps, exports,
+                      and scheduler scopes into equivalent engine requests.
+
+                  Completed 2026-08-14: common Rust now owns transform-graph
+                  request lowering behind manifest-backed and filesystem/resolver-
+                  backed providers. Prepared command-service graph operations own
+                  the lowered engine request, and the native CLI delegates to the
+                  same lowering path instead of maintaining a parallel implementation.
+                  The shared path preserves deterministic import expansion,
+                  bindings, all join modes, template and module-map resources,
+                  exports, edges, stage targets, and scheduler scope identities.
+
+                  Native parity coverage proves both providers produce equivalent
+                  requests across those fields. CLI conformance also guards the
+                  filesystem provider from implicitly attaching registry schemas
+                  to output scopes, preserving collection JSON export behavior.
+                  The Nx common default suite passes 1,936 unit tests and the
+                  stripped suite passes 1,924; the native CLI default suite passes
+                  627 tests and the stripped suite passes 623, each with one
+                  intentional schema-package ignore. Both lints and common/native
+                  default and stripped builds pass, as do common default-WASM and
+                  stripped-WASM builds.
             - [ ] Add native execution fixtures covering every prepared operation,
                   cancellation and failure mapping, output publication, and exactly
                   one terminal command-service result.

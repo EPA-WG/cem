@@ -16,8 +16,9 @@ use crate::command_service::{
 use crate::diagnostics::Diagnostic;
 use crate::engine::{
     self, CheckRequest, ConvertRequest, EngineContext, EngineInput, FormatIdentity, InspectRequest,
-    ParseRequest, TemplateInput, TraceRequest, TransformExecutionPolicy, TransformRequest,
-    TransformRuntimePhase, TransformSchedulerScopeIds, TransformTemplateKind, ValidateRequest,
+    ParseRequest, TemplateInput, TraceRequest, TransformExecutionPolicy, TransformGraphRequest,
+    TransformRequest, TransformRuntimePhase, TransformSchedulerScopeIds, TransformTemplateKind,
+    ValidateRequest,
 };
 use crate::query::{QueryExportFormat, QueryRunRequest, QuerySource};
 use crate::run_config::{
@@ -25,8 +26,10 @@ use crate::run_config::{
     NormalizedRunPlan, ScopeConfig,
 };
 use crate::scheduler::OverflowPolicy;
-use crate::transform_config::{
-    parse_transform_graph_config, TransformGraphConfig, TransformGraphParseRequest,
+use crate::transform_config::{parse_transform_graph_config, TransformGraphParseRequest};
+use crate::transform_graph_request::{
+    lower_transform_graph_request, ManifestTransformGraphResourceProvider,
+    TransformGraphRequestError,
 };
 
 #[derive(Debug, Clone)]
@@ -51,11 +54,7 @@ pub enum PreparedCommandTransformV1 {
 #[derive(Debug, Clone)]
 pub struct PreparedCommandTransformGraphV1 {
     pub config_uri: String,
-    pub graph: TransformGraphConfig,
-    pub preserve_source_offsets: bool,
-    pub context: EngineContext,
-    pub run_plan: Box<NormalizedRunPlan>,
-    pub resources: BTreeMap<String, VirtualResourceV1>,
+    pub request: TransformGraphRequest,
 }
 
 #[derive(Debug, Clone)]
@@ -383,14 +382,22 @@ pub fn prepare_command_operation_v1(
                         },
                     );
                 }
+                let provider = ManifestTransformGraphResourceProvider::new(
+                    config_uri,
+                    &request.resources,
+                );
+                let graph_request = lower_transform_graph_request(
+                    &context,
+                    &parsed.graph,
+                    &provider,
+                    config_uri,
+                    *preserve_source_offsets,
+                )
+                .map_err(|error| graph_lowering_error(config_uri, error))?;
                 Ok(PreparedPortableOperationV1::Transform(
                     PreparedCommandTransformV1::Graph(Box::new(PreparedCommandTransformGraphV1 {
                         config_uri: config_uri.clone(),
-                        graph: parsed.graph,
-                        preserve_source_offsets: *preserve_source_offsets,
-                        context,
-                        run_plan: Box::new(plan.clone()),
-                        resources: request.resources.clone().into_inner(),
+                        request: graph_request,
                     })),
                 ))
             }
@@ -404,6 +411,29 @@ pub fn prepare_command_operation_v1(
             context,
         })),
         PortableOperationRequestV1::VersionCapabilities => unreachable!(),
+    }
+}
+
+fn graph_lowering_error(
+    config_uri: &str,
+    error: TransformGraphRequestError,
+) -> CommandOperationPreparationError {
+    match error {
+        TransformGraphRequestError::Diagnostic(diagnostic) => {
+            let diagnostic = *diagnostic;
+            CommandOperationPreparationError::TransformConfig {
+                uri: diagnostic.uri.unwrap_or_else(|| config_uri.to_owned()),
+                code: diagnostic.code,
+                message: diagnostic.message,
+            }
+        }
+        TransformGraphRequestError::Engine(error) => {
+            CommandOperationPreparationError::TransformConfig {
+                uri: config_uri.to_owned(),
+                code: "cem.command_service.transform_graph_lowering".to_owned(),
+                message: error.to_string(),
+            }
+        }
     }
 }
 
@@ -1149,9 +1179,10 @@ mod tests {
         else {
             panic!("graph transform preparation variant")
         };
-        assert_eq!(graph.graph.nodes.len(), 1);
-        assert!(graph.resources.contains_key(DATA_URI));
-        assert!(graph.preserve_source_offsets);
+        assert_eq!(graph.request.imports.len(), 1);
+        assert_eq!(graph.request.imports[0].input.uri, DATA_URI);
+        assert_eq!(graph.request.imports[0].input.bytes, b"<catalog/>");
+        assert!(graph.request.preserve_source_offsets);
 
         let version = prepare(&request(PortableOperationRequestV1::VersionCapabilities))
             .expect("version capabilities prepares");

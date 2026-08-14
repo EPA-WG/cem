@@ -50,6 +50,7 @@ pub mod source_map;
 pub mod tokenizer;
 pub mod transform_artifact;
 pub mod transform_config;
+pub mod transform_graph_request;
 pub mod transform_template;
 pub mod validation;
 pub mod worker_control;
