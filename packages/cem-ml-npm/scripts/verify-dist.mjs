@@ -54,7 +54,11 @@ for (const target of ['browser', 'node']) {
   assert.match(declarations, /normalizeCommandRunPlanV1\(json: string\): string/);
   assert.match(
     declarations,
-    /executeCommandServiceV1\(request_json: string, capability_request_json: string, current_revision: Function, read_resource: Function, prepare_write: Function, commit_write: Function, rollback_write: Function\): Promise<string>/,
+    /cancelCommandServiceV1\(request_id: string, reason\?: string \| null\): string/,
+  );
+  assert.match(
+    declarations,
+    /executeCommandServiceV1\(request_json: string, capability_request_json: string, current_revision: Function, read_resource: Function, prepare_write: Function, commit_write: Function, rollback_write: Function, progress\?: Function \| null\): Promise<string>/,
   );
 }
 
@@ -65,6 +69,7 @@ assert.equal(typeof nodeRuntime.browserWorkerCapabilityManifest, 'function');
 assert.equal(typeof nodeRuntime.nodeWorkerCapabilityManifest, 'function');
 assert.equal(typeof nodeRuntime.workerProtocolDescriptor, 'function');
 assert.equal(typeof nodeRuntime.normalizeCommandRunPlanV1, 'function');
+assert.equal(typeof nodeRuntime.cancelCommandServiceV1, 'function');
 assert.equal(typeof nodeRuntime.executeCommandServiceV1, 'function');
 
 const integrity = readJson(resolve(distRoot, 'integrity.json'));

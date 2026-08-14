@@ -29,6 +29,14 @@ rollback. Callback request/response models remain Rust-owned JSON; publication
 bytes are passed separately as a `Uint8Array`. Applications should normally use
 the typed adapters from `@epa-wg/cem-ml-cli` rather than call this raw boundary.
 
+Hosts may supply an optional final progress callback to
+`executeCommandServiceV1`; it receives monotonic Rust-owned lifecycle JSON.
+`cancelCommandServiceV1(requestId, reason?)` cooperatively cancels the matching
+active request and returns an idempotent control acknowledgement. Active request
+ids are unique per runtime instance and are released on every terminal or early
+failure path. Progress callbacks are observational and cannot change command
+semantics.
+
 `runtime.json` describes the package ABI and common capability projections.
 `integrity.json` records SHA-256 hashes for every generated runtime and
 schema-package asset. Schema assets are addressable below

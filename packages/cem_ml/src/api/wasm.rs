@@ -68,7 +68,7 @@ mod command_service;
 use crate::worker_control::{
     WorkerAddress, WorkerGeneration, WorkerStopDisposition, WorkerStopGeneration,
 };
-pub use command_service::execute_command_service_v1;
+pub use command_service::{cancel_command_service_v1, execute_command_service_v1};
 
 thread_local! {
     static PARSE_OBSERVER: RefCell<Option<Function>> = const { RefCell::new(None) };

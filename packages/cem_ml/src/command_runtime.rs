@@ -5,7 +5,11 @@
 //! creating engine inputs, then returns one owned prepared invocation carrying
 //! the operation handle and its single terminal-publication token.
 
+use std::collections::BTreeMap;
 use std::fmt;
+use std::sync::{Arc, Mutex};
+
+use serde::{Deserialize, Serialize};
 
 use crate::capability::{
     CapabilityAvailability, CapabilityManifest, CapabilityOperation, CAPABILITY_CONTRACT_VERSION,
@@ -26,15 +30,226 @@ use crate::command_service::{
     admit_command_service_request_v1, validate_command_service_limits_v1,
     validate_command_service_request_v1, CommandServiceAdmissionV1, CommandServiceError,
     CommandServiceLimitsV1, CommandServiceRequestV1, CommandServiceResultV1,
-    CommandStaleRevisionV1, PortableOperationRequestV1,
+    CommandServiceStatusV1, CommandStaleRevisionV1, PortableOperationRequestV1,
 };
 use crate::engine::{CemMlEngine, EngineContext};
-use crate::operation_control::OperationControl;
+use crate::operation_control::{ControlError, OperationControl, OperationId};
 use crate::operation_handle::{
-    validate_operation_host_limits, OperationHandle, OperationHandleError,
+    validate_operation_host_limits, ControlAckDisposition, OperationHandle, OperationHandleError,
     OperationTerminalPublisher, TerminalClaim,
 };
 use crate::query::QueryResultExporterRegistry;
+
+/// Coarse command-service lifecycle stages streamed by host bindings while the
+/// common operation handle retains detailed engine and control semantics.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum CommandServiceProgressStageV1 {
+    Accepted,
+    Prepared,
+    Executing,
+    Terminal,
+}
+
+/// Bounded, monotonic progress record for one active command-service request.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CommandServiceProgressV1 {
+    pub protocol_version: u16,
+    pub request_id: String,
+    pub operation_id: OperationId,
+    pub sequence: u64,
+    pub stage: CommandServiceProgressStageV1,
+    pub completed: u8,
+    pub total: u8,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub status: Option<CommandServiceStatusV1>,
+}
+
+impl CommandServiceProgressV1 {
+    pub fn new(
+        request_id: impl Into<String>,
+        operation_id: OperationId,
+        sequence: u64,
+        stage: CommandServiceProgressStageV1,
+        status: Option<CommandServiceStatusV1>,
+    ) -> Self {
+        let completed = match stage {
+            CommandServiceProgressStageV1::Accepted => 0,
+            CommandServiceProgressStageV1::Prepared => 1,
+            CommandServiceProgressStageV1::Executing => 2,
+            CommandServiceProgressStageV1::Terminal => 3,
+        };
+        Self {
+            protocol_version: crate::command_service::COMMAND_SERVICE_PROTOCOL_VERSION,
+            request_id: request_id.into(),
+            operation_id,
+            sequence,
+            stage,
+            completed,
+            total: 3,
+            status,
+        }
+    }
+}
+
+/// Stable acknowledgement returned by command-service host cancellation.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CommandServiceControlAckV1 {
+    pub protocol_version: u16,
+    pub request_id: String,
+    pub operation_id: OperationId,
+    pub selected_scope: crate::operation_control::ExecutionScopeId,
+    pub disposition: ControlAckDisposition,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum CommandServiceOperationRegistryErrorV1 {
+    AlreadyActive { request_id: String },
+    NotActive { request_id: String },
+    Control(ControlError),
+}
+
+impl CommandServiceOperationRegistryErrorV1 {
+    pub fn code(&self) -> &str {
+        match self {
+            Self::AlreadyActive { .. } => "cem.command_service.request_active",
+            Self::NotActive { .. } => "cem.command_service.request_inactive",
+            Self::Control(error) => error.code(),
+        }
+    }
+}
+
+impl fmt::Display for CommandServiceOperationRegistryErrorV1 {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::AlreadyActive { request_id } => {
+                write!(
+                    formatter,
+                    "command-service request `{request_id}` is already active"
+                )
+            }
+            Self::NotActive { request_id } => {
+                write!(
+                    formatter,
+                    "command-service request `{request_id}` is not active"
+                )
+            }
+            Self::Control(error) => error.fmt(formatter),
+        }
+    }
+}
+
+impl std::error::Error for CommandServiceOperationRegistryErrorV1 {}
+
+#[derive(Debug, Clone)]
+struct ActiveCommandServiceOperationV1 {
+    operation_id: OperationId,
+    control: OperationControl,
+}
+
+/// Clone-shared registry used by host bindings to route cancellation by the
+/// public request identity without exposing a Rust pointer or live control in
+/// the serializable request.
+#[derive(Debug, Clone, Default)]
+pub struct CommandServiceOperationRegistryV1 {
+    active: Arc<Mutex<BTreeMap<String, ActiveCommandServiceOperationV1>>>,
+}
+
+impl CommandServiceOperationRegistryV1 {
+    pub fn register(
+        &self,
+        request_id: &str,
+        control: OperationControl,
+    ) -> Result<CommandServiceOperationRegistrationV1, CommandServiceOperationRegistryErrorV1> {
+        let mut active = self
+            .active
+            .lock()
+            .expect("poisoned command-service registry");
+        if active.contains_key(request_id) {
+            return Err(CommandServiceOperationRegistryErrorV1::AlreadyActive {
+                request_id: request_id.to_owned(),
+            });
+        }
+        let operation_id = control.operation_id();
+        active.insert(
+            request_id.to_owned(),
+            ActiveCommandServiceOperationV1 {
+                operation_id,
+                control,
+            },
+        );
+        Ok(CommandServiceOperationRegistrationV1 {
+            registry: self.clone(),
+            request_id: request_id.to_owned(),
+            operation_id,
+        })
+    }
+
+    pub fn cancel(
+        &self,
+        request_id: &str,
+        reason: Option<String>,
+    ) -> Result<CommandServiceControlAckV1, CommandServiceOperationRegistryErrorV1> {
+        let active = self
+            .active
+            .lock()
+            .expect("poisoned command-service registry");
+        let operation = active.get(request_id).cloned().ok_or_else(|| {
+            CommandServiceOperationRegistryErrorV1::NotActive {
+                request_id: request_id.to_owned(),
+            }
+        })?;
+        drop(active);
+        let disposition = operation
+            .control
+            .cancel_root(reason, None)
+            .map(ControlAckDisposition::from)
+            .map_err(CommandServiceOperationRegistryErrorV1::Control)?;
+        Ok(CommandServiceControlAckV1 {
+            protocol_version: crate::command_service::COMMAND_SERVICE_PROTOCOL_VERSION,
+            request_id: request_id.to_owned(),
+            operation_id: operation.operation_id,
+            selected_scope: operation.control.root_scope(),
+            disposition,
+        })
+    }
+
+    fn remove(&self, request_id: &str, operation_id: OperationId) {
+        let mut active = self
+            .active
+            .lock()
+            .expect("poisoned command-service registry");
+        if active
+            .get(request_id)
+            .is_some_and(|operation| operation.operation_id == operation_id)
+        {
+            active.remove(request_id);
+        }
+    }
+}
+
+/// Drop guard guaranteeing that every success, stale result, cancellation, and
+/// early host failure releases its request identity exactly once.
+#[derive(Debug)]
+pub struct CommandServiceOperationRegistrationV1 {
+    registry: CommandServiceOperationRegistryV1,
+    request_id: String,
+    operation_id: OperationId,
+}
+
+impl CommandServiceOperationRegistrationV1 {
+    pub fn operation_id(&self) -> OperationId {
+        self.operation_id
+    }
+}
+
+impl Drop for CommandServiceOperationRegistrationV1 {
+    fn drop(&mut self) {
+        self.registry.remove(&self.request_id, self.operation_id);
+    }
+}
 
 pub struct CommandExecutionServicesV1 {
     pub writer: Box<dyn CommandResourceWriterV1>,
@@ -620,6 +835,93 @@ mod tests {
             EngineContext::default(),
             capability,
         )
+    }
+
+    #[test]
+    fn operation_registry_owns_duplicate_cancel_cleanup_and_progress_projection() {
+        let registry = CommandServiceOperationRegistryV1::default();
+        let control = OperationControl::new(AbortSignal::new());
+        let operation_id = control.operation_id();
+        let registration = registry
+            .register("request:registry", control.clone())
+            .expect("first registration succeeds");
+        assert_eq!(registration.operation_id(), operation_id);
+
+        let duplicate = registry
+            .register("request:registry", OperationControl::default())
+            .expect_err("duplicate request is rejected");
+        assert_eq!(duplicate.code(), "cem.command_service.request_active");
+
+        let accepted = registry
+            .cancel("request:registry", Some("fixture cancellation".to_owned()))
+            .expect("root cancellation is routed");
+        assert_eq!(accepted.operation_id, operation_id);
+        assert_eq!(accepted.disposition, ControlAckDisposition::Accepted);
+        assert!(control.is_cancelled());
+        assert_eq!(
+            control.abort_signal().reason().as_deref(),
+            Some("fixture cancellation")
+        );
+        assert_eq!(
+            registry
+                .cancel("request:registry", None)
+                .expect("repeat cancellation is idempotent")
+                .disposition,
+            ControlAckDisposition::AlreadyRequested
+        );
+
+        let progress = [
+            CommandServiceProgressStageV1::Accepted,
+            CommandServiceProgressStageV1::Prepared,
+            CommandServiceProgressStageV1::Executing,
+            CommandServiceProgressStageV1::Terminal,
+        ]
+        .into_iter()
+        .enumerate()
+        .map(|(index, stage)| {
+            CommandServiceProgressV1::new(
+                "request:registry",
+                operation_id,
+                index as u64 + 1,
+                stage,
+                (stage == CommandServiceProgressStageV1::Terminal)
+                    .then_some(CommandServiceStatusV1::Cancelled),
+            )
+        })
+        .collect::<Vec<_>>();
+        assert_eq!(
+            progress
+                .iter()
+                .map(|event| event.sequence)
+                .collect::<Vec<_>>(),
+            vec![1, 2, 3, 4]
+        );
+        assert_eq!(
+            serde_json::to_value(progress.last().unwrap()).unwrap(),
+            serde_json::json!({
+                "protocolVersion": 1,
+                "requestId": "request:registry",
+                "operationId": operation_id,
+                "sequence": 4,
+                "stage": "terminal",
+                "completed": 3,
+                "total": 3,
+                "status": "cancelled"
+            })
+        );
+
+        drop(registration);
+        let reused = registry
+            .register("request:registry", OperationControl::default())
+            .expect("drop releases request identity for reuse");
+        drop(reused);
+        assert_eq!(
+            registry
+                .cancel("request:registry", None)
+                .expect_err("completed request is no longer active")
+                .code(),
+            "cem.command_service.request_inactive"
+        );
     }
 
     #[test]

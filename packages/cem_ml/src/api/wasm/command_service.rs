@@ -16,7 +16,8 @@ use wasm_bindgen_futures::JsFuture;
 
 use crate::capability::{capability_manifest, CapabilityRequest};
 use crate::command_execution::{
-    project_command_service_terminal_v1, stale_command_service_result_v1,
+    cancelled_command_service_result_v1, project_command_service_terminal_v1,
+    stale_command_service_result_v1,
 };
 use crate::command_host::{
     CommandHostFuture, CommandResolvedResourceV1, CommandResourceReadFailureV1,
@@ -29,23 +30,31 @@ use crate::command_publication::{
 };
 use crate::command_runtime::{
     CommandExecutionServicesV1, CommandServiceHostErrorV1, CommandServiceHostV1,
-    CommandServicePreparationV1,
+    CommandServiceOperationRegistryErrorV1, CommandServiceOperationRegistryV1,
+    CommandServicePreparationV1, CommandServiceProgressStageV1, CommandServiceProgressV1,
 };
 use crate::command_service::{
     decode_command_service_request_v1, CommandRevisionLedgerV1, CommandServiceLimitsV1,
-    CommandServiceResultV1,
+    CommandServiceResultV1, CommandServiceStatusV1,
 };
 use crate::engine::EngineContext;
-use crate::operation_control::OperationControl;
+use crate::operation_control::{OperationControl, OperationId};
 use crate::query::QueryResultExporterRegistry;
 use crate::real::RealCemMlEngine;
 use crate::validation::css_selector::register_css_selector_query_exporters;
 use crate::validation::xpath::register_xpath_query_exporters;
 
+thread_local! {
+    static COMMAND_SERVICE_OPERATIONS: CommandServiceOperationRegistryV1 =
+        CommandServiceOperationRegistryV1::default();
+}
+
 /// Execute one command-service v1 request against JavaScript-owned async host
 /// capabilities. The returned promise always resolves to a JSON string holding
 /// either the canonical `CommandServiceResultV1` or `{ "error": ... }` for a
-/// pre-terminal host/admission failure.
+/// pre-terminal host/admission failure. When supplied, `progress` receives
+/// canonical `CommandServiceProgressV1` JSON records and cannot alter command
+/// semantics by returning or throwing a value.
 #[wasm_bindgen(js_name = "executeCommandServiceV1")]
 pub async fn execute_command_service_v1(
     request_json: String,
@@ -55,6 +64,7 @@ pub async fn execute_command_service_v1(
     prepare_write: Function,
     commit_write: Function,
     rollback_write: Function,
+    progress: Option<Function>,
 ) -> String {
     command_service_response(
         execute_command_service(
@@ -67,15 +77,30 @@ pub async fn execute_command_service_v1(
                 commit_write,
                 rollback_write,
             },
+            progress,
         )
         .await,
     )
+}
+
+/// Cooperatively cancel one active command-service request. Browser and Node
+/// hosts route this call to the runtime instance that owns the request; unknown
+/// or already-completed request identities fail without mutating another run.
+#[wasm_bindgen(js_name = "cancelCommandServiceV1")]
+pub fn cancel_command_service_v1(request_id: String, reason: Option<String>) -> String {
+    let result = COMMAND_SERVICE_OPERATIONS.with(|registry| registry.cancel(&request_id, reason));
+    match result {
+        Ok(acknowledgement) => serde_json::to_string(&acknowledgement)
+            .unwrap_or_else(command_service_control_serialize_error),
+        Err(error) => command_service_registry_error(error),
+    }
 }
 
 async fn execute_command_service(
     request_json: &str,
     capability_request_json: &str,
     callbacks: JsCommandServiceCallbacks,
+    progress_callback: Option<Function>,
 ) -> Result<CommandServiceResultV1, WasmCommandServiceError> {
     let request = decode_command_service_request_v1(request_json.as_bytes())
         .map_err(|error| WasmCommandServiceError::new(error.code(), error.to_string()))?;
@@ -113,30 +138,102 @@ async fn execute_command_service(
         capability.clone(),
     )
     .map_err(host_error)?;
+    let control = OperationControl::default();
+    let registration = COMMAND_SERVICE_OPERATIONS
+        .with(|registry| registry.register(&request.request_id, control.clone()))
+        .map_err(registry_error)?;
+    let mut progress = WasmCommandProgress::new(
+        &request.request_id,
+        registration.operation_id(),
+        progress_callback,
+    );
+    progress.emit(CommandServiceProgressStageV1::Accepted, None);
 
-    match host
-        .prepare(request, OperationControl::default())
-        .await
-        .map_err(host_error)?
-    {
-        CommandServicePreparationV1::Stale(stale) => Ok(stale_command_service_result_v1(
-            &projection_request,
-            stale,
-            &capability,
-            limits,
-        )),
+    let preparation = match host.prepare(request, control.clone()).await {
+        Ok(preparation) => preparation,
+        Err(_error) if control.is_cancelled() => {
+            let reason = control.abort_signal().reason();
+            let result = cancelled_command_service_result_v1(
+                &projection_request,
+                reason.as_deref(),
+                &capability,
+                limits,
+            );
+            progress.emit(CommandServiceProgressStageV1::Terminal, Some(result.status));
+            return Ok(result);
+        }
+        Err(error) => {
+            progress.emit(CommandServiceProgressStageV1::Terminal, None);
+            return Err(host_error(error));
+        }
+    };
+
+    match preparation {
+        CommandServicePreparationV1::Stale(stale) => {
+            let result =
+                stale_command_service_result_v1(&projection_request, stale, &capability, limits);
+            progress.emit(CommandServiceProgressStageV1::Terminal, Some(result.status));
+            Ok(result)
+        }
         CommandServicePreparationV1::Ready(invocation) => {
-            let terminal = host
-                .execute(&RealCemMlEngine::new(), invocation)
-                .await
-                .map_err(host_error)?;
-            Ok(project_command_service_terminal_v1(
+            progress.emit(CommandServiceProgressStageV1::Prepared, None);
+            progress.emit(CommandServiceProgressStageV1::Executing, None);
+            let terminal = match host.execute(&RealCemMlEngine::new(), invocation).await {
+                Ok(terminal) => terminal,
+                Err(error) => {
+                    progress.emit(CommandServiceProgressStageV1::Terminal, None);
+                    return Err(host_error(error));
+                }
+            };
+            let result = project_command_service_terminal_v1(
                 &projection_request,
                 &terminal,
                 &capability,
                 limits,
-            ))
+            );
+            progress.emit(CommandServiceProgressStageV1::Terminal, Some(result.status));
+            Ok(result)
         }
+    }
+}
+
+struct WasmCommandProgress {
+    request_id: String,
+    operation_id: OperationId,
+    next_sequence: u64,
+    callback: Option<Function>,
+}
+
+impl WasmCommandProgress {
+    fn new(request_id: &str, operation_id: OperationId, callback: Option<Function>) -> Self {
+        Self {
+            request_id: request_id.to_owned(),
+            operation_id,
+            next_sequence: 1,
+            callback,
+        }
+    }
+
+    fn emit(
+        &mut self,
+        stage: CommandServiceProgressStageV1,
+        status: Option<CommandServiceStatusV1>,
+    ) {
+        let Some(callback) = &self.callback else {
+            return;
+        };
+        let progress = CommandServiceProgressV1::new(
+            &self.request_id,
+            self.operation_id,
+            self.next_sequence,
+            stage,
+            status,
+        );
+        self.next_sequence = self.next_sequence.saturating_add(1);
+        let Ok(json) = serde_json::to_string(&progress) else {
+            return;
+        };
+        let _ = callback.call1(&JsValue::NULL, &JsValue::from_str(&json));
     }
 }
 
@@ -400,6 +497,10 @@ fn host_error(error: CommandServiceHostErrorV1) -> WasmCommandServiceError {
     WasmCommandServiceError::new(error.code(), error.to_string())
 }
 
+fn registry_error(error: CommandServiceOperationRegistryErrorV1) -> WasmCommandServiceError {
+    WasmCommandServiceError::new(error.code(), error.to_string())
+}
+
 #[derive(Debug)]
 struct WasmCommandServiceError {
     code: String,
@@ -442,4 +543,24 @@ fn command_service_response(
         })
         .to_string(),
     }
+}
+
+fn command_service_registry_error(error: CommandServiceOperationRegistryErrorV1) -> String {
+    serde_json::json!({
+        "error": {
+            "code": error.code(),
+            "message": error.to_string(),
+        }
+    })
+    .to_string()
+}
+
+fn command_service_control_serialize_error(error: serde_json::Error) -> String {
+    serde_json::json!({
+        "error": {
+            "code": "cem.command_service.serialization_failed",
+            "message": error.to_string(),
+        }
+    })
+    .to_string()
 }

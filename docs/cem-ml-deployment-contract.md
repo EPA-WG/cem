@@ -342,6 +342,17 @@ scope, resolver, budget, and destination semantics in Rust. Both bindings are
 policy-free prerequisites for the typed browser and Node adapters rather than a
 second public command model.
 
+Each initialized WASM runtime also keeps a Rust-owned registry of active command
+request identities. An optional final progress callback on
+`executeCommandServiceV1` receives bounded monotonic lifecycle records, while
+`cancelCommandServiceV1` routes an idempotent root cancellation to the matching
+clone-shared `OperationControl`. Duplicate active request identities fail before
+host I/O, and a drop guard releases the identity after success, stale admission,
+cancellation, or failure. Progress callback return values and exceptions cannot
+alter engine semantics. A cancellation observed before preparation has produced
+an operation handle still projects the canonical cancelled command result and
+exit policy in common Rust.
+
 ## Native build, package, and signing profiles
 
 All tool versions and runner images are pinned in the owning Nx project or

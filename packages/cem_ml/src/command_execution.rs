@@ -384,6 +384,37 @@ pub fn stale_command_service_result_v1(
     result
 }
 
+/// Construct the canonical cancelled terminal when cooperative cancellation is
+/// observed during an asynchronous host boundary before operation preparation
+/// has produced an operation handle.
+pub fn cancelled_command_service_result_v1(
+    request: &CommandServiceRequestV1,
+    reason: Option<&str>,
+    capability: &CapabilityManifest,
+    limits: CommandServiceLimitsV1,
+) -> CommandServiceResultV1 {
+    let message = reason
+        .map(|reason| format!("operation cancelled by host: {reason}"))
+        .unwrap_or_else(|| "operation cancelled by host".to_owned());
+    result_envelope(
+        request,
+        request.operation.operation(),
+        CommandServiceStatusV1::Cancelled,
+        Some(EXIT_CANCELLED),
+        None,
+        vec![diagnostic(
+            "cem.operation.cancelled",
+            Severity::Error,
+            message,
+        )],
+        None,
+        Vec::new(),
+        Vec::new(),
+        capability,
+        limits,
+    )
+}
+
 fn execute_operation<E: CemMlEngine + ?Sized>(
     engine: &E,
     request: &CommandServiceRequestV1,
@@ -1898,6 +1929,19 @@ mod tests {
         assert_eq!(result.stale, Some(stale));
         assert!(result.result.is_none());
         assert!(result.artifacts.items.is_empty());
+
+        let cancelled = cancelled_command_service_result_v1(
+            &request,
+            Some("fixture cancellation"),
+            &capability(),
+            CommandServiceLimitsV1::default(),
+        );
+        assert_eq!(cancelled.status, CommandServiceStatusV1::Cancelled);
+        assert_eq!(cancelled.exit_code, Some(EXIT_CANCELLED));
+        assert_eq!(cancelled.diagnostics.items.len(), 1);
+        assert!(cancelled.diagnostics.items[0]
+            .message
+            .contains("fixture cancellation"));
     }
 
     #[test]

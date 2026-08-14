@@ -865,6 +865,45 @@ replacement tree may mediate between internal engine layers.
               verification with 433 integrity records, packaging, and clean consumer
               installation; the stripped npm/WASM distribution also builds with the
               new declarations.
+        - [ ] Complete the Rust-owned command-session primitives required by the
+              dedicated-worker browser adapter.
+            - [x] Register in-flight command-service requests at the WASM boundary,
+                  expose cooperative root cancellation, and stream bounded,
+                  monotonic Rust-owned progress records through an optional callback
+                  while retaining exactly-once cleanup and terminal projection.
+                - [x] Add native registry/progress fixtures and generated Node/browser
+                      WASM binding fixtures covering duplicate admission, cancellation,
+                      cleanup/reuse, monotonic progress, success, and stale terminals.
+
+                  Completed 2026-08-14: common Rust now owns a clone-shared active
+                  command registry keyed by the admitted request identity. Duplicate
+                  active ids fail before host I/O, root cancellation returns an
+                  idempotent typed acknowledgement, and a generation-safe drop guard
+                  releases the identity on success, stale admission, cancellation,
+                  or any early failure. Cancellation observed at an async host
+                  boundary before an operation handle exists projects the same
+                  cancelled command result and exit code as prepared execution.
+
+                  The generated WASM surface adds `cancelCommandServiceV1` and an
+                  optional observational progress callback on
+                  `executeCommandServiceV1`. Rust emits bounded monotonic accepted,
+                  prepared, executing, and terminal records; callback returns or
+                  exceptions cannot alter command semantics. Native fixtures cover
+                  duplicate registration, cancellation, idempotence, cleanup/reuse,
+                  progress serialization, and pre-handle cancellation projection.
+                  Generated browser and Node fixtures cover monotonic success and
+                  stale progress plus duplicate admission, cooperative cancellation,
+                  cancelled terminal projection, inactive cancellation, and request-id
+                  reuse. The Nx common suites pass 1,946 default and 1,934 stripped
+                  unit tests; lint and default/stripped native and WASM builds pass.
+                  The low-level npm aggregate passes seven runtime tests, ABI and 433-
+                  record integrity verification, packaging, and clean installation;
+                  its stripped npm/WASM distribution also builds with the new ABI.
+            - [ ] Add request-scoped artifact read/dispose lifecycle methods without
+                  exposing WASM memory views or raw native handles.
+            - [ ] Generate the browser/Node TypeScript command request, result,
+                  capability-callback, progress, control, and artifact projections
+                  from their Rust-owned wire declarations.
         - [ ] Add the dedicated-worker `./browser` command-service client with
               typed request/result, resolver, progress, cancellation, artifact,
               and capability adapters over the generated WASM binding.

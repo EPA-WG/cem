@@ -45,10 +45,25 @@ test('browser loader accepts bytes and initializes the same WASM ABI', async () 
   assert.equal(manifest.runtime, 'wasm-browser-worker');
   assert.equal(manifest.commonVersion, packageMetadata.version);
 
-  const result = await executeVersionCommand(browserRuntime, 'wasm-browser-worker');
+  const progress = [];
+  const result = await executeVersionCommand(browserRuntime, 'wasm-browser-worker', undefined, {
+    progress: (json) => {
+      progress.push(JSON.parse(json));
+      throw new Error('observational progress callbacks cannot change command semantics');
+    },
+  });
   assert.equal(result.status, 'succeeded');
   assert.equal(result.identity.runtime, 'wasm-browser-worker');
   assert.equal(result.result.value.kind, 'version-capabilities');
+  assert.deepEqual(
+    progress.map(({ sequence, stage, status }) => [sequence, stage, status]),
+    [
+      [1, 'accepted', undefined],
+      [2, 'prepared', undefined],
+      [3, 'executing', undefined],
+      [4, 'terminal', 'succeeded'],
+    ],
+  );
 });
 
 test('invalid capability requests remain structured diagnostics', async () => {
@@ -105,20 +120,94 @@ test('async command-service binding owns success, stale, and callback failure pr
   assert.equal(success.result.storage, 'inline');
   assert.equal(success.result.value.value.version.commonVersion, packageMetadata.version);
 
-  const stale = await executeVersionCommand(runtime, 'wasm-node', {
-    project: { projectId: 'wasm-fixture', revision: 2 },
-    resourceVersions: {},
-  });
+  const staleProgress = [];
+  const stale = await executeVersionCommand(
+    runtime,
+    'wasm-node',
+    {
+      project: { projectId: 'wasm-fixture', revision: 2 },
+      resourceVersions: {},
+    },
+    { progress: (json) => staleProgress.push(JSON.parse(json)) },
+  );
   assert.equal(stale.status, 'stale');
   assert.equal(stale.exitCode, null);
   assert.equal(stale.stale.currentProjectRevision, 2);
   assert.deepEqual(stale.stale.changedResources, []);
+  assert.deepEqual(
+    staleProgress.map(({ sequence, stage, status }) => [sequence, stage, status]),
+    [
+      [1, 'accepted', undefined],
+      [2, 'terminal', 'stale'],
+    ],
+  );
 
   const failure = await executeVersionCommand(runtime, 'wasm-node', {
     error: { code: 'fixture.ledger', message: 'ledger unavailable' },
   });
   assert.equal(failure.error.code, 'cem.command_service.ledger_read');
   assert.match(failure.error.message, /fixture\.ledger: currentRevision: ledger unavailable/);
+});
+
+test('command-service registry owns duplicate admission, cooperative cancellation, progress, and cleanup', async () => {
+  const runtime = await import('@epa-wg/cem-ml/wasm');
+  const progress = [];
+  let resolveRevision;
+  const pending = executeVersionCommand(runtime, 'wasm-node', undefined, {
+    currentRevision: () =>
+      new Promise((resolve) => {
+        resolveRevision = resolve;
+      }),
+    progress: (json) => progress.push(JSON.parse(json)),
+  });
+  await Promise.resolve();
+  assert.equal(typeof resolveRevision, 'function');
+
+  const duplicate = await executeVersionCommand(runtime, 'wasm-node');
+  assert.equal(duplicate.error.code, 'cem.command_service.request_active');
+
+  const acknowledgement = JSON.parse(
+    runtime.cancelCommandServiceV1('wasm-command-version', 'runtime fixture cancellation'),
+  );
+  assert.equal(acknowledgement.requestId, 'wasm-command-version');
+  assert.equal(acknowledgement.disposition, 'accepted');
+  assert.equal(acknowledgement.selectedScope, 0);
+  resolveRevision(
+    JSON.stringify({
+      project: { projectId: 'wasm-fixture', revision: 1 },
+      resourceVersions: {},
+    }),
+  );
+
+  const cancelled = await pending;
+  assert.equal(cancelled.status, 'cancelled');
+  assert.equal(cancelled.exitCode, 130);
+  assert.match(cancelled.diagnostics.items[0].message, /runtime fixture cancellation/);
+  assert.deepEqual(
+    progress.map(({ sequence, stage, status }) => [sequence, stage, status]),
+    [
+      [1, 'accepted', undefined],
+      [2, 'terminal', 'cancelled'],
+    ],
+  );
+
+  const inactive = JSON.parse(runtime.cancelCommandServiceV1('wasm-command-version'));
+  assert.equal(inactive.error.code, 'cem.command_service.request_inactive');
+
+  const reusedProgress = [];
+  const reused = await executeVersionCommand(runtime, 'wasm-node', undefined, {
+    progress: (json) => reusedProgress.push(JSON.parse(json)),
+  });
+  assert.equal(reused.status, 'succeeded');
+  assert.deepEqual(
+    reusedProgress.map(({ sequence, stage }) => [sequence, stage]),
+    [
+      [1, 'accepted'],
+      [2, 'prepared'],
+      [3, 'executing'],
+      [4, 'terminal'],
+    ],
+  );
 });
 
 test('async command-service binding hydrates and transactionally publishes through host callbacks', async () => {
@@ -239,7 +328,7 @@ test('async command-service binding hydrates and transactionally publishes throu
   assert.match(new TextDecoder().decode(Uint8Array.from(writes.get('write:1').bytes)), /@doc cem-ml 1/);
 });
 
-async function executeVersionCommand(runtime, runtimeKind, ledger = undefined) {
+async function executeVersionCommand(runtime, runtimeKind, ledger = undefined, options = {}) {
   const request = {
     protocolVersion: 1,
     requestId: 'wasm-command-version',
@@ -267,17 +356,19 @@ async function executeVersionCommand(runtime, runtimeKind, ledger = undefined) {
     await runtime.executeCommandServiceV1(
       JSON.stringify(request),
       JSON.stringify(capabilityRequest),
-      async () =>
-        JSON.stringify(
-          ledger ?? {
-            project: request.project,
-            resourceVersions: request.resourceVersions,
-          },
-        ),
+      options.currentRevision ??
+        (async () =>
+          JSON.stringify(
+            ledger ?? {
+              project: request.project,
+              resourceVersions: request.resourceVersions,
+            },
+          )),
       async () => unexpected('readResource'),
       async () => unexpected('prepareWrite'),
       async () => unexpected('commitWrite'),
       async () => unexpected('rollbackWrite'),
+      options.progress,
     ),
   );
 }
