@@ -16,6 +16,7 @@ pub mod debug_control;
 pub mod diagnostics;
 pub mod engine;
 pub mod report;
+pub mod report_projection;
 pub mod resumable_operation;
 
 // Tier A layered runtime contract (AC-F-10). Bodies arrive in Phase 11; types

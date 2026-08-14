@@ -708,6 +708,33 @@ replacement tree may mediate between internal engine layers.
                   operations, and successful prepared-operation handoff.
                   Five native fixture groups cover these boundaries under both the
                   default and stripped feature sets.
+        - [x] Establish the common command-execution service boundary before
+              operation dispatch: make the concrete `resourceVersions` keys the
+              authoritative transform-graph resource manifest, install the
+              transactional writer and registered query exporters at host
+              construction, and project every normalized report format in common
+              Rust rather than a browser, Node, or native CLI adapter.
+            - [x] Add native boundary fixtures covering deterministic graph
+                  dependency matching and rejection, constructor-owned writer and
+                  exporter availability, and byte-stable text, JSON, XML, CEM,
+                  HTML, and Markdown report projections.
+
+              Completed 2026-08-13: transform-graph hydration now parses the
+              admitted config after its first host read, resolves exact, glob,
+              and binding references only against the concrete
+              `resourceVersions` keys, and hydrates the matched input, template,
+              and module-map resources in deterministic URI order without a host
+              listing capability. `CommandServiceHostV1` owns its transactional
+              writer and query-exporter registry from construction, while common
+              Rust owns byte-stable text, JSON, XML, CEM, HTML, and Markdown report
+              projection bytes and media types.
+
+              Three new native fixture cases plus the extended constructor fixture
+              cover deterministic graph matching and two-phase hydration, stable
+              graph-manifest rejection, all six report projections, and installed
+              execution-service availability. The Nx default suite passes 1,931
+              unit tests, the stripped suite passes 1,919, and lint plus default,
+              stripped, default-WASM, and stripped-WASM builds pass.
     - [ ] Add explicit browser API, Node API, npm-executable, pack/install, and
           command-round-trip fixtures with Nx verification targets.
 

@@ -18,7 +18,8 @@ use crate::command_operation::{
     prepare_command_operation_v1, CommandOperationPreparationError, PreparedPortableOperationV1,
 };
 use crate::command_publication::{
-    CommandPublicationHostFailureV1, CommandRevisionLedgerReaderV1, CommandRevisionLedgerRequestV1,
+    CommandPublicationHostFailureV1, CommandResourceWriterV1, CommandRevisionLedgerReaderV1,
+    CommandRevisionLedgerRequestV1,
 };
 use crate::command_service::{
     admit_command_service_request_v1, validate_command_service_limits_v1,
@@ -32,10 +33,27 @@ use crate::operation_handle::{
     validate_operation_host_limits, OperationHandle, OperationHandleError,
     OperationTerminalPublisher,
 };
+use crate::query::QueryResultExporterRegistry;
+
+pub struct CommandExecutionServicesV1 {
+    pub writer: Box<dyn CommandResourceWriterV1>,
+    pub query_exporters: QueryResultExporterRegistry,
+}
+
+impl fmt::Debug for CommandExecutionServicesV1 {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter
+            .debug_struct("CommandExecutionServicesV1")
+            .field("writer", &"installed")
+            .field("query_exporters", &self.query_exporters)
+            .finish()
+    }
+}
 
 pub struct CommandServiceHostV1 {
     ledger_reader: Box<dyn CommandRevisionLedgerReaderV1>,
     resource_reader: Box<dyn CommandResourceReaderV1>,
+    execution: CommandExecutionServicesV1,
     limits: CommandServiceLimitsV1,
     base_context: EngineContext,
     capability: CapabilityManifest,
@@ -47,6 +65,7 @@ impl fmt::Debug for CommandServiceHostV1 {
             .debug_struct("CommandServiceHostV1")
             .field("limits", &self.limits)
             .field("capability", &self.capability)
+            .field("execution", &self.execution)
             .finish_non_exhaustive()
     }
 }
@@ -55,6 +74,7 @@ impl CommandServiceHostV1 {
     pub fn new(
         ledger_reader: Box<dyn CommandRevisionLedgerReaderV1>,
         resource_reader: Box<dyn CommandResourceReaderV1>,
+        execution: CommandExecutionServicesV1,
         limits: CommandServiceLimitsV1,
         base_context: EngineContext,
         capability: CapabilityManifest,
@@ -63,6 +83,7 @@ impl CommandServiceHostV1 {
         Ok(Self {
             ledger_reader,
             resource_reader,
+            execution,
             limits,
             base_context,
             capability,
@@ -75,6 +96,14 @@ impl CommandServiceHostV1 {
 
     pub fn capability(&self) -> &CapabilityManifest {
         &self.capability
+    }
+
+    pub fn query_exporters(&self) -> &QueryResultExporterRegistry {
+        &self.execution.query_exporters
+    }
+
+    pub fn resource_writer(&self) -> &dyn CommandResourceWriterV1 {
+        self.execution.writer.as_ref()
     }
 
     /// Admit, hydrate, and prepare one command request. No operation handle is
@@ -349,12 +378,19 @@ mod tests {
         CommandHostFuture, CommandResolvedResourceV1, CommandResourceReadFailureV1,
         CommandResourceReadRequestV1,
     };
+    use crate::command_publication::{
+        CommandPreparedResourceWriteV1, CommandResourceWriteRequestV1,
+    };
     use crate::command_service::{
         sha256_hex, CommandPolicyStampV1, CommandProjectRevisionV1, CommandResourceVersionV1,
         CommandRevisionLedgerV1, CommandRunPlanV1, CommandUriMapV1,
         COMMAND_SERVICE_PROTOCOL_VERSION,
     };
     use crate::engine::ParseProjection;
+    use crate::query::{
+        QueryEncodedOutput, QueryExportFormat, QueryExportRequest, QueryLanguage,
+        QueryResultExporter,
+    };
     use crate::run_config::{
         parse_normalized_run_plan, NormalizedRunPlanRequest, RunConfigDefaults,
     };
@@ -408,6 +444,49 @@ mod tests {
                 signal.abort();
             }
             Box::pin(std::future::ready(self.response.clone()))
+        }
+    }
+
+    struct FixtureWriter;
+
+    impl CommandResourceWriterV1 for FixtureWriter {
+        fn prepare<'a>(
+            &'a self,
+            _request: CommandResourceWriteRequestV1,
+            _bytes: &'a [u8],
+        ) -> CommandHostFuture<
+            'a,
+            Result<Box<dyn CommandPreparedResourceWriteV1>, CommandPublicationHostFailureV1>,
+        > {
+            Box::pin(std::future::ready(Err(
+                CommandPublicationHostFailureV1::new(
+                    "fixture.unexpected_write",
+                    "preparation fixtures must not write",
+                ),
+            )))
+        }
+    }
+
+    struct FixtureQueryExporter;
+
+    impl QueryResultExporter for FixtureQueryExporter {
+        fn id(&self) -> &'static str {
+            "fixture-query-exporter"
+        }
+
+        fn language(&self) -> QueryLanguage {
+            QueryLanguage::XPath
+        }
+
+        fn format(&self) -> QueryExportFormat {
+            QueryExportFormat::Json
+        }
+
+        fn export(&self, _request: QueryExportRequest<'_>) -> Result<QueryEncodedOutput, String> {
+            Ok(QueryEncodedOutput {
+                content_type: "application/json".to_owned(),
+                bytes: b"[]".to_vec(),
+            })
         }
     }
 
@@ -499,6 +578,8 @@ mod tests {
         capability: CapabilityManifest,
         abort_after_ledger: Option<AbortSignal>,
     ) -> Result<CommandServiceHostV1, CommandServiceHostErrorV1> {
+        let mut query_exporters = QueryResultExporterRegistry::new();
+        query_exporters.register(FixtureQueryExporter);
         CommandServiceHostV1::new(
             Box::new(FixtureLedger {
                 response: ledger_response,
@@ -509,6 +590,10 @@ mod tests {
                 response: reader_response,
                 state,
             }),
+            CommandExecutionServicesV1 {
+                writer: Box::new(FixtureWriter),
+                query_exporters,
+            },
             CommandServiceLimitsV1::default(),
             EngineContext::default(),
             capability,
@@ -690,6 +775,19 @@ mod tests {
     fn constructor_rejects_capability_and_limit_drift() {
         let request = request();
         let state = Arc::new(FixtureState::default());
+        let installed = host(
+            Ok(ledger(&request)),
+            Ok(resource(&request)),
+            Arc::clone(&state),
+            capability(),
+            None,
+        )
+        .unwrap();
+        assert!(installed
+            .query_exporters()
+            .contains(QueryLanguage::XPath, QueryExportFormat::Json));
+        let _writer = installed.resource_writer();
+
         let mut drifted = capability();
         drifted.operation_limits.max_retained_handles -= 1;
         let error = host(

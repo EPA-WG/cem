@@ -456,6 +456,10 @@ impl QueryResultExporterRegistry {
             .insert((exporter.language(), exporter.format()), Arc::new(exporter));
     }
 
+    pub fn contains(&self, language: QueryLanguage, format: QueryExportFormat) -> bool {
+        self.exporters.contains_key(&(language, format))
+    }
+
     pub fn export(
         &self,
         format: QueryExportFormat,

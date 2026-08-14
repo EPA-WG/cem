@@ -11,6 +11,8 @@ use std::fmt;
 use std::future::Future;
 use std::pin::Pin;
 
+use regex::Regex;
+
 use crate::command_service::{
     admit_command_service_request_v1, sha256_hex, validate_command_service_request_v1,
     CommandProjectRevisionV1, CommandResourceVersionV1, CommandRevisionLedgerV1,
@@ -23,6 +25,9 @@ use crate::operation_control::{ControlError, OperationControl};
 use crate::resolver::ResolvePurpose;
 use crate::run_config::{infer_content_type_from_path, NormalizedRunPlan};
 use crate::schema::registry::XPATH_CONTENT_TYPE;
+use crate::transform_config::{
+    parse_transform_graph_config, TransformGraphNodeKind, TransformGraphParseRequest,
+};
 
 /// A host callback future deliberately carries no `Send` requirement so the
 /// same capability can wrap browser promises and native async readers. Native
@@ -116,6 +121,10 @@ pub enum CommandResourceHydrationErrorV1 {
         expected: String,
         actual: String,
     },
+    GraphResourceManifest {
+        uri: String,
+        message: String,
+    },
     Control(ControlError),
 }
 
@@ -133,6 +142,7 @@ impl CommandResourceHydrationErrorV1 {
             Self::ResourceBytesDigestMismatch { .. } => {
                 "cem.command_service.host_resource_bytes_digest_mismatch"
             }
+            Self::GraphResourceManifest { .. } => "cem.command_service.graph_resource_manifest",
             Self::Control(error) => error.code(),
         }
     }
@@ -169,6 +179,12 @@ impl fmt::Display for CommandResourceHydrationErrorV1 {
                 formatter,
                 "host read bytes for `{uri}` hash to `{actual}`; expected `{expected}`"
             ),
+            Self::GraphResourceManifest { uri, message } => {
+                write!(
+                    formatter,
+                    "transform graph `{uri}` resource manifest is invalid: {message}"
+                )
+            }
             Self::Control(error) => error.fmt(formatter),
         }
     }
@@ -309,6 +325,133 @@ pub fn missing_command_resource_reads_v1(
         .collect()
 }
 
+/// Resolve every resource a parsed transform graph may read against the
+/// request's concrete `resourceVersions` manifest. Exact references and
+/// path/binding patterns never trigger host-side listing.
+pub fn missing_command_graph_resource_reads_v1(
+    request: &CommandServiceRequestV1,
+    limits: CommandServiceLimitsV1,
+) -> Result<Vec<CommandResourceReadRequestV1>, CommandResourceHydrationErrorV1> {
+    validate_command_service_request_v1(request, limits)?;
+    let PortableOperationRequestV1::Transform {
+        source: CommandTransformSourceV1::Graph { config_uri },
+        ..
+    } = &request.operation
+    else {
+        return Ok(Vec::new());
+    };
+    let config = request.resources.get(config_uri).ok_or_else(|| {
+        CommandResourceHydrationErrorV1::GraphResourceManifest {
+            uri: config_uri.clone(),
+            message: "the graph config must be hydrated before dependency matching".to_owned(),
+        }
+    })?;
+    let mut identity = config.identity.clone().unwrap_or_default();
+    if identity.content_type.is_none() {
+        identity.content_type = Some("application/cem+xml".to_owned());
+    }
+    if identity.schema.is_none() {
+        identity.schema = Some(crate::transform_config::TRANSFORM_CONFIG_SCHEMA_URI.to_owned());
+    }
+    identity.base_uri = Some(config_uri.clone());
+    let parsed = parse_transform_graph_config(TransformGraphParseRequest {
+        bytes: config.bytes.clone(),
+        identity,
+        base_uri: Some(config_uri.clone()),
+    })
+    .map_err(
+        |error| CommandResourceHydrationErrorV1::GraphResourceManifest {
+            uri: config_uri.clone(),
+            message: format!("{}: {}", error.code, error.message),
+        },
+    )?;
+    if !parsed.diagnostics.is_empty() {
+        return Err(CommandResourceHydrationErrorV1::GraphResourceManifest {
+            uri: config_uri.clone(),
+            message: parsed
+                .diagnostics
+                .iter()
+                .map(|diagnostic| diagnostic.code.as_str())
+                .collect::<Vec<_>>()
+                .join(", "),
+        });
+    }
+
+    let mut needs = BTreeMap::<String, ResourceNeed>::new();
+    for node in &parsed.graph.nodes {
+        match node.kind {
+            TransformGraphNodeKind::Import => {
+                if let Some(reference) = node.src.as_deref() {
+                    add_graph_reference_needs(
+                        request,
+                        &mut needs,
+                        config_uri,
+                        &node.id,
+                        "src",
+                        reference,
+                        ResolvePurpose::Input,
+                        node.content_type.as_deref(),
+                    )?;
+                }
+            }
+            TransformGraphNodeKind::Transform => {
+                if let Some(reference) = node.src.as_deref() {
+                    add_graph_reference_needs(
+                        request,
+                        &mut needs,
+                        config_uri,
+                        &node.id,
+                        "src",
+                        reference,
+                        ResolvePurpose::Template,
+                        node.template_content_type.as_deref(),
+                    )?;
+                }
+            }
+            TransformGraphNodeKind::ImportMapRewrite => {
+                for (field, reference) in [
+                    ("sourceMap", node.source_map.as_deref()),
+                    ("targetMap", node.target_map.as_deref()),
+                ] {
+                    if let Some(reference) = reference {
+                        add_graph_reference_needs(
+                            request,
+                            &mut needs,
+                            config_uri,
+                            &node.id,
+                            field,
+                            reference,
+                            ResolvePurpose::ModuleMap,
+                            Some("application/json"),
+                        )?;
+                    }
+                }
+            }
+            TransformGraphNodeKind::Join | TransformGraphNodeKind::Export => {}
+        }
+    }
+
+    needs
+        .into_iter()
+        .map(|(uri, need)| {
+            let expected = request
+                .resource_versions
+                .get(&uri)
+                .cloned()
+                .expect("graph need was selected from the concrete resource manifest");
+            Ok(CommandResourceReadRequestV1 {
+                request_id: request.request_id.clone(),
+                project: request.project.clone(),
+                uri,
+                purposes: need.purposes,
+                content_type_hints: need.content_type_hints,
+                expected,
+                resolver_policy_stamp: request.policy_stamp.resolver.clone(),
+            })
+        })
+        .collect()
+}
+
 /// Admit and hydrate a request without exposing live callbacks in its wire
 /// representation. Reads run sequentially in URI order so hosts observe a
 /// deterministic, bounded request sequence.
@@ -348,8 +491,27 @@ async fn hydrate_command_service_request_inner_v1(
         CommandServiceAdmissionV1::Accepted => {}
     }
 
-    let reads = missing_command_resource_reads_v1(request, limits)?;
     let mut hydrated = request.clone();
+    hydrate_command_reads_v1(
+        &mut hydrated,
+        missing_command_resource_reads_v1(request, limits)?,
+        reader,
+        control,
+    )
+    .await?;
+    let graph_reads = missing_command_graph_resource_reads_v1(&hydrated, limits)?;
+    hydrate_command_reads_v1(&mut hydrated, graph_reads, reader, control).await?;
+    check_hydration_control(control)?;
+    validate_command_service_request_v1(&hydrated, limits)?;
+    Ok(CommandServiceHydrationV1::Ready(Box::new(hydrated)))
+}
+
+async fn hydrate_command_reads_v1(
+    hydrated: &mut CommandServiceRequestV1,
+    reads: Vec<CommandResourceReadRequestV1>,
+    reader: &dyn CommandResourceReaderV1,
+    control: Option<&OperationControl>,
+) -> Result<(), CommandResourceHydrationErrorV1> {
     for read_request in reads {
         check_hydration_control(control)?;
         let uri = read_request.uri.clone();
@@ -393,9 +555,143 @@ async fn hydrate_command_service_request_inner_v1(
             },
         );
     }
-    check_hydration_control(control)?;
-    validate_command_service_request_v1(&hydrated, limits)?;
-    Ok(CommandServiceHydrationV1::Ready(Box::new(hydrated)))
+    Ok(())
+}
+
+#[allow(clippy::too_many_arguments)]
+fn add_graph_reference_needs(
+    request: &CommandServiceRequestV1,
+    needs: &mut BTreeMap<String, ResourceNeed>,
+    config_uri: &str,
+    node_id: &str,
+    field: &str,
+    reference: &str,
+    purpose: ResolvePurpose,
+    content_type_hint: Option<&str>,
+) -> Result<(), CommandResourceHydrationErrorV1> {
+    let resolved = resolve_graph_reference(config_uri, reference);
+    let patterned = resolved.contains('*') || resolved.contains('?') || resolved.contains('{');
+    let matches = if patterned {
+        let matcher = graph_reference_matcher(&resolved).map_err(|message| {
+            CommandResourceHydrationErrorV1::GraphResourceManifest {
+                uri: config_uri.to_owned(),
+                message: format!("node `{node_id}` field `{field}`: {message}"),
+            }
+        })?;
+        request
+            .resource_versions
+            .keys()
+            .filter(|uri| matcher.is_match(uri))
+            .cloned()
+            .collect::<Vec<_>>()
+    } else if request.resource_versions.contains_key(&resolved) {
+        vec![resolved.clone()]
+    } else {
+        Vec::new()
+    };
+    if matches.is_empty() {
+        return Err(CommandResourceHydrationErrorV1::GraphResourceManifest {
+            uri: config_uri.to_owned(),
+            message: format!(
+                "node `{node_id}` field `{field}` reference `{reference}` matched no concrete resourceVersions URI"
+            ),
+        });
+    }
+    for uri in matches {
+        add_need(request, needs, &uri, purpose, content_type_hint);
+    }
+    Ok(())
+}
+
+fn resolve_graph_reference(config_uri: &str, reference: &str) -> String {
+    if crate::resolver::uri_scheme(reference).is_some() || reference.starts_with('/') {
+        return reference.to_owned();
+    }
+    let base = config_uri
+        .rsplit_once('/')
+        .map(|(base, _)| base)
+        .unwrap_or(config_uri);
+    normalize_graph_uri(&format!("{base}/{reference}"))
+}
+
+fn normalize_graph_uri(uri: &str) -> String {
+    let (prefix, path) = if let Some(scheme) = uri.find("://") {
+        let authority_start = scheme + 3;
+        match uri[authority_start..].find('/') {
+            Some(path_start) => {
+                let path_start = authority_start + path_start;
+                (&uri[..path_start], &uri[path_start + 1..])
+            }
+            None => (uri, ""),
+        }
+    } else if let Some(path) = uri.strip_prefix('/') {
+        ("", path)
+    } else {
+        ("", uri)
+    };
+    let mut segments = Vec::new();
+    for segment in path.split('/') {
+        match segment {
+            "" | "." => {}
+            ".." => {
+                segments.pop();
+            }
+            _ => segments.push(segment),
+        }
+    }
+    if prefix.is_empty() {
+        segments.join("/")
+    } else {
+        format!("{prefix}/{}", segments.join("/"))
+    }
+}
+
+fn graph_reference_matcher(pattern: &str) -> Result<Regex, String> {
+    let mut expression = String::from("^");
+    let mut characters = pattern.chars().peekable();
+    while let Some(character) = characters.next() {
+        match character {
+            '*' if characters.peek() == Some(&'*') => {
+                characters.next();
+                expression.push_str(".*");
+            }
+            '*' => expression.push_str("[^/]*"),
+            '?' => expression.push_str("[^/]"),
+            '{' => {
+                let mut name = String::new();
+                loop {
+                    match characters.next() {
+                        Some('}') => break,
+                        Some(character) => name.push(character),
+                        None => {
+                            return Err(format!(
+                                "reference pattern `{pattern}` has an unclosed binding"
+                            ))
+                        }
+                    }
+                }
+                if name.trim().is_empty() {
+                    return Err(format!(
+                        "reference pattern `{pattern}` has an empty binding"
+                    ));
+                }
+                expression.push_str("[^/]+");
+            }
+            '}' => {
+                return Err(format!(
+                    "reference pattern `{pattern}` has an unmatched closing binding"
+                ))
+            }
+            '[' | ']' => {
+                return Err(format!(
+                    "reference pattern `{pattern}` uses unsupported character-class syntax"
+                ))
+            }
+            _ => expression.push_str(&regex::escape(&character.to_string())),
+        }
+    }
+    expression.push('$');
+    Regex::new(&expression).map_err(|error| error.to_string())
 }
 
 fn check_hydration_control(
@@ -476,6 +772,11 @@ mod tests {
     const DATA_URI: &str = "studio://catalog/a-data.cem";
     const SECOND_URI: &str = "studio://catalog/b-data.cem";
     const QUERY_URI: &str = "studio://catalog/query.xpath";
+    const GRAPH_URI: &str = "studio://catalog/graph.cem";
+    const GRAPH_INPUT_A_URI: &str = "studio://catalog/inputs/a.cem";
+    const GRAPH_INPUT_B_URI: &str = "studio://catalog/inputs/b.cem";
+    const GRAPH_TEMPLATE_URI: &str = "studio://catalog/templates/main.cem";
+    const GRAPH_BYTES: &[u8] = br#"{@doc cem-ml 1}{run | {import @id=data @src="inputs/*.cem" @content-type="application/cem+xml" | {transform @id=view @src="templates/main.cem" @template-content-type="text/cem-ml"}}}"#;
 
     #[derive(Default)]
     struct FixtureReader {
@@ -588,6 +889,14 @@ mod tests {
                 resource_versions
                     .entry(template_uri.clone())
                     .or_insert_with(|| version(b"{@doc cem-ml 1}{template @name=main}"));
+            }
+            PortableOperationRequestV1::Transform {
+                source: CommandTransformSourceV1::Graph { config_uri },
+                ..
+            } => {
+                resource_versions
+                    .entry(config_uri.clone())
+                    .or_insert_with(|| version(GRAPH_BYTES));
             }
             _ => {}
         }
@@ -851,5 +1160,105 @@ mod tests {
             query.content_type_hints,
             BTreeSet::from([XPATH_CONTENT_TYPE.to_owned()])
         );
+    }
+
+    #[test]
+    fn graph_manifest_matches_concrete_resources_and_hydrates_without_host_listing() {
+        let mut request = request(PortableOperationRequestV1::Transform {
+            source: CommandTransformSourceV1::Graph {
+                config_uri: GRAPH_URI.to_owned(),
+            },
+            params: BTreeMap::new(),
+            template_entrypoint: TransformTemplateEntrypoint::implicit(),
+            preserve_source_offsets: true,
+        });
+        for (uri, bytes) in [
+            (GRAPH_INPUT_B_URI, b"{b}".as_slice()),
+            (GRAPH_INPUT_A_URI, b"{a}".as_slice()),
+            (GRAPH_TEMPLATE_URI, b"{template}".as_slice()),
+        ] {
+            request
+                .resource_versions
+                .insert(uri.to_owned(), version(bytes));
+        }
+        request.resources.insert(
+            GRAPH_URI.to_owned(),
+            VirtualResourceV1 {
+                bytes: GRAPH_BYTES.to_vec(),
+                identity: None,
+            },
+        );
+
+        let reads =
+            missing_command_graph_resource_reads_v1(&request, CommandServiceLimitsV1::default())
+                .expect("graph manifest resolves");
+        assert_eq!(
+            reads
+                .iter()
+                .map(|read| read.uri.as_str())
+                .collect::<Vec<_>>(),
+            [GRAPH_INPUT_A_URI, GRAPH_INPUT_B_URI, GRAPH_TEMPLATE_URI]
+        );
+        assert_eq!(reads[0].purposes, BTreeSet::from([ResolvePurpose::Input]));
+        assert_eq!(
+            reads[2].purposes,
+            BTreeSet::from([ResolvePurpose::Template])
+        );
+
+        request.resources.remove(GRAPH_URI);
+        let reader = FixtureReader::default()
+            .with_resource(GRAPH_URI, GRAPH_BYTES)
+            .with_resource(GRAPH_INPUT_A_URI, b"{a}")
+            .with_resource(GRAPH_INPUT_B_URI, b"{b}")
+            .with_resource(GRAPH_TEMPLATE_URI, b"{template}");
+        let hydrated = block_on(hydrate_command_service_request_v1(
+            &request,
+            &ledger(&request),
+            &reader,
+            CommandServiceLimitsV1::default(),
+        ))
+        .expect("two-phase graph hydration");
+        assert!(matches!(hydrated, CommandServiceHydrationV1::Ready(_)));
+        assert_eq!(
+            reader
+                .calls()
+                .iter()
+                .map(|read| read.uri.as_str())
+                .collect::<Vec<_>>(),
+            [
+                GRAPH_URI,
+                GRAPH_INPUT_A_URI,
+                GRAPH_INPUT_B_URI,
+                GRAPH_TEMPLATE_URI
+            ]
+        );
+    }
+
+    #[test]
+    fn graph_manifest_rejects_unmatched_and_malformed_patterns() {
+        let mut request = request(PortableOperationRequestV1::Transform {
+            source: CommandTransformSourceV1::Graph {
+                config_uri: GRAPH_URI.to_owned(),
+            },
+            params: BTreeMap::new(),
+            template_entrypoint: TransformTemplateEntrypoint::implicit(),
+            preserve_source_offsets: false,
+        });
+        request.resources.insert(
+            GRAPH_URI.to_owned(),
+            VirtualResourceV1 {
+                bytes: GRAPH_BYTES.to_vec(),
+                identity: None,
+            },
+        );
+        let error =
+            missing_command_graph_resource_reads_v1(&request, CommandServiceLimitsV1::default())
+                .expect_err("unmatched graph resources reject");
+        assert_eq!(error.code(), "cem.command_service.graph_resource_manifest");
+        assert!(error.to_string().contains("matched no concrete"));
+
+        let error = graph_reference_matcher("studio://catalog/{stem.json")
+            .expect_err("unclosed binding rejects");
+        assert!(error.contains("unclosed binding"));
     }
 }
