@@ -841,6 +841,12 @@ pub fn validate_command_service_result_v1(
     Ok(())
 }
 
+pub fn validate_command_service_limits_v1(
+    limits: CommandServiceLimitsV1,
+) -> Result<(), CommandServiceError> {
+    validate_limits(limits)
+}
+
 fn validate_limits(limits: CommandServiceLimitsV1) -> Result<(), CommandServiceError> {
     validate_limit(
         "maxArtifactReferences",

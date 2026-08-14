@@ -5,6 +5,7 @@ pub mod capability;
 pub mod command_host;
 pub mod command_operation;
 pub mod command_publication;
+pub mod command_runtime;
 pub mod command_service;
 pub mod conversion;
 pub(crate) mod conversion_output;

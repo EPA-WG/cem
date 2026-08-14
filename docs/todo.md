@@ -693,6 +693,21 @@ replacement tree may mediate between internal engine layers.
                   duplicate destinations, atomic handle reservation, prepare and
                   commit failures, post-commit rollback, stale/cancelled precommit
                   state, rollback failures, and successful retained-byte lookup.
+        - [x] Construct the Rust-owned command-service v1 host around
+              constructor-owned revision-ledger and resource-reader capabilities,
+              rejecting stale, cancelled, unavailable, or limit-incompatible
+              requests before execution and returning an operation-owned prepared
+              invocation without adding callbacks to the wire request.
+              `CommandServiceHostV1` now validates the negotiated host contract,
+              gates admission before hydration, binds one operation control through
+              every async host boundary and engine request, and returns the owned
+              handle and terminal publisher only for ready work.
+            - [x] Add native host fixtures covering constructor validation,
+                  admission-before-hydration ordering, deterministic missing-resource
+                  reads, stale and cancelled state, ledger/read failures, unavailable
+                  operations, and successful prepared-operation handoff.
+                  Five native fixture groups cover these boundaries under both the
+                  default and stripped feature sets.
     - [ ] Add explicit browser API, Node API, npm-executable, pack/install, and
           command-round-trip fixtures with Nx verification targets.
 

@@ -1821,6 +1821,12 @@ impl<R> Future for OperationEventFuture<'_, R> {
     }
 }
 
+pub fn validate_operation_host_limits(
+    limits: OperationHostLimits,
+) -> Result<(), OperationHandleError> {
+    validate_limits(limits)
+}
+
 fn validate_limits(limits: OperationHostLimits) -> Result<(), OperationHandleError> {
     validate_limit(
         "maxLiveSubscriptions",

@@ -19,6 +19,7 @@ use crate::command_service::{
     PortableOperationRequestV1, VirtualResourceV1,
 };
 use crate::engine::FormatIdentity;
+use crate::operation_control::{ControlError, OperationControl};
 use crate::resolver::ResolvePurpose;
 use crate::run_config::{infer_content_type_from_path, NormalizedRunPlan};
 use crate::schema::registry::XPATH_CONTENT_TYPE;
@@ -115,6 +116,7 @@ pub enum CommandResourceHydrationErrorV1 {
         expected: String,
         actual: String,
     },
+    Control(ControlError),
 }
 
 impl CommandResourceHydrationErrorV1 {
@@ -131,6 +133,7 @@ impl CommandResourceHydrationErrorV1 {
             Self::ResourceBytesDigestMismatch { .. } => {
                 "cem.command_service.host_resource_bytes_digest_mismatch"
             }
+            Self::Control(error) => error.code(),
         }
     }
 }
@@ -166,6 +169,7 @@ impl fmt::Display for CommandResourceHydrationErrorV1 {
                 formatter,
                 "host read bytes for `{uri}` hash to `{actual}`; expected `{expected}`"
             ),
+            Self::Control(error) => error.fmt(formatter),
         }
     }
 }
@@ -175,6 +179,7 @@ impl std::error::Error for CommandResourceHydrationErrorV1 {
         match self {
             Self::Request(error) => Some(error),
             Self::HostRead { source, .. } => Some(source),
+            Self::Control(error) => Some(error),
             _ => None,
         }
     }
@@ -183,6 +188,12 @@ impl std::error::Error for CommandResourceHydrationErrorV1 {
 impl From<CommandServiceError> for CommandResourceHydrationErrorV1 {
     fn from(error: CommandServiceError) -> Self {
         Self::Request(error)
+    }
+}
+
+impl From<ControlError> for CommandResourceHydrationErrorV1 {
+    fn from(error: ControlError) -> Self {
+        Self::Control(error)
     }
 }
 
@@ -307,6 +318,29 @@ pub async fn hydrate_command_service_request_v1(
     reader: &dyn CommandResourceReaderV1,
     limits: CommandServiceLimitsV1,
 ) -> Result<CommandServiceHydrationV1, CommandResourceHydrationErrorV1> {
+    hydrate_command_service_request_inner_v1(request, ledger, reader, limits, None).await
+}
+
+/// Hydrate an admitted operation while checking its root control before and
+/// after every asynchronous host read. This keeps cancellation cooperative
+/// without serializing a signal into the command-service request.
+pub async fn hydrate_command_service_operation_v1(
+    request: &CommandServiceRequestV1,
+    ledger: &CommandRevisionLedgerV1,
+    reader: &dyn CommandResourceReaderV1,
+    limits: CommandServiceLimitsV1,
+    control: &OperationControl,
+) -> Result<CommandServiceHydrationV1, CommandResourceHydrationErrorV1> {
+    hydrate_command_service_request_inner_v1(request, ledger, reader, limits, Some(control)).await
+}
+
+async fn hydrate_command_service_request_inner_v1(
+    request: &CommandServiceRequestV1,
+    ledger: &CommandRevisionLedgerV1,
+    reader: &dyn CommandResourceReaderV1,
+    limits: CommandServiceLimitsV1,
+    control: Option<&OperationControl>,
+) -> Result<CommandServiceHydrationV1, CommandResourceHydrationErrorV1> {
     match admit_command_service_request_v1(request, ledger, limits)? {
         CommandServiceAdmissionV1::Stale(stale) => {
             return Ok(CommandServiceHydrationV1::Stale(stale));
@@ -317,6 +351,7 @@ pub async fn hydrate_command_service_request_v1(
     let reads = missing_command_resource_reads_v1(request, limits)?;
     let mut hydrated = request.clone();
     for read_request in reads {
+        check_hydration_control(control)?;
         let uri = read_request.uri.clone();
         let expected = read_request.expected.clone();
         let resolved = reader.read(read_request).await.map_err(|source| {
@@ -325,6 +360,7 @@ pub async fn hydrate_command_service_request_v1(
                 source,
             }
         })?;
+        check_hydration_control(control)?;
         if resolved.version.revision != expected.revision {
             return Err(CommandResourceHydrationErrorV1::ResourceRevisionMismatch {
                 uri,
@@ -357,8 +393,20 @@ pub async fn hydrate_command_service_request_v1(
             },
         );
     }
+    check_hydration_control(control)?;
     validate_command_service_request_v1(&hydrated, limits)?;
     Ok(CommandServiceHydrationV1::Ready(Box::new(hydrated)))
+}
+
+fn check_hydration_control(
+    control: Option<&OperationControl>,
+) -> Result<(), CommandResourceHydrationErrorV1> {
+    match control {
+        Some(control) => control
+            .check_scope(control.root_scope())
+            .map_err(CommandResourceHydrationErrorV1::Control),
+        None => Ok(()),
+    }
 }
 
 fn add_input_need(
