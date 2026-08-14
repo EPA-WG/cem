@@ -380,9 +380,25 @@ pub struct CommandQueryResultV1 {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CommandOutputResultV1<T> {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub output_id: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub destination: Option<String>,
+    pub response: T,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CommandFanoutResultV1<T> {
+    pub outputs: BoundedList<CommandOutputResultV1<T>>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "kind", content = "value", rename_all = "kebab-case")]
 pub enum CommandTransformResultV1 {
-    Direct(TransformResponse),
+    Direct(CommandFanoutResultV1<TransformResponse>),
     Graph(TransformGraphResponse),
 }
 
@@ -400,7 +416,7 @@ pub enum PortableOperationResultV1 {
     Validate(ValidateResponse),
     Check(CheckResponse),
     Inspect(InspectResponse),
-    Convert(ConvertResponse),
+    Convert(CommandFanoutResultV1<ConvertResponse>),
     Query(CommandQueryResultV1),
     Transform(CommandTransformResultV1),
     Trace(TraceResponse),
@@ -842,11 +858,50 @@ pub fn validate_command_service_result_v1(
                     reason: "inline result operation does not match the result envelope",
                 });
             }
+            validate_operation_result(value, limits)?;
         }
         validate_payload(payload, limits)?;
     }
     if let Some(report) = &result.report {
         validate_payload(report, limits)?;
+    }
+    Ok(())
+}
+
+fn validate_operation_result(
+    result: &PortableOperationResultV1,
+    limits: CommandServiceLimitsV1,
+) -> Result<(), CommandServiceError> {
+    match result {
+        PortableOperationResultV1::Convert(result) => validate_fanout_result(result, limits),
+        PortableOperationResultV1::Transform(CommandTransformResultV1::Direct(result)) => {
+            validate_fanout_result(result, limits)
+        }
+        _ => Ok(()),
+    }
+}
+
+fn validate_fanout_result<T>(
+    result: &CommandFanoutResultV1<T>,
+    limits: CommandServiceLimitsV1,
+) -> Result<(), CommandServiceError> {
+    validate_bounded_list(
+        &result.outputs,
+        limits.operation_host.max_artifact_references,
+        "fan-out outputs exceed the negotiated limit",
+    )?;
+    if result.outputs.items.is_empty() || result.outputs.original_count == 0 {
+        return Err(CommandServiceError::ResultContract {
+            reason: "fan-out result must contain at least one output",
+        });
+    }
+    for output in &result.outputs.items {
+        if let Some(output_id) = output.output_id.as_deref() {
+            validate_identity("result.outputs.outputId", output_id)?;
+        }
+        if let Some(destination) = output.destination.as_deref() {
+            validate_uri("result.outputs.destination", destination)?;
+        }
     }
     Ok(())
 }

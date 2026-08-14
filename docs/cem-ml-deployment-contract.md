@@ -304,6 +304,15 @@ the operation `result` or an `artifact` `handleId`, and a
 handle disposal are service methods keyed by `requestId` and `handleId`; raw
 Rust pointers and WASM memory views never cross this boundary.
 
+Prepared `convert` and direct `transform` operations may fan out across the
+normalized output records. Their typed result is therefore a
+`CommandFanoutResultV1<T>` containing a negotiated `BoundedList` of
+`{ outputId?, destination?, response }` entries in preparation order; it is not
+a singular engine response. The list is non-empty and cannot exceed
+`maxArtifactReferences`. Transform-graph results keep their graph-owned artifact
+aggregate because graph export identities and destinations are already carried
+by `TransformGraphResponse`.
+
 The host supplies a read-only current project/resource revision ledger when it
 constructs the service; the service owns both freshness comparisons. It checks
 the same snapshot immediately before admission and immediately before

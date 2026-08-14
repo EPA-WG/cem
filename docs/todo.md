@@ -758,9 +758,9 @@ replacement tree may mediate between internal engine layers.
               execution-service availability. The Nx default suite passes 1,931
               unit tests, the stripped suite passes 1,919, and lint plus default,
               stripped, default-WASM, and stripped-WASM builds pass.
-        - [ ] Execute every prepared command-service v1 invocation through common
+        - [x] Execute every prepared command-service v1 invocation through common
               engine/query boundaries and settle exactly one bounded terminal
-              result before publication.
+              result after transactional publication.
             - [x] Keep transform-graph params and entrypoints stage-local by
                   rejecting non-empty or named operation-envelope values during
                   command admission and native CLI parsing.
@@ -809,9 +809,31 @@ replacement tree may mediate between internal engine layers.
                   intentional schema-package ignore. Both lints and common/native
                   default and stripped builds pass, as do common default-WASM and
                   stripped-WASM builds.
-            - [ ] Add native execution fixtures covering every prepared operation,
+            - [x] Add native execution fixtures covering every prepared operation,
                   cancellation and failure mapping, output publication, and exactly
                   one terminal command-service result.
+                - [x] Lock the bounded fan-out wire result for convert and direct
+                      transform outputs, preserving each output id and destination.
+                - [x] Execute all nine prepared operation variants through their
+                      common engine or query boundary with bounded result data.
+                - [x] Prove cancellation and engine/query/publication failure
+                      mapping, transactional publication, and one terminal settlement.
+
+                  Completed 2026-08-14: `CommandServiceHostV1` now executes every
+                  prepared operation through the common engine or query boundary,
+                  transactionally publishes requested artifacts, and settles one
+                  terminal result. Convert and direct-transform results use a
+                  negotiated bounded fan-out aggregate that preserves output ids
+                  and destinations; graph transforms retain their graph-owned
+                  artifact aggregate.
+
+                  Six native fixtures cover all nine portable operations, both
+                  transform forms, fan-out identity, cancellation, engine and query
+                  failures, successful commit, failed-publication rollback, stale
+                  revision rollback, and exactly-once terminal delivery. The Nx
+                  common default suite passes 1,944 unit tests and the stripped
+                  suite passes 1,932. Lint plus default and stripped native builds
+                  and default and stripped WASM builds pass.
     - [ ] Add explicit browser API, Node API, npm-executable, pack/install, and
           command-round-trip fixtures with Nx verification targets.
 

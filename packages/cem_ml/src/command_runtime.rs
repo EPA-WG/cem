@@ -10,6 +10,7 @@ use std::fmt;
 use crate::capability::{
     CapabilityAvailability, CapabilityManifest, CapabilityOperation, CAPABILITY_CONTRACT_VERSION,
 };
+use crate::command_execution::execute_prepared_command_v1;
 use crate::command_host::{
     hydrate_command_service_operation_v1, CommandResourceHydrationErrorV1, CommandResourceReaderV1,
     CommandServiceHydrationV1,
@@ -27,11 +28,11 @@ use crate::command_service::{
     CommandServiceLimitsV1, CommandServiceRequestV1, CommandServiceResultV1,
     CommandStaleRevisionV1, PortableOperationRequestV1,
 };
-use crate::engine::EngineContext;
+use crate::engine::{CemMlEngine, EngineContext};
 use crate::operation_control::OperationControl;
 use crate::operation_handle::{
     validate_operation_host_limits, OperationHandle, OperationHandleError,
-    OperationTerminalPublisher,
+    OperationTerminalPublisher, TerminalClaim,
 };
 use crate::query::QueryResultExporterRegistry;
 
@@ -177,6 +178,27 @@ impl CommandServiceHostV1 {
                 terminal_publisher,
             },
         )))
+    }
+
+    /// Execute one ready invocation through the common engine/query boundary,
+    /// transactionally publish requested artifacts, and settle its terminal
+    /// operation outcome exactly once.
+    pub async fn execute<E: CemMlEngine + ?Sized>(
+        &self,
+        engine: &E,
+        invocation: Box<PreparedCommandServiceInvocationV1>,
+    ) -> Result<TerminalClaim<CommandServiceResultV1>, CommandServiceHostErrorV1> {
+        execute_prepared_command_v1(
+            engine,
+            invocation,
+            self.ledger_reader.as_ref(),
+            self.execution.writer.as_ref(),
+            &self.execution.query_exporters,
+            &self.capability,
+            self.limits,
+        )
+        .await
+        .map_err(CommandServiceHostErrorV1::Operation)
     }
 }
 
